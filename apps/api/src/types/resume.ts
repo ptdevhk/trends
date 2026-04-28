@@ -59,6 +59,7 @@ export type ResumeIngestData = {
   companyHits?: string[];
   industryDbV2Raw?: number;
   roleSignals?: ResumeIngestRoleSignal[];
+  verifiedRoleYears?: Record<string, number>;
 };
 
 export type ResumeItem = {

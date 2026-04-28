@@ -787,6 +787,107 @@ function dedupeExactKeywordEntries(
   return Array.from(deduped.values())
 }
 
+type BffAndModeResult = {
+  resumes: ConvexResumeItem[]
+  total: number
+  expansion: KeywordExpansionSummary | null
+}
+
+function useBffAndModeSearch(
+  enabled: boolean,
+  normalizedQuery: string | undefined,
+  keywordExpansion: KeywordExpansionSummary | null,
+  expansionLoading: boolean,
+  filters: ConvexResumeFilters | undefined,
+  jobDescriptionId: string | undefined,
+): BffAndModeResult {
+  const [result, setResult] = useState<BffAndModeResult>({ resumes: [], total: 0, expansion: null })
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    let active = true
+
+    if (!enabled || !normalizedQuery || !keywordExpansion || keywordExpansion.mode !== 'AND' || expansionLoading) {
+      setResult({ resumes: [], total: 0, expansion: null })
+      setLoading(false)
+      return () => { active = false }
+    }
+
+    setLoading(true)
+    const queryParams: Record<string, string | number | boolean | undefined> = {
+      q: normalizedQuery,
+      source: 'convex',
+      paged: 'true',
+      ...(filters?.minExperience != null ? { minExperience: filters.minExperience } : {}),
+      ...(filters?.maxExperience != null ? { maxExperience: filters.maxExperience } : {}),
+      ...(filters?.minRoleYears != null ? { minRoleYears: filters.minRoleYears } : {}),
+      ...(filters?.roleFilterType ? { roleFilterType: filters.roleFilterType } : {}),
+      ...(filters?.minAge != null ? { minAge: filters.minAge } : {}),
+      ...(filters?.maxAge != null ? { maxAge: filters.maxAge } : {}),
+      ...(filters?.education?.length ? { education: filters.education.join(',') } : {}),
+      ...(filters?.skills?.length ? { skills: filters.skills.join(',') } : {}),
+      ...(filters?.requiredKeywords?.length ? { requiredKeywords: filters.requiredKeywords.join(',') } : {}),
+      ...(filters?.locations?.length ? { locations: filters.locations.join(',') } : {}),
+      ...(filters?.minSalary != null ? { minSalary: filters.minSalary } : {}),
+      ...(filters?.maxSalary != null ? { maxSalary: filters.maxSalary } : {}),
+      ...(filters?.sources?.length ? { sources: filters.sources.join(',') } : {}),
+      ...(jobDescriptionId ? { jobDescriptionId } : {}),
+    }
+
+    void rawApiClient
+      .GET<{
+        success: boolean
+        summary?: {
+          total?: number
+          mode?: string
+          keywordGroups?: Array<{ original: string; variants: string[] }>
+          expandedTo?: string[]
+          sourceMapping?: Record<string, string>
+        }
+        data?: Array<Record<string, unknown>>
+      }>('/api/resumes', {
+        params: { query: queryParams },
+      })
+      .then(({ data, error }) => {
+        if (!active) return
+        if (error || !data?.success || !Array.isArray(data.data)) {
+          setResult({ resumes: [], total: 0, expansion: keywordExpansion })
+          return
+        }
+
+        const resumes: ConvexResumeItem[] = data.data.map((item) => {
+          const doc = item as unknown as ResumeListDocLike
+          const mapped = mapResumeDoc(doc)
+          const provenance = Array.isArray((item as Record<string, unknown>)['_provenance'])
+            ? (item as Record<string, unknown>)['_provenance'] as SearchProvenance[]
+            : undefined
+          return { ...mapped, _provenance: provenance }
+        })
+
+        setResult({
+          resumes,
+          total: data.summary?.total ?? resumes.length,
+          expansion: keywordExpansion,
+        })
+      })
+      .catch((err: unknown) => {
+        console.error('BFF AND-mode search failed', err)
+        if (active) {
+          setResult({ resumes: [], total: 0, expansion: keywordExpansion })
+        }
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+
+    return () => { active = false }
+  }, [enabled, expansionLoading, filters, jobDescriptionId, keywordExpansion, normalizedQuery])
+
+  return loading && result.resumes.length === 0
+    ? { resumes: [], total: 0, expansion: keywordExpansion }
+    : result
+}
+
 export function useConvexResumes(
   limit: number = DEFAULT_CONVEX_RESUME_LIMIT,
   query?: string,
@@ -802,6 +903,7 @@ export function useConvexResumes(
   const normalizedJobDescriptionId = jobDescriptionId?.trim() || undefined
   const normalizedQuery = query?.trim() || undefined
   const useExactKeywordScan = Boolean(normalizedQuery && normalizedJobDescriptionId)
+  const useAndModeBff = Boolean(normalizedQuery && !useExactKeywordScan)
   const resolvedSortOrder = options?.sortBy ? (options.sortOrder ?? 'desc') : undefined
   const initialNumItems = Math.min(limit, CONVEX_RESUME_PAGE_SIZE)
   const mockPayload = useMemo(() => readMockConvexResumePayload(), [])
@@ -894,11 +996,22 @@ export function useConvexResumes(
     }
   }, [enabled, mockKeywordExpansion, mockPayload, normalizedQuery])
 
+  const isAndModeBffActive = !mockPayload && enabled && useAndModeBff && keywordExpansion?.mode === 'AND' && !expansionLoading
+
+  const bffAndModeResult = useBffAndModeSearch(
+    isAndModeBffActive,
+    normalizedQuery,
+    keywordExpansion,
+    expansionLoading,
+    options?.filters,
+    normalizedJobDescriptionId,
+  )
+
   const paginatedSearchResults = usePaginatedQuery(
     api.resumes.searchWithTagExpansionPaginated,
     mockPayload
       ? 'skip'
-      : enabled && !useExactKeywordScan && normalizedQuery && keywordExpansion
+      : enabled && !useExactKeywordScan && normalizedQuery && keywordExpansion && keywordExpansion.mode !== 'AND'
         ? {
             query: normalizedQuery,
             keywordGroups: keywordExpansion.groups,
@@ -1070,6 +1183,7 @@ export function useConvexResumes(
     normalizedQuery
       && normalizedJobDescriptionId
       && !expansionLoading
+      && !isAndModeBffActive
       && (useExactKeywordScan ? paginatedKeywordScanResults.status : paginatedSearchResults.status) === 'Exhausted'
       && (useExactKeywordScan ? paginatedKeywordScanResults.results.length : paginatedSearchResults.results.length) === 0
   )
@@ -1097,7 +1211,7 @@ export function useConvexResumes(
     : paginatedListResults.loadMore
 
   useEffect(() => {
-    if (mockPayload || limit <= 0) {
+    if (mockPayload || limit <= 0 || isAndModeBffActive) {
       return
     }
     if (activePaginatedStatus !== 'CanLoadMore' || activePaginatedResultsLength >= limit) {
@@ -1108,6 +1222,7 @@ export function useConvexResumes(
     activePaginatedLoadMore,
     activePaginatedResultsLength,
     activePaginatedStatus,
+    isAndModeBffActive,
     limit,
     mockPayload,
   ])
@@ -1137,20 +1252,24 @@ export function useConvexResumes(
             _provenance: entry.provenance,
           })))
         : (mockPayload.list ?? []).slice(0, limit).map(mapResumeDoc)
-      : normalizedQuery
-        ? useJobDescriptionFallback
-          ? visibleListResults.map(mapResumeDoc)
-          : useExactKeywordScan
-            ? visibleExactKeywordEntries.map((entry) => ({
-                ...mapResumeDoc(entry.resume),
-                _provenance: entry.provenance,
-              }))
-          : visibleSearchResults.map((entry) => ({
-              ...mapResumeDoc(entry.resume),
-              _provenance: entry.provenance,
-            }))
-        : visibleListResults.map(mapResumeDoc)
+      : isAndModeBffActive
+        ? bffAndModeResult.resumes.slice(0, limit)
+        : normalizedQuery
+          ? useJobDescriptionFallback
+            ? visibleListResults.map(mapResumeDoc)
+            : useExactKeywordScan
+              ? visibleExactKeywordEntries.map((entry) => ({
+                  ...mapResumeDoc(entry.resume),
+                  _provenance: entry.provenance,
+                }))
+              : visibleSearchResults.map((entry) => ({
+                  ...mapResumeDoc(entry.resume),
+                  _provenance: entry.provenance,
+                }))
+          : visibleListResults.map(mapResumeDoc)
   ), [
+    bffAndModeResult.resumes,
+    isAndModeBffActive,
     limit,
     mockKeywordExpansion,
     mockPayload,
@@ -1166,6 +1285,8 @@ export function useConvexResumes(
     ? false
     : mockPayload
     ? false
+    : isAndModeBffActive
+    ? bffAndModeResult.resumes.length === 0
     : normalizedQuery
       ? (expansionLoading || activePaginatedStatus === 'LoadingFirstPage')
       : paginatedListResults.status === 'LoadingFirstPage'
@@ -1181,15 +1302,22 @@ export function useConvexResumes(
         : (mockPayload.list?.length ?? 0) > limit
     }
 
+    if (isAndModeBffActive) {
+      return bffAndModeResult.total > limit
+    }
+
     return activePaginatedResultsLength > limit || activePaginatedStatus === 'CanLoadMore' || activePaginatedStatus === 'LoadingMore'
-  }, [activePaginatedResultsLength, activePaginatedStatus, enabled, limit, mockPayload, normalizedQuery])
+  }, [activePaginatedResultsLength, activePaginatedStatus, bffAndModeResult.total, enabled, isAndModeBffActive, limit, mockPayload, normalizedQuery])
 
   const resolvedExpansion = mockPayload
     ? (mockPayload.search?.expansion ?? mockKeywordExpansion)
+    : isAndModeBffActive && bffAndModeResult.expansion
+    ? bffAndModeResult.expansion
     : keywordExpansion
 
   const loadingMore = enabled
     && !mockPayload
+    && !isAndModeBffActive
     && activePaginatedStatus === 'LoadingMore'
 
   return {

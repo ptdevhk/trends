@@ -74,6 +74,7 @@ import {
   buildWorkHistoryEntryText,
   formatKeywordQuery,
   formatLocationHierarchySearchText,
+  isLocationMatch,
   normalizeKeywordPhrases,
   normalizeWorkHistoryEntry,
   parseKeywordQuery,
@@ -615,12 +616,20 @@ function buildResumeIngestData(value: unknown): ResumeItem["ingestData"] | undef
     return undefined;
   }
 
+  const verifiedRoleYears = isRecord(value.verifiedRoleYears)
+    ? Object.fromEntries(
+        Object.entries(value.verifiedRoleYears)
+          .filter((entry): entry is [string, number] => typeof entry[1] === 'number' && Number.isFinite(entry[1])),
+      )
+    : undefined;
+
   return {
     ...(industryTags.length > 0 ? { industryTags } : {}),
     ...(companyHits.length > 0 ? { companyHits } : {}),
     ...(brandHits.length > 0 ? { brandHits } : {}),
     ...(roleSignals.length > 0 ? { roleSignals } : {}),
     ...(industryDbV2Raw === undefined ? {} : { industryDbV2Raw }),
+    ...(verifiedRoleYears && Object.keys(verifiedRoleYears).length > 0 ? { verifiedRoleYears } : {}),
   };
 }
 
@@ -1087,6 +1096,7 @@ async function prepareConvexCandidates(params: {
     minAge?: number;
     maxAge?: number;
     sources?: string[];
+    showArchived?: boolean;
   };
   jobDescriptionId?: string;
   paged?: boolean;
@@ -1134,61 +1144,79 @@ async function prepareConvexCandidates(params: {
     const canonicalKeywordQuery = keywordQuery ?? formatKeywordQuery(normalizedKeywords);
     const keywordExpansion = resumeService.expandSearchQuery(canonicalKeywordQuery);
 
-    // Use cursor-based scan pagination for keyword searches to handle
-    // AND-mode post-filter attrition (the .take() path in searchWithTagExpansionPage
-    // can return 0 results when the anchor search term matches many docs but
-    // AND-filtering eliminates most of them before the take limit is reached).
+    // AND-mode full-table-scan search: when the keyword expansion yields AND mode,
+    // paginate ALL resumes from Convex and filter in-memory.  This avoids two
+    // Convex platform limits that the search-index approaches hit:
+    //   1. Search index returns at most 1024 results per query (BM25-ranked).
+    //      Resumes with long searchText (6KB+ from AI analysis / synonyms) score
+    //      low and fall beyond the 1024-position cutoff, making them invisible.
+    //   2. Convex action memory limit (64 MB) prevents full-table scan inside
+    //      a Convex action.  BFF (Node.js) has no such limit.
+    if (keywordExpansion?.mode === "AND") {
+      const allResults: PreparedResumeCandidate[] = [];
+      const seenIds = new Set<string>();
+      let scanCursor: string | null = null;
+      const groups = keywordExpansion.groups;
+      const filters = params.filters;
+
+      while (true) {
+        const page = await callConvexQuery("resumes:scanResumePageByTime", {
+          ...(scanCursor ? { cursor: scanCursor } : {}),
+          numItems: 50,
+        });
+
+        if (!isRecord(page) || !Array.isArray(page.docs)) {
+          break;
+        }
+
+        for (const doc of page.docs) {
+          if (!isRecord(doc)) continue;
+          const resumeId = toStringValue(doc._id);
+          if (!resumeId || seenIds.has(resumeId)) continue;
+
+          // Skip archived
+          if (filters?.showArchived !== true && doc.isArchived === true) continue;
+
+          // AND-mode keyword match: every group must have at least one variant
+          // present in the resume's searchText
+          const searchText = typeof doc.searchText === "string" ? doc.searchText.toLowerCase() : "";
+          const allGroupsMatch = groups.every((group) =>
+            group.variants.some((variant: string) => searchText.includes(variant.toLowerCase()))
+          );
+          if (!allGroupsMatch) continue;
+
+          // Apply resume list filters locally
+          if (filters && !bffMatchesResumeFilters(doc, filters)) continue;
+
+          seenIds.add(resumeId);
+          const provenance = collectBffAndModeProvenance(searchText, groups, keywordExpansion.sourceMapping);
+          allResults.push(prepareResumeCandidate({
+            resume: toResumeItemFromRecord(isRecord(doc.content) ? doc.content : {}, toStringValue(doc.source)),
+            resumeId,
+            primaryRuleScore: toOptionalNumber(doc.primaryRuleScore),
+            provenance,
+            ingestData: doc.ingestData,
+          }));
+        }
+
+        if (!page.cursor || page.isDone) break;
+        scanCursor = toStringValue(page.cursor) ?? null;
+      }
+
+      const hasActiveFilters = filters ? hasResumeListFilters(filters) : false;
+      return {
+        prepared: allResults,
+        keywordExpansion,
+        total: allResults.length,
+        usedServerSideFilters: hasActiveFilters,
+      };
+    }
+
+    // OR-mode or mode-less with paged/filters: single-pass cursor scan
     const hasActiveFilters = params.filters ? hasResumeListFilters(params.filters) : false;
     const useCursorScan = params.paged || hasActiveFilters;
 
     if (useCursorScan) {
-      // AND-mode two-pass intersection search: collects lightweight doc IDs
-      // per keyword group from the search index, intersects them, then fetches
-      // only the intersection.  Avoids the 16 MiB per-function read limit that
-      // the single-pass scanPage path hits when the anchor group matches many
-      // docs but AND-filtering eliminates most of them.
-      if (keywordExpansion?.mode === "AND") {
-        const actionResult = await callConvexAction("resumes:searchWithTagExpansionAndMode", {
-          query: canonicalKeywordQuery,
-          keywordGroups: keywordExpansion.groups,
-          sourceMappings: sourceMappingEntries(keywordExpansion.sourceMapping),
-          ...(params.filters ?? {}),
-          ...(params.jobDescriptionId ? { jobDescriptionId: params.jobDescriptionId } : {}),
-        });
-
-        if (!isRecord(actionResult) || !Array.isArray(actionResult.results)) {
-          throw new Error("Invalid AND-mode search action response from Convex");
-        }
-
-        const allResults: PreparedResumeCandidate[] = [];
-        for (const entry of actionResult.results) {
-          if (!isRecord(entry) || !isRecord(entry.resume)) {
-            continue;
-          }
-          const resumeRecord = entry.resume;
-          const resumeId = toStringValue(resumeRecord._id);
-          if (!resumeId) {
-            continue;
-          }
-
-          allResults.push(prepareResumeCandidate({
-            resume: toResumeItemFromRecord(isRecord(resumeRecord.content) ? resumeRecord.content : {}, toStringValue(resumeRecord.source)),
-            resumeId,
-            primaryRuleScore: toOptionalNumber(resumeRecord.primaryRuleScore),
-            provenance: parseConvexProvenance(entry.provenance),
-            ingestData: resumeRecord.ingestData,
-          }));
-        }
-
-        return {
-          prepared: allResults,
-          keywordExpansion,
-          total: toOptionalNumber(actionResult.total) ?? allResults.length,
-          usedServerSideFilters: hasActiveFilters,
-        };
-      }
-
-      // OR-mode or mode-less fallback: single-pass cursor scan
       const allResults: PreparedResumeCandidate[] = [];
       let cursor: string | null = null;
       let totalScanned = 0;
@@ -1816,6 +1844,152 @@ function hasResumeListFilters(params: {
     || typeof params.minAge === "number"
     || typeof params.maxAge === "number"
     || (params.sources?.length ?? 0) > 0;
+}
+
+// BFF-side resume filter matching for AND-mode full-table scan.
+// Mirrors the Convex matchesResumeListFilters logic for the fields
+// that the BFF AND-mode scan path needs to check.
+function bffMatchesResumeFilters(
+  doc: Record<string, unknown>,
+  filters: {
+    minExperience?: number;
+    maxExperience?: number;
+    education?: string[];
+    skills?: string[];
+    requiredKeywords?: string[];
+    locations?: string[];
+    minSalary?: number;
+    maxSalary?: number;
+    minRoleYears?: number;
+    roleFilterType?: string;
+    minAge?: number;
+    maxAge?: number;
+    sources?: string[];
+    showArchived?: boolean;
+  },
+): boolean {
+  if (!filters.showArchived && doc.isArchived === true) return false;
+
+  const content = isRecord(doc.content) ? doc.content : {};
+  const ingestData = isRecord(doc.ingestData) ? doc.ingestData : {};
+
+  // Min/max experience
+  if (typeof filters.minExperience === "number" || typeof filters.maxExperience === "number") {
+    const expStr = toStringValue(content.experience) ?? "";
+    const expYears = parseExperienceYears(expStr);
+    if (expYears !== null) {
+      if (typeof filters.minExperience === "number" && expYears < filters.minExperience) return false;
+      if (typeof filters.maxExperience === "number" && expYears > filters.maxExperience) return false;
+    }
+  }
+
+  // Education filter
+  if (filters.education?.length) {
+    const edu = toStringValue(content.education) ?? "";
+    if (!filters.education.some((e) => edu.includes(e))) return false;
+  }
+
+  // Skills filter
+  if (filters.skills?.length) {
+    const skills = Array.isArray(ingestData.industryTags)
+      ? (ingestData.industryTags as string[])
+      : [];
+    if (!filters.skills.some((s) => skills.some((tag) => tag.toLowerCase().includes(s.toLowerCase())))) return false;
+  }
+
+  // Required keywords
+  if (filters.requiredKeywords?.length) {
+    const searchText = typeof doc.searchText === "string" ? doc.searchText.toLowerCase() : "";
+    if (!filters.requiredKeywords.every((kw) => searchText.includes(kw.toLowerCase()))) return false;
+  }
+
+  // Location filter
+  if (filters.locations?.length) {
+    const location = toStringValue(content.location) ?? "";
+    if (!filters.locations.some((target) => isLocationMatch(location, target))) return false;
+  }
+
+  // Min/max salary
+  if (typeof filters.minSalary === "number" || typeof filters.maxSalary === "number") {
+    const salaryStr = toStringValue(content.expectedSalary) ?? "";
+    const salaryMatch = salaryStr.match(/(\d+)/);
+    if (salaryMatch) {
+      const salary = parseInt(salaryMatch[1]!, 10);
+      if (typeof filters.minSalary === "number" && salary < filters.minSalary) return false;
+      if (typeof filters.maxSalary === "number" && salary > filters.maxSalary) return false;
+    }
+  }
+
+  // Role filter
+  if (filters.roleFilterType) {
+    const roleSignals: unknown[] = Array.isArray(ingestData.roleSignals)
+      ? ingestData.roleSignals as unknown[]
+      : [];
+    const hasMatchingRole = roleSignals.some((signal: unknown) => {
+      if (!isRecord(signal)) return false;
+      return typeof signal.type === "string" && signal.type === filters.roleFilterType;
+    });
+    if (!hasMatchingRole) return false;
+  }
+
+  // Min role years
+  if (typeof filters.minRoleYears === "number" && filters.minRoleYears > 0) {
+    const verifiedRoleYears = isRecord(ingestData.verifiedRoleYears)
+      ? ingestData.verifiedRoleYears as Record<string, unknown>
+      : {};
+    const roleYears = filters.roleFilterType
+      ? toOptionalNumber(verifiedRoleYears[filters.roleFilterType]) ?? 0
+      : Math.max(...Object.values(verifiedRoleYears).map((v) => toOptionalNumber(v) ?? 0), 0);
+    if (roleYears < filters.minRoleYears) return false;
+  }
+
+  // Age filter
+  if (typeof filters.minAge === "number" || typeof filters.maxAge === "number") {
+    const age = toOptionalNumber(doc.age) ?? parseAgeFromContentField(content);
+    if (age !== null) {
+      if (typeof filters.minAge === "number" && age < filters.minAge) return false;
+      if (typeof filters.maxAge === "number" && age > filters.maxAge) return false;
+    }
+  }
+
+  // Source filter
+  if (filters.sources?.length) {
+    const source = toStringValue(doc.source) ?? "";
+    if (!filters.sources.some((s) => source.includes(s))) return false;
+  }
+
+  return true;
+}
+
+function parseAgeFromContentField(content: Record<string, unknown>): number | null {
+  const ageStr = toStringValue(content.age);
+  if (!ageStr) return null;
+  const match = ageStr.match(/(\d+)/);
+  return match ? parseInt(match[1]!, 10) : null;
+}
+
+// Collect provenance for AND-mode search results from BFF-side matching.
+function collectBffAndModeProvenance(
+  searchText: string,
+  groups: Array<{ original: string; variants: string[] }>,
+  sourceMapping: Record<string, string>,
+): ResumeSearchProvenance[] {
+  const provenance: ResumeSearchProvenance[] = [];
+  const seen = new Set<string>();
+  for (const group of groups) {
+    for (const variant of group.variants) {
+      const normalized = variant.toLowerCase();
+      if (searchText.includes(normalized) && !seen.has(normalized)) {
+        seen.add(normalized);
+        provenance.push({
+          term: variant,
+          source: "searchText",
+          expandedFrom: sourceMapping[variant],
+        });
+      }
+    }
+  }
+  return provenance;
 }
 
 function resolveResumeSortOrder(sortBy: "score" | "name" | "experience" | "extractedAt" | undefined, sortOrder: "asc" | "desc" | undefined): "asc" | "desc" | undefined {

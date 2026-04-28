@@ -2556,20 +2556,43 @@ export const getResumesByIds = internalQuery({
     },
 });
 
-// ─── AND-mode two-pass intersection search ─────────────────────────
+// ─── AND-mode full-table-scan search ─────────────────────────────────
 //
-// Single-pass AND-mode (searchWithTagExpansionScanPage) sends the anchor
-// group as a broad OR query, then filters in-memory for the other groups
-// + role/age.  This loads full docs (avg ~27 KB, some >500 KB) and hits
-// Convex's 16 MiB per-function read limit before reaching low-relevance
-// but valid candidates.
+// Convex search indexes return at most 1024 results per query, ordered
+// by BM25 relevance.  Resumes with long searchText (6KB+ from detailed
+// AI analysis / synonym lists) score low for any single term and are
+// ranked beyond the 1024-position cutoff, making them invisible to the
+// search index even though their searchText contains the term.
 //
-// Two-pass avoids the byte limit:
-//   Pass 1: collectSearchIndexDocIds — scans the search index and returns
-//           only doc _id strings (~30 bytes each).  Even 1024 IDs = ~30 KB.
-//   Pass 2: intersect the ID sets per keyword group, then fetch only the
-//           intersection via getResumesByIds.  Apply filters + provenance
-//           on the (much smaller) result set.
+// Full-table-scan approach:
+//   1. Paginate ALL resumes (by _creationTime) in small batches via
+//      scanResumePageByTime.  Each batch is ~50 docs ≈ 650 KB,
+//      well under the 16 MiB per-query limit.
+//   2. For each batch, check searchText for AND-mode keyword matches
+//      (matchesTagExpansionSearchText) and resume list filters.
+//      Non-matches are discarded immediately.
+//   3. Collect matching docs and return the full result set.
+
+export const scanResumePageByTime = query({
+    args: {
+        cursor: v.optional(v.string()),
+        numItems: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const page = await ctx.db
+            .query("resumes")
+            .order("desc")
+            .paginate({
+                cursor: args.cursor ?? null,
+                numItems: Math.min(args.numItems ?? 50, 50),
+            });
+        return {
+            docs: page.page,
+            isDone: page.isDone,
+            cursor: page.isDone ? null : page.continueCursor,
+        };
+    },
+});
 
 export const collectSearchIndexDocIds = internalQuery({
     args: {
@@ -2644,44 +2667,35 @@ export const searchWithTagExpansionAndMode = action({
             (args.sourceMappings ?? []).map((entry) => [entry.term, entry.expandedFrom])
         );
 
-        // Pass 1: Collect doc IDs per keyword group from the search index.
-        // Each group's variants are sent as a single OR search query.
-        // Returns lightweight ID strings (~30 bytes each), so we can scan
-        // the full index without hitting the 16 MiB read limit.
-        const groupIds: Set<string>[] = [];
+        // Anchor-scan approach: Collect doc IDs matching the anchor group
+        // (fewest variants) from the search index, then batch-fetch and
+        // filter for all groups + resume list filters in-memory.
+        //
+        // NOTE: The Convex search index scans at most 1024 results per query
+        // (BM25-ranked).  Resumes with long searchText that score low for
+        // the anchor terms may be missed.  The BFF AND-mode path handles
+        // the full-table-scan case for complete results.
+        const anchorGroup = selectTagExpansionAnchorGroup(keywordGroups);
+        const anchorSearchQuery = anchorGroup.variants.join(" ");
+        const anchorIds: string[] = [];
+        let cursor: string | undefined;
 
-        for (const group of keywordGroups) {
-            const searchQuery = group.variants.join(" ");
-            const ids = new Set<string>();
-            let cursor: string | undefined;
-
-            while (true) {
-                const page = await ctx.runQuery(internal.resumes.collectSearchIndexDocIds, {
-                    searchQuery,
-                    ...(cursor ? { cursor } : {}),
-                    numItems: 256,
-                });
-                for (const id of page.ids) {
-                    ids.add(id);
-                }
-                if (page.isDone || !page.cursor) {
-                    break;
-                }
-                cursor = page.cursor;
+        while (true) {
+            const page = await ctx.runQuery(internal.resumes.collectSearchIndexDocIds, {
+                searchQuery: anchorSearchQuery,
+                ...(cursor ? { cursor } : {}),
+                numItems: 256,
+            });
+            for (const id of page.ids) {
+                anchorIds.push(id);
             }
-
-            groupIds.push(ids);
+            if (page.isDone || !page.cursor) {
+                break;
+            }
+            cursor = page.cursor;
         }
 
-        // Intersect: a doc must appear in every group's ID set.
-        const intersectedIds = groupIds.reduce<string[] | null>((acc, set) => {
-            if (acc === null) {
-                return Array.from(set);
-            }
-            return acc.filter((id) => set.has(id));
-        }, null) ?? [];
-
-        if (intersectedIds.length === 0) {
+        if (anchorIds.length === 0) {
             return {
                 expansion: {
                     original: args.query,
@@ -2694,41 +2708,39 @@ export const searchWithTagExpansionAndMode = action({
             };
         }
 
-        // Pass 2: Fetch only the intersection docs.
-        // Batch to avoid oversized queries — Convex allows ~128 IDs per
-        // getResumesByIds call (each full doc averages ~27 KB; 128 × 27 KB ≈ 3.5 MB).
-        const BATCH_FETCH_SIZE = 128;
-        const allDocs: Doc<"resumes">[] = [];
+        // Batch-fetch full docs and filter in-memory.
+        const BATCH_FETCH_SIZE = 16;
+        const filters = normalizeResumeListFilters(args);
+        const provenanceByResumeId = new Map<string, SearchProvenance[]>();
+        const jobDescriptionId = args.jobDescriptionId?.trim() || undefined;
+        const matchedDocs: Doc<"resumes">[] = [];
 
-        for (let i = 0; i < intersectedIds.length; i += BATCH_FETCH_SIZE) {
-            const batchIds = intersectedIds.slice(i, i + BATCH_FETCH_SIZE)
+        for (let i = 0; i < anchorIds.length; i += BATCH_FETCH_SIZE) {
+            const batchIds = anchorIds.slice(i, i + BATCH_FETCH_SIZE)
                 .map((id) => id as unknown as Id<"resumes">);
             const docs = await ctx.runQuery(internal.resumes.getResumesByIds, {
                 resumeIds: batchIds,
             });
-            allDocs.push(...docs);
+
+            for (const doc of docs) {
+                const provenance = resolveSearchWithTagExpansionMatch(
+                    doc,
+                    keywordGroups,
+                    "AND",
+                    sourceMapping,
+                );
+                if (!provenance) {
+                    continue;
+                }
+                if (!matchesResumeListFilters(doc, filters)) {
+                    continue;
+                }
+                provenanceByResumeId.set(String(doc._id), provenance);
+                matchedDocs.push(doc);
+            }
         }
 
-        // Apply AND-mode provenance + filters in-memory on the intersection set.
-        const filters = normalizeResumeListFilters(args);
-        const provenanceByResumeId = new Map<string, SearchProvenance[]>();
-        const jobDescriptionId = args.jobDescriptionId?.trim() || undefined;
-
-        const filteredDocs = allDocs.filter((doc) => {
-            const provenance = resolveSearchWithTagExpansionMatch(
-                doc,
-                keywordGroups,
-                "AND",
-                sourceMapping,
-            );
-            if (!provenance) {
-                return false;
-            }
-            provenanceByResumeId.set(String(doc._id), provenance);
-            return matchesResumeListFilters(doc, filters);
-        });
-
-        const merged = mergeResumeDocs(filteredDocs, provenanceByResumeId, jobDescriptionId, filteredDocs.length);
+        const merged = mergeResumeDocs(matchedDocs, provenanceByResumeId, jobDescriptionId, matchedDocs.length);
 
         // Sort
         let sorted = merged;

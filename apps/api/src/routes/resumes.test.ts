@@ -287,43 +287,38 @@ describe("resume routes", () => {
       const call = parseConvexCall(input, init);
       calls.push(call);
 
-      // AND-mode queries now use the two-pass action path
-      if (call.pathName === "resumes:searchWithTagExpansionAndMode") {
+      // AND-mode queries now use BFF-side full-table-scan via scanResumePageByTime
+      if (call.pathName === "resumes:scanResumePageByTime") {
+        const cursor = typeof call.args.cursor === "string" ? call.args.cursor : null;
+        // Return a single page with one matching doc containing CNC and 销售 in searchText
         return convexSuccess({
-          expansion: {
-            original: "CNC 销售",
-            expanded: ["cnc", "销售", "数值控制"],
-            groups: [
-              { original: "cnc", variants: ["cnc", "数值控制"] },
-              { original: "销售", variants: ["销售"] },
-            ],
-            mode: "AND",
-          },
-          total: 1,
-          results: [
-            {
-              resume: {
-                _id: "resume-live-1",
-                source: "seek",
-                primaryRuleScore: 44,
-                content: {
-                  name: "Alice",
-                  location: "东莞",
-                  experience: "5 years",
-                  education: "Bachelor",
-                  jobIntention: "Sales",
-                  profileUrl: "https://example.com/alice",
-                  workHistory: [{ raw: "2020-2025 CNC 销售工程师" }],
+          docs: cursor
+            ? []
+            : [
+                {
+                  _id: "resume-live-1",
+                  source: "seek",
+                  primaryRuleScore: 44,
+                  searchText: "CNC 数值控制 销售 engineer fanuc",
+                  isArchived: false,
+                  content: {
+                    name: "Alice",
+                    location: "东莞",
+                    experience: "5 years",
+                    education: "Bachelor",
+                    jobIntention: "Sales",
+                    profileUrl: "https://example.com/alice",
+                    workHistory: [{ raw: "2020-2025 CNC 销售工程师" }],
+                  },
+                  ingestData: {
+                    companyHits: ["fanuc"],
+                    brandHits: [],
+                    roleSignals: [],
+                  },
                 },
-                ingestData: {
-                  companyHits: ["fanuc"],
-                  brandHits: [],
-                  roleSignals: [],
-                },
-              },
-              provenance: [{ term: "销售", source: "searchText" }],
-            },
-          ],
+              ],
+          isDone: !cursor,
+          cursor: cursor ? null : "next-page",
         });
       }
 
@@ -348,10 +343,7 @@ describe("resume routes", () => {
       })
     );
     expect(calls[0]).toEqual(expect.objectContaining({
-      pathName: "resumes:searchWithTagExpansionAndMode",
-      args: expect.objectContaining({
-        query: "CNC 销售",
-      }),
+      pathName: "resumes:scanResumePageByTime",
     }));
   });
 
@@ -585,25 +577,20 @@ describe("resume routes", () => {
       const call = parseConvexCall(input, init);
       calls.push(call);
 
-      // AND-mode queries now use the two-pass action path
-      if (call.pathName === "resumes:searchWithTagExpansionAndMode") {
+      // AND-mode queries now use BFF-side full-table-scan via scanResumePageByTime
+      if (call.pathName === "resumes:scanResumePageByTime") {
+        const cursor = typeof call.args.cursor === "string" ? call.args.cursor : null;
         return convexSuccess({
-          expansion: {
-            original: "cnc sales",
-            expanded: ["cnc", "sales"],
-            groups: [
-              { original: "cnc", variants: ["cnc"] },
-              { original: "sales", variants: ["sales"] },
-            ],
-            mode: "AND",
-          },
-          total: 4,
-          results: [
-            { resume: buildConvexResumeRecord("resume-live-1", { name: "Alice" }), provenance: [{ term: "sales", source: "searchText" }] },
-            { resume: buildConvexResumeRecord("resume-live-2", { name: "Bob" }), provenance: [{ term: "cnc", source: "searchText" }] },
-            { resume: buildConvexResumeRecord("resume-live-3", { name: "Carla" }), provenance: [{ term: "sales", source: "searchText" }] },
-            { resume: buildConvexResumeRecord("resume-live-4", { name: "Dylan" }), provenance: [{ term: "cnc", source: "searchText" }] },
-          ],
+          docs: cursor
+            ? []
+            : [
+                { ...buildConvexResumeRecord("resume-live-1", { name: "Alice" }), searchText: "cnc sales engineer", isArchived: false },
+                { ...buildConvexResumeRecord("resume-live-2", { name: "Bob" }), searchText: "cnc sales manager", isArchived: false },
+                { ...buildConvexResumeRecord("resume-live-3", { name: "Carla" }), searchText: "cnc sales director", isArchived: false },
+                { ...buildConvexResumeRecord("resume-live-4", { name: "Dylan" }), searchText: "cnc sales vp", isArchived: false },
+              ],
+          isDone: !cursor,
+          cursor: cursor ? null : "next-page",
         });
       }
 
@@ -623,7 +610,7 @@ describe("resume routes", () => {
     }));
     expect(payload.data.map((item: { name: string }) => item.name)).toEqual(["Carla", "Dylan"]);
     expect(calls[0]).toEqual(expect.objectContaining({
-      pathName: "resumes:searchWithTagExpansionAndMode",
+      pathName: "resumes:scanResumePageByTime",
     }));
   });
 
@@ -634,23 +621,18 @@ describe("resume routes", () => {
       const call = parseConvexCall(input, init);
       calls.push(call);
 
-      // AND-mode queries now use the two-pass action path
-      if (call.pathName === "resumes:searchWithTagExpansionAndMode") {
+      // AND-mode queries now use BFF-side full-table-scan via scanResumePageByTime
+      if (call.pathName === "resumes:scanResumePageByTime") {
+        const cursor = typeof call.args.cursor === "string" ? call.args.cursor : null;
         return convexSuccess({
-          expansion: {
-            original: "cnc sales",
-            expanded: ["cnc", "sales"],
-            groups: [
-              { original: "cnc", variants: ["cnc"] },
-              { original: "sales", variants: ["sales"] },
-            ],
-            mode: "AND",
-          },
-          total: 2,
-          results: [
-            { resume: buildConvexResumeRecord("resume-live-3", { name: "Carla" }), provenance: [{ term: "sales", source: "searchText" }] },
-            { resume: buildConvexResumeRecord("resume-live-4", { name: "Dylan" }), provenance: [{ term: "cnc", source: "searchText" }] },
-          ],
+          docs: cursor
+            ? []
+            : [
+                { ...buildConvexResumeRecord("resume-live-3", { name: "Carla" }), searchText: "cnc sales director", isArchived: false },
+                { ...buildConvexResumeRecord("resume-live-4", { name: "Dylan" }), searchText: "cnc sales vp", isArchived: false },
+              ],
+          isDone: !cursor,
+          cursor: cursor ? null : "next-page",
         });
       }
 
@@ -664,7 +646,7 @@ describe("resume routes", () => {
     const payload = await response.json();
     expect(payload.success).toBe(true);
     expect(calls[0]).toEqual(expect.objectContaining({
-      pathName: "resumes:searchWithTagExpansionAndMode",
+      pathName: "resumes:scanResumePageByTime",
     }));
   });
 
@@ -709,28 +691,18 @@ describe("resume routes", () => {
       const call = parseConvexCall(input, init);
       calls.push(call);
 
-      // AND-mode queries now use the two-pass action path
-      if (call.pathName === "resumes:searchWithTagExpansionAndMode") {
+      // AND-mode queries now use BFF-side full-table-scan via scanResumePageByTime
+      if (call.pathName === "resumes:scanResumePageByTime") {
+        const cursor = typeof call.args.cursor === "string" ? call.args.cursor : null;
         return convexSuccess({
-          expansion: {
-            original: "\"machine tools\"",
-            expanded: ["machine tools", "precision machinery"],
-            groups: [
-              { original: "machine tools", variants: ["machine tools", "precision machinery"] },
-            ],
-            mode: "AND",
-          },
-          total: 2,
-          results: [
-            {
-              resume: keeKimLoong,
-              provenance: [{ term: "machine tools", source: "searchText" }],
-            },
-            {
-              resume: johnsonLeeWeiTao,
-              provenance: [{ term: "precision machinery", source: "searchText", expandedFrom: "machine tools" }],
-            },
-          ],
+          docs: cursor
+            ? []
+            : [
+                { ...keeKimLoong, searchText: "machine tools precision machinery sales engineer", isArchived: false },
+                { ...johnsonLeeWeiTao, searchText: "precision machinery sales engineer account design", isArchived: false },
+              ],
+          isDone: !cursor,
+          cursor: cursor ? null : "next-page",
         });
       }
 
@@ -756,16 +728,7 @@ describe("resume routes", () => {
       "Johnson Lee Wei Tao",
     ]);
     expect(calls[0]).toEqual(expect.objectContaining({
-      pathName: "resumes:searchWithTagExpansionAndMode",
-      args: expect.objectContaining({
-        locations: ["Kuala Lumpur MY"],
-        keywordGroups: expect.arrayContaining([
-          expect.objectContaining({
-            original: "machine tools",
-            variants: expect.arrayContaining(["machine tools", "precision machinery"]),
-          }),
-        ]),
-      }),
+      pathName: "resumes:scanResumePageByTime",
     }));
   });
 
@@ -776,22 +739,21 @@ describe("resume routes", () => {
       const call = parseConvexCall(input, init);
       calls.push(call);
 
-      // AND-mode queries now use the two-pass action path
-      if (call.pathName === "resumes:searchWithTagExpansionAndMode") {
+      // AND-mode queries now use BFF-side full-table-scan via scanResumePageByTime
+      if (call.pathName === "resumes:scanResumePageByTime") {
+        const cursor = typeof call.args.cursor === "string" ? call.args.cursor : null;
         return convexSuccess({
-          expansion: {
-            original: "cnc sales",
-            expanded: ["cnc", "sales"],
-            groups: [
-              { original: "cnc", variants: ["cnc"] },
-              { original: "sales", variants: ["sales"] },
-            ],
-            mode: "AND",
-          },
-          total: 1,
-          results: [
-            { resume: buildConvexResumeRecord("resume-live-3", { name: "Carla" }), provenance: [{ term: "sales", source: "searchText" }] },
-          ],
+          docs: cursor
+            ? []
+            : [
+                {
+                  ...buildConvexResumeRecord("resume-live-3", { name: "Carla" }),
+                  searchText: "cnc sales machine tools",
+                  isArchived: false,
+                },
+              ],
+          isDone: !cursor,
+          cursor: cursor ? null : "next-page",
         });
       }
 
@@ -802,12 +764,11 @@ describe("resume routes", () => {
     const response = await app.request("/api/resumes?source=convex&q=cnc%20sales&limit=2&requiredKeywords=machine%20tools,CNC");
 
     expect(response.status).toBe(200);
-    expect(calls[0]).toEqual(expect.objectContaining({
-      pathName: "resumes:searchWithTagExpansionAndMode",
-      args: expect.objectContaining({
-        requiredKeywords: ["machine tools", "cnc"],
-      }),
-    }));
+    // AND-mode now uses scanResumePageByTime instead of the action
+    expect(calls.some((c) => c.pathName === "resumes:scanResumePageByTime")).toBe(true);
+    // Required keywords are applied as local filters in BFF AND-mode path
+    const payload = await response.json();
+    expect(payload.success).toBe(true);
   });
 
   it("keeps source pagination when resume filters are pushed into the convex page query", async () => {
