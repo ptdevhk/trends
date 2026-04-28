@@ -98,8 +98,8 @@ export type ConvexIngestData = {
   }
   ruleScores: Record<string, number>
   experienceLevel: string
-  computedAt: number
-  skillsVersion: number
+  computedAt?: number
+  skillsVersion?: number
 }
 
 export type ConvexRoleSignal = NonNullable<ConvexIngestData['roleSignals']>[number]
@@ -532,11 +532,8 @@ function parseIngestData(value: unknown): ConvexIngestData | undefined {
     return undefined
   }
 
-  const computedAt = toNumber(value.computedAt)
-  const skillsVersion = toNumber(value.skillsVersion)
-  if (computedAt === null || skillsVersion === null) {
-    return undefined
-  }
+  const computedAt = toNumber(value.computedAt) ?? undefined
+  const skillsVersion = toNumber(value.skillsVersion) ?? undefined
 
   const taggingEnvelope = parseTaggingEnvelope(value.taggingEnvelope)
 
