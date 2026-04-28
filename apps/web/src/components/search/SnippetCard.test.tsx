@@ -130,7 +130,7 @@ describe('SnippetCard', () => {
     expect(screen.getByText(/Kuala Lumpur/)).toBeInTheDocument()
     expect(screen.getByText(/6 years/)).toBeInTheDocument()
     expect(screen.getByText('seek')).toBeInTheDocument()
-    expect(screen.getByText('senior')).toBeInTheDocument()
+    expect(screen.getByText('Senior')).toBeInTheDocument()
     expect(screen.getByText('88')).toBeInTheDocument()
     expect(screen.getByText('AI')).toBeInTheDocument()
     // industryTags take priority over _provenance; visibleKeywords = industryTags.slice(0, 3)
@@ -232,7 +232,7 @@ describe('SnippetCard', () => {
     expect(screen.getByText('PLC')).toBeInTheDocument()
     expect(screen.getByText('CNC')).toBeInTheDocument()
     expect(screen.queryByText('Expanded card for 未命名简历')).not.toBeInTheDocument()
-    expect(screen.queryByText('mid')).toBeInTheDocument()
+    expect(screen.queryByText('Mid')).toBeInTheDocument()
     expect(screen.queryByText('88')).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: /展开/i }))

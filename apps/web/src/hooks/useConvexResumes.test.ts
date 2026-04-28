@@ -16,9 +16,18 @@ type KeywordExpansionResponse = {
 }
 
 const loadMoreMock = vi.fn()
-const rawApiGetMock = vi.fn(async (path?: unknown, options?: unknown): Promise<KeywordExpansionResponse> => {
-  void path
-  void options
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const rawApiGetMock = vi.fn(async (path?: unknown, _options?: unknown): Promise<KeywordExpansionResponse> => {
+  // BFF AND-mode search path returns different shape from keyword-expansion
+  if (typeof path === 'string' && path === '/api/resumes') {
+    return {
+      data: {
+        success: true,
+        data: [],
+        summary: { total: 0 },
+      },
+    } as unknown as KeywordExpansionResponse
+  }
   return {
     data: {
       success: true,
@@ -57,6 +66,7 @@ const usePaginatedQueryMock = vi.fn<(
 vi.mock('convex/react', () => ({
   usePaginatedQuery: (query: unknown, args: unknown, options: { initialNumItems: number }) =>
     usePaginatedQueryMock(query, args, options),
+  useQuery: () => [],
 }))
 
 vi.mock('@/lib/api-helpers', () => ({
@@ -173,52 +183,73 @@ describe('useConvexResumes', () => {
   })
 
   it('preserves matchedWorkEntries.directRoleMatch from ingest role signals', async () => {
-    usePaginatedQueryMock.mockImplementation((_query, args) => ({
-      results: args === 'skip'
-        ? []
-        : [{
-            resume: {
-              ...buildResumeDoc('resume-1', 'Alice'),
-              ingestData: {
-                industryTags: [],
-                synonymHits: [],
-                brandHits: [],
-                companyHits: [],
-                ruleScores: {},
-                experienceLevel: 'mid',
-                computedAt: 1_700_000_000_000,
-                skillsVersion: 1,
-                roleSignals: [
-                  {
-                    type: 'sales',
-                    matchedSignals: ['销售工程师'],
-                    signalCount: 1,
-                    occurrences: 1,
-                    years: 4,
-                    industryVerifiedYears: 0,
-                    roleRelevantYears: 4,
-                    industryVerifiedRelevantYears: 0,
-                    matchedWorkEntries: [
-                      {
-                        companyName: 'Example Co',
-                        jobTitle: '销售工程师',
-                        years: 4,
-                        industryVerified: false,
-                        matchedSignals: ['销售工程师'],
-                        directRoleMatch: true,
-                      },
-                    ],
-                    verifyIn: 'workHistory',
-                  },
-                ],
+    const resumeWithRoleSignals = {
+      ...buildResumeDoc('resume-1', 'Alice'),
+      ingestData: {
+        industryTags: [],
+        synonymHits: [],
+        brandHits: [],
+        companyHits: [],
+        ruleScores: {},
+        experienceLevel: 'mid',
+        computedAt: 1_700_000_000_000,
+        skillsVersion: 1,
+        roleSignals: [
+          {
+            type: 'sales',
+            matchedSignals: ['销售工程师'],
+            signalCount: 1,
+            occurrences: 1,
+            years: 4,
+            industryVerifiedYears: 0,
+            roleRelevantYears: 4,
+            industryVerifiedRelevantYears: 0,
+            matchedWorkEntries: [
+              {
+                companyName: 'Example Co',
+                jobTitle: '销售工程师',
+                years: 4,
+                industryVerified: false,
+                matchedSignals: ['销售工程师'],
+                directRoleMatch: true,
               },
-            },
-            provenance: [{ term: 'cnc', source: 'searchText' }],
-          }],
-      status: 'Exhausted',
-      isLoading: false,
-      loadMore: loadMoreMock,
-    }))
+            ],
+            verifyIn: 'workHistory',
+          },
+        ],
+      },
+    }
+    // AND-mode is now active for plain keyword queries (no JD).
+    // Mock the BFF /api/resumes endpoint to return the resume with
+    // doc-level fields mixed into the flat BFF item shape.
+    rawApiGetMock.mockImplementation(async (path?: unknown) => {
+      if (path === '/api/resumes') {
+        return {
+          data: {
+            success: true,
+            data: [{
+              // BFF returns a flat item: doc fields + content merged
+              resumeId: 'resume-1',
+              _provenance: [{ term: 'cnc', source: 'searchText' }],
+              ...resumeWithRoleSignals,
+              ...resumeWithRoleSignals.content,
+            }],
+            summary: { total: 1 },
+          },
+        }
+      }
+      return {
+        data: {
+          success: true,
+          summary: {
+            groups: [{ original: 'cnc', variants: ['cnc'] }],
+            mode: 'AND' as const,
+            expandedTo: ['cnc'],
+            sourceMapping: {},
+          },
+        },
+      }
+    })
 
     const { result } = renderHook(() => useConvexResumes(200, 'CNC'))
 

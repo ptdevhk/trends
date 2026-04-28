@@ -242,6 +242,7 @@ describe('useResumeSearchState', () => {
     parsedStateMock.selectedTags = []
     parsedStateMock.selectedCompanies = []
     parsedStateMock.selectedSources = []
+    parsedStateMock.selectedBrands = []
     parsedStateMock.selectedExperienceLevel = undefined
     parsedStateMock.filters = {}
 
@@ -983,6 +984,7 @@ describe('useResumeSearchState', () => {
       selectedTags: ['cluster:manufacturing-systems', 'Machine Tools'],
       selectedCompanies: ['FANUC'],
       selectedSources: [],
+      selectedBrands: [],
       selectedExperienceLevel: 'senior',
       filters: {
         education: ['Bachelor'],
@@ -1093,6 +1095,7 @@ describe('useResumeSearchState', () => {
       selectedTags: ['cluster:manufacturing-systems', 'Machine Tools'],
       selectedCompanies: ['FANUC'],
       selectedSources: [],
+      selectedBrands: [],
       selectedExperienceLevel: 'senior',
       filters: {
         education: ['Bachelor'],
@@ -1115,6 +1118,7 @@ describe('useResumeSearchState', () => {
       selectedTags: ['cluster:manufacturing-systems', 'Machine Tools'],
       selectedCompanies: ['FANUC'],
       selectedSources: [],
+      selectedBrands: [],
       selectedExperienceLevel: 'senior',
       filters: {
         education: ['Bachelor'],
@@ -1139,6 +1143,7 @@ describe('useResumeSearchState', () => {
       selectedTags: ['cluster:manufacturing-systems', 'Machine Tools'],
       selectedCompanies: ['FANUC'],
       selectedSources: [],
+      selectedBrands: [],
       selectedExperienceLevel: 'senior',
       filters: {
         education: ['Bachelor'],
@@ -1162,6 +1167,7 @@ describe('useResumeSearchState', () => {
       selectedTags: [],
       selectedCompanies: [],
       selectedSources: [],
+      selectedBrands: [],
       selectedExperienceLevel: undefined,
       filters: {},
     })
@@ -1505,6 +1511,7 @@ describe('useResumeSearchState', () => {
       selectedTags: [],
       selectedCompanies: [],
       selectedSources: [],
+      selectedBrands: [],
       selectedExperienceLevel: undefined,
       filters: {
         minExperience: 5,
@@ -1544,6 +1551,7 @@ describe('useResumeSearchState', () => {
       requiredKeywords: ['CNC'],
       jobDescriptionId: 'jd-123',
       selectedSources: [],
+      selectedBrands: [],
       selectedExperienceLevel: 'senior',
       filters: {
         minExperience: 5,
@@ -1620,6 +1628,7 @@ describe('useResumeSearchState', () => {
       selectedTags: ['cluster:manufacturing-systems'],
       selectedCompanies: ['FANUC'],
       selectedSources: [],
+      selectedBrands: [],
       filters: {
         minExperience: 5,
         maxExperience: 12,
@@ -1682,6 +1691,7 @@ describe('useResumeSearchState', () => {
       selectedTags: ['cluster:manufacturing-systems'],
       selectedCompanies: ['FANUC'],
       selectedSources: [],
+      selectedBrands: [],
       selectedExperienceLevel: 'senior',
       filters: {
         minExperience: 5,
