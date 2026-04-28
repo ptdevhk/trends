@@ -1222,8 +1222,14 @@ async function prepareConvexCandidates(params: {
           if (filters && !bffMatchesResumeFilters(doc, searchText, filters)) continue;
 
           const provenance = collectBffAndModeProvenance(searchText, groups, keywordExpansion.sourceMapping);
+          const resume = toResumeItemFromRecord(isRecord(doc.content) ? doc.content : {}, toStringValue(doc.source));
+          // Override resumeId with Convex _id so the frontend can use it
+          // for Convex mutations (dispatch analysis, etc.). Content's
+          // resumeId is a source-specific ID (e.g., "13467969") that
+          // doesn't match v.id("resumes").
+          resume.resumeId = resumeId;
           allResults.push(prepareResumeCandidate({
-            resume: toResumeItemFromRecord(isRecord(doc.content) ? doc.content : {}, toStringValue(doc.source)),
+            resume,
             resumeId,
             primaryRuleScore: toOptionalNumber(doc.primaryRuleScore),
             provenance,
