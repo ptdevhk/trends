@@ -1271,6 +1271,21 @@ export function useResumeSearchState() {
     [parsedState, syncToUrl],
   )
 
+  const setAgeRangeFilter = useCallback(
+    (minAge: number | undefined, maxAge: number | undefined) => {
+      syncToUrl(
+        buildUrlState(parsedState, {
+          filters: {
+            ...parsedState.filters,
+            minAge,
+            maxAge,
+          },
+        }),
+      )
+    },
+    [parsedState, syncToUrl],
+  )
+
   const setEducationFilters = useCallback(
     (education: string[]) => {
       syncToUrl(
@@ -1377,6 +1392,8 @@ export function useResumeSearchState() {
           education: undefined,
           minMatchScore: undefined,
           minRoleYears: undefined,
+          minAge: undefined,
+          maxAge: undefined,
           status: undefined,
         },
       }),
@@ -1667,6 +1684,7 @@ export function useResumeSearchState() {
     selectedRawTags,
     searchHistoryLoading: recentSearchHistoryRecords === undefined,
     setMinRoleYearsFilter,
+    setAgeRangeFilter,
     setMinScoreFilter,
     setAiModeEnabled,
     setExportFormat,

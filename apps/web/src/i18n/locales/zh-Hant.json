@@ -29,6 +29,7 @@
     "collapse": "收起",
     "expand": "展開",
     "reset": "重置",
+    "apply": "應用",
     "archive": "歸檔",
     "delete": "刪除"
   },
@@ -379,6 +380,8 @@
         "matchScore": "匹配分",
         "sources": "來源渠道",
         "minRoleYears": "相關工作經驗",
+        "ageRange": "年齡範圍",
+        "ageUnit": "歲",
         "custom": "自訂"
       },
       "hero": {

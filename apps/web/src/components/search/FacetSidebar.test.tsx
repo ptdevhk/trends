@@ -83,6 +83,7 @@ describe('FacetSidebar', () => {
         onClearAll={onClearAll}
         onSetExperienceLevel={vi.fn()}
         onSetMinRoleYears={vi.fn()}
+        onSetAgeRange={vi.fn()}
         onSetMinScore={vi.fn()}
         onToggleBrand={vi.fn()}
         onToggleCluster={vi.fn()}
@@ -125,6 +126,7 @@ describe('FacetSidebar', () => {
         onClearAll={onClearAll}
         onSetExperienceLevel={vi.fn()}
         onSetMinRoleYears={vi.fn()}
+        onSetAgeRange={vi.fn()}
         onSetMinScore={vi.fn()}
         onToggleBrand={vi.fn()}
         onToggleCluster={onToggleCluster}
@@ -174,6 +176,7 @@ describe('FacetSidebar', () => {
         onClearAll={vi.fn()}
         onSetExperienceLevel={onSetExperienceLevel}
         onSetMinRoleYears={vi.fn()}
+        onSetAgeRange={vi.fn()}
         onSetMinScore={onSetMinScore}
         onToggleBrand={vi.fn()}
         onToggleCluster={vi.fn()}
@@ -214,6 +217,7 @@ describe('FacetSidebar', () => {
         onClearAll={vi.fn()}
         onSetExperienceLevel={vi.fn()}
         onSetMinRoleYears={onSetMinRoleYears}
+        onSetAgeRange={vi.fn()}
         onSetMinScore={vi.fn()}
         onToggleBrand={vi.fn()}
         onToggleCluster={vi.fn()}
@@ -251,6 +255,7 @@ describe('FacetSidebar', () => {
         onClearAll={vi.fn()}
         onSetExperienceLevel={vi.fn()}
         onSetMinRoleYears={onSetMinRoleYears}
+        onSetAgeRange={vi.fn()}
         onSetMinScore={vi.fn()}
         onToggleBrand={vi.fn()}
         onToggleCluster={vi.fn()}
@@ -263,18 +268,100 @@ describe('FacetSidebar', () => {
       />
     )
 
-    // Click "自定义" button to open custom input
-    await user.click(screen.getByRole('button', { name: /自定义/i }))
-    const input = screen.getByRole('spinbutton')
+    // Click the "自定义" button within the minRoleYears section (first one)
+    const customButtons = screen.getAllByRole('button', { name: /自定义/i })
+    await user.click(customButtons[0])
+    const inputs = screen.getAllByRole('spinbutton')
+    const input = inputs[0]
     expect(input).toBeInTheDocument()
 
-    // Clicking "自定义" clears current filter
-    expect(onSetMinRoleYears).toHaveBeenCalledWith(undefined)
-
-    // Type a custom value and blur to submit
+    // Type a custom value and press Enter to submit
     await user.type(input, '10')
-    await user.keyboard('{Tab}')
+    await user.keyboard('{Enter}')
 
     expect(onSetMinRoleYears).toHaveBeenCalledWith(10)
+  })
+
+  it('toggles age range filter pills', async () => {
+    const user = userEvent.setup()
+    const onSetAgeRange = vi.fn()
+
+    render(
+      <FacetSidebar
+        facetCounts={buildFacetCounts()}
+        selectedBrands={[]}
+        selectedClusters={[]}
+        selectedCompanies={[]}
+        selectedEducation={[]}
+        selectedStatuses={[]}
+        selectedTags={[]}
+        onClearAll={vi.fn()}
+        onSetAgeRange={onSetAgeRange}
+        onSetExperienceLevel={vi.fn()}
+        onSetMinRoleYears={vi.fn()}
+        onSetMinScore={vi.fn()}
+        onToggleBrand={vi.fn()}
+        onToggleCluster={vi.fn()}
+        onToggleCompany={vi.fn()}
+        onToggleEducation={vi.fn()}
+        onToggleStatus={vi.fn()}
+        onToggleTag={vi.fn()}
+        selectedSources={[]}
+        onToggleSource={vi.fn()}
+      />
+    )
+
+    // Click 25-40 preset
+    await user.click(screen.getByRole('button', { name: '25-40' }))
+    expect(onSetAgeRange).toHaveBeenCalledWith(25, 40)
+
+    // Click 25+ preset
+    onSetAgeRange.mockClear()
+    await user.click(screen.getByRole('button', { name: '25+' }))
+    expect(onSetAgeRange).toHaveBeenCalledWith(25, undefined)
+
+    // Click ≤40 preset
+    onSetAgeRange.mockClear()
+    await user.click(screen.getByRole('button', { name: '≤40' }))
+    expect(onSetAgeRange).toHaveBeenCalledWith(undefined, 40)
+  })
+
+  it('deselects age range pill on re-click', async () => {
+    const user = userEvent.setup()
+    const onSetAgeRange = vi.fn()
+
+    render(
+      <FacetSidebar
+        minAge={25}
+        maxAge={40}
+        facetCounts={buildFacetCounts()}
+        selectedBrands={[]}
+        selectedClusters={[]}
+        selectedCompanies={[]}
+        selectedEducation={[]}
+        selectedStatuses={[]}
+        selectedTags={[]}
+        onClearAll={vi.fn()}
+        onSetAgeRange={onSetAgeRange}
+        onSetExperienceLevel={vi.fn()}
+        onSetMinRoleYears={vi.fn()}
+        onSetMinScore={vi.fn()}
+        onToggleBrand={vi.fn()}
+        onToggleCluster={vi.fn()}
+        onToggleCompany={vi.fn()}
+        onToggleEducation={vi.fn()}
+        onToggleStatus={vi.fn()}
+        onToggleTag={vi.fn()}
+        selectedSources={[]}
+        onToggleSource={vi.fn()}
+      />
+    )
+
+    // Active pill should have dark style
+    expect(screen.getByRole('button', { name: '25-40' })).toHaveClass('bg-slate-900')
+
+    // Re-click deselects
+    await user.click(screen.getByRole('button', { name: '25-40' }))
+    expect(onSetAgeRange).toHaveBeenCalledWith(undefined, undefined)
   })
 })

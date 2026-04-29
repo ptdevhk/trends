@@ -29,6 +29,7 @@
     "collapse": "Collapse",
     "expand": "Expand",
     "reset": "Reset",
+    "apply": "Apply",
     "archive": "Archive",
     "delete": "Delete"
   },
@@ -380,6 +381,8 @@
         "matchScore": "Match Score",
         "sources": "Source Channel",
         "minRoleYears": "Relevant Experience",
+        "ageRange": "Age Range",
+        "ageUnit": "yrs",
         "custom": "Custom"
       },
       "hero": {

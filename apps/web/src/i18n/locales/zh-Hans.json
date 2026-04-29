@@ -29,6 +29,7 @@
     "collapse": "收起",
     "expand": "展开",
     "reset": "重置",
+    "apply": "应用",
     "archive": "归档",
     "delete": "删除"
   },
@@ -379,6 +380,8 @@
         "matchScore": "匹配分",
         "sources": "来源渠道",
         "minRoleYears": "相关工作年限",
+        "ageRange": "年龄范围",
+        "ageUnit": "岁",
         "custom": "自定义"
       },
       "hero": {

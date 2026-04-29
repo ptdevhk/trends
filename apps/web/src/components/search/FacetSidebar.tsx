@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next'
 import { FacetGroup } from '@/components/search/FacetGroup'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
+import { Check } from 'lucide-react'
 import type { FacetCounts } from '@/components/search/search-types'
 import type { ExperienceLevelFilter } from '@/hooks/useUrlSearchState'
 import type { CandidateStatus } from '@/types/resume'
@@ -12,6 +14,8 @@ export type MinRoleYearsOption = 1 | 2 | 5
 export type FacetSidebarProps = {
   embedded?: boolean
   facetCounts: FacetCounts
+  minAge?: number
+  maxAge?: number
   minScore?: number
   minRoleYears?: number
   selectedBrands: string[]
@@ -23,6 +27,7 @@ export type FacetSidebarProps = {
   selectedStatuses: CandidateStatus[]
   selectedTags: string[]
   onClearAll: () => void
+  onSetAgeRange: (minAge: number | undefined, maxAge: number | undefined) => void
   onSetExperienceLevel: (value: ExperienceLevelFilter | undefined) => void
   onSetMinRoleYears: (value: number | undefined) => void
   onSetMinScore: (value: number | undefined) => void
@@ -87,12 +92,13 @@ function MinRoleYearsGroup({
   const submitCustomValue = useCallback((rawValue: string) => {
     const parsed = Number(rawValue)
     if (rawValue.trim() === '' || !Number.isFinite(parsed) || parsed <= 0) {
-      onSetMinRoleYears(undefined)
       setCustomOpen(false)
       setCustomText('')
       return
     }
     onSetMinRoleYears(parsed)
+    setCustomOpen(false)
+    setCustomText('')
   }, [onSetMinRoleYears])
 
   return (
@@ -135,10 +141,33 @@ function MinRoleYearsGroup({
               className="h-7 w-14 px-2 text-sm"
               value={customText}
               onChange={(event) => setCustomText(event.target.value)}
-              onBlur={() => submitCustomValue(inputRef.current?.value ?? customText)}
+              onBlur={() => {
+                // Only close without submitting - user can click checkmark to apply
+                setCustomOpen(false)
+                setCustomText('')
+              }}
               autoFocus
             />
             <span className="text-sm text-slate-500">+</span>
+            <Button
+              type="submit"
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 p-0 text-slate-500 hover:text-slate-700"
+              aria-label={t('common.apply', { defaultValue: '应用' })}
+            >
+              <Check className="h-4 w-4" />
+            </Button>
+            <button
+              type="button"
+              className="rounded-full border border-dashed border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-500 hover:border-slate-400 hover:text-slate-600"
+              onClick={() => {
+                setCustomOpen(false)
+                setCustomText('')
+              }}
+            >
+              {t('resumes.searchPage.facets.custom', { defaultValue: '自定义' })}
+            </button>
           </form>
         ) : (
           <button
@@ -146,7 +175,162 @@ function MinRoleYearsGroup({
             className="rounded-full border border-dashed border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-500 hover:border-slate-400 hover:text-slate-600"
             onClick={() => {
               setCustomOpen(true)
-              onSetMinRoleYears(undefined)
+            }}
+          >
+            {t('resumes.searchPage.facets.custom', { defaultValue: '自定义' })}
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+const PRESET_AGE_RANGES = [
+  { min: 25, max: undefined as number | undefined },
+  { min: 25, max: 40 },
+  { min: undefined as number | undefined, max: 40 },
+] as const
+
+function AgeRangeGroup({
+  minAge,
+  maxAge,
+  onSetAgeRange,
+}: Pick<FacetSidebarProps, 'minAge' | 'maxAge' | 'onSetAgeRange'>) {
+  const { t } = useTranslation()
+  const activePreset = PRESET_AGE_RANGES.find(
+    (p) => p.min === minAge && p.max === maxAge,
+  )
+  const [customOpen, setCustomOpen] = useState(!activePreset && (minAge != null || maxAge != null))
+  const [customMin, setCustomMin] = useState(activePreset || (minAge == null && maxAge == null) ? '' : (typeof minAge === 'number' ? String(minAge) : ''))
+  const [customMax, setCustomMax] = useState(activePreset || (minAge == null && maxAge == null) ? '' : (typeof maxAge === 'number' ? String(maxAge) : ''))
+  const minRef = useRef<HTMLInputElement>(null)
+  const maxRef = useRef<HTMLInputElement>(null)
+
+
+  const submitCustomValues = useCallback(() => {
+    const rawMin = minRef.current?.value ?? String(customMin)
+    const rawMax = maxRef.current?.value ?? String(customMax)
+    const parsedMin = rawMin.trim() === '' ? undefined : Number(rawMin)
+    const parsedMax = rawMax.trim() === '' ? undefined : Number(rawMax)
+
+    if (
+      (parsedMin != null && (!Number.isFinite(parsedMin) || parsedMin <= 0)) ||
+      (parsedMax != null && (!Number.isFinite(parsedMax) || parsedMax <= 0))
+    ) {
+      return
+    }
+    if (parsedMin != null && parsedMax != null && parsedMin > parsedMax) {
+      return
+    }
+    if (parsedMin == null && parsedMax == null) {
+      setCustomOpen(false)
+      return
+    }
+    onSetAgeRange(parsedMin, parsedMax)
+    setCustomOpen(false)
+  }, [customMin, customMax, onSetAgeRange])
+
+  return (
+    <div className="space-y-3">
+      <div className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+        {t('resumes.searchPage.facets.ageRange', { defaultValue: '年龄范围' })}
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        {PRESET_AGE_RANGES.map((preset) => {
+          const active = activePreset === preset
+          const label = `${preset.min ?? ''}-${preset.max ?? ''}`
+            .replace(/^-/, '≤')
+            .replace(/-$/, '+')
+          return (
+            <button
+              key={label}
+              type="button"
+              className={active
+                ? 'rounded-full border border-slate-900 bg-slate-900 px-3 py-1.5 text-sm text-white'
+                : 'rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700'}
+              onClick={() => {
+                setCustomOpen(false)
+                setCustomMin('')
+                setCustomMax('')
+                onSetAgeRange(active ? undefined : preset.min, active ? undefined : preset.max)
+              }}
+            >
+              {label}
+            </button>
+          )
+        })}
+        {customOpen ? (
+          <form
+            className="inline-flex items-center gap-1"
+            onSubmit={(event) => {
+              event.preventDefault()
+              submitCustomValues()
+            }}
+          >
+            <Input
+              ref={minRef}
+              type="number"
+              min={1}
+              placeholder="—"
+              className="h-7 w-12 px-2 text-sm"
+              value={customMin}
+              onChange={(event) => setCustomMin(event.target.value)}
+              onBlur={() => {
+                // Close without submitting - user must click checkmark to apply
+                setCustomOpen(false)
+                setCustomMin('')
+                setCustomMax('')
+              }}
+              onKeyDown={(e) => { if (e.key === 'Enter') submitCustomValues() }}
+              autoFocus
+            />
+            <span className="text-sm text-slate-400">–</span>
+            <Input
+              ref={maxRef}
+              type="number"
+              min={1}
+              placeholder="—"
+              className="h-7 w-12 px-2 text-sm"
+              value={customMax}
+              onChange={(event) => setCustomMax(event.target.value)}
+              onBlur={() => {
+                // Close without submitting - user must click checkmark to apply
+                setCustomOpen(false)
+                setCustomMin('')
+                setCustomMax('')
+              }}
+              onKeyDown={(e) => { if (e.key === 'Enter') submitCustomValues() }}
+            />
+            <span className="text-sm text-slate-500">
+              {t('resumes.searchPage.facets.ageUnit', { defaultValue: '岁' })}
+            </span>
+            <Button
+              type="submit"
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 p-0 text-slate-500 hover:text-slate-700"
+              aria-label={t('common.apply', { defaultValue: '应用' })}
+            >
+              <Check className="h-4 w-4" />
+            </Button>
+            <button
+              type="button"
+              className="rounded-full border border-dashed border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-500 hover:border-slate-400 hover:text-slate-600"
+              onClick={() => {
+                setCustomOpen(false)
+                setCustomMin('')
+                setCustomMax('')
+              }}
+            >
+              {t('resumes.searchPage.facets.custom', { defaultValue: '自定义' })}
+            </button>
+          </form>
+        ) : (
+          <button
+            type="button"
+            className="rounded-full border border-dashed border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-500 hover:border-slate-400 hover:text-slate-600"
+            onClick={() => {
+              setCustomOpen(true)
             }}
           >
             {t('resumes.searchPage.facets.custom', { defaultValue: '自定义' })}
@@ -160,6 +344,8 @@ function MinRoleYearsGroup({
 export function FacetSidebar({
   embedded = false,
   facetCounts,
+  minAge,
+  maxAge,
   minScore,
   minRoleYears,
   selectedBrands,
@@ -171,6 +357,7 @@ export function FacetSidebar({
   selectedStatuses,
   selectedTags,
   onClearAll,
+  onSetAgeRange,
   onSetExperienceLevel,
   onSetMinRoleYears,
   onSetMinScore,
@@ -225,6 +412,7 @@ export function FacetSidebar({
         onSelect={onSetExperienceLevel}
       />
       <MinRoleYearsGroup minRoleYears={minRoleYears} onSetMinRoleYears={onSetMinRoleYears} />
+      <AgeRangeGroup minAge={minAge} maxAge={maxAge} onSetAgeRange={onSetAgeRange} />
       <FacetGroup title={t('resumes.searchPage.facets.education', { defaultValue: '学历' })} items={facetCounts.education} selectedValues={selectedEducation} onToggle={onToggleEducation} />
       <FacetGroup title={t('resumes.searchPage.facets.status', { defaultValue: '候选人状态' })} items={facetCounts.statuses} selectedValues={selectedStatuses} onToggle={(value) => onToggleStatus(value as CandidateStatus)} />
     </div>

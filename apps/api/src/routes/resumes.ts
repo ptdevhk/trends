@@ -1193,8 +1193,8 @@ async function prepareConvexCandidates(params: {
 
           // Basic filters that can run on slim projection
           if (filters) {
-            if (typeof filters.minAge === 'number' && (typeof doc.age !== 'number' || doc.age < filters.minAge)) continue;
-            if (typeof filters.maxAge === 'number' && (typeof doc.age !== 'number' || doc.age > filters.maxAge)) continue;
+            if (typeof filters.minAge === 'number' && typeof doc.age === 'number' && doc.age < filters.minAge) continue;
+            if (typeof filters.maxAge === 'number' && typeof doc.age === 'number' && doc.age > filters.maxAge) continue;
             if (Array.isArray(filters.sources) && filters.sources.length > 0) {
               const docSource = typeof doc.source === 'string' ? doc.source.toLowerCase() : '';
               if (!filters.sources.some((s: string) => docSource.includes(s.toLowerCase()))) continue;
