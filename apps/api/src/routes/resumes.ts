@@ -2061,6 +2061,7 @@ function resolveResumeSortOrder(sortBy: "score" | "name" | "experience" | "extra
 
 function toExportResumePayload(resume: ResumeItem): ExportResumePayload {
   return {
+    externalId: resume.externalId,
     name: resume.name,
     jobIntention: resume.jobIntention,
     location: resume.location,
@@ -2080,6 +2081,7 @@ function normalizeExportResumePayload(
   resume: z.infer<typeof ResumeExportResolvedResumeSchema>
 ): ExportResumePayload {
   return {
+    externalId: resume.externalId,
     name: resume.name,
     jobIntention: resume.jobIntention,
     location: resume.location,

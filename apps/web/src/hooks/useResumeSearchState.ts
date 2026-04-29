@@ -1391,8 +1391,11 @@ export function useResumeSearchState() {
     setResumeLimit((current) => current + RESUME_PAGE_INCREMENT)
   }, [hasMore, loadingMore])
 
-  const exportResults = useCallback(async () => {
-    if (filteredResults.length === 0) {
+  const exportResults = useCallback(async (selectedIds?: Set<string>) => {
+    const exportCandidates = selectedIds && selectedIds.size > 0
+      ? filteredResults.filter((item) => selectedIds.has(item.key))
+      : filteredResults
+    if (exportCandidates.length === 0) {
       return
     }
 
@@ -1401,11 +1404,11 @@ export function useResumeSearchState() {
       const exportRequest: ResumeExportRequestBody = {
         format: exportFormat,
         source: 'convex',
-        entries: filteredResults.map(buildSearchExportEntry),
+        entries: exportCandidates.map(buildSearchExportEntry),
       }
 
       await submitResumeExportDownload(apiBaseUrl, exportRequest)
-      toast.info(`Started export for ${filteredResults.length} resumes`)
+      toast.info(`Started export for ${exportCandidates.length} resumes`)
     } catch (error) {
       console.error('Failed to export search results', error)
       const message =
@@ -1416,7 +1419,7 @@ export function useResumeSearchState() {
     } finally {
       setExportingResults(false)
     }
-  }, [apiBaseUrl, exportFormat, filteredResults])
+  }, [apiBaseUrl, exportFormat, filteredResults]) // selectedIds excluded on purpose — export uses snapshot at call time
 
   const analyzeResults = useCallback(async () => {
     if (analysisCandidateResumeIds.length === 0) {
@@ -1607,7 +1610,7 @@ export function useResumeSearchState() {
   const handleBulkAction = useCallback(
     async (action: 'shortlist' | 'reject' | 'star' | 'block' | 'export') => {
       if (action === 'export') {
-        await exportResults()
+        await exportResults(selectedIds)
         return
       }
 
