@@ -1570,3 +1570,30 @@ export const backfillSearchProfileTemplateHash = mutation({
         };
     },
 });
+
+/**
+ * Remove stale `collectUrl` field from screening_sessions config objects.
+ * The field was removed from the schema but some documents retained it,
+ * blocking Convex schema validation on deploy.
+ */
+export const removeScreeningSessionCollectUrl = mutation({
+    args: {},
+    handler: async (ctx) => {
+        const sessions = await ctx.db.query("screening_sessions").collect();
+        let patched = 0;
+        for (const session of sessions) {
+            const config = session.config as Record<string, unknown>;
+            if ("collectUrl" in config) {
+                const { collectUrl: _, ...cleanConfig } = config;
+                await ctx.db.replace(session._id, {
+                    ...session,
+                    _id: undefined as never,
+                    _creationTime: undefined as never,
+                    config: cleanConfig as typeof session.config,
+                });
+                patched++;
+            }
+        }
+        return { patched, total: sessions.length };
+    },
+});
