@@ -82,6 +82,7 @@ describe('FacetSidebar', () => {
         selectedTags={[]}
         onClearAll={onClearAll}
         onSetExperienceLevel={vi.fn()}
+        onSetMinRoleYears={vi.fn()}
         onSetMinScore={vi.fn()}
         onToggleBrand={vi.fn()}
         onToggleCluster={vi.fn()}
@@ -123,6 +124,7 @@ describe('FacetSidebar', () => {
         selectedTags={['machine tools']}
         onClearAll={onClearAll}
         onSetExperienceLevel={vi.fn()}
+        onSetMinRoleYears={vi.fn()}
         onSetMinScore={vi.fn()}
         onToggleBrand={vi.fn()}
         onToggleCluster={onToggleCluster}
@@ -171,6 +173,7 @@ describe('FacetSidebar', () => {
         selectedTags={[]}
         onClearAll={vi.fn()}
         onSetExperienceLevel={onSetExperienceLevel}
+        onSetMinRoleYears={vi.fn()}
         onSetMinScore={onSetMinScore}
         onToggleBrand={vi.fn()}
         onToggleCluster={vi.fn()}
@@ -192,5 +195,86 @@ describe('FacetSidebar', () => {
     expect(onSetExperienceLevel).toHaveBeenNthCalledWith(2, 'mid')
     expect(onSetMinScore).toHaveBeenNthCalledWith(1, undefined)
     expect(onSetMinScore).toHaveBeenNthCalledWith(2, 70)
+  })
+
+  it('toggles minRoleYears filter pills', async () => {
+    const user = userEvent.setup()
+    const onSetMinRoleYears = vi.fn()
+
+    render(
+      <FacetSidebar
+        facetCounts={buildFacetCounts()}
+        minRoleYears={2}
+        selectedBrands={[]}
+        selectedClusters={[]}
+        selectedCompanies={[]}
+        selectedEducation={[]}
+        selectedStatuses={[]}
+        selectedTags={[]}
+        onClearAll={vi.fn()}
+        onSetExperienceLevel={vi.fn()}
+        onSetMinRoleYears={onSetMinRoleYears}
+        onSetMinScore={vi.fn()}
+        onToggleBrand={vi.fn()}
+        onToggleCluster={vi.fn()}
+        onToggleCompany={vi.fn()}
+        onToggleEducation={vi.fn()}
+        onToggleStatus={vi.fn()}
+        onToggleTag={vi.fn()}
+        selectedSources={[]}
+        onToggleSource={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: '2+' })).toHaveClass('bg-slate-900')
+
+    await user.click(screen.getByRole('button', { name: '2+' }))
+    expect(onSetMinRoleYears).toHaveBeenCalledWith(undefined)
+
+    await user.click(screen.getByRole('button', { name: '5+' }))
+    expect(onSetMinRoleYears).toHaveBeenCalledWith(5)
+  })
+
+  it('supports custom minRoleYears input', async () => {
+    const user = userEvent.setup()
+    const onSetMinRoleYears = vi.fn()
+
+    render(
+      <FacetSidebar
+        facetCounts={buildFacetCounts()}
+        selectedBrands={[]}
+        selectedClusters={[]}
+        selectedCompanies={[]}
+        selectedEducation={[]}
+        selectedStatuses={[]}
+        selectedTags={[]}
+        onClearAll={vi.fn()}
+        onSetExperienceLevel={vi.fn()}
+        onSetMinRoleYears={onSetMinRoleYears}
+        onSetMinScore={vi.fn()}
+        onToggleBrand={vi.fn()}
+        onToggleCluster={vi.fn()}
+        onToggleCompany={vi.fn()}
+        onToggleEducation={vi.fn()}
+        onToggleStatus={vi.fn()}
+        onToggleTag={vi.fn()}
+        selectedSources={[]}
+        onToggleSource={vi.fn()}
+      />
+    )
+
+    // Click "自定义" button to open custom input
+    await user.click(screen.getByRole('button', { name: /自定义/i }))
+    const input = screen.getByRole('spinbutton')
+    expect(input).toBeInTheDocument()
+
+    // Clicking "自定义" clears current filter
+    expect(onSetMinRoleYears).toHaveBeenCalledWith(undefined)
+
+    // Type a custom value and blur to submit
+    await user.type(input, '10')
+    await user.keyboard('{Tab}')
+
+    expect(onSetMinRoleYears).toHaveBeenCalledWith(10)
   })
 })

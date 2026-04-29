@@ -95,6 +95,7 @@ function buildProps(overrides: Partial<ComponentProps<typeof MobileFilterSheet>>
     selectedTags: ['Machine Tools'],
     onClearAll: vi.fn(),
     onSetExperienceLevel: vi.fn(),
+    onSetMinRoleYears: vi.fn(),
     onSetMinScore: vi.fn(),
     onToggleCluster: vi.fn(),
     onToggleCompany: vi.fn(),

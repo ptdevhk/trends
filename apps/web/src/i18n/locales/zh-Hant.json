@@ -377,7 +377,8 @@
         "education": "學歷",
         "status": "候選人狀態",
         "matchScore": "匹配分",
-        "sources": "來源渠道"
+        "sources": "來源渠道",
+        "minRoleYears": "崗位年限"
       },
       "hero": {
         "quickStart": "快速開始",

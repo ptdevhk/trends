@@ -488,6 +488,7 @@ function createResumeSearchState(overrides: Record<string, unknown> = {}) {
     setAiModeEnabled: vi.fn(),
     setExportFormat: vi.fn(),
     setMinScoreFilter: vi.fn(),
+    setMinRoleYearsFilter: vi.fn(),
     setQueryInput: vi.fn(),
     setSelectedExperienceLevel: vi.fn(),
     setSort: vi.fn(),
