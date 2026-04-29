@@ -55,6 +55,7 @@ describe("seed_and_migrate_convex migration order", () => {
     "backfillSearchText",
     "backfillEvidenceText",
     "backfillPrimaryRuleScore",
+    "backfillVerifiedRoleYears",
     "reindexSearchText",
   ];
 

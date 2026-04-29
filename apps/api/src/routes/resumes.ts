@@ -74,6 +74,8 @@ import {
   buildWorkHistoryEntryText,
   formatKeywordQuery,
   formatLocationHierarchySearchText,
+  getVerifiedRoleSignalYears,
+  type AnalysisRoleSignalLike,
   isLocationMatch,
   normalizeKeywordPhrases,
   normalizeResumeLocationHierarchy,
@@ -1989,10 +1991,18 @@ function bffMatchesResumeFilters(
     const verifiedRoleYears = isRecord(ingestData.verifiedRoleYears)
       ? ingestData.verifiedRoleYears as Record<string, unknown>
       : {};
-    const roleYears = filters.roleFilterType
-      ? toOptionalNumber(verifiedRoleYears[filters.roleFilterType]) ?? 0
-      : Math.max(...Object.values(verifiedRoleYears).map((v) => toOptionalNumber(v) ?? 0), 0);
-    if (roleYears < filters.minRoleYears) return false;
+    const precomputed = filters.roleFilterType
+      ? toOptionalNumber(verifiedRoleYears[filters.roleFilterType]) ?? undefined
+      : (Object.values(verifiedRoleYears).some((v) => (toOptionalNumber(v) ?? 0) >= filters.minRoleYears!) ? filters.minRoleYears : undefined);
+    if (precomputed !== undefined) {
+      if (precomputed < filters.minRoleYears) return false;
+    } else {
+      const roleSignals = Array.isArray(ingestData.roleSignals) ? (ingestData.roleSignals as AnalysisRoleSignalLike[]) : [];
+      const fallback = filters.roleFilterType
+        ? getVerifiedRoleSignalYears(roleSignals, filters.roleFilterType)
+        : Math.max(...roleSignals.map((sig) => typeof sig.type === "string" ? getVerifiedRoleSignalYears(roleSignals, sig.type) : 0), 0);
+      if (fallback < filters.minRoleYears) return false;
+    }
   }
 
   if (typeof filters.minAge === "number" || typeof filters.maxAge === "number") {
