@@ -678,7 +678,7 @@ describe('QuickStartPanel quick-filter display', () => {
 
     await user.click(screen.getByRole('button', { name: 'Modify' }))
 
-    expect(navigateMock).toHaveBeenCalledWith('/dev/system/profiles?edit=seek-malaysia-sales')
+    expect(navigateMock).toHaveBeenCalledWith('/dev/settings/profiles?edit=seek-malaysia-sales')
   })
 
   it('shows auto-match with keywords only when location is blank', async () => {

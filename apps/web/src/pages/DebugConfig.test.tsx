@@ -327,6 +327,6 @@ describe('System settings routes', () => {
       expect(screen.getByText('Search-first landing quick starts now live in the same Search Profiles workspace registry as every other profile.')).toBeInTheDocument()
     })
 
-    expect(screen.getByRole('link', { name: 'Open Search Profiles' })).toHaveAttribute('href', '/dev/system/profiles')
+    expect(screen.getByRole('link', { name: 'Open Search Profiles' })).toHaveAttribute('href', '/dev/settings/profiles')
   })
 })

@@ -121,6 +121,59 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
     }
   },
   {
+    "workspaceSlug": "hr",
+    "seedLastRunOffsetMs": 3600000,
+    "profile": {
+      "id": "job5156-cn-cnc-sales",
+      "name": "China Job5156 CNC Sales",
+      "description": "China-wide Job5156 CNC sales search profile used for the landing quick start",
+      "createdAt": "2026-03-28",
+      "updatedAt": "2026-03-28",
+      "status": "active",
+      "location": "China",
+      "keywords": [
+        "CNC",
+        "销售"
+      ],
+      "jobDescription": "lathe-sales",
+      "filters": {
+        "minExperience": 1,
+        "maxExperience": null,
+        "minAge": 25,
+        "maxAge": 40,
+        "locations": [
+          "China"
+        ]
+      },
+      "schedule": {
+        "enabled": false,
+        "cron": "0 9 * * 1-5",
+        "timezone": "Asia/Shanghai",
+        "maxCandidates": 200
+      },
+      "sources": [
+        {
+          "type": "job5156",
+          "enabled": true,
+          "priority": 1,
+          "collectLimit": 200,
+          "maxPages": 10
+        },
+        {
+          "type": "seek",
+          "enabled": false,
+          "priority": 2
+        }
+      ],
+      "quickStart": {
+        "enabled": true,
+        "rank": 1,
+        "label": "China · Job5156 · CNC 销售",
+        "description": "CNC, 销售 · China"
+      }
+    }
+  },
+  {
     "workspaceSlug": "dev",
     "seedLastRunOffsetMs": 900000,
     "profile": {
@@ -171,7 +224,119 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
     }
   },
   {
+    "workspaceSlug": "hr",
+    "seedLastRunOffsetMs": 900000,
+    "profile": {
+      "id": "51job-cn-cnc-sales",
+      "name": "China 51job CNC Sales",
+      "description": "China-wide 51job CNC sales search profile used for the landing quick start",
+      "createdAt": "2026-04-02",
+      "updatedAt": "2026-04-09",
+      "status": "active",
+      "location": "China",
+      "keywords": [
+        "CNC",
+        "销售"
+      ],
+      "filters": {
+        "minExperience": 1,
+        "maxExperience": null,
+        "minAge": 25,
+        "maxAge": 40,
+        "locations": [
+          "China"
+        ]
+      },
+      "schedule": {
+        "enabled": false,
+        "cron": "0 9 * * 1-5",
+        "timezone": "Asia/Shanghai",
+        "maxCandidates": 200
+      },
+      "sources": [
+        {
+          "type": "51job",
+          "enabled": true,
+          "priority": 1
+        },
+        {
+          "type": "job5156",
+          "enabled": false,
+          "priority": 2
+        }
+      ],
+      "quickStart": {
+        "enabled": true,
+        "rank": 2,
+        "label": "China · 51job · CNC 销售",
+        "description": "CNC, 销售 · China"
+      }
+    }
+  },
+  {
     "workspaceSlug": "dev",
+    "seedLastRunOffsetMs": 1800000,
+    "profile": {
+      "id": "seek-malaysia-sales",
+      "name": "SEEK Malaysia CNC Sales",
+      "description": "Malaysia SEEK workflow for nationwide CNC sales hiring",
+      "createdAt": "2026-03-17",
+      "updatedAt": "2026-04-24",
+      "status": "active",
+      "location": "Malaysia",
+      "keywords": [
+        "CNC",
+        "Sales"
+      ],
+      "requiredKeywords": [
+        "machine tools"
+      ],
+      "jobDescription": "seek-malaysia-sales",
+      "filters": {
+        "minExperience": 1,
+        "maxExperience": null,
+        "maxAge": 45,
+        "locations": [
+          "Malaysia"
+        ]
+      },
+      "schedule": {
+        "enabled": false,
+        "timezone": "Asia/Kuala_Lumpur",
+        "maxCandidates": 120
+      },
+      "sources": [
+        {
+          "type": "seek",
+          "enabled": true,
+          "priority": 1,
+          "jobUrl": "https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1",
+          "collectLimit": 100,
+          "maxPages": 5
+        },
+        {
+          "type": "job5156",
+          "enabled": false,
+          "priority": 2
+        }
+      ],
+      "quickStart": {
+        "enabled": true,
+        "rank": 3,
+        "label": "Malaysia · SEEK · CNC Sales",
+        "description": "CNC, Sales · Malaysia"
+      },
+      "session": {
+        "scope": "per-position",
+        "retention": {
+          "mode": "until-closed",
+          "archiveAfterDays": 90
+        }
+      }
+    }
+  },
+  {
+    "workspaceSlug": "hr",
     "seedLastRunOffsetMs": 1800000,
     "profile": {
       "id": "seek-malaysia-sales",

@@ -311,7 +311,7 @@ export function SystemSettingsKeywordsPage() {
               </div>
               <Link
                 className="inline-flex h-9 items-center rounded-md border px-3 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
-                to={`/${slug}/system/profiles`}
+                to={`/${slug}/settings/profiles`}
               >
                 {t('searchProfiles.title', { defaultValue: 'Open Search Profiles' })}
               </Link>

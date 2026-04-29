@@ -234,13 +234,6 @@ export const SYSTEM_NAV_ITEMS: SurfaceNavDefinition[] = [
     matchesSuffixes: ["/system/jds"],
   },
   {
-    id: "profiles",
-    titleKey: "searchProfiles.nav",
-    defaultTitle: "Search Profiles",
-    hrefSuffix: "/system/profiles",
-    matchesSuffixes: ["/system/profiles"],
-  },
-  {
     id: "summaries",
     titleKey: "summaries.nav",
     defaultTitle: "Summary Runs",
@@ -305,6 +298,13 @@ export const SETTINGS_NAV_ITEMS: SurfaceNavDefinition[] = [
     defaultTitle: "Blacklist",
     hrefSuffix: "/settings/blocks",
     matchesSuffixes: ["/settings/blocks"],
+  },
+  {
+    id: "profiles",
+    titleKey: "searchProfiles.nav",
+    defaultTitle: "Search Profiles",
+    hrefSuffix: "/settings/profiles",
+    matchesSuffixes: ["/settings/profiles"],
   },
 ];
 

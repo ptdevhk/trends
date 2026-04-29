@@ -5,7 +5,7 @@ import {
   type SurfaceNavDefinition,
 } from '@trends/shared'
 import { Link, useLocation } from 'react-router-dom'
-import { Ban, Home, X } from 'lucide-react'
+import { Ban, Home, Search, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
@@ -23,6 +23,7 @@ type NavItem = SurfaceNavDefinition & {
 const NAV_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   home: Home,
   blocks: Ban,
+  profiles: Search,
 }
 
 interface SettingsSidebarProps {

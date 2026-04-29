@@ -4,7 +4,7 @@ description: Malaysia SEEK workflow for nationwide CNC sales hiring
 createdAt: "2026-03-17"
 updatedAt: "2026-04-24"
 status: active
-workspaceSlug: dev
+workspaceSlug: [dev, hr]
 seedLastRunOffsetMs: 1800000
 
 location: Malaysia

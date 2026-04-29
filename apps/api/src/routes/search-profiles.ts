@@ -673,20 +673,9 @@ async function ensureWorkspaceSeedProfiles(workspaceSlug: string): Promise<void>
         }
 
         const isSoftDeleted = typeof existing.deletedAt === "number";
-        if (!isSoftDeleted) {
+        if (isSoftDeleted) {
             continue;
         }
-
-        const hashMatches = existing.templateHash === currentHash;
-        if (hashMatches) {
-            continue;
-        }
-
-        await updateCustomProfile(
-            existing.storageId,
-            toStoredProfilePayload(profile, { seededFromConfig: true, templateHash: currentHash }),
-            workspaceSlug,
-        );
     }
 }
 
@@ -709,21 +698,9 @@ async function ensureWorkspaceProfileById(id: string, workspaceSlug: string): Pr
     }
 
     const isSoftDeleted = typeof existing.deletedAt === "number";
-    if (!isSoftDeleted) {
+    if (isSoftDeleted) {
         return;
     }
-
-    const hashMatches = existing.templateHash === currentHash;
-    if (hashMatches) {
-        return;
-    }
-
-    const profile = searchProfileService.normalizeProfileInput(template.profile);
-    await updateCustomProfile(
-        existing.storageId,
-        toStoredProfilePayload(profile, { seededFromConfig: true, templateHash: currentHash }),
-        workspaceSlug,
-    );
 }
 
 async function getLinkedCustomJobDescription(
