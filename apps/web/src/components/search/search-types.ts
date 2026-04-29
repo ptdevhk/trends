@@ -15,6 +15,7 @@ export type FacetValueCount = {
 export type FacetCounts = {
   clusters: FacetValueCount[]
   tags: FacetValueCount[]
+  brands: FacetValueCount[]
   companies: FacetValueCount[]
   experienceLevels: FacetValueCount[]
   education: FacetValueCount[]

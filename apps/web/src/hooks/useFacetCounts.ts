@@ -67,6 +67,7 @@ export function useFacetCounts(
       taxonomyResolver.clusters.map((cluster) => [cluster.slug, cluster.name]),
     )
     const tagCounts = new Map<string, number>()
+    const brandCounts = new Map<string, number>()
     const companyCounts = new Map<string, number>()
     const experienceCounts = new Map<string, number>()
     const educationCounts = new Map<string, number>()
@@ -78,6 +79,7 @@ export function useFacetCounts(
         incrementCount(clusterCounts, cluster.slug)
       })
       incrementMany(tagCounts, item.resume.ingestData?.industryTags)
+      incrementMany(brandCounts, item.resume.ingestData?.brandHits?.filter((hit) => hit.context !== 'employer').map((hit) => hit.brand))
       incrementMany(companyCounts, item.resume.ingestData?.companyHits)
       incrementCount(experienceCounts, item.resume.ingestData?.experienceLevel)
       incrementCount(educationCounts, item.resume.education)
@@ -107,6 +109,7 @@ export function useFacetCounts(
     return {
       clusters: toSortedCounts(clusterCounts, clusterLabels),
       tags: toSortedCounts(tagCounts),
+      brands: toSortedCounts(brandCounts),
       companies: toSortedCounts(companyCounts),
       experienceLevels: toSortedCounts(experienceCounts),
       education: toSortedCounts(educationCounts),

@@ -164,7 +164,7 @@ describe('SnippetCardExpanded', () => {
     expect(screen.getByText('Robotics')).toBeInTheDocument()
     expect(screen.getAllByText('FANUC').length).toBeGreaterThan(0)
     expect(screen.getByText('DMG MORI')).toBeInTheDocument()
-    expect(screen.getByText('senior')).toBeInTheDocument()
+    expect(screen.getByText('Senior')).toBeInTheDocument()
 
     const link = screen.getByRole('link', { name: /开源档案/i })
     expect(link).toHaveAttribute('href', 'https://example.com/profile')

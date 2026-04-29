@@ -287,10 +287,10 @@ describe("resume routes", () => {
       const call = parseConvexCall(input, init);
       calls.push(call);
 
-      // AND-mode queries now use BFF-side full-table-scan via scanResumePageByTime
-      if (call.pathName === "resumes:scanResumePageByTime") {
+      // AND-mode queries use two-phase scan: phase 1 via scanResumePageSlim
+      if (call.pathName === "resumes:scanResumePageSlim") {
         const cursor = typeof call.args.cursor === "string" ? call.args.cursor : null;
-        // Return a single page with one matching doc containing CNC and 销售 in searchText
+        // Phase 1: slim projection — only searchText and basic fields
         return convexSuccess({
           docs: cursor
             ? []
@@ -301,25 +301,38 @@ describe("resume routes", () => {
                   primaryRuleScore: 44,
                   searchText: "CNC 数值控制 销售 engineer fanuc",
                   isArchived: false,
-                  content: {
-                    name: "Alice",
-                    location: "东莞",
-                    experience: "5 years",
-                    education: "Bachelor",
-                    jobIntention: "Sales",
-                    profileUrl: "https://example.com/alice",
-                    workHistory: [{ raw: "2020-2025 CNC 销售工程师" }],
-                  },
-                  ingestData: {
-                    companyHits: ["fanuc"],
-                    brandHits: [],
-                    roleSignals: [],
-                  },
                 },
               ],
           isDone: !cursor,
           cursor: cursor ? null : "next-page",
         });
+      }
+
+      // Phase 2: fetch full docs by IDs
+      if (call.pathName === "resumes:getResumeDocsByIds") {
+        return convexSuccess([
+          {
+            _id: "resume-live-1",
+            source: "seek",
+            primaryRuleScore: 44,
+            searchText: "CNC 数值控制 销售 engineer fanuc",
+            isArchived: false,
+            content: {
+              name: "Alice",
+              location: "东莞",
+              experience: "5 years",
+              education: "Bachelor",
+              jobIntention: "Sales",
+              profileUrl: "https://example.com/alice",
+              workHistory: [{ raw: "2020-2025 CNC 销售工程师" }],
+            },
+            ingestData: {
+              companyHits: ["fanuc"],
+              brandHits: [],
+              roleSignals: [],
+            },
+          },
+        ]);
       }
 
       throw new Error(`Unexpected convex path: ${call.pathName}`);
@@ -343,7 +356,7 @@ describe("resume routes", () => {
       })
     );
     expect(calls[0]).toEqual(expect.objectContaining({
-      pathName: "resumes:scanResumePageByTime",
+      pathName: "resumes:scanResumePageSlim",
     }));
   });
 
@@ -577,21 +590,31 @@ describe("resume routes", () => {
       const call = parseConvexCall(input, init);
       calls.push(call);
 
-      // AND-mode queries now use BFF-side full-table-scan via scanResumePageByTime
-      if (call.pathName === "resumes:scanResumePageByTime") {
+      // AND-mode queries use two-phase scan: phase 1 via scanResumePageSlim
+      if (call.pathName === "resumes:scanResumePageSlim") {
         const cursor = typeof call.args.cursor === "string" ? call.args.cursor : null;
         return convexSuccess({
           docs: cursor
             ? []
             : [
-                { ...buildConvexResumeRecord("resume-live-1", { name: "Alice" }), searchText: "cnc sales engineer", isArchived: false },
-                { ...buildConvexResumeRecord("resume-live-2", { name: "Bob" }), searchText: "cnc sales manager", isArchived: false },
-                { ...buildConvexResumeRecord("resume-live-3", { name: "Carla" }), searchText: "cnc sales director", isArchived: false },
-                { ...buildConvexResumeRecord("resume-live-4", { name: "Dylan" }), searchText: "cnc sales vp", isArchived: false },
+                { _id: "resume-live-1", source: "seek", searchText: "cnc sales engineer", isArchived: false },
+                { _id: "resume-live-2", source: "seek", searchText: "cnc sales manager", isArchived: false },
+                { _id: "resume-live-3", source: "seek", searchText: "cnc sales director", isArchived: false },
+                { _id: "resume-live-4", source: "seek", searchText: "cnc sales vp", isArchived: false },
               ],
           isDone: !cursor,
           cursor: cursor ? null : "next-page",
         });
+      }
+
+      // Phase 2: fetch full docs by IDs
+      if (call.pathName === "resumes:getResumeDocsByIds") {
+        return convexSuccess([
+          { ...buildConvexResumeRecord("resume-live-1", { name: "Alice" }), searchText: "cnc sales engineer", isArchived: false },
+          { ...buildConvexResumeRecord("resume-live-2", { name: "Bob" }), searchText: "cnc sales manager", isArchived: false },
+          { ...buildConvexResumeRecord("resume-live-3", { name: "Carla" }), searchText: "cnc sales director", isArchived: false },
+          { ...buildConvexResumeRecord("resume-live-4", { name: "Dylan" }), searchText: "cnc sales vp", isArchived: false },
+        ]);
       }
 
       throw new Error(`Unexpected convex path: ${call.pathName}`);
@@ -610,7 +633,7 @@ describe("resume routes", () => {
     }));
     expect(payload.data.map((item: { name: string }) => item.name)).toEqual(["Carla", "Dylan"]);
     expect(calls[0]).toEqual(expect.objectContaining({
-      pathName: "resumes:scanResumePageByTime",
+      pathName: "resumes:scanResumePageSlim",
     }));
   });
 
@@ -621,19 +644,27 @@ describe("resume routes", () => {
       const call = parseConvexCall(input, init);
       calls.push(call);
 
-      // AND-mode queries now use BFF-side full-table-scan via scanResumePageByTime
-      if (call.pathName === "resumes:scanResumePageByTime") {
+      // AND-mode queries use two-phase scan: phase 1 via scanResumePageSlim
+      if (call.pathName === "resumes:scanResumePageSlim") {
         const cursor = typeof call.args.cursor === "string" ? call.args.cursor : null;
         return convexSuccess({
           docs: cursor
             ? []
             : [
-                { ...buildConvexResumeRecord("resume-live-3", { name: "Carla" }), searchText: "cnc sales director", isArchived: false },
-                { ...buildConvexResumeRecord("resume-live-4", { name: "Dylan" }), searchText: "cnc sales vp", isArchived: false },
+                { _id: "resume-live-3", source: "seek", searchText: "cnc sales director", isArchived: false },
+                { _id: "resume-live-4", source: "seek", searchText: "cnc sales vp", isArchived: false },
               ],
           isDone: !cursor,
           cursor: cursor ? null : "next-page",
         });
+      }
+
+      // Phase 2: fetch full docs by IDs
+      if (call.pathName === "resumes:getResumeDocsByIds") {
+        return convexSuccess([
+          { ...buildConvexResumeRecord("resume-live-3", { name: "Carla" }), searchText: "cnc sales director", isArchived: false },
+          { ...buildConvexResumeRecord("resume-live-4", { name: "Dylan" }), searchText: "cnc sales vp", isArchived: false },
+        ]);
       }
 
       throw new Error(`Unexpected convex path: ${call.pathName}`);
@@ -646,7 +677,7 @@ describe("resume routes", () => {
     const payload = await response.json();
     expect(payload.success).toBe(true);
     expect(calls[0]).toEqual(expect.objectContaining({
-      pathName: "resumes:scanResumePageByTime",
+      pathName: "resumes:scanResumePageSlim",
     }));
   });
 
@@ -691,19 +722,27 @@ describe("resume routes", () => {
       const call = parseConvexCall(input, init);
       calls.push(call);
 
-      // AND-mode queries now use BFF-side full-table-scan via scanResumePageByTime
-      if (call.pathName === "resumes:scanResumePageByTime") {
+      // AND-mode queries use two-phase scan: phase 1 via scanResumePageSlim
+      if (call.pathName === "resumes:scanResumePageSlim") {
         const cursor = typeof call.args.cursor === "string" ? call.args.cursor : null;
         return convexSuccess({
           docs: cursor
             ? []
             : [
-                { ...keeKimLoong, searchText: "machine tools precision machinery sales engineer", isArchived: false },
-                { ...johnsonLeeWeiTao, searchText: "precision machinery sales engineer account design", isArchived: false },
+                { _id: "resume-live-5", source: "hk.employer.seek.com", searchText: "machine tools precision machinery sales engineer", isArchived: false },
+                { _id: "resume-live-6", source: "hk.employer.seek.com", searchText: "precision machinery sales engineer account design", isArchived: false },
               ],
           isDone: !cursor,
           cursor: cursor ? null : "next-page",
         });
+      }
+
+      // Phase 2: fetch full docs by IDs
+      if (call.pathName === "resumes:getResumeDocsByIds") {
+        return convexSuccess([
+          { ...keeKimLoong, searchText: "machine tools precision machinery sales engineer", isArchived: false },
+          { ...johnsonLeeWeiTao, searchText: "precision machinery sales engineer account design", isArchived: false },
+        ]);
       }
 
       throw new Error(`Unexpected convex path: ${call.pathName}`);
@@ -728,7 +767,7 @@ describe("resume routes", () => {
       "Johnson Lee Wei Tao",
     ]);
     expect(calls[0]).toEqual(expect.objectContaining({
-      pathName: "resumes:scanResumePageByTime",
+      pathName: "resumes:scanResumePageSlim",
     }));
   });
 
@@ -739,15 +778,16 @@ describe("resume routes", () => {
       const call = parseConvexCall(input, init);
       calls.push(call);
 
-      // AND-mode queries now use BFF-side full-table-scan via scanResumePageByTime
-      if (call.pathName === "resumes:scanResumePageByTime") {
+      // AND-mode queries use two-phase scan: phase 1 via scanResumePageSlim
+      if (call.pathName === "resumes:scanResumePageSlim") {
         const cursor = typeof call.args.cursor === "string" ? call.args.cursor : null;
         return convexSuccess({
           docs: cursor
             ? []
             : [
                 {
-                  ...buildConvexResumeRecord("resume-live-3", { name: "Carla" }),
+                  _id: "resume-live-3",
+                  source: "seek",
                   searchText: "cnc sales machine tools",
                   isArchived: false,
                 },
@@ -757,6 +797,17 @@ describe("resume routes", () => {
         });
       }
 
+      // Phase 2: fetch full docs by IDs
+      if (call.pathName === "resumes:getResumeDocsByIds") {
+        return convexSuccess([
+          {
+            ...buildConvexResumeRecord("resume-live-3", { name: "Carla" }),
+            searchText: "cnc sales machine tools",
+            isArchived: false,
+          },
+        ]);
+      }
+
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
@@ -764,8 +815,8 @@ describe("resume routes", () => {
     const response = await app.request("/api/resumes?source=convex&q=cnc%20sales&limit=2&requiredKeywords=machine%20tools,CNC");
 
     expect(response.status).toBe(200);
-    // AND-mode now uses scanResumePageByTime instead of the action
-    expect(calls.some((c) => c.pathName === "resumes:scanResumePageByTime")).toBe(true);
+    // AND-mode now uses scanResumePageSlim instead of the action
+    expect(calls.some((c) => c.pathName === "resumes:scanResumePageSlim")).toBe(true);
     // Required keywords are applied as local filters in BFF AND-mode path
     const payload = await response.json();
     expect(payload.success).toBe(true);

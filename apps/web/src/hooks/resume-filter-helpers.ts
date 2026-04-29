@@ -187,9 +187,9 @@ export function toExperienceLevel(value: string | undefined): ExperienceLevelFil
   }
 
   const normalized = normalizeFilterToken(value)
-  if (normalized === 'senior') return 'senior'
-  if (normalized === 'mid') return 'mid'
-  if (normalized === 'junior') return 'junior'
+  if (normalized === 'senior' || normalized === '资深' || normalized === '資深') return 'senior'
+  if (normalized === 'mid' || normalized === '中级' || normalized === '中級') return 'mid'
+  if (normalized === 'junior' || normalized === '初级' || normalized === '初級') return 'junior'
   return undefined
 }
 
@@ -285,6 +285,7 @@ export function normalizeUrlSearchStateValue(state: Partial<UrlSearchState> | un
     selectedTags: Array.isArray(state?.selectedTags) ? state.selectedTags : [],
     selectedCompanies: Array.isArray(state?.selectedCompanies) ? state.selectedCompanies : [],
     selectedSources: Array.isArray(state?.selectedSources) ? state.selectedSources : [],
+    selectedBrands: Array.isArray(state?.selectedBrands) ? state.selectedBrands : [],
     selectedExperienceLevel: state?.selectedExperienceLevel,
     filters: state?.filters ?? {},
   }

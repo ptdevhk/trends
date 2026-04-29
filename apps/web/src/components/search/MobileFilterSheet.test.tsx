@@ -74,6 +74,7 @@ function buildFacetCounts(): FacetCounts {
     clusters: [],
     tags: [],
     companies: [],
+    brands: [],
     experienceLevels: [],
     education: [],
     statuses: [],
@@ -100,7 +101,9 @@ function buildProps(overrides: Partial<ComponentProps<typeof MobileFilterSheet>>
     onToggleEducation: vi.fn(),
     onToggleStatus: vi.fn(),
     onToggleTag: vi.fn(),
+    selectedBrands: [],
     selectedSources: [],
+    onToggleBrand: vi.fn(),
     onToggleSource: vi.fn(),
     ...overrides,
   }

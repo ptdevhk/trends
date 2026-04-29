@@ -154,7 +154,7 @@ export function ResumeDetail({
   const { resolve: resolveBrand } = useBrandDisplayMap()
   const ingestData = resume && hasIngestData(resume) ? resume.ingestData : undefined
   const visibleIndustryTags = (ingestData?.industryTags ?? [])
-    .filter((tag: string) => tag.trim().length > 0)
+    .filter((tag: string) => tag.trim().length > 0 && tag.trim().toLowerCase() !== 'unknown')
     .slice(0, 4)
   const visibleCompanyHits = (ingestData?.companyHits ?? [])
     .filter((company: string) => company.trim().length > 0)

@@ -21,7 +21,8 @@ import {
 } from '@/components/ui/tooltip'
 import type { ResumeSearchResultItem } from '@/components/search/search-types'
 import { SnippetCardExpanded } from '@/components/search/SnippetCardExpanded'
-import { getResumeContentLocale, getResumeSourceLabel, isSafeProfileUrl } from '@/lib/resume-scoring'
+import { getResumeContentLocale, getResumeSourceLabel, getExperienceBadge, isSafeProfileUrl, summarizeBrandHits } from '@/lib/resume-scoring'
+import { useBrandDisplayMap } from '@/hooks/useBrandDisplayMap'
 import { cn } from '@/lib/utils'
 import type { CandidateActionType, CandidateStatus, AiFeedbackSentiment, AiFeedbackTarget } from '@/types/resume'
 
@@ -96,6 +97,8 @@ export function SnippetCard({
     ?? []
   ).slice(0, 4)
   const companyHits = (item.resume.ingestData?.companyHits ?? []).slice(0, 3)
+  const { resolve: resolveBrand } = useBrandDisplayMap()
+  const brandSummary = summarizeBrandHits(item.resume.ingestData?.brandHits)
   const score = item.score
   const hasAiScore = showAiScore && item.scoreSource === 'ai' && typeof score === 'number'
   const hasRuleScore = !showAiScore && typeof score === 'number'
@@ -241,8 +244,8 @@ export function SnippetCard({
           </div>
         ) : null}
         {/* Experience level */}
-        {item.resume.ingestData?.experienceLevel ? (
-          <Badge variant="outline" className="capitalize text-[10px]">{item.resume.ingestData.experienceLevel}</Badge>
+        {getExperienceBadge(item.resume.ingestData?.experienceLevel, t) ? (
+          <Badge variant="outline" className={cn('text-[10px]', getExperienceBadge(item.resume.ingestData?.experienceLevel, t)!.className)}>{getExperienceBadge(item.resume.ingestData?.experienceLevel, t)!.label}</Badge>
         ) : null}
         {/* Industry tags */}
         {visibleKeywords.map((keyword, index) => (
@@ -254,6 +257,12 @@ export function SnippetCard({
         {companyHits.map((company, index) => (
           <Badge key={`co-${company}-${index}`} variant="outline" className="text-[10px] border-blue-200 bg-blue-50 text-blue-700">
             {company}
+          </Badge>
+        ))}
+        {/* Brand hits */}
+        {brandSummary.map((brand, index) => (
+          <Badge key={`brand-${brand}-${index}`} variant="outline" className="text-[10px] border-amber-200 bg-amber-50 text-amber-700">
+            {resolveBrand(brand)}
           </Badge>
         ))}
       </div>

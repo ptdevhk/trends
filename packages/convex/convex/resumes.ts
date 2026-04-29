@@ -551,7 +551,7 @@ export function projectIngestDiagnosticsRow(
 ): IngestDiagnosticsRow {
     const content = isRecord(resume.content) ? resume.content : {};
     const ingestData = resume.ingestData;
-    const locationHierarchy = normalizeResumeLocationHierarchy(content);
+    const locationHierarchy = normalizeResumeLocationHierarchy(content, resume.source);
 
     return {
         resumeId: resume._id,
@@ -613,7 +613,7 @@ function projectResumeBaseContent(
     workHistory: unknown,
 ): Record<string, unknown> {
     const content = isRecord(resume.content) ? resume.content : {};
-    const locationHierarchy = normalizeResumeLocationHierarchy(content);
+    const locationHierarchy = normalizeResumeLocationHierarchy(content, resume.source);
     const name = toOptionalStringValue(content.name);
     const profileUrl = toOptionalStringValue(content.profileUrl)
         ?? toOptionalStringValue(content.profile_url)
@@ -873,8 +873,8 @@ function parseSalaryRange(value: string): { min?: number; max?: number } | null 
     return { min, max };
 }
 
-function buildResumeFilterSearchText(content: Record<string, unknown>): string {
-    const locationText = formatLocationHierarchySearchText(normalizeResumeLocationHierarchy(content)) || toStringValue(content.location);
+function buildResumeFilterSearchText(content: Record<string, unknown>, source?: string): string {
+    const locationText = formatLocationHierarchySearchText(normalizeResumeLocationHierarchy(content, source)) || toStringValue(content.location);
     const latestWorkHistory = selectLatestWorkHistory(content.workHistory);
     const parts = [
         toStringValue(content.name),
@@ -1019,7 +1019,7 @@ function matchesResumeListFilters(resume: Doc<"resumes">, filters: ResumeListFil
     }
 
     if (filters.locations?.length) {
-        const location = formatLocationHierarchySearchText(normalizeResumeLocationHierarchy(content)) || toStringValue(content.location);
+        const location = formatLocationHierarchySearchText(normalizeResumeLocationHierarchy(content, resume.source)) || toStringValue(content.location);
         const hasLocation = filters.locations.some((target) => isLocationMatch(location, target));
         if (!hasLocation) {
             return false;
@@ -1027,7 +1027,7 @@ function matchesResumeListFilters(resume: Doc<"resumes">, filters: ResumeListFil
     }
 
     if (filters.skills?.length) {
-        const haystack = buildResumeFilterSearchText(content);
+        const haystack = buildResumeFilterSearchText(content, resume.source);
         const hasSkill = filters.skills.some((skill) => haystack.includes(skill));
         if (!hasSkill) {
             return false;
@@ -1035,7 +1035,7 @@ function matchesResumeListFilters(resume: Doc<"resumes">, filters: ResumeListFil
     }
 
     if (filters.requiredKeywords?.length) {
-        const haystack = buildResumeFilterSearchText(content);
+        const haystack = buildResumeFilterSearchText(content, resume.source);
         if (!matchesAllRequiredKeywords(haystack, filters.requiredKeywords)) {
             return false;
         }
@@ -2576,6 +2576,8 @@ export const getResumesByIds = internalQuery({
 // Lightweight scan page for AND-mode BFF full-table-scan.
 // Returns only fields needed for BFF-side filtering (not full docs)
 // to minimize wire transfer — most scanned docs are discarded.
+// Two-phase approach: phase 1 scans with slim projection (no content)
+// to find matching IDs; phase 2 fetches full docs for matches only.
 export const scanResumePageByTime = query({
     args: {
         cursor: v.optional(v.string()),
@@ -2605,6 +2607,65 @@ export const scanResumePageByTime = query({
             isDone: page.isDone,
             cursor: page.isDone ? null : page.continueCursor,
         };
+    },
+});
+
+// Slim scan page for AND-mode phase 1 — no content/ingestData.
+// BFF uses this for the initial filter pass, then fetches full
+// docs for matches via scanResumePageByTime or getResumeByIds.
+export const scanResumePageSlim = query({
+    args: {
+        cursor: v.optional(v.string()),
+        numItems: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const numItems = Math.min(args.numItems ?? 1000, 1000);
+        const page = await ctx.db
+            .query("resumes")
+            .order("desc")
+            .paginate({
+                cursor: args.cursor ?? null,
+                numItems,
+            });
+        return {
+            docs: page.page.map((doc) => ({
+                _id: doc._id,
+                searchText: doc.searchText,
+                isArchived: doc.isArchived,
+                source: doc.source,
+                primaryRuleScore: doc.primaryRuleScore,
+                age: doc.age,
+            })),
+            isDone: page.isDone,
+            cursor: page.isDone ? null : page.continueCursor,
+        };
+    },
+});
+
+// Fetch full docs by ID for AND-mode phase 2 — only the matches.
+export const getResumeDocsByIds = query({
+    args: {
+        ids: v.array(v.id("resumes")),
+    },
+    handler: async (ctx, args) => {
+        const docs = await Promise.all(args.ids.map((id) => ctx.db.get(id)));
+        return docs.filter((doc): doc is Doc<"resumes"> => doc !== null).map((doc) => ({
+            _id: doc._id,
+            _creationTime: doc._creationTime,
+            searchText: doc.searchText,
+            isArchived: doc.isArchived,
+            source: doc.source,
+            primaryRuleScore: doc.primaryRuleScore,
+            age: doc.age,
+            content: doc.content,
+            ingestData: doc.ingestData,
+            analysis: doc.analysis,
+            analyses: doc.analyses,
+            identityKey: doc.identityKey,
+            externalId: doc.externalId,
+            tags: doc.tags,
+            crawledAt: doc.crawledAt,
+        }));
     },
 });
 

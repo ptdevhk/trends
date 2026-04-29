@@ -98,8 +98,8 @@ export type ConvexIngestData = {
   }
   ruleScores: Record<string, number>
   experienceLevel: string
-  computedAt: number
-  skillsVersion: number
+  computedAt?: number
+  skillsVersion?: number
 }
 
 export type ConvexRoleSignal = NonNullable<ConvexIngestData['roleSignals']>[number]
@@ -532,11 +532,8 @@ function parseIngestData(value: unknown): ConvexIngestData | undefined {
     return undefined
   }
 
-  const computedAt = toNumber(value.computedAt)
-  const skillsVersion = toNumber(value.skillsVersion)
-  if (computedAt === null || skillsVersion === null) {
-    return undefined
-  }
+  const computedAt = toNumber(value.computedAt) ?? undefined
+  const skillsVersion = toNumber(value.skillsVersion) ?? undefined
 
   const taggingEnvelope = parseTaggingEnvelope(value.taggingEnvelope)
 
@@ -801,9 +798,17 @@ function useBffAndModeSearch(
   expansionLoading: boolean,
   filters: ConvexResumeFilters | undefined,
   jobDescriptionId: string | undefined,
+  refetchTrigger?: number,
 ): BffAndModeResult {
   const [result, setResult] = useState<BffAndModeResult>({ resumes: [], total: 0, expansion: null, loading: false })
   const [loading, setLoading] = useState(false)
+
+  // Serialize filters to a stable string so the effect doesn't re-run
+  // on every render when the caller passes an inline object literal.
+  const filtersKey = useMemo(
+    () => JSON.stringify(filters ?? {}),
+    [filters],
+  )
 
   useEffect(() => {
     let active = true
@@ -857,10 +862,31 @@ function useBffAndModeSearch(
         }
 
         const resumes: ConvexResumeItem[] = data.data.map((item) => {
-          const doc = item as unknown as ResumeListDocLike
+          const record = item as Record<string, unknown>
+          // BFF API returns flat ResumeItem with doc-level fields
+          // (analysis, analyses, identityKey, tags, crawledAt, etc.)
+          // mixed in alongside content fields. Wrap into Convex doc
+          // shape ({_id, content, ...}) that mapResumeDoc expects.
+          // Content gets the full record so normalizeSharedResumeFields
+          // can find all content keys; doc-level fields override the
+          // content key so mapResumeDoc reads them at doc level.
+          const doc = {
+            analysis: record.analysis,
+            analyses: record.analyses,
+            identityKey: record.identityKey,
+            externalId: record.externalId,
+            tags: record.tags,
+            crawledAt: record.crawledAt,
+            _id: record.resumeId ?? record._id,
+            source: record.source,
+            primaryRuleScore: record.primaryRuleScore,
+            age: record.age,
+            ingestData: record.ingestData,
+            content: record,
+          } as unknown as ResumeListDocLike
           const mapped = mapResumeDoc(doc)
-          const provenance = Array.isArray((item as Record<string, unknown>)['_provenance'])
-            ? (item as Record<string, unknown>)['_provenance'] as SearchProvenance[]
+          const provenance = Array.isArray(record['_provenance'])
+            ? record['_provenance'] as SearchProvenance[]
             : undefined
           return { ...mapped, _provenance: provenance }
         })
@@ -883,7 +909,7 @@ function useBffAndModeSearch(
       })
 
     return () => { active = false }
-  }, [enabled, expansionLoading, filters, jobDescriptionId, keywordExpansion, normalizedQuery])
+  }, [enabled, expansionLoading, filtersKey, jobDescriptionId, keywordExpansion, normalizedQuery, refetchTrigger])
 
   return {
     ...(loading && result.resumes.length === 0
@@ -1003,6 +1029,15 @@ export function useConvexResumes(
 
   const isAndModeBffActive = !mockPayload && enabled && useAndModeBff && keywordExpansion?.mode === 'AND' && !expansionLoading
 
+  const analysisTasksForRefetch = useQuery(api.analysis_tasks.list)
+  const bffRefetchTrigger = useMemo(() => {
+    if (!isAndModeBffActive || !analysisTasksForRefetch) return 0
+    const completedCount = analysisTasksForRefetch.filter(
+      (t) => t.status === 'completed',
+    ).length
+    return completedCount
+  }, [analysisTasksForRefetch, isAndModeBffActive])
+
   const bffAndModeResult = useBffAndModeSearch(
     isAndModeBffActive,
     normalizedQuery,
@@ -1010,6 +1045,7 @@ export function useConvexResumes(
     expansionLoading,
     options?.filters,
     normalizedJobDescriptionId,
+    bffRefetchTrigger,
   )
 
   const paginatedSearchResults = usePaginatedQuery(

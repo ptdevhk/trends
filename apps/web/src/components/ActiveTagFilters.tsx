@@ -5,10 +5,12 @@ import type { ExperienceLevelFilter } from '@/hooks/useUrlSearchState'
 interface ActiveTagFiltersProps {
   selectedTags: string[]
   selectedCompanies: string[]
+  selectedBrands: string[]
   selectedExperienceLevel?: ExperienceLevelFilter
   selectedLocation?: string
   onRemoveTag: (tag: string) => void
   onRemoveCompany: (company: string) => void
+  onRemoveBrand: (brand: string) => void
   onRemoveExperienceLevel: (level: ExperienceLevelFilter | undefined) => void
   onRemoveLocation?: () => void
   onClearAll: () => void
@@ -23,10 +25,12 @@ function getExperienceLabel(level: ExperienceLevelFilter): string {
 export function ActiveTagFilters({
   selectedTags,
   selectedCompanies,
+  selectedBrands,
   selectedExperienceLevel,
   selectedLocation,
   onRemoveTag,
   onRemoveCompany,
+  onRemoveBrand,
   onRemoveExperienceLevel,
   onRemoveLocation,
   onClearAll,
@@ -37,6 +41,7 @@ export function ActiveTagFilters({
     ||
     selectedTags.length > 0
     || selectedCompanies.length > 0
+    || selectedBrands.length > 0
     || Boolean(selectedExperienceLevel)
 
   if (!hasActiveFilters) {
@@ -77,6 +82,18 @@ export function ActiveTagFilters({
             onClick={() => onRemoveCompany(company)}
           >
             {company.toUpperCase()}
+            <X className="h-3 w-3" />
+          </button>
+        ))}
+
+        {selectedBrands.map((brand) => (
+          <button
+            key={`brand-${brand}`}
+            type="button"
+            className="inline-flex items-center gap-1 rounded-full border border-amber-700 bg-amber-600 px-2 py-1 text-xs font-medium text-white"
+            onClick={() => onRemoveBrand(brand)}
+          >
+            {brand}
             <X className="h-3 w-3" />
           </button>
         ))}

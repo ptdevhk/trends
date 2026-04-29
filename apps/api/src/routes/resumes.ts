@@ -76,6 +76,7 @@ import {
   formatLocationHierarchySearchText,
   isLocationMatch,
   normalizeKeywordPhrases,
+  normalizeResumeLocationHierarchy,
   normalizeWorkHistoryEntry,
   parseKeywordQuery,
   selectLatestWorkHistory,
@@ -605,6 +606,9 @@ function buildResumeIngestData(value: unknown): ResumeItem["ingestData"] | undef
   const brandHits = parseBrandHits(value.brandHits);
   const roleSignals = parseRoleSignals(value.roleSignals);
   const industryDbV2Raw = toOptionalNumber(value.industryDbV2Raw);
+  const experienceLevel = toStringValue(value.experienceLevel) || undefined;
+  const normalizedExperienceLevel = experienceLevel?.trim().toLowerCase();
+  const meaningfulExperienceLevel = normalizedExperienceLevel && normalizedExperienceLevel !== 'unknown' ? experienceLevel : undefined;
 
   if (
     industryTags.length === 0
@@ -612,6 +616,7 @@ function buildResumeIngestData(value: unknown): ResumeItem["ingestData"] | undef
     && brandHits.length === 0
     && roleSignals.length === 0
     && industryDbV2Raw === undefined
+    && !meaningfulExperienceLevel
   ) {
     return undefined;
   }
@@ -629,6 +634,7 @@ function buildResumeIngestData(value: unknown): ResumeItem["ingestData"] | undef
     ...(brandHits.length > 0 ? { brandHits } : {}),
     ...(roleSignals.length > 0 ? { roleSignals } : {}),
     ...(industryDbV2Raw === undefined ? {} : { industryDbV2Raw }),
+    ...(meaningfulExperienceLevel ? { experienceLevel: meaningfulExperienceLevel } : {}),
     ...(verifiedRoleYears && Object.keys(verifiedRoleYears).length > 0 ? { verifiedRoleYears } : {}),
   };
 }
@@ -1162,10 +1168,13 @@ async function prepareConvexCandidates(params: {
         loweredVariants: g.variants.map((v: string) => v.toLowerCase()),
       }));
 
+      // Phase 1: Scan all docs with slim projection (no content/ingestData).
+      // Only collect IDs of docs matching keyword groups + basic filters.
+      const matchingIds: string[] = [];
       while (true) {
-        const page = await callConvexQuery("resumes:scanResumePageByTime", {
+        const page = await callConvexQuery("resumes:scanResumePageSlim", {
           ...(scanCursor ? { cursor: scanCursor } : {}),
-          numItems: 50,
+          numItems: 1000,
         });
 
         if (!isRecord(page) || !Array.isArray(page.docs)) {
@@ -1174,29 +1183,83 @@ async function prepareConvexCandidates(params: {
 
         for (const doc of page.docs) {
           if (!isRecord(doc)) continue;
-          const resumeId = toStringValue(doc._id);
-          if (!resumeId) continue;
-
           const searchText = typeof doc.searchText === "string" ? doc.searchText.toLowerCase() : "";
           const allGroupsMatch = loweredGroups.every((group) =>
             group.loweredVariants.some((lv: string) => searchText.includes(lv))
           );
           if (!allGroupsMatch) continue;
 
+          // Basic filters that can run on slim projection
+          if (filters) {
+            if (typeof filters.minAge === 'number' && (typeof doc.age !== 'number' || doc.age < filters.minAge)) continue;
+            if (typeof filters.maxAge === 'number' && (typeof doc.age !== 'number' || doc.age > filters.maxAge)) continue;
+            if (Array.isArray(filters.sources) && filters.sources.length > 0) {
+              const docSource = typeof doc.source === 'string' ? doc.source.toLowerCase() : '';
+              if (!filters.sources.some((s: string) => docSource.includes(s.toLowerCase()))) continue;
+            }
+          }
+
+          const resumeId = toStringValue(doc._id);
+          if (resumeId) matchingIds.push(resumeId);
+        }
+
+        if (!page.cursor || page.isDone) break;
+        scanCursor = toStringValue(page.cursor) ?? null;
+      }
+
+      // Phase 2: Fetch full docs only for matches, then apply remaining filters.
+      const BATCH_SIZE = 100;
+      for (let i = 0; i < matchingIds.length; i += BATCH_SIZE) {
+        const batchIds = matchingIds.slice(i, i + BATCH_SIZE);
+        const fullDocs = await callConvexQuery("resumes:getResumeDocsByIds", {
+          ids: batchIds,
+        });
+
+        if (!isRecord(fullDocs) || !Array.isArray(fullDocs)) continue;
+
+        for (const doc of fullDocs) {
+          if (!isRecord(doc)) continue;
+          const resumeId = toStringValue(doc._id);
+          if (!resumeId) continue;
+
+          const searchText = typeof doc.searchText === "string" ? doc.searchText.toLowerCase() : "";
+
+          // Apply remaining filters that need full docs (role, education, etc.)
           if (filters && !bffMatchesResumeFilters(doc, searchText, filters)) continue;
 
           const provenance = collectBffAndModeProvenance(searchText, groups, keywordExpansion.sourceMapping);
+          const resume = toResumeItemFromRecord(isRecord(doc.content) ? doc.content : {}, toStringValue(doc.source));
+          // Override resumeId with Convex _id so the frontend can use it
+          // for Convex mutations (dispatch analysis, etc.). Content's
+          // resumeId is a source-specific ID (e.g., "13467969") that
+          // doesn't match v.id("resumes").
+          resume.resumeId = resumeId;
+          // Propagate Convex doc-level fields that the frontend's mapResumeDoc
+          // reads from the doc (not from content). Without these, analysis
+          // scores never appear on AND-mode search results.
+          if (doc.analysis !== undefined && doc.analysis !== null) {
+            (resume as Record<string, unknown>).analysis = doc.analysis;
+          }
+          if (doc.analyses !== undefined && doc.analyses !== null) {
+            (resume as Record<string, unknown>).analyses = doc.analyses;
+          }
+          if (typeof doc.identityKey === "string") {
+            (resume as Record<string, unknown>).identityKey = doc.identityKey;
+          }
+          if (typeof doc.crawledAt === "number") {
+            (resume as Record<string, unknown>).crawledAt = doc.crawledAt;
+          }
+          if (Array.isArray(doc.tags)) {
+            (resume as Record<string, unknown>).tags = doc.tags;
+          }
           allResults.push(prepareResumeCandidate({
-            resume: toResumeItemFromRecord(isRecord(doc.content) ? doc.content : {}, toStringValue(doc.source)),
+            resume,
             resumeId,
             primaryRuleScore: toOptionalNumber(doc.primaryRuleScore),
             provenance,
             ingestData: doc.ingestData,
           }));
         }
-
-        if (!page.cursor || page.isDone) break;
-        scanCursor = toStringValue(page.cursor) ?? null;
       }
 
       const hasActiveFilters = filters ? hasResumeListFilters(filters) : false;
@@ -1896,7 +1959,8 @@ function bffMatchesResumeFilters(
   }
 
   if (filters.locations?.length) {
-    const location = toStringValue(content.location) ?? "";
+    const locationHierarchy = normalizeResumeLocationHierarchy(content, toStringValue(doc.source) ?? undefined);
+    const location = formatLocationHierarchySearchText(locationHierarchy) || (toStringValue(content.location) ?? "");
     if (!filters.locations.some((target) => isLocationMatch(location, target))) return false;
   }
 

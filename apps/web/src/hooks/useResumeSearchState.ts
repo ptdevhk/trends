@@ -35,6 +35,7 @@ import {
 import {
   getAnalysisForJob,
   computeDirectIndustryDb,
+  normalizeExperienceLevel,
   overrideIndustryDbBreakdown,
   recommendationFromScore,
   toIndustryDbV2Stats,
@@ -241,6 +242,7 @@ function hasExplicitSearchContext(state: UrlSearchState): boolean {
     state.selectedTags.length > 0 ||
     state.selectedCompanies.length > 0 ||
     state.selectedSources.length > 0 ||
+    state.selectedBrands.length > 0 ||
     state.selectedExperienceLevel ||
     (state.filters.education?.length ?? 0) > 0 ||
     (state.filters.status?.length ?? 0) > 0 ||
@@ -285,6 +287,7 @@ function buildUrlState(
     selectedTags: overrides.selectedTags ?? state.selectedTags,
     selectedCompanies: overrides.selectedCompanies ?? state.selectedCompanies,
     selectedSources: overrides.selectedSources ?? state.selectedSources,
+    selectedBrands: overrides.selectedBrands ?? state.selectedBrands,
     selectedExperienceLevel:
       'selectedExperienceLevel' in overrides
         ? overrides.selectedExperienceLevel
@@ -312,6 +315,7 @@ function buildSearchContextSignature(state: UrlSearchState): string {
     selectedTags: normalizeStringList(state.selectedTags),
     selectedCompanies: normalizeStringList(state.selectedCompanies),
     selectedSources: normalizeStringList(state.selectedSources),
+    selectedBrands: normalizeStringList(state.selectedBrands),
     selectedExperienceLevel: state.selectedExperienceLevel,
     filters: {
       education: normalizeStringList(state.filters.education ?? []),
@@ -447,6 +451,9 @@ function matchesLocalFilters(
   const normalizedSelectedSources = state.selectedSources.map((value) =>
     value.toLowerCase(),
   )
+  const normalizedSelectedBrands = state.selectedBrands.map((value) =>
+    value.toLowerCase(),
+  )
   const normalizedEducation = (state.filters.education ?? []).map((value) =>
     value.toLowerCase(),
   )
@@ -463,9 +470,7 @@ function matchesLocalFilters(
     item.resume.ingestData?.companyHits?.map((value) => value.toLowerCase()) ??
     []
   const education = item.resume.education?.trim().toLowerCase() ?? ''
-  const experienceLevel = item.resume.ingestData?.experienceLevel
-    ?.trim()
-    .toLowerCase()
+  const experienceLevel = normalizeExperienceLevel(item.resume.ingestData?.experienceLevel)
   const minScore = state.filters.minMatchScore
   const resumeAge =
     typeof state.filters.minAge === 'number' || typeof state.filters.maxAge === 'number'
@@ -500,6 +505,16 @@ function matchesLocalFilters(
   ) {
     const itemSourceLabel = getSourceLabelFromHostname(item.resume.source)?.toLowerCase()
     if (!itemSourceLabel || !normalizedSelectedSources.includes(itemSourceLabel)) {
+      return false
+    }
+  }
+
+  if (normalizedSelectedBrands.length > 0) {
+    const brandNames =
+      item.resume.ingestData?.brandHits
+        ?.filter((hit) => hit.context !== 'employer')
+        .map((hit) => hit.brand.toLowerCase()) ?? []
+    if (!normalizedSelectedBrands.every((brand) => brandNames.includes(brand))) {
       return false
     }
   }
@@ -670,6 +685,7 @@ export function useResumeSearchState() {
     parsedState.requiredKeywords,
     parsedState.selectedCompanies,
     parsedState.selectedSources,
+    parsedState.selectedBrands,
     parsedState.selectedExperienceLevel,
     parsedState.selectedTags,
   ])
@@ -935,6 +951,7 @@ export function useResumeSearchState() {
     parsedState.selectedTags.length +
     parsedState.selectedCompanies.length +
     parsedState.selectedSources.length +
+    parsedState.selectedBrands.length +
     (parsedState.selectedExperienceLevel ? 1 : 0) +
     (parsedState.filters.education?.length ?? 0) +
     (parsedState.filters.status?.length ?? 0) +
@@ -1066,6 +1083,7 @@ export function useResumeSearchState() {
         selectedTags: [],
         selectedCompanies: [],
         selectedSources: [],
+        selectedBrands: [],
         selectedExperienceLevel: undefined,
         filters: {},
       }),
@@ -1088,6 +1106,7 @@ export function useResumeSearchState() {
         selectedTags: item.selectedTags,
         selectedCompanies: item.selectedCompanies,
         selectedSources: [],
+        selectedBrands: [],
         selectedExperienceLevel:
           (item.selectedExperienceLevel as ExperienceLevelFilter | undefined) ??
           undefined,
@@ -1204,6 +1223,33 @@ export function useResumeSearchState() {
     [parsedState.selectedSources, setSelectedSources],
   )
 
+  const setSelectedBrands = useCallback(
+    (selectedBrands: string[]) => {
+      syncToUrl(buildUrlState(parsedState, { selectedBrands }))
+    },
+    [parsedState, syncToUrl],
+  )
+
+  const toggleBrand = useCallback(
+    (brand: string) => {
+      const normalized = brand.trim()
+      if (!normalized) {
+        return
+      }
+
+      const nextBrands = parsedState.selectedBrands.some(
+        (value) => value.toLowerCase() === normalized.toLowerCase(),
+      )
+        ? parsedState.selectedBrands.filter(
+          (value) => value.toLowerCase() !== normalized.toLowerCase(),
+        )
+        : [...parsedState.selectedBrands, normalized]
+
+      setSelectedBrands(nextBrands)
+    },
+    [parsedState.selectedBrands, setSelectedBrands],
+  )
+
   const setSelectedExperienceLevel = useCallback(
     (selectedExperienceLevel: ExperienceLevelFilter | undefined) => {
       syncToUrl(buildUrlState(parsedState, { selectedExperienceLevel }))
@@ -1310,6 +1356,7 @@ export function useResumeSearchState() {
         selectedTags: [],
         selectedCompanies: [],
         selectedSources: [],
+        selectedBrands: [],
         selectedExperienceLevel: undefined,
         filters: {
           ...parsedState.filters,
@@ -1614,6 +1661,7 @@ export function useResumeSearchState() {
     toggleCompany,
     toggleCluster,
     toggleEducation,
+    toggleBrand,
     toggleSource,
     toggleStatus,
     toggleTag,
