@@ -378,7 +378,8 @@
         "status": "候選人狀態",
         "matchScore": "匹配分",
         "sources": "來源渠道",
-        "minRoleYears": "崗位年限"
+        "minRoleYears": "相關工作經驗",
+        "custom": "自訂"
       },
       "hero": {
         "quickStart": "快速開始",

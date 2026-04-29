@@ -378,7 +378,9 @@
         "education": "Education",
         "status": "Candidate Status",
         "matchScore": "Match Score",
-        "sources": "Source Channel"
+        "sources": "Source Channel",
+        "minRoleYears": "Relevant Experience",
+        "custom": "Custom"
       },
       "hero": {
         "quickStart": "Quick Start",
