@@ -862,7 +862,7 @@ export function QuickStartPanel({
 
     const nextParams = new URLSearchParams()
     nextParams.set('edit', profileId)
-    navigate(`/${slug}/system/profiles?${nextParams.toString()}`)
+    navigate(`/${slug}/settings/profiles?${nextParams.toString()}`)
   }, [autoMatchResult?.profile.id, navigate, slug])
 
   const handleJdEditorSaveSuccess = useCallback((newId: string, savedFields?: {

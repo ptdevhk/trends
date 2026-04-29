@@ -77,7 +77,7 @@ type Profile = {
 };
 
 type Template = {
-  workspaceSlug: string;
+  workspaceSlugs: string[];
   seedLastRunOffsetMs?: number;
   profile: Profile;
 };
@@ -94,6 +94,17 @@ function readString(value: unknown): string | undefined {
 
 function readNumber(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function readWorkspaceSlugs(value: unknown): string[] {
+  // Array form: workspaceSlug: [dev, hr]
+  const asArray = readStringArray(value);
+  if (asArray && asArray.length > 0) return asArray;
+  // Scalar form: workspaceSlug: dev
+  const asString = readString(value);
+  if (asString) return [asString];
+  // Default
+  return ["dev"];
 }
 
 function readStringArray(value: unknown): string[] | undefined {
@@ -206,7 +217,7 @@ function parseTemplate(raw: unknown, fileName: string): Template | null {
     ? raw.sources.map(parseSource).filter((s: ProfileSource | null): s is ProfileSource => s !== null)
     : undefined;
   return {
-    workspaceSlug: readString(raw.workspaceSlug) ?? "dev",
+    workspaceSlugs: readWorkspaceSlugs(raw.workspaceSlug),
     seedLastRunOffsetMs: readNumber(raw.seedLastRunOffsetMs),
     profile: {
       id,
@@ -229,11 +240,17 @@ function parseTemplate(raw: unknown, fileName: string): Template | null {
   };
 }
 
+type FlatTemplate = {
+  workspaceSlug: string;
+  seedLastRunOffsetMs?: number;
+  profile: Profile;
+};
+
 // --- Rendering ---
 
 const SOURCE_DIR_RELATIVE = "config/search-profiles";
 
-function sortTemplates(templates: Template[]): Template[] {
+function sortTemplates(templates: FlatTemplate[]): FlatTemplate[] {
   return [...templates].sort((a, b) => {
     const rankA = a.profile.quickStart?.enabled ? (a.profile.quickStart?.rank ?? 999) : 999;
     const rankB = b.profile.quickStart?.enabled ? (b.profile.quickStart?.rank ?? 999) : 999;
@@ -242,7 +259,7 @@ function sortTemplates(templates: Template[]): Template[] {
   });
 }
 
-function renderGeneratedFile(templates: Template[]): string {
+function renderGeneratedFile(templates: FlatTemplate[]): string {
   const sorted = sortTemplates(templates);
 
   // Remove undefined values for clean JSON output
@@ -425,12 +442,24 @@ async function run(): Promise<void> {
     if (template) templates.push(template);
   }
 
+  // Fan out array workspaceSlugs into flat per-slug entries
+  const flatTemplates: FlatTemplate[] = [];
+  for (const template of templates) {
+    for (const slug of template.workspaceSlugs) {
+      flatTemplates.push({
+        workspaceSlug: slug,
+        seedLastRunOffsetMs: template.seedLastRunOffsetMs,
+        profile: template.profile,
+      });
+    }
+  }
+
   if (templates.length === 0) {
     console.error("No valid search profile templates found");
     process.exit(1);
   }
 
-  const expected = renderGeneratedFile(templates);
+  const expected = renderGeneratedFile(flatTemplates);
 
   if (checkMode) {
     const current = await readFile(outputPath, "utf8");

@@ -34,7 +34,6 @@ const NAV_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   home: Home,
   settings: Settings,
   jds: FileText,
-  profiles: FileText,
   summaries: BarChart3,
   'ai-debugger': Brain,
   'ai-tagging': Brain,

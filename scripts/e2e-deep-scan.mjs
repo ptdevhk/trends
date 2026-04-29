@@ -42,7 +42,7 @@ const SCENARIOS = [
     }
   },
   {
-    path: '/dev/system/profiles', label: 'Search Profiles',
+    path: '/dev/settings/profiles', label: 'Search Profiles',
     interactions: async (page) => {
       const firstRow = await page.locator('[class*="card"], [role="row"], button').nth(2);
       if (await firstRow.count() > 0) { await firstRow.click({ timeout: 1500 }).catch(()=>{}); await page.waitForTimeout(2000); }

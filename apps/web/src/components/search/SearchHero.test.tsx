@@ -385,7 +385,7 @@ describe('SearchHero', () => {
     expect(openedUrl.searchParams.get('tr_max_age')).toBeNull()
     expect(screen.getByRole('link', { name: 'Edit' })).toHaveAttribute(
       'href',
-      '/dev/system/profiles',
+      '/dev/settings/profiles',
     )
   })
 
@@ -444,7 +444,7 @@ describe('SearchHero', () => {
 
     expect(screen.getByRole('link', { name: 'Edit' })).toHaveAttribute(
       'href',
-      '/dev/system/profiles?edit=profile%2051job',
+      '/dev/settings/profiles?edit=profile%2051job',
     )
   })
   it('clicking a hot keyword chip calls onToggleHotKeyword', async () => {

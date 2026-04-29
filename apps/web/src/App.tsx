@@ -152,6 +152,14 @@ function App() {
                   </RouteSuspense>
                 )}
               />
+              <Route
+                path="profiles"
+                element={(
+                  <RouteSuspense>
+                    <LazySearchProfilesPage />
+                  </RouteSuspense>
+                )}
+              />
             </Route>
 
             <Route
@@ -226,14 +234,6 @@ function App() {
                 element={(
                   <RouteSuspense>
                     <LazyDebugJDs />
-                  </RouteSuspense>
-                )}
-              />
-              <Route
-                path="profiles"
-                element={(
-                  <RouteSuspense>
-                    <LazySearchProfilesPage />
                   </RouteSuspense>
                 )}
               />
