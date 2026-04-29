@@ -327,10 +327,12 @@ const DEBUG_EXCEL_COLUMNS: ExcelColumn[] = [
   { header: "Source", key: "source", width: 16 },
   { header: "Industry DB V2 Raw", key: "industryDbV2Raw", width: 18 },
   { header: "Industry DB V2 Normalized", key: "industryDbV2Normalized", width: 24 },
+  { header: "Rule Score", key: "ruleScore", width: 10 },
+  { header: "Role Evidence", key: "roleEvidence", width: 34 },
+  { header: "Matched Work Entries", key: "matchedWorkEntries", width: 44 },
 ];
 
 const STANDARD_EXCEL_COLUMNS_TAIL: ExcelColumn[] = [
-  { header: "Rule Score", key: "ruleScore", width: 10 },
   { header: "Recommendation", key: "recommendation", width: 16 },
   { header: "Status", key: "status", width: 16 },
   { header: "Score Source", key: "scoreSource", width: 12 },
@@ -338,8 +340,6 @@ const STANDARD_EXCEL_COLUMNS_TAIL: ExcelColumn[] = [
   { header: "Industry Tags", key: "industryTags", width: 22 },
   { header: "Brand Hits", key: "brandHits", width: 34 },
   { header: "Company Hits", key: "companyHits", width: 22 },
-  { header: "Role Evidence", key: "roleEvidence", width: 34 },
-  { header: "Matched Work Entries", key: "matchedWorkEntries", width: 44 },
   { header: "Profile URL", key: "profileUrl", width: 28 },
   { header: "Work History", key: "workHistory", width: 44 },
   { header: "Self Intro", key: "selfIntro", width: 48 },
@@ -354,9 +354,9 @@ function getExcelColumns(debug: boolean): ExcelColumn[] {
     : [...STANDARD_EXCEL_COLUMNS_HEAD, ...STANDARD_EXCEL_COLUMNS_TAIL];
 }
 
-function toOutputRow(row: ExportRow, debug: boolean): Omit<ExportRow, "externalId" | "source" | "industryDbV2Raw" | "industryDbV2Normalized"> | ExportRow {
+function toOutputRow(row: ExportRow, debug: boolean): Omit<ExportRow, "externalId" | "source" | "industryDbV2Raw" | "industryDbV2Normalized" | "ruleScore" | "roleEvidence" | "matchedWorkEntries"> | ExportRow {
   if (debug) return row;
-  const { externalId: _e, source: _s, industryDbV2Raw: _r, industryDbV2Normalized: _n, ...standard } = row;
+  const { externalId: _e, source: _s, industryDbV2Raw: _r, industryDbV2Normalized: _n, ruleScore: _rs, roleEvidence: _re, matchedWorkEntries: _mw, ...standard } = row;
   return standard;
 }
 
@@ -406,17 +406,17 @@ const REVIEW_PACKET_DEBUG_EXCEL_COLUMNS: ReviewPacketExcelColumn[] = [
   { header: "Source", key: "source", width: 16 },
   { header: "Industry DB V2 Raw", key: "industryDbV2Raw", width: 18 },
   { header: "Industry DB V2 Normalized", key: "industryDbV2Normalized", width: 24 },
+  { header: "Rule Score", key: "ruleScore", width: 10 },
+  { header: "Role Evidence", key: "roleEvidence", width: 34 },
+  { header: "Matched Work Entries", key: "matchedWorkEntries", width: 44 },
 ];
 
 const REVIEW_PACKET_EXCEL_COLUMNS_MACHINE_TAIL: ReviewPacketExcelColumn[] = [
-  { header: "Rule Score", key: "ruleScore", width: 10 },
   { header: "Recommendation", key: "recommendation", width: 16 },
   { header: "Score Source", key: "scoreSource", width: 12 },
   { header: "Industry Tags", key: "industryTags", width: 22 },
   { header: "Brand Hits", key: "brandHits", width: 34 },
   { header: "Company Hits", key: "companyHits", width: 22 },
-  { header: "Role Evidence", key: "roleEvidence", width: 34 },
-  { header: "Matched Work Entries", key: "matchedWorkEntries", width: 44 },
   { header: "Profile URL", key: "profileUrl", width: 28 },
   { header: "Work History", key: "workHistory", width: 44 },
   { header: "Self Intro", key: "selfIntro", width: 48 },
