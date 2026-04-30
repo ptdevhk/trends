@@ -345,7 +345,7 @@ describe("ExportService", () => {
 
   it("includes role evidence fields in CSV output", async () => {
     const service = new ExportService();
-    const file = await service.exportResumes("csv", [buildEntry("27")]);
+    const file = await service.exportResumes("csv", [buildEntry("27")], undefined, undefined, true);
     const csv = file.content.toString("utf8");
     const parsed = Papa.parse<Record<string, string>>(csv, { header: true });
 

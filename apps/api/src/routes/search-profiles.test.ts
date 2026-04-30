@@ -352,6 +352,26 @@ describe('search-profiles list route', () => {
         return convexSuccess([])
       }
 
+      if (call.pathName === 'search_profiles:create') {
+        if (!isRecord(call.args.profile)) {
+          throw new Error('Expected profile payload for seeded create')
+        }
+
+        const profile = call.args.profile
+        const record = {
+          _id: `search_profiles-${Date.now()}`,
+          name: profile.name,
+          profileId: profile.id,
+          criteria: {
+            keywords: profile.keywords,
+            locations: [profile.location],
+          },
+          profile,
+          workspaceSlug: call.args.workspaceSlug,
+        }
+        return convexSuccess(record)
+      }
+
       throw new Error(`Unexpected convex path: ${call.pathName}`)
     })
 
