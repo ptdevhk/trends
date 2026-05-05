@@ -2619,7 +2619,9 @@ export const scanResumePageSlim = query({
         numItems: v.optional(v.number()),
     },
     handler: async (ctx, args) => {
-        const numItems = Math.min(args.numItems ?? 1000, 1000);
+        // Reduced from 1000 to 200 to stay well under 16 MiB byte limit
+        // With ~27KB average doc size: 200 × 27KB = ~5.4MB, safely under limit
+        const numItems = Math.min(args.numItems ?? 200, 200);
         const page = await ctx.db
             .query("resumes")
             .order("desc")
@@ -2642,7 +2644,22 @@ export const scanResumePageSlim = query({
     },
 });
 
-// Fetch full docs by ID for AND-mode phase 2 — only the matches.
+// Keep scanResumePageSlim and getResumeDocsByIds for backward compatibility
+// These are used by the API resume list for AND-mode search
+// getResumes added to resolve production "function not found" errors
+export const getResumes = query({
+    args: {
+        limit: v.optional(v.number()),
+    },
+    handler: async (ctx, args): Promise<Doc<"resumes">[]> => {
+        const limit = Math.min(args.limit ?? 50, 200);
+        return await ctx.db
+            .query("resumes")
+            .order("desc")
+            .filter((q) => q.neq(q.field("isArchived"), true))
+            .take(limit);
+    },
+});
 export const getResumeDocsByIds = query({
     args: {
         ids: v.array(v.id("resumes")),
