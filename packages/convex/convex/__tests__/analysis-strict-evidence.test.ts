@@ -269,9 +269,6 @@ describe("normalizeResume strict evidence", () => {
           ],
         },
       } as unknown,
-      {
-        targetRoleType: "sales",
-      }
     );
 
     expect(normalized.breakdown?.related_exp).toBe(80);
@@ -316,9 +313,6 @@ describe("normalizeResume strict evidence", () => {
           ],
         },
       } as unknown,
-      {
-        targetRoleType: "sales",
-      }
     );
 
     // directRoleMatch=false means "项目工程师" got sales signal from description,
@@ -366,9 +360,6 @@ describe("normalizeResume strict evidence", () => {
           ],
         },
       } as unknown,
-      {
-        targetRoleType: "sales",
-      }
     );
 
     expect(normalized.breakdown?.related_exp).toBe(80);
@@ -408,9 +399,6 @@ describe("normalizeResume strict evidence", () => {
           ],
         },
       } as unknown,
-      {
-        targetRoleType: "sales",
-      }
     );
 
     expect(normalized.score).toBe(90);
@@ -466,10 +454,6 @@ describe("normalizeResume strict evidence", () => {
           ],
         },
       } as unknown,
-      {
-        targetRoleType: "sales",
-        keywords: ["cnc", "销售"],
-      }
     );
 
     // Insurance sales is domain-irrelevant to CNC sales — cap at 15
@@ -517,10 +501,6 @@ describe("normalizeResume strict evidence", () => {
           ],
         },
       } as unknown,
-      {
-        targetRoleType: "sales",
-        keywords: ["cnc", "销售"],
-      }
     );
 
     // Industry-verified CNC sales — no ceiling
@@ -571,10 +551,6 @@ describe("normalizeResume strict evidence", () => {
           ],
         },
       } as unknown,
-      {
-        targetRoleType: "sales",
-        keywords: ["cnc", "销售"],
-      }
     );
 
     // FANUC brand hit with product context proves CNC domain — no ceiling
@@ -628,10 +604,6 @@ describe("normalizeResume strict evidence", () => {
           ],
         },
       } as unknown,
-      {
-        targetRoleType: "sales",
-        keywords: ["cnc", "销售"],
-      }
     );
 
     // Technical-only brand hits from CNC operator work do not prove sales domain overlap
@@ -681,10 +653,6 @@ describe("normalizeResume strict evidence", () => {
           ],
         },
       } as unknown,
-      {
-        targetRoleType: "sales",
-        keywords: ["cnc", "销售"],
-      }
     );
 
     // Industry tags from CNC technician work + domain-irrelevant company (insurance)
@@ -734,10 +702,6 @@ describe("normalizeResume strict evidence", () => {
           ],
         },
       } as unknown,
-      {
-        targetRoleType: "sales",
-        keywords: ["cnc", "销售"],
-      }
     );
 
     // Industry tags + direct sales role at a domain-relevant company (machinery trading)
@@ -788,10 +752,6 @@ describe("normalizeResume strict evidence", () => {
           ],
         },
       } as unknown,
-      {
-        targetRoleType: "sales",
-        keywords: ["cnc", "销售"],
-      }
     );
 
     // AI gave 22 but floor of 60 applies: unverified + domain tags + no irrelevant company
@@ -840,10 +800,6 @@ describe("normalizeResume strict evidence", () => {
           ],
         },
       } as unknown,
-      {
-        targetRoleType: "sales",
-        keywords: ["cnc", "销售"],
-      }
     );
 
     // Insurance company → domain-irrelevant → no floor, ceiling caps at 15
@@ -892,10 +848,6 @@ describe("normalizeResume strict evidence", () => {
           ],
         },
       } as unknown,
-      {
-        targetRoleType: "sales",
-        keywords: ["cnc", "销售"],
-      }
     );
 
     // No direct sales title → floor doesn't apply; also noDirectSalesRoleCap zeros it out
@@ -943,10 +895,6 @@ describe("normalizeResume strict evidence", () => {
           ],
         },
       } as unknown,
-      {
-        targetRoleType: "sales",
-        keywords: ["cnc", "销售"],
-      }
     );
 
     // Industry-verified sales gets the 80 floor (higher than 60)
@@ -994,10 +942,6 @@ describe("normalizeResume strict evidence", () => {
           ],
         },
       } as unknown,
-      {
-        targetRoleType: "sales",
-        keywords: ["cnc", "销售"],
-      }
     );
 
     // Industry-verified sales at a machinery company — no ceiling applies
@@ -1042,10 +986,6 @@ describe("normalizeResume strict evidence", () => {
           ],
         },
       } as unknown,
-      {
-        targetRoleType: "sales",
-        keywords: ["销售"],
-      }
     );
 
     // Sales-only keyword — no domain ceiling applies.
@@ -1065,7 +1005,6 @@ describe("normalizeResume strict evidence", () => {
           breakdown: { related_exp: 80, industry_db: 10 },
         },
         { ingestData: { industryDbV2Raw: 10, companyHits: ["TestCo"], brandHits: [{ context: "employer" }], roleSignals: [{ type: "sales", years: 5, roleRelevantYears: 5, industryVerifiedYears: 5, matchedSignals: ["销售"] }] } } as unknown,
-        { targetRoleType: "sales" }
       );
       // normalizeAnalysisResult replaces empty summaries with a fallback
       expect(normalized.summary).not.toBe("");
@@ -1082,7 +1021,6 @@ describe("normalizeResume strict evidence", () => {
           breakdown: { related_exp: 80, industry_db: 10 },
         },
         { ingestData: { industryDbV2Raw: 10, companyHits: ["TestCo"], brandHits: [{ context: "employer" }], roleSignals: [{ type: "sales", years: 5, roleRelevantYears: 5, industryVerifiedYears: 5, matchedSignals: ["销售"] }] } } as unknown,
-        { targetRoleType: "sales" }
       );
       // normalizeAnalysisResult replaces empty/whitespace summaries with a fallback
       expect(normalized.summary).not.toBe("   ");
@@ -1099,7 +1037,6 @@ describe("normalizeResume strict evidence", () => {
           breakdown: { related_exp: 40, industry_db: 0 },
         },
         { ingestData: { industryDbV2Raw: 0, companyHits: [], brandHits: [], roleSignals: [] } } as unknown,
-        {}
       );
       // recommendation "potential" matches, but score 75 in prose != computed score
       // The actual computed score = round(40*0.5) + 0 = 20
@@ -1118,7 +1055,6 @@ describe("normalizeResume strict evidence", () => {
           breakdown: { related_exp: 80, industry_db: 10 },
         },
         { ingestData: { industryDbV2Raw: 10, companyHits: ["TestCo"], brandHits: [{ context: "employer" }], roleSignals: [{ type: "sales", years: 5, roleRelevantYears: 5, industryVerifiedYears: 5, matchedSignals: ["销售"] }] } } as unknown,
-        { targetRoleType: "sales" }
       );
       // score 90 matches, but recommendation "match" should be "strong_match" (>=85)
       expect(normalized.recommendation).toBe("strong_match");
@@ -1137,7 +1073,6 @@ describe("normalizeResume strict evidence", () => {
           breakdown: { related_exp: 80, industry_db: 10 },
         },
         { ingestData: { industryDbV2Raw: 10, companyHits: ["TestCo"], brandHits: [{ context: "employer" }], roleSignals: [{ type: "sales", years: 5, roleRelevantYears: 5, industryVerifiedYears: 5, matchedSignals: ["销售"] }] } } as unknown,
-        { targetRoleType: "sales" }
       );
       expect(normalized.summary).toBe(originalSummary);
     });
@@ -1152,7 +1087,6 @@ describe("normalizeResume strict evidence", () => {
           breakdown: { related_exp: 20, industry_db: 0 },
         },
         { ingestData: { industryDbV2Raw: 0, companyHits: [], brandHits: [], roleSignals: [] } } as unknown,
-        {}
       );
       // Both score and recommendation mismatch → English canonical line appended
       expect(normalized.summary).toContain("Normalized result: score 10, recommendation no_match");
@@ -1168,7 +1102,6 @@ describe("normalizeResume strict evidence", () => {
           breakdown: { related_exp: 80, industry_db: 0 },
         },
         { ingestData: { industryDbV2Raw: 10, companyHits: ["深圳市创世纪机械有限公司"], brandHits: [{ context: "employer" }], roleSignals: [{ type: "sales", years: 3.8, roleRelevantYears: 3.8, industryVerifiedYears: 3.8, matchedSignals: ["销售工程师"] }] } } as unknown,
-        { targetRoleType: "sales" }
       );
       expect(normalized.summary).toContain("系统归一化结果：score 90，recommendation strong_match");
     });
@@ -1183,7 +1116,6 @@ describe("normalizeResume strict evidence", () => {
       const normalized = normalizeAnalysisResult(
         { score: 0, recommendation: "no_match", summary: "ok", highlights: [], breakdown: { related_exp: 70, industry_db: 0 } },
         { ingestData: { industryDbV2Raw: 0, companyHits: ["some-company"], brandHits: [], roleSignals: [] } } as unknown,
-        {}
       );
       expect(normalized.score).toBe(85);
       expect(normalized.recommendation).toBe("strong_match");
@@ -1194,7 +1126,6 @@ describe("normalizeResume strict evidence", () => {
       const normalized = normalizeAnalysisResult(
         { score: 0, recommendation: "no_match", summary: "ok", highlights: [], breakdown: { related_exp: 68, industry_db: 0 } },
         { ingestData: { industryDbV2Raw: 0, companyHits: ["some-company"], brandHits: [], roleSignals: [] } } as unknown,
-        {}
       );
       expect(normalized.score).toBe(84);
       expect(normalized.recommendation).toBe("match");
@@ -1205,7 +1136,6 @@ describe("normalizeResume strict evidence", () => {
       const normalized = normalizeAnalysisResult(
         { score: 0, recommendation: "no_match", summary: "ok", highlights: [], breakdown: { related_exp: 80, industry_db: 0 } },
         { ingestData: { industryDbV2Raw: 30, companyHits: [], brandHits: [], roleSignals: [] } } as unknown,
-        {}
       );
       expect(normalized.score).toBe(70);
       expect(normalized.recommendation).toBe("match");
@@ -1216,7 +1146,6 @@ describe("normalizeResume strict evidence", () => {
       const normalized = normalizeAnalysisResult(
         { score: 0, recommendation: "no_match", summary: "ok", highlights: [], breakdown: { related_exp: 78, industry_db: 0 } },
         { ingestData: { industryDbV2Raw: 30, companyHits: [], brandHits: [], roleSignals: [] } } as unknown,
-        {}
       );
       expect(normalized.score).toBe(69);
       expect(normalized.recommendation).toBe("potential");
@@ -1227,7 +1156,6 @@ describe("normalizeResume strict evidence", () => {
       const normalized = normalizeAnalysisResult(
         { score: 0, recommendation: "no_match", summary: "ok", highlights: [], breakdown: { related_exp: 80, industry_db: 0 } },
         { ingestData: { industryDbV2Raw: 0, companyHits: [], brandHits: [], roleSignals: [] } } as unknown,
-        {}
       );
       expect(normalized.score).toBe(40);
       expect(normalized.recommendation).toBe("potential");
@@ -1238,7 +1166,6 @@ describe("normalizeResume strict evidence", () => {
       const normalized = normalizeAnalysisResult(
         { score: 0, recommendation: "no_match", summary: "ok", highlights: [], breakdown: { related_exp: 78, industry_db: 0 } },
         { ingestData: { industryDbV2Raw: 0, companyHits: [], brandHits: [], roleSignals: [] } } as unknown,
-        {}
       );
       expect(normalized.score).toBe(39);
       expect(normalized.recommendation).toBe("no_match");
@@ -1273,7 +1200,6 @@ describe("normalizeResume strict evidence", () => {
             }],
           },
         } as unknown,
-        { targetRoleType: "sales", keywords: ["CNC", "销售"] }
       );
       // Domain-irrelevant ceiling should cap related_exp at 15
       expect(normalized.breakdown?.related_exp).toBeLessThanOrEqual(15);
@@ -1306,7 +1232,6 @@ describe("normalizeResume strict evidence", () => {
             }],
           },
         } as unknown,
-        { targetRoleType: "sales", keywords: ["CNC", "销售"] }
       );
       expect(normalized.breakdown?.related_exp).toBeLessThanOrEqual(15);
     });
@@ -1345,7 +1270,6 @@ describe("normalizeResume strict evidence", () => {
             }],
           },
         } as unknown,
-        { targetRoleType: "sales", keywords: ["CNC", "销售"] }
       );
       // "cnc" keyword maps to "machinery" tag → unverified floor should apply → related_exp ≥ 60
       expect(normalized.breakdown?.related_exp).toBeGreaterThanOrEqual(60);
@@ -1380,7 +1304,6 @@ describe("normalizeResume strict evidence", () => {
             }],
           },
         } as unknown,
-        { targetRoleType: "sales", keywords: ["CNC", "销售"] }
       );
       // "机械" tag → "machinery", "cnc" keyword → "machinery" → match → floor applies
       expect(normalized.breakdown?.related_exp).toBeGreaterThanOrEqual(60);
@@ -1414,7 +1337,6 @@ describe("normalizeResume strict evidence", () => {
             }],
           },
         } as unknown,
-        { targetRoleType: "sales", keywords: ["CNC", "销售"] }
       );
       // "cnc" maps to "machinery" but resume has "software" tag — no overlap → no floor
       expect(normalized.breakdown?.related_exp).toBeLessThanOrEqual(22);
@@ -1450,7 +1372,6 @@ describe("normalizeResume strict evidence", () => {
             }],
           },
         } as unknown,
-        { targetRoleType: "sales", keywords: ["CNC", "销售"] }
       );
       // No direct sales title (directRoleMatch=false) → cap at 0
       expect(normalized.breakdown?.related_exp).toBe(0);
@@ -1484,7 +1405,6 @@ describe("normalizeResume strict evidence", () => {
             }],
           },
         } as unknown,
-        { targetRoleType: "sales", keywords: ["CNC", "销售"] }
       );
       // Has direct sales title + verified 3y → 80 floor applies, cap does not
       expect(normalized.breakdown?.related_exp).toBeGreaterThanOrEqual(80);
