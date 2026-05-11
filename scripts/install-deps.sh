@@ -10,7 +10,6 @@ usage() {
     echo "Repo-managed skills are synced into .agents/skills + .claude/skills."
     echo "Configured external global skills are installed with 'npx skills add -g' using direct skill URLs."
     echo "Configured URLs live in config/skills/install.yaml."
-    echo "Example: npx skills add -g https://github.com/karlorz/agent-skills/tree/main/skills/obsidian-gh-knowledge"
     echo ""
     echo "Environment:"
     echo "  CONVEX_MIRROR_MODE     Convex prefetch mode override: off|fallback|mirror-first"

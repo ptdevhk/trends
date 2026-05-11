@@ -172,6 +172,8 @@ TARGET=all make sync-agent-governance  # Optional: run policy sync + governance 
 - After editing `apps/api/src/schemas/*.ts`, stage `apps/web/src/lib/api-types.ts` too — `make check` regenerates it and fails `git diff --exit-code` otherwise.
 - `make clear-resumes` may raise `OptimisticConcurrencyControlFailure` when scheduled Convex jobs overlap; just re-run until `partial:false`.
 - Local Convex dev backend rate-limits at ~4 MiB writes/sec; large restores (2k+ resumes) can hit `TooManyWrites 429` — wait ~30-60s between retry attempts.
+- After Node.js version bumps, run `npm rebuild better-sqlite3` — native module must match the running Node ABI or `make check` fails.
+- When removing a skill from `config/skills/install.yaml`, also delete installed copies from `.agents/skills/`, `.claude/skills/`, and `~/.codex/skills/` — `make check` fails on stale/unexpected entries.
 
 ## Browser Testing & Debugging
 
@@ -184,7 +186,6 @@ Prerequisite: `make chrome-debug` starts a headed Chrome with CDP on port 9222 a
 | `make e2e` | E2E smoke test via `scripts/e2e-smoke.ts` (requires chrome-debug + local dev stack) |
 | `make benchmark-critical-path` | Benchmark critical path latency (requires seeded data) |
 
-For detailed playwright-cli commands, see `.agents/skills/playwright-cli/SKILL.md`.
 For browser extension CDP patterns, see `apps/browser-extension/CLAUDE.md`.
 
 ## Current Engineering Direction (Stable Snapshot)
@@ -204,17 +205,13 @@ For browser extension CDP patterns, see `apps/browser-extension/CLAUDE.md`.
 
 ## Scoped Instructions
 - For browser extension work, follow `apps/browser-extension/CLAUDE.md`.
-- For browser automation/testing/debugging, use `playwright-cli` skill (see Browser Testing & Debugging section).
+- For browser automation/testing/debugging, use `playwright-cli` (global install, see Browser Testing & Debugging section).
 - Use closest-scope instruction files when they exist; root rules still apply unless overridden.
 - Avoid duplicating subsystem-specific long procedures in this root file.
 
-## External Knowledge Sharing (Obsidian + GitHub)
-This repository requires structured external knowledge sharing for major technical direction updates.
-
-### Default Target
-- Local-first vault path: `~/Documents/obsidian_vault`.
-- Trends project notes path: `5️⃣-Projects/GitHub/trends/`.
-- If local vault is unavailable, use `obsidian-gh-knowledge` configured default repository (config-driven fallback).
+## External Knowledge Sharing (skillwiki)
+Default vault: `~/wiki` (resolved via `skillwiki path`). Project notes under `projects/trends/`.
+If local vault is unavailable, fall back to config-driven remote repository.
 
 ### When To Update Shared Knowledge
 Update notes when any of the following changes land:
@@ -222,12 +219,6 @@ Update notes when any of the following changes land:
 - Agent/governance/dev-cycle rule changes.
 - Major API surface or workflow behavior changes.
 - Significant migration strategy or workspace isolation changes.
-
-### Note Hygiene Rules
-- Include date, concise decision summary, and affected repo-relative paths.
-- Link related PR/commit IDs when available.
-- Never include secrets, tokens, credentials, or private environment values.
-- Keep operational facts in shared notes; keep volatile TODOs in local task trackers.
 
 ## What Not To Put In This File
 - No phase-by-phase completion ledgers.
