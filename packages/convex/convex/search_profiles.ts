@@ -166,14 +166,15 @@ export const list = query({
   },
   handler: async (ctx, args) => {
     const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
-    const records = await ctx.db.query("search_profiles").collect();
-    return records
-      .filter((record) => belongsToWorkspace(record.workspaceSlug, workspaceSlug))
-      .sort((left, right) => {
-        const leftUpdated = left.updatedAt ?? left.lastRunAt ?? left._creationTime;
-        const rightUpdated = right.updatedAt ?? right.lastRunAt ?? right._creationTime;
-        return rightUpdated - leftUpdated;
-      });
+    const records = await ctx.db
+      .query("search_profiles")
+      .withIndex("by_workspace", (q) => q.eq("workspaceSlug", workspaceSlug))
+      .collect();
+    return records.sort((left, right) => {
+      const leftUpdated = left.updatedAt ?? left.lastRunAt ?? left._creationTime;
+      const rightUpdated = right.updatedAt ?? right.lastRunAt ?? right._creationTime;
+      return rightUpdated - leftUpdated;
+    });
   },
 });
 
@@ -184,7 +185,10 @@ export const getById = query({
   },
   handler: async (ctx, args) => {
     const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
-    const records = await ctx.db.query("search_profiles").collect();
+    const records = await ctx.db
+      .query("search_profiles")
+      .withIndex("by_workspace", (q) => q.eq("workspaceSlug", workspaceSlug))
+      .collect();
     const found = findSearchProfileRecordById(records, args.id, workspaceSlug);
     if (!found) {
       return null;
@@ -232,7 +236,10 @@ export const update = mutation({
   },
   handler: async (ctx, args) => {
     const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
-    const records = await ctx.db.query("search_profiles").collect();
+    const records = await ctx.db
+      .query("search_profiles")
+      .withIndex("by_workspace", (q) => q.eq("workspaceSlug", workspaceSlug))
+      .collect();
     const existing = findSearchProfileRecordById(records, args.id, workspaceSlug);
     if (!existing) {
       throw new Error(`Search profile not found: ${args.id}`);
@@ -265,7 +272,10 @@ export const remove = mutation({
   },
   handler: async (ctx, args) => {
     const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
-    const records = await ctx.db.query("search_profiles").collect();
+    const records = await ctx.db
+      .query("search_profiles")
+      .withIndex("by_workspace", (q) => q.eq("workspaceSlug", workspaceSlug))
+      .collect();
     const existing = findSearchProfileRecordById(records, args.id, workspaceSlug);
     if (!existing) {
       return false;
