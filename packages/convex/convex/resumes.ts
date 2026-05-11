@@ -3349,16 +3349,22 @@ export const deleteResumes = mutation({
         }
 
         const deletedResumeIdStrings = new Set(existingResumeIds.map((resumeId) => String(resumeId)));
-        const screeningSessions = await ctx.db.query("screening_sessions").collect();
         let patchedScreeningSessions = 0;
-        for (const session of screeningSessions) {
-            const reviewedResumeIds = session.reviewedResumeIds.filter((resumeId) => !deletedResumeIdStrings.has(resumeId));
-            if (reviewedResumeIds.length === session.reviewedResumeIds.length) {
-                continue;
-            }
+        let cursor = null;
+        let isDone = false;
+        while (!isDone) {
+            const result = await ctx.db.query("screening_sessions").paginate({ numItems: 100, cursor });
+            for (const session of result.page) {
+                const reviewedResumeIds = session.reviewedResumeIds.filter((resumeId) => !deletedResumeIdStrings.has(resumeId));
+                if (reviewedResumeIds.length === session.reviewedResumeIds.length) {
+                    continue;
+                }
 
-            await ctx.db.patch(session._id, { reviewedResumeIds });
-            patchedScreeningSessions += 1;
+                await ctx.db.patch(session._id, { reviewedResumeIds });
+                patchedScreeningSessions += 1;
+            }
+            cursor = result.continueCursor;
+            isDone = result.isDone;
         }
 
         for (const resume of existingResumes) {
