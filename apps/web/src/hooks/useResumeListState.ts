@@ -35,12 +35,12 @@ import {
   hasMatchingRoleSignal,
   matchesAllRequiredKeywords,
   matchesEducationFilter,
+  matchesSalaryFilter,
   normalizeFilterToken,
   normalizeOptionalString,
   normalizeUrlFilters,
   normalizeUrlSearchStateValue,
   parseExtractedAt,
-  parseSalaryRange,
   parseSerializedStringArray,
   resolveAnalysisSourceKeyForResume,
   serializeLocationFilter,
@@ -926,28 +926,9 @@ export function useResumeListState(loadSearchHistory = false) {
     }
 
     if (typeof filters.minSalary === 'number' || typeof filters.maxSalary === 'number') {
-      result = result.filter((resume: ScoredConvexResume) => {
-        const salary = parseSalaryRange(resume.expectedSalary)
-        if (!salary) {
-          return false
-        }
-
-        if (typeof filters.minSalary === 'number') {
-          const maxSalary = salary.max ?? salary.min
-          if (typeof maxSalary === 'number' && maxSalary < filters.minSalary) {
-            return false
-          }
-        }
-
-        if (typeof filters.maxSalary === 'number') {
-          const minSalary = salary.min ?? salary.max
-          if (typeof minSalary === 'number' && minSalary > filters.maxSalary) {
-            return false
-          }
-        }
-
-        return true
-      })
+      result = result.filter((resume: ScoredConvexResume) =>
+        matchesSalaryFilter(resume.expectedSalary, filters.minSalary, filters.maxSalary),
+      )
     }
 
     const minMatchScore = filters.minMatchScore

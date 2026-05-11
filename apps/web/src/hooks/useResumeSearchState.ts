@@ -1,5 +1,5 @@
 import { formatKeywordQuery, getVerifiedRoleSignalYears, isSalesRequiredContext, parseKeywordQuery } from '@trends/shared'
-import { hasMatchingRoleSignal } from '@/hooks/resume-filter-helpers'
+import { hasMatchingRoleSignal, matchesSalaryFilter } from '@/hooks/resume-filter-helpers'
 import { useMutation, useQuery } from 'convex/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
@@ -250,6 +250,8 @@ function hasExplicitSearchContext(state: UrlSearchState): boolean {
     typeof state.filters.minExperience === 'number' ||
     typeof state.filters.maxExperience === 'number' ||
     typeof state.filters.minRoleYears === 'number' ||
+    typeof state.filters.minSalary === 'number' ||
+    typeof state.filters.maxSalary === 'number' ||
     Boolean(normalizeOptionalString(state.filters.roleFilterType)) ||
     (state.filters.locations?.length ?? 0) > 0
   )
@@ -328,6 +330,8 @@ function buildSearchContextSignature(state: UrlSearchState): string {
       minRoleYears: state.filters.minRoleYears,
       roleFilterType: normalizeOptionalString(state.filters.roleFilterType),
       status: normalizeStringList(state.filters.status ?? []),
+      minSalary: state.filters.minSalary,
+      maxSalary: state.filters.maxSalary,
     },
   })
 }
@@ -569,6 +573,10 @@ function matchesLocalFilters(
     }
   }
 
+  if (!matchesSalaryFilter(item.resume.expectedSalary, state.filters.minSalary, state.filters.maxSalary)) {
+    return false
+  }
+
   return true
 }
 
@@ -679,6 +687,8 @@ export function useResumeSearchState() {
     parsedState.filters.minRoleYears,
     parsedState.filters.roleFilterType,
     parsedState.filters.status,
+    parsedState.filters.minSalary,
+    parsedState.filters.maxSalary,
     parsedState.jobDescriptionId,
     parsedState.location,
     parsedState.query,
@@ -955,7 +965,8 @@ export function useResumeSearchState() {
     (parsedState.selectedExperienceLevel ? 1 : 0) +
     (parsedState.filters.education?.length ?? 0) +
     (parsedState.filters.status?.length ?? 0) +
-    (typeof parsedState.filters.minMatchScore === 'number' ? 1 : 0)
+    (typeof parsedState.filters.minMatchScore === 'number' ? 1 : 0) +
+    (typeof parsedState.filters.minSalary === 'number' || typeof parsedState.filters.maxSalary === 'number' ? 1 : 0)
 
   const lastSavedFingerprintRef = useRef<string>('')
   useEffect(() => {
@@ -1286,6 +1297,21 @@ export function useResumeSearchState() {
     [parsedState, syncToUrl],
   )
 
+  const setSalaryRangeFilter = useCallback(
+    (minSalary: number | undefined, maxSalary: number | undefined) => {
+      syncToUrl(
+        buildUrlState(parsedState, {
+          filters: {
+            ...parsedState.filters,
+            minSalary,
+            maxSalary,
+          },
+        }),
+      )
+    },
+    [parsedState, syncToUrl],
+  )
+
   const setEducationFilters = useCallback(
     (education: string[]) => {
       syncToUrl(
@@ -1394,6 +1420,8 @@ export function useResumeSearchState() {
           minRoleYears: undefined,
           minAge: undefined,
           maxAge: undefined,
+          minSalary: undefined,
+          maxSalary: undefined,
           status: undefined,
         },
       }),
@@ -1685,6 +1713,7 @@ export function useResumeSearchState() {
     searchHistoryLoading: recentSearchHistoryRecords === undefined,
     setMinRoleYearsFilter,
     setAgeRangeFilter,
+    setSalaryRangeFilter,
     setMinScoreFilter,
     setAiModeEnabled,
     setExportFormat,

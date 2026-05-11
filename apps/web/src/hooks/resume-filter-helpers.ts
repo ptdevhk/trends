@@ -62,6 +62,37 @@ export function parseSalaryRange(value: string | undefined): { min?: number; max
   return { min, max }
 }
 
+export function matchesSalaryFilter(
+  expectedSalary: string | undefined,
+  minSalary?: number,
+  maxSalary?: number,
+): boolean {
+  if (typeof minSalary !== 'number' && typeof maxSalary !== 'number') {
+    return true
+  }
+
+  const salary = parseSalaryRange(expectedSalary)
+  if (!salary) {
+    return false
+  }
+
+  if (typeof minSalary === 'number') {
+    const upper = salary.max ?? salary.min
+    if (typeof upper === 'number' && upper < minSalary) {
+      return false
+    }
+  }
+
+  if (typeof maxSalary === 'number') {
+    const lower = salary.min ?? salary.max
+    if (typeof lower === 'number' && lower > maxSalary) {
+      return false
+    }
+  }
+
+  return true
+}
+
 export function toStatusFilterList(values: CandidateStatus[] | undefined): CandidateStatus[] {
   if (!Array.isArray(values)) {
     return []
@@ -268,6 +299,8 @@ export function normalizeUrlFilters(filters: Partial<ResumeFilters>): Partial<Re
     education: normalizeFilterList(filters.education),
     status: toStatusFilterList(filters.status),
     minMatchScore: normalizeOptionalNumber(filters.minMatchScore),
+    minSalary: normalizeOptionalNumber(filters.minSalary),
+    maxSalary: normalizeOptionalNumber(filters.maxSalary),
     locations: normalizeFilterList(filters.locations),
     sortBy: filters.sortBy,
     sortOrder: filters.sortOrder,

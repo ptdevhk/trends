@@ -20,6 +20,8 @@ const KNOWN_PARAM_KEYS = [
   'maxAge',
   'edu',
   'minScore',
+  'minSalary',
+  'maxSalary',
   'status',
   'sort',
   'order',
@@ -230,6 +232,16 @@ export function parseUrlSearchState(searchParams: URLSearchParams): UrlSearchSta
     filters.minMatchScore = minMatchScore
   }
 
+  const minSalary = parseNumberParam(searchParams.get('minSalary'))
+  if (typeof minSalary === 'number') {
+    filters.minSalary = minSalary
+  }
+
+  const maxSalary = parseNumberParam(searchParams.get('maxSalary'))
+  if (typeof maxSalary === 'number') {
+    filters.maxSalary = maxSalary
+  }
+
   if (effectiveLocations.length > 0) {
     filters.locations = effectiveLocations
   }
@@ -345,6 +357,14 @@ export function useUrlSearchState() {
 
         if (typeof state.filters.minMatchScore === 'number' && Number.isFinite(state.filters.minMatchScore)) {
           setParam(nextParams, 'minScore', String(state.filters.minMatchScore))
+        }
+
+        if (typeof state.filters.minSalary === 'number' && Number.isFinite(state.filters.minSalary)) {
+          setParam(nextParams, 'minSalary', String(state.filters.minSalary))
+        }
+
+        if (typeof state.filters.maxSalary === 'number' && Number.isFinite(state.filters.maxSalary)) {
+          setParam(nextParams, 'maxSalary', String(state.filters.maxSalary))
         }
 
         if (Array.isArray(state.filters.status) && state.filters.status.length > 0) {

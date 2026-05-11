@@ -18,6 +18,8 @@ export type FacetSidebarProps = {
   maxAge?: number
   minScore?: number
   minRoleYears?: number
+  minSalary?: number
+  maxSalary?: number
   selectedBrands: string[]
   selectedClusters: string[]
   selectedCompanies: string[]
@@ -31,6 +33,7 @@ export type FacetSidebarProps = {
   onSetExperienceLevel: (value: ExperienceLevelFilter | undefined) => void
   onSetMinRoleYears: (value: number | undefined) => void
   onSetMinScore: (value: number | undefined) => void
+  onSetSalaryRange: (minSalary: number | undefined, maxSalary: number | undefined) => void
   onToggleBrand: (value: string) => void
   onToggleCompany: (value: string) => void
   onToggleCluster: (value: string) => void
@@ -191,21 +194,40 @@ const PRESET_AGE_RANGES = [
   { min: undefined as number | undefined, max: 40 },
 ] as const
 
-function AgeRangeGroup({
-  minAge,
-  maxAge,
-  onSetAgeRange,
-}: Pick<FacetSidebarProps, 'minAge' | 'maxAge' | 'onSetAgeRange'>) {
+const PRESET_SALARY_RANGES = [
+  { min: undefined as number | undefined, max: 10 },
+  { min: undefined as number | undefined, max: 15 },
+  { min: 10, max: 20 },
+  { min: 15, max: 30 },
+  { min: 20, max: undefined as number | undefined },
+] as const
+
+type RangePreset = { min: number | undefined; max: number | undefined }
+
+function RangeFilterGroup({
+  presets,
+  label,
+  unitSuffix,
+  valueMin,
+  valueMax,
+  onSetRange,
+}: {
+  presets: readonly RangePreset[]
+  label: string
+  unitSuffix: string
+  valueMin: number | undefined
+  valueMax: number | undefined
+  onSetRange: (min: number | undefined, max: number | undefined) => void
+}) {
   const { t } = useTranslation()
-  const activePreset = PRESET_AGE_RANGES.find(
-    (p) => p.min === minAge && p.max === maxAge,
+  const activePreset = presets.find(
+    (p) => p.min === valueMin && p.max === valueMax,
   )
-  const [customOpen, setCustomOpen] = useState(!activePreset && (minAge != null || maxAge != null))
-  const [customMin, setCustomMin] = useState(activePreset || (minAge == null && maxAge == null) ? '' : (typeof minAge === 'number' ? String(minAge) : ''))
-  const [customMax, setCustomMax] = useState(activePreset || (minAge == null && maxAge == null) ? '' : (typeof maxAge === 'number' ? String(maxAge) : ''))
+  const [customOpen, setCustomOpen] = useState(!activePreset && (valueMin != null || valueMax != null))
+  const [customMin, setCustomMin] = useState(activePreset || (valueMin == null && valueMax == null) ? '' : (typeof valueMin === 'number' ? String(valueMin) : ''))
+  const [customMax, setCustomMax] = useState(activePreset || (valueMin == null && valueMax == null) ? '' : (typeof valueMax === 'number' ? String(valueMax) : ''))
   const minRef = useRef<HTMLInputElement>(null)
   const maxRef = useRef<HTMLInputElement>(null)
-
 
   const submitCustomValues = useCallback(() => {
     const rawMin = minRef.current?.value ?? String(customMin)
@@ -226,24 +248,24 @@ function AgeRangeGroup({
       setCustomOpen(false)
       return
     }
-    onSetAgeRange(parsedMin, parsedMax)
+    onSetRange(parsedMin, parsedMax)
     setCustomOpen(false)
-  }, [customMin, customMax, onSetAgeRange])
+  }, [customMin, customMax, onSetRange])
 
   return (
     <div className="space-y-3">
       <div className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
-        {t('resumes.searchPage.facets.ageRange', { defaultValue: '年龄范围' })}
+        {label}
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        {PRESET_AGE_RANGES.map((preset) => {
+        {presets.map((preset) => {
           const active = activePreset === preset
-          const label = `${preset.min ?? ''}-${preset.max ?? ''}`
+          const presetLabel = `${preset.min ?? ''}-${preset.max ?? ''}`
             .replace(/^-/, '≤')
             .replace(/-$/, '+')
           return (
             <button
-              key={label}
+              key={presetLabel}
               type="button"
               className={active
                 ? 'rounded-full border border-slate-900 bg-slate-900 px-3 py-1.5 text-sm text-white'
@@ -252,10 +274,10 @@ function AgeRangeGroup({
                 setCustomOpen(false)
                 setCustomMin('')
                 setCustomMax('')
-                onSetAgeRange(active ? undefined : preset.min, active ? undefined : preset.max)
+                onSetRange(active ? undefined : preset.min, active ? undefined : preset.max)
               }}
             >
-              {label}
+              {presetLabel}
             </button>
           )
         })}
@@ -276,7 +298,6 @@ function AgeRangeGroup({
               value={customMin}
               onChange={(event) => setCustomMin(event.target.value)}
               onBlur={() => {
-                // Close without submitting - user must click checkmark to apply
                 setCustomOpen(false)
                 setCustomMin('')
                 setCustomMax('')
@@ -294,16 +315,13 @@ function AgeRangeGroup({
               value={customMax}
               onChange={(event) => setCustomMax(event.target.value)}
               onBlur={() => {
-                // Close without submitting - user must click checkmark to apply
                 setCustomOpen(false)
                 setCustomMin('')
                 setCustomMax('')
               }}
               onKeyDown={(e) => { if (e.key === 'Enter') submitCustomValues() }}
             />
-            <span className="text-sm text-slate-500">
-              {t('resumes.searchPage.facets.ageUnit', { defaultValue: '岁' })}
-            </span>
+            <span className="text-sm text-slate-500">{unitSuffix}</span>
             <Button
               type="submit"
               variant="ghost"
@@ -348,6 +366,8 @@ export function FacetSidebar({
   maxAge,
   minScore,
   minRoleYears,
+  minSalary,
+  maxSalary,
   selectedBrands,
   selectedClusters,
   selectedCompanies,
@@ -361,6 +381,7 @@ export function FacetSidebar({
   onSetExperienceLevel,
   onSetMinRoleYears,
   onSetMinScore,
+  onSetSalaryRange,
   onToggleBrand,
   onToggleCompany,
   onToggleCluster,
@@ -412,7 +433,22 @@ export function FacetSidebar({
         onSelect={onSetExperienceLevel}
       />
       <MinRoleYearsGroup minRoleYears={minRoleYears} onSetMinRoleYears={onSetMinRoleYears} />
-      <AgeRangeGroup minAge={minAge} maxAge={maxAge} onSetAgeRange={onSetAgeRange} />
+      <RangeFilterGroup
+        presets={PRESET_AGE_RANGES}
+        label={t('resumes.searchPage.facets.ageRange', { defaultValue: '年龄范围' })}
+        unitSuffix={t('resumes.searchPage.facets.ageUnit', { defaultValue: '岁' })}
+        valueMin={minAge}
+        valueMax={maxAge}
+        onSetRange={onSetAgeRange}
+      />
+      <RangeFilterGroup
+        presets={PRESET_SALARY_RANGES}
+        label={t('resumes.searchPage.facets.salary', { defaultValue: '期望薪资' })}
+        unitSuffix={t('resumes.searchPage.facets.salaryUnit', { defaultValue: 'k' })}
+        valueMin={minSalary}
+        valueMax={maxSalary}
+        onSetRange={onSetSalaryRange}
+      />
       <FacetGroup title={t('resumes.searchPage.facets.education', { defaultValue: '学历' })} items={facetCounts.education} selectedValues={selectedEducation} onToggle={onToggleEducation} />
       <FacetGroup title={t('resumes.searchPage.facets.status', { defaultValue: '候选人状态' })} items={facetCounts.statuses} selectedValues={selectedStatuses} onToggle={(value) => onToggleStatus(value as CandidateStatus)} />
     </div>
