@@ -1,6 +1,7 @@
 import type {
   SummaryComparison,
   SummaryCountEntry,
+  SummaryNewCandidate,
   SummaryPeriod,
   SummaryReport,
   SummaryScopes,
@@ -177,6 +178,25 @@ function buildWindow(params: {
     const currentStart = new Date(currentEnd.getTime() - DAY_MS);
     const previousEnd = currentStart;
     const previousStart = new Date(previousEnd.getTime() - DAY_MS);
+    return {
+      current: buildWindowRange(currentStart, currentEnd, params.timezone),
+      previous: buildWindowRange(previousStart, previousEnd, params.timezone),
+    };
+  }
+
+  if (params.period === "monthly") {
+    const localAnchor = getLocalDatePartsInTimezone(anchorDate, params.timezone);
+    const currentMonthStart = { year: localAnchor.year, month: localAnchor.month, day: 1 };
+    const nextMonth = localAnchor.month === 12
+      ? { year: localAnchor.year + 1, month: 1, day: 1 }
+      : { year: localAnchor.year, month: localAnchor.month + 1, day: 1 };
+    const previousMonth = localAnchor.month === 1
+      ? { year: localAnchor.year - 1, month: 12, day: 1 }
+      : { year: localAnchor.year, month: localAnchor.month - 1, day: 1 };
+    const currentStart = resolveLocalMidnightUtc(currentMonthStart, params.timezone);
+    const currentEnd = resolveLocalMidnightUtc(nextMonth, params.timezone);
+    const previousStart = resolveLocalMidnightUtc(previousMonth, params.timezone);
+    const previousEnd = currentStart;
     return {
       current: buildWindowRange(currentStart, currentEnd, params.timezone),
       previous: buildWindowRange(previousStart, previousEnd, params.timezone),
@@ -377,12 +397,15 @@ export class SummaryDataService {
       timezone: config.timezone,
     });
 
-    const [currentMetrics, previousMetrics] = await Promise.all([
+    const [currentMetrics, previousMetrics, newCandidates] = await Promise.all([
       this.buildWindowMetrics(params.workspaceSlug, windows.current),
       this.buildWindowMetrics(params.workspaceSlug, windows.previous),
+      params.period === "monthly"
+        ? this.loadNewCandidates(windows.current.fromTimestamp, windows.current.toTimestamp)
+        : Promise.resolve(undefined),
     ]);
 
-    return {
+    const report: SummaryReport = {
       workspaceSlug: params.workspaceSlug,
       period: params.period,
       generatedAt: formatIsoOffsetInTimezone(this.now(), config.timezone),
@@ -400,6 +423,15 @@ export class SummaryDataService {
         "Workspace activity totals cover candidate-status updates and persisted workspace-linked actions only.",
       ],
     };
+
+    if (newCandidates) {
+      report.newCandidates = newCandidates;
+      report.notes.push(
+        `Monthly digest includes ${newCandidates.length} new candidates from the window.`,
+      );
+    }
+
+    return report;
   }
 
   private async buildWindowMetrics(
@@ -522,5 +554,43 @@ export class SummaryDataService {
         count: entry.count,
       })),
     };
+  }
+
+  private async loadNewCandidates(
+    fromTimestamp: number,
+    toTimestamp: number,
+  ): Promise<SummaryNewCandidate[]> {
+    const value = await this.queryConvex("resumes:listNewForWindow", {
+      fromTimestamp,
+      toTimestamp,
+      limit: 200,
+    });
+
+    if (!Array.isArray(value)) {
+      return [];
+    }
+
+    const candidates: SummaryNewCandidate[] = [];
+    for (const item of value) {
+      if (!isRecord(item)) continue;
+      const resumeId = readString(item.resumeId);
+      const source = readString(item.source);
+      const crawledAt = readNumber(item.crawledAt);
+      if (!resumeId || !source || !crawledAt) continue;
+
+      candidates.push({
+        resumeId,
+        name: readString(item.name) || undefined,
+        source,
+        location: readString(item.location) || undefined,
+        experience: readString(item.experience) || undefined,
+        education: readString(item.education) || undefined,
+        score: readNumber(item.score) || undefined,
+        recommendation: readString(item.recommendation) || undefined,
+        crawledAt: formatIsoOffsetInTimezone(new Date(crawledAt), config.timezone),
+      });
+    }
+
+    return candidates;
   }
 }

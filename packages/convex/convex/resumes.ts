@@ -1880,6 +1880,42 @@ export const getSummaryWindow = query({
     },
 });
 
+export const listNewForWindow = query({
+    args: {
+        fromTimestamp: v.number(),
+        toTimestamp: v.number(),
+        limit: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const maxResults = Math.min(args.limit ?? 100, 500);
+        const rows = await ctx.db
+            .query("resumes")
+            .withIndex("by_crawledAt", (q) =>
+                q.gte("crawledAt", args.fromTimestamp).lt("crawledAt", args.toTimestamp)
+            )
+            .filter((q) => q.neq(q.field("isArchived"), true))
+            .order("desc")
+            .take(maxResults);
+
+        return rows.map((row) => {
+            const content = isRecord(row.content) ? row.content : {};
+            const analysis = isRecord(row.analysis) ? row.analysis : undefined;
+
+            return {
+                resumeId: String(row._id),
+                name: toOptionalStringValue(content.name),
+                source: toStringValue(row.source) || "unknown",
+                location: toOptionalStringValue(content.location),
+                experience: toOptionalStringValue(content.experience),
+                education: toOptionalStringValue(content.education),
+                score: typeof analysis?.score === "number" ? analysis.score : undefined,
+                recommendation: typeof analysis?.recommendation === "string" ? analysis.recommendation : undefined,
+                crawledAt: row.crawledAt,
+            };
+        });
+    },
+});
+
 export const listWithIngestDataPage = query({
     args: {
         limit: v.optional(v.number()),

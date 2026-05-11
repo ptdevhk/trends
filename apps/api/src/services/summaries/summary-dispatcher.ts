@@ -2,6 +2,7 @@ import type { SummaryChannel, SummaryReport } from "@trends/shared";
 
 import { notificationService } from "../notification-service.js";
 import { notificationTemplateService } from "../notification-template-service.js";
+import { getDefaultTemplateId, getSummaryTitle } from "./summary-shared.js";
 import { summaryTelegramBridge } from "./summary-telegram-bridge.js";
 
 type SummaryDispatcherDependencies = {
@@ -33,12 +34,6 @@ export type SummaryDispatchResult = SummaryDispatchPreview & {
   delivery?: Record<string, unknown>;
 };
 
-const DEFAULT_TEMPLATE_ID = "summary-daily";
-
-function getSummaryTitle(report: Pick<SummaryReport, "period">): string {
-  return report.period === "weekly" ? "Weekly Ops Summary" : "Daily Ops Summary";
-}
-
 function escapeHtml(value: string): string {
   return value
     .replaceAll("&", "&amp;")
@@ -63,7 +58,7 @@ function buildTemplateData(report: SummaryReport): Record<string, unknown> {
   return {
     ...report,
     timestamp: report.generatedAt,
-    summaryTitle: getSummaryTitle(report),
+    summaryTitle: getSummaryTitle(report.period),
   };
 }
 
@@ -79,7 +74,7 @@ export class SummaryDispatcher {
   }
 
   buildPreview(report: SummaryReport, request: Pick<SummaryDispatchRequest, "templateId">): SummaryDispatchPreview {
-    const templateId = request.templateId?.trim() || DEFAULT_TEMPLATE_ID;
+    const templateId = request.templateId?.trim() || getDefaultTemplateId(report.period);
     const rendered = this.templates.render(templateId, buildTemplateData(report));
 
     return {
@@ -106,7 +101,7 @@ export class SummaryDispatcher {
         throw new Error("Email recipient is required");
       }
 
-      const subject = request.subject?.trim() || preview.subject || `${getSummaryTitle(report)} (${report.workspaceSlug})`;
+      const subject = request.subject?.trim() || preview.subject || `${getSummaryTitle(report.period)} (${report.workspaceSlug})`;
       const delivery = await this.notifications.sendEmail({
         to: request.to,
         subject,
