@@ -1,5 +1,5 @@
 import { formatKeywordQuery, parseKeywordQuery } from '@trends/shared'
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useTransition } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import type { CandidateStatus, ResumeFilters } from '@/types/resume'
 
@@ -279,6 +279,7 @@ export function parseUrlSearchState(searchParams: URLSearchParams): UrlSearchSta
 
 export function useUrlSearchState() {
   const [searchParams, setSearchParams] = useSearchParams()
+  const [, startTransition] = useTransition()
   const hasKeywordParam = searchParams.has('q')
   const hasJobDescriptionParam = searchParams.has('jd')
 
@@ -293,7 +294,8 @@ export function useUrlSearchState() {
 
   const syncToUrl = useCallback(
     (state: UrlSearchState) => {
-      setSearchParams((prevParams) => {
+      startTransition(() => {
+        setSearchParams((prevParams) => {
         const nextParams = new URLSearchParams(prevParams)
 
         KNOWN_PARAM_KEYS.forEach((key) => {
@@ -385,8 +387,9 @@ export function useUrlSearchState() {
 
         return nextParams
       }, { replace: true })
+      })
     },
-    [setSearchParams]
+    [setSearchParams, startTransition]
   )
 
   return {
