@@ -120,6 +120,7 @@ describe('SnippetCard', () => {
             recommendation: 'strong_match',
           },
         })}
+        itemKey="result-1"
         onToggleExpanded={onToggleExpanded}
       />
     )
@@ -159,6 +160,7 @@ describe('SnippetCard', () => {
           score: 74,
           analysis: undefined,
         })}
+        itemKey="result-2"
         onToggleExpanded={vi.fn()}
       />
     )
@@ -180,6 +182,7 @@ describe('SnippetCard', () => {
         expanded={false}
         showAiScore
         item={item}
+        itemKey="result-2"
         onToggleExpanded={vi.fn()}
       />
     )
@@ -219,6 +222,7 @@ describe('SnippetCard', () => {
             _provenance: undefined,
           }),
         })}
+        itemKey="result-2"
         onToggleExpanded={onToggleExpanded}
       />
     )

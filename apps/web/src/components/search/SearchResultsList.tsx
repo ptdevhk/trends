@@ -1,5 +1,5 @@
 import { useWindowVirtualizer } from '@tanstack/react-virtual'
-import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { EmptyState } from '@/components/EmptyState'
 import { useConvexResumeDetail } from '@/hooks/useConvexResumes'
@@ -81,9 +81,9 @@ export function SearchResultsList({
   const shouldVirtualize = items.length > 40 && expandedIds.size === 0 && !hasAiSummaries
   const expandedKey = expandedIds.values().next().value
   const expandedSourceItem = items.find((item) => item.key === expandedKey) ?? null
-  const expandedResumeId = expandedSourceItem?.resume.resumeId ?? null
+  const expandedResumeId = expandedSourceItem?.resume?.resumeId ?? null
   const { resume: expandedResumeFromConvex } = useConvexResumeDetail(expandedResumeId)
-  const detailResumeId = detailItem?.resume.resumeId ?? null
+  const detailResumeId = detailItem?.resume?.resumeId ?? null
   const { resume: detailResumeFromConvex, loading: detailResumeLoading } = useConvexResumeDetail(detailResumeId)
   const resolvedDetailResume = detailResumeFromConvex ?? detailItem?.resume ?? null
 
@@ -94,6 +94,10 @@ export function SearchResultsList({
     overscan: 6,
     scrollMargin,
   })
+
+  const handleViewDetails = useCallback((item: ResumeSearchResultItem) => {
+    setDetailItem(item)
+  }, [])
 
   useEffect(() => {
     const updateScrollMargin = () => {
@@ -192,10 +196,11 @@ export function SearchResultsList({
               >
                 <SnippetCard
                   item={item}
+                  itemKey={item.key}
                   expanded={false}
                   showAiScore={showAiScore}
-                  onToggleExpanded={() => onToggleExpanded(item.key)}
-                  onViewDetails={() => setDetailItem(item)}
+                  onToggleExpanded={onToggleExpanded}
+                  onViewDetails={handleViewDetails}
                   {...cardProps(item)}
                 />
               </div>
@@ -216,10 +221,11 @@ export function SearchResultsList({
             <SnippetCard
               key={item.key}
               item={presentationItem}
+              itemKey={item.key}
               expanded={expandedIds.has(item.key)}
               showAiScore={showAiScore}
-              onToggleExpanded={() => onToggleExpanded(item.key)}
-              onViewDetails={() => setDetailItem(presentationItem)}
+              onToggleExpanded={onToggleExpanded}
+              onViewDetails={handleViewDetails}
               {...cardProps(presentationItem)}
             />
           )

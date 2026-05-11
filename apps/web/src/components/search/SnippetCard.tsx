@@ -4,7 +4,7 @@ import {
   ChevronUp,
   Star,
 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { memo, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -30,9 +30,10 @@ import type { CandidateActionType, CandidateStatus, AiFeedbackSentiment, AiFeedb
 type SnippetCardProps = {
   expanded: boolean
   item: ResumeSearchResultItem
+  itemKey: string
   showAiScore?: boolean
-  onToggleExpanded: () => void
-  onViewDetails?: () => void
+  onToggleExpanded: (key: string) => void
+  onViewDetails?: (item: ResumeSearchResultItem) => void
   // Candidate management props
   selected?: boolean
   onSelect?: () => void
@@ -77,9 +78,10 @@ function getPrimaryHeadline(item: ResumeSearchResultItem, fallbackLabel: string)
   return item.resume.jobIntention || fallbackLabel
 }
 
-export function SnippetCard({
+export const SnippetCard = memo(function SnippetCard({
   expanded,
   item,
+  itemKey,
   showAiScore = false,
   onToggleExpanded,
   onViewDetails,
@@ -325,14 +327,14 @@ export function SnippetCard({
                   <Star className="h-4 w-4" />
                 </Button>
               ) : null}
-              <Button variant="ghost" size="sm" className="h-8" onClick={onViewDetails}>
+              <Button variant="ghost" size="sm" className="h-8" onClick={() => onViewDetails?.(item)}>
                 {t('resumes.actions.view', { defaultValue: '查看详情' })}
               </Button>
               <Button
                 type="button"
                 variant="outline"
                 className="shrink-0 rounded-full whitespace-nowrap h-8"
-                onClick={onToggleExpanded}
+                onClick={() => onToggleExpanded(itemKey)}
               >
                 {expanded ? collapseLabel : expandLabel}
                 {expanded ? <ChevronUp className="ml-1 h-4 w-4" /> : <ChevronDown className="ml-1 h-4 w-4" />}
@@ -390,7 +392,7 @@ export function SnippetCard({
         <SnippetCardExpanded
           item={item}
           showAiScore={showAiScore}
-          onViewDetails={onViewDetails}
+          onViewDetails={onViewDetails ? () => onViewDetails(item) : undefined}
           actionType={actionType}
           onAction={onAction}
           candidateStatus={candidateStatus}
@@ -544,4 +546,4 @@ export function SnippetCard({
       </Dialog>
     </Card>
   )
-}
+})
