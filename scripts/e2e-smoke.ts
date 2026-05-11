@@ -1,4 +1,4 @@
-import { connectToChrome, waitForToast, DEFAULT_OPTIONS, measureWebVitals } from './e2e-utils';
+import { connectToChrome, waitForToast, DEFAULT_OPTIONS, measureWebVitals, collectConsoleErrors } from './e2e-utils';
 import { Locator, Page, expect } from '@playwright/test';
 import { ConvexHttpClient } from 'convex/browser';
 import { makeFunctionReference } from 'convex/server';
@@ -289,6 +289,7 @@ async function runSearchTest(page: Page) {
 
     // Set up CWV observers before navigation (buffered: true catches early entries)
     const vitals = await measureWebVitals(page);
+    const consoleLog = collectConsoleErrors(page);
 
     await page.goto(`${DEFAULT_OPTIONS.baseUrl}/dev/resumes`);
     await page.setViewportSize(SMOKE_VIEWPORT);
@@ -348,6 +349,18 @@ async function runSearchTest(page: Page) {
     if (cwv.fcp !== null) {
         expect(cwv.fcp).toBeLessThan(CWV_THRESHOLDS.fcp);
         console.log(`  ✓ FCP: ${cwv.fcp.toFixed(0)}ms (threshold: ${CWV_THRESHOLDS.fcp}ms)`);
+    }
+
+    // Check for browser console errors
+    const consoleEntries = consoleLog.stop();
+    const errors = consoleEntries.filter((e) => e.type === 'error' || e.type === 'pageerror');
+    if (errors.length > 0) {
+        console.warn('⚠️ Browser console errors detected:');
+        for (const err of errors) {
+            console.warn(`  [${err.type}] ${err.text}`);
+        }
+    } else {
+        console.log('  ✓ No browser console errors');
     }
 }
 
