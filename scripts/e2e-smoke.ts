@@ -1,4 +1,4 @@
-import { connectToChrome, waitForToast, DEFAULT_OPTIONS } from './e2e-utils';
+import { connectToChrome, waitForToast, DEFAULT_OPTIONS, measureWebVitals } from './e2e-utils';
 import { Locator, Page, expect } from '@playwright/test';
 import { ConvexHttpClient } from 'convex/browser';
 import { makeFunctionReference } from 'convex/server';
@@ -271,6 +271,10 @@ async function runCollectionTest(page: Page) {
 
 async function runSearchTest(page: Page) {
     console.log('Testing Critical Path 2: Search & Filter...');
+
+    // Set up CWV observers before navigation (buffered: true catches early entries)
+    const vitals = await measureWebVitals(page);
+
     await page.goto(`${DEFAULT_OPTIONS.baseUrl}/dev/resumes`);
     await page.setViewportSize(SMOKE_VIEWPORT);
 
@@ -308,6 +312,28 @@ async function runSearchTest(page: Page) {
         return hasCheckbox || hasEmptyState;
     }, { timeout: 15000 }).toBe(true);
     console.log('✅ Search & Filter test passed.');
+
+    // Collect and assert Core Web Vitals
+    const cwv = await vitals.collect();
+    console.log('📊 Core Web Vitals:', cwv);
+
+    const CWV_THRESHOLDS = { ttfb: 800, lcp: 2500, cls: 0.1, fcp: 1800 };
+    if (cwv.ttfb !== null) {
+        expect(cwv.ttfb).toBeLessThan(CWV_THRESHOLDS.ttfb);
+        console.log(`  ✓ TTFB: ${cwv.ttfb.toFixed(0)}ms (threshold: ${CWV_THRESHOLDS.ttfb}ms)`);
+    }
+    if (cwv.lcp !== null) {
+        expect(cwv.lcp).toBeLessThan(CWV_THRESHOLDS.lcp);
+        console.log(`  ✓ LCP: ${cwv.lcp.toFixed(0)}ms (threshold: ${CWV_THRESHOLDS.lcp}ms)`);
+    }
+    if (cwv.cls !== null) {
+        expect(cwv.cls).toBeLessThan(CWV_THRESHOLDS.cls);
+        console.log(`  ✓ CLS: ${cwv.cls.toFixed(3)} (threshold: ${CWV_THRESHOLDS.cls})`);
+    }
+    if (cwv.fcp !== null) {
+        expect(cwv.fcp).toBeLessThan(CWV_THRESHOLDS.fcp);
+        console.log(`  ✓ FCP: ${cwv.fcp.toFixed(0)}ms (threshold: ${CWV_THRESHOLDS.fcp}ms)`);
+    }
 }
 
 async function runAnalysisTest(page: Page) {

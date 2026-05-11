@@ -12,6 +12,82 @@ export const DEFAULT_OPTIONS: E2EOptions = {
     timeout: 30000,
 };
 
+export interface WebVitals {
+    ttfb: number | null;
+    lcp: number | null;
+    cls: number | null;
+    fcp: number | null;
+}
+
+/**
+ * Inject PerformanceObserver scripts and collect Core Web Vitals.
+ * Must be called BEFORE navigation (observers need `buffered: true` to catch early entries).
+ * Call `collect()` after the page has settled to retrieve measured values.
+ */
+export async function measureWebVitals(page: Page): Promise<{ collect: () => Promise<WebVitals> }> {
+    // Set up observers before navigation so they capture all entries
+    await page.evaluate(() => {
+        const w = window as typeof window & {
+            __cwv_ttfb?: number | null;
+            __cwv_lcp?: number | null;
+            __cwv_cls?: number | null;
+            __cwv_fcp?: number | null;
+        };
+        w.__cwv_ttfb = null;
+        w.__cwv_lcp = null;
+        w.__cwv_cls = null;
+        w.__cwv_fcp = null;
+
+        // TTFB from navigation timing
+        new PerformanceObserver((list) => {
+            const nav = list.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
+            if (nav) w.__cwv_ttfb = nav.responseStart - nav.fetchStart;
+        }).observe({ type: 'navigation', buffered: true });
+
+        // LCP — last entry wins
+        new PerformanceObserver((list) => {
+            const entries = list.getEntries();
+            if (entries.length > 0) w.__cwv_lcp = entries[entries.length - 1].startTime;
+        }).observe({ type: 'largest-contentful-paint', buffered: true });
+
+        // CLS — sum of non-user-input layout shifts
+        new PerformanceObserver((list) => {
+            let clsSum = 0;
+            for (const entry of list.getEntries()) {
+                const ls = entry as PerformanceEntry & { hadRecentInput?: boolean; value?: number };
+                if (!ls.hadRecentInput && ls.value) clsSum += ls.value;
+            }
+            w.__cwv_cls = (w.__cwv_cls ?? 0) + clsSum;
+        }).observe({ type: 'layout-shift', buffered: true });
+
+        // FCP
+        new PerformanceObserver((list) => {
+            for (const entry of list.getEntries()) {
+                if (entry.name === 'first-contentful-paint') w.__cwv_fcp = entry.startTime;
+            }
+        }).observe({ type: 'paint', buffered: true });
+    });
+
+    return {
+        async collect(): Promise<WebVitals> {
+            return page.evaluate(() => {
+                const w = window as typeof window & {
+                    __cwv_ttfb?: number | null;
+                    __cwv_lcp?: number | null;
+                    __cwv_cls?: number | null;
+                    __cwv_fcp?: number | null;
+                };
+                return {
+                    ttfb: w.__cwv_ttfb ?? null,
+                    lcp: w.__cwv_lcp ?? null,
+                    cls: w.__cwv_cls ?? null,
+                    fcp: w.__cwv_fcp ?? null,
+                };
+            });
+        },
+    };
+}
+
 export async function connectToChrome(options: E2EOptions = DEFAULT_OPTIONS) {
     try {
         const browser = await chromium.connectOverCDP(`http://127.0.0.1:${options.port}`);
