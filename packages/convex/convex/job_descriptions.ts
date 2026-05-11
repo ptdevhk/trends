@@ -46,23 +46,23 @@ export const list = query({
     },
     handler: async (ctx, args) => {
         const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
-        // Fetch all system JDs
+        // Fetch all system JDs via index
         const systemJDs = await ctx.db
             .query("job_descriptions")
-            .filter((q) => q.eq(q.field("type"), "system"))
+            .withIndex("by_type", (q) => q.eq("type", "system"))
             .collect();
 
-        // Fetch custom JDs (for now, all enabled custom JDs or user specific)
-        let customJDs = await ctx.db
+        // Fetch custom JDs via workspace index, then filter by userId
+        const allCustomJDs = await ctx.db
             .query("job_descriptions")
-            .filter((q) => q.eq(q.field("type"), "custom"))
+            .withIndex("by_type", (q) => q.eq("type", "custom"))
             .collect();
+
+        let customJDs = allCustomJDs.filter((jd) => belongsToWorkspace(jd.workspaceSlug, workspaceSlug));
 
         if (args.userId) {
             customJDs = customJDs.filter(jd => jd.userId === args.userId || !jd.userId);
         }
-
-        customJDs = customJDs.filter((jd) => belongsToWorkspace(jd.workspaceSlug, workspaceSlug));
 
         return [...systemJDs, ...customJDs]
             .filter(jd => jd.enabled !== false)
@@ -157,15 +157,18 @@ export const list_all = query({
     args: { workspaceSlug: v.optional(v.string()) },
     handler: async (ctx, args) => {
         const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
-        const jds = await ctx.db.query("job_descriptions").collect();
+        const systemJDs = await ctx.db
+            .query("job_descriptions")
+            .withIndex("by_type", (q) => q.eq("type", "system"))
+            .collect();
+        const customJDs = await ctx.db
+            .query("job_descriptions")
+            .withIndex("by_type", (q) => q.eq("type", "custom"))
+            .collect();
 
-        return jds
-            .filter((jd) => {
-                if (jd.type === "system") {
-                    return true;
-                }
-                return belongsToWorkspace(jd.workspaceSlug, workspaceSlug);
-            })
+        const workspaceCustom = customJDs.filter((jd) => belongsToWorkspace(jd.workspaceSlug, workspaceSlug));
+
+        return [...systemJDs, ...workspaceCustom]
             .map(normalizeJobDescriptionRecord);
     },
 });
@@ -174,15 +177,18 @@ export const listAllForWorkspace = internalQuery({
     args: { workspaceSlug: v.optional(v.string()) },
     handler: async (ctx, args) => {
         const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
-        const jds = await ctx.db.query("job_descriptions").collect();
+        const systemJDs = await ctx.db
+            .query("job_descriptions")
+            .withIndex("by_type", (q) => q.eq("type", "system"))
+            .collect();
+        const customJDs = await ctx.db
+            .query("job_descriptions")
+            .withIndex("by_type", (q) => q.eq("type", "custom"))
+            .collect();
 
-        return jds
-            .filter((jd) => {
-                if (jd.type === "system") {
-                    return true;
-                }
-                return belongsToWorkspace(jd.workspaceSlug, workspaceSlug);
-            })
+        const workspaceCustom = customJDs.filter((jd) => belongsToWorkspace(jd.workspaceSlug, workspaceSlug));
+
+        return [...systemJDs, ...workspaceCustom]
             .map(normalizeJobDescriptionRecord);
     },
 });

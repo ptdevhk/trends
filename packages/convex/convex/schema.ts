@@ -46,7 +46,8 @@ export default defineSchema({
         completedAt: v.optional(v.number()), // Timestamp
     })
         .index("by_status", ["status"])
-        .index("by_worker", ["workerId"]),
+        .index("by_worker", ["workerId"])
+        .index("by_completedAt", ["completedAt"]),
 
     collection_workers: defineTable({
         workerId: v.string(),
@@ -221,7 +222,8 @@ export default defineSchema({
         maxAge: v.optional(v.number()),
     })
         .index("by_slug", ["slug"])
-        .index("by_workspace", ["workspaceSlug"]),
+        .index("by_workspace", ["workspaceSlug"])
+        .index("by_type", ["type"]),
 
     analysis_tasks: defineTable({
         idempotencyKey: v.optional(v.string()),
