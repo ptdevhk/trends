@@ -97,6 +97,7 @@ function buildProps(overrides: Partial<ComponentProps<typeof MobileFilterSheet>>
     onSetExperienceLevel: vi.fn(),
     onSetMinRoleYears: vi.fn(),
     onSetAgeRange: vi.fn(),
+    onSetSalaryRange: vi.fn(),
     onSetMinScore: vi.fn(),
     onToggleCluster: vi.fn(),
     onToggleCompany: vi.fn(),
