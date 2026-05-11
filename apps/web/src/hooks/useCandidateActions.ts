@@ -24,9 +24,16 @@ function setFeedbackState(
   }
 }
 
+function extractRating(action: CandidateAction): number | undefined {
+  if (action.actionType !== 'rating') return undefined
+  const rating = action.actionData?.rating
+  return typeof rating === 'number' && rating >= 0 && rating <= 5 ? rating : undefined
+}
+
 export function useCandidateActions(sessionId?: string, jobDescriptionId?: string, enabled: boolean = true) {
   const [actionsByResume, setActionsByResume] = useState<Record<string, CandidateActionType>>({})
   const [aiFeedbackByResume, setAiFeedbackByResume] = useState<Record<string, AiFeedbackState>>({})
+  const [ratingsByResume, setRatingsByResume] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -56,8 +63,17 @@ export function useCandidateActions(sessionId?: string, jobDescriptionId?: strin
 
     const nextActionsByResume: Record<string, CandidateActionType> = {}
     let nextAiFeedbackByResume: Record<string, AiFeedbackState> = {}
+    const nextRatingsByResume: Record<string, number> = {}
 
     ;(data.actions ?? []).forEach((action) => {
+      const rating = extractRating(action)
+      if (rating !== undefined) {
+        if (rating > 0) {
+          nextRatingsByResume[action.resumeId] = rating
+        }
+        return
+      }
+
       const feedback = actionToAiFeedback(action.actionType)
       if (feedback) {
         nextAiFeedbackByResume = setFeedbackState(
@@ -74,6 +90,7 @@ export function useCandidateActions(sessionId?: string, jobDescriptionId?: strin
 
     setActionsByResume(nextActionsByResume)
     setAiFeedbackByResume(nextAiFeedbackByResume)
+    setRatingsByResume(nextRatingsByResume)
     setLoading(false)
   }, [enabled, jobDescriptionId, sessionId])
 
@@ -93,21 +110,34 @@ export function useCandidateActions(sessionId?: string, jobDescriptionId?: strin
         },
       })
 
-      if (apiError || !data?.success) {
+      if (apiError || !data?.success || !data.action) {
         setError('Failed to save action')
         return null
       }
 
-      const feedback = actionToAiFeedback(payload.actionType)
-      if (feedback) {
-        setAiFeedbackByResume((prev) =>
-          setFeedbackState(prev, payload.resumeId, feedback.target, feedback.sentiment)
-        )
+      const rating = extractRating(data.action)
+      if (rating !== undefined) {
+        if (rating === 0) {
+          setRatingsByResume((prev) => {
+            const next = { ...prev }
+            delete next[payload.resumeId]
+            return next
+          })
+        } else {
+          setRatingsByResume((prev) => ({ ...prev, [payload.resumeId]: rating }))
+        }
       } else {
-        setActionsByResume((prev) => ({
-          ...prev,
-          [payload.resumeId]: payload.actionType,
-        }))
+        const feedback = actionToAiFeedback(payload.actionType)
+        if (feedback) {
+          setAiFeedbackByResume((prev) =>
+            setFeedbackState(prev, payload.resumeId, feedback.target, feedback.sentiment)
+          )
+        } else {
+          setActionsByResume((prev) => ({
+            ...prev,
+            [payload.resumeId]: payload.actionType,
+          }))
+        }
       }
 
       return data.action ?? null
@@ -139,6 +169,7 @@ export function useCandidateActions(sessionId?: string, jobDescriptionId?: strin
     if (!enabled || !sessionId) {
       setActionsByResume({})
       setAiFeedbackByResume({})
+      setRatingsByResume({})
     }
   }, [enabled, sessionId])
 
@@ -146,6 +177,7 @@ export function useCandidateActions(sessionId?: string, jobDescriptionId?: strin
     actions: actionsByResume,
     actionsByResume,
     aiFeedbackByResume,
+    ratingsByResume,
     loading,
     error,
     reload: loadActions,

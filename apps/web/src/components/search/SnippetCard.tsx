@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/tooltip'
 import type { ResumeSearchResultItem } from '@/components/search/search-types'
 import { SnippetCardExpanded } from '@/components/search/SnippetCardExpanded'
+import { StarRating } from '@/components/StarRating'
 import { getResumeContentLocale, getResumeSourceLabel, getExperienceBadge, isSafeProfileUrl, summarizeBrandHits } from '@/lib/resume-scoring'
 import { useBrandDisplayMap } from '@/hooks/useBrandDisplayMap'
 import { cn } from '@/lib/utils'
@@ -37,6 +38,8 @@ type SnippetCardProps = {
   onSelect?: () => void
   actionType?: CandidateActionType
   onAction?: (resumeId: string, actionType: CandidateActionType) => void
+  userRating?: number
+  onRating?: (resumeId: string, rating: number) => void
   onCandidateStatusChange?: (identityKey: string, status: CandidateStatus, notes?: string) => void
   onToggleBlock?: (identityKey: string, blocked: boolean, reason?: string) => void
   aiScoreFeedback?: AiFeedbackSentiment
@@ -84,6 +87,8 @@ export function SnippetCard({
   onSelect,
   actionType,
   onAction,
+  userRating,
+  onRating,
   onCandidateStatusChange,
   onToggleBlock,
 }: SnippetCardProps) {
@@ -308,6 +313,7 @@ export function SnippetCard({
 
             {/* Action buttons - pushed to the right */}
             <div className="ml-auto flex items-center gap-1">
+              <StarRating value={userRating} onChange={onRating ? (rating) => onRating(item.resume.resumeId, rating) : undefined} size={14} />
               {onAction ? (
                 <Button
                   variant={actionType === 'star' ? 'default' : 'ghost'}

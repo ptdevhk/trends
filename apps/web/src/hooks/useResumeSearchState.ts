@@ -661,7 +661,7 @@ export function useResumeSearchState() {
   })
   const { statusByIdentity, updateStatus: updateCandidateStatus } = useCandidateStatus(true)
   const { blocksByIdentity, blockCandidates, unblockCandidate } = useCandidateBlocks(true)
-  const { actions: actionsByResume, saveAction, getAiFeedback } = useCandidateActions(sessionKey, parsedState.jobDescriptionId)
+  const { actions: actionsByResume, ratingsByResume, saveAction, getAiFeedback } = useCandidateActions(sessionKey, parsedState.jobDescriptionId)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const apiBaseUrl = useMemo(() => {
     const rawBaseUrl = import.meta.env.VITE_API_URL || '/api'
@@ -1634,6 +1634,13 @@ export function useResumeSearchState() {
     [saveAction],
   )
 
+  const handleRating = useCallback(
+    async (resumeId: string, rating: number) => {
+      await saveAction({ resumeId, actionType: 'rating', actionData: { rating } })
+    },
+    [saveAction],
+  )
+
   const handleCandidateStatusChange = useCallback(
     async (identityKey: string, status: CandidateStatus, notes?: string) => {
       await updateCandidateStatus(identityKey, status, notes)
@@ -1734,9 +1741,11 @@ export function useResumeSearchState() {
     loadMore,
     // Candidate management
     actionsByResume,
+    ratingsByResume,
     getAiFeedback,
     handleBulkAction,
     handleCandidateAction,
+    handleRating,
     handleCandidateStatusChange,
     handleToggleBlock,
     highScoreCount,

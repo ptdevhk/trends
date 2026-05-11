@@ -9,6 +9,7 @@ export type CandidateActionType =
   | "archive"
   | "note"
   | "contact"
+  | "rating"
   | "ai_score_like"
   | "ai_score_unlike"
   | "ai_summary_like"
@@ -19,7 +20,7 @@ export type CandidateActionType =
  * Primary candidate actions (star/shortlist/reject/archive/note/contact) form one group,
  * while each AI feedback dimension forms its own group so they coexist.
  */
-export type ActionTypeGroup = "primary" | "ai_score" | "ai_summary";
+export type ActionTypeGroup = "primary" | "rating" | "ai_score" | "ai_summary";
 
 const AI_SCORE_TYPES = ["ai_score_like", "ai_score_unlike"] as const;
 const AI_SUMMARY_TYPES = ["ai_summary_like", "ai_summary_unlike"] as const;
@@ -29,6 +30,7 @@ const AI_SUMMARY_TYPE_SET: ReadonlySet<string> = new Set(AI_SUMMARY_TYPES);
 const AI_FEEDBACK_TYPES_SQL = AI_FEEDBACK_TYPES.map((actionType) => `'${actionType}'`).join(", ");
 const ACTION_GROUP_CASE_SQL = `
   CASE
+    WHEN action_type = 'rating' THEN 'rating'
     WHEN action_type IN ('ai_score_like', 'ai_score_unlike') THEN 'ai_score'
     WHEN action_type IN ('ai_summary_like', 'ai_summary_unlike') THEN 'ai_summary'
     ELSE 'primary'
@@ -75,6 +77,7 @@ const WORKSPACE_COALESCE_SQL = `COALESCE(
 const WORKSPACE_MATCH_OR_ORPHAN_SQL = `(${WORKSPACE_COALESCE_SQL} = ? OR ${WORKSPACE_COALESCE_SQL} IS NULL)`;
 
 export function actionTypeGroup(actionType: string): ActionTypeGroup {
+  if (actionType === "rating") return "rating";
   if (AI_SCORE_TYPE_SET.has(actionType)) return "ai_score";
   if (AI_SUMMARY_TYPE_SET.has(actionType)) return "ai_summary";
   return "primary";

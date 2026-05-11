@@ -119,6 +119,7 @@ type EnrichedResume = {
   match?: MatchingResult
   ruleScore?: number
   action?: CandidateActionType | undefined
+  userRating?: number
 }
 
 function resolveWorkspaceSlugFromPathname(pathname: string): string {
@@ -343,7 +344,7 @@ export function useResumeListState(loadSearchHistory = false) {
   }, [convexLoading, mode])
 
   const auxiliaryResumeDataEnabled = mode !== 'ai' || hasCompletedInitialConvexLoad
-  const { actions, saveAction, getAiFeedback } = useCandidateActions(
+  const { actions, ratingsByResume, saveAction, getAiFeedback } = useCandidateActions(
     sessionActionScope,
     jobDescriptionId,
     auxiliaryResumeDataEnabled,
@@ -1259,6 +1260,7 @@ export function useResumeListState(loadSearchHistory = false) {
           match,
           ruleScore: resume._ruleScore || 0,
           action: actions[resumeKey],
+          userRating: ratingsByResume[resumeKey],
         }
       })
     }
@@ -1275,10 +1277,12 @@ export function useResumeListState(loadSearchHistory = false) {
         match: undefined,
         ruleScore: 0,
         action: actions[resumeKey],
+        userRating: ratingsByResume[resumeKey],
       }
     })
   }, [
     actions,
+    ratingsByResume,
     blocksByIdentity,
     currentPromptVersion,
     filteredConvexResumes,
@@ -1624,6 +1628,29 @@ export function useResumeListState(loadSearchHistory = false) {
         })
     },
     [jobDescriptionId, saveAction, t]
+  )
+
+  const handleRating = useCallback(
+    (resumeId: string, rating: number) => {
+      void saveAction({
+        resumeId,
+        actionType: 'rating',
+        actionData: { rating },
+      })
+        .then((result) => {
+          if (result) {
+            toast.success(rating === 0 ? '评分已清除' : `评分已保存: ${rating}星`)
+            return
+          }
+
+          toast.error('Failed to save rating')
+        })
+        .catch((error: unknown) => {
+          console.error('Rating save failed', error)
+          toast.error('Failed to save rating')
+        })
+    },
+    [saveAction]
   )
 
   const handleToggleBlock = useCallback(
@@ -2026,7 +2053,9 @@ export function useResumeListState(loadSearchHistory = false) {
     handleOpenReviewPacket,
     handleCardAction,
     handleAiFeedback,
+    handleRating,
     getAiFeedback,
+    ratingsByResume,
     handleToggleBlock,
     handleCandidateStatusChange,
     handleResetAll,

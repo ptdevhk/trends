@@ -27,8 +27,10 @@ type SearchResultsListProps = {
   // Candidate management props
   selectedIds?: Set<string>
   actionsByResume?: Record<string, CandidateActionType>
+  ratingsByResume?: Record<string, number>
   onToggleSelect?: (key: string) => void
   onAction?: (resumeId: string, actionType: CandidateActionType) => void
+  onRating?: (resumeId: string, rating: number) => void
   onCandidateStatusChange?: (identityKey: string, status: CandidateStatus, notes?: string) => void
   onToggleBlock?: (identityKey: string, blocked: boolean, reason?: string) => void
   onAiFeedback?: (target: AiFeedbackTarget, sentiment: AiFeedbackSentiment) => void
@@ -63,8 +65,10 @@ export function SearchResultsList({
   onToggleExpanded,
   selectedIds,
   actionsByResume,
+  ratingsByResume,
   onToggleSelect,
   onAction,
+  onRating,
   onCandidateStatusChange,
   onToggleBlock,
 }: SearchResultsListProps) {
@@ -163,6 +167,8 @@ export function SearchResultsList({
     onSelect: onToggleSelect ? () => onToggleSelect(item.key) : undefined,
     actionType: actionsByResume?.[item.resume.resumeId],
     onAction,
+    userRating: ratingsByResume?.[item.resume.resumeId],
+    onRating,
     onCandidateStatusChange,
     onToggleBlock,
   })
@@ -245,6 +251,8 @@ export function SearchResultsList({
               }
             }}
             loading={detailResumeLoading}
+            userRating={ratingsByResume?.[detailItem.resume.resumeId]}
+            onRating={onRating ? (rating) => onRating(detailItem.resume.resumeId, rating) : undefined}
           />
         </Suspense>
       ) : null}

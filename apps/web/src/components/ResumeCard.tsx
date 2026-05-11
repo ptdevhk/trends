@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { AiFeedbackButtons } from '@/components/AiFeedbackButtons'
+import { StarRating } from '@/components/StarRating'
 import type { ResumeItem } from '@/hooks/useResumes'
 import type { AiFeedbackSentiment, AiFeedbackTarget, CandidateActionType, CandidateStatus, MatchingResult } from '@/types/resume'
 import type { ExperienceLevelFilter } from '@/lib/resume-scoring'
@@ -77,6 +78,8 @@ interface ResumeCardProps {
   isReviewed?: boolean
   aiScoreFeedback?: AiFeedbackSentiment
   onAiFeedback?: (target: AiFeedbackTarget, sentiment: AiFeedbackSentiment) => void
+  userRating?: number
+  onRating?: (rating: number) => void
 }
 
 const STATUS_OPTIONS: Array<{ value: CandidateStatus; labelKey: string }> = [
@@ -159,6 +162,8 @@ export function ResumeCard({
   isReviewed,
   aiScoreFeedback,
   onAiFeedback,
+  userRating,
+  onRating,
   industryTags,
   companyHits,
   brandHits,
@@ -547,6 +552,7 @@ export function ResumeCard({
               </TooltipProvider>
             ) : null}
             <div className="ml-auto flex items-center gap-2">
+              <StarRating value={userRating} onChange={onRating} size={14} />
               <div className="flex items-center gap-1">
                 <Button
                   variant={actionType === 'star' ? 'default' : 'ghost'}
