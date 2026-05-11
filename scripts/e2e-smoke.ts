@@ -2,6 +2,21 @@ import { connectToChrome, waitForToast, DEFAULT_OPTIONS, measureWebVitals } from
 import { Locator, Page, expect } from '@playwright/test';
 import { ConvexHttpClient } from 'convex/browser';
 import { makeFunctionReference } from 'convex/server';
+import { readFileSync } from 'node:fs';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+function loadCwvBaselines(): Record<string, number> {
+    const baselinesPath = resolve(__dirname, 'benchmarks/cwv-baselines.json');
+    const raw = JSON.parse(readFileSync(baselinesPath, 'utf-8'));
+    const thresholds: Record<string, number> = {};
+    for (const [key, entry] of Object.entries(raw.thresholds as Record<string, { value: number }>)) {
+        thresholds[key] = entry.value;
+    }
+    return thresholds;
+}
 
 const DETERMINISTIC_SEARCH_QUERY = 'Sales Engineer';
 const SMOKE_VIEWPORT = { width: 1600, height: 1200 };
@@ -317,7 +332,7 @@ async function runSearchTest(page: Page) {
     const cwv = await vitals.collect();
     console.log('📊 Core Web Vitals:', cwv);
 
-    const CWV_THRESHOLDS = { ttfb: 800, lcp: 2500, cls: 0.1, fcp: 1800 };
+    const CWV_THRESHOLDS = loadCwvBaselines();
     if (cwv.ttfb !== null) {
         expect(cwv.ttfb).toBeLessThan(CWV_THRESHOLDS.ttfb);
         console.log(`  ✓ TTFB: ${cwv.ttfb.toFixed(0)}ms (threshold: ${CWV_THRESHOLDS.ttfb}ms)`);
