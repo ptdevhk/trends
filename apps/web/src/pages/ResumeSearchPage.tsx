@@ -72,8 +72,10 @@ export function ResumeSearchPage() {
     toggleTag,
     // Candidate management
     actionsByResume,
+    ratingsByResume,
     handleBulkAction,
     handleCandidateAction,
+    handleRating,
     handleCandidateStatusChange,
     handleToggleBlock,
     highScoreCount,
@@ -402,8 +404,10 @@ export function ResumeSearchPage() {
                 onToggleExpanded={handleToggleExpanded}
                 selectedIds={selectedIds}
                 actionsByResume={actionsByResume}
+                ratingsByResume={ratingsByResume}
                 onToggleSelect={toggleSelectItem}
                 onAction={handleCandidateAction}
+                onRating={handleRating}
                 onCandidateStatusChange={handleCandidateStatusChange}
                 onToggleBlock={handleToggleBlock}
               />

@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { AiFeedbackButtons } from '@/components/AiFeedbackButtons'
+import { StarRating } from '@/components/StarRating'
 import type { ResumeItem } from '@/hooks/useResumes'
 import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
 import { formatRoleYears, getExperienceBadge, getResumeContentLocale, getResumeSourceLabel, getRoleLabel, hasIngestData, isSafeProfileUrl, summarizeBrandHits } from '@/lib/resume-scoring'
@@ -30,6 +31,8 @@ interface ResumeDetailProps {
   aiScoreFeedback?: AiFeedbackSentiment
   aiSummaryFeedback?: AiFeedbackSentiment
   onAiFeedback?: (target: AiFeedbackTarget, sentiment: AiFeedbackSentiment) => void
+  userRating?: number
+  onRating?: (rating: number) => void
 }
 
 function normalizeEvidenceValue(value: string | undefined): string {
@@ -94,6 +97,8 @@ export function ResumeDetail({
   aiScoreFeedback,
   aiSummaryFeedback,
   onAiFeedback,
+  userRating,
+  onRating,
 }: ResumeDetailProps) {
   const { t } = useTranslation()
   const fieldUsagePolicy = useResumeFieldUsagePolicy()
@@ -375,6 +380,7 @@ export function ResumeDetail({
                       onSelect={(sentiment) => onAiFeedback('ai_score', sentiment)}
                     />
                   ) : null}
+                  <StarRating value={userRating} onChange={onRating} size={14} />
                 </h3>
               </div>
               {(matchResult.promptVersion != null || matchResult.locale) && (

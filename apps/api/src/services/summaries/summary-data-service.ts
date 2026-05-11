@@ -70,6 +70,7 @@ const ACTION_LABELS: Record<CandidateActionType, string> = {
   archive: "Archive",
   note: "Note",
   contact: "Contact",
+  rating: "Rating",
   ai_score_like: "AI Score Like",
   ai_score_unlike: "AI Score Unlike",
   ai_summary_like: "AI Summary Like",

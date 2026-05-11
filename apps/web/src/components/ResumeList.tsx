@@ -121,7 +121,9 @@ export function ResumeList() {
     ensureApiSession,
     handleShareSessionCopied,
     handleAiFeedback,
+    handleRating,
     getAiFeedback,
+    ratingsByResume,
   } = useResumeListState(historyRequested)
   useEffect(() => {
     if (!activeLoading) {
@@ -249,6 +251,8 @@ export function ResumeList() {
         showAiScore={entry.match?.scoreSource === 'ai'}
         actionType={entry.action}
         onAction={(action) => handleCardAction(entry.key, action)}
+        userRating={entry.userRating}
+        onRating={(rating) => handleRating(entry.key, rating)}
         blocked={entry.blocked}
         candidateStatus={entry.status}
         candidateStatusMeta={entry.statusMeta ? {
@@ -551,6 +555,8 @@ export function ResumeList() {
             aiScoreFeedback={detailKey ? getAiFeedback(detailKey, 'ai_score') : undefined}
             aiSummaryFeedback={detailKey ? getAiFeedback(detailKey, 'ai_summary') : undefined}
             onAiFeedback={detailKey ? (target, sentiment) => handleAiFeedback(detailKey, target, sentiment) : undefined}
+            userRating={detailKey ? ratingsByResume[detailKey] : undefined}
+            onRating={detailKey ? (rating) => handleRating(detailKey, rating) : undefined}
           />
         </Suspense>
       ) : null}
