@@ -9,6 +9,8 @@
 slug: trends
 vault: ~/wiki
 release_branch: main
+project_filter: trends
+cron_schedule: "*/15 * * * *"
 ```
 
 ## PRD layer
@@ -81,4 +83,6 @@ notes:
   planning: EnterPlanMode gated — use superpowers:brainstorming -> superpowers:writing-plans instead
   gotcha: api-types.ts regenerates on make check after API schema edits — always stage it
   gotcha: better-sqlite3 needs npm rebuild after Node version bumps
+  vault_drift: concept pages drift when code changes without vault sync — check scoring/search concepts after relevant commits
+  cron: durable every-15m, trends-only, auto-expires 7d — renew with CronCreate before expiry
 ```
