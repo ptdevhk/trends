@@ -2059,6 +2059,8 @@ async function runDiagnosticsPageQuery(
         const page = await buildDiagnosticsBaseQuery(ctx, args.archived).paginate({
             ...args.paginationOpts,
             numItems: requestedPageSize,
+            maximumBytesRead: PAGINATE_MAX_BYTES_READ,
+            maximumRowsRead: PAGINATE_MAX_ROWS_READ,
         });
 
         return {
@@ -2080,6 +2082,8 @@ async function runDiagnosticsPageQuery(
     const page = await buildDiagnosticsBaseQuery(ctx, args.archived).paginate({
         cursor: args.paginationOpts.cursor,
         numItems: scanBatchSize,
+        maximumBytesRead: PAGINATE_MAX_BYTES_READ,
+        maximumRowsRead: PAGINATE_MAX_ROWS_READ,
     });
 
     const matched = page.page
@@ -2167,7 +2171,7 @@ export const countSourceKeyPage = internalQuery({
         const page = await ctx.db
             .query("resumes")
             .withIndex("by_sourceKey", (q) => q.eq("sourceKey", args.sourceKey))
-            .paginate({ cursor: args.cursor ?? null, numItems: 50 });
+            .paginate({ cursor: args.cursor ?? null, numItems: 50, maximumBytesRead: PAGINATE_MAX_BYTES_READ, maximumRowsRead: PAGINATE_MAX_ROWS_READ });
         let count = 0;
         for (const r of page.page) {
             if (args.archived ? r.isArchived === true : r.isArchived !== true) {
@@ -2195,6 +2199,8 @@ export const listWorkflowDatasetPage = query({
             .paginate({
                 cursor: args.cursor ?? null,
                 numItems: resolveResumeScanBatchSize(args.limit),
+                maximumBytesRead: PAGINATE_MAX_BYTES_READ,
+                maximumRowsRead: PAGINATE_MAX_ROWS_READ,
             });
 
         return {
@@ -2225,6 +2231,8 @@ export const listFieldCoverageDatasetPage = query({
             .paginate({
                 cursor: args.cursor ?? null,
                 numItems: resolveResumeScanBatchSize(args.limit),
+                maximumBytesRead: PAGINATE_MAX_BYTES_READ,
+                maximumRowsRead: PAGINATE_MAX_ROWS_READ,
             });
 
         return {
@@ -3189,6 +3197,8 @@ export const listResumeScanBatch = internalQuery({
             .paginate({
                 cursor: args.cursor ?? null,
                 numItems: resolveResumeScanBatchSize(args.limit),
+                maximumBytesRead: PAGINATE_MAX_BYTES_READ,
+                maximumRowsRead: PAGINATE_MAX_ROWS_READ,
             });
 
         return {
@@ -3217,6 +3227,8 @@ export const listResumeUsageBatch = internalQuery({
             .paginate({
                 cursor: args.cursor ?? null,
                 numItems: resolveResumeScanBatchSize(args.limit),
+                maximumBytesRead: PAGINATE_MAX_BYTES_READ,
+                maximumRowsRead: PAGINATE_MAX_ROWS_READ,
             });
 
         return {
@@ -3246,6 +3258,8 @@ export const clearAnalyses = mutation({
                 .paginate({
                     cursor: args.cursor ?? null,
                     numItems: resolveResumeScanBatchSize(args.batchSize),
+                    maximumBytesRead: PAGINATE_MAX_BYTES_READ,
+                    maximumRowsRead: PAGINATE_MAX_ROWS_READ,
                 });
         const resumes = args.resumeIds
             ? await Promise.all(args.resumeIds.map((id) => ctx.db.get(id)))
@@ -3372,7 +3386,7 @@ export const deleteResumes = mutation({
         let cursor = null;
         let isDone = false;
         while (!isDone) {
-            const result = await ctx.db.query("screening_sessions").paginate({ numItems: 100, cursor });
+            const result = await ctx.db.query("screening_sessions").paginate({ numItems: 100, cursor, maximumBytesRead: PAGINATE_MAX_BYTES_READ, maximumRowsRead: PAGINATE_MAX_ROWS_READ });
             for (const session of result.page) {
                 const reviewedResumeIds = session.reviewedResumeIds.filter((resumeId) => !deletedResumeIdStrings.has(resumeId));
                 if (reviewedResumeIds.length === session.reviewedResumeIds.length) {
@@ -3527,6 +3541,8 @@ export const hardResetIngestData = mutation({
             .paginate({
                 cursor: args.cursor ?? null,
                 numItems: resolveResumeScanBatchSize(args.batchSize),
+                maximumBytesRead: PAGINATE_MAX_BYTES_READ,
+                maximumRowsRead: PAGINATE_MAX_ROWS_READ,
             });
         let cleared = 0;
 

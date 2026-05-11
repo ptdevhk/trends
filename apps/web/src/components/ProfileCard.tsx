@@ -1,5 +1,5 @@
 import { memo } from 'react'
-import { formatDistanceToNow } from 'date-fns'
+import { formatDistanceToNow } from 'date-fns/formatDistanceToNow'
 import { Play, Pencil, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
