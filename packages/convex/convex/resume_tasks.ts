@@ -723,12 +723,12 @@ export const getSummaryWindow = query({
         toTimestamp: v.number(),
     },
     handler: async (ctx, args) => {
-        const tasks = await ctx.db.query("collection_tasks").collect();
-        const matching = tasks.filter((task) =>
-            typeof task.completedAt === "number"
-            && task.completedAt >= args.fromTimestamp
-            && task.completedAt < args.toTimestamp
-        );
+        const matching = await ctx.db
+            .query("collection_tasks")
+            .withIndex("by_completedAt", (q) =>
+                q.gte("completedAt", args.fromTimestamp).lt("completedAt", args.toTimestamp)
+            )
+            .collect();
 
         const byStatus = new Map<string, number>();
         for (const task of matching) {
