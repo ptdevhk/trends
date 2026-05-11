@@ -78,6 +78,7 @@ notes:
   stack: Monorepo — React+Vite (web), Hono+OpenAPI (api), FastAPI (worker), Convex (data)
   deploy: production deploys via `make on-prod-deploy` on ptcloud after `make on-prod-deploy-check`
   config_docs: CLAUDE.md is canonical; AGENTS.md is symlink
+  planning: EnterPlanMode gated — use superpowers:brainstorming -> superpowers:writing-plans instead
   gotcha: api-types.ts regenerates on make check after API schema edits — always stage it
   gotcha: better-sqlite3 needs npm rebuild after Node version bumps
 ```

@@ -17,20 +17,17 @@ English-first guidance; Chinese notes are short clarifications.
 - Canonical policy file: `AGENTS.md`
 - Generated mirror file: `dev-docs/AGENTS.md`
 - Do not edit `dev-docs/AGENTS.md` directly.
-- After policy edits, run `npx tsx scripts/agent-governance/sync-policy.ts`.
+- After policy edits, run `make sync-agent-policy` or `bunx tsx scripts/agent-governance/sync-policy.ts`.
 
 ### Source Matrix (strict order)
-1. Local repository sources, including `dev-docs/*.txt` and implementation files.
+1. Local repository sources, including `dev-docs/` cached docs and implementation files.
 2. Context7 references for library/framework/API behavior and usage details.
-3. Official web sources only when freshness-sensitive or time-sensitive facts are required.
+3. DevTools MCP — browser snapshots, console, network for live verification (browser-facing changes only).
+4. Official web sources only when freshness-sensitive or time-sensitive facts are required.
 
 ### Evidence Contract
 - For non-trivial technical design/recommendation responses, include a `Sources Used` section.
-- `Sources Used` must include:
-  - Repo-relative file paths consulted.
-  - Context7 library IDs queried.
-  - Web URLs only when freshness-sensitive facts are used.
-- Use `none` for any category with no source usage.
+- Include only categories actually consulted. Omit categories not used — no need to list `none`.
 
 ### Enforcement
 - Sync generated policy mirror with `make sync-agent-policy`.
@@ -75,21 +72,19 @@ English-first guidance; Chinese notes are short clarifications.
 
 # Dev Cycle (IMPORTANT)
 
-**All agents MUST follow this workflow after code changes:**
+**After code changes:**
 
-1. If you make code changes, run `make check` after completing the task and fix failures before handoff
-2. After `make check`, if code changes remain or review is in progress, run a simplify workflow explicitly
-3. Use `/simplify` if the runtime supports it
-4. Otherwise use the portable `$simplify` skill or the agent's equivalent simplify workflow
+1. Run `make check` — fix failures before handoff
+2. If code changes remain, run `/simplify` (or `--quick` / `--staged-only` variants)
+3. For full dev-loop pipeline (PRD → spec → plan → implement → verify), use `/dev-loop` skill
 
-**Available tools (for manual use when needed):**
+**Core commands:**
 
 | Command | Purpose |
 |---------|---------|
-| `make check` | Run required repo validation checks |
+| `make check` | Validate + governance + project skill sync |
 | `/simplify` | Full 3-pass code review (reuse, quality, efficiency) |
-| `/simplify --quick` | Fast single-pass review |
-| `/simplify --staged-only` | Review only staged files |
+| `/dev-loop` | Full dev-cycle pipeline with skillwiki integration |
 
 ## Runbook Commands (Authoritative)
 
@@ -179,14 +174,10 @@ TARGET=all make sync-agent-governance  # Optional: run policy sync + governance 
 
 Prerequisite: `make chrome-debug` starts a headed Chrome with CDP on port 9222 and your real profile.
 
-| Tool | Purpose |
-|------|---------|
-| `playwright-cli attach` | Attach to chrome-debug (reads `.playwright/cli.config.json`, no flags needed) |
-| `playwright-cli open` | Standalone headed browser (fallback) |
-| `make e2e` | E2E smoke test via `scripts/e2e-smoke.ts` (requires chrome-debug + local dev stack) |
-| `make benchmark-critical-path` | Benchmark critical path latency (requires seeded data) |
-
-For browser extension CDP patterns, see `apps/browser-extension/CLAUDE.md`.
+- **`/playwright-cli`** skill handles browser automation (attach, navigate, snap, evaluate)
+- `make e2e` — E2E smoke test via `scripts/e2e-smoke.ts` (requires chrome-debug + local dev stack)
+- `make benchmark-critical-path` — Benchmark critical path latency (requires seeded data)
+- For browser extension CDP patterns, see `apps/browser-extension/CLAUDE.md`.
 
 ## Current Engineering Direction (Stable Snapshot)
 - Resume screening is the primary product path.
@@ -205,20 +196,26 @@ For browser extension CDP patterns, see `apps/browser-extension/CLAUDE.md`.
 
 ## Scoped Instructions
 - For browser extension work, follow `apps/browser-extension/CLAUDE.md`.
-- For browser automation/testing/debugging, use `playwright-cli` (global install, see Browser Testing & Debugging section).
+- For browser automation, use `/playwright-cli` skill (replaces manual playwright-cli commands).
+- For plan/spec/PRD work, use `/brainstorming` + `/writing-plans` (superpowers) with PRD bridge to vault.
+- For debugging, use `/systematic-debugging` (superpowers) before ad-hoc investigation.
 - Use closest-scope instruction files when they exist; root rules still apply unless overridden.
-- Avoid duplicating subsystem-specific long procedures in this root file.
+
+## Planning
+
+Use `/brainstorming` -> `/writing-plans` (superpowers) for all planning. `EnterPlanMode` is disabled in favor of structured skill-based planning with persistent output. Use `/wiki-gate-plan-mode status` to check or toggle this.
 
 ## External Knowledge Sharing (skillwiki)
 Default vault: `~/wiki` (resolved via `skillwiki path`). Project notes under `projects/trends/`.
 If local vault is unavailable, fall back to config-driven remote repository.
 
-### When To Update Shared Knowledge
-Update notes when any of the following changes land:
-- Architecture or pipeline direction changes.
-- Agent/governance/dev-cycle rule changes.
-- Major API surface or workflow behavior changes.
-- Significant migration strategy or workspace isolation changes.
+- **`/wiki-ingest`** — capture URLs/files/pastes into typed pages
+- **`/wiki-query`** — search and synthesize from vault
+- **`/wiki-crystallize`** — save session insights
+- **`/dev-loop-research`** — standalone repo + vault health scan with prioritized recommendations
+- **PRD bridge**: All spec/plan output must land in the vault, not `docs/superpowers/`. Use `proj-work` to get redirect paths.
+
+Update vault notes when architecture, governance, or major API changes land.
 
 ## What Not To Put In This File
 - No phase-by-phase completion ledgers.
