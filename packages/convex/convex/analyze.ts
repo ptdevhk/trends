@@ -1,13 +1,10 @@
 /// <reference path="./convex-env.d.ts" />
 import {
     DEFAULT_RESUME_AI_PROMPT_LOCALE,
-    FALLBACK_INDUSTRY_KEYWORDS,
-    INDUSTRY_DISPLAY_NAME_TO_TAG,
     buildResumeAiSystemPrompt,
     getResumeAiLocaleText,
     getResumeAiPromptDefinition,
     getResumeAiUserPromptTemplate,
-    isSalesRequiredContext,
     resolveResumeAnalysisSourceKey,
     sanitizeResumeRecordForSurface,
     resolveResumeAiPromptLocale,
@@ -231,323 +228,6 @@ function normalizeSummaryConsistency(
     return next;
 }
 
-function inferSalesRelatedExpFloor(resume: unknown): number | undefined {
-    const ingestData = getResumeIngestData(resume);
-    if (!Array.isArray(ingestData.roleSignals)) {
-        return undefined;
-    }
-
-    for (const rawSignal of ingestData.roleSignals) {
-        if (!isRecord(rawSignal)) {
-            continue;
-        }
-
-        const type = typeof rawSignal.type === "string" ? rawSignal.type.trim().toLowerCase() : "";
-        if (type !== "sales") {
-            continue;
-        }
-
-        const verifiedYears = toNumber(rawSignal.industryVerifiedYears) ?? 0;
-        const verifiedRelevantYears = toNumber(rawSignal.industryVerifiedRelevantYears) ?? 0;
-        const workEntries = Array.isArray(rawSignal.matchedWorkEntries)
-            ? rawSignal.matchedWorkEntries.filter((rawEntry): rawEntry is Record<string, unknown> => isRecord(rawEntry))
-            : [];
-        const hasDirectRoleEvidence = workEntries.some((rawEntry) => rawEntry.directRoleMatch === true);
-
-        // The 80 floor only applies to industry-verified sales; unverified direct-role
-        // sales are handled by the AI (prompt rules 12/13) and inferUnverifiedDomainRelevantSalesFloor.
-        const hasIndustryVerifiedSales = verifiedYears > 0 || verifiedRelevantYears > 0
-            || workEntries.some((rawEntry) => rawEntry.industryVerified === true);
-
-        if (hasDirectRoleEvidence && !hasIndustryVerifiedSales) {
-            // Unverified direct-role: 80 floor doesn't apply; 60 floor or 15 ceiling
-            // may apply via other inference functions.
-            continue;
-        }
-
-        // Industry-verified sales with 3+ years → floor of 80
-        const relevantYears = Math.max(verifiedYears, toNumber(rawSignal.roleRelevantYears) ?? toNumber(rawSignal.years) ?? 0);
-        if (hasIndustryVerifiedSales && relevantYears >= 3) {
-            return 80;
-        }
-    }
-
-    return undefined;
-}
-
-/**
- * Caps related_exp at 15 when domain+sales keywords are combined but the candidate's
- * sales has no domain evidence. Bypassed by: industry-verified sales, verified entries,
- * sales-relevant brand hits, or industry tags + direct sales at a non-irrelevant company.
- * Returns 15 or undefined if no cap applies.
- */
-function inferDomainIrrelevantSalesCeiling(
-    resume: unknown,
-    keywords: string[],
-): number | undefined {
-    const ingestData = getResumeIngestData(resume);
-    if (!Array.isArray(ingestData.roleSignals)) {
-        return undefined;
-    }
-
-    // Only applies when there are both sales and non-sales keywords
-    const salesKeywords = keywords.filter((kw) => isSalesRequiredContext(kw));
-    const domainKeywords = keywords.filter((kw) => !isSalesRequiredContext(kw));
-    if (salesKeywords.length === 0 || domainKeywords.length === 0) {
-        return undefined;
-    }
-
-    // Check if candidate has any industry-verified sales signal or
-    // sales work entries at industry-verified companies
-    const salesSignal = ingestData.roleSignals.find((rawSignal) => {
-        if (!isRecord(rawSignal)) return false;
-        return typeof rawSignal.type === "string"
-            && rawSignal.type.trim().toLowerCase() === "sales";
-    });
-
-    if (!salesSignal || !isRecord(salesSignal)) {
-        // No sales signal at all — ceiling doesn't apply (floor won't either)
-        return undefined;
-    }
-
-    // Signal-level: industry-verified sales years
-    const hasIndustryVerifiedSalesYears = (toNumber(salesSignal.industryVerifiedRelevantYears) ?? 0) > 0
-        || (toNumber(salesSignal.industryVerifiedYears) ?? 0) > 0;
-
-    // Entry-level: sales work entries at industry-verified companies
-    const workEntries = Array.isArray(salesSignal.matchedWorkEntries)
-        ? salesSignal.matchedWorkEntries.filter((rawEntry): rawEntry is Record<string, unknown> => isRecord(rawEntry))
-        : [];
-    const hasIndustryVerifiedSalesEntry = workEntries.some(
-        (entry) => entry.industryVerified === true
-    );
-
-    // Only brand hits with sales-relevant context bypass the ceiling;
-    // technical-only brand hits from non-sales roles don't prove sales domain overlap.
-    const hasSalesRelevantBrandHits = (() => {
-        if (!Array.isArray(ingestData.brandHits) || ingestData.brandHits.length === 0) {
-            return false;
-        }
-        if (hasIndustryVerifiedSalesEntry) return true;
-        const salesRelevantContexts = new Set(["product", "dealer", "agent", "distributor"]);
-        return ingestData.brandHits.some((item) => {
-            if (!isRecord(item)) return false;
-            const context = typeof item.context === "string" ? item.context.trim().toLowerCase() : "";
-            if (context === "employer" || context === "technical") return false;
-            return salesRelevantContexts.has(context) || context === "both" || context === "";
-        });
-    })();
-
-    // Industry tags + direct sales at a non-irrelevant company → tags likely
-    // reflect the sales role's domain (tags alone can come from non-sales roles).
-    const industryTags = Array.isArray(ingestData.industryTags)
-        ? ingestData.industryTags.filter((tag): tag is string => typeof tag === "string")
-        : [];
-    const hasDomainIndustryTag = industryTags.length > 0 && domainKeywords.some(
-        (kw) => keywordMapsToIndustryTag(kw, industryTags),
-    );
-    const hasDomainIrrelevantSalesEntry = workEntries.some((entry) =>
-        isDomainIrrelevantSalesEntry(entry),
-    );
-
-    // If any domain-evidence path confirms relevance, no ceiling.
-    if (hasIndustryVerifiedSalesYears || hasIndustryVerifiedSalesEntry || hasSalesRelevantBrandHits) {
-        return undefined;
-    }
-    // Industry tags + direct sales role + no domain-irrelevant company →
-    // tags likely reflect the sales role's domain (e.g. sales engineer at a
-    // machinery trading company). Let the AI decide with prompt guidance.
-    if (hasDomainIndustryTag && !hasDomainIrrelevantSalesEntry) {
-        return undefined;
-    }
-
-    // Candidate has sales signal but no domain evidence —
-    // the sales experience is likely domain-irrelevant
-    return 15;
-}
-
-/**
- * Keywords that clearly indicate a company or role is in a sector unrelated
- * to the machinery/CNC domain. Used to prevent industry tags from non-sales
- * roles from bypassing the domain-irrelevant ceiling.
- */
-const DOMAIN_IRRELEVANT_SALES_KEYWORDS = [
-    // Insurance / finance
-    "保险", "人寿", "金融", "投资", "证券", "银行", "理财",
-    // Real estate
-    "房地产", "地产", "置业", "房产",
-    // Education / training
-    "教育", "培训", "学校",
-    // Medical / healthcare
-    "医疗", "医院", "医药",
-    // Consumer / food / clothing
-    "食品", "餐饮", "服装", "化妆品",
-    // Job-title-level negative signals (e.g. "保险代理人")
-    "保险代理", "保险销售", "置业顾问",
-];
-
-/**
- * Checks whether a sales work entry is at a company or in a role that is
- * clearly unrelated to the machinery/CNC domain, based on negative keyword
- * matching against company name and job title.
- */
-function isDomainIrrelevantSalesEntry(entry: Record<string, unknown>): boolean {
-    const companyName = typeof entry.companyName === "string" ? entry.companyName : "";
-    const jobTitle = typeof entry.jobTitle === "string" ? entry.jobTitle : "";
-    const text = `${companyName} ${jobTitle}`.toLowerCase();
-    return DOMAIN_IRRELEVANT_SALES_KEYWORDS.some((kw) => text.includes(kw.toLowerCase()));
-}
-
-/**
- * Checks whether a search keyword maps to any of the resume's industry tags
- * through the FALLBACK_INDUSTRY_KEYWORDS taxonomy.
- * e.g. "cnc" maps to "machinery"; if the resume has "machinery" industryTag → match.
- *
- * Handles both English tag IDs (e.g. "machinery") and Chinese displayNames
- * (e.g. "机械") stored in ingestData.industryTags.
- */
-function keywordMapsToIndustryTag(keyword: string, resumeIndustryTags: string[]): boolean {
-    const kwLower = keyword.trim().toLowerCase();
-    if (!kwLower) return false;
-
-    // Normalize resume tags: map Chinese displayNames to English tag IDs
-    const normalizedTags = new Set<string>();
-    for (const tag of resumeIndustryTags) {
-        const tagLower = tag.toLowerCase();
-        normalizedTags.add(tagLower);
-        // Map Chinese displayName to canonical English tag ID
-        const mappedTag = INDUSTRY_DISPLAY_NAME_TO_TAG[tag];
-        if (mappedTag) {
-            normalizedTags.add(mappedTag.toLowerCase());
-        }
-    }
-
-    // Direct tag match (e.g. keyword="machinery" matches tag="machinery")
-    if (normalizedTags.has(kwLower)) return true;
-
-    // Check if the keyword is one of the taxonomy keywords that maps to a resume tag
-    for (const [tag, keywords] of Object.entries(FALLBACK_INDUSTRY_KEYWORDS)) {
-        if (!normalizedTags.has(tag.toLowerCase())) continue;
-        if (keywords.some((kw) => kw.toLowerCase() === kwLower)) return true;
-    }
-
-    return false;
-}
-
-/**
- * Floor of 60 for unverified sales when domain evidence suggests relevance
- * (industry tags overlap + direct sales title + no domain-irrelevant company).
- * Mirrors the ceiling bypass: if ceiling doesn't apply, this floor prevents
- * the AI from under-scoring (typically ~20-30 instead of 60-80).
- * Returns 60 or undefined if no floor applies.
- */
-function inferUnverifiedDomainRelevantSalesFloor(
-    resume: unknown,
-    keywords: string[],
-): number | undefined {
-    const ingestData = getResumeIngestData(resume);
-    if (!Array.isArray(ingestData.roleSignals)) {
-        return undefined;
-    }
-
-    // Only applies when there are both sales and domain keywords
-    const salesKeywords = keywords.filter((kw) => isSalesRequiredContext(kw));
-    const domainKeywords = keywords.filter((kw) => !isSalesRequiredContext(kw));
-    if (salesKeywords.length === 0 || domainKeywords.length === 0) {
-        return undefined;
-    }
-
-    const salesSignal = ingestData.roleSignals.find((rawSignal) => {
-        if (!isRecord(rawSignal)) return false;
-        return typeof rawSignal.type === "string"
-            && rawSignal.type.trim().toLowerCase() === "sales";
-    });
-
-    if (!salesSignal || !isRecord(salesSignal)) {
-        return undefined;
-    }
-
-    // Must have a direct sales role title
-    const workEntries = Array.isArray(salesSignal.matchedWorkEntries)
-        ? salesSignal.matchedWorkEntries.filter((rawEntry): rawEntry is Record<string, unknown> => isRecord(rawEntry))
-        : [];
-    const hasDirectSalesTitle = workEntries.some((entry) => entry.directRoleMatch === true);
-    if (!hasDirectSalesTitle) {
-        return undefined;
-    }
-
-    // Must NOT have industry-verified sales (those get the 80 floor already)
-    const hasIndustryVerifiedSales = (toNumber(salesSignal.industryVerifiedRelevantYears) ?? 0) > 0
-        || (toNumber(salesSignal.industryVerifiedYears) ?? 0) > 0
-        || workEntries.some((entry) => entry.industryVerified === true);
-    if (hasIndustryVerifiedSales) {
-        return undefined;
-    }
-
-    // Must have industry tags overlapping with domain keywords
-    const industryTags = Array.isArray(ingestData.industryTags)
-        ? ingestData.industryTags.filter((tag): tag is string => typeof tag === "string")
-        : [];
-    const hasDomainIndustryTag = industryTags.length > 0 && domainKeywords.some(
-        (kw) => keywordMapsToIndustryTag(kw, industryTags),
-    );
-    if (!hasDomainIndustryTag) {
-        return undefined;
-    }
-
-    // Sales entries must NOT be at domain-irrelevant companies
-    const hasDomainIrrelevantSalesEntry = workEntries.some((entry) =>
-        isDomainIrrelevantSalesEntry(entry),
-    );
-    if (hasDomainIrrelevantSalesEntry) {
-        return undefined;
-    }
-
-    return 60;
-}
-
-/**
- * Caps related_exp to 0 when all sales entries have directRoleMatch=false
- * (sales signal from descriptions only). Bypassed when the floor was already
- * applied or any entry has directRoleMatch=true.
- * Returns 0 or undefined.
- */
-function inferNoDirectSalesRoleCap(resume: unknown, precomputedFloor?: number): number | undefined {
-    const ingestData = getResumeIngestData(resume);
-    if (!Array.isArray(ingestData.roleSignals)) {
-        return undefined;
-    }
-
-    const salesSignals = (ingestData.roleSignals as unknown[]).filter((raw): raw is Record<string, unknown> => {
-        if (!isRecord(raw)) return false;
-        const type = typeof raw.type === "string" ? raw.type.trim().toLowerCase() : "";
-        return type === "sales";
-    });
-
-    if (salesSignals.length === 0) {
-        return 0;
-    }
-
-    // If the floor condition is met, the cap does not apply
-    if (precomputedFloor !== undefined) {
-        return undefined;
-    }
-
-    // Any direct sales title → don't zero out (wrong industry handled by ceiling)
-    const hasDirectSalesTitle = salesSignals.some((rawSignal) => {
-        const workEntries = Array.isArray(rawSignal.matchedWorkEntries)
-            ? rawSignal.matchedWorkEntries.filter((rawEntry): rawEntry is Record<string, unknown> => isRecord(rawEntry))
-            : [];
-        return workEntries.some((rawEntry) => rawEntry.directRoleMatch === true);
-    });
-    if (hasDirectSalesTitle) {
-        return undefined;
-    }
-
-    // No direct sales job title — sales signal came from descriptions only — cap at 0
-    return 0;
-}
-
 
 export function normalizeAnalysisResult(
     result: {
@@ -559,10 +239,6 @@ export function normalizeAnalysisResult(
         breakdown?: unknown;
     },
     resume: unknown,
-    options?: {
-        targetRoleType?: "sales";
-        keywords?: string[];
-    },
 ): {
     score: number;
     recommendation: AnalysisRecommendation;
@@ -572,34 +248,17 @@ export function normalizeAnalysisResult(
     breakdown: Record<string, number>;
 } {
     const breakdown = parseNumericBreakdown(result.breakdown);
-    let relatedExpRaw = clamp(toNumber(breakdown?.related_exp) ?? 0, 0, 100);
-    if (options?.targetRoleType === "sales") {
-        const floor = inferSalesRelatedExpFloor(resume);
-        if (floor !== undefined) {
-            relatedExpRaw = Math.max(relatedExpRaw, floor);
-        }
-        // Keyword-dependent floor/ceiling (order-safe with noDirectSalesCap below:
-        // min is commutative, so the order of floor/ceiling/cap application
-        // doesn't affect the final result)
-        if (Array.isArray(options.keywords) && options.keywords.length > 0) {
-            const unverifiedFloor = inferUnverifiedDomainRelevantSalesFloor(resume, options.keywords);
-            if (unverifiedFloor !== undefined) {
-                relatedExpRaw = Math.max(relatedExpRaw, unverifiedFloor);
-            }
-            const ceiling = inferDomainIrrelevantSalesCeiling(resume, options.keywords);
-            if (ceiling !== undefined) {
-                relatedExpRaw = Math.min(relatedExpRaw, ceiling);
-            }
-        }
-        // No-direct-sales-role cap: zeros out description-only sales signals
-        const noDirectSalesCap = inferNoDirectSalesRoleCap(resume, floor);
-        if (noDirectSalesCap !== undefined) {
-            relatedExpRaw = Math.min(relatedExpRaw, noDirectSalesCap);
-        }
-    }
-    const relatedExpWeightedContribution = Math.round(relatedExpRaw * RELATED_EXP_WEIGHT);
+    const llmRelatedExp = toNumber(breakdown?.related_exp);
     const industryDb = computeDirectIndustryDbScoreFromResume(resume);
-    const score = clamp(relatedExpWeightedContribution + industryDb, 0, 100);
+
+    if (llmRelatedExp === undefined) {
+        console.warn("LLM related_exp invalid, falling back to related_exp=0");
+    }
+
+    // LLM-primary: trust LLM's related_exp, combine with rule-based industry_db
+    const relatedExpRaw = clamp(llmRelatedExp ?? 0, 0, 100);
+    const score = clamp(Math.round(relatedExpRaw * RELATED_EXP_WEIGHT) + industryDb, 0, 100);
+
     const recommendation = recommendationFromScore(score);
     const rawSummary = typeof result.summary === "string" && result.summary.trim().length > 0
         ? result.summary
@@ -977,14 +636,9 @@ export const analyzeResume = action({
             console.error("LLM Call failed:", e);
             throw new Error("Failed to analyze resume with AI.");
         }
-        const normalizedKeywords = (args.keywords ?? [])
-            .map((k) => k.trim().toLowerCase())
-            .filter((k) => k.length > 0);
-        const targetRoleType = isSalesRequiredContext(...normalizedKeywords) ? "sales" as const : undefined;
         const result = normalizeAnalysisResult(
             isRecord(rawResult) ? rawResult : {},
             resume,
-            normalizedKeywords.length > 0 ? { targetRoleType, keywords: normalizedKeywords } : undefined,
         );
 
         // 4. Update Resume with result
