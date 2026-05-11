@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { formatDistanceToNow } from 'date-fns'
 import { Play, Pencil, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -61,7 +62,7 @@ function runStatusLabel(status: SearchProfileRunStatus['taskStatus']): string {
   return 'unknown'
 }
 
-export function ProfileCard({
+export const ProfileCard = memo(function ProfileCard({
   profile,
   scheduleLabel,
   runStatus,
@@ -134,4 +135,4 @@ export function ProfileCard({
       </CardFooter>
     </Card>
   )
-}
+})
