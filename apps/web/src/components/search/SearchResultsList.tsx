@@ -81,9 +81,9 @@ export function SearchResultsList({
   const shouldVirtualize = items.length > 40 && expandedIds.size === 0 && !hasAiSummaries
   const expandedKey = expandedIds.values().next().value
   const expandedSourceItem = items.find((item) => item.key === expandedKey) ?? null
-  const expandedResumeId = expandedSourceItem?.resume.resumeId ?? null
+  const expandedResumeId = expandedSourceItem?.resume?.resumeId ?? null
   const { resume: expandedResumeFromConvex } = useConvexResumeDetail(expandedResumeId)
-  const detailResumeId = detailItem?.resume.resumeId ?? null
+  const detailResumeId = detailItem?.resume?.resumeId ?? null
   const { resume: detailResumeFromConvex, loading: detailResumeLoading } = useConvexResumeDetail(detailResumeId)
   const resolvedDetailResume = detailResumeFromConvex ?? detailItem?.resume ?? null
 
