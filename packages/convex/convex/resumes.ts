@@ -379,6 +379,11 @@ export const MAX_SAFE_LIST_WITH_INGEST_LIMIT = 2000;
 export const MAX_SAFE_LIST_WITH_INGEST_OVERFETCH = 4000;
 const FILTERED_PAGINATE_OVERFETCH_MULTIPLIER = 3;
 const MAX_SAFE_JD_PAGINATE_SCAN = 250;
+
+// Safety margins: half of Convex's 16 MiB read / 32K scan limits.
+// Forces automatic page splitting before hitting hard limits.
+const PAGINATE_MAX_BYTES_READ = 8 * 1024 * 1024; // 8 MiB
+const PAGINATE_MAX_ROWS_READ = 16_000;
 // Convex enforces 16 MiB total data read per query function.
 // Resume docs average ~27KB but some exceed 500KB on later search index pages.
 // With post-filter attrition (filtered path), overfetch is needed but output shrinks.
@@ -1663,6 +1668,8 @@ async function runSearchWithTagExpansionScanPageQuery(
             .paginate({
                 ...args.paginationOpts,
                 numItems: pageSize,
+                maximumBytesRead: PAGINATE_MAX_BYTES_READ,
+                maximumRowsRead: PAGINATE_MAX_ROWS_READ,
             })
         : {
             page: [] as Doc<"resumes">[],
@@ -1735,6 +1742,8 @@ export const fieldCoverage = query({
             .paginate({
                 cursor: args.cursor ?? null,
                 numItems: args.batchSize ?? 200,
+                maximumBytesRead: PAGINATE_MAX_BYTES_READ,
+                maximumRowsRead: PAGINATE_MAX_ROWS_READ,
             });
 
         let missingSearchText = 0;
@@ -1814,6 +1823,8 @@ export const listForBackup = query({
             .paginate({
                 ...args.paginationOpts,
                 numItems: pageSize,
+                maximumBytesRead: PAGINATE_MAX_BYTES_READ,
+                maximumRowsRead: PAGINATE_MAX_ROWS_READ,
             });
 
         const filtered = applyResumeBackupFilters(page.page, filterSets).sort(compareResumeBackupRows);
@@ -1989,6 +2000,8 @@ export const listWithIngestDataPaginated = query({
                 .paginate({
                     ...args.paginationOpts,
                     numItems,
+                    maximumBytesRead: PAGINATE_MAX_BYTES_READ,
+                    maximumRowsRead: PAGINATE_MAX_ROWS_READ,
                 });
 
             const filtered = filters
@@ -2627,6 +2640,8 @@ export const scanResumePageByTime = query({
             .paginate({
                 cursor: args.cursor ?? null,
                 numItems,
+                maximumBytesRead: PAGINATE_MAX_BYTES_READ,
+                maximumRowsRead: PAGINATE_MAX_ROWS_READ,
             });
         return {
             docs: page.page.map((doc) => ({
@@ -2664,6 +2679,8 @@ export const scanResumePageSlim = query({
             .paginate({
                 cursor: args.cursor ?? null,
                 numItems,
+                maximumBytesRead: PAGINATE_MAX_BYTES_READ,
+                maximumRowsRead: PAGINATE_MAX_ROWS_READ,
             });
         return {
             docs: page.page.map((doc) => ({
@@ -2736,6 +2753,8 @@ export const collectSearchIndexDocIds = internalQuery({
             .paginate({
                 cursor: args.cursor ?? null,
                 numItems: Math.min(args.numItems ?? 256, 256),
+                maximumBytesRead: PAGINATE_MAX_BYTES_READ,
+                maximumRowsRead: PAGINATE_MAX_ROWS_READ,
             });
         return {
             ids: page.page.map((doc) => String(doc._id)),

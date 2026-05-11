@@ -30,6 +30,7 @@ import {
 } from "./routes/index.js";
 import { config } from "./services/config.js";
 import { workspaceMiddleware } from "./middleware/workspace.js";
+import { serverTimingMiddleware } from "./middleware/server-timing.js";
 
 export const openApiConfig = {
   openapi: "3.1.0",
@@ -64,6 +65,7 @@ export function createApp() {
   const app = new OpenAPIHono();
 
   // Middleware
+  app.use("*", serverTimingMiddleware);
   app.use(
     "*",
     cors({
