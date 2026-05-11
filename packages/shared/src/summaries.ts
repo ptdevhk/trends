@@ -1,4 +1,4 @@
-export type SummaryPeriod = "daily" | "weekly";
+export type SummaryPeriod = "daily" | "weekly" | "monthly";
 
 export type SummaryChannel = "email" | "wechat_work" | "feishu" | "telegram";
 
@@ -59,6 +59,18 @@ export type SummaryScopes = {
   };
 };
 
+export type SummaryNewCandidate = {
+  resumeId: string;
+  name?: string;
+  source: string;
+  location?: string;
+  experience?: string;
+  education?: string;
+  score?: number;
+  recommendation?: string;
+  crawledAt: string;
+};
+
 export type SummaryReport = {
   workspaceSlug: string;
   period: SummaryPeriod;
@@ -74,6 +86,7 @@ export type SummaryReport = {
   };
   scopes?: SummaryScopes;
   notes: string[];
+  newCandidates?: SummaryNewCandidate[];
 };
 
 export type SummaryPreviewRequest = {

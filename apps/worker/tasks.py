@@ -22,7 +22,7 @@ from trendradar.utils.time import get_configured_time
 
 logger = logging.getLogger(__name__)
 
-VALID_SUMMARY_PERIODS = {"daily", "weekly"}
+VALID_SUMMARY_PERIODS = {"daily", "weekly", "monthly"}
 VALID_SUMMARY_CHANNELS = {"email", "wechat_work", "feishu", "telegram"}
 
 

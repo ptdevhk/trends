@@ -5323,7 +5323,7 @@ export interface paths {
                                 };
                                 request: {
                                     /** @enum {string} */
-                                    period: "daily" | "weekly";
+                                    period: "daily" | "weekly" | "monthly";
                                     /** @enum {string} */
                                     channel: "email" | "wechat_work" | "feishu" | "telegram";
                                     dryRun: boolean;
@@ -5371,7 +5371,7 @@ export interface paths {
                         };
                         request: {
                             /** @enum {string} */
-                            period: "daily" | "weekly";
+                            period: "daily" | "weekly" | "monthly";
                             /** @enum {string} */
                             channel: "email" | "wechat_work" | "feishu" | "telegram";
                             dryRun: boolean;
@@ -5402,7 +5402,7 @@ export interface paths {
                                 };
                                 request: {
                                     /** @enum {string} */
-                                    period: "daily" | "weekly";
+                                    period: "daily" | "weekly" | "monthly";
                                     /** @enum {string} */
                                     channel: "email" | "wechat_work" | "feishu" | "telegram";
                                     dryRun: boolean;
@@ -5494,7 +5494,7 @@ export interface paths {
                                 name: string;
                                 cron: string;
                                 /** @enum {string} */
-                                period: "daily" | "weekly";
+                                period: "daily" | "weekly" | "monthly";
                                 /** @enum {string} */
                                 channel: "email" | "wechat_work" | "feishu" | "telegram";
                                 dryRun: boolean;
@@ -5552,7 +5552,7 @@ export interface paths {
                                 };
                                 request: {
                                     /** @enum {string} */
-                                    period: "daily" | "weekly";
+                                    period: "daily" | "weekly" | "monthly";
                                     /** @enum {string} */
                                     channel: "email" | "wechat_work" | "feishu" | "telegram";
                                     dryRun: boolean;
@@ -5614,7 +5614,7 @@ export interface paths {
                         };
                         request: {
                             /** @enum {string} */
-                            period: "daily" | "weekly";
+                            period: "daily" | "weekly" | "monthly";
                             /** @enum {string} */
                             channel: "email" | "wechat_work" | "feishu" | "telegram";
                             dryRun: boolean;
@@ -5645,7 +5645,7 @@ export interface paths {
                                 };
                                 request: {
                                     /** @enum {string} */
-                                    period: "daily" | "weekly";
+                                    period: "daily" | "weekly" | "monthly";
                                     /** @enum {string} */
                                     channel: "email" | "wechat_work" | "feishu" | "telegram";
                                     dryRun: boolean;
@@ -5782,7 +5782,7 @@ export interface paths {
                          * @default daily
                          * @enum {string}
                          */
-                        period?: "daily" | "weekly";
+                        period?: "daily" | "weekly" | "monthly";
                         /** Format: date-time */
                         endAt?: string;
                     };
@@ -5801,7 +5801,7 @@ export interface paths {
                             report: {
                                 workspaceSlug: string;
                                 /** @enum {string} */
-                                period: "daily" | "weekly";
+                                period: "daily" | "weekly" | "monthly";
                                 generatedAt: string;
                                 window: {
                                     startAt: string;
@@ -5907,7 +5907,7 @@ export interface paths {
                                 id: string;
                                 workspaceSlug: string;
                                 /** @enum {string} */
-                                period: "daily" | "weekly";
+                                period: "daily" | "weekly" | "monthly";
                                 /** @enum {string} */
                                 triggerSource: "api_preview" | "api_manual" | "worker_manual" | "worker_schedule";
                                 /** @enum {string} */
@@ -5923,7 +5923,7 @@ export interface paths {
                                 report: {
                                     workspaceSlug: string;
                                     /** @enum {string} */
-                                    period: "daily" | "weekly";
+                                    period: "daily" | "weekly" | "monthly";
                                     generatedAt: string;
                                     window: {
                                         startAt: string;
@@ -6102,7 +6102,7 @@ export interface paths {
                          * @default daily
                          * @enum {string}
                          */
-                        period?: "daily" | "weekly";
+                        period?: "daily" | "weekly" | "monthly";
                         /** Format: date-time */
                         endAt?: string;
                         /** @enum {string} */
@@ -6140,7 +6140,7 @@ export interface paths {
                             report: {
                                 workspaceSlug: string;
                                 /** @enum {string} */
-                                period: "daily" | "weekly";
+                                period: "daily" | "weekly" | "monthly";
                                 generatedAt: string;
                                 window: {
                                     startAt: string;
@@ -6272,7 +6272,7 @@ export interface paths {
                                 id: string;
                                 workspaceSlug: string;
                                 /** @enum {string} */
-                                period: "daily" | "weekly";
+                                period: "daily" | "weekly" | "monthly";
                                 /** @enum {string} */
                                 triggerSource: "api_preview" | "api_manual" | "worker_manual" | "worker_schedule";
                                 /** @enum {string} */
@@ -6288,7 +6288,7 @@ export interface paths {
                                 report: {
                                     workspaceSlug: string;
                                     /** @enum {string} */
-                                    period: "daily" | "weekly";
+                                    period: "daily" | "weekly" | "monthly";
                                     generatedAt: string;
                                     window: {
                                         startAt: string;
@@ -6474,7 +6474,7 @@ export interface paths {
                                 id: string;
                                 workspaceSlug: string;
                                 /** @enum {string} */
-                                period: "daily" | "weekly";
+                                period: "daily" | "weekly" | "monthly";
                                 /** @enum {string} */
                                 triggerSource: "api_preview" | "api_manual" | "worker_manual" | "worker_schedule";
                                 /** @enum {string} */
@@ -6490,7 +6490,7 @@ export interface paths {
                                 report: {
                                     workspaceSlug: string;
                                     /** @enum {string} */
-                                    period: "daily" | "weekly";
+                                    period: "daily" | "weekly" | "monthly";
                                     generatedAt: string;
                                     window: {
                                         startAt: string;
@@ -6665,7 +6665,7 @@ export interface paths {
                                 id: string;
                                 workspaceSlug: string;
                                 /** @enum {string} */
-                                period: "daily" | "weekly";
+                                period: "daily" | "weekly" | "monthly";
                                 /** @enum {string} */
                                 triggerSource: "api_preview" | "api_manual" | "worker_manual" | "worker_schedule";
                                 /** @enum {string} */
@@ -6681,7 +6681,7 @@ export interface paths {
                                 report: {
                                     workspaceSlug: string;
                                     /** @enum {string} */
-                                    period: "daily" | "weekly";
+                                    period: "daily" | "weekly" | "monthly";
                                     generatedAt: string;
                                     window: {
                                         startAt: string;

@@ -1,4 +1,6 @@
-import type { SummaryCountEntry, SummaryPeriod, SummaryReport } from "@trends/shared";
+import type { SummaryCountEntry, SummaryNewCandidate, SummaryReport } from "@trends/shared";
+
+import { getSummaryTitle } from "./summary-shared.js";
 
 function renderCountList(entries: SummaryCountEntry[]): string[] {
   if (entries.length === 0) {
@@ -8,12 +10,23 @@ function renderCountList(entries: SummaryCountEntry[]): string[] {
   return entries.map((entry) => `- ${entry.label}: ${entry.count}`);
 }
 
-function getSummaryTitle(period: SummaryPeriod): string {
-  return period === "weekly" ? "Weekly Ops Summary" : "Daily Ops Summary";
-}
-
 function formatDelta(value: number): string {
   return value > 0 ? `+${value}` : String(value);
+}
+
+function renderCandidateList(candidates: SummaryNewCandidate[]): string[] {
+  if (candidates.length === 0) {
+    return ["- No new candidates in this period"];
+  }
+  const lines: string[] = [];
+  for (const c of candidates) {
+    const parts = [c.name || c.resumeId, c.source];
+    if (c.location) parts.push(c.location);
+    if (c.experience) parts.push(`${c.experience}yr`);
+    if (typeof c.score === "number") parts.push(`score:${c.score}`);
+    lines.push(`- ${parts.join(" | ")}`);
+  }
+  return lines;
 }
 
 export class SummaryRenderer {
@@ -65,6 +78,13 @@ export class SummaryRenderer {
           `- Workspace activity shortlist delta: ${formatDelta(comparison.totalsDelta.workspaceActivity.shortlistActions)}`,
           `- Workspace activity reject delta: ${formatDelta(comparison.totalsDelta.workspaceActivity.rejectActions)}`,
           `- Workspace activity contact delta: ${formatDelta(comparison.totalsDelta.workspaceActivity.contactActions)}`,
+          ``,
+        ]
+        : []),
+      ...(report.newCandidates
+        ? [
+          `## New Candidates (${report.newCandidates.length})`,
+          ...renderCandidateList(report.newCandidates),
           ``,
         ]
         : []),

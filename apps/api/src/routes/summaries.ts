@@ -24,7 +24,7 @@ const summaryDataService = new SummaryDataService();
 const summaryRenderer = new SummaryRenderer();
 const workspaceSummaryRunStorage = new WorkspaceSummaryRunStorage();
 const KNOWN_WORKSPACE_SLUGS = Object.keys(WORKSPACE_TEAMS).filter(isValidWorkspace);
-const SummaryPeriodSchema = z.enum(["daily", "weekly"]);
+const SummaryPeriodSchema = z.enum(["daily", "weekly", "monthly"]);
 const WorkspaceSlugSchema = z.string().min(1);
 
 const SummaryCountEntrySchema = z.object({
@@ -894,14 +894,14 @@ app.openapi(runRoute, async (c) => {
       endAt: body.endAt,
     });
     preview = summaryDispatcher.buildPreview(report, {
-      templateId: body.templateId,
+      templateId,
     });
     triggerSource = body.triggerSource ?? "api_manual";
     const runId = randomUUID();
     const dispatched = await summaryDispatcher.dispatch(report, {
       channel: body.channel,
       dryRun: body.dryRun,
-      templateId: body.templateId,
+      templateId,
       to: body.to,
       subject: body.subject,
       webhookUrl: body.webhookUrl,
