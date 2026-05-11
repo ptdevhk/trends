@@ -6,17 +6,11 @@ project:
   claude_dir: .claude/skills
   skills:
     - browser-extension-dev
-    - playwright-cli
     - resume-qa-hybrid-mcp
     - trends-agent-governance
     - trends-cli
 
 global:
-  - source: https://github.com/karlorz/agent-skills/tree/main/skills/obsidian-gh-knowledge
-    skill: obsidian-gh-knowledge
-    agents:
-      - codex
-      - claude-code
   - source: https://github.com/karlorz/agent-skills/tree/main/skills/simplify
     skill: simplify
     agents:
