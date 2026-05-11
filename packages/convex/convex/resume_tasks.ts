@@ -697,15 +697,21 @@ export const submitResumes = mutation({
 export const getSummary = query({
     args: {},
     handler: async (ctx) => {
-        const tasks = await ctx.db.query("collection_tasks").collect();
+        const [pending, processing, completed, failed, cancelled] = await Promise.all([
+            ctx.db.query("collection_tasks").withIndex("by_status", q => q.eq("status", "pending")).collect(),
+            ctx.db.query("collection_tasks").withIndex("by_status", q => q.eq("status", "processing")).collect(),
+            ctx.db.query("collection_tasks").withIndex("by_status", q => q.eq("status", "completed")).collect(),
+            ctx.db.query("collection_tasks").withIndex("by_status", q => q.eq("status", "failed")).collect(),
+            ctx.db.query("collection_tasks").withIndex("by_status", q => q.eq("status", "cancelled")).collect(),
+        ]);
         const stats = {
-            total: tasks.length,
-            pending: tasks.filter(t => t.status === "pending").length,
-            processing: tasks.filter(t => t.status === "processing").length,
-            completed: tasks.filter(t => t.status === "completed").length,
-            failed: tasks.filter(t => t.status === "failed").length,
-            cancelled: tasks.filter(t => t.status === "cancelled").length,
-            activeWorkers: Array.from(new Set(tasks.filter(t => t.status === "processing").map(t => t.workerId).filter(Boolean))).length
+            total: pending.length + processing.length + completed.length + failed.length + cancelled.length,
+            pending: pending.length,
+            processing: processing.length,
+            completed: completed.length,
+            failed: failed.length,
+            cancelled: cancelled.length,
+            activeWorkers: Array.from(new Set(processing.map(t => t.workerId).filter(Boolean))).length
         };
         return stats;
     },

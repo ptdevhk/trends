@@ -322,14 +322,20 @@ export const list = query({
 export const getSummary = query({
     args: {},
     handler: async (ctx) => {
-        const tasks = await ctx.db.query("analysis_tasks").collect();
+        const [pending, processing, completed, failed, cancelled] = await Promise.all([
+            ctx.db.query("analysis_tasks").withIndex("by_status", q => q.eq("status", "pending")).collect(),
+            ctx.db.query("analysis_tasks").withIndex("by_status", q => q.eq("status", "processing")).collect(),
+            ctx.db.query("analysis_tasks").withIndex("by_status", q => q.eq("status", "completed")).collect(),
+            ctx.db.query("analysis_tasks").withIndex("by_status", q => q.eq("status", "failed")).collect(),
+            ctx.db.query("analysis_tasks").withIndex("by_status", q => q.eq("status", "cancelled")).collect(),
+        ]);
         return {
-            total: tasks.length,
-            pending: tasks.filter((task) => task.status === "pending").length,
-            processing: tasks.filter((task) => task.status === "processing").length,
-            completed: tasks.filter((task) => task.status === "completed").length,
-            failed: tasks.filter((task) => task.status === "failed").length,
-            cancelled: tasks.filter((task) => task.status === "cancelled").length,
+            total: pending.length + processing.length + completed.length + failed.length + cancelled.length,
+            pending: pending.length,
+            processing: processing.length,
+            completed: completed.length,
+            failed: failed.length,
+            cancelled: cancelled.length,
         };
     },
 });
