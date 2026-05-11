@@ -49,11 +49,11 @@ vi.mock('@/components/search/SnippetCard', () => ({
   }: {
     expanded: boolean
     item: ResumeSearchResultItem
-    onViewDetails?: () => void
+    onViewDetails?: (item: ResumeSearchResultItem) => void
   }) => (
     <div>
       <div>{`${item.key}:${expanded ? 'expanded' : 'collapsed'}`}</div>
-      <button type="button" onClick={onViewDetails}>view-details-{item.key}</button>
+      <button type="button" onClick={() => onViewDetails?.(item)}>view-details-{item.key}</button>
     </div>
   ),
 }))
