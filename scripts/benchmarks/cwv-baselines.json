@@ -1,0 +1,12 @@
+{
+  "$schema": "CWV baseline thresholds for E2E smoke tests",
+  "version": 1,
+  "updated": "2026-05-11",
+  "thresholds": {
+    "ttfb": { "value": 800, "unit": "ms", "description": "Time to First Byte" },
+    "lcp": { "value": 2500, "unit": "ms", "description": "Largest Contentful Paint" },
+    "cls": { "value": 0.1, "unit": "score", "description": "Cumulative Layout Shift" },
+    "fcp": { "value": 1800, "unit": "ms", "description": "First Contentful Paint" },
+    "inp": { "value": 200, "unit": "ms", "description": "Interaction to Next Paint" }
+  }
+}

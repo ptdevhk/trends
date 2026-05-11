@@ -88,6 +88,32 @@ export async function measureWebVitals(page: Page): Promise<{ collect: () => Pro
     };
 }
 
+export interface ConsoleEntry {
+    type: string;
+    text: string;
+}
+
+export function collectConsoleErrors(page: Page): { stop: () => ConsoleEntry[] } {
+    const entries: ConsoleEntry[] = [];
+    const onConsole = (msg: { type: () => string; text: () => string }) => {
+        if (msg.type() === 'error' || msg.type() === 'warning') {
+            entries.push({ type: msg.type(), text: msg.text() });
+        }
+    };
+    const onPageError = (err: Error) => {
+        entries.push({ type: 'pageerror', text: err.message });
+    };
+    page.on('console', onConsole);
+    page.on('pageerror', onPageError);
+    return {
+        stop() {
+            page.removeListener('console', onConsole);
+            page.removeListener('pageerror', onPageError);
+            return entries;
+        },
+    };
+}
+
 export async function connectToChrome(options: E2EOptions = DEFAULT_OPTIONS) {
     try {
         const browser = await chromium.connectOverCDP(`http://127.0.0.1:${options.port}`);
