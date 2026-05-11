@@ -380,6 +380,8 @@
         "status": "Candidate Status",
         "matchScore": "Match Score",
         "sources": "Source Channel",
+        "salary": "Expected Salary",
+        "salaryUnit": "k",
         "minRoleYears": "Relevant Experience",
         "ageRange": "Age Range",
         "ageUnit": "yrs",

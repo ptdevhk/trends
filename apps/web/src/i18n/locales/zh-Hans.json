@@ -379,6 +379,8 @@
         "status": "候选人状态",
         "matchScore": "匹配分",
         "sources": "来源渠道",
+        "salary": "期望薪资",
+        "salaryUnit": "k",
         "minRoleYears": "相关工作年限",
         "ageRange": "年龄范围",
         "ageUnit": "岁",
