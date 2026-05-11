@@ -185,6 +185,16 @@ export const getById = query({
   },
   handler: async (ctx, args) => {
     const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
+    // Fast path: try direct document lookup by Convex _id
+    try {
+      const direct = await ctx.db.get(args.id as Id<"search_profiles">);
+      if (direct && belongsToWorkspace(direct.workspaceSlug, workspaceSlug)) {
+        return direct;
+      }
+    } catch {
+      // Not a valid Convex ID — fall through to profileId lookup
+    }
+    // Slow path: scan workspace profiles for matching profileId
     const records = await ctx.db
       .query("search_profiles")
       .withIndex("by_workspace", (q) => q.eq("workspaceSlug", workspaceSlug))
@@ -236,11 +246,23 @@ export const update = mutation({
   },
   handler: async (ctx, args) => {
     const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
-    const records = await ctx.db
-      .query("search_profiles")
-      .withIndex("by_workspace", (q) => q.eq("workspaceSlug", workspaceSlug))
-      .collect();
-    const existing = findSearchProfileRecordById(records, args.id, workspaceSlug);
+    // Fast path: try direct document lookup by Convex _id
+    let existing: { _id: Id<"search_profiles">; name: string; profileId?: string; profile?: unknown } | undefined;
+    try {
+      const direct = await ctx.db.get(args.id as Id<"search_profiles">);
+      if (direct && belongsToWorkspace(direct.workspaceSlug, workspaceSlug)) {
+        existing = direct;
+      }
+    } catch {
+      // Not a valid Convex ID — fall through
+    }
+    if (!existing) {
+      const records = await ctx.db
+        .query("search_profiles")
+        .withIndex("by_workspace", (q) => q.eq("workspaceSlug", workspaceSlug))
+        .collect();
+      existing = findSearchProfileRecordById(records, args.id, workspaceSlug);
+    }
     if (!existing) {
       throw new Error(`Search profile not found: ${args.id}`);
     }
@@ -272,11 +294,23 @@ export const remove = mutation({
   },
   handler: async (ctx, args) => {
     const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
-    const records = await ctx.db
-      .query("search_profiles")
-      .withIndex("by_workspace", (q) => q.eq("workspaceSlug", workspaceSlug))
-      .collect();
-    const existing = findSearchProfileRecordById(records, args.id, workspaceSlug);
+    // Fast path: try direct document lookup by Convex _id
+    let existing: { _id: Id<"search_profiles"> } | undefined;
+    try {
+      const direct = await ctx.db.get(args.id as Id<"search_profiles">);
+      if (direct && belongsToWorkspace(direct.workspaceSlug, workspaceSlug)) {
+        existing = direct;
+      }
+    } catch {
+      // Not a valid Convex ID — fall through
+    }
+    if (!existing) {
+      const records = await ctx.db
+        .query("search_profiles")
+        .withIndex("by_workspace", (q) => q.eq("workspaceSlug", workspaceSlug))
+        .collect();
+      existing = findSearchProfileRecordById(records, args.id, workspaceSlug);
+    }
     if (!existing) {
       return false;
     }

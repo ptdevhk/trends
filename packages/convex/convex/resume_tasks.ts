@@ -344,16 +344,13 @@ export const failStalePending = mutation({
         const staleThreshold = now - staleMs;
         const pendingTasks = await ctx.db
             .query("collection_tasks")
-            .withIndex("by_status", (q) => q.eq("status", "pending"))
+            .withIndex("by_status", (q) => q.eq("status", "pending").lt("_creationTime", staleThreshold))
             .collect();
 
         let failed = 0;
         const failedTaskIds: string[] = [];
 
         for (const task of pendingTasks) {
-            if (task._creationTime > staleThreshold) {
-                continue;
-            }
 
             await ctx.db.patch(task._id, {
                 status: "failed",
@@ -700,9 +697,9 @@ export const getSummary = query({
         const [pending, processing, completed, failed, cancelled] = await Promise.all([
             ctx.db.query("collection_tasks").withIndex("by_status", q => q.eq("status", "pending")).collect(),
             ctx.db.query("collection_tasks").withIndex("by_status", q => q.eq("status", "processing")).collect(),
-            ctx.db.query("collection_tasks").withIndex("by_status", q => q.eq("status", "completed")).collect(),
-            ctx.db.query("collection_tasks").withIndex("by_status", q => q.eq("status", "failed")).collect(),
-            ctx.db.query("collection_tasks").withIndex("by_status", q => q.eq("status", "cancelled")).collect(),
+            ctx.db.query("collection_tasks").withIndex("by_status", q => q.eq("status", "completed")).order("desc").take(100),
+            ctx.db.query("collection_tasks").withIndex("by_status", q => q.eq("status", "failed")).order("desc").take(100),
+            ctx.db.query("collection_tasks").withIndex("by_status", q => q.eq("status", "cancelled")).order("desc").take(100),
         ]);
         const stats = {
             total: pending.length + processing.length + completed.length + failed.length + cancelled.length,
