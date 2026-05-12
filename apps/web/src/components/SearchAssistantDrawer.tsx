@@ -1,3 +1,4 @@
+import { useCallback } from 'react'
 import { History, Loader2, MapPin, MessageSquareMore, Sparkles, Tags, Wand2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { SearchHistoryItem } from '@/hooks/useSession'
@@ -70,19 +71,19 @@ export function SearchAssistantDrawer({
   const hasDraftSummary = Boolean(location.trim() || keywords.length > 0 || jobDescriptionId?.trim())
   const recentHistory = historyItems.slice(0, 3)
 
-  const handleApplyWorkflow = (workflow: SearchAssistantWorkflow) => {
+  const handleApplyWorkflow = useCallback((workflow: SearchAssistantWorkflow) => {
     onApplyWorkflow(workflow)
     onOpenChange(false)
-  }
+  }, [onApplyWorkflow, onOpenChange])
 
-  const handleApplyHistory = async (item: SearchHistoryItem) => {
+  const handleApplyHistory = useCallback(async (item: SearchHistoryItem) => {
     if (!onApplyHistoryItem) {
       return
     }
 
     await onApplyHistoryItem(item)
     onOpenChange(false)
-  }
+  }, [onApplyHistoryItem, onOpenChange])
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
