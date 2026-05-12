@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Select } from '@/components/ui/select'
 import { PLATFORMS } from '@/lib/api'
@@ -10,13 +11,13 @@ interface PlatformFilterProps {
 export function PlatformFilter({ value, onChange }: PlatformFilterProps) {
   const { t } = useTranslation()
 
-  const options = [
+  const options = useMemo(() => [
     { value: '', label: t('trends.allPlatforms') },
     ...PLATFORMS.map((p) => ({
       value: p.id,
       label: t(`platforms.${p.id}`, { defaultValue: p.name }),
     })),
-  ]
+  ], [t])
 
   return (
     <div className="flex items-center gap-2">

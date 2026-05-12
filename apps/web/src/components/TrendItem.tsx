@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ExternalLink } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
@@ -8,7 +9,7 @@ interface TrendItemProps {
   showRank?: boolean
 }
 
-export function TrendItem({ item, showRank = true }: TrendItemProps) {
+export const TrendItem = memo(function TrendItem({ item, showRank = true }: TrendItemProps) {
   const { t } = useTranslation()
 
   const platformKey = `platforms.${item.platform_id}` as const
@@ -49,4 +50,4 @@ export function TrendItem({ item, showRank = true }: TrendItemProps) {
       </div>
     </div>
   )
-}
+})
