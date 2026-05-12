@@ -120,6 +120,8 @@ export function SearchHeader({
             onClick={() => {
               navigator.clipboard.writeText(window.location.href).then(() => {
                 toast.success(t('resumes.searchPage.header.linkCopied', { defaultValue: '链接已复制' }))
+              }).catch(() => {
+                toast.error(t('resumes.searchPage.header.copyFailed', { defaultValue: '复制失败' }))
               })
             }}
             aria-label={t('resumes.searchPage.header.copyLink', { defaultValue: '复制搜索链接' })}

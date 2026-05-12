@@ -1867,7 +1867,7 @@ export const getSummaryWindow = query({
                 q.gte("crawledAt", args.fromTimestamp).lt("crawledAt", args.toTimestamp)
             )
             .filter((q) => q.neq(q.field("isArchived"), true))
-            .collect();
+            .take(10000);
 
         const bySource = new Map<string, number>();
         for (const row of rows) {
@@ -3363,18 +3363,23 @@ export const deleteResumes = mutation({
         }
 
         let deletedAiTaggingResults = 0;
-        // Collect all tagging results for all resumeIds in parallel, then batch delete
+        // Collect all tagging results for all resumeIds in batches of 50 to avoid
+        // unbounded concurrent queries that can exhaust Convex limits.
+        const BATCH_SIZE = 50;
         const allTaggingResults: Array<{ _id: Id<"ai_tagging_results"> }> = [];
-        const taggingBatches = await Promise.all(
-            existingResumeIds.map((resumeId) =>
-                ctx.db
-                    .query("ai_tagging_results")
-                    .withIndex("by_resume_profile", (q) => q.eq("resumeId", resumeId))
-                    .collect()
-            )
-        );
-        for (const batch of taggingBatches) {
-            allTaggingResults.push(...batch);
+        for (let i = 0; i < existingResumeIds.length; i += BATCH_SIZE) {
+            const batchIds = existingResumeIds.slice(i, i + BATCH_SIZE);
+            const taggingBatches = await Promise.all(
+                batchIds.map((resumeId) =>
+                    ctx.db
+                        .query("ai_tagging_results")
+                        .withIndex("by_resume_profile", (q) => q.eq("resumeId", resumeId))
+                        .collect()
+                )
+            );
+            for (const batch of taggingBatches) {
+                allTaggingResults.push(...batch);
+            }
         }
         for (const taggingResult of allTaggingResults) {
             await ctx.db.delete(taggingResult._id);
