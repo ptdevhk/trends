@@ -1,0 +1,17 @@
+{
+  "generated": "2026-05-12",
+  "tool": "vite build",
+  "chunks": {
+    "react-vendor": { "bytes": 267508, "gzipEstimate": 85000 },
+    "search-feature": { "bytes": 212656, "gzipEstimate": 68000 },
+    "index": { "bytes": 180161, "gzipEstimate": 60440 },
+    "ui-vendor": { "bytes": 90823, "gzipEstimate": 25930 },
+    "convex-vendor": { "bytes": 61455, "gzipEstimate": 17370 },
+    "i18n-vendor": { "bytes": 57297, "gzipEstimate": 18310 },
+    "radix-vendor": { "bytes": 55982, "gzipEstimate": 18360 },
+    "settings-feature": { "bytes": 6390, "gzipEstimate": 2220 }
+  },
+  "totalJS": 1120000,
+  "totalCSS": 59035,
+  "notes": "Baseline after PR #722 feature-based chunk splitting. search-feature includes search components, hooks, scoring utils."
+}

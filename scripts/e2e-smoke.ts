@@ -5,6 +5,7 @@ import { makeFunctionReference } from 'convex/server';
 import { readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import AxeBuilder from '@axe-core/playwright';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -387,6 +388,21 @@ async function runSearchTest(page: Page) {
         }
     } else {
         console.log('  ✓ No browser console errors');
+    }
+
+    // Accessibility audit with axe-core
+    const a11yResults = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+
+    if (a11yResults.violations.length > 0) {
+        console.warn(`⚠️ ${a11yResults.violations.length} accessibility violations found:`);
+        for (const violation of a11yResults.violations) {
+            console.warn(`  [${violation.impact}] ${violation.id}: ${violation.description} (${violation.nodes.length} elements)`);
+        }
+        // Don't fail the build on a11y warnings — just report
+    } else {
+        console.log('  ✓ No WCAG 2.1 AA accessibility violations');
     }
 }
 
