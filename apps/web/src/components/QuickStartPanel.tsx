@@ -1,5 +1,5 @@
 import { formatKeywordInput, isSalesRequiredContext, normalizeKeywordPhrases, parseKeywordQuery } from '@trends/shared'
-import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from 'react'
 import { MessageSquareMore, Pencil, RotateCcw } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
@@ -7,7 +7,8 @@ import { useQuery } from 'convex/react'
 import { JobDescriptionSelect } from './JobDescriptionSelect'
 import { JobDescriptionEditor } from './JobDescriptionEditor'
 import { KeywordChips } from './KeywordChips'
-import { SearchAssistantDrawer } from './SearchAssistantDrawer'
+
+const SearchAssistantDrawer = lazy(() => import('./SearchAssistantDrawer').then((m) => ({ default: m.SearchAssistantDrawer })))
 import { type SearchProfileDetails, type SearchProfileFilters } from './SearchProfileEditorDialog'
 import { rawApiClient } from '@/lib/api-helpers'
 import { Button } from '@/components/ui/button'
@@ -1335,38 +1336,40 @@ export function QuickStartPanel({
         onSaveSuccess={handleJdEditorSaveSuccess}
       />
 
-      <SearchAssistantDrawer
-        open={assistantOpen}
-        onOpenChange={setAssistantOpen}
-        location={location}
-        keywords={normalizedKeywords}
-        jobDescriptionId={jobDescriptionId}
-        workflows={workflowSeeds.map((workflow) => ({
-          id: workflow.id,
-          label: workflow.label,
-          location: workflow.location,
-          keywords: normalizeKeywordPhrases(workflow.keywords),
-        }))}
-        onApplyWorkflow={(workflow) => {
-          const nextWorkflow = workflowSeeds.find((item) => item.id === workflow.id)
-          if (!nextWorkflow) {
-            return
-          }
-          handleApplyWorkflow(nextWorkflow)
-        }}
-        matching={matching}
-        matchedProfile={autoMatchResult ? {
-          name: autoMatchResult.profile.name,
-          confidence: autoMatchResult.confidence,
-          jobDescriptionId: autoMatchResult.profile.jobDescription,
-          matchedKeywords: autoMatchResult.matchedKeywords,
-          filterSummary: getFilterSummary(autoMatchResult.profile, yearsLabel, ageUnit),
-        } : null}
-        onUseMatchedProfile={handleUseMatchedConfig}
-        historyItems={assistantHistory}
-        historyLoading={assistantHistoryLoading}
-        onApplyHistoryItem={onApplyAssistantHistory}
-      />
+      <Suspense fallback={null}>
+        <SearchAssistantDrawer
+          open={assistantOpen}
+          onOpenChange={setAssistantOpen}
+          location={location}
+          keywords={normalizedKeywords}
+          jobDescriptionId={jobDescriptionId}
+          workflows={workflowSeeds.map((workflow) => ({
+            id: workflow.id,
+            label: workflow.label,
+            location: workflow.location,
+            keywords: normalizeKeywordPhrases(workflow.keywords),
+          }))}
+          onApplyWorkflow={(workflow) => {
+            const nextWorkflow = workflowSeeds.find((item) => item.id === workflow.id)
+            if (!nextWorkflow) {
+              return
+            }
+            handleApplyWorkflow(nextWorkflow)
+          }}
+          matching={matching}
+          matchedProfile={autoMatchResult ? {
+            name: autoMatchResult.profile.name,
+            confidence: autoMatchResult.confidence,
+            jobDescriptionId: autoMatchResult.profile.jobDescription,
+            matchedKeywords: autoMatchResult.matchedKeywords,
+            filterSummary: getFilterSummary(autoMatchResult.profile, yearsLabel, ageUnit),
+          } : null}
+          onUseMatchedProfile={handleUseMatchedConfig}
+          historyItems={assistantHistory}
+          historyLoading={assistantHistoryLoading}
+          onApplyHistoryItem={onApplyAssistantHistory}
+        />
+      </Suspense>
     </div>
   )
 }
