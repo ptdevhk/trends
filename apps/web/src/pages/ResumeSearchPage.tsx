@@ -434,6 +434,7 @@ export function ResumeSearchPage() {
                   onRating={handleRating}
                   onCandidateStatusChange={handleCandidateStatusChange}
                   onToggleBlock={handleToggleBlock}
+                  searchQuery={queryInput}
                 />
               </ErrorBoundary>
             </div>
