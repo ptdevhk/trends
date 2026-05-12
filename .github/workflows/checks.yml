@@ -84,3 +84,13 @@ jobs:
 
       - name: Run checks + build validation
         run: make check-build
+
+      - name: Check Convex schema drift
+        run: |
+          cd packages/convex
+          npx convex codegen --typecheck disable
+          cd ../..
+          git diff --exit-code packages/convex/convex/_generated/ || {
+            echo "::error::Convex generated types are stale. Run 'cd packages/convex && npx convex codegen' and commit the changes."
+            exit 1
+          }
