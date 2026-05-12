@@ -835,3 +835,28 @@ export const resetDatabase = mutation({
         };
     },
 });
+
+/**
+ * Sweep collection tasks stuck in "processing" for >24 hours back to "failed".
+ * Called by the daily cron job to prevent silent pipeline stalls.
+ */
+export const sweepStuckTasks = internalMutation({
+    args: {},
+    handler: async (ctx) => {
+        const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+        const stuck = await ctx.db
+            .query("collection_tasks")
+            .withIndex("by_status", (q) => q.eq("status", "processing"))
+            .filter((q) => q.lt(q.field("startedAt"), cutoff))
+            .take(100);
+
+        for (const task of stuck) {
+            await ctx.db.patch(task._id, {
+                status: "failed",
+                error: "Swept: stuck in processing for >24h",
+            });
+        }
+
+        return { swept: stuck.length };
+    },
+});
