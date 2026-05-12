@@ -61,7 +61,7 @@ export function AiSummaryPanel({ generatedAt, loading = false, summary }: AiSumm
             <Skeleton className="h-4 w-4/6 bg-white/15" />
           </div>
         ) : (
-          <p className="text-sm leading-7 text-slate-100">
+          <p aria-live="polite" className="text-sm leading-7 text-slate-100">
             {summaryLabel}
           </p>
         )}

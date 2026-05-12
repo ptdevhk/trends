@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { Clock3, Zap } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
@@ -109,7 +110,7 @@ export function SearchHero({
 }: SearchHeroProps) {
   const { t } = useTranslation()
   const { slug } = useWorkspace()
-  const uniqueHotKeywords = deduplicateHotKeywords(hotKeywords)
+  const uniqueHotKeywords = useMemo(() => deduplicateHotKeywords(hotKeywords), [hotKeywords])
 
   return (
     <section className="rounded-[2rem] border bg-white px-6 py-8 shadow-[0_28px_80px_-60px_rgba(15,23,42,0.5)] sm:px-10 sm:py-10">

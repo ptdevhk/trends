@@ -321,7 +321,7 @@ export function SearchResultsList({
         })
       )}
 
-      <div ref={loadMoreRef} className="py-2 text-center text-sm text-muted-foreground">
+      <div ref={loadMoreRef} role="status" aria-live="polite" className="py-2 text-center text-sm text-muted-foreground">
         {loadingMore
           ? t('resumes.searchPage.results.loadingMore', {
             defaultValue: '正在加载更多简历...',
