@@ -33,6 +33,7 @@ import {
 import { config } from "./services/config.js";
 import { workspaceMiddleware } from "./middleware/workspace.js";
 import { serverTimingMiddleware } from "./middleware/server-timing.js";
+import { rateLimit } from "./middleware/rate-limit.js";
 
 export const openApiConfig = {
   openapi: "3.1.0",
@@ -94,6 +95,9 @@ export function createApp() {
   app.use("*", logger());
   app.use("*", prettyJSON());
   app.use("*", workspaceMiddleware);
+
+  // Rate limiting on API routes (100 req/min per IP)
+  app.use("/api/*", rateLimit({ limit: 100, windowMs: 60_000 }));
 
   // Mount routes
   app.route("/", healthRoutes);
