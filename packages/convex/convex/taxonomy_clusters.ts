@@ -71,11 +71,11 @@ export const list = query({
                 .withIndex("by_workspace_status", (q) =>
                     q.eq("workspaceSlug", workspaceSlug).eq("status", args.status as TaxonomyStatus)
                 )
-                .collect()
+                .take(500)
             : await ctx.db
                 .query("taxonomy_clusters")
                 .withIndex("by_workspace", (q) => q.eq("workspaceSlug", workspaceSlug))
-                .collect();
+                .take(500);
 
         return records.sort((left, right) => {
             if (left.status !== right.status) {
@@ -180,7 +180,7 @@ export const suggest = mutation({
         const existingClusters = await ctx.db
             .query("taxonomy_clusters")
             .withIndex("by_workspace", (q) => q.eq("workspaceSlug", workspaceSlug))
-            .collect();
+            .take(500);
         const clusteredTags = new Set(
             existingClusters.flatMap((cluster) => cluster.tags.map((tag) => tag.trim().toLowerCase()))
         );

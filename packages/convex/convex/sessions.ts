@@ -167,7 +167,7 @@ export const getActiveSession = query({
         const sessions = await ctx.db
             .query("screening_sessions")
             .withIndex("by_sessionKey_status", (q) => q.eq("sessionKey", args.sessionKey).eq("status", "active"))
-            .collect();
+            .take(10);
 
         const filtered = sessions
             .filter((session) => belongsToWorkspace(session.workspaceSlug, workspaceSlug))
@@ -241,7 +241,7 @@ export const addReviewedItem = mutation({
         const sessions = await ctx.db
             .query("screening_sessions")
             .withIndex("by_sessionKey_status", (q) => q.eq("sessionKey", args.sessionKey).eq("status", "active"))
-            .collect();
+            .take(10);
         const session = sessions.find((item) => belongsToWorkspace(item.workspaceSlug, workspaceSlug));
 
         if (!session) {
@@ -275,7 +275,7 @@ export const archiveSession = mutation({
         const sessions = await ctx.db
             .query("screening_sessions")
             .withIndex("by_sessionKey_status", (q) => q.eq("sessionKey", args.sessionKey).eq("status", "active"))
-            .collect();
+            .take(10);
         const session = sessions.find((item) => belongsToWorkspace(item.workspaceSlug, workspaceSlug));
 
         if (session) {

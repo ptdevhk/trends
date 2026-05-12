@@ -169,7 +169,7 @@ export const list = query({
     const records = await ctx.db
       .query("search_profiles")
       .withIndex("by_workspace", (q) => q.eq("workspaceSlug", workspaceSlug))
-      .collect();
+      .take(200);
     return records.sort((left, right) => {
       const leftUpdated = left.updatedAt ?? left.lastRunAt ?? left._creationTime;
       const rightUpdated = right.updatedAt ?? right.lastRunAt ?? right._creationTime;
@@ -198,7 +198,7 @@ export const getById = query({
     const records = await ctx.db
       .query("search_profiles")
       .withIndex("by_workspace", (q) => q.eq("workspaceSlug", workspaceSlug))
-      .collect();
+      .take(500);
     const found = findSearchProfileRecordById(records, args.id, workspaceSlug);
     if (!found) {
       return null;
@@ -260,7 +260,7 @@ export const update = mutation({
       const records = await ctx.db
         .query("search_profiles")
         .withIndex("by_workspace", (q) => q.eq("workspaceSlug", workspaceSlug))
-        .collect();
+        .take(500);
       existing = findSearchProfileRecordById(records, args.id, workspaceSlug);
     }
     if (!existing) {
@@ -308,7 +308,7 @@ export const remove = mutation({
       const records = await ctx.db
         .query("search_profiles")
         .withIndex("by_workspace", (q) => q.eq("workspaceSlug", workspaceSlug))
-        .collect();
+        .take(500);
       existing = findSearchProfileRecordById(records, args.id, workspaceSlug);
     }
     if (!existing) {
