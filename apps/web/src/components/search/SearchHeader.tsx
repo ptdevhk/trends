@@ -1,5 +1,8 @@
 import { useTranslation } from 'react-i18next'
+import { Link } from 'lucide-react'
+import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
 import { GoogleSearchBar } from '@/components/search/GoogleSearchBar'
 import type { ResumeSearchRecentItem, SearchSortValue } from '@/components/search/search-types'
@@ -110,6 +113,22 @@ export function SearchHeader({
               }
             />
           </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 gap-1.5"
+            onClick={() => {
+              navigator.clipboard.writeText(window.location.href).then(() => {
+                toast.success(t('resumes.searchPage.header.linkCopied', { defaultValue: '链接已复制' }))
+              })
+            }}
+            aria-label={t('resumes.searchPage.header.copyLink', { defaultValue: '复制搜索链接' })}
+          >
+            <Link className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">
+              {t('resumes.searchPage.header.copyLink', { defaultValue: '复制链接' })}
+            </span>
+          </Button>
         </div>
       </div>
     </div>
