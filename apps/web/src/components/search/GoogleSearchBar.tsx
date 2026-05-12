@@ -72,6 +72,8 @@ export function GoogleSearchBar({
       || item.location.toLowerCase().includes(normalizedQuery)
     ).slice(0, 6)
   }, [recentSearches, trimmedValue])
+  const isListboxOpen = focused && !jdPopoverOpen && filteredRecentSearches.length > 0
+  const listboxId = 'recent-searches-listbox'
 
   useEffect(() => {
     if (!jdPopoverOpen) {
@@ -106,6 +108,11 @@ export function GoogleSearchBar({
         </div>
         <Input
           aria-label={placeholderLabel}
+          aria-autocomplete="list"
+          aria-controls={listboxId}
+          aria-expanded={isListboxOpen}
+          aria-haspopup="listbox"
+          role="combobox"
           data-testid="resume-search-input"
           value={value}
           className={cn(
@@ -164,6 +171,13 @@ export function GoogleSearchBar({
         </div>
       </form>
 
+      <div role="status" aria-live="polite" className="sr-only">
+        {isListboxOpen ? t('resumes.searchPage.searchBar.recentSearchCount', {
+          defaultValue: '{{count}} recent searches available',
+          count: filteredRecentSearches.length,
+        }) : null}
+      </div>
+
       {jdPopoverOpen && onApplyExtractedKeywords ? (
         <JdPastePopover
           compact={compact}
@@ -173,7 +187,7 @@ export function GoogleSearchBar({
       ) : null}
 
       {focused && !jdPopoverOpen && filteredRecentSearches.length > 0 ? (
-        <div className="absolute inset-x-0 top-[calc(100%+0.75rem)] z-30 overflow-hidden rounded-3xl border bg-background shadow-xl" role="listbox" aria-label={recentSearchesLabel}>
+        <div id={listboxId} className="absolute inset-x-0 top-[calc(100%+0.75rem)] z-30 overflow-hidden rounded-3xl border bg-background shadow-xl" role="listbox" aria-label={recentSearchesLabel}>
           <div className="border-b px-4 py-3 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
             {recentSearchesLabel}
           </div>
