@@ -223,7 +223,8 @@ export default defineSchema({
     })
         .index("by_slug", ["slug"])
         .index("by_workspace", ["workspaceSlug"])
-        .index("by_type", ["type"]),
+        .index("by_type", ["type"])
+        .index("by_type_workspace", ["type", "workspaceSlug"]),
 
     analysis_tasks: defineTable({
         idempotencyKey: v.optional(v.string()),
@@ -359,7 +360,8 @@ export default defineSchema({
     })
         .index("by_sessionKey", ["sessionKey"])
         .index("by_status", ["status"])
-        .index("by_workspace", ["workspaceSlug"]),
+        .index("by_workspace", ["workspaceSlug"])
+        .index("by_sessionKey_status", ["sessionKey", "status"]),
 
     search_history: defineTable({
         sessionKey: v.string(),

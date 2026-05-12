@@ -52,19 +52,18 @@ export const list = query({
             .withIndex("by_type", (q) => q.eq("type", "system"))
             .collect();
 
-        // Fetch custom JDs via workspace index, then filter by userId
-        const allCustomJDs = await ctx.db
+        // Fetch custom JDs filtered by workspace via compound index
+        const customJDs = await ctx.db
             .query("job_descriptions")
-            .withIndex("by_type", (q) => q.eq("type", "custom"))
+            .withIndex("by_type_workspace", (q) => q.eq("type", "custom").eq("workspaceSlug", workspaceSlug))
             .collect();
 
-        let customJDs = allCustomJDs.filter((jd) => belongsToWorkspace(jd.workspaceSlug, workspaceSlug));
-
+        let filtered = customJDs;
         if (args.userId) {
-            customJDs = customJDs.filter(jd => jd.userId === args.userId || !jd.userId);
+            filtered = customJDs.filter(jd => jd.userId === args.userId || !jd.userId);
         }
 
-        return [...systemJDs, ...customJDs]
+        return [...systemJDs, ...filtered]
             .filter(jd => jd.enabled !== false)
             .map(normalizeJobDescriptionRecord)
             .sort((a, b) => b.lastModified - a.lastModified);
@@ -163,12 +162,10 @@ export const list_all = query({
             .collect();
         const customJDs = await ctx.db
             .query("job_descriptions")
-            .withIndex("by_type", (q) => q.eq("type", "custom"))
+            .withIndex("by_type_workspace", (q) => q.eq("type", "custom").eq("workspaceSlug", workspaceSlug))
             .collect();
 
-        const workspaceCustom = customJDs.filter((jd) => belongsToWorkspace(jd.workspaceSlug, workspaceSlug));
-
-        return [...systemJDs, ...workspaceCustom]
+        return [...systemJDs, ...customJDs]
             .map(normalizeJobDescriptionRecord);
     },
 });
@@ -183,12 +180,10 @@ export const listAllForWorkspace = internalQuery({
             .collect();
         const customJDs = await ctx.db
             .query("job_descriptions")
-            .withIndex("by_type", (q) => q.eq("type", "custom"))
+            .withIndex("by_type_workspace", (q) => q.eq("type", "custom").eq("workspaceSlug", workspaceSlug))
             .collect();
 
-        const workspaceCustom = customJDs.filter((jd) => belongsToWorkspace(jd.workspaceSlug, workspaceSlug));
-
-        return [...systemJDs, ...workspaceCustom]
+        return [...systemJDs, ...customJDs]
             .map(normalizeJobDescriptionRecord);
     },
 });

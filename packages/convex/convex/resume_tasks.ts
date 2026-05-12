@@ -169,11 +169,11 @@ export const list = query({
         const pendingTasks = await ctx.db
             .query("collection_tasks")
             .withIndex("by_status", (q) => q.eq("status", "pending"))
-            .collect();
+            .take(100);
         const processingTasks = await ctx.db
             .query("collection_tasks")
             .withIndex("by_status", (q) => q.eq("status", "processing"))
-            .collect();
+            .take(100);
         // Plus the 20 most recent finished tasks
         const activeIds = new Set([...pendingTasks, ...processingTasks].map(t => t._id));
         const recent = await ctx.db
@@ -345,7 +345,7 @@ export const failStalePending = mutation({
         const pendingTasks = await ctx.db
             .query("collection_tasks")
             .withIndex("by_status", (q) => q.eq("status", "pending").lt("_creationTime", staleThreshold))
-            .collect();
+            .take(100);
 
         let failed = 0;
         const failedTaskIds: string[] = [];
