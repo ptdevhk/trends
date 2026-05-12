@@ -413,6 +413,11 @@ async function runAnalysisTest(page: Page) {
     if (await analyzeBtn.isEnabled()) {
         await analyzeBtn.click();
         await waitForToast(page, /Analyzing|正在分析/i);
+
+        // Verify AI scores actually appear on cards
+        const aiScoreIndicator = page.locator('[data-testid="ai-score"], [data-testid="ai-score-badge"], .ai-score, [class*="aiScore"]').first();
+        await expect(aiScoreIndicator).toBeVisible({ timeout: 30000 });
+        console.log('  ✓ AI score indicator visible after analysis');
     } else {
         console.log('⚠️ Analyze button disabled (already analyzed, no candidates, or missing query context)');
     }
