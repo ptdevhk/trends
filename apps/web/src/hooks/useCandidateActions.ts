@@ -30,6 +30,12 @@ function extractRating(action: CandidateAction): number | undefined {
   return typeof rating === 'number' && rating >= 0 && rating <= 5 ? rating : undefined
 }
 
+function extractRatingFromActionType(actionType: CandidateActionType, actionData?: Record<string, unknown>): number | undefined {
+  if (actionType !== 'rating') return undefined
+  const rating = actionData?.rating
+  return typeof rating === 'number' && rating >= 0 && rating <= 5 ? rating : undefined
+}
+
 export function useCandidateActions(sessionId?: string, jobDescriptionId?: string, enabled: boolean = true) {
   const [actionsByResume, setActionsByResume] = useState<Record<string, CandidateActionType>>({})
   const [aiFeedbackByResume, setAiFeedbackByResume] = useState<Record<string, AiFeedbackState>>({})
@@ -98,24 +104,11 @@ export function useCandidateActions(sessionId?: string, jobDescriptionId?: strin
     async (payload: { resumeId: string; actionType: CandidateActionType; actionData?: Record<string, unknown> }) => {
       if (!sessionId) return null
 
-      const { data, error: apiError } = await rawApiClient.POST<{
-        success: boolean
-        action?: CandidateAction
-      }>('/api/actions', {
-        body: {
-          sessionId,
-          resumeId: payload.resumeId,
-          actionType: payload.actionType,
-          actionData: payload.actionData,
-        },
-      })
+      // Optimistic update: apply the action/rating immediately
+      const rating = extractRatingFromActionType(payload.actionType, payload.actionData)
+      const previousRating = ratingsByResume[payload.resumeId]
+      const previousAction = actionsByResume[payload.resumeId]
 
-      if (apiError || !data?.success || !data.action) {
-        setError('Failed to save action')
-        return null
-      }
-
-      const rating = extractRating(data.action)
       if (rating !== undefined) {
         if (rating === 0) {
           setRatingsByResume((prev) => {
@@ -140,9 +133,48 @@ export function useCandidateActions(sessionId?: string, jobDescriptionId?: strin
         }
       }
 
+      const { data, error: apiError } = await rawApiClient.POST<{
+        success: boolean
+        action?: CandidateAction
+      }>('/api/actions', {
+        body: {
+          sessionId,
+          resumeId: payload.resumeId,
+          actionType: payload.actionType,
+          actionData: payload.actionData,
+        },
+      })
+
+      if (apiError || !data?.success || !data.action) {
+        // Revert optimistic update on error
+        if (rating !== undefined) {
+          if (previousRating !== undefined) {
+            setRatingsByResume((prev) => ({ ...prev, [payload.resumeId]: previousRating }))
+          } else {
+            setRatingsByResume((prev) => {
+              const next = { ...prev }
+              delete next[payload.resumeId]
+              return next
+            })
+          }
+        } else {
+          setActionsByResume((prev) => {
+            const next = { ...prev }
+            if (previousAction) {
+              next[payload.resumeId] = previousAction
+            } else {
+              delete next[payload.resumeId]
+            }
+            return next
+          })
+        }
+        setError('Failed to save action')
+        return null
+      }
+
       return data.action ?? null
     },
-    [sessionId]
+    [sessionId, ratingsByResume, actionsByResume]
   )
 
   const getAiFeedback = useCallback(
