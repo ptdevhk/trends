@@ -5,6 +5,58 @@ import { internalAction } from "./_generated/server";
 import { v } from "convex/values";
 import type { ResumeScanRow } from "./resumes";
 
+interface BrandHit {
+  brand: string;
+  role: string;
+  source: string;
+  context: string;
+  companyId?: number;
+}
+
+interface IndustryDbV2RawComponents {
+  companyScore: number;
+  brandScore: number;
+  weightedBrandUnits: number;
+  uniqueCompanies: number;
+  brandUnitCount: number;
+}
+
+interface RoleSignal {
+  type: string;
+  matchedSignals: string[];
+  signalCount: number;
+  occurrences: number;
+  years: number;
+  industryVerifiedYears?: number;
+  roleRelevantYears?: number;
+  industryVerifiedRelevantYears?: number;
+  matchedWorkEntries?: Array<{
+    companyName?: string;
+    jobTitle?: string;
+    years: number;
+    industryVerified: boolean;
+    matchedSignals: string[];
+    directRoleMatch?: boolean;
+  }>;
+  verifyIn: string;
+}
+
+interface TaggingEnvelope {
+  schemaVersion: number;
+  generatedAt: number;
+  entries: Array<{
+    tag: string;
+    source: string;
+    confidence: number;
+    version: number;
+    provenance: {
+      stage: string;
+      generatedBy: string;
+      evidence: string[];
+    };
+  }>;
+}
+
 /**
  * Background ingest agent (M3)
  *
@@ -92,25 +144,25 @@ export const processNewResumes = internalAction({
       }
 
       // 4. Store results via mutation
-      const updates = result.results.map((item: any) => ({
+      const updates = (result.results as Array<Record<string, unknown>>).map((item) => ({
         resumeId: item.resumeId as Id<"resumes">,
         ingestData: {
-          evidenceText: item.evidenceText || "",
-          industryTags: item.industryTags,
-          synonymHits: item.synonymHits,
-          brandHits: item.brandHits || [],
-          companyHits: item.companyHits || [],
-          industryDbV2Raw: item.industryDbV2Raw,
-          industryDbV2RawComponents: item.industryDbV2RawComponents || undefined,
-          roleSignals: item.roleSignals || [],
-          verifiedRoleYears: item.verifiedRoleYears || undefined,
-          taggingEnvelope: item.taggingEnvelope || undefined,
-          ruleScores: item.ruleScores,
-          experienceLevel: item.experienceLevel,
-          computedAt: item.computedAt,
-          skillsVersion: item.skillsVersion,
+          evidenceText: (item.evidenceText as string) || "",
+          industryTags: item.industryTags as string[],
+          synonymHits: item.synonymHits as string[],
+          brandHits: (item.brandHits as BrandHit[]) || [],
+          companyHits: (item.companyHits as string[]) || [],
+          industryDbV2Raw: item.industryDbV2Raw as number | undefined,
+          industryDbV2RawComponents: (item.industryDbV2RawComponents as IndustryDbV2RawComponents) || undefined,
+          roleSignals: (item.roleSignals as RoleSignal[]) || [],
+          verifiedRoleYears: (item.verifiedRoleYears as Record<string, number>) || undefined,
+          taggingEnvelope: (item.taggingEnvelope as TaggingEnvelope) || undefined,
+          ruleScores: item.ruleScores as Record<string, number>,
+          experienceLevel: item.experienceLevel as string,
+          computedAt: item.computedAt as number,
+          skillsVersion: item.skillsVersion as number,
         },
-        companyPatternAliasTokens: item.companyPatternAliasTokens || "",
+        companyPatternAliasTokens: (item.companyPatternAliasTokens as string) || "",
         primaryRuleScore: typeof item.primaryRuleScore === "number" ? item.primaryRuleScore : 0,
       }));
 
