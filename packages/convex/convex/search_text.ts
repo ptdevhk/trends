@@ -146,21 +146,38 @@ function toTextFragments(value: unknown): string[] {
     return [];
 }
 
+// Field boost weights: higher values = more repetitions in searchText = higher BM25 weight
+const FIELD_BOOST: Record<string, number> = {
+    skills: 2,
+    desiredPosition: 2,
+    name: 1,
+    education: 1,
+    workHistory: 1,
+    companies: 1,
+    summary: 1,
+    expectedSalary: 1,
+    locationHierarchy: 1,
+};
+
 function collectPriorityFragments(content: UnknownRecord): string[] {
     const parts: string[] = [];
     for (const key of PRIORITY_KEYS) {
+        let fragments: string[] = [];
         if (key === "locationHierarchy") {
             const locationHierarchy = formatLocationHierarchySearchText(content[key] as LocationHierarchy | null | undefined);
             if (locationHierarchy) {
-                parts.push(locationHierarchy);
+                fragments = [locationHierarchy];
             }
-            continue;
+        } else if (key === "workHistory") {
+            fragments = buildLatestWorkHistoryEvidence(content[key]).lines;
+        } else {
+            fragments = toTextFragments(content[key]);
         }
-        if (key === "workHistory") {
-            parts.push(...buildLatestWorkHistoryEvidence(content[key]).lines);
-            continue;
+        // Repeat fragments based on field boost weight for BM25 weighting
+        const boost = FIELD_BOOST[key] ?? 1;
+        for (let i = 0; i < boost; i++) {
+            parts.push(...fragments);
         }
-        parts.push(...toTextFragments(content[key]));
     }
     return parts;
 }
