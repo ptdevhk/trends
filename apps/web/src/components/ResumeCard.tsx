@@ -31,7 +31,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { useMemo, useState } from 'react'
+import { memo, useMemo, useState } from 'react'
 import { useResumeFieldUsagePolicy } from '@/contexts/ResumeFieldUsagePolicyContext'
 import { OutreachModal } from './OutreachModal'
 import { Select } from '@/components/ui/select'
@@ -142,7 +142,7 @@ export function ResumeCardSkeleton() {
 }
 
 
-export function ResumeCard({
+export const ResumeCard = memo(function ResumeCard({
   resume,
   onViewDetails,
   matchResult,
@@ -802,4 +802,4 @@ export function ResumeCard({
       </Dialog>
     </div>
   )
-}
+})

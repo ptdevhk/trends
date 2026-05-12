@@ -337,7 +337,7 @@ export const recentSearches = query({
         const records = await ctx.db
             .query("search_history")
             .withIndex("by_sessionKey", (q) => q.eq("sessionKey", args.sessionKey))
-            .collect();
+            .take(limit * 2);
 
         return sortByHistoryRecency(records
             .filter((record) => belongsToWorkspace(record.workspaceSlug, workspaceSlug)))
