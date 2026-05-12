@@ -3,6 +3,7 @@ import { hasMatchingRoleSignal, matchesSalaryFilter } from '@/hooks/resume-filte
 import { useMutation } from 'convex/react'
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
+import { logSearchEvent } from '@/lib/search-analytics'
 import { api } from '../../../../packages/convex/convex/_generated/api'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { useCandidateActions } from '@/hooks/useCandidateActions'
@@ -894,6 +895,19 @@ export function useResumeSearchState() {
   const hasMore = resumeQuery.hasMore
   const loading = !isLanding && resumeQuery.loading
   const loadingMore = resumeQuery.loadingMore
+
+  // Log search analytics (fire-and-forget, debounced by query change)
+  const lastLoggedQueryRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (activeQuery && !loading && filteredResults.length >= 0 && lastLoggedQueryRef.current !== activeQuery) {
+      lastLoggedQueryRef.current = activeQuery
+      logSearchEvent({
+        query: activeQuery,
+        resultCount: filteredResults.length,
+        topScore: filteredResults[0]?.score ?? undefined,
+      })
+    }
+  }, [activeQuery, filteredResults, loading])
   const analysisCandidates = useMemo(
     () =>
       filteredResults
