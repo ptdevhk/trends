@@ -166,8 +166,7 @@ export const getActiveSession = query({
         const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
         const sessions = await ctx.db
             .query("screening_sessions")
-            .withIndex("by_sessionKey", (q) => q.eq("sessionKey", args.sessionKey))
-            .filter((q) => q.eq(q.field("status"), "active"))
+            .withIndex("by_sessionKey_status", (q) => q.eq("sessionKey", args.sessionKey).eq("status", "active"))
             .collect();
 
         const filtered = sessions
@@ -198,8 +197,7 @@ export const saveSession = mutation({
         const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
         const existingSessions = await ctx.db
             .query("screening_sessions")
-            .withIndex("by_sessionKey", (q) => q.eq("sessionKey", args.sessionKey))
-            .filter((q) => q.eq(q.field("status"), "active"))
+            .withIndex("by_sessionKey_status", (q) => q.eq("sessionKey", args.sessionKey).eq("status", "active"))
             .collect();
         const existing = existingSessions.find((session) => belongsToWorkspace(session.workspaceSlug, workspaceSlug));
 
@@ -242,8 +240,7 @@ export const addReviewedItem = mutation({
         const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
         const sessions = await ctx.db
             .query("screening_sessions")
-            .withIndex("by_sessionKey", (q) => q.eq("sessionKey", args.sessionKey))
-            .filter((q) => q.eq(q.field("status"), "active"))
+            .withIndex("by_sessionKey_status", (q) => q.eq("sessionKey", args.sessionKey).eq("status", "active"))
             .collect();
         const session = sessions.find((item) => belongsToWorkspace(item.workspaceSlug, workspaceSlug));
 
@@ -277,8 +274,7 @@ export const archiveSession = mutation({
         const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
         const sessions = await ctx.db
             .query("screening_sessions")
-            .withIndex("by_sessionKey", (q) => q.eq("sessionKey", args.sessionKey))
-            .filter((q) => q.eq(q.field("status"), "active"))
+            .withIndex("by_sessionKey_status", (q) => q.eq("sessionKey", args.sessionKey).eq("status", "active"))
             .collect();
         const session = sessions.find((item) => belongsToWorkspace(item.workspaceSlug, workspaceSlug));
 

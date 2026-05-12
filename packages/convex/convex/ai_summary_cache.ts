@@ -55,17 +55,27 @@ export const cleanupExpired = internalMutation({
     },
     handler: async (ctx, args) => {
         const now = args.now ?? Date.now();
-        const expiredRecords = await ctx.db
+        let deleted = 0;
+
+        // Batch deletes to avoid unbounded collect
+        let batch = await ctx.db
             .query("ai_summary_cache")
             .withIndex("by_expires_at", (q) => q.lte("expiresAt", now))
-            .collect();
+            .take(100);
 
-        for (const record of expiredRecords) {
-            await ctx.db.delete(record._id);
+        while (batch.length > 0) {
+            for (const record of batch) {
+                await ctx.db.delete(record._id);
+            }
+            deleted += batch.length;
+            batch = await ctx.db
+                .query("ai_summary_cache")
+                .withIndex("by_expires_at", (q) => q.lte("expiresAt", now))
+                .take(100);
         }
 
         return {
-            deleted: expiredRecords.length,
+            deleted,
         };
     },
 });
