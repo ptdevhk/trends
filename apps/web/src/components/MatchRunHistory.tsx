@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { memo, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { CheckCircle2, ChevronDown, ChevronUp, Clock, Loader2, XCircle } from 'lucide-react'
 import { useMatchRunHistory, type MatchRunItem } from '@/hooks/useMatchRunHistory'
@@ -37,7 +37,7 @@ function runModeLabel(mode: MatchRunItem['mode']): string {
   return 'Hybrid'
 }
 
-function RunItem({ run }: { run: MatchRunItem }) {
+const RunItem = memo(function RunItem({ run }: { run: MatchRunItem }) {
   const { t } = useTranslation()
   const total = Math.max(run.totalCount, 1)
   const current = Math.min(Math.max(run.processedCount, 0), total)
@@ -94,7 +94,7 @@ function RunItem({ run }: { run: MatchRunItem }) {
       ) : null}
     </div>
   )
-}
+})
 
 export function MatchRunHistory({ sessionId, jobDescriptionId }: MatchRunHistoryProps) {
   const { t } = useTranslation()
