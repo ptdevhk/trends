@@ -4,9 +4,11 @@ import './i18n'
 import './styles/globals.css'
 import App from './App.tsx'
 import { initWebVitals } from './lib/web-vitals'
+import { initSentry } from './lib/sentry'
 
 import { ConvexProvider, ConvexReactClient } from 'convex/react'
 
+initSentry()
 initWebVitals()
 
 const convexUrl = import.meta.env.VITE_CONVEX_URL
