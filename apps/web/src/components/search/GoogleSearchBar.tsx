@@ -105,6 +105,7 @@ export function GoogleSearchBar({
           <Search className={cn(compact ? 'h-4 w-4' : 'h-5 w-5')} />
         </div>
         <Input
+          aria-label={placeholderLabel}
           data-testid="resume-search-input"
           value={value}
           className={cn(

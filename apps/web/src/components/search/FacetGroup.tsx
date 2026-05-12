@@ -31,10 +31,12 @@ export function FacetGroup({
   )
   const visibleItems = expanded ? items : items.slice(0, maxVisible)
 
+  const titleId = `facet-group-${title.toLowerCase().replace(/\s+/g, '-')}`
+
   return (
-    <div className="space-y-3">
+    <div className="space-y-3" role="group" aria-labelledby={titleId}>
       <div className="flex items-center justify-between">
-        <div className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+        <div id={titleId} className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
           {title}
         </div>
         {selectedValues.length > 0 ? (

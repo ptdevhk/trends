@@ -334,6 +334,7 @@ export const SnippetCard = memo(function SnippetCard({
                 type="button"
                 variant="outline"
                 className="shrink-0 rounded-full whitespace-nowrap h-8"
+                aria-expanded={expanded}
                 onClick={() => onToggleExpanded(itemKey)}
               >
                 {expanded ? collapseLabel : expandLabel}
