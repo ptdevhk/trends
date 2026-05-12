@@ -28,6 +28,7 @@ import {
   notificationRoutes,
   workerRoutes,
   summariesRoutes,
+  webVitalsRoutes,
 } from "./routes/index.js";
 import { config } from "./services/config.js";
 import { workspaceMiddleware } from "./middleware/workspace.js";
@@ -119,6 +120,7 @@ export function createApp() {
   app.route("/api/config", configRoutes);
   app.route("/api/notifications", notificationRoutes);
   app.route("/api/summaries", summariesRoutes);
+  app.route("/api/web-vitals", webVitalsRoutes);
 
   // OpenAPI documentation endpoint
   app.doc("/doc", openApiConfig);

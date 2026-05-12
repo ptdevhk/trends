@@ -3,8 +3,11 @@ import { createRoot } from 'react-dom/client'
 import './i18n'
 import './styles/globals.css'
 import App from './App.tsx'
+import { initWebVitals } from './lib/web-vitals'
 
 import { ConvexProvider, ConvexReactClient } from 'convex/react'
+
+initWebVitals()
 
 const convexUrl = import.meta.env.VITE_CONVEX_URL
 const convex = convexUrl ? new ConvexReactClient(convexUrl) : null
