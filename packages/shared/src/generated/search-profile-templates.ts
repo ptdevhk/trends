@@ -90,7 +90,10 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
         "maxAge": 40,
         "locations": [
           "China"
-        ]
+        ],
+        "salaryRange": {
+          "max": 25
+        }
       },
       "schedule": {
         "enabled": false,
@@ -143,7 +146,10 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
         "maxAge": 40,
         "locations": [
           "China"
-        ]
+        ],
+        "salaryRange": {
+          "max": 25
+        }
       },
       "schedule": {
         "enabled": false,
@@ -195,7 +201,10 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
         "maxAge": 40,
         "locations": [
           "China"
-        ]
+        ],
+        "salaryRange": {
+          "max": 25
+        }
       },
       "schedule": {
         "enabled": false,
@@ -245,7 +254,10 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
         "maxAge": 40,
         "locations": [
           "China"
-        ]
+        ],
+        "salaryRange": {
+          "max": 25
+        }
       },
       "schedule": {
         "enabled": false,

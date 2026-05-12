@@ -19,6 +19,8 @@ filters:
   maxAge: 40
   locations:
     - China
+  salaryRange:
+    max: 25
 
 schedule:
   enabled: false
