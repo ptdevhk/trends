@@ -21,7 +21,7 @@ export const list = query({
         return await ctx.db
             .query("candidate_blocks")
             .withIndex("by_workspace", (q) => q.eq("workspaceSlug", workspaceSlug))
-            .collect();
+            .take(500);
     },
 });
 
@@ -136,13 +136,15 @@ export const bulkUpsert = mutation({
         let inserted = 0;
         const now = Date.now();
 
+        // Fetch all existing blocks for this workspace in one query
+        const existingBlocks = await ctx.db
+            .query("candidate_blocks")
+            .withIndex("by_workspace", (q) => q.eq("workspaceSlug", workspaceSlug))
+            .take(500);
+        const existingMap = new Map(existingBlocks.map((block) => [block.identityKey, block]));
+
         for (const identityKey of identityKeys) {
-            const existing = await ctx.db
-                .query("candidate_blocks")
-                .withIndex("by_workspace_identity", (q) =>
-                    q.eq("workspaceSlug", workspaceSlug).eq("identityKey", identityKey)
-                )
-                .unique();
+            const existing = existingMap.get(identityKey);
 
             if (existing) {
                 await ctx.db.patch(existing._id, {

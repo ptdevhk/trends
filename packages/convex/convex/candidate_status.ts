@@ -22,7 +22,7 @@ export const listForBackup = query({
         const rows = await ctx.db
             .query("candidate_status")
             .withIndex("by_workspace_status", (q) => q.eq("workspaceSlug", workspaceSlug))
-            .collect();
+            .take(1000);
         return rows.map((row) => ({
             identityKey: row.identityKey,
             status: row.status,
@@ -43,7 +43,7 @@ export const list = query({
         return await ctx.db
             .query("candidate_status")
             .withIndex("by_workspace_status", (q) => q.eq("workspaceSlug", workspaceSlug))
-            .collect();
+            .take(500);
     },
 });
 
