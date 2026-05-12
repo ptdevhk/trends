@@ -142,4 +142,46 @@ app.openapi(synonymSuggestionsRoute, (c) => {
   return c.json({ success: true as const, suggestions }, 200);
 });
 
+const logSearchRoute = createRoute({
+  method: "post",
+  path: "/log",
+  tags: ["Search Analytics"],
+  summary: "Log a search query event from the client",
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            query: z.string(),
+            resultCount: z.number().int().min(0),
+            topScore: z.number().optional(),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: "Event logged",
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.literal(true),
+          }),
+        },
+      },
+    },
+  },
+});
+
+app.openapi(logSearchRoute, (c) => {
+  const body = c.req.valid("json");
+  searchEventLogger.logSearchQuery({
+    query: body.query,
+    resultCount: body.resultCount,
+    topScore: body.topScore,
+  });
+  return c.json({ success: true as const }, 200);
+});
+
 export default app;

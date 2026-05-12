@@ -4573,6 +4573,53 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/search-analytics/log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Log a search query event from the client */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        query: string;
+                        resultCount: number;
+                        topScore?: number;
+                    };
+                };
+            };
+            responses: {
+                /** @description Event logged */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/scoring-evaluation/report": {
         parameters: {
             query?: never;
