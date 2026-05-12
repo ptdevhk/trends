@@ -226,7 +226,7 @@ describe('GoogleSearchBar', () => {
     })
 
     await user.click(screen.getByPlaceholderText('Search resumes by keywords, brands, roles, or locations'))
-    await user.click(screen.getByRole('button', { name: /CNC Sales/i }))
+    await user.click(screen.getByRole('option', { name: /CNC Sales/i }))
 
     expect(onApplyRecentSearch).toHaveBeenCalledWith(recentItem)
   })
