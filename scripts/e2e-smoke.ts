@@ -254,6 +254,10 @@ async function runCollectUrlKeywordModeTest(page: Page) {
 
 async function runCollectionTest(page: Page) {
     console.log('Testing Critical Path 1: Resume Collection...');
+
+    // Set up CWV observers before navigation
+    const vitals = await measureWebVitals(page);
+
     await page.goto(`${DEFAULT_OPTIONS.baseUrl}/dev/system/settings/operations`);
 
     const keywordInput = await preferVisibleLocator(
@@ -282,6 +286,28 @@ async function runCollectionTest(page: Page) {
 
     await waitForToast(page, /Collection task dispatched/i);
     console.log('✅ Collection test passed.');
+
+    // Collect and assert Core Web Vitals
+    const cwv = await vitals.collect();
+    console.log('📊 Settings CWV:', cwv);
+
+    const CWV_THRESHOLDS = loadCwvBaselines();
+    if (cwv.ttfb !== null) {
+        expect(cwv.ttfb).toBeLessThan(CWV_THRESHOLDS.ttfb);
+        console.log(`  ✓ TTFB: ${cwv.ttfb.toFixed(0)}ms (threshold: ${CWV_THRESHOLDS.ttfb}ms)`);
+    }
+    if (cwv.lcp !== null) {
+        expect(cwv.lcp).toBeLessThan(CWV_THRESHOLDS.lcp);
+        console.log(`  ✓ LCP: ${cwv.lcp.toFixed(0)}ms (threshold: ${CWV_THRESHOLDS.lcp}ms)`);
+    }
+    if (cwv.cls !== null) {
+        expect(cwv.cls).toBeLessThan(CWV_THRESHOLDS.cls);
+        console.log(`  ✓ CLS: ${cwv.cls.toFixed(3)} (threshold: ${CWV_THRESHOLDS.cls})`);
+    }
+    if (cwv.fcp !== null) {
+        expect(cwv.fcp).toBeLessThan(CWV_THRESHOLDS.fcp);
+        console.log(`  ✓ FCP: ${cwv.fcp.toFixed(0)}ms (threshold: ${CWV_THRESHOLDS.fcp}ms)`);
+    }
 }
 
 async function runSearchTest(page: Page) {
