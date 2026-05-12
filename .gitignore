@@ -97,3 +97,4 @@ resume-backup-*.json
 
 # Playwright CLI runtime output
 .playwright-cli/
+.claude/scheduled_tasks.json
