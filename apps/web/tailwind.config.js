@@ -66,8 +66,13 @@ export default {
           "Helvetica Neue",
           "Arial",
           "Noto Sans",
+          /* CJK system fonts — covers macOS, Windows, Android, Linux */
+          "PingFang SC",
+          "Hiragino Sans GB",
+          "Microsoft YaHei",
           "Noto Sans SC",
           "Noto Sans TC",
+          "WenQuanYi Micro Hei",
           "sans-serif",
         ],
       },
