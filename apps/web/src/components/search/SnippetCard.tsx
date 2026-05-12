@@ -343,6 +343,7 @@ export const SnippetCard = memo(function SnippetCard({
                 variant="outline"
                 className="shrink-0 rounded-full whitespace-nowrap h-8"
                 aria-expanded={expanded}
+                aria-controls={`snippet-details-${itemKey}`}
                 onClick={() => onToggleExpanded(itemKey)}
               >
                 {expanded ? collapseLabel : expandLabel}
@@ -398,6 +399,7 @@ export const SnippetCard = memo(function SnippetCard({
       </div>
 
       {expanded ? (
+        <div id={`snippet-details-${itemKey}`}>
         <SnippetCardExpanded
           item={item}
           showAiScore={showAiScore}
@@ -428,6 +430,7 @@ export const SnippetCard = memo(function SnippetCard({
             setCommentDialogOpen(true)
           }}
         />
+        </div>
       ) : null}
 
       {/* Status note prompt dialog (for reject/withdraw) */}

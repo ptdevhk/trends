@@ -802,7 +802,6 @@ function useBffAndModeSearch(
   refetchTrigger?: number,
 ): BffAndModeResult {
   const [result, setResult] = useState<BffAndModeResult>({ resumes: [], total: 0, expansion: null, loading: false })
-  const [loading, setLoading] = useState(false)
 
   // Serialize filters to a stable string so the effect doesn't re-run
   // on every render when the caller passes an inline object literal.
@@ -816,11 +815,10 @@ function useBffAndModeSearch(
 
     if (!enabled || !normalizedQuery || !keywordExpansion || keywordExpansion.mode !== 'AND' || expansionLoading) {
       setResult({ resumes: [], total: 0, expansion: null, loading: false })
-      setLoading(false)
       return () => { active = false }
     }
 
-    setLoading(true)
+    setResult((prev) => ({ ...prev, loading: true }))
     const queryParams: Record<string, string | number | boolean | undefined> = {
       q: normalizedQuery,
       source: 'convex',
@@ -899,27 +897,24 @@ function useBffAndModeSearch(
           resumes,
           total: data.summary?.total ?? resumes.length,
           expansion: keywordExpansion,
-          loading: true,
+          loading: false,
         })
       })
       .catch((err: unknown) => {
         console.error('BFF AND-mode search failed', err)
         if (active) {
-          setResult({ resumes: [], total: 0, expansion: keywordExpansion, loading: true })
+          setResult({ resumes: [], total: 0, expansion: keywordExpansion, loading: false })
         }
-      })
-      .finally(() => {
-        if (active) setLoading(false)
       })
 
     return () => { active = false }
   }, [enabled, expansionLoading, filtersKey, jobDescriptionId, keywordExpansion, normalizedQuery, refetchTrigger])
 
   return {
-    ...(loading && result.resumes.length === 0
+    ...(result.loading && result.resumes.length === 0
       ? { resumes: [], total: 0, expansion: keywordExpansion }
       : result),
-    loading,
+    loading: result.loading,
   }
 }
 
