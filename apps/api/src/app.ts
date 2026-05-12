@@ -2,6 +2,7 @@ import { OpenAPIHono } from "@hono/zod-openapi";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import { prettyJSON } from "hono/pretty-json";
+import { secureHeaders } from "hono/secure-headers";
 
 import {
   healthRoutes,
@@ -66,6 +67,22 @@ export function createApp() {
 
   // Middleware
   app.use("*", serverTimingMiddleware);
+  app.use("*", secureHeaders({
+    contentSecurityPolicyReportOnly: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "blob:"],
+      connectSrc: ["'self'", "*.convex.cloud"],
+      objectSrc: ["'none'"],
+      frameAncestors: ["'none'"],
+      baseUri: ["'self'"],
+      formAction: ["'self'"],
+    },
+    xFrameOptions: "DENY",
+    xContentTypeOptions: "nosniff",
+    referrerPolicy: "strict-origin-when-cross-origin",
+  }));
   app.use(
     "*",
     cors({
