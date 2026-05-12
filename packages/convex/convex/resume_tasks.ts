@@ -695,8 +695,8 @@ export const getSummary = query({
     args: {},
     handler: async (ctx) => {
         const [pending, processing, completed, failed, cancelled] = await Promise.all([
-            ctx.db.query("collection_tasks").withIndex("by_status", q => q.eq("status", "pending")).collect(),
-            ctx.db.query("collection_tasks").withIndex("by_status", q => q.eq("status", "processing")).collect(),
+            ctx.db.query("collection_tasks").withIndex("by_status", q => q.eq("status", "pending")).take(500),
+            ctx.db.query("collection_tasks").withIndex("by_status", q => q.eq("status", "processing")).take(500),
             ctx.db.query("collection_tasks").withIndex("by_status", q => q.eq("status", "completed")).order("desc").take(100),
             ctx.db.query("collection_tasks").withIndex("by_status", q => q.eq("status", "failed")).order("desc").take(100),
             ctx.db.query("collection_tasks").withIndex("by_status", q => q.eq("status", "cancelled")).order("desc").take(100),
