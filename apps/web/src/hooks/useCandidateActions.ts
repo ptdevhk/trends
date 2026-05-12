@@ -108,6 +108,7 @@ export function useCandidateActions(sessionId?: string, jobDescriptionId?: strin
       const rating = extractRatingFromActionType(payload.actionType, payload.actionData)
       const previousRating = ratingsByResume[payload.resumeId]
       const previousAction = actionsByResume[payload.resumeId]
+      const previousFeedback = aiFeedbackByResume[payload.resumeId]
 
       if (rating !== undefined) {
         if (rating === 0) {
@@ -158,15 +159,28 @@ export function useCandidateActions(sessionId?: string, jobDescriptionId?: strin
             })
           }
         } else {
-          setActionsByResume((prev) => {
-            const next = { ...prev }
-            if (previousAction) {
-              next[payload.resumeId] = previousAction
-            } else {
-              delete next[payload.resumeId]
-            }
-            return next
-          })
+          const feedback = actionToAiFeedback(payload.actionType)
+          if (feedback) {
+            setAiFeedbackByResume((prev) => {
+              const next = { ...prev }
+              if (previousFeedback) {
+                next[payload.resumeId] = previousFeedback
+              } else {
+                delete next[payload.resumeId]
+              }
+              return next
+            })
+          } else {
+            setActionsByResume((prev) => {
+              const next = { ...prev }
+              if (previousAction) {
+                next[payload.resumeId] = previousAction
+              } else {
+                delete next[payload.resumeId]
+              }
+              return next
+            })
+          }
         }
         setError('Failed to save action')
         return null

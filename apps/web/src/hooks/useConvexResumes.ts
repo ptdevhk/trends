@@ -859,7 +859,7 @@ function useBffAndModeSearch(
       .then(({ data, error }) => {
         if (!active) return
         if (error || !data?.success || !Array.isArray(data.data)) {
-          setResult({ resumes: [], total: 0, expansion: keywordExpansion, loading: true })
+          setResult({ resumes: [], total: 0, expansion: keywordExpansion, loading: false })
           return
         }
 

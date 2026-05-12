@@ -17,7 +17,7 @@ export function highlightTerms(
 
   if (escaped.length === 0) return text
 
-  const pattern = new RegExp(`(${escaped.join('|')})`, 'gi')
+  const pattern = new RegExp(`(${escaped.join('|')})`, 'i')
   const parts = text.split(pattern)
 
   if (parts.length === 1) return text

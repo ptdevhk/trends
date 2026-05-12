@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { rawApiClient } from '@/lib/api-helpers'
 import type { MatchStats, MatchingResult } from '@/types/resume'
 
@@ -96,14 +96,16 @@ export function useAiMatching() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [progress, setProgress] = useState<StreamProgress | null>(null)
+  const abortRef = useRef<AbortController | null>(null)
 
-  const consumeMatchStream = useCallback(async (payload: MatchRequest) => {
+  const consumeMatchStream = useCallback(async (payload: MatchRequest, signal?: AbortSignal) => {
     const response = await fetch(`${baseUrl}/api/resumes/match-stream`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(payload),
+      signal,
     })
 
     if (!response.ok || !response.body) {
@@ -114,66 +116,75 @@ export function useAiMatching() {
     const decoder = new TextDecoder()
     let buffer = ''
 
-    while (true) {
-      const { value, done } = await reader.read()
-      if (done) break
-
-      buffer += decoder.decode(value, { stream: true })
-
+    try {
       while (true) {
-        const markerIndex = buffer.indexOf('\n\n')
-        if (markerIndex < 0) break
+        const { value, done } = await reader.read()
+        if (done) break
 
-        const block = buffer.slice(0, markerIndex)
-        buffer = buffer.slice(markerIndex + 2)
+        buffer += decoder.decode(value, { stream: true })
 
-        const parsed = parseSseBlock(block)
-        if (!parsed) continue
+        while (true) {
+          const markerIndex = buffer.indexOf('\n\n')
+          if (markerIndex < 0) break
 
-        if (parsed.event === 'rules') {
-          const data = parsed.data as StreamRulesPayload
-          if (Array.isArray(data.results) && data.results.length > 0) {
-            setResults(data.results)
-            setStats(calcStats(data.results))
+          const block = buffer.slice(0, markerIndex)
+          buffer = buffer.slice(markerIndex + 2)
+
+          const parsed = parseSseBlock(block)
+          if (!parsed) continue
+
+          if (parsed.event === 'rules') {
+            const data = parsed.data as StreamRulesPayload
+            if (Array.isArray(data.results) && data.results.length > 0) {
+              setResults(data.results)
+              setStats(calcStats(data.results))
+            }
+            if (data.progress) {
+              setProgress(data.progress)
+            }
+            continue
           }
-          if (data.progress) {
-            setProgress(data.progress)
+
+          if (parsed.event === 'result') {
+            const data = parsed.data as StreamResultPayload
+            if (!data.result) continue
+
+            setResults((prev) => {
+              const next = mergeResult(prev, data.result)
+              setStats(calcStats(next))
+              return next
+            })
+
+            if (data.progress) {
+              setProgress(data.progress)
+            }
+            continue
           }
-          continue
-        }
 
-        if (parsed.event === 'result') {
-          const data = parsed.data as StreamResultPayload
-          if (!data.result) continue
-
-          setResults((prev) => {
-            const next = mergeResult(prev, data.result)
-            setStats(calcStats(next))
-            return next
-          })
-
-          if (data.progress) {
-            setProgress(data.progress)
+          if (parsed.event === 'done') {
+            const data = parsed.data as StreamDonePayload
+            setStats(data.stats ?? null)
+            setProgress(null)
+            return
           }
-          continue
-        }
 
-        if (parsed.event === 'done') {
-          const data = parsed.data as StreamDonePayload
-          setStats(data.stats ?? null)
-          setProgress(null)
-          return
-        }
-
-        if (parsed.event === 'error') {
-          const payload = parsed.data as { message?: string }
-          throw new Error(payload.message || 'Stream failed')
+          if (parsed.event === 'error') {
+            const payload = parsed.data as { message?: string }
+            throw new Error(payload.message || 'Stream failed')
+          }
         }
       }
+    } finally {
+      reader.releaseLock()
     }
   }, [])
 
   const matchAll = useCallback(async (payload: MatchRequest) => {
+    // Cancel any in-flight stream
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
+
     setLoading(true)
     setError(null)
     setProgress(null)
@@ -206,8 +217,12 @@ export function useAiMatching() {
         await consumeMatchStream({
           ...payload,
           mode,
-        })
+        }, controller.signal)
       } catch (streamError) {
+        if (streamError instanceof DOMException && streamError.name === 'AbortError') {
+          // Stream was intentionally cancelled
+          return data
+        }
         console.error('Match stream failed', streamError)
         setError('AI streaming updates failed')
       }
