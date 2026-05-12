@@ -185,6 +185,7 @@ export default defineSchema({
         .index("by_sourceKey", ["sourceKey"])
         .searchIndex("search_body", {
             searchField: "searchText",
+            filterFields: ["isArchived"],
         }),
 
     // Optional: Search Profiles (if we want to store user configs)

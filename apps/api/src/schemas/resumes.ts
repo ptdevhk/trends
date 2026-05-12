@@ -309,6 +309,7 @@ export const CandidateActionBackupSchema = z
       "archive",
       "note",
       "contact",
+      "rating",
       "ai_score_like",
       "ai_score_unlike",
       "ai_summary_like",
