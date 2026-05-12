@@ -298,12 +298,13 @@ export const listSearchHistory = query({
         const records = await ctx.db
             .query("search_history")
             .withIndex("by_workspace", (q) => q.eq("workspaceSlug", workspaceSlug))
-            .collect();
+            .order("desc")
+            .take(200);
 
         const cohorts = await ctx.db
             .query("industry_db_cohorts")
             .withIndex("by_workspace", (q) => q.eq("workspaceSlug", workspaceSlug))
-            .collect();
+            .take(200);
         const cohortBySearchHistoryId = new Map(cohorts.map((cohort) => [String(cohort.searchHistoryId), cohort]));
 
         return sortByHistoryRecency(records
