@@ -82,6 +82,9 @@ export function SearchHeader({
       <div className="flex flex-col gap-3 rounded-[1.5rem] border bg-white/80 px-4 py-3 shadow-sm lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0 space-y-2">
           <div className="text-sm font-medium text-slate-900">{resultsLabel}</div>
+          <div role="status" aria-live="polite" className="sr-only">
+            {loading ? '' : resultsLabel}
+          </div>
           <div className="flex flex-wrap gap-2">
             {location ? <Badge variant="outline">{location}</Badge> : null}
             {jobDescriptionId ? <Badge variant="outline">JD {jobDescriptionId}</Badge> : null}
