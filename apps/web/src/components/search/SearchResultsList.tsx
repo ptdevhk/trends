@@ -44,6 +44,8 @@ type SearchResultsListProps = {
   onToggleBlock?: (identityKey: string, blocked: boolean, reason?: string) => void
   onAiFeedback?: (target: AiFeedbackTarget, sentiment: AiFeedbackSentiment) => void
   getAiFeedback?: (resumeId: string, target: AiFeedbackTarget) => AiFeedbackSentiment | undefined
+  /** Raw search query text for highlighting matches in result cards */
+  searchQuery?: string
 }
 
 function SearchResultsSkeleton() {
@@ -80,6 +82,7 @@ export function SearchResultsList({
   onRating,
   onCandidateStatusChange,
   onToggleBlock,
+  searchQuery,
 }: SearchResultsListProps) {
   const { t } = useTranslation()
   const listRef = useRef<HTMLDivElement | null>(null)
@@ -277,6 +280,7 @@ export function SearchResultsList({
                     showAiScore={showAiScore}
                     onToggleExpanded={onToggleExpanded}
                     onViewDetails={handleViewDetails}
+                    searchQuery={searchQuery}
                     {...cardProps(item)}
                   />
                 </ErrorBoundary>
@@ -308,6 +312,7 @@ export function SearchResultsList({
                   showAiScore={showAiScore}
                   onToggleExpanded={onToggleExpanded}
                   onViewDetails={handleViewDetails}
+                  searchQuery={searchQuery}
                   {...cardProps(presentationItem)}
                 />
               </ErrorBoundary>

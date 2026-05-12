@@ -23,6 +23,7 @@ import type { ResumeSearchResultItem } from '@/components/search/search-types'
 import { SnippetCardExpanded } from '@/components/search/SnippetCardExpanded'
 import { StarRating } from '@/components/StarRating'
 import { getResumeContentLocale, getResumeSourceLabel, getExperienceBadge, isSafeProfileUrl, summarizeBrandHits } from '@/lib/resume-scoring'
+import { highlightTerms } from '@/lib/highlight'
 import { useBrandDisplayMap } from '@/hooks/useBrandDisplayMap'
 import { cn } from '@/lib/utils'
 import type { CandidateActionType, CandidateStatus, AiFeedbackSentiment, AiFeedbackTarget } from '@/types/resume'
@@ -45,6 +46,8 @@ type SnippetCardProps = {
   onToggleBlock?: (identityKey: string, blocked: boolean, reason?: string) => void
   aiScoreFeedback?: AiFeedbackSentiment
   onAiFeedback?: (target: AiFeedbackTarget, sentiment: AiFeedbackSentiment) => void
+  /** Raw search query text for highlighting matches in the card */
+  searchQuery?: string
 }
 
 const STATUS_OPTIONS: Array<{ value: CandidateStatus; labelKey: string }> = [
@@ -93,11 +96,16 @@ export const SnippetCard = memo(function SnippetCard({
   onRating,
   onCandidateStatusChange,
   onToggleBlock,
+  searchQuery,
 }: SnippetCardProps) {
   const { t } = useTranslation()
   const contentLocale = getResumeContentLocale(item.resume)
   const resumeSourceLabel = getResumeSourceLabel(item.resume)
   const analysis = item.analysis ?? item.resume.analysis
+  const searchTerms = useMemo(
+    () => (searchQuery ? searchQuery.split(/\s+/).filter(Boolean) : []),
+    [searchQuery],
+  )
   const visibleKeywords = (
     item.resume.ingestData?.industryTags
     ?? item.resume._provenance?.map((entry) => entry.term)
@@ -301,10 +309,10 @@ export const SnippetCard = memo(function SnippetCard({
                 target="_blank"
                 rel="noreferrer"
               >
-                {item.resume.name || unnamedResumeLabel}
+                {highlightTerms(item.resume.name || unnamedResumeLabel, searchTerms)}
               </a>
             ) : (
-              <span className="font-semibold text-slate-900">{item.resume.name || unnamedResumeLabel}</span>
+              <span className="font-semibold text-slate-900">{highlightTerms(item.resume.name || unnamedResumeLabel, searchTerms)}</span>
             )}
             {item.resume.activityStatus ? (
               <Badge variant="secondary">{item.resume.activityStatus}</Badge>
@@ -345,11 +353,11 @@ export const SnippetCard = memo(function SnippetCard({
 
           {/* Demographics row */}
           <div className="text-sm text-muted-foreground">
-            {item.resume.age || '--'} | {item.resume.experience || '--'} | {item.resume.education || '--'} | {item.resume.location || '--'}
+            {item.resume.age || '--'} | {item.resume.experience || '--'} | {highlightTerms(item.resume.education || '--', searchTerms)} | {highlightTerms(item.resume.location || '--', searchTerms)}
           </div>
 
           {/* Headline / self-intro snippet */}
-          <div className="truncate text-sm text-slate-600">{primaryHeadline}</div>
+          <div className="truncate text-sm text-slate-600">{highlightTerms(primaryHeadline, searchTerms)}</div>
 
           {item.scoreSource === 'ai' && analysis?.summary ? (
             <p className="line-clamp-2 text-xs leading-5 text-slate-500">
