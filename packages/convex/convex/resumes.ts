@@ -3369,16 +3369,18 @@ export const deleteResumes = mutation({
         }
 
         let deletedAiTaggingResults = 0;
+        // Collect all tagging results for all resumeIds in one pass, then batch delete
+        const allTaggingResults: Array<{ _id: Id<"ai_tagging_results"> }> = [];
         for (const resumeId of existingResumeIds) {
             const taggingResults = await ctx.db
                 .query("ai_tagging_results")
                 .withIndex("by_resume_profile", (q) => q.eq("resumeId", resumeId))
                 .collect();
-
-            for (const taggingResult of taggingResults) {
-                await ctx.db.delete(taggingResult._id);
-                deletedAiTaggingResults += 1;
-            }
+            allTaggingResults.push(...taggingResults);
+        }
+        for (const taggingResult of allTaggingResults) {
+            await ctx.db.delete(taggingResult._id);
+            deletedAiTaggingResults += 1;
         }
 
         const deletedResumeIdStrings = new Set(existingResumeIds.map((resumeId) => String(resumeId)));

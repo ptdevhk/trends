@@ -325,9 +325,9 @@ export const getSummary = query({
         const [pending, processing, completed, failed, cancelled] = await Promise.all([
             ctx.db.query("analysis_tasks").withIndex("by_status", q => q.eq("status", "pending")).collect(),
             ctx.db.query("analysis_tasks").withIndex("by_status", q => q.eq("status", "processing")).collect(),
-            ctx.db.query("analysis_tasks").withIndex("by_status", q => q.eq("status", "completed")).collect(),
-            ctx.db.query("analysis_tasks").withIndex("by_status", q => q.eq("status", "failed")).collect(),
-            ctx.db.query("analysis_tasks").withIndex("by_status", q => q.eq("status", "cancelled")).collect(),
+            ctx.db.query("analysis_tasks").withIndex("by_status", q => q.eq("status", "completed")).order("desc").take(100),
+            ctx.db.query("analysis_tasks").withIndex("by_status", q => q.eq("status", "failed")).order("desc").take(100),
+            ctx.db.query("analysis_tasks").withIndex("by_status", q => q.eq("status", "cancelled")).order("desc").take(100),
         ]);
         return {
             total: pending.length + processing.length + completed.length + failed.length + cancelled.length,

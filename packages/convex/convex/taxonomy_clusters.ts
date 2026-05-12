@@ -185,7 +185,8 @@ export const suggest = mutation({
             existingClusters.flatMap((cluster) => cluster.tags.map((tag) => tag.trim().toLowerCase()))
         );
 
-        const resumes = await ctx.db.query("resumes").collect();
+        // Sample recent resumes for tag aggregation (no need to scan entire table)
+        const resumes = await ctx.db.query("resumes").order("desc").take(500);
         const tagCounts = new Map<string, number>();
         for (const resume of resumes) {
             const seen = new Set<string>();
