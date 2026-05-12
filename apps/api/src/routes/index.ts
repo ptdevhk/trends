@@ -22,3 +22,4 @@ export { default as notificationRoutes } from "./notifications.js";
 export { default as workerRoutes } from "./worker.js";
 export { default as summariesRoutes } from "./summaries.js";
 export { default as webVitalsRoutes } from "./web-vitals.js";
+export { default as searchAlertsRoutes } from "./search-alerts.js";
