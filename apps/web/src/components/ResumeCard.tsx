@@ -31,9 +31,10 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { memo, useMemo, useState } from 'react'
+import { Suspense, lazy, memo, useMemo, useState } from 'react'
 import { useResumeFieldUsagePolicy } from '@/contexts/ResumeFieldUsagePolicyContext'
-import { OutreachModal } from './OutreachModal'
+
+const OutreachModal = lazy(() => import('./OutreachModal').then((m) => ({ default: m.OutreachModal })))
 import { Select } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -643,21 +644,23 @@ export const ResumeCard = memo(function ResumeCard({
               </Button>
             </div>
 
-            <OutreachModal
-              isOpen={showOutreach}
-              onClose={() => setShowOutreach(false)}
-              resume={resume}
-              jobDescription={jobDescription ? {
-                ...jobDescription,
-                requirements: jobDescription.requirements || ''
-              } : {
-                id: jobDescriptionId || 'default',
-                title: t('resumes.card.currentPosition', { defaultValue: 'Current Position' }),
-                requirements: ''
-              }}
-              analysis={matchResult}
-              onSuccess={() => onAction?.('contact')}
-            />
+            <Suspense fallback={null}>
+              <OutreachModal
+                isOpen={showOutreach}
+                onClose={() => setShowOutreach(false)}
+                resume={resume}
+                jobDescription={jobDescription ? {
+                  ...jobDescription,
+                  requirements: jobDescription.requirements || ''
+                } : {
+                  id: jobDescriptionId || 'default',
+                  title: t('resumes.card.currentPosition', { defaultValue: 'Current Position' }),
+                  requirements: ''
+                }}
+                analysis={matchResult}
+                onSuccess={() => onAction?.('contact')}
+              />
+            </Suspense>
           </div>
           <div className="text-sm text-muted-foreground">
             {resume.age || '--'} | {resume.experience || '--'} | {resume.education || '--'} |{' '}
