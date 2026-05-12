@@ -1,6 +1,6 @@
 import { formatKeywordQuery, getVerifiedRoleSignalYears, isSalesRequiredContext, parseKeywordQuery } from '@trends/shared'
 import { hasMatchingRoleSignal, matchesSalaryFilter } from '@/hooks/resume-filter-helpers'
-import { useMutation, useQuery } from 'convex/react'
+import { useMutation } from 'convex/react'
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { api } from '../../../../packages/convex/convex/_generated/api'
@@ -8,6 +8,7 @@ import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { useCandidateActions } from '@/hooks/useCandidateActions'
 import { useCandidateBlocks } from '@/hooks/useCandidateBlocks'
 import { useCandidateStatus } from '@/hooks/useCandidateStatus'
+import { useStableQuery } from '@/hooks/useStableQuery'
 import {
   useConvexResumes,
   type ConvexResumeFilters,
@@ -649,13 +650,13 @@ export function useResumeSearchState() {
     api.sessions.markSearchHistoryOpened,
   )
   const dispatchAnalysis = useMutation(api.analysis_tasks.dispatch)
-  const analysisTasks = useQuery(api.analysis_tasks.list)
-  const recentSearchHistoryRecords = useQuery(api.sessions.recentSearches, {
+  const analysisTasks = useStableQuery(api.analysis_tasks.list)
+  const recentSearchHistoryRecords = useStableQuery(api.sessions.recentSearches, {
     sessionKey,
     workspaceSlug: slug,
     limit: 10,
   })
-  const taxonomyClusterRecords = useQuery(api.taxonomy_clusters.list, {
+  const taxonomyClusterRecords = useStableQuery(api.taxonomy_clusters.list, {
     workspaceSlug: slug,
     status: 'active',
   })
