@@ -4,6 +4,8 @@ import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AnalysisTaskMonitor } from '@/components/AnalysisTaskMonitor'
 import { BulkActionBar } from '@/components/BulkActionBar'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
+import { InlineErrorFallback } from '@/components/InlineErrorFallback'
 import { ModeToggle } from '@/components/ModeToggle'
 import { AiSummaryPanel } from '@/components/search/AiSummaryPanel'
 import { FacetBadge } from '@/components/search/FacetBadge'
@@ -269,6 +271,21 @@ export function ResumeSearchPage() {
   const analyzeLoadedResultsLabel = t('resumes.searchPage.analysis.analyzeLoadedResults', {
     defaultValue: '测算当前结果',
   })
+  const errorSearchBarLabel = t('resumes.searchPage.error.searchBar', {
+    defaultValue: 'Search bar failed to load.',
+  })
+  const errorFiltersLabel = t('resumes.searchPage.error.filters', {
+    defaultValue: 'Filters failed to load.',
+  })
+  const errorAiSummaryLabel = t('resumes.searchPage.error.aiSummary', {
+    defaultValue: 'AI summary failed to load.',
+  })
+  const errorResultsLabel = t('resumes.searchPage.error.results', {
+    defaultValue: 'Search results failed to load.',
+  })
+  const reloadPageLabel = t('resumes.searchPage.error.reloadPage', {
+    defaultValue: 'Reload page',
+  })
 
   return (
     <div className="space-y-6">
@@ -296,27 +313,31 @@ export function ResumeSearchPage() {
         />
       ) : (
         <>
-          <SearchHeader
-            activeQuery={activeQuery}
-            activeResultCount={filteredResults.length}
-            jobDescriptionId={parsedState.jobDescriptionId}
-            loading={loading}
-            location={parsedState.location}
-            queryInput={queryInput}
-            recentSearches={recentSearches}
-            sortValue={activeSort}
-            onApplyRecentSearch={handleApplyRecentSearch}
-            onApplyExtractedKeywords={applyExtractedKeywords}
-            onChangeQuery={setQueryInput}
-            onClearQuery={handleClearQuery}
-            onSubmitQuery={handleSubmitQuery}
-            onSortChange={setSort}
-          />
+          <ErrorBoundary fallback={<InlineErrorFallback message={errorSearchBarLabel} retryLabel={reloadPageLabel} onRetry={() => window.location.reload()} />}>
+            <SearchHeader
+              activeQuery={activeQuery}
+              activeResultCount={filteredResults.length}
+              jobDescriptionId={parsedState.jobDescriptionId}
+              loading={loading}
+              location={parsedState.location}
+              queryInput={queryInput}
+              recentSearches={recentSearches}
+              sortValue={activeSort}
+              onApplyRecentSearch={handleApplyRecentSearch}
+              onApplyExtractedKeywords={applyExtractedKeywords}
+              onChangeQuery={setQueryInput}
+              onClearQuery={handleClearQuery}
+              onSubmitQuery={handleSubmitQuery}
+              onSortChange={setSort}
+            />
+          </ErrorBoundary>
 
           <div className="flex gap-6">
             <div className="hidden w-72 shrink-0 min-[1440px]:block">
               <div className="sticky top-24 max-h-[calc(100vh-7rem)] overflow-y-auto pb-4">
-                <FacetSidebar {...mobileFilterProps} />
+                <ErrorBoundary fallback={<InlineErrorFallback message={errorFiltersLabel} />}>
+                  <FacetSidebar {...mobileFilterProps} />
+                </ErrorBoundary>
               </div>
             </div>
 
@@ -374,11 +395,13 @@ export function ResumeSearchPage() {
               </div>
 
               {resumeAiSummaryEnabled && (
-                <AiSummaryPanel
-                  generatedAt={aiSummary.generatedAt}
-                  loading={aiSummary.loading}
-                  summary={aiSummary.summary}
-                />
+                <ErrorBoundary fallback={<InlineErrorFallback message={errorAiSummaryLabel} />}>
+                  <AiSummaryPanel
+                    generatedAt={aiSummary.generatedAt}
+                    loading={aiSummary.loading}
+                    summary={aiSummary.summary}
+                  />
+                </ErrorBoundary>
               )}
 
               <BulkActionBar
@@ -393,24 +416,26 @@ export function ResumeSearchPage() {
                 onBulkAction={handleBulkAction}
               />
 
-              <SearchResultsList
-                expandedIds={expandedIds}
-                hasMore={hasMore}
-                items={filteredResults}
-                loading={loading}
-                loadingMore={loadingMore}
-                showAiScore={aiModeEnabled}
-                onLoadMore={loadMore}
-                onToggleExpanded={handleToggleExpanded}
-                selectedIds={selectedIds}
-                actionsByResume={actionsByResume}
-                ratingsByResume={ratingsByResume}
-                onToggleSelect={toggleSelectItem}
-                onAction={handleCandidateAction}
-                onRating={handleRating}
-                onCandidateStatusChange={handleCandidateStatusChange}
-                onToggleBlock={handleToggleBlock}
-              />
+              <ErrorBoundary fallback={<InlineErrorFallback message={errorResultsLabel} retryLabel={reloadPageLabel} onRetry={() => window.location.reload()} />}>
+                <SearchResultsList
+                  expandedIds={expandedIds}
+                  hasMore={hasMore}
+                  items={filteredResults}
+                  loading={loading}
+                  loadingMore={loadingMore}
+                  showAiScore={aiModeEnabled}
+                  onLoadMore={loadMore}
+                  onToggleExpanded={handleToggleExpanded}
+                  selectedIds={selectedIds}
+                  actionsByResume={actionsByResume}
+                  ratingsByResume={ratingsByResume}
+                  onToggleSelect={toggleSelectItem}
+                  onAction={handleCandidateAction}
+                  onRating={handleRating}
+                  onCandidateStatusChange={handleCandidateStatusChange}
+                  onToggleBlock={handleToggleBlock}
+                />
+              </ErrorBoundary>
             </div>
           </div>
 
