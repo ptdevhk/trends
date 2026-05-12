@@ -104,7 +104,7 @@ export function OutreachModal({
         }
     }, [isOpen, analysis, subject, body, handleGenerateDraft]);
 
-    const handleSend = async () => {
+    const handleSend = useCallback(async () => {
         setLoading(true);
         try {
             // For now, we simulate sending to the candidate's email derived from name or use a placeholder
@@ -136,7 +136,7 @@ export function OutreachModal({
         } finally {
             setLoading(false);
         }
-    };
+    }, [outreachResume.selfIntro, subject, body, onSuccess, onClose]);
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>

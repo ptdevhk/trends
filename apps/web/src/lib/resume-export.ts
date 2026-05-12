@@ -51,17 +51,24 @@ export async function submitResumeExportDownload(
   apiBaseUrl: string,
   payload: ResumeExportRequestBody,
 ): Promise<void> {
-  const response = await fetch(
-    new URL(`${apiBaseUrl}/api/resumes/export`, window.location.origin)
-      .toString(),
-    {
-      method: 'POST',
-      headers: withWorkspaceHeaders({
-        'Content-Type': 'application/json',
-      }),
-      body: JSON.stringify(payload),
-    },
-  )
+  let response: Response
+  try {
+    response = await fetch(
+      new URL(`${apiBaseUrl}/api/resumes/export`, window.location.origin)
+        .toString(),
+      {
+        method: 'POST',
+        headers: withWorkspaceHeaders({
+          'Content-Type': 'application/json',
+        }),
+        body: JSON.stringify(payload),
+      },
+    )
+  } catch (error) {
+    throw new Error(
+      `Network error: failed to reach export server${error instanceof Error ? `: ${error.message}` : ''}`,
+    )
+  }
 
   if (!response.ok) {
     const contentType = response.headers.get('content-type') ?? ''
