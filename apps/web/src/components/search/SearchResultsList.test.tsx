@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { SearchResultsList } from '@/components/search/SearchResultsList'
 import type { ResumeSearchResultItem } from '@/components/search/search-types'
 import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
+import { useConvexResumeDetail } from '@/hooks/useConvexResumes'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -307,11 +308,17 @@ describe('SearchResultsList', () => {
   })
 
   it('opens the internal resume detail modal from a search result card', async () => {
+    const item = createItem(0)
+    vi.mocked(useConvexResumeDetail).mockReturnValue({
+      resume: item.resume as unknown as ReturnType<typeof useConvexResumeDetail>['resume'],
+      loading: false,
+    })
+
     render(
       <SearchResultsList
         expandedIds={new Set(['resume-0'])}
         hasMore={false}
-        items={[createItem(0)]}
+        items={[item]}
         onLoadMore={vi.fn()}
         onToggleExpanded={vi.fn()}
       />,
