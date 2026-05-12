@@ -172,7 +172,7 @@ export function GoogleSearchBar({
       ) : null}
 
       {focused && !jdPopoverOpen && filteredRecentSearches.length > 0 ? (
-        <div className="absolute inset-x-0 top-[calc(100%+0.75rem)] z-30 overflow-hidden rounded-3xl border bg-background shadow-xl">
+        <div className="absolute inset-x-0 top-[calc(100%+0.75rem)] z-30 overflow-hidden rounded-3xl border bg-background shadow-xl" role="listbox" aria-label={recentSearchesLabel}>
           <div className="border-b px-4 py-3 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
             {recentSearchesLabel}
           </div>
@@ -181,6 +181,7 @@ export function GoogleSearchBar({
               <button
                 key={item.id}
                 type="button"
+                role="option"
                 className="flex w-full items-start gap-3 rounded-2xl px-3 py-3 text-left transition-colors hover:bg-muted"
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => {

@@ -3,6 +3,7 @@ import { normalizeProfileUrlForDisplay, normalizeSharedResumeFields, parseKeywor
 import { usePaginatedQuery, useQuery } from 'convex/react'
 import { api } from '../../../../packages/convex/convex/_generated/api'
 import type { Doc } from '../../../../packages/convex/convex/_generated/dataModel'
+import { withRetry } from '@/lib/retry'
 import { rawApiClient } from '@/lib/api-helpers'
 import type { ResumeItem } from './useResumes'
 
@@ -840,20 +841,23 @@ function useBffAndModeSearch(
       ...(jobDescriptionId ? { jobDescriptionId } : {}),
     }
 
-    void rawApiClient
-      .GET<{
-        success: boolean
-        summary?: {
-          total?: number
-          mode?: string
-          keywordGroups?: Array<{ original: string; variants: string[] }>
-          expandedTo?: string[]
-          sourceMapping?: Record<string, string>
-        }
-        data?: Array<Record<string, unknown>>
-      }>('/api/resumes', {
-        params: { query: queryParams },
-      })
+    void withRetry(
+      () => rawApiClient
+        .GET<{
+          success: boolean
+          summary?: {
+            total?: number
+            mode?: string
+            keywordGroups?: Array<{ original: string; variants: string[] }>
+            expandedTo?: string[]
+            sourceMapping?: Record<string, string>
+          }
+          data?: Array<Record<string, unknown>>
+        }>('/api/resumes', {
+          params: { query: queryParams },
+        }),
+      { maxRetries: 2, baseDelayMs: 800 },
+    )
       .then(({ data, error }) => {
         if (!active) return
         if (error || !data?.success || !Array.isArray(data.data)) {
@@ -973,25 +977,28 @@ export function useConvexResumes(
     }
 
     setExpansionLoading(true)
-    void rawApiClient
-      .GET<{
-        success: boolean
-        summary?: {
-          groups?: Array<{
-            original: string
-            variants: string[]
-          }>
-          mode?: 'AND' | 'OR'
-          expandedTo?: string[]
-          sourceMapping?: Record<string, string>
-        }
-      }>('/api/resumes/keyword-expansion', {
-        params: {
-          query: {
-            q: normalizedQuery,
+    void withRetry(
+      () => rawApiClient
+        .GET<{
+          success: boolean
+          summary?: {
+            groups?: Array<{
+              original: string
+              variants: string[]
+            }>
+            mode?: 'AND' | 'OR'
+            expandedTo?: string[]
+            sourceMapping?: Record<string, string>
+          }
+        }>('/api/resumes/keyword-expansion', {
+          params: {
+            query: {
+              q: normalizedQuery,
+            },
           },
-        },
-      })
+        }),
+      { maxRetries: 2, baseDelayMs: 600 },
+    )
       .then(({ data, error }) => {
         if (!active) {
           return

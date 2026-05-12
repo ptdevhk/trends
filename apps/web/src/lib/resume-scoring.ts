@@ -261,7 +261,11 @@ export function isAutoFilteredAnalysis(analysis: ConvexResumeAnalysis | undefine
 
 export function isSafeProfileUrl(value: string | undefined): value is string {
   if (!value) return false
-  return value.startsWith('http://') || value.startsWith('https://')
+  const lower = value.toLowerCase()
+  if (lower.startsWith('javascript:') || lower.startsWith('data:') || lower.startsWith('vbscript:')) {
+    return false
+  }
+  return lower.startsWith('http://') || lower.startsWith('https://')
 }
 
 export function getResumeSourceLabel(resume: unknown): string | undefined {

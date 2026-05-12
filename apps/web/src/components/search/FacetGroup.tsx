@@ -54,6 +54,7 @@ export function FacetGroup({
               <button
                 key={`${title}-${item.value}`}
                 type="button"
+                aria-pressed={active}
                 className={cn(
                   'rounded-full border px-3 py-1.5 text-sm transition-colors',
                   active
