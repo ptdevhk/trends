@@ -489,4 +489,19 @@ export default defineSchema({
         error: v.optional(v.string()),
         timestamp: v.number(),
     }).index("by_timestamp", ["timestamp"]),
+
+    // Search alert subscriptions — notify when new resumes match criteria
+    search_alerts: defineTable({
+        workspaceSlug: v.string(),
+        searchProfileId: v.string(),
+        name: v.string(),
+        keywords: v.optional(v.array(v.string())),
+        minScore: v.number(),
+        enabled: v.boolean(),
+        lastNotifiedAt: v.optional(v.number()),
+        createdBy: v.optional(v.string()),
+    })
+        .index("by_workspace", ["workspaceSlug"])
+        .index("by_workspace_enabled", ["workspaceSlug", "enabled"])
+        .index("by_search_profile", ["searchProfileId"]),
 });

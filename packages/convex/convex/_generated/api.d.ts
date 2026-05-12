@@ -24,6 +24,7 @@ import type * as lib_resume_identity from "../lib/resume_identity.js";
 import type * as migrations from "../migrations.js";
 import type * as resume_tasks from "../resume_tasks.js";
 import type * as resumes from "../resumes.js";
+import type * as search_alerts from "../search_alerts.js";
 import type * as search_profiles from "../search_profiles.js";
 import type * as search_text from "../search_text.js";
 import type * as seed from "../seed.js";
@@ -55,6 +56,7 @@ declare const fullApi: ApiFromModules<{
   migrations: typeof migrations;
   resume_tasks: typeof resume_tasks;
   resumes: typeof resumes;
+  search_alerts: typeof search_alerts;
   search_profiles: typeof search_profiles;
   search_text: typeof search_text;
   seed: typeof seed;
