@@ -86,6 +86,7 @@ export function SearchResultsList({
   const loadMoreRef = useRef<HTMLDivElement | null>(null)
   const [scrollMargin, setScrollMargin] = useState(0)
   const [detailItem, setDetailItem] = useState<ResumeSearchResultItem | null>(null)
+  const [focusedIndex, setFocusedIndex] = useState<number | null>(null)
   const hasAiSummaries = items.some((item) => Boolean((item.analysis ?? item.resume.analysis)?.summary))
   const shouldVirtualize = items.length > 40 && expandedIds.size === 0 && !hasAiSummaries
   const expandedKey = expandedIds.values().next().value
@@ -156,6 +157,70 @@ export function SearchResultsList({
     return () => observer.disconnect()
   }, [hasMore, loadingMore, onLoadMore])
 
+  // Keyboard navigation: J/K to move, Enter to expand, S to star, A to archive
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+        return
+      }
+      if (items.length === 0) return
+
+      switch (event.key) {
+        case 'j':
+        case 'J':
+          event.preventDefault()
+          setFocusedIndex((prev) => {
+            const next = prev === null ? 0 : Math.min(prev + 1, items.length - 1)
+            scrollCardIntoView(next)
+            return next
+          })
+          break
+        case 'k':
+        case 'K':
+          event.preventDefault()
+          setFocusedIndex((prev) => {
+            const next = prev === null ? 0 : Math.max(prev - 1, 0)
+            scrollCardIntoView(next)
+            return next
+          })
+          break
+        case 'Enter':
+          if (focusedIndex !== null && items[focusedIndex]) {
+            event.preventDefault()
+            onToggleExpanded(items[focusedIndex].key)
+          }
+          break
+        case 's':
+        case 'S':
+          if (focusedIndex !== null && items[focusedIndex] && onAction) {
+            event.preventDefault()
+            const resumeId = items[focusedIndex].resume?.resumeId
+            if (resumeId) onAction(resumeId, 'star')
+          }
+          break
+        case 'a':
+        case 'A':
+          if (focusedIndex !== null && items[focusedIndex] && onAction) {
+            event.preventDefault()
+            const resumeId = items[focusedIndex].resume?.resumeId
+            if (resumeId) onAction(resumeId, 'archive')
+          }
+          break
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [items, focusedIndex, onToggleExpanded, onAction])
+
+  function scrollCardIntoView(index: number) {
+    const card = listRef.current?.querySelector(`[data-result-index="${index}"]`)
+    if (card) {
+      card.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }
+  }
+
   const virtualItems = rowVirtualizer.getVirtualItems()
 
   if (loading) {
@@ -199,8 +264,9 @@ export function SearchResultsList({
               <div
                 key={item.key}
                 data-index={virtualRow.index}
+                data-result-index={virtualRow.index}
                 ref={rowVirtualizer.measureElement}
-                className="absolute left-0 top-0 w-full pb-4"
+                className={`absolute left-0 top-0 w-full pb-4 ${focusedIndex === virtualRow.index ? 'rounded-[1.5rem] ring-2 ring-primary/30' : ''}`}
                 style={{ transform: `translateY(${virtualRow.start - scrollMargin}px)` }}
               >
                 <ErrorBoundary fallback={<CardErrorFallback />}>
@@ -219,7 +285,7 @@ export function SearchResultsList({
           })}
         </div>
       ) : (
-        items.map((item) => {
+        items.map((item, index) => {
           const presentationItem =
             item.key === expandedKey && expandedResumeFromConvex
               ? {
@@ -229,17 +295,23 @@ export function SearchResultsList({
               : item
 
           return (
-            <ErrorBoundary key={item.key} fallback={<CardErrorFallback />}>
-              <SnippetCard
-                item={presentationItem}
-                itemKey={item.key}
-                expanded={expandedIds.has(item.key)}
-                showAiScore={showAiScore}
-                onToggleExpanded={onToggleExpanded}
-                onViewDetails={handleViewDetails}
-                {...cardProps(presentationItem)}
-              />
-            </ErrorBoundary>
+            <div
+              key={item.key}
+              data-result-index={index}
+              className={focusedIndex === index ? 'rounded-[1.5rem] ring-2 ring-primary/30' : undefined}
+            >
+              <ErrorBoundary fallback={<CardErrorFallback />}>
+                <SnippetCard
+                  item={presentationItem}
+                  itemKey={item.key}
+                  expanded={expandedIds.has(item.key)}
+                  showAiScore={showAiScore}
+                  onToggleExpanded={onToggleExpanded}
+                  onViewDetails={handleViewDetails}
+                  {...cardProps(presentationItem)}
+                />
+              </ErrorBoundary>
+            </div>
           )
         })
       )}
