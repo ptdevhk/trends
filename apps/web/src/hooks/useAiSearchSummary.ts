@@ -137,7 +137,7 @@ export function useAiSearchSummary({
       setGeneratedAt(data.generatedAt)
       setLoading(false)
 
-      if (data.shouldRefresh && !forceRefresh) {
+      if (data.shouldRefresh && !forceRefresh && active) {
         void requestSummary(true)
       }
     }

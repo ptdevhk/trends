@@ -91,6 +91,7 @@ function MinRoleYearsGroup({
   const [customOpen, setCustomOpen] = useState(typeof minRoleYears === 'number' && !isPreset)
   const [customText, setCustomText] = useState(isPreset || minRoleYears == null ? '' : String(minRoleYears))
   const inputRef = useRef<HTMLInputElement>(null)
+  const formRef = useRef<HTMLFormElement>(null)
 
   const submitCustomValue = useCallback((rawValue: string) => {
     const parsed = Number(rawValue)
@@ -103,6 +104,15 @@ function MinRoleYearsGroup({
     setCustomOpen(false)
     setCustomText('')
   }, [onSetMinRoleYears])
+
+  const handleBlur = useCallback(() => {
+    requestAnimationFrame(() => {
+      if (formRef.current && !formRef.current.contains(document.activeElement)) {
+        setCustomOpen(false)
+        setCustomText('')
+      }
+    })
+  }, [])
 
   return (
     <div className="space-y-3">
@@ -131,6 +141,7 @@ function MinRoleYearsGroup({
         })}
         {customOpen ? (
           <form
+            ref={formRef}
             className="inline-flex items-center gap-1"
             onSubmit={(event) => {
               event.preventDefault()
@@ -144,11 +155,7 @@ function MinRoleYearsGroup({
               className="h-7 w-14 px-2 text-sm"
               value={customText}
               onChange={(event) => setCustomText(event.target.value)}
-              onBlur={() => {
-                // Only close without submitting - user can click checkmark to apply
-                setCustomOpen(false)
-                setCustomText('')
-              }}
+              onBlur={handleBlur}
               autoFocus
             />
             <span className="text-sm text-slate-500">+</span>
@@ -228,6 +235,17 @@ function RangeFilterGroup({
   const [customMax, setCustomMax] = useState(activePreset || (valueMin == null && valueMax == null) ? '' : (typeof valueMax === 'number' ? String(valueMax) : ''))
   const minRef = useRef<HTMLInputElement>(null)
   const maxRef = useRef<HTMLInputElement>(null)
+  const formRef = useRef<HTMLFormElement>(null)
+
+  const handleRangeBlur = useCallback(() => {
+    requestAnimationFrame(() => {
+      if (formRef.current && !formRef.current.contains(document.activeElement)) {
+        setCustomOpen(false)
+        setCustomMin('')
+        setCustomMax('')
+      }
+    })
+  }, [])
 
   const submitCustomValues = useCallback(() => {
     const rawMin = minRef.current?.value ?? String(customMin)
@@ -283,6 +301,7 @@ function RangeFilterGroup({
         })}
         {customOpen ? (
           <form
+            ref={formRef}
             className="inline-flex items-center gap-1"
             onSubmit={(event) => {
               event.preventDefault()
@@ -297,11 +316,7 @@ function RangeFilterGroup({
               className="h-7 w-12 px-2 text-sm"
               value={customMin}
               onChange={(event) => setCustomMin(event.target.value)}
-              onBlur={() => {
-                setCustomOpen(false)
-                setCustomMin('')
-                setCustomMax('')
-              }}
+              onBlur={handleRangeBlur}
               onKeyDown={(e) => { if (e.key === 'Enter') submitCustomValues() }}
               autoFocus
             />
@@ -314,11 +329,7 @@ function RangeFilterGroup({
               className="h-7 w-12 px-2 text-sm"
               value={customMax}
               onChange={(event) => setCustomMax(event.target.value)}
-              onBlur={() => {
-                setCustomOpen(false)
-                setCustomMin('')
-                setCustomMax('')
-              }}
+              onBlur={handleRangeBlur}
               onKeyDown={(e) => { if (e.key === 'Enter') submitCustomValues() }}
             />
             <span className="text-sm text-slate-500">{unitSuffix}</span>

@@ -86,7 +86,7 @@ export function SearchHeader({
         <div className="min-w-0 space-y-2">
           <div className="text-sm font-medium text-slate-900">{resultsLabel}</div>
           <div role="status" aria-live="polite" className="sr-only">
-            {loading ? '' : resultsLabel}
+            {loading ? t('resumes.searchPage.header.loading', { defaultValue: '正在加载...' }) : resultsLabel}
           </div>
           <div className="flex flex-wrap gap-2">
             {location ? <Badge variant="outline">{location}</Badge> : null}
