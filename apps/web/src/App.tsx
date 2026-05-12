@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation } from 'rea
 import { Toaster } from 'sonner'
 import { Header } from '@/components/Header'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
+import { LongTaskObserver } from '@/hooks/useLongTaskObserver'
 import { ResumesPage } from '@/pages/ResumesPage'
 import { ReviewPacketsPage } from '@/pages/ReviewPacketsPage'
 import SettingsLayout from '@/layouts/SettingsLayout'
@@ -128,6 +129,7 @@ function WorkspaceDebugPage() {
 function App() {
   return (
     <BrowserRouter>
+      <LongTaskObserver />
       <ErrorBoundary>
         <Routes>
           <Route path="/:teamSlug" element={<WorkspaceShell />}>
