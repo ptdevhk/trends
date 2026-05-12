@@ -1161,23 +1161,26 @@ export function useConvexResumes(
       }
     }
 
-    void rawApiClient
-      .POST<{
-        success: boolean
-        results?: Array<{
-          resumeId: string
-          score: number
-          recommendation: string
-        }>
-      }>('/api/resumes/match', {
-        body: {
-          source: 'convex',
-          persist: false,
-          mode: 'rules_only',
-          jobDescriptionId: normalizedJobDescriptionId,
-          resumeIds: exactKeywordResumeIds,
-        },
-      })
+    void withRetry(() =>
+      rawApiClient
+        .POST<{
+          success: boolean
+          results?: Array<{
+            resumeId: string
+            score: number
+            recommendation: string
+          }>
+        }>('/api/resumes/match', {
+          body: {
+            source: 'convex',
+            persist: false,
+            mode: 'rules_only',
+            jobDescriptionId: normalizedJobDescriptionId,
+            resumeIds: exactKeywordResumeIds,
+          },
+        }),
+      { maxRetries: 2, baseDelayMs: 600 }
+    )
       .then(({ data, error }) => {
         if (!active) {
           return
