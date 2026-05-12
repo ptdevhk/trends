@@ -39,7 +39,9 @@ export function GoogleSearchBar({
   const { t } = useTranslation()
   const [focused, setFocused] = useState(false)
   const [jdPopoverOpen, setJdPopoverOpen] = useState(false)
+  const [activeIndex, setActiveIndex] = useState(-1)
   const containerRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
   const trimmedValue = value.trim()
   const placeholderLabel = placeholder ?? t('resumes.searchPage.searchBar.placeholder', {
     defaultValue: 'Search resumes by keywords, brands, roles, or locations',
@@ -74,6 +76,25 @@ export function GoogleSearchBar({
   }, [recentSearches, trimmedValue])
   const isListboxOpen = focused && !jdPopoverOpen && filteredRecentSearches.length > 0
   const listboxId = 'recent-searches-listbox'
+  const activeOptionId = activeIndex >= 0 ? `recent-search-option-${activeIndex}` : undefined
+
+  // Reset active index when list changes
+  useEffect(() => {
+    setActiveIndex(-1)
+  }, [filteredRecentSearches.length, trimmedValue])
+
+  // Global Cmd/Ctrl+K to focus search
+  useEffect(() => {
+    const handleGlobalKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key === 'k') {
+        event.preventDefault()
+        inputRef.current?.focus()
+      }
+    }
+
+    window.addEventListener('keydown', handleGlobalKeyDown)
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown)
+  }, [])
 
   useEffect(() => {
     if (!jdPopoverOpen) {
@@ -107,7 +128,9 @@ export function GoogleSearchBar({
           <Search className={cn(compact ? 'h-4 w-4' : 'h-5 w-5')} />
         </div>
         <Input
+          ref={inputRef}
           aria-label={placeholderLabel}
+          aria-activedescendant={activeOptionId}
           aria-autocomplete="list"
           aria-controls={listboxId}
           aria-expanded={isListboxOpen}
@@ -121,19 +144,63 @@ export function GoogleSearchBar({
           )}
           placeholder={placeholderLabel}
           onBlur={() => {
-            window.setTimeout(() => setFocused(false), 120)
+            window.setTimeout(() => {
+              setFocused(false)
+              setActiveIndex(-1)
+            }, 120)
           }}
-          onChange={(event) => onChange(event.target.value)}
+          onChange={(event) => {
+            onChange(event.target.value)
+            setActiveIndex(-1)
+          }}
           onFocus={() => setFocused(true)}
           onKeyDown={(event) => {
-            if (event.key === 'Escape') {
-              event.preventDefault()
-              if (jdPopoverOpen) {
-                setJdPopoverOpen(false)
-                return
+            if (!isListboxOpen) {
+              if (event.key === 'Escape') {
+                event.preventDefault()
+                if (jdPopoverOpen) {
+                  setJdPopoverOpen(false)
+                  return
+                }
+                onClear()
               }
+              return
+            }
 
-              onClear()
+            switch (event.key) {
+              case 'ArrowDown': {
+                event.preventDefault()
+                setActiveIndex((prev) =>
+                  prev < filteredRecentSearches.length - 1 ? prev + 1 : 0
+                )
+                break
+              }
+              case 'ArrowUp': {
+                event.preventDefault()
+                setActiveIndex((prev) =>
+                  prev > 0 ? prev - 1 : filteredRecentSearches.length - 1
+                )
+                break
+              }
+              case 'Enter': {
+                if (activeIndex >= 0 && activeIndex < filteredRecentSearches.length) {
+                  event.preventDefault()
+                  setFocused(false)
+                  setActiveIndex(-1)
+                  void onApplyRecentSearch(filteredRecentSearches[activeIndex])
+                }
+                break
+              }
+              case 'Escape': {
+                event.preventDefault()
+                setActiveIndex(-1)
+                if (jdPopoverOpen) {
+                  setJdPopoverOpen(false)
+                } else {
+                  onClear()
+                }
+                break
+              }
             }
           }}
         />
@@ -186,21 +253,28 @@ export function GoogleSearchBar({
         />
       ) : null}
 
-      {focused && !jdPopoverOpen && filteredRecentSearches.length > 0 ? (
+      {isListboxOpen ? (
         <div id={listboxId} className="absolute inset-x-0 top-[calc(100%+0.75rem)] z-30 overflow-hidden rounded-3xl border bg-background shadow-xl" role="listbox" aria-label={recentSearchesLabel}>
           <div className="border-b px-4 py-3 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
             {recentSearchesLabel}
           </div>
           <div className="p-2">
-            {filteredRecentSearches.map((item) => (
+            {filteredRecentSearches.map((item, index) => (
               <button
                 key={item.id}
+                id={`recent-search-option-${index}`}
                 type="button"
                 role="option"
-                className="flex w-full items-start gap-3 rounded-2xl px-3 py-3 text-left transition-colors hover:bg-muted"
+                aria-selected={index === activeIndex}
+                className={cn(
+                  'flex w-full items-start gap-3 rounded-2xl px-3 py-3 text-left transition-colors',
+                  index === activeIndex ? 'bg-muted' : 'hover:bg-muted'
+                )}
                 onMouseDown={(event) => event.preventDefault()}
+                onMouseEnter={() => setActiveIndex(index)}
                 onClick={() => {
                   setFocused(false)
+                  setActiveIndex(-1)
                   void onApplyRecentSearch(item)
                 }}
               >
