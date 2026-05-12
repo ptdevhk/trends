@@ -2,6 +2,7 @@ import { useWindowVirtualizer } from '@tanstack/react-virtual'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { EmptyState } from '@/components/EmptyState'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { useConvexResumeDetail } from '@/hooks/useConvexResumes'
 import { SnippetCard } from '@/components/search/SnippetCard'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -14,6 +15,14 @@ const ResumeDetail = lazy(async () => {
   const module = await loadResumeDetail()
   return { default: module.ResumeDetail }
 })
+
+function CardErrorFallback() {
+  return (
+    <div className="rounded-[1.5rem] border bg-white/60 p-4 text-center text-sm text-muted-foreground">
+      Failed to load resume card.
+    </div>
+  )
+}
 
 type SearchResultsListProps = {
   expandedIds: Set<string>
@@ -194,15 +203,17 @@ export function SearchResultsList({
                 className="absolute left-0 top-0 w-full pb-4"
                 style={{ transform: `translateY(${virtualRow.start - scrollMargin}px)` }}
               >
-                <SnippetCard
-                  item={item}
-                  itemKey={item.key}
-                  expanded={false}
-                  showAiScore={showAiScore}
-                  onToggleExpanded={onToggleExpanded}
-                  onViewDetails={handleViewDetails}
-                  {...cardProps(item)}
-                />
+                <ErrorBoundary fallback={<CardErrorFallback />}>
+                  <SnippetCard
+                    item={item}
+                    itemKey={item.key}
+                    expanded={false}
+                    showAiScore={showAiScore}
+                    onToggleExpanded={onToggleExpanded}
+                    onViewDetails={handleViewDetails}
+                    {...cardProps(item)}
+                  />
+                </ErrorBoundary>
               </div>
             )
           })}
@@ -218,16 +229,17 @@ export function SearchResultsList({
               : item
 
           return (
-            <SnippetCard
-              key={item.key}
-              item={presentationItem}
-              itemKey={item.key}
-              expanded={expandedIds.has(item.key)}
-              showAiScore={showAiScore}
-              onToggleExpanded={onToggleExpanded}
-              onViewDetails={handleViewDetails}
-              {...cardProps(presentationItem)}
-            />
+            <ErrorBoundary key={item.key} fallback={<CardErrorFallback />}>
+              <SnippetCard
+                item={presentationItem}
+                itemKey={item.key}
+                expanded={expandedIds.has(item.key)}
+                showAiScore={showAiScore}
+                onToggleExpanded={onToggleExpanded}
+                onViewDetails={handleViewDetails}
+                {...cardProps(presentationItem)}
+              />
+            </ErrorBoundary>
           )
         })
       )}
