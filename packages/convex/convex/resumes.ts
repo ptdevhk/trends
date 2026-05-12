@@ -1556,8 +1556,7 @@ async function runSearchWithTagExpansionPageQuery(
     const matches = searchQuery
         ? await ctx.db
             .query("resumes")
-            .withSearchIndex("search_body", (q) => q.search("searchText", searchQuery))
-            .filter((q) => q.neq(q.field("isArchived"), true))
+            .withSearchIndex("search_body", (q) => q.search("searchText", searchQuery).eq("isArchived", undefined))
             .take(takeLimit)
         : [];
 
@@ -1663,8 +1662,7 @@ async function runSearchWithTagExpansionScanPageQuery(
     const searchPage = searchQuery
         ? await ctx.db
             .query("resumes")
-            .withSearchIndex("search_body", (q) => q.search("searchText", searchQuery))
-            .filter((q) => q.neq(q.field("isArchived"), true))
+            .withSearchIndex("search_body", (q) => q.search("searchText", searchQuery).eq("isArchived", undefined))
             .paginate({
                 ...args.paginationOpts,
                 numItems: pageSize,
@@ -2272,8 +2270,7 @@ export const search = query({
 
         const matches = await ctx.db
             .query("resumes")
-            .withSearchIndex("search_body", (q) => q.search("searchText", args.query))
-            .filter((q) => q.neq(q.field("isArchived"), true))
+            .withSearchIndex("search_body", (q) => q.search("searchText", args.query).eq("isArchived", undefined))
             .take(fetchLimit);
 
         // Convex full-text search uses OR. Post-filter to enforce AND.
@@ -2300,8 +2297,7 @@ export const searchWithIngestData = query({
 
         const matches = await ctx.db
             .query("resumes")
-            .withSearchIndex("search_body", (q) => q.search("searchText", args.query))
-            .filter((q) => q.neq(q.field("isArchived"), true))
+            .withSearchIndex("search_body", (q) => q.search("searchText", args.query).eq("isArchived", undefined))
             .take(fetchLimit);
 
         // Convex full-text search uses OR. Post-filter to enforce AND.
@@ -2361,8 +2357,7 @@ export const searchWithTagExpansion = query({
         const matches = searchQuery
             ? await ctx.db
                 .query("resumes")
-                .withSearchIndex("search_body", (q) => q.search("searchText", searchQuery))
-                .filter((q) => q.neq(q.field("isArchived"), true))
+                .withSearchIndex("search_body", (q) => q.search("searchText", searchQuery).eq("isArchived", undefined))
                 .take(fetchLimit)
             : [];
 
@@ -2756,8 +2751,7 @@ export const collectSearchIndexDocIds = internalQuery({
     handler: async (ctx, args) => {
         const page = await ctx.db
             .query("resumes")
-            .withSearchIndex("search_body", (q) => q.search("searchText", args.searchQuery))
-            .filter((q) => q.neq(q.field("isArchived"), true))
+            .withSearchIndex("search_body", (q) => q.search("searchText", args.searchQuery).eq("isArchived", undefined))
             .paginate({
                 cursor: args.cursor ?? null,
                 numItems: Math.min(args.numItems ?? 256, 256),

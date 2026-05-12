@@ -7653,7 +7653,7 @@ export interface components {
              * @example archive
              * @enum {string}
              */
-            actionType: "star" | "shortlist" | "reject" | "archive" | "note" | "contact" | "ai_score_like" | "ai_score_unlike" | "ai_summary_like" | "ai_summary_unlike";
+            actionType: "star" | "shortlist" | "reject" | "archive" | "note" | "contact" | "rating" | "ai_score_like" | "ai_score_unlike" | "ai_summary_like" | "ai_summary_unlike";
             /**
              * @example {
              *       "scopeId": "session-123"
