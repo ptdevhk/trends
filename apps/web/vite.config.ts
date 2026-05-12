@@ -15,6 +15,25 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (!id.includes('node_modules')) {
+            // Feature-based app code splitting
+            if (
+              id.includes('/components/search/') ||
+              id.includes('/hooks/useConvexResumes') ||
+              id.includes('/hooks/useResumeSearchState') ||
+              id.includes('/hooks/useStableQuery') ||
+              id.includes('/lib/highlight') ||
+              id.includes('/lib/resume-scoring') ||
+              id.includes('/lib/retry')
+            ) {
+              return 'search-feature'
+            }
+            if (
+              id.includes('/pages/Settings') ||
+              id.includes('/layouts/Settings') ||
+              id.includes('/pages/SystemSettings')
+            ) {
+              return 'settings-feature'
+            }
             return undefined
           }
 
