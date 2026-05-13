@@ -97,7 +97,6 @@ describe('useMatchRunHistory', () => {
       vi.advanceTimersByTime(10000)
     })
 
-    // Only the initial fetch, no polling after unmount
     expect(mockApiClient.GET).toHaveBeenCalledTimes(1)
   })
 

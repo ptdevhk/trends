@@ -64,7 +64,6 @@ describe('useSourceFacets', () => {
     unmount()
     resolvePromise!([{ source: '51job', count: 5 }])
 
-    // Should not throw or update state after unmount
     await act(async () => {})
   })
 })

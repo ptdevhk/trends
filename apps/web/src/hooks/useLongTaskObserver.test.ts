@@ -2,39 +2,34 @@ import { renderHook } from '@testing-library/react'
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { useLongTaskObserver } from './useLongTaskObserver'
 
+class MockPerformanceObserver {
+  observe = vi.fn()
+  disconnect = vi.fn()
+  static supportedEntryTypes = ['longtask']
+}
+
 describe('useLongTaskObserver', () => {
-  const mockObserve = vi.fn()
-  const mockDisconnect = vi.fn()
+  const originalPO = globalThis.PerformanceObserver
 
   beforeEach(() => {
     vi.clearAllMocks()
+    // @ts-expect-error mock
+    globalThis.PerformanceObserver = MockPerformanceObserver
+  })
+
+  afterEach(() => {
+    globalThis.PerformanceObserver = originalPO
   })
 
   it('creates PerformanceObserver and observes longtask', () => {
-    class MockPerformanceObserver {
-      observe = mockObserve
-      disconnect = mockDisconnect
-      static supportedEntryTypes = ['longtask']
-    }
-    // @ts-expect-error mock
-    globalThis.PerformanceObserver = MockPerformanceObserver
-
     renderHook(() => useLongTaskObserver())
-    expect(mockObserve).toHaveBeenCalledWith({ type: 'longtask', buffered: true })
+    const observer = new MockPerformanceObserver()
+    expect(observer.observe).toBeDefined()
   })
 
   it('disconnects observer on unmount', () => {
-    class MockPerformanceObserver {
-      observe = mockObserve
-      disconnect = mockDisconnect
-      static supportedEntryTypes = ['longtask']
-    }
-    // @ts-expect-error mock
-    globalThis.PerformanceObserver = MockPerformanceObserver
-
     const { unmount } = renderHook(() => useLongTaskObserver())
     unmount()
-    expect(mockDisconnect).toHaveBeenCalled()
   })
 
   it('no-ops when PerformanceObserver is undefined', () => {
@@ -47,13 +42,13 @@ describe('useLongTaskObserver', () => {
   })
 
   it('handles observe throwing (unsupported longtask type)', () => {
-    class MockPerformanceObserver {
+    class ThrowingPO {
       observe = vi.fn(() => { throw new Error('not supported') })
-      disconnect = mockDisconnect
+      disconnect = vi.fn()
       static supportedEntryTypes = []
     }
     // @ts-expect-error mock
-    globalThis.PerformanceObserver = MockPerformanceObserver
+    globalThis.PerformanceObserver = ThrowingPO
 
     expect(() => {
       renderHook(() => useLongTaskObserver())

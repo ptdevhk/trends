@@ -112,7 +112,7 @@ describe('useCandidateStatus', () => {
     expect(result.current.error).toBe('Failed to load candidate status')
   })
 
-  it('sets error on API error response', async () => {
+  it('sets error when response data is null', async () => {
     mockApiClient.GET.mockResolvedValueOnce({ data: null, error: 'network' })
     const { result } = renderHook(() => useCandidateStatus(true))
     await act(async () => {})

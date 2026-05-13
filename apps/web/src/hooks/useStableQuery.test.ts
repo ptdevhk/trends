@@ -8,6 +8,8 @@ vi.mock('convex/react', () => ({
   useQuery: () => queryResult,
 }))
 
+const mockQuery = 'mock/query' as never
+
 describe('useStableQuery', () => {
   beforeEach(() => {
     queryResult = undefined
@@ -15,19 +17,19 @@ describe('useStableQuery', () => {
 
   it('returns undefined when query returns undefined', () => {
     queryResult = undefined
-    const { result } = renderHook(() => useStableQuery('query' as never))
+    const { result } = renderHook(() => useStableQuery(mockQuery))
     expect(result.current).toBeUndefined()
   })
 
   it('returns query result when defined', () => {
     queryResult = { data: 'test' }
-    const { result } = renderHook(() => useStableQuery('query' as never))
+    const { result } = renderHook(() => useStableQuery(mockQuery))
     expect(result.current).toEqual({ data: 'test' })
   })
 
   it('holds stale data when query returns undefined after having data', () => {
     queryResult = { data: 'first' }
-    const { result, rerender } = renderHook(() => useStableQuery('query' as never))
+    const { result, rerender } = renderHook(() => useStableQuery(mockQuery))
     expect(result.current).toEqual({ data: 'first' })
 
     queryResult = undefined
@@ -37,7 +39,7 @@ describe('useStableQuery', () => {
 
   it('updates when new non-undefined data arrives', () => {
     queryResult = { data: 'first' }
-    const { result, rerender } = renderHook(() => useStableQuery('query' as never))
+    const { result, rerender } = renderHook(() => useStableQuery(mockQuery))
     expect(result.current).toEqual({ data: 'first' })
 
     queryResult = { data: 'second' }

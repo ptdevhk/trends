@@ -1,5 +1,5 @@
 import { renderHook } from '@testing-library/react'
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { useSyncNotifications } from './useSyncNotifications'
 
 const mockToastSuccess = vi.fn()
@@ -32,6 +32,10 @@ describe('useSyncNotifications', () => {
     vi.clearAllMocks()
     queryResult = undefined
     vi.spyOn(Date, 'now').mockReturnValue(NOW)
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
   })
 
   it('does not toast when disabled', () => {
@@ -79,7 +83,6 @@ describe('useSyncNotifications', () => {
     queryResult = { timestamp: NOW - 500, status: 'success', submitted: 10 }
     rerender()
 
-    // Stale: Date.now(1000000) - (NOW - 40000) = 40000 > 30000
     queryResult = { timestamp: NOW - 40_000, status: 'success', submitted: 20 }
     rerender()
 

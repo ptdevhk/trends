@@ -11,18 +11,6 @@ vi.mock('@/lib/api-helpers', () => ({
   rawApiClient: mockApiClient,
 }))
 
-vi.mock('@/types/resume', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/types/resume')>()
-  return {
-    ...actual,
-    actionToAiFeedback: (actionType: string) => {
-      if (actionType === 'ai_score_upvote') return { target: 'ai_score', sentiment: 'positive' }
-      if (actionType === 'ai_score_downvote') return { target: 'ai_score', sentiment: 'negative' }
-      return undefined
-    },
-  }
-})
-
 describe('useCandidateActions', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -95,14 +83,14 @@ describe('useCandidateActions', () => {
       data: {
         success: true,
         actions: [
-          { resumeId: 'r-1', actionType: 'ai_score_upvote' },
+          { resumeId: 'r-1', actionType: 'ai_score_like' },
         ],
       },
     })
     const { result } = renderHook(() => useCandidateActions('s-1'))
     await act(async () => {})
 
-    expect(result.current.aiFeedbackByResume['r-1']).toEqual({ score: 'positive' })
+    expect(result.current.aiFeedbackByResume['r-1']).toEqual({ score: 'like' })
   })
 
   it('sets error on API failure', async () => {
@@ -153,13 +141,13 @@ describe('useCandidateActions', () => {
     mockApiClient.GET.mockResolvedValueOnce({
       data: {
         success: true,
-        actions: [{ resumeId: 'r-1', actionType: 'ai_score_upvote' }],
+        actions: [{ resumeId: 'r-1', actionType: 'ai_score_like' }],
       },
     })
     const { result } = renderHook(() => useCandidateActions('s-1'))
     await act(async () => {})
 
-    expect(result.current.getAiFeedback('r-1', 'ai_score')).toBe('positive')
+    expect(result.current.getAiFeedback('r-1', 'ai_score')).toBe('like')
     expect(result.current.getAiFeedback('r-2', 'ai_score')).toBeUndefined()
   })
 

@@ -41,7 +41,7 @@ describe('useTrends', () => {
 
   it('passes platforms and limit to API', async () => {
     const platforms = ['weibo', 'zhihu']
-    mockGetLatestNews.mockResolvedValue({ success: true, data: [] })
+    mockGetLatestNews.mockResolvedValueOnce({ success: true, data: [] })
     renderHook(() => useTrends({ platforms, limit: 10 }))
     await act(async () => {})
 
@@ -88,7 +88,7 @@ describe('useTrends', () => {
   })
 
   it('refresh re-fetches news', async () => {
-    mockGetLatestNews.mockResolvedValue({ success: true, data: [] })
+    mockGetLatestNews.mockResolvedValueOnce({ success: true, data: [] })
     const { result } = renderHook(() => useTrends({ autoFetch: false }))
     await act(async () => {})
 

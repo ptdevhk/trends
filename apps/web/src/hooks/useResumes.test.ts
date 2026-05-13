@@ -28,19 +28,18 @@ describe('useResumes', () => {
   })
 
   it('does not fetch resumes when autoFetch is false', async () => {
-    mockApiClient.GET.mockResolvedValue({
+    mockApiClient.GET.mockResolvedValueOnce({
       data: { success: true, data: [], samples: [] },
     })
     const { result } = renderHook(() => useResumes({ autoFetch: false }))
     await act(async () => {})
 
-    // Only samples call, not resumes
     expect(mockApiClient.GET).toHaveBeenCalledTimes(1)
     expect(mockApiClient.GET).toHaveBeenCalledWith('/api/resumes/samples')
   })
 
   it('does not load samples when loadSamples is false', async () => {
-    mockApiClient.GET.mockResolvedValue({
+    mockApiClient.GET.mockResolvedValueOnce({
       data: { success: true, data: [] },
     })
     renderHook(() => useResumes({ loadSamples: false }))
@@ -68,7 +67,7 @@ describe('useResumes', () => {
   })
 
   it('setQuery and setFilter update state', async () => {
-    mockApiClient.GET.mockResolvedValue({
+    mockApiClient.GET.mockResolvedValueOnce({
       data: { success: true, data: [], samples: [] },
     })
     const { result } = renderHook(() => useResumes({ autoFetch: false }))
@@ -86,7 +85,7 @@ describe('useResumes', () => {
   })
 
   it('passes limit to API', async () => {
-    mockApiClient.GET.mockResolvedValue({
+    mockApiClient.GET.mockResolvedValueOnce({
       data: { success: true, data: [], samples: [] },
     })
     renderHook(() => useResumes({ limit: 50 }))
