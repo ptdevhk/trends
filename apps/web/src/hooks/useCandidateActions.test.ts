@@ -52,6 +52,12 @@ describe('useCandidateActions', () => {
   })
 
   it('saves AI feedback and updates local state', async () => {
+    mockApiClient.GET.mockResolvedValueOnce({
+      data: {
+        success: true,
+        actions: [],
+      },
+    })
     mockApiClient.POST.mockResolvedValueOnce({
       data: {
         success: true,
@@ -60,6 +66,7 @@ describe('useCandidateActions', () => {
     })
 
     const { result } = renderHook(() => useCandidateActions('session-1'))
+    await act(async () => {})
 
     await act(async () => {
       await result.current.saveAction({
@@ -73,6 +80,12 @@ describe('useCandidateActions', () => {
   })
 
   it('saves regular actions without affecting AI feedback', async () => {
+    mockApiClient.GET.mockResolvedValueOnce({
+      data: {
+        success: true,
+        actions: [],
+      },
+    })
     mockApiClient.POST.mockResolvedValueOnce({
       data: {
         success: true,
@@ -81,6 +94,7 @@ describe('useCandidateActions', () => {
     })
 
     const { result } = renderHook(() => useCandidateActions('session-1'))
+    await act(async () => {})
 
     await act(async () => {
       await result.current.saveAction({

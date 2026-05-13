@@ -21,6 +21,7 @@ import {
   parseExtractedAt,
   parseSerializedStringArray,
   parseSalaryRange,
+  matchesSalaryFilter,
   resolveAnalysisSourceKeyForResume,
   serializeLocationFilter,
   taskMatchesCurrentSearch,
@@ -118,6 +119,56 @@ describe('parseSalaryRange', () => {
     expect(result).not.toBeNull()
     expect(result!.min).toBe(12.5)
     expect(result!.max).toBe(18.5)
+  })
+
+  it('applies 万 multiplier for range', () => {
+    expect(parseSalaryRange('15-25万/年')).toEqual({ min: 150, max: 250 })
+  })
+
+  it('applies 万 multiplier for single value', () => {
+    expect(parseSalaryRange('15万/年')).toEqual({ min: 150, max: undefined })
+  })
+
+  it('applies 万 multiplier without period', () => {
+    expect(parseSalaryRange('10-20万')).toEqual({ min: 100, max: 200 })
+  })
+
+  it('handles decimal values with 万', () => {
+    expect(parseSalaryRange('1.5-2.5万/年')).toEqual({ min: 15, max: 25 })
+  })
+})
+
+describe('matchesSalaryFilter', () => {
+  it('returns true when no filters set', () => {
+    expect(matchesSalaryFilter('10-20/月')).toBe(true)
+  })
+
+  it('returns false when salary is undefined and filters are set', () => {
+    expect(matchesSalaryFilter(undefined, 5, 50)).toBe(false)
+  })
+
+  it('returns true when salary range overlaps min filter', () => {
+    expect(matchesSalaryFilter('10-20/月', 5)).toBe(true)
+  })
+
+  it('returns false when salary upper bound is below min filter', () => {
+    expect(matchesSalaryFilter('10-20/月', 25)).toBe(false)
+  })
+
+  it('returns true when salary range is below max filter', () => {
+    expect(matchesSalaryFilter('10-20/月', undefined, 25)).toBe(true)
+  })
+
+  it('returns false when salary lower bound exceeds max filter', () => {
+    expect(matchesSalaryFilter('10-20/月', undefined, 5)).toBe(false)
+  })
+
+  it('handles 万 multiplier in filter matching', () => {
+    expect(matchesSalaryFilter('15-25万/年', 100, 300)).toBe(true)
+  })
+
+  it('rejects 万 salary below min filter', () => {
+    expect(matchesSalaryFilter('15-25万/年', 300)).toBe(false)
   })
 })
 
