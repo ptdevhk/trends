@@ -2,8 +2,11 @@ import { renderHook, act } from '@testing-library/react'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { useBrandDisplayMap } from './useBrandDisplayMap'
 
+type BrandEntry = { displayName: string; zhHans: string }
+type BrandDisplayResponse = { data: Record<string, BrandEntry> | null }
+
 const mockApiClient = vi.hoisted(() => ({
-  GET: vi.fn(async () => ({ data: null })),
+  GET: vi.fn<(...args: unknown[]) => Promise<BrandDisplayResponse>>(async () => ({ data: null })),
 }))
 
 vi.mock('@/lib/api-helpers', () => ({
@@ -29,7 +32,7 @@ describe('useBrandDisplayMap', () => {
     mockApiClient.GET.mockResolvedValueOnce({
       data: { nike: { displayName: 'Nike', zhHans: '耐克' } },
     })
-    const { result } = renderHook(() => useBrandDisplayMap(true))
+    renderHook(() => useBrandDisplayMap(true))
 
     await act(async () => {})
     expect(mockApiClient.GET).toHaveBeenCalledWith('/api/industry/brand-display-map')

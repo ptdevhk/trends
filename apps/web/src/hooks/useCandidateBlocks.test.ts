@@ -2,8 +2,11 @@ import { renderHook, act } from '@testing-library/react'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { useCandidateBlocks } from './useCandidateBlocks'
 
+type BlockItem = { _id: string; identityKey: string; workspaceSlug: string; blockedAt: number; reason?: string }
+type BlocksGetResponse = { data: { success: boolean; items: BlockItem[] } }
+
 const mockApiClient = vi.hoisted(() => ({
-  GET: vi.fn(async () => ({ data: { success: true, items: [] } })),
+  GET: vi.fn<(...args: unknown[]) => Promise<BlocksGetResponse>>(async () => ({ data: { success: true, items: [] } })),
   POST: vi.fn(async () => ({ data: { success: true } })),
   DELETE: vi.fn(async () => ({ data: { success: true, removed: true } })),
   PATCH: vi.fn(async () => ({ data: { success: true, updated: true } })),
@@ -130,7 +133,7 @@ describe('useCandidateBlocks', () => {
   })
 
   it('sets error when API fails', async () => {
-    mockApiClient.GET.mockResolvedValueOnce({ data: { success: false } })
+    mockApiClient.GET.mockResolvedValueOnce({ data: { success: false, items: [] } })
     const { result } = renderHook(() => useCandidateBlocks(true))
     await act(async () => {})
 
