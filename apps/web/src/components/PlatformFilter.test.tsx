@@ -1,11 +1,17 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { PlatformFilter } from '@/components/PlatformFilter'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, opts?: { defaultValue?: string }) => opts?.defaultValue ?? key,
+    t: (key: string, options?: string | { defaultValue?: string; [key: string]: unknown }) => {
+      if (typeof options === 'string') return options
+      if (options?.defaultValue) {
+        return options.defaultValue.replace(/\{\{(\w+)\}\}/g, (_match: string, k: string) => String(options[k] ?? `{{${k}}}`))
+      }
+      return key
+    },
   }),
 }))
 
@@ -17,6 +23,10 @@ vi.mock('@/lib/api', () => ({
 }))
 
 describe('PlatformFilter', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
   it('renders platform label and select', () => {
     render(<PlatformFilter value="" onChange={vi.fn()} />)
     expect(screen.getByText('trends.platform:')).toBeInTheDocument()
@@ -25,15 +35,13 @@ describe('PlatformFilter', () => {
 
   it('renders all platform options including "all"', () => {
     render(<PlatformFilter value="" onChange={vi.fn()} />)
-    const options = screen.getAllByRole('option')
-    expect(options).toHaveLength(3) // all + zhihu + weibo
+    expect(screen.getAllByRole('option')).toHaveLength(3)
   })
 
   it('calls onChange when a platform is selected', async () => {
     const onChange = vi.fn()
-    const user = userEvent.setup()
     render(<PlatformFilter value="" onChange={onChange} />)
-    await user.selectOptions(screen.getByRole('combobox'), 'zhihu')
+    await userEvent.setup().selectOptions(screen.getByRole('combobox'), 'zhihu')
     expect(onChange).toHaveBeenCalledWith('zhihu')
   })
 
