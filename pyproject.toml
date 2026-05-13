@@ -5,19 +5,19 @@ description = "Trends - Multi-source data aggregation & AI screening platform"
 requires-python = ">=3.10"
 dependencies = [
     "requests>=2.32.5,<3.0.0",
-    "pytz>=2025.2,<2026.0",
+    "pytz>=2025.2,<2027.0",
     "PyYAML>=6.0.3,<7.0.0",
     "fastmcp>=2.14.2,<3.2.0",
     "authlib>=1.6.9",
     "cryptography>=46.0.5",
     "python-multipart>=0.0.22",
-    "websockets>=13.0,<17.0",
+    "websockets>=16.0,<17.0",
     "feedparser>=6.0.0,<7.0.0",
     "boto3>=1.35.0,<2.0.0",
-    "litellm>=1.57.0,<2.0.0",
+    "litellm>=1.83.14,<2.0.0",
     "tenacity==9.1.4",
     "opencc-python-reimplemented>=0.1.7,<1.0.0",
-    "fastapi>=0.115.0,<1.0.0",
+    "fastapi>=0.136.1,<1.0.0",
     "uvicorn[standard]>=0.32.0,<1.0.0",
     "apscheduler>=3.10.0,<4.0.0"
 ]
