@@ -19,12 +19,6 @@ vi.mock('convex/react', () => ({
   useQuery: (...args: unknown[]) => useQueryMock(...(args as [])),
 }))
 
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (_key: string, opts?: { defaultValue?: string }) => opts?.defaultValue ?? _key,
-  }),
-}))
-
 vi.mock('sonner', () => ({
   toast: {
     success: (...args: unknown[]) => toastSuccessMock(...args),
