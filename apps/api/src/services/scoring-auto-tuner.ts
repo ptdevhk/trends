@@ -320,11 +320,12 @@ export class ScoringAutoTuner {
     const currentRho = spearmanRho(currentScores, hrRatings);
     const projectedRho = spearmanRho(projectedScores, hrRatings);
 
+    const minDegradation = 0.05;
     return {
       currentRho,
       projectedRho,
       sampleSize: pairs.length,
-      degraded: projectedRho < currentRho,
+      degraded: projectedRho < currentRho - minDegradation,
     };
   }
 
