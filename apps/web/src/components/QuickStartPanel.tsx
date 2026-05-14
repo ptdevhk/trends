@@ -348,6 +348,19 @@ export function QuickStartPanel({
   const [showJdEditor, setShowJdEditor] = useState(false)
   const [assistantOpen, setAssistantOpen] = useState(false)
   const [workflowSeeds, setWorkflowSeeds] = useState<QuickStartWorkflow[]>([])
+  const convexProfiles = useQuery(api.search_profiles.list, { workspaceSlug: slug })
+  const profileFiltersById = useMemo(() => {
+    if (!convexProfiles) return new Map<string, SearchProfileFilters>()
+    const map = new Map<string, SearchProfileFilters>()
+    for (const doc of convexProfiles) {
+      const profileId: string | undefined = doc?.profile?.id
+      const filters: SearchProfileFilters | undefined = doc?.profile?.filters
+      if (profileId && filters) {
+        map.set(profileId, filters)
+      }
+    }
+    return map
+  }, [convexProfiles])
   const normalizedJobDescriptionId = jobDescriptionId.trim()
   const normalizedDefaultLocation = defaultLocation.trim()
   const normalizedDefaultKeywordsSignature = normalizeKeywordPhrases(defaultKeywords).join('\u0000')
@@ -796,6 +809,7 @@ export function QuickStartPanel({
 
   const handleApplyWorkflow = useCallback((workflow: QuickStartWorkflow) => {
     const workflowKeywords = normalizeKeywordPhrases(workflow.keywords)
+    const workflowFilters = profileFiltersById.get(workflow.id)
 
     setLocation(workflow.location)
     setSelectedKeywords(workflowKeywords)
@@ -812,8 +826,15 @@ export function QuickStartPanel({
       setCollectionSource(workflow.collectionSource)
     }
 
+    onApplyConfig?.({
+      location: workflow.location,
+      keywords: workflowKeywords,
+      collectionSource: workflow.collectionSource,
+      filters: mapProfileFiltersToResumeFilters(workflowFilters),
+    })
+
     onJobChange?.('')
-  }, [onJobChange])
+  }, [onJobChange, onApplyConfig, profileFiltersById])
 
   const applyProfileToLiveSearch = useCallback((profile: SearchProfileDetails) => {
     const profileLocation = profile.location.trim()

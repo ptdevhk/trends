@@ -541,6 +541,9 @@
     "years": "yrs",
     "minAge": "Min Age",
     "maxAge": "Max Age",
+    "minSalary": "Min Expected Salary",
+    "maxSalary": "Max Expected Salary",
+    "defaultSalary": "Unit: k (thousands)",
     "defaultExp": "Default: min 1 year",
     "contentPlaceholder": "Paste or edit JD markdown content"
   },
