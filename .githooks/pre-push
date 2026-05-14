@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# Pre-push hook: runs i18n-check when locale files changed.
+# Install: make install-hooks  (sets core.hooksPath = .githooks)
+
+set -euo pipefail
+
+# Resolve repo root (hooksPath can be set from anywhere in the worktree)
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
+
+# Pre-compute merge-base for new-branch range (invariant across all ref lines)
+merge_base="$(git merge-base main HEAD 2>/dev/null || true)"
+
+locale_pattern='apps/web/src/i18n/locales/'
+already_checked=0
+
+# stdin: <local ref> SP <local sha1> SP <remote ref> SP <remote sha1> LF
+while IFS=' ' read -r _local_ref local_sha _remote_ref remote_sha; do
+  # All-zeros local sha means branch deletion — skip
+  if [ "$local_sha" = "0000000000000000000000000000000000000000" ]; then
+    continue
+  fi
+
+  # All-zeros remote sha means new branch — diff against merge-base of main
+  if [ "$remote_sha" = "0000000000000000000000000000000000000000" ]; then
+    range="${merge_base}..${local_sha}"
+  else
+    range="${remote_sha}..${local_sha}"
+  fi
+
+  if [ "$already_checked" -eq 0 ] && git diff --name-only "$range" -- "$locale_pattern" | grep -q .; then
+    echo ""
+    echo "i18n: locale files changed — running i18n-check..."
+    make i18n-check
+    echo "i18n-check passed."
+    already_checked=1
+  fi
+done
+
+exit 0

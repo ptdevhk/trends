@@ -10,6 +10,7 @@
 		i18n-check i18n-sync i18n-convert i18n-translate i18n-build \
 		refresh-sample refresh-sample-manual prefetch-convex chrome-debug \
 		debug-51job-detail \
+		install-hooks \
 		seed seed-full seed-force seed-clear seed-clear-workspace seed-clear-dev \
 		seed-clear-demo-resumes \
 		backup-resumes restore-resumes remote-backup-prod backup-prod local-restore-from-prod restore-from-prod restore-resumes-restart clear-resume-analyses clear-resume-analyses-restart \
@@ -600,6 +601,11 @@ i18n-build:
 # Install Python/Node dependencies, ensure the Go CLI toolchain, build bin/trends, and bootstrap local dev assets
 install-deps:
 	./scripts/install-deps.sh
+	@$(MAKE) install-hooks
+
+# Activate repo-managed git hooks (pre-push: i18n-check, etc.)
+install-hooks:
+	git config core.hooksPath .githooks
 
 # Prefetch Convex local backend and dashboard assets into local cache
 # Honors the shared Convex prefetch contract for CI=true/1 plus CONVEX_MIRROR_MODE / CONVEX_MIRROR_BASES / timeout / curl env knobs; see the script --help surface for full details.
@@ -1264,6 +1270,7 @@ help:
 	@echo "  build-static / build-static-fresh / build-extension-zip / serve-static"
 	@echo "  fetch-docs"
 	@echo "  i18n-check / i18n-sync / i18n-convert / i18n-translate / i18n-build"
+	@echo "  install-hooks"
 	@echo "  sync-agent-* / install-*-skill / check-*-skill / validate-skill"
 	@echo "  sync-search-profile-templates / check-search-profile-templates"
 	@echo ""
