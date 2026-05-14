@@ -86,3 +86,4 @@ notes:
   vault_drift: concept pages drift when code changes without vault sync — check scoring/search concepts after relevant commits
   cron: durable every-15m, trends-only, auto-expires 7d — renew with CronCreate before expiry
 ```
+  oauth_blocker: WeChat OAuth requires business license, WeCom requires admin - external deps not available

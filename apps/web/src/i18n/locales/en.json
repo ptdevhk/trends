@@ -404,7 +404,8 @@
         "searching": "Searching...",
         "recentSearches": "Recent searches",
         "pasteJobDescription": "Paste job description",
-        "clearSearch": "Clear search"
+        "clearSearch": "Clear search",
+        "recentSearchCount": "{{count}} recent searches available"
       },
       "header": {
         "results": "{{count}} results",
@@ -418,7 +419,11 @@
         },
         "exportFormat": "Export format",
         "exporting": "Exporting...",
-        "export": "Export {{count}}"
+        "export": "Export {{count}}",
+        "loading": "Loading...",
+        "linkCopied": "Link copied",
+        "copyFailed": "Copy failed",
+        "copyLink": "Copy link"
       },
       "results": {
         "emptyTitle": "No resumes matched this search",
@@ -474,10 +479,10 @@
         "snapshot": "Resume Snapshot"
       },
       "error": {
-        "searchBar": "Search bar failed to load.",
-        "filters": "Filters failed to load.",
-        "aiSummary": "AI summary failed to load.",
-        "results": "Search results failed to load.",
+        "searchBar": "Search bar failed to load",
+        "filters": "Filters failed to load",
+        "aiSummary": "AI summary failed to load",
+        "results": "Search results failed to load",
         "reloadPage": "Reload page"
       }
     },

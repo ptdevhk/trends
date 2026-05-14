@@ -3,9 +3,14 @@ import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import type { MatchRunItem } from './useMatchRunHistory'
 import { useMatchRunHistory } from './useMatchRunHistory'
 
+type ApiResult = {
+  data?: { success: boolean; runs?: MatchRunItem[] }
+  error?: { message: string } | undefined
+}
+
 const mockApiClient = vi.hoisted(() => ({
-  GET: vi.fn(async () => ({
-    data: { success: true, runs: [] as MatchRunItem[] },
+  GET: vi.fn(async (): Promise<ApiResult> => ({
+    data: { success: true, runs: [] },
     error: undefined,
   })),
 }))
@@ -67,7 +72,7 @@ describe('useMatchRunHistory', () => {
       error: undefined,
     })
 
-    const { result } = renderHook(() =>
+    renderHook(() =>
       useMatchRunHistory({ jobDescriptionId: 'jd-1' })
     )
 

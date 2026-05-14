@@ -1,15 +1,25 @@
-import { renderHook, act, waitFor } from '@testing-library/react'
+import { renderHook, act } from '@testing-library/react'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import type { MatchingResult, MatchStats } from '@/types/resume'
 import { useAiMatching } from './useAiMatching'
 
-const mockPost = vi.hoisted(() => vi.fn(async () => ({
-  data: { success: true, results: [] as MatchingResult[], stats: null as MatchStats | null },
+type GetResponse = {
+  data?: { success: boolean; results: MatchingResult[] }
+  error?: { message: string } | undefined
+}
+
+type PostResponse = {
+  data?: { success: boolean; results: MatchingResult[]; stats: MatchStats | null }
+  error?: { message: string } | undefined
+}
+
+const mockPost = vi.hoisted(() => vi.fn(async (): Promise<PostResponse> => ({
+  data: { success: true, results: [], stats: null },
   error: undefined,
 })))
 
-const mockGet = vi.hoisted(() => vi.fn(async () => ({
-  data: { success: true, results: [] as MatchingResult[] },
+const mockGet = vi.hoisted(() => vi.fn(async (): Promise<GetResponse> => ({
+  data: { success: true, results: [] },
   error: undefined,
 })))
 
@@ -24,7 +34,7 @@ vi.stubGlobal('fetch', mockFetch)
 const sampleResult: MatchingResult = {
   resumeId: 'r1',
   score: 85,
-  recommendation: 'strong_yes',
+  recommendation: 'strong_match',
   highlights: ['React experience'],
   concerns: [],
   summary: 'Strong candidate',
@@ -34,7 +44,7 @@ const sampleResult: MatchingResult = {
 const lowScoreResult: MatchingResult = {
   resumeId: 'r2',
   score: 30,
-  recommendation: 'no',
+  recommendation: 'no_match',
   highlights: [],
   concerns: ['Lacks experience'],
   summary: 'Weak match',
@@ -100,7 +110,7 @@ describe('useAiMatching', () => {
 
   it('fetchMatches handles success=false', async () => {
     mockGet.mockResolvedValueOnce({
-      data: { success: false },
+      data: { success: false, results: [] },
       error: undefined,
     })
 
@@ -171,7 +181,7 @@ describe('useAiMatching', () => {
 
   it('matchAll handles success=false', async () => {
     mockPost.mockResolvedValueOnce({
-      data: { success: false },
+      data: { success: false, results: [], stats: null },
       error: undefined,
     })
 
@@ -185,7 +195,7 @@ describe('useAiMatching', () => {
   })
 
   it('matchAll sets loading during execution', async () => {
-    let resolvePost: (v: unknown) => void
+    let resolvePost: (v: PostResponse) => void
     mockPost.mockReturnValueOnce(new Promise((resolve) => { resolvePost = resolve }))
 
     const { result } = renderHook(() => useAiMatching())
@@ -198,7 +208,7 @@ describe('useAiMatching', () => {
     expect(result.current.loading).toBe(true)
 
     await act(async () => {
-      resolvePost!({ data: { success: true, results: [] }, error: undefined })
+      resolvePost!({ data: { success: true, results: [], stats: null }, error: undefined })
     })
 
     expect(result.current.loading).toBe(false)

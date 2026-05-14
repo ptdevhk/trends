@@ -3,7 +3,17 @@ import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import type { ResumeSearchResultItem } from '@/components/search/search-types'
 import { useAiSearchSummary } from './useAiSearchSummary'
 
-const mockPost = vi.hoisted(() => vi.fn(async () => ({
+type SearchSummaryResponse = {
+  success: boolean
+  summary?: string
+  generatedAt?: number
+  shouldRefresh?: boolean
+}
+
+const mockPost = vi.hoisted(() => vi.fn(async (): Promise<{
+  data?: SearchSummaryResponse
+  error?: { message: string } | undefined
+}> => ({
   data: { success: true, summary: 'AI summary', generatedAt: 1000 },
   error: undefined,
 })))
@@ -186,8 +196,9 @@ describe('useAiSearchSummary', () => {
 
     // both calls happen — first forceRefresh=false, then forceRefresh=true
     expect(mockPost).toHaveBeenCalledTimes(2)
-    expect(mockPost.mock.calls[0][1].body.forceRefresh).toBe(false)
-    expect(mockPost.mock.calls[1][1].body.forceRefresh).toBe(true)
+    const calls = mockPost.mock.calls as unknown as Array<[{ body: { forceRefresh: boolean } }]>
+    expect(calls[0][0].body.forceRefresh).toBe(false)
+    expect(calls[1][0].body.forceRefresh).toBe(true)
     expect(result.current.summary).toBe('full')
     expect(result.current.generatedAt).toBe(99)
   })
@@ -229,7 +240,7 @@ describe('useAiSearchSummary', () => {
       await vi.advanceTimersByTimeAsync(2500)
     })
 
-    const body = mockPost.mock.calls[0][1].body as { results: Array<{ snippet: string }> }
-    expect(body.results[0].snippet).toBe('Backend work')
+    const calls = mockPost.mock.calls as unknown as Array<[{ body: { results: Array<{ snippet: string }> } }]>
+    expect(calls[0][0].body.results[0].snippet).toBe('Backend work')
   })
 })

@@ -1,17 +1,17 @@
 import { renderHook, act, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import type { NewsItem } from '@/lib/types'
+import type { NewsItem, ApiResponse } from '@/lib/types'
 import { useTrends, useSearch } from './useTrends'
 
 const mockGetLatestNews = vi.hoisted(() => vi.fn(async () => ({
   success: true,
   data: [] as NewsItem[],
-})))
+} as ApiResponse<NewsItem[]>)))
 
 const mockSearchNews = vi.hoisted(() => vi.fn(async () => ({
   success: true,
   data: [] as NewsItem[],
-})))
+} as ApiResponse<NewsItem[]>)))
 
 vi.mock('@/lib/api', () => ({
   getLatestNews: mockGetLatestNews,
@@ -57,11 +57,11 @@ describe('useTrends', () => {
     expect(result.current.loading).toBe(false)
   })
 
-  it('sets error when success is false', async () => {
+  it('sets error when success is false with error message', async () => {
     mockGetLatestNews.mockResolvedValueOnce({
       success: false,
       error: { code: 'ERR', message: 'Server error' },
-    })
+    } as ApiResponse<NewsItem[]>)
 
     const { result } = renderHook(() => useTrends())
 
@@ -74,7 +74,7 @@ describe('useTrends', () => {
   it('sets default error message when error has no message', async () => {
     mockGetLatestNews.mockResolvedValueOnce({
       success: false,
-    })
+    } as ApiResponse<NewsItem[]>)
 
     const { result } = renderHook(() => useTrends())
 
@@ -183,7 +183,7 @@ describe('useSearch', () => {
     mockSearchNews.mockResolvedValueOnce({
       success: false,
       error: { code: 'ERR', message: 'Search failed' },
-    })
+    } as ApiResponse<NewsItem[]>)
 
     const { result } = renderHook(() => useSearch())
 
@@ -196,7 +196,7 @@ describe('useSearch', () => {
   })
 
   it('sets default error message when error has no message', async () => {
-    mockSearchNews.mockResolvedValueOnce({ success: false })
+    mockSearchNews.mockResolvedValueOnce({ success: false } as ApiResponse<NewsItem[]>)
 
     const { result } = renderHook(() => useSearch())
 
