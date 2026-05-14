@@ -30,6 +30,41 @@ function formatSnakeCaseLabel(value: string): string {
   return value.replace(/_/g, ' ')
 }
 
+function BreakdownBar({ breakdown }: { breakdown: Record<string, number> }) {
+  const relatedExp = breakdown.related_exp ?? 0
+  const industryDb = breakdown.industry_db ?? 0
+  const total = relatedExp + industryDb
+  if (total <= 0) return null
+  const relatedPct = Math.round((relatedExp / total) * 100)
+  const industryPct = 100 - relatedPct
+  return (
+    <div className="space-y-1.5">
+      <div className="flex h-3 w-full overflow-hidden rounded-full bg-slate-200">
+        <div
+          className="h-full bg-blue-500 transition-all"
+          style={{ width: `${relatedPct}%` }}
+          title={`${formatSnakeCaseLabel('related_exp')}: ${relatedExp}`}
+        />
+        <div
+          className="h-full bg-emerald-500 transition-all"
+          style={{ width: `${industryPct}%` }}
+          title={`${formatSnakeCaseLabel('industry_db')}: ${industryDb}`}
+        />
+      </div>
+      <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+        <span className="flex items-center gap-1">
+          <span className="inline-block h-2 w-2 rounded-full bg-blue-500" />
+          {formatSnakeCaseLabel('related_exp')}
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
+          {formatSnakeCaseLabel('industry_db')}
+        </span>
+      </div>
+    </div>
+  )
+}
+
 function buildWorkHistorySupplement(entry: {
   raw?: string
   companyName?: string
@@ -262,6 +297,7 @@ export function SnippetCardExpanded({
                     <div className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
                       {analysisBreakdownLabel}
                     </div>
+                    <BreakdownBar breakdown={analysis.breakdown} />
                     <div className="grid gap-2 sm:grid-cols-2">
                       {Object.entries(analysis.breakdown).map(([label, value]) => (
                         <div
