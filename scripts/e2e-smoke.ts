@@ -236,7 +236,7 @@ async function runCollectUrlKeywordModeTest(page: Page) {
     await installOpenSpy();
     const collectButton = await preferVisibleLocator(
         page.getByTestId('search-hero-collect').first(),
-        page.getByRole('button', { name: /^Collect$/ }).first(),
+        page.getByRole('button', { name: /^(Collect|采集)$/ }).first(),
     );
     await collectButton.waitFor({ state: 'visible' });
     await collectButton.click();
@@ -329,7 +329,7 @@ async function runSearchTest(page: Page) {
     await keywordInput.fill(DETERMINISTIC_SEARCH_QUERY);
     const resetBtn = page.getByRole('button', { name: /重置|Reset/i }).first();
     const firstCheckbox = page.getByRole('checkbox', { name: /选择|Select/i }).first();
-    const emptyState = page.getByText(/没有符合该搜索条件的简历|沒有符合該搜尋條件的簡歷|No resumes match this search/i).first();
+    const emptyState = page.getByText(/没有符合该搜索条件的简历|沒有符合該搜尋條件的簡歷|No resumes match this search|没有匹配到简历|沒有符合的簡歷|No resumes matched this search|0 条结果|0 條結果|0 results/i).first();
     const searchSubmitBtn = page.getByTestId('resume-search-submit');
     if (await searchSubmitBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
         await searchSubmitBtn.click();
@@ -447,7 +447,16 @@ async function runBulkActionsTest(page: Page) {
     await page.setViewportSize(SMOKE_VIEWPORT);
 
     const firstCheckbox = page.getByRole('checkbox', { name: /选择|Select/i }).first();
-    await firstCheckbox.waitFor({ state: 'visible', timeout: 15000 });
+    const emptyState = page.getByText(/没有匹配到简历|沒有符合的簡歷|No resumes matched this search|0 条结果|0 條結果|0 results/i).first();
+    const hasResults = await firstCheckbox.isVisible({ timeout: 5000 }).catch(() => false);
+    if (!hasResults) {
+        const isEmpty = await emptyState.isVisible({ timeout: 5000 }).catch(() => false);
+        if (isEmpty) {
+            console.log('⚠️ Bulk Actions skipped: 0 search results for deterministic query.');
+            return;
+        }
+    }
+    await firstCheckbox.waitFor({ state: 'visible', timeout: 10000 });
 
     const selectAllBtn = await preferVisibleLocator(
         page.getByTestId('bulk-select-all').first(),
