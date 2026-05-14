@@ -62,6 +62,9 @@ declare -A DRIFT_MAP=(
   ["packages/convex/convex/migrations.ts"]="concepts/convex-operations.md"
   ["packages/convex/convex/schema.ts"]="concepts/convex-operations.md"
 
+  # -- scoring-metrics --
+  ["scripts/compute-scoring-metrics.ts"]="concepts/resume-scoring-pipeline.md concepts/self-tuning-scoring.md"
+
   # -- e2e-testing-strategy --
   ["scripts/e2e-smoke.ts"]="concepts/e2e-testing-strategy.md"
   ["scripts/e2e-utils.ts"]="concepts/e2e-testing-strategy.md"
