@@ -93,6 +93,7 @@
     "reviewPacket": "Review packet",
     "blocked": "Blocked",
     "manageBlocked": "Manage",
+    "exportFormat": "Export format",
     "export": "Export"
   },
   "debugAi": {
@@ -209,6 +210,7 @@
   "search": {
     "placeholder": "Search keywords...",
     "button": "Search",
+    "clear": "Clear search",
     "noResults": "No results found",
     "results": "Search Results",
     "resultsCount": "Found {{count}} results"
