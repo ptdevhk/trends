@@ -31,6 +31,12 @@ interface MetricsResult {
   mae: number;
   meanScore: number;
   meanRating: number;
+  ndcg5: number;
+  ndcg10: number;
+  ndcg20: number;
+  recall5: number;
+  recall10: number;
+  recall20: number;
   confidence: "high" | "medium" | "low" | "insufficient";
 }
 
@@ -101,6 +107,31 @@ function mae(xs: number[], ys: number[]): number {
   return sum / xs.length;
 }
 
+function dcgAtK(relevance: number[], k: number): number {
+  const limit = Math.min(k, relevance.length);
+  let dcg = 0;
+  for (let i = 0; i < limit; i++) {
+    dcg += relevance[i] / Math.log2(i + 2);
+  }
+  return dcg;
+}
+
+function ndcgAtK(relevance: number[], idealSorted: number[], k: number): number {
+  const dcg = dcgAtK(relevance, k);
+  const ideal = dcgAtK(idealSorted, k);
+  return ideal === 0 ? 0 : dcg / ideal;
+}
+
+function recallAtK(relevance: number[], totalRelevant: number, k: number): number {
+  if (totalRelevant === 0) return 0;
+  const limit = Math.min(k, relevance.length);
+  let relevantInTop = 0;
+  for (let i = 0; i < limit; i++) {
+    if (relevance[i] > 0) relevantInTop++;
+  }
+  return relevantInTop / totalRelevant;
+}
+
 function computeMetrics(scores: number[], ratings: number[]): MetricsResult {
   const n = scores.length;
   const rho = n >= 3 ? spearmanRho(scores, ratings) : 0;
@@ -114,7 +145,43 @@ function computeMetrics(scores: number[], ratings: number[]): MetricsResult {
   else if (n >= 30) confidence = "medium";
   else if (n >= 5) confidence = "low";
 
-  return { n, spearmanRho: rho, pearsonR: r, mae: maeVal, meanScore, meanRating, confidence };
+  const K_VALUES = [5, 10, 20] as const;
+
+  const indexed: Array<{ score: number; rating: number }> = [];
+  for (let i = 0; i < n; i++) {
+    indexed.push({ score: scores[i], rating: ratings[i] });
+  }
+  indexed.sort((a, b) => b.score - a.score);
+  const sortedRelevance = indexed.map((x) => x.rating);
+
+  const idealSorted = [...sortedRelevance].sort((a, b) => b - a);
+  let totalRelevant = 0;
+  for (let i = 0; i < sortedRelevance.length; i++) {
+    if (sortedRelevance[i] > 0) totalRelevant++;
+  }
+
+  const ndcg: Record<number, number> = {};
+  const recall: Record<number, number> = {};
+  for (const k of K_VALUES) {
+    ndcg[k] = ndcgAtK(sortedRelevance, idealSorted, k);
+    recall[k] = recallAtK(sortedRelevance, totalRelevant, k);
+  }
+
+  return {
+    n,
+    spearmanRho: rho,
+    pearsonR: r,
+    mae: maeVal,
+    meanScore,
+    meanRating,
+    ndcg5: ndcg[5],
+    ndcg10: ndcg[10],
+    ndcg20: ndcg[20],
+    recall5: recall[5],
+    recall10: recall[10],
+    recall20: recall[20],
+    confidence,
+  };
 }
 
 function main() {
@@ -197,7 +264,6 @@ function main() {
 
   console.log(`Resumes with AI scores in backup: ${scoredResumes.length}`);
 
-  // Join scores with ratings using Map for O(1) lookup
   const scoreMap = new Map(scoredResumes.map((s) => [s.resumeId, s.score]));
   const pairs: Array<{ score: number; rating: number }> = [];
   for (const [resumeId, rating] of ratingsByResume) {
@@ -228,6 +294,16 @@ function main() {
   console.log(`Spearman rank correlation: ${metrics.spearmanRho.toFixed(4)}`);
   console.log(`Pearson r:                 ${metrics.pearsonR.toFixed(4)}`);
   console.log(`MAE (mean absolute error): ${metrics.mae.toFixed(2)}`);
+  console.log(`--- Ranking Quality ---`);
+  const ndcgVals = [metrics.ndcg5, metrics.ndcg10, metrics.ndcg20];
+  const recallVals = [metrics.recall5, metrics.recall10, metrics.recall20];
+  const K_VALS = [5, 10, 20];
+  for (let i = 0; i < K_VALS.length; i++) {
+    console.log(`NDCG@${K_VALS[i]}:  ${ndcgVals[i].toFixed(4)}`);
+  }
+  for (let i = 0; i < K_VALS.length; i++) {
+    console.log(`Recall@${K_VALS[i]}: ${recallVals[i].toFixed(4)}`);
+  }
 
   // Interpretation guide
   console.log("\n--- Interpretation ---");
@@ -237,6 +313,9 @@ function main() {
   console.log("MAE < 10: scores are within 10 points of ratings on average (tight)");
   console.log("MAE 10-20: moderate score-rating gap");
   console.log("MAE > 20: large gap (scoring may need recalibration)");
+  console.log("NDCG@K range 0-1: 1 = perfect ranking by AI score vs HR rating relevance");
+  console.log("NDCG@K > 0.8: top-K ranking is near-optimal (best candidates ranked first)");
+  console.log("Recall@K: fraction of all rated candidates captured in top K by AI score");
 
   if (metrics.confidence === "insufficient" || metrics.confidence === "low") {
     console.log(`\n⚠️  N=${metrics.n} is too small for reliable conclusions.`);
