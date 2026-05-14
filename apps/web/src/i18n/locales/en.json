@@ -417,6 +417,10 @@
           "newest": "Newest",
           "experience": "Experience"
         },
+        "copyFailed": "Copy failed",
+        "copyLink": "Copy link",
+        "linkCopied": "Link copied",
+        "loading": "Loading...",
         "exportFormat": "Export format",
         "exporting": "Exporting...",
         "export": "Export {{count}}",
