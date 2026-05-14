@@ -196,7 +196,7 @@ function dedupeLatestActions(actions: CandidateActionEvent[]): LabeledAction[] {
   return Array.from(byKey.values());
 }
 
-function scoreFromBreakdown(
+export function scoreFromBreakdown(
   breakdown: NonNullable<ReturnType<MatchStorage["getMatchesForJob"]>[number]["breakdown"]>,
   current: RuleCategoryWeights,
   proposed: RuleCategoryWeights
@@ -241,6 +241,10 @@ export class SearchEventAnalyzer {
     this.eventLogger = new SearchEventLogger(this.projectRoot);
     this.skillsService = new SkillsKnowledgeService(this.projectRoot);
     this.matchStorage = new MatchStorage(this.projectRoot);
+  }
+
+  getMatchesForJob(jobDescriptionId: string) {
+    return this.matchStorage.getMatchesForJob(jobDescriptionId);
   }
 
   private enrichWithScores(actions: LabeledAction[]): LabeledAction[] {

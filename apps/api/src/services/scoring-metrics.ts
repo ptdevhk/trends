@@ -178,6 +178,31 @@ export function shortlistAtK(ranked: string[], labels: LabelLookup, k: number): 
   return roundMetric(shortlisted / topK.length);
 }
 
+function rank(values: number[]): number[] {
+  const sorted = values
+    .map((v, i) => ({ v, i }))
+    .sort((a, b) => a.v - b.v);
+  const ranks = new Array<number>(values.length);
+  let j = 0;
+  while (j < sorted.length) {
+    let k = j;
+    while (k + 1 < sorted.length && sorted[k + 1].v === sorted[j].v) k++;
+    const avgRank = (j + k) / 2 + 1;
+    for (let t = j; t <= k; t++) ranks[sorted[t].i] = avgRank;
+    j = k + 1;
+  }
+  return ranks;
+}
+
+export function spearmanRho(xs: number[], ys: number[]): number {
+  if (xs.length < 3) return 0;
+  const xRanks = rank(xs);
+  const yRanks = rank(ys);
+  let sumD2 = 0;
+  for (let i = 0; i < xs.length; i++) sumD2 += (xRanks[i] - yRanks[i]) ** 2;
+  return 1 - (6 * sumD2) / (xs.length * (xs.length ** 2 - 1));
+}
+
 export function scoreDistributionStats(samples: ScoreSample[]): ScoreDistributionStatsResult {
   const shortlistScores = samples
     .filter((sample) => toBinaryRelevance(sample.label) === 1)
