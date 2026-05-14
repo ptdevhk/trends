@@ -1,26 +1,84 @@
 #!/usr/bin/env bash
 # Check if recent commits touched files with corresponding vault concept pages.
-# Usage: bash scripts/check-concept-drift.sh [--since <ref>]
+# Usage: bash scripts/check-concept-drift.sh [--since <ref>] [--range <ref1..ref2>]
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
-SINCE="${1:-main}"
+RANGE=""
+SINCE="main"
+STRICT=0
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --range) RANGE="$2"; shift 2 ;;
+    --since) SINCE="$2"; shift 2 ;;
+    --strict) STRICT=1; shift ;;
+    *) shift ;;
+  esac
+done
 
 # Map of code paths → vault concept pages to review
 declare -A DRIFT_MAP=(
-  ["packages/convex/convex/resumes.ts"]="concepts/resume-scoring-pipeline.md concepts/resume-search-architecture.md concepts/self-tuning-scoring.md"
+  # -- resume-search-architecture --
   ["apps/web/src/hooks/useResumeSearchState.ts"]="concepts/resume-search-architecture.md"
+  ["apps/web/src/hooks/useResumeListState.ts"]="concepts/resume-search-architecture.md"
+  ["apps/web/src/hooks/useConvexResumes.ts"]="concepts/resume-search-architecture.md"
+  ["apps/web/src/hooks/resume-filter-helpers.ts"]="concepts/resume-search-architecture.md"
   ["apps/web/src/components/SearchBar.tsx"]="concepts/resume-search-architecture.md"
   ["apps/web/src/components/ResumeCard.tsx"]="concepts/resume-search-architecture.md"
+  ["apps/web/src/components/ResumeList.tsx"]="concepts/resume-search-architecture.md"
   ["apps/web/src/components/QuickStartPanel.tsx"]="concepts/resume-search-architecture.md"
-  ["apps/web/src/hooks/useResumeListState.ts"]="concepts/resume-search-architecture.md"
+  ["apps/web/src/components/FilterPanel.tsx"]="concepts/resume-search-architecture.md"
+  ["apps/web/src/components/ActiveTagFilters.tsx"]="concepts/resume-search-architecture.md"
+  ["packages/convex/convex/search_profiles.ts"]="concepts/resume-search-architecture.md"
+  ["packages/convex/convex/search_text.ts"]="concepts/resume-search-architecture.md"
+
+  # -- resume-scoring-pipeline --
+  ["packages/convex/convex/resumes.ts"]="concepts/resume-scoring-pipeline.md concepts/resume-search-architecture.md concepts/self-tuning-scoring.md"
+  ["packages/convex/convex/analyze.ts"]="concepts/resume-scoring-pipeline.md concepts/self-tuning-scoring.md"
+  ["packages/convex/convex/ai_summary_cache.ts"]="concepts/resume-scoring-pipeline.md"
+  ["apps/api/src/services/ai-matching.ts"]="concepts/resume-scoring-pipeline.md"
+
+  # -- self-tuning-scoring --
+  ["packages/convex/convex/analysis_tasks.ts"]="concepts/self-tuning-scoring.md"
+  ["apps/api/src/services/ai-config.ts"]="concepts/self-tuning-scoring.md"
+
+  # -- multi-source-resume-collection --
+  ["packages/convex/convex/ingest_agent.ts"]="concepts/multi-source-resume-collection.md"
+  ["apps/web/src/components/CollectResumesButton.tsx"]="concepts/multi-source-resume-collection.md"
+
+  # -- workspace-isolation --
+  ["packages/shared/src/workspace.ts"]="concepts/workspace-isolation.md"
+  ["apps/api/src/middleware/workspace.ts"]="concepts/workspace-isolation.md"
+  ["apps/web/src/contexts/WorkspaceContext.tsx"]="concepts/workspace-isolation.md"
+
+  # -- star-rating-identity-model --
+  ["apps/web/src/services/action-storage.ts"]="concepts/star-rating-identity-model.md"
+  ["packages/convex/convex/candidate_blocks.ts"]="concepts/star-rating-identity-model.md"
+  ["packages/convex/convex/candidate_status.ts"]="concepts/star-rating-identity-model.md"
+
+  # -- convex-operations --
+  ["packages/convex/convex/migrations.ts"]="concepts/convex-operations.md"
+  ["packages/convex/convex/schema.ts"]="concepts/convex-operations.md"
+
+  # -- e2e-testing-strategy --
+  ["scripts/e2e-smoke.ts"]="concepts/e2e-testing-strategy.md"
+  ["scripts/e2e-utils.ts"]="concepts/e2e-testing-strategy.md"
+
+  # -- vitest-mock-patterns --
+  ["apps/web/src/test/mocks/i18n.ts"]="concepts/vitest-mock-patterns.md"
+  ["apps/web/src/test/setup.ts"]="concepts/vitest-mock-patterns.md"
 )
 
-changed=$(git diff --name-only "$SINCE"..HEAD 2>/dev/null || true)
+if [ -n "$RANGE" ]; then
+  changed=$(git diff --name-only "$RANGE" 2>/dev/null || true)
+else
+  changed=$(git diff --name-only "$SINCE"..HEAD 2>/dev/null || true)
+fi
+
 if [ -z "$changed" ]; then
-  echo "concept-drift: no commits since $SINCE — skipping"
+  echo "concept-drift: no changes to check — skipping"
   exit 0
 fi
 
@@ -34,4 +92,10 @@ done
 
 if [ "$warned" -eq 0 ]; then
   echo "concept-drift: no scoring/search files changed — OK"
+elif [ "$STRICT" -eq 1 ]; then
+  echo ""
+  echo "concept-drift: DRIFT DETECTED — review the vault pages listed above before pushing."
+  echo "If the changes are intentional and the vault pages are already up to date, push with:"
+  echo "  git push --no-verify"
+  exit 1
 fi
