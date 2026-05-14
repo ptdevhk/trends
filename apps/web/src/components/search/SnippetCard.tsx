@@ -25,6 +25,7 @@ import { StarRating } from '@/components/StarRating'
 import { getResumeContentLocale, getResumeSourceLabel, getExperienceBadge, isSafeProfileUrl, summarizeBrandHits } from '@/lib/resume-scoring'
 import { highlightTerms } from '@/lib/highlight'
 import { useBrandDisplayMap } from '@/hooks/useBrandDisplayMap'
+import { getScoreClassName } from '@/lib/score-classes'
 import { cn } from '@/lib/utils'
 import type { CandidateActionType, CandidateStatus, AiFeedbackSentiment, AiFeedbackTarget } from '@/types/resume'
 
@@ -118,16 +119,7 @@ export const SnippetCard = memo(function SnippetCard({
   const hasAiScore = showAiScore && item.scoreSource === 'ai' && typeof score === 'number'
   const hasRuleScore = !showAiScore && typeof score === 'number'
   const pendingAiScore = showAiScore && !hasAiScore
-  const scoreClassName =
-    typeof score === 'number'
-      ? score >= 90
-        ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
-        : score >= 70
-          ? 'bg-sky-100 text-sky-700 border-sky-200'
-          : score >= 50
-            ? 'bg-amber-100 text-amber-700 border-amber-200'
-            : 'bg-zinc-100 text-zinc-600 border-zinc-200'
-      : ''
+  const scoreClassName = typeof score === 'number' ? getScoreClassName(score) : ''
   const scoreSourceLabel = item.scoreSource === 'ai'
     ? t('resumes.searchPage.card.ai', { defaultValue: 'AI' })
     : t('resumes.searchPage.card.rule', { defaultValue: '规则' })

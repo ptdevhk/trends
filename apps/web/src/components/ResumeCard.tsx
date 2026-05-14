@@ -10,6 +10,7 @@ import { StarRating } from '@/components/StarRating'
 import type { ResumeItem } from '@/hooks/useResumes'
 import type { AiFeedbackSentiment, AiFeedbackTarget, CandidateActionType, CandidateStatus, MatchingResult } from '@/types/resume'
 import type { ExperienceLevelFilter } from '@/lib/resume-scoring'
+import { getScoreClassName } from '@/lib/score-classes'
 import { cn } from '@/lib/utils'
 import {
   formatRoleYears,
@@ -229,16 +230,7 @@ export const ResumeCard = memo(function ResumeCard({
       : undefined
   const isRuleScore = !showAiScore && typeof ruleScore === 'number' && ruleScore > 0
 
-  const scoreClassName =
-    typeof effectiveScore === 'number'
-      ? effectiveScore >= 90
-        ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
-        : effectiveScore >= 70
-          ? 'bg-sky-100 text-sky-700 border-sky-200'
-          : effectiveScore >= 50
-            ? 'bg-amber-100 text-amber-700 border-amber-200'
-            : 'bg-zinc-100 text-zinc-600 border-zinc-200'
-      : ''
+  const scoreClassName = typeof effectiveScore === 'number' ? getScoreClassName(effectiveScore) : ''
 
   const scoreSourceClassName =
     scoreSource === 'ai'
