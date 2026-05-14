@@ -21,10 +21,11 @@ export function PlatformFilter({ value, onChange }: PlatformFilterProps) {
 
   return (
     <div className="flex items-center gap-2">
-      <label className="text-sm text-muted-foreground whitespace-nowrap">
+      <label htmlFor="platform-filter" className="text-sm text-muted-foreground whitespace-nowrap">
         {t('trends.platform')}:
       </label>
       <Select
+        id="platform-filter"
         options={options}
         value={value}
         onChange={(e) => onChange(e.target.value)}
