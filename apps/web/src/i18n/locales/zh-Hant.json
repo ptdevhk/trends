@@ -471,6 +471,13 @@
         "aiScoreLabel": "AI 分數",
         "recentWork": "最近工作",
         "snapshot": "簡歷快照"
+      },
+      "error": {
+        "searchBar": "搜尋欄載入失敗。",
+        "filters": "篩選條件載入失敗。",
+        "aiSummary": "AI 摘要載入失敗。",
+        "results": "搜尋結果載入失敗。",
+        "reloadPage": "重新載入頁面"
       }
     },
     "analyzeAll": "AI模式",
