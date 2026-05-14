@@ -64,6 +64,7 @@ declare -A DRIFT_MAP=(
 
   # -- scoring-metrics --
   ["scripts/compute-scoring-metrics.ts"]="concepts/resume-scoring-pipeline.md concepts/self-tuning-scoring.md"
+  ["scripts/monitor-hr-rating-drift.ts"]="concepts/self-tuning-scoring.md"
 
   # -- e2e-testing-strategy --
   ["scripts/e2e-smoke.ts"]="concepts/e2e-testing-strategy.md"
