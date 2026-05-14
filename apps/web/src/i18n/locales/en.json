@@ -472,6 +472,13 @@
         "aiScoreLabel": "AI score",
         "recentWork": "Recent Work",
         "snapshot": "Resume Snapshot"
+      },
+      "error": {
+        "searchBar": "Search bar failed to load.",
+        "filters": "Filters failed to load.",
+        "aiSummary": "AI summary failed to load.",
+        "results": "Search results failed to load.",
+        "reloadPage": "Reload page"
       }
     },
     "loadError": "Failed to load resumes",

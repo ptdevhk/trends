@@ -471,6 +471,13 @@
         "aiScoreLabel": "AI 分数",
         "recentWork": "最近工作",
         "snapshot": "简历快照"
+      },
+      "error": {
+        "searchBar": "搜索栏加载失败。",
+        "filters": "筛选条件加载失败。",
+        "aiSummary": "AI 摘要加载失败。",
+        "results": "搜索结果加载失败。",
+        "reloadPage": "重新加载页面"
       }
     },
     "aiTasks": {
