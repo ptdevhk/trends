@@ -265,10 +265,17 @@ export class ScoringAutoTuner {
     currentCategoryWeights: RuleCategoryWeights;
     proposedCategoryWeights: RuleCategoryWeights;
   }): { currentRho: number; projectedRho: number; sampleSize: number; degraded: boolean } | null {
+    const matches = this.analyzer.getMatchesForJob(params.jobDescriptionId);
+    const matchResumeIds = Array.from(new Set(matches.map((m) => m.resumeId)));
+    if (matchResumeIds.length === 0) return null;
+
     const db = getResumeScreeningDb(this.projectRoot);
+    const placeholders = matchResumeIds.map(() => "?").join(", ");
     const ratingRows = db
-      .prepare("SELECT resume_id, action_data FROM candidate_actions WHERE action_type = ?")
-      .all("rating") as Array<{ resume_id: string; action_data: string }>;
+      .prepare(
+        `SELECT resume_id, action_data FROM candidate_actions WHERE action_type = ? AND resume_id IN (${placeholders})`
+      )
+      .all("rating", ...matchResumeIds) as Array<{ resume_id: string; action_data: string }>;
 
     if (ratingRows.length === 0) return null;
 
@@ -291,7 +298,6 @@ export class ScoringAutoTuner {
       ratingsByResume.set(id, ratings.reduce((a, b) => a + b, 0) / ratings.length);
     }
 
-    const matches = this.analyzer.getMatchesForJob(params.jobDescriptionId);
     const pairs: Array<{ currentScore: number; projectedScore: number; rating: number }> = [];
 
     for (const match of matches) {
