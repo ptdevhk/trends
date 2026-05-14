@@ -1,5 +1,5 @@
 import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
-import { formatKeywordQuery, formatLocationHierarchySearchText, getVerifiedRoleSignalYears, normalizeKeywordPhrases } from '@trends/shared'
+import { formatKeywordQuery, formatLocationHierarchySearchText, getVerifiedRoleSignalYears, normalizeKeywordPhrases, parseSalaryRange } from '@trends/shared'
 import { resolveResumeAnalysisSourceKey } from '@trends/shared'
 import type { ExperienceLevelFilter, UrlSearchState } from '@/hooks/useUrlSearchState'
 
@@ -36,31 +36,6 @@ export function matchesEducationFilter(educationValue: string | undefined, selec
 
     return keywords.some((keyword) => normalizedEducation.includes(normalizeFilterToken(keyword)))
   })
-}
-
-export function parseSalaryRange(value: string | undefined): { min?: number; max?: number } | null {
-  if (!value) {
-    return null
-  }
-
-  const normalized = value.replace(/\s/g, '')
-  if (!normalized || /面议/.test(normalized)) {
-    return null
-  }
-
-  const match = normalized.match(/(\d+(?:\.\d+)?)(?:-(\d+(?:\.\d+)?))?/)
-  if (!match) {
-    return null
-  }
-
-  const multiplier = /万/.test(normalized) ? 10000 : 1
-  const min = Number(match[1]) * multiplier
-  const max = match[2] ? Number(match[2]) * multiplier : undefined
-  if (Number.isNaN(min)) {
-    return null
-  }
-
-  return { min, max }
 }
 
 export function matchesSalaryFilter(

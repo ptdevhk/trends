@@ -19,6 +19,7 @@ import {
     normalizeResumeLocationHierarchy,
     resolveResumeAnalysisSourceKey,
     selectLatestWorkHistory,
+    parseSalaryRange,
 } from "@trends/shared";
 import { parseAgeFromContent } from "./lib/age";
 import { deriveResumeIdentity } from "./lib/resume_identity";
@@ -856,27 +857,6 @@ function normalizeEducationLevel(value: string): string | null {
     if (/大专|专科/.test(normalized)) return "associate";
     if (/中专|高中|中技/.test(normalized)) return "high_school";
     return null;
-}
-
-function parseSalaryRange(value: string): { min?: number; max?: number } | null {
-    if (!value) {
-        return null;
-    }
-    const normalized = value.replace(/\s/g, "");
-    if (!normalized || /面议/.test(normalized)) {
-        return null;
-    }
-    const match = normalized.match(/(\d+(?:\.\d+)?)(?:-(\d+(?:\.\d+)?))?/);
-    if (!match) {
-        return null;
-    }
-    const multiplier = /万/.test(normalized) ? 10000 : 1;
-    const min = Number(match[1]) * multiplier;
-    const max = match[2] ? Number(match[2]) * multiplier : undefined;
-    if (Number.isNaN(min)) {
-        return null;
-    }
-    return { min, max };
 }
 
 function buildResumeFilterSearchText(content: Record<string, unknown>, source?: string): string {

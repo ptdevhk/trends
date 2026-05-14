@@ -8,6 +8,7 @@ import {
   findLocation,
   normalizeIndustryTags,
   normalizeLocationName,
+  parseSalaryRange,
   selectLatestWorkHistory,
   type CanonicalIndustryTag,
 } from "@trends/shared";
@@ -49,30 +50,6 @@ function normalizeEducationLevel(value: string): string | null {
   if (/大专|专科|associate/i.test(normalized)) return "associate";
   if (/高中|中专|中技|high school/i.test(normalized)) return "high_school";
   return null;
-}
-
-function parseSalaryRange(value: string): { min?: number; max?: number } | null {
-  if (!value) return null;
-  const normalized = value.replace(/\s+/g, "").toLowerCase();
-  if (!normalized || /面议/.test(normalized)) return null;
-
-  const match = normalized.match(/(\d+(?:\.\d+)?)(?:[-~到至](\d+(?:\.\d+)?))?/);
-  if (!match) return null;
-
-  let min = Number(match[1]);
-  let max = match[2] ? Number(match[2]) : undefined;
-  if (Number.isNaN(min)) return null;
-
-  if (/[k千]/.test(normalized)) {
-    min *= 1000;
-    if (max !== undefined) max *= 1000;
-  }
-  if (/万/.test(normalized)) {
-    min *= 10000;
-    if (max !== undefined) max *= 10000;
-  }
-
-  return { min, max };
 }
 
 function getLatestWorkHistory(workHistory: ResumeWorkHistoryItem[] | undefined): ResumeWorkHistoryItem[] {
@@ -277,7 +254,7 @@ export class ResumeIndexService {
         skills,
         companies,
         industryTags: this.scoreIndustryTags(tagHaystack),
-        salaryRange: parseSalaryRange(item.expectedSalary),
+        salaryRange: parseSalaryRange(item.expectedSalary, { unit: "raw" }),
         searchText,
       });
     }
