@@ -176,6 +176,7 @@ export function BulkActionBar({
                 <div className="flex items-center gap-1">
                     <Select
                         value={exportFormat}
+                        aria-label={t('bulkActions.exportFormat')}
                         onChange={(e) => {
                             const val = e.target.value
                             const format = val === 'xlsx' ? 'xlsx' : 'csv'
@@ -191,6 +192,7 @@ export function BulkActionBar({
                         variant="outline"
                         size="sm"
                         data-testid="bulk-export"
+                        aria-label={t('bulkActions.export')}
                         onClick={() => handleAction('export')}
                         disabled={disabled || selectedCount === 0 || loading !== null}
                         className="rounded-l-none border-l-0 px-2.5"
