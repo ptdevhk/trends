@@ -4,8 +4,8 @@ import { useResumes } from './useResumes'
 
 const mockApiClient = vi.hoisted(() => ({
   GET: vi.fn(async () => ({
-    data: { success: true },
-    error: undefined,
+    data: { success: true } as unknown,
+    error: undefined as undefined | { message: string },
   })),
 }))
 
@@ -149,7 +149,7 @@ describe('useResumes', () => {
         education: ['bachelor', 'master'],
         skills: ['react', 'ts'],
         locations: ['shanghai'],
-        recommendation: ['strong_yes'],
+        recommendation: ['strong_match'],
       })
     })
 
@@ -157,13 +157,13 @@ describe('useResumes', () => {
       expect(mockApiClient.GET).toHaveBeenCalled()
     })
 
-    const lastCall = mockApiClient.GET.mock.calls.at(-1)!
+    const calls = mockApiClient.GET.mock.calls as unknown as Array<[string, { params: { query: Record<string, string> } }]>
+    const lastCall = calls[calls.length - 1]!
     expect(lastCall[0]).toBe('/api/resumes')
-    const query = (lastCall[1] as { params: { query: Record<string, string> } }).params.query
-    expect(query.education).toBe('bachelor,master')
-    expect(query.skills).toBe('react,ts')
-    expect(query.locations).toBe('shanghai')
-    expect(query.recommendation).toBe('strong_yes')
+    expect(lastCall[1].params.query.education).toBe('bachelor,master')
+    expect(lastCall[1].params.query.skills).toBe('react,ts')
+    expect(lastCall[1].params.query.locations).toBe('shanghai')
+    expect(lastCall[1].params.query.recommendation).toBe('strong_match')
   })
 
   it('refresh sets error on API failure', async () => {

@@ -93,7 +93,6 @@
     "reviewPacket": "評審包",
     "blocked": "封鎖",
     "manageBlocked": "管理",
-    "exportFormat": "匯出格式",
     "export": "匯出"
   },
   "debugAi": {
@@ -210,7 +209,6 @@
   "search": {
     "placeholder": "搜尋關鍵字...",
     "button": "搜尋",
-    "clear": "清除搜尋",
     "noResults": "未找到相關結果",
     "results": "搜尋結果",
     "resultsCount": "找到 {{count}} 條結果"
@@ -403,7 +401,8 @@
         "searching": "搜尋中...",
         "recentSearches": "最近搜尋",
         "pasteJobDescription": "貼上職位描述",
-        "clearSearch": "清除搜尋"
+        "clearSearch": "清除搜尋",
+        "recentSearchCount": "{{count}} 個最近搜尋可用"
       },
       "header": {
         "results": "{{count}} 條結果",
@@ -417,7 +416,11 @@
         },
         "exportFormat": "匯出格式",
         "exporting": "匯出中...",
-        "export": "匯出 {{count}} 條"
+        "export": "匯出 {{count}} 條",
+        "loading": "載入中...",
+        "linkCopied": "鏈接已複製",
+        "copyFailed": "複製失敗",
+        "copyLink": "複製鏈接"
       },
       "results": {
         "emptyTitle": "沒有符合的簡歷",
@@ -473,11 +476,11 @@
         "snapshot": "簡歷快照"
       },
       "error": {
-        "searchBar": "搜尋欄載入失敗。",
-        "filters": "篩選條件載入失敗。",
-        "aiSummary": "AI 摘要載入失敗。",
-        "results": "搜尋結果載入失敗。",
-        "reloadPage": "重新載入頁面"
+        "searchBar": "搜尋列加載失敗",
+        "filters": "篩選器加載失敗",
+        "aiSummary": "AI 摘要加載失敗",
+        "results": "搜尋結果加載失敗",
+        "reloadPage": "重新加載頁面"
       }
     },
     "analyzeAll": "AI模式",

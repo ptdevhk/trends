@@ -2,7 +2,12 @@ import { renderHook, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { useIndustryKeywords, CATEGORY_ORDER, CATEGORY_LABELS } from './useIndustryKeywords'
 
-const mockGet = vi.hoisted(() => vi.fn(async () => ({
+type ApiResult<T> = {
+  data?: T
+  error?: { message: string } | undefined
+}
+
+const mockGet = vi.hoisted(() => vi.fn(async (): Promise<ApiResult<unknown>> => ({
   data: { success: true },
   error: undefined,
 })))
@@ -15,27 +20,27 @@ vi.mock('@/lib/search-profile-sources', () => ({
   getSearchProfileCollectionSource: () => undefined,
 }))
 
-function mockIndustry(data: unknown[] = []) {
+function mockIndustry(data: unknown[] = []): ApiResult<{ success: boolean; data: unknown[] }> {
   return { data: { success: true, data }, error: undefined }
 }
 
-function mockCustom(tags: unknown[] = [], systemLocations: unknown[] = []) {
+function mockCustom(tags: unknown[] = [], systemLocations: unknown[] = []): ApiResult<{ success: boolean; tags: unknown[]; systemLocations: unknown[] }> {
   return { data: { success: true, tags, systemLocations }, error: undefined }
 }
 
-function mockBrands(data: unknown[] = []) {
+function mockBrands(data: unknown[] = []): ApiResult<{ success: boolean; data: unknown[] }> {
   return { data: { success: true, data }, error: undefined }
 }
 
-function mockProfiles(profiles: unknown[] = []) {
+function mockProfiles(profiles: unknown[] = []): ApiResult<{ success: boolean; profiles: unknown[] }> {
   return { data: { success: true, profiles }, error: undefined }
 }
 
 function setupMocks(overrides: {
-  industry?: unknown
-  custom?: unknown
-  brands?: unknown
-  profiles?: unknown
+  industry?: ApiResult<{ success: boolean; data: unknown[] }>
+  custom?: ApiResult<{ success: boolean; tags: unknown[]; systemLocations: unknown[] }>
+  brands?: ApiResult<{ success: boolean; data: unknown[] }>
+  profiles?: ApiResult<{ success: boolean; profiles: unknown[] }>
 } = {}) {
   mockGet
     .mockResolvedValueOnce(overrides.industry ?? mockIndustry())
@@ -65,7 +70,7 @@ describe('useIndustryKeywords', () => {
 
   it('sets error when industry endpoint fails', async () => {
     mockGet
-      .mockResolvedValueOnce({ data: undefined, error: { message: 'fail' } })
+      .mockResolvedValueOnce({ data: undefined, error: { message: 'fail' } } as ApiResult<unknown>)
       .mockResolvedValueOnce(mockCustom())
       .mockResolvedValueOnce(mockBrands())
       .mockResolvedValueOnce(mockProfiles())
