@@ -93,7 +93,6 @@
     "reviewPacket": "評審包",
     "blocked": "封鎖",
     "manageBlocked": "管理",
-    "exportFormat": "匯出格式",
     "export": "匯出"
   },
   "debugAi": {
@@ -210,7 +209,6 @@
   "search": {
     "placeholder": "搜尋關鍵字...",
     "button": "搜尋",
-    "clear": "清除搜尋",
     "noResults": "未找到相關結果",
     "results": "搜尋結果",
     "resultsCount": "找到 {{count}} 條結果"
