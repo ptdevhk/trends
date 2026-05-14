@@ -1097,8 +1097,12 @@ fresh-env: clean clean-db
 	@echo "Fresh environment ready."
 
 # Run all validation checks (Python + Node.js + project skill sync + governance skill validation; honors TARGET=all)
-check: check-python check-node check-project-skills check-agent-policy check-agent-skill
+check: check-python check-node check-project-skills check-agent-policy check-agent-skill check-concept-drift
 	@echo "All checks passed"
+
+# Concept drift check — flags vault concept pages that may need review after code changes
+check-concept-drift:
+	@bash scripts/check-concept-drift.sh
 
 # Python checks
 check-python:
