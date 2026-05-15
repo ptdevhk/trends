@@ -1384,3 +1384,4 @@ export function useConvexResumeDetail(resumeId: Doc<'resumes'>['_id'] | null | u
     loading: resumeId !== null && resumeId !== undefined && detailDoc === undefined,
   }), [detailDoc, resumeId])
 }
+

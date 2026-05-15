@@ -5,6 +5,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { GoogleSearchBar } from '@/components/search/GoogleSearchBar'
 import type { ResumeSearchRecentItem } from '@/components/search/search-types'
 
+vi.mock('convex/react', () => ({
+  useQuery: () => undefined,
+}))
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, options?: string | Record<string, unknown>) => {

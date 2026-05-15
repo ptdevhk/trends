@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { JdPastePopover } from '@/components/search/JdPastePopover'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
+import { useSearchPrefetch } from '@/hooks/useSearchPrefetch'
 import type { ResumeSearchRecentItem } from '@/components/search/search-types'
 
 type GoogleSearchBarProps = {
@@ -43,6 +44,7 @@ export function GoogleSearchBar({
   const containerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const trimmedValue = value.trim()
+  useSearchPrefetch(trimmedValue)
   const placeholderLabel = placeholder ?? t('resumes.searchPage.searchBar.placeholder', {
     defaultValue: 'Search resumes by keywords, brands, roles, or locations',
   })
