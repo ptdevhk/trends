@@ -87,6 +87,9 @@ jobs:
 
       - name: Check Convex schema drift
         run: |
+          # Ensure tsx is accessible where convex expects it (npm hoisting workaround)
+          mkdir -p packages/convex/node_modules/.bin
+          ln -sf ../../../node_modules/.bin/tsx packages/convex/node_modules/.bin/tsx
           cd packages/convex
           npx convex codegen --typecheck disable
           cd ../..
