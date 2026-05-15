@@ -69,7 +69,7 @@ vi.mock('@/lib/resume-scoring', () => ({
 describe('useSession', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    localStorage.clearItem('convex_session_id')
+    localStorage.removeItem('convex_session_id')
   })
 
   it('applyExternalState sets location and keywords', () => {
