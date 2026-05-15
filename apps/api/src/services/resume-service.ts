@@ -658,7 +658,7 @@ export function parseSalaryRange(value: string): { min?: number; max?: number; c
   if (!normalized || /面议/.test(normalized)) return null;
   const match = normalized.match(/(\d+(?:\.\d+)?)(?:-(\d+(?:\.\d+)?))?/);
   if (!match) return null;
-  const multiplier = /万/.test(normalized) ? 10 : 1;
+  const multiplier = /万/.test(normalized) ? 10000 : 1;
   const min = Number(match[1]) * multiplier;
   const max = match[2] ? Number(match[2]) * multiplier : undefined;
   if (Number.isNaN(min)) return null;
