@@ -86,6 +86,7 @@ jobs:
         run: make check-build
 
       - name: Check Convex schema drift
+        if: env.CONVEX_DEPLOYMENT
         run: |
           # Ensure tsx is accessible where convex expects it (npm hoisting workaround)
           mkdir -p packages/convex/node_modules/.bin
