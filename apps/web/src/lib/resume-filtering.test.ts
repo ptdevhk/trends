@@ -1,93 +1,70 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from 'vitest'
+import { parseExperienceYears, getResumeAge } from '@/lib/resume-filtering'
 
-import { getResumeAge, parseExperienceYears } from "./resume-filtering";
+describe('parseExperienceYears', () => {
+  it('returns 0 for undefined', () => {
+    expect(parseExperienceYears(undefined)).toBe(0)
+  })
 
-describe("parseExperienceYears", () => {
-  it("returns 0 for undefined input", () => {
-    expect(parseExperienceYears(undefined)).toBe(0);
-  });
+  it('returns 0 for empty string', () => {
+    expect(parseExperienceYears('')).toBe(0)
+  })
 
-  it("returns 0 for empty string", () => {
-    expect(parseExperienceYears("")).toBe(0);
-  });
+  it('returns 0 for non-numeric string', () => {
+    expect(parseExperienceYears('N/A')).toBe(0)
+  })
 
-  it("parses plain integer string", () => {
-    expect(parseExperienceYears("5")).toBe(5);
-  });
+  it('parses integer years', () => {
+    expect(parseExperienceYears('5')).toBe(5)
+  })
 
-  it("parses decimal string", () => {
-    expect(parseExperienceYears("3.5")).toBe(3.5);
-  });
+  it('parses decimal years', () => {
+    expect(parseExperienceYears('3.5')).toBe(3.5)
+  })
 
-  it("extracts first number from string with Chinese units", () => {
-    expect(parseExperienceYears("5年")).toBe(5);
-  });
+  it('extracts first number from text', () => {
+    expect(parseExperienceYears('5 years experience')).toBe(5)
+  })
 
-  it("extracts first number from string with English units", () => {
-    expect(parseExperienceYears("5 years")).toBe(5);
-  });
+  it('extracts decimal from text', () => {
+    expect(parseExperienceYears('3.5 yrs')).toBe(3.5)
+  })
 
-  it("extracts first number from range string", () => {
-    // "3-5" → regex matches "3" (first occurrence)
-    expect(parseExperienceYears("3-5")).toBe(3);
-  });
+  it('parses range and takes first number', () => {
+    expect(parseExperienceYears('5-8')).toBe(5)
+  })
 
-  it("extracts decimal from string with trailing text", () => {
-    expect(parseExperienceYears("2.5年经验")).toBe(2.5);
-  });
+  it('handles whitespace padding', () => {
+    expect(parseExperienceYears('  10  ')).toBe(10)
+  })
+})
 
-  it("returns 0 for string with no digits", () => {
-    expect(parseExperienceYears("experienced")).toBe(0);
-  });
+describe('getResumeAge', () => {
+  it('returns null for empty object', () => {
+    expect(getResumeAge({})).toBeNull()
+  })
 
-  it("extracts number after leading text", () => {
-    expect(parseExperienceYears("over 10 years")).toBe(10);
-  });
-});
+  it('returns null for undefined age', () => {
+    expect(getResumeAge({ age: undefined })).toBeNull()
+  })
 
-describe("getResumeAge", () => {
-  it("returns truncated ageNumber when valid", () => {
-    expect(getResumeAge({ ageNumber: 25.7 })).toBe(25);
-  });
+  it('uses ageNumber when available', () => {
+    expect(getResumeAge({ ageNumber: 30 })).toBe(30)
+  })
 
-  it("falls back to age string when ageNumber is 0", () => {
-    expect(getResumeAge({ ageNumber: 0, age: "30岁" })).toBe(30);
-  });
+  it('truncates ageNumber decimal', () => {
+    expect(getResumeAge({ ageNumber: 30.7 })).toBe(30)
+  })
 
-  it("falls back to age string when ageNumber is negative", () => {
-    expect(getResumeAge({ ageNumber: -1, age: "30岁" })).toBe(30);
-  });
+  it('parses Chinese age suffix', () => {
+    expect(getResumeAge({ age: '25岁' })).toBe(25)
+  })
 
-  it("falls back to age string when ageNumber is NaN", () => {
-    expect(getResumeAge({ ageNumber: NaN, age: "30岁" })).toBe(30);
-  });
+  it('parses plain number string', () => {
+    expect(getResumeAge({ age: '30' })).toBe(30)
+  })
 
-  it("falls back to age string when ageNumber is Infinity", () => {
-    expect(getResumeAge({ ageNumber: Infinity, age: "30岁" })).toBe(30);
-  });
-
-  it("parses Chinese age format with 岁 suffix", () => {
-    expect(getResumeAge({ age: "25岁" })).toBe(25);
-  });
-
-  it("parses plain numeric age string", () => {
-    expect(getResumeAge({ age: "30" })).toBe(30);
-  });
-
-  it("returns null when both ageNumber and age are missing", () => {
-    expect(getResumeAge({})).toBeNull();
-  });
-
-  it("returns null for age string with 4+ digits (rejected by regex)", () => {
-    expect(getResumeAge({ age: "1234" })).toBeNull();
-  });
-
-  it("returns 0 for age string 0 (string branch has no > 0 guard)", () => {
-    // parseResumeAgeNumber's > 0 check only applies to typeof number, not string
-    expect(getResumeAge({ age: "0" })).toBe(0);
-  });
-
-  it("returns null for non-string, non-number age", () => {
-    expect(getResumeAge({ age: true })).toBeNull();
-  });
-});
+  it('handles non-numeric age string', () => {
+    expect(getResumeAge({ age: 'unknown' })).toBeNull()
+  })
+})

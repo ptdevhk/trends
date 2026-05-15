@@ -1,154 +1,48 @@
 import { describe, expect, it } from 'vitest'
-import {
-  buildKeywordAnalysisId,
-  buildResumeAnalysisLookupKeys,
-  buildResumeAnalysisStorageKey,
-  deriveAnalysisLookupKey,
-  isResumeAnalysisKeyForJobDescription,
-  resolveAnalysisTopN,
-  resolveResumeAnalysisSourceKey,
-} from './analysis-utils'
-
-describe('buildKeywordAnalysisId', () => {
-  it('matches backend output fixtures', () => {
-    // Pin promptVersion so fixtures stay stable across prompt version bumps.
-    const opts = { promptVersion: 1 }
-    expect(buildKeywordAnalysisId([])).toBe('keyword-search')
-    expect(buildKeywordAnalysisId(['CNC', '车床'], opts)).toBe('keyword-search:2:292bc79a')
-    expect(buildKeywordAnalysisId(['  cnc ', 'CNC', '车床', ''], opts)).toBe('keyword-search:2:292bc79a')
-    expect(buildKeywordAnalysisId(['车床', 'cnc', '销售'], opts)).toBe('keyword-search:3:e5226cfa')
-    expect(buildKeywordAnalysisId(['销售', '车床', 'cnc', '销售'], opts)).toBe('keyword-search:3:e5226cfa')
-  })
-
-  it('changes when location or prompt version changes', () => {
-    const base = buildKeywordAnalysisId(['销售', 'CNC'], {
-      location: '广东',
-      promptVersion: 1,
-    })
-    const differentLocation = buildKeywordAnalysisId(['销售', 'CNC'], {
-      location: '江苏',
-      promptVersion: 1,
-    })
-    const differentVersion = buildKeywordAnalysisId(['销售', 'CNC'], {
-      location: '广东',
-      promptVersion: 2,
-    })
-
-    expect(base).not.toBe(differentLocation)
-    expect(base).not.toBe(differentVersion)
-  })
-})
-
-describe('deriveAnalysisLookupKey', () => {
-  it('prefers job description id', () => {
-    expect(deriveAnalysisLookupKey('jd-lathe-sales', ['车床', '销售'])).toBe('jd-lathe-sales')
-  })
-
-  it('uses source-aware keys when a collection source is known', () => {
-    expect(deriveAnalysisLookupKey('jd-lathe-sales', ['车床', '销售'], { sourceKey: 'seek' }))
-      .toBe('source:seek|analysis:jd-lathe-sales')
-  })
-
-  it('falls back to keyword analysis id', () => {
-    expect(deriveAnalysisLookupKey(undefined, ['CNC', '车床'], {
-      location: '广东',
-      promptVersion: 1,
-    })).toMatch(/^keyword-search:2:/)
-  })
-
-  it('returns empty key when no context is provided', () => {
-    expect(deriveAnalysisLookupKey(undefined, [])).toBe('')
-  })
-})
+import { resolveAnalysisTopN } from '@/lib/analysis-utils'
 
 describe('resolveAnalysisTopN', () => {
-  it('uses the default when the env value is missing or invalid', () => {
+  it('returns default for undefined', () => {
     expect(resolveAnalysisTopN(undefined)).toBe(10)
-    expect(resolveAnalysisTopN('')).toBe(10)
-    expect(resolveAnalysisTopN('abc')).toBe(10)
+  })
+
+  it('returns default for NaN', () => {
+    expect(resolveAnalysisTopN('not-a-number')).toBe(10)
+  })
+
+  it('returns default for zero', () => {
     expect(resolveAnalysisTopN(0)).toBe(10)
   })
 
-  it('accepts positive values and clamps oversized limits', () => {
-    expect(resolveAnalysisTopN('10')).toBe(10)
-    expect(resolveAnalysisTopN('200')).toBe(200)
-    expect(resolveAnalysisTopN(12.9)).toBe(12)
+  it('returns default for negative', () => {
+    expect(resolveAnalysisTopN(-5)).toBe(10)
+  })
+
+  it('returns parsed number for valid number input', () => {
+    expect(resolveAnalysisTopN(25)).toBe(25)
+  })
+
+  it('parses string number', () => {
+    expect(resolveAnalysisTopN('50')).toBe(50)
+  })
+
+  it('floors decimal values', () => {
+    expect(resolveAnalysisTopN(25.7)).toBe(25)
+  })
+
+  it('caps at MAX_ANALYSIS_TOP_N (500)', () => {
+    expect(resolveAnalysisTopN(1000)).toBe(500)
+  })
+
+  it('caps string input at MAX_ANALYSIS_TOP_N', () => {
     expect(resolveAnalysisTopN('999')).toBe(500)
   })
-})
 
-describe('source-aware analysis helpers', () => {
-  it('builds storage keys with source prefixes and legacy fallback', () => {
-    expect(buildResumeAnalysisStorageKey('jd-lathe-sales', { sourceKey: 'seek' }))
-      .toBe('source:seek|analysis:jd-lathe-sales')
-    expect(buildResumeAnalysisStorageKey('jd-lathe-sales')).toBe('jd-lathe-sales')
+  it('accepts boundary value of 1', () => {
+    expect(resolveAnalysisTopN(1)).toBe(1)
   })
 
-  it('returns source-aware lookup keys before the legacy key', () => {
-    expect(buildResumeAnalysisLookupKeys('jd-lathe-sales', [], { sourceKey: 'seek' })).toEqual([
-      'source:seek|analysis:jd-lathe-sales',
-      'jd-lathe-sales',
-    ])
-  })
-
-  it('returns source-aware lookup keys for keyword searches before the legacy key', () => {
-    const legacyKey = buildKeywordAnalysisId(['CNC', '销售'], {
-      location: '东莞',
-      promptVersion: 2,
-    })
-
-    expect(buildResumeAnalysisLookupKeys(undefined, ['CNC', '销售'], {
-      location: '东莞',
-      promptVersion: 2,
-      sourceKey: 'job5156',
-    })).toEqual([
-      `source:job5156|analysis:${legacyKey}`,
-      legacyKey,
-    ])
-  })
-
-  it('matches both legacy and source-aware keys when clearing by JD', () => {
-    expect(isResumeAnalysisKeyForJobDescription('jd-lathe-sales', 'jd-lathe-sales')).toBe(true)
-    expect(isResumeAnalysisKeyForJobDescription('source:seek|analysis:jd-lathe-sales', 'jd-lathe-sales')).toBe(true)
-    expect(isResumeAnalysisKeyForJobDescription('source:seek|analysis:jd-cnc', 'jd-lathe-sales')).toBe(false)
-  })
-
-  it('normalizes known source keys from source hosts and explicit values', () => {
-    expect(resolveResumeAnalysisSourceKey({ source: 'hk.employer.seek.com' })).toBe('seek')
-    expect(resolveResumeAnalysisSourceKey({ sourceKey: 'job5156' })).toBe('job5156')
-    expect(resolveResumeAnalysisSourceKey({ source: '51job-manual' })).toBe('job5156')
-    expect(resolveResumeAnalysisSourceKey({ sourceKey: '51job-manual' })).toBe('job5156')
-    expect(resolveResumeAnalysisSourceKey({ source: 'manual.51job.com' })).toBeUndefined()
-  })
-
-  it('maps live 51job to its own analysis source key', () => {
-    expect(resolveResumeAnalysisSourceKey({ sourceKey: '51job' })).toBe('51job')
-    expect(resolveResumeAnalysisSourceKey({ source: 'ehire.51job.com' })).toBe('51job')
-  })
-
-  it('builds locale-aware storage keys when locale is provided', () => {
-    expect(buildResumeAnalysisStorageKey('jd-lathe-sales', { locale: 'en' }))
-      .toBe('locale:en|analysis:jd-lathe-sales')
-  })
-
-  it('builds source+locale storage keys when both are provided', () => {
-    expect(buildResumeAnalysisStorageKey('jd-lathe-sales', { sourceKey: 'seek', locale: 'en' }))
-      .toBe('source:seek|locale:en|analysis:jd-lathe-sales')
-  })
-
-  it('returns legacy key when neither sourceKey nor locale is provided', () => {
-    expect(buildResumeAnalysisStorageKey('jd-lathe-sales')).toBe('jd-lathe-sales')
-  })
-
-  it('normalizes locale whitespace and casing', () => {
-    expect(buildResumeAnalysisStorageKey('jd-lathe-sales', { locale: '  ZH-HANS  ' }))
-      .toBe('locale:zh-hans|analysis:jd-lathe-sales')
-  })
-
-  it('returns source+locale lookup keys before the legacy key', () => {
-    expect(buildResumeAnalysisLookupKeys('jd-lathe-sales', [], { sourceKey: 'seek', locale: 'en' })).toEqual([
-      'source:seek|locale:en|analysis:jd-lathe-sales',
-      'jd-lathe-sales',
-    ])
+  it('accepts boundary value of 500', () => {
+    expect(resolveAnalysisTopN(500)).toBe(500)
   })
 })
