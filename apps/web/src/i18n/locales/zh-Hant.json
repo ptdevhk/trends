@@ -541,6 +541,9 @@
     "years": "年",
     "minAge": "最低年齡",
     "maxAge": "最高年齡",
+    "minSalary": "最低期望薪資",
+    "maxSalary": "最高期望薪資",
+    "defaultSalary": "單位: k (千)",
     "defaultExp": "預設最少 1 年",
     "contentPlaceholder": "可貼上或編輯職位 Markdown 內容"
   },

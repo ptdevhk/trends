@@ -2,9 +2,12 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { findProjectRoot } from "./db.js";
+import { getResumeScreeningDb } from "./database.js";
 import { type RuleWeightsConfig } from "./rule-scoring.js";
+import { spearmanRho } from "./scoring-metrics.js";
 import {
   SearchEventAnalyzer,
+  scoreFromBreakdown,
   type AnalysisReport,
   type WeightValidationReport,
   type WeightAdjustmentSuggestion,
@@ -41,7 +44,8 @@ export interface ScoringAutoTuneRunResult {
     | "insufficient_data"
     | "no_job_description"
     | "no_suggestions"
-    | "no_improvement";
+    | "no_improvement"
+    | "hr_rating_divergence";
   executedAt: string;
   reason?: string;
   report: AnalysisReport;
@@ -256,6 +260,75 @@ export class ScoringAutoTuner {
     return normalizeWeightBudget(candidate, current);
   }
 
+  private checkHrRatingAlignment(params: {
+    jobDescriptionId: string;
+    currentCategoryWeights: RuleCategoryWeights;
+    proposedCategoryWeights: RuleCategoryWeights;
+  }): { currentRho: number; projectedRho: number; sampleSize: number; degraded: boolean } | null {
+    const matches = this.analyzer.getMatchesForJob(params.jobDescriptionId);
+    const matchResumeIds = Array.from(new Set(matches.map((m) => m.resumeId)));
+    if (matchResumeIds.length === 0) return null;
+
+    const db = getResumeScreeningDb(this.projectRoot);
+    const placeholders = matchResumeIds.map(() => "?").join(", ");
+    const ratingRows = db
+      .prepare(
+        `SELECT resume_id, action_data FROM candidate_actions WHERE action_type = ? AND resume_id IN (${placeholders})`
+      )
+      .all("rating", ...matchResumeIds) as Array<{ resume_id: string; action_data: string }>;
+
+    if (ratingRows.length === 0) return null;
+
+    const ratingMap = new Map<string, number[]>();
+    for (const row of ratingRows) {
+      try {
+        const data = JSON.parse(row.action_data);
+        const rating = Number(data.rating);
+        if (Number.isFinite(rating) && rating >= 1 && rating <= 5) {
+          const existing = ratingMap.get(row.resume_id) ?? [];
+          existing.push(rating);
+          ratingMap.set(row.resume_id, existing);
+        }
+      } catch { /* skip malformed */ }
+    }
+    if (ratingMap.size === 0) return null;
+
+    const ratingsByResume = new Map<string, number>();
+    for (const [id, ratings] of ratingMap) {
+      ratingsByResume.set(id, ratings.reduce((a, b) => a + b, 0) / ratings.length);
+    }
+
+    const pairs: Array<{ currentScore: number; projectedScore: number; rating: number }> = [];
+
+    for (const match of matches) {
+      const rating = ratingsByResume.get(match.resumeId);
+      if (rating === undefined || !match.breakdown) continue;
+      const projectedScore = scoreFromBreakdown(
+        match.breakdown,
+        params.currentCategoryWeights,
+        params.proposedCategoryWeights,
+      );
+      pairs.push({ currentScore: match.score, projectedScore, rating });
+    }
+
+    if (pairs.length < 5) return null;
+
+    const currentScores = pairs.map((p) => p.currentScore);
+    const projectedScores = pairs.map((p) => p.projectedScore);
+    const hrRatings = pairs.map((p) => p.rating);
+
+    const currentRho = spearmanRho(currentScores, hrRatings);
+    const projectedRho = spearmanRho(projectedScores, hrRatings);
+
+    const minDegradation = 0.05;
+    return {
+      currentRho,
+      projectedRho,
+      sampleSize: pairs.length,
+      degraded: projectedRho < currentRho - minDegradation,
+    };
+  }
+
   private async triggerReingest(limit: number): Promise<boolean> {
     const rawBase = process.env.TRENDS_API_URL?.trim() || "http://localhost:3000";
     const base = rawBase.replace(/\/+$/u, "");
@@ -356,6 +429,24 @@ export class ScoringAutoTuner {
         status: "no_improvement",
         executedAt,
         reason: `Projected NDCG improvement (${validation.delta.ndcgAtK}) is below threshold (${ndcgImprovementThreshold}).`,
+        report,
+        jobDescriptionId,
+        proposedCategoryWeights,
+        validation,
+      };
+    }
+
+    const hrCheck = this.checkHrRatingAlignment({
+      jobDescriptionId,
+      currentCategoryWeights: currentConfig.categoryWeights,
+      proposedCategoryWeights,
+    });
+    if (hrCheck?.degraded && !dryRun) {
+      this.writeState({ ...state, lastRunAt: executedAt });
+      return {
+        status: "hr_rating_divergence",
+        executedAt,
+        reason: `Proposed weights degrade HR rating Spearman ρ (${hrCheck.currentRho.toFixed(3)} → ${hrCheck.projectedRho.toFixed(3)}, N=${hrCheck.sampleSize}).`,
         report,
         jobDescriptionId,
         proposedCategoryWeights,

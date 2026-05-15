@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# Install: make install-hooks  (sets core.hooksPath = .githooks)
+
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
+
+merge_base="$(git merge-base main HEAD 2>/dev/null || true)"
+
+locale_pattern='apps/web/src/i18n/locales/'
+already_checked=0
+already_drift=0
+
+# stdin: <local ref> SP <local sha1> SP <remote ref> SP <remote sha1> LF
+while IFS=' ' read -r _local_ref local_sha _remote_ref remote_sha; do
+  if [ "$local_sha" = "0000000000000000000000000000000000000000" ]; then
+    continue
+  fi
+
+  if [ "$remote_sha" = "0000000000000000000000000000000000000000" ]; then
+    range="${merge_base}..${local_sha}"
+  else
+    range="${remote_sha}..${local_sha}"
+  fi
+
+  if [ "$already_checked" -eq 0 ] && git diff --name-only "$range" -- "$locale_pattern" | grep -q .; then
+    echo ""
+    echo "i18n: locale files changed — running i18n-check..."
+    make i18n-check
+    echo "i18n-check passed."
+    already_checked=1
+  fi
+
+  if [ "$already_drift" -eq 0 ]; then
+    echo ""
+    echo "concept-drift: checking for stale vault pages..."
+    bash scripts/check-concept-drift.sh --range "$range" --strict
+    already_drift=1
+  fi
+done
+
+exit 0

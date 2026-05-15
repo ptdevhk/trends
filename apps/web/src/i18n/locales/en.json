@@ -417,6 +417,10 @@
           "newest": "Newest",
           "experience": "Experience"
         },
+        "copyFailed": "Copy failed",
+        "copyLink": "Copy link",
+        "linkCopied": "Link copied",
+        "loading": "Loading...",
         "exportFormat": "Export format",
         "exporting": "Exporting...",
         "export": "Export {{count}}",
@@ -541,6 +545,9 @@
     "years": "yrs",
     "minAge": "Min Age",
     "maxAge": "Max Age",
+    "minSalary": "Min Expected Salary",
+    "maxSalary": "Max Expected Salary",
+    "defaultSalary": "Unit: k (thousands)",
     "defaultExp": "Default: min 1 year",
     "contentPlaceholder": "Paste or edit JD markdown content"
   },

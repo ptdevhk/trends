@@ -16,6 +16,7 @@ import { StarRating } from '@/components/StarRating'
 import type { ResumeItem } from '@/hooks/useResumes'
 import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
 import { formatRoleYears, getExperienceBadge, getResumeContentLocale, getResumeSourceLabel, getRoleLabel, hasIngestData, isSafeProfileUrl, summarizeBrandHits } from '@/lib/resume-scoring'
+import { getScoreClassName } from '@/lib/score-classes'
 import { cn } from '@/lib/utils'
 import { useBrandDisplayMap } from '@/hooks/useBrandDisplayMap'
 import { useResumeFieldUsagePolicy } from '@/contexts/ResumeFieldUsagePolicyContext'
@@ -366,7 +367,7 @@ export function ResumeDetail({
               <div className="flex items-center justify-between mb-2">
                 <h3 className="font-semibold flex items-center gap-2">
                   {t('resumes.detail.aiAnalysis', { defaultValue: 'AI Analysis' })}
-                  <Badge variant={matchResult.score >= 80 ? 'default' : matchResult.score >= 60 ? 'secondary' : 'outline'}>
+                  <Badge className={getScoreClassName(matchResult.score)}>
                     {t('resumes.matching.scoreLabel', { score: matchResult.score })}
                   </Badge>
                   <span className="text-xs text-muted-foreground uppercase tracking-wider font-bold">

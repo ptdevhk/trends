@@ -169,6 +169,7 @@ TARGET=all make sync-agent-governance  # Optional: run policy sync + governance 
 - Local Convex dev backend rate-limits at ~4 MiB writes/sec; large restores (2k+ resumes) can hit `TooManyWrites 429` — wait ~30-60s between retry attempts.
 - After Node.js version bumps, run `npm rebuild better-sqlite3` — native module must match the running Node ABI or `make check` fails.
 - When removing a skill from `config/skills/install.yaml`, also delete installed copies from `.agents/skills/`, `.claude/skills/`, and `~/.codex/skills/` — `make check` fails on stale/unexpected entries.
+- Pre-push hook runs `make i18n-check` when locale files changed — blocks push on missing/mismatched keys. Activate with `make install-hooks` (also runs as part of `make install-deps`).
 
 ## Browser Testing & Debugging
 

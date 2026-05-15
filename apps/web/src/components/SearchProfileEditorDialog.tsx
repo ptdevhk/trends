@@ -90,6 +90,8 @@ type ProfileFormState = {
     maxExperience: string
     minAge: string
     maxAge: string
+    minSalary: string
+    maxSalary: string
     maxCandidates: string
     cron: string
     enabled: boolean
@@ -124,6 +126,8 @@ const DEFAULT_FORM: ProfileFormState = {
     maxExperience: '',
     minAge: '',
     maxAge: '',
+    minSalary: '',
+    maxSalary: '',
     maxCandidates: '',
     cron: '0 9 * * 1-5',
     enabled: true,
@@ -318,6 +322,8 @@ function toFormState(profile: SearchProfileDetails): ProfileFormState {
         maxExperience: typeof profile.filters?.maxExperience === 'number' ? String(profile.filters.maxExperience) : '',
         minAge: typeof profile.filters?.minAge === 'number' ? String(profile.filters.minAge) : '',
         maxAge: typeof profile.filters?.maxAge === 'number' ? String(profile.filters.maxAge) : '',
+        minSalary: typeof profile.filters?.salaryRange?.min === 'number' ? String(profile.filters.salaryRange.min) : '',
+        maxSalary: typeof profile.filters?.salaryRange?.max === 'number' ? String(profile.filters.salaryRange.max) : '',
         maxCandidates: typeof profile.schedule?.maxCandidates === 'number' ? String(profile.schedule.maxCandidates) : '',
         cron: profile.schedule?.cron || '',
         enabled: profile.status === 'active',
@@ -557,8 +563,11 @@ export function SearchProfileEditorDialog({
         const parsedMaxExp = parseOptionalNumber(form.maxExperience)
         const parsedMinAge = parseOptionalNumber(form.minAge)
         const parsedMaxAge = parseOptionalNumber(form.maxAge)
+        const parsedMinSalary = parseOptionalNumber(form.minSalary)
+        const parsedMaxSalary = parseOptionalNumber(form.maxSalary)
 
-        const hasFilters = parsedMinExp !== undefined || parsedMaxExp !== undefined || parsedMinAge !== undefined || parsedMaxAge !== undefined
+        const hasSalaryRange = parsedMinSalary !== undefined || parsedMaxSalary !== undefined
+        const hasFilters = parsedMinExp !== undefined || parsedMaxExp !== undefined || parsedMinAge !== undefined || parsedMaxAge !== undefined || hasSalaryRange
         const sources = buildSourcesPayload({
             ...sourceForm,
             seekJobUrl: normalizedSeekJobUrl ?? sourceForm.seekJobUrl,
@@ -575,6 +584,10 @@ export function SearchProfileEditorDialog({
                 maxExperience: parsedMaxExp,
                 minAge: parsedMinAge,
                 maxAge: parsedMaxAge,
+                salaryRange: hasSalaryRange ? {
+                    min: parsedMinSalary,
+                    max: parsedMaxSalary,
+                } : undefined,
             } : null,
             schedule: {
                 enabled: form.scheduleEnabled,
@@ -715,6 +728,32 @@ export function SearchProfileEditorDialog({
                                 />
                             </div>
                         </div>
+                    </div>
+
+                    <div className="grid gap-2">
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="grid gap-2">
+                                <Label htmlFor="profile-minSalary">{t('jdEditor.minSalary', { defaultValue: 'Min Expected Salary' })}</Label>
+                                <Input
+                                    id="profile-minSalary"
+                                    type="number"
+                                    min={0}
+                                    value={form.minSalary}
+                                    onChange={(event) => setForm((previous) => ({ ...previous, minSalary: event.target.value }))}
+                                />
+                            </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="profile-maxSalary">{t('jdEditor.maxSalary', { defaultValue: 'Max Expected Salary' })}</Label>
+                                <Input
+                                    id="profile-maxSalary"
+                                    type="number"
+                                    min={0}
+                                    value={form.maxSalary}
+                                    onChange={(event) => setForm((previous) => ({ ...previous, maxSalary: event.target.value }))}
+                                />
+                            </div>
+                        </div>
+                        <span className="text-xs text-muted-foreground">{t('jdEditor.defaultSalary', { defaultValue: 'Unit: k (thousands)' })}</span>
                     </div>
 
                     <div className="grid gap-2">
