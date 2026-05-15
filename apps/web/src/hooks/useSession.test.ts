@@ -121,11 +121,21 @@ describe('useSession', () => {
     })
 
     expect(mockSaveSearchHistory).toHaveBeenCalledWith({
-      sessionId: expect.any(String),
-      searchData: {
-        keywords: ['react'],
-        location: 'Shanghai',
-      },
+      sessionKey: expect.any(String),
+      workspaceSlug: 'test-workspace',
+      keywords: ['react'],
+      location: 'Shanghai',
+      filters: {},
+      resumeIds: [],
+      selectedCompanies: [],
+      selectedTags: [],
+      title: undefined,
+      notes: undefined,
+      collectionSource: undefined,
+      collectionTaskId: undefined,
+      analysisTaskId: undefined,
+      jobDescriptionId: undefined,
+      selectedExperienceLevel: undefined,
     })
   })
 
@@ -153,7 +163,7 @@ describe('useSession', () => {
       result.current.applyExternalState({ jobDescriptionId: '' })
     })
 
-    expect(result.current.jobDescriptionId).toBe('')
+    expect(result.current.jobDescriptionId).toBeUndefined()
   })
 
   it('setLocation updates location', () => {
@@ -201,6 +211,10 @@ describe('useSession', () => {
   })
 
   it('ensureApiSession returns undefined on error', async () => {
+    mockPatch.mockResolvedValueOnce({
+      data: undefined,
+      error: { message: 'patch-fail' },
+    })
     mockPost.mockResolvedValueOnce({
       data: undefined,
       error: { message: 'fail' },
