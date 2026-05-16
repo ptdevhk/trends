@@ -20,7 +20,7 @@ filters:
   locations:
     - China
   salaryRange:
-    max: 25
+    max: 25000
 
 schedule:
   enabled: false
