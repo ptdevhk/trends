@@ -7,6 +7,7 @@ import {
   normalizeKeywordPhrases,
   normalizeProfileUrlForDisplay,
   normalizeSharedResumeFields,
+  parseSalaryRange,
   selectLatestWorkHistory,
 } from "@trends/shared";
 
@@ -652,21 +653,15 @@ export function normalizeEducationLevel(value: string): string | null {
   return null;
 }
 
-export function parseSalaryRange(value: string): { min?: number; max?: number; currency?: string; period?: string } | null {
-  if (!value) return null;
-  const normalized = value.replace(/\s/g, "");
-  if (!normalized || /面议/.test(normalized)) return null;
-  const match = normalized.match(/(\d+(?:\.\d+)?)(?:-(\d+(?:\.\d+)?))?/);
-  if (!match) return null;
-  const multiplier = /万/.test(normalized) ? 10000 : 1;
-  const min = Number(match[1]) * multiplier;
-  const max = match[2] ? Number(match[2]) * multiplier : undefined;
-  if (Number.isNaN(min)) return null;
+export function parseSalaryRangeWithMeta(value: string | undefined): { min?: number; max?: number; currency?: string; period?: string } | null {
+  const parsed = parseSalaryRange(value);
+  if (!parsed) return null;
+  const normalized = value!.replace(/\s/g, "");
   const periodMatch = normalized.match(/\/(月|年)/);
   const period = periodMatch ? (periodMatch[1] === "年" ? "year" : "month") : undefined;
   return {
-    min,
-    max,
+    min: parsed.min,
+    max: parsed.max,
     currency: "CNY",
     period,
   };

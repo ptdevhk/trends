@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { parseSalaryRange } from '@trends/shared'
 import type { CandidateStatus } from '@/types/resume'
 
 import {
@@ -20,7 +21,6 @@ import {
   normalizeUrlSearchStateValue,
   parseExtractedAt,
   parseSerializedStringArray,
-  parseSalaryRange,
   matchesSalaryFilter,
   resolveAnalysisSourceKeyForResume,
   serializeLocationFilter,
