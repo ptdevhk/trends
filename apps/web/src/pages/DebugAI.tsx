@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   DEBUG_AI_BREAKDOWN_LABELS,
   DEBUG_AI_KEYWORD_PROMPT_VARIANT,
@@ -7,9 +7,12 @@ import {
   type ResumeFieldUsagePolicy,
 } from '@trends/shared'
 import { useQuery } from 'convex/react'
+import { Copy } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { api } from '../../../../packages/convex/convex/_generated/api'
 import type { Doc } from '../../../../packages/convex/convex/_generated/dataModel'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -186,6 +189,15 @@ export default function DebugAI() {
 
   const scoreBreakdown = useMemo(() => extractBreakdown(selectedResume), [selectedResume])
 
+  const handleCopyJson = useCallback(() => {
+    if (!analysisJson) return
+    navigator.clipboard.writeText(analysisJson).then(() => {
+      toast.success(t('debugAi.jsonCopied', 'JSON copied'))
+    }).catch(() => {
+      toast.error(t('debugAi.copyFailed', '复制失败'))
+    })
+  }, [analysisJson, t])
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -233,6 +245,14 @@ export default function DebugAI() {
           <pre className="min-h-56 overflow-auto rounded-md border bg-muted/40 p-4 text-xs leading-relaxed">
             {analysisJson ?? t('debugAi.noAnalysis')}
           </pre>
+          {analysisJson && (
+            <div className="flex justify-end">
+              <Button variant="outline" size="sm" className="h-7 gap-1 text-xs" onClick={handleCopyJson}>
+                <Copy className="h-3 w-3" />
+                {t('debugAi.copyJson', 'Copy')}
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 
