@@ -50,14 +50,13 @@ export function useSyncNotifications(enabled: boolean = true) {
           defaultValue: `Synced ${latestEvent.submitted} resumes (${latestEvent.inserted} new, ${latestEvent.updated} updated)`,
         })
       )
-      return
+    } else {
+      toast.error(
+        t('syncNotifications.error', {
+          error: latestEvent.error || 'Unknown error',
+          defaultValue: `Sync failed: ${latestEvent.error || 'Unknown error'}`,
+        })
+      )
     }
-
-    toast.error(
-      t('syncNotifications.error', {
-        error: latestEvent.error || 'Unknown error',
-        defaultValue: `Sync failed: ${latestEvent.error || 'Unknown error'}`,
-      })
-    )
   }, [enabled, latestEvent, t])
 }
