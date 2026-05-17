@@ -1,836 +1,854 @@
 # OpenClaw
 
-OpenClaw is a self-hosted personal AI assistant that runs a persistent Gateway process connecting multiple AI model providers (Anthropic Claude, OpenAI, Google, and others) to various messaging channels including WhatsApp, Telegram, Discord, Slack, iMessage, and more. The system acts as a unified interface between users and AI agents, supporting multi-agent configurations, scheduled automation via cron jobs, webhooks, skills/plugins, and comprehensive access control. OpenClaw reads configuration from `~/.openclaw/openclaw.json` (JSON5 format) and maintains conversation sessions, memory, and workspace state for each agent.
+OpenClaw is a self-hosted, MIT-licensed gateway that bridges popular chat applications — Discord, Google Chat, iMessage, Matrix, Microsoft Teams, Signal, Slack, Telegram, WhatsApp, Zalo, and more — to AI coding agents. A single long-lived Gateway process runs on your own machine or server, acting as the single source of truth for sessions, routing, channel connections, and agent execution. The project targets developers and power users who want a personal, always-available AI assistant they can reach from any messaging app without surrendering data control to a hosted service.
 
-The core architecture consists of a Gateway server that handles all channel connections, message routing, and agent orchestration. Agents run with configurable model providers, tool permissions, sandboxing options, and can execute skills (prompt-based capabilities) and plugins (code-based extensions). The system supports both interactive chat through messaging apps and programmatic access via an OpenAI-compatible HTTP API, making it suitable for personal productivity automation, chat-based workflows, and integration with external systems through hooks and scheduled tasks.
+The Gateway exposes a WebSocket control-plane for all clients (CLI, Web Control UI, macOS app, iOS/Android nodes), an optional OpenAI-compatible HTTP surface (`/v1/chat/completions`, `/v1/models`, `/v1/embeddings`), and a built-in scheduler (cron). It embeds a single Pi-agent runtime per process — supporting tool use, persistent memory, multi-agent routing, sandboxing, plugin channels, automation hooks, and custom skills — and can run headlessly as a daemon or interactively via the `openclaw` CLI.
 
-## CLI Commands
+---
 
-The `openclaw` command-line interface provides comprehensive control over the Gateway, channels, agents, configuration, and automation features.
+## Installation and Initial Setup
+
+Install OpenClaw globally and run the interactive onboarding wizard, which prompts for a model provider API key, configures the Gateway, and optionally installs a background daemon.
 
 ```bash
-# Start the Gateway server (runs as foreground process)
-openclaw gateway
+# macOS / Linux — curl installer
+curl -fsSL https://openclaw.ai/install.sh | bash
 
-# Start Gateway as a background daemon
-openclaw gateway start
-openclaw gateway stop
-openclaw gateway restart
+# Windows (PowerShell)
+iwr -useb https://openclaw.ai/install.ps1 | iex
+
+# npm (all platforms, Node 24 recommended / Node 22.16+ minimum)
+npm install -g openclaw@latest
+
+# Run the interactive onboarding wizard and install system daemon
+openclaw onboard --install-daemon
+
+# Verify the Gateway is running (listens on port 18789 by default)
 openclaw gateway status
 
-# System health and diagnostics
-openclaw status                    # Overall system status
-openclaw doctor                    # Run diagnostics
-openclaw doctor --fix              # Auto-repair common issues
-openclaw logs --follow             # Stream Gateway logs
-openclaw health                    # Health check endpoint status
-
-# Configuration management
-openclaw config get agents.defaults.workspace
-openclaw config set agents.defaults.heartbeat.every "2h"
-openclaw config unset plugins.entries.brave.config.webSearch.apiKey
-openclaw config schema             # Print JSON Schema for validation
-openclaw configure                 # Interactive config wizard
-openclaw onboard                   # Full onboarding flow
-
-# Channel management
-openclaw channels status           # List all channel statuses
-openclaw channels login --channel whatsapp
-openclaw channels login --channel whatsapp --account work
-openclaw channels logout --channel telegram
-openclaw channels add --channel discord
-openclaw pairing list whatsapp     # List pending pairing requests
-openclaw pairing approve whatsapp ABC123
-
-# Model management
-openclaw models list               # List configured models
-openclaw models list --all         # Full model catalog
-openclaw models status             # Current model selection + auth
-openclaw models status --probe     # Live auth verification
-openclaw models set anthropic/claude-sonnet-4-6
-openclaw models set-image openai/gpt-4o
-openclaw models aliases list
-openclaw models aliases add sonnet anthropic/claude-sonnet-4-6
-openclaw models fallbacks add openai/gpt-5.4
-openclaw models scan --set-default # Scan OpenRouter free models
-
-# Message sending
-openclaw message send --channel telegram --target 123456789 --message "Hello"
-openclaw message send --channel whatsapp --target +15551234567 --message "Test"
-openclaw message poll --channel telegram --target 123456789 \
-  --poll-question "Ship it?" --poll-option "Yes" --poll-option "No"
-
-# Plugin management
-openclaw plugins list
-openclaw plugins list --enabled
-openclaw plugins install @openclaw/voice-call
-openclaw plugins install ./my-plugin
-openclaw plugins enable voice-call
-openclaw plugins disable untrusted-plugin
-openclaw plugins inspect voice-call
-openclaw plugins uninstall old-plugin
-
-# Skills management
-openclaw skills install weather-forecast
-openclaw skills update --all
-openclaw skills list
-
-# Agent runs
-openclaw agent "Summarize my inbox"
-openclaw agent --model opus "Deep analysis task"
+# Open the web Control UI in your browser
+openclaw dashboard
 ```
 
-## Configuration File
+---
 
-OpenClaw uses a JSON5 configuration file at `~/.openclaw/openclaw.json` with hot-reload support for most settings.
+## Gateway Configuration (`~/.openclaw/openclaw.json`)
+
+OpenClaw reads an optional JSON5 config file at `~/.openclaw/openclaw.json`. The Gateway watches the file and hot-reloads changes. Unknown keys or type mismatches cause a hard validation failure and prevent startup. Use `openclaw config get|set|unset` for surgical edits, or edit the file directly.
 
 ```json5
-// ~/.openclaw/openclaw.json - Complete configuration example
+// ~/.openclaw/openclaw.json — recommended starter config
 {
-  // Gateway server settings (require restart on change)
-  gateway: {
-    port: 18789,
-    bind: "127.0.0.1",
-    auth: {
-      mode: "token",  // token | password | none | trusted-proxy
-      token: "${OPENCLAW_GATEWAY_TOKEN}",
-    },
-    reload: { mode: "hybrid", debounceMs: 300 },
-    http: {
-      endpoints: {
-        chatCompletions: { enabled: true },  // Enable OpenAI-compatible API
-      },
-    },
-  },
-
-  // Agent configuration
   agents: {
     defaults: {
       workspace: "~/.openclaw/workspace",
       model: {
         primary: "anthropic/claude-sonnet-4-6",
-        fallbacks: ["openai/gpt-5.4"],
+        fallbacks: ["anthropic/claude-opus-4-6", "openai/gpt-5.4"],
       },
       models: {
-        "anthropic/claude-sonnet-4-6": { alias: "Sonnet" },
-        "anthropic/claude-opus-4-6": { alias: "Opus" },
-        "openai/gpt-5.4": { alias: "GPT" },
+        "anthropic/claude-opus-4-6": { alias: "opus" },
+        "anthropic/claude-sonnet-4-6": { alias: "sonnet" },
+        "openai/gpt-5.4": { alias: "gpt" },
       },
-      imageModel: { primary: "openai/gpt-4o" },
-      imageGenerationModel: { primary: "openai/dall-e-3" },
-      skills: ["github", "weather", "web-search"],
-      maxConcurrent: 3,
+      skills: ["github", "weather"],        // shared baseline for all agents
+      thinkingDefault: "low",
+      timeoutSeconds: 600,
       sandbox: {
-        mode: "non-main",  // off | non-main | all
-        scope: "agent",    // session | agent | shared
-      },
-      heartbeat: {
-        every: "30m",
-        target: "last",
+        mode: "non-main",                    // sandbox non-main sessions only
+        scope: "session",
+        docker: {
+          image: "openclaw-sandbox:bookworm-slim",
+          network: "none",
+          readOnlyRoot: true,
+        },
       },
     },
     list: [
-      { id: "main", default: true },
-      { id: "work", workspace: "~/.openclaw/workspace-work", skills: ["jira", "slack"] },
-      { id: "coder", skills: ["github", "code-review"], model: { primary: "anthropic/claude-opus-4-6" } },
+      {
+        id: "main",
+        default: true,
+        identity: { name: "Clawd", theme: "helpful assistant", emoji: "🦞" },
+        groupChat: { mentionPatterns: ["@openclaw", "openclaw"] },
+      },
+      {
+        id: "quick",
+        skills: [],                          // no skills — fast, lean agent
+        fastModeDefault: true,
+        thinkingDefault: "off",
+      },
     ],
   },
-
-  // Multi-agent routing bindings
-  bindings: [
-    { agentId: "work", match: { channel: "slack" } },
-    { agentId: "coder", match: { channel: "telegram", peer: { kind: "group", id: "-1001234567890" } } },
-  ],
-
-  // Channel configurations
   channels: {
     whatsapp: {
-      dmPolicy: "pairing",          // pairing | allowlist | open | disabled
-      allowFrom: ["+15551234567"],
-      groupPolicy: "allowlist",
-      groupAllowFrom: ["+15551234567"],
-      textChunkLimit: 4000,
-      chunkMode: "newline",
-      sendReadReceipts: true,
-      ackReaction: { emoji: "👀", direct: true, group: "mentions" },
-      reactionLevel: "minimal",     // off | ack | minimal | extensive
+      dmPolicy: "pairing",                   // pairing | allowlist | open | disabled
+      allowFrom: ["+15555550123"],
+      groups: { "*": { requireMention: true } },
     },
     telegram: {
       enabled: true,
-      botToken: "${TELEGRAM_BOT_TOKEN}",
+      botToken: "123:abc",
       dmPolicy: "pairing",
-      allowFrom: ["123456789"],     // Telegram user IDs (numeric)
-      groupPolicy: "allowlist",
-      groupAllowFrom: ["123456789"],
-      groups: {
-        "*": { requireMention: true },
-        "-1001234567890": {
-          requireMention: false,
-          groupPolicy: "open",
-          topics: {
-            "42": { agentId: "coder", requireMention: false },
-          },
-        },
-      },
-      streaming: "partial",
-      capabilities: { inlineButtons: "allowlist" },
-      customCommands: [
-        { command: "backup", description: "Git backup" },
-      ],
+      groups: { "*": { requireMention: true } },
     },
     discord: {
       enabled: true,
-      botToken: "${DISCORD_BOT_TOKEN}",
-      dmPolicy: "allowlist",
-      allowFrom: ["discord:123456789"],
-    },
-  },
-
-  // Session management
-  session: {
-    dmScope: "per-channel-peer",    // main | per-peer | per-channel-peer
-    threadBindings: {
-      enabled: true,
-      idleHours: 24,
-      maxAgeHours: 0,
-    },
-    reset: {
-      mode: "daily",
-      atHour: 4,
-      idleMinutes: 120,
-    },
-  },
-
-  // Cron job configuration
-  cron: {
-    enabled: true,
-    maxConcurrentRuns: 2,
-    sessionRetention: "24h",
-    retry: {
-      maxAttempts: 3,
-      backoffMs: [60000, 120000, 300000],
-      retryOn: ["rate_limit", "overloaded", "network", "server_error"],
-    },
-  },
-
-  // Webhook hooks
-  hooks: {
-    enabled: true,
-    token: "your-webhook-secret",
-    path: "/hooks",
-    defaultSessionKey: "hook:ingress",
-    mappings: [
-      {
-        match: { path: "gmail" },
-        action: "agent",
-        agentId: "main",
-        deliver: true,
-      },
-    ],
-  },
-
-  // Skills configuration
-  skills: {
-    load: {
-      watch: true,
-      watchDebounceMs: 250,
-      extraDirs: ["~/custom-skills"],
-    },
-    entries: {
-      "image-lab": {
-        enabled: true,
-        apiKey: "${GEMINI_API_KEY}",
-        env: { GEMINI_API_KEY: "${GEMINI_API_KEY}" },
-      },
-      peekaboo: { enabled: true },
-    },
-  },
-
-  // Plugin configuration
-  plugins: {
-    enabled: true,
-    allow: ["voice-call", "matrix"],
-    deny: ["untrusted-plugin"],
-    load: { paths: ["~/my-plugins"] },
-    slots: {
-      memory: "memory-core",        // or "memory-lancedb"
-    },
-    entries: {
-      "voice-call": { enabled: true, config: { provider: "twilio" } },
-    },
-  },
-
-  // Environment variables
-  env: {
-    OPENROUTER_API_KEY: "${OPENROUTER_API_KEY}",
-    vars: { GROQ_API_KEY: "${GROQ_API_KEY}" },
-    shellEnv: { enabled: true, timeoutMs: 15000 },
-  },
-}
-```
-
-## OpenAI-Compatible HTTP API
-
-The Gateway exposes an OpenAI-compatible Chat Completions endpoint for integration with external tools and UIs.
-
-```bash
-# Enable the endpoint in config first:
-# gateway.http.endpoints.chatCompletions.enabled: true
-
-# List available agent targets (models)
-curl -sS http://127.0.0.1:18789/v1/models \
-  -H 'Authorization: Bearer YOUR_GATEWAY_TOKEN'
-
-# Response includes: openclaw, openclaw/default, openclaw/<agentId>
-
-# Chat completion (non-streaming)
-curl -sS http://127.0.0.1:18789/v1/chat/completions \
-  -H 'Authorization: Bearer YOUR_GATEWAY_TOKEN' \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "model": "openclaw/default",
-    "messages": [{"role": "user", "content": "What is the weather today?"}]
-  }'
-
-# Chat completion (streaming with SSE)
-curl -N http://127.0.0.1:18789/v1/chat/completions \
-  -H 'Authorization: Bearer YOUR_GATEWAY_TOKEN' \
-  -H 'Content-Type: application/json' \
-  -H 'x-openclaw-model: openai/gpt-5.4' \
-  -d '{
-    "model": "openclaw/research",
-    "stream": true,
-    "messages": [{"role": "user", "content": "Analyze this data"}]
-  }'
-
-# Route to specific agent
-curl -sS http://127.0.0.1:18789/v1/chat/completions \
-  -H 'Authorization: Bearer YOUR_GATEWAY_TOKEN' \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "model": "openclaw/coder",
-    "messages": [{"role": "user", "content": "Review this code"}]
-  }'
-
-# Create embeddings
-curl -sS http://127.0.0.1:18789/v1/embeddings \
-  -H 'Authorization: Bearer YOUR_GATEWAY_TOKEN' \
-  -H 'Content-Type: application/json' \
-  -H 'x-openclaw-model: openai/text-embedding-3-small' \
-  -d '{
-    "model": "openclaw/default",
-    "input": ["Hello world", "OpenClaw is great"]
-  }'
-
-# Optional headers for fine-grained control:
-# x-openclaw-model: <provider/model>     - Override backend model
-# x-openclaw-agent-id: <agentId>         - Route to specific agent
-# x-openclaw-session-key: <sessionKey>   - Control session routing
-# x-openclaw-message-channel: <channel>  - Set synthetic ingress channel
-```
-
-## Cron Jobs and Scheduled Tasks
-
-Cron enables scheduled agent tasks with configurable delivery to channels or webhooks.
-
-```bash
-# Add a one-shot reminder (main session)
-openclaw cron add \
-  --name "Calendar check" \
-  --at "20m" \
-  --session main \
-  --system-event "Check calendar for upcoming meetings." \
-  --wake now
-
-# Add a one-shot task that auto-deletes after completion
-openclaw cron add \
-  --name "Reminder" \
-  --at "2026-02-01T16:00:00Z" \
-  --session main \
-  --system-event "Reminder: review documentation" \
-  --wake now \
-  --delete-after-run
-
-# Add a recurring isolated job with Telegram delivery
-openclaw cron add \
-  --name "Morning brief" \
-  --cron "0 7 * * *" \
-  --tz "America/Los_Angeles" \
-  --session isolated \
-  --message "Summarize overnight updates and prepare daily brief." \
-  --announce \
-  --channel telegram \
-  --to "-1001234567890"
-
-# Add an isolated job with model and thinking override
-openclaw cron add \
-  --name "Deep analysis" \
-  --cron "0 6 * * 1" \
-  --tz "America/Los_Angeles" \
-  --session isolated \
-  --message "Weekly deep analysis of project progress." \
-  --model "opus" \
-  --thinking high \
-  --announce
-
-# Add a job with custom session (persistent context)
-openclaw cron add \
-  --name "Daily standup" \
-  --cron "0 9 * * 1-5" \
-  --tz "America/New_York" \
-  --session "session:standup" \
-  --message "Continue daily standup summary from yesterday."
-
-# List all cron jobs
-openclaw cron list
-
-# View cron status
-openclaw cron status
-
-# Edit an existing job
-openclaw cron edit <jobId> --message "Updated prompt" --model "opus"
-
-# Force run a job immediately
-openclaw cron run <jobId>
-
-# Run only if the job is due
-openclaw cron run <jobId> --due
-
-# View run history for a job
-openclaw cron runs --id <jobId> --limit 50
-
-# Delete a job
-openclaw cron remove <jobId>
-
-# Multi-agent: assign job to specific agent
-openclaw cron add \
-  --name "Ops sweep" \
-  --cron "0 6 * * *" \
-  --session isolated \
-  --message "Check ops queue" \
-  --agent ops
-```
-
-## Webhook Endpoints
-
-The Gateway exposes HTTP webhook endpoints for external trigger integration.
-
-```bash
-# Enable webhooks in config:
-# hooks.enabled: true
-# hooks.token: "your-secret"
-# hooks.path: "/hooks"
-
-# Wake the main session with a system event
-curl -X POST http://127.0.0.1:18789/hooks/wake \
-  -H 'Authorization: Bearer your-secret' \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "text": "New email received from important sender",
-    "mode": "now"
-  }'
-# mode: "now" (default) | "next-heartbeat"
-
-# Run an isolated agent turn
-curl -X POST http://127.0.0.1:18789/hooks/agent \
-  -H 'Authorization: Bearer your-secret' \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "message": "Summarize inbox and flag urgent items",
-    "name": "Email Summary",
-    "agentId": "main",
-    "deliver": true,
-    "channel": "telegram",
-    "to": "123456789",
-    "model": "openai/gpt-5.4-mini",
-    "timeoutSeconds": 300
-  }'
-
-# Custom mapped hooks (configured via hooks.mappings)
-curl -X POST http://127.0.0.1:18789/hooks/gmail \
-  -H 'Authorization: Bearer your-secret' \
-  -H 'Content-Type: application/json' \
-  -d '{"historyId": "12345", "emailAddress": "user@gmail.com"}'
-
-# Gmail PubSub setup wizard
-openclaw webhooks gmail setup --account openclaw@gmail.com
-```
-
-## Plugin SDK API
-
-Plugins extend OpenClaw with new channels, model providers, tools, and capabilities using a registration-based API.
-
-```typescript
-// my-plugin/index.ts
-import { definePluginEntry, type PluginAPI } from "@openclaw/plugin-sdk";
-
-export default definePluginEntry({
-  id: "my-plugin",
-  name: "My Custom Plugin",
-  version: "1.0.0",
-
-  register(api: PluginAPI) {
-    // Register a custom model provider
-    api.registerProvider({
-      id: "custom-llm",
-      name: "Custom LLM Provider",
-      models: [
-        { id: "custom-llm/model-v1", name: "Model V1", contextWindow: 128000 },
-      ],
-      async chat(params) {
-        const response = await fetch("https://api.custom-llm.com/chat", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${params.apiKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: params.model,
-            messages: params.messages,
-            stream: params.stream,
-          }),
-        });
-        return response;
-      },
-    });
-
-    // Register a custom agent tool
-    api.registerTool({
-      name: "weather_lookup",
-      description: "Get current weather for a location",
-      parameters: {
-        type: "object",
-        properties: {
-          location: { type: "string", description: "City name or coordinates" },
-          units: { type: "string", enum: ["celsius", "fahrenheit"], default: "celsius" },
-        },
-        required: ["location"],
-      },
-      async execute({ location, units = "celsius" }) {
-        const response = await fetch(
-          `https://api.weather.com/v1/current?q=${encodeURIComponent(location)}&units=${units}`
-        );
-        const data = await response.json();
-        return {
-          temperature: data.temp,
-          conditions: data.conditions,
-          humidity: data.humidity,
-          location: data.location,
-        };
-      },
-    });
-
-    // Register a custom chat channel
-    api.registerChannel({
-      id: "custom-chat",
-      name: "Custom Chat Platform",
-      async connect(config) {
-        // Initialize connection to chat platform
-        const client = new CustomChatClient(config.apiKey);
-        await client.connect();
-        return client;
-      },
-      async send(client, message) {
-        await client.sendMessage(message.to, message.content, {
-          media: message.mediaUrl,
-          replyTo: message.replyToMessageId,
-        });
-      },
-      async onMessage(client, handler) {
-        client.on("message", (msg) => {
-          handler({
-            from: msg.sender,
-            content: msg.text,
-            channel: "custom-chat",
-            messageId: msg.id,
-          });
-        });
-      },
-    });
-
-    // Register lifecycle hooks
-    api.on("before_tool_call", async (event) => {
-      // Audit or gate tool calls
-      if (event.tool === "exec" && event.params.command?.includes("rm -rf")) {
-        return { block: true, reason: "Dangerous command blocked" };
-      }
-      return { block: false };
-    });
-
-    api.on("message_sending", async (event) => {
-      // Transform or audit outbound messages
-      console.log(`Sending to ${event.channel}: ${event.content}`);
-      return { cancel: false };
-    });
-
-    // Register HTTP routes on the Gateway
-    api.registerHttpRoute({
-      method: "POST",
-      path: "/my-plugin/webhook",
-      handler: async (req, res) => {
-        const body = await req.json();
-        // Process incoming webhook
-        res.json({ status: "ok", received: body });
-      },
-    });
-
-    // Register a background service
-    api.registerService({
-      id: "my-background-service",
-      async start() {
-        // Start background processing
-        setInterval(() => {
-          console.log("Background service running");
-        }, 60000);
-      },
-      async stop() {
-        // Cleanup on shutdown
-      },
-    });
-  },
-});
-```
-
-## Skills (SKILL.md Format)
-
-Skills are prompt-based capabilities defined in markdown files with YAML frontmatter.
-
-```markdown
----
-name: code-review
-description: Review code changes for bugs, security issues, and best practices
-user-invocable: true
-metadata: {"openclaw": {"emoji": "🔍", "requires": {"bins": ["git"]}, "primaryEnv": "GITHUB_TOKEN"}}
----
-
-# Code Review Skill
-
-You are a code review assistant. When the user asks for a code review:
-
-1. Analyze the provided code or diff for:
-   - Potential bugs and logic errors
-   - Security vulnerabilities
-   - Performance issues
-   - Code style and best practices
-   - Missing error handling
-
-2. Provide structured feedback with:
-   - Critical issues (must fix)
-   - Suggestions (should consider)
-   - Minor improvements (nice to have)
-
-3. For each issue, explain:
-   - What the problem is
-   - Why it matters
-   - How to fix it with a code example
-
-Use the `exec` tool to run `git diff` if needed to see recent changes.
-Use `{baseDir}` to reference files in this skill's directory.
-
-Example invocation: `/code-review` or "Please review my latest changes"
-```
-
-```json5
-// Configure skill in openclaw.json
-{
-  skills: {
-    entries: {
-      "code-review": {
-        enabled: true,
-        apiKey: "${GITHUB_TOKEN}",
-        env: {
-          GITHUB_TOKEN: "${GITHUB_TOKEN}",
-        },
-      },
-    },
-  },
-}
-```
-
-## WhatsApp Channel Configuration
-
-WhatsApp integration uses WhatsApp Web (Baileys) with QR code linking and comprehensive access controls.
-
-```bash
-# Install WhatsApp plugin
-openclaw plugins install @openclaw/whatsapp
-
-# Link WhatsApp account via QR code
-openclaw channels login --channel whatsapp
-
-# Link additional account
-openclaw channels login --channel whatsapp --account work
-
-# Check channel status
-openclaw channels status
-
-# Manage pairing requests
-openclaw pairing list whatsapp
-openclaw pairing approve whatsapp ABC123
-```
-
-```json5
-// WhatsApp configuration in openclaw.json
-{
-  channels: {
-    whatsapp: {
-      // Access control
-      dmPolicy: "pairing",           // pairing | allowlist | open | disabled
-      allowFrom: ["+15551234567"],   // E.164 format phone numbers
-      groupPolicy: "allowlist",
-      groupAllowFrom: ["+15551234567"],
-
-      // Group-specific settings
-      groups: {
-        "*": { requireMention: true },
-        "120363012345678901@g.us": {
+      token: "YOUR_DISCORD_BOT_TOKEN",
+      dm: { enabled: true, allowFrom: ["123456789012345678"] },
+      guilds: {
+        "123456789012345678": {
+          slug: "my-server",
           requireMention: false,
-          groupPolicy: "open",
+          channels: { general: { allow: true } },
         },
-      },
-
-      // Message formatting
-      textChunkLimit: 4000,
-      chunkMode: "newline",          // length | newline
-
-      // Reactions and receipts
-      sendReadReceipts: true,
-      reactionLevel: "minimal",      // off | ack | minimal | extensive
-      ackReaction: {
-        emoji: "👀",
-        direct: true,
-        group: "mentions",           // always | mentions | never
-      },
-
-      // Media handling
-      mediaMaxMb: 50,
-
-      // Multi-account support
-      accounts: {
-        default: { enabled: true },
-        work: {
-          enabled: true,
-          dmPolicy: "allowlist",
-          allowFrom: ["+15559876543"],
-          sendReadReceipts: false,
-        },
-      },
-
-      // Action permissions
-      actions: {
-        reactions: true,
-        polls: true,
       },
     },
+    slack: {
+      enabled: true,
+      botToken: "xoxb-REPLACE_ME",
+      appToken: "xapp-REPLACE_ME",
+      channels: { "#general": { allow: true, requireMention: true } },
+      dm: { enabled: true, allowFrom: ["U123"] },
+    },
+  },
+  session: {
+    dmScope: "per-channel-peer",             // isolate sessions by channel + sender
+    reset: { mode: "daily", atHour: 4, idleMinutes: 60 },
+    resetTriggers: ["/new", "/reset"],
+  },
+  messages: {
+    visibleReplies: "automatic",
+    groupChat: { visibleReplies: "message_tool", historyLimit: 50 },
   },
 }
 ```
 
-## Telegram Channel Configuration
+---
 
-Telegram integration uses the Bot API with long polling or webhook mode.
+## CLI Config Commands
+
+One-liner helpers for reading and writing individual config fields without editing the JSON file directly. Changes trigger an automatic hot reload if the Gateway is running.
 
 ```bash
-# Configure bot token in config or environment
-# TELEGRAM_BOT_TOKEN=123:abc
+# Read a field
+openclaw config get agents.defaults.workspace
+# => ~/.openclaw/workspace
 
-# Start gateway (Telegram connects automatically)
+# Set a scalar value
+openclaw config set agents.defaults.heartbeat.every "2h"
+
+# Set a complex JSON value (merge into existing, don't replace)
+openclaw config set agents.defaults.models '{"anthropic/claude-sonnet-4-6":{"alias":"sonnet"}}' \
+  --strict-json --merge
+
+# Unset / remove a field
+openclaw config unset plugins.entries.brave.config.webSearch.apiKey
+
+# Print the full live JSON Schema for the Control UI and validation
+openclaw config schema
+
+# Interactive configuration wizard
+openclaw configure
+
+# Full onboarding (provider selection, API keys, daemon install)
+openclaw onboard
+```
+
+---
+
+## Gateway Lifecycle Commands
+
+The Gateway is the long-lived process that owns channels, agent state, and sessions. All `openclaw gateway` subcommands manage it.
+
+```bash
+# Start the Gateway (foreground)
 openclaw gateway
 
-# Manage pairing
-openclaw pairing list telegram
-openclaw pairing approve telegram ABC123
+# Start as a background daemon (launchd / systemd)
+openclaw gateway start --daemon
 
-# Send messages via CLI
-openclaw message send --channel telegram --target 123456789 --message "Hello"
-openclaw message send --channel telegram --target @username --message "Hi"
+# Check status
+openclaw gateway status
 
-# Create polls
-openclaw message poll --channel telegram --target -1001234567890 \
-  --poll-question "Meeting time?" \
-  --poll-option "10am" --poll-option "2pm" --poll-option "4pm" \
-  --poll-duration-seconds 300
+# Graceful restart (picks up config changes and new plugins)
+openclaw gateway restart
+
+# Stop
+openclaw gateway stop
+
+# Health probe — returns JSON with component statuses
+openclaw health
+# => {"ok":true,"gateway":{"status":"up","version":"2026.5.9"},...}
+
+# Deep status (sessions, channels, active runs)
+openclaw status --deep
+
+# Run diagnostics and auto-repair common issues
+openclaw doctor
+openclaw doctor --fix
+```
+
+---
+
+## Sending Messages and Running the Agent
+
+`openclaw agent` sends a one-shot message to the agent and streams the response. It is the primary non-interactive way to drive the agent from scripts or pipelines.
+
+```bash
+# Send a message to the default agent and stream the reply
+openclaw agent --message "Summarize the last 10 git commits"
+
+# Send to a specific named agent
+openclaw agent --agent quick --message "What is 2+2?"
+
+# Non-interactive with a session key (re-uses context across calls)
+openclaw agent --session my-project --message "Now refactor that function"
+
+# Pipe stdin as the message body
+echo "Review this diff:" | cat - changes.patch | openclaw agent
+
+# Run with thinking enabled (high / low / off)
+openclaw agent --thinking high --message "Architect a multi-tenant SaaS auth system"
+```
+
+---
+
+## Multi-Agent Routing
+
+Multiple isolated agents — each with their own workspace, auth profiles, session history, and identity — can run inside a single Gateway. Inbound channel messages are routed via bindings.
+
+```bash
+# Add a new isolated agent interactively
+openclaw agents add work
+
+# List all agents and their channel bindings
+openclaw agents list --bindings
+
+# Switch the default agent
+openclaw agents set-default work
 ```
 
 ```json5
-// Telegram configuration in openclaw.json
+// openclaw.json — multi-agent with channel bindings
+{
+  agents: {
+    defaults: { workspace: "~/.openclaw/workspace" },
+    list: [
+      { id: "personal", default: true, identity: { name: "Clawd", emoji: "🦞" } },
+      { id: "work",     identity: { name: "WorkBot", emoji: "💼" } },
+    ],
+  },
+  channels: {
+    telegram: {
+      enabled: true,
+      accounts: {
+        personal: { botToken: "111:personal_token", agentId: "personal" },
+        work:     { botToken: "222:work_token",     agentId: "work" },
+      },
+    },
+  },
+}
+```
+
+---
+
+## Session Management
+
+Sessions scope conversation context. By default all DMs share one session; `dmScope` isolates them per sender. Sessions reset on schedule or on `/new` / `/reset` commands.
+
+```json5
+// Per-sender isolation + daily reset
+{
+  session: {
+    dmScope: "per-channel-peer",   // per-peer | per-channel-peer | per-account-channel-peer | main
+    reset: {
+      mode: "daily",               // daily | idle | never
+      atHour: 4,                   // reset at 4 AM local time
+      idleMinutes: 60,             // or after 60 min of inactivity
+    },
+    resetTriggers: ["/new", "/reset"],
+    maintenance: {
+      mode: "warn",
+      pruneAfter: "30d",
+      maxEntries: 500,
+    },
+  },
+}
+```
+
+```bash
+# List all sessions
+openclaw sessions list
+
+# Show a specific session
+openclaw sessions show main
+
+# Delete a session
+openclaw sessions delete <sessionKey>
+```
+
+---
+
+## Telegram Channel Setup
+
+Telegram is the fastest channel to configure — only a bot token is required.
+
+```bash
+# 1. Create a bot in BotFather and get the token.
+# 2. Add to config:
+openclaw config set channels.telegram.enabled true
+openclaw config set channels.telegram.botToken "123456:ABCDEF..."
+openclaw config set channels.telegram.dmPolicy "pairing"
+
+# 3. Start / restart the Gateway
+openclaw gateway restart
+
+# 4. Approve the first DM pairing request
+openclaw pairing list telegram
+openclaw pairing approve telegram <CODE>
+```
+
+```json5
+// Full Telegram config block
 {
   channels: {
     telegram: {
       enabled: true,
-      botToken: "${TELEGRAM_BOT_TOKEN}",
-
-      // DM access control
-      dmPolicy: "pairing",
-      allowFrom: ["123456789"],      // Numeric Telegram user IDs
-
-      // Group access control
+      botToken: "123456:ABCDEF...",
+      dmPolicy: "pairing",          // pairing | allowlist | open | disabled
+      allowFrom: ["123456789"],      // for allowlist/open policies
       groupPolicy: "allowlist",
       groupAllowFrom: ["123456789"],
       groups: {
+        "-100987654321": { requireMention: true },
         "*": { requireMention: true },
-        "-1001234567890": {
-          requireMention: false,
-          groupPolicy: "open",
-          allowFrom: ["123456789", "987654321"],
-          // Forum topic routing
-          topics: {
-            "1": { agentId: "main" },          // General topic
-            "42": { agentId: "coder", requireMention: false },
-          },
-        },
       },
-
-      // Streaming and formatting
-      streaming: "partial",          // off | partial | block | progress
-      textChunkLimit: 4000,
-      chunkMode: "newline",
-      linkPreview: true,
-
-      // Inline buttons
-      capabilities: {
-        inlineButtons: "allowlist",  // off | dm | group | all | allowlist
-      },
-
-      // Custom command menu
-      customCommands: [
-        { command: "backup", description: "Git backup" },
-        { command: "generate", description: "Create an image" },
-      ],
-
-      // Exec approval routing
-      execApprovals: {
-        enabled: true,
-        approvers: ["123456789"],
-        target: "dm",                // dm | channel | both
-      },
-
-      // Actions and reactions
-      actions: {
-        sendMessage: true,
-        deleteMessage: true,
-        reactions: true,
-        sticker: false,
-        poll: true,
-      },
-      reactionLevel: "minimal",
-      reactionNotifications: "own",  // off | own | all
-
-      // Network settings (for proxy environments)
-      network: {
-        autoSelectFamily: true,
-        dnsResultOrder: "ipv4first",
-      },
-      proxy: "socks5://proxy:1080",  // Optional SOCKS/HTTP proxy
-
-      // Webhook mode (optional, default is long polling)
-      // webhookUrl: "https://your-domain.com/telegram-webhook",
-      // webhookSecret: "your-webhook-secret",
     },
   },
 }
 ```
 
-OpenClaw serves as a comprehensive self-hosted AI assistant platform that bridges the gap between powerful AI models and everyday communication channels. Its primary use cases include personal productivity automation (scheduled summaries, reminders, email triage), team collaboration (shared agents in group chats with role-based access), developer workflows (code review, git operations, CI/CD notifications), and smart home/IoT integration through webhooks. The plugin and skills architecture allows extending functionality without modifying core code, while the multi-agent system enables specialized assistants for different contexts.
+---
 
-Integration patterns typically involve running the Gateway as a persistent background service (via systemd, launchd, or Docker), connecting messaging channels for interactive use, exposing the OpenAI-compatible API for programmatic access from scripts and tools, and setting up cron jobs and webhooks for automated workflows. The configuration system supports environment variable substitution, secret refs (env/file/exec sources), and `$include` directives for splitting large configs across multiple files. For production deployments, sandboxing provides isolation for agent tool execution, while access controls (pairing, allowlists, group policies) ensure only authorized users can interact with the system.
+## OpenAI-Compatible HTTP API
+
+The Gateway exposes a drop-in OpenAI Chat Completions surface so any client that expects `/v1/chat/completions` (Open WebUI, LobeChat, LibreChat, etc.) can use OpenClaw as a backend. Disabled by default; enable with one config key.
+
+```json5
+// Enable in openclaw.json
+{
+  gateway: {
+    http: {
+      endpoints: {
+        chatCompletions: { enabled: true },
+      },
+    },
+  },
+}
+```
+
+```bash
+# Chat completions — route to the default agent
+curl http://127.0.0.1:18789/v1/chat/completions \
+  -H "Authorization: Bearer $OPENCLAW_GATEWAY_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "openclaw",
+    "messages": [{"role": "user", "content": "Hello from curl!"}],
+    "stream": false
+  }'
+
+# Route to a specific named agent
+curl http://127.0.0.1:18789/v1/chat/completions \
+  -H "Authorization: Bearer $OPENCLAW_GATEWAY_TOKEN" \
+  -H "Content-Type: application/json" \
+  -H "x-openclaw-model: anthropic/claude-opus-4-6" \
+  -d '{
+    "model": "openclaw/work",
+    "messages": [{"role": "user", "content": "Review this PR"}],
+    "user": "alice"
+  }'
+  # `user` field creates a stable session key for multi-turn continuity
+
+# List available agent targets
+curl http://127.0.0.1:18789/v1/models \
+  -H "Authorization: Bearer $OPENCLAW_GATEWAY_TOKEN"
+# => {"object":"list","data":[{"id":"openclaw"},{"id":"openclaw/default"},{"id":"openclaw/work"}]}
+```
+
+---
+
+## Gateway WebSocket Protocol
+
+All control-plane clients connect over WebSocket on port 18789. The first frame must be a `connect` request. After the handshake succeeds the client can send requests and receive streaming events.
+
+```json
+// 1. Gateway → Client: pre-connect challenge
+{
+  "type": "event",
+  "event": "connect.challenge",
+  "payload": { "nonce": "abc123", "ts": 1737264000000 }
+}
+
+// 2. Client → Gateway: connect request
+{
+  "type": "req",
+  "id": "req-1",
+  "method": "connect",
+  "params": {
+    "minProtocol": 3,
+    "maxProtocol": 4,
+    "client": { "id": "my-client", "version": "1.0.0", "platform": "linux", "mode": "operator" },
+    "role": "operator",
+    "scopes": ["operator.read", "operator.write"],
+    "auth": { "token": "your-gateway-token" }
+  }
+}
+
+// 3. Gateway → Client: hello-ok
+{
+  "type": "res",
+  "id": "req-1",
+  "ok": true,
+  "payload": {
+    "type": "hello-ok",
+    "protocol": 4,
+    "server": { "version": "2026.5.9", "connId": "conn-xyz" },
+    "features": { "methods": ["agent", "send", "health"], "events": ["agent", "chat", "presence"] },
+    "policy": { "maxPayload": 26214400, "tickIntervalMs": 15000 }
+  }
+}
+
+// 4. Client → Gateway: send an agent turn
+{
+  "type": "req",
+  "id": "req-2",
+  "method": "agent",
+  "params": {
+    "sessionKey": "main",
+    "message": "List files in the workspace",
+    "agentId": "main"
+  }
+}
+
+// 5. Gateway → Client: streaming agent events
+{ "type": "event", "event": "agent", "payload": { "runId": "run-1", "status": "accepted" } }
+{ "type": "event", "event": "agent", "payload": { "runId": "run-1", "delta": "Here are the files..." } }
+
+// 6. Gateway → Client: final response
+{ "type": "res", "id": "req-2", "ok": true, "payload": { "runId": "run-1", "status": "done", "summary": "Listed 12 files." } }
+```
+
+---
+
+## Scheduled Tasks (Cron)
+
+The Gateway has a built-in scheduler that persists jobs to `~/.openclaw/cron/jobs.json` and survives restarts. Jobs can be one-shot, interval-based, or cron-expression-based.
+
+```bash
+# One-shot reminder in 20 minutes
+openclaw cron add \
+  --name "standup-reminder" \
+  --at "20m" \
+  --session main \
+  --system-event "Time for standup — summarize open items" \
+  --wake now \
+  --delete-after-run
+
+# Recurring job every day at 9 AM Eastern
+openclaw cron add \
+  --name "morning-brief" \
+  --cron "0 9 * * 1-5" \
+  --tz "America/New_York" \
+  --session main \
+  --system-event "Generate morning brief: check calendar, emails, and priorities"
+
+# Fixed interval heartbeat every 30 minutes
+openclaw cron add \
+  --name "heartbeat" \
+  --every "30m" \
+  --session main \
+  --system-event "HEARTBEAT"
+
+# Inspect jobs
+openclaw cron list
+openclaw cron get <job-id>
+openclaw cron runs --id <job-id>
+
+# Remove a job
+openclaw cron remove <job-id>
+```
+
+---
+
+## Automation Hooks
+
+Hooks are small TypeScript scripts that fire on Gateway events (`command:new`, `message:received`, `gateway:startup`, etc.). They live in discoverable directories and can push messages back to the user.
+
+```bash
+# List available hooks
+openclaw hooks list
+
+# Enable a hook
+openclaw hooks enable session-memory
+
+# Check hook health
+openclaw hooks check
+```
+
+```typescript
+// ~/.openclaw/hooks/log-inbound/handler.ts
+const handler = async (event: any) => {
+  if (event.type !== "message" || event.action !== "received") return;
+
+  const { from, content, channelId } = event.context;
+  console.log(`[log-inbound] ${channelId} | ${from}: ${content}`);
+
+  // Optionally push a message back to the user
+  // event.messages.push("Message logged.");
+};
+
+export default handler;
+```
+
+```markdown
+<!-- ~/.openclaw/hooks/log-inbound/HOOK.md -->
+---
+name: log-inbound
+description: "Log every inbound message to stdout"
+metadata:
+  { "openclaw": { "emoji": "📝", "events": ["message:received"] } }
+---
+
+Logs each inbound message to the Gateway console.
+```
+
+---
+
+## Custom Skills
+
+Skills are `SKILL.md` directories that teach the agent when and how to use tools. They follow the [AgentSkills](https://agentskills.io) format and are loaded from the workspace at session start.
+
+```bash
+# Create a new skill directory
+mkdir -p ~/.openclaw/workspace/skills/deploy-check
+
+# Verify the skill loaded
+openclaw skills list
+
+# Reload skills without restarting the Gateway
+openclaw agent --message "/new"
+```
+
+```markdown
+<!-- ~/.openclaw/workspace/skills/deploy-check/SKILL.md -->
+---
+name: deploy-check
+description: "Run pre-deploy health checks before any production deployment"
+---
+
+# Deploy Check Skill
+
+Before any deployment to production:
+
+1. Run `exec("./scripts/health-check.sh")` and confirm exit code 0.
+2. Run `exec("git status --short")` and confirm no uncommitted changes.
+3. If either check fails, stop and report the failure to the user before proceeding.
+```
+
+```bash
+# Trigger the skill
+openclaw agent --message "Deploy the latest build to production"
+```
+
+---
+
+## Plugins
+
+Plugins extend the Gateway with new channels, tools, model providers, and more. They are discovered from [ClawHub](https://clawhub.io), npm, git repos, or local directories.
+
+```bash
+# Search for plugins on ClawHub
+openclaw plugins search "calendar"
+
+# Install from ClawHub
+openclaw plugins install clawhub:openclaw-codex-app-server
+
+# Install from npm
+openclaw plugins install npm:@acme/openclaw-plugin
+
+# Install from a local directory
+openclaw plugins install ./my-plugin
+
+# List all loaded plugins
+openclaw plugins list
+
+# Inspect a plugin's registered tools and services
+openclaw plugins inspect openshell --runtime --json
+
+# Enable / disable a plugin (triggers hot reload)
+# (run from chat or Control UI)
+# /plugins enable openshell
+# /plugins disable openshell
+
+# After installing, restart to apply
+openclaw gateway restart
+```
+
+```json5
+// Configure a plugin in openclaw.json
+{
+  plugins: {
+    entries: {
+      brave: {
+        enabled: true,
+        config: {
+          webSearch: { apiKey: "${BRAVE_API_KEY}" },
+        },
+      },
+      browser: {
+        enabled: true, // bundled browser plugin
+      },
+    },
+  },
+}
+```
+
+---
+
+## Browser Automation
+
+OpenClaw manages a dedicated, agent-only Chromium/Chrome profile (named `openclaw`) that the agent can control via CDP. This profile is completely isolated from your personal browser.
+
+```bash
+# Doctor-check the browser setup
+openclaw browser --browser-profile openclaw doctor
+openclaw browser --browser-profile openclaw doctor --deep
+
+# Start the browser
+openclaw browser --browser-profile openclaw start
+
+# Open a URL in the agent browser
+openclaw browser --browser-profile openclaw open https://example.com
+
+# Take a snapshot (DOM + screenshot)
+openclaw browser --browser-profile openclaw snapshot
+
+# Check browser status
+openclaw browser --browser-profile openclaw status
+```
+
+```json5
+// Enable in openclaw.json
+{
+  plugins: {
+    entries: {
+      browser: { enabled: true },
+    },
+  },
+  agents: {
+    defaults: {
+      sandbox: {
+        browser: {
+          enabled: true,
+          autoStart: true,
+          network: "openclaw-sandbox-browser",
+        },
+      },
+    },
+  },
+}
+```
+
+---
+
+## Memory System
+
+The agent persists memory as plain Markdown files in the workspace. No hidden state — what is on disk is what the agent knows.
+
+| File | Purpose | When loaded |
+|------|---------|-------------|
+| `MEMORY.md` | Long-term durable facts and preferences | Every DM session bootstrap |
+| `memory/YYYY-MM-DD.md` | Daily notes, observations, session summaries | Today + yesterday auto-loaded |
+| `DREAMS.md` | Dream-diary and dreaming sweep summaries | On demand |
+
+```bash
+# Ask the agent to remember something
+openclaw agent --message "Remember that I prefer TypeScript over JavaScript"
+
+# Inspect memory files directly
+cat ~/.openclaw/workspace/MEMORY.md
+ls  ~/.openclaw/workspace/memory/
+
+# Memory vector search (requires embedding model config)
+openclaw agent --message "What do you remember about my deployment setup?"
+```
+
+```json5
+// Enable semantic memory search
+{
+  agents: {
+    defaults: {
+      memorySearch: {
+        provider: "gemini",
+        model: "gemini-embedding-001",
+        remote: { apiKey: "${GEMINI_API_KEY}" },
+        extraPaths: ["../team-docs", "/srv/shared-notes"],
+      },
+    },
+  },
+}
+```
+
+---
+
+## Sandboxing
+
+Tool execution (file read/write, exec, browser) can be sandboxed inside Docker containers or over SSH to limit blast radius.
+
+```json5
+{
+  agents: {
+    defaults: {
+      sandbox: {
+        mode: "non-main",          // off | non-main | all
+        scope: "session",          // agent | session | shared
+        backend: "docker",         // docker | ssh | openshell
+        workspaceRoot: "~/.openclaw/sandboxes",
+        docker: {
+          image: "openclaw-sandbox:bookworm-slim",
+          workdir: "/workspace",
+          readOnlyRoot: true,
+          tmpfs: ["/tmp", "/var/tmp", "/run"],
+          network: "none",
+          user: "1000:1000",
+        },
+      },
+    },
+  },
+}
+```
+
+```bash
+# Test sandbox behavior
+openclaw sandbox status
+openclaw sandbox shell          # open a shell inside the agent's sandbox
+
+# Check elevated (host-escaping) exec policy
+openclaw config get tools.elevated
+```
+
+---
+
+## Remote Access and SSH Tunneling
+
+The Gateway WebSocket binds to loopback by default. Reach it remotely via SSH port-forwarding or Tailscale.
+
+```bash
+# Forward the Gateway port over SSH
+ssh -N -L 18789:127.0.0.1:18789 user@myserver.example.com
+
+# With the tunnel active, all local CLI commands target the remote Gateway
+openclaw health
+openclaw status --deep
+openclaw agent --message "What's running on the server?"
+
+# Tailscale Serve — expose the Control UI over your tailnet
+tailscale serve --bg 18789
+
+# Multi-gateway: run a second Gateway on a different profile
+OPENCLAW_PROFILE=work openclaw gateway --port 18790
+```
+
+---
+
+## Model Provider Configuration
+
+Model refs use `provider/model` format. Auth is managed via auth profiles; multiple API keys per provider enable automatic failover.
+
+```bash
+# Authenticate a provider interactively
+openclaw configure
+
+# Set the primary model
+openclaw models set anthropic/claude-sonnet-4-6
+
+# List available models
+openclaw models list
+
+# Add a provider key as an auth profile
+openclaw models auth login --provider anthropic
+```
+
+```json5
+// Multiple API keys → automatic failover
+{
+  auth: {
+    profiles: {
+      "anthropic:default": { provider: "anthropic", mode: "api_key" },
+      "anthropic:backup":  { provider: "anthropic", mode: "api_key" },
+    },
+    order: {
+      anthropic: ["anthropic:default", "anthropic:backup"],
+    },
+  },
+  agents: {
+    defaults: {
+      model: {
+        primary: "anthropic/claude-sonnet-4-6",
+        fallbacks: ["anthropic/claude-opus-4-6", "openai/gpt-5.4"],
+      },
+    },
+  },
+}
+```
+
+```bash
+# Environment variable API keys (loaded from .env or shell)
+export ANTHROPIC_API_KEY=sk-ant-...
+export OPENAI_API_KEY=sk-...
+export GEMINI_API_KEY=...
+export OPENROUTER_API_KEY=sk-or-...
+```
+
+---
+
+## Secrets Management (SecretRef)
+
+Credentials can be stored as SecretRefs (environment variable references or secret-manager paths) instead of plaintext in `openclaw.json`. Resolution is eager at startup; a bad ref on an active surface is a fatal error.
+
+```json5
+// Reference secrets from environment variables
+{
+  channels: {
+    telegram: {
+      enabled: true,
+      botToken: { $env: "TELEGRAM_BOT_TOKEN" },
+    },
+    slack: {
+      botToken: { $env: "SLACK_BOT_TOKEN" },
+      appToken: { $env: "SLACK_APP_TOKEN" },
+    },
+  },
+  gateway: {
+    auth: {
+      mode: "token",
+      token: { $env: "OPENCLAW_GATEWAY_TOKEN" },
+    },
+  },
+}
+```
+
+```bash
+# Validate secrets configuration
+openclaw doctor
+
+# Rotate a token without restarting — edit config and the Gateway hot-reloads
+openclaw config set gateway.auth.token '{"$env":"OPENCLAW_GATEWAY_TOKEN"}'
+```
+
+---
+
+OpenClaw is built for developers who want a personal AI agent reachable from any device, any messaging app, without giving up data ownership. Its single-Gateway design keeps all state — sessions, auth profiles, channel connections, cron schedules, and agent workspaces — in one place under `~/.openclaw/`. The plugin architecture means new capabilities (channels, model providers, tools) arrive as installable packages from ClawHub, while the WebSocket protocol and OpenAI-compatible HTTP surface make it easy to wire OpenClaw into existing tooling. A typical deployment looks like a systemd/launchd daemon on a VPS or home server, with Telegram or WhatsApp as the primary mobile interface and the Web Control UI for desktop management.
+
+Integration patterns range from simple (chat from a phone via Telegram) to complex (multi-agent routing with sandboxed Docker tool execution, vector memory search, cron-driven background research, webhook triggers, and ACP-compatible sub-agent orchestration). The OpenAI-compatible `/v1/chat/completions` endpoint allows drop-in use with frontends like Open WebUI or LobeChat. Custom skills and hooks make OpenClaw extensible without forking: skills teach the model new behavioral patterns via Markdown, hooks react to lifecycle events with TypeScript, and the plugin SDK registers new tools, channels, and providers that hot-reload into a running Gateway.
