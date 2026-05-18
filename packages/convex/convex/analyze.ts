@@ -14,7 +14,7 @@ import {
 } from "@trends/shared";
 import { v } from "convex/values";
 import { api, internal } from "./_generated/api";
-import { action } from "./_generated/server";
+import { action, internalMutation } from "./_generated/server";
 import { resolveChatCompletionModel } from "./lib/ai_model";
 
 const DEFAULT_AI_OUTPUT_LOCALE = DEFAULT_RESUME_AI_PROMPT_LOCALE;
@@ -570,7 +570,7 @@ export async function callLLM(messages: ChatMessage[], apiKey: string) {
             const num = parseInt(json.score);
             if (!isNaN(num)) json.score = num;
         }
-        return json;
+        return { content: json, usage: data.usage };
     } catch (e) {
         console.error("Failed to parse LLM response (raw content):", content.slice(0, 2000));
         throw new Error(`Invalid JSON response from AI: ${content.slice(0, 200)}`);
@@ -631,7 +631,7 @@ export const analyzeResume = action({
         // 3. Call LLM
         let rawResult;
         try {
-            rawResult = await callLLM(messages, apiKey);
+            rawResult = (await callLLM(messages, apiKey)).content;
         } catch (e) {
             console.error("LLM Call failed:", e);
             throw new Error("Failed to analyze resume with AI.");
@@ -708,11 +708,11 @@ export async function callLLMWithTracking(
         throw new Error(`LLM budget exhausted for workspace ${workspaceId}: ${budget.remainingTokens} tokens remaining`);
     }
 
-    const result = await callLLM(messages, apiKey);
+    const { content: result, usage } = await callLLM(messages, apiKey);
 
-    // Estimate token usage from response (usage field may not be present on all providers)
-    const inputTokens = (result as any)?.usage?.prompt_tokens ?? 0;
-    const outputTokens = (result as any)?.usage?.completion_tokens ?? 0;
+    // Record actual token usage from the API response
+    const inputTokens = (usage as any)?.prompt_tokens ?? 0;
+    const outputTokens = (usage as any)?.completion_tokens ?? 0;
 
     if (inputTokens > 0 || outputTokens > 0) {
         await ctx.runMutation(internal.llm_cost.recordUsage, {
@@ -724,6 +724,37 @@ export async function callLLMWithTracking(
 
     return result;
 }
+
+/**
+ * Store a confirm analysis result in the analyses map without overwriting
+ * the top-level `analysis` field (which holds the primary JD-based score).
+ */
+export const storeConfirmResult = internalMutation({
+    args: {
+        resumeId: v.id("resumes"),
+        analysis: v.object({
+            score: v.number(),
+            summary: v.string(),
+            highlights: v.array(v.string()),
+            recommendation: v.string(),
+            breakdown: v.optional(v.any()),
+            promptVersion: v.number(),
+            locale: v.string(),
+            analyzedAt: v.number(),
+        }),
+    },
+    handler: async (ctx, args) => {
+        const resume = await ctx.db.get(args.resumeId);
+        if (!resume) throw new Error("Resume not found");
+        const confirmKey = `confirm:${args.analysis.analyzedAt}`;
+        await ctx.db.patch(args.resumeId, {
+            analyses: {
+                ...(resume.analyses ?? {}),
+                [confirmKey]: args.analysis,
+            },
+        });
+    },
+});
 
 /**
  * Confirm AI scores for a set of search result resumes.
@@ -759,6 +790,7 @@ export const confirmSearchResults = action({
         const confirmIds = args.resumeIds.slice(0, maxConfirms);
 
         const results: any[] = [];
+        let totalConfirmed = 0;
 
         for (const resumeId of confirmIds) {
             try {
@@ -785,8 +817,8 @@ export const confirmSearchResults = action({
                     resume,
                 );
 
-                // Store confirm result via mutation
-                await ctx.runMutation(internal.resumes.updateAnalysis, {
+                // Store confirm result in analyses map without overwriting primary analysis
+                await ctx.runMutation(internal.analyze.storeConfirmResult, {
                     resumeId,
                     analysis: {
                         score: analysis.score,
@@ -794,20 +826,13 @@ export const confirmSearchResults = action({
                         summary: analysis.summary,
                         highlights: analysis.highlights || [],
                         recommendation: analysis.recommendation,
-                        jobDescriptionId: "confirm",
                         promptVersion: 1,
                         locale: "zh-Hans",
                         analyzedAt: Date.now(),
                     },
                 });
 
-                // Record confirm usage
-                await ctx.runMutation(internal.llm_cost.recordUsage, {
-                    workspaceId: args.workspaceId,
-                    inputTokens: 0,
-                    outputTokens: 0,
-                    confirmCount: 1,
-                });
+                totalConfirmed++;
 
                 results.push({
                     resumeId,
@@ -823,6 +848,16 @@ export const confirmSearchResults = action({
                     error: String(e),
                 });
             }
+        }
+
+        // Batch confirm count into single recordUsage call to avoid race conditions
+        if (totalConfirmed > 0) {
+            await ctx.runMutation(internal.llm_cost.recordUsage, {
+                workspaceId: args.workspaceId,
+                inputTokens: 0,
+                outputTokens: 0,
+                confirmCount: totalConfirmed,
+            });
         }
 
         return {
