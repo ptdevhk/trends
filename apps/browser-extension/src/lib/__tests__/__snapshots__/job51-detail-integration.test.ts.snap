@@ -379,3 +379,415 @@ exports[`job51-detail integration > filters legacy payloads by age ranges after 
 `;
 
 exports[`job51-detail integration > gracefully returns empty snapshots for minimal payloads 1`] = `[]`;
+
+exports[`job51-detail integration captures legacy workExperienceList payloads as stable snapshots 1`] = `
+[
+  {
+    "activityStatus": "",
+    "age": "32岁",
+    "education": "本科",
+    "expectedSalary": "20000元/月",
+    "experience": "9年",
+    "externalId": "123456",
+    "jobIntention": "销售经理",
+    "licences": [
+      {
+        "authority": "东莞市职业技能鉴定中心",
+        "issuedAt": "2019-06",
+        "name": "高级营销员",
+      },
+      {
+        "authority": "前程无忧培训中心",
+        "expiresAt": "2018-06",
+        "issuedAt": "2018-05",
+        "name": "Key Account Management",
+      },
+    ],
+    "location": "东莞",
+    "name": "张先生",
+    "pageIndex": 1,
+    "perUserId": "u-789",
+    "profileEducation": [
+      {
+        "description": undefined,
+        "endDate": undefined,
+        "fieldOfStudy": "机械设计制造及其自动化",
+        "institution": "广东工业大学",
+        "qualification": "本科",
+        "startDate": undefined,
+      },
+    ],
+    "profileUrl": "https://ehire.51job.com/Revision/talent/resume/detail?contentType=&resumeId=123456",
+    "projectExperience": undefined,
+    "resumeId": "123456",
+    "selfIntro": "9年工业设备销售经验，长期负责华南制造业客户拓展。",
+    "skills": [
+      {
+        "level": "熟练",
+        "name": "CRM",
+      },
+      "Excel",
+      {
+        "level": "良好",
+        "name": "招投标",
+      },
+    ],
+    "source": "ehire.51job.com",
+    "workHistory": [
+      {
+        "companyName": "东莞市台工智能装备有限公司",
+        "description": 
+"负责机床销售和渠道拓展
+维护大客户关系
+开发华南客户
+推进自动化整线项目签约"
+,
+        "endDate": "至今",
+        "jobTitle": "高级销售工程师",
+        "raw": 
+"2021-03~至今 · 东莞市台工智能装备有限公司 · 高级销售工程师 · 负责机床销售和渠道拓展
+维护大客户关系
+开发华南客户
+推进自动化整线项目签约"
+,
+        "startDate": "2021-03",
+      },
+      {
+        "companyName": "深圳市创世纪机械有限公司",
+        "description": 
+"主导重点客户招投标与交付协调。
+管理广东区域代理商网络
+制定季度销售预测"
+,
+        "endDate": "2021-02",
+        "jobTitle": "区域销售主管",
+        "raw": 
+"2018-06~2021-02 · 深圳市创世纪机械有限公司 · 区域销售主管 · 主导重点客户招投标与交付协调。
+管理广东区域代理商网络
+制定季度销售预测"
+,
+        "startDate": "2018-06",
+      },
+      {
+        "companyName": "广州数控设备有限公司",
+        "description": 
+"负责华南区域加工中心、车铣复合设备推广。
+跟进3C行业客户设备选型
+组织展会获客与线索转化"
+,
+        "endDate": "2018-05",
+        "jobTitle": "销售工程师",
+        "raw": 
+"2015-04~2018-05 · 广州数控设备有限公司 · 销售工程师 · 负责华南区域加工中心、车铣复合设备推广。
+跟进3C行业客户设备选型
+组织展会获客与线索转化"
+,
+        "startDate": "2015-04",
+      },
+      {
+        "companyName": "东莞怡合达自动化股份有限公司",
+        "description": 
+"协助KA客户完成非标自动化配件导入。
+开发自动化零部件经销商
+跟进售前方案与报价"
+,
+        "endDate": "2015-03",
+        "jobTitle": "销售代表",
+        "raw": 
+"2013-07~2015-03 · 东莞怡合达自动化股份有限公司 · 销售代表 · 协助KA客户完成非标自动化配件导入。
+开发自动化零部件经销商
+跟进售前方案与报价"
+,
+        "startDate": "2013-07",
+      },
+    ],
+  },
+]
+`;
+
+exports[`job51-detail integration filters legacy payloads by age ranges after parsing 1`] = `
+[
+  {
+    "activityStatus": "",
+    "age": "32岁",
+    "education": "本科",
+    "expectedSalary": "20000元/月",
+    "experience": "9年",
+    "externalId": "123456",
+    "jobIntention": "销售经理",
+    "licences": [
+      {
+        "authority": "东莞市职业技能鉴定中心",
+        "issuedAt": "2019-06",
+        "name": "高级营销员",
+      },
+      {
+        "authority": "前程无忧培训中心",
+        "expiresAt": "2018-06",
+        "issuedAt": "2018-05",
+        "name": "Key Account Management",
+      },
+    ],
+    "location": "东莞",
+    "name": "张先生",
+    "pageIndex": 1,
+    "perUserId": "u-789",
+    "profileEducation": [
+      {
+        "description": undefined,
+        "endDate": undefined,
+        "fieldOfStudy": "机械设计制造及其自动化",
+        "institution": "广东工业大学",
+        "qualification": "本科",
+        "startDate": undefined,
+      },
+    ],
+    "profileUrl": "https://ehire.51job.com/Revision/talent/resume/detail?contentType=&resumeId=123456",
+    "projectExperience": undefined,
+    "resumeId": "123456",
+    "selfIntro": "9年工业设备销售经验，长期负责华南制造业客户拓展。",
+    "skills": [
+      {
+        "level": "熟练",
+        "name": "CRM",
+      },
+      "Excel",
+      {
+        "level": "良好",
+        "name": "招投标",
+      },
+    ],
+    "source": "ehire.51job.com",
+    "workHistory": [
+      {
+        "companyName": "东莞市台工智能装备有限公司",
+        "description": 
+"负责机床销售和渠道拓展
+维护大客户关系
+开发华南客户
+推进自动化整线项目签约"
+,
+        "endDate": "至今",
+        "jobTitle": "高级销售工程师",
+        "raw": 
+"2021-03~至今 · 东莞市台工智能装备有限公司 · 高级销售工程师 · 负责机床销售和渠道拓展
+维护大客户关系
+开发华南客户
+推进自动化整线项目签约"
+,
+        "startDate": "2021-03",
+      },
+      {
+        "companyName": "深圳市创世纪机械有限公司",
+        "description": 
+"主导重点客户招投标与交付协调。
+管理广东区域代理商网络
+制定季度销售预测"
+,
+        "endDate": "2021-02",
+        "jobTitle": "区域销售主管",
+        "raw": 
+"2018-06~2021-02 · 深圳市创世纪机械有限公司 · 区域销售主管 · 主导重点客户招投标与交付协调。
+管理广东区域代理商网络
+制定季度销售预测"
+,
+        "startDate": "2018-06",
+      },
+      {
+        "companyName": "广州数控设备有限公司",
+        "description": 
+"负责华南区域加工中心、车铣复合设备推广。
+跟进3C行业客户设备选型
+组织展会获客与线索转化"
+,
+        "endDate": "2018-05",
+        "jobTitle": "销售工程师",
+        "raw": 
+"2015-04~2018-05 · 广州数控设备有限公司 · 销售工程师 · 负责华南区域加工中心、车铣复合设备推广。
+跟进3C行业客户设备选型
+组织展会获客与线索转化"
+,
+        "startDate": "2015-04",
+      },
+      {
+        "companyName": "东莞怡合达自动化股份有限公司",
+        "description": 
+"协助KA客户完成非标自动化配件导入。
+开发自动化零部件经销商
+跟进售前方案与报价"
+,
+        "endDate": "2015-03",
+        "jobTitle": "销售代表",
+        "raw": 
+"2013-07~2015-03 · 东莞怡合达自动化股份有限公司 · 销售代表 · 协助KA客户完成非标自动化配件导入。
+开发自动化零部件经销商
+跟进售前方案与报价"
+,
+        "startDate": "2013-07",
+      },
+    ],
+  },
+]
+`;
+
+exports[`job51-detail integration captures live work-array payloads with placeholder company cleanup 1`] = `
+[
+  {
+    "activityStatus": "2026.02.03",
+    "age": "37岁",
+    "education": "大专",
+    "expectedSalary": "8千-1.2万/月",
+    "experience": "9",
+    "externalId": "975386637",
+    "jobIntention": "销售经理",
+    "licences": undefined,
+    "location": "洛阳",
+    "name": "袁先生",
+    "pageIndex": 1,
+    "perUserId": "121430648",
+    "profileEducation": undefined,
+    "profileUrl": "https://ehire.51job.com/Revision/talent/resume/detail?contentType=&resumeId=975386637",
+    "projectExperience": undefined,
+    "resumeId": "975386637",
+    "selfIntro": "",
+    "skills": undefined,
+    "source": "ehire.51job.com",
+    "workHistory": [
+      {
+        "companyName": "苏州德扬数控机械有限公司",
+        "description": "负责河南区域CNC销售工作，年销售任务达标。",
+        "endDate": "至今",
+        "jobTitle": "销售工程师",
+        "raw": "2022-01~至今 · (4年3个月) · 苏州德扬数控机械有限公司 · 销售工程师 · 机械/设备/重工 · 150-500人 · 民营 · 负责河南区域CNC销售工作，年销售任务达标。",
+        "startDate": "2022-01",
+      },
+      {
+        "companyName": undefined,
+        "description": "机床销售、机床知识： 熟悉CNC数控机床、加工中心、车床、铣床、磨床等的工作原理及应用场景；了解发那科（FANUC）、西门子（SIEMENS）等主流数控系统。",
+        "endDate": "2021-12",
+        "jobTitle": "销售工程师",
+        "raw": "2020-07~2021-12 · (1年6个月) · 销售工程师 · 汽车研发/制造 · 机床销售、机床知识： 熟悉CNC数控机床、加工中心、车床、铣床、磨床等的工作原理及应用场景；了解发那科（FANUC）、西门子（SIEMENS）等主流数控系统。",
+        "startDate": "2020-07",
+      },
+      {
+        "companyName": "宁波丰申智能装备有限公司",
+        "description": "大客户销售、解决方案式销售、商务谈判、合同管理、市场分析。",
+        "endDate": "2020-06",
+        "jobTitle": "销售工程师",
+        "raw": "2018-05~2020-06 · (2年2个月) · 宁波丰申智能装备有限公司 · 销售工程师 · 仪器仪表/工业自动化 · 50-150人 · 民营 · 大客户销售、解决方案式销售、商务谈判、合同管理、市场分析。",
+        "startDate": "2018-05",
+      },
+      {
+        "companyName": "洛阳汇工轴承科技有限公司",
+        "description": "负责豫西工业品渠道招商与经销商维护。",
+        "endDate": "2018-04",
+        "jobTitle": "区域招商主管",
+        "raw": "2016-06~2018-04 · (1年11个月) · 洛阳汇工轴承科技有限公司 · 区域招商主管 · 机械/设备/重工 · 500-1000人 · 民营 · 负责豫西工业品渠道招商与经销商维护。",
+        "startDate": "2016-06",
+      },
+      {
+        "companyName": "郑州博特硬质材料有限公司",
+        "description": "负责刀具与硬质合金材料客户拜访，跟进回款。",
+        "endDate": "2016-05",
+        "jobTitle": "销售代表",
+        "raw": "2013-09~2016-05 · (2年9个月) · 郑州博特硬质材料有限公司 · 销售代表 · 原材料和加工 · 150-500人 · 股份制企业 · 负责刀具与硬质合金材料客户拜访，跟进回款。",
+        "startDate": "2013-09",
+      },
+    ],
+  },
+]
+`;
+
+exports[`job51-detail integration captures mixed work-plus-project payloads with layered profile data 1`] = `
+[
+  {
+    "activityStatus": "3天前活跃",
+    "age": "34岁",
+    "education": "本科",
+    "expectedSalary": "25-30万/年",
+    "experience": "",
+    "externalId": "R-778899",
+    "jobIntention": "大客户销售经理",
+    "licences": [
+      {
+        "authority": "PMI",
+        "issuedAt": "2020-11",
+        "name": "PMP",
+      },
+      {
+        "authority": "前程无忧培训中心",
+        "expiresAt": "2019-03",
+        "issuedAt": "2019-03",
+        "name": "战略客户销售训练营",
+      },
+    ],
+    "location": "苏州,上海",
+    "name": "李女士",
+    "pageIndex": 1,
+    "perUserId": "A-556677",
+    "profileEducation": [
+      {
+        "description": undefined,
+        "endDate": "2012-06",
+        "fieldOfStudy": "市场营销",
+        "institution": "江南大学",
+        "qualification": "本科",
+        "startDate": "2008-09",
+      },
+    ],
+    "profileUrl": "https://ehire.51job.com/Revision/talent/resume/detail?contentType=&resumeId=R-778899",
+    "projectExperience": [
+      {
+        "companyName": "新能源电池模组自动化产线",
+        "description": "完成客户需求梳理、方案路演、商务报价与签约。",
+        "endDate": "2024-08",
+        "jobTitle": "项目销售负责人",
+        "raw": "2023-02~2024-08 · 新能源电池模组自动化产线 · 项目销售负责人 · 新能源电池模组自动化产线 · 完成客户需求梳理、方案路演、商务报价与签约。",
+        "startDate": "2023-02",
+      },
+      {
+        "companyName": "Tier1零部件工厂数字化改造",
+        "description": "协同MES与设备团队完成分阶段交付。",
+        "endDate": "2022-12",
+        "jobTitle": "方案销售经理",
+        "raw": "2022-03~2022-12 · Tier1零部件工厂数字化改造 · 方案销售经理 · Tier1零部件工厂数字化改造 · 协同MES与设备团队完成分阶段交付。",
+        "startDate": "2022-03",
+      },
+    ],
+    "resumeId": "R-778899",
+    "selfIntro": "10年装备制造行业销售与项目协同经验，负责多地大客户开发与交付推进。",
+    "skills": [
+      {
+        "level": "熟练",
+        "name": "Salesforce",
+      },
+      {
+        "level": "熟练",
+        "name": "项目管理",
+      },
+      "Power BI",
+    ],
+    "source": "ehire.51job.com",
+    "workHistory": [
+      {
+        "companyName": "苏州汇川技术有限公司",
+        "description": "负责华东新能源客户经营与年度框架协议签署。",
+        "endDate": "至今",
+        "jobTitle": "大客户销售经理",
+        "raw": "2021-07~至今 · (3年2个月) · 苏州汇川技术有限公司 · 大客户销售经理 · 工业自动化 · 负责华东新能源客户经营与年度框架协议签署。",
+        "startDate": "2021-07",
+      },
+      {
+        "companyName": "上海发那科机器人有限公司",
+        "description": "联动售前与交付团队推进机器人产线项目。",
+        "endDate": "2021-06",
+        "jobTitle": "销售主管",
+        "raw": "2017-06~2021-06 · (4年1个月) · 上海发那科机器人有限公司 · 销售主管 · 机器人 · 联动售前与交付团队推进机器人产线项目。",
+        "startDate": "2017-06",
+      },
+    ],
+  },
+]
+`;
+
+exports[`job51-detail integration gracefully returns empty snapshots for minimal payloads 1`] = `[]`;
