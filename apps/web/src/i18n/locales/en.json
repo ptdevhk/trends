@@ -118,7 +118,10 @@
       "industryDb": "Industry DB",
       "education": "Education",
       "location": "Location"
-    }
+    },
+    "copyJson": "Copy",
+    "jsonCopied": "JSON copied",
+    "copyFailed": "Copy failed"
   },
   "debugIngest": {
     "nav": "Ingest Debug",

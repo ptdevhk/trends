@@ -118,7 +118,10 @@
       "industryDb": "行业库",
       "education": "学历",
       "location": "地区"
-    }
+    },
+    "copyJson": "复制",
+    "jsonCopied": "JSON 已复制",
+    "copyFailed": "复制失败"
   },
   "debugIngest": {
     "nav": "Ingest 调试",
