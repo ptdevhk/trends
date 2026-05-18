@@ -504,4 +504,15 @@ export default defineSchema({
         .index("by_workspace", ["workspaceSlug"])
         .index("by_workspace_enabled", ["workspaceSlug", "enabled"])
         .index("by_search_profile", ["searchProfileId"]),
+
+    // LLM Cost Tracking — per-workspace daily budget for batch AI confirm
+    llm_cost_tracking: defineTable({
+        workspaceId: v.string(),
+        period: v.string(), // "YYYY-MM-DD"
+        inputTokens: v.number(),
+        outputTokens: v.number(),
+        confirmCount: v.number(),
+        updatedAt: v.number(),
+    })
+        .index("by_workspace_period", ["workspaceId", "period"]),
 });

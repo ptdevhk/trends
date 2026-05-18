@@ -21,6 +21,7 @@ import type * as lib_age from "../lib/age.js";
 import type * as lib_ai_model from "../lib/ai_model.js";
 import type * as lib_parallelism from "../lib/parallelism.js";
 import type * as lib_resume_identity from "../lib/resume_identity.js";
+import type * as llm_cost from "../llm_cost.js";
 import type * as migrations from "../migrations.js";
 import type * as resume_tasks from "../resume_tasks.js";
 import type * as resumes from "../resumes.js";
@@ -53,6 +54,7 @@ declare const fullApi: ApiFromModules<{
   "lib/ai_model": typeof lib_ai_model;
   "lib/parallelism": typeof lib_parallelism;
   "lib/resume_identity": typeof lib_resume_identity;
+  llm_cost: typeof llm_cost;
   migrations: typeof migrations;
   resume_tasks: typeof resume_tasks;
   resumes: typeof resumes;
