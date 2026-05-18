@@ -60,6 +60,8 @@ describe('deleteResumes', () => {
       }
     })
 
+    let cursorState: string | null = null
+
     const ctx = {
       db: {
         normalizeId(tableName: string, id: string) {
@@ -96,6 +98,13 @@ describe('deleteResumes', () => {
             return {
               async collect() {
                 return screeningSessions.map((entry) => ({ ...entry }))
+              },
+              async paginate(opts: { cursor?: string | null }) {
+                if (opts.cursor && opts.cursor === cursorState) {
+                  return { page: [], continueCursor: null, isDone: true };
+                }
+                cursorState = 'cursor-next';
+                return { page: screeningSessions.map((entry) => ({ ...entry })), continueCursor: 'cursor-next', isDone: false };
               },
             }
           }
@@ -151,6 +160,9 @@ describe('deleteResumes', () => {
             return {
               async collect() {
                 return []
+              },
+              async paginate() {
+                return { page: [], continueCursor: null, isDone: true }
               },
             }
           }

@@ -233,7 +233,7 @@ describe("normalizeResume strict evidence", () => {
     expect(normalized.recommendation).toBe("strong_match");
   });
 
-  it("applies a sales related_exp floor when direct sales signals show 3+ verified years", () => {
+  it("passes through LLM related_exp without floor for 3+ verified years of sales", () => {
     const normalized = normalizeAnalysisResult(
       {
         score: 20,
@@ -271,12 +271,12 @@ describe("normalizeResume strict evidence", () => {
       } as unknown,
     );
 
-    expect(normalized.breakdown?.related_exp).toBe(80);
-    expect(normalized.score).toBe(40);
-    expect(normalized.recommendation).toBe("potential");
+    expect(normalized.breakdown?.related_exp).toBe(40);
+    expect(normalized.score).toBe(20);
+    expect(normalized.recommendation).toBe("no_match");
   });
 
-  it("caps related_exp to 0 for description-only sales support (no direct sales job title)", () => {
+  it("passes through LLM related_exp without cap for description-only sales support (no direct sales title)", () => {
     const normalized = normalizeAnalysisResult(
       {
         score: 20,
@@ -315,14 +315,13 @@ describe("normalizeResume strict evidence", () => {
       } as unknown,
     );
 
-    // directRoleMatch=false means "项目工程师" got sales signal from description,
-    // not from actual sales job title — cap fires, related_exp → 0
-    expect(normalized.breakdown?.related_exp).toBe(0);
-    expect(normalized.score).toBe(0);
+    // LLM-primary: AI score passes through, no cap applied for description-only
+    expect(normalized.breakdown?.related_exp).toBe(35);
+    expect(normalized.score).toBe(18);
     expect(normalized.recommendation).toBe("no_match");
   });
 
-  it("applies the sales related_exp floor for direct business development titles", () => {
+  it("passes through LLM related_exp without floor for direct business development titles", () => {
     const normalized = normalizeAnalysisResult(
       {
         score: 20,
@@ -362,9 +361,9 @@ describe("normalizeResume strict evidence", () => {
       } as unknown,
     );
 
-    expect(normalized.breakdown?.related_exp).toBe(80);
-    expect(normalized.score).toBe(40);
-    expect(normalized.recommendation).toBe("potential");
+    expect(normalized.breakdown?.related_exp).toBe(35);
+    expect(normalized.score).toBe(18);
+    expect(normalized.recommendation).toBe("no_match");
   });
 
   it("rewrites stale summary score mentions to the normalized score", () => {
@@ -416,7 +415,7 @@ describe("normalizeResume strict evidence", () => {
     expect(USER_PROMPT_TEMPLATE).toContain("0-39");
   });
 
-  it("caps related_exp to 15 for domain-irrelevant sales when keywords combine domain + sales", () => {
+  it("passes through LLM related_exp without domain-irrelevant ceiling for insurance sales", () => {
     const normalized = normalizeAnalysisResult(
       {
         score: 40,
@@ -456,13 +455,13 @@ describe("normalizeResume strict evidence", () => {
       } as unknown,
     );
 
-    // Insurance sales is domain-irrelevant to CNC sales — cap at 15
-    expect(normalized.breakdown?.related_exp).toBe(15);
-    expect(normalized.score).toBe(8);
+    // LLM-primary: insurance sales score passes through without domain-irrelevant ceiling
+    expect(normalized.breakdown?.related_exp).toBe(40);
+    expect(normalized.score).toBe(20);
     expect(normalized.recommendation).toBe("no_match");
   });
 
-  it("does not cap related_exp when sales has industry-verified overlap", () => {
+  it("passes through LLM related_exp for industry-verified sales (no ceiling needed)", () => {
     const normalized = normalizeAnalysisResult(
       {
         score: 80,
@@ -507,7 +506,7 @@ describe("normalizeResume strict evidence", () => {
     expect(normalized.breakdown?.related_exp).toBe(85);
   });
 
-  it("does not cap related_exp when brand hits prove domain overlap", () => {
+  it("passes through LLM related_exp when brand hits prove domain overlap", () => {
     const normalized = normalizeAnalysisResult(
       {
         score: 80,
@@ -557,7 +556,7 @@ describe("normalizeResume strict evidence", () => {
     expect(normalized.breakdown?.related_exp).toBe(85);
   });
 
-  it("caps related_exp when brand hits are only technical (not sales-relevant)", () => {
+  it("passes through LLM related_exp when brand hits are only technical (not sales-relevant)", () => {
     const normalized = normalizeAnalysisResult(
       {
         score: 80,
@@ -606,14 +605,12 @@ describe("normalizeResume strict evidence", () => {
       } as unknown,
     );
 
-    // Technical-only brand hits from CNC operator work do not prove sales domain overlap
-    // directRoleMatch=false triggers noDirectSalesRoleCap (→ 0) which fires before ceiling
-    // score = 0*0.5 + 50(brand hits) = 50 → potential
-    expect(normalized.breakdown?.related_exp).toBe(0);
-    expect(normalized.score).toBe(50);
-    expect(normalized.recommendation).toBe("potential");
+    // LLM-primary: AI score passes through without technical-only cap
+    expect(normalized.breakdown?.related_exp).toBe(85);
+    expect(normalized.score).toBe(93);
+    expect(normalized.recommendation).toBe("strong_match");
   });
-  it("caps related_exp when industry tags come from non-sales roles + domain-irrelevant company", () => {
+  it("passes through LLM related_exp when industry tags from non-sales roles + domain-irrelevant company", () => {
     const normalized = normalizeAnalysisResult(
       {
         score: 80,
@@ -655,14 +652,13 @@ describe("normalizeResume strict evidence", () => {
       } as unknown,
     );
 
-    // Industry tags from CNC technician work + domain-irrelevant company (insurance)
-    // → the tags don't reflect the sales role's domain. Ceiling of 15 applies.
-    expect(normalized.breakdown?.related_exp).toBe(15);
-    expect(normalized.score).toBe(8);
-    expect(normalized.recommendation).toBe("no_match");
+    // LLM-primary: AI score passes through without ceiling
+    expect(normalized.breakdown?.related_exp).toBe(85);
+    expect(normalized.score).toBe(43);
+    expect(normalized.recommendation).toBe("potential");
   });
 
-  it("bypasses ceiling when industry tags overlap + sales company is domain-relevant", () => {
+  it("passes through LLM related_exp when industry tags overlap + sales company is domain-relevant", () => {
     const normalized = normalizeAnalysisResult(
       {
         score: 80,
@@ -712,7 +708,7 @@ describe("normalizeResume strict evidence", () => {
     expect(normalized.recommendation).toBe("potential");
   });
 
-  it("applies floor of 60 for unverified domain-relevant sales (AI under-scores)", () => {
+  it("passes through LLM related_exp without unverified floor for domain-relevant sales", () => {
     const normalized = normalizeAnalysisResult(
       {
         score: 20,
@@ -754,13 +750,13 @@ describe("normalizeResume strict evidence", () => {
       } as unknown,
     );
 
-    // AI gave 22 but floor of 60 applies: unverified + domain tags + no irrelevant company
-    expect(normalized.breakdown?.related_exp).toBe(60);
-    expect(normalized.score).toBe(30); // 60 * 0.5 + 0 = 30
-    expect(normalized.recommendation).toBe("no_match"); // 30 < 40
+    // AI gave 22, pass through with no floor
+    expect(normalized.breakdown?.related_exp).toBe(22);
+    expect(normalized.score).toBe(11); // 22 * 0.5 + 0 = 11
+    expect(normalized.recommendation).toBe("no_match"); // 11 < 40
   });
 
-  it("does not apply unverified floor when sales is at domain-irrelevant company", () => {
+  it("passes through LLM related_exp without unverified floor for domain-irrelevant company", () => {
     const normalized = normalizeAnalysisResult(
       {
         score: 80,
@@ -802,13 +798,13 @@ describe("normalizeResume strict evidence", () => {
       } as unknown,
     );
 
-    // Insurance company → domain-irrelevant → no floor, ceiling caps at 15
-    expect(normalized.breakdown?.related_exp).toBe(15); // Ceiling caps 40→15, floor doesn't lift
-    expect(normalized.score).toBe(8);
+    // Insurance company → domain-irrelevant → no floor, no ceiling
+    expect(normalized.breakdown?.related_exp).toBe(40);
+    expect(normalized.score).toBe(20);
     expect(normalized.recommendation).toBe("no_match");
   });
 
-  it("does not apply unverified floor when no direct sales job title (description-only)", () => {
+  it("passes through LLM related_exp without unverified floor for description-only", () => {
     const normalized = normalizeAnalysisResult(
       {
         score: 30,
@@ -850,12 +846,12 @@ describe("normalizeResume strict evidence", () => {
       } as unknown,
     );
 
-    // No direct sales title → floor doesn't apply; also noDirectSalesRoleCap zeros it out
-    expect(normalized.breakdown?.related_exp).toBe(0);
+    // LLM-primary: AI score passes through without floor for description-only
+    expect(normalized.breakdown?.related_exp).toBe(35);
     expect(normalized.recommendation).toBe("no_match");
   });
 
-  it("unverified floor does not apply for industry-verified sales (80 floor takes precedence)", () => {
+  it("passes through LLM related_exp without floor for industry-verified sales", () => {
     const normalized = normalizeAnalysisResult(
       {
         score: 30,
@@ -897,12 +893,12 @@ describe("normalizeResume strict evidence", () => {
       } as unknown,
     );
 
-    // Industry-verified sales gets the 80 floor (higher than 60)
-    expect(normalized.breakdown?.related_exp).toBe(80);
-    expect(normalized.score).toBe(40);
+    // LLM-primary: AI score passes through without floor boost
+    expect(normalized.breakdown?.related_exp).toBe(40);
+    expect(normalized.score).toBe(20);
   });
 
-  it("does not cap related_exp when industry tags overlap AND sales is industry-verified", () => {
+  it("passes through LLM related_exp when industry tags overlap AND sales is industry-verified", () => {
     const normalized = normalizeAnalysisResult(
       {
         score: 80,
@@ -1172,6 +1168,76 @@ describe("normalizeResume strict evidence", () => {
     });
   });
 
+  describe("LLM-primary regression guards", () => {
+    it("passes through related_exp when breakdown is empty", () => {
+      const normalized = normalizeAnalysisResult(
+        { score: 0, recommendation: "no_match", summary: "ok", highlights: [], breakdown: {} },
+        { ingestData: { industryDbV2Raw: 0, companyHits: [], brandHits: [], roleSignals: [] } } as unknown,
+      );
+      expect(normalized.breakdown?.related_exp).toBe(0);
+      expect(normalized.score).toBe(0);
+      expect(normalized.recommendation).toBe("no_match");
+    });
+
+    it("clamps negative related_exp to 0", () => {
+      const normalized = normalizeAnalysisResult(
+        { score: 0, recommendation: "no_match", summary: "ok", highlights: [], breakdown: { related_exp: -50, industry_db: 0 } },
+        { ingestData: { industryDbV2Raw: 0, companyHits: [], brandHits: [], roleSignals: [] } } as unknown,
+      );
+      expect(normalized.breakdown?.related_exp).toBe(0);
+      expect(normalized.score).toBe(0);
+    });
+
+    it("clamps over-100 related_exp to 100", () => {
+      const normalized = normalizeAnalysisResult(
+        { score: 0, recommendation: "no_match", summary: "ok", highlights: [], breakdown: { related_exp: 999, industry_db: 0 } },
+        { ingestData: { industryDbV2Raw: 0, companyHits: [], brandHits: [], roleSignals: [] } } as unknown,
+      );
+      expect(normalized.breakdown?.related_exp).toBe(100);
+      expect(normalized.score).toBe(50);
+    });
+
+    it("falls back to 0 when related_exp is null", () => {
+      const normalized = normalizeAnalysisResult(
+        { score: 20, recommendation: "potential", summary: "ok", highlights: [], breakdown: { related_exp: null, industry_db: 0 } },
+        { ingestData: { industryDbV2Raw: 0, companyHits: [], brandHits: [], roleSignals: [] } } as unknown,
+      );
+      expect(normalized.breakdown?.related_exp).toBe(0);
+      expect(normalized.score).toBe(0);
+    });
+
+    it("falls back to 0 when related_exp is undefined (missing from breakdown)", () => {
+      const normalized = normalizeAnalysisResult(
+        { score: 20, recommendation: "potential", summary: "ok", highlights: [], breakdown: { industry_db: 0 } },
+        { ingestData: { industryDbV2Raw: 0, companyHits: [], brandHits: [], roleSignals: [] } } as unknown,
+      );
+      expect(normalized.breakdown?.related_exp).toBe(0);
+      expect(normalized.score).toBe(0);
+    });
+
+    it("passes through low related_exp for description-only non-sales resume (no false cap inflation)", () => {
+      // A description-only sales signal with no direct sales title — LLM gives low score
+      // LLM-primary: must pass through without rule-based cap or floor distortion
+      const normalized = normalizeAnalysisResult(
+        { score: 5, recommendation: "no_match", summary: "ok", highlights: [], breakdown: { related_exp: 5, industry_db: 0 } },
+        {
+          ingestData: {
+            industryDbV2Raw: 0, companyHits: [], brandHits: [],
+            roleSignals: [{
+              type: "sales", years: 2, roleRelevantYears: 2, industryVerifiedYears: 0,
+              matchedSignals: ["销售"],
+              matchedWorkEntries: [{ companyName: "某科技公司", jobTitle: "工程师", years: 2, matchedSignals: ["销售"], directRoleMatch: false }],
+              verifyIn: "workHistory",
+            }],
+          },
+        } as unknown,
+      );
+      expect(normalized.breakdown?.related_exp).toBe(5); // No floor boost, no cap
+      expect(normalized.score).toBe(3); // 5 * 0.5 = 2.5 → 3
+      expect(normalized.recommendation).toBe("no_match");
+    });
+  });
+
   describe("isDomainIrrelevantSalesEntry keyword coverage", () => {
     it("detects insurance company as domain-irrelevant", () => {
       const normalized = normalizeAnalysisResult(
@@ -1201,8 +1267,8 @@ describe("normalizeResume strict evidence", () => {
           },
         } as unknown,
       );
-      // Domain-irrelevant ceiling should cap related_exp at 15
-      expect(normalized.breakdown?.related_exp).toBeLessThanOrEqual(15);
+      // Domain-irrelevant ceiling no longer applies; LLM score passes through
+      expect(normalized.breakdown?.related_exp).toBe(60);
     });
 
     it("detects real estate company as domain-irrelevant", () => {
@@ -1233,7 +1299,7 @@ describe("normalizeResume strict evidence", () => {
           },
         } as unknown,
       );
-      expect(normalized.breakdown?.related_exp).toBeLessThanOrEqual(15);
+      expect(normalized.breakdown?.related_exp).toBe(60);
     });
   });
 
@@ -1271,8 +1337,8 @@ describe("normalizeResume strict evidence", () => {
           },
         } as unknown,
       );
-      // "cnc" keyword maps to "machinery" tag → unverified floor should apply → related_exp ≥ 60
-      expect(normalized.breakdown?.related_exp).toBeGreaterThanOrEqual(60);
+      // LLM-primary: AI score passes through without unverified floor
+      expect(normalized.breakdown?.related_exp).toBe(22);
     });
 
     it("matches Chinese 机械 tag to machinery via INDUSTRY_DISPLAY_NAME_TO_TAG", () => {
@@ -1305,8 +1371,8 @@ describe("normalizeResume strict evidence", () => {
           },
         } as unknown,
       );
-      // "机械" tag → "machinery", "cnc" keyword → "machinery" → match → floor applies
-      expect(normalized.breakdown?.related_exp).toBeGreaterThanOrEqual(60);
+      // LLM-primary: AI score passes through without unverified floor
+      expect(normalized.breakdown?.related_exp).toBe(22);
     });
 
     it("does not match when keyword has no taxonomy mapping to any resume tag", () => {
@@ -1344,7 +1410,7 @@ describe("normalizeResume strict evidence", () => {
   });
 
   describe("inferNoDirectSalesRoleCap", () => {
-    it("caps related_exp to 0 when sales signal comes from descriptions only", () => {
+    it("passes through LLM related_exp without cap for description-only signals", () => {
       const normalized = normalizeAnalysisResult(
         {
           score: 40,
@@ -1373,11 +1439,11 @@ describe("normalizeResume strict evidence", () => {
           },
         } as unknown,
       );
-      // No direct sales title (directRoleMatch=false) → cap at 0
-      expect(normalized.breakdown?.related_exp).toBe(0);
+      // LLM-primary: AI score passes through without cap
+      expect(normalized.breakdown?.related_exp).toBe(40);
     });
 
-    it("does not cap when a direct sales title exists", () => {
+    it("passes through LLM related_exp when a direct sales title exists", () => {
       const normalized = normalizeAnalysisResult(
         {
           score: 40,
@@ -1406,8 +1472,8 @@ describe("normalizeResume strict evidence", () => {
           },
         } as unknown,
       );
-      // Has direct sales title + verified 3y → 80 floor applies, cap does not
-      expect(normalized.breakdown?.related_exp).toBeGreaterThanOrEqual(80);
+      // LLM-primary: AI score passes through without floor boost
+      expect(normalized.breakdown?.related_exp).toBe(40);
     });
   });
 

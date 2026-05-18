@@ -874,25 +874,29 @@ describe("searchWithTagExpansionPaginated", () => {
     const ctx = {
       db: {
         query: () => ({
-          withSearchIndex: () => ({
-            filter: () => ({
-              take: async () => [matchingResumeA, nonMatchingResume],
-              paginate: async (opts: { cursor: string | null; numItems: number }) => {
-                if (opts.cursor) {
-                  return {
-                    page: [matchingResumeC, matchingResumeD],
-                    continueCursor: "",
-                    isDone: true,
-                  };
-                }
+          withSearchIndex: () => {
+            const paginate = async (opts: { cursor: string | null; numItems: number }) => {
+              if (opts.cursor) {
                 return {
-                  page: [matchingResumeA, nonMatchingResume],
-                  continueCursor: "cursor-next",
-                  isDone: false,
+                  page: [matchingResumeC, matchingResumeD],
+                  continueCursor: "",
+                  isDone: true,
                 };
-              },
-            }),
-          }),
+              }
+              return {
+                page: [matchingResumeA, nonMatchingResume],
+                continueCursor: "cursor-next",
+                isDone: false,
+              };
+            };
+            return {
+              paginate,
+              filter: () => ({
+                take: async () => [matchingResumeA, nonMatchingResume],
+                paginate,
+              }),
+            };
+          },
         }),
       },
     };
@@ -945,18 +949,20 @@ describe("searchWithTagExpansionPaginated", () => {
     const ctx = {
       db: {
         query: () => ({
-          withSearchIndex: () => ({
-            filter: () => ({
-              paginate: async (opts: { cursor: string | null; numItems: number }) => {
-                capturedNumItems = opts.numItems;
-                return {
-                  page: [resume],
-                  continueCursor: "",
-                  isDone: true,
-                };
-              },
-            }),
-          }),
+          withSearchIndex: () => {
+            const paginate = async (opts: { cursor: string | null; numItems: number }) => {
+              capturedNumItems = opts.numItems;
+              return {
+                page: [resume],
+                continueCursor: "",
+                isDone: true,
+              };
+            };
+            return {
+              paginate,
+              filter: () => ({ paginate }),
+            };
+          },
         }),
       },
     };
@@ -991,18 +997,20 @@ describe("searchWithTagExpansionPaginated", () => {
     const ctx = {
       db: {
         query: () => ({
-          withSearchIndex: () => ({
-            filter: () => ({
-              paginate: async (opts: { cursor: string | null; numItems: number }) => {
-                capturedNumItems = opts.numItems;
-                return {
-                  page: [resume],
-                  continueCursor: "",
-                  isDone: true,
-                };
-              },
-            }),
-          }),
+          withSearchIndex: () => {
+            const paginate = async (opts: { cursor: string | null; numItems: number }) => {
+              capturedNumItems = opts.numItems;
+              return {
+                page: [resume],
+                continueCursor: "",
+                isDone: true,
+              };
+            };
+            return {
+              paginate,
+              filter: () => ({ paginate }),
+            };
+          },
         }),
       },
     };

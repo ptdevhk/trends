@@ -154,6 +154,9 @@ function createTaxonomyDb(
                 async unique() {
                   return matches()[0] ?? null
                 },
+                async take(n: number) {
+                  return matches().slice(0, n)
+                },
               }
             },
           }
@@ -163,6 +166,13 @@ function createTaxonomyDb(
           return {
             async collect() {
               return resumeRecords.map(cloneResumeRecord)
+            },
+            order() {
+              return {
+                async take(n: number) {
+                  return resumeRecords.map(cloneResumeRecord).slice(0, n)
+                },
+              }
             },
           }
         }

@@ -88,6 +88,16 @@ function createSearchHistoryDb(records: SearchHistoryRecord[]) {
                 async collect() {
                   return buildRecords(clause.field, clause.value)
                 },
+                async take(n: number) {
+                  return buildRecords(clause.field, clause.value).slice(0, n)
+                },
+                order() {
+                  return {
+                    async take(n: number) {
+                      return buildRecords(clause.field, clause.value).slice(0, n)
+                    },
+                  }
+                },
               }
             },
             async collect() {
@@ -113,6 +123,9 @@ function createSearchHistoryDb(records: SearchHistoryRecord[]) {
                 async collect() {
                   return []
                 },
+                async take(n: number) {
+                  return []
+                },
               }
             },
             async collect() {
@@ -134,6 +147,9 @@ function createSearchHistoryDb(records: SearchHistoryRecord[]) {
 
               return {
                 async collect() {
+                  return []
+                },
+                async take(n: number) {
                   return []
                 },
               }

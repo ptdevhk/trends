@@ -32,8 +32,8 @@ const listForBackupHandler = (listForBackup as unknown as ConvexHandler<
 
 describe("listForBackup", () => {
   it("filters and limits a paginated backup page", async () => {
-    const paginate = async (options: { cursor: string | null; numItems: number }) => {
-      expect(options).toEqual({ cursor: null, numItems: 2 })
+    const paginate = async (options: { cursor: string | null; numItems: number; maximumBytesRead?: number; maximumRowsRead?: number }) => {
+      expect(options).toEqual({ cursor: null, numItems: 2, maximumBytesRead: 8388608, maximumRowsRead: 16000 })
       return {
         page: [
           {
@@ -163,8 +163,8 @@ describe("listForBackup", () => {
   })
 
   it("matches requested resume ids using the shared resume id resolver", async () => {
-    const paginate = async (options: { cursor: string | null; numItems: number }) => {
-      expect(options).toEqual({ cursor: null, numItems: 25 })
+    const paginate = async (options: { cursor: string | null; numItems: number; maximumBytesRead?: number; maximumRowsRead?: number }) => {
+      expect(options).toEqual({ cursor: null, numItems: 25, maximumBytesRead: 8388608, maximumRowsRead: 16000 })
       return {
         page: [
           {
