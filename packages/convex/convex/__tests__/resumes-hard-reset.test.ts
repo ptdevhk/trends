@@ -70,8 +70,8 @@ describe("hardResetIngestData", () => {
             order(orderDirection: string) {
               expect(orderDirection).toBe("desc")
               return {
-                async paginate(args: { cursor: string | null; numItems: number }) {
-                  expect(args).toEqual({ cursor: null, numItems: 25 })
+                async paginate(args: { cursor: string | null; numItems: number; maximumBytesRead?: number; maximumRowsRead?: number }) {
+                  expect(args).toEqual({ cursor: null, numItems: 25, maximumBytesRead: 8388608, maximumRowsRead: 16000 })
                   return {
                     page: resumes,
                     isDone: true,

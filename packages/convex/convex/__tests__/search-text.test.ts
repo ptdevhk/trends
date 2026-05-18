@@ -71,4 +71,39 @@ describe("buildSearchText", () => {
             },
         })).toBe("alice precision machine tool sales background");
     });
+
+    it("segments contiguous Chinese compounds into space-separated words while preserving original tokens", () => {
+        const result = buildSearchText({ desiredPosition: "数控车床操作工" });
+        // Original compound is preserved as a token
+        expect(result).toContain("数控车床操作工");
+        // Intl.Segmenter splits recognized word boundaries
+        expect(result).toContain("车床");
+        expect(result).toContain("操作");
+    });
+
+    it("preserves non-CJK text unchanged", () => {
+        expect(buildSearchText({ name: "John Smith" })).toBe("john smith");
+    });
+
+    it("handles mixed CJK and ASCII text", () => {
+        const result = buildSearchText({ skills: ["CNC编程", "机械设计"] });
+        // ASCII boundary separated by addScriptBoundarySpaces
+        expect(result).toContain("cnc");
+        // Original CJK tokens preserved
+        expect(result).toContain("编程");
+        expect(result).toContain("机械设计");
+        // Segmenter splits recognized sub-words
+        expect(result).toContain("机械");
+        expect(result).toContain("设计");
+    });
+
+    it("handles empty and null content without error", () => {
+        expect(buildSearchText({})).toBe("");
+        expect(buildSearchText(null as never)).toBe("");
+    });
+
+    it("preserves single Chinese characters", () => {
+        const result = buildSearchText({ name: "张" });
+        expect(result).toContain("张");
+    });
 });

@@ -166,14 +166,12 @@ export const getActiveSession = query({
         const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
         const sessions = await ctx.db
             .query("screening_sessions")
-            .withIndex("by_sessionKey_status", (q) => q.eq("sessionKey", args.sessionKey).eq("status", "active"))
+            .withIndex("by_sessionKey_workspace", (q) => q.eq("sessionKey", args.sessionKey).eq("workspaceSlug", workspaceSlug))
+            .filter((q) => q.eq(q.field("status"), "active"))
             .take(10);
 
-        const filtered = sessions
-            .filter((session) => belongsToWorkspace(session.workspaceSlug, workspaceSlug))
-            .sort((left, right) => right.lastActive - left.lastActive);
-
-        return filtered[0] ?? null;
+        return sessions
+            .sort((left, right) => right.lastActive - left.lastActive)[0] ?? null;
     },
 });
 
@@ -197,9 +195,10 @@ export const saveSession = mutation({
         const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
         const existingSessions = await ctx.db
             .query("screening_sessions")
-            .withIndex("by_sessionKey_status", (q) => q.eq("sessionKey", args.sessionKey).eq("status", "active"))
+            .withIndex("by_sessionKey_workspace", (q) => q.eq("sessionKey", args.sessionKey).eq("workspaceSlug", workspaceSlug))
+            .filter((q) => q.eq(q.field("status"), "active"))
             .collect();
-        const existing = existingSessions.find((session) => belongsToWorkspace(session.workspaceSlug, workspaceSlug));
+        const existing = existingSessions[0];
 
         const sessionData = {
             sessionKey: args.sessionKey,
@@ -240,9 +239,10 @@ export const addReviewedItem = mutation({
         const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
         const sessions = await ctx.db
             .query("screening_sessions")
-            .withIndex("by_sessionKey_status", (q) => q.eq("sessionKey", args.sessionKey).eq("status", "active"))
+            .withIndex("by_sessionKey_workspace", (q) => q.eq("sessionKey", args.sessionKey).eq("workspaceSlug", workspaceSlug))
+            .filter((q) => q.eq(q.field("status"), "active"))
             .take(10);
-        const session = sessions.find((item) => belongsToWorkspace(item.workspaceSlug, workspaceSlug));
+        const session = sessions[0];
 
         if (!session) {
             return null;
@@ -274,9 +274,10 @@ export const archiveSession = mutation({
         const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
         const sessions = await ctx.db
             .query("screening_sessions")
-            .withIndex("by_sessionKey_status", (q) => q.eq("sessionKey", args.sessionKey).eq("status", "active"))
+            .withIndex("by_sessionKey_workspace", (q) => q.eq("sessionKey", args.sessionKey).eq("workspaceSlug", workspaceSlug))
+            .filter((q) => q.eq(q.field("status"), "active"))
             .take(10);
-        const session = sessions.find((item) => belongsToWorkspace(item.workspaceSlug, workspaceSlug));
+        const session = sessions[0];
 
         if (session) {
             await ctx.db.patch(session._id, { status: "archived" });
@@ -336,12 +337,10 @@ export const recentSearches = query({
         const limit = Math.max(1, Math.min(Math.floor(args.limit ?? 10), 10));
         const records = await ctx.db
             .query("search_history")
-            .withIndex("by_sessionKey", (q) => q.eq("sessionKey", args.sessionKey))
+            .withIndex("by_sessionKey_workspace", (q) => q.eq("sessionKey", args.sessionKey).eq("workspaceSlug", workspaceSlug))
             .take(limit * 2);
 
-        return sortByHistoryRecency(records
-            .filter((record) => belongsToWorkspace(record.workspaceSlug, workspaceSlug)))
-            .slice(0, limit);
+        return sortByHistoryRecency(records).slice(0, limit);
     },
 });
 

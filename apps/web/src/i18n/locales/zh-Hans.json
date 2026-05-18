@@ -118,7 +118,10 @@
       "industryDb": "行业库",
       "education": "学历",
       "location": "地区"
-    }
+    },
+    "copyJson": "复制",
+    "jsonCopied": "JSON 已复制",
+    "copyFailed": "复制失败"
   },
   "debugIngest": {
     "nav": "Ingest 调试",
@@ -475,7 +478,22 @@
         "ruleScoreShort": "规则 {{score}}",
         "aiScoreLabel": "AI 分数",
         "recentWork": "最近工作",
-        "snapshot": "简历快照"
+        "snapshot": "简历快照",
+        "debug": "调试",
+        "scoreDimensions": "评分维度",
+        "scoreComparison": "分数对比",
+        "aiScore": "AI 分数",
+        "confirmed": "已确认",
+        "yourRating": "我的评分",
+        "analysisJson": "分析 JSON",
+        "copyJson": "复制",
+        "jsonCopied": "JSON 已复制",
+        "copyFailed": "复制失败",
+        "relatedExp": "相关经验",
+        "skills": "技能",
+        "industryDb": "行业库",
+        "education": "学历",
+        "location": "地点"
       },
       "error": {
         "searchBar": "搜索栏加载失败",

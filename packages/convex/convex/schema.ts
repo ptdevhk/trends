@@ -94,6 +94,10 @@ export default defineSchema({
         // Value: Analysis object (the payload keeps bare jobDescriptionId for compatibility)
         analyses: v.optional(v.any()),
 
+        // AI Confirm Score (cost-gated L4 batch confirm pass)
+        confirmedScore: v.optional(v.number()),
+        confirmedAt: v.optional(v.number()),
+
         // Full Text Search Field (Populated via mutation)
         searchText: v.optional(v.string()),
 
@@ -362,7 +366,8 @@ export default defineSchema({
         .index("by_sessionKey", ["sessionKey"])
         .index("by_status", ["status"])
         .index("by_workspace", ["workspaceSlug"])
-        .index("by_sessionKey_status", ["sessionKey", "status"]),
+        .index("by_sessionKey_status", ["sessionKey", "status"])
+        .index("by_sessionKey_workspace", ["sessionKey", "workspaceSlug"]),
 
     search_history: defineTable({
         sessionKey: v.string(),
@@ -386,7 +391,8 @@ export default defineSchema({
         lastOpenedAt: v.optional(v.number()),
     })
         .index("by_workspace", ["workspaceSlug"])
-        .index("by_sessionKey", ["sessionKey"]),
+        .index("by_sessionKey", ["sessionKey"])
+        .index("by_sessionKey_workspace", ["sessionKey", "workspaceSlug"]),
 
     industry_db_cohorts: defineTable({
         searchHistoryId: v.id("search_history"),
@@ -504,4 +510,15 @@ export default defineSchema({
         .index("by_workspace", ["workspaceSlug"])
         .index("by_workspace_enabled", ["workspaceSlug", "enabled"])
         .index("by_search_profile", ["searchProfileId"]),
+
+    // LLM Cost Tracking — per-workspace daily budget for batch AI confirm
+    llm_cost_tracking: defineTable({
+        workspaceId: v.string(),
+        period: v.string(), // "YYYY-MM-DD"
+        inputTokens: v.number(),
+        outputTokens: v.number(),
+        confirmCount: v.number(),
+        updatedAt: v.number(),
+    })
+        .index("by_workspace_period", ["workspaceId", "period"]),
 });

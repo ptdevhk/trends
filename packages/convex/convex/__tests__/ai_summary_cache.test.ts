@@ -73,6 +73,12 @@ function createCacheDb(records: CacheRecord[]) {
                     .filter((record) => clauseChain.clauses.every((clause) => record[clause.field as keyof CacheRecord] === clause.value))
                     .map((record) => ({ ...record }))
                 },
+                async take(n: number) {
+                  return records
+                    .filter((record) => clauseChain.clauses.every((clause) => record[clause.field as keyof CacheRecord] === clause.value))
+                    .map((record) => ({ ...record }))
+                    .slice(0, n)
+                },
               }
             }
 
@@ -96,6 +102,15 @@ function createCacheDb(records: CacheRecord[]) {
                   })
                   .map((record) => ({ ...record }))
               },
+              async take(n: number) {
+                return records
+                  .filter((record) => {
+                    const candidate = record[clause.field as keyof CacheRecord]
+                    return typeof candidate === "number" && candidate <= clause.value
+                  })
+                  .map((record) => ({ ...record }))
+                  .slice(0, n)
+              },
             }
           },
         }
@@ -110,6 +125,8 @@ function createCacheDb(records: CacheRecord[]) {
       },
       async delete(id: string) {
         deletedIds.push(id)
+        const idx = records.findIndex((r) => r._id === id)
+        if (idx !== -1) records.splice(idx, 1)
       },
     },
   }

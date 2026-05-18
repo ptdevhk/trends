@@ -617,7 +617,6 @@ export function DebugPage({ basePath = '/debug' }: { basePath?: string }) {
 
   const handleRefresh = useCallback(async () => {
     // Convex data is live, no need to manually refresh
-    console.log("Convex subscriptions are active")
   }, [])
 
   const jobOptions = useMemo(

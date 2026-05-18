@@ -44,6 +44,26 @@ function addScriptBoundarySpaces(text: string): string {
         .replace(new RegExp(`(${ASCII_WORD})(${CJK_CHAR})`, "g"), "$1 $2");
 }
 
+const CJK_SEGMENTER = new (Intl as unknown as { Segmenter: new (locale: string, options?: { granularity?: string }) => { segment: (text: string) => Iterable<{ segment: string; isWordLike: boolean }> } }).Segmenter(
+    "zh-CN",
+    { granularity: "word" },
+);
+
+function segmentChineseRuns(text: string): string {
+    return text.replace(
+        /[\u4e00-\u9fff\u3400-\u4dbf]{3,}/g,
+        (run) => {
+            const words: string[] = [run];
+            for (const { segment, isWordLike } of CJK_SEGMENTER.segment(run)) {
+                if (isWordLike && segment.trim()) {
+                    words.push(segment);
+                }
+            }
+            return [...new Set(words)].join(" ");
+        }
+    );
+}
+
 function toNormalizedSearchTokens(values: readonly string[] | undefined): string[] {
     if (!Array.isArray(values) || values.length === 0) {
         return [];
@@ -202,5 +222,5 @@ export function buildSearchText(content: unknown): string {
         ...collectNonPriorityFragments(content),
     ].join(" ");
 
-    return normalizeWhitespace(addScriptBoundarySpaces(merged)).toLowerCase();
+    return normalizeWhitespace(segmentChineseRuns(addScriptBoundarySpaces(merged))).toLowerCase();
 }

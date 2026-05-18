@@ -13,8 +13,8 @@ import {
     type ResumeFieldUsagePolicyOverrides,
 } from "@trends/shared";
 import { v } from "convex/values";
-import { internal } from "./_generated/api";
-import { action } from "./_generated/server";
+import { api, internal } from "./_generated/api";
+import { action, internalMutation } from "./_generated/server";
 import { resolveChatCompletionModel } from "./lib/ai_model";
 
 const DEFAULT_AI_OUTPUT_LOCALE = DEFAULT_RESUME_AI_PROMPT_LOCALE;
@@ -570,7 +570,7 @@ export async function callLLM(messages: ChatMessage[], apiKey: string) {
             const num = parseInt(json.score);
             if (!isNaN(num)) json.score = num;
         }
-        return json;
+        return { content: json, usage: data.usage };
     } catch (e) {
         console.error("Failed to parse LLM response (raw content):", content.slice(0, 2000));
         throw new Error(`Invalid JSON response from AI: ${content.slice(0, 200)}`);
@@ -631,7 +631,7 @@ export const analyzeResume = action({
         // 3. Call LLM
         let rawResult;
         try {
-            rawResult = await callLLM(messages, apiKey);
+            rawResult = (await callLLM(messages, apiKey)).content;
         } catch (e) {
             console.error("LLM Call failed:", e);
             throw new Error("Failed to analyze resume with AI.");
@@ -690,3 +690,202 @@ export const analyzeBatch = action({
         return { count: resumeIds.length, status: "scheduled" };
     }
 });
+
+/**
+ * Wrapper around callLLM that records token usage for cost tracking.
+ * Checks budget before calling and records usage afterward.
+ * Throws if budget is exhausted.
+ */
+export async function callLLMWithTracking(
+    ctx: any,
+    messages: ChatMessage[],
+    apiKey: string,
+    workspaceId: string,
+): Promise<Record<string, unknown>> {
+    // Check budget
+    const budget = await ctx.runQuery(api.llm_cost.getBudget, { workspaceId });
+    if (budget.remainingTokens <= 0) {
+        throw new Error(`LLM budget exhausted for workspace ${workspaceId}: ${budget.remainingTokens} tokens remaining`);
+    }
+
+    const { content: result, usage } = await callLLM(messages, apiKey);
+
+    // Record actual token usage from the API response
+    const inputTokens = (usage as any)?.prompt_tokens ?? 0;
+    const outputTokens = (usage as any)?.completion_tokens ?? 0;
+
+    if (inputTokens > 0 || outputTokens > 0) {
+        await ctx.runMutation(internal.llm_cost.recordUsage, {
+            workspaceId,
+            inputTokens,
+            outputTokens,
+        });
+    }
+
+    return result;
+}
+
+/**
+ * Store a confirm analysis result in the analyses map without overwriting
+ * the top-level `analysis` field (which holds the primary JD-based score).
+ */
+export const storeConfirmResult = internalMutation({
+    args: {
+        resumeId: v.id("resumes"),
+        analysis: v.object({
+            score: v.number(),
+            summary: v.string(),
+            highlights: v.array(v.string()),
+            recommendation: v.string(),
+            breakdown: v.optional(v.any()),
+            promptVersion: v.number(),
+            locale: v.string(),
+            analyzedAt: v.number(),
+        }),
+    },
+    handler: async (ctx, args) => {
+        const resume = await ctx.db.get(args.resumeId);
+        if (!resume) throw new Error("Resume not found");
+        const confirmKey = `confirm:${args.analysis.analyzedAt}`;
+        await ctx.db.patch(args.resumeId, {
+            confirmedScore: args.analysis.score,
+            confirmedAt: args.analysis.analyzedAt,
+            analyses: {
+                ...(resume.analyses ?? {}),
+                [confirmKey]: args.analysis,
+            },
+        });
+    },
+});
+
+/**
+ * Confirm AI scores for a set of search result resumes.
+ * Takes top-K resume IDs, re-scores them with a lightweight confirm prompt,
+ * and stores the confirm result alongside the original analysis.
+ * Cost-gated: limited by daily budget and max confirms per search session.
+ */
+export const confirmSearchResults = action({
+    args: {
+        workspaceId: v.string(),
+        resumeIds: v.array(v.id("resumes")),
+        query: v.string(),
+    },
+    handler: async (ctx: any, args) => {
+        const apiKey = getAiApiKey();
+        if (!apiKey) {
+            throw new Error("AI_API_KEY/OPENAI_API_KEY is not set in Convex environment variables.");
+        }
+
+        // Check confirm budget
+        const budget: any = await ctx.runQuery(api.llm_cost.getBudget, { workspaceId: args.workspaceId });
+        if (budget.remainingConfirms <= 0) {
+            return {
+                confirmed: 0,
+                skipped: args.resumeIds.length,
+                reason: "confirm_budget_exhausted",
+                budget: { remainingConfirms: 0, remainingTokens: budget.remainingTokens },
+            };
+        }
+
+        // Take top N (respect remaining budget and max confirms)
+        const maxConfirms = Math.min(budget.remainingConfirms, args.resumeIds.length, 10);
+        const confirmIds = args.resumeIds.slice(0, maxConfirms);
+
+        const results: any[] = [];
+        let totalConfirmed = 0;
+
+        for (const resumeId of confirmIds) {
+            try {
+                const resume = await ctx.runQuery(internal.resumes.getResume, { resumeId });
+                if (!resume) {
+                    results.push({ resumeId, confirmedScore: 0, confirmedRecommendation: "no_match", error: "not_found" });
+                    continue;
+                }
+
+                const messages: ChatMessage[] = [
+                    {
+                        role: "system",
+                        content: "You are a resume relevance evaluator. Rate how well the resume matches the search query. Respond with JSON only.",
+                    },
+                    {
+                        role: "user",
+                        content: buildConfirmPrompt(resume, args.query),
+                    },
+                ];
+
+                const rawResult = await callLLMWithTracking(ctx, messages, apiKey, args.workspaceId);
+                const analysis = normalizeAnalysisResult(
+                    isRecord(rawResult) ? rawResult : {},
+                    resume,
+                );
+
+                // Store confirm result in analyses map without overwriting primary analysis
+                await ctx.runMutation(internal.analyze.storeConfirmResult, {
+                    resumeId,
+                    analysis: {
+                        score: analysis.score,
+                        breakdown: analysis.breakdown,
+                        summary: analysis.summary,
+                        highlights: analysis.highlights || [],
+                        recommendation: analysis.recommendation,
+                        promptVersion: 1,
+                        locale: "zh-Hans",
+                        analyzedAt: Date.now(),
+                    },
+                });
+
+                totalConfirmed++;
+
+                results.push({
+                    resumeId,
+                    confirmedScore: analysis.score,
+                    confirmedRecommendation: analysis.recommendation,
+                });
+            } catch (e) {
+                console.error(`Confirm failed for resume ${resumeId}:`, e);
+                results.push({
+                    resumeId,
+                    confirmedScore: 0,
+                    confirmedRecommendation: "no_match",
+                    error: String(e),
+                });
+            }
+        }
+
+        // Batch confirm count into single recordUsage call to avoid race conditions
+        if (totalConfirmed > 0) {
+            await ctx.runMutation(internal.llm_cost.recordUsage, {
+                workspaceId: args.workspaceId,
+                inputTokens: 0,
+                outputTokens: 0,
+                confirmCount: totalConfirmed,
+            });
+        }
+
+        return {
+            confirmed: results.filter((r) => !r.error).length,
+            skipped: args.resumeIds.length - maxConfirms,
+            budget: { remainingConfirms: budget.remainingConfirms - maxConfirms, remainingTokens: budget.remainingTokens },
+            results,
+        };
+    },
+});
+
+function buildConfirmPrompt(resume: any, query: string): string {
+    const ingest = resume.ingestData ?? {};
+    const signals = Array.isArray(ingest.roleSignals)
+        ? ingest.roleSignals.map((s: any) => `${s.type} (${s.years}y)`).join(", ")
+        : "none";
+
+    return [
+        `Search query: "${query}"`,
+        "",
+        "Resume:",
+        `- Title: ${resume.content?.title ?? "N/A"}`,
+        `- Experience: ${signals}`,
+        `- Tags: ${Array.isArray(resume.tags) ? resume.tags.join(", ") : "none"}`,
+        "",
+        `Rate how relevant this resume is for the search query. Respond with:`,
+        `{ "score": <0-100>, "summary": "<one-sentence>", "recommendation": "<strong_match|match|potential|no_match>", "breakdown": { "related_exp": <0-100> } }`,
+    ].join("\n");
+}

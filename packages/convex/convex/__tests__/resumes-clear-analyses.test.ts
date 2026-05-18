@@ -51,8 +51,8 @@ describe("clearAnalyses", () => {
             order(orderDirection: string) {
               expect(orderDirection).toBe("desc")
               return {
-                async paginate(args: { cursor: string | null; numItems: number }) {
-                  expect(args).toEqual({ cursor: "next-batch", numItems: 10 })
+                async paginate(args: { cursor: string | null; numItems: number; maximumBytesRead?: number; maximumRowsRead?: number }) {
+                  expect(args).toEqual({ cursor: "next-batch", numItems: 10, maximumBytesRead: 8388608, maximumRowsRead: 16000 })
                   return {
                     page: resumes,
                     isDone: false,

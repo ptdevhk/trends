@@ -43,3 +43,40 @@ export function resolveSubmitResumeParallelism(totalResumes: number, env: EnvSou
         ?? DEFAULT_SUBMIT_RESUME_PARALLELISM;
     return clampParallelism(totalResumes, configured, MAX_SUBMIT_RESUME_PARALLELISM);
 }
+
+// LLM Cost Budget — per-workspace daily limits for batch AI confirm
+export const MAX_DAILY_INPUT_TOKENS = 100_000;
+export const MAX_DAILY_CONFIRM_COUNT = 10;
+
+export interface CostBudget {
+    remainingTokens: number;
+    remainingConfirms: number;
+    limit: number;
+    period: string;
+}
+
+export function todayPeriod(): string {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, "0");
+    const d = String(now.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+}
+
+export function getRemainingBudget(
+    record: { inputTokens: number; confirmCount: number } | null,
+): CostBudget {
+    const inputTokens = record?.inputTokens ?? 0;
+    const confirmCount = record?.confirmCount ?? 0;
+    return {
+        remainingTokens: Math.max(0, MAX_DAILY_INPUT_TOKENS - inputTokens),
+        remainingConfirms: Math.max(0, MAX_DAILY_CONFIRM_COUNT - confirmCount),
+        limit: MAX_DAILY_INPUT_TOKENS,
+        period: todayPeriod(),
+    };
+}
+
+export function hasBudget(record: { inputTokens: number; confirmCount: number } | null): boolean {
+    const budget = getRemainingBudget(record);
+    return budget.remainingTokens > 0 && budget.remainingConfirms > 0;
+}

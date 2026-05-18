@@ -41,10 +41,14 @@ type SearchHistoryRecord = {
   lastOpenedAt?: number
 }
 
+interface EqBuilder {
+  eq: (field: string, value: string) => EqBuilder
+}
+
 type QueryBuilder = {
   withIndex?: (
     indexName: string,
-    apply: (q: { eq: (field: string, value: string) => { field: string; value: string } }) => unknown
+    apply: (q: EqBuilder) => unknown
   ) => {
     collect: () => Promise<SearchHistoryRecord[]>
   }
@@ -76,17 +80,35 @@ function createSearchHistoryDb(records: SearchHistoryRecord[]) {
 
           return {
             withIndex(indexName, apply) {
-              expect(indexName === 'by_workspace' || indexName === 'by_sessionKey').toBe(true)
-              const clause = apply({
+              expect(['by_workspace', 'by_sessionKey', 'by_sessionKey_workspace'].includes(indexName)).toBe(true)
+              const conditions: Array<{ field: string; value: string }> = []
+              apply({
                 eq(field, value) {
-                  return { field, value }
+                  conditions.push({ field, value })
+                  return this
                 },
-              }) as { field: string; value: string }
-              expect(clause.field === 'workspaceSlug' || clause.field === 'sessionKey').toBe(true)
+              })
+
+              const filterRecords = () => {
+                if (conditions.length === 0) return buildRecords()
+                return buildRecords().filter((record) =>
+                  conditions.every((c) => record[c.field as keyof SearchHistoryRecord] === c.value),
+                )
+              }
 
               return {
                 async collect() {
-                  return buildRecords(clause.field, clause.value)
+                  return filterRecords()
+                },
+                async take(n: number) {
+                  return filterRecords().slice(0, n)
+                },
+                order() {
+                  return {
+                    async take(n: number) {
+                      return filterRecords().slice(0, n)
+                    },
+                  }
                 },
               }
             },
@@ -113,6 +135,9 @@ function createSearchHistoryDb(records: SearchHistoryRecord[]) {
                 async collect() {
                   return []
                 },
+                async take(n: number) {
+                  return []
+                },
               }
             },
             async collect() {
@@ -125,15 +150,20 @@ function createSearchHistoryDb(records: SearchHistoryRecord[]) {
           return {
             withIndex(indexName, apply) {
               expect(indexName).toBe('by_workspace')
-              const clause = apply({
+              const conditions: Array<{ field: string; value: string }> = []
+              apply({
                 eq(field, value) {
-                  return { field, value }
+                  conditions.push({ field, value })
+                  return this
                 },
-              }) as { field: string; value: string }
-              expect(clause.field).toBe('workspaceSlug')
+              })
+              expect(conditions[0]?.field).toBe('workspaceSlug')
 
               return {
                 async collect() {
+                  return []
+                },
+                async take(n: number) {
                   return []
                 },
               }

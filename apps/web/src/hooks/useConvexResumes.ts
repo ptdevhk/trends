@@ -115,6 +115,8 @@ export type ConvexResumeItem = ResumeItem & {
   analyses?: Record<string, ConvexResumeAnalysis>
   ingestData?: ConvexIngestData
   primaryRuleScore?: number
+  confirmedScore?: number
+  confirmedAt?: number
   source: string
   tags: string[]
   _provenance?: Array<{
@@ -133,6 +135,8 @@ type ResumeListDocLike = {
   analysis?: unknown
   analyses?: unknown
   primaryRuleScore?: number
+  confirmedScore?: number
+  confirmedAt?: number
   ingestData?: {
     industryTags: string[]
     synonymHits?: string[]
@@ -662,6 +666,8 @@ function mapResumeDoc(doc: ResumeListDocLike): ConvexResumeItem {
     analyses: parseAnalysesMap(doc.analyses),
     ingestData: parseIngestData(doc.ingestData),
     primaryRuleScore: typeof doc.primaryRuleScore === 'number' ? doc.primaryRuleScore : undefined,
+    confirmedScore: typeof doc.confirmedScore === 'number' ? doc.confirmedScore : undefined,
+    confirmedAt: typeof doc.confirmedAt === 'number' ? doc.confirmedAt : undefined,
     source: doc.source,
     tags: doc.tags,
   }

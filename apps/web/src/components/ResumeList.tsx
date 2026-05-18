@@ -235,6 +235,7 @@ export function ResumeList() {
         resume={entry.resume}
         matchResult={entry.match}
         ruleScore={entry.ruleScore}
+        confirmedScore={isConvexResumeEntry(entry.resume) ? entry.resume.confirmedScore : undefined}
         industryTags={ingestData?.industryTags}
         companyHits={ingestData?.companyHits}
         brandHits={ingestData?.brandHits}

@@ -118,7 +118,10 @@
       "industryDb": "產業庫",
       "education": "學歷",
       "location": "地點"
-    }
+    },
+    "copyJson": "複製",
+    "jsonCopied": "JSON 已複製",
+    "copyFailed": "複製失敗"
   },
   "debugIngest": {
     "nav": "Ingest 偵錯",
@@ -475,7 +478,22 @@
         "ruleScoreShort": "規則 {{score}}",
         "aiScoreLabel": "AI 分數",
         "recentWork": "最近工作",
-        "snapshot": "簡歷快照"
+        "snapshot": "簡歷快照",
+        "debug": "調試",
+        "scoreDimensions": "評分維度",
+        "scoreComparison": "分數對比",
+        "aiScore": "AI 分數",
+        "confirmed": "已確認",
+        "yourRating": "我的評分",
+        "analysisJson": "分析 JSON",
+        "copyJson": "複製",
+        "jsonCopied": "JSON 已複製",
+        "copyFailed": "複製失敗",
+        "relatedExp": "相關經驗",
+        "skills": "技能",
+        "industryDb": "行業庫",
+        "education": "學歷",
+        "location": "地點"
       },
       "error": {
         "searchBar": "搜尋列加載失敗",

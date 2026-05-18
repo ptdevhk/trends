@@ -118,7 +118,10 @@
       "industryDb": "Industry DB",
       "education": "Education",
       "location": "Location"
-    }
+    },
+    "copyJson": "Copy",
+    "jsonCopied": "JSON copied",
+    "copyFailed": "Copy failed"
   },
   "debugIngest": {
     "nav": "Ingest Debug",
@@ -480,7 +483,22 @@
         "ruleScoreShort": "Rule {{score}}",
         "aiScoreLabel": "AI score",
         "recentWork": "Recent Work",
-        "snapshot": "Resume Snapshot"
+        "snapshot": "Resume Snapshot",
+        "debug": "Debug",
+        "scoreDimensions": "Score Dimensions",
+        "scoreComparison": "Score Comparison",
+        "aiScore": "AI Score",
+        "confirmed": "Confirmed",
+        "yourRating": "Your Rating",
+        "analysisJson": "Analysis JSON",
+        "copyJson": "Copy",
+        "jsonCopied": "JSON copied",
+        "copyFailed": "Copy failed",
+        "relatedExp": "Related Exp",
+        "skills": "Skills",
+        "industryDb": "Industry DB",
+        "education": "Education",
+        "location": "Location"
       },
       "error": {
         "searchBar": "Search bar failed to load",

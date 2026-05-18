@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { AiFeedbackButtons } from '@/components/AiFeedbackButtons'
+import { ConfirmedScoreBadge } from '@/components/ConfirmedScoreBadge'
 import { StarRating } from '@/components/StarRating'
 import type { ResumeItem } from '@/hooks/useResumes'
 import type { AiFeedbackSentiment, AiFeedbackTarget, CandidateActionType, CandidateStatus, MatchingResult } from '@/types/resume'
@@ -82,6 +83,7 @@ interface ResumeCardProps {
   onAiFeedback?: (target: AiFeedbackTarget, sentiment: AiFeedbackSentiment) => void
   userRating?: number
   onRating?: (rating: number) => void
+  confirmedScore?: number
 }
 
 const STATUS_OPTIONS: Array<{ value: CandidateStatus; labelKey: string }> = [
@@ -166,6 +168,7 @@ export const ResumeCard = memo(function ResumeCard({
   onAiFeedback,
   userRating,
   onRating,
+  confirmedScore,
   industryTags,
   companyHits,
   brandHits,
@@ -279,6 +282,9 @@ export const ResumeCard = memo(function ResumeCard({
         <Badge className={cn('border text-[10px] uppercase tracking-wide', scoreSourceClassName)}>
           {t('resumes.searchPage.card.ai', { defaultValue: 'AI' })}
         </Badge>
+      ) : null}
+      {typeof confirmedScore === 'number' ? (
+        <ConfirmedScoreBadge />
       ) : null}
       {onAiFeedback && scoreSource === 'ai' ? (
         <AiFeedbackButtons
