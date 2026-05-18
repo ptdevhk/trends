@@ -748,6 +748,8 @@ export const storeConfirmResult = internalMutation({
         if (!resume) throw new Error("Resume not found");
         const confirmKey = `confirm:${args.analysis.analyzedAt}`;
         await ctx.db.patch(args.resumeId, {
+            confirmedScore: args.analysis.score,
+            confirmedAt: args.analysis.analyzedAt,
             analyses: {
                 ...(resume.analyses ?? {}),
                 [confirmKey]: args.analysis,
@@ -822,7 +824,7 @@ export const confirmSearchResults = action({
                     resumeId,
                     analysis: {
                         score: analysis.score,
-                        breakdown: { ...analysis.breakdown, confirmedScore: analysis.score },
+                        breakdown: analysis.breakdown,
                         summary: analysis.summary,
                         highlights: analysis.highlights || [],
                         recommendation: analysis.recommendation,

@@ -28,6 +28,7 @@ import { useBrandDisplayMap } from '@/hooks/useBrandDisplayMap'
 import { getScoreClassName } from '@/lib/score-classes'
 import { cn } from '@/lib/utils'
 import type { CandidateActionType, CandidateStatus, AiFeedbackSentiment, AiFeedbackTarget } from '@/types/resume'
+import { ConfirmedScoreBadge } from '@/components/ConfirmedScoreBadge'
 
 type SnippetCardProps = {
   expanded: boolean
@@ -234,6 +235,9 @@ export const SnippetCard = memo(function SnippetCard({
               <Badge className={cn('border text-[10px] uppercase tracking-wide', scoreSourceClassName)}>
                 {scoreSourceLabel}
               </Badge>
+              {typeof item.resume.confirmedScore === 'number' ? (
+                <ConfirmedScoreBadge />
+              ) : null}
             </div>
           ) : pendingAiScore ? (
             <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-600">
@@ -409,6 +413,7 @@ export const SnippetCard = memo(function SnippetCard({
             onCandidateStatusChange?.(identityKey, nextStatus)
           }}
           statusOptions={STATUS_OPTIONS}
+          userRating={userRating}
           onBlockTrigger={() => {
             if (item.blocked) {
               onToggleBlock?.(item.identityKey, true)

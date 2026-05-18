@@ -270,6 +270,8 @@ type ResumeListProjectedDoc = {
     tags: string[];
     analysis?: Doc<"resumes">["analysis"];
     analyses?: Doc<"resumes">["analyses"];
+    confirmedScore?: number;
+    confirmedAt?: number;
     primaryRuleScore?: number;
     isArchived?: boolean;
     archivedAt?: number;
@@ -759,6 +761,8 @@ function projectResumeListDoc(resume: Doc<"resumes">): ResumeListProjectedDoc {
         tags: resume.tags,
         ...(resume.analysis ? { analysis: resume.analysis } : {}),
         ...(resume.analyses ? { analyses: resume.analyses } : {}),
+        ...(resume.confirmedScore === undefined ? {} : { confirmedScore: resume.confirmedScore }),
+        ...(resume.confirmedAt === undefined ? {} : { confirmedAt: resume.confirmedAt }),
         ...(resume.primaryRuleScore === undefined ? {} : { primaryRuleScore: resume.primaryRuleScore }),
         ...(resume.isArchived === true ? { isArchived: true, archivedAt: resume.archivedAt } : {}),
         ...(resume.ingestData ? { ingestData: projectResumeListIngestData(resume.ingestData) } : {}),
@@ -777,6 +781,8 @@ function projectResumeDetailDoc(resume: Doc<"resumes">): ResumeListProjectedDoc 
         tags: resume.tags,
         ...(resume.analysis ? { analysis: resume.analysis } : {}),
         ...(resume.analyses ? { analyses: resume.analyses } : {}),
+        ...(resume.confirmedScore === undefined ? {} : { confirmedScore: resume.confirmedScore }),
+        ...(resume.confirmedAt === undefined ? {} : { confirmedAt: resume.confirmedAt }),
         ...(resume.primaryRuleScore === undefined ? {} : { primaryRuleScore: resume.primaryRuleScore }),
         ...(resume.isArchived === true ? { isArchived: true, archivedAt: resume.archivedAt } : {}),
         ...(resume.ingestData ? { ingestData: projectResumeListIngestData(resume.ingestData) } : {}),

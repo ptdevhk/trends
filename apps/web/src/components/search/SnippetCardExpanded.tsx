@@ -1,9 +1,10 @@
 import { buildWorkHistoryDateRange, normalizeWorkHistoryEntry, sanitizeResumeRecordForSurface, selectLatestWorkHistory } from '@trends/shared'
-import { BriefcaseBusiness, ExternalLink, MapPin, School, Sparkles } from 'lucide-react'
-import { useMemo } from 'react'
+import { BriefcaseBusiness, Bug, ChevronDown, Copy, ExternalLink, MapPin, School, Sparkles } from 'lucide-react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { Button, buttonVariants } from '@/components/ui/button'
+import { toast } from 'sonner'
 import { useResumeFieldUsagePolicy } from '@/contexts/ResumeFieldUsagePolicyContext'
 import { cn } from '@/lib/utils'
 import { getResumeContentLocale, getExperienceBadge, isSafeProfileUrl, summarizeBrandHits } from '@/lib/resume-scoring'
@@ -24,6 +25,7 @@ type SnippetCardExpandedProps = {
   statusOptions?: Array<{ value: CandidateStatus; labelKey: string }>
   onBlockTrigger?: () => void
   onNoteTrigger?: () => void
+  userRating?: number
 }
 
 function formatSnakeCaseLabel(value: string): string {
@@ -101,10 +103,12 @@ export function SnippetCardExpanded({
   statusOptions,
   onBlockTrigger,
   onNoteTrigger,
+  userRating,
 }: SnippetCardExpandedProps) {
   const { t } = useTranslation()
   const fieldUsagePolicy = useResumeFieldUsagePolicy()
   const contentLocale = getResumeContentLocale(item.resume)
+  const [showDebug, setShowDebug] = useState(false)
   const analysis = item.analysis ?? item.resume.analysis
   const hasAiAnalysis = item.scoreSource === 'ai' && Boolean(analysis)
   const pendingAiAnalysis = showAiScore && !hasAiAnalysis
@@ -440,6 +444,102 @@ export function SnippetCardExpanded({
                 ) : null}
               </div>
             </div>
+          </div>
+
+          {/* Debug toggle */}
+          <div className="rounded-3xl border bg-white p-4">
+            <button
+              type="button"
+              onClick={() => setShowDebug(!showDebug)}
+              className="flex w-full items-center justify-between text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <span className="flex items-center gap-2">
+                <Bug className="h-3.5 w-3.5" />
+                {t('resumes.searchPage.card.debug', { defaultValue: 'Debug' })}
+              </span>
+              <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', showDebug && 'rotate-180')} />
+            </button>
+
+            {showDebug && (
+              <div className="mt-4 space-y-4">
+                {/* Score sub-dimensions — each key from LLM breakdown */}
+                <div className="space-y-2">
+                  <div className="text-xs font-medium text-muted-foreground">
+                    {t('resumes.searchPage.card.scoreDimensions', { defaultValue: 'Score Dimensions' })}
+                  </div>
+                  {[
+                    { key: 'related_exp', label: t('resumes.searchPage.card.relatedExp', { defaultValue: 'Related Exp' }) },
+                    { key: 'skills', label: t('resumes.searchPage.card.skills', { defaultValue: 'Skills' }) },
+                    { key: 'industry_db', label: t('resumes.searchPage.card.industryDb', { defaultValue: 'Industry DB' }) },
+                    { key: 'education', label: t('resumes.searchPage.card.education', { defaultValue: 'Education' }) },
+                    { key: 'location', label: t('resumes.searchPage.card.location', { defaultValue: 'Location' }) },
+                  ].map(({ key, label }) => {
+                    const score = (analysis?.breakdown as Record<string, number> | undefined)?.[key] ?? 0
+                    return (
+                      <div key={key} className="space-y-0.5">
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="text-muted-foreground">{label}</span>
+                          <span className="font-mono text-xs text-muted-foreground">{Math.round(typeof score === 'number' ? score : 0)}</span>
+                        </div>
+                        <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                          <div
+                            className="h-full rounded-full bg-primary/60 transition-all"
+                            style={{ width: `${Math.min(100, typeof score === 'number' ? score : 0)}%` }}
+                          />
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* Score comparison — AI vs confirmed vs user */}
+                <div className="space-y-1.5">
+                  <div className="text-xs font-medium text-muted-foreground">
+                    {t('resumes.searchPage.card.scoreComparison', { defaultValue: 'Score Comparison' })}
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div className="rounded-lg border bg-slate-50 p-2">
+                      <div className="text-[10px] text-muted-foreground">{t('resumes.searchPage.card.aiScore', { defaultValue: 'AI Score' })}</div>
+                      <div className="text-sm font-bold">{typeof item.score === 'number' ? Math.round(item.score) : '-'}</div>
+                    </div>
+                    <div className="rounded-lg border bg-slate-50 p-2">
+                      <div className="text-[10px] text-muted-foreground">{t('resumes.searchPage.card.confirmed', { defaultValue: 'Confirmed' })}</div>
+                      <div className="text-sm font-bold">{typeof item.resume.confirmedScore === 'number' ? Math.round(item.resume.confirmedScore) : '-'}</div>
+                    </div>
+                    <div className="rounded-lg border bg-slate-50 p-2">
+                      <div className="text-[10px] text-muted-foreground">{t('resumes.searchPage.card.yourRating', { defaultValue: 'Your Rating' })}</div>
+                      <div className="text-sm font-bold">{typeof userRating === 'number' ? userRating : '-'}</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Raw analysis JSON with copy */}
+                {analysis ? (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <div className="text-xs font-medium text-muted-foreground">
+                        {t('resumes.searchPage.card.analysisJson', { defaultValue: 'Analysis JSON' })}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(JSON.stringify(analysis, null, 2)).then(() => {
+                            toast.success(t('resumes.searchPage.card.jsonCopied', { defaultValue: 'JSON copied' }))
+                          }).catch(() => {
+                            toast.error(t('resumes.searchPage.card.copyFailed', { defaultValue: 'Copy failed' }))
+                          })
+                        }}
+                        className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        <Copy className="h-3 w-3" />
+                        {t('resumes.searchPage.card.copyJson', { defaultValue: 'Copy' })}
+                      </button>
+                    </div>
+                    <pre className="max-h-48 overflow-auto rounded-md border bg-muted/40 p-3 text-[10px] leading-relaxed">{JSON.stringify(analysis, null, 2)}</pre>
+                  </div>
+                ) : null}
+              </div>
+            )}
           </div>
 
           {(onViewDetails || hasProfileUrl) ? (

@@ -254,7 +254,7 @@ describe('backfillJob5156WorkHistoryEducation', () => {
             },
           ],
         },
-        searchText: '2015-01~2020-01 东莞精密机械有限公司 销售工程师 2010-09~2013-06 广西现代职业技术学院 数控技术 大专 https://hr.job5156.com/resume/view/123 hr.job5156.com',
+        searchText: '2015-01~2020-01 东莞精密机械有限公司 东 莞 精密机械 有限公司 销售工程师 销售 工程 师 2010-09~2013-06 广西现代职业技术学院 广西 现代 职业 技术 学院 数控技术 数 控 技术 大专 https://hr.job5156.com/resume/view/123 hr.job5156.com',
         ingestData: {
           evidenceText: '2015-01~2020-01 东莞精密机械有限公司 销售工程师',
           industryTags: ['machinery'],
