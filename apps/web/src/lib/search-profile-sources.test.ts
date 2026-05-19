@@ -9,9 +9,11 @@ import {
   buildJob51CollectUrl,
   buildJob5156CollectUrl,
   buildSeekCollectUrl,
+  buildSeekTalentSearchUrl,
   getActiveSearchProfileSource,
   getSearchProfileCollectionSource,
   getSearchProfileCollectUrl,
+  isSeekTalentSearchUrl,
   resolveCollectionSource,
   resolveSeekMode,
 } from './search-profile-sources'
@@ -325,5 +327,88 @@ describe('seek mode', () => {
   it('SEEK_MODE constant exposes both values', () => {
     expect(SEEK_MODE.recommended).toBe('recommended')
     expect(SEEK_MODE.talentsearch).toBe('talentsearch')
+  })
+})
+
+describe('isSeekTalentSearchUrl', () => {
+  it('returns true for canonical talent-search URL on hk host', () => {
+    expect(isSeekTalentSearchUrl(
+      'https://hk.employer.seek.com/talentsearch?searchQuery=CNC+Sales&market=MY&keywords=CNC',
+    )).toBe(true)
+  })
+
+  it('returns true on my host', () => {
+    expect(isSeekTalentSearchUrl(
+      'https://my.employer.seek.com/talentsearch?keywords=Sales',
+    )).toBe(true)
+  })
+
+  it('returns false for the recommended-candidates URL', () => {
+    expect(isSeekTalentSearchUrl(
+      'https://my.employer.seek.com/candidates/recommended?jobId=90842915',
+    )).toBe(false)
+  })
+
+  it('returns false for /talentsearch/profile/<id> (profile detail)', () => {
+    expect(isSeekTalentSearchUrl(
+      'https://hk.employer.seek.com/talentsearch/profile/503033454?profileType=seek',
+    )).toBe(false)
+  })
+
+  it('returns false for /talentsearch with no query string', () => {
+    expect(isSeekTalentSearchUrl(
+      'https://hk.employer.seek.com/talentsearch',
+    )).toBe(false)
+  })
+
+  it('returns false for non-seek hosts', () => {
+    expect(isSeekTalentSearchUrl('https://example.com/talentsearch?keywords=x')).toBe(false)
+  })
+
+  it('returns false for malformed input', () => {
+    expect(isSeekTalentSearchUrl(undefined)).toBe(false)
+    expect(isSeekTalentSearchUrl('not a url')).toBe(false)
+    expect(isSeekTalentSearchUrl('')).toBe(false)
+  })
+})
+
+describe('buildSeekTalentSearchUrl', () => {
+  it('round-trips all documented params', () => {
+    const url = buildSeekTalentSearchUrl({
+      host: 'hk.employer.seek.com',
+      searchQuery: 'CNC Sales',
+      keywords: 'CNC',
+      market: 'MY',
+      roleTitles: ['Sales'],
+      pageNumber: 1,
+      sortBy: 'RELEVANCE',
+      matchAll: false,
+      salaryType: 'MONTHLY',
+      minSalary: 0,
+      salaryUnspecified: true,
+    })
+    expect(url).not.toBeNull()
+    const parsed = new URL(url as string)
+    expect(parsed.host).toBe('hk.employer.seek.com')
+    expect(parsed.pathname).toBe('/talentsearch')
+    expect(parsed.searchParams.get('searchQuery')).toBe('CNC Sales')
+    expect(parsed.searchParams.get('keywords')).toBe('CNC')
+    expect(parsed.searchParams.get('market')).toBe('MY')
+    expect(parsed.searchParams.get('roleTitles')).toBe('Sales')
+    expect(parsed.searchParams.get('pageNumber')).toBe('1')
+    expect(parsed.searchParams.get('sortBy')).toBe('RELEVANCE')
+    expect(parsed.searchParams.get('matchAll')).toBe('false')
+    expect(parsed.searchParams.get('salaryType')).toBe('MONTHLY')
+    expect(parsed.searchParams.get('minSalary')).toBe('0')
+    expect(parsed.searchParams.get('salaryUnspecified')).toBe('true')
+  })
+
+  it('defaults host to my.employer.seek.com when omitted', () => {
+    const url = buildSeekTalentSearchUrl({ keywords: 'Sales' })
+    expect(new URL(url as string).host).toBe('my.employer.seek.com')
+  })
+
+  it('returns null when no keywords or searchQuery provided', () => {
+    expect(buildSeekTalentSearchUrl({ keywords: '' })).toBeNull()
   })
 })

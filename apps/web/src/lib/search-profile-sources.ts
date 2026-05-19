@@ -255,6 +255,77 @@ export function isSeekRecommendedCandidatesUrl(value: string | undefined): boole
   }
 }
 
+const SEEK_TALENT_SEARCH_PATH = '/talentsearch'
+
+export function isSeekTalentSearchUrl(value: string | undefined): boolean {
+  const normalized = normalizeSeekJobUrl(value)
+  if (!normalized) {
+    return false
+  }
+  try {
+    const url = new URL(normalized)
+    return url.protocol === 'https:'
+      && url.hostname.toLowerCase().endsWith(SEEK_HOST_SUFFIX)
+      && url.pathname.replace(/\/+$/, '') === SEEK_TALENT_SEARCH_PATH
+      && url.search.length > 0
+  } catch {
+    return false
+  }
+}
+
+type BuildSeekTalentSearchUrlInput = {
+  host?: string  // 'hk.employer.seek.com' | 'my.employer.seek.com'
+  searchQuery?: string
+  keywords?: string
+  market?: string
+  roleTitles?: string[]
+  pageNumber?: number
+  sortBy?: string
+  matchAll?: boolean
+  salaryType?: string
+  minSalary?: number
+  maxSalary?: number
+  salaryUnspecified?: boolean
+}
+
+export function buildSeekTalentSearchUrl(input: BuildSeekTalentSearchUrlInput): string | null {
+  const host = input.host && input.host.endsWith(SEEK_HOST_SUFFIX)
+    ? input.host
+    : 'my.employer.seek.com'
+
+  const hasQuery = (input.searchQuery && input.searchQuery.trim().length > 0)
+    || (input.keywords && input.keywords.trim().length > 0)
+  if (!hasQuery) {
+    return null
+  }
+
+  const url = new URL(`https://${host}${SEEK_TALENT_SEARCH_PATH}`)
+  if (input.searchQuery) url.searchParams.set('searchQuery', input.searchQuery)
+  if (input.keywords) url.searchParams.set('keywords', input.keywords)
+  if (input.market) url.searchParams.set('market', input.market)
+  if (input.roleTitles && input.roleTitles.length > 0) {
+    url.searchParams.set('roleTitles', input.roleTitles.join(','))
+  }
+  if (typeof input.pageNumber === 'number' && input.pageNumber > 0) {
+    url.searchParams.set('pageNumber', String(input.pageNumber))
+  }
+  if (input.sortBy) url.searchParams.set('sortBy', input.sortBy)
+  if (typeof input.matchAll === 'boolean') {
+    url.searchParams.set('matchAll', String(input.matchAll))
+  }
+  if (input.salaryType) url.searchParams.set('salaryType', input.salaryType)
+  if (typeof input.minSalary === 'number') {
+    url.searchParams.set('minSalary', String(input.minSalary))
+  }
+  if (typeof input.maxSalary === 'number') {
+    url.searchParams.set('maxSalary', String(input.maxSalary))
+  }
+  if (typeof input.salaryUnspecified === 'boolean') {
+    url.searchParams.set('salaryUnspecified', String(input.salaryUnspecified))
+  }
+  return url.toString()
+}
+
 export function getActiveSearchProfileSource(
   sources: SearchProfileSource[] | undefined,
 ): SearchProfileSource | undefined {
