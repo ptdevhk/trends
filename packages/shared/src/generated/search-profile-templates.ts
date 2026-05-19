@@ -429,6 +429,122 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
         }
       }
     }
+  },
+  {
+    "workspaceSlug": "dev",
+    "seedLastRunOffsetMs": 1800000,
+    "profile": {
+      "id": "seek-malaysia-talent-search",
+      "name": "SEEK Malaysia CNC Sales — Talent Search",
+      "description": "Malaysia SEEK workflow targeting the Basic Talent Search lane (job-independent, ~500/run)",
+      "createdAt": "2026-05-19",
+      "updatedAt": "2026-05-19",
+      "status": "active",
+      "location": "Malaysia",
+      "keywords": [
+        "CNC",
+        "Sales"
+      ],
+      "requiredKeywords": [
+        "machine tools"
+      ],
+      "jobDescription": "seek-malaysia-sales",
+      "filters": {
+        "minExperience": 1,
+        "maxExperience": null,
+        "maxAge": 45,
+        "locations": [
+          "Malaysia"
+        ]
+      },
+      "schedule": {
+        "enabled": false,
+        "timezone": "Asia/Kuala_Lumpur",
+        "maxCandidates": 500
+      },
+      "sources": [
+        {
+          "type": "seek",
+          "enabled": true,
+          "priority": 1,
+          "jobUrl": "https://hk.employer.seek.com/talentsearch?searchQuery=CNC+Sales&market=MY&pageNumber=1&roleTitles=Sales&salaryType=MONTHLY&minSalary=0&salaryUnspecified=true&keywords=CNC&matchAll=false&sortBy=RELEVANCE",
+          "collectLimit": 500,
+          "maxPages": 25,
+          "mode": "talentsearch"
+        }
+      ],
+      "quickStart": {
+        "enabled": true,
+        "rank": 4,
+        "label": "Malaysia · SEEK · CNC Sales (Talent Search)",
+        "description": "CNC, Sales · Malaysia · Talent Search lane"
+      },
+      "session": {
+        "scope": "per-position",
+        "retention": {
+          "mode": "until-closed",
+          "archiveAfterDays": 90
+        }
+      }
+    }
+  },
+  {
+    "workspaceSlug": "hr",
+    "seedLastRunOffsetMs": 1800000,
+    "profile": {
+      "id": "seek-malaysia-talent-search",
+      "name": "SEEK Malaysia CNC Sales — Talent Search",
+      "description": "Malaysia SEEK workflow targeting the Basic Talent Search lane (job-independent, ~500/run)",
+      "createdAt": "2026-05-19",
+      "updatedAt": "2026-05-19",
+      "status": "active",
+      "location": "Malaysia",
+      "keywords": [
+        "CNC",
+        "Sales"
+      ],
+      "requiredKeywords": [
+        "machine tools"
+      ],
+      "jobDescription": "seek-malaysia-sales",
+      "filters": {
+        "minExperience": 1,
+        "maxExperience": null,
+        "maxAge": 45,
+        "locations": [
+          "Malaysia"
+        ]
+      },
+      "schedule": {
+        "enabled": false,
+        "timezone": "Asia/Kuala_Lumpur",
+        "maxCandidates": 500
+      },
+      "sources": [
+        {
+          "type": "seek",
+          "enabled": true,
+          "priority": 1,
+          "jobUrl": "https://hk.employer.seek.com/talentsearch?searchQuery=CNC+Sales&market=MY&pageNumber=1&roleTitles=Sales&salaryType=MONTHLY&minSalary=0&salaryUnspecified=true&keywords=CNC&matchAll=false&sortBy=RELEVANCE",
+          "collectLimit": 500,
+          "maxPages": 25,
+          "mode": "talentsearch"
+        }
+      ],
+      "quickStart": {
+        "enabled": true,
+        "rank": 4,
+        "label": "Malaysia · SEEK · CNC Sales (Talent Search)",
+        "description": "CNC, Sales · Malaysia · Talent Search lane"
+      },
+      "session": {
+        "scope": "per-position",
+        "retention": {
+          "mode": "until-closed",
+          "archiveAfterDays": 90
+        }
+      }
+    }
   }
 ];
 
