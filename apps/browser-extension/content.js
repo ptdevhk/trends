@@ -1608,6 +1608,9 @@
   }
   __name(getSeekRequestedPageSize, "getSeekRequestedPageSize");
   function getSeekCurrentCandidateCount() {
+    if (getCurrentSeekMode() === "talentsearch") {
+      return Array.isArray(apiSnapshot.seekTalentSearch) ? apiSnapshot.seekTalentSearch.length : 0;
+    }
     return Array.isArray(apiSnapshot.seekRecommendedCandidates) ? apiSnapshot.seekRecommendedCandidates.length : 0;
   }
   __name(getSeekCurrentCandidateCount, "getSeekCurrentCandidateCount");

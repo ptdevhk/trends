@@ -459,11 +459,16 @@ export function buildSeekCollectUrl({
     return null
   }
 
-  const url = normalizedBaseUrl && isSeekRecommendedCandidatesUrl(normalizedBaseUrl)
+  // Preserve a recognized seek base URL (recommended or talent-search) verbatim
+  // so caller-provided query params (jobId / searchQuery / market / etc.) are
+  // not lost. Fall back to the legacy keyword-driven search URL only when the
+  // base URL is missing or unrecognized.
+  const baseUrlMode = normalizedBaseUrl ? resolveSeekModeFromUrl(normalizedBaseUrl) : null
+  const url = normalizedBaseUrl && baseUrlMode !== null
     ? new URL(normalizedBaseUrl)
     : new URL(SEEK_TALENT_SEARCH_URL)
 
-  if (!normalizedBaseUrl) {
+  if (!normalizedBaseUrl || baseUrlMode === null) {
     url.searchParams.set('keyword', formatKeywordQuery(normalizedKeywords))
     if (normalizedLocation.length > 0) {
       url.searchParams.set('location', normalizedLocation)
