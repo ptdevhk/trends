@@ -233,6 +233,14 @@ describe('search-profiles list route', () => {
             expect.objectContaining({
               type: 'seek',
               enabled: true,
+              mode: 'recommended',
+            }),
+            expect.objectContaining({
+              type: 'seek',
+              enabled: true,
+              mode: 'talentsearch',
+              collectLimit: 500,
+              maxPages: 25,
             }),
           ]),
           quickStart: expect.objectContaining({

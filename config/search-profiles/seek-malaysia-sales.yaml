@@ -31,14 +31,22 @@ schedule:
 
 sources:
   - type: seek
+    mode: recommended
     enabled: true
     priority: 1
     jobUrl: https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1
     collectLimit: 100
     maxPages: 5
+  - type: seek
+    mode: talentsearch
+    enabled: true
+    priority: 2
+    jobUrl: https://hk.employer.seek.com/talentsearch?searchQuery=CNC+Sales&market=MY&pageNumber=1&roleTitles=Sales&salaryType=MONTHLY&minSalary=0&salaryUnspecified=true&keywords=CNC&matchAll=false&sortBy=RELEVANCE
+    collectLimit: 500
+    maxPages: 25
   - type: job5156
     enabled: false
-    priority: 2
+    priority: 3
 
 session:
   scope: per-position
