@@ -45,6 +45,22 @@
     return query.includes("talentSearchRecommendedCandidatesV2");
   };
 
+  const isSeekTalentSearchOperation = (entry) => {
+    const operationName =
+      typeof entry?.operationName === "string" ? entry.operationName : "";
+    if (operationName === "SearchProfilesByNaturalLanguage") return true;
+    const query = typeof entry?.query === "string" ? entry.query : "";
+    return /talentSearchProfilesNaturalLanguageSearch\s*\(/i.test(query);
+  };
+
+  const isSeekProfileV3Operation = (entry) => {
+    const operationName =
+      typeof entry?.operationName === "string" ? entry.operationName : "";
+    if (operationName === "GetTalentSearchProfileCompleteV3") return true;
+    const query = typeof entry?.query === "string" ? entry.query : "";
+    return /talentSearchProfileV3\s*\(/i.test(query);
+  };
+
   const headersToObject = (headers) => {
     if (!headers) {
       return {};
@@ -123,6 +139,21 @@
       }
     }
     if (url.includes("/graphql")) {
+      const talentSearchOperation = findGraphqlOperation(
+        requestBody,
+        isSeekTalentSearchOperation,
+      );
+      if (talentSearchOperation) {
+        return {
+          kind: "seekTalentSearch",
+          sourceKey: "seek",
+          operationName:
+            typeof talentSearchOperation.operationName === "string"
+              ? talentSearchOperation.operationName
+              : "SearchProfilesByNaturalLanguage",
+          operation: talentSearchOperation,
+        };
+      }
       const recommendedOperation = findGraphqlOperation(
         requestBody,
         isSeekRecommendedCandidatesOperation,
@@ -148,6 +179,18 @@
           sourceKey: "seek",
           operationName: "GetTalentSearchProfileCompleteV2",
           operation: profileOperation,
+        };
+      }
+      const profileV3Operation = findGraphqlOperation(
+        requestBody,
+        isSeekProfileV3Operation,
+      );
+      if (profileV3Operation) {
+        return {
+          kind: "seekProfile",
+          sourceKey: "seek",
+          operationName: "GetTalentSearchProfileCompleteV3",
+          operation: profileV3Operation,
         };
       }
     }
@@ -200,13 +243,85 @@
 
   const sanitizeSeekRequestBody = (operation) => {
     if (!operation || typeof operation !== "object") return null;
-    const input = operation.variables?.input;
+    const opName =
+      typeof operation.operationName === "string" ? operation.operationName : "";
     const language = operation.variables?.language;
+    const locale = operation.variables?.locale;
+
+    if (opName === "SearchProfilesByNaturalLanguage") {
+      const input = operation.variables?.input;
+      if (!input || typeof input !== "object") {
+        return {
+          operationName: opName,
+          variables: { language: typeof language === "string" ? language : undefined },
+        };
+      }
+      return {
+        operationName: opName,
+        variables: {
+          input: {
+            roleTitles: input.roleTitles && typeof input.roleTitles === "object"
+              ? {
+                  values: Array.isArray(input.roleTitles.values) ? input.roleTitles.values : undefined,
+                  matchLatestOnly: typeof input.roleTitles.matchLatestOnly === "boolean"
+                    ? input.roleTitles.matchLatestOnly
+                    : undefined,
+                }
+              : undefined,
+            companyNames: input.companyNames && typeof input.companyNames === "object"
+              ? {
+                  values: Array.isArray(input.companyNames.values) ? input.companyNames.values : undefined,
+                  matchLatestOnly: typeof input.companyNames.matchLatestOnly === "boolean"
+                    ? input.companyNames.matchLatestOnly
+                    : undefined,
+                }
+              : undefined,
+            keywords: input.keywords && typeof input.keywords === "object"
+              ? {
+                  values: Array.isArray(input.keywords.values) ? input.keywords.values : undefined,
+                  matchAll: typeof input.keywords.matchAll === "boolean"
+                    ? input.keywords.matchAll
+                    : undefined,
+                }
+              : undefined,
+            locations: Array.isArray(input.locations) ? input.locations : undefined,
+            salary: input.salary && typeof input.salary === "object"
+              ? {
+                  frequency: typeof input.salary.frequency === "string" ? input.salary.frequency : undefined,
+                  includeUnspecified: typeof input.salary.includeUnspecified === "boolean"
+                    ? input.salary.includeUnspecified
+                    : undefined,
+                  range: input.salary.range && typeof input.salary.range === "object"
+                    ? {
+                        minimum: typeof input.salary.range.minimum === "number"
+                          ? input.salary.range.minimum
+                          : undefined,
+                        maximum: typeof input.salary.range.maximum === "number"
+                          ? input.salary.range.maximum
+                          : undefined,
+                      }
+                    : undefined,
+                }
+              : undefined,
+            pageNumber: typeof input.pageNumber === "number" ? input.pageNumber : undefined,
+            pageSize: typeof input.pageSize === "number" ? input.pageSize : undefined,
+            originalNaturalLanguageQuery:
+              typeof input.originalNaturalLanguageQuery === "string"
+                ? input.originalNaturalLanguageQuery
+                : undefined,
+            countryCode: typeof input.countryCode === "string" ? input.countryCode : undefined,
+            sortBy: typeof input.sortBy === "string" ? input.sortBy : undefined,
+          },
+          language: typeof language === "string" ? language : undefined,
+          locale: typeof locale === "string" ? locale : undefined,
+        },
+      };
+    }
+
+    // Recommended (V2) and profile (V2/V3) keep the existing shape:
+    const input = operation.variables?.input;
     return {
-      operationName:
-        typeof operation.operationName === "string"
-          ? operation.operationName
-          : "",
+      operationName: opName,
       variables: {
         input:
           input && typeof input === "object"
@@ -218,6 +333,7 @@
                 searchId: input.searchId,
                 countryCode: input.countryCode,
                 profileId: input.profileId,
+                profileGuid: input.profileGuid,
                 keywords: input.keywords,
               }
             : undefined,
