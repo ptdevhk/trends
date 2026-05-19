@@ -369,6 +369,55 @@ describe('SearchProfileEditorDialog JD hydration', () => {
     })
   })
 
+  it('saves a profile whose only seek source is talent-search mode without rejection', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <SearchProfileEditorDialog
+        open
+        onOpenChange={vi.fn()}
+        profileId="custom-profile-2"
+        initialData={{
+          id: 'custom-profile-2',
+          name: 'Seek Talent-Search Only',
+          status: 'active',
+          location: 'MY',
+          keywords: ['CNC', 'Sales'],
+          sources: [
+            {
+              type: 'seek',
+              enabled: true,
+              priority: 1,
+              mode: 'talentsearch',
+              jobUrl: 'https://hk.employer.seek.com/talentsearch?searchQuery=CNC+Sales&market=MY&keywords=CNC',
+              collectLimit: 500,
+              maxPages: 25,
+            },
+          ],
+        }}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      expect(putMock).toHaveBeenCalledWith('/api/search-profiles/custom-profile-2', {
+        body: expect.objectContaining({
+          sources: expect.arrayContaining([
+            expect.objectContaining({
+              type: 'seek',
+              mode: 'talentsearch',
+              enabled: true,
+              jobUrl: 'https://hk.employer.seek.com/talentsearch?searchQuery=CNC+Sales&market=MY&keywords=CNC',
+              collectLimit: 500,
+              maxPages: 25,
+            }),
+          ]),
+        }),
+      })
+    })
+  })
+
   it('persists explicit 51job extended-limit settings in the profile payload', async () => {
     const user = userEvent.setup()
 

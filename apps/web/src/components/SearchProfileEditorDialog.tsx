@@ -17,8 +17,8 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Select } from '@/components/ui/select'
 import {
     SEARCH_PROFILE_SOURCE_TYPES,
-    isSeekRecommendedCandidatesUrl,
     normalizeSeekJobUrl,
+    resolveSeekModeFromUrl,
     type SearchProfileSource,
 } from '@/lib/search-profile-sources'
 import { api } from '../../../../packages/convex/convex/_generated/api'
@@ -227,13 +227,18 @@ function toSourcesFormState(sources: SearchProfileSource[] | undefined): SourceF
 
     const job5156Source = sources.find((source) => source.type === SEARCH_PROFILE_SOURCE_TYPES.job5156)
     const job51Source = sources.find((source) => source.type === SEARCH_PROFILE_SOURCE_TYPES.job51)
-    // Editor only surfaces the recommended-mode seek source today. Talent-search
-    // mode sources are preserved via splitKnownSources' `additional` lane so they
-    // round-trip through save without being dropped.
-    const seekSource = sources.find((source) =>
-        source.type === SEARCH_PROFILE_SOURCE_TYPES.seek
-        && (source.mode === undefined || source.mode === 'recommended'),
-    )
+    // Editor surfaces the highest-priority seek source regardless of mode so a
+    // talent-search-only profile is editable alongside recommended-mode profiles.
+    // Any additional seek sources beyond the first stay in `additional` and
+    // round-trip through save unchanged.
+    const seekSources = sources
+        .filter((source) => source.type === SEARCH_PROFILE_SOURCE_TYPES.seek)
+        .sort((left, right) => {
+            const leftPriority = typeof left.priority === 'number' ? left.priority : Number.POSITIVE_INFINITY
+            const rightPriority = typeof right.priority === 'number' ? right.priority : Number.POSITIVE_INFINITY
+            return leftPriority - rightPriority
+        })
+    const seekSource = seekSources[0]
 
     return {
         job5156Enabled: job5156Source?.enabled ?? DEFAULT_SOURCES_FORM.job5156Enabled,
@@ -264,6 +269,17 @@ function splitKnownSources(sources: SearchProfileSource[] | undefined): {
         }
     }
 
+    // Identify the highest-priority seek source — it maps to the editor's
+    // single seek form row regardless of mode. All OTHER seek sources are
+    // preserved verbatim via the `additional` lane and round-trip through save.
+    const seekSourceForForm = sources
+        .filter((source) => source.type === SEARCH_PROFILE_SOURCE_TYPES.seek)
+        .sort((left, right) => {
+            const leftPriority = typeof left.priority === 'number' ? left.priority : Number.POSITIVE_INFINITY
+            const rightPriority = typeof right.priority === 'number' ? right.priority : Number.POSITIVE_INFINITY
+            return leftPriority - rightPriority
+        })[0]
+
     return {
         known: toSourcesFormState(sources),
         additional: sources.filter((source) => {
@@ -271,11 +287,8 @@ function splitKnownSources(sources: SearchProfileSource[] | undefined): {
             // types are unknown to this editor and pass through.
             if (source.type === SEARCH_PROFILE_SOURCE_TYPES.job5156) return false
             if (source.type === SEARCH_PROFILE_SOURCE_TYPES.job51) return false
-            // Seek sources: only the recommended-mode source maps to the editor's
-            // single seek form row. Talent-search-mode seek sources are preserved
-            // via the additional lane so they round-trip through save.
             if (source.type === SEARCH_PROFILE_SOURCE_TYPES.seek) {
-                return source.mode !== undefined && source.mode !== 'recommended'
+                return source !== seekSourceForForm
             }
             return true
         }),
@@ -313,10 +326,14 @@ function buildSourcesPayload(sourceForm: SourceFormState, additionalSources: Sea
 
     const seekCollectLimit = parseOptionalNumber(sourceForm.seekCollectLimit)
     const seekMaxPages = parseOptionalNumber(sourceForm.seekMaxPages)
+    // Derive seek mode from the URL when possible so a talent-search URL keeps
+    // mode='talentsearch' through edit + save. Fall back to 'recommended' for
+    // empty/unrecognized URLs so back-compat behavior is unchanged.
+    const seekMode = resolveSeekModeFromUrl(sourceForm.seekJobUrl) ?? 'recommended'
 
     sources.push({
         type: SEARCH_PROFILE_SOURCE_TYPES.seek,
-        mode: 'recommended',
+        mode: seekMode,
         enabled: sourceForm.seekEnabled,
         priority: parseOptionalNumber(sourceForm.seekPriority),
         jobUrl: normalizeSeekJobUrl(sourceForm.seekJobUrl),
@@ -569,8 +586,8 @@ export function SearchProfileEditorDialog({
         }
 
         const normalizedSeekJobUrl = normalizeSeekJobUrl(sourceForm.seekJobUrl)
-        if (sourceForm.seekEnabled && !isSeekRecommendedCandidatesUrl(normalizedSeekJobUrl)) {
-            toast.error(t('searchProfiles.seekJobUrlError', { defaultValue: 'Enabled Seek source requires a Seek recommended candidates URL' }))
+        if (sourceForm.seekEnabled && resolveSeekModeFromUrl(normalizedSeekJobUrl) === null) {
+            toast.error(t('searchProfiles.seekJobUrlError', { defaultValue: 'Enabled Seek source requires a recognized Seek URL (recommended candidates or talent search)' }))
             return
         }
 
