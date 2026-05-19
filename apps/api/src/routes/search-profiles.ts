@@ -652,11 +652,17 @@ async function findCustomProfileRecordById(
     };
 }
 
+function isReseedOnDriftEnabled(): boolean {
+    const value = process.env.SEARCH_PROFILES_RESEED_ON_DRIFT?.toLowerCase().trim();
+    return value === "true" || value === "1" || value === "yes";
+}
+
 async function ensureWorkspaceSeedProfiles(workspaceSlug: string): Promise<void> {
     const existingRecords = await listCustomProfileRecords(workspaceSlug, { includeDeleted: true });
     const existingByLogicalId = new Map<string, ResolvedCustomProfileRecord>(
         existingRecords.map((record) => [record.logicalId, record]),
     );
+    const reseedOnDrift = isReseedOnDriftEnabled();
 
     for (const template of getWorkspaceSearchProfileTemplates(workspaceSlug)) {
         const profile = searchProfileService.normalizeProfileInput(template.profile);
@@ -676,6 +682,45 @@ async function ensureWorkspaceSeedProfiles(workspaceSlug: string): Promise<void>
         if (isSoftDeleted) {
             continue;
         }
+
+        // Drift detection: seeded profile whose YAML template has changed since
+        // it was inserted. Only refresh when the operator opts in via
+        // SEARCH_PROFILES_RESEED_ON_DRIFT — refresh clobbers any user edits to
+        // the profile's sources / quickStart / filters / schedule, so it must
+        // be explicit. Without the env flag, log the drift and skip.
+        const hasDrift = existing.seededFromConfig
+            && typeof existing.templateHash === "string"
+            && existing.templateHash !== currentHash;
+        if (!hasDrift) {
+            continue;
+        }
+
+        if (!reseedOnDrift) {
+            console.warn(
+                `[search-profiles] template drift detected for "${logicalId}" (workspace=${workspaceSlug}); ` +
+                `set SEARCH_PROFILES_RESEED_ON_DRIFT=true to refresh from YAML automatically, ` +
+                `or PUT the profile manually via the editor.`,
+            );
+            continue;
+        }
+
+        const refreshedProfile = searchProfileService.normalizeProfileInput(
+            { ...profile, id: existing.profile.id },
+            existing.profile,
+        );
+        refreshedProfile.id = existing.profile.id;
+        await updateCustomProfile(
+            existing.storageId,
+            toStoredProfilePayload(refreshedProfile, {
+                seededFromConfig: true,
+                templateHash: currentHash,
+            }),
+            workspaceSlug,
+        );
+        console.warn(
+            `[search-profiles] refreshed "${logicalId}" (workspace=${workspaceSlug}) from YAML template ` +
+            `(hash ${existing.templateHash ?? "unknown"} → ${currentHash}).`,
+        );
     }
 }
 

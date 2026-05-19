@@ -417,6 +417,186 @@ describe('search-profiles list route', () => {
   })
 })
 
+describe('search-profiles drift re-seed', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+    delete process.env.SEARCH_PROFILES_RESEED_ON_DRIFT
+  })
+
+  it('skips refresh and only logs when SEARCH_PROFILES_RESEED_ON_DRIFT is unset', async () => {
+    delete process.env.SEARCH_PROFILES_RESEED_ON_DRIFT
+    const updateCalls: ConvexCall[] = []
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init)
+
+      if (call.pathName === 'search_profiles:list') {
+        return convexSuccess([
+          {
+            _id: 'search_profiles-stale-1',
+            name: 'SEEK Malaysia CNC Sales',
+            profileId: 'seek-malaysia-sales',
+            criteria: {
+              keywords: ['CNC', 'Sales'],
+              locations: ['Malaysia'],
+            },
+            profile: {
+              id: 'seek-malaysia-sales',
+              name: 'SEEK Malaysia CNC Sales',
+              status: 'active',
+              location: 'Malaysia',
+              keywords: ['CNC', 'Sales'],
+              seedSource: 'config/search-profiles',
+              templateHash: 'sha256-stale-old-hash',
+              sources: [
+                {
+                  type: 'seek',
+                  enabled: true,
+                  priority: 1,
+                  jobUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1',
+                  collectLimit: 100,
+                  maxPages: 5,
+                },
+              ],
+            },
+            workspaceSlug: 'dev',
+          },
+        ])
+      }
+
+      if (call.pathName === 'search_profiles:create') {
+        return convexSuccess({
+          _id: `search_profiles-${Date.now()}`,
+          ...call.args,
+        })
+      }
+
+      if (call.pathName === 'search_profiles:update') {
+        updateCalls.push(call)
+        const profile = isRecord(call.args.profile) ? call.args.profile : {}
+        return convexSuccess({
+          _id: 'search_profiles-stale-1',
+          name: profile.name,
+          profileId: profile.id,
+          criteria: {
+            keywords: profile.keywords,
+            locations: [profile.location].filter(Boolean),
+          },
+          profile,
+          workspaceSlug: call.args.workspaceSlug,
+        })
+      }
+
+      throw new Error(`Unexpected convex path: ${call.pathName}`)
+    })
+
+    const app = createApp()
+    const response = await app.request('/api/search-profiles', {
+      headers: { 'X-Workspace-Slug': 'dev' },
+    })
+
+    expect(response.status).toBe(200)
+    expect(updateCalls).toHaveLength(0)
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('template drift detected for "seek-malaysia-sales"'),
+    )
+  })
+
+  it('refreshes seeded profile sources/quickStart when SEARCH_PROFILES_RESEED_ON_DRIFT=true and templateHash differs', async () => {
+    process.env.SEARCH_PROFILES_RESEED_ON_DRIFT = 'true'
+    const updateCalls: ConvexCall[] = []
+
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init)
+
+      if (call.pathName === 'search_profiles:list') {
+        return convexSuccess([
+          {
+            _id: 'search_profiles-stale-1',
+            name: 'SEEK Malaysia CNC Sales',
+            profileId: 'seek-malaysia-sales',
+            criteria: {
+              keywords: ['CNC', 'Sales'],
+              locations: ['Malaysia'],
+            },
+            profile: {
+              id: 'seek-malaysia-sales',
+              name: 'SEEK Malaysia CNC Sales',
+              status: 'active',
+              location: 'Malaysia',
+              keywords: ['CNC', 'Sales'],
+              seedSource: 'config/search-profiles',
+              templateHash: 'sha256-stale-old-hash',
+              sources: [
+                {
+                  type: 'seek',
+                  enabled: true,
+                  priority: 1,
+                  jobUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1',
+                  collectLimit: 100,
+                  maxPages: 5,
+                },
+              ],
+            },
+            workspaceSlug: 'dev',
+          },
+        ])
+      }
+
+      if (call.pathName === 'search_profiles:create') {
+        return convexSuccess({
+          _id: `search_profiles-${Date.now()}`,
+          ...call.args,
+        })
+      }
+
+      if (call.pathName === 'search_profiles:update') {
+        updateCalls.push(call)
+        const profile = isRecord(call.args.profile) ? call.args.profile : {}
+        return convexSuccess({
+          _id: 'search_profiles-stale-1',
+          name: profile.name,
+          profileId: profile.id,
+          criteria: {
+            keywords: profile.keywords,
+            locations: [profile.location].filter(Boolean),
+          },
+          profile,
+          workspaceSlug: call.args.workspaceSlug,
+        })
+      }
+
+      throw new Error(`Unexpected convex path: ${call.pathName}`)
+    })
+
+    const app = createApp()
+    const response = await app.request('/api/search-profiles', {
+      headers: { 'X-Workspace-Slug': 'dev' },
+    })
+
+    expect(response.status).toBe(200)
+
+    const seekUpdate = updateCalls.find((call) => {
+      const profile = isRecord(call.args.profile) ? call.args.profile : {}
+      return profile.id === 'seek-malaysia-sales'
+    })
+    expect(seekUpdate).toBeDefined()
+    if (!seekUpdate) return
+    const refreshedProfile = isRecord(seekUpdate.args.profile) ? seekUpdate.args.profile : {}
+    expect(refreshedProfile.seedSource).toBe('config/search-profiles')
+    expect(refreshedProfile.templateHash).toBeDefined()
+    expect(refreshedProfile.templateHash).not.toBe('sha256-stale-old-hash')
+    const refreshedSources = Array.isArray(refreshedProfile.sources) ? refreshedProfile.sources : []
+    expect(refreshedSources).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: 'seek', mode: 'recommended' }),
+        expect.objectContaining({ type: 'seek', mode: 'talentsearch' }),
+      ]),
+    )
+  })
+})
+
 describe('search-profiles run route', () => {
   beforeEach(() => {
     removeRunStatusFile()
