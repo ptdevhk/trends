@@ -4342,6 +4342,8 @@
       apiSnapshot.seekRecommendedRequest = null;
       apiSnapshot.seekProfile = null;
       apiSnapshot.seekProfileRequest = null;
+      apiSnapshot.seekTalentSearch = null;
+      apiSnapshot.seekTalentSearchRequest = null;
     }
   }
   __name(clearCapturedResultsForNextPage, "clearCapturedResultsForNextPage");

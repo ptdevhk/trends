@@ -652,6 +652,21 @@ function isSeekProfilePage() {
   return window.location.pathname.includes("/talentsearch/profile/");
 }
 
+function isSeekTalentSearchListPage() {
+  if (getCurrentSourceKey() !== SOURCE_KEYS.SEEK) return false;
+  const { pathname, search } = window.location;
+  if (pathname.includes("/talentsearch/profile/")) return false;
+  return pathname === "/talentsearch" && search.length > 0;
+}
+
+function getCurrentSeekMode() {
+  if (getCurrentSourceKey() !== SOURCE_KEYS.SEEK) return null;
+  if (isSeekProfilePage()) return "profile";
+  if (isSeekTalentSearchListPage()) return "talentsearch";
+  if (window.location.pathname.includes("/candidates/recommended")) return "recommended";
+  return null;
+}
+
 function isSeekInlineProfileMode() {
   if (getCurrentSourceKey() !== SOURCE_KEYS.SEEK) {
     return false;
@@ -4596,6 +4611,8 @@ function clearCapturedResultsForNextPage() {
     apiSnapshot.seekRecommendedRequest = null;
     apiSnapshot.seekProfile = null;
     apiSnapshot.seekProfileRequest = null;
+    apiSnapshot.seekTalentSearch = null;
+    apiSnapshot.seekTalentSearchRequest = null;
   }
 }
 
