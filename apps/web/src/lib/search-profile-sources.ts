@@ -43,6 +43,20 @@ export type CollectionSourceType =
   | typeof SEARCH_PROFILE_SOURCE_TYPES.job51
   | typeof SEARCH_PROFILE_SOURCE_TYPES.seek
 
+export const SEEK_MODE = {
+  recommended: 'recommended',
+  talentsearch: 'talentsearch',
+} as const
+
+export type SeekMode = typeof SEEK_MODE[keyof typeof SEEK_MODE]
+
+export function resolveSeekMode(value: string | undefined): SeekMode {
+  if (value === SEEK_MODE.talentsearch) {
+    return SEEK_MODE.talentsearch
+  }
+  return SEEK_MODE.recommended
+}
+
 export type CollectionSource = {
   type: CollectionSourceType
   exactUrl?: string
@@ -68,6 +82,7 @@ export type SearchProfileSource = {
   enabled: boolean
   priority?: number
   jobUrl?: string
+  mode?: SeekMode      // valid only when type === 'seek'; absent ≡ 'recommended'
   unsafeLimits?: boolean
   job51CollectLimit?: number
   job51MaxPages?: number

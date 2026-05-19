@@ -4,6 +4,7 @@ import {
   JOB51_SAFE_LAUNCH_LIMIT,
   JOB51_SAFE_LAUNCH_MAX_PAGES,
   SEARCH_PROFILE_SOURCE_TYPES,
+  SEEK_MODE,
   buildCollectionLaunchUrl,
   buildJob51CollectUrl,
   buildJob5156CollectUrl,
@@ -12,6 +13,7 @@ import {
   getSearchProfileCollectionSource,
   getSearchProfileCollectUrl,
   resolveCollectionSource,
+  resolveSeekMode,
 } from './search-profile-sources'
 
 describe('search-profile-sources', () => {
@@ -304,5 +306,24 @@ describe('search-profile-sources', () => {
     expect(job5156Url).toContain('tr_max_pages=2')
     expect(job51Url).toContain('ehire.51job.com/Revision/talent/search')
     expect(job51Url).toContain('tr_max_pages=1')
+  })
+})
+
+describe('seek mode', () => {
+  it('resolveSeekMode returns "recommended" when mode is undefined (back-compat default)', () => {
+    expect(resolveSeekMode(undefined)).toBe('recommended')
+  })
+
+  it('resolveSeekMode returns "talentsearch" when explicitly set', () => {
+    expect(resolveSeekMode('talentsearch')).toBe('talentsearch')
+  })
+
+  it('resolveSeekMode rejects unknown values and falls back to "recommended"', () => {
+    expect(resolveSeekMode('garbage' as unknown as 'recommended')).toBe('recommended')
+  })
+
+  it('SEEK_MODE constant exposes both values', () => {
+    expect(SEEK_MODE.recommended).toBe('recommended')
+    expect(SEEK_MODE.talentsearch).toBe('talentsearch')
   })
 })
