@@ -131,6 +131,8 @@ const apiSnapshot = {
   seekRecommendedRequest: null,
   seekProfile: null,
   seekProfileRequest: null,
+  seekTalentSearch: null,
+  seekTalentSearchRequest: null,
   lastUpdatedAt: null,
   lastSearchAt: null,
   lastUrl: null,
@@ -679,9 +681,16 @@ function hasSeekListSnapshot() {
   return Array.isArray(apiSnapshot.seekRecommendedCandidates);
 }
 
+function hasSeekTalentSearchSnapshot() {
+  return Array.isArray(apiSnapshot.seekTalentSearch);
+}
+
 function getSeekSnapshotCount() {
   if (isSeekProfileMode()) {
     return hasSeekProfileSnapshot() ? 1 : 0;
+  }
+  if (hasSeekTalentSearchSnapshot()) {
+    return apiSnapshot.seekTalentSearch.length;
   }
   return hasSeekListSnapshot()
     ? apiSnapshot.seekRecommendedCandidates.length
@@ -2738,11 +2747,15 @@ function getSeekPayloadData(payload, kind) {
           data.getTalentSearchRecommendedCandidates
         );
       }
+      if (kind === "seekTalentSearch") {
+        return !!data.talentSearchProfilesNaturalLanguageSearch;
+      }
       if (kind === "seekProfile") {
         return !!(
           data.talentSearchProfileV2 ||
           data.talentSearchProfileCompleteV2 ||
-          data.getTalentSearchProfileCompleteV2
+          data.getTalentSearchProfileCompleteV2 ||
+          data.talentSearchProfileV3
         );
       }
       return false;
@@ -2885,6 +2898,30 @@ function updateApiSnapshot(message) {
       payload?.data?.talentInsightInfo || payload?.data || null;
     return;
   }
+  if (kind === "seekTalentSearch") {
+    const data = getSeekPayloadData(payload, kind);
+    const result = data?.talentSearchProfilesNaturalLanguageSearch?.result;
+    const edges = Array.isArray(result?.edges) ? result.edges : null;
+    if (edges) {
+      // Unwrap Relay edges into bare nodes — downstream code expects an array
+      // of candidate objects, same shape contract as seekRecommendedCandidates.
+      const nodes = edges
+        .map((edge) => edge?.node)
+        .filter((node) => node && typeof node === "object");
+      apiSnapshot.seekTalentSearch = nodes;
+      apiSnapshot.seekTalentSearchRequest = request || null;
+      apiSnapshot.lastSearchAt = apiSnapshot.lastUpdatedAt;
+      try {
+        document.documentElement.setAttribute(
+          "data-tr-api-rows",
+          String(getApiSnapshotCount()),
+        );
+      } catch {
+        // ignore
+      }
+    }
+    return;
+  }
   if (kind === "seekRecommendedCandidates") {
     const data = getSeekPayloadData(payload, kind);
     const candidates =
@@ -2911,6 +2948,7 @@ function updateApiSnapshot(message) {
       data?.talentSearchProfileV2 ||
       data?.talentSearchProfileCompleteV2 ||
       data?.getTalentSearchProfileCompleteV2 ||
+      data?.talentSearchProfileV3 ||
       data ||
       null;
     apiSnapshot.seekProfileRequest =
