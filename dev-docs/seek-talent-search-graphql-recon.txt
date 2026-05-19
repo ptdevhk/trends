@@ -1,0 +1,62 @@
+# SEEK Basic Talent Search — GraphQL Recon
+# Captured: 2026-05-19 13:35 HKT
+# Captured by: claude-code subagent (CDP WebSocket via python websockets)
+# URL: https://hk.employer.seek.com/talentsearch?searchQuery=CNC+Sales&market=MY&pageNumber=1&roleTitles=Sales&salaryType=MONTHLY&minSalary=0&salaryUnspecified=true&keywords=CNC&matchAll=false&sortBy=RELEVANCE
+
+## Primary list operation
+operationName: SearchProfilesByNaturalLanguage
+query fragment regex (case-insensitive, for fallback classifier): talentSearchProfilesNaturalLanguageSearch\(
+response items path (from response root): data.talentSearchProfilesNaturalLanguageSearch.result.edges
+page size observed: 20
+
+## Variables (list-page request) — captured from real request body
+- input.roleTitles.values: string[] (example: ["Sales"])
+- input.roleTitles.matchLatestOnly: boolean (false)
+- input.companyNames.values: string[] (example: [])
+- input.companyNames.matchLatestOnly: boolean (false)
+- input.keywords.values: string[] (example: ["CNC"])
+- input.keywords.matchAll: boolean (false)
+- input.pageNumber: integer (1, 2, ...)
+- input.pageSize: integer (20)
+- input.locations: string[] (example: ["24500"])
+- input.salary.frequency: string ("MONTHLY" | "ANNUALLY" | "HOURLY")
+- input.salary.includeUnspecified: boolean (true)
+- input.salary.range.minimum: integer (0)
+- input.originalNaturalLanguageQuery: string (example: "CNC Sales")
+- input.countryCode: string (example: "MY")
+- input.sortBy: string ("RELEVANCE")
+- language: string ("en")
+- locale: string ("en-HK")
+
+## Pagination model
+[X] URL-driven (pageNumber in URL query string changes when paging)
+[ ] State-driven (pager click triggers GraphQL with pageNumber in variables; URL stays static or fragment-only)
+[ ] Both
+Notes: pageNumber exists in BOTH the URL query string AND the GraphQL variables.input.pageNumber. Navigating to page 2 via direct URL change or pager click updates both the URL (history.pushState or full navigation) and the GraphQL variables. The page is an SPA but uses URL-driven pagination. On fresh navigation, the pageNumber from the URL is passed through to the GraphQL query.
+
+## Pager selector
+DOM selector for next-page link: nav[aria-label="PAGINATION_OF_RESULTS"] a[rel="next"]
+Selector for current-page indicator: a[aria-current="page"]
+
+## Card / profile-link selector
+List item card root: [data-role="heading"] (candidate name heading inside card; when names are hidden, this holds the job title instead)
+Profile link: N/A — candidate cards are not rendered as <a href="/talentsearch/profile/..."> links. Profile detail is opened by clicking the candidate name element in-card via SPA JavaScript event handlers (no URL navigation; profile opens as overlay/side panel).
+Card count on first page: 20
+
+## Profile detail operation (clicked into one candidate)
+[ ] Same as recommended (GetTalentSearchProfileCompleteV2)
+[X] New operation: GetTalentSearchProfileCompleteV3
+Notes: The detail operation is V3 (not V2). Response root: data.talentSearchProfileV3. Variables: input.countryCode (e.g. "MY"), input.profileGuid (UUID from the search result node, e.g. "52a6b466-895d-11ea-8ede-005056b16351"), input.keywords (e.g. "CNC"). The profile panel opens as an SPA overlay/side panel — URL does NOT change. The response includes firstName, lastName, currentJobTitle, currentLocation, workHistories[], salary, etc.
+
+## Hide-names mode
+Toggle present: yes
+Behavior when enabled: Toggle is a checkbox labeled "Hide names". When enabled, candidate name text (e.g. "HAN SIANG TANG") is replaced with the candidate's current job title (e.g. "CNC Programmer") in the same [data-role="heading"] element. The data-role="heading" attribute remains on the element.
+
+## Secondary GraphQL ops (observed but deliberately ignored)
+- GetAccountContext: Account/zone resolution (hirerOriginZone)
+- HirerFeatureFlags: Feature flag batch queries (5+ flag keys per call, called 2-3 times)
+- GetAccountBalance: Uncoupled talent search budget balance query (connection count)
+- GenerateSearchQuery: Natural-language-to-structured-query translation ("CNC Sales" → roleTitles, keywords)
+- TalentSearchNaturalLanguageSearchFacets: Facet/refinement options for the current search
+- GetConnectionOptions: Fetched in batch (20 profileIds at once) to determine per-card action buttons (send message, send job, export)
+- GetLatestInteractions: Fetched in batch (20 profileIds at once) for per-card interaction history (past messages, applications)
