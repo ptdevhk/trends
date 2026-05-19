@@ -5,18 +5,28 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 const mockUnblockCandidate = vi.hoisted(() => vi.fn())
 const mockUpdateBlockReason = vi.hoisted(() => vi.fn())
 
+// Stable hook return value: BlacklistPage has a useEffect with [items] in its
+// dependency list that calls setSelectedIdentityKeys with a freshly filtered
+// array. The real useCandidateBlocks caches `items` via useState so its
+// reference is stable across renders. A naive mock that returns a fresh object
+// on every call triggers an infinite re-render loop and the test process
+// hangs/crashes silently. Hoist the value so it's referentially stable.
+const HOOK_VALUE = vi.hoisted(() => ({
+  items: [
+    { _id: '1', identityKey: 'user-1', workspaceSlug: 'dev', reason: 'Spam', blockedAt: 3000 },
+    { _id: '2', identityKey: 'user-2', workspaceSlug: 'dev', blockedAt: 2000 },
+    { _id: '3', identityKey: 'user-3', workspaceSlug: 'dev', reason: 'Duplicate', blockedAt: 1000 },
+  ],
+  loading: false,
+  error: null as string | null,
+  unblockCandidate: undefined as ReturnType<typeof vi.fn> | undefined,
+  updateBlockReason: undefined as ReturnType<typeof vi.fn> | undefined,
+}))
+HOOK_VALUE.unblockCandidate = mockUnblockCandidate
+HOOK_VALUE.updateBlockReason = mockUpdateBlockReason
+
 vi.mock('@/hooks/useCandidateBlocks', () => ({
-  useCandidateBlocks: () => ({
-    items: [
-      { _id: '1', identityKey: 'user-1', workspaceSlug: 'dev', reason: 'Spam', blockedAt: 3000 },
-      { _id: '2', identityKey: 'user-2', workspaceSlug: 'dev', blockedAt: 2000 },
-      { _id: '3', identityKey: 'user-3', workspaceSlug: 'dev', reason: 'Duplicate', blockedAt: 1000 },
-    ],
-    loading: false,
-    error: null,
-    unblockCandidate: mockUnblockCandidate,
-    updateBlockReason: mockUpdateBlockReason,
-  }),
+  useCandidateBlocks: () => HOOK_VALUE,
 }))
 
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
@@ -32,14 +42,20 @@ vi.mock('@/components/ui/badge', () => ({
 }))
 
 vi.mock('@/components/ui/button', () => ({
-  Button: ({ children, onClick, disabled, variant, size }: {
+  Button: ({ children, onClick, disabled, variant, size, ...rest }: {
     children?: React.ReactNode
     onClick?: React.MouseEventHandler<HTMLButtonElement>
     disabled?: boolean
     variant?: string
     size?: string
-  }) => (
-    <button onClick={onClick} disabled={disabled} data-variant={variant} data-size={size}>
+  } & Record<string, unknown>) => (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      data-variant={variant}
+      data-size={size}
+      {...rest}
+    >
       {children}
     </button>
   ),
@@ -86,7 +102,7 @@ describe('BlacklistPage', () => {
 
   it('renders the page header', () => {
     render(<BlacklistPage />)
-    expect(screen.getByText(/Blacklist/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/Blacklist/i).length).toBeGreaterThan(0)
   })
 
   it('renders all blocked items in the table', () => {
@@ -119,25 +135,29 @@ describe('BlacklistPage', () => {
     const user = userEvent.setup()
     render(<BlacklistPage />)
 
-    const unblockButtons = screen.getAllByText(/Unblock/i)
-    await user.click(unblockButtons[0])
+    const rowUnblockButtons = screen.getAllByTestId('blacklist-row-unblock')
+    expect(rowUnblockButtons.length).toBe(3)
+    // Rows are sorted by blockedAt desc → first row is user-1 (blockedAt 3000)
+    await user.click(rowUnblockButtons[0])
 
     expect(mockUnblockCandidate).toHaveBeenCalledWith('user-1')
   })
 
-  it('edits block reason inline', async () => {
+  it('edits block reason inline by clicking the reason cell and committing on blur', async () => {
     const user = userEvent.setup()
     render(<BlacklistPage />)
 
-    // Find and click edit button for user who has a reason
-    const editButtons = screen.getAllByText(/Edit/i)
-    await user.click(editButtons[0])
+    // Reason cells are buttons (not labelled "Edit" — the reason text itself is the trigger).
+    // First row is user-1 (Spam, blockedAt 3000).
+    const reasonDisplays = screen.getAllByTestId('blacklist-reason-display')
+    expect(reasonDisplays.length).toBe(3)
+    await user.click(reasonDisplays[0])
 
-    const reasonInput = screen.getByDisplayValue('Spam')
+    const reasonInput = screen.getByTestId('blacklist-reason-input')
     await user.clear(reasonInput)
     await user.type(reasonInput, 'Updated reason')
-
-    await user.click(screen.getByText(/Save/i))
+    // commitReason fires on blur, not via a Save button
+    await user.tab()
 
     expect(mockUpdateBlockReason).toHaveBeenCalledWith('user-1', 'Updated reason')
   })
