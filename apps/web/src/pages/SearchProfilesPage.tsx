@@ -15,7 +15,7 @@ import {
   SEARCH_PROFILE_SOURCE_TYPES,
   buildCollectionLaunchUrl,
   getActiveSearchProfileSource,
-  isSeekRecommendedCandidatesUrl,
+  resolveSeekModeFromUrl,
   type CollectionSourceType,
 } from '@/lib/search-profile-sources'
 
@@ -370,9 +370,9 @@ export function SearchProfilesPage() {
 
     if (isHeadMode && activeSource) {
       if (activeSource.type === SEARCH_PROFILE_SOURCE_TYPES.seek) {
-        if (!isSeekRecommendedCandidatesUrl(activeSource.jobUrl)) {
+        if (resolveSeekModeFromUrl(activeSource.jobUrl) === null) {
           runNowLocksRef.current.delete(profileId)
-          toast.error(t('searchProfiles.seekJobUrlMissing', { defaultValue: 'Seek Run Now requires an exact Seek recommended candidates URL.' }))
+          toast.error(t('searchProfiles.seekJobUrlMissing', { defaultValue: 'Seek Run Now requires a recognized Seek URL (recommended candidates or talent search).' }))
           return
         }
       }

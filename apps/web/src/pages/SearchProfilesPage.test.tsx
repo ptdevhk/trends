@@ -343,6 +343,93 @@ describe('SearchProfilesPage run behavior', () => {
     expect(toastSuccessMock).toHaveBeenCalledWith('Opened collection in a new tab')
   })
 
+  it('opens Seek talent-search profiles in a new tab via Run Now', async () => {
+    const user = userEvent.setup()
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(null)
+
+    getMock.mockImplementation(async (path: string) => {
+      if (path === '/api/search-profiles') {
+        return {
+          data: {
+            success: true,
+            profiles: [
+              {
+                id: 'profile-1',
+                name: 'Seek talent-search profile',
+                updatedAt: '2026-05-19T00:00:00.000Z',
+                status: 'active',
+                location: 'Malaysia',
+                keywords: ['CNC', 'Sales'],
+              },
+            ],
+          },
+        }
+      }
+
+      if (path === '/api/search-profiles/profile-1') {
+        return {
+          data: {
+            success: true,
+            profile: {
+              id: 'profile-1',
+              name: 'Seek talent-search profile',
+              status: 'active',
+              location: 'Malaysia',
+              keywords: ['CNC', 'Sales'],
+              schedule: {
+                enabled: false,
+                maxCandidates: 500,
+              },
+              sources: [
+                {
+                  type: 'seek',
+                  mode: 'talentsearch',
+                  enabled: true,
+                  priority: 1,
+                  jobUrl: 'https://hk.employer.seek.com/talentsearch?searchQuery=CNC+Sales&market=MY&pageNumber=1&roleTitles=Sales&keywords=CNC&matchAll=false&sortBy=RELEVANCE',
+                  collectLimit: 500,
+                  maxPages: 25,
+                },
+              ],
+            },
+          },
+        }
+      }
+
+      if (path === '/api/search-profiles/profile-1/status') {
+        return {
+          data: {
+            success: true,
+            status: null,
+          },
+        }
+      }
+
+      return {
+        data: {
+          success: true,
+        },
+      }
+    })
+
+    render(<SearchProfilesPage />)
+
+    await user.click(await screen.findByRole('button', { name: 'Run Seek talent-search profile' }))
+
+    await waitFor(() => {
+      expect(openSpy).toHaveBeenCalledTimes(1)
+    })
+
+    const openedUrl = new URL(String(openSpy.mock.calls[0]?.[0]))
+    expect(`${openedUrl.origin}${openedUrl.pathname}`).toBe('https://hk.employer.seek.com/talentsearch')
+    expect(openedUrl.searchParams.get('searchQuery')).toBe('CNC Sales')
+    expect(openedUrl.searchParams.get('tr_auto_sync')).toBe('true')
+    expect(openedUrl.searchParams.get('tr_limit')).toBe('500')
+    expect(openedUrl.searchParams.get('tr_max_pages')).toBe('25')
+    expect(toastErrorMock).not.toHaveBeenCalled()
+    expect(toastSuccessMock).toHaveBeenCalledWith('Opened collection in a new tab')
+  })
+
   it('opens 51job profiles in conservative single-page mode', async () => {
     const user = userEvent.setup()
     const openSpy = vi.spyOn(window, 'open').mockReturnValue(null)
