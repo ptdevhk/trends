@@ -307,6 +307,68 @@ describe('SearchProfileEditorDialog JD hydration', () => {
     })
   })
 
+  it('preserves a talentsearch-mode seek source through edit + save round-trip', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <SearchProfileEditorDialog
+        open
+        onOpenChange={vi.fn()}
+        profileId="custom-profile-1"
+        initialData={{
+          id: 'custom-profile-1',
+          name: 'Seek Multi-Mode',
+          status: 'active',
+          location: 'MY',
+          keywords: ['CNC', 'Sales'],
+          sources: [
+            {
+              type: 'seek',
+              enabled: true,
+              priority: 1,
+              mode: 'recommended',
+              jobUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1',
+            },
+            {
+              type: 'seek',
+              enabled: true,
+              priority: 2,
+              mode: 'talentsearch',
+              jobUrl: 'https://hk.employer.seek.com/talentsearch?searchQuery=CNC+Sales&market=MY&keywords=CNC',
+              collectLimit: 500,
+              maxPages: 25,
+            },
+          ],
+        }}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      expect(putMock).toHaveBeenCalledWith('/api/search-profiles/custom-profile-1', {
+        body: expect.objectContaining({
+          sources: expect.arrayContaining([
+            expect.objectContaining({
+              type: 'seek',
+              mode: 'recommended',
+              enabled: true,
+              jobUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1',
+            }),
+            expect.objectContaining({
+              type: 'seek',
+              mode: 'talentsearch',
+              enabled: true,
+              jobUrl: 'https://hk.employer.seek.com/talentsearch?searchQuery=CNC+Sales&market=MY&keywords=CNC',
+              collectLimit: 500,
+              maxPages: 25,
+            }),
+          ]),
+        }),
+      })
+    })
+  })
+
   it('persists explicit 51job extended-limit settings in the profile payload', async () => {
     const user = userEvent.setup()
 

@@ -227,7 +227,13 @@ function toSourcesFormState(sources: SearchProfileSource[] | undefined): SourceF
 
     const job5156Source = sources.find((source) => source.type === SEARCH_PROFILE_SOURCE_TYPES.job5156)
     const job51Source = sources.find((source) => source.type === SEARCH_PROFILE_SOURCE_TYPES.job51)
-    const seekSource = sources.find((source) => source.type === SEARCH_PROFILE_SOURCE_TYPES.seek)
+    // Editor only surfaces the recommended-mode seek source today. Talent-search
+    // mode sources are preserved via splitKnownSources' `additional` lane so they
+    // round-trip through save without being dropped.
+    const seekSource = sources.find((source) =>
+        source.type === SEARCH_PROFILE_SOURCE_TYPES.seek
+        && (source.mode === undefined || source.mode === 'recommended'),
+    )
 
     return {
         job5156Enabled: job5156Source?.enabled ?? DEFAULT_SOURCES_FORM.job5156Enabled,
@@ -260,11 +266,19 @@ function splitKnownSources(sources: SearchProfileSource[] | undefined): {
 
     return {
         known: toSourcesFormState(sources),
-        additional: sources.filter((source) => (
-            source.type !== SEARCH_PROFILE_SOURCE_TYPES.job5156
-            && source.type !== SEARCH_PROFILE_SOURCE_TYPES.job51
-            && source.type !== SEARCH_PROFILE_SOURCE_TYPES.seek
-        )),
+        additional: sources.filter((source) => {
+            // Job5156 and 51job each have a single editable form row; non-seek non-job
+            // types are unknown to this editor and pass through.
+            if (source.type === SEARCH_PROFILE_SOURCE_TYPES.job5156) return false
+            if (source.type === SEARCH_PROFILE_SOURCE_TYPES.job51) return false
+            // Seek sources: only the recommended-mode source maps to the editor's
+            // single seek form row. Talent-search-mode seek sources are preserved
+            // via the additional lane so they round-trip through save.
+            if (source.type === SEARCH_PROFILE_SOURCE_TYPES.seek) {
+                return source.mode !== undefined && source.mode !== 'recommended'
+            }
+            return true
+        }),
     }
 }
 
@@ -302,6 +316,7 @@ function buildSourcesPayload(sourceForm: SourceFormState, additionalSources: Sea
 
     sources.push({
         type: SEARCH_PROFILE_SOURCE_TYPES.seek,
+        mode: 'recommended',
         enabled: sourceForm.seekEnabled,
         priority: parseOptionalNumber(sourceForm.seekPriority),
         jobUrl: normalizeSeekJobUrl(sourceForm.seekJobUrl),
