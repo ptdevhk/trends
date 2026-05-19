@@ -430,10 +430,13 @@ export function getSearchProfileCollectUrl(
   sources: SearchProfileSource[] | undefined,
 ): string | undefined {
   const seekSource = getPreferredSeekSource(sources)
-  if (!seekSource || !isSeekRecommendedCandidatesUrl(seekSource.jobUrl)) {
+  if (!seekSource || !seekSource.jobUrl) {
     return undefined
   }
-
+  // Accept either seek mode (recommended or talentsearch); reject anything else.
+  if (resolveSeekModeFromUrl(seekSource.jobUrl) === null) {
+    return undefined
+  }
   return normalizeSeekJobUrl(seekSource.jobUrl)
 }
 

@@ -59,6 +59,47 @@ describe('search-profile-sources', () => {
     expect(collectUrl).toBe('https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1')
   })
 
+  it('returns the talent-search URL when it is the lowest-priority enabled seek source', () => {
+    const collectUrl = getSearchProfileCollectUrl([
+      {
+        type: SEARCH_PROFILE_SOURCE_TYPES.seek,
+        enabled: true,
+        priority: 5,
+        mode: 'recommended',
+        jobUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1',
+      },
+      {
+        type: SEARCH_PROFILE_SOURCE_TYPES.seek,
+        enabled: true,
+        priority: 1,
+        mode: 'talentsearch',
+        jobUrl: 'https://hk.employer.seek.com/talentsearch?keywords=CNC',
+      },
+    ])
+
+    expect(collectUrl).toBe('https://hk.employer.seek.com/talentsearch?keywords=CNC')
+  })
+
+  it('falls back to the recommended URL when its priority is lower (back-compat default)', () => {
+    const collectUrl = getSearchProfileCollectUrl([
+      {
+        type: SEARCH_PROFILE_SOURCE_TYPES.seek,
+        enabled: true,
+        priority: 1,
+        jobUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1',
+      },
+      {
+        type: SEARCH_PROFILE_SOURCE_TYPES.seek,
+        enabled: true,
+        priority: 2,
+        mode: 'talentsearch',
+        jobUrl: 'https://hk.employer.seek.com/talentsearch?keywords=CNC',
+      },
+    ])
+
+    expect(collectUrl).toBe('https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1')
+  })
+
   it('returns the active launchable collection source for Job5156 profiles', () => {
     const collectionSource = getSearchProfileCollectionSource([
       { type: 'manual_upload', enabled: true, priority: 1 },
