@@ -2577,12 +2577,18 @@ function buildSeekCollectionContext(options = {}) {
   const normalizedOptions =
     typeof options === "object" && options ? options : {};
   const captureModeOverride = normalizedOptions.captureModeOverride;
+  const seekMode = getCurrentSeekMode();
+  const isTalentSearchList = seekMode === "talentsearch";
   const useProfileMode = captureModeOverride
     ? captureModeOverride === "graphql-profile"
     : isSeekProfileMode();
-  const request = useProfileMode
-    ? getSeekProfileRequest()
-    : getSeekRecommendedRequest();
+  const talentSearchRequest = isTalentSearchList
+    ? apiSnapshot.seekTalentSearchRequest
+    : null;
+  const request = talentSearchRequest
+    ?? (useProfileMode
+      ? getSeekProfileRequest()
+      : getSeekRecommendedRequest());
   const requestInput = request?.variables?.input;
   const language = request?.variables?.language;
   const url = new URL(window.location.href);
@@ -2594,34 +2600,88 @@ function buildSeekCollectionContext(options = {}) {
   );
   const captureMode =
     captureModeOverride ||
-    (useProfileMode && apiSnapshot.seekProfile
-      ? "graphql-profile"
-      : "graphql-list");
+    (isTalentSearchList
+      ? "graphql-talentsearch"
+      : (useProfileMode && apiSnapshot.seekProfile
+          ? "graphql-profile"
+          : "graphql-list"));
   const defaultOperation =
     captureMode === "graphql-profile"
       ? "GetTalentSearchProfileCompleteV2"
-      : "GetTalentSearchRecommendedCandidates";
+      : captureMode === "graphql-talentsearch"
+        ? "SearchProfilesByNaturalLanguage"
+        : "GetTalentSearchRecommendedCandidates";
 
-  return {
+  /** @type {Record<string, unknown>} */
+  const context = {
     captureMode,
     operation: apiSnapshot.lastOperationName || defaultOperation,
-    jobId:
-      requestInput?.jobId != null
-        ? String(requestInput.jobId)
-        : jobIdFromUrl != null
-          ? String(jobIdFromUrl)
-          : undefined,
-    searchId:
-      typeof requestInput?.searchId === "string"
-        ? requestInput.searchId
-        : undefined,
-    pageNumber:
-      typeof requestInput?.page === "number"
-        ? requestInput.page
-        : (pageNumberFromUrl ?? undefined),
-    language: typeof language === "string" ? language : undefined,
     profileType: SEEK_PROFILE_TYPE,
   };
+  if (seekMode) {
+    context.seekMode = seekMode;
+  }
+  if (typeof language === "string") {
+    context.language = language;
+  }
+
+  if (isTalentSearchList) {
+    // Talent-search variables are nested under input.{...} per recon.
+    // Surface the search-shaping fields so analytics can later distinguish
+    // discovery-lane characteristics.
+    if (typeof requestInput?.pageNumber === "number") {
+      context.pageNumber = requestInput.pageNumber;
+    } else if (pageNumberFromUrl != null) {
+      context.pageNumber = pageNumberFromUrl;
+    }
+    if (typeof requestInput?.originalNaturalLanguageQuery === "string") {
+      context.searchQuery = requestInput.originalNaturalLanguageQuery;
+    }
+    if (typeof requestInput?.countryCode === "string") {
+      context.market = requestInput.countryCode;
+    }
+    if (Array.isArray(requestInput?.roleTitles?.values)) {
+      context.roleTitles = requestInput.roleTitles.values;
+    }
+    if (Array.isArray(requestInput?.keywords?.values)) {
+      context.keywords = requestInput.keywords.values;
+    }
+    if (typeof requestInput?.keywords?.matchAll === "boolean") {
+      context.matchAll = requestInput.keywords.matchAll;
+    }
+    if (typeof requestInput?.sortBy === "string") {
+      context.sortBy = requestInput.sortBy;
+    }
+    if (typeof requestInput?.salary?.frequency === "string") {
+      context.salaryType = requestInput.salary.frequency;
+    }
+    if (typeof requestInput?.salary?.range?.minimum === "number") {
+      context.minSalary = requestInput.salary.range.minimum;
+    }
+    if (typeof requestInput?.salary?.includeUnspecified === "boolean") {
+      context.salaryUnspecified = requestInput.salary.includeUnspecified;
+    }
+    if (typeof requestInput?.searchId === "string") {
+      context.searchId = requestInput.searchId;
+    }
+  } else {
+    // Recommended / profile path uses the existing flat input shape.
+    if (requestInput?.jobId != null) {
+      context.jobId = String(requestInput.jobId);
+    } else if (jobIdFromUrl != null) {
+      context.jobId = String(jobIdFromUrl);
+    }
+    if (typeof requestInput?.searchId === "string") {
+      context.searchId = requestInput.searchId;
+    }
+    if (typeof requestInput?.page === "number") {
+      context.pageNumber = requestInput.page;
+    } else if (pageNumberFromUrl != null) {
+      context.pageNumber = pageNumberFromUrl;
+    }
+  }
+
+  return context;
 }
 
 function getExtensionGeneratedBy() {

@@ -2804,8 +2804,11 @@
   function buildSeekCollectionContext(options = {}) {
     const normalizedOptions = typeof options === "object" && options ? options : {};
     const captureModeOverride = normalizedOptions.captureModeOverride;
+    const seekMode = getCurrentSeekMode();
+    const isTalentSearchList = seekMode === "talentsearch";
     const useProfileMode = captureModeOverride ? captureModeOverride === "graphql-profile" : isSeekProfileMode();
-    const request = useProfileMode ? getSeekProfileRequest() : getSeekRecommendedRequest();
+    const talentSearchRequest = isTalentSearchList ? apiSnapshot.seekTalentSearchRequest : null;
+    const request = talentSearchRequest ?? (useProfileMode ? getSeekProfileRequest() : getSeekRecommendedRequest());
     const requestInput = request?.variables?.input;
     const language = request?.variables?.language;
     const url = new URL(window.location.href);
@@ -2815,17 +2818,71 @@
     const jobIdFromUrl = normalizeOptionalPositiveInt(
       url.searchParams.get("jobId")
     );
-    const captureMode = captureModeOverride || (useProfileMode && apiSnapshot.seekProfile ? "graphql-profile" : "graphql-list");
-    const defaultOperation = captureMode === "graphql-profile" ? "GetTalentSearchProfileCompleteV2" : "GetTalentSearchRecommendedCandidates";
-    return {
+    const captureMode = captureModeOverride || (isTalentSearchList ? "graphql-talentsearch" : useProfileMode && apiSnapshot.seekProfile ? "graphql-profile" : "graphql-list");
+    const defaultOperation = captureMode === "graphql-profile" ? "GetTalentSearchProfileCompleteV2" : captureMode === "graphql-talentsearch" ? "SearchProfilesByNaturalLanguage" : "GetTalentSearchRecommendedCandidates";
+    const context = {
       captureMode,
       operation: apiSnapshot.lastOperationName || defaultOperation,
-      jobId: requestInput?.jobId != null ? String(requestInput.jobId) : jobIdFromUrl != null ? String(jobIdFromUrl) : void 0,
-      searchId: typeof requestInput?.searchId === "string" ? requestInput.searchId : void 0,
-      pageNumber: typeof requestInput?.page === "number" ? requestInput.page : pageNumberFromUrl ?? void 0,
-      language: typeof language === "string" ? language : void 0,
       profileType: SEEK_PROFILE_TYPE
     };
+    if (seekMode) {
+      context.seekMode = seekMode;
+    }
+    if (typeof language === "string") {
+      context.language = language;
+    }
+    if (isTalentSearchList) {
+      if (typeof requestInput?.pageNumber === "number") {
+        context.pageNumber = requestInput.pageNumber;
+      } else if (pageNumberFromUrl != null) {
+        context.pageNumber = pageNumberFromUrl;
+      }
+      if (typeof requestInput?.originalNaturalLanguageQuery === "string") {
+        context.searchQuery = requestInput.originalNaturalLanguageQuery;
+      }
+      if (typeof requestInput?.countryCode === "string") {
+        context.market = requestInput.countryCode;
+      }
+      if (Array.isArray(requestInput?.roleTitles?.values)) {
+        context.roleTitles = requestInput.roleTitles.values;
+      }
+      if (Array.isArray(requestInput?.keywords?.values)) {
+        context.keywords = requestInput.keywords.values;
+      }
+      if (typeof requestInput?.keywords?.matchAll === "boolean") {
+        context.matchAll = requestInput.keywords.matchAll;
+      }
+      if (typeof requestInput?.sortBy === "string") {
+        context.sortBy = requestInput.sortBy;
+      }
+      if (typeof requestInput?.salary?.frequency === "string") {
+        context.salaryType = requestInput.salary.frequency;
+      }
+      if (typeof requestInput?.salary?.range?.minimum === "number") {
+        context.minSalary = requestInput.salary.range.minimum;
+      }
+      if (typeof requestInput?.salary?.includeUnspecified === "boolean") {
+        context.salaryUnspecified = requestInput.salary.includeUnspecified;
+      }
+      if (typeof requestInput?.searchId === "string") {
+        context.searchId = requestInput.searchId;
+      }
+    } else {
+      if (requestInput?.jobId != null) {
+        context.jobId = String(requestInput.jobId);
+      } else if (jobIdFromUrl != null) {
+        context.jobId = String(jobIdFromUrl);
+      }
+      if (typeof requestInput?.searchId === "string") {
+        context.searchId = requestInput.searchId;
+      }
+      if (typeof requestInput?.page === "number") {
+        context.pageNumber = requestInput.page;
+      } else if (pageNumberFromUrl != null) {
+        context.pageNumber = pageNumberFromUrl;
+      }
+    }
+    return context;
   }
   __name(buildSeekCollectionContext, "buildSeekCollectionContext");
   function getExtensionGeneratedBy() {
