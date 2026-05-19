@@ -326,6 +326,38 @@ export function buildSeekTalentSearchUrl(input: BuildSeekTalentSearchUrlInput): 
   return url.toString()
 }
 
+export function resolveSeekModeFromUrl(value: string | undefined): SeekMode | null {
+  if (isSeekTalentSearchUrl(value)) return SEEK_MODE.talentsearch
+  if (isSeekRecommendedCandidatesUrl(value)) return SEEK_MODE.recommended
+  return null
+}
+
+type ValidateSeekSourceJobUrlInput = {
+  mode?: SeekMode
+  jobUrl: string | undefined
+}
+
+type ValidateSeekSourceJobUrlResult =
+  | { ok: true }
+  | { ok: false; reason: string }
+
+export function validateSeekSourceJobUrl(
+  input: ValidateSeekSourceJobUrlInput,
+): ValidateSeekSourceJobUrlResult {
+  const mode = resolveSeekMode(input.mode)
+  const urlMode = resolveSeekModeFromUrl(input.jobUrl)
+  if (urlMode === null) {
+    return { ok: false, reason: 'jobUrl is not a recognized seek URL' }
+  }
+  if (urlMode !== mode) {
+    return {
+      ok: false,
+      reason: `jobUrl matches mode=${urlMode} but source declared mode=${mode}`,
+    }
+  }
+  return { ok: true }
+}
+
 export function getActiveSearchProfileSource(
   sources: SearchProfileSource[] | undefined,
 ): SearchProfileSource | undefined {

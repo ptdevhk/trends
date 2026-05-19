@@ -16,6 +16,8 @@ import {
   isSeekTalentSearchUrl,
   resolveCollectionSource,
   resolveSeekMode,
+  resolveSeekModeFromUrl,
+  validateSeekSourceJobUrl,
 } from './search-profile-sources'
 
 describe('search-profile-sources', () => {
@@ -410,5 +412,67 @@ describe('buildSeekTalentSearchUrl', () => {
 
   it('returns null when no keywords or searchQuery provided', () => {
     expect(buildSeekTalentSearchUrl({ keywords: '' })).toBeNull()
+  })
+})
+
+describe('resolveSeekModeFromUrl', () => {
+  it('returns "recommended" for /candidates/recommended URLs', () => {
+    expect(resolveSeekModeFromUrl(
+      'https://my.employer.seek.com/candidates/recommended?jobId=90842915',
+    )).toBe('recommended')
+  })
+
+  it('returns "talentsearch" for /talentsearch?... URLs', () => {
+    expect(resolveSeekModeFromUrl(
+      'https://hk.employer.seek.com/talentsearch?keywords=CNC',
+    )).toBe('talentsearch')
+  })
+
+  it('returns null for unrecognized seek paths', () => {
+    expect(resolveSeekModeFromUrl(
+      'https://hk.employer.seek.com/dashboard',
+    )).toBeNull()
+  })
+
+  it('returns null for non-seek hosts', () => {
+    expect(resolveSeekModeFromUrl('https://example.com/talentsearch?x=1')).toBeNull()
+  })
+})
+
+describe('validateSeekSourceJobUrl', () => {
+  it('accepts recommended URL when mode is recommended', () => {
+    expect(validateSeekSourceJobUrl({
+      mode: 'recommended',
+      jobUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=1',
+    })).toEqual({ ok: true })
+  })
+
+  it('accepts talentsearch URL when mode is talentsearch', () => {
+    expect(validateSeekSourceJobUrl({
+      mode: 'talentsearch',
+      jobUrl: 'https://hk.employer.seek.com/talentsearch?keywords=x',
+    })).toEqual({ ok: true })
+  })
+
+  it('rejects mode mismatch (talentsearch URL with mode=recommended)', () => {
+    const result = validateSeekSourceJobUrl({
+      mode: 'recommended',
+      jobUrl: 'https://hk.employer.seek.com/talentsearch?keywords=x',
+    })
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.reason).toMatch(/mode/i)
+    }
+  })
+
+  it('rejects malformed URL', () => {
+    const result = validateSeekSourceJobUrl({ mode: 'recommended', jobUrl: 'not a url' })
+    expect(result.ok).toBe(false)
+  })
+
+  it('treats undefined mode as recommended (back-compat)', () => {
+    expect(validateSeekSourceJobUrl({
+      jobUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=1',
+    })).toEqual({ ok: true })
   })
 })
