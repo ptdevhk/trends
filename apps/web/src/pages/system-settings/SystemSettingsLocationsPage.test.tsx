@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
+import { describe, expect, it, vi, beforeEach } from 'vitest'
 
 const mockRequestJson = vi.hoisted(() => vi.fn())
 const mockParseCustomKeywordsPayload = vi.hoisted(() => vi.fn())

@@ -29,15 +29,17 @@ export interface NewsItem {
   mobileUrl?: string
 }
 
-export interface ApiResponse<T> {
-  success: boolean
-  data?: T
-  error?: {
-    code: string
-    message: string
-    suggestion?: string
-  }
-}
+export type ApiResponse<T> =
+  | { success: true; data: T; error?: never }
+  | {
+      success: false
+      data?: never
+      error: {
+        code: string
+        message: string
+        suggestion?: string
+      }
+    }
 
 export interface GetLatestNewsParams {
   platforms?: string[]

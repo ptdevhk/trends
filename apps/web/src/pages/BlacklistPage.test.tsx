@@ -32,9 +32,15 @@ vi.mock('@/components/ui/badge', () => ({
 }))
 
 vi.mock('@/components/ui/button', () => ({
-  Button: ({ children, onClick, disabled, variant, size }: Record<string, unknown>) => (
+  Button: ({ children, onClick, disabled, variant, size }: {
+    children?: React.ReactNode
+    onClick?: React.MouseEventHandler<HTMLButtonElement>
+    disabled?: boolean
+    variant?: string
+    size?: string
+  }) => (
     <button onClick={onClick} disabled={disabled} data-variant={variant} data-size={size}>
-      {children as React.ReactNode}
+      {children}
     </button>
   ),
 }))
@@ -48,7 +54,10 @@ vi.mock('@/components/ui/card', () => ({
 }))
 
 vi.mock('@/components/ui/checkbox', () => ({
-  Checkbox: ({ checked, onCheckedChange }: Record<string, unknown>) => (
+  Checkbox: ({ checked, onCheckedChange }: {
+    checked?: boolean
+    onCheckedChange?: (checked: boolean) => void
+  }) => (
     <input type="checkbox" checked={checked} onChange={(e) => onCheckedChange?.(e.target.checked)} />
   ),
 }))

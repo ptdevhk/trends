@@ -42,12 +42,15 @@ describe('SystemSettingsLayout', () => {
       },
     })
     mockResolveSystemSettingsSubpages.mockImplementation((nav: unknown[]) =>
-      nav?.map((item: Record<string, unknown>) => ({
-        id: item.id,
-        titleKey: item.titleKey,
-        defaultTitle: item.defaultTitle,
-        href: item.href,
-      })) ?? []
+      nav?.map((value) => {
+        const item = value as Record<string, unknown>
+        return {
+          id: item.id,
+          titleKey: item.titleKey,
+          defaultTitle: item.defaultTitle,
+          href: item.href,
+        }
+      }) ?? []
     )
   })
 

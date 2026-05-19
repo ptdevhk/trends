@@ -1,5 +1,5 @@
 import { render, renderHook } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi, beforeEach } from 'vitest'
+import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { LongTaskObserver, useLongTaskObserver } from './useLongTaskObserver'
 
 describe('useLongTaskObserver', () => {

@@ -67,7 +67,7 @@ describe('getLatestNews', () => {
       ok: false,
       status: 503,
       json: async () => { throw new Error('not json') },
-    } as Response)
+    } as unknown as Response)
 
     const result = await getLatestNews()
 
