@@ -49,6 +49,7 @@ const SELECTORS = {
   pagination: ".el-pagination",
   nextPageBtn: ".el-pagination .btn-next",
   seekPagination: 'nav[aria-label="Pagination of results"]',
+  seekTalentSearchPagination: 'nav[aria-label="PAGINATION_OF_RESULTS"]',
   searchInput: ".el-autocomplete input.el-input__inner",
   searchButton: ".resume-search-item-search-input-block__input-button",
   // 51job eHire selectors
@@ -4025,12 +4026,15 @@ function getSeekCardCount() {
 }
 
 function getSeekPaginationInfo() {
+  const isTalentSearch = getCurrentSeekMode() === "talentsearch";
   const currentPage =
     normalizeOptionalPositiveInt(
       new URL(window.location.href).searchParams.get("pageNumber"),
     ) || 1;
   const pagination = document.querySelector(
-    'nav[aria-label="Pagination of results"]',
+    isTalentSearch
+      ? SELECTORS.seekTalentSearchPagination
+      : SELECTORS.seekPagination,
   );
   if (!pagination) {
     return {
@@ -4055,7 +4059,7 @@ function getSeekPaginationInfo() {
     pageNumbers.length > 0 ? Math.max(...pageNumbers) : 0,
     currentPage,
   );
-  const nextLink = getSeekNextPageLink();
+  const nextLink = getSeekNextPageLinkForMode();
   const hasNextPage =
     totalPages > currentPage && !isDisabledPaginationControl(nextLink);
 
@@ -4167,6 +4171,26 @@ function getSeekNextPageLink() {
   return asHTMLElement(nextLink || null);
 }
 
+function getSeekTalentSearchNextPageLink() {
+  const pagination = document.querySelector(SELECTORS.seekTalentSearchPagination);
+  if (!pagination) return null;
+  // Talent search pager exposes a[rel="next"] per recon; fall back to last anchor.
+  const explicit = pagination.querySelector('a[rel="next"]');
+  if (explicit) return asHTMLElement(explicit);
+  const links = Array.from(pagination.querySelectorAll("a"));
+  const labeled = links.find((node) =>
+    /next/i.test((node.getAttribute("aria-label") || node.textContent || "").trim()),
+  );
+  return asHTMLElement(labeled || null);
+}
+
+function getSeekNextPageLinkForMode() {
+  if (getCurrentSeekMode() === "talentsearch") {
+    return getSeekTalentSearchNextPageLink();
+  }
+  return getSeekNextPageLink();
+}
+
 function isDisabledPaginationControl(control) {
   if (!control) return true;
   return (
@@ -4182,7 +4206,7 @@ function isDisabledPaginationControl(control) {
 function goToNextPageInternal() {
   const sourceKey = getCurrentSourceKey();
   if (sourceKey === SOURCE_KEYS.SEEK) {
-    const nextBtn = getSeekNextPageLink();
+    const nextBtn = getSeekNextPageLinkForMode();
     if (!nextBtn || isDisabledPaginationControl(nextBtn)) return false;
     nextBtn.click();
     return true;
@@ -4207,7 +4231,7 @@ function goToNextPageInternal() {
 function getNextPageButtonState() {
   const sourceKey = getCurrentSourceKey();
   if (sourceKey === SOURCE_KEYS.SEEK) {
-    const nextBtn = getSeekNextPageLink();
+    const nextBtn = getSeekNextPageLinkForMode();
     if (!nextBtn) {
       return {
         exists: false,
@@ -4815,11 +4839,16 @@ function waitForPagination({ timeoutMs = 8000 } = {}) {
     const check = () => {
       if (done) return;
       const isSeek = getCurrentSourceKey() === SOURCE_KEYS.SEEK;
+      const seekTalentSearch = isSeek && getCurrentSeekMode() === "talentsearch";
       const pagination = document.querySelector(
-        isSeek ? SELECTORS.seekPagination : SELECTORS.pagination,
+        isSeek
+          ? (seekTalentSearch
+              ? SELECTORS.seekTalentSearchPagination
+              : SELECTORS.seekPagination)
+          : SELECTORS.pagination,
       );
       const nextBtn = isSeek
-        ? getSeekNextPageLink()
+        ? getSeekNextPageLinkForMode()
         : document.querySelector(SELECTORS.nextPageBtn);
       if (pagination && nextBtn) {
         done = true;
