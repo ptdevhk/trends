@@ -4,14 +4,20 @@ import {
   JOB51_SAFE_LAUNCH_LIMIT,
   JOB51_SAFE_LAUNCH_MAX_PAGES,
   SEARCH_PROFILE_SOURCE_TYPES,
+  SEEK_MODE,
   buildCollectionLaunchUrl,
   buildJob51CollectUrl,
   buildJob5156CollectUrl,
   buildSeekCollectUrl,
+  buildSeekTalentSearchUrl,
   getActiveSearchProfileSource,
   getSearchProfileCollectionSource,
   getSearchProfileCollectUrl,
+  isSeekTalentSearchUrl,
   resolveCollectionSource,
+  resolveSeekMode,
+  resolveSeekModeFromUrl,
+  validateSeekSourceJobUrl,
 } from './search-profile-sources'
 
 describe('search-profile-sources', () => {
@@ -47,6 +53,47 @@ describe('search-profile-sources', () => {
         enabled: true,
         priority: 2,
         jobUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1',
+      },
+    ])
+
+    expect(collectUrl).toBe('https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1')
+  })
+
+  it('returns the talent-search URL when it is the lowest-priority enabled seek source', () => {
+    const collectUrl = getSearchProfileCollectUrl([
+      {
+        type: SEARCH_PROFILE_SOURCE_TYPES.seek,
+        enabled: true,
+        priority: 5,
+        mode: 'recommended',
+        jobUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1',
+      },
+      {
+        type: SEARCH_PROFILE_SOURCE_TYPES.seek,
+        enabled: true,
+        priority: 1,
+        mode: 'talentsearch',
+        jobUrl: 'https://hk.employer.seek.com/talentsearch?keywords=CNC',
+      },
+    ])
+
+    expect(collectUrl).toBe('https://hk.employer.seek.com/talentsearch?keywords=CNC')
+  })
+
+  it('falls back to the recommended URL when its priority is lower (back-compat default)', () => {
+    const collectUrl = getSearchProfileCollectUrl([
+      {
+        type: SEARCH_PROFILE_SOURCE_TYPES.seek,
+        enabled: true,
+        priority: 1,
+        jobUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1',
+      },
+      {
+        type: SEARCH_PROFILE_SOURCE_TYPES.seek,
+        enabled: true,
+        priority: 2,
+        mode: 'talentsearch',
+        jobUrl: 'https://hk.employer.seek.com/talentsearch?keywords=CNC',
       },
     ])
 
@@ -304,5 +351,169 @@ describe('search-profile-sources', () => {
     expect(job5156Url).toContain('tr_max_pages=2')
     expect(job51Url).toContain('ehire.51job.com/Revision/talent/search')
     expect(job51Url).toContain('tr_max_pages=1')
+  })
+})
+
+describe('seek mode', () => {
+  it('resolveSeekMode returns "recommended" when mode is undefined (back-compat default)', () => {
+    expect(resolveSeekMode(undefined)).toBe('recommended')
+  })
+
+  it('resolveSeekMode returns "talentsearch" when explicitly set', () => {
+    expect(resolveSeekMode('talentsearch')).toBe('talentsearch')
+  })
+
+  it('resolveSeekMode rejects unknown values and falls back to "recommended"', () => {
+    expect(resolveSeekMode('garbage' as unknown as 'recommended')).toBe('recommended')
+  })
+
+  it('SEEK_MODE constant exposes both values', () => {
+    expect(SEEK_MODE.recommended).toBe('recommended')
+    expect(SEEK_MODE.talentsearch).toBe('talentsearch')
+  })
+})
+
+describe('isSeekTalentSearchUrl', () => {
+  it('returns true for canonical talent-search URL on hk host', () => {
+    expect(isSeekTalentSearchUrl(
+      'https://hk.employer.seek.com/talentsearch?searchQuery=CNC+Sales&market=MY&keywords=CNC',
+    )).toBe(true)
+  })
+
+  it('returns true on my host', () => {
+    expect(isSeekTalentSearchUrl(
+      'https://my.employer.seek.com/talentsearch?keywords=Sales',
+    )).toBe(true)
+  })
+
+  it('returns false for the recommended-candidates URL', () => {
+    expect(isSeekTalentSearchUrl(
+      'https://my.employer.seek.com/candidates/recommended?jobId=90842915',
+    )).toBe(false)
+  })
+
+  it('returns false for /talentsearch/profile/<id> (profile detail)', () => {
+    expect(isSeekTalentSearchUrl(
+      'https://hk.employer.seek.com/talentsearch/profile/503033454?profileType=seek',
+    )).toBe(false)
+  })
+
+  it('returns false for /talentsearch with no query string', () => {
+    expect(isSeekTalentSearchUrl(
+      'https://hk.employer.seek.com/talentsearch',
+    )).toBe(false)
+  })
+
+  it('returns false for non-seek hosts', () => {
+    expect(isSeekTalentSearchUrl('https://example.com/talentsearch?keywords=x')).toBe(false)
+  })
+
+  it('returns false for malformed input', () => {
+    expect(isSeekTalentSearchUrl(undefined)).toBe(false)
+    expect(isSeekTalentSearchUrl('not a url')).toBe(false)
+    expect(isSeekTalentSearchUrl('')).toBe(false)
+  })
+})
+
+describe('buildSeekTalentSearchUrl', () => {
+  it('round-trips all documented params', () => {
+    const url = buildSeekTalentSearchUrl({
+      host: 'hk.employer.seek.com',
+      searchQuery: 'CNC Sales',
+      keywords: 'CNC',
+      market: 'MY',
+      roleTitles: ['Sales'],
+      pageNumber: 1,
+      sortBy: 'RELEVANCE',
+      matchAll: false,
+      salaryType: 'MONTHLY',
+      minSalary: 0,
+      salaryUnspecified: true,
+    })
+    expect(url).not.toBeNull()
+    const parsed = new URL(url as string)
+    expect(parsed.host).toBe('hk.employer.seek.com')
+    expect(parsed.pathname).toBe('/talentsearch')
+    expect(parsed.searchParams.get('searchQuery')).toBe('CNC Sales')
+    expect(parsed.searchParams.get('keywords')).toBe('CNC')
+    expect(parsed.searchParams.get('market')).toBe('MY')
+    expect(parsed.searchParams.get('roleTitles')).toBe('Sales')
+    expect(parsed.searchParams.get('pageNumber')).toBe('1')
+    expect(parsed.searchParams.get('sortBy')).toBe('RELEVANCE')
+    expect(parsed.searchParams.get('matchAll')).toBe('false')
+    expect(parsed.searchParams.get('salaryType')).toBe('MONTHLY')
+    expect(parsed.searchParams.get('minSalary')).toBe('0')
+    expect(parsed.searchParams.get('salaryUnspecified')).toBe('true')
+  })
+
+  it('defaults host to my.employer.seek.com when omitted', () => {
+    const url = buildSeekTalentSearchUrl({ keywords: 'Sales' })
+    expect(new URL(url as string).host).toBe('my.employer.seek.com')
+  })
+
+  it('returns null when no keywords or searchQuery provided', () => {
+    expect(buildSeekTalentSearchUrl({ keywords: '' })).toBeNull()
+  })
+})
+
+describe('resolveSeekModeFromUrl', () => {
+  it('returns "recommended" for /candidates/recommended URLs', () => {
+    expect(resolveSeekModeFromUrl(
+      'https://my.employer.seek.com/candidates/recommended?jobId=90842915',
+    )).toBe('recommended')
+  })
+
+  it('returns "talentsearch" for /talentsearch?... URLs', () => {
+    expect(resolveSeekModeFromUrl(
+      'https://hk.employer.seek.com/talentsearch?keywords=CNC',
+    )).toBe('talentsearch')
+  })
+
+  it('returns null for unrecognized seek paths', () => {
+    expect(resolveSeekModeFromUrl(
+      'https://hk.employer.seek.com/dashboard',
+    )).toBeNull()
+  })
+
+  it('returns null for non-seek hosts', () => {
+    expect(resolveSeekModeFromUrl('https://example.com/talentsearch?x=1')).toBeNull()
+  })
+})
+
+describe('validateSeekSourceJobUrl', () => {
+  it('accepts recommended URL when mode is recommended', () => {
+    expect(validateSeekSourceJobUrl({
+      mode: 'recommended',
+      jobUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=1',
+    })).toEqual({ ok: true })
+  })
+
+  it('accepts talentsearch URL when mode is talentsearch', () => {
+    expect(validateSeekSourceJobUrl({
+      mode: 'talentsearch',
+      jobUrl: 'https://hk.employer.seek.com/talentsearch?keywords=x',
+    })).toEqual({ ok: true })
+  })
+
+  it('rejects mode mismatch (talentsearch URL with mode=recommended)', () => {
+    const result = validateSeekSourceJobUrl({
+      mode: 'recommended',
+      jobUrl: 'https://hk.employer.seek.com/talentsearch?keywords=x',
+    })
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.reason).toMatch(/mode/i)
+    }
+  })
+
+  it('rejects malformed URL', () => {
+    const result = validateSeekSourceJobUrl({ mode: 'recommended', jobUrl: 'not a url' })
+    expect(result.ok).toBe(false)
+  })
+
+  it('treats undefined mode as recommended (back-compat)', () => {
+    expect(validateSeekSourceJobUrl({
+      jobUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=1',
+    })).toEqual({ ok: true })
   })
 })

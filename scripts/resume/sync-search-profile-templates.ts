@@ -16,6 +16,7 @@ type ProfileSource = {
   jobUrl?: string;
   collectLimit?: number;
   maxPages?: number;
+  mode?: string;
 };
 
 type ProfileFilters = {
@@ -128,6 +129,7 @@ function parseSource(raw: unknown): ProfileSource | null {
     jobUrl: readString(raw.jobUrl),
     collectLimit: readNumber(raw.collectLimit),
     maxPages: readNumber(raw.maxPages),
+    mode: readString(raw.mode),
   };
 }
 
@@ -316,6 +318,7 @@ export type SharedSearchProfileTemplate = {
       jobUrl?: string;
       collectLimit?: number;
       maxPages?: number;
+      mode?: string;
     }>;
     quickStart?: {
       enabled: boolean;

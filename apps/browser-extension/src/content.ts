@@ -49,6 +49,7 @@ const SELECTORS = {
   pagination: ".el-pagination",
   nextPageBtn: ".el-pagination .btn-next",
   seekPagination: 'nav[aria-label="Pagination of results"]',
+  seekTalentSearchPagination: 'nav[aria-label="PAGINATION_OF_RESULTS"]',
   searchInput: ".el-autocomplete input.el-input__inner",
   searchButton: ".resume-search-item-search-input-block__input-button",
   // 51job eHire selectors
@@ -131,6 +132,8 @@ const apiSnapshot = {
   seekRecommendedRequest: null,
   seekProfile: null,
   seekProfileRequest: null,
+  seekTalentSearch: null,
+  seekTalentSearchRequest: null,
   lastUpdatedAt: null,
   lastSearchAt: null,
   lastUrl: null,
@@ -650,6 +653,21 @@ function isSeekProfilePage() {
   return window.location.pathname.includes("/talentsearch/profile/");
 }
 
+function isSeekTalentSearchListPage() {
+  if (getCurrentSourceKey() !== SOURCE_KEYS.SEEK) return false;
+  const { pathname, search } = window.location;
+  if (pathname.includes("/talentsearch/profile/")) return false;
+  return pathname === "/talentsearch" && search.length > 0;
+}
+
+function getCurrentSeekMode() {
+  if (getCurrentSourceKey() !== SOURCE_KEYS.SEEK) return null;
+  if (isSeekProfilePage()) return "profile";
+  if (isSeekTalentSearchListPage()) return "talentsearch";
+  if (window.location.pathname.includes("/candidates/recommended")) return "recommended";
+  return null;
+}
+
 function isSeekInlineProfileMode() {
   if (getCurrentSourceKey() !== SOURCE_KEYS.SEEK) {
     return false;
@@ -679,9 +697,16 @@ function hasSeekListSnapshot() {
   return Array.isArray(apiSnapshot.seekRecommendedCandidates);
 }
 
+function hasSeekTalentSearchSnapshot() {
+  return Array.isArray(apiSnapshot.seekTalentSearch);
+}
+
 function getSeekSnapshotCount() {
   if (isSeekProfileMode()) {
     return hasSeekProfileSnapshot() ? 1 : 0;
+  }
+  if (hasSeekTalentSearchSnapshot()) {
+    return apiSnapshot.seekTalentSearch.length;
   }
   return hasSeekListSnapshot()
     ? apiSnapshot.seekRecommendedCandidates.length
@@ -794,6 +819,10 @@ function buildSeekProfileUrl(profileId, jobId) {
 
 function getSeekRecommendedRequest() {
   return apiSnapshot.seekRecommendedRequest;
+}
+
+function getSeekTalentSearchRequest() {
+  return apiSnapshot.seekTalentSearchRequest;
 }
 
 function getSeekProfileRequest() {
@@ -2548,12 +2577,18 @@ function buildSeekCollectionContext(options = {}) {
   const normalizedOptions =
     typeof options === "object" && options ? options : {};
   const captureModeOverride = normalizedOptions.captureModeOverride;
+  const seekMode = getCurrentSeekMode();
+  const isTalentSearchList = seekMode === "talentsearch";
   const useProfileMode = captureModeOverride
     ? captureModeOverride === "graphql-profile"
     : isSeekProfileMode();
-  const request = useProfileMode
-    ? getSeekProfileRequest()
-    : getSeekRecommendedRequest();
+  const talentSearchRequest = isTalentSearchList
+    ? apiSnapshot.seekTalentSearchRequest
+    : null;
+  const request = talentSearchRequest
+    ?? (useProfileMode
+      ? getSeekProfileRequest()
+      : getSeekRecommendedRequest());
   const requestInput = request?.variables?.input;
   const language = request?.variables?.language;
   const url = new URL(window.location.href);
@@ -2565,34 +2600,88 @@ function buildSeekCollectionContext(options = {}) {
   );
   const captureMode =
     captureModeOverride ||
-    (useProfileMode && apiSnapshot.seekProfile
-      ? "graphql-profile"
-      : "graphql-list");
+    (isTalentSearchList
+      ? "graphql-talentsearch"
+      : (useProfileMode && apiSnapshot.seekProfile
+          ? "graphql-profile"
+          : "graphql-list"));
   const defaultOperation =
     captureMode === "graphql-profile"
       ? "GetTalentSearchProfileCompleteV2"
-      : "GetTalentSearchRecommendedCandidates";
+      : captureMode === "graphql-talentsearch"
+        ? "SearchProfilesByNaturalLanguage"
+        : "GetTalentSearchRecommendedCandidates";
 
-  return {
+  /** @type {Record<string, unknown>} */
+  const context = {
     captureMode,
     operation: apiSnapshot.lastOperationName || defaultOperation,
-    jobId:
-      requestInput?.jobId != null
-        ? String(requestInput.jobId)
-        : jobIdFromUrl != null
-          ? String(jobIdFromUrl)
-          : undefined,
-    searchId:
-      typeof requestInput?.searchId === "string"
-        ? requestInput.searchId
-        : undefined,
-    pageNumber:
-      typeof requestInput?.page === "number"
-        ? requestInput.page
-        : (pageNumberFromUrl ?? undefined),
-    language: typeof language === "string" ? language : undefined,
     profileType: SEEK_PROFILE_TYPE,
   };
+  if (seekMode) {
+    context.seekMode = seekMode;
+  }
+  if (typeof language === "string") {
+    context.language = language;
+  }
+
+  if (isTalentSearchList) {
+    // Talent-search variables are nested under input.{...} per recon.
+    // Surface the search-shaping fields so analytics can later distinguish
+    // discovery-lane characteristics.
+    if (typeof requestInput?.pageNumber === "number") {
+      context.pageNumber = requestInput.pageNumber;
+    } else if (pageNumberFromUrl != null) {
+      context.pageNumber = pageNumberFromUrl;
+    }
+    if (typeof requestInput?.originalNaturalLanguageQuery === "string") {
+      context.searchQuery = requestInput.originalNaturalLanguageQuery;
+    }
+    if (typeof requestInput?.countryCode === "string") {
+      context.market = requestInput.countryCode;
+    }
+    if (Array.isArray(requestInput?.roleTitles?.values)) {
+      context.roleTitles = requestInput.roleTitles.values;
+    }
+    if (Array.isArray(requestInput?.keywords?.values)) {
+      context.keywords = requestInput.keywords.values;
+    }
+    if (typeof requestInput?.keywords?.matchAll === "boolean") {
+      context.matchAll = requestInput.keywords.matchAll;
+    }
+    if (typeof requestInput?.sortBy === "string") {
+      context.sortBy = requestInput.sortBy;
+    }
+    if (typeof requestInput?.salary?.frequency === "string") {
+      context.salaryType = requestInput.salary.frequency;
+    }
+    if (typeof requestInput?.salary?.range?.minimum === "number") {
+      context.minSalary = requestInput.salary.range.minimum;
+    }
+    if (typeof requestInput?.salary?.includeUnspecified === "boolean") {
+      context.salaryUnspecified = requestInput.salary.includeUnspecified;
+    }
+    if (typeof requestInput?.searchId === "string") {
+      context.searchId = requestInput.searchId;
+    }
+  } else {
+    // Recommended / profile path uses the existing flat input shape.
+    if (requestInput?.jobId != null) {
+      context.jobId = String(requestInput.jobId);
+    } else if (jobIdFromUrl != null) {
+      context.jobId = String(jobIdFromUrl);
+    }
+    if (typeof requestInput?.searchId === "string") {
+      context.searchId = requestInput.searchId;
+    }
+    if (typeof requestInput?.page === "number") {
+      context.pageNumber = requestInput.page;
+    } else if (pageNumberFromUrl != null) {
+      context.pageNumber = pageNumberFromUrl;
+    }
+  }
+
+  return context;
 }
 
 function getExtensionGeneratedBy() {
@@ -2738,11 +2827,15 @@ function getSeekPayloadData(payload, kind) {
           data.getTalentSearchRecommendedCandidates
         );
       }
+      if (kind === "seekTalentSearch") {
+        return !!data.talentSearchProfilesNaturalLanguageSearch;
+      }
       if (kind === "seekProfile") {
         return !!(
           data.talentSearchProfileV2 ||
           data.talentSearchProfileCompleteV2 ||
-          data.getTalentSearchProfileCompleteV2
+          data.getTalentSearchProfileCompleteV2 ||
+          data.talentSearchProfileV3
         );
       }
       return false;
@@ -2885,6 +2978,30 @@ function updateApiSnapshot(message) {
       payload?.data?.talentInsightInfo || payload?.data || null;
     return;
   }
+  if (kind === "seekTalentSearch") {
+    const data = getSeekPayloadData(payload, kind);
+    const result = data?.talentSearchProfilesNaturalLanguageSearch?.result;
+    const edges = Array.isArray(result?.edges) ? result.edges : null;
+    if (edges) {
+      // Unwrap Relay edges into bare nodes — downstream code expects an array
+      // of candidate objects, same shape contract as seekRecommendedCandidates.
+      const nodes = edges
+        .map((edge) => edge?.node)
+        .filter((node) => node && typeof node === "object");
+      apiSnapshot.seekTalentSearch = nodes;
+      apiSnapshot.seekTalentSearchRequest = request || null;
+      apiSnapshot.lastSearchAt = apiSnapshot.lastUpdatedAt;
+      try {
+        document.documentElement.setAttribute(
+          "data-tr-api-rows",
+          String(getApiSnapshotCount()),
+        );
+      } catch {
+        // ignore
+      }
+    }
+    return;
+  }
   if (kind === "seekRecommendedCandidates") {
     const data = getSeekPayloadData(payload, kind);
     const candidates =
@@ -2911,6 +3028,7 @@ function updateApiSnapshot(message) {
       data?.talentSearchProfileV2 ||
       data?.talentSearchProfileCompleteV2 ||
       data?.getTalentSearchProfileCompleteV2 ||
+      data?.talentSearchProfileV3 ||
       data ||
       null;
     apiSnapshot.seekProfileRequest =
@@ -3321,6 +3439,93 @@ function extractSeekResumes() {
   });
 }
 
+/**
+ * Extract resumes from seek talent-search (SearchProfilesByNaturalLanguage) list-page snapshot.
+ * Mirrors the output shape of extractSeekResumes() exactly so downstream submit/identity/storage
+ * code is unchanged.
+ *
+ * Node shape is TalentSearchProfileResultV2 — see dev-docs/seek-talent-search-graphql-recon.txt.
+ *
+ * externalId precedence: talent-search nodes have profileGuid (UUID) but NO numeric profileId.
+ * We use profileGuid as the primary identifier. If the node had both a numeric profileId and a
+ * profileGuid (not observed on talent-search, but defensively handled), we prefer profileGuid
+ * to match the V3 profile request semantics (input.profileGuid: UUID).
+ */
+function extractSeekTalentSearchResumes() {
+  const candidates = Array.isArray(apiSnapshot.seekTalentSearch)
+    ? apiSnapshot.seekTalentSearch
+    : [];
+  const request = getSeekTalentSearchRequest();
+  const requestInput = request?.variables?.input;
+  const language = request?.variables?.language;
+  const url = new URL(window.location.href);
+  const currentPage =
+    typeof requestInput?.pageNumber === "number"
+      ? requestInput.pageNumber
+      : normalizeOptionalPositiveInt(url.searchParams.get("pageNumber")) || 1;
+
+  return candidates
+    .map((node, index) => {
+      // Prefer profileGuid (UUID) as the identity key for talent-search;
+      // fall back to the numeric-looking Relay "id" if profileGuid is missing.
+      const profileId =
+        typeof node?.profileGuid === "string" && node.profileGuid
+          ? node.profileGuid
+          : typeof node?.id === "string" && node.id
+            ? node.id
+            : "";
+      if (!profileId) return null;
+
+      const firstName =
+        typeof node?.firstName === "string" ? node.firstName.trim() : "";
+      const lastName =
+        typeof node?.lastName === "string" ? node.lastName.trim() : "";
+      const currentJobTitle =
+        typeof node?.currentJobTitle === "string"
+          ? node.currentJobTitle.trim()
+          : "";
+      const currentLocation =
+        typeof node?.currentLocation === "string"
+          ? node.currentLocation.trim()
+          : "";
+      const lastModifiedDurationLabel =
+        typeof node?.lastModifiedDurationLabel === "string"
+          ? node.lastModifiedDurationLabel
+          : "";
+      const workHistory = Array.isArray(node?.workHistories)
+        ? node.workHistories
+            .map((item) => buildSeekWorkHistoryItem(item))
+            .filter(Boolean)
+        : [];
+
+      return {
+        profileId,
+        profileType: "seek",
+        externalId: profileId
+          ? `${window.location.hostname.toLowerCase()}:profile:${profileId}`
+          : "",
+        name: [firstName, lastName].filter(Boolean).join(" ").trim(),
+        profileUrl: buildSeekProfileUrl(profileId, undefined),
+        activityStatus: lastModifiedDurationLabel,
+        age: "",
+        experience: "",
+        education: "",
+        location: currentLocation,
+        jobIntention: currentJobTitle,
+        expectedSalary: "",
+        selfIntro: "",
+        workHistory,
+        extractedAt: new Date().toISOString(),
+        pageIndex: index + 1,
+        source: window.location.hostname.toLowerCase(),
+        searchProfileId: "",
+        language: typeof language === "string" ? language : "",
+        pageNumber: currentPage,
+      };
+    })
+    .filter(Boolean);
+}
+
 function extract51JobResumes() {
   if (!Array.isArray(apiSnapshot.job51SearchRows)) return [];
   return apiSnapshot.job51SearchRows.map((row, index) => {
@@ -3548,6 +3753,9 @@ function extractResumes() {
       }
       return [];
     }
+    if (hasSeekTalentSearchSnapshot()) {
+      return extractSeekTalentSearchResumes();
+    }
     if (hasSeekListSnapshot()) {
       return extractSeekResumes();
     }
@@ -3599,10 +3807,20 @@ function extractResumesRaw(options = {}) {
     const seekProfileIdentity = seekProfile
       ? getSeekCandidateIdentity(seekProfile)
       : null;
+    const seekTalentSearchCandidates =
+      !seekProfile && hasSeekTalentSearchSnapshot()
+        ? apiSnapshot.seekTalentSearch
+        : null;
     const candidates =
-      !seekProfile && hasSeekListSnapshot()
+      seekTalentSearchCandidates ||
+      (!seekProfile && hasSeekListSnapshot()
         ? apiSnapshot.seekRecommendedCandidates
-        : [];
+        : []);
+    const seekRequest = seekProfile
+      ? getSeekProfileRequest()
+      : seekTalentSearchCandidates
+        ? getSeekTalentSearchRequest()
+        : getSeekRecommendedRequest();
     const cards = seekProfile
       ? [
           {
@@ -3613,8 +3831,13 @@ function extractResumesRaw(options = {}) {
           },
         ]
       : candidates.map((candidate, index) => {
-          const { profileId, profileType } =
-            getSeekCandidateIdentity(candidate);
+          // Talent-search nodes use profileGuid (UUID); recommended nodes use numeric profileId
+          const profileId = seekTalentSearchCandidates
+            ? typeof candidate?.profileGuid === "string" && candidate.profileGuid
+              ? candidate.profileGuid
+              : ""
+            : getSeekCandidateIdentity(candidate).profileId;
+          const profileType = SEEK_PROFILE_TYPE;
           return {
             index: index + 1,
             profileId,
@@ -3637,7 +3860,7 @@ function extractResumesRaw(options = {}) {
           operationName: apiSnapshot.lastOperationName,
           request: seekProfile
             ? getSeekProfileRequest()
-            : getSeekRecommendedRequest(),
+            : seekRequest,
         },
       };
 
@@ -3863,12 +4086,15 @@ function getSeekCardCount() {
 }
 
 function getSeekPaginationInfo() {
+  const isTalentSearch = getCurrentSeekMode() === "talentsearch";
   const currentPage =
     normalizeOptionalPositiveInt(
       new URL(window.location.href).searchParams.get("pageNumber"),
     ) || 1;
   const pagination = document.querySelector(
-    'nav[aria-label="Pagination of results"]',
+    isTalentSearch
+      ? SELECTORS.seekTalentSearchPagination
+      : SELECTORS.seekPagination,
   );
   if (!pagination) {
     return {
@@ -3893,7 +4119,7 @@ function getSeekPaginationInfo() {
     pageNumbers.length > 0 ? Math.max(...pageNumbers) : 0,
     currentPage,
   );
-  const nextLink = getSeekNextPageLink();
+  const nextLink = getSeekNextPageLinkForMode();
   const hasNextPage =
     totalPages > currentPage && !isDisabledPaginationControl(nextLink);
 
@@ -4005,6 +4231,26 @@ function getSeekNextPageLink() {
   return asHTMLElement(nextLink || null);
 }
 
+function getSeekTalentSearchNextPageLink() {
+  const pagination = document.querySelector(SELECTORS.seekTalentSearchPagination);
+  if (!pagination) return null;
+  // Talent search pager exposes a[rel="next"] per recon; fall back to last anchor.
+  const explicit = pagination.querySelector('a[rel="next"]');
+  if (explicit) return asHTMLElement(explicit);
+  const links = Array.from(pagination.querySelectorAll("a"));
+  const labeled = links.find((node) =>
+    /next/i.test((node.getAttribute("aria-label") || node.textContent || "").trim()),
+  );
+  return asHTMLElement(labeled || null);
+}
+
+function getSeekNextPageLinkForMode() {
+  if (getCurrentSeekMode() === "talentsearch") {
+    return getSeekTalentSearchNextPageLink();
+  }
+  return getSeekNextPageLink();
+}
+
 function isDisabledPaginationControl(control) {
   if (!control) return true;
   return (
@@ -4020,7 +4266,7 @@ function isDisabledPaginationControl(control) {
 function goToNextPageInternal() {
   const sourceKey = getCurrentSourceKey();
   if (sourceKey === SOURCE_KEYS.SEEK) {
-    const nextBtn = getSeekNextPageLink();
+    const nextBtn = getSeekNextPageLinkForMode();
     if (!nextBtn || isDisabledPaginationControl(nextBtn)) return false;
     nextBtn.click();
     return true;
@@ -4045,7 +4291,7 @@ function goToNextPageInternal() {
 function getNextPageButtonState() {
   const sourceKey = getCurrentSourceKey();
   if (sourceKey === SOURCE_KEYS.SEEK) {
-    const nextBtn = getSeekNextPageLink();
+    const nextBtn = getSeekNextPageLinkForMode();
     if (!nextBtn) {
       return {
         exists: false,
@@ -4558,6 +4804,8 @@ function clearCapturedResultsForNextPage() {
     apiSnapshot.seekRecommendedRequest = null;
     apiSnapshot.seekProfile = null;
     apiSnapshot.seekProfileRequest = null;
+    apiSnapshot.seekTalentSearch = null;
+    apiSnapshot.seekTalentSearchRequest = null;
   }
 }
 
@@ -4628,10 +4876,18 @@ async function enrichSingleSeekResumeWithDetail(resume) {
   }
 }
 
-async function enrichSeekRecommendedResumesWithDetail(resumes) {
+async function enrichSeekResumesWithDetail(resumes) {
   if (!Array.isArray(resumes) || resumes.length === 0) return [];
   if (getCurrentSourceKey() !== SOURCE_KEYS.SEEK) return resumes;
   if (isSeekProfileMode()) return resumes;
+  // Talent-search list cards do NOT expose <a href="/talentsearch/profile/..."> links
+  // (per 2026-05-19 recon — see dev-docs/seek-talent-search-graphql-recon.txt). The
+  // existing findSeekProfileTrigger hunts for hrefs that do not exist, and the V3
+  // profile response is captured under a different snapshot shape. Detail enrichment
+  // for talent-search is deferred to a follow-up; list-level fields (firstName,
+  // lastName, currentLocation, currentJobTitle, workHistories[]) are sufficient
+  // for the initial slice and are already populated on list-page nodes.
+  if (getCurrentSeekMode() === "talentsearch") return resumes;
 
   const enriched = [];
   for (const resume of resumes) {
@@ -4651,11 +4907,16 @@ function waitForPagination({ timeoutMs = 8000 } = {}) {
     const check = () => {
       if (done) return;
       const isSeek = getCurrentSourceKey() === SOURCE_KEYS.SEEK;
+      const seekTalentSearch = isSeek && getCurrentSeekMode() === "talentsearch";
       const pagination = document.querySelector(
-        isSeek ? SELECTORS.seekPagination : SELECTORS.pagination,
+        isSeek
+          ? (seekTalentSearch
+              ? SELECTORS.seekTalentSearchPagination
+              : SELECTORS.seekPagination)
+          : SELECTORS.pagination,
       );
       const nextBtn = isSeek
-        ? getSeekNextPageLink()
+        ? getSeekNextPageLinkForMode()
         : document.querySelector(SELECTORS.nextPageBtn);
       if (pagination && nextBtn) {
         done = true;
@@ -5791,7 +6052,7 @@ async function syncCurrentPageToServer(resumesOverride) {
     !isSeekProfileMode() &&
     resumes.length > 0
   ) {
-    resumes = await enrichSeekRecommendedResumesWithDetail(resumes);
+    resumes = await enrichSeekResumesWithDetail(resumes);
   }
   const metadata = buildSubmitMetadata({
     seekCaptureMode:
@@ -6088,7 +6349,7 @@ async function runAutoSyncIfEnabled() {
         !isSeekProfileMode() &&
         resumes.length > 0
       ) {
-        resumes = await enrichSeekRecommendedResumesWithDetail(resumes);
+        resumes = await enrichSeekResumesWithDetail(resumes);
       }
       if (resumes.length <= 0) {
         const ageRange = getCurrentAgeRange();
@@ -6617,7 +6878,7 @@ async function collectSnapshotPayload(options = {}) {
       !isSeekProfileMode() &&
       pageResumes.length > 0
     ) {
-      pageResumes = await enrichSeekRecommendedResumesWithDetail(pageResumes);
+      pageResumes = await enrichSeekResumesWithDetail(pageResumes);
     }
 
     lastPageResumeCount = pageResumes.length;

@@ -105,3 +105,45 @@ describe('SearchProfileService keyword normalization', () => {
     expect(upperCaseMatch.confidence).toBeGreaterThan(0.3)
   })
 })
+
+describe('SearchProfileService seek source validation', () => {
+  it('rejects enabled seek source with mode/URL mismatch', () => {
+    const svc = new SearchProfileService()
+    expect(() =>
+      svc.validateProfile({
+        id: 'test-mismatch',
+        name: 'Test',
+        status: 'active',
+        location: 'MY',
+        keywords: ['x'],
+        sources: [{
+          type: 'seek',
+          enabled: true,
+          priority: 1,
+          mode: 'recommended',
+          jobUrl: 'https://hk.employer.seek.com/talentsearch?keywords=x',
+        }],
+      } as SearchProfile)
+    ).toThrow(/mode|recommended|talentsearch/i)
+  })
+
+  it('accepts enabled seek source with mode=talentsearch and matching URL', () => {
+    const svc = new SearchProfileService()
+    expect(() =>
+      svc.validateProfile({
+        id: 'test-ts',
+        name: 'Test',
+        status: 'active',
+        location: 'MY',
+        keywords: ['x'],
+        sources: [{
+          type: 'seek',
+          enabled: true,
+          priority: 1,
+          mode: 'talentsearch',
+          jobUrl: 'https://hk.employer.seek.com/talentsearch?keywords=x',
+        }],
+      } as SearchProfile)
+    ).not.toThrow()
+  })
+})

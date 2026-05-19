@@ -47,6 +47,7 @@ export type SharedSearchProfileTemplate = {
       jobUrl?: string;
       collectLimit?: number;
       maxPages?: number;
+      mode?: string;
     }>;
     quickStart?: {
       enabled: boolean;
@@ -324,12 +325,22 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
           "priority": 1,
           "jobUrl": "https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1",
           "collectLimit": 100,
-          "maxPages": 5
+          "maxPages": 5,
+          "mode": "recommended"
+        },
+        {
+          "type": "seek",
+          "enabled": true,
+          "priority": 2,
+          "jobUrl": "https://hk.employer.seek.com/talentsearch?searchQuery=CNC+Sales&market=MY&pageNumber=1&roleTitles=Sales&salaryType=MONTHLY&minSalary=0&salaryUnspecified=true&keywords=CNC&matchAll=false&sortBy=RELEVANCE",
+          "collectLimit": 500,
+          "maxPages": 25,
+          "mode": "talentsearch"
         },
         {
           "type": "job5156",
           "enabled": false,
-          "priority": 2
+          "priority": 3
         }
       ],
       "quickStart": {
@@ -386,12 +397,22 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
           "priority": 1,
           "jobUrl": "https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1",
           "collectLimit": 100,
-          "maxPages": 5
+          "maxPages": 5,
+          "mode": "recommended"
+        },
+        {
+          "type": "seek",
+          "enabled": true,
+          "priority": 2,
+          "jobUrl": "https://hk.employer.seek.com/talentsearch?searchQuery=CNC+Sales&market=MY&pageNumber=1&roleTitles=Sales&salaryType=MONTHLY&minSalary=0&salaryUnspecified=true&keywords=CNC&matchAll=false&sortBy=RELEVANCE",
+          "collectLimit": 500,
+          "maxPages": 25,
+          "mode": "talentsearch"
         },
         {
           "type": "job5156",
           "enabled": false,
-          "priority": 2
+          "priority": 3
         }
       ],
       "quickStart": {

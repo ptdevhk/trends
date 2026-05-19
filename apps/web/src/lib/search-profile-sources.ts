@@ -43,6 +43,20 @@ export type CollectionSourceType =
   | typeof SEARCH_PROFILE_SOURCE_TYPES.job51
   | typeof SEARCH_PROFILE_SOURCE_TYPES.seek
 
+export const SEEK_MODE = {
+  recommended: 'recommended',
+  talentsearch: 'talentsearch',
+} as const
+
+export type SeekMode = typeof SEEK_MODE[keyof typeof SEEK_MODE]
+
+export function resolveSeekMode(value: string | undefined): SeekMode {
+  if (value === SEEK_MODE.talentsearch) {
+    return SEEK_MODE.talentsearch
+  }
+  return SEEK_MODE.recommended
+}
+
 export type CollectionSource = {
   type: CollectionSourceType
   exactUrl?: string
@@ -68,6 +82,7 @@ export type SearchProfileSource = {
   enabled: boolean
   priority?: number
   jobUrl?: string
+  mode?: SeekMode      // valid only when type === 'seek'; absent ≡ 'recommended'
   unsafeLimits?: boolean
   job51CollectLimit?: number
   job51MaxPages?: number
@@ -240,6 +255,109 @@ export function isSeekRecommendedCandidatesUrl(value: string | undefined): boole
   }
 }
 
+const SEEK_TALENT_SEARCH_PATH = '/talentsearch'
+
+export function isSeekTalentSearchUrl(value: string | undefined): boolean {
+  const normalized = normalizeSeekJobUrl(value)
+  if (!normalized) {
+    return false
+  }
+  try {
+    const url = new URL(normalized)
+    return url.protocol === 'https:'
+      && url.hostname.toLowerCase().endsWith(SEEK_HOST_SUFFIX)
+      && url.pathname.replace(/\/+$/, '') === SEEK_TALENT_SEARCH_PATH
+      && url.search.length > 0
+  } catch {
+    return false
+  }
+}
+
+type BuildSeekTalentSearchUrlInput = {
+  host?: string  // 'hk.employer.seek.com' | 'my.employer.seek.com'
+  searchQuery?: string
+  keywords?: string
+  market?: string
+  roleTitles?: string[]
+  pageNumber?: number
+  sortBy?: string
+  matchAll?: boolean
+  salaryType?: string
+  minSalary?: number
+  maxSalary?: number
+  salaryUnspecified?: boolean
+}
+
+export function buildSeekTalentSearchUrl(input: BuildSeekTalentSearchUrlInput): string | null {
+  const host = input.host && input.host.endsWith(SEEK_HOST_SUFFIX)
+    ? input.host
+    : 'my.employer.seek.com'
+
+  const hasQuery = (input.searchQuery && input.searchQuery.trim().length > 0)
+    || (input.keywords && input.keywords.trim().length > 0)
+  if (!hasQuery) {
+    return null
+  }
+
+  const url = new URL(`https://${host}${SEEK_TALENT_SEARCH_PATH}`)
+  if (input.searchQuery) url.searchParams.set('searchQuery', input.searchQuery)
+  if (input.keywords) url.searchParams.set('keywords', input.keywords)
+  if (input.market) url.searchParams.set('market', input.market)
+  if (input.roleTitles && input.roleTitles.length > 0) {
+    url.searchParams.set('roleTitles', input.roleTitles.join(','))
+  }
+  if (typeof input.pageNumber === 'number' && input.pageNumber > 0) {
+    url.searchParams.set('pageNumber', String(input.pageNumber))
+  }
+  if (input.sortBy) url.searchParams.set('sortBy', input.sortBy)
+  if (typeof input.matchAll === 'boolean') {
+    url.searchParams.set('matchAll', String(input.matchAll))
+  }
+  if (input.salaryType) url.searchParams.set('salaryType', input.salaryType)
+  if (typeof input.minSalary === 'number') {
+    url.searchParams.set('minSalary', String(input.minSalary))
+  }
+  if (typeof input.maxSalary === 'number') {
+    url.searchParams.set('maxSalary', String(input.maxSalary))
+  }
+  if (typeof input.salaryUnspecified === 'boolean') {
+    url.searchParams.set('salaryUnspecified', String(input.salaryUnspecified))
+  }
+  return url.toString()
+}
+
+export function resolveSeekModeFromUrl(value: string | undefined): SeekMode | null {
+  if (isSeekTalentSearchUrl(value)) return SEEK_MODE.talentsearch
+  if (isSeekRecommendedCandidatesUrl(value)) return SEEK_MODE.recommended
+  return null
+}
+
+type ValidateSeekSourceJobUrlInput = {
+  mode?: SeekMode
+  jobUrl: string | undefined
+}
+
+type ValidateSeekSourceJobUrlResult =
+  | { ok: true }
+  | { ok: false; reason: string }
+
+export function validateSeekSourceJobUrl(
+  input: ValidateSeekSourceJobUrlInput,
+): ValidateSeekSourceJobUrlResult {
+  const mode = resolveSeekMode(input.mode)
+  const urlMode = resolveSeekModeFromUrl(input.jobUrl)
+  if (urlMode === null) {
+    return { ok: false, reason: 'jobUrl is not a recognized seek URL' }
+  }
+  if (urlMode !== mode) {
+    return {
+      ok: false,
+      reason: `jobUrl matches mode=${urlMode} but source declared mode=${mode}`,
+    }
+  }
+  return { ok: true }
+}
+
 export function getActiveSearchProfileSource(
   sources: SearchProfileSource[] | undefined,
 ): SearchProfileSource | undefined {
@@ -312,10 +430,13 @@ export function getSearchProfileCollectUrl(
   sources: SearchProfileSource[] | undefined,
 ): string | undefined {
   const seekSource = getPreferredSeekSource(sources)
-  if (!seekSource || !isSeekRecommendedCandidatesUrl(seekSource.jobUrl)) {
+  if (!seekSource || !seekSource.jobUrl) {
     return undefined
   }
-
+  // Accept either seek mode (recommended or talentsearch); reject anything else.
+  if (resolveSeekModeFromUrl(seekSource.jobUrl) === null) {
+    return undefined
+  }
   return normalizeSeekJobUrl(seekSource.jobUrl)
 }
 

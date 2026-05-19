@@ -64,6 +64,7 @@ export interface SearchProfile {
         job51MaxPages?: number;
         collectLimit?: number;
         maxPages?: number;
+        mode?: string;
     }>;
 
     // Landing page quick start
@@ -364,6 +365,7 @@ function parseSources(value: unknown): SearchProfile["sources"] | undefined {
             const job51MaxPages = readNumber(item.job51MaxPages);
             const collectLimit = readNumber(item.collectLimit);
             const maxPages = readNumber(item.maxPages);
+            const mode = readString(item.mode);
             if (!type || enabled === undefined) return null;
 
             return {
@@ -376,6 +378,7 @@ function parseSources(value: unknown): SearchProfile["sources"] | undefined {
                 ...(typeof job51MaxPages === "number" ? { job51MaxPages } : {}),
                 ...(typeof collectLimit === "number" ? { collectLimit } : {}),
                 ...(typeof maxPages === "number" ? { maxPages } : {}),
+                ...(mode !== undefined ? { mode } : {}),
             };
         })
         .filter((item): item is NonNullable<typeof item> => item !== null);
@@ -546,6 +549,27 @@ function isSeekRecommendedCandidatesUrl(value: string | undefined): boolean {
     }
 }
 
+function isSeekTalentSearchUrl(value: string | undefined): boolean {
+    if (!value) {
+        return false;
+    }
+    try {
+        const url = new URL(value);
+        return url.protocol === "https:"
+            && url.hostname.toLowerCase().endsWith(".employer.seek.com")
+            && url.pathname.replace(/\/+$/, "") === "/talentsearch"
+            && url.search.length > 0;
+    } catch {
+        return false;
+    }
+}
+
+function resolveSeekModeFromUrl(value: string | undefined): "recommended" | "talentsearch" | null {
+    if (isSeekTalentSearchUrl(value)) return "talentsearch";
+    if (isSeekRecommendedCandidatesUrl(value)) return "recommended";
+    return null;
+}
+
 export class SearchProfileService {
     readonly projectRoot: string;
 
@@ -643,13 +667,20 @@ export class SearchProfileService {
     validateProfile(profile: SearchProfile): void {
         this.ensureRequiredCoreFields(profile);
 
-        const invalidSeekSource = profile.sources?.find((source) => (
-            source.type === "seek"
-            && source.enabled
-            && !isSeekRecommendedCandidatesUrl(source.jobUrl)
-        ));
+        const invalidSeekSource = profile.sources?.find((source) => {
+            if (source.type !== "seek" || !source.enabled) {
+                return false;
+            }
+            const declaredMode: "recommended" | "talentsearch" =
+                source.mode === "talentsearch" ? "talentsearch" : "recommended";
+            const urlMode = resolveSeekModeFromUrl(source.jobUrl);
+            return urlMode === null || urlMode !== declaredMode;
+        });
         if (invalidSeekSource) {
-            throw new Error("Enabled Seek source requires an exact Seek recommended candidates URL");
+            const declared = invalidSeekSource.mode === "talentsearch" ? "talentsearch" : "recommended";
+            throw new Error(
+                `Enabled Seek source requires a valid Seek ${declared} URL`,
+            );
         }
     }
 
