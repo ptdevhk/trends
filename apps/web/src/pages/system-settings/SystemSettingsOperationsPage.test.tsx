@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 
-const mockUseMutation = vi.hoisted(() => vi.fn(() => vi.fn()))
+const mockUseMutation = vi.hoisted(() => vi.fn((..._args: unknown[]) => vi.fn()))
 const mockToast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }))
 
 vi.mock('convex/react', () => ({
