@@ -820,6 +820,10 @@ function getSeekRecommendedRequest() {
   return apiSnapshot.seekRecommendedRequest;
 }
 
+function getSeekTalentSearchRequest() {
+  return apiSnapshot.seekTalentSearchRequest;
+}
+
 function getSeekProfileRequest() {
   return apiSnapshot.seekProfileRequest || apiSnapshot.seekRecommendedRequest;
 }
@@ -3374,6 +3378,93 @@ function extractSeekResumes() {
   });
 }
 
+/**
+ * Extract resumes from seek talent-search (SearchProfilesByNaturalLanguage) list-page snapshot.
+ * Mirrors the output shape of extractSeekResumes() exactly so downstream submit/identity/storage
+ * code is unchanged.
+ *
+ * Node shape is TalentSearchProfileResultV2 — see dev-docs/seek-talent-search-graphql-recon.txt.
+ *
+ * externalId precedence: talent-search nodes have profileGuid (UUID) but NO numeric profileId.
+ * We use profileGuid as the primary identifier. If the node had both a numeric profileId and a
+ * profileGuid (not observed on talent-search, but defensively handled), we prefer profileGuid
+ * to match the V3 profile request semantics (input.profileGuid: UUID).
+ */
+function extractSeekTalentSearchResumes() {
+  const candidates = Array.isArray(apiSnapshot.seekTalentSearch)
+    ? apiSnapshot.seekTalentSearch
+    : [];
+  const request = getSeekTalentSearchRequest();
+  const requestInput = request?.variables?.input;
+  const language = request?.variables?.language;
+  const url = new URL(window.location.href);
+  const currentPage =
+    typeof requestInput?.pageNumber === "number"
+      ? requestInput.pageNumber
+      : normalizeOptionalPositiveInt(url.searchParams.get("pageNumber")) || 1;
+
+  return candidates
+    .map((node, index) => {
+      // Prefer profileGuid (UUID) as the identity key for talent-search;
+      // fall back to the numeric-looking Relay "id" if profileGuid is missing.
+      const profileId =
+        typeof node?.profileGuid === "string" && node.profileGuid
+          ? node.profileGuid
+          : typeof node?.id === "string" && node.id
+            ? node.id
+            : "";
+      if (!profileId) return null;
+
+      const firstName =
+        typeof node?.firstName === "string" ? node.firstName.trim() : "";
+      const lastName =
+        typeof node?.lastName === "string" ? node.lastName.trim() : "";
+      const currentJobTitle =
+        typeof node?.currentJobTitle === "string"
+          ? node.currentJobTitle.trim()
+          : "";
+      const currentLocation =
+        typeof node?.currentLocation === "string"
+          ? node.currentLocation.trim()
+          : "";
+      const lastModifiedDurationLabel =
+        typeof node?.lastModifiedDurationLabel === "string"
+          ? node.lastModifiedDurationLabel
+          : "";
+      const workHistory = Array.isArray(node?.workHistories)
+        ? node.workHistories
+            .map((item) => buildSeekWorkHistoryItem(item))
+            .filter(Boolean)
+        : [];
+
+      return {
+        profileId,
+        profileType: "seek",
+        externalId: profileId
+          ? `${window.location.hostname.toLowerCase()}:profile:${profileId}`
+          : "",
+        name: [firstName, lastName].filter(Boolean).join(" ").trim(),
+        profileUrl: buildSeekProfileUrl(profileId, undefined),
+        activityStatus: lastModifiedDurationLabel,
+        age: "",
+        experience: "",
+        education: "",
+        location: currentLocation,
+        jobIntention: currentJobTitle,
+        expectedSalary: "",
+        selfIntro: "",
+        workHistory,
+        extractedAt: new Date().toISOString(),
+        pageIndex: index + 1,
+        source: window.location.hostname.toLowerCase(),
+        searchProfileId: "",
+        language: typeof language === "string" ? language : "",
+        pageNumber: currentPage,
+      };
+    })
+    .filter(Boolean);
+}
+
 function extract51JobResumes() {
   if (!Array.isArray(apiSnapshot.job51SearchRows)) return [];
   return apiSnapshot.job51SearchRows.map((row, index) => {
@@ -3601,6 +3692,9 @@ function extractResumes() {
       }
       return [];
     }
+    if (hasSeekTalentSearchSnapshot()) {
+      return extractSeekTalentSearchResumes();
+    }
     if (hasSeekListSnapshot()) {
       return extractSeekResumes();
     }
@@ -3652,10 +3746,20 @@ function extractResumesRaw(options = {}) {
     const seekProfileIdentity = seekProfile
       ? getSeekCandidateIdentity(seekProfile)
       : null;
+    const seekTalentSearchCandidates =
+      !seekProfile && hasSeekTalentSearchSnapshot()
+        ? apiSnapshot.seekTalentSearch
+        : null;
     const candidates =
-      !seekProfile && hasSeekListSnapshot()
+      seekTalentSearchCandidates ||
+      (!seekProfile && hasSeekListSnapshot()
         ? apiSnapshot.seekRecommendedCandidates
-        : [];
+        : []);
+    const seekRequest = seekProfile
+      ? getSeekProfileRequest()
+      : seekTalentSearchCandidates
+        ? getSeekTalentSearchRequest()
+        : getSeekRecommendedRequest();
     const cards = seekProfile
       ? [
           {
@@ -3666,8 +3770,13 @@ function extractResumesRaw(options = {}) {
           },
         ]
       : candidates.map((candidate, index) => {
-          const { profileId, profileType } =
-            getSeekCandidateIdentity(candidate);
+          // Talent-search nodes use profileGuid (UUID); recommended nodes use numeric profileId
+          const profileId = seekTalentSearchCandidates
+            ? typeof candidate?.profileGuid === "string" && candidate.profileGuid
+              ? candidate.profileGuid
+              : ""
+            : getSeekCandidateIdentity(candidate).profileId;
+          const profileType = SEEK_PROFILE_TYPE;
           return {
             index: index + 1,
             profileId,
@@ -3690,7 +3799,7 @@ function extractResumesRaw(options = {}) {
           operationName: apiSnapshot.lastOperationName,
           request: seekProfile
             ? getSeekProfileRequest()
-            : getSeekRecommendedRequest(),
+            : seekRequest,
         },
       };
 

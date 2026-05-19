@@ -60,3 +60,52 @@ Behavior when enabled: Toggle is a checkbox labeled "Hide names". When enabled, 
 - TalentSearchNaturalLanguageSearchFacets: Facet/refinement options for the current search
 - GetConnectionOptions: Fetched in batch (20 profileIds at once) to determine per-card action buttons (send message, send job, export)
 - GetLatestInteractions: Fetched in batch (20 profileIds at once) for per-card interaction history (past messages, applications)
+
+## Response node fields (list page) — captured live 2026-05-19
+
+Captured via `window.__TR_RESUME_DATA__.getApiSnapshot().seekTalentSearch[0]` on
+live page `hk.employer.seek.com/talentsearch?searchQuery=CNC+Sales&market=MY&pageNumber=1&...`
+
+### Node type: `TalentSearchProfileResultV2`
+
+| # | Field | Type | Example | Notes |
+|---|-------|------|---------|-------|
+| 1 | `__typename` | string | `"TalentSearchProfileResultV2"` | Relay typename |
+| 2 | `id` | string | `"503569737"` | Opaque Relay global ID (numeric string, **not** profileId) |
+| 3 | `approachabilitySignal` | number | `0` | |
+| 4 | `avatarUrls` | object\|null | `null` | |
+| 5 | **`profileGuid`** | string | `"52a6b466-895d-11ea-8ede-005056b16351"` | UUID — primary candidate identifier for talent-search; matches V3 profile detail `input.profileGuid` |
+| 6 | **`firstName`** | string | `"HAN SIANG"` | |
+| 7 | **`lastName`** | string | `"TANG"` | |
+| 8 | **`currentJobTitle`** | string\|null | `null` | null when hide-names is ON; string (e.g. `"CNC Programmer"`) when OFF |
+| 9 | **`lastModifiedDurationLabel`** | string | `"over a year ago"` | Human-readable duration label (NOT ISO date like `lastModifiedDate` in recommended lane) |
+| 10 | **`salary`** | object\|null | `null` | Always null on this dataset; structure unknown |
+| 11 | **`currentLocation`** | string | `"Penang, MY"` | |
+| 12 | **`workHistories`** | Array | `Array(4)` | Same shape as recommended lane workHistories |
+| 13 | `hasVerifiedCredentials` | boolean | `false` | |
+| 14 | `nationalities` | Array | `[]` | Empty on this dataset |
+| 15 | `digitalIdentity` | object\|null | `null` | |
+| 16 | `country` | string | `""` | Empty on this dataset |
+| 17 | `state` | string | `""` | Empty on this dataset |
+| 18 | `suburb` | string | `""` | Empty on this dataset |
+| 19 | `profilePrivacy` | string | `"standard"` | |
+
+### Nested: `workHistories[].node` fields
+
+| Field | Type | Example | Notes |
+|-------|------|---------|-------|
+| `companyName` | string | `"UIS Technologies"` | Same shape as recommended lane |
+| `jobTitle` | string | `"CNC Programmer"` | Same shape as recommended lane |
+| `durationLabel` | string | `"Jun 2024 - Present (2 years)"` | Same shape — **no `startDate`/`endDate`** on list page nodes (only in profile detail) |
+| `foundInCV` | boolean | `false` | Extra field not present in recommended lane workHistory |
+| `__typename` | string | `"WorkHistory"` | |
+
+### Nested: `salary` — always null; not observed
+
+### Key differences from recommended lane node (`TalentSearchProfile`)
+
+- **No numeric `profileId`** field — only `profileGuid` (UUID) and `id` (Relay ID)
+- **`lastModifiedDurationLabel`** instead of `lastModifiedDate` (ISO date)
+- **No `profileEducation`**, **no `salary`** (in this dataset)
+- **Extra fields**: `approachabilitySignal`, `hasVerifiedCredentials`, `profilePrivacy`, `digitalIdentity`, `nationalities`
+- `workHistories[]` items have `foundInCV` and `__typename` but **no `startDate`/`endDate`** on list page

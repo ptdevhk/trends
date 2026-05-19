@@ -1479,6 +1479,10 @@
     return apiSnapshot.seekRecommendedRequest;
   }
   __name(getSeekRecommendedRequest, "getSeekRecommendedRequest");
+  function getSeekTalentSearchRequest() {
+    return apiSnapshot.seekTalentSearchRequest;
+  }
+  __name(getSeekTalentSearchRequest, "getSeekTalentSearchRequest");
   function getSeekProfileRequest() {
     return apiSnapshot.seekProfileRequest || apiSnapshot.seekRecommendedRequest;
   }
@@ -3412,6 +3416,47 @@
     });
   }
   __name(extractSeekResumes, "extractSeekResumes");
+  function extractSeekTalentSearchResumes() {
+    const candidates = Array.isArray(apiSnapshot.seekTalentSearch) ? apiSnapshot.seekTalentSearch : [];
+    const request = getSeekTalentSearchRequest();
+    const requestInput = request?.variables?.input;
+    const language = request?.variables?.language;
+    const url = new URL(window.location.href);
+    const currentPage = typeof requestInput?.pageNumber === "number" ? requestInput.pageNumber : normalizeOptionalPositiveInt(url.searchParams.get("pageNumber")) || 1;
+    return candidates.map((node, index) => {
+      const profileId = typeof node?.profileGuid === "string" && node.profileGuid ? node.profileGuid : typeof node?.id === "string" && node.id ? node.id : "";
+      if (!profileId) return null;
+      const firstName = typeof node?.firstName === "string" ? node.firstName.trim() : "";
+      const lastName = typeof node?.lastName === "string" ? node.lastName.trim() : "";
+      const currentJobTitle = typeof node?.currentJobTitle === "string" ? node.currentJobTitle.trim() : "";
+      const currentLocation = typeof node?.currentLocation === "string" ? node.currentLocation.trim() : "";
+      const lastModifiedDurationLabel = typeof node?.lastModifiedDurationLabel === "string" ? node.lastModifiedDurationLabel : "";
+      const workHistory = Array.isArray(node?.workHistories) ? node.workHistories.map((item) => buildSeekWorkHistoryItem(item)).filter(Boolean) : [];
+      return {
+        profileId,
+        profileType: "seek",
+        externalId: profileId ? `${window.location.hostname.toLowerCase()}:profile:${profileId}` : "",
+        name: [firstName, lastName].filter(Boolean).join(" ").trim(),
+        profileUrl: buildSeekProfileUrl(profileId, void 0),
+        activityStatus: lastModifiedDurationLabel,
+        age: "",
+        experience: "",
+        education: "",
+        location: currentLocation,
+        jobIntention: currentJobTitle,
+        expectedSalary: "",
+        selfIntro: "",
+        workHistory,
+        extractedAt: (/* @__PURE__ */ new Date()).toISOString(),
+        pageIndex: index + 1,
+        source: window.location.hostname.toLowerCase(),
+        searchProfileId: "",
+        language: typeof language === "string" ? language : "",
+        pageNumber: currentPage
+      };
+    }).filter(Boolean);
+  }
+  __name(extractSeekTalentSearchResumes, "extractSeekTalentSearchResumes");
   function extract51JobResumes() {
     if (!Array.isArray(apiSnapshot.job51SearchRows)) return [];
     return apiSnapshot.job51SearchRows.map((row, index) => {
@@ -3544,6 +3589,9 @@
         }
         return [];
       }
+      if (hasSeekTalentSearchSnapshot()) {
+        return extractSeekTalentSearchResumes();
+      }
       if (hasSeekListSnapshot()) {
         return extractSeekResumes();
       }
@@ -3575,7 +3623,9 @@
     if (getCurrentSourceKey() === SOURCE_KEYS.SEEK) {
       const seekProfile = isSeekProfileMode() && hasSeekProfileSnapshot() ? apiSnapshot.seekProfile : null;
       const seekProfileIdentity = seekProfile ? getSeekCandidateIdentity(seekProfile) : null;
-      const candidates = !seekProfile && hasSeekListSnapshot() ? apiSnapshot.seekRecommendedCandidates : [];
+      const seekTalentSearchCandidates = !seekProfile && hasSeekTalentSearchSnapshot() ? apiSnapshot.seekTalentSearch : null;
+      const candidates = seekTalentSearchCandidates || (!seekProfile && hasSeekListSnapshot() ? apiSnapshot.seekRecommendedCandidates : []);
+      const seekRequest = seekProfile ? getSeekProfileRequest() : seekTalentSearchCandidates ? getSeekTalentSearchRequest() : getSeekRecommendedRequest();
       const cards = seekProfile ? [
         {
           index: 1,
@@ -3584,7 +3634,8 @@
           text: JSON.stringify(seekProfile, null, 2)
         }
       ] : candidates.map((candidate, index) => {
-        const { profileId, profileType } = getSeekCandidateIdentity(candidate);
+        const profileId = seekTalentSearchCandidates ? typeof candidate?.profileGuid === "string" && candidate.profileGuid ? candidate.profileGuid : "" : getSeekCandidateIdentity(candidate).profileId;
+        const profileType = SEEK_PROFILE_TYPE;
         return {
           index: index + 1,
           profileId,
@@ -3604,7 +3655,7 @@
             searchRowCount: cards.length,
             sourceKey: SOURCE_KEYS.SEEK,
             operationName: apiSnapshot.lastOperationName,
-            request: seekProfile ? getSeekProfileRequest() : getSeekRecommendedRequest()
+            request: seekProfile ? getSeekProfileRequest() : seekRequest
           }
         };
         if (includePage) {
