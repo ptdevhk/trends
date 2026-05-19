@@ -1,36 +1,9 @@
 import { fireEvent, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { SnippetCardExpanded } from '@/components/search/SnippetCardExpanded'
 import type { ResumeSearchResultItem } from '@/components/search/search-types'
 import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
-
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (key: string, options?: string | Record<string, string | number | undefined>) => {
-      if (typeof options === 'string') {
-        return options
-      }
-
-      const defaultValue =
-        options && typeof options === 'object' && typeof options.defaultValue === 'string'
-          ? options.defaultValue
-          : key
-
-      // Simple mock for score labels if no defaultValue present
-      let result = defaultValue
-      if (result === 'resumes.searchPage.card.aiScoreShort' && typeof options?.score === 'number') {
-        result = `AI ${Math.round(options.score)}分`
-      } else if (result === 'resumes.searchPage.card.ruleScoreShort' && typeof options?.score === 'number') {
-        result = `规则 ${Math.round(options.score)}分`
-      }
-
-      return result.replace(/\{\{(\w+)\}\}/g, (_: string, token: string) => {
-        const value = options && typeof options === 'object' ? options[token] : undefined
-        return value === undefined || value === null ? '' : String(value)
-      })
-    },
-  }),
-}))
 
 const {
   buildWorkHistoryEntryTextMock,
@@ -289,5 +262,161 @@ describe('SnippetCardExpanded', () => {
     expect(screen.getByText('AI 分析中')).toBeInTheDocument()
     expect(screen.getByText('AI 测算中')).toBeInTheDocument()
     expect(screen.queryByText('评分来源')).not.toBeInTheDocument()
+  })
+
+  describe('debug section', () => {
+    const fullBreakdownAnalysis = {
+      score: 90,
+      summary: 'Test summary',
+      highlights: [],
+      concerns: [],
+      recommendation: 'strong_match' as const,
+      breakdown: { related_exp: 36, skills: 82, industry_db: 48, education: 70, location: 55 },
+    }
+
+    it('renders debug toggle button collapsed by default', () => {
+      render(
+        <SnippetCardExpanded
+          item={createResult(1, { analysis: fullBreakdownAnalysis })}
+        />
+      )
+
+      expect(screen.getByRole('button', { name: /debug/i })).toBeInTheDocument()
+      expect(screen.queryByText('Score Dimensions')).not.toBeInTheDocument()
+    })
+
+    it('toggles debug section visibility on click', async () => {
+      const user = userEvent.setup()
+      render(
+        <SnippetCardExpanded
+          item={createResult(1, { analysis: fullBreakdownAnalysis })}
+        />
+      )
+
+      const debugButton = screen.getByRole('button', { name: /debug/i })
+      await user.click(debugButton)
+      expect(screen.getByText('Score Dimensions')).toBeInTheDocument()
+
+      await user.click(debugButton)
+      expect(screen.queryByText('Score Dimensions')).not.toBeInTheDocument()
+    })
+
+    it('renders score sub-dimensions with values from analysis breakdown', async () => {
+      const user = userEvent.setup()
+      render(
+        <SnippetCardExpanded
+          item={createResult(1, { analysis: fullBreakdownAnalysis })}
+        />
+      )
+
+      await user.click(screen.getByRole('button', { name: /debug/i }))
+
+      expect(screen.getByText('Score Dimensions')).toBeInTheDocument()
+      expect(screen.getByText('Related Exp')).toBeInTheDocument()
+      expect(screen.getByText('Skills')).toBeInTheDocument()
+      expect(screen.getByText('Industry DB')).toBeInTheDocument()
+      expect(screen.getByText('Education')).toBeInTheDocument()
+      expect(screen.getByText('Location')).toBeInTheDocument()
+      // Values appear in both main and debug sections, so use getAllByText
+      expect(screen.getAllByText('36').length).toBeGreaterThanOrEqual(1)
+      expect(screen.getAllByText('82').length).toBeGreaterThanOrEqual(1)
+    })
+
+    it('shows score comparison grid with AI, confirmed, and user rating', async () => {
+      const user = userEvent.setup()
+      render(
+        <SnippetCardExpanded
+          item={createResult(1, {
+            score: 85,
+            analysis: {
+              score: 85,
+              summary: 'Test summary',
+              highlights: [],
+              concerns: [],
+              recommendation: 'strong_match',
+              breakdown: {},
+            },
+            resume: createResume(1, {
+              confirmedScore: 78,
+            }),
+          })}
+          userRating={92}
+        />
+      )
+
+      await user.click(screen.getByRole('button', { name: /debug/i }))
+
+      expect(screen.getByText('Score Comparison')).toBeInTheDocument()
+      expect(screen.getByText('AI Score')).toBeInTheDocument()
+      expect(screen.getByText('85')).toBeInTheDocument()
+      expect(screen.getByText('Confirmed')).toBeInTheDocument()
+      expect(screen.getByText('78')).toBeInTheDocument()
+      expect(screen.getByText('Your Rating')).toBeInTheDocument()
+      expect(screen.getByText('92')).toBeInTheDocument()
+    })
+
+    it('shows dashes for missing confirmed score and user rating', async () => {
+      const user = userEvent.setup()
+      render(
+        <SnippetCardExpanded
+          item={createResult(1, {
+            score: 85,
+            analysis: {
+              score: 85,
+              summary: 'Test summary',
+              highlights: [],
+              concerns: [],
+              recommendation: 'strong_match',
+              breakdown: {},
+            },
+            resume: createResume(1, { confirmedScore: undefined }),
+          })}
+        />
+      )
+
+      await user.click(screen.getByRole('button', { name: /debug/i }))
+
+      const dashes = screen.getAllByText('-')
+      expect(dashes.length).toBeGreaterThanOrEqual(2)
+    })
+
+    it('renders raw analysis JSON in collapsible pre block when analysis exists', async () => {
+      const user = userEvent.setup()
+      const analysis = {
+        score: 90,
+        summary: 'Test summary',
+        highlights: ['CNC sales'],
+        concerns: [],
+        recommendation: 'strong_match' as const,
+        breakdown: {},
+      }
+      render(
+        <SnippetCardExpanded
+          item={createResult(1, { analysis })}
+        />
+      )
+
+      await user.click(screen.getByRole('button', { name: /debug/i }))
+
+      expect(screen.getByText('Analysis JSON')).toBeInTheDocument()
+      const preBlock = document.querySelector('pre')
+      expect(preBlock).toBeTruthy()
+      expect(preBlock!.textContent).toContain('CNC sales')
+      expect(screen.getByRole('button', { name: /copy/i })).toBeInTheDocument()
+    })
+
+    it('does not render analysis JSON block when no analysis exists', async () => {
+      const user = userEvent.setup()
+      render(
+        <SnippetCardExpanded
+          item={createResult(1, { analysis: undefined })}
+        />
+      )
+
+      await user.click(screen.getByRole('button', { name: /debug/i }))
+
+      expect(screen.getByText('Score Dimensions')).toBeInTheDocument()
+      expect(screen.queryByText('Analysis JSON')).not.toBeInTheDocument()
+    })
   })
 })

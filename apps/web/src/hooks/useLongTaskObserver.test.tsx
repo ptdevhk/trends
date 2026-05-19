@@ -1,6 +1,6 @@
-import { renderHook } from '@testing-library/react'
-import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { useLongTaskObserver } from './useLongTaskObserver'
+import { render, renderHook } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi, beforeEach } from 'vitest'
+import { LongTaskObserver, useLongTaskObserver } from './useLongTaskObserver'
 
 describe('useLongTaskObserver', () => {
   const mockObserve = vi.fn()
@@ -58,5 +58,19 @@ describe('useLongTaskObserver', () => {
     expect(() => {
       renderHook(() => useLongTaskObserver())
     }).not.toThrow()
+  })
+
+  it('LongTaskObserver component returns null', () => {
+    class MockPerformanceObserver {
+      observe = mockObserve
+      disconnect = mockDisconnect
+      static supportedEntryTypes = ['longtask']
+    }
+    // @ts-expect-error mock
+    globalThis.PerformanceObserver = MockPerformanceObserver
+
+    const { container } = render(<LongTaskObserver />)
+    expect(container).toBeEmptyDOMElement()
+    expect(mockObserve).toHaveBeenCalledWith({ type: 'longtask', buffered: true })
   })
 })
