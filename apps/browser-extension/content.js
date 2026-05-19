@@ -4495,17 +4495,18 @@
     }
   }
   __name(enrichSingleSeekResumeWithDetail, "enrichSingleSeekResumeWithDetail");
-  async function enrichSeekRecommendedResumesWithDetail(resumes) {
+  async function enrichSeekResumesWithDetail(resumes) {
     if (!Array.isArray(resumes) || resumes.length === 0) return [];
     if (getCurrentSourceKey() !== SOURCE_KEYS.SEEK) return resumes;
     if (isSeekProfileMode()) return resumes;
+    if (getCurrentSeekMode() === "talentsearch") return resumes;
     const enriched = [];
     for (const resume of resumes) {
       enriched.push(await enrichSingleSeekResumeWithDetail(resume));
     }
     return enriched;
   }
-  __name(enrichSeekRecommendedResumesWithDetail, "enrichSeekRecommendedResumesWithDetail");
+  __name(enrichSeekResumesWithDetail, "enrichSeekResumesWithDetail");
   function waitForPagination({ timeoutMs = 8e3 } = {}) {
     if (getCurrentSourceKey() === SOURCE_KEYS.JOB51) {
       return Promise.resolve(true);
@@ -5449,7 +5450,7 @@
       resumes = await enrichJob5156SearchResumesWithDetail(resumes);
     }
     if (shouldEnrichFromCurrentPage && getCurrentSourceKey() === SOURCE_KEYS.SEEK && !isSeekProfileMode() && resumes.length > 0) {
-      resumes = await enrichSeekRecommendedResumesWithDetail(resumes);
+      resumes = await enrichSeekResumesWithDetail(resumes);
     }
     const metadata = buildSubmitMetadata({
       seekCaptureMode: Array.isArray(resumesOverride) && window.location.pathname.includes("/candidates/recommended") ? "graphql-list" : void 0
@@ -5660,7 +5661,7 @@
           resumes = await enrichJob5156SearchResumesWithDetail(resumes);
         }
         if (getCurrentSourceKey() === SOURCE_KEYS.SEEK && !isSeekProfileMode() && resumes.length > 0) {
-          resumes = await enrichSeekRecommendedResumesWithDetail(resumes);
+          resumes = await enrichSeekResumesWithDetail(resumes);
         }
         if (resumes.length <= 0) {
           const ageRange = getCurrentAgeRange();
@@ -6052,7 +6053,7 @@
         pageResumes = await enrichJob5156SearchResumesWithDetail(pageResumes);
       }
       if (sourceKey === SOURCE_KEYS.SEEK && !isSeekProfileMode() && pageResumes.length > 0) {
-        pageResumes = await enrichSeekRecommendedResumesWithDetail(pageResumes);
+        pageResumes = await enrichSeekResumesWithDetail(pageResumes);
       }
       lastPageResumeCount = pageResumes.length;
       if (pageResumes.length > 0) {

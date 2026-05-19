@@ -4816,10 +4816,18 @@ async function enrichSingleSeekResumeWithDetail(resume) {
   }
 }
 
-async function enrichSeekRecommendedResumesWithDetail(resumes) {
+async function enrichSeekResumesWithDetail(resumes) {
   if (!Array.isArray(resumes) || resumes.length === 0) return [];
   if (getCurrentSourceKey() !== SOURCE_KEYS.SEEK) return resumes;
   if (isSeekProfileMode()) return resumes;
+  // Talent-search list cards do NOT expose <a href="/talentsearch/profile/..."> links
+  // (per 2026-05-19 recon — see dev-docs/seek-talent-search-graphql-recon.txt). The
+  // existing findSeekProfileTrigger hunts for hrefs that do not exist, and the V3
+  // profile response is captured under a different snapshot shape. Detail enrichment
+  // for talent-search is deferred to a follow-up; list-level fields (firstName,
+  // lastName, currentLocation, currentJobTitle, workHistories[]) are sufficient
+  // for the initial slice and are already populated on list-page nodes.
+  if (getCurrentSeekMode() === "talentsearch") return resumes;
 
   const enriched = [];
   for (const resume of resumes) {
@@ -5984,7 +5992,7 @@ async function syncCurrentPageToServer(resumesOverride) {
     !isSeekProfileMode() &&
     resumes.length > 0
   ) {
-    resumes = await enrichSeekRecommendedResumesWithDetail(resumes);
+    resumes = await enrichSeekResumesWithDetail(resumes);
   }
   const metadata = buildSubmitMetadata({
     seekCaptureMode:
@@ -6281,7 +6289,7 @@ async function runAutoSyncIfEnabled() {
         !isSeekProfileMode() &&
         resumes.length > 0
       ) {
-        resumes = await enrichSeekRecommendedResumesWithDetail(resumes);
+        resumes = await enrichSeekResumesWithDetail(resumes);
       }
       if (resumes.length <= 0) {
         const ageRange = getCurrentAgeRange();
@@ -6810,7 +6818,7 @@ async function collectSnapshotPayload(options = {}) {
       !isSeekProfileMode() &&
       pageResumes.length > 0
     ) {
-      pageResumes = await enrichSeekRecommendedResumesWithDetail(pageResumes);
+      pageResumes = await enrichSeekResumesWithDetail(pageResumes);
     }
 
     lastPageResumeCount = pageResumes.length;
