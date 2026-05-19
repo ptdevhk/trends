@@ -161,3 +161,66 @@ test('reports when the limit has already been exhausted before the current page'
   assert.equal(selection.hitLimitWithinPage, true);
   assert.equal(selection.limitAlreadyReached, true);
 });
+
+// Talent-search defaults: 500 limit / 25 max-pages / page-size 20 (per recon).
+// The page-window math is mode-agnostic — these cases lock in the seek
+// talent-search lane's default ceilings.
+
+test('talentsearch: 500 limit and 25 maxPages with size 20 caps at page 25', () => {
+  const pageWindow = helpers.resolveSeekAutoSyncPageWindow({
+    startPage: 1,
+    limit: 500,
+    maxPages: 25,
+    requestedPageSize: 20,
+  });
+
+  assert.equal(pageWindow.startPage, 1);
+  assert.equal(pageWindow.targetPageEnd, 25);
+  assert.equal(pageWindow.allowedPageCount, 25);
+  assert.equal(pageWindow.effectivePageSize, 20);
+});
+
+test('talentsearch: mid-page limit (37 with size 20) selects 17 on page 2', () => {
+  const pageWindow = helpers.resolveSeekAutoSyncPageWindow({
+    startPage: 1,
+    limit: 37,
+    maxPages: 25,
+    requestedPageSize: 20,
+  });
+  const selection = helpers.resolveSeekAutoSyncCurrentPageSelection({
+    limit: 37,
+    totalSubmitted: 20,
+    currentPageResumeCount: 20,
+  });
+
+  assert.equal(pageWindow.targetPageEnd, 2);
+  assert.equal(pageWindow.limitPageCount, 2);
+  assert.equal(selection.selectedCount, 17);
+  assert.equal(selection.hitLimitWithinPage, true);
+  assert.equal(selection.remainingCapacity, 17);
+});
+
+test('talentsearch: maxPages=10 with limit=500 caps at page 10', () => {
+  const pageWindow = helpers.resolveSeekAutoSyncPageWindow({
+    startPage: 1,
+    limit: 500,
+    maxPages: 10,
+    requestedPageSize: 20,
+  });
+
+  assert.equal(pageWindow.targetPageEnd, 10);
+  assert.equal(pageWindow.allowedPageCount, 10);
+});
+
+test('talentsearch: non-first-page start (page 5, limit 100, size 20) ends on page 9', () => {
+  const pageWindow = helpers.resolveSeekAutoSyncPageWindow({
+    startPage: 5,
+    limit: 100,
+    maxPages: 25,
+    requestedPageSize: 20,
+  });
+
+  assert.equal(pageWindow.startPage, 5);
+  assert.equal(pageWindow.targetPageEnd, 9);
+  assert.equal(pageWindow.allowedPageCount, 5);
+});
