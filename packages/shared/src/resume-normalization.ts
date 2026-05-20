@@ -196,8 +196,8 @@ export function normalizeSeekProfileUrlForDisplay(value: string): string {
 
   // UUID pattern: /candidates/{uuid} (talentsearch mode — no jobId available)
   if (!profileId) {
-    const uuidIdMatch = parsed.pathname.match(/\/candidates\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:\/|$)/i);
-    if (uuidIdMatch?.[1]) {
+    const uuidMatch = parsed.pathname.match(/\/candidates\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:\/|$)/i);
+    if (uuidMatch?.[1]) {
       // Talentsearch UUID URLs pass through — cannot build recommended URL without numeric profileId
       return trimmed;
     }
