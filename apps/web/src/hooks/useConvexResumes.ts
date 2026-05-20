@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { normalizeProfileUrlForDisplay, normalizeSharedResumeFields, parseKeywordQuery } from '@trends/shared'
 import { usePaginatedQuery, useQuery } from 'convex/react'
 import { api } from '../../../../packages/convex/convex/_generated/api'
@@ -808,6 +808,15 @@ function useBffAndModeSearch(
   refetchTrigger?: number,
 ): BffAndModeResult {
   const [result, setResult] = useState<BffAndModeResult>({ resumes: [], total: 0, expansion: null, loading: false })
+  const prevBffActive = useRef(false)
+  const bffNowActive = enabled && !!normalizedQuery && !!keywordExpansion && keywordExpansion.mode === 'AND' && !expansionLoading
+
+  useEffect(() => {
+    if (bffNowActive && !prevBffActive.current) {
+      setResult({ resumes: [], total: 0, expansion: null, loading: true })
+    }
+    prevBffActive.current = bffNowActive
+  }, [bffNowActive])
 
   // Serialize filters to a stable string so the effect doesn't re-run
   // on every render when the caller passes an inline object literal.
