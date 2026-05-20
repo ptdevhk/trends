@@ -32,6 +32,15 @@ prd_disciplines:
     mode: reactive
 ```
 
+## Interview
+
+```yaml
+interview:
+  setup: true
+  work_item:
+    trigger: auto
+```
+
 ## Knowledge layer
 
 ```yaml
