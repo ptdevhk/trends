@@ -399,6 +399,7 @@ export function getEffectiveFilterCapabilities(
   )
 }
 
+
 export function isSeekOnlyProfile(
   sources: SearchProfileSource[] | undefined,
 ): boolean {
