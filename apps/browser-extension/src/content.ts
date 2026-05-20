@@ -1141,7 +1141,7 @@ function findSeekProfileTrigger(profileId) {
  * element clicked via SPA event handlers. Find the card matching this profileId
  * (UUID) by checking data attributes or card index.
  */
-function findSeekTalentSearchCardTrigger(profileId, resume) {
+function findSeekTalentSearchCardTrigger(profileId, resume, cachedHeadings) {
   if (!profileId) return null;
   // Try matching by data-tr-candidate-id attribute (set during extraction)
   const byAttr = document.querySelector(
@@ -1152,26 +1152,24 @@ function findSeekTalentSearchCardTrigger(profileId, resume) {
   // Talentsearch cards use [data-role="heading"] for the candidate name.
   const candidateName = typeof resume?.name === "string" ? resume.name.trim() : "";
   if (candidateName) {
-    const headings = Array.from(
-      document.querySelectorAll('[data-role="heading"]'),
-    );
+    const headings = cachedHeadings ||
+      Array.from(document.querySelectorAll('[data-role="heading"]'));
     const match = headings.find((h) => {
       const text = (h.textContent || "").trim();
-      return text === candidateName || text.startsWith(candidateName);
+      return text === candidateName;
     });
     if (match instanceof HTMLElement) return match;
   }
   return null;
 }
 
-function mergeSeekListResumeWithDetail(baseResume, detailResume) {
+function mergeSeekListResumeWithDetail(baseResume, detailResume, isTalentSearch = false) {
   if (!detailResume || typeof detailResume !== "object") {
     return baseResume;
   }
 
   // For talentsearch: if V3 detail provides a numeric profileId, use it for
   // profileUrl construction but preserve the UUID seekProfileGuid
-  const isTalentSearch = getCurrentSeekMode() === "talentsearch";
   const seekProfileGuid = baseResume.seekProfileGuid || detailResume.seekProfileGuid || undefined;
   const numericProfileId = isTalentSearch && detailResume.profileId && /^\d+$/.test(detailResume.profileId)
     ? detailResume.profileId
@@ -4998,7 +4996,7 @@ function waitForSeekProfileSnapshot(profileId, { timeoutMs = 12000 } = {}) {
   });
 }
 
-async function enrichSingleSeekResumeWithDetail(resume) {
+async function enrichSingleSeekResumeWithDetail(resume, cachedHeadings) {
   const profileId =
     typeof resume?.profileId === "string" ? resume.profileId.trim() : "";
   if (!profileId) {
@@ -5007,7 +5005,7 @@ async function enrichSingleSeekResumeWithDetail(resume) {
 
   const isTalentSearch = getCurrentSeekMode() === "talentsearch";
   const trigger = isTalentSearch
-    ? findSeekTalentSearchCardTrigger(profileId, resume)
+    ? findSeekTalentSearchCardTrigger(profileId, resume, cachedHeadings)
     : findSeekProfileTrigger(profileId);
   if (!(trigger instanceof HTMLElement)) {
     return resume;
@@ -5030,12 +5028,12 @@ async function enrichSingleSeekResumeWithDetail(resume) {
         return resume;
       }
       // Merge: talentsearch detail may provide numeric profileId from V3 response
-      return mergeSeekListResumeWithDetail(resume, detailResume);
+      return mergeSeekListResumeWithDetail(resume, detailResume, isTalentSearch);
     }
     if (detailResume.profileId !== profileId) {
       return resume;
     }
-    return mergeSeekListResumeWithDetail(resume, detailResume);
+    return mergeSeekListResumeWithDetail(resume, detailResume, isTalentSearch);
   } catch (error) {
     console.warn(
       "🎯 [Auto Sync] Failed to enrich Seek detail resume:",
@@ -5051,9 +5049,15 @@ async function enrichSeekResumesWithDetail(resumes) {
   if (getCurrentSourceKey() !== SOURCE_KEYS.SEEK) return resumes;
   if (isSeekProfileMode()) return resumes;
 
+  // Cache DOM headings once for talentsearch card-finding (avoids O(N²) queries)
+  const isTalentSearch = getCurrentSeekMode() === "talentsearch";
+  const cachedHeadings = isTalentSearch
+    ? Array.from(document.querySelectorAll('[data-role="heading"]'))
+    : null;
+
   const enriched = [];
   for (const resume of resumes) {
-    enriched.push(await enrichSingleSeekResumeWithDetail(resume));
+    enriched.push(await enrichSingleSeekResumeWithDetail(resume, cachedHeadings));
   }
   return enriched;
 }

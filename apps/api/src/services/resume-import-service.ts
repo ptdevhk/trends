@@ -386,7 +386,7 @@ export function normalizeResumeImportPayload(input: ResumeImportRequest): Normal
   const defaultTags = tag ? [tag] : [];
   const source = resolveResumeSource(metadata);
 
-  const isSeekSource = source.endsWith(".employer.seek.com") || source.toLowerCase() === "seek";
+  const isSeekSource = source.endsWith(".employer.seek.com") || source === "seek";
   const seekJobId = metadata.collectionContext?.jobId;
 
   const convexResumes = resumes.map((resume) => {
