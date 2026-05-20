@@ -236,4 +236,56 @@ describe('useConvexResumes list path', () => {
       maxSalary: 20,
     })
   })
+
+  it('forwards age filters to the paginated list query', () => {
+    renderHook(() => useConvexResumes(200, undefined, 'jd-1', {
+      filters: {
+        minAge: 25,
+        maxAge: 40,
+      },
+    }))
+
+    const listCall = usePaginatedQueryMock.mock.calls.find(([, args]) => args !== 'skip' && !('query' in (args as Record<string, unknown>)))
+
+    expect(listCall?.[1]).toMatchObject({
+      minAge: 25,
+      maxAge: 40,
+    })
+  })
+
+  it('forwards role filters to the paginated list query', () => {
+    renderHook(() => useConvexResumes(200, undefined, 'jd-1', {
+      filters: {
+        minRoleYears: 3,
+        roleFilterType: 'verified',
+      },
+    }))
+
+    const listCall = usePaginatedQueryMock.mock.calls.find(([, args]) => args !== 'skip' && !('query' in (args as Record<string, unknown>)))
+
+    expect(listCall?.[1]).toMatchObject({
+      minRoleYears: 3,
+      roleFilterType: 'verified',
+    })
+  })
+
+  it('returns loading=true while the first page is loading', () => {
+    usePaginatedQueryMock.mockImplementation((_query, args) => ({
+      results: args === 'skip' ? [] : [],
+      status: args === 'skip' ? 'Exhausted' : 'LoadingFirstPage',
+      isLoading: true,
+      loadMore: loadMoreMock,
+    }))
+
+    const { result } = renderHook(() => useConvexResumes(200))
+
+    expect(result.current.loading).toBe(true)
+  })
+
+  it('returns loading=false when disabled', () => {
+    const { result } = renderHook(() => useConvexResumes(200, undefined, undefined, { enabled: false }))
+
+    expect(result.current.loading).toBe(false)
+    expect(result.current.resumes).toEqual([])
+  })
 })
