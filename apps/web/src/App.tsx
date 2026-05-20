@@ -10,6 +10,7 @@ import SettingsLayout from '@/layouts/SettingsLayout'
 import SystemLayout from '@/layouts/SystemLayout'
 import SystemSettingsLayout from '@/layouts/SystemSettingsLayout'
 import { WorkspaceProvider, useWorkspace } from '@/contexts/WorkspaceContext'
+import { BrandDisplayMapProvider } from '@/contexts/BrandDisplayMapContext'
 import { ResumeFieldUsagePolicyProvider } from '@/contexts/ResumeFieldUsagePolicyContext'
 import { isReviewPacketsEnabled } from '@/lib/feature-flags'
 
@@ -102,7 +103,9 @@ function WorkspaceShell() {
   return (
     <WorkspaceProvider>
       <ResumeFieldUsagePolicyProvider>
-        <Outlet />
+        <BrandDisplayMapProvider>
+          <Outlet />
+        </BrandDisplayMapProvider>
       </ResumeFieldUsagePolicyProvider>
     </WorkspaceProvider>
   )
