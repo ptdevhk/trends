@@ -647,7 +647,7 @@ describe('ResumeSearchPage', () => {
         roleFilterType: 'sales',
         minAge: 25,
         maxAge: 40,
-        minExperience: undefined,
+        minExperience: 5,
       },
     )
   })
