@@ -358,6 +358,47 @@ export function validateSeekSourceJobUrl(
   return { ok: true }
 }
 
+export type FilterCapabilities = {
+  age: boolean
+  salary: boolean
+  experience: boolean
+}
+
+export const SOURCE_FILTER_CAPABILITIES: Record<CollectionSourceType, FilterCapabilities> = {
+  [SEARCH_PROFILE_SOURCE_TYPES.job5156]: { age: true, salary: true, experience: true },
+  [SEARCH_PROFILE_SOURCE_TYPES.job51]: { age: true, salary: true, experience: true },
+  [SEARCH_PROFILE_SOURCE_TYPES.seek]: { age: false, salary: true, experience: true },
+}
+
+const ALL_CAPABILITIES_ENABLED: FilterCapabilities = { age: true, salary: true, experience: true }
+
+export function getEffectiveFilterCapabilities(
+  sources: SearchProfileSource[] | undefined,
+): FilterCapabilities {
+  if (!Array.isArray(sources) || sources.length === 0) {
+    return ALL_CAPABILITIES_ENABLED
+  }
+
+  const enabledSources = sources.filter((source) => source.enabled)
+  if (enabledSources.length === 0) {
+    return ALL_CAPABILITIES_ENABLED
+  }
+
+  return enabledSources.reduce<FilterCapabilities>(
+    (acc, source) => {
+      const caps = isCollectionSourceType(source.type)
+        ? SOURCE_FILTER_CAPABILITIES[source.type]
+        : null
+      return {
+        age: acc.age && (caps ? caps.age : true),
+        salary: acc.salary && (caps ? caps.salary : true),
+        experience: acc.experience && (caps ? caps.experience : true),
+      }
+    },
+    ALL_CAPABILITIES_ENABLED,
+  )
+}
+
 export function isSeekOnlyProfile(
   sources: SearchProfileSource[] | undefined,
 ): boolean {

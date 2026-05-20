@@ -567,6 +567,7 @@
     "maxSalary": "Max Expected Salary",
     "defaultSalary": "Unit: k (thousands)",
     "defaultExp": "Default: min 1 year",
+    "ageNotSupportedBySource": "Age filters are not available for the selected sources",
     "contentPlaceholder": "Paste or edit JD markdown content"
   },
   "quickStart": {

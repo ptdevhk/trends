@@ -17,6 +17,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Select } from '@/components/ui/select'
 import {
     SEARCH_PROFILE_SOURCE_TYPES,
+    getEffectiveFilterCapabilities,
     normalizeSeekJobUrl,
     resolveSeekModeFromUrl,
     type SearchProfileSource,
@@ -392,6 +393,11 @@ export function SearchProfileEditorDialog({
     } | null>(null)
     const latestHydrationRequestIdRef = useRef(0)
 
+    const effectiveCapabilities = useMemo(() => {
+        const sources = buildSourcesPayload(sourceForm, additionalSources)
+        return getEffectiveFilterCapabilities(sources)
+    }, [sourceForm, additionalSources])
+
     const convexJobDescriptions = useQuery(api.job_descriptions.list, { workspaceSlug: slug })
     const activeProfileId = profileId ?? initialData?.id ?? null
     const isSeededProfileWithoutJd = activeProfileId ? SEEDED_PROFILES_WITHOUT_JD.has(activeProfileId) : false
@@ -745,6 +751,7 @@ export function SearchProfileEditorDialog({
                                     id="profile-minAge"
                                     type="number"
                                     min={0}
+                                    disabled={!effectiveCapabilities.age}
                                     value={form.minAge}
                                     onChange={(event) => setForm((previous) => ({ ...previous, minAge: event.target.value }))}
                                 />
@@ -755,11 +762,15 @@ export function SearchProfileEditorDialog({
                                     id="profile-maxAge"
                                     type="number"
                                     min={0}
+                                    disabled={!effectiveCapabilities.age}
                                     value={form.maxAge}
                                     onChange={(event) => setForm((previous) => ({ ...previous, maxAge: event.target.value }))}
                                 />
                             </div>
                         </div>
+                        {!effectiveCapabilities.age && (
+                            <span className="text-xs text-muted-foreground">{t('jdEditor.ageNotSupportedBySource', { defaultValue: 'Age filters are not available for the selected sources' })}</span>
+                        )}
                     </div>
 
                     <div className="grid gap-2">

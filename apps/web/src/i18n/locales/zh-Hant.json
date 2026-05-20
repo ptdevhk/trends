@@ -563,6 +563,7 @@
     "maxSalary": "最高期望薪資",
     "defaultSalary": "單位: k (千)",
     "defaultExp": "預設最少 1 年",
+    "ageNotSupportedBySource": "目前所選來源不支援年齡篩選",
     "contentPlaceholder": "可貼上或編輯職位 Markdown 內容"
   },
   "quickStart": {
