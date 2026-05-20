@@ -20,6 +20,20 @@ prd_layer: superpowers
 prd_pipeline: full
 ```
 
+### PRD backends registry
+
+```yaml
+prd_backends:
+  superpowers:
+    capabilities: [brainstorm, spec, plan, execute, review, subagent_dispatch]
+    skills:
+      brainstorm: superpowers:brainstorming
+      plan: superpowers:writing-plans
+      execute: superpowers:subagent-driven-development
+      execute_fallback: superpowers:executing-plans
+      review: simplify
+```
+
 ### Cross-cutting disciplines
 
 ```yaml
@@ -36,9 +50,15 @@ prd_disciplines:
 
 ```yaml
 interview:
-  setup: true
+  setup:
+    skill: setup-dev-loop
+    glossary: grill-with-docs        # delegates domain section when installed
   work_item:
-    trigger: auto
+    default: native                  # built-in three questions (zero-dependency)
+    upgrade: grill-with-docs         # optional upgrade — delegates when installed
+    source: mattpocock/skills
+    install: "npx skills@latest add mattpocock/skills --skill grill-with-docs -a claude-code -g -y"
+    trigger: auto                    # auto | manual | never
 ```
 
 ## Knowledge layer
@@ -82,6 +102,15 @@ manifests_count: 5
 remote_hosts: [ptcloud]
 ```
 
+## CI Configuration
+
+```yaml
+ci_configured: true
+ci_discovery: runtime
+# required_checks: not needed — branch protection is the source of truth
+# Existing workflows: checks.yml (secret-scan, i18n-check, verify), tests.yml (test)
+```
+
 ## Notes
 
 ```yaml
@@ -94,5 +123,5 @@ notes:
   gotcha: better-sqlite3 needs npm rebuild after Node version bumps
   vault_drift: concept pages drift when code changes without vault sync — check scoring/search concepts after relevant commits
   cron: durable every-15m, runs /loop with '/dev-loop high' + research + wiki, auto-expires 7d — renew with CronCreate before expiry
-```
   oauth_blocker: WeChat OAuth requires business license, WeCom requires admin - external deps not available
+```
