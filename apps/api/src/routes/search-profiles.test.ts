@@ -249,9 +249,30 @@ describe('search-profiles list route', () => {
             label: 'Malaysia · SEEK · CNC Sales',
           }),
         }),
+        expect.objectContaining({
+          id: 'seek-malaysia-talent-search',
+          filters: expect.objectContaining({
+            maxAge: 45,
+            minExperience: 1,
+          }),
+          sources: expect.arrayContaining([
+            expect.objectContaining({
+              type: 'seek',
+              enabled: true,
+              mode: 'talentsearch',
+              collectLimit: 500,
+              maxPages: 25,
+            }),
+          ]),
+          quickStart: expect.objectContaining({
+            enabled: true,
+            rank: 4,
+            label: 'Malaysia · SEEK · CNC Sales (Talent Search)',
+          }),
+        }),
       ]),
     )
-    expect(records).toHaveLength(3)
+    expect(records).toHaveLength(4)
   })
 
   it('exposes scheduled runtime profiles from workspace-managed storage across known workspaces', async () => {
@@ -1671,6 +1692,6 @@ describe('search-profiles delete route', () => {
         }),
       ]),
     )
-    expect(getCreateCalls(calls)).toHaveLength(3)
+    expect(getCreateCalls(calls)).toHaveLength(4)
   })
 })
