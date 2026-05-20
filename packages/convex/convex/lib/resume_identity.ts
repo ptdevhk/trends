@@ -142,9 +142,16 @@ function normalizeSeekProfileUrlForIdentity(value: string, source: string | unde
         return `${hostname}/candidates/${openProfileIdParam}`.toLowerCase();
     }
 
+    // Numeric profileId: /candidates/{profileId} or /candidates/profiles/{profileId}/...
     const profileIdMatch = parsed.pathname.match(/\/candidates\/(?:profiles\/)?(\d+)(?:\/|$)/i);
     if (profileIdMatch && profileIdMatch[1]) {
         return `${hostname}/candidates/${profileIdMatch[1]}`.toLowerCase();
+    }
+
+    // UUID profileGuid (talentsearch): /candidates/{uuid}
+    const uuidMatch = parsed.pathname.match(/\/candidates\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:\/|$)/i);
+    if (uuidMatch && uuidMatch[1]) {
+        return `${hostname}/candidates/${uuidMatch[1]}`.toLowerCase();
     }
 
     return normalizeUrlForIdentity(parsed);
