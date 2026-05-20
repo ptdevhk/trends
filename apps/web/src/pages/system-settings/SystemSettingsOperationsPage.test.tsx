@@ -6,7 +6,7 @@ const mockUseMutation = vi.hoisted(() => vi.fn(() => vi.fn()))
 const mockToast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }))
 
 vi.mock('convex/react', () => ({
-  useMutation: (...args: unknown[]) => mockUseMutation(...args),
+  useMutation: (...args: unknown[]) => (mockUseMutation as (...a: unknown[]) => unknown)(...args),
 }))
 
 vi.mock('sonner', () => ({
