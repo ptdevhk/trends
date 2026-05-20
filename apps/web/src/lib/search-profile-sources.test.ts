@@ -11,6 +11,7 @@ import {
   buildSeekCollectUrl,
   buildSeekTalentSearchUrl,
   getActiveSearchProfileSource,
+  getEffectiveFilterCapabilities,
   getSearchProfileCollectionSource,
   getSearchProfileCollectUrl,
   isSeekOnlyProfile,
@@ -556,5 +557,57 @@ describe('validateSeekSourceJobUrl', () => {
       expect(isSeekOnlyProfile([])).toBe(false)
       expect(isSeekOnlyProfile(undefined)).toBe(false)
     })
+  })
+})
+
+describe('getEffectiveFilterCapabilities', () => {
+  it('returns all capabilities enabled when no sources provided', () => {
+    expect(getEffectiveFilterCapabilities(undefined)).toEqual({ age: true, salary: true, experience: true })
+    expect(getEffectiveFilterCapabilities([])).toEqual({ age: true, salary: true, experience: true })
+  })
+
+  it('returns all capabilities enabled when no sources are enabled', () => {
+    expect(getEffectiveFilterCapabilities([
+      { type: SEARCH_PROFILE_SOURCE_TYPES.seek, enabled: false, priority: 1 },
+      { type: SEARCH_PROFILE_SOURCE_TYPES.job5156, enabled: false, priority: 2 },
+    ])).toEqual({ age: true, salary: true, experience: true })
+  })
+
+  it('returns age=false for Seek-only profiles', () => {
+    expect(getEffectiveFilterCapabilities([
+      { type: SEARCH_PROFILE_SOURCE_TYPES.seek, enabled: true, priority: 1, jobUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=1' },
+    ])).toEqual({ age: false, salary: true, experience: true })
+  })
+
+  it('returns age=true for 51job-only profiles', () => {
+    expect(getEffectiveFilterCapabilities([
+      { type: SEARCH_PROFILE_SOURCE_TYPES.job51, enabled: true, priority: 1 },
+    ])).toEqual({ age: true, salary: true, experience: true })
+  })
+
+  it('returns age=true for Job5156-only profiles', () => {
+    expect(getEffectiveFilterCapabilities([
+      { type: SEARCH_PROFILE_SOURCE_TYPES.job5156, enabled: true, priority: 1 },
+    ])).toEqual({ age: true, salary: true, experience: true })
+  })
+
+  it('returns age=false for mixed Seek + 51job (intersection)', () => {
+    expect(getEffectiveFilterCapabilities([
+      { type: SEARCH_PROFILE_SOURCE_TYPES.seek, enabled: true, priority: 1, jobUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=1' },
+      { type: SEARCH_PROFILE_SOURCE_TYPES.job51, enabled: true, priority: 2 },
+    ])).toEqual({ age: false, salary: true, experience: true })
+  })
+
+  it('ignores disabled sources', () => {
+    expect(getEffectiveFilterCapabilities([
+      { type: SEARCH_PROFILE_SOURCE_TYPES.seek, enabled: true, priority: 1, jobUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=1' },
+      { type: SEARCH_PROFILE_SOURCE_TYPES.job5156, enabled: false, priority: 2 },
+    ])).toEqual({ age: false, salary: true, experience: true })
+  })
+
+  it('treats unknown source types as fully capable', () => {
+    expect(getEffectiveFilterCapabilities([
+      { type: 'manual_upload' as unknown as 'seek', enabled: true, priority: 1 },
+    ])).toEqual({ age: true, salary: true, experience: true })
   })
 })

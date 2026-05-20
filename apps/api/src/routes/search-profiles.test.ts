@@ -226,7 +226,6 @@ describe('search-profiles list route', () => {
         expect.objectContaining({
           id: 'seek-malaysia-sales',
           filters: expect.objectContaining({
-            maxAge: 45,
             minExperience: 1,
           }),
           sources: expect.arrayContaining([
@@ -252,7 +251,6 @@ describe('search-profiles list route', () => {
         expect.objectContaining({
           id: 'seek-malaysia-talent-search',
           filters: expect.objectContaining({
-            maxAge: 45,
             minExperience: 1,
           }),
           sources: expect.arrayContaining([

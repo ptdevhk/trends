@@ -7,7 +7,7 @@ const mockUseMutation = vi.hoisted(() => vi.fn(() => vi.fn()))
 
 vi.mock('convex/react', () => ({
   useQuery: (...args: unknown[]) => mockUseQuery(...args),
-  useMutation: (...args: unknown[]) => mockUseMutation(...args),
+  useMutation: (...args: unknown[]) => (mockUseMutation as (...a: unknown[]) => unknown)(...args),
 }))
 
 vi.mock('../../../../packages/convex/convex/_generated/api', () => ({

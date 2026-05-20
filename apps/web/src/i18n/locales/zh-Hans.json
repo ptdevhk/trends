@@ -946,6 +946,7 @@
     "postPlaceholder": "例如：车床销售工程师",
     "description": "透过基本信息或进阶模式设定职位要求。",
     "defaultExp": "默认最少 1 年",
+    "ageNotSupportedBySource": "当前所选来源不支持年龄筛选",
     "minAge": "最低年龄",
     "minSalary": "最低期望薪资",
     "maxSalary": "最高期望薪资",
