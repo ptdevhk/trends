@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { rawApiClient } from "@/lib/api-helpers";
 import {
   getSearchProfileCollectionSource,
+  isSeekOnlyProfile,
   type CollectionSourceType,
   type SearchProfileSource,
 } from "@/lib/search-profile-sources";
@@ -350,6 +351,7 @@ export function useIndustryKeywords() {
           ))
           .map((profile) => {
             const collectionSource = getSearchProfileCollectionSource(profile.sources)
+            const seekOnly = isSeekOnlyProfile(profile.sources)
             const minExperience = typeof profile.filters?.minExperience === "number"
               ? profile.filters.minExperience
               : undefined;
@@ -367,8 +369,8 @@ export function useIndustryKeywords() {
               minRoleYears,
               roleFilterType,
               minExperience,
-              minAge: typeof profile.filters?.minAge === "number" ? profile.filters.minAge : undefined,
-              maxAge: typeof profile.filters?.maxAge === "number" ? profile.filters.maxAge : undefined,
+              minAge: seekOnly ? undefined : (typeof profile.filters?.minAge === "number" ? profile.filters.minAge : undefined),
+              maxAge: seekOnly ? undefined : (typeof profile.filters?.maxAge === "number" ? profile.filters.maxAge : undefined),
               source: collectionSource
                 ? {
                     type: collectionSource.type,

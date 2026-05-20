@@ -358,6 +358,17 @@ export function validateSeekSourceJobUrl(
   return { ok: true }
 }
 
+export function isSeekOnlyProfile(
+  sources: SearchProfileSource[] | undefined,
+): boolean {
+  if (!Array.isArray(sources) || sources.length === 0) {
+    return false
+  }
+
+  const enabledSources = sources.filter((source) => source.enabled)
+  return enabledSources.length > 0 && enabledSources.every((source) => source.type === SEARCH_PROFILE_SOURCE_TYPES.seek)
+}
+
 export function getActiveSearchProfileSource(
   sources: SearchProfileSource[] | undefined,
 ): SearchProfileSource | undefined {

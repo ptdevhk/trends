@@ -13,6 +13,7 @@ import {
   getActiveSearchProfileSource,
   getSearchProfileCollectionSource,
   getSearchProfileCollectUrl,
+  isSeekOnlyProfile,
   isSeekTalentSearchUrl,
   resolveCollectionSource,
   resolveSeekMode,
@@ -515,5 +516,45 @@ describe('validateSeekSourceJobUrl', () => {
     expect(validateSeekSourceJobUrl({
       jobUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=1',
     })).toEqual({ ok: true })
+  })
+
+  describe('isSeekOnlyProfile', () => {
+    it('returns true when all enabled sources are Seek', () => {
+      expect(isSeekOnlyProfile([
+        { type: 'seek', enabled: true, priority: 1, jobUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=1' },
+        { type: 'seek', enabled: true, priority: 2, mode: 'talentsearch', jobUrl: 'https://hk.employer.seek.com/talentsearch?searchQuery=CNC' },
+      ])).toBe(true)
+    })
+
+    it('returns true when Seek sources are enabled and others are disabled', () => {
+      expect(isSeekOnlyProfile([
+        { type: 'seek', enabled: true, priority: 1, jobUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=1' },
+        { type: 'job5156', enabled: false, priority: 2 },
+      ])).toBe(true)
+    })
+
+    it('returns false when a non-Seek source is enabled', () => {
+      expect(isSeekOnlyProfile([
+        { type: 'seek', enabled: true, priority: 1, jobUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=1' },
+        { type: 'job5156', enabled: true, priority: 2 },
+      ])).toBe(false)
+    })
+
+    it('returns false for job5156-only profiles', () => {
+      expect(isSeekOnlyProfile([
+        { type: 'job5156', enabled: true, priority: 1 },
+      ])).toBe(false)
+    })
+
+    it('returns false for 51job-only profiles', () => {
+      expect(isSeekOnlyProfile([
+        { type: '51job', enabled: true, priority: 1 },
+      ])).toBe(false)
+    })
+
+    it('returns false for empty or undefined sources', () => {
+      expect(isSeekOnlyProfile([])).toBe(false)
+      expect(isSeekOnlyProfile(undefined)).toBe(false)
+    })
   })
 })

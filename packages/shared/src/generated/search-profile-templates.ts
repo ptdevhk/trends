@@ -308,7 +308,6 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
       "filters": {
         "minExperience": 1,
         "maxExperience": null,
-        "maxAge": 45,
         "locations": [
           "Malaysia"
         ]
@@ -380,7 +379,6 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
       "filters": {
         "minExperience": 1,
         "maxExperience": null,
-        "maxAge": 45,
         "locations": [
           "Malaysia"
         ]
@@ -452,7 +450,6 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
       "filters": {
         "minExperience": 1,
         "maxExperience": null,
-        "maxAge": 45,
         "locations": [
           "Malaysia"
         ]
@@ -510,7 +507,6 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
       "filters": {
         "minExperience": 1,
         "maxExperience": null,
-        "maxAge": 45,
         "locations": [
           "Malaysia"
         ]
