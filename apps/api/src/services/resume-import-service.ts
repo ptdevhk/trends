@@ -7,6 +7,7 @@ import { z } from "@hono/zod-openapi";
 import {
   formatLocationHierarchyLabel,
   normalizeResumeLocationHierarchy,
+  normalizeSeekProfileUrlForDisplay,
 } from "@trends/shared";
 import {
   ResumeImportItemSchema,
@@ -272,14 +273,40 @@ function buildResumeExternalId(resume: ResumeImportItem, source: string, hash: s
   return `${source}:hash:${hash}`;
 }
 
-function buildNormalizedResumeContent(resume: ResumeImportItem): Record<string, unknown> {
+function buildNormalizedResumeContent(
+  resume: ResumeImportItem,
+  seekContext?: { sourceHost: string; jobId?: string },
+): Record<string, unknown> {
   const { sourceHost: _sourceHost, tags: _tags, ...content } = resume;
   const locationHierarchy = normalizeResumeLocationHierarchy(resume);
   const rawLocation = typeof content.location === "string" ? content.location.trim() : "";
   const location = rawLocation || (locationHierarchy ? formatLocationHierarchyLabel(locationHierarchy) : "");
 
+  // Normalize seek profileUrl to recommended format at import time
+  let profileUrl = content.profileUrl;
+  if (typeof profileUrl === "string" && seekContext?.sourceHost) {
+    const normalized = normalizeSeekProfileUrlForDisplay(profileUrl);
+    if (normalized && normalized !== profileUrl) {
+      // Build recommended URL if we have a jobId
+      if (seekContext.jobId) {
+        try {
+          const parsed = new URL(normalized);
+          const profileIdMatch = parsed.pathname.match(/\/candidates\/(\d+)$/);
+          if (profileIdMatch?.[1]) {
+            profileUrl = `https://${parsed.hostname}/candidates/recommended?jobId=${seekContext.jobId}&openProfileId=${profileIdMatch[1]}`;
+          }
+        } catch {
+          profileUrl = normalized;
+        }
+      } else {
+        profileUrl = normalized;
+      }
+    }
+  }
+
   return {
     ...content,
+    ...(typeof profileUrl === "string" && profileUrl ? { profileUrl } : {}),
     location,
     ...(locationHierarchy ? { locationHierarchy } : {}),
   };
@@ -359,10 +386,16 @@ export function normalizeResumeImportPayload(input: ResumeImportRequest): Normal
   const defaultTags = tag ? [tag] : [];
   const source = resolveResumeSource(metadata);
 
+  const isSeekSource = source.endsWith(".employer.seek.com") || source.toLowerCase() === "seek";
+  const seekJobId = metadata.collectionContext?.jobId;
+
   const convexResumes = resumes.map((resume) => {
     const itemSource = normalizeSourceHost(resume.sourceHost) ?? source;
     const itemTags = normalizeTagList(resume.tags) ?? defaultTags;
-    const content: unknown = buildNormalizedResumeContent(resume);
+    const content: unknown = buildNormalizedResumeContent(
+      resume,
+      isSeekSource ? { sourceHost: itemSource, jobId: seekJobId } : undefined,
+    );
     const hash = crypto.createHash("sha256").update(stableStringify(content), "utf8").digest("hex");
     const externalId = buildResumeExternalId(resume, itemSource, hash);
 

@@ -83,6 +83,7 @@ export type NormalizedResumeFields = {
 
 const JOB5156_HOST = "hr.job5156.com";
 const JOB5156_PROFILE_URL_PREFIX = `https://${JOB5156_HOST}/resume/view/`;
+const SEEK_HOST_SUFFIX = ".employer.seek.com";
 
 const SOURCE_KEY_TO_COUNTRY: Record<ResumeAnalysisSourceKey, string> = {
   job5156: "中国",
@@ -161,17 +162,82 @@ export function normalizeJob5156ProfileUrlForDisplay(value: string): string {
   return `${JOB5156_PROFILE_URL_PREFIX}${encodeURIComponent(resumeId)}`;
 }
 
+export function normalizeSeekProfileUrlForDisplay(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  let parsed: URL | null = null;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    return trimmed;
+  }
+
+  const hostname = parsed.hostname.toLowerCase();
+  if (!hostname.endsWith(SEEK_HOST_SUFFIX)) {
+    return trimmed;
+  }
+
+  // Already in recommended format — return as-is
+  if (parsed.pathname.toLowerCase() === "/candidates/recommended") {
+    return trimmed;
+  }
+
+  // Extract profileId from URL — supports both numeric and UUID formats
+  let profileId: string | null = null;
+
+  // Numeric pattern: /candidates/{profileId} or /candidates/profiles/{profileId}/...
+  const numericIdMatch = parsed.pathname.match(/\/candidates\/(?:profiles\/)?(\d+)(?:\/|$)/i);
+  if (numericIdMatch?.[1]) {
+    profileId = numericIdMatch[1];
+  }
+
+  // UUID pattern: /candidates/{uuid} (talentsearch mode — no jobId available)
+  if (!profileId) {
+    const uuidIdMatch = parsed.pathname.match(/\/candidates\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:\/|$)/i);
+    if (uuidIdMatch?.[1]) {
+      // Talentsearch UUID URLs pass through — cannot build recommended URL without numeric profileId
+      return trimmed;
+    }
+  }
+
+  if (!profileId) {
+    return trimmed;
+  }
+
+  // Fallback: direct path format (no jobId available at display time)
+  return `https://${hostname}/candidates/${profileId}`;
+}
+
 export function normalizeProfileUrlForDisplay(value: unknown, source?: string): string {
   const trimmed = toTrimmedString(value);
   if (!trimmed) {
     return "";
   }
 
-  if (source?.toLowerCase() !== JOB5156_HOST) {
-    return trimmed;
+  const loweredSource = source?.toLowerCase();
+
+  if (loweredSource === JOB5156_HOST) {
+    return normalizeJob5156ProfileUrlForDisplay(trimmed);
   }
 
-  return normalizeJob5156ProfileUrlForDisplay(trimmed);
+  if (loweredSource?.endsWith(SEEK_HOST_SUFFIX)) {
+    return normalizeSeekProfileUrlForDisplay(trimmed);
+  }
+
+  // Also handle seek URLs regardless of source (safety net for mixed data)
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.hostname.toLowerCase().endsWith(SEEK_HOST_SUFFIX)) {
+      return normalizeSeekProfileUrlForDisplay(trimmed);
+    }
+  } catch {
+    // Not a valid URL — pass through
+  }
+
+  return trimmed;
 }
 
 function normalizeStringOrObject<T>(

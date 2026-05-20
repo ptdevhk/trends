@@ -1136,14 +1136,70 @@ function findSeekProfileTrigger(profileId) {
   );
 }
 
+/**
+ * Talentsearch cards have no <a> links — candidate name is a [data-role="heading"]
+ * element clicked via SPA event handlers. Find the card matching this profileId
+ * (UUID) by checking data attributes or card index.
+ */
+function findSeekTalentSearchCardTrigger(profileId, resume) {
+  if (!profileId) return null;
+  // Try matching by data-tr-candidate-id attribute (set during extraction)
+  const byAttr = document.querySelector(
+    `[data-tr-candidate-id="${CSS.escape(profileId)}"]`,
+  );
+  if (byAttr instanceof HTMLElement) return byAttr;
+  // Fallback: match heading elements that contain the candidate name.
+  // Talentsearch cards use [data-role="heading"] for the candidate name.
+  const candidateName = typeof resume?.name === "string" ? resume.name.trim() : "";
+  if (candidateName) {
+    const headings = Array.from(
+      document.querySelectorAll('[data-role="heading"]'),
+    );
+    const match = headings.find((h) => {
+      const text = (h.textContent || "").trim();
+      return text === candidateName || text.startsWith(candidateName);
+    });
+    if (match instanceof HTMLElement) return match;
+  }
+  return null;
+}
+
 function mergeSeekListResumeWithDetail(baseResume, detailResume) {
   if (!detailResume || typeof detailResume !== "object") {
     return baseResume;
   }
 
+  // For talentsearch: if V3 detail provides a numeric profileId, use it for
+  // profileUrl construction but preserve the UUID seekProfileGuid
+  const isTalentSearch = getCurrentSeekMode() === "talentsearch";
+  const seekProfileGuid = baseResume.seekProfileGuid || detailResume.seekProfileGuid || undefined;
+  const numericProfileId = isTalentSearch && detailResume.profileId && /^\d+$/.test(detailResume.profileId)
+    ? detailResume.profileId
+    : undefined;
+
+  // If we got a numeric profileId from V3 detail, update the profileUrl
+  let profileUrl = detailResume.profileUrl || baseResume.profileUrl;
+  if (numericProfileId) {
+    // Derive jobId from the current page URL or API request for recommended URL format
+    const seekRequest = getSeekTalentSearchRequest();
+    const requestJobId = seekRequest?.variables?.input?.jobId;
+    const urlJobId = normalizeOptionalPositiveInt(
+      new URL(window.location.href).searchParams.get("jobId"),
+    );
+    const jobId = requestJobId != null
+      ? String(requestJobId)
+      : urlJobId != null
+        ? String(urlJobId)
+        : undefined;
+    profileUrl = buildSeekProfileUrl(numericProfileId, jobId);
+  }
+
   return {
     ...baseResume,
     ...detailResume,
+    ...(seekProfileGuid ? { seekProfileGuid } : {}),
+    ...(numericProfileId ? { profileId: numericProfileId } : {}),
+    ...(profileUrl ? { profileUrl } : {}),
     pageIndex: baseResume.pageIndex,
     pageNumber: baseResume.pageNumber,
     extractedAt: baseResume.extractedAt,
@@ -2528,6 +2584,10 @@ function extractSeekProfileResume() {
         ? String(jobIdFromUrl)
         : undefined;
   const { profileId, profileType } = getSeekCandidateIdentity(profile);
+  const seekProfileGuid =
+    typeof profile.profileGuid === "string" && profile.profileGuid
+      ? profile.profileGuid
+      : undefined;
   const firstName =
     typeof profile.firstName === "string" ? profile.firstName.trim() : "";
   const lastName =
@@ -2604,6 +2664,7 @@ function extractSeekProfileResume() {
     {
       profileId,
       profileType,
+      seekProfileGuid,
       externalId: profileId
         ? `${window.location.hostname.toLowerCase()}:profile:${profileId}`
         : "",
@@ -3535,14 +3596,17 @@ function extractSeekTalentSearchResumes() {
 
   return candidates
     .map((node, index) => {
-      // Prefer profileGuid (UUID) as the identity key for talent-search;
-      // fall back to the numeric-looking Relay "id" if profileGuid is missing.
-      const profileId =
+      // profileGuid (UUID) is the primary identity for talentsearch
+      const profileGuid =
         typeof node?.profileGuid === "string" && node.profileGuid
           ? node.profileGuid
-          : typeof node?.id === "string" && node.id
-            ? node.id
-            : "";
+          : "";
+      // Relay "id" — numeric-looking string, used as fallback
+      const relayId =
+        typeof node?.id === "string" && node.id ? node.id : "";
+      // For talentsearch, profileId = profileGuid (UUID); numeric profileId
+      // may become available after V3 detail enrichment
+      const profileId = profileGuid || relayId;
       if (!profileId) return null;
 
       const firstName =
@@ -3570,6 +3634,7 @@ function extractSeekTalentSearchResumes() {
       return {
         profileId,
         profileType: "seek",
+        seekProfileGuid: profileGuid || undefined,
         externalId: profileId
           ? `${window.location.hostname.toLowerCase()}:profile:${profileId}`
           : "",
@@ -4899,7 +4964,13 @@ function waitForSeekProfileSnapshot(profileId, { timeoutMs = 12000 } = {}) {
       if (done) return;
       const snapshot = apiSnapshot.seekProfile;
       const identity = snapshot ? getSeekCandidateIdentity(snapshot) : null;
-      if (identity?.profileId === String(profileId)) {
+      // Match by profileId (numeric) or profileGuid (UUID for talentsearch)
+      const snapshotGuid =
+        typeof snapshot?.profileGuid === "string" ? snapshot.profileGuid : "";
+      if (
+        identity?.profileId === String(profileId) ||
+        snapshotGuid === String(profileId)
+      ) {
         done = true;
         cleanup();
         resolve(snapshot);
@@ -4934,16 +5005,34 @@ async function enrichSingleSeekResumeWithDetail(resume) {
     return resume;
   }
 
-  const trigger = findSeekProfileTrigger(profileId);
+  const isTalentSearch = getCurrentSeekMode() === "talentsearch";
+  const trigger = isTalentSearch
+    ? findSeekTalentSearchCardTrigger(profileId, resume)
+    : findSeekProfileTrigger(profileId);
   if (!(trigger instanceof HTMLElement)) {
     return resume;
   }
 
   try {
     trigger.click();
-    await waitForSeekProfileSnapshot(profileId, { timeoutMs: 12000 });
+    // For talentsearch, match by profileGuid (UUID); for recommended, match by numeric profileId
+    const matchId = isTalentSearch ? resume.seekProfileGuid || profileId : profileId;
+    await waitForSeekProfileSnapshot(matchId, { timeoutMs: 12000 });
     const [detailResume] = extractSeekProfileResume();
-    if (!detailResume || detailResume.profileId !== profileId) {
+    if (!detailResume) {
+      return resume;
+    }
+    // For talentsearch, verify the detail profile matches by profileGuid or profileId
+    if (isTalentSearch) {
+      const detailGuid = detailResume.seekProfileGuid || "";
+      const detailProfileId = detailResume.profileId || "";
+      if (detailGuid !== profileId && detailProfileId !== profileId) {
+        return resume;
+      }
+      // Merge: talentsearch detail may provide numeric profileId from V3 response
+      return mergeSeekListResumeWithDetail(resume, detailResume);
+    }
+    if (detailResume.profileId !== profileId) {
       return resume;
     }
     return mergeSeekListResumeWithDetail(resume, detailResume);
@@ -4961,14 +5050,6 @@ async function enrichSeekResumesWithDetail(resumes) {
   if (!Array.isArray(resumes) || resumes.length === 0) return [];
   if (getCurrentSourceKey() !== SOURCE_KEYS.SEEK) return resumes;
   if (isSeekProfileMode()) return resumes;
-  // Talent-search list cards do NOT expose <a href="/talentsearch/profile/..."> links
-  // (per 2026-05-19 recon — see dev-docs/seek-talent-search-graphql-recon.txt). The
-  // existing findSeekProfileTrigger hunts for hrefs that do not exist, and the V3
-  // profile response is captured under a different snapshot shape. Detail enrichment
-  // for talent-search is deferred to a follow-up; list-level fields (firstName,
-  // lastName, currentLocation, currentJobTitle, workHistories[]) are sufficient
-  // for the initial slice and are already populated on list-page nodes.
-  if (getCurrentSeekMode() === "talentsearch") return resumes;
 
   const enriched = [];
   for (const resume of resumes) {
