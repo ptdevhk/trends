@@ -33,7 +33,7 @@ type WorkspaceSeedResult = {
 
 const seedWorkspaceDemoFunction = makeFunctionReference<
     'mutation',
-    { includeDemoResumes?: boolean },
+    Record<string, never>,
     WorkspaceSeedResult
 >('seed:seedWorkspaceDemoData');
 
@@ -51,9 +51,7 @@ async function ensureDeterministicSmokeFixtures() {
     const convexUrl = resolveConvexUrl();
     const client = new ConvexHttpClient(convexUrl);
     console.log(`Seeding deterministic smoke fixtures at ${convexUrl}...`);
-    const seedResult = await client.mutation(seedWorkspaceDemoFunction, {
-        includeDemoResumes: true,
-    });
+    const seedResult = await client.mutation(seedWorkspaceDemoFunction, {});
     console.log('✅ Deterministic smoke fixtures ensured.', seedResult.resumes);
 }
 
