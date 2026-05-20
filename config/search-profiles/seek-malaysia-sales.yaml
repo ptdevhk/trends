@@ -20,7 +20,6 @@ jobDescription: seek-malaysia-sales
 filters:
   minExperience: 1
   maxExperience: null
-  maxAge: 45
   locations:
     - Malaysia
 

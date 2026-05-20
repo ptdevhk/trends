@@ -125,9 +125,7 @@ type SeedTables = {
 type SupportedTable = keyof SeedTables
 
 const seedWorkspaceDemoDataHandler = (seedWorkspaceDemoData as unknown as ConvexHandler<
-  {
-    includeDemoResumes?: boolean
-  },
+  Record<string, never>,
   WorkspaceSeedResult
 >)._handler
 
@@ -352,13 +350,13 @@ describe('seedWorkspaceDemoData', () => {
     expect(tables.resumes).toHaveLength(0)
   })
 
-  it('seeds search profiles without JD linkage for the three seed profiles', async () => {
+  it('seeds search profiles without JD linkage for the four seed profiles', async () => {
     const { ctx, tables } = createSeedCtx()
 
     const firstRun = await seedWorkspaceDemoDataHandler(ctx as never, {})
 
-    expect(firstRun.searchProfiles).toEqual({ inserted: 3, updated: 0 })
-    expect(tables.search_profiles).toHaveLength(3)
+    expect(firstRun.searchProfiles).toEqual({ inserted: 4, updated: 0 })
+    expect(tables.search_profiles).toHaveLength(4)
 
     const seededProfiles = new Map(
       tables.search_profiles.map((record) => [String(record.profile?.id), record.profile ?? {}])
@@ -378,52 +376,25 @@ describe('seedWorkspaceDemoData', () => {
     expect(job51Profile?.jobDescription).toBeUndefined()
     const seekProfile = seededProfiles.get('seek-malaysia-sales') as { jobDescription?: string } | undefined
     expect(seekProfile?.jobDescription).toBe("seek-malaysia-sales")
-  })
-
-  it('seeds one deterministic SEEK Malaysia resume only for explicit demo-resume runs and stays idempotent on rerun', async () => {
-    const { ctx, tables } = createSeedCtx()
-
-    const firstRun = await seedWorkspaceDemoDataHandler(ctx as never, {
-      includeDemoResumes: true,
-    })
-
-    expect(firstRun.resumes).toEqual({ inserted: 1, updated: 0 })
-    expect(tables.resumes).toHaveLength(1)
-    expect(tables.resumes[0]).toEqual(expect.objectContaining({
-      externalId: 'my.employer.seek.com:profile:503033454',
-      identityKey: 'profileUrl:my.employer.seek.com/candidates/503033454',
-      source: 'my.employer.seek.com',
-      primaryRuleScore: 86,
-    }))
-    expect(tables.resumes[0]?.content).toEqual(expect.objectContaining({
-      name: 'Yap Kae Wen',
-      location: 'Kuala Lumpur, Malaysia',
-      jobIntention: 'Sales Engineer / Sales Manager',
-    }))
-    expect(tables.resumes[0]?.searchText).toContain('sales engineer')
-    expect(tables.resumes[0]?.searchText).toContain('kuala lumpur')
-    expect(tables.resumes[0]?.ingestData).toEqual(expect.objectContaining({
-      industryTags: ['machinery', 'sales'],
-      companyHits: ['Precision Machines Malaysia Sdn Bhd', 'STAR Micronics Asia'],
-      experienceLevel: 'senior',
-      ruleScores: expect.objectContaining({
-        'seek-malaysia-sales': 86,
-      }),
-    }))
-
-    const secondRun = await seedWorkspaceDemoDataHandler(ctx as never, {
-      includeDemoResumes: true,
-    })
-
-    expect(secondRun.resumes).toEqual({ inserted: 0, updated: 0 })
-    expect(tables.resumes).toHaveLength(1)
+    const talentSearchProfile = seededProfiles.get('seek-malaysia-talent-search') as { jobDescription?: string } | undefined
+    expect(talentSearchProfile?.jobDescription).toBe("seek-malaysia-sales")
   })
 
   it('clears only workspace-demo resumes', async () => {
     const { ctx, tables } = createSeedCtx()
 
-    await seedWorkspaceDemoDataHandler(ctx as never, {
-      includeDemoResumes: true,
+    await ctx.db.insert('resumes', {
+      externalId: 'my.employer.seek.com:profile:503033454',
+      identityKey: 'profileUrl:my.employer.seek.com/candidates/503033454',
+      content: {
+        name: 'Yap Kae Wen',
+        location: 'Kuala Lumpur, Malaysia',
+        jobIntention: 'Sales Engineer / Sales Manager',
+      },
+      hash: 'hash-demo',
+      source: 'my.employer.seek.com',
+      tags: ['seed', 'workspace-demo', 'seek-malaysia-sales'],
+      crawledAt: 1,
     })
     await ctx.db.insert('resumes', {
       externalId: 'real-seek-profile',

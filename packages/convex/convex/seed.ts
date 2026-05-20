@@ -4,11 +4,10 @@ import type { Id } from "./_generated/dataModel";
 import { v } from "convex/values";
 import {
   buildSearchProfileCriteria,
-  buildLatestWorkHistoryEvidence,
   generateStructuredJobDescriptionContent,
   getWorkspaceSearchProfileTemplates,
 } from "@trends/shared";
-import { buildSearchText, mergeSearchTextWithIngestData } from "./search_text";
+import { buildSearchText } from "./search_text";
 import { deriveResumeIdentity } from "./lib/resume_identity";
 
 import { DEFAULT_WORKSPACE_SLUG } from "./sessions";
@@ -65,189 +64,7 @@ function stableSerialize(value: unknown): string {
   return JSON.stringify(value);
 }
 
-function stableHash(seed: string): string {
-  let hash = 2166136261;
-  for (const char of seed) {
-    hash ^= char.codePointAt(0) ?? 0;
-    hash = Math.imul(hash, 16777619);
-  }
-  return (hash >>> 0).toString(16);
-}
 
-function buildSeekMalaysiaSalesDemoResume(seededAt: number) {
-  const externalId = "my.employer.seek.com:profile:503033454";
-  const source = "my.employer.seek.com";
-  const content = {
-    externalId,
-    profileId: "503033454",
-    profileType: "seek",
-    name: "Yap Kae Wen",
-    profileUrl: "https://my.employer.seek.com/candidates/503033454",
-    activityStatus: "Updated recently",
-    age: "32",
-    experience: "9 years",
-    education: "Bachelor of Engineering",
-    location: "Kuala Lumpur, Malaysia",
-    selfIntro:
-      "Malaysia-based sales engineer covering CNC machine tools, channel partners, and key accounts.",
-    jobIntention: "Sales Engineer / Sales Manager",
-    desiredPosition: "Sales Engineer / Sales Manager",
-    expectedSalary: "MYR 8,000 - MYR 12,000",
-    summary:
-      "Sales Engineer / Sales Manager for CNC machine tools with Kuala Lumpur coverage and nationwide Malaysia accounts.",
-    companies: ["Precision Machines Malaysia Sdn Bhd", "STAR Micronics Asia"],
-    workHistory: [
-      {
-        raw: "2021-04~Present Precision Machines Malaysia Sdn Bhd Senior Sales Engineer\nHandled CNC machine tool sales, distributor development, and Kuala Lumpur key accounts.",
-        companyName: "Precision Machines Malaysia Sdn Bhd",
-        jobTitle: "Senior Sales Engineer",
-        startDate: "2021-04",
-        endDate: "Present",
-        description:
-          "Handled CNC machine tool sales, distributor development, and Kuala Lumpur key accounts across Malaysia.",
-      },
-      {
-        raw: "2017-01~2021-03 STAR Micronics Asia Regional Sales Executive\nSold STAR sliding headstock lathes and automation solutions across Malaysia.",
-        companyName: "STAR Micronics Asia",
-        jobTitle: "Regional Sales Executive",
-        startDate: "2017-01",
-        endDate: "2021-03",
-        description:
-          "Sold STAR sliding headstock lathes and automation solutions across Malaysia.",
-      },
-    ],
-    profileEducation: [
-      {
-        institution: "Universiti Malaya",
-        qualification: "Bachelor of Engineering",
-      },
-    ],
-    skills: [
-      "Sales Engineer",
-      "Sales Manager",
-      "CNC",
-      "machine tools",
-      "account management",
-      { name: "Key account management", yearsOfExperience: 6 },
-      { name: "Dealer channel development", yearsOfExperience: 4 },
-    ],
-    languages: [
-      "English",
-      { name: "Mandarin", proficiency: "professional" },
-      { name: "Bahasa Melayu", proficiency: "professional" },
-    ],
-    licences: [{ name: "Class D" }],
-    resumeSnippet: {
-      text: "Kuala Lumpur based CNC sales engineer covering Malaysia machine tool accounts.",
-    },
-    currentIndustry: { name: "Industrial machinery" },
-    currentSubindustry: "Machine tools",
-    rightToWork: {
-      status: "citizen",
-      details: "Eligible to work in Malaysia without sponsorship.",
-    },
-    digitalIdentity: {
-      linkedinUrl: "https://www.linkedin.com/in/yap-kae-wen",
-    },
-    noticePeriodDays: 30,
-    extractedAt: "2026-03-17T08:00:00.000Z",
-  };
-  const evidenceText = buildLatestWorkHistoryEvidence(content.workHistory).text;
-  const ingestData = {
-    evidenceText,
-    industryTags: ["machinery", "sales"],
-    synonymHits: [
-      "Sales Engineer",
-      "Sales Manager",
-      "machine tools",
-      "account management",
-      "Kuala Lumpur",
-      "Malaysia",
-    ],
-    brandHits: [
-      {
-        brand: "STAR",
-        role: "sales engineer",
-        source: "workHistory",
-        context:
-          "Sold STAR sliding headstock lathes and automation solutions across Malaysia.",
-      },
-    ],
-    companyHits: ["Precision Machines Malaysia Sdn Bhd", "STAR Micronics Asia"],
-    roleSignals: [
-      {
-        type: "sales",
-        matchedSignals: [
-          "sales engineer",
-          "sales manager",
-          "account management",
-          "machine tools",
-          "cnc",
-        ],
-        signalCount: 5,
-        occurrences: 5,
-        years: 6,
-        industryVerifiedYears: 6,
-        roleRelevantYears: 6,
-        industryVerifiedRelevantYears: 6,
-        matchedWorkEntries: [
-          {
-            companyName: "Precision Machines Malaysia Sdn Bhd",
-            jobTitle: "Senior Sales Engineer",
-            years: 4,
-            industryVerified: true,
-            matchedSignals: ["sales engineer", "machine tools", "cnc"],
-          },
-          {
-            companyName: "STAR Micronics Asia",
-            jobTitle: "Regional Sales Executive",
-            years: 4,
-            industryVerified: true,
-            matchedSignals: [
-              "sales manager",
-              "account management",
-              "machine tools",
-            ],
-          },
-        ],
-        verifyIn: "workHistory",
-      },
-    ],
-    ruleScores: {
-      "seek-malaysia-sales": 86,
-      "jd-seek-malaysia-sales": 86,
-    },
-    experienceLevel: "senior",
-    computedAt: seededAt,
-    skillsVersion: 2,
-  };
-  const searchText = mergeSearchTextWithIngestData(buildSearchText(content), {
-    industryTags: ingestData.industryTags,
-    synonymHits: ingestData.synonymHits,
-    brandHits: ingestData.brandHits,
-    companyHits: ingestData.companyHits,
-  });
-
-  return {
-    externalId,
-    source,
-    tags: ["seed", "workspace-demo", "seek-malaysia-sales"],
-    content,
-    hash: stableHash(
-      stableSerialize({
-        externalId,
-        source,
-        content,
-        ingestData,
-        primaryRuleScore: 86,
-      }),
-    ),
-    searchText,
-    ingestData,
-    primaryRuleScore: 86,
-    crawledAt: seededAt - 15_000,
-  };
-}
 
 export const status = query({
   args: {},
@@ -525,12 +342,9 @@ export const seedResumes = mutation({
 });
 
 export const seedWorkspaceDemoData = mutation({
-  args: {
-    includeDemoResumes: v.optional(v.boolean()),
-  },
-  handler: async (ctx, args) => {
+  args: {},
+  handler: async (ctx) => {
     const seededAt = 1_762_000_000_000;
-    const includeDemoResumes = args.includeDemoResumes === true;
     const customJobDescriptions = [
       {
         title: "车床销售",
@@ -1063,77 +877,6 @@ export const seedWorkspaceDemoData = mutation({
         updatedAt: seededAt,
       });
       result.workspaceConfig.inserted += 1;
-    }
-
-    const demoResumes = includeDemoResumes
-      ? [buildSeekMalaysiaSalesDemoResume(seededAt)]
-      : [];
-    for (const item of demoResumes) {
-      const identity = deriveResumeIdentity({
-        content: item.content,
-        externalId: item.externalId,
-        source: item.source,
-      });
-      let existing = await ctx.db
-        .query("resumes")
-        .withIndex("by_identityKey", (q) =>
-          q.eq("identityKey", identity.identityKey),
-        )
-        .unique();
-      if (!existing) {
-        existing = await ctx.db
-          .query("resumes")
-          .withIndex("by_externalId", (q) =>
-            q.eq("externalId", item.externalId),
-          )
-          .unique();
-      }
-
-      if (existing) {
-        const nextTags = Array.from(new Set([...existing.tags, ...item.tags]));
-        const needsUpdate =
-          existing.identityKey !== identity.identityKey ||
-          existing.externalId !== item.externalId ||
-          existing.source !== item.source ||
-          existing.hash !== item.hash ||
-          stableSerialize(existing.content) !== stableSerialize(item.content) ||
-          stableSerialize(existing.tags) !== stableSerialize(nextTags) ||
-          stableSerialize(existing.ingestData ?? {}) !==
-            stableSerialize(item.ingestData) ||
-          existing.primaryRuleScore !== item.primaryRuleScore ||
-          existing.searchText !== item.searchText ||
-          existing.crawledAt !== item.crawledAt;
-        if (needsUpdate) {
-          await ctx.db.patch(existing._id, {
-            identityKey: identity.identityKey,
-            externalId: item.externalId,
-            content: item.content,
-            hash: item.hash,
-            source: item.source,
-            tags: nextTags,
-            crawledAt: item.crawledAt,
-            ingestData: item.ingestData,
-            primaryRuleScore: item.primaryRuleScore,
-            searchText: item.searchText,
-          });
-          result.resumes.updated += 1;
-        }
-        continue;
-      }
-
-      await ctx.db.insert("resumes", {
-        externalId: item.externalId,
-        identityKey: identity.identityKey,
-        content: item.content,
-        hash: item.hash,
-        source: item.source,
-        tags: item.tags,
-        crawledAt: item.crawledAt,
-        ingestData: item.ingestData,
-        primaryRuleScore: item.primaryRuleScore,
-        searchText: item.searchText,
-      });
-      result.resumes.inserted += 1;
     }
 
     return result;

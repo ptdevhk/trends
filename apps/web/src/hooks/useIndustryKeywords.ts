@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { rawApiClient } from "@/lib/api-helpers";
 import {
   getSearchProfileCollectionSource,
+  isSeekOnlyProfile,
   type CollectionSourceType,
   type SearchProfileSource,
 } from "@/lib/search-profile-sources";
@@ -141,16 +142,6 @@ type SearchProfilesResponse = {
   }>;
 };
 
-function keywordsImplySalesRole(keywords: string[] | undefined): boolean {
-  if (!Array.isArray(keywords) || keywords.length === 0) {
-    return false;
-  }
-
-  return keywords.some((keyword) => {
-    const normalized = keyword.trim().toLowerCase();
-    return normalized.includes("sales") || normalized.includes("销售");
-  });
-}
 
 function getKeywordFingerprint(keyword: string): string {
   return keyword.trim().toLowerCase();
@@ -360,18 +351,14 @@ export function useIndustryKeywords() {
           ))
           .map((profile) => {
             const collectionSource = getSearchProfileCollectionSource(profile.sources)
-            const explicitMinRoleYears = typeof profile.filters?.minRoleYears === "number"
-              ? profile.filters.minRoleYears
-              : undefined;
+            const seekOnly = isSeekOnlyProfile(profile.sources)
             const minExperience = typeof profile.filters?.minExperience === "number"
               ? profile.filters.minExperience
               : undefined;
-            const salesContext = keywordsImplySalesRole(profile.keywords);
-            const minRoleYears = explicitMinRoleYears
-              ?? (salesContext ? minExperience : undefined);
-            const explicitRoleFilterType = profile.filters?.roleFilterType?.trim() || undefined;
-            const roleFilterType = explicitRoleFilterType
-              ?? (typeof minRoleYears === "number" && salesContext ? "sales" : undefined);
+            const minRoleYears = typeof profile.filters?.minRoleYears === "number"
+              ? profile.filters.minRoleYears
+              : undefined;
+            const roleFilterType = profile.filters?.roleFilterType?.trim() || undefined;
 
             return {
               id: profile.id,
@@ -382,8 +369,8 @@ export function useIndustryKeywords() {
               minRoleYears,
               roleFilterType,
               minExperience,
-              minAge: typeof profile.filters?.minAge === "number" ? profile.filters.minAge : undefined,
-              maxAge: typeof profile.filters?.maxAge === "number" ? profile.filters.maxAge : undefined,
+              minAge: seekOnly ? undefined : (typeof profile.filters?.minAge === "number" ? profile.filters.minAge : undefined),
+              maxAge: seekOnly ? undefined : (typeof profile.filters?.maxAge === "number" ? profile.filters.maxAge : undefined),
               source: collectionSource
                 ? {
                     type: collectionSource.type,

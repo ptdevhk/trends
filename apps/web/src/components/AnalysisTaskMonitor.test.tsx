@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 
 const mockUseQuery = vi.hoisted(() => vi.fn())
-const mockUseMutation = vi.hoisted(() => vi.fn((..._args: unknown[]) => vi.fn()))
+const mockUseMutation = vi.hoisted(() => vi.fn(() => vi.fn()))
 
 vi.mock('convex/react', () => ({
   useQuery: (...args: unknown[]) => mockUseQuery(...args),

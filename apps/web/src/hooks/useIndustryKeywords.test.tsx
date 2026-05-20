@@ -140,7 +140,7 @@ describe('useIndustryKeywords', () => {
     ])
   })
 
-  it('derives sales role-year quick-start constraints from profile filters', async () => {
+  it('does not infer role-year constraints from experience-only profile filters', async () => {
     const { result } = renderHook(() => useIndustryKeywords())
 
     await waitFor(() => {
@@ -151,8 +151,8 @@ describe('useIndustryKeywords', () => {
       expect.objectContaining({
         id: 'job5156-cn-cnc-sales',
         keywords: ['CNC', '销售'],
-        minRoleYears: 2,
-        roleFilterType: 'sales',
+        minRoleYears: undefined,
+        roleFilterType: undefined,
       }),
     ])
   })
