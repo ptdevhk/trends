@@ -896,6 +896,53 @@
   var JOB51_DETAIL_FETCH_CONCURRENCY = 2;
   var DEFAULT_SEEK_PAGE_SIZE = 20;
   var LATEST_AUTO_SYNC_SUMMARIES_STORAGE_KEY = "latestAutoSyncSummaries";
+  var INITIAL_URL_CAPTURED_PARAMS = (() => {
+    try {
+      const url = new URL(window.location.href);
+      const val = url.searchParams.get(AUTO_SYNC_PARAM);
+      if (val) {
+        sessionStorage.setItem("tr_auto_sync_captured", val);
+        sessionStorage.setItem("tr_auto_sync_initial_url", window.location.href);
+        const seekParams = ["keywords", "roleTitles", "matchAll", "tr_max_age"];
+        for (const p of seekParams) {
+          const v = url.searchParams.get(p);
+          if (v !== null) {
+            sessionStorage.setItem(`tr_seek_param_${p}`, v);
+          }
+        }
+      }
+      return { autoSync: val, initialUrl: window.location.href };
+    } catch {
+      return { autoSync: null, initialUrl: null };
+    }
+  })();
+  function restoreSeekSearchParams() {
+    try {
+      const initialUrlStr = sessionStorage.getItem("tr_auto_sync_initial_url");
+      if (!initialUrlStr) return;
+      const currentUrl = new URL(window.location.href);
+      const initialUrl = new URL(initialUrlStr);
+      const seekParams = ["keywords", "roleTitles", "matchAll", "tr_max_age"];
+      let changed = false;
+      for (const p of seekParams) {
+        const initialVal = initialUrl.searchParams.get(p);
+        if (initialVal !== null && !currentUrl.searchParams.has(p)) {
+          currentUrl.searchParams.set(p, initialVal);
+          changed = true;
+        }
+      }
+      if (changed) {
+        history.replaceState(null, "", currentUrl.toString());
+      }
+    } catch {
+    }
+  }
+  __name(restoreSeekSearchParams, "restoreSeekSearchParams");
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", restoreSeekSearchParams);
+  } else {
+    restoreSeekSearchParams();
+  }
   var DEFAULT_COLLECTION_GUARDS = {
     job5156: "experience,jobIntention,selfIntro",
     "51job": "experience,jobIntention,selfIntro",
@@ -4212,6 +4259,13 @@
       return parseAutoSyncFlag(params.get(AUTO_SYNC_PARAM));
     }
     try {
+      const captured = sessionStorage.getItem("tr_auto_sync_captured");
+      if (captured !== null) {
+        return parseAutoSyncFlag(captured);
+      }
+    } catch {
+    }
+    try {
       const localValue = window.localStorage?.getItem(AUTO_SYNC_PARAM);
       return parseAutoSyncFlag(localValue);
     } catch {
@@ -4431,7 +4485,7 @@
     });
   }
   __name(waitForResumeCards, "waitForResumeCards");
-  function waitForApiRows({ timeoutMs = 5e3, minCount = 1 } = {}) {
+  function waitForApiRows({ timeoutMs = 15e3, minCount = 1 } = {}) {
     return new Promise((resolve, reject) => {
       let done = false;
       const deadline = Date.now() + timeoutMs;
@@ -5683,7 +5737,13 @@
         if (isSeekListPage && seekStartPage === null) {
           seekStartPage = currentPage;
         }
-        await waitForExtractionData({});
+        try {
+          await waitForExtractionData({});
+        } catch {
+          console.warn(
+            "\u{1F3AF} [Auto Sync] waitForExtractionData timed out \u2014 continuing"
+          );
+        }
         ensureJob51PageAllowed();
         pagesVisited += 1;
         const seekPageWindow = isSeekListPage ? resolveSeekAutoSyncPageWindow({

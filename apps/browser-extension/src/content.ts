@@ -112,6 +112,70 @@ const JOB51_DETAIL_FETCH_TIMEOUT_MS = 8000;
 const JOB51_DETAIL_FETCH_CONCURRENCY = 2;
 const DEFAULT_SEEK_PAGE_SIZE = 20;
 const LATEST_AUTO_SYNC_SUMMARIES_STORAGE_KEY = "latestAutoSyncSummaries";
+
+// Capture auto-sync params from the initial URL at module init (document_start).
+// SEEK's SPA may strip unknown query params via history.replaceState before the
+// content script's runtime code checks window.location.search. Saving to
+// sessionStorage at parse time preserves the flag across SPA navigations within
+// the same tab. sessionStorage is shared between ISOLATED and MAIN worlds.
+const INITIAL_URL_CAPTURED_PARAMS = (() => {
+  try {
+    const url = new URL(window.location.href);
+    const val = url.searchParams.get(AUTO_SYNC_PARAM);
+    if (val) {
+      sessionStorage.setItem("tr_auto_sync_captured", val);
+      sessionStorage.setItem("tr_auto_sync_initial_url", window.location.href);
+      // Also persist SEEK-specific search params that SEEK's SPA may strip
+      // via history.replaceState. These are needed for the correct search context.
+      const seekParams = ["keywords", "roleTitles", "matchAll", "tr_max_age"];
+      for (const p of seekParams) {
+        const v = url.searchParams.get(p);
+        if (v !== null) {
+          sessionStorage.setItem(`tr_seek_param_${p}`, v);
+        }
+      }
+    }
+    return { autoSync: val, initialUrl: window.location.href };
+  } catch {
+    return { autoSync: null, initialUrl: null };
+  }
+})();
+
+// Restore SEEK search params that SEEK's SPA may have stripped via
+// history.replaceState. This runs after the page scripts settle, using
+// history.replaceState to add params back without triggering a page reload.
+function restoreSeekSearchParams() {
+  try {
+    const initialUrlStr = sessionStorage.getItem("tr_auto_sync_initial_url");
+    if (!initialUrlStr) return;
+    const currentUrl = new URL(window.location.href);
+    const initialUrl = new URL(initialUrlStr);
+    const seekParams = ["keywords", "roleTitles", "matchAll", "tr_max_age"];
+    let changed = false;
+    for (const p of seekParams) {
+      const initialVal = initialUrl.searchParams.get(p);
+      if (initialVal !== null && !currentUrl.searchParams.has(p)) {
+        currentUrl.searchParams.set(p, initialVal);
+        changed = true;
+      }
+    }
+    if (changed) {
+      history.replaceState(null, "", currentUrl.toString());
+    }
+  } catch {
+    // Best-effort — if restore fails, the page still works with stripped params.
+  }
+}
+
+// Schedule restore after SEEK's SPA has had a chance to strip params.
+// DOMContentLoaded fires after SEEK's scripts execute and the DOM is parsed.
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", restoreSeekSearchParams);
+} else {
+  // Document already loaded — run immediately (unlikely at document_start but
+  // safe guard for tests or alternative injection modes).
+  restoreSeekSearchParams();
+}
 const DEFAULT_COLLECTION_GUARDS = {
   job5156: "experience,jobIntention,selfIntro",
   "51job": "experience,jobIntention,selfIntro",
@@ -4454,6 +4518,18 @@ function getAutoSyncEnabled() {
     return parseAutoSyncFlag(params.get(AUTO_SYNC_PARAM));
   }
 
+  // Check sessionStorage — captured at document_start before SEEK's SPA
+  // could strip the param from the URL. This handles the case where SEEK's
+  // client-side router calls history.replaceState during HTML parsing.
+  try {
+    const captured = sessionStorage.getItem("tr_auto_sync_captured");
+    if (captured !== null) {
+      return parseAutoSyncFlag(captured);
+    }
+  } catch {
+    // sessionStorage may not be available in all contexts
+  }
+
   try {
     const localValue = window.localStorage?.getItem(AUTO_SYNC_PARAM);
     return parseAutoSyncFlag(localValue);
@@ -4733,7 +4809,7 @@ function waitForResumeCards({ timeoutMs = 30000, minCount = 1 } = {}) {
   });
 }
 
-function waitForApiRows({ timeoutMs = 5000, minCount = 1 } = {}) {
+function waitForApiRows({ timeoutMs = 15000, minCount = 1 } = {}) {
   return new Promise((resolve, reject) => {
     let done = false;
     const deadline = Date.now() + timeoutMs;
@@ -6286,7 +6362,16 @@ async function runAutoSyncIfEnabled() {
         seekStartPage = currentPage;
       }
 
-      await waitForExtractionData({});
+      try {
+        await waitForExtractionData({});
+      } catch {
+        // waitForExtractionData timed out — SEEK may be rate-limiting or
+        // the page loaded without API rows. Don't abort the entire sync:
+        // let the resumes.length check below handle it (skip to next page).
+        console.warn(
+          "🎯 [Auto Sync] waitForExtractionData timed out — continuing",
+        );
+      }
       ensureJob51PageAllowed();
 
       pagesVisited += 1;
