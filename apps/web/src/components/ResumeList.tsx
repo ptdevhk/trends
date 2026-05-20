@@ -134,7 +134,7 @@ export function ResumeList() {
   const backgroundEnhancementsEnabled = hasCompletedInitialListLoad
   useSyncNotifications(backgroundEnhancementsEnabled)
   const { slug: workspaceSlug } = useWorkspace()
-  const { resolve: brandDisplayResolve } = useBrandDisplayMap(backgroundEnhancementsEnabled)
+  const { resolve: brandDisplayResolve } = useBrandDisplayMap()
 
   const [detailResume, setDetailResume] = useState<ResumeItem | ConvexResumeItem | null>(null)
   const [detailResumeId, setDetailResumeId] = useState<ConvexResumeItem['resumeId'] | null>(null)
