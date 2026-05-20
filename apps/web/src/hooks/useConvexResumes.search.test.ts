@@ -290,4 +290,100 @@ describe('useConvexResumes AND-mode search', () => {
       sourceMapping: {},
     })
   })
+
+  it('forwards age and role filters to the search query alongside keywords', async () => {
+    rawApiGetMock.mockResolvedValueOnce({
+      data: {
+        success: true,
+        summary: {
+          groups: [{ original: 'cnc', variants: ['cnc'] }],
+          mode: 'OR' as const,
+          expandedTo: ['cnc'],
+          sourceMapping: {},
+        },
+      },
+    })
+    const searchPaginatedResult: PaginatedResult = {
+      results: [buildSearchEntry('resume-1', 'Alice')],
+      status: 'Exhausted',
+      isLoading: false,
+      loadMore: loadMoreMock,
+    }
+    usePaginatedQueryMock.mockImplementation((_query, args) =>
+      args === 'skip' ? skipPaginatedResult : searchPaginatedResult,
+    )
+
+    renderHook(() => useConvexResumes(200, 'CNC', undefined, {
+      filters: {
+        minAge: 25,
+        maxAge: 40,
+        minRoleYears: 3,
+        roleFilterType: 'verified',
+      },
+    }))
+
+    let searchCall: unknown[] | undefined
+    await waitFor(() => {
+      searchCall = usePaginatedQueryMock.mock.calls.find(
+        ([, args]) => args !== 'skip' && typeof args === 'object' && 'query' in (args as Record<string, unknown>),
+      )
+      expect(searchCall).toBeDefined()
+    })
+
+    expect(searchCall?.[1]).toMatchObject({
+      minAge: 25,
+      maxAge: 40,
+      minRoleYears: 3,
+      roleFilterType: 'verified',
+    })
+  })
+
+  it('shows loading=true while keyword expansion is in flight', async () => {
+    let resolveExpansion: (value: unknown) => void
+    const expansionPromise = new Promise((resolve) => { resolveExpansion = resolve })
+    rawApiGetMock.mockImplementation(async (path?: unknown) => {
+      if (path === '/api/resumes') {
+        return {
+          data: {
+            success: true,
+            data: [],
+            summary: { total: 0 },
+          },
+        }
+      }
+      await expansionPromise
+      return {
+        data: {
+          success: true,
+          summary: {
+            groups: [{ original: 'cnc', variants: ['cnc'] }],
+            mode: 'OR' as const,
+            expandedTo: ['cnc'],
+            sourceMapping: {},
+          },
+        },
+      }
+    })
+    usePaginatedQueryMock.mockImplementation((_query, args) =>
+      args === 'skip'
+        ? skipPaginatedResult
+        : { results: [], status: 'LoadingFirstPage' as const, isLoading: true, loadMore: loadMoreMock },
+    )
+
+    const { result } = renderHook(() => useConvexResumes(200, 'CNC'))
+
+    // While expansion is pending, loading should be true
+    expect(result.current.loading).toBe(true)
+
+    // Resolve the expansion and wait for the query to fire
+    resolveExpansion!(null)
+    usePaginatedQueryMock.mockImplementation((_query, args) =>
+      args === 'skip'
+        ? skipPaginatedResult
+        : { results: [], status: 'Exhausted' as const, isLoading: false, loadMore: loadMoreMock },
+    )
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false)
+    })
+  })
 })
