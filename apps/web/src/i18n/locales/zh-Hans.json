@@ -495,7 +495,10 @@
         "industryDb": "行业库",
         "industryDbNotAvailable": "行业库：MY市场暂不可用",
         "education": "学历",
-        "location": "地点"
+        "location": "地点",
+        "breakdownLabels": {
+          "industryDbNotAvailable": "行业库：MY市场暂不可用"
+        }
       },
       "error": {
         "searchBar": "搜索栏加载失败",
