@@ -1,117 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-// We test bffMatchesResumeFilters indirectly by constructing the doc
-// and filters and asserting on the result. The function is module-private,
-// so we test through the exported route logic or replicate the function.
-// Since bffMatchesResumeFilters is not exported, we replicate its core
-// logic for testing, verifying alignment with Convex behavior.
-
-import { normalizeEducationLevel, parseExperienceYears } from "../../services/resume-service.js";
-import { parseSalaryRange, resolveResumeAnalysisSourceKey } from "@trends/shared";
-
-// Helper to replicate bffMatchesResumeFilters for unit testing.
-// This mirrors the function in routes/resumes.ts exactly.
-function bffMatchesResumeFilters(
-  doc: Record<string, unknown>,
-  loweredSearchText: string,
-  filters: {
-    minExperience?: number;
-    maxExperience?: number;
-    education?: string[];
-    skills?: string[];
-    requiredKeywords?: string[];
-    minSalary?: number;
-    maxSalary?: number;
-    showArchived?: boolean;
-    sources?: string[];
-    roleFilterType?: string;
-  },
-): boolean {
-  function isRecord(value: unknown): value is Record<string, unknown> {
-    return typeof value === "object" && value !== null;
-  }
-  function toStringValue(value: unknown): string | undefined {
-    return typeof value === "string" ? value : undefined;
-  }
-  function toOptionalNumber(value: unknown): number | undefined {
-    if (typeof value === "number" && Number.isFinite(value)) return value;
-    return undefined;
-  }
-
-  if (!filters.showArchived && doc.isArchived === true) return false;
-
-  const content = isRecord(doc.content) ? doc.content : {};
-  const ingestData = isRecord(doc.ingestData) ? doc.ingestData : {};
-
-  if (typeof filters.minExperience === "number" || typeof filters.maxExperience === "number") {
-    const expStr = toStringValue(content.experience) ?? "";
-    const expYears = parseExperienceYears(expStr);
-    if (expYears === null) {
-      if (typeof filters.maxExperience === "number") return false;
-    } else {
-      if (typeof filters.minExperience === "number" && expYears < filters.minExperience) return false;
-      if (typeof filters.maxExperience === "number" && expYears > filters.maxExperience) return false;
-    }
-  }
-
-  if (filters.education?.length) {
-    const edu = toStringValue(content.education) ?? "";
-    const level = normalizeEducationLevel(edu);
-    if (!level || !filters.education.includes(level)) return false;
-  }
-
-  if (filters.skills?.length) {
-    if (!filters.skills.some((skill) => loweredSearchText.includes(skill.toLowerCase()))) return false;
-  }
-
-  if (filters.requiredKeywords?.length) {
-    if (!filters.requiredKeywords.every((kw) => loweredSearchText.includes(kw.toLowerCase()))) return false;
-  }
-
-  if (typeof filters.minSalary === "number" || typeof filters.maxSalary === "number") {
-    const salaryStr = toStringValue(content.expectedSalary) ?? "";
-    const salary = parseSalaryRange(salaryStr);
-    if (!salary) {
-      if (typeof filters.maxSalary === "number") return false;
-    } else {
-      if (typeof filters.minSalary === "number") {
-        const maxSalary = salary.max ?? salary.min;
-        if (maxSalary !== undefined && maxSalary < filters.minSalary) return false;
-      }
-      if (typeof filters.maxSalary === "number") {
-        const minSalary = salary.min ?? salary.max;
-        if (minSalary !== undefined && minSalary > filters.maxSalary) return false;
-      }
-    }
-  }
-
-  if (filters.roleFilterType) {
-    const key = filters.roleFilterType.toLowerCase();
-    const verifiedRoleYears = isRecord(ingestData.verifiedRoleYears)
-      ? ingestData.verifiedRoleYears as Record<string, unknown>
-      : {};
-    const hasVerifiedRole = typeof verifiedRoleYears[key] === "number";
-    let hasMatchingRole = hasVerifiedRole;
-    if (!hasMatchingRole) {
-      const roleSignals: unknown[] = Array.isArray(ingestData.roleSignals)
-        ? ingestData.roleSignals as unknown[]
-        : [];
-      hasMatchingRole = roleSignals.some((signal: unknown) => {
-        if (!isRecord(signal)) return false;
-        return typeof signal.type === "string" && signal.type.toLowerCase() === key;
-      });
-    }
-    if (!hasMatchingRole) return false;
-  }
-
-  if (filters.sources?.length) {
-    const resumeSourceKey = (typeof doc.sourceKey === 'string' ? doc.sourceKey : undefined)
-      ?? resolveResumeAnalysisSourceKey({ source: toStringValue(doc.source) ?? undefined });
-    if (!resumeSourceKey || !filters.sources.includes(resumeSourceKey)) return false;
-  }
-
-  return true;
-}
+import { bffMatchesResumeFilters } from "../../services/bff-filter-utils.js";
 
 function makeDoc(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
@@ -328,6 +217,104 @@ describe("bffMatchesResumeFilters", () => {
         },
       });
       expect(bffMatchesResumeFilters(doc, "", { roleFilterType: "CNC Operator" })).toBe(true);
+    });
+  });
+
+  describe("minRoleYears filter", () => {
+    it("passes when verifiedRoleYears for roleFilterType meets threshold", () => {
+      const doc = makeDoc({
+        ingestData: {
+          verifiedRoleYears: { "sales manager": 5 },
+          roleSignals: [],
+        },
+      });
+      expect(bffMatchesResumeFilters(doc, "", { roleFilterType: "sales manager", minRoleYears: 3 })).toBe(true);
+    });
+
+    it("excludes when verifiedRoleYears for roleFilterType is below threshold", () => {
+      const doc = makeDoc({
+        ingestData: {
+          verifiedRoleYears: { "sales manager": 2 },
+          roleSignals: [],
+        },
+      });
+      expect(bffMatchesResumeFilters(doc, "", { roleFilterType: "sales manager", minRoleYears: 3 })).toBe(false);
+    });
+
+    it("falls back to roleSignals when no verifiedRoleYears for role", () => {
+      const doc = makeDoc({
+        ingestData: {
+          verifiedRoleYears: {},
+          roleSignals: [{ type: "cnc operator", signalCount: 3, years: 4, industryVerifiedYears: 4, matchedSignals: ["cnc"] }],
+        },
+      });
+      expect(bffMatchesResumeFilters(doc, "", { roleFilterType: "cnc operator", minRoleYears: 3 })).toBe(true);
+    });
+
+    it("checks any role when roleFilterType is not set", () => {
+      const doc = makeDoc({
+        ingestData: {
+          verifiedRoleYears: { "sales manager": 5 },
+          roleSignals: [],
+        },
+      });
+      expect(bffMatchesResumeFilters(doc, "", { minRoleYears: 3 })).toBe(true);
+    });
+
+    it("excludes when no role meets minRoleYears", () => {
+      const doc = makeDoc({
+        ingestData: {
+          verifiedRoleYears: { "junior": 1 },
+          roleSignals: [],
+        },
+      });
+      expect(bffMatchesResumeFilters(doc, "", { minRoleYears: 3 })).toBe(false);
+    });
+  });
+
+  describe("age filter", () => {
+    it("excludes resumes below minAge", () => {
+      const doc = makeDoc({ age: 25, content: { age: "25岁" } });
+      expect(bffMatchesResumeFilters(doc, "", { minAge: 30 })).toBe(false);
+    });
+
+    it("passes resumes at or above minAge", () => {
+      const doc = makeDoc({ age: 30, content: { age: "30岁" } });
+      expect(bffMatchesResumeFilters(doc, "", { minAge: 30 })).toBe(true);
+    });
+
+    it("excludes resumes above maxAge", () => {
+      const doc = makeDoc({ age: 45, content: { age: "45岁" } });
+      expect(bffMatchesResumeFilters(doc, "", { maxAge: 40 })).toBe(false);
+    });
+
+    it("passes resumes at or below maxAge", () => {
+      const doc = makeDoc({ age: 40, content: { age: "40岁" } });
+      expect(bffMatchesResumeFilters(doc, "", { maxAge: 40 })).toBe(true);
+    });
+
+    it("parses age from content.age string when doc.age is absent", () => {
+      const doc = makeDoc({ content: { age: "28岁" } });
+      expect(bffMatchesResumeFilters(doc, "", { minAge: 25 })).toBe(true);
+    });
+
+    it("passes when age is unknown and age filter is set", () => {
+      // Unknown age: no numeric doc.age and no parseable content.age
+      const doc = makeDoc({ content: { age: "" } });
+      // Age filter only applies when age can be determined
+      expect(bffMatchesResumeFilters(doc, "", { minAge: 25 })).toBe(true);
+    });
+  });
+
+  describe("locations filter", () => {
+    it("matches location from content.location using Chinese name", () => {
+      const doc = makeDoc({ content: { location: "东莞" } });
+      expect(bffMatchesResumeFilters(doc, "", { locations: ["东莞"] })).toBe(true);
+    });
+
+    it("excludes when no location matches", () => {
+      const doc = makeDoc({ content: { location: "深圳" } });
+      expect(bffMatchesResumeFilters(doc, "", { locations: ["东莞"] })).toBe(false);
     });
   });
 });
