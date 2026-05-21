@@ -93,7 +93,7 @@ export function buildSeekNameSearchUrl(name: string, market?: string): string {
   return `https://${SEEK_NAME_SEARCH_HOST}/talentsearch/profiles/search?searchQuery=${encodeURIComponent(trimmedName)}&market=${encodeURIComponent(resolvedMarket)}&pageNumber=1`;
 }
 
-export function inferSeekMarket(source: string, hint?: string): string {
+export function inferSeekMarket(_source: string, hint?: string): string {
   if (hint === "HK" || hint === "hk") return "HK";
   // Source hostnames for MY market include both hk. and my. subdomains
   // (Seek routes by market param, not subdomain)
