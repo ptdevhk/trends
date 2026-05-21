@@ -1,7 +1,7 @@
 """
-TrendRadar MCP Server - FastMCP 2.0 实现
+TrendRadar MCP Server - FastMCP 3.0 实现
 
-使用 FastMCP 2.0 提供生产级 MCP 工具服务器。
+使用 FastMCP 3.0 提供生产级 MCP 工具服务器。
 支持 stdio 和 HTTP 两种传输模式。
 """
 
@@ -25,7 +25,7 @@ from .utils.errors import MCPError
 from trendradar.utils.time import DEFAULT_TIMEZONE, apply_process_timezone, resolve_timezone
 
 
-# 创建 FastMCP 2.0 应用
+# 创建 FastMCP 3.0 应用
 mcp = FastMCP('trendradar-news')
 
 # 全局工具实例（在第一次请求时初始化）
@@ -976,7 +976,7 @@ def run_server(
     # 打印启动信息
     print()
     print("=" * 60)
-    print("  MCP Server - FastMCP 2.0")
+    print("  MCP Server - FastMCP 3.0")
     print("=" * 60)
     print(f"  传输模式: {transport.upper()}")
     print(f"  时区: {timezone}")
