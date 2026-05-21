@@ -502,4 +502,87 @@ describe("ResumeService", () => {
       expect(filtered).toHaveLength(1);
     });
   });
+
+  describe("skills/requiredKeywords — full searchText haystack", () => {
+    it("uses searchText field when available for skills matching", () => {
+      const root = createFixtureRoot();
+      roots.push(root);
+      const service = new ResumeService(root);
+      const items = [
+        {
+          name: "CNC Resume",
+          profileUrl: "https://example.com/cnc",
+          activityStatus: "Active",
+          age: "30",
+          experience: "5",
+          education: "Bachelor",
+          location: "Dongguan",
+          selfIntro: "",
+          jobIntention: "",
+          expectedSalary: "",
+          workHistory: [{ company: "ACME", role: "CNC Operator", years: "3" }],
+          extractedAt: "2026-03-20T00:00:00.000Z",
+          // searchText includes "fanuc" from earlier workHistory not in latest entry
+          searchText: "CNC Resume Dongguan ACME CNC Operator 3 years fanuc experience",
+        },
+      ];
+
+      // "fanuc" is NOT in buildSearchText (narrow haystack) but IS in searchText
+      const filtered = service.filterResumes(items, { skills: ["fanuc"] });
+      expect(filtered).toHaveLength(1);
+    });
+
+    it("uses searchText field when available for requiredKeywords matching", () => {
+      const root = createFixtureRoot();
+      roots.push(root);
+      const service = new ResumeService(root);
+      const items = [
+        {
+          name: "CNC Resume",
+          profileUrl: "https://example.com/cnc",
+          activityStatus: "Active",
+          age: "30",
+          experience: "5",
+          education: "Bachelor",
+          location: "Dongguan",
+          selfIntro: "",
+          jobIntention: "",
+          expectedSalary: "",
+          workHistory: [],
+          extractedAt: "2026-03-20T00:00:00.000Z",
+          searchText: "CNC Resume Dongguan machine tools fanuc operator",
+        },
+      ];
+
+      const filtered = service.filterResumes(items, { requiredKeywords: ["machine tools"] });
+      expect(filtered).toHaveLength(1);
+    });
+
+    it("falls back to buildSearchText when searchText is absent", () => {
+      const root = createFixtureRoot();
+      roots.push(root);
+      const service = new ResumeService(root);
+      const items = [
+        {
+          name: "Sales Resume",
+          profileUrl: "https://example.com/sales",
+          activityStatus: "Active",
+          age: "30",
+          experience: "3",
+          education: "Bachelor",
+          location: "Shanghai",
+          selfIntro: "Sales manager",
+          jobIntention: "Sales Director",
+          expectedSalary: "",
+          workHistory: [],
+          extractedAt: "2026-03-20T00:00:00.000Z",
+          // No searchText — falls back to buildSearchText which includes name
+        },
+      ];
+
+      // "sales" is in buildSearchText via name/selfIntro/jobIntention
+      const filtered = service.filterResumes(items, { skills: ["sales"] });
+      expect(filtered).toHaveLength(1);
+    });
+  });
 });
