@@ -31,13 +31,17 @@ export function summarizeBrandHits(brandHits: BrandHitLike[] | undefined, maxCou
     .map(([brand]) => brand)
 }
 
-const CHINESE_EXPERIENCE_LEVEL_MAP: Record<string, ExperienceLevelFilter> = {
+const EXPERIENCE_LEVEL_MAP: Record<string, ExperienceLevelFilter> = {
   '资深': 'senior',
   '資深': 'senior',
+  'senior level': 'senior',
   '中级': 'mid',
   '中級': 'mid',
+  'mid level': 'mid',
   '初级': 'junior',
   '初級': 'junior',
+  'junior level': 'junior',
+  'entry level': 'junior',
 }
 
 export type ExperienceLevelFilter = 'senior' | 'mid' | 'junior'
@@ -50,7 +54,7 @@ export function normalizeExperienceLevel(level: string | undefined): ExperienceL
   if (normalized === 'senior') return 'senior'
   if (normalized === 'mid') return 'mid'
   if (normalized === 'junior') return 'junior'
-  const mapped = CHINESE_EXPERIENCE_LEVEL_MAP[level!.trim()]
+  const mapped = EXPERIENCE_LEVEL_MAP[level!.trim().toLowerCase()]
   return mapped
 }
 
