@@ -24,7 +24,7 @@ const SearchSummarySchema = z.object({
       count: z.number().int(),
     })
   ),
-  actionDistribution: z.record(z.number().int()),
+  actionDistribution: z.record(z.string(), z.number().int()),
   dailyTrend: z.array(
     z.object({
       date: z.string(),

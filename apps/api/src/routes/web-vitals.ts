@@ -74,6 +74,7 @@ const summaryRoute = createRoute({
             summary: z.object({
               totalReports: z.number().int(),
               metrics: z.record(
+                z.string(),
                 z.object({
                   p50: z.number(),
                   p75: z.number(),

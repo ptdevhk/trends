@@ -231,7 +231,7 @@ export const ResumeSearchCriteriaSchema = z
   .object({
     keyword: z.string().optional().openapi({ example: "销售" }),
     location: z.string().optional().openapi({ example: "东莞" }),
-    filters: z.record(z.string()).optional().openapi({ example: { status: "active" } }),
+    filters: z.record(z.string(), z.string()).optional().openapi({ example: { status: "active" } }),
   })
   .openapi("ResumeSearchCriteria");
 
@@ -323,7 +323,7 @@ export const CandidateActionBackupSchema = z
       "ai_summary_like",
       "ai_summary_unlike",
     ]).openapi({ example: "archive" }),
-    actionData: z.record(z.unknown()).optional().openapi({ example: { scopeId: "session-123" } }),
+    actionData: z.record(z.string(), z.unknown()).optional().openapi({ example: { scopeId: "session-123" } }),
     scopeId: z.string().optional().openapi({ example: "session-123" }),
     createdAt: z.string().openapi({ example: "2026-03-15T10:30:00+08:00" }),
   })
@@ -610,7 +610,7 @@ export const ResumesResponseSchema = z
         expandedTo: z.array(z.string()).optional(),
         mode: z.enum(["AND", "OR"]).optional(),
         keywordGroups: z.array(KeywordGroupSchema).optional(),
-        sourceMapping: z.record(z.string()).optional(),
+        sourceMapping: z.record(z.string(), z.string()).optional(),
       })
       .optional(),
     data: z.array(ResumeItemSchema),
@@ -723,7 +723,7 @@ export const ResumeKeywordExpansionResponseSchema = z
       groups: z.array(KeywordGroupSchema),
       mode: z.enum(["AND", "OR"]),
       expandedTo: z.array(z.string()),
-      sourceMapping: z.record(z.string()),
+      sourceMapping: z.record(z.string(), z.string()),
     }),
   })
   .openapi("ResumeKeywordExpansionResponse");
@@ -846,7 +846,7 @@ export const ResumeExportMatchSchema = z
     recommendation: RecommendationSchema.openapi({ example: "strong_match" }),
     scoreSource: ScoreSourceSchema.optional().openapi({ example: "ai" }),
     summary: z.string().optional().openapi({ example: "Strong CNC sales fit." }),
-    breakdown: z.record(z.number()).optional().openapi({ example: { related_exp: 20, industry_db: 40 } }),
+    breakdown: z.record(z.string(), z.number()).optional().openapi({ example: { related_exp: 20, industry_db: 40 } }),
   })
   .openapi("ResumeExportMatch");
 
@@ -1024,8 +1024,8 @@ export const ReviewPacketRunSchema = z
             reviewedCount: z.number().int(),
             pendingCount: z.number().int(),
             warningCount: z.number().int(),
-            statusBreakdown: z.record(z.number().int()),
-            actionBreakdown: z.record(z.number().int()),
+            statusBreakdown: z.record(z.string(), z.number().int()),
+            actionBreakdown: z.record(z.string(), z.number().int()),
           })
           .optional(),
       })
@@ -1214,7 +1214,7 @@ export const MatchResponseSchema = z
         persisted: z.boolean().optional(),
         keywordGroups: z.array(KeywordGroupSchema).optional(),
         expandedTo: z.array(z.string()).optional(),
-        sourceMapping: z.record(z.string()).optional(),
+        sourceMapping: z.record(z.string(), z.string()).optional(),
         inferredRequiredRoles: z
           .array(
             z.object({

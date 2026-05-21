@@ -49,7 +49,7 @@ const templateIdSchema = z
     .max(128)
     .regex(/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/);
 
-const templateDataSchema = z.record(z.unknown());
+const templateDataSchema = z.record(z.string(), z.unknown());
 
 const previewSchema = z.object({
     channel: z.enum(["email", "wechat_work", "feishu"]),
