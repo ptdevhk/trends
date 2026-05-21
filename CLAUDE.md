@@ -213,7 +213,7 @@ If local vault is unavailable, fall back to config-driven remote repository.
 - **`/wiki-ingest`** — capture URLs/files/pastes into typed pages
 - **`/wiki-query`** — search and synthesize from vault
 - **`/wiki-crystallize`** — save session insights
-- **`/dev-loop-research`** — standalone repo + vault health scan with prioritized recommendations
+- **`/dev-loop:research`** — standalone repo + vault health scan with prioritized recommendations
 - **PRD bridge**: All spec/plan output must land in the vault, not `docs/superpowers/`. Use `proj-work` to get redirect paths.
 
 Update vault notes when architecture, governance, or major API changes land.
