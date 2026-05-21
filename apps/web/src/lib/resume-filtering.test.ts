@@ -37,6 +37,18 @@ describe('parseExperienceYears', () => {
   it('handles whitespace padding', () => {
     expect(parseExperienceYears('  10  ')).toBe(10)
   })
+
+  it('returns 0 for English zero-experience terms (Seek EN)', () => {
+    expect(parseExperienceYears('fresh graduate')).toBe(0)
+    expect(parseExperienceYears('entry level')).toBe(0)
+    expect(parseExperienceYears('no experience')).toBe(0)
+    expect(parseExperienceYears('beginner')).toBe(0)
+  })
+
+  it('returns 0 for Chinese zero-experience terms', () => {
+    expect(parseExperienceYears('应届')).toBe(0)
+    expect(parseExperienceYears('无经验')).toBe(0)
+  })
 })
 
 describe('getResumeAge', () => {

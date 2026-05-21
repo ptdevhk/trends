@@ -844,7 +844,7 @@ function parseExperienceYears(value: string): number | null {
     if (!normalized) {
         return null;
     }
-    if (/应届|无经验|fresh grad|entry level|no experience/i.test(normalized)) {
+    if (/应届|无经验|fresh grad|entry level|no experience|fresh graduate|beginner/i.test(normalized)) {
         return 0;
     }
     const match = normalized.match(/(\d+)(?:\s*[-~到]\s*(\d+))?/);

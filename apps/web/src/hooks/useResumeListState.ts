@@ -872,12 +872,25 @@ export function useResumeListState(loadSearchHistory = false) {
 
     const minExperience = filters.minExperience
     if (typeof minExperience === 'number' && minExperience > 0) {
-      result = result.filter((resume: ScoredConvexResume) => parseExperienceYears(resume.experience) >= minExperience)
+      result = result.filter((resume: ScoredConvexResume) => {
+        const expYears = parseExperienceYears(resume.experience)
+        // Unknown experience (0 from empty/unparseable) — skip filter instead
+        // of excluding. Seek resumes have empty experience fields; excluding
+        // them when minExperience is set drops all results. Matches BFF and
+        // Convex graceful degradation.
+        if (expYears === 0 && !resume.experience) return true
+        return expYears >= minExperience
+      })
     }
 
     const maxExperience = filters.maxExperience
     if (typeof maxExperience === 'number') {
-      result = result.filter((resume: ScoredConvexResume) => parseExperienceYears(resume.experience) <= maxExperience)
+      result = result.filter((resume: ScoredConvexResume) => {
+        const expYears = parseExperienceYears(resume.experience)
+        // Unknown experience — cannot guarantee cap, exclude
+        if (expYears === 0 && !resume.experience) return false
+        return expYears <= maxExperience
+      })
     }
 
     const minRoleYears = filters.minRoleYears
