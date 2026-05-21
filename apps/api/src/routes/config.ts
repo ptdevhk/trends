@@ -28,7 +28,7 @@ const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
 const API_ROOT = path.resolve(MODULE_DIR, "../..");
 const REPO_ROOT = path.resolve(API_ROOT, "../..");
 
-const AgentsConfigSchema = z.record(z.unknown());
+const AgentsConfigSchema = z.record(z.string(), z.unknown());
 const KeywordMarketSchema = z.enum(["CN", "MY"]);
 const WorkflowSeedCollectionSourceSchema = z.object({
   type: z.enum(["job5156", "51job", "seek"]),
@@ -78,7 +78,7 @@ const CustomKeywordWorkflowSeedUpdateSchema = CustomKeywordWorkflowSeedSchema;
 const SystemLocationVisibilityUpdateSchema = z.object({
   visible: z.boolean(),
 });
-const RuleWeightsConfigSchema = z.record(z.unknown());
+const RuleWeightsConfigSchema = z.record(z.string(), z.unknown());
 const ResumeFieldUsageSurfaceRulesSchema = z.object({
   analysis: z.boolean().optional(),
   presentation: z.boolean().optional(),
@@ -93,7 +93,7 @@ const ResumeFieldUsagePolicySchema = z.object({
   updatedAt: z.string().optional(),
   description: z.string().optional(),
   sourceFileRelativePath: z.string().optional(),
-  fields: z.record(ResumeFieldUsageFieldSchema).default({}),
+  fields: z.record(z.string(), ResumeFieldUsageFieldSchema).default({}),
 });
 const LearningLogEntrySchema = z.object({
   date: z.string(),

@@ -52,7 +52,7 @@ const MatchResponseSchema = z.object({
   confidence: z.number(),
   matchedKeywords: z.array(z.string()),
   filterPreset: z.string().optional(),
-  suggestedFilters: z.record(z.unknown()).optional(),
+  suggestedFilters: z.record(z.string(), z.unknown()).optional(),
 });
 
 const ExtractKeywordsResponseSchema = z.object({

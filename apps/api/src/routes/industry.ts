@@ -64,7 +64,7 @@ const BrandDisplayEntrySchema = z.object({
     zhHans: z.string(),
 });
 
-const BrandDisplayMapResponseSchema = z.record(BrandDisplayEntrySchema);
+const BrandDisplayMapResponseSchema = z.record(z.string(), BrandDisplayEntrySchema);
 
 const VerifyRequestSchema = z.object({
     type: z.enum(["company", "keyword", "brand"]),

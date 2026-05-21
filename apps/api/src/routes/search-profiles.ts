@@ -74,7 +74,7 @@ const AutoMatchResponseSchema = z.object({
     matchedKeywords: z.array(z.string()),
 });
 
-const ProfilePayloadSchema = z.record(z.unknown());
+const ProfilePayloadSchema = z.record(z.string(), z.unknown());
 const ProfileRuntimeItemSchema = z.object({
     workspaceSlug: z.string().min(1),
     profileId: z.string(),

@@ -186,7 +186,7 @@ const ResumeResetResponseSchema = z.object({
   success: z.literal(true),
   count: z.number().int(),
   partial: z.boolean(),
-  deleted: z.record(z.number().int()),
+  deleted: z.record(z.string(), z.number().int()),
 });
 
 const ResetCandidateActionsRequestSchema = z.object({
@@ -295,9 +295,9 @@ const ResetDatabaseV2ResponseSchema = z.object({
   success: z.literal(true),
   dryRun: z.boolean().optional(),
   count: z.number().int().optional(),
-  wouldDelete: z.record(z.number().int()).optional(),
+  wouldDelete: z.record(z.string(), z.number().int()).optional(),
   partial: z.boolean().optional(),
-  deleted: z.record(z.number().int()).optional(),
+  deleted: z.record(z.string(), z.number().int()).optional(),
 });
 
 type ResumeExportCanonicalRequest = z.infer<typeof ResumeExportCanonicalRequestSchema>;

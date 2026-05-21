@@ -120,7 +120,7 @@ const statsRoute = createRoute({
                         success: z.literal(true),
                         stats: z.object({
                             total: z.number(),
-                            byCategory: z.record(z.number()),
+                            byCategory: z.record(z.string(), z.number()),
                         }),
                     })
                 }
