@@ -927,6 +927,7 @@ function useBffAndModeSearch(
       })
 
     return () => { active = false }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- filtersKey captures all filter fields via JSON.stringify
   }, [enabled, expansionLoading, filtersKey, jobDescriptionId, keywordExpansion, normalizedQuery, refetchTrigger])
 
   return {
