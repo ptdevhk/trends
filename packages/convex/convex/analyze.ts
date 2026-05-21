@@ -55,12 +55,14 @@ export function inferSourceKey(source: string | undefined) {
 
 // For Convex deployments, set AI_OUTPUT_LOCALE via the dashboard or `convex env set`.
 export function resolveAIOutputLocale(scope?: { sourceKey?: string }): string {
+    // Source-specific overrides take priority over the env var default.
+    // Without this, AI_OUTPUT_LOCALE=zh-Hans makes the seek→en branch dead code.
+    if (scope?.sourceKey === "seek") {
+        return "en";
+    }
     const locale = process.env.AI_OUTPUT_LOCALE?.trim();
     if (locale && locale.length > 0) {
         return resolveResumeAiPromptLocale(locale).requestedLocale;
-    }
-    if (scope?.sourceKey === "seek") {
-        return "en";
     }
     return resolveResumeAiPromptLocale(undefined).requestedLocale;
 }

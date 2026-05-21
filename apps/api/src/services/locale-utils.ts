@@ -10,12 +10,14 @@ export function localeToNaturalLanguage(locale: string): string {
 }
 
 export function resolveAIOutputLocale(scope?: { sourceKey?: string | null }): string {
+    // Source-specific overrides take priority over the env var default.
+    // Without this, AI_OUTPUT_LOCALE=zh-Hans makes the seek→en branch dead code.
+    if (scope?.sourceKey === "seek") {
+        return SEEK_RESUME_AI_OUTPUT_LOCALE;
+    }
     const locale = process.env.AI_OUTPUT_LOCALE?.trim();
     if (locale && locale.length > 0) {
         return locale;
-    }
-    if (scope?.sourceKey === "seek") {
-        return SEEK_RESUME_AI_OUTPUT_LOCALE;
     }
     return DEFAULT_RESUME_AI_PROMPT_LOCALE;
 }
