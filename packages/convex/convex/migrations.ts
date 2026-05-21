@@ -1668,19 +1668,21 @@ export const backfillSeekNameSearchUrls = mutation({
             const content = typeof resume.content === "object" && resume.content !== null ? resume.content as Record<string, unknown> : {};
             const profileUrl = typeof content.profileUrl === "string" ? content.profileUrl : "";
 
-            // Skip if already name-search URL
-            if (profileUrl.includes("/talentsearch/profiles/search")) continue;
-
-            // Check for UUID pattern
-            const uuidMatch = profileUrl.match(/\/candidates\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:\/|$)/i);
-            if (!uuidMatch) continue;
+            // Skip if already name-search URL with roleTitles
+            if (profileUrl.includes("/talentsearch/profiles/search") && profileUrl.includes("roleTitles=")) continue;
 
             const name = typeof content.name === "string" ? content.name.trim() : "";
             if (!name) continue;
 
             const market = inferSeekMarket(source);
-            const nameSearchUrl = buildSeekNameSearchUrl(name, market);
+            const jobIntention = typeof content.jobIntention === "string" ? content.jobIntention.trim() : "";
+            const nameSearchUrl = buildSeekNameSearchUrl(name, market, jobIntention || undefined);
             if (!nameSearchUrl) continue;
+
+            // Rebuild name-search URLs missing roleTitles, or convert UUID URLs
+            const isNameSearchWithoutRoleTitles = profileUrl.includes("/talentsearch/profiles/search") && !profileUrl.includes("roleTitles=");
+            const uuidMatch = profileUrl.match(/\/candidates\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:\/|$)/i);
+            if (!isNameSearchWithoutRoleTitles && !uuidMatch) continue;
 
             const updatedContent = { ...content, profileUrl: nameSearchUrl };
             const searchText = buildSearchText(updatedContent);

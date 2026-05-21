@@ -642,10 +642,11 @@ function mapResumeDoc(doc: ResumeListDocLike): ConvexResumeItem {
   const content = isRecord(doc.content) ? doc.content : {}
   const candidateName = toStringValue(content.name);
   const seekMarket = doc.source?.includes("seek") ? inferSeekMarket(doc.source) : undefined;
+  const jobIntention = toStringValue(content.jobIntention);
   const profileUrl = normalizeProfileUrlForDisplay(
     content.profileUrl ?? content.profile_url ?? content.profileURL ?? content.url,
     doc.source,
-    { name: candidateName, market: seekMarket }
+    { name: candidateName, market: seekMarket, roleTitles: jobIntention || undefined }
   )
 
   return {
