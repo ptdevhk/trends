@@ -81,6 +81,7 @@ import {
   normalizeResumeLocationHierarchy,
   normalizeWorkHistoryEntry,
   parseKeywordQuery,
+  parseSalaryRange,
   selectLatestWorkHistory,
 } from "@trends/shared";
 import { SkillsKnowledgeService } from "../services/skills-knowledge.js";
@@ -1976,10 +1977,9 @@ function bffMatchesResumeFilters(
   }
 
   if (filters.skills?.length) {
-    const skills = Array.isArray(ingestData.industryTags)
-      ? (ingestData.industryTags as string[])
-      : [];
-    if (!filters.skills.some((s) => skills.some((tag) => tag.toLowerCase().includes(s.toLowerCase())))) return false;
+    // Use full searchText (includes name, workHistory, industryTags, synonyms, etc.)
+    // rather than only ingestData.industryTags — matches Convex behavior.
+    if (!filters.skills.some((skill) => loweredSearchText.includes(skill.toLowerCase()))) return false;
   }
 
   if (filters.requiredKeywords?.length) {
@@ -1994,15 +1994,20 @@ function bffMatchesResumeFilters(
 
   if (typeof filters.minSalary === "number" || typeof filters.maxSalary === "number") {
     const salaryStr = toStringValue(content.expectedSalary) ?? "";
-    const salaryMatch = salaryStr.match(/(\d+)/);
-    if (!salaryMatch) {
+    const salary = parseSalaryRange(salaryStr);
+    if (!salary) {
       // Unknown salary — exclude if maxSalary is set (cannot guarantee cap),
       // but skip minSalary (resume might meet the minimum).
       if (typeof filters.maxSalary === "number") return false;
     } else {
-      const salary = parseInt(salaryMatch[1]!, 10);
-      if (typeof filters.minSalary === "number" && salary < filters.minSalary) return false;
-      if (typeof filters.maxSalary === "number" && salary > filters.maxSalary) return false;
+      if (typeof filters.minSalary === "number") {
+        const maxSalary = salary.max ?? salary.min;
+        if (maxSalary !== undefined && maxSalary < filters.minSalary) return false;
+      }
+      if (typeof filters.maxSalary === "number") {
+        const minSalary = salary.min ?? salary.max;
+        if (minSalary !== undefined && minSalary > filters.maxSalary) return false;
+      }
     }
   }
 
