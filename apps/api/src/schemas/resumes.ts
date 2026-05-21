@@ -1,13 +1,20 @@
 import { z } from "@hono/zod-openapi";
 
-const CsvStringArraySchema = z.preprocess((value) => {
-  if (typeof value !== "string") return value;
-  const parts = value
-    .split(/[,，、]/g)
-    .map((part) => part.trim())
-    .filter(Boolean);
-  return parts.length > 0 ? parts : undefined;
-}, z.array(z.string()).optional());
+const CsvStringArraySchema = z
+  .union([z.string(), z.array(z.string())])
+  .optional()
+  .transform((value) => {
+    if (value === undefined) return undefined;
+    if (typeof value === "string") {
+      const parts = value
+        .split(/[,，、]/g)
+        .map((part) => part.trim())
+        .filter(Boolean);
+      return parts.length > 0 ? parts : undefined;
+    }
+    return value;
+  })
+  .pipe(z.array(z.string()).optional());
 
 const ResumeWorkHistoryDetailShape = {
   companyName: z.string().optional().openapi({ example: "Example Co." }),
