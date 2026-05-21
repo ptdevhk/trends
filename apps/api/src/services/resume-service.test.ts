@@ -476,7 +476,7 @@ describe("ResumeService", () => {
       expect(filtered).toHaveLength(0);
     });
 
-    it("excludes resumes with unparseable education when filter is set", () => {
+    it("matches English education terms for MY market resumes", () => {
       const root = createFixtureRoot();
       roots.push(root);
       const service = new ResumeService(root);
@@ -497,9 +497,9 @@ describe("ResumeService", () => {
         },
       ];
 
-      // normalizeEducationLevel doesn't recognize English education terms
+      // normalizeEducationLevel now recognizes English education terms
       const filtered = service.filterResumes(items, { education: ["bachelor"] });
-      expect(filtered).toHaveLength(0);
+      expect(filtered).toHaveLength(1);
     });
   });
 });
