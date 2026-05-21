@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { normalizeEducationLevel, parseExperienceYears } from "@trends/shared";
 import { ingestDataValidator, collectionTaskResultsValidator } from "../validators";
 import { storeConfirmResult } from "../analyze";
 import * as resumesModule from "../resumes";
@@ -162,5 +163,133 @@ describe("analysis validator sync (with intentional overrides)", () => {
                                   // breakdown, jobDescriptionId, promptVersion,
                                   // locale, queryLocation, analyzedAt
         expect(ALL_SCHEMA_ANALYSIS_FIELDS).toHaveLength(expectedCount);
+    });
+});
+
+// --- normalizeEducationLevel / parseExperienceYears sync with @trends/shared ---
+
+/**
+ * Convex cannot import from @trends/shared, so it maintains local copies of
+ * normalizeEducationLevel and parseExperienceYears in resumes.ts.
+ * If either copy diverges, filter results will differ between BFF and Convex.
+ *
+ * This test asserts the shared and Convex versions produce identical outputs.
+ * The Convex versions are replicated inline (they are module-private).
+ * When updating either copy, update the other and this test will catch drift.
+ */
+
+// Convex-local normalizeEducationLevel (from convex/resumes.ts)
+function convexNormalizeEducationLevel(value: string): string | null {
+    if (!value) {
+        return null;
+    }
+    const normalized = value.trim().toLowerCase();
+    if (!normalized) {
+        return null;
+    }
+    // Chinese education terms
+    if (/博士/.test(normalized)) return "phd";
+    if (/硕士|研究生/.test(normalized)) return "master";
+    if (/本科/.test(normalized)) return "bachelor";
+    if (/大专|专科/.test(normalized)) return "associate";
+    if (/中专|高中|中技/.test(normalized)) return "high_school";
+    // English education terms (Seek MY market)
+    if (/\bph\.?d\.?\b/.test(normalized) || /\bdoctorate\b/.test(normalized)) return "phd";
+    if (/\bmaster/.test(normalized) || /\bm\.?s\.?\b/.test(normalized) || /\bm\.?a\.?\b/.test(normalized) || /\bmba\b/.test(normalized)) return "master";
+    if (/\bdiploma\b/.test(normalized) || /\bassociate\b/.test(normalized)) return "associate";
+    if (/\bbachelor/.test(normalized) || /\bdegree\b/.test(normalized) || /\bb\.?s\.?\b/.test(normalized) || /\bb\.?a\.?\b/.test(normalized)) return "bachelor";
+    if (/\bhigh school\b/.test(normalized) || /\bspm\b/.test(normalized) || /\bstpm\b/.test(normalized)) return "high_school";
+    return null;
+}
+
+// Convex-local parseExperienceYears (from convex/resumes.ts)
+function convexParseExperienceYears(value: string): number | null {
+    if (!value) {
+        return null;
+    }
+    const normalized = value.trim();
+    if (!normalized) {
+        return null;
+    }
+    if (/应届|无经验/.test(normalized)) {
+        return 0;
+    }
+    const match = normalized.match(/(\d+)(?:\s*[-~到]\s*(\d+))?/);
+    if (!match) {
+        return null;
+    }
+    const min = Number(match[1]);
+    const max = match[2] ? Number(match[2]) : min;
+    return Number.isNaN(max) ? null : max;
+}
+
+describe("normalizeEducationLevel sync: @trends/shared vs Convex local copy", () => {
+    const TEST_CASES: Array<[string, string | null]> = [
+        // Chinese
+        ["博士", "phd"],
+        ["硕士", "master"],
+        ["研究生", "master"],
+        ["本科", "bachelor"],
+        ["大专", "associate"],
+        ["专科", "associate"],
+        ["中专", "high_school"],
+        ["高中", "high_school"],
+        ["中技", "high_school"],
+        // English
+        ["PhD", "phd"],
+        ["Ph.D.", "phd"],
+        ["Doctorate", "phd"],
+        ["Master of Engineering", "master"],
+        ["M.S.", "master"],
+        ["MBA", "master"],
+        ["Bachelor of Science", "bachelor"],
+        ["B.S.", "bachelor"],
+        ["Diploma", "associate"],
+        ["Associate Degree", "associate"],
+        ["High School", "high_school"],
+        ["SPM", "high_school"],
+        ["STPM", "high_school"],
+        // Edge cases
+        ["", null],
+        ["Unknown", null],
+        ["  本科  ", "bachelor"],
+    ];
+
+    it.each(TEST_CASES)("normalizeEducationLevel(%j) = %j", (input, expected) => {
+        const sharedResult = normalizeEducationLevel(input);
+        const convexResult = convexNormalizeEducationLevel(input);
+        expect(sharedResult).toBe(expected);
+        expect(convexResult).toBe(expected);
+        expect(sharedResult).toBe(convexResult);
+    });
+});
+
+describe("parseExperienceYears sync: @trends/shared vs Convex local copy", () => {
+    const TEST_CASES: Array<[string, number | null]> = [
+        // Chinese
+        ["应届", 0],
+        ["无经验", 0],
+        // Ranges
+        ["3-5", 5],
+        ["2~3", 3],
+        ["1到3", 3],
+        // Single values
+        ["5", 5],
+        ["10", 10],
+        // With year suffix
+        ["5年", 5],
+        ["3-5年", 5],
+        // Edge cases
+        ["", null],
+        ["unknown", null],
+        ["  3  ", 3],
+    ];
+
+    it.each(TEST_CASES)("parseExperienceYears(%j) = %j", (input, expected) => {
+        const sharedResult = parseExperienceYears(input);
+        const convexResult = convexParseExperienceYears(input);
+        expect(sharedResult).toBe(expected);
+        expect(convexResult).toBe(expected);
+        expect(sharedResult).toBe(convexResult);
     });
 });

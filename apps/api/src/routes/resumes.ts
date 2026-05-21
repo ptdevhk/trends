@@ -1911,8 +1911,11 @@ function resolveConvexResumeFetchLimit(params: {
 }
 
 function removeServerSideFilters(filters: ResumeFilters): ResumeFilters {
-  // Convex's matchesResumeListFilters already handled these fields,
-  // so strip them to avoid double-filtering with potentially different logic.
+  // Convex's matchesResumeListFilters already handled these 6 fields,
+  // so strip them to avoid double-filtering. Other fields (experience,
+  // education, salary, skills, requiredKeywords) are intentionally
+  // re-applied by BFF — the double-filter is benign because both paths
+  // use the same searchText field.
   const { minRoleYears, roleFilterType, minAge, maxAge, sources, locations, ...rest } = filters;
   return rest;
 }
