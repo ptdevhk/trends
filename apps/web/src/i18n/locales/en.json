@@ -427,11 +427,7 @@
         "loading": "Loading...",
         "exportFormat": "Export format",
         "exporting": "Exporting...",
-        "export": "Export {{count}}",
-        "loading": "Loading...",
-        "linkCopied": "Link copied",
-        "copyFailed": "Copy failed",
-        "copyLink": "Copy link"
+        "export": "Export {{count}}"
       },
       "results": {
         "emptyTitle": "No resumes matched this search",
@@ -500,7 +496,10 @@
         "industryDb": "Industry DB",
         "industryDbNotAvailable": "Industry DB: Not available for MY market",
         "education": "Education",
-        "location": "Location"
+        "location": "Location",
+        "breakdownLabels": {
+          "industryDbNotAvailable": "Industry DB: Not available for MY market"
+        }
       },
       "error": {
         "searchBar": "Search bar failed to load",

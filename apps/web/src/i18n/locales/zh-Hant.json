@@ -495,7 +495,10 @@
         "industryDb": "行業庫",
         "industryDbNotAvailable": "行業庫：MY市場暫不可用",
         "education": "學歷",
-        "location": "地點"
+        "location": "地點",
+        "breakdownLabels": {
+          "industryDbNotAvailable": "行業庫：MY市場暫不可用"
+        }
       },
       "error": {
         "searchBar": "搜尋列加載失敗",
