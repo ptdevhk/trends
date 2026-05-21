@@ -3,6 +3,7 @@ import {
   buildWorkHistoryEntryText,
   computeVerifiedRoleYears,
   formatLocationHierarchySearchText,
+  normalizeEducationLevel,
   normalizeResumeLocationHierarchy,
   normalizeWorkHistoryEntry,
   parseSalaryRange,
@@ -191,17 +192,6 @@ function normalizeText(value: string | undefined): string {
     .replace(/[\u3000\s]+/g, " ")
     .trim()
     .toLowerCase();
-}
-
-function normalizeEducationLevel(value: string): string | null {
-  const normalized = value.trim();
-  if (!normalized) return null;
-  if (/博士|phd/i.test(normalized)) return "phd";
-  if (/硕士|研究生|master/i.test(normalized)) return "master";
-  if (/本科|bachelor/i.test(normalized)) return "bachelor";
-  if (/大专|专科|associate/i.test(normalized)) return "associate";
-  if (/高中|中专|中技|high school/i.test(normalized)) return "high_school";
-  return null;
 }
 
 function extractCompanies(workHistory: ResumeWorkHistoryItem[]): string[] {

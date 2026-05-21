@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import JSON5 from "json5";
-import { FALLBACK_INDUSTRY_KEYWORDS, normalizeIndustryTags, type KeywordMarket } from "@trends/shared";
+import { FALLBACK_INDUSTRY_KEYWORDS, normalizeEducationLevel, normalizeIndustryTags, type KeywordMarket } from "@trends/shared";
 import { z } from "zod";
 
 import { findProjectRoot } from "./db.js";
@@ -314,19 +314,6 @@ const LOCATION_PROXIMITY_GROUPS: Record<string, string[]> = {
   yangtzeRiverDelta: ["上海", "苏州", "杭州", "南京", "无锡", "宁波", "常州", "嘉兴"],
   bohaiRim: ["北京", "天津", "大连", "青岛", "济南"],
 };
-
-function normalizeEducationLevel(value: string | null | undefined): string | null {
-  const normalized = (value || "").trim().toLowerCase();
-  if (!normalized) return null;
-
-  if (["phd", "doctor"].includes(normalized) || /博士/.test(normalized)) return "phd";
-  if (["master", "masters"].includes(normalized) || /硕士|研究生/.test(normalized)) return "master";
-  if (["bachelor", "bachelors"].includes(normalized) || /本科/.test(normalized)) return "bachelor";
-  if (["associate"].includes(normalized) || /大专|专科/.test(normalized)) return "associate";
-  if (["high_school", "high school"].includes(normalized) || /中专|高中|中技/.test(normalized)) return "high_school";
-
-  return null;
-}
 
 function ensureKeywords(value: string[]): string[] {
   return Array.from(
