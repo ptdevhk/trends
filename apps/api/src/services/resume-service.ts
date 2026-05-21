@@ -256,10 +256,10 @@ function countOccurrences(haystack: string, needle: string): number {
   return count;
 }
 
-// NOTE: This is the BFF-side narrow haystack (name + latest workHistory only).
-// Convex has a different buildResumeFilterSearchText in convex/resumes.ts that
+// BFF-side narrow haystack (name + latest workHistory/projectExperience only).
+// Different from Convex's buildResumeFilterSearchText (convex/resumes.ts) which
 // uses the full document. When searchText is available, prefer it over this.
-function buildSearchText(item: ResumeItem): string {
+function buildBffSearchText(item: ResumeItem): string {
   const locationText = formatLocationHierarchySearchText(item.locationHierarchy) || item.location || "";
   const latestWorkHistory = selectLatestWorkHistory(item.workHistory);
   const latestProjectExperience = selectLatestWorkHistory(item.projectExperience ?? []);
@@ -494,7 +494,7 @@ export class ResumeService {
       const index = indexMap?.get(resumeId);
 
       const name = (item.name || "").toLowerCase();
-      const searchText = index?.searchText || buildSearchText(item);
+      const searchText = index?.searchText || buildBffSearchText(item);
       const companies = index?.companies ?? selectLatestWorkHistory(item.workHistory).map((wh) => extractCompanyFromWorkHistory(wh));
 
       const perKeywordScores = keywordSets.map(({ original, variants }) => {
@@ -614,15 +614,15 @@ export class ResumeService {
 
       if (filters.skills?.length) {
         // Use full searchText (includes all workHistory, industryTags, synonyms, etc.)
-        // rather than narrow buildSearchText (only latest workHistory). Aligns with
+        // rather than narrow buildBffSearchText (only latest workHistory). Aligns with
         // Convex matchesResumeListFilters and BFF bffMatchesResumeFilters.
-        const haystack = item.searchText?.toLowerCase() ?? buildSearchText(item);
+        const haystack = item.searchText?.toLowerCase() ?? buildBffSearchText(item);
         const hasSkill = filters.skills.some((skill) => haystack.includes(skill.toLowerCase()));
         if (!hasSkill) return false;
       }
 
       if (filters.requiredKeywords?.length) {
-        const haystack = item.searchText?.toLowerCase() ?? buildSearchText(item);
+        const haystack = item.searchText?.toLowerCase() ?? buildBffSearchText(item);
         if (!matchesAllRequiredKeywords(haystack, filters.requiredKeywords)) return false;
       }
 

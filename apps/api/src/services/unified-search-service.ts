@@ -44,7 +44,8 @@ function normalizeToken(value: string): string {
   return value.trim().toLowerCase();
 }
 
-function buildSearchText(item: ResumeItem): string {
+// BFF-side narrow haystack — same logic as resume-service.ts buildBffSearchText.
+function buildBffSearchText(item: ResumeItem): string {
   const locationText = formatLocationHierarchySearchText(item.locationHierarchy) || item.location || "";
   const latestWorkHistory = selectLatestWorkHistory(item.workHistory);
   const parts = [
@@ -180,7 +181,7 @@ export class UnifiedSearchService {
       const item = items[i];
       const resumeId = resolveResumeId(item, i);
       const index = options?.indexMap?.get(resumeId);
-      const searchText = index?.searchText || buildSearchText(item);
+      const searchText = index?.searchText || buildBffSearchText(item);
       const companies = index?.companies ?? selectLatestWorkHistory(item.workHistory).map((entry) => extractCompanyFromWorkHistory(entry));
       const industryTags = index?.industryTags ?? [];
       const provenance: UnifiedSearchProvenance[] = [];
