@@ -149,6 +149,7 @@ export const SnippetCard = memo(function SnippetCard({
   // Profile link
   const profileUrl = item.resume.profileUrl?.trim()
   const hasProfileUrl = isSafeProfileUrl(profileUrl)
+  const isSeekUuidUrl = typeof profileUrl === 'string' && /\.employer\.seek\.com\/candidates\/[0-9a-f]{8}-/i.test(profileUrl)
 
   // Dialog state for status note prompt and block/comment
   const [promptDialogOpen, setPromptDialogOpen] = useState(false)
@@ -304,6 +305,7 @@ export const SnippetCard = memo(function SnippetCard({
                 href={profileUrl}
                 target="_blank"
                 rel="noreferrer"
+                title={isSeekUuidUrl ? 'Requires active Seek session' : undefined}
               >
                 {highlightTerms(item.resume.name || unnamedResumeLabel, searchTerms)}
               </a>
