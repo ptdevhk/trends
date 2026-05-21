@@ -114,6 +114,7 @@ export default defineSchema({
 
         // Pre-computed Ingest Data (M3)
         ingestData: v.optional(v.object({
+            market: v.optional(v.string()),
             evidenceText: v.optional(v.string()),
             industryTags: v.array(v.string()),
             synonymHits: v.array(v.string()),

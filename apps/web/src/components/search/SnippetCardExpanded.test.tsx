@@ -419,4 +419,116 @@ describe('SnippetCardExpanded', () => {
       expect(screen.queryByText('Analysis JSON')).not.toBeInTheDocument()
     })
   })
+
+  describe('MY market industry DB placeholder', () => {
+    it('shows "Not available for MY market" in breakdown bar for MY resumes', () => {
+      render(
+        <SnippetCardExpanded
+          item={createResult(1, {
+            analysis: {
+              score: 80,
+              summary: 'Good sales candidate',
+              highlights: ['CNC sales'],
+              concerns: [],
+              recommendation: 'match',
+              breakdown: {
+                related_exp: 40,
+                industry_db: 0,
+              },
+            },
+            resume: createResume(1, {
+              source: 'seek',
+              ingestData: {
+                market: 'MY',
+                industryTags: ['Machine Tools'],
+                synonymHits: [],
+                brandHits: [],
+                companyHits: [],
+                ruleScores: {},
+                experienceLevel: 'senior',
+                computedAt: Date.now(),
+                skillsVersion: 1,
+              },
+            }),
+          })}
+        />
+      )
+
+      expect(screen.getByText(/Not available for MY market/i)).toBeInTheDocument()
+    })
+
+    it('shows MY placeholder in debug score dimensions for MY resumes', async () => {
+      const user = userEvent.setup()
+      render(
+        <SnippetCardExpanded
+          item={createResult(1, {
+            analysis: {
+              score: 80,
+              summary: 'Good sales candidate',
+              highlights: [],
+              concerns: [],
+              recommendation: 'match',
+              breakdown: { related_exp: 36, skills: 82, industry_db: 0, education: 70, location: 55 },
+            },
+            resume: createResume(1, {
+              source: 'seek',
+              ingestData: {
+                market: 'MY',
+                industryTags: [],
+                synonymHits: [],
+                brandHits: [],
+                companyHits: [],
+                ruleScores: {},
+                experienceLevel: 'senior',
+                computedAt: Date.now(),
+                skillsVersion: 1,
+              },
+            }),
+          })}
+        />
+      )
+
+      await user.click(screen.getByRole('button', { name: /debug/i }))
+
+      // Debug section should show MY placeholder instead of industry_db bar
+      const myPlaceholders = screen.getAllByText(/Not available for MY market/i)
+      expect(myPlaceholders.length).toBeGreaterThanOrEqual(1)
+    })
+
+    it('does not show MY placeholder for CN market resumes', () => {
+      render(
+        <SnippetCardExpanded
+          item={createResult(1, {
+            analysis: {
+              score: 80,
+              summary: 'Good sales candidate',
+              highlights: ['CNC sales'],
+              concerns: [],
+              recommendation: 'match',
+              breakdown: {
+                related_exp: 40,
+                industry_db: 35,
+              },
+            },
+            resume: createResume(1, {
+              source: 'hr.job5156.com',
+              ingestData: {
+                market: 'CN',
+                industryTags: ['Machine Tools'],
+                synonymHits: [],
+                brandHits: [],
+                companyHits: [],
+                ruleScores: {},
+                experienceLevel: 'senior',
+                computedAt: Date.now(),
+                skillsVersion: 1,
+              },
+            }),
+          })}
+        />
+      )
+
+      expect(screen.queryByText(/Not available for MY market/i)).not.toBeInTheDocument()
+    })
+  })
 })

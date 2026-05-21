@@ -1597,3 +1597,46 @@ export const removeScreeningSessionCollectUrl = mutation({
         return { patched, total: sessions.length };
     },
 });
+
+/**
+ * Backfill `ingestData.market` on existing Seek resumes.
+ * The `market` field was added for MY market graceful degradation —
+ * Seek resumes need `market: "MY"` so the UI can suppress industry_db scoring.
+ */
+export const backfillMarketField = mutation({
+    args: {
+        cursor: v.optional(v.string()),
+        batchSize: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const resumes = await ctx.db
+            .query("resumes")
+            .withIndex("by_sourceKey", (q) => q.eq("sourceKey", "seek"))
+            .order("desc")
+            .paginate({
+                cursor: args.cursor ?? null,
+                numItems: resolveResumeScanBatchSize(args.batchSize),
+            });
+        let updated = 0;
+        for (const resume of resumes.page) {
+            if (resume.sourceKey !== "seek") continue;
+            if (resume.ingestData?.market) continue;
+            if (!resume.ingestData) continue; // skip resumes with no ingest data at all
+
+            await ctx.db.patch(resume._id, {
+                ingestData: {
+                    ...resume.ingestData,
+                    market: "MY",
+                } as typeof resume.ingestData,
+            });
+            updated += 1;
+        }
+
+        return {
+            scanned: resumes.page.length,
+            updated,
+            hasMore: !resumes.isDone,
+            cursor: resumes.isDone ? null : resumes.continueCursor,
+        };
+    },
+});

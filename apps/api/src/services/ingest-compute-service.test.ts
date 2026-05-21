@@ -1138,4 +1138,56 @@ describe("IngestComputeService", () => {
     expect(result.companyHits).toEqual([]);
     expect(result.brandHits.filter((hit) => hit.context === "employer")).toEqual([]);
   });
+
+  describe("MY market graceful degradation", () => {
+    it("should set market to CN by default (no sourceKey)", () => {
+      const result = service.computeOne("resume-default", SAMPLE_RESUME_CNC_SALES);
+      expect(result.market).toBe("CN");
+    });
+
+    it("should set market to CN for job5156 sourceKey", () => {
+      const result = service.computeOne("resume-cn", SAMPLE_RESUME_CNC_SALES, "job5156");
+      expect(result.market).toBe("CN");
+    });
+
+    it("should set market to MY for seek sourceKey", () => {
+      const result = service.computeOne("resume-my", SAMPLE_RESUME_CNC_SALES, "seek");
+      expect(result.market).toBe("MY");
+    });
+
+    it("should skip company/brand verification for MY market", () => {
+      const cnResult = service.computeOne("resume-cn", SAMPLE_RESUME_CNC_SALES, "job5156");
+      const myResult = service.computeOne("resume-my", SAMPLE_RESUME_CNC_SALES, "seek");
+
+      // CN market should have some industry DB data
+      expect(cnResult.industryDbV2Raw).toBeGreaterThanOrEqual(0);
+
+      // MY market should always have zero industry DB scores
+      expect(myResult.industryDbV2Raw).toBe(0);
+      expect(myResult.brandHits).toEqual([]);
+      expect(myResult.companyHits).toEqual([]);
+      expect(myResult.industryDbV2RawComponents).toEqual({
+        companyScore: 0,
+        brandScore: 0,
+        weightedBrandUnits: 0,
+        uniqueCompanies: 0,
+        brandUnitCount: 0,
+      });
+    });
+
+    it("should still compute industryTags for MY market (keyword-based)", () => {
+      const result = service.computeOne("resume-my", SAMPLE_RESUME_CNC_SALES, "seek");
+
+      // Keyword-based tags still work regardless of market
+      expect(result.industryTags.length).toBeGreaterThan(0);
+    });
+
+    it("should zero brandRelevance in rule scores for MY market", () => {
+      const cnResult = service.computeOne("resume-cn", SAMPLE_RESUME_CNC_SALES, "job5156");
+      const myResult = service.computeOne("resume-my", SAMPLE_RESUME_CNC_SALES, "seek");
+
+      // MY market scores should be <= CN scores (missing 10 brandRelevance pts)
+      expect(myResult.primaryRuleScore).toBeLessThanOrEqual(cnResult.primaryRuleScore);
+    });
+  });
 });

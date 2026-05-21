@@ -1230,6 +1230,7 @@ export function useResumeListState(loadSearchHistory = false) {
                 hasBrandHits,
                 hasCompanyHits,
               ),
+              ingestData?.market,
             )
           : undefined
 

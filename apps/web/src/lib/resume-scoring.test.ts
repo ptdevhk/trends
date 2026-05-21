@@ -84,8 +84,8 @@ describe('resume-scoring', () => {
   it.each([
     { score: 85, expected: 'strong_match' },
     { score: 70, expected: 'match' },
-    { score: 40, expected: 'potential' },
-    { score: 39, expected: 'no_match' },
+    { score: 50, expected: 'potential' },
+    { score: 49, expected: 'no_match' },
   ])('derives recommendation from normalized score $score', ({ score, expected }) => {
     expect(recommendationFromScore(score)).toBe(expected)
   })
@@ -357,6 +357,32 @@ describe('resume-scoring', () => {
         industry_db: 0,
       },
     }))
+  })
+
+  describe('MY market industry_db suppression', () => {
+    const cnAnalysis = {
+      score: 63,
+      summary: 'partial fit',
+      highlights: [],
+      recommendation: 'potential' as const,
+      breakdown: { related_exp: 26, industry_db: 50 },
+    }
+
+    it('zeros industry_db for MY market', () => {
+      const result = overrideIndustryDbBreakdown(cnAnalysis, 50, 'MY')
+      expect(result.breakdown!.industry_db).toBe(0)
+      expect(result.score).toBe(13) // related_exp * 0.5 = 13
+    })
+
+    it('keeps industry_db for CN market', () => {
+      const result = overrideIndustryDbBreakdown(cnAnalysis, 50, 'CN')
+      expect(result.breakdown!.industry_db).toBe(50)
+    })
+
+    it('keeps industry_db when market is not specified', () => {
+      const result = overrideIndustryDbBreakdown(cnAnalysis, 50)
+      expect(result.breakdown!.industry_db).toBe(50)
+    })
   })
 
   it('ignores stale analyses with mismatched prompt versions', () => {

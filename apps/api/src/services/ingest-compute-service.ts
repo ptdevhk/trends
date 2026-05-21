@@ -7,6 +7,8 @@ import {
   normalizeWorkHistoryEntry,
   parseSalaryRange,
   selectLatestWorkHistory,
+  type KeywordMarket,
+  deriveMarketFromSourceKey,
 } from "@trends/shared";
 
 import { IndustryDataService } from "./industry-data-service.js";
@@ -21,6 +23,7 @@ import type { ResumeIndex } from "./resume-index.js";
 export interface IngestInput {
   resumeId: string;
   content: unknown;  // raw crawler JSON
+  sourceKey?: string; // e.g. "seek", "51job", "job5156" — used to derive market
 }
 
 export type BrandContext = "employer" | "equipment" | "sales" | "technical" | "general";
@@ -43,6 +46,7 @@ export interface IndustryDbV2RawComponents {
 
 export interface IngestResult {
   resumeId: string;
+  market: KeywordMarket;
   evidenceText: string;
   industryTags: string[];
   synonymHits: string[];
@@ -461,7 +465,8 @@ export class IngestComputeService {
   /**
    * Compute ingest data for a single resume
    */
-  computeOne(resumeId: string, content: unknown): IngestResult {
+  computeOne(resumeId: string, content: unknown, sourceKey?: string): IngestResult {
+    const market = deriveMarketFromSourceKey(sourceKey);
     const item = extractResumeItem(content);
     const index = buildResumeIndex(item, 0);
     const searchText = index.searchText.toLowerCase();
@@ -473,27 +478,32 @@ export class IngestComputeService {
     const evidenceText = (index.evidenceText || "").toLowerCase();
     const computedAt = Date.now();
 
-    // 1. Compute industryTags
+    // 1. Compute industryTags (keyword-based, works for all markets)
     const industryTags = this.computeIndustryTags(evidenceText);
 
     // 2. Compute synonymHits
     const synonymHits = this.computeSynonymHits(evidenceText);
 
     // 3. Compute field-aware brandHits, then derive companyHits for backward compatibility
+    //    For MY market: skip company/brand verification (CN-only data), keep keyword-based tags
     const latestWorkHistory = getLatestWorkHistory(item.workHistory);
-    const verifiedEmployers = this.collectVerifiedEmployerMatches(latestWorkHistory);
-    const brandHits = this.computeBrandHits(latestWorkHistory, index.companies, searchText, verifiedEmployers);
+    const isIndustryDbAvailable = market !== "MY";
+    const verifiedEmployers = isIndustryDbAvailable
+      ? this.collectVerifiedEmployerMatches(latestWorkHistory)
+      : [];
+    const brandHits = isIndustryDbAvailable
+      ? this.computeBrandHits(latestWorkHistory, index.companies, searchText, verifiedEmployers)
+      : [];
     const companyHits = verifiedEmployers.map((m) => m.key);
-    const { raw: industryDbV2Raw, components: industryDbV2RawComponents } = computeIndustryDbV2Raw(
-      companyHits,
-      brandHits
-    );
+    const { raw: industryDbV2Raw, components: industryDbV2RawComponents } = isIndustryDbAvailable
+      ? computeIndustryDbV2Raw(companyHits, brandHits)
+      : { raw: 0, components: { companyScore: 0, brandScore: 0, weightedBrandUnits: 0, uniqueCompanies: 0, brandUnitCount: 0 } };
     const roleYearsAnchor = resolveRoleYearsAnchor(item);
     const roleSignals = this.computeRoleSignals(latestWorkHistory, roleYearsAnchor);
     const companyPatternAliasTokens = this.buildCompanyAliasTokens(companyHits, brandHits);
 
     // 4. Compute ruleScores for all active JDs
-    const ruleScores = this.computeRuleScores(index, brandHits, roleSignals);
+    const ruleScores = this.computeRuleScores(index, brandHits, roleSignals, market);
     const scoreValues = Object.values(ruleScores);
     const primaryRuleScore = scoreValues.length > 0 ? Math.max(...scoreValues) : 0;
 
@@ -515,6 +525,7 @@ export class IngestComputeService {
 
     return {
       resumeId,
+      market,
       evidenceText: index.evidenceText || "",
       industryTags,
       synonymHits,
@@ -539,7 +550,7 @@ export class IngestComputeService {
    */
   computeBatch(inputs: IngestInput[]): IngestResult[] {
     this.skillsKnowledgeService.clearCache();
-    return inputs.map((input) => this.computeOne(input.resumeId, input.content));
+    return inputs.map((input) => this.computeOne(input.resumeId, input.content, input.sourceKey));
   }
 
   /**
@@ -588,6 +599,7 @@ export class IngestComputeService {
     index: ResumeIndex,
     brandHits: BrandHit[],
     roleSignals: RoleSignalSummary[],
+    market: KeywordMarket,
   ): Record<string, number> {
     const jds = this.jobDescriptionService.listFiles().filter((jd) => jd.status === "active");
     const scores: Record<string, number> = {};
@@ -595,7 +607,7 @@ export class IngestComputeService {
     for (const jd of jds) {
       try {
         const context = this.ruleScoringService.buildContext(jd.name);
-        const result = this.ruleScoringService.scoreResume(index, context, brandHits, roleSignals);
+        const result = this.ruleScoringService.scoreResume(index, context, brandHits, roleSignals, market);
         scores[jd.id] = result.score;
       } catch (error) {
         // Log error but don't fail the whole batch

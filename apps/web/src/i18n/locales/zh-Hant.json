@@ -116,6 +116,7 @@
       "experience": "經驗",
       "skills": "技能",
       "industryDb": "產業庫",
+      "industryDbNotAvailable": "產業庫：MY市場暫不可用",
       "education": "學歷",
       "location": "地點"
     },
@@ -492,6 +493,7 @@
         "relatedExp": "相關經驗",
         "skills": "技能",
         "industryDb": "行業庫",
+        "industryDbNotAvailable": "行業庫：MY市場暫不可用",
         "education": "學歷",
         "location": "地點"
       },

@@ -77,6 +77,15 @@ export function getCollectionSourceMarket(sourceType: CollectionSourceType): 'CN
   return SOURCE_MARKET_MAP[sourceType]
 }
 
+/**
+ * Derive market from a resume's sourceKey (stored in ingestData).
+ * Falls back to "CN" for legacy resumes without market data.
+ */
+export function getResumeMarket(sourceKey?: string | null): 'CN' | 'MY' {
+  if (!sourceKey) return 'CN'
+  return SOURCE_MARKET_MAP[sourceKey as CollectionSourceType] ?? 'CN'
+}
+
 export type SearchProfileSource = {
   type: string
   enabled: boolean

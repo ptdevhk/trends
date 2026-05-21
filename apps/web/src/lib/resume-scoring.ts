@@ -148,7 +148,7 @@ export function recommendationFromScore(score: number): Recommendation {
     return 'match'
   }
 
-  if (score >= 40) {
+  if (score >= 50) {
     return 'potential'
   }
 
@@ -543,7 +543,9 @@ export function computeNormalizedIndustryDbScore(raw: number | undefined, stats:
 export function overrideIndustryDbBreakdown(
   analysis: ConvexResumeAnalysis,
   industryDb: number,
+  market?: string,
 ): ConvexResumeAnalysis {
+  const effectiveIndustryDb = market === 'MY' ? 0 : industryDb
   const normalizedRelatedExp =
     typeof analysis.breakdown?.related_exp === 'number'
       ? Math.round(clamp(analysis.breakdown.related_exp, 0, 100) * RELATED_EXP_AI_WEIGHT)
@@ -551,12 +553,12 @@ export function overrideIndustryDbBreakdown(
   const nextBreakdown: MatchBreakdown = {
     ...(analysis.breakdown ?? {}),
     related_exp: normalizedRelatedExp,
-    industry_db: industryDb,
+    industry_db: effectiveIndustryDb,
   }
 
   return {
     ...analysis,
-    score: Math.min(100, normalizedRelatedExp + industryDb),
+    score: Math.min(100, normalizedRelatedExp + effectiveIndustryDb),
     breakdown: nextBreakdown,
   }
 }

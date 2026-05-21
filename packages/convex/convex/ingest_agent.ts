@@ -97,7 +97,7 @@ export const processNewResumes = internalAction({
 
     try {
       // 1. Fetch resume documents
-      const resumes: Array<{ _id: Id<"resumes">; content: Record<string, unknown> }> = await ctx.runQuery(internal.resumes.getResumesByIds, {
+      const resumes: Array<{ _id: Id<"resumes">; content: Record<string, unknown>; sourceKey?: string }> = await ctx.runQuery(internal.resumes.getResumesByIds, {
         resumeIds,
       });
 
@@ -106,11 +106,12 @@ export const processNewResumes = internalAction({
         return { processed: 0, error: null };
       }
 
-      // 2. Prepare payload for BFF
+      // 2. Prepare payload for BFF (include sourceKey for market derivation)
       const payload = {
-        resumes: resumes.map((resume: { _id: Id<"resumes">; content: Record<string, unknown> }) => ({
+        resumes: resumes.map((resume: { _id: Id<"resumes">; content: Record<string, unknown>; sourceKey?: string }) => ({
           resumeId: resume._id,
           content: resume.content,
+          sourceKey: resume.sourceKey,
         })),
       };
 
@@ -147,6 +148,7 @@ export const processNewResumes = internalAction({
       const updates = (result.results as Array<Record<string, unknown>>).map((item) => ({
         resumeId: item.resumeId as Id<"resumes">,
         ingestData: {
+          market: item.market as string,
           evidenceText: (item.evidenceText as string) || "",
           industryTags: item.industryTags as string[],
           synonymHits: item.synonymHits as string[],

@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import JSON5 from "json5";
-import { FALLBACK_INDUSTRY_KEYWORDS, normalizeIndustryTags } from "@trends/shared";
+import { FALLBACK_INDUSTRY_KEYWORDS, normalizeIndustryTags, type KeywordMarket } from "@trends/shared";
 import { z } from "zod";
 
 import { findProjectRoot } from "./db.js";
@@ -829,6 +829,7 @@ export class RuleScoringService {
     context: RuleScoringContext,
     brandHits: BrandHit[] = [],
     roleSignals: RoleSignalSummary[] = [],
+    market: KeywordMarket = "CN",
   ): RuleScoringResult {
     const categoryWeights = this.weights.categoryWeights;
     const keywordVariantMap = new Map<string, string[]>(
@@ -954,14 +955,17 @@ export class RuleScoringService {
       ? this.weights.brandContextWithTarget
       : this.weights.brandContextNoTarget;
 
-    const brandRelevance = Math.min(
-      categoryWeights.brandRelevance,
-      matchedBrandHits.reduce((maxScore, hit) => {
-        const baseWeight = contextWeights[hit.context] ?? 0;
-        const roleMultiplier = this.weights.brandRoleMultipliers[hit.role] ?? 1;
-        return Math.max(maxScore, Math.round(baseWeight * roleMultiplier));
-      }, 0)
-    );
+    // MY market: brandRelevance is 0 because industry DB data is CN-only
+    const brandRelevance = market === "MY"
+      ? 0
+      : Math.min(
+          categoryWeights.brandRelevance,
+          matchedBrandHits.reduce((maxScore, hit) => {
+            const baseWeight = contextWeights[hit.context] ?? 0;
+            const roleMultiplier = this.weights.brandRoleMultipliers[hit.role] ?? 1;
+            return Math.max(maxScore, Math.round(baseWeight * roleMultiplier));
+          }, 0)
+        );
 
     const rawScore = skillMatch + roleMatch + experienceMatch + educationMatch + locationMatch + industryMatch + brandRelevance;
     const score = Math.max(0, Math.min(100, rawScore));

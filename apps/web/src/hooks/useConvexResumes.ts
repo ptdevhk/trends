@@ -44,6 +44,7 @@ export type ConvexResumeAnalysis = {
 }
 
 export type ConvexIngestData = {
+  market?: string
   evidenceText?: string
   industryTags: string[]
   synonymHits: string[]

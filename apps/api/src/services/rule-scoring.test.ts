@@ -938,4 +938,66 @@ describe("RuleScoringService", () => {
       cleanupFixtureRoot(root);
     }
   });
+
+  describe("MY market brandRelevance suppression", () => {
+    it("should zero brandRelevance for MY market", () => {
+      const root = createFixtureRoot();
+      try {
+        const service = new RuleScoringService(root);
+        const index: ResumeIndex = {
+          resumeId: "R-my-brand-test",
+          experienceYears: 5,
+          educationLevel: "bachelor",
+          locationCity: "东莞",
+          evidenceText: "2019-2025 CNC销售 fanuc设备销售",
+          skills: ["cnc", "销售"],
+          companies: ["某Fanuc代理"],
+          industryTags: ["machinery", "sales"],
+          salaryRange: { min: 10000, max: 15000 },
+          searchText: "cnc 销售 fanuc",
+        };
+        const context = service.buildContext("lathe-sales");
+        const brandHits = [
+          { brand: "Fanuc", role: "employer" as const, source: "workHistory" as const, context: "employer" as const },
+        ];
+
+        const cnResult = service.scoreResume(index, context, brandHits, [], "CN");
+        const myResult = service.scoreResume(index, context, brandHits, [], "MY");
+
+        expect(cnResult.breakdown.brandRelevance).toBeGreaterThan(0);
+        expect(myResult.breakdown.brandRelevance).toBe(0);
+        expect(myResult.score).toBeLessThan(cnResult.score);
+      } finally {
+        cleanupFixtureRoot(root);
+      }
+    });
+
+    it("should keep industryMatch active for MY market", () => {
+      const root = createFixtureRoot();
+      try {
+        const service = new RuleScoringService(root);
+        const index: ResumeIndex = {
+          resumeId: "R-my-industry-match",
+          experienceYears: 5,
+          educationLevel: "bachelor",
+          locationCity: "东莞",
+          evidenceText: "2019-2025 CNC销售",
+          skills: ["cnc", "销售"],
+          companies: [],
+          industryTags: ["machinery", "sales"],
+          salaryRange: { min: 10000, max: 15000 },
+          searchText: "cnc 销售",
+        };
+        const context = service.buildContext("lathe-sales");
+
+        const cnResult = service.scoreResume(index, context, [], [], "CN");
+        const myResult = service.scoreResume(index, context, [], [], "MY");
+
+        // industryMatch is keyword-based, should be same for both markets
+        expect(myResult.breakdown.industryMatch).toBe(cnResult.breakdown.industryMatch);
+      } finally {
+        cleanupFixtureRoot(root);
+      }
+    });
+  });
 });

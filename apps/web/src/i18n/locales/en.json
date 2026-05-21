@@ -116,6 +116,7 @@
       "experience": "Experience",
       "skills": "Skills",
       "industryDb": "Industry DB",
+      "industryDbNotAvailable": "Industry DB: Not available for MY market",
       "education": "Education",
       "location": "Location"
     },
@@ -497,6 +498,7 @@
         "relatedExp": "Related Exp",
         "skills": "Skills",
         "industryDb": "Industry DB",
+        "industryDbNotAvailable": "Industry DB: Not available for MY market",
         "education": "Education",
         "location": "Location"
       },

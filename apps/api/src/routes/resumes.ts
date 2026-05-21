@@ -5817,7 +5817,7 @@ app.post("/api/resumes/trigger-reingest", async (c) => {
 // Internal endpoint for ingest compute (called by Convex action)
 app.post("/api/resumes/ingest-compute", async (c) => {
   const body = await c.req.json();
-  const resumes = body.resumes as Array<{ resumeId: string; content: unknown }>;
+  const resumes = body.resumes as Array<{ resumeId: string; content: unknown; sourceKey?: string }>;
 
   if (!Array.isArray(resumes)) {
     return c.json({ success: false, error: "Invalid request: expected { resumes: [...] }" }, 400);

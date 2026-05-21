@@ -824,6 +824,7 @@ export function useResumeSearchState() {
             hasBrandHits,
             hasCompanyHits,
           ),
+          resume.ingestData?.market,
         )
         : undefined
       const score = resolveScore(

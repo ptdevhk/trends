@@ -116,6 +116,7 @@
       "experience": "经验",
       "skills": "技能",
       "industryDb": "行业库",
+      "industryDbNotAvailable": "行业库：MY市场暂不可用",
       "education": "学历",
       "location": "地区"
     },
@@ -492,6 +493,7 @@
         "relatedExp": "相关经验",
         "skills": "技能",
         "industryDb": "行业库",
+        "industryDbNotAvailable": "行业库：MY市场暂不可用",
         "education": "学历",
         "location": "地点"
       },
