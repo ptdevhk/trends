@@ -527,7 +527,7 @@ describe("ResumeService", () => {
         },
       ];
 
-      // "fanuc" is NOT in buildSearchText (narrow haystack) but IS in searchText
+      // "fanuc" is NOT in buildBffSearchText (narrow haystack) but IS in searchText
       const filtered = service.filterResumes(items, { skills: ["fanuc"] });
       expect(filtered).toHaveLength(1);
     });
@@ -558,7 +558,7 @@ describe("ResumeService", () => {
       expect(filtered).toHaveLength(1);
     });
 
-    it("falls back to buildSearchText when searchText is absent", () => {
+    it("falls back to buildBffSearchText when searchText is absent", () => {
       const root = createFixtureRoot();
       roots.push(root);
       const service = new ResumeService(root);
@@ -576,11 +576,11 @@ describe("ResumeService", () => {
           expectedSalary: "",
           workHistory: [],
           extractedAt: "2026-03-20T00:00:00.000Z",
-          // No searchText — falls back to buildSearchText which includes name
+          // No searchText — falls back to buildBffSearchText which includes name
         },
       ];
 
-      // "sales" is in buildSearchText via name/selfIntro/jobIntention
+      // "sales" is in buildBffSearchText via name/selfIntro/jobIntention
       const filtered = service.filterResumes(items, { skills: ["sales"] });
       expect(filtered).toHaveLength(1);
     });
