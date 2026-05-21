@@ -633,7 +633,11 @@ function projectResumeBaseContent(
         ?? toOptionalStringValue(content.url);
     const activityStatus = toOptionalStringValue(content.activityStatus);
     const age = toOptionalStringValue(content.age);
-    const experience = toOptionalStringValue(content.experience);
+    const experience = toOptionalStringValue(content.experience)
+        ?? (() => {
+            const years = computeExperienceFromWorkHistory(content.workHistory);
+            return years !== null ? `${years} years` : undefined;
+        })();
     const education = toOptionalStringValue(content.education);
     const location = toOptionalStringValue(content.location);
     const selfIntro = toOptionalStringValue(content.selfIntro);
