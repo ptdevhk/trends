@@ -256,6 +256,9 @@ function countOccurrences(haystack: string, needle: string): number {
   return count;
 }
 
+// NOTE: This is the BFF-side narrow haystack (name + latest workHistory only).
+// Convex has a different buildResumeFilterSearchText in convex/resumes.ts that
+// uses the full document. When searchText is available, prefer it over this.
 function buildSearchText(item: ResumeItem): string {
   const locationText = formatLocationHierarchySearchText(item.locationHierarchy) || item.location || "";
   const latestWorkHistory = selectLatestWorkHistory(item.workHistory);
