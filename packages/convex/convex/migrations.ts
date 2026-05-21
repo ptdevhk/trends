@@ -4,10 +4,12 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
 import {
     buildLatestWorkHistoryEvidence,
+    buildSeekNameSearchUrl,
     computeTemplateHash,
     computeVerifiedRoleYears,
     formatLocationHierarchyLabel,
     getWorkspaceSearchProfileTemplates,
+    inferSeekMarket,
     normalizeJob5156ProfileUrlForDisplay,
     normalizeResumeLocationHierarchy,
     normalizeWorkHistoryEntry,
@@ -1637,6 +1639,62 @@ export const backfillMarketField = mutation({
         return {
             scanned: resumes.page.length,
             updated,
+            hasMore: !resumes.isDone,
+            cursor: resumes.isDone ? null : resumes.continueCursor,
+        };
+    },
+});
+
+export const backfillSeekNameSearchUrls = mutation({
+    args: {
+        cursor: v.optional(v.string()),
+        batchSize: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const resumes = await ctx.db
+            .query("resumes")
+            .order("desc")
+            .paginate({
+                cursor: args.cursor ?? null,
+                numItems: resolveResumeScanBatchSize(args.batchSize),
+            });
+        let updatedResumes = 0;
+
+        for (const resume of resumes.page) {
+            const source = typeof resume.source === "string" ? resume.source : "";
+            const isSeekSource = source.includes("seek");
+            if (!isSeekSource) continue;
+
+            const content = typeof resume.content === "object" && resume.content !== null ? resume.content as Record<string, unknown> : {};
+            const profileUrl = typeof content.profileUrl === "string" ? content.profileUrl : "";
+
+            // Skip if already name-search URL
+            if (profileUrl.includes("/talentsearch/profiles/search")) continue;
+
+            // Check for UUID pattern
+            const uuidMatch = profileUrl.match(/\/candidates\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:\/|$)/i);
+            if (!uuidMatch) continue;
+
+            const name = typeof content.name === "string" ? content.name.trim() : "";
+            if (!name) continue;
+
+            const market = inferSeekMarket(source);
+            const nameSearchUrl = buildSeekNameSearchUrl(name, market);
+            if (!nameSearchUrl) continue;
+
+            const updatedContent = { ...content, profileUrl: nameSearchUrl };
+            const searchText = buildSearchText(updatedContent);
+            await ctx.db.patch(resume._id, {
+                content: updatedContent,
+                searchText,
+            });
+
+            updatedResumes += 1;
+        }
+
+        return {
+            scannedResumes: resumes.page.length,
+            updatedResumes,
             hasMore: !resumes.isDone,
             cursor: resumes.isDone ? null : resumes.continueCursor,
         };
