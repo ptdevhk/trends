@@ -653,13 +653,20 @@ export function parseExperienceYears(value: string): number | null {
 
 export function normalizeEducationLevel(value: string): string | null {
   if (!value) return null;
-  const normalized = value.trim();
+  const normalized = value.trim().toLowerCase();
   if (!normalized) return null;
+  // Chinese education terms
   if (/博士/.test(normalized)) return "phd";
   if (/硕士|研究生/.test(normalized)) return "master";
   if (/本科/.test(normalized)) return "bachelor";
   if (/大专|专科/.test(normalized)) return "associate";
   if (/中专|高中|中技/.test(normalized)) return "high_school";
+  // English education terms (Seek MY market)
+  if (/\bph\.?d\.?\b/.test(normalized) || /\bdoctorate\b/.test(normalized)) return "phd";
+  if (/\bmaster/.test(normalized) || /\bm\.?s\.?\b/.test(normalized) || /\bm\.?a\.?\b/.test(normalized) || /\bmba\b/.test(normalized)) return "master";
+  if (/\bbachelor/.test(normalized) || /\bdegree\b/.test(normalized) || /\bb\.?s\.?\b/.test(normalized) || /\bb\.?a\.?\b/.test(normalized)) return "bachelor";
+  if (/\bdiploma\b/.test(normalized) || /\bassociate\b/.test(normalized)) return "associate";
+  if (/\bhigh school\b/.test(normalized) || /\bspm\b/.test(normalized) || /\bstpm\b/.test(normalized)) return "high_school";
   return null;
 }
 
