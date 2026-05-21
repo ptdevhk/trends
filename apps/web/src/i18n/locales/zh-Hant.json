@@ -464,6 +464,7 @@
         "resumeMetadata": "簡歷中繼資料",
         "signals": "信號",
         "openSourceProfile": "開啟原始簡歷",
+        "searchOnSeek": "在 Seek 搜尋",
         "summaryUnavailable": "此簡歷暫無 AI 摘要。目前顯示的分數來自規則評分。",
         "aiSummaryUnavailable": "此簡歷尚未生成 AI 分析，分析完成後會顯示分數。",
         "profileOverview": "概覽",

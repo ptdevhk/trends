@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { normalizeProfileUrlForDisplay, normalizeSharedResumeFields, parseKeywordQuery } from '@trends/shared'
+import { normalizeProfileUrlForDisplay, normalizeSharedResumeFields, parseKeywordQuery, inferSeekMarket } from '@trends/shared'
 import { usePaginatedQuery, useQuery } from 'convex/react'
 import { api } from '../../../../packages/convex/convex/_generated/api'
 import type { Doc } from '../../../../packages/convex/convex/_generated/dataModel'
@@ -640,9 +640,12 @@ function readMockConvexResumePayload(): MockConvexResumePayload | null {
 
 function mapResumeDoc(doc: ResumeListDocLike): ConvexResumeItem {
   const content = isRecord(doc.content) ? doc.content : {}
+  const candidateName = toStringValue(content.name);
+  const seekMarket = doc.source?.includes("seek") ? inferSeekMarket(doc.source) : undefined;
   const profileUrl = normalizeProfileUrlForDisplay(
     content.profileUrl ?? content.profile_url ?? content.profileURL ?? content.url,
-    doc.source
+    doc.source,
+    { name: candidateName, market: seekMarket }
   )
 
   return {

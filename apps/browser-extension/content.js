@@ -1538,6 +1538,12 @@
     return `https://${hostname}/candidates/${encodeURIComponent(profileId)}`;
   }
   __name(buildSeekProfileUrl, "buildSeekProfileUrl");
+  function buildSeekNameSearchUrl(name, market) {
+    const trimmed = typeof name === "string" ? name.trim() : "";
+    if (!trimmed) return "";
+    return `https://${window.location.hostname.toLowerCase()}/talentsearch/profiles/search?searchQuery=${encodeURIComponent(trimmed)}&market=${encodeURIComponent(market || "MY")}&pageNumber=1`;
+  }
+  __name(buildSeekNameSearchUrl, "buildSeekNameSearchUrl");
   function getSeekRecommendedRequest() {
     return apiSnapshot.seekRecommendedRequest;
   }
@@ -1715,13 +1721,46 @@
     }) || null;
   }
   __name(findSeekProfileTrigger, "findSeekProfileTrigger");
-  function mergeSeekListResumeWithDetail(baseResume, detailResume) {
+  function findSeekTalentSearchCardTrigger(profileId, resume, cachedHeadings) {
+    if (!profileId) return null;
+    const byAttr = document.querySelector(
+      `[data-tr-candidate-id="${CSS.escape(profileId)}"]`
+    );
+    if (byAttr instanceof HTMLElement) return byAttr;
+    const candidateName = typeof resume?.name === "string" ? resume.name.trim() : "";
+    if (candidateName) {
+      const headings = cachedHeadings || Array.from(document.querySelectorAll('[data-role="heading"]'));
+      const match = headings.find((h) => {
+        const text = (h.textContent || "").trim();
+        return text === candidateName;
+      });
+      if (match instanceof HTMLElement) return match;
+    }
+    return null;
+  }
+  __name(findSeekTalentSearchCardTrigger, "findSeekTalentSearchCardTrigger");
+  function mergeSeekListResumeWithDetail(baseResume, detailResume, isTalentSearch = false) {
     if (!detailResume || typeof detailResume !== "object") {
       return baseResume;
+    }
+    const seekProfileGuid = baseResume.seekProfileGuid || detailResume.seekProfileGuid || void 0;
+    const numericProfileId = isTalentSearch && detailResume.profileId && /^\d+$/.test(detailResume.profileId) ? detailResume.profileId : void 0;
+    let profileUrl = detailResume.profileUrl || baseResume.profileUrl;
+    if (numericProfileId) {
+      const seekRequest = getSeekTalentSearchRequest();
+      const requestJobId = seekRequest?.variables?.input?.jobId;
+      const urlJobId = normalizeOptionalPositiveInt(
+        new URL(window.location.href).searchParams.get("jobId")
+      );
+      const jobId = requestJobId != null ? String(requestJobId) : urlJobId != null ? String(urlJobId) : void 0;
+      profileUrl = buildSeekProfileUrl(numericProfileId, jobId);
     }
     return {
       ...baseResume,
       ...detailResume,
+      ...seekProfileGuid ? { seekProfileGuid } : {},
+      ...numericProfileId ? { profileId: numericProfileId } : {},
+      ...profileUrl ? { profileUrl } : {},
       pageIndex: baseResume.pageIndex,
       pageNumber: baseResume.pageNumber,
       extractedAt: baseResume.extractedAt,
@@ -2789,6 +2828,7 @@
     );
     const jobId = requestInput?.jobId != null ? String(requestInput.jobId) : jobIdFromUrl != null ? String(jobIdFromUrl) : void 0;
     const { profileId, profileType } = getSeekCandidateIdentity(profile);
+    const seekProfileGuid = typeof profile.profileGuid === "string" && profile.profileGuid ? profile.profileGuid : void 0;
     const firstName = typeof profile.firstName === "string" ? profile.firstName.trim() : "";
     const lastName = typeof profile.lastName === "string" ? profile.lastName.trim() : "";
     const currentJobTitle = typeof profile.currentJobTitle === "string" ? profile.currentJobTitle.trim() : "";
@@ -2820,6 +2860,7 @@
       {
         profileId,
         profileType,
+        seekProfileGuid,
         externalId: profileId ? `${window.location.hostname.toLowerCase()}:profile:${profileId}` : "",
         name: [firstName, lastName].filter(Boolean).join(" ").trim(),
         profileUrl: buildSeekProfileUrl(profileId, jobId),
@@ -3547,7 +3588,9 @@
     const url = new URL(window.location.href);
     const currentPage = typeof requestInput?.pageNumber === "number" ? requestInput.pageNumber : normalizeOptionalPositiveInt(url.searchParams.get("pageNumber")) || 1;
     return candidates.map((node, index) => {
-      const profileId = typeof node?.profileGuid === "string" && node.profileGuid ? node.profileGuid : typeof node?.id === "string" && node.id ? node.id : "";
+      const profileGuid = typeof node?.profileGuid === "string" && node.profileGuid ? node.profileGuid : "";
+      const relayId = typeof node?.id === "string" && node.id ? node.id : "";
+      const profileId = profileGuid || relayId;
       if (!profileId) return null;
       const firstName = typeof node?.firstName === "string" ? node.firstName.trim() : "";
       const lastName = typeof node?.lastName === "string" ? node.lastName.trim() : "";
@@ -3558,9 +3601,10 @@
       return {
         profileId,
         profileType: "seek",
+        seekProfileGuid: profileGuid || void 0,
         externalId: profileId ? `${window.location.hostname.toLowerCase()}:profile:${profileId}` : "",
         name: [firstName, lastName].filter(Boolean).join(" ").trim(),
-        profileUrl: buildSeekProfileUrl(profileId, void 0),
+        profileUrl: buildSeekNameSearchUrl([firstName, lastName].filter(Boolean).join(" "), url.searchParams.get("market") || void 0),
         activityStatus: lastModifiedDurationLabel,
         age: "",
         experience: "",
@@ -4556,7 +4600,8 @@
         if (done) return;
         const snapshot = apiSnapshot.seekProfile;
         const identity = snapshot ? getSeekCandidateIdentity(snapshot) : null;
-        if (identity?.profileId === String(profileId)) {
+        const snapshotGuid = typeof snapshot?.profileGuid === "string" ? snapshot.profileGuid : "";
+        if (identity?.profileId === String(profileId) || snapshotGuid === String(profileId)) {
           done = true;
           cleanup();
           resolve(snapshot);
@@ -4582,23 +4627,36 @@
     });
   }
   __name(waitForSeekProfileSnapshot, "waitForSeekProfileSnapshot");
-  async function enrichSingleSeekResumeWithDetail(resume) {
+  async function enrichSingleSeekResumeWithDetail(resume, cachedHeadings) {
     const profileId = typeof resume?.profileId === "string" ? resume.profileId.trim() : "";
     if (!profileId) {
       return resume;
     }
-    const trigger = findSeekProfileTrigger(profileId);
+    const isTalentSearch = getCurrentSeekMode() === "talentsearch";
+    const trigger = isTalentSearch ? findSeekTalentSearchCardTrigger(profileId, resume, cachedHeadings) : findSeekProfileTrigger(profileId);
     if (!(trigger instanceof HTMLElement)) {
       return resume;
     }
     try {
       trigger.click();
-      await waitForSeekProfileSnapshot(profileId, { timeoutMs: 12e3 });
+      const matchId = isTalentSearch ? resume.seekProfileGuid || profileId : profileId;
+      await waitForSeekProfileSnapshot(matchId, { timeoutMs: 12e3 });
       const [detailResume] = extractSeekProfileResume();
-      if (!detailResume || detailResume.profileId !== profileId) {
+      if (!detailResume) {
         return resume;
       }
-      return mergeSeekListResumeWithDetail(resume, detailResume);
+      if (isTalentSearch) {
+        const detailGuid = detailResume.seekProfileGuid || "";
+        const detailProfileId = detailResume.profileId || "";
+        if (detailGuid !== profileId && detailProfileId !== profileId) {
+          return resume;
+        }
+        return mergeSeekListResumeWithDetail(resume, detailResume, isTalentSearch);
+      }
+      if (detailResume.profileId !== profileId) {
+        return resume;
+      }
+      return mergeSeekListResumeWithDetail(resume, detailResume, isTalentSearch);
     } catch (error) {
       console.warn(
         "\u{1F3AF} [Auto Sync] Failed to enrich Seek detail resume:",
@@ -4613,10 +4671,11 @@
     if (!Array.isArray(resumes) || resumes.length === 0) return [];
     if (getCurrentSourceKey() !== SOURCE_KEYS.SEEK) return resumes;
     if (isSeekProfileMode()) return resumes;
-    if (getCurrentSeekMode() === "talentsearch") return resumes;
+    const isTalentSearch = getCurrentSeekMode() === "talentsearch";
+    const cachedHeadings = isTalentSearch ? Array.from(document.querySelectorAll('[data-role="heading"]')) : null;
     const enriched = [];
     for (const resume of resumes) {
-      enriched.push(await enrichSingleSeekResumeWithDetail(resume));
+      enriched.push(await enrichSingleSeekResumeWithDetail(resume, cachedHeadings));
     }
     return enriched;
   }
