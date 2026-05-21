@@ -3,6 +3,7 @@ import { api, internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
+import { ingestDataValidator } from "./validators.js";
 
 import {
     buildResumeAnalysisStorageKey,
@@ -23,7 +24,7 @@ import {
 } from "@trends/shared";
 import { parseAgeFromContent } from "./lib/age";
 import { deriveResumeIdentity } from "./lib/resume_identity";
-import { mergeSearchTextWithIngestData } from "./search_text";
+import { buildSearchText, mergeSearchTextWithIngestData } from "./search_text";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null;
@@ -2978,162 +2979,11 @@ export const updateAnalysisBatch = internalMutation({
     },
 });
 
-export const updateIngestData = internalMutation({
-    args: {
-        resumeId: v.id("resumes"),
-        ingestData: v.object({
-            evidenceText: v.optional(v.string()),
-            industryTags: v.array(v.string()),
-            synonymHits: v.array(v.string()),
-            brandHits: v.optional(v.array(v.object({
-                brand: v.string(),
-                role: v.string(),
-                source: v.string(),
-                context: v.string(),
-                companyId: v.optional(v.number()),
-            }))),
-            companyHits: v.optional(v.array(v.string())),
-            industryDbV2Raw: v.optional(v.number()),
-            industryDbV2RawComponents: v.optional(v.object({
-                companyScore: v.number(),
-                brandScore: v.number(),
-                weightedBrandUnits: v.number(),
-                uniqueCompanies: v.number(),
-                brandUnitCount: v.number(),
-            })),
-            roleSignals: v.optional(v.array(v.object({
-                type: v.string(),
-                matchedSignals: v.array(v.string()),
-                signalCount: v.number(),
-                occurrences: v.number(),
-                years: v.number(),
-                industryVerifiedYears: v.optional(v.number()),
-                roleRelevantYears: v.optional(v.number()),
-                industryVerifiedRelevantYears: v.optional(v.number()),
-                matchedWorkEntries: v.optional(v.array(v.object({
-                    companyName: v.optional(v.string()),
-                    jobTitle: v.optional(v.string()),
-                    years: v.number(),
-                    industryVerified: v.boolean(),
-                    matchedSignals: v.array(v.string()),
-                    directRoleMatch: v.optional(v.boolean()),
-                }))),
-                verifyIn: v.string(),
-            }))),
-            taggingEnvelope: v.optional(v.object({
-                schemaVersion: v.number(),
-                generatedAt: v.number(),
-                entries: v.array(v.object({
-                    tag: v.string(),
-                    source: v.string(),
-                    confidence: v.number(),
-                    version: v.number(),
-                    provenance: v.object({
-                        stage: v.string(),
-                        generatedBy: v.string(),
-                        evidence: v.array(v.string()),
-                    }),
-                })),
-            })),
-            ruleScores: v.any(),
-            experienceLevel: v.string(),
-            computedAt: v.number(),
-            skillsVersion: v.number(),
-            verifiedRoleYears: v.optional(v.record(v.string(), v.number())),
-        }),
-        companyPatternAliasTokens: v.optional(v.string()),
-        primaryRuleScore: v.optional(v.number()),
-    },
-    handler: async (ctx, args) => {
-        const resume = await ctx.db.get(args.resumeId);
-        if (!resume) throw new Error("Resume not found");
-
-        const patch: Partial<Doc<"resumes">> = {
-            ingestData: args.ingestData,
-            primaryRuleScore: args.primaryRuleScore ?? 0,
-        };
-
-        const existingSearchText = resume.searchText || "";
-        const nextSearchText = mergeSearchTextWithIngestData(existingSearchText, {
-            industryTags: args.ingestData.industryTags,
-            synonymHits: args.ingestData.synonymHits,
-            brandHits: args.ingestData.brandHits,
-            companyHits: args.ingestData.companyHits,
-            companyPatternAliasTokens: args.companyPatternAliasTokens?.trim().toLowerCase(),
-        });
-
-        if (nextSearchText !== existingSearchText) {
-            patch.searchText = nextSearchText;
-        }
-
-        await ctx.db.patch(args.resumeId, patch);
-    },
-});
-
 export const updateIngestDataBatch = internalMutation({
     args: {
         updates: v.array(v.object({
             resumeId: v.id("resumes"),
-            ingestData: v.object({
-                evidenceText: v.optional(v.string()),
-                industryTags: v.array(v.string()),
-                synonymHits: v.array(v.string()),
-                brandHits: v.optional(v.array(v.object({
-                    brand: v.string(),
-                    role: v.string(),
-                    source: v.string(),
-                    context: v.string(),
-                    companyId: v.optional(v.number()),
-                }))),
-                companyHits: v.optional(v.array(v.string())),
-                industryDbV2Raw: v.optional(v.number()),
-                industryDbV2RawComponents: v.optional(v.object({
-                    companyScore: v.number(),
-                    brandScore: v.number(),
-                    weightedBrandUnits: v.number(),
-                    uniqueCompanies: v.number(),
-                    brandUnitCount: v.number(),
-                })),
-                roleSignals: v.optional(v.array(v.object({
-                    type: v.string(),
-                    matchedSignals: v.array(v.string()),
-                    signalCount: v.number(),
-                    occurrences: v.number(),
-                    years: v.number(),
-                    industryVerifiedYears: v.optional(v.number()),
-                    roleRelevantYears: v.optional(v.number()),
-                    industryVerifiedRelevantYears: v.optional(v.number()),
-                    matchedWorkEntries: v.optional(v.array(v.object({
-                        companyName: v.optional(v.string()),
-                        jobTitle: v.optional(v.string()),
-                        years: v.number(),
-                        industryVerified: v.boolean(),
-                        matchedSignals: v.array(v.string()),
-                        directRoleMatch: v.optional(v.boolean()),
-                    }))),
-                    verifyIn: v.string(),
-                }))),
-                taggingEnvelope: v.optional(v.object({
-                    schemaVersion: v.number(),
-                    generatedAt: v.number(),
-                    entries: v.array(v.object({
-                        tag: v.string(),
-                        source: v.string(),
-                        confidence: v.number(),
-                        version: v.number(),
-                        provenance: v.object({
-                            stage: v.string(),
-                            generatedBy: v.string(),
-                            evidence: v.array(v.string()),
-                        }),
-                    })),
-                })),
-                ruleScores: v.any(),
-                experienceLevel: v.string(),
-                computedAt: v.number(),
-                skillsVersion: v.number(),
-                verifiedRoleYears: v.optional(v.record(v.string(), v.number())),
-            }),
+            ingestData: ingestDataValidator,
             companyPatternAliasTokens: v.optional(v.string()),
             primaryRuleScore: v.optional(v.number()),
         })),
@@ -3149,7 +2999,10 @@ export const updateIngestDataBatch = internalMutation({
             };
 
             const existingSearchText = resume.searchText || "";
-            const nextSearchText = mergeSearchTextWithIngestData(existingSearchText, {
+            // After hard reset, searchText is empty — rebuild from content + ingest tokens.
+            // When searchText already exists, just merge ingest tokens on top.
+            const baseSearchText = existingSearchText || buildSearchText(resume.content);
+            const nextSearchText = mergeSearchTextWithIngestData(baseSearchText, {
                 industryTags: update.ingestData.industryTags,
                 synonymHits: update.ingestData.synonymHits,
                 brandHits: update.ingestData.brandHits,

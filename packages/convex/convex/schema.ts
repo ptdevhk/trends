@@ -1,5 +1,6 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { ingestDataValidator, collectionTaskResultsValidator } from "./validators.js";
 
 export default defineSchema({
     // Tasks for resume collection
@@ -26,19 +27,7 @@ export default defineSchema({
             total: v.number(),
             page: v.number(),
         }),
-        results: v.optional(v.object({
-            extracted: v.number(),
-            submitted: v.number(),
-            deduped: v.number(),
-            identityDeduped: v.optional(v.number()),
-            identityMatched: v.optional(v.number()),
-            legacyExternalIdMatched: v.optional(v.number()), // Legacy field; retained for old records.
-            inserted: v.number(),
-            updated: v.number(),
-            unchanged: v.number(),
-            autoAnalyzed: v.optional(v.number()),
-            autoAnalysisTaskId: v.optional(v.string()),
-        })),
+        results: v.optional(collectionTaskResultsValidator),
         workerId: v.optional(v.string()), // ID of the worker processing this task
         lastStatus: v.optional(v.string()), // Real-time status message (e.g. "Scraping page 2")
         error: v.optional(v.string()),
@@ -113,74 +102,7 @@ export default defineSchema({
         sourceKey: v.optional(v.string()),
 
         // Pre-computed Ingest Data (M3)
-        ingestData: v.optional(v.object({
-            market: v.optional(v.string()),
-            evidenceText: v.optional(v.string()),
-            industryTags: v.array(v.string()),
-            synonymHits: v.array(v.string()),
-            brandHits: v.optional(v.array(v.object({
-                brand: v.string(),
-                role: v.string(),
-                source: v.string(),
-                context: v.string(),
-                companyId: v.optional(v.number()),
-            }))),
-            companyHits: v.optional(v.array(v.string())),
-            industryDbV2Raw: v.optional(v.number()),
-            industryDbV2RawComponents: v.optional(v.object({
-                companyScore: v.number(),
-                brandScore: v.number(),
-                weightedBrandUnits: v.number(),
-                uniqueCompanies: v.number(),
-                brandUnitCount: v.number(),
-            })),
-            roleSignals: v.optional(v.array(v.object({
-                type: v.string(),
-                matchedSignals: v.array(v.string()),
-                signalCount: v.number(),
-                occurrences: v.number(),
-                years: v.number(),
-                industryVerifiedYears: v.optional(v.number()),
-                roleRelevantYears: v.optional(v.number()),
-                industryVerifiedRelevantYears: v.optional(v.number()),
-                matchedWorkEntries: v.optional(v.array(v.object({
-                    companyName: v.optional(v.string()),
-                    jobTitle: v.optional(v.string()),
-                    years: v.number(),
-                    industryVerified: v.boolean(),
-                    matchedSignals: v.array(v.string()),
-                    directRoleMatch: v.optional(v.boolean()),
-                }))),
-                verifyIn: v.string(),
-            }))),
-            taggingEnvelope: v.optional(v.object({
-                schemaVersion: v.number(),
-                generatedAt: v.number(),
-                entries: v.array(v.object({
-                    tag: v.string(),
-                    source: v.string(),
-                    confidence: v.number(),
-                    version: v.number(),
-                    provenance: v.object({
-                        stage: v.string(),
-                        generatedBy: v.string(),
-                        evidence: v.array(v.string()),
-                    }),
-                })),
-            })),
-            // Legacy field: migrated to taggingEnvelope; retained for documents not yet migrated.
-            tagEnvelope: v.optional(v.any()),
-            ruleScores: v.any(),          // Record<string, number> — JD ID → score
-            experienceLevel: v.string(),  // "senior" | "mid" | "junior" | "unknown"
-            computedAt: v.number(),
-            skillsVersion: v.number(),
-            // Precomputed projection of verified role years keyed by role type
-            // ("sales", "engineer", etc.). Populated via computeVerifiedRoleYears
-            // at ingest time and backfilled by migrations.backfillVerifiedRoleYears.
-            // Semantics locked by plan:
-            // docs/superpowers/plans/2026-04-24-direct-role-years-precomputed-field-plan.md
-            verifiedRoleYears: v.optional(v.record(v.string(), v.number())),
-        })),
+        ingestData: v.optional(ingestDataValidator),
     })
         .index("by_externalId", ["externalId"])
         .index("by_identityKey", ["identityKey"])

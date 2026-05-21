@@ -2,6 +2,7 @@ import { internalMutation, mutation, query } from "./_generated/server";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
+import { collectionTaskResultsValidator } from "./validators.js";
 import { buildSearchText, mergeSearchTextWithIngestData } from "./search_text";
 import { computeVerifiedRoleYears } from "@trends/shared";
 import { resolveSubmitResumeParallelism } from "./lib/parallelism";
@@ -406,18 +407,7 @@ export const complete = mutation({
         taskId: v.id("collection_tasks"),
         status: v.union(v.literal("completed"), v.literal("failed")),
         error: v.optional(v.string()),
-        results: v.optional(v.object({
-            extracted: v.number(),
-            submitted: v.number(),
-            deduped: v.number(),
-            identityDeduped: v.optional(v.number()),
-            identityMatched: v.optional(v.number()),
-            inserted: v.number(),
-            updated: v.number(),
-            unchanged: v.number(),
-            autoAnalyzed: v.optional(v.number()),
-            autoAnalysisTaskId: v.optional(v.string()),
-        })),
+        results: v.optional(collectionTaskResultsValidator),
     },
     handler: async (ctx, args) => {
         const task = await ctx.db.get(args.taskId);
