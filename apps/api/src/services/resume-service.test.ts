@@ -294,4 +294,212 @@ describe("ResumeService", () => {
     expect(service.searchResumes(items, "sales engineer fanuc")).toEqual([]);
     expect(service.filterResumes(items, { skills: ["fanuc"] })).toEqual([]);
   });
+
+  describe("experience filter graceful degradation", () => {
+    it("resumes with empty experience pass minExperience filter", () => {
+      const root = createFixtureRoot();
+      roots.push(root);
+      const service = new ResumeService(root);
+      const items = [
+        {
+          name: "Seek MY",
+          profileUrl: "https://example.com/seek-my",
+          activityStatus: "Active",
+          age: "",
+          experience: "",
+          education: "",
+          location: "Malaysia",
+          selfIntro: "",
+          jobIntention: "Sales",
+          expectedSalary: "",
+          workHistory: [],
+          extractedAt: "2026-03-20T00:00:00.000Z",
+        },
+      ];
+
+      const filtered = service.filterResumes(items, { minExperience: 1 });
+      expect(filtered).toHaveLength(1);
+    });
+
+    it("resumes with unknown experience are excluded by maxExperience", () => {
+      const root = createFixtureRoot();
+      roots.push(root);
+      const service = new ResumeService(root);
+      const items = [
+        {
+          name: "Seek MY",
+          profileUrl: "https://example.com/seek-my",
+          activityStatus: "Active",
+          age: "",
+          experience: "",
+          education: "",
+          location: "Malaysia",
+          selfIntro: "",
+          jobIntention: "Sales",
+          expectedSalary: "",
+          workHistory: [],
+          extractedAt: "2026-03-20T00:00:00.000Z",
+        },
+      ];
+
+      const filtered = service.filterResumes(items, { maxExperience: 5 });
+      expect(filtered).toHaveLength(0);
+    });
+
+    it("resumes with known low experience are excluded by minExperience", () => {
+      const root = createFixtureRoot();
+      roots.push(root);
+      const service = new ResumeService(root);
+      const items = [
+        {
+          name: "51job Fresh",
+          profileUrl: "https://example.com/51job",
+          activityStatus: "Active",
+          age: "22岁",
+          experience: "应届",
+          education: "本科",
+          location: "东莞",
+          selfIntro: "",
+          jobIntention: "销售",
+          expectedSalary: "",
+          workHistory: [],
+          extractedAt: "2026-03-20T00:00:00.000Z",
+        },
+      ];
+
+      const filtered = service.filterResumes(items, { minExperience: 1 });
+      expect(filtered).toHaveLength(0);
+    });
+  });
+
+  describe("salary filter graceful degradation", () => {
+    it("resumes with empty salary pass minSalary filter", () => {
+      const root = createFixtureRoot();
+      roots.push(root);
+      const service = new ResumeService(root);
+      const items = [
+        {
+          name: "Seek MY",
+          profileUrl: "https://example.com/seek-my",
+          activityStatus: "Active",
+          age: "",
+          experience: "5 years",
+          education: "",
+          location: "Malaysia",
+          selfIntro: "",
+          jobIntention: "Sales",
+          expectedSalary: "",
+          workHistory: [],
+          extractedAt: "2026-03-20T00:00:00.000Z",
+        },
+      ];
+
+      const filtered = service.filterResumes(items, { minSalary: 5000 });
+      expect(filtered).toHaveLength(1);
+    });
+
+    it("resumes with unknown salary are excluded by maxSalary", () => {
+      const root = createFixtureRoot();
+      roots.push(root);
+      const service = new ResumeService(root);
+      const items = [
+        {
+          name: "Seek MY",
+          profileUrl: "https://example.com/seek-my",
+          activityStatus: "Active",
+          age: "",
+          experience: "5 years",
+          education: "",
+          location: "Malaysia",
+          selfIntro: "",
+          jobIntention: "Sales",
+          expectedSalary: "",
+          workHistory: [],
+          extractedAt: "2026-03-20T00:00:00.000Z",
+        },
+      ];
+
+      const filtered = service.filterResumes(items, { maxSalary: 10000 });
+      expect(filtered).toHaveLength(0);
+    });
+  });
+
+  describe("education filter normalization", () => {
+    it("normalizes Chinese education terms to standard levels", () => {
+      const root = createFixtureRoot();
+      roots.push(root);
+      const service = new ResumeService(root);
+      const items = [
+        {
+          name: "Master Degree",
+          profileUrl: "https://example.com/master",
+          activityStatus: "Active",
+          age: "28岁",
+          experience: "5年",
+          education: "硕士",
+          location: "东莞",
+          selfIntro: "",
+          jobIntention: "销售",
+          expectedSalary: "",
+          workHistory: [],
+          extractedAt: "2026-03-20T00:00:00.000Z",
+        },
+      ];
+
+      // "master" matches "硕士" via normalizeEducationLevel
+      const filtered = service.filterResumes(items, { education: ["master"] });
+      expect(filtered).toHaveLength(1);
+    });
+
+    it("excludes resumes whose education doesn't match filter", () => {
+      const root = createFixtureRoot();
+      roots.push(root);
+      const service = new ResumeService(root);
+      const items = [
+        {
+          name: "Associate Degree",
+          profileUrl: "https://example.com/associate",
+          activityStatus: "Active",
+          age: "24岁",
+          experience: "2年",
+          education: "大专",
+          location: "东莞",
+          selfIntro: "",
+          jobIntention: "销售",
+          expectedSalary: "",
+          workHistory: [],
+          extractedAt: "2026-03-20T00:00:00.000Z",
+        },
+      ];
+
+      const filtered = service.filterResumes(items, { education: ["master"] });
+      expect(filtered).toHaveLength(0);
+    });
+
+    it("excludes resumes with unparseable education when filter is set", () => {
+      const root = createFixtureRoot();
+      roots.push(root);
+      const service = new ResumeService(root);
+      const items = [
+        {
+          name: "Seek MY",
+          profileUrl: "https://example.com/seek-my",
+          activityStatus: "Active",
+          age: "",
+          experience: "5 years",
+          education: "Bachelor of Engineering",
+          location: "Malaysia",
+          selfIntro: "",
+          jobIntention: "Sales",
+          expectedSalary: "",
+          workHistory: [],
+          extractedAt: "2026-03-20T00:00:00.000Z",
+        },
+      ];
+
+      // normalizeEducationLevel doesn't recognize English education terms
+      const filtered = service.filterResumes(items, { education: ["bachelor"] });
+      expect(filtered).toHaveLength(0);
+    });
+  });
 });
