@@ -1911,12 +1911,15 @@ function resolveConvexResumeFetchLimit(params: {
 }
 
 function removeServerSideFilters(filters: ResumeFilters): ResumeFilters {
-  // Convex's matchesResumeListFilters already handled these 6 fields,
+  // Convex's matchesResumeListFilters already handled these 8 fields,
   // so strip them to avoid double-filtering. Other fields (experience,
-  // education, salary, skills, requiredKeywords) are intentionally
-  // re-applied by BFF — the double-filter is benign because both paths
-  // use the same searchText field.
-  const { minRoleYears, roleFilterType, minAge, maxAge, sources, locations, ...rest } = filters;
+  // education, salary) are intentionally re-applied by BFF — the
+  // double-filter is benign because both paths use the same content fields.
+  // skills/requiredKeywords were previously re-applied but this created a
+  // bug risk: if searchText is missing on a ResumeItem, BFF falls back to
+  // the narrow buildBffSearchText which could exclude resumes that Convex
+  // correctly included via full searchText.
+  const { minRoleYears, roleFilterType, minAge, maxAge, sources, locations, skills, requiredKeywords, ...rest } = filters;
   return rest;
 }
 
