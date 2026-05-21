@@ -60,15 +60,15 @@ Keyword signals used to infer candidate experience level during ingest.
 
 ### senior
 - displayName: Senior Level
-- keywords: 团队管理, 大客户, 渠道拓展, 主管, 经理, manager, lead, director, 带团队, 培训, 项目管理
+- keywords: 团队管理, 大客户, 渠道拓展, 主管, 经理, manager, lead, director, 带团队, 培训, 项目管理, head of, vp, chief, senior, principal, overseeing, led team, leadership
 
 ### mid
 - displayName: Mid Level
-- keywords: 独立, 熟练, 精通, 负责, 专员, specialist, coordinator, 项目, 方案
+- keywords: 独立, 熟练, 精通, 负责, 专员, specialist, coordinator, 项目, 方案, experienced, proficient, responsible for, managed, intermediate
 
 ### junior
 - displayName: Junior Level
-- keywords: 应届, 实习, 助理, assistant, trainee, intern, 学习, 协助, 初级
+- keywords: 应届, 实习, 助理, assistant, trainee, intern, 学习, 协助, 初级, entry level, fresh graduate, graduate, no experience, beginner
 
 ## Role Signal Policy
 

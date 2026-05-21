@@ -356,7 +356,7 @@ const DEFAULT_SALES_CONTEXT_SIGNALS = [
 ];
 const DEFAULT_ROLE_SIGNAL_LIBRARY: Record<string, string[]> = {
   sales: Array.from(new Set([...DEFAULT_SALES_DIRECT_TITLE_SIGNALS, ...DEFAULT_SALES_CONTEXT_SIGNALS])),
-  engineer: ["工程师", "设计", "研发", "开发", "编程", "调试", "维修", "技术", "engineer", "developer", "design"],
+  engineer: ["工程师", "设计", "研发", "开发", "编程", "调试", "维修", "技术", "engineer", "developer", "design", "programmer", "machinist", "technician", "cnc operator", "maintenance"],
 };
 const ROLE_SIGNAL_MATCH_WEIGHTS = {
   jobTitle: 2,

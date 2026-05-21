@@ -46,6 +46,14 @@ describe("parseExperienceYears", () => {
     expect(parseExperienceYears("无经验")).toBe(0);
   });
 
+  it("parses English zero-experience terms (Seek EN)", () => {
+    expect(parseExperienceYears("fresh graduate")).toBe(0);
+    expect(parseExperienceYears("Fresh Grad")).toBe(0);
+    expect(parseExperienceYears("entry level")).toBe(0);
+    expect(parseExperienceYears("Entry Level")).toBe(0);
+    expect(parseExperienceYears("no experience")).toBe(0);
+  });
+
   it("parses numeric ranges", () => {
     expect(parseExperienceYears("5")).toBe(5);
     expect(parseExperienceYears("3-5")).toBe(5);
