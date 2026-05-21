@@ -745,6 +745,7 @@ function projectResumeListIngestData(
         ...(ingestData.verifiedRoleYears ? { verifiedRoleYears: ingestData.verifiedRoleYears } : {}),
         ruleScores: ingestData.ruleScores,
         experienceLevel: ingestData.experienceLevel,
+        ...(ingestData.market === undefined ? {} : { market: ingestData.market }),
         computedAt: ingestData.computedAt,
         skillsVersion: ingestData.skillsVersion,
     };
@@ -969,13 +970,20 @@ function matchesResumeListFilters(resume: Doc<"resumes">, filters: ResumeListFil
     if (effectiveMinExperience !== undefined || filters.maxExperience !== undefined) {
         const experience = parseExperienceYears(toStringValue(content.experience));
         if (experience === null) {
-            return false;
-        }
-        if (effectiveMinExperience !== undefined && experience < effectiveMinExperience) {
-            return false;
-        }
-        if (filters.maxExperience !== undefined && experience > filters.maxExperience) {
-            return false;
+            // Unknown experience — skip filter instead of excluding.
+            // Seek talentsearch resumes have empty experience fields;
+            // excluding them when minExperience is set drops all results.
+            // Only apply maxExperience if known.
+            if (filters.maxExperience !== undefined) {
+                return false;
+            }
+        } else {
+            if (effectiveMinExperience !== undefined && experience < effectiveMinExperience) {
+                return false;
+            }
+            if (filters.maxExperience !== undefined && experience > filters.maxExperience) {
+                return false;
+            }
         }
     }
 

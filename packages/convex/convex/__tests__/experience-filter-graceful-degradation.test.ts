@@ -1,0 +1,180 @@
+import { describe, expect, it } from "vitest";
+
+import { searchWithTagExpansionPaginated } from "../resumes";
+
+type ConvexHandler<TArgs, TResult> = {
+  _handler: (ctx: unknown, args: TArgs) => Promise<TResult>;
+};
+
+type SearchPaginatedArgs = {
+  paginationOpts: { cursor: string | null; numItems: number };
+  query: string;
+  keywordGroups: Array<{ original: string; variants: string[] }>;
+  mode?: "AND" | "OR";
+  sourceMappings?: Array<{ term: string; expandedFrom: string }>;
+  minExperience?: number;
+  maxExperience?: number;
+  minRoleYears?: number;
+  roleFilterType?: string;
+  requiredKeywords?: string[];
+  locations?: string[];
+  sources?: string[];
+};
+
+type SearchPaginatedResult = {
+  page: unknown[];
+  continueCursor: string;
+  isDone: boolean;
+};
+
+const searchPaginatedHandler = (
+  searchWithTagExpansionPaginated as unknown as ConvexHandler<SearchPaginatedArgs, SearchPaginatedResult>
+)._handler;
+
+function buildSeekResumeDoc(id: string, experience: string) {
+    return {
+        _id: id,
+        externalId: `seek:${id}`,
+        source: "seek",
+        tags: [],
+        crawledAt: Date.now(),
+        content: {
+            name: id,
+            experience,
+            workHistory: [
+                { company: "Test Co", title: "Sales", years: "?" },
+            ],
+        },
+        searchText: "cnc sales malaysia",
+        ingestData: {
+            industryTags: ["cnc", "sales"],
+            experienceLevel: "mid",
+            computedAt: 1,
+            skillsVersion: 1,
+            ruleScores: {},
+        },
+        primaryRuleScore: 50,
+    };
+}
+
+function build51jobResumeDoc(id: string, experience: string) {
+    return {
+        _id: id,
+        externalId: `51job:${id}`,
+        source: "51job",
+        tags: [],
+        crawledAt: Date.now(),
+        content: {
+            name: id,
+            experience,
+        },
+        searchText: "cnc sales china",
+        ingestData: {
+            industryTags: ["cnc", "sales"],
+            experienceLevel: "junior",
+            computedAt: 1,
+            skillsVersion: 1,
+            ruleScores: {},
+        },
+        primaryRuleScore: 50,
+    };
+}
+
+function makeSearchCtx(resumes: unknown[]) {
+    return {
+        db: {
+            query: () => ({
+                withSearchIndex: () => {
+                    const paginate = async (opts: { cursor: string | null; numItems: number }) => {
+                        if (opts.cursor) {
+                            return { page: [], continueCursor: "", isDone: true };
+                        }
+                        return { page: resumes, continueCursor: "", isDone: true };
+                    };
+                    return {
+                        paginate,
+                        filter: () => ({
+                            take: async () => resumes,
+                            paginate,
+                        }),
+                    };
+                },
+            }),
+        },
+    };
+}
+
+describe("minExperience filter graceful degradation", () => {
+    it("resumes with empty experience pass minExperience filter (Seek data)", async () => {
+        const resume = buildSeekResumeDoc("seek-1", "");
+        const ctx = makeSearchCtx([resume]);
+
+        const result = await searchPaginatedHandler(ctx, {
+            paginationOpts: { cursor: null, numItems: 10 },
+            query: "cnc sales",
+            keywordGroups: [{ original: "cnc", variants: ["cnc"] }],
+            minExperience: 1,
+        });
+
+        // After fix: empty experience is unknown, so minExperience filter is skipped
+        expect(result.page).toHaveLength(1);
+    });
+
+    it("resumes with unparseable experience pass minExperience filter", async () => {
+        const resume = buildSeekResumeDoc("seek-2", "?");
+        const ctx = makeSearchCtx([resume]);
+
+        const result = await searchPaginatedHandler(ctx, {
+            paginationOpts: { cursor: null, numItems: 10 },
+            query: "cnc sales",
+            keywordGroups: [{ original: "cnc", variants: ["cnc"] }],
+            minExperience: 1,
+        });
+
+        expect(result.page).toHaveLength(1);
+    });
+
+    it("resumes with known low experience are still excluded by minExperience", async () => {
+        const resume = build51jobResumeDoc("51job-1", "应届");
+        const ctx = makeSearchCtx([resume]);
+
+        const result = await searchPaginatedHandler(ctx, {
+            paginationOpts: { cursor: null, numItems: 10 },
+            query: "cnc sales",
+            keywordGroups: [{ original: "cnc", variants: ["cnc"] }],
+            minExperience: 1,
+        });
+
+        // "应届" parses to 0, which is below minExperience: 1 → excluded
+        expect(result.page).toHaveLength(0);
+    });
+
+    it("resumes with unknown experience are excluded by maxExperience", async () => {
+        const resume = buildSeekResumeDoc("seek-3", "");
+        const ctx = makeSearchCtx([resume]);
+
+        const result = await searchPaginatedHandler(ctx, {
+            paginationOpts: { cursor: null, numItems: 10 },
+            query: "cnc sales",
+            keywordGroups: [{ original: "cnc", variants: ["cnc"] }],
+            maxExperience: 5,
+        });
+
+        // Unknown experience + maxExperience → excluded (cannot guarantee cap)
+        expect(result.page).toHaveLength(0);
+    });
+
+    it("resumes with known high experience pass minExperience", async () => {
+        const resume = build51jobResumeDoc("51job-2", "5");
+        const ctx = makeSearchCtx([resume]);
+
+        const result = await searchPaginatedHandler(ctx, {
+            paginationOpts: { cursor: null, numItems: 10 },
+            query: "cnc sales",
+            keywordGroups: [{ original: "cnc", variants: ["cnc"] }],
+            minExperience: 1,
+        });
+
+        expect(result.page).toHaveLength(1);
+    });
+});
