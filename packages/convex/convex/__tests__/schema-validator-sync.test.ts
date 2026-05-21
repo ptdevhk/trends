@@ -211,7 +211,7 @@ function convexParseExperienceYears(value: string): number | null {
     if (!normalized) {
         return null;
     }
-    if (/应届|无经验/.test(normalized)) {
+    if (/应届|无经验|fresh grad|entry level|no experience|fresh graduate|beginner/i.test(normalized)) {
         return 0;
     }
     const match = normalized.match(/(\d+)(?:\s*[-~到]\s*(\d+))?/);
@@ -269,6 +269,11 @@ describe("parseExperienceYears sync: @trends/shared vs Convex local copy", () =>
         // Chinese
         ["应届", 0],
         ["无经验", 0],
+        // English (Seek EN)
+        ["fresh graduate", 0],
+        ["entry level", 0],
+        ["no experience", 0],
+        ["beginner", 0],
         // Ranges
         ["3-5", 5],
         ["2~3", 3],

@@ -52,6 +52,8 @@ describe("parseExperienceYears", () => {
     expect(parseExperienceYears("entry level")).toBe(0);
     expect(parseExperienceYears("Entry Level")).toBe(0);
     expect(parseExperienceYears("no experience")).toBe(0);
+    expect(parseExperienceYears("beginner")).toBe(0);
+    expect(parseExperienceYears("Beginner")).toBe(0);
   });
 
   it("parses numeric ranges", () => {

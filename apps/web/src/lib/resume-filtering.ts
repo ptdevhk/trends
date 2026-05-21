@@ -8,6 +8,11 @@ export function parseExperienceYears(value: string | undefined): number {
     return 0
   }
 
+  // Recognize zero-experience patterns (Chinese + English)
+  if (/应届|无经验|fresh grad|entry level|no experience|fresh graduate|beginner/i.test(value)) {
+    return 0
+  }
+
   const matched = value.match(/\d+(?:\.\d+)?/)
   if (!matched) {
     return 0
