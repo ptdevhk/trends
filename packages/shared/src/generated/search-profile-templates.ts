@@ -301,9 +301,6 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
         "CNC",
         "Sales"
       ],
-      "requiredKeywords": [
-        "machine tools"
-      ],
       "jobDescription": "seek-malaysia-sales",
       "filters": {
         "minExperience": 1,
@@ -371,9 +368,6 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
       "keywords": [
         "CNC",
         "Sales"
-      ],
-      "requiredKeywords": [
-        "machine tools"
       ],
       "jobDescription": "seek-malaysia-sales",
       "filters": {
@@ -443,9 +437,6 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
         "CNC",
         "Sales"
       ],
-      "requiredKeywords": [
-        "machine tools"
-      ],
       "jobDescription": "seek-malaysia-sales",
       "filters": {
         "minExperience": 1,
@@ -499,9 +490,6 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
       "keywords": [
         "CNC",
         "Sales"
-      ],
-      "requiredKeywords": [
-        "machine tools"
       ],
       "jobDescription": "seek-malaysia-sales",
       "filters": {
