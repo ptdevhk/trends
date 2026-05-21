@@ -84,6 +84,21 @@ export type NormalizedResumeFields = {
 const JOB5156_HOST = "hr.job5156.com";
 const JOB5156_PROFILE_URL_PREFIX = `https://${JOB5156_HOST}/resume/view/`;
 const SEEK_HOST_SUFFIX = ".employer.seek.com";
+const SEEK_NAME_SEARCH_HOST = "hk.employer.seek.com";
+
+export function buildSeekNameSearchUrl(name: string, market?: string): string {
+  const trimmedName = typeof name === "string" ? name.trim() : "";
+  if (!trimmedName) return "";
+  const resolvedMarket = market || "MY";
+  return `https://${SEEK_NAME_SEARCH_HOST}/talentsearch/profiles/search?searchQuery=${encodeURIComponent(trimmedName)}&market=${encodeURIComponent(resolvedMarket)}&pageNumber=1`;
+}
+
+export function inferSeekMarket(source: string, hint?: string): string {
+  if (hint === "HK" || hint === "hk") return "HK";
+  // Source hostnames for MY market include both hk. and my. subdomains
+  // (Seek routes by market param, not subdomain)
+  return "MY";
+}
 
 const SOURCE_KEY_TO_COUNTRY: Record<ResumeAnalysisSourceKey, string> = {
   job5156: "中国",
