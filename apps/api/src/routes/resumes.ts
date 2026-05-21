@@ -762,6 +762,7 @@ function toResumeItemFromRecord(record: Record<string, unknown>, source?: string
     profileId: toStringValue(record.profileId) || undefined,
     profileType: toStringValue(record.profileType) || (source ? source : undefined),
     externalId: toStringValue(record.externalId) || undefined,
+    ...(typeof record.searchText === 'string' ? { searchText: record.searchText } : {}),
   };
 }
 
@@ -1218,8 +1219,9 @@ async function prepareConvexCandidates(params: {
             if (typeof filters.minAge === 'number' && typeof doc.age === 'number' && doc.age < filters.minAge) continue;
             if (typeof filters.maxAge === 'number' && typeof doc.age === 'number' && doc.age > filters.maxAge) continue;
             if (Array.isArray(filters.sources) && filters.sources.length > 0) {
-              const docSource = typeof doc.source === 'string' ? doc.source.toLowerCase() : '';
-              if (!filters.sources.some((s: string) => docSource.includes(s.toLowerCase()))) continue;
+              const resumeSourceKey = (typeof doc.sourceKey === 'string' ? doc.sourceKey : undefined)
+                ?? resolveResumeAnalysisSourceKey({ source: typeof doc.source === 'string' ? doc.source : undefined });
+              if (!resumeSourceKey || !filters.sources.includes(resumeSourceKey)) continue;
             }
           }
 
@@ -1276,6 +1278,9 @@ async function prepareConvexCandidates(params: {
           if (Array.isArray(doc.tags)) {
             (resume as Record<string, unknown>).tags = doc.tags;
           }
+          if (typeof doc.searchText === "string") {
+            resume.searchText = doc.searchText;
+          }
           allResults.push(prepareResumeCandidate({
             resume,
             resumeId,
@@ -1331,8 +1336,12 @@ async function prepareConvexCandidates(params: {
             continue;
           }
 
+          const resumeItem = toResumeItemFromRecord(isRecord(resumeRecord.content) ? resumeRecord.content : {}, toStringValue(resumeRecord.source));
+          if (typeof resumeRecord.searchText === 'string') {
+            resumeItem.searchText = resumeRecord.searchText;
+          }
           allResults.push(prepareResumeCandidate({
-            resume: toResumeItemFromRecord(isRecord(resumeRecord.content) ? resumeRecord.content : {}, toStringValue(resumeRecord.source)),
+            resume: resumeItem,
             resumeId,
             primaryRuleScore: toOptionalNumber(resumeRecord.primaryRuleScore),
             provenance: parseConvexProvenance(entry.provenance),
@@ -1385,8 +1394,12 @@ async function prepareConvexCandidates(params: {
         return [];
       }
 
+      const resumeItem = toResumeItemFromRecord(isRecord(resumeRecord.content) ? resumeRecord.content : {}, toStringValue(resumeRecord.source));
+      if (typeof resumeRecord.searchText === 'string') {
+        resumeItem.searchText = resumeRecord.searchText;
+      }
       return [prepareResumeCandidate({
-        resume: toResumeItemFromRecord(isRecord(resumeRecord.content) ? resumeRecord.content : {}, toStringValue(resumeRecord.source)),
+        resume: resumeItem,
         resumeId,
         primaryRuleScore: toOptionalNumber(resumeRecord.primaryRuleScore),
         provenance: parseConvexProvenance(entry.provenance),
@@ -1423,8 +1436,12 @@ async function prepareConvexCandidates(params: {
       if (!resumeId) {
         return [];
       }
+      const resumeItem = toResumeItemFromRecord(isRecord(item.content) ? item.content : {}, toStringValue(item.source));
+      if (typeof item.searchText === 'string') {
+        resumeItem.searchText = item.searchText;
+      }
       return [prepareResumeCandidate({
-        resume: toResumeItemFromRecord(isRecord(item.content) ? item.content : {}, toStringValue(item.source)),
+        resume: resumeItem,
         resumeId,
         primaryRuleScore: toOptionalNumber(item.primaryRuleScore),
         ingestData: item.ingestData,
@@ -1530,11 +1547,15 @@ function parseExactKeywordScanCandidate(
   }
 
   const provenance = dedupeResumeSearchProvenance(parseConvexProvenance(value.provenance));
+  const resumeItem = toResumeItemFromRecord(
+    isRecord(resumeRecord.content) ? resumeRecord.content : {},
+    toStringValue(resumeRecord.source),
+  );
+  if (typeof resumeRecord.searchText === 'string') {
+    resumeItem.searchText = resumeRecord.searchText;
+  }
   const candidate = prepareResumeCandidate({
-    resume: toResumeItemFromRecord(
-      isRecord(resumeRecord.content) ? resumeRecord.content : {},
-      toStringValue(resumeRecord.source),
-    ),
+    resume: resumeItem,
     resumeId,
     primaryRuleScore: toOptionalNumber(resumeRecord.primaryRuleScore),
     provenance,
@@ -2012,13 +2033,22 @@ function bffMatchesResumeFilters(
   }
 
   if (filters.roleFilterType) {
-    const roleSignals: unknown[] = Array.isArray(ingestData.roleSignals)
-      ? ingestData.roleSignals as unknown[]
-      : [];
-    const hasMatchingRole = roleSignals.some((signal: unknown) => {
-      if (!isRecord(signal)) return false;
-      return typeof signal.type === "string" && signal.type === filters.roleFilterType;
-    });
+    // Match Convex hasMatchingRoleSignal: check verifiedRoleYears first, then roleSignals
+    const key = filters.roleFilterType.toLowerCase();
+    const verifiedRoleYears = isRecord(ingestData.verifiedRoleYears)
+      ? ingestData.verifiedRoleYears as Record<string, unknown>
+      : {};
+    const hasVerifiedRole = typeof verifiedRoleYears[key] === "number";
+    let hasMatchingRole = hasVerifiedRole;
+    if (!hasMatchingRole) {
+      const roleSignals: unknown[] = Array.isArray(ingestData.roleSignals)
+        ? ingestData.roleSignals as unknown[]
+        : [];
+      hasMatchingRole = roleSignals.some((signal: unknown) => {
+        if (!isRecord(signal)) return false;
+        return typeof signal.type === "string" && signal.type.toLowerCase() === key;
+      });
+    }
     if (!hasMatchingRole) return false;
   }
 
@@ -2049,8 +2079,9 @@ function bffMatchesResumeFilters(
   }
 
   if (filters.sources?.length) {
-    const source = toStringValue(doc.source) ?? "";
-    if (!filters.sources.some((s) => source.includes(s))) return false;
+    const resumeSourceKey = (typeof doc.sourceKey === 'string' ? doc.sourceKey : undefined)
+      ?? resolveResumeAnalysisSourceKey({ source: toStringValue(doc.source) ?? undefined });
+    if (!resumeSourceKey || !filters.sources.includes(resumeSourceKey)) return false;
   }
 
   return true;
@@ -3264,6 +3295,9 @@ async function getConvexResumeDetail(resumeId: string): Promise<ResumeItem | nul
   const content = isRecord(value.content) ? value.content : {};
   const source = toStringValue(value.source) || undefined;
   const resume = toResumeItemFromRecord(content, source);
+  if (typeof value.searchText === 'string') {
+    resume.searchText = value.searchText;
+  }
   const ingestData = buildResumeIngestData(value.ingestData);
 
   return ingestData

@@ -101,6 +101,7 @@ export type ResumeItem = {
   profileId?: string;
   profileType?: string;
   externalId?: string;
+  searchText?: string;
 };
 
 export type ResumeSampleFile = {

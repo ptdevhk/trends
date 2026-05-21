@@ -610,13 +610,16 @@ export class ResumeService {
       }
 
       if (filters.skills?.length) {
-        const haystack = buildSearchText(item);
+        // Use full searchText (includes all workHistory, industryTags, synonyms, etc.)
+        // rather than narrow buildSearchText (only latest workHistory). Aligns with
+        // Convex matchesResumeListFilters and BFF bffMatchesResumeFilters.
+        const haystack = item.searchText?.toLowerCase() ?? buildSearchText(item);
         const hasSkill = filters.skills.some((skill) => haystack.includes(skill.toLowerCase()));
         if (!hasSkill) return false;
       }
 
       if (filters.requiredKeywords?.length) {
-        const haystack = buildSearchText(item);
+        const haystack = item.searchText?.toLowerCase() ?? buildSearchText(item);
         if (!matchesAllRequiredKeywords(haystack, filters.requiredKeywords)) return false;
       }
 

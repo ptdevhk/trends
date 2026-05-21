@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 // logic for testing, verifying alignment with Convex behavior.
 
 import { normalizeEducationLevel, parseExperienceYears } from "../../services/resume-service.js";
-import { parseSalaryRange } from "@trends/shared";
+import { parseSalaryRange, resolveResumeAnalysisSourceKey } from "@trends/shared";
 
 // Helper to replicate bffMatchesResumeFilters for unit testing.
 // This mirrors the function in routes/resumes.ts exactly.
@@ -23,6 +23,8 @@ function bffMatchesResumeFilters(
     minSalary?: number;
     maxSalary?: number;
     showArchived?: boolean;
+    sources?: string[];
+    roleFilterType?: string;
   },
 ): boolean {
   function isRecord(value: unknown): value is Record<string, unknown> {
@@ -39,6 +41,7 @@ function bffMatchesResumeFilters(
   if (!filters.showArchived && doc.isArchived === true) return false;
 
   const content = isRecord(doc.content) ? doc.content : {};
+  const ingestData = isRecord(doc.ingestData) ? doc.ingestData : {};
 
   if (typeof filters.minExperience === "number" || typeof filters.maxExperience === "number") {
     const expStr = toStringValue(content.experience) ?? "";
@@ -80,6 +83,31 @@ function bffMatchesResumeFilters(
         if (minSalary !== undefined && minSalary > filters.maxSalary) return false;
       }
     }
+  }
+
+  if (filters.roleFilterType) {
+    const key = filters.roleFilterType.toLowerCase();
+    const verifiedRoleYears = isRecord(ingestData.verifiedRoleYears)
+      ? ingestData.verifiedRoleYears as Record<string, unknown>
+      : {};
+    const hasVerifiedRole = typeof verifiedRoleYears[key] === "number";
+    let hasMatchingRole = hasVerifiedRole;
+    if (!hasMatchingRole) {
+      const roleSignals: unknown[] = Array.isArray(ingestData.roleSignals)
+        ? ingestData.roleSignals as unknown[]
+        : [];
+      hasMatchingRole = roleSignals.some((signal: unknown) => {
+        if (!isRecord(signal)) return false;
+        return typeof signal.type === "string" && signal.type.toLowerCase() === key;
+      });
+    }
+    if (!hasMatchingRole) return false;
+  }
+
+  if (filters.sources?.length) {
+    const resumeSourceKey = (typeof doc.sourceKey === 'string' ? doc.sourceKey : undefined)
+      ?? resolveResumeAnalysisSourceKey({ source: toStringValue(doc.source) ?? undefined });
+    if (!resumeSourceKey || !filters.sources.includes(resumeSourceKey)) return false;
   }
 
   return true;
@@ -226,6 +254,80 @@ describe("bffMatchesResumeFilters", () => {
         skills: ["cnc"],
         minSalary: 100,
       })).toBe(false);
+    });
+  });
+
+  describe("sources filter — sourceKey exact match", () => {
+    it("matches resume by resolved sourceKey", () => {
+      const doc = makeDoc({ source: "51job" });
+      expect(bffMatchesResumeFilters(doc, "", { sources: ["51job"] })).toBe(true);
+    });
+
+    it("does not match via substring — '51' should not match '51job'", () => {
+      const doc = makeDoc({ source: "51job" });
+      expect(bffMatchesResumeFilters(doc, "", { sources: ["51"] })).toBe(false);
+    });
+
+    it("matches when sourceKey is explicitly provided", () => {
+      const doc = makeDoc({ source: "seek", sourceKey: "seek" });
+      expect(bffMatchesResumeFilters(doc, "", { sources: ["seek"] })).toBe(true);
+    });
+
+    it("excludes resume with non-matching source", () => {
+      const doc = makeDoc({ source: "51job" });
+      expect(bffMatchesResumeFilters(doc, "", { sources: ["zhilian"] })).toBe(false);
+    });
+  });
+
+  describe("roleFilterType — verifiedRoleYears takes precedence", () => {
+    it("matches when verifiedRoleYears has the role", () => {
+      const doc = makeDoc({
+        ingestData: {
+          verifiedRoleYears: { "sales manager": 5 },
+          roleSignals: [],
+        },
+      });
+      expect(bffMatchesResumeFilters(doc, "", { roleFilterType: "sales manager" })).toBe(true);
+    });
+
+    it("matches when only roleSignals has the role", () => {
+      const doc = makeDoc({
+        ingestData: {
+          verifiedRoleYears: {},
+          roleSignals: [{ type: "cnc operator" }],
+        },
+      });
+      expect(bffMatchesResumeFilters(doc, "", { roleFilterType: "cnc operator" })).toBe(true);
+    });
+
+    it("matches via verifiedRoleYears even without roleSignals", () => {
+      const doc = makeDoc({
+        ingestData: {
+          verifiedRoleYears: { "cnc operator": 3 },
+          roleSignals: [],
+        },
+      });
+      expect(bffMatchesResumeFilters(doc, "", { roleFilterType: "cnc operator" })).toBe(true);
+    });
+
+    it("excludes when role is in neither verifiedRoleYears nor roleSignals", () => {
+      const doc = makeDoc({
+        ingestData: {
+          verifiedRoleYears: { "sales manager": 5 },
+          roleSignals: [{ type: "cnc operator" }],
+        },
+      });
+      expect(bffMatchesResumeFilters(doc, "", { roleFilterType: "project manager" })).toBe(false);
+    });
+
+    it("matches case-insensitively", () => {
+      const doc = makeDoc({
+        ingestData: {
+          verifiedRoleYears: { "cnc operator": 3 },
+          roleSignals: [],
+        },
+      });
+      expect(bffMatchesResumeFilters(doc, "", { roleFilterType: "CNC Operator" })).toBe(true);
     });
   });
 });
