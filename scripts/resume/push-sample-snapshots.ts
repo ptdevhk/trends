@@ -138,7 +138,12 @@ async function main(): Promise<void> {
   const tempDir = await mkdtemp("trends-push-samples-");
   try {
     console.log(`Cloning ${sampleRepo}...`);
-    await execFileAsync("git", ["clone", "--depth=1", `https://github.com/${sampleRepo}.git`, tempDir]);
+    try {
+      await execFileAsync("git", ["clone", "--depth=1", `https://github.com/${sampleRepo}.git`, tempDir]);
+    } catch {
+      console.log("git clone failed — trying gh repo clone for authenticated access...");
+      await execFileAsync("gh", ["repo", "clone", sampleRepo, tempDir, "--", "--depth=1"]);
+    }
 
     const snapshotsDir = path.join(tempDir, "snapshots");
     await mkdir(snapshotsDir, { recursive: true });

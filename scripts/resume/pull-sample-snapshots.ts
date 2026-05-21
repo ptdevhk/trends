@@ -36,7 +36,14 @@ async function main(): Promise<void> {
   const tempDir = await mkdtemp("trends-pull-samples-");
   try {
     console.log(`Cloning ${sampleRepo}...`);
-    await execFileAsync("git", ["clone", "--depth=1", `https://github.com/${sampleRepo}.git`, tempDir]);
+    try {
+      await execFileAsync("git", ["clone", "--depth=1", `https://github.com/${sampleRepo}.git`, tempDir]);
+    } catch {
+      // Private repos require auth; fall back to `gh repo clone` which uses
+      // the GitHub CLI credential store (SSH key, token, etc.)
+      console.log("git clone failed — trying gh repo clone for authenticated access...");
+      await execFileAsync("gh", ["repo", "clone", sampleRepo, tempDir, "--", "--depth=1"]);
+    }
 
     const snapshotsDir = path.join(tempDir, "snapshots");
     const files = await readdir(snapshotsDir).catch(() => [] as string[]);
