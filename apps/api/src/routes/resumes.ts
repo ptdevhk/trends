@@ -46,7 +46,7 @@ import {
   AnalysisTasksResponseSchema,
 } from "../schemas/index.js";
 import { config } from "../services/config.js";
-import { ResumeService, parseExperienceYears, type ResumeFilters } from "../services/resume-service.js";
+import { ResumeService, normalizeEducationLevel, parseExperienceYears, type ResumeFilters } from "../services/resume-service.js";
 import { DataNotFoundError } from "../services/errors.js";
 import { resolveConvexUrl } from "../services/resume-import-service.js";
 import { AIMatchingService, type MatchingRequest, type MatchingResult } from "../services/ai-matching.js";
@@ -1938,7 +1938,11 @@ function bffMatchesResumeFilters(
   if (typeof filters.minExperience === "number" || typeof filters.maxExperience === "number") {
     const expStr = toStringValue(content.experience) ?? "";
     const expYears = parseExperienceYears(expStr);
-    if (expYears !== null) {
+    if (expYears === null) {
+      // Unknown experience — exclude if maxExperience is set (cannot guarantee cap),
+      // but skip minExperience (resume might meet the minimum).
+      if (typeof filters.maxExperience === "number") return false;
+    } else {
       if (typeof filters.minExperience === "number" && expYears < filters.minExperience) return false;
       if (typeof filters.maxExperience === "number" && expYears > filters.maxExperience) return false;
     }
@@ -1946,7 +1950,8 @@ function bffMatchesResumeFilters(
 
   if (filters.education?.length) {
     const edu = toStringValue(content.education) ?? "";
-    if (!filters.education.some((e) => edu.includes(e))) return false;
+    const level = normalizeEducationLevel(edu);
+    if (!level || !filters.education.includes(level)) return false;
   }
 
   if (filters.skills?.length) {
@@ -1969,7 +1974,11 @@ function bffMatchesResumeFilters(
   if (typeof filters.minSalary === "number" || typeof filters.maxSalary === "number") {
     const salaryStr = toStringValue(content.expectedSalary) ?? "";
     const salaryMatch = salaryStr.match(/(\d+)/);
-    if (salaryMatch) {
+    if (!salaryMatch) {
+      // Unknown salary — exclude if maxSalary is set (cannot guarantee cap),
+      // but skip minSalary (resume might meet the minimum).
+      if (typeof filters.maxSalary === "number") return false;
+    } else {
       const salary = parseInt(salaryMatch[1]!, 10);
       if (typeof filters.minSalary === "number" && salary < filters.minSalary) return false;
       if (typeof filters.maxSalary === "number" && salary > filters.maxSalary) return false;
