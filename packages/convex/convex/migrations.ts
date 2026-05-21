@@ -1627,6 +1627,8 @@ export const backfillMarketField = mutation({
                 ingestData: {
                     ...resume.ingestData,
                     market: "MY",
+                    // CN industry DB data doesn't apply to MY market — zero it out
+                    ...(resume.ingestData.industryDbV2Raw ? { industryDbV2Raw: 0 } : {}),
                 } as typeof resume.ingestData,
             });
             updated += 1;
