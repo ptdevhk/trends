@@ -16,56 +16,17 @@ import {
     DEFAULT_MIN_EXPERIENCE,
     formatKeywordInput,
     generateStructuredJobDescriptionContent,
-    normalizeIndustryTags,
     normalizeOptionalString,
     parseKeywordQuery,
-    type StructuredJobDescriptionSeedFields,
 } from "@trends/shared"
+import {
+    hasStructuredSeedFields,
+    parseOptionalNumber,
+    sanitizeIndustryTags,
+    type StructuredSeedFields,
+} from "@/lib/jd-editor-utils"
 
 const INDUSTRY_TAG_OPTIONS = CANONICAL_INDUSTRY_TAGS
-
-type StructuredSeedFields = StructuredJobDescriptionSeedFields
-
-function parseOptionalNumber(value: string): number | undefined {
-    const normalized = value.trim()
-    if (!normalized) {
-        return undefined
-    }
-    const parsed = Number(normalized)
-    if (!Number.isFinite(parsed)) {
-        return undefined
-    }
-    return Math.trunc(parsed)
-}
-
-function sanitizeIndustryTags(values: string[] | undefined): string[] {
-    return normalizeIndustryTags(values)
-}
-
-function hasStructuredSeedFields(fields: StructuredSeedFields | undefined): boolean {
-    if (!fields) {
-        return false
-    }
-
-    if (normalizeOptionalString(fields.location)) {
-        return true
-    }
-
-    if ((fields.industryTags?.length ?? 0) > 0) {
-        return true
-    }
-
-    if ((fields.customKeywords?.length ?? 0) > 0) {
-        return true
-    }
-
-    return (
-        typeof fields.minExperience === "number"
-        || typeof fields.maxExperience === "number"
-        || typeof fields.minAge === "number"
-        || typeof fields.maxAge === "number"
-    )
-}
 
 interface JobDescriptionEditorProps {
     open: boolean
