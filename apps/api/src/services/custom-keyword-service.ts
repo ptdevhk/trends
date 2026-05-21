@@ -93,11 +93,11 @@ type Job5156LocationSnapshot = {
     tree?: unknown;
 };
 
-function parseKeywordMarket(value: unknown): KeywordMarket | null {
+export function parseKeywordMarket(value: unknown): KeywordMarket | null {
     return value === "CN" || value === "MY" ? value : null;
 }
 
-function parseMarketList(value: unknown): KeywordMarket[] | undefined {
+export function parseMarketList(value: unknown): KeywordMarket[] | undefined {
     if (!Array.isArray(value)) {
         return undefined;
     }
@@ -109,11 +109,11 @@ function parseMarketList(value: unknown): KeywordMarket[] | undefined {
     return markets.length > 0 ? Array.from(new Set(markets)) : undefined;
 }
 
-function parseVisible(value: unknown): boolean | undefined {
+export function parseVisible(value: unknown): boolean | undefined {
     return typeof value === "boolean" ? value : undefined;
 }
 
-function parseWorkflowCollectionSource(value: unknown): CustomKeywordWorkflowSeed["collectionSource"] | null {
+export function parseWorkflowCollectionSource(value: unknown): CustomKeywordWorkflowSeed["collectionSource"] | null {
     if (!value || typeof value !== "object") {
         return null;
     }
@@ -131,7 +131,7 @@ function parseWorkflowCollectionSource(value: unknown): CustomKeywordWorkflowSee
     return exactUrl ? { type, exactUrl } : { type };
 }
 
-function parseCustomKeywordTag(value: unknown): CustomKeywordTag | null {
+export function parseCustomKeywordTag(value: unknown): CustomKeywordTag | null {
     if (!value || typeof value !== "object") {
         return null;
     }
@@ -166,7 +166,7 @@ function parseCustomKeywordTag(value: unknown): CustomKeywordTag | null {
     return tag;
 }
 
-function parseWorkflowSeed(value: unknown): CustomKeywordWorkflowSeed | null {
+export function parseWorkflowSeed(value: unknown): CustomKeywordWorkflowSeed | null {
     if (!value || typeof value !== "object") {
         return null;
     }
@@ -205,15 +205,15 @@ function parseWorkflowSeed(value: unknown): CustomKeywordWorkflowSeed | null {
     return workflowSeed;
 }
 
-function normalizeKeyword(value: unknown): string {
+export function normalizeKeyword(value: unknown): string {
     return typeof value === "string" ? value.trim() : "";
 }
 
-function createSystemLocationId(level: SystemLocationLevel, keyword: string): string {
+export function createSystemLocationId(level: SystemLocationLevel, keyword: string): string {
     return `job5156:${level}:${encodeURIComponent(keyword)}`;
 }
 
-function parseSystemLocationItem(value: unknown): SystemLocationItem | null {
+export function parseSystemLocationItem(value: unknown): SystemLocationItem | null {
     if (!value || typeof value !== "object") {
         return null;
     }
@@ -236,7 +236,7 @@ function parseSystemLocationItem(value: unknown): SystemLocationItem | null {
     return item;
 }
 
-function normalizeConfig(raw: unknown): CustomKeywordsConfig {
+export function normalizeConfig(raw: unknown): CustomKeywordsConfig {
   if (!raw || typeof raw !== "object") {
     return { tags: [], categories: [...DEFAULT_CATEGORIES], systemLocations: [], workflowSeeds: [] };
   }
