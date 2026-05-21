@@ -43,29 +43,29 @@ type WorkspaceConfigEntry = {
   updatedAt: number;
 };
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function readString(value: unknown): string | null {
+export function readString(value: unknown): string | null {
   if (typeof value === "string" && value.trim().length > 0) {
     return value.trim();
   }
   return null;
 }
 
-function readNumber(value: unknown): number | null {
+export function readNumber(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) {
     return value;
   }
   return null;
 }
 
-function readBoolean(value: unknown): boolean | null {
+export function readBoolean(value: unknown): boolean | null {
   return typeof value === "boolean" ? value : null;
 }
 
-function parseMarkets(value: unknown): Array<"CN" | "MY"> | undefined {
+export function parseMarkets(value: unknown): Array<"CN" | "MY"> | undefined {
   if (!Array.isArray(value)) {
     return undefined;
   }
@@ -74,11 +74,11 @@ function parseMarkets(value: unknown): Array<"CN" | "MY"> | undefined {
   return markets.length > 0 ? Array.from(new Set(markets)) : undefined;
 }
 
-function parseVisible(value: unknown): boolean | undefined {
+export function parseVisible(value: unknown): boolean | undefined {
   return readBoolean(value) ?? undefined;
 }
 
-function parseWorkflowCollectionSource(value: unknown): CustomKeywordWorkflowSeed["collectionSource"] | null {
+export function parseWorkflowCollectionSource(value: unknown): CustomKeywordWorkflowSeed["collectionSource"] | null {
   if (!isRecord(value)) {
     return null;
   }
@@ -92,7 +92,7 @@ function parseWorkflowCollectionSource(value: unknown): CustomKeywordWorkflowSee
   return exactUrl ? { type, exactUrl } : { type };
 }
 
-function parseWorkspaceConfigEntry(value: unknown): WorkspaceConfigEntry | null {
+export function parseWorkspaceConfigEntry(value: unknown): WorkspaceConfigEntry | null {
   if (!isRecord(value)) {
     return null;
   }
@@ -113,7 +113,7 @@ function parseWorkspaceConfigEntry(value: unknown): WorkspaceConfigEntry | null 
   };
 }
 
-function mergeUnknown(baseValue: unknown, overrideValue: unknown): unknown {
+export function mergeUnknown(baseValue: unknown, overrideValue: unknown): unknown {
   if (overrideValue === undefined) {
     return baseValue;
   }
@@ -138,17 +138,17 @@ function mergeUnknown(baseValue: unknown, overrideValue: unknown): unknown {
   return overrideValue;
 }
 
-function parseSummaryPeriod(value: unknown): SummaryPeriod | null {
+export function parseSummaryPeriod(value: unknown): SummaryPeriod | null {
   return value === "daily" || value === "weekly" ? value : null;
 }
 
-function parseSummaryChannel(value: unknown): SummaryChannel | null {
+export function parseSummaryChannel(value: unknown): SummaryChannel | null {
   return value === "email" || value === "wechat_work" || value === "feishu" || value === "telegram"
     ? value
     : null;
 }
 
-function parseSummaryProfileSchedule(value: unknown): SummaryProfileRecord["schedule"] | null {
+export function parseSummaryProfileSchedule(value: unknown): SummaryProfileRecord["schedule"] | null {
   if (!isRecord(value)) {
     return null;
   }
@@ -161,7 +161,7 @@ function parseSummaryProfileSchedule(value: unknown): SummaryProfileRecord["sche
   return { cron };
 }
 
-function parseSummaryProfileRequest(value: unknown): SummaryProfileRecord["request"] | null {
+export function parseSummaryProfileRequest(value: unknown): SummaryProfileRecord["request"] | null {
   if (!isRecord(value)) {
     return null;
   }
@@ -200,7 +200,7 @@ function parseSummaryProfileRequest(value: unknown): SummaryProfileRecord["reque
   return request;
 }
 
-function parseSummaryProfileRecord(value: unknown): SummaryProfileRecord | null {
+export function parseSummaryProfileRecord(value: unknown): SummaryProfileRecord | null {
   if (!isRecord(value)) {
     return null;
   }
@@ -223,7 +223,7 @@ function parseSummaryProfileRecord(value: unknown): SummaryProfileRecord | null 
   };
 }
 
-function parseSummaryProfilesConfig(value: unknown): SummaryProfilesConfig {
+export function parseSummaryProfilesConfig(value: unknown): SummaryProfilesConfig {
   if (!isRecord(value)) {
     return { profiles: [] };
   }
@@ -241,7 +241,7 @@ function sanitizeSummaryProfilesConfig(config: SummaryProfilesConfig): SummaryPr
   return parseSummaryProfilesConfig(config);
 }
 
-function parseCustomKeywordTag(value: unknown): CustomKeywordTag | null {
+export function parseCustomKeywordTag(value: unknown): CustomKeywordTag | null {
   if (!isRecord(value)) {
     return null;
   }
@@ -270,7 +270,7 @@ function parseCustomKeywordTag(value: unknown): CustomKeywordTag | null {
   return tag;
 }
 
-function parseCustomKeywordCategory(value: unknown): CustomKeywordCategory | null {
+export function parseCustomKeywordCategory(value: unknown): CustomKeywordCategory | null {
   if (!isRecord(value)) {
     return null;
   }
@@ -284,7 +284,7 @@ function parseCustomKeywordCategory(value: unknown): CustomKeywordCategory | nul
   return { id, name, icon };
 }
 
-function parseSystemLocationItem(value: unknown): SystemLocationItem | null {
+export function parseSystemLocationItem(value: unknown): SystemLocationItem | null {
   if (!isRecord(value)) {
     return null;
   }
@@ -306,7 +306,7 @@ function parseSystemLocationItem(value: unknown): SystemLocationItem | null {
   return location;
 }
 
-function parseWorkflowSeed(value: unknown): CustomKeywordWorkflowSeed | null {
+export function parseWorkflowSeed(value: unknown): CustomKeywordWorkflowSeed | null {
   if (!isRecord(value)) {
     return null;
   }
@@ -348,7 +348,7 @@ function parseWorkflowSeed(value: unknown): CustomKeywordWorkflowSeed | null {
   return workflowSeed;
 }
 
-function parseCustomKeywordsConfig(value: unknown): CustomKeywordsConfig {
+export function parseCustomKeywordsConfig(value: unknown): CustomKeywordsConfig {
   if (!isRecord(value)) {
     return { tags: [], categories: [], systemLocations: [], workflowSeeds: [] };
   }
@@ -392,7 +392,7 @@ function sanitizeCustomKeywordsConfig(config: CustomKeywordsConfig): CustomKeywo
   };
 }
 
-function mergeItemsById<T extends { id: string }>(base: T[], overrides: T[]): T[] {
+export function mergeItemsById<T extends { id: string }>(base: T[], overrides: T[]): T[] {
   const mergedById = new Map<string, T>();
 
   for (const item of base) {
@@ -415,7 +415,7 @@ function mergeItemsById<T extends { id: string }>(base: T[], overrides: T[]): T[
   return Array.from(mergedById.values());
 }
 
-function mergeResolvedItemsById<T extends { id: string; source?: ConfigSourceOrigin }>(base: T[], overrides: T[]): T[] {
+export function mergeResolvedItemsById<T extends { id: string; source?: ConfigSourceOrigin }>(base: T[], overrides: T[]): T[] {
   const mergedById = new Map<string, T>();
 
   for (const item of base) {
@@ -445,7 +445,7 @@ function mergeResolvedItemsById<T extends { id: string; source?: ConfigSourceOri
   return Array.from(mergedById.values());
 }
 
-function parseFilterPreset(value: unknown): FilterPreset | null {
+export function parseFilterPreset(value: unknown): FilterPreset | null {
   if (!isRecord(value)) {
     return null;
   }
@@ -497,7 +497,7 @@ function parseFilterPreset(value: unknown): FilterPreset | null {
   return { id, name, category, filters };
 }
 
-function parsePresetCategory(value: unknown): PresetCategory | null {
+export function parsePresetCategory(value: unknown): PresetCategory | null {
   if (!isRecord(value)) {
     return null;
   }
@@ -510,7 +510,7 @@ function parsePresetCategory(value: unknown): PresetCategory | null {
   return { id, name, icon };
 }
 
-function parseFilterPresetsConfig(value: unknown): FilterPresetsConfig {
+export function parseFilterPresetsConfig(value: unknown): FilterPresetsConfig {
   if (!isRecord(value)) {
     return { presets: [], categories: [] };
   }
@@ -530,7 +530,7 @@ function parseFilterPresetsConfig(value: unknown): FilterPresetsConfig {
   return { presets, categories };
 }
 
-function parseLearningLogEntry(value: unknown): LearningLogEntry | null {
+export function parseLearningLogEntry(value: unknown): LearningLogEntry | null {
   if (!isRecord(value)) {
     return null;
   }
@@ -544,7 +544,7 @@ function parseLearningLogEntry(value: unknown): LearningLogEntry | null {
   return { date, observation };
 }
 
-function parseLearningLogConfig(value: unknown): LearningLogEntry[] {
+export function parseLearningLogConfig(value: unknown): LearningLogEntry[] {
   if (!Array.isArray(value)) {
     return [];
   }
@@ -554,7 +554,7 @@ function parseLearningLogConfig(value: unknown): LearningLogEntry[] {
     .filter((item): item is LearningLogEntry => item !== null);
 }
 
-function parseRuleWeightsConfig(value: unknown): RuleWeightsConfigOverrides | undefined {
+export function parseRuleWeightsConfig(value: unknown): RuleWeightsConfigOverrides | undefined {
   return parseRuleWeightsOverrides(value);
 }
 
