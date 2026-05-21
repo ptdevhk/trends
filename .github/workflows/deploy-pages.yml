@@ -79,7 +79,7 @@ jobs:
       # Download artifacts from crawler workflow (if triggered by workflow_run)
       - name: Download crawler artifacts
         if: ${{ github.event_name == 'workflow_run' }}
-        uses: dawidd6/action-download-artifact@v6
+        uses: dawidd6/action-download-artifact@v19
         with:
           workflow: crawler.yml
           run_id: ${{ github.event.workflow_run.id }}
