@@ -176,10 +176,18 @@ const ResumeIngestBrandHitSchema = z
 const ResumeIngestDataSchema = z
   .object({
     industryTags: z.array(z.string()).optional().openapi({ example: ["industrial-machinery"] }),
+    synonymHits: z.array(z.string()).optional(),
+    evidenceText: z.string().optional(),
     brandHits: z.array(ResumeIngestBrandHitSchema).optional(),
     companyHits: z.array(z.string()).optional().openapi({ example: ["fanuc"] }),
     industryDbV2Raw: z.number().optional().openapi({ example: 12 }),
     roleSignals: z.array(ResumeIngestRoleSignalSchema).optional(),
+    verifiedRoleYears: z.record(z.string(), z.number()).optional(),
+    ruleScores: z.record(z.string(), z.number()).optional(),
+    experienceLevel: z.string().optional(),
+    market: z.string().optional(),
+    computedAt: z.number().optional(),
+    skillsVersion: z.number().optional(),
   })
   .openapi("ResumeIngestData");
 

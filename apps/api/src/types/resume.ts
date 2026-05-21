@@ -55,11 +55,18 @@ export type ResumeIngestRoleSignal = {
 
 export type ResumeIngestData = {
   industryTags?: string[];
+  synonymHits?: string[];
+  evidenceText?: string;
   brandHits?: ResumeIngestBrandHit[];
   companyHits?: string[];
   industryDbV2Raw?: number;
   roleSignals?: ResumeIngestRoleSignal[];
   verifiedRoleYears?: Record<string, number>;
+  ruleScores?: Record<string, number>;
+  experienceLevel?: string;
+  market?: string;
+  computedAt?: number;
+  skillsVersion?: number;
 };
 
 export type ResumeItem = {

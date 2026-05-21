@@ -7506,6 +7506,8 @@ export interface components {
              *     ]
              */
             industryTags?: string[];
+            synonymHits?: string[];
+            evidenceText?: string;
             brandHits?: components["schemas"]["ResumeIngestBrandHit"][];
             /**
              * @example [
@@ -7516,6 +7518,16 @@ export interface components {
             /** @example 12 */
             industryDbV2Raw?: number;
             roleSignals?: components["schemas"]["ResumeIngestRoleSignal"][];
+            verifiedRoleYears?: {
+                [key: string]: number;
+            };
+            ruleScores?: {
+                [key: string]: number;
+            };
+            experienceLevel?: string;
+            market?: string;
+            computedAt?: number;
+            skillsVersion?: number;
         };
         ResumeItem: {
             /** @example Alex Chen */

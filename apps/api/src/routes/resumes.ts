@@ -604,6 +604,8 @@ function buildResumeIngestData(value: unknown): ResumeItem["ingestData"] | undef
   }
 
   const industryTags = toStringArray(value.industryTags);
+  const synonymHits = toStringArray(value.synonymHits);
+  const evidenceText = toStringValue(value.evidenceText) || undefined;
   const companyHits = toStringArray(value.companyHits);
   const brandHits = parseBrandHits(value.brandHits);
   const roleSignals = parseRoleSignals(value.roleSignals);
@@ -611,14 +613,27 @@ function buildResumeIngestData(value: unknown): ResumeItem["ingestData"] | undef
   const experienceLevel = toStringValue(value.experienceLevel) || undefined;
   const normalizedExperienceLevel = experienceLevel?.trim().toLowerCase();
   const meaningfulExperienceLevel = normalizedExperienceLevel && normalizedExperienceLevel !== 'unknown' ? experienceLevel : undefined;
+  const market = toStringValue(value.market) || undefined;
+  const ruleScores = isRecord(value.ruleScores)
+    ? Object.fromEntries(
+        Object.entries(value.ruleScores)
+          .filter((entry): entry is [string, number] => typeof entry[1] === 'number' && Number.isFinite(entry[1])),
+      )
+    : undefined;
+  const computedAt = toOptionalNumber(value.computedAt);
+  const skillsVersion = toOptionalNumber(value.skillsVersion);
 
   if (
     industryTags.length === 0
+    && synonymHits.length === 0
+    && !evidenceText
     && companyHits.length === 0
     && brandHits.length === 0
     && roleSignals.length === 0
     && industryDbV2Raw === undefined
     && !meaningfulExperienceLevel
+    && !market
+    && (!ruleScores || Object.keys(ruleScores).length === 0)
   ) {
     return undefined;
   }
@@ -632,12 +647,18 @@ function buildResumeIngestData(value: unknown): ResumeItem["ingestData"] | undef
 
   return {
     ...(industryTags.length > 0 ? { industryTags } : {}),
+    ...(synonymHits.length > 0 ? { synonymHits } : {}),
+    ...(evidenceText ? { evidenceText } : {}),
     ...(companyHits.length > 0 ? { companyHits } : {}),
     ...(brandHits.length > 0 ? { brandHits } : {}),
     ...(roleSignals.length > 0 ? { roleSignals } : {}),
     ...(industryDbV2Raw === undefined ? {} : { industryDbV2Raw }),
     ...(meaningfulExperienceLevel ? { experienceLevel: meaningfulExperienceLevel } : {}),
     ...(verifiedRoleYears && Object.keys(verifiedRoleYears).length > 0 ? { verifiedRoleYears } : {}),
+    ...(ruleScores && Object.keys(ruleScores).length > 0 ? { ruleScores } : {}),
+    ...(market ? { market } : {}),
+    ...(computedAt !== undefined ? { computedAt } : {}),
+    ...(skillsVersion !== undefined ? { skillsVersion } : {}),
   };
 }
 
