@@ -466,6 +466,7 @@
         "signals": "Signals",
         "openSourceProfile": "Open source profile",
         "searchOnSeek": "Search on Seek",
+        "seekSessionRequired": "Requires active Seek session",
         "summaryUnavailable": "AI summary is not available for this resume. The current visible score comes from rule scoring only.",
         "aiSummaryUnavailable": "AI analysis is not available for this resume yet. The score will appear after analysis completes.",
         "profileOverview": "Profile overview",
