@@ -294,7 +294,9 @@ describe('QuickStartPanel quick-filter display', () => {
     await user.click(screen.getByRole('button', { name: 'Assistant' }))
 
     expect(onAssistantOpen).toHaveBeenCalledTimes(1)
-    expect(screen.getByTestId('search-assistant-drawer')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByTestId('search-assistant-drawer')).toBeInTheDocument()
+    })
     expect(screen.getAllByText('广东 · CNC').length).toBeGreaterThan(0)
     expect(screen.getByText('Workflow starts')).toBeInTheDocument()
   })
