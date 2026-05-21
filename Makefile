@@ -1115,6 +1115,11 @@ check-python:
 # Node/TypeScript checks (uses Bun locally when available, npm in CI)
 check-node:
 	@echo "Running Node.js checks..."
+	@# Verify @trends/shared dist is not stale (source newer than dist)
+	@if [ -f packages/shared/dist/index.js ] && find packages/shared/src -type f -newer packages/shared/dist/index.js -print -quit | grep -q .; then \
+		echo "Rebuilding @trends/shared (source is newer than dist)..."; \
+		npm run --workspace @trends/shared build; \
+	fi
 	@npm run check:resume-ai-prompts
 	@npm run check:resume-field-usage-policy
 	@npm run check:search-profile-templates
