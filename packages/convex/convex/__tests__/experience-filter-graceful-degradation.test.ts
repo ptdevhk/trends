@@ -19,6 +19,8 @@ type SearchPaginatedArgs = {
   requiredKeywords?: string[];
   locations?: string[];
   sources?: string[];
+  minSalary?: number;
+  maxSalary?: number;
 };
 
 type SearchPaginatedResult = {
@@ -31,7 +33,7 @@ const searchPaginatedHandler = (
   searchWithTagExpansionPaginated as unknown as ConvexHandler<SearchPaginatedArgs, SearchPaginatedResult>
 )._handler;
 
-function buildSeekResumeDoc(id: string, experience: string) {
+function buildSeekResumeDoc(id: string, experience: string, expectedSalary?: string) {
     return {
         _id: id,
         externalId: `seek:${id}`,
@@ -41,6 +43,7 @@ function buildSeekResumeDoc(id: string, experience: string) {
         content: {
             name: id,
             experience,
+            ...(expectedSalary !== undefined ? { expectedSalary } : {}),
             workHistory: [
                 { company: "Test Co", title: "Sales", years: "?" },
             ],
@@ -176,5 +179,52 @@ describe("minExperience filter graceful degradation", () => {
         });
 
         expect(result.page).toHaveLength(1);
+    });
+});
+
+describe("salary filter graceful degradation", () => {
+    it("resumes with empty salary pass minSalary filter (Seek data)", async () => {
+        const resume = buildSeekResumeDoc("seek-sal-1", "", "");
+        const ctx = makeSearchCtx([resume]);
+
+        const result = await searchPaginatedHandler(ctx, {
+            paginationOpts: { cursor: null, numItems: 10 },
+            query: "cnc sales",
+            keywordGroups: [{ original: "cnc", variants: ["cnc"] }],
+            minSalary: 5000,
+        });
+
+        // Unknown salary + minSalary → passes through (might meet the minimum)
+        expect(result.page).toHaveLength(1);
+    });
+
+    it("resumes with unknown salary are excluded by maxSalary", async () => {
+        const resume = buildSeekResumeDoc("seek-sal-2", "", "");
+        const ctx = makeSearchCtx([resume]);
+
+        const result = await searchPaginatedHandler(ctx, {
+            paginationOpts: { cursor: null, numItems: 10 },
+            query: "cnc sales",
+            keywordGroups: [{ original: "cnc", variants: ["cnc"] }],
+            maxSalary: 10000,
+        });
+
+        // Unknown salary + maxSalary → excluded (cannot guarantee cap)
+        expect(result.page).toHaveLength(0);
+    });
+
+    it("resumes with known salary are filtered correctly", async () => {
+        const resume = buildSeekResumeDoc("seek-sal-3", "5", "3000-5000");
+        const ctx = makeSearchCtx([resume]);
+
+        const result = await searchPaginatedHandler(ctx, {
+            paginationOpts: { cursor: null, numItems: 10 },
+            query: "cnc sales",
+            keywordGroups: [{ original: "cnc", variants: ["cnc"] }],
+            minSalary: 6000,
+        });
+
+        // Known salary 5000 < minSalary 6000 → excluded
+        expect(result.page).toHaveLength(0);
     });
 });

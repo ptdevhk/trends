@@ -278,6 +278,8 @@ type ResumeListProjectedDoc = {
     archivedAt?: number;
     ingestData?: {
         industryTags: string[];
+        synonymHits: string[];
+        evidenceText?: string;
         brandHits?: Array<{
             brand: string;
             role: string;
@@ -307,6 +309,7 @@ type ResumeListProjectedDoc = {
         }>;
         ruleScores: unknown;
         experienceLevel: string;
+        market?: string;
         computedAt: number;
         skillsVersion: number;
     };
@@ -701,6 +704,8 @@ function projectResumeListIngestData(
 
     return {
         industryTags: ingestData.industryTags,
+        synonymHits: ingestData.synonymHits,
+        ...(ingestData.evidenceText === undefined ? {} : { evidenceText: ingestData.evidenceText }),
         ...(ingestData.brandHits
             ? {
                 brandHits: ingestData.brandHits.map((hit) => ({
@@ -1045,18 +1050,25 @@ function matchesResumeListFilters(resume: Doc<"resumes">, filters: ResumeListFil
     if (filters.minSalary !== undefined || filters.maxSalary !== undefined) {
         const salary = parseSalaryRange(toStringValue(content.expectedSalary));
         if (!salary) {
-            return false;
-        }
-        if (filters.minSalary !== undefined) {
-            const maxSalary = salary.max ?? salary.min;
-            if (maxSalary !== undefined && maxSalary < filters.minSalary) {
+            // Unknown salary — skip salary filter instead of excluding.
+            // Same graceful-degradation pattern as experience filter:
+            // minSalary passes through (candidate might meet it),
+            // maxSalary excludes (cannot guarantee the cap).
+            if (filters.maxSalary !== undefined) {
                 return false;
             }
-        }
-        if (filters.maxSalary !== undefined) {
-            const minSalary = salary.min ?? salary.max;
-            if (minSalary !== undefined && minSalary > filters.maxSalary) {
-                return false;
+        } else {
+            if (filters.minSalary !== undefined) {
+                const maxSalary = salary.max ?? salary.min;
+                if (maxSalary !== undefined && maxSalary < filters.minSalary) {
+                    return false;
+                }
+            }
+            if (filters.maxSalary !== undefined) {
+                const minSalary = salary.min ?? salary.max;
+                if (minSalary !== undefined && minSalary > filters.maxSalary) {
+                    return false;
+                }
             }
         }
     }
