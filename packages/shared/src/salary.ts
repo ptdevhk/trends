@@ -24,10 +24,11 @@ export function parseSalaryRange(
   const normalized = value.replace(/\s+/g, "").toLowerCase();
   if (!normalized || /面议/.test(normalized)) return null;
 
-  // Match: number [separator] [number]
+  // Match: number [unit?] [separator] [number] [unit?]
   // Separators: hyphen, tilde, Chinese range chars
+  // Units (K/千/万) may appear after either or both numbers
   const match = normalized.match(
-    /(\d+(?:\.\d+)?)(?:[-~到至](\d+(?:\.\d+)?))?/,
+    /(\d+(?:\.\d+)?)[k千万]?(?:[-~到至](\d+(?:\.\d+)?))?/,
   );
   if (!match) return null;
 
