@@ -47,7 +47,7 @@ export type StoredMatchPage = {
   total: number;
 };
 
-function parseJsonArray(value: unknown): string[] {
+export function parseJsonArray(value: unknown): string[] {
   if (typeof value !== "string" || !value.trim()) return [];
   try {
     const parsed = JSON.parse(value);
@@ -57,7 +57,7 @@ function parseJsonArray(value: unknown): string[] {
   }
 }
 
-function parseJsonObject(
+export function parseJsonObject(
   value: unknown
 ): MatchingResult["breakdown"] | undefined {
   if (typeof value !== "string" || !value.trim()) return undefined;
@@ -89,7 +89,7 @@ function parseJsonObject(
   }
 }
 
-function normalizeMatch(row: Record<string, unknown>): StoredMatch {
+export function normalizeMatch(row: Record<string, unknown>): StoredMatch {
   const scoreSource = row.score_source
     ? String(row.score_source)
     : String(row.ai_model || "").startsWith("rule")
@@ -116,7 +116,7 @@ function normalizeMatch(row: Record<string, unknown>): StoredMatch {
   };
 }
 
-function normalizeMatchRun(row: Record<string, unknown>): StoredMatchRun {
+export function normalizeMatchRun(row: Record<string, unknown>): StoredMatchRun {
   const rawMode = String(row.mode ?? "hybrid");
   const rawStatus = String(row.status ?? "processing");
 
