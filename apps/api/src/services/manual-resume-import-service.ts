@@ -83,11 +83,11 @@ const DOCX_MESSAGE_WARNING_TYPES = new Set(["warning", "error"]);
 const DOCX_TEXT_ENTRY_PATH_PATTERN = /^word\/(?:document|header\d+|footer\d+|footnotes|endnotes)\.xml$/i;
 const DOCX_TEXT_RUN_PATTERN = /<w:t\b[^>]*>((?:(?!<\/w:t>)(?:[^<]|<w:(?:br|cr|tab|noBreakHyphen|softHyphen)\b[^>]*\/>))*)<\/w:t>/gis;
 
-function normalizeWhitespace(value: string): string {
+export function normalizeWhitespace(value: string): string {
   return value.replace(/\r/g, "\n").replace(/\u0000/g, "").replace(/\n{3,}/g, "\n\n").trim();
 }
 
-function decodeXmlEntities(value: string): string {
+export function decodeXmlEntities(value: string): string {
   return value.replace(/&(?:#x([0-9a-fA-F]+)|#(\d+)|amp|lt|gt|quot|apos);/g, (match, hex, decimal) => {
     if (typeof hex === "string") {
       return String.fromCodePoint(Number.parseInt(hex, 16));
@@ -112,7 +112,7 @@ function decodeXmlEntities(value: string): string {
   });
 }
 
-function extractDocxTextFromXml(xml: string): string {
+export function extractDocxTextFromXml(xml: string): string {
   const fragments = Array.from(xml.matchAll(DOCX_TEXT_RUN_PATTERN), (match) => {
     return decodeXmlEntities(match[1])
       .replace(/<w:tab\b[^>]*\/>/g, "\t")
@@ -135,7 +135,7 @@ function extractDocxTextFallback(file: EnumeratedImportFile): string {
   return normalizeWhitespace(text);
 }
 
-function buildBaseMetadata(input: ManualResumeImportInput): ResumeImportMetadata {
+export function buildBaseMetadata(input: ManualResumeImportInput): ResumeImportMetadata {
   const keyword = normalizeOptionalString(input.keyword);
   const location = normalizeOptionalString(input.location);
   const searchProfileId = normalizeOptionalString(input.searchProfileId);
@@ -170,19 +170,19 @@ function toArrayBuffer(value: Uint8Array): ArrayBuffer {
   return copy.buffer;
 }
 
-function getExtension(name: string): string {
+export function getExtension(name: string): string {
   return path.extname(name).toLowerCase();
 }
 
-function sanitizeEntryPath(entryPath: string): string {
+export function sanitizeEntryPath(entryPath: string): string {
   return entryPath.replace(/\\/g, "/").replace(/^\/+/, "").trim();
 }
 
-function isSupportedResumeFile(entryPath: string): boolean {
+export function isSupportedResumeFile(entryPath: string): boolean {
   return SUPPORTED_FILE_EXTENSIONS.has(getExtension(entryPath));
 }
 
-function ensureFileSizeWithinLimit(name: string, size: number, limit: number): void {
+export function ensureFileSizeWithinLimit(name: string, size: number, limit: number): void {
   if (!Number.isFinite(size) || size < 0) {
     throw new Error(`Invalid file size for ${name}`);
   }
@@ -335,7 +335,7 @@ async function enumerateUploadedFiles(files: File[]): Promise<{
   return { entries, fileResults };
 }
 
-function fileResultBase(file: EnumeratedImportFile): Omit<ManualResumeImportFileResult, "status"> {
+export function fileResultBase(file: EnumeratedImportFile): Omit<ManualResumeImportFileResult, "status"> {
   return {
     uploadName: file.uploadName,
     entryPath: file.entryPath,
@@ -344,7 +344,7 @@ function fileResultBase(file: EnumeratedImportFile): Omit<ManualResumeImportFile
   };
 }
 
-function buildImportedResumeCandidate(
+export function buildImportedResumeCandidate(
   file: EnumeratedImportFile,
   text: string,
   warnings: string[],
@@ -529,7 +529,7 @@ async function parseResumeFile(file: EnumeratedImportFile): Promise<ParsedImport
   return parsePdfFile(file);
 }
 
-function buildSummary(
+export function buildSummary(
   parsedSummary: ManualResumeImportBuildSummary,
   submitSummary: ResumeSubmitSummary,
 ): ManualResumeImportSummary {
@@ -547,7 +547,7 @@ function buildSummary(
   };
 }
 
-function buildParsedSummary(
+export function buildParsedSummary(
   uploadedFiles: number,
   discoveredFiles: number,
   parsedResumes: number,
@@ -566,7 +566,7 @@ function buildParsedSummary(
   };
 }
 
-function resolveImportLimit(value: number | undefined): number | undefined {
+export function resolveImportLimit(value: number | undefined): number | undefined {
   if (typeof value !== "number" || !Number.isFinite(value)) {
     return undefined;
   }
