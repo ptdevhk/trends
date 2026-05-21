@@ -222,7 +222,7 @@ type ExactKeywordMatchContext = {
   score: number
 }
 
-function buildFallbackKeywordExpansion(query: string): KeywordExpansionSummary {
+export function buildFallbackKeywordExpansion(query: string): KeywordExpansionSummary {
   const parsed = parseKeywordQuery(query)
   const terms = parsed.keywords
     .map((term) => term.trim().toLowerCase())
@@ -277,7 +277,7 @@ function buildMockSearchText(doc: ResumeListDocLike): string {
     .join(' ')
 }
 
-function matchesKeywordExpansion(searchText: string, expansion: KeywordExpansionSummary): SearchProvenance[] {
+export function matchesKeywordExpansion(searchText: string, expansion: KeywordExpansionSummary): SearchProvenance[] {
   const seen = new Set<string>()
   const matches: SearchProvenance[] = []
 
@@ -351,7 +351,7 @@ function filterMockSearchResults(
     .map(stripMatchedGroupCount)
 }
 
-function toStringValue(value: unknown): string {
+export function toStringValue(value: unknown): string {
   if (typeof value === 'string') {
     return value
   }
@@ -361,14 +361,14 @@ function toStringValue(value: unknown): string {
   return String(value)
 }
 
-function toStringArray(value: unknown): string[] {
+export function toStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) {
     return []
   }
   return value.filter((item): item is string => typeof item === 'string')
 }
 
-function toNumber(value: unknown): number | null {
+export function toNumber(value: unknown): number | null {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return value
   }
@@ -381,7 +381,7 @@ function toNumber(value: unknown): number | null {
   return null
 }
 
-function parseBreakdown(value: unknown): Record<string, number> | undefined {
+export function parseBreakdown(value: unknown): Record<string, number> | undefined {
   if (!isRecord(value)) {
     return undefined
   }
@@ -397,7 +397,7 @@ function parseBreakdown(value: unknown): Record<string, number> | undefined {
   return Object.keys(parsed).length ? parsed : undefined
 }
 
-function parseAnalysis(value: unknown): ConvexResumeAnalysis | undefined {
+export function parseAnalysis(value: unknown): ConvexResumeAnalysis | undefined {
   if (!isRecord(value)) {
     return undefined
   }
@@ -422,7 +422,7 @@ function parseAnalysis(value: unknown): ConvexResumeAnalysis | undefined {
   }
 }
 
-function parseRuleScores(value: unknown): Record<string, number> {
+export function parseRuleScores(value: unknown): Record<string, number> {
   if (!isRecord(value)) {
     return {}
   }
@@ -438,7 +438,7 @@ function parseRuleScores(value: unknown): Record<string, number> {
   return parsed
 }
 
-function parseBrandHits(value: unknown): ConvexIngestData['brandHits'] {
+export function parseBrandHits(value: unknown): ConvexIngestData['brandHits'] {
   if (!Array.isArray(value)) {
     return []
   }
@@ -463,7 +463,7 @@ function parseBrandHits(value: unknown): ConvexIngestData['brandHits'] {
     .filter((item): item is NonNullable<typeof item> => item !== null)
 }
 
-function parseTaggingEnvelope(value: unknown): ConvexIngestData['taggingEnvelope'] {
+export function parseTaggingEnvelope(value: unknown): ConvexIngestData['taggingEnvelope'] {
   if (!isRecord(value)) {
     return undefined
   }
@@ -517,7 +517,7 @@ function parseTaggingEnvelope(value: unknown): ConvexIngestData['taggingEnvelope
   }
 }
 
-function parseAnalysesMap(value: unknown): Record<string, ConvexResumeAnalysis> | undefined {
+export function parseAnalysesMap(value: unknown): Record<string, ConvexResumeAnalysis> | undefined {
   if (!isRecord(value)) {
     return undefined
   }
@@ -533,7 +533,7 @@ function parseAnalysesMap(value: unknown): Record<string, ConvexResumeAnalysis> 
   return Object.keys(parsed).length ? parsed : undefined
 }
 
-function parseIngestData(value: unknown): ConvexIngestData | undefined {
+export function parseIngestData(value: unknown): ConvexIngestData | undefined {
   if (!isRecord(value)) {
     return undefined
   }
