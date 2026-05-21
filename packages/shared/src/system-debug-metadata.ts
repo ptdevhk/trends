@@ -478,14 +478,6 @@ export const SYSTEM_CAPABILITY_DESCRIPTORS: SystemCapabilityDescriptor[] = [
   },
 ];
 
-export function getInspectableSourceGroupDefinition(key: InspectableSourceGroupKey) {
-  return INSPECTABLE_SOURCE_GROUP_DEFINITIONS.find((definition) => definition.key === key) ?? null;
-}
-
 export function getLabelDescriptor(value: string, labels: LabelDescriptor[]): LabelDescriptor | null {
   return labels.find((label) => label.value === value) ?? null;
-}
-
-export function getBreakdownLabelDescriptor(key: string): BreakdownLabelDescriptor | null {
-  return DEBUG_AI_BREAKDOWN_LABELS.find((item) => item.key === key || item.aliases.includes(key)) ?? null;
 }
