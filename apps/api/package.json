@@ -15,7 +15,7 @@
     "@hono/zod-openapi": "^1.4.0",
     "@trends/shared": "*",
     "@types/nodemailer": "^7.0.9",
-    "better-sqlite3": "^11.0.0",
+    "better-sqlite3": "^12.0.0",
     "exceljs": "^4.4.0",
     "fflate": "^0.8.2",
     "hono": "^4.12.21",
