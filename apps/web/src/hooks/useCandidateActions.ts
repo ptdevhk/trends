@@ -188,6 +188,7 @@ export function useCandidateActions(sessionId?: string, jobDescriptionId?: strin
 
       return data.action ?? null
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- setAiFeedbackByResume uses functional update; aiFeedbackByResume not read directly
     [sessionId, ratingsByResume, actionsByResume]
   )
 
