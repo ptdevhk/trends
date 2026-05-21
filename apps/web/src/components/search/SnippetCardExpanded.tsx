@@ -222,6 +222,10 @@ export function SnippetCardExpanded({
   )
   const profileUrl = item.resume.profileUrl?.trim()
   const hasProfileUrl = isSafeProfileUrl(profileUrl)
+  const isNameSearchUrl = typeof profileUrl === 'string' && profileUrl.includes('/talentsearch/profiles/search')
+  const profileLinkLabel = isNameSearchUrl
+    ? t('resumes.searchPage.card.searchOnSeek', { defaultValue: '在 Seek 搜尋' })
+    : openSourceProfileLabel
   const { resolve: resolveBrand } = useBrandDisplayMap()
   const brandSummary = summarizeBrandHits(item.resume.ingestData?.brandHits)
 
@@ -594,7 +598,7 @@ export function SnippetCardExpanded({
                   rel="noreferrer"
                   className={cn(buttonVariants({ variant: 'outline' }), 'w-full justify-center rounded-xl')}
                 >
-                  {openSourceProfileLabel}
+                  {profileLinkLabel}
                   <ExternalLink className="ml-2 h-4 w-4" />
                 </a>
               ) : null}

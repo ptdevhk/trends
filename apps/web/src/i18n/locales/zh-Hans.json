@@ -464,6 +464,7 @@
         "resumeMetadata": "简历元数据",
         "signals": "信号",
         "openSourceProfile": "打开原始简历",
+        "searchOnSeek": "在 Seek 搜索",
         "summaryUnavailable": "该简历暂无 AI 摘要。当前可见分数来自规则评分。",
         "aiSummaryUnavailable": "该简历尚未生成 AI 分析，分析完成后会显示分数。",
         "profileOverview": "概览",
