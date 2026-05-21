@@ -4,9 +4,11 @@ import {
   buildWorkHistoryEntryText,
   formatLocationHierarchySearchText,
   isLocationMatch,
+  normalizeEducationLevel,
   normalizeKeywordPhrases,
   normalizeProfileUrlForDisplay,
   normalizeSharedResumeFields,
+  parseExperienceYears,
   parseSalaryRange,
   selectLatestWorkHistory,
 } from "@trends/shared";
@@ -641,36 +643,8 @@ export class ResumeService {
   }
 }
 
-export function parseExperienceYears(value: string): number | null {
-  if (!value) return null;
-  const normalized = value.trim();
-  if (!normalized) return null;
-  if (/应届|无经验/.test(normalized)) return 0;
-  const match = normalized.match(/(\d+)(?:\s*[-~到]\s*(\d+))?/);
-  if (!match) return null;
-  const min = Number(match[1]);
-  const max = match[2] ? Number(match[2]) : min;
-  return Number.isNaN(max) ? null : max;
-}
-
-export function normalizeEducationLevel(value: string): string | null {
-  if (!value) return null;
-  const normalized = value.trim().toLowerCase();
-  if (!normalized) return null;
-  // Chinese education terms
-  if (/博士/.test(normalized)) return "phd";
-  if (/硕士|研究生/.test(normalized)) return "master";
-  if (/本科/.test(normalized)) return "bachelor";
-  if (/大专|专科/.test(normalized)) return "associate";
-  if (/中专|高中|中技/.test(normalized)) return "high_school";
-  // English education terms (Seek MY market)
-  if (/\bph\.?d\.?\b/.test(normalized) || /\bdoctorate\b/.test(normalized)) return "phd";
-  if (/\bmaster/.test(normalized) || /\bm\.?s\.?\b/.test(normalized) || /\bm\.?a\.?\b/.test(normalized) || /\bmba\b/.test(normalized)) return "master";
-  if (/\bbachelor/.test(normalized) || /\bdegree\b/.test(normalized) || /\bb\.?s\.?\b/.test(normalized) || /\bb\.?a\.?\b/.test(normalized)) return "bachelor";
-  if (/\bdiploma\b/.test(normalized) || /\bassociate\b/.test(normalized)) return "associate";
-  if (/\bhigh school\b/.test(normalized) || /\bspm\b/.test(normalized) || /\bstpm\b/.test(normalized)) return "high_school";
-  return null;
-}
+// Re-export from @trends/shared for backward compatibility
+export { normalizeEducationLevel, parseExperienceYears } from "@trends/shared";
 
 export function parseSalaryRangeWithMeta(value: string | undefined): { min?: number; max?: number; currency?: string; period?: string } | null {
   const parsed = parseSalaryRange(value);
