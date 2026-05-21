@@ -1040,15 +1040,18 @@ function matchesResumeListFilters(resume: Doc<"resumes">, filters: ResumeListFil
     }
 
     if (filters.skills?.length) {
-        const haystack = buildResumeFilterSearchText(content, resume.source);
-        const hasSkill = filters.skills.some((skill) => haystack.includes(skill));
+        // Use full searchText (includes name, all workHistory, industryTags, synonyms, etc.)
+        // rather than narrow buildResumeFilterSearchText (only latest workHistory).
+        // Aligns with BFF bffMatchesResumeFilters which uses full doc.searchText.
+        const haystack = resume.searchText?.toLowerCase() ?? buildResumeFilterSearchText(content, resume.source);
+        const hasSkill = filters.skills.some((skill) => haystack.includes(skill.toLowerCase()));
         if (!hasSkill) {
             return false;
         }
     }
 
     if (filters.requiredKeywords?.length) {
-        const haystack = buildResumeFilterSearchText(content, resume.source);
+        const haystack = resume.searchText?.toLowerCase() ?? buildResumeFilterSearchText(content, resume.source);
         if (!matchesAllRequiredKeywords(haystack, filters.requiredKeywords)) {
             return false;
         }

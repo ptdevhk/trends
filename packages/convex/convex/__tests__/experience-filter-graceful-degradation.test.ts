@@ -16,6 +16,7 @@ type SearchPaginatedArgs = {
   maxExperience?: number;
   minRoleYears?: number;
   roleFilterType?: string;
+  skills?: string[];
   requiredKeywords?: string[];
   locations?: string[];
   sources?: string[];
@@ -225,6 +226,113 @@ describe("salary filter graceful degradation", () => {
         });
 
         // Known salary 5000 < minSalary 6000 → excluded
+        expect(result.page).toHaveLength(0);
+    });
+});
+
+describe("skills filter uses full searchText", () => {
+    it("matches skills from full searchText, not just narrow buildResumeFilterSearchText", async () => {
+        // Skill "fanuc" appears in searchText but NOT in name/education/latest-workHistory
+        const resume = {
+            _id: "seek-skill-1",
+            externalId: "seek:skill1",
+            source: "seek",
+            tags: [],
+            crawledAt: Date.now(),
+            content: {
+                name: "Alice",
+                experience: "",
+                education: "Bachelor",
+                workHistory: [{ company: "Test Co", title: "Sales", years: "?" }],
+            },
+            searchText: "alice sales fanuc cnc malaysia", // fanuc is here
+            ingestData: {
+                industryTags: ["cnc", "sales"],
+                experienceLevel: "mid",
+                computedAt: 1,
+                skillsVersion: 1,
+                ruleScores: {},
+            },
+            primaryRuleScore: 50,
+        };
+        const ctx = makeSearchCtx([resume]);
+
+        const result = await searchPaginatedHandler(ctx, {
+            paginationOpts: { cursor: null, numItems: 10 },
+            query: "cnc sales",
+            keywordGroups: [{ original: "cnc", variants: ["cnc"] }],
+            skills: ["fanuc"],
+        });
+
+        // "fanuc" is in searchText but not in name/edu/latest WH → should still match
+        expect(result.page).toHaveLength(1);
+    });
+
+    it("excludes resumes without matching skills in searchText", async () => {
+        const resume = buildSeekResumeDoc("seek-skill-2", "");
+        const ctx = makeSearchCtx([resume]);
+
+        const result = await searchPaginatedHandler(ctx, {
+            paginationOpts: { cursor: null, numItems: 10 },
+            query: "cnc sales",
+            keywordGroups: [{ original: "cnc", variants: ["cnc"] }],
+            skills: ["mazak"],
+        });
+
+        // "mazak" not in searchText → excluded
+        expect(result.page).toHaveLength(0);
+    });
+});
+
+describe("requiredKeywords filter uses full searchText", () => {
+    it("matches required keywords from full searchText", async () => {
+        const resume = {
+            _id: "seek-kw-1",
+            externalId: "seek:kw1",
+            source: "seek",
+            tags: [],
+            crawledAt: Date.now(),
+            content: {
+                name: "Bob",
+                experience: "",
+                education: "Diploma",
+                workHistory: [{ company: "Mfg Co", title: "Engineer", years: "?" }],
+            },
+            searchText: "bob engineer machine tools cnc malaysia", // "machine tools" as phrase
+            ingestData: {
+                industryTags: ["cnc"],
+                experienceLevel: "mid",
+                computedAt: 1,
+                skillsVersion: 1,
+                ruleScores: {},
+            },
+            primaryRuleScore: 50,
+        };
+        const ctx = makeSearchCtx([resume]);
+
+        const result = await searchPaginatedHandler(ctx, {
+            paginationOpts: { cursor: null, numItems: 10 },
+            query: "cnc",
+            keywordGroups: [{ original: "cnc", variants: ["cnc"] }],
+            requiredKeywords: ["machine tools"],
+        });
+
+        // "machine tools" is in searchText but not in narrow buildResumeFilterSearchText → should still match
+        expect(result.page).toHaveLength(1);
+    });
+
+    it("excludes resumes missing required keywords in searchText", async () => {
+        const resume = buildSeekResumeDoc("seek-kw-2", "");
+        const ctx = makeSearchCtx([resume]);
+
+        const result = await searchPaginatedHandler(ctx, {
+            paginationOpts: { cursor: null, numItems: 10 },
+            query: "cnc sales",
+            keywordGroups: [{ original: "cnc", variants: ["cnc"] }],
+            requiredKeywords: ["machine tools"],
+        });
+
+        // "machine tools" not in searchText → excluded
         expect(result.page).toHaveLength(0);
     });
 });
