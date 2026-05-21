@@ -32,6 +32,7 @@ import type * as seed from "../seed.js";
 import type * as sessions from "../sessions.js";
 import type * as sync_events from "../sync_events.js";
 import type * as taxonomy_clusters from "../taxonomy_clusters.js";
+import type * as validators from "../validators.js";
 import type * as workspace_config from "../workspace_config.js";
 
 import type {
@@ -65,6 +66,7 @@ declare const fullApi: ApiFromModules<{
   sessions: typeof sessions;
   sync_events: typeof sync_events;
   taxonomy_clusters: typeof taxonomy_clusters;
+  validators: typeof validators;
   workspace_config: typeof workspace_config;
 }>;
 
