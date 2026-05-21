@@ -8,6 +8,7 @@ import {
   formatLocationHierarchyLabel,
   normalizeResumeLocationHierarchy,
   normalizeSeekProfileUrlForDisplay,
+  inferSeekMarket,
 } from "@trends/shared";
 import {
   ResumeImportItemSchema,
@@ -282,18 +283,22 @@ function buildNormalizedResumeContent(
   const rawLocation = typeof content.location === "string" ? content.location.trim() : "";
   const location = rawLocation || (locationHierarchy ? formatLocationHierarchyLabel(locationHierarchy) : "");
 
-  // Normalize seek profileUrl to recommended format at import time
+  // Normalize seek profileUrl — upgrade UUID URLs to name-search format
   let profileUrl = content.profileUrl;
   if (typeof profileUrl === "string" && seekContext?.sourceHost) {
-    const normalized = normalizeSeekProfileUrlForDisplay(profileUrl);
+    const candidateName = typeof content.name === "string" ? content.name.trim() : "";
+    const market = inferSeekMarket(seekContext.sourceHost);
+    const normalized = normalizeSeekProfileUrlForDisplay(profileUrl, candidateName, market);
     if (normalized && normalized !== profileUrl) {
-      // Build recommended URL if we have a jobId
+      // Build recommended URL if we have a jobId and numeric profileId
       if (seekContext.jobId) {
         try {
           const parsed = new URL(normalized);
           const profileIdMatch = parsed.pathname.match(/\/candidates\/(\d+)$/);
           if (profileIdMatch?.[1]) {
             profileUrl = `https://${parsed.hostname}/candidates/recommended?jobId=${seekContext.jobId}&openProfileId=${profileIdMatch[1]}`;
+          } else {
+            profileUrl = normalized;
           }
         } catch {
           profileUrl = normalized;
