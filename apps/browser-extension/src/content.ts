@@ -881,6 +881,12 @@ function buildSeekProfileUrl(profileId, jobId) {
   return `https://${hostname}/candidates/${encodeURIComponent(profileId)}`;
 }
 
+function buildSeekNameSearchUrl(name, market) {
+  const trimmed = typeof name === "string" ? name.trim() : "";
+  if (!trimmed) return "";
+  return `https://${window.location.hostname.toLowerCase()}/talentsearch/profiles/search?searchQuery=${encodeURIComponent(trimmed)}&market=${encodeURIComponent(market || "MY")}&pageNumber=1`;
+}
+
 function getSeekRecommendedRequest() {
   return apiSnapshot.seekRecommendedRequest;
 }
@@ -3637,7 +3643,7 @@ function extractSeekTalentSearchResumes() {
           ? `${window.location.hostname.toLowerCase()}:profile:${profileId}`
           : "",
         name: [firstName, lastName].filter(Boolean).join(" ").trim(),
-        profileUrl: buildSeekProfileUrl(profileId, undefined),
+        profileUrl: buildSeekNameSearchUrl([firstName, lastName].filter(Boolean).join(" "), url.searchParams.get("market") || undefined),
         activityStatus: lastModifiedDurationLabel,
         age: "",
         experience: "",
