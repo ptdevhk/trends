@@ -34,7 +34,7 @@ const searchPaginatedHandler = (
   searchWithTagExpansionPaginated as unknown as ConvexHandler<SearchPaginatedArgs, SearchPaginatedResult>
 )._handler;
 
-function buildSeekResumeDoc(id: string, experience: string, expectedSalary?: string) {
+function buildSeekResumeDoc(id: string, experience: string, expectedSalary?: string, workHistory?: unknown[]) {
     return {
         _id: id,
         externalId: `seek:${id}`,
@@ -45,7 +45,7 @@ function buildSeekResumeDoc(id: string, experience: string, expectedSalary?: str
             name: id,
             experience,
             ...(expectedSalary !== undefined ? { expectedSalary } : {}),
-            workHistory: [
+            workHistory: workHistory ?? [
                 { company: "Test Co", title: "Sales", years: "?" },
             ],
         },
@@ -334,5 +334,117 @@ describe("requiredKeywords filter uses full searchText", () => {
 
         // "machine tools" not in searchText → excluded
         expect(result.page).toHaveLength(0);
+    });
+});
+
+describe("experience from workHistory date ranges", () => {
+    it("resumes with empty experience but workHistory dates pass minExperience filter", async () => {
+        // Seek resume: experience="" but workHistory has 2018-2023 dates → ~5 years
+        const resume = buildSeekResumeDoc("seek-wh-1", "", undefined, [
+            { companyName: "Acme Co", jobTitle: "Sales Manager", startDate: "2018-01", endDate: "2023-06" },
+        ]);
+        const ctx = makeSearchCtx([resume]);
+
+        const result = await searchPaginatedHandler(ctx, {
+            paginationOpts: { cursor: null, numItems: 10 },
+            query: "cnc sales",
+            keywordGroups: [{ original: "cnc", variants: ["cnc"] }],
+            minExperience: 3,
+        });
+
+        // ~5 years computed from dates, meets minExperience: 3
+        expect(result.page).toHaveLength(1);
+    });
+
+    it("resumes with short workHistory dates are excluded by minExperience", async () => {
+        // Only 1 year of experience from dates
+        const resume = buildSeekResumeDoc("seek-wh-2", "", undefined, [
+            { companyName: "Startup", jobTitle: "Junior Sales", startDate: "2024-01", endDate: "2025-01" },
+        ]);
+        const ctx = makeSearchCtx([resume]);
+
+        const result = await searchPaginatedHandler(ctx, {
+            paginationOpts: { cursor: null, numItems: 10 },
+            query: "cnc sales",
+            keywordGroups: [{ original: "cnc", variants: ["cnc"] }],
+            minExperience: 3,
+        });
+
+        // ~1 year computed, below minExperience: 3 → excluded
+        expect(result.page).toHaveLength(0);
+    });
+
+    it("overlapping workHistory ranges are merged (not double-counted)", async () => {
+        // Two overlapping positions: 2018-01 to 2022-06 and 2020-01 to 2023-12
+        // Merged: 2018-01 to 2023-12 → ~6 years (not 10)
+        const resume = buildSeekResumeDoc("seek-wh-3", "", undefined, [
+            { companyName: "Co A", jobTitle: "Sales", startDate: "2018-01", endDate: "2022-06" },
+            { companyName: "Co B", jobTitle: "Manager", startDate: "2020-01", endDate: "2023-12" },
+        ]);
+        const ctx = makeSearchCtx([resume]);
+
+        const result = await searchPaginatedHandler(ctx, {
+            paginationOpts: { cursor: null, numItems: 10 },
+            query: "cnc sales",
+            keywordGroups: [{ original: "cnc", variants: ["cnc"] }],
+            minExperience: 5,
+        });
+
+        // ~6 years merged, meets minExperience: 5
+        expect(result.page).toHaveLength(1);
+    });
+
+    it("resumes with empty experience and no parseable workHistory dates still pass minExperience", async () => {
+        // workHistory has no startDate/endDate — years: "?" only
+        const resume = buildSeekResumeDoc("seek-wh-4", "", undefined, [
+            { companyName: "Old Co", jobTitle: "Sales", years: "?" },
+        ]);
+        const ctx = makeSearchCtx([resume]);
+
+        const result = await searchPaginatedHandler(ctx, {
+            paginationOpts: { cursor: null, numItems: 10 },
+            query: "cnc sales",
+            keywordGroups: [{ original: "cnc", variants: ["cnc"] }],
+            minExperience: 1,
+        });
+
+        // No date ranges → experience unknown → graceful degradation, passes
+        expect(result.page).toHaveLength(1);
+    });
+
+    it("workHistory with ongoing position (no endDate) computes correctly", async () => {
+        // Current position since 2020 — endDate is missing (still employed)
+        const resume = buildSeekResumeDoc("seek-wh-5", "", undefined, [
+            { companyName: "Current Co", jobTitle: "Senior Sales", startDate: "2020-06" },
+        ]);
+        const ctx = makeSearchCtx([resume]);
+
+        const result = await searchPaginatedHandler(ctx, {
+            paginationOpts: { cursor: null, numItems: 10 },
+            query: "cnc sales",
+            keywordGroups: [{ original: "cnc", variants: ["cnc"] }],
+            minExperience: 3,
+        });
+
+        // ~5-6 years from 2020 to now, meets minExperience: 3
+        expect(result.page).toHaveLength(1);
+    });
+
+    it("content.experience takes priority over workHistory computation", async () => {
+        // experience="8" should be used, even if workHistory dates suggest less
+        const resume = buildSeekResumeDoc("seek-wh-6", "8", undefined, [
+            { companyName: "Recent Co", jobTitle: "Sales", startDate: "2023-01", endDate: "2025-01" },
+        ]);
+        const ctx = makeSearchCtx([resume]);
+
+        const result = await searchPaginatedHandler(ctx, {
+            paginationOpts: { cursor: null, numItems: 10 },
+            query: "cnc sales",
+            keywordGroups: [{ original: "cnc", variants: ["cnc"] }],
+            minExperience: 5,
+        });
+
+        // experience=8 takes priority, meets minExperience: 5
+        expect(result.page).toHaveLength(1);
     });
 });
