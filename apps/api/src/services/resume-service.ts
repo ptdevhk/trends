@@ -231,6 +231,8 @@ function normalizeIngestData(value: unknown): ResumeIngestData | undefined {
     ...(brandHits ? { brandHits } : {}),
     ...(companyHits.length > 0 ? { companyHits } : {}),
     ...(roleSignals ? { roleSignals } : {}),
+    ...(isRecord(value.ruleScores) && Object.keys(value.ruleScores).length > 0 ? { ruleScores: value.ruleScores as Record<string, number> } : {}),
+    ...(typeof value.market === 'string' && value.market ? { market: value.market } : {}),
   };
 }
 
