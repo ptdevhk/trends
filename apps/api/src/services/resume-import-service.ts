@@ -288,7 +288,8 @@ function buildNormalizedResumeContent(
   if (typeof profileUrl === "string" && seekContext?.sourceHost) {
     const candidateName = typeof content.name === "string" ? content.name.trim() : "";
     const market = inferSeekMarket(seekContext.sourceHost);
-    const normalized = normalizeSeekProfileUrlForDisplay(profileUrl, candidateName, market);
+    const roleTitles = typeof content.jobIntention === "string" ? content.jobIntention.trim() : undefined;
+    const normalized = normalizeSeekProfileUrlForDisplay(profileUrl, candidateName, market, roleTitles);
     if (normalized && normalized !== profileUrl) {
       // Build recommended URL if we have a jobId and numeric profileId
       if (seekContext.jobId) {

@@ -29,6 +29,26 @@ describe("buildSeekNameSearchUrl", () => {
     expect(buildSeekNameSearchUrl("John Doe"))
       .toBe("https://hk.employer.seek.com/talentsearch/profiles/search?searchQuery=John%20Doe&market=MY&pageNumber=1");
   });
+
+  it("appends roleTitles parameter when provided", () => {
+    expect(buildSeekNameSearchUrl("Kenny Low", "MY", "Sales Manager"))
+      .toBe("https://hk.employer.seek.com/talentsearch/profiles/search?searchQuery=Kenny%20Low&market=MY&pageNumber=1&roleTitles=Sales%20Manager");
+  });
+
+  it("encodes special characters in roleTitles", () => {
+    expect(buildSeekNameSearchUrl("John Doe", "MY", "Software Engineer & Architect"))
+      .toBe("https://hk.employer.seek.com/talentsearch/profiles/search?searchQuery=John%20Doe&market=MY&pageNumber=1&roleTitles=Software%20Engineer%20%26%20Architect");
+  });
+
+  it("skips roleTitles when empty string", () => {
+    expect(buildSeekNameSearchUrl("John Doe", "MY", ""))
+      .toBe("https://hk.employer.seek.com/talentsearch/profiles/search?searchQuery=John%20Doe&market=MY&pageNumber=1");
+  });
+
+  it("skips roleTitles when whitespace only", () => {
+    expect(buildSeekNameSearchUrl("John Doe", "MY", "  "))
+      .toBe("https://hk.employer.seek.com/talentsearch/profiles/search?searchQuery=John%20Doe&market=MY&pageNumber=1");
+  });
 });
 
 describe("inferSeekMarket", () => {
@@ -75,6 +95,18 @@ describe("normalizeSeekProfileUrlForDisplay with name-search upgrade", () => {
     const numUrl = "https://hk.employer.seek.com/candidates/12345";
     expect(normalizeSeekProfileUrlForDisplay(numUrl, "John Doe", "MY")).toBe(numUrl);
   });
+
+  it("includes roleTitles when upgrading UUID URL", () => {
+    const uuidUrl = "https://hk.employer.seek.com/candidates/82a5d7c6-6fb3-4960-aa78-58159b0c62d1";
+    expect(normalizeSeekProfileUrlForDisplay(uuidUrl, "Kenny Low", "MY", "Sales Manager"))
+      .toBe("https://hk.employer.seek.com/talentsearch/profiles/search?searchQuery=Kenny%20Low&market=MY&pageNumber=1&roleTitles=Sales%20Manager");
+  });
+
+  it("omits roleTitles when not provided", () => {
+    const uuidUrl = "https://hk.employer.seek.com/candidates/82a5d7c6-6fb3-4960-aa78-58159b0c62d1";
+    expect(normalizeSeekProfileUrlForDisplay(uuidUrl, "Kenny Low", "MY"))
+      .toBe("https://hk.employer.seek.com/talentsearch/profiles/search?searchQuery=Kenny%20Low&market=MY&pageNumber=1");
+  });
 });
 
 describe("normalizeProfileUrlForDisplay with name param", () => {
@@ -88,5 +120,11 @@ describe("normalizeProfileUrlForDisplay with name param", () => {
     const numUrl = "https://hk.employer.seek.com/candidates/12345";
     expect(normalizeProfileUrlForDisplay(numUrl, "hk.employer.seek.com"))
       .toBe("https://hk.employer.seek.com/candidates/12345");
+  });
+
+  it("passes roleTitles through normalizeProfileUrlForDisplay options", () => {
+    const uuidUrl = "https://hk.employer.seek.com/candidates/82a5d7c6-6fb3-4960-aa78-58159b0c62d1";
+    expect(normalizeProfileUrlForDisplay(uuidUrl, "hk.employer.seek.com", { name: "Kenny Low", market: "MY", roleTitles: "Sales Manager" }))
+      .toBe("https://hk.employer.seek.com/talentsearch/profiles/search?searchQuery=Kenny%20Low&market=MY&pageNumber=1&roleTitles=Sales%20Manager");
   });
 });
