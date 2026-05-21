@@ -86,11 +86,13 @@ const JOB5156_PROFILE_URL_PREFIX = `https://${JOB5156_HOST}/resume/view/`;
 const SEEK_HOST_SUFFIX = ".employer.seek.com";
 const SEEK_NAME_SEARCH_HOST = "hk.employer.seek.com";
 
-export function buildSeekNameSearchUrl(name: string, market?: string): string {
+export function buildSeekNameSearchUrl(name: string, market?: string, roleTitles?: string): string {
   const trimmedName = typeof name === "string" ? name.trim() : "";
   if (!trimmedName) return "";
   const resolvedMarket = market || "MY";
-  return `https://${SEEK_NAME_SEARCH_HOST}/talentsearch/profiles/search?searchQuery=${encodeURIComponent(trimmedName)}&market=${encodeURIComponent(resolvedMarket)}&pageNumber=1`;
+  const trimmedRoleTitles = typeof roleTitles === "string" ? roleTitles.trim() : "";
+  const roleTitlesParam = trimmedRoleTitles ? `&roleTitles=${encodeURIComponent(trimmedRoleTitles)}` : "";
+  return `https://${SEEK_NAME_SEARCH_HOST}/talentsearch/profiles/search?searchQuery=${encodeURIComponent(trimmedName)}&market=${encodeURIComponent(resolvedMarket)}&pageNumber=1${roleTitlesParam}`;
 }
 
 export function inferSeekMarket(_source: string, hint?: string): string {
@@ -177,7 +179,7 @@ export function normalizeJob5156ProfileUrlForDisplay(value: string): string {
   return `${JOB5156_PROFILE_URL_PREFIX}${encodeURIComponent(resumeId)}`;
 }
 
-export function normalizeSeekProfileUrlForDisplay(value: string, name?: string, market?: string): string {
+export function normalizeSeekProfileUrlForDisplay(value: string, name?: string, market?: string, roleTitles?: string): string {
   const trimmed = value.trim();
   if (!trimmed) {
     return "";
@@ -219,7 +221,7 @@ export function normalizeSeekProfileUrlForDisplay(value: string, name?: string, 
     const uuidMatch = parsed.pathname.match(/\/candidates\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:\/|$)/i);
     if (uuidMatch?.[1]) {
       // Upgrade UUID URL to name-search URL when name is available
-      const nameSearchUrl = buildSeekNameSearchUrl(name || "", market);
+      const nameSearchUrl = buildSeekNameSearchUrl(name || "", market, roleTitles);
       return nameSearchUrl || trimmed;
     }
   }
@@ -232,7 +234,7 @@ export function normalizeSeekProfileUrlForDisplay(value: string, name?: string, 
   return `https://${hostname}/candidates/${profileId}`;
 }
 
-export function normalizeProfileUrlForDisplay(value: unknown, source?: string, options?: { name?: string; market?: string }): string {
+export function normalizeProfileUrlForDisplay(value: unknown, source?: string, options?: { name?: string; market?: string; roleTitles?: string }): string {
   const trimmed = toTrimmedString(value);
   if (!trimmed) {
     return "";
@@ -245,14 +247,14 @@ export function normalizeProfileUrlForDisplay(value: unknown, source?: string, o
   }
 
   if (loweredSource?.endsWith(SEEK_HOST_SUFFIX)) {
-    return normalizeSeekProfileUrlForDisplay(trimmed, options?.name, options?.market);
+    return normalizeSeekProfileUrlForDisplay(trimmed, options?.name, options?.market, options?.roleTitles);
   }
 
   // Also handle seek URLs regardless of source (safety net for mixed data)
   try {
     const parsed = new URL(trimmed);
     if (parsed.hostname.toLowerCase().endsWith(SEEK_HOST_SUFFIX)) {
-      return normalizeSeekProfileUrlForDisplay(trimmed, options?.name, options?.market);
+      return normalizeSeekProfileUrlForDisplay(trimmed, options?.name, options?.market, options?.roleTitles);
     }
   } catch {
     // Not a valid URL — pass through
