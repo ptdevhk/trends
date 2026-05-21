@@ -177,7 +177,7 @@ export function normalizeJob5156ProfileUrlForDisplay(value: string): string {
   return `${JOB5156_PROFILE_URL_PREFIX}${encodeURIComponent(resumeId)}`;
 }
 
-export function normalizeSeekProfileUrlForDisplay(value: string): string {
+export function normalizeSeekProfileUrlForDisplay(value: string, name?: string, market?: string): string {
   const trimmed = value.trim();
   if (!trimmed) {
     return "";
@@ -195,6 +195,11 @@ export function normalizeSeekProfileUrlForDisplay(value: string): string {
     return trimmed;
   }
 
+  // Already in name-search format — return as-is
+  if (parsed.pathname.toLowerCase() === "/talentsearch/profiles/search") {
+    return trimmed;
+  }
+
   // Already in recommended format — return as-is
   if (parsed.pathname.toLowerCase() === "/candidates/recommended") {
     return trimmed;
@@ -209,12 +214,13 @@ export function normalizeSeekProfileUrlForDisplay(value: string): string {
     profileId = numericIdMatch[1];
   }
 
-  // UUID pattern: /candidates/{uuid} (talentsearch mode — no jobId available)
+  // UUID pattern: /candidates/{uuid} (talentsearch mode)
   if (!profileId) {
     const uuidMatch = parsed.pathname.match(/\/candidates\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:\/|$)/i);
     if (uuidMatch?.[1]) {
-      // Talentsearch UUID URLs pass through — cannot build recommended URL without numeric profileId
-      return trimmed;
+      // Upgrade UUID URL to name-search URL when name is available
+      const nameSearchUrl = buildSeekNameSearchUrl(name || "", market);
+      return nameSearchUrl || trimmed;
     }
   }
 
@@ -226,7 +232,7 @@ export function normalizeSeekProfileUrlForDisplay(value: string): string {
   return `https://${hostname}/candidates/${profileId}`;
 }
 
-export function normalizeProfileUrlForDisplay(value: unknown, source?: string): string {
+export function normalizeProfileUrlForDisplay(value: unknown, source?: string, options?: { name?: string; market?: string }): string {
   const trimmed = toTrimmedString(value);
   if (!trimmed) {
     return "";
@@ -239,14 +245,14 @@ export function normalizeProfileUrlForDisplay(value: unknown, source?: string): 
   }
 
   if (loweredSource?.endsWith(SEEK_HOST_SUFFIX)) {
-    return normalizeSeekProfileUrlForDisplay(trimmed);
+    return normalizeSeekProfileUrlForDisplay(trimmed, options?.name, options?.market);
   }
 
   // Also handle seek URLs regardless of source (safety net for mixed data)
   try {
     const parsed = new URL(trimmed);
     if (parsed.hostname.toLowerCase().endsWith(SEEK_HOST_SUFFIX)) {
-      return normalizeSeekProfileUrlForDisplay(trimmed);
+      return normalizeSeekProfileUrlForDisplay(trimmed, options?.name, options?.market);
     }
   } catch {
     // Not a valid URL — pass through
