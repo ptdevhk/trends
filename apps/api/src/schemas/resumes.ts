@@ -1,6 +1,6 @@
 import { z } from "@hono/zod-openapi";
 
-const CsvStringArraySchema = z
+export const CsvStringArraySchema = z
   .union([z.string(), z.array(z.string())])
   .optional()
   .transform((value) => {
@@ -474,7 +474,7 @@ export const ResumeManualImportErrorSchema = z
   })
   .openapi("ResumeManualImportError");
 
-const OptionalIntParam = (opts: { min?: number; max?: number; example?: string; name: string }) =>
+export const OptionalIntParam = (opts: { min?: number; max?: number; example?: string; name: string }) =>
   z.string()
     .optional()
     .transform((v) => (v ? parseInt(v, 10) : undefined))
