@@ -6,7 +6,7 @@ import { formatDateInTimezone, formatIsoOffsetInTimezone } from "./timezone.js";
 
 import type { Topic, TrendItem, SearchResultItem, RssItem } from "../types/data.js";
 
-const STOPWORDS = new Set([
+export const STOPWORDS = new Set([
   "的", "了", "在", "是", "我", "有", "和", "就", "不", "人", "都", "一",
   "一个", "上", "也", "很", "到", "说", "要", "去", "你", "会", "着", "没有",
   "看", "好", "自己", "这", "那", "来", "被", "与", "为", "对", "将", "从",
@@ -384,7 +384,7 @@ export class DataService {
     return result;
   }
 
-  private extractWordsFromTitle(title: string, minLength = 2): string[] {
+  extractWordsFromTitle(title: string, minLength = 2): string[] {
     let text = title;
     text = text.replace(/http[s]?:\/\/\S+/g, "");
     text = text.replace(/\[.*?\]/g, "");
