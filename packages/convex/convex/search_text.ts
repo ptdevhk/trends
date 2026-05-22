@@ -26,11 +26,11 @@ const EXCLUDED_KEYS = new Set([
 
 type UnknownRecord = Record<string, unknown>;
 
-function isRecord(value: unknown): value is UnknownRecord {
+export function isRecord(value: unknown): value is UnknownRecord {
     return typeof value === "object" && value !== null;
 }
 
-function normalizeWhitespace(value: string): string {
+export function normalizeWhitespace(value: string): string {
     return value.replace(/\s+/g, " ").trim();
 }
 
@@ -38,7 +38,7 @@ const CJK_RANGE = "\\u4e00-\\u9fff\\u3400-\\u4dbf";
 const CJK_CHAR = `[${CJK_RANGE}]`;
 const ASCII_WORD = "[a-zA-Z0-9]";
 
-function addScriptBoundarySpaces(text: string): string {
+export function addScriptBoundarySpaces(text: string): string {
     return text
         .replace(new RegExp(`(${CJK_CHAR})(${ASCII_WORD})`, "g"), "$1 $2")
         .replace(new RegExp(`(${ASCII_WORD})(${CJK_CHAR})`, "g"), "$1 $2");
@@ -49,7 +49,7 @@ const CJK_SEGMENTER = new (Intl as unknown as { Segmenter: new (locale: string, 
     { granularity: "word" },
 );
 
-function segmentChineseRuns(text: string): string {
+export function segmentChineseRuns(text: string): string {
     return text.replace(
         /[\u4e00-\u9fff\u3400-\u4dbf]{3,}/g,
         (run) => {
@@ -64,7 +64,7 @@ function segmentChineseRuns(text: string): string {
     );
 }
 
-function toNormalizedSearchTokens(values: readonly string[] | undefined): string[] {
+export function toNormalizedSearchTokens(values: readonly string[] | undefined): string[] {
     if (!Array.isArray(values) || values.length === 0) {
         return [];
     }
@@ -129,7 +129,7 @@ export function mergeSearchTextWithIngestData(
     return appendMissingSearchTokens(existingSearchText, buildIngestSearchTokens(options));
 }
 
-function toTextFragments(value: unknown): string[] {
+export function toTextFragments(value: unknown): string[] {
     if (value === null || value === undefined) {
         return [];
     }
