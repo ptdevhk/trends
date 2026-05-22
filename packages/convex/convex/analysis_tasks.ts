@@ -24,7 +24,7 @@ import { resolveAnalysisParallelism } from "./lib/parallelism";
 
 type AnalysisTaskStatus = "pending" | "processing" | "completed" | "failed" | "cancelled";
 
-type AnalysisResult = {
+export type AnalysisResult = {
     score: number;
     summary: string;
     highlights: string[];
@@ -33,7 +33,7 @@ type AnalysisResult = {
     locale?: string;
 };
 
-function isObject(value: unknown): value is Record<string, unknown> {
+export function isObject(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null;
 }
 
@@ -44,7 +44,7 @@ const WORD_NUMBERS: Record<string, number> = {
     ninety: 90, hundred: 100,
 };
 
-function toNumber(value: unknown): number | null {
+export function toNumber(value: unknown): number | null {
     if (typeof value === "number" && Number.isFinite(value)) {
         return value;
     }
@@ -67,14 +67,14 @@ function toNumber(value: unknown): number | null {
     return null;
 }
 
-function toStringArray(value: unknown): string[] {
+export function toStringArray(value: unknown): string[] {
     if (!Array.isArray(value)) {
         return [];
     }
     return value.filter((item): item is string => typeof item === "string");
 }
 
-function parseBreakdown(value: unknown): Record<string, number> | undefined {
+export function parseBreakdown(value: unknown): Record<string, number> | undefined {
     if (!isObject(value)) {
         return undefined;
     }
@@ -95,7 +95,7 @@ function parseBreakdown(value: unknown): Record<string, number> | undefined {
  * Some models wrap results like `{ "result": { "score": 85, ... } }` or
  * `{ "data": { "score": 85, ... } }`.
  */
-function unwrapLlmResult(value: unknown): Record<string, unknown> | null {
+export function unwrapLlmResult(value: unknown): Record<string, unknown> | null {
     if (!isObject(value)) return null;
 
     // Top-level score → use as-is
@@ -115,7 +115,7 @@ function unwrapLlmResult(value: unknown): Record<string, unknown> | null {
     return null;
 }
 
-function parseLlmResult(value: unknown): AnalysisResult {
+export function parseLlmResult(value: unknown): AnalysisResult {
     const obj = unwrapLlmResult(value);
     if (!obj) {
         console.error("parseLlmResult: no score field found in LLM response:", JSON.stringify(value).slice(0, 1000));
@@ -140,12 +140,12 @@ function parseLlmResult(value: unknown): AnalysisResult {
     };
 }
 
-function extractKeywords(input: string): string[] {
+export function extractKeywords(input: string): string[] {
     const matched = input.toLowerCase().match(/[\u4e00-\u9fa5a-z0-9]{2,}/g) ?? [];
     return [...new Set(matched)];
 }
 
-function normalizeKeywords(keywords: string[]): string[] {
+export function normalizeKeywords(keywords: string[]): string[] {
     return Array.from(
         new Set(
             keywords
@@ -156,7 +156,7 @@ function normalizeKeywords(keywords: string[]): string[] {
 }
 
 
-function stableHash(seed: string): string {
+export function stableHash(seed: string): string {
     let hash = 2166136261;
     for (const char of seed) {
         hash ^= char.codePointAt(0) ?? 0;
@@ -175,7 +175,7 @@ function buildKeywordAnalysisId(
     return buildSharedKeywordAnalysisId(keywords, options);
 }
 
-type AnalysisDispatchKeyInput = {
+export type AnalysisDispatchKeyInput = {
     derivedJobDescriptionId?: string;
     jobDescriptionTitle?: string;
     jobDescriptionContent?: string;
@@ -185,7 +185,7 @@ type AnalysisDispatchKeyInput = {
     resumeIds: readonly string[];
 };
 
-function buildAnalysisDispatchJobKey(input: AnalysisDispatchKeyInput): string {
+export function buildAnalysisDispatchJobKey(input: AnalysisDispatchKeyInput): string {
     const promptVersion = input.promptVersion ?? getCurrentResumeAiPromptVersion();
     if (input.derivedJobDescriptionId && input.derivedJobDescriptionId.trim()) {
         return `job:${input.derivedJobDescriptionId.trim().toLowerCase()}:prompt:${promptVersion}`;
