@@ -5,7 +5,7 @@ type CacheEntry<T> = {
   timestampMs: number;
 };
 
-function stableStringify(value: unknown): string {
+export function stableStringify(value: unknown): string {
   if (value === null) return "null";
   if (value === undefined) return "undefined";
   if (value instanceof Date) return value.toISOString();
