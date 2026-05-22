@@ -27,24 +27,24 @@ export interface WebVitalsSummary {
   metrics: Record<string, MetricSummary>;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-function readString(value: unknown): string | null {
+export function readString(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const normalized = value.trim();
   return normalized ? normalized : null;
 }
 
-function readNumber(value: unknown): number | null {
+export function readNumber(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) {
     return value;
   }
   return null;
 }
 
-function parseMetric(value: unknown): WebVitalMetric | null {
+export function parseMetric(value: unknown): WebVitalMetric | null {
   if (!isRecord(value)) return null;
 
   const name = readString(value.name);
@@ -73,7 +73,7 @@ function parseMetric(value: unknown): WebVitalMetric | null {
   return { name, value: valueNum, rating, id, navigationType, workspace, timestamp };
 }
 
-function percentile(sorted: number[], p: number): number {
+export function percentile(sorted: number[], p: number): number {
   if (sorted.length === 0) return 0;
   const index = Math.ceil((p / 100) * sorted.length) - 1;
   return sorted[Math.max(0, index)];
