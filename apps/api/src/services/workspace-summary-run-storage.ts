@@ -31,7 +31,7 @@ export type StoredWorkspaceSummaryRun = {
   error?: string;
 };
 
-function parseJsonObject(value: unknown): Record<string, unknown> | undefined {
+export function parseJsonObject(value: unknown): Record<string, unknown> | undefined {
   if (typeof value !== "string" || !value.trim()) {
     return undefined;
   }
@@ -46,7 +46,7 @@ function parseJsonObject(value: unknown): Record<string, unknown> | undefined {
   }
 }
 
-function normalizeTriggerSource(value: unknown): WorkspaceSummaryTriggerSource {
+export function normalizeTriggerSource(value: unknown): WorkspaceSummaryTriggerSource {
   const source = String(value ?? "api_manual");
   if (
     source === "api_preview"
@@ -59,7 +59,7 @@ function normalizeTriggerSource(value: unknown): WorkspaceSummaryTriggerSource {
   return "api_manual";
 }
 
-function normalizeStatus(value: unknown): WorkspaceSummaryRunStatus {
+export function normalizeStatus(value: unknown): WorkspaceSummaryRunStatus {
   const status = String(value ?? "sent");
   if (status === "previewed" || status === "dry_run" || status === "sent" || status === "failed") {
     return status;
@@ -67,7 +67,7 @@ function normalizeStatus(value: unknown): WorkspaceSummaryRunStatus {
   return "sent";
 }
 
-function normalizeChannel(value: unknown): StoredWorkspaceSummaryRun["channel"] {
+export function normalizeChannel(value: unknown): StoredWorkspaceSummaryRun["channel"] {
   const channel = typeof value === "string" ? value : "";
   if (channel === "email" || channel === "wechat_work" || channel === "feishu" || channel === "telegram") {
     return channel;
@@ -75,11 +75,11 @@ function normalizeChannel(value: unknown): StoredWorkspaceSummaryRun["channel"] 
   return undefined;
 }
 
-function normalizePeriod(value: unknown): SummaryPeriod {
+export function normalizePeriod(value: unknown): SummaryPeriod {
   return value === "weekly" ? "weekly" : "daily";
 }
 
-function normalizeRun(row: Record<string, unknown>): StoredWorkspaceSummaryRun {
+export function normalizeRun(row: Record<string, unknown>): StoredWorkspaceSummaryRun {
   return {
     id: String(row.id),
     workspaceSlug: row.workspace_slug ? String(row.workspace_slug) : "dev",
