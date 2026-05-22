@@ -86,7 +86,7 @@ function toIsoNow(): string {
   return formatIsoOffsetInTimezone(new Date(), config.timezone);
 }
 
-function parseJson<T>(value: unknown): T | undefined {
+export function parseJson<T>(value: unknown): T | undefined {
   if (typeof value !== "string" || !value.trim()) return undefined;
   try {
     return JSON.parse(value) as T;
@@ -95,7 +95,7 @@ function parseJson<T>(value: unknown): T | undefined {
   }
 }
 
-function normalizeSession(row: Record<string, unknown>): SearchSession {
+export function normalizeSession(row: Record<string, unknown>): SearchSession {
   return {
     id: String(row.id),
     workspaceSlug: row.workspace_slug ? String(row.workspace_slug) : "dev",
