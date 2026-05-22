@@ -498,7 +498,13 @@ export class IngestComputeService {
     const primaryRuleScore = scoreValues.length > 0 ? Math.max(...scoreValues) : 0;
 
     // 5. Compute experienceLevel
-    const experienceLevel = this.computeExperienceLevel(evidenceText);
+    let experienceLevel = this.computeExperienceLevel(evidenceText);
+
+    // Fallback: when keyword signals are ambiguous (e.g. Seek EN resumes with
+    // generic titles lacking seniority keywords), infer from total years.
+    if (experienceLevel === "unknown" && index.experienceYears !== null) {
+      experienceLevel = inferExperienceLevelFromYears(index.experienceYears);
+    }
 
     // 6. Get skills version
     const skillsVersion = this.skillsKnowledgeService.getVersion();
@@ -1416,3 +1422,14 @@ export class IngestComputeService {
 
 // Singleton
 export const ingestComputeService = new IngestComputeService();
+
+/**
+ * Infer experience level from total years of work experience.
+ * Used as fallback when keyword-based detection returns "unknown"
+ * (e.g. Seek EN resumes with generic titles like "CNC Programmer").
+ */
+export function inferExperienceLevelFromYears(years: number): string {
+  if (years >= 7) return "senior";
+  if (years >= 3) return "mid";
+  return "junior";
+}
