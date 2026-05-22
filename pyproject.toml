@@ -37,3 +37,9 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["trendradar", "mcp_server", "packages", "apps"]
+
+[tool.pytest.ini_options]
+testpaths = ["apps/worker/tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
