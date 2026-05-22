@@ -18,11 +18,11 @@ import { normalizeEducationLevel, parseExperienceYears } from "./resume-service.
 // Internal helpers (also extracted so tests don't need to replicate them)
 // ---------------------------------------------------------------------------
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-function toStringValue(value: unknown): string {
+export function toStringValue(value: unknown): string {
   if (typeof value === "string") {
     return value.trim();
   }
@@ -32,7 +32,7 @@ function toStringValue(value: unknown): string {
   return String(value).trim();
 }
 
-function toOptionalNumber(value: unknown): number | undefined {
+export function toOptionalNumber(value: unknown): number | undefined {
   if (typeof value === "number" && Number.isFinite(value)) {
     return value;
   }
@@ -47,7 +47,7 @@ function toOptionalNumber(value: unknown): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
-function parseAgeFromContentField(content: Record<string, unknown>): number | null {
+export function parseAgeFromContentField(content: Record<string, unknown>): number | null {
   const ageStr = toStringValue(content.age);
   if (!ageStr) return null;
   const match = ageStr.match(/(\d+)/);
