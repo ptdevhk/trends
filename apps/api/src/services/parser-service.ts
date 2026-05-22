@@ -304,7 +304,7 @@ export type WordGroup = {
   max_count: number;
 };
 
-function parseWord(wordLine: string): ParsedWord {
+export function parseWord(wordLine: string): ParsedWord {
   let display_name: string | undefined;
   let wordConfig = wordLine.trim();
 
@@ -334,7 +334,7 @@ function parseWord(wordLine: string): ParsedWord {
   return { word: wordConfig, is_regex: false, display_name };
 }
 
-function wordMatches(word: ParsedWord, titleLower: string): boolean {
+export function wordMatches(word: ParsedWord, titleLower: string): boolean {
   if (word.is_regex && word.pattern) return word.pattern.test(titleLower);
   return titleLower.includes(word.word.toLowerCase());
 }
