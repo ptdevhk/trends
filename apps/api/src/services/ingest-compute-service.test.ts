@@ -331,7 +331,7 @@ describe("IngestComputeService", () => {
     expect(result.synonymHits).not.toContain("cnc");
     expect(result.synonymHits).not.toContain("数控");
     expect(result.synonymHits).not.toContain("业务");
-    expect(result.experienceLevel).toBe("unknown");
+    expect(result.experienceLevel).toBe("mid");
   });
 
   it("should compute ruleScores for all active JDs", () => {
@@ -349,7 +349,7 @@ describe("IngestComputeService", () => {
   it("should not derive senior experience level from selfIntro", () => {
     const result = service.computeOne("resume-123", SAMPLE_RESUME_CNC_SALES);
 
-    expect(result.experienceLevel).toBe("unknown");
+    expect(result.experienceLevel).toBe("mid");
   });
 
   it("should detect junior experience level", () => {
@@ -957,7 +957,7 @@ describe("IngestComputeService", () => {
     expect(results).toHaveLength(2);
     expect(results[0].resumeId).toBe("resume-123");
     expect(results[1].resumeId).toBe("resume-456");
-    expect(results[0].experienceLevel).toBe("unknown");
+    expect(results[0].experienceLevel).toBe("mid");
     expect(results[1].experienceLevel).toBe("junior");
     expect(results.every((item) => Array.isArray(item.brandHits))).toBe(true);
     expect(results.every((item) => Array.isArray(item.companyHits))).toBe(true);

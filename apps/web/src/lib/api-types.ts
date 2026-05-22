@@ -4964,7 +4964,6 @@ export interface paths {
         get: {
             parameters: {
                 query?: {
-                    /** @description Filter by category */
                     category?: string;
                 };
                 header?: never;
@@ -7176,17 +7175,6 @@ export interface components {
             /** @example 0.2.1 */
             version?: string;
         };
-        TrendsResponse: {
-            /** @enum {boolean} */
-            success: true;
-            summary?: {
-                description: string;
-                total: number;
-                returned: number;
-                platforms: string | string[];
-            };
-            data: components["schemas"]["TrendItem"][];
-        };
         TrendItem: {
             /** @example OpenAI announces GPT-5 */
             title: string;
@@ -7205,10 +7193,31 @@ export interface components {
             url?: string;
             mobileUrl?: string;
         };
+        TrendsResponse: {
+            /** @enum {boolean} */
+            success: true;
+            summary?: {
+                description: string;
+                total: number;
+                returned: number;
+                platforms: string | string[];
+            };
+            data: components["schemas"]["TrendItem"][];
+        };
         TrendDetailResponse: {
             /** @enum {boolean} */
             success: true;
             data: components["schemas"]["TrendItem"];
+        };
+        Topic: {
+            /** @example AI */
+            keyword: string;
+            /** @example 15 */
+            frequency: number;
+            matched_news?: number;
+            /** @enum {string} */
+            trend?: "rising" | "stable" | "falling";
+            weight_score?: number;
         };
         TopicsResponse: {
             /** @enum {boolean} */
@@ -7220,15 +7229,16 @@ export interface components {
             total_keywords?: number;
             description?: string;
         };
-        Topic: {
-            /** @example AI */
-            keyword: string;
-            /** @example 15 */
-            frequency: number;
-            matched_news?: number;
-            /** @enum {string} */
-            trend?: "rising" | "stable" | "falling";
-            weight_score?: number;
+        SearchResult: {
+            title: string;
+            platform: string;
+            platform_name: string;
+            ranks?: number[];
+            count?: number;
+            avg_rank?: number;
+            url?: string;
+            mobileUrl?: string;
+            date?: string;
         };
         SearchResponse: {
             /** @enum {boolean} */
@@ -7244,16 +7254,16 @@ export interface components {
                 keyword: string;
             };
         };
-        SearchResult: {
+        RssItem: {
             title: string;
-            platform: string;
-            platform_name: string;
-            ranks?: number[];
-            count?: number;
-            avg_rank?: number;
+            feed_id: string;
+            feed_name: string;
             url?: string;
-            mobileUrl?: string;
+            published_at?: string;
+            author?: string;
             date?: string;
+            fetch_time?: string;
+            summary?: string;
         };
         RssResponse: {
             /** @enum {boolean} */
@@ -7267,22 +7277,6 @@ export interface components {
             };
             data: components["schemas"]["RssItem"][];
         };
-        RssItem: {
-            title: string;
-            feed_id: string;
-            feed_name: string;
-            url?: string;
-            published_at?: string;
-            author?: string;
-            date?: string;
-            fetch_time?: string;
-            summary?: string;
-        };
-        ResumeSamplesResponse: {
-            /** @enum {boolean} */
-            success: true;
-            samples: components["schemas"]["ResumeSample"][];
-        };
         ResumeSample: {
             /** @example sample-initial */
             name: string;
@@ -7292,6 +7286,11 @@ export interface components {
             updatedAt: string;
             /** @example 10240 */
             size: number;
+        };
+        ResumeSamplesResponse: {
+            /** @enum {boolean} */
+            success: true;
+            samples: components["schemas"]["ResumeSample"][];
         };
         ResumeKeywordExpansionResponse: {
             /** @enum {boolean} */
@@ -7310,29 +7309,19 @@ export interface components {
                 };
             };
         };
-        ResumesResponse: {
-            /** @enum {boolean} */
-            success: true;
-            sample?: components["schemas"]["ResumeSample"];
-            metadata?: components["schemas"]["ResumeMetadata"];
-            summary?: {
-                total: number;
-                returned: number;
-                query?: string;
-                /** @enum {string} */
-                source?: "sample" | "convex";
-                expandedTo?: string[];
-                /** @enum {string} */
-                mode?: "AND" | "OR";
-                keywordGroups?: {
-                    original: string;
-                    variants: string[];
-                }[];
-                sourceMapping?: {
-                    [key: string]: string;
-                };
+        ResumeSearchCriteria: {
+            /** @example 销售 */
+            keyword?: string;
+            /** @example 东莞 */
+            location?: string;
+            /**
+             * @example {
+             *       "status": "active"
+             *     }
+             */
+            filters?: {
+                [key: string]: string;
             };
-            data: components["schemas"]["ResumeItem"][];
         };
         ResumeMetadata: {
             /** @example https://hr.job5156.com/search?keyword=销售 */
@@ -7348,70 +7337,6 @@ export interface components {
             totalResumes?: number;
             /** @example Navigate to sourceUrl, then add ?tr_auto_export=json */
             reproduction?: string;
-        };
-        ResumeSearchCriteria: {
-            /** @example 销售 */
-            keyword?: string;
-            /** @example 东莞 */
-            location?: string;
-            /**
-             * @example {
-             *       "status": "active"
-             *     }
-             */
-            filters?: {
-                [key: string]: string;
-            };
-        };
-        ResumeItem: {
-            /** @example Alex Chen */
-            name: string;
-            /** @example https://hr.job5156.com/resume/view/123 */
-            profileUrl: string;
-            /** @example hr.job5156.com */
-            source?: string;
-            /** @example Active today */
-            activityStatus: string;
-            /** @example 28 */
-            age: string;
-            /** @example 5 years */
-            experience: string;
-            /** @example Bachelor */
-            education: string;
-            /** @example Shenzhen */
-            location: string;
-            locationHierarchy?: components["schemas"]["ResumeLocationHierarchy"];
-            /** @example 认真敬业，具备团队协作精神 */
-            selfIntro: string;
-            /** @example Sales Manager */
-            jobIntention: string;
-            /** @example 10-15K */
-            expectedSalary: string;
-            workHistory: components["schemas"]["ResumeWorkHistory"][];
-            profileEducation?: components["schemas"]["ResumeImportProfileEducation"][];
-            projectExperience?: components["schemas"]["ResumeImportWorkHistory"][];
-            skills?: (string | components["schemas"]["ResumeImportSkillDetail"])[];
-            languages?: (string | components["schemas"]["ResumeImportLanguageDetail"])[];
-            licences?: (string | components["schemas"]["ResumeImportLicenceDetail"])[];
-            resumeSnippet?: string | components["schemas"]["ResumeImportSnippet"];
-            currentIndustry?: string | components["schemas"]["ResumeImportIndustry"];
-            currentSubindustry?: string | components["schemas"]["ResumeImportIndustry"];
-            rightToWork?: string | boolean | components["schemas"]["ResumeImportRightToWork"];
-            digitalIdentity?: string | components["schemas"]["ResumeImportDigitalIdentity"];
-            noticePeriodDays?: number;
-            ingestData?: components["schemas"]["ResumeIngestData"];
-            /** @example 2026-02-03T10:00:00.000Z */
-            extractedAt: string;
-            /** @example R123456 */
-            resumeId?: string;
-            /** @example U987654 */
-            perUserId?: string;
-            /** @example 503033454 */
-            profileId?: string;
-            /** @example seek */
-            profileType?: string;
-            /** @example seek:profile:503033454 */
-            externalId?: string;
         };
         ResumeLocationHierarchy: {
             /** @example 中国 */
@@ -7519,6 +7444,61 @@ export interface components {
             /** @example https://example.com */
             websiteUrl?: string;
         };
+        ResumeIngestBrandHit: {
+            /** @example fanuc */
+            brand: string;
+            /** @example both */
+            role: string;
+            /** @example workHistory */
+            source: string;
+            /** @example employer */
+            context: string;
+        };
+        ResumeIngestMatchedWorkEntry: {
+            /** @example FANUC */
+            companyName?: string;
+            /** @example Sales Engineer */
+            jobTitle?: string;
+            /** @example 3 */
+            years: number;
+            /** @example true */
+            industryVerified: boolean;
+            /**
+             * @example [
+             *       "sales",
+             *       "cnc"
+             *     ]
+             */
+            matchedSignals: string[];
+            /** @example true */
+            directRoleMatch?: boolean;
+        };
+        ResumeIngestRoleSignal: {
+            /** @example sales */
+            type: string;
+            /**
+             * @example [
+             *       "销售工程师",
+             *       "销售"
+             *     ]
+             */
+            matchedSignals: string[];
+            /** @example 2 */
+            signalCount?: number;
+            /** @example 2 */
+            occurrences?: number;
+            /** @example 5 */
+            years: number;
+            /** @example 5 */
+            industryVerifiedYears?: number;
+            /** @example 5 */
+            roleRelevantYears?: number;
+            /** @example 5 */
+            industryVerifiedRelevantYears?: number;
+            matchedWorkEntries?: components["schemas"]["ResumeIngestMatchedWorkEntry"][];
+            /** @example workHistory */
+            verifyIn: string;
+        };
         ResumeIngestData: {
             /**
              * @example [
@@ -7549,103 +7529,98 @@ export interface components {
             computedAt?: number;
             skillsVersion?: number;
         };
-        ResumeIngestBrandHit: {
-            /** @example fanuc */
-            brand: string;
-            /** @example both */
-            role: string;
-            /** @example workHistory */
-            source: string;
-            /** @example employer */
-            context: string;
+        ResumeItem: {
+            /** @example Alex Chen */
+            name: string;
+            /** @example https://hr.job5156.com/resume/view/123 */
+            profileUrl: string;
+            /** @example hr.job5156.com */
+            source?: string;
+            /** @example Active today */
+            activityStatus: string;
+            /** @example 28 */
+            age: string;
+            /** @example 5 years */
+            experience: string;
+            /** @example Bachelor */
+            education: string;
+            /** @example Shenzhen */
+            location: string;
+            locationHierarchy?: components["schemas"]["ResumeLocationHierarchy"];
+            /** @example 认真敬业，具备团队协作精神 */
+            selfIntro: string;
+            /** @example Sales Manager */
+            jobIntention: string;
+            /** @example 10-15K */
+            expectedSalary: string;
+            workHistory: components["schemas"]["ResumeWorkHistory"][];
+            profileEducation?: components["schemas"]["ResumeImportProfileEducation"][];
+            projectExperience?: components["schemas"]["ResumeImportWorkHistory"][];
+            skills?: (string | components["schemas"]["ResumeImportSkillDetail"])[];
+            languages?: (string | components["schemas"]["ResumeImportLanguageDetail"])[];
+            licences?: (string | components["schemas"]["ResumeImportLicenceDetail"])[];
+            resumeSnippet?: string | components["schemas"]["ResumeImportSnippet"];
+            currentIndustry?: string | components["schemas"]["ResumeImportIndustry"];
+            currentSubindustry?: string | components["schemas"]["ResumeImportIndustry"];
+            rightToWork?: string | boolean | components["schemas"]["ResumeImportRightToWork"];
+            digitalIdentity?: string | components["schemas"]["ResumeImportDigitalIdentity"];
+            noticePeriodDays?: number;
+            ingestData?: components["schemas"]["ResumeIngestData"];
+            /** @example 2026-02-03T10:00:00.000Z */
+            extractedAt: string;
+            /** @example R123456 */
+            resumeId?: string;
+            /** @example U987654 */
+            perUserId?: string;
+            /** @example 503033454 */
+            profileId?: string;
+            /** @example seek */
+            profileType?: string;
+            /** @example seek:profile:503033454 */
+            externalId?: string;
         };
-        ResumeIngestRoleSignal: {
-            /** @example sales */
-            type: string;
-            /**
-             * @example [
-             *       "销售工程师",
-             *       "销售"
-             *     ]
-             */
-            matchedSignals: string[];
-            /** @example 2 */
-            signalCount?: number;
-            /** @example 2 */
-            occurrences?: number;
-            /** @example 5 */
-            years: number;
-            /** @example 5 */
-            industryVerifiedYears?: number;
-            /** @example 5 */
-            roleRelevantYears?: number;
-            /** @example 5 */
-            industryVerifiedRelevantYears?: number;
-            matchedWorkEntries?: components["schemas"]["ResumeIngestMatchedWorkEntry"][];
-            /** @example workHistory */
-            verifyIn: string;
-        };
-        ResumeIngestMatchedWorkEntry: {
-            /** @example FANUC */
-            companyName?: string;
-            /** @example Sales Engineer */
-            jobTitle?: string;
-            /** @example 3 */
-            years: number;
-            /** @example true */
-            industryVerified: boolean;
-            /**
-             * @example [
-             *       "sales",
-             *       "cnc"
-             *     ]
-             */
-            matchedSignals: string[];
-            /** @example true */
-            directRoleMatch?: boolean;
-        };
-        MatchResponse: {
+        ResumesResponse: {
             /** @enum {boolean} */
             success: true;
-            /** @enum {string} */
-            mode?: "rules_only" | "hybrid" | "ai_only";
-            streamPath?: string;
-            pendingAiCount?: number;
-            query?: {
-                source?: components["schemas"]["ResumeResultSource"];
-                persisted?: boolean;
+            sample?: components["schemas"]["ResumeSample"];
+            metadata?: components["schemas"]["ResumeMetadata"];
+            summary?: {
+                total: number;
+                returned: number;
+                query?: string;
+                /** @enum {string} */
+                source?: "sample" | "convex";
+                expandedTo?: string[];
+                /** @enum {string} */
+                mode?: "AND" | "OR";
                 keywordGroups?: {
                     original: string;
                     variants: string[];
                 }[];
-                expandedTo?: string[];
                 sourceMapping?: {
                     [key: string]: string;
                 };
-                inferredRequiredRoles?: {
-                    /** @example sales */
-                    type: string;
-                    /**
-                     * @example [
-                     *       "销售",
-                     *       "业务"
-                     *     ]
-                     */
-                    signals: string[];
-                    /**
-                     * @example workHistory
-                     * @enum {string}
-                     */
-                    verifyIn: "workHistory" | "searchText";
-                    /** @example 2 */
-                    minYears?: number;
-                }[];
             };
-            results: components["schemas"]["ResumeMatch"][];
-            stats: components["schemas"]["MatchStats"];
+            data: components["schemas"]["ResumeItem"][];
         };
         /** @enum {string} */
         ResumeResultSource: "sample" | "convex";
+        MatchBreakdown: {
+            /** @example 20 */
+            skillMatch: number;
+            /** @example 8 */
+            roleMatch?: number;
+            /** @example 18 */
+            experienceMatch: number;
+            /** @example 12 */
+            educationMatch: number;
+            /** @example 15 */
+            locationMatch: number;
+            /** @example 10 */
+            industryMatch: number;
+            /** @example 7 */
+            brandRelevance: number;
+        };
         ResumeMatch: {
             /** @example R123456 */
             resumeId: string;
@@ -7753,28 +7728,52 @@ export interface components {
                 }[];
             };
         };
-        MatchBreakdown: {
-            /** @example 20 */
-            skillMatch: number;
-            /** @example 8 */
-            roleMatch?: number;
-            /** @example 18 */
-            experienceMatch: number;
-            /** @example 12 */
-            educationMatch: number;
-            /** @example 15 */
-            locationMatch: number;
-            /** @example 10 */
-            industryMatch: number;
-            /** @example 7 */
-            brandRelevance: number;
-        };
         MatchStats: {
             processed: number;
             matched: number;
             avgScore: number;
             processingTimeMs?: number;
             pendingAi?: number;
+        };
+        MatchResponse: {
+            /** @enum {boolean} */
+            success: true;
+            /** @enum {string} */
+            mode?: "rules_only" | "hybrid" | "ai_only";
+            streamPath?: string;
+            pendingAiCount?: number;
+            query?: {
+                source?: components["schemas"]["ResumeResultSource"];
+                persisted?: boolean;
+                keywordGroups?: {
+                    original: string;
+                    variants: string[];
+                }[];
+                expandedTo?: string[];
+                sourceMapping?: {
+                    [key: string]: string;
+                };
+                inferredRequiredRoles?: {
+                    /** @example sales */
+                    type: string;
+                    /**
+                     * @example [
+                     *       "销售",
+                     *       "业务"
+                     *     ]
+                     */
+                    signals: string[];
+                    /**
+                     * @example workHistory
+                     * @enum {string}
+                     */
+                    verifyIn: "workHistory" | "searchText";
+                    /** @example 2 */
+                    minYears?: number;
+                }[];
+            };
+            results: components["schemas"]["ResumeMatch"][];
+            stats: components["schemas"]["MatchStats"];
         };
         MatchRequest: {
             /** @example session-123 */
@@ -7819,11 +7818,6 @@ export interface components {
             success: true;
             results: components["schemas"]["ResumeMatch"][];
         };
-        MatchRunsResponse: {
-            /** @enum {boolean} */
-            success: true;
-            runs: components["schemas"]["MatchRun"][];
-        };
         MatchRun: {
             /** @example run-123 */
             id: string;
@@ -7860,6 +7854,11 @@ export interface components {
             /** @example AI provider timeout */
             error?: string;
         };
+        MatchRunsResponse: {
+            /** @enum {boolean} */
+            success: true;
+            runs: components["schemas"]["MatchRun"][];
+        };
         ResumeSubmitSummary: {
             /** @enum {boolean} */
             success: true;
@@ -7869,13 +7868,14 @@ export interface components {
             unchanged: number;
             deduped: number;
         };
-        ResumeImportRequest: {
-            metadata: components["schemas"]["ResumeImportMetadata"];
-            resumes?: components["schemas"]["ResumeImportItem"][];
-            data?: components["schemas"]["ResumeImportItem"][];
-            options?: components["schemas"]["ResumeImportOptions"];
-            candidateActions?: components["schemas"]["CandidateActionBackup"][];
-            candidateStatus?: components["schemas"]["CandidateStatusBackup"][];
+        ResumeImportCollectionContext: {
+            captureMode?: string;
+            operation?: string;
+            jobId?: string | number;
+            searchId?: string;
+            pageNumber?: number | null;
+            language?: string;
+            profileType?: string;
         };
         ResumeImportMetadata: {
             /**
@@ -7908,14 +7908,20 @@ export interface components {
             /** @example Navigate to sourceUrl, then add ?tr_auto_export=json */
             reproduction?: string;
         };
-        ResumeImportCollectionContext: {
-            captureMode?: string;
-            operation?: string;
-            jobId?: string | number;
-            searchId?: string;
-            pageNumber?: number | null;
-            language?: string;
-            profileType?: string;
+        ResumeImportRestoreState: {
+            /** @example 1763917200000 */
+            crawledAt?: number;
+            /** @example true */
+            isArchived?: boolean;
+            /** @example 1763917200000 */
+            archivedAt?: number;
+            /** @example alice cnc sales dongguan */
+            searchText?: string;
+            /** @example 85 */
+            primaryRuleScore?: number;
+            ingestData?: unknown;
+            analysis?: unknown;
+            analyses?: unknown;
         };
         ResumeImportItem: {
             resumeId?: string | number;
@@ -7971,21 +7977,6 @@ export interface components {
             extractedAt?: string;
             restoreState?: components["schemas"]["ResumeImportRestoreState"];
         };
-        ResumeImportRestoreState: {
-            /** @example 1763917200000 */
-            crawledAt?: number;
-            /** @example true */
-            isArchived?: boolean;
-            /** @example 1763917200000 */
-            archivedAt?: number;
-            /** @example alice cnc sales dongguan */
-            searchText?: string;
-            /** @example 85 */
-            primaryRuleScore?: number;
-            ingestData?: unknown;
-            analysis?: unknown;
-            analyses?: unknown;
-        };
         ResumeImportOptions: {
             /** @example true */
             recomputeDerivedFields?: boolean;
@@ -8031,14 +8022,13 @@ export interface components {
                 notes?: string;
             }[];
         };
-        ResumeManualImportResponse: {
-            /** @enum {boolean} */
-            success: true;
-            source: components["schemas"]["ResumeManualImportSource"];
-            summary: components["schemas"]["ResumeManualImportSummary"];
-            files: components["schemas"]["ResumeManualImportFileResult"][];
-            /** @default [] */
-            warnings: string[];
+        ResumeImportRequest: {
+            metadata: components["schemas"]["ResumeImportMetadata"];
+            resumes?: components["schemas"]["ResumeImportItem"][];
+            data?: components["schemas"]["ResumeImportItem"][];
+            options?: components["schemas"]["ResumeImportOptions"];
+            candidateActions?: components["schemas"]["CandidateActionBackup"][];
+            candidateStatus?: components["schemas"]["CandidateStatusBackup"][];
         };
         ResumeManualImportSource: {
             /** @example 51job-manual */
@@ -8079,6 +8069,15 @@ export interface components {
             /** @example Legacy .doc parsing is not supported yet */
             error?: string;
         };
+        ResumeManualImportResponse: {
+            /** @enum {boolean} */
+            success: true;
+            source: components["schemas"]["ResumeManualImportSource"];
+            summary: components["schemas"]["ResumeManualImportSummary"];
+            files: components["schemas"]["ResumeManualImportFileResult"][];
+            /** @default [] */
+            warnings: string[];
+        };
         ResumeManualImportError: {
             /** @enum {boolean} */
             success: false;
@@ -8100,25 +8099,6 @@ export interface components {
             sourceHosts?: string[];
             limit?: number;
         };
-        ResumeExportCanonicalRequest: {
-            /**
-             * @default csv
-             * @example csv
-             * @enum {string}
-             */
-            format: "csv" | "xlsx";
-            source: components["schemas"]["ResumeExportSource"];
-            /** @example sample-initial */
-            sample?: string;
-            /** @example Batch note */
-            userComment?: string;
-            /** @example Internal export */
-            referenceNote?: string;
-            industryDbV2Stats?: components["schemas"]["IndustryDbV2Stats"];
-            /** @example false */
-            debug?: boolean;
-            entries: components["schemas"]["ResumeExportEntryContext"][];
-        };
         /** @enum {string} */
         ResumeExportSource: "sample" | "convex";
         IndustryDbV2Stats: {
@@ -8137,21 +8117,6 @@ export interface components {
             /** @example 6.8 */
             stddev?: number;
             histogram50: number[];
-        };
-        ResumeExportEntryContext: {
-            /** @example resume-1 */
-            resumeId: string;
-            /** @example 72 */
-            ruleScore?: number;
-            /** @example shortlist */
-            action?: string;
-            match?: components["schemas"]["ResumeExportMatch"];
-            /** @example Call back tomorrow */
-            userComment?: string;
-            /** @example Referred by HR */
-            referenceNote?: string;
-            /** @example contacted */
-            status?: string;
         };
         ResumeExportMatch: {
             /** @example 88 */
@@ -8178,13 +8143,42 @@ export interface components {
                 [key: string]: number;
             };
         };
-        ReviewPacketTrackedExportResponse: {
-            /** @enum {boolean} */
-            success: true;
-            run: components["schemas"]["ReviewPacketRun"];
-            /** @example /api/resumes/review-packets/review-packet-123/download */
-            downloadPath: string;
+        ResumeExportEntryContext: {
+            /** @example resume-1 */
+            resumeId: string;
+            /** @example 72 */
+            ruleScore?: number;
+            /** @example shortlist */
+            action?: string;
+            match?: components["schemas"]["ResumeExportMatch"];
+            /** @example Call back tomorrow */
+            userComment?: string;
+            /** @example Referred by HR */
+            referenceNote?: string;
+            /** @example contacted */
+            status?: string;
         };
+        ResumeExportCanonicalRequest: {
+            /**
+             * @default csv
+             * @example csv
+             * @enum {string}
+             */
+            format: "csv" | "xlsx";
+            source: components["schemas"]["ResumeExportSource"];
+            /** @example sample-initial */
+            sample?: string;
+            /** @example Batch note */
+            userComment?: string;
+            /** @example Internal export */
+            referenceNote?: string;
+            industryDbV2Stats?: components["schemas"]["IndustryDbV2Stats"];
+            /** @example false */
+            debug?: boolean;
+            entries: components["schemas"]["ResumeExportEntryContext"][];
+        };
+        /** @enum {string} */
+        ReviewPacketRunStatus: "exported" | "feedback_imported" | "summary_sent" | "failed";
         ReviewPacketRun: {
             /** @example review-packet-123 */
             id: string;
@@ -8250,8 +8244,13 @@ export interface components {
             };
             error?: string;
         };
-        /** @enum {string} */
-        ReviewPacketRunStatus: "exported" | "feedback_imported" | "summary_sent" | "failed";
+        ReviewPacketTrackedExportResponse: {
+            /** @enum {boolean} */
+            success: true;
+            run: components["schemas"]["ReviewPacketRun"];
+            /** @example /api/resumes/review-packets/review-packet-123/download */
+            downloadPath: string;
+        };
         ReviewPacketExportRequest: {
             /**
              * @default csv
@@ -8307,15 +8306,10 @@ export interface components {
             /** @example hr.lead */
             updatedBy?: string;
         };
-        ReviewPacketSummaryPreviewResponse: {
-            /** @enum {boolean} */
-            success: true;
-            run: components["schemas"]["ReviewPacketRun"];
-            /** @enum {string} */
-            channel: "wechat_work";
-            templateId: string;
-            content: string;
-            data: components["schemas"]["ReviewPacketSummaryData"];
+        ReviewPacketSummaryCount: {
+            key: string;
+            label: string;
+            count: number;
         };
         ReviewPacketSummaryData: {
             packetId: string;
@@ -8335,10 +8329,15 @@ export interface components {
             actionBreakdown: components["schemas"]["ReviewPacketSummaryCount"][];
             warnings: string[];
         };
-        ReviewPacketSummaryCount: {
-            key: string;
-            label: string;
-            count: number;
+        ReviewPacketSummaryPreviewResponse: {
+            /** @enum {boolean} */
+            success: true;
+            run: components["schemas"]["ReviewPacketRun"];
+            /** @enum {string} */
+            channel: "wechat_work";
+            templateId: string;
+            content: string;
+            data: components["schemas"]["ReviewPacketSummaryData"];
         };
         ReviewPacketSummaryPreviewRequest: {
             /** @example review-packet-wechat */
@@ -8354,8 +8353,6 @@ export interface components {
             delivery: {
                 errcode?: number;
                 errmsg?: string;
-            } & {
-                [key: string]: unknown;
             };
         };
         ReviewPacketSummarySendRequest: {
@@ -8367,17 +8364,6 @@ export interface components {
              */
             webhookUrl?: string;
         };
-        ResumeDiagnosticsResponse: {
-            /** @enum {boolean} */
-            success: true;
-            summary: {
-                archived: boolean;
-                sourceKeys?: string[];
-                returned: number;
-                limit: number;
-            };
-            data: components["schemas"]["ResumeDiagnosticsItem"][];
-        };
         ResumeDiagnosticsItem: {
             resumeId: string;
             externalId: string;
@@ -8388,6 +8374,17 @@ export interface components {
             location: string;
             isArchived?: boolean;
             archivedAt?: number;
+        };
+        ResumeDiagnosticsResponse: {
+            /** @enum {boolean} */
+            success: true;
+            summary: {
+                archived: boolean;
+                sourceKeys?: string[];
+                returned: number;
+                limit: number;
+            };
+            data: components["schemas"]["ResumeDiagnosticsItem"][];
         };
         ResumeDetailResponse: {
             /** @enum {boolean} */
