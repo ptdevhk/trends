@@ -50,28 +50,28 @@ export interface SearchSummary {
   }>;
 }
 
-function normalizeQuery(value: string): string {
+export function normalizeQuery(value: string): string {
   return value.trim().replace(/\s+/g, " ");
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-function readString(value: unknown): string | null {
+export function readString(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const normalized = value.trim();
   return normalized ? normalized : null;
 }
 
-function readNumber(value: unknown): number | null {
+export function readNumber(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) {
     return value;
   }
   return null;
 }
 
-function parseSearchEvent(value: unknown): SearchEvent | null {
+export function parseSearchEvent(value: unknown): SearchEvent | null {
   if (!isRecord(value)) return null;
 
   const type = readString(value.type);
