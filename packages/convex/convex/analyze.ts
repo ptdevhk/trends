@@ -24,7 +24,7 @@ export type ChatMessage = {
     content: string;
 };
 
-type NormalizedMatchedWorkEntry = {
+export type NormalizedMatchedWorkEntry = {
     companyName?: string;
     jobTitle?: string;
     years: number;
@@ -33,7 +33,7 @@ type NormalizedMatchedWorkEntry = {
     directRoleMatch?: boolean;
 };
 
-type NormalizedRoleSignal = {
+export type NormalizedRoleSignal = {
     type: string;
     matchedSignals: string[];
     signalCount: number;
@@ -75,11 +75,11 @@ export function getUserPromptTemplate(locale: string): string {
     return getResumeAiUserPromptTemplate(locale);
 }
 
-function isEnglishResumeAiLocale(locale?: string): boolean {
+export function isEnglishResumeAiLocale(locale?: string): boolean {
     return resolveResumeAiPromptLocale(locale).resolvedSourceLocale === "en";
 }
 
-function toNumber(value: unknown): number | undefined {
+export function toNumber(value: unknown): number | undefined {
     if (typeof value === "number" && Number.isFinite(value)) {
         return value;
     }
@@ -93,13 +93,13 @@ function toNumber(value: unknown): number | undefined {
 const INDUSTRY_DB_SCORE_CAP = 50;
 const RELATED_EXP_WEIGHT = INDUSTRY_DB_SCORE_CAP / 100;
 
-type AnalysisRecommendation = "strong_match" | "match" | "potential" | "no_match";
+export type AnalysisRecommendation = "strong_match" | "match" | "potential" | "no_match";
 
-function clamp(value: number, min: number, max: number): number {
+export function clamp(value: number, min: number, max: number): number {
     return Math.min(max, Math.max(min, value));
 }
 
-function parseNumericBreakdown(value: unknown): Record<string, number> | undefined {
+export function parseNumericBreakdown(value: unknown): Record<string, number> | undefined {
     if (!isRecord(value)) {
         return undefined;
     }
@@ -115,7 +115,7 @@ function parseNumericBreakdown(value: unknown): Record<string, number> | undefin
     return Object.keys(parsed).length > 0 ? parsed : undefined;
 }
 
-function hasNonEmployerBrandHits(value: unknown): boolean {
+export function hasNonEmployerBrandHits(value: unknown): boolean {
     if (!Array.isArray(value)) {
         return false;
     }
@@ -130,7 +130,7 @@ function hasNonEmployerBrandHits(value: unknown): boolean {
     });
 }
 
-function hasCompanyHits(value: unknown): boolean {
+export function hasCompanyHits(value: unknown): boolean {
     if (!Array.isArray(value)) {
         return false;
     }
@@ -138,7 +138,7 @@ function hasCompanyHits(value: unknown): boolean {
     return value.some((item) => typeof item === "string" && item.trim().length > 0);
 }
 
-function getResumeIngestData(resume: unknown): Record<string, unknown> {
+export function getResumeIngestData(resume: unknown): Record<string, unknown> {
     const root = isRecord(resume) ? resume : {};
     const content = isRecord(root.content) ? root.content : {};
     if (isRecord(root.ingestData)) {
@@ -150,7 +150,7 @@ function getResumeIngestData(resume: unknown): Record<string, unknown> {
     return {};
 }
 
-function computeDirectIndustryDbScoreFromResume(resume: unknown): number {
+export function computeDirectIndustryDbScoreFromResume(resume: unknown): number {
     const ingestData = getResumeIngestData(resume);
     const brandHits = hasNonEmployerBrandHits(ingestData.brandHits);
     const companyHits = hasCompanyHits(ingestData.companyHits);
@@ -162,18 +162,18 @@ function computeDirectIndustryDbScoreFromResume(resume: unknown): number {
     return clamp(raw, 0, INDUSTRY_DB_SCORE_CAP);
 }
 
-function recommendationFromScore(score: number): AnalysisRecommendation {
+export function recommendationFromScore(score: number): AnalysisRecommendation {
     if (score >= 85) return "strong_match";
     if (score >= 70) return "match";
     if (score >= 40) return "potential";
     return "no_match";
 }
 
-function hasHanText(value: string): boolean {
+export function hasHanText(value: string): boolean {
     return /[\u4e00-\u9fff]/.test(value);
 }
 
-function normalizeSummaryConsistency(
+export function normalizeSummaryConsistency(
     summary: string,
     normalized: {
         score: number;
@@ -328,7 +328,7 @@ function formatRoleSignals(
     }).join("\n");
 }
 
-function parseRoleSignals(value: unknown): NormalizedRoleSignal[] {
+export function parseRoleSignals(value: unknown): NormalizedRoleSignal[] {
     if (!Array.isArray(value)) {
         return [];
     }
@@ -461,7 +461,7 @@ export function getAiTemperature(): number {
     return 0;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+export function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null;
 }
 
