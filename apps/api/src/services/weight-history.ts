@@ -25,11 +25,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-function isFiniteNumber(value: unknown): value is number {
+export function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
 
-function parseCategoryWeights(value: unknown): RuleCategoryWeights | null {
+export function parseCategoryWeights(value: unknown): RuleCategoryWeights | null {
   if (!isRecord(value)) {
     return null;
   }
@@ -48,7 +48,7 @@ function parseCategoryWeights(value: unknown): RuleCategoryWeights | null {
   return allFinite ? weights : null;
 }
 
-function parseEntry(value: unknown): WeightHistoryEntry | null {
+export function parseEntry(value: unknown): WeightHistoryEntry | null {
   if (!isRecord(value)) {
     return null;
   }
