@@ -4,6 +4,7 @@ import {
     buildDiagnosticsSourceFacetRows,
     matchesDiagnosticsSourceKeys,
     projectIngestDiagnosticsRow,
+    resolveDiagnosticsSourceKeyForResume,
     resolveListWithIngestWindow,
     resolveResumeScanBatchSize,
     resolveSearchWithTagExpansionTakeLimit,
@@ -32,6 +33,14 @@ describe("resolveResumeScanBatchSize", () => {
 
     it("clamps oversized scan batches to the safe maximum", () => {
         expect(resolveResumeScanBatchSize(5_000)).toBe(50);
+    });
+
+    it("clamps to minimum of 1", () => {
+        expect(resolveResumeScanBatchSize(0)).toBe(1);
+    });
+
+    it("handles NaN", () => {
+        expect(resolveResumeScanBatchSize(Number.NaN)).toBe(25);
     });
 });
 
@@ -161,6 +170,33 @@ describe("projectIngestDiagnosticsRow", () => {
 
         expect(row.location).toBe("广东东莞");
     });
+
+    it("includes archive fields when isArchived is true", () => {
+        const archivedAt = 1_700_000_000_000;
+        const row = projectIngestDiagnosticsRow({
+            _id: "resume-3",
+            externalId: "ext-3",
+            source: "seek",
+            content: {},
+            isArchived: true,
+            archivedAt,
+        });
+        expect(row.isArchived).toBe(true);
+        expect(row.archivedAt).toBe(archivedAt);
+    });
+
+    it("omits archive fields when isArchived is false", () => {
+        const row = projectIngestDiagnosticsRow({
+            _id: "resume-4",
+            externalId: "ext-4",
+            source: "seek",
+            content: {},
+            isArchived: false,
+            archivedAt: 1_700_000_000_000,
+        });
+        expect(row).not.toHaveProperty("isArchived");
+        expect(row).not.toHaveProperty("archivedAt");
+    });
 });
 
 describe("matchesDiagnosticsSourceKeys", () => {
@@ -194,6 +230,43 @@ describe("matchesDiagnosticsSourceKeys", () => {
             sourceKey: "seek",
         }, new Set(["seek"]))).toBe(true);
     });
+
+    it("returns true when sourceKeys is undefined", () => {
+        expect(matchesDiagnosticsSourceKeys({
+            source: "seek",
+            content: {},
+        }, undefined)).toBe(true);
+    });
+
+    it("returns true when sourceKeys is empty set", () => {
+        expect(matchesDiagnosticsSourceKeys({
+            source: "seek",
+            content: {},
+        }, new Set())).toBe(true);
+    });
+});
+
+describe("resolveDiagnosticsSourceKeyForResume", () => {
+    it("returns 'seek' for seek source without profileType", () => {
+        expect(resolveDiagnosticsSourceKeyForResume({
+            source: "seek",
+            content: {},
+        })).toBe("seek");
+    });
+
+    it("handles null content gracefully", () => {
+        expect(resolveDiagnosticsSourceKeyForResume({
+            source: "seek",
+            content: null,
+        })).toBe("seek");
+    });
+
+    it("returns 'job5156' for job5156 source", () => {
+        expect(resolveDiagnosticsSourceKeyForResume({
+            source: "job5156",
+            content: {},
+        })).toBe("job5156");
+    });
 });
 
 describe("buildDiagnosticsSourceFacetRows", () => {
@@ -211,6 +284,18 @@ describe("buildDiagnosticsSourceFacetRows", () => {
             { key: "51job-manual", label: "51job manual", count: 1 },
             { key: "seek", label: "SEEK", count: 1 },
             { key: "unknown", label: "Unknown", count: 1 },
+        ]);
+    });
+
+    it("builds facet rows from existing Map", () => {
+        const counts = new Map<string, number>([
+            ["seek", 5],
+            ["51job", 3],
+        ]);
+        const rows = buildDiagnosticsSourceFacetRows(counts);
+        expect(rows).toEqual([
+            { key: "seek", label: "SEEK", count: 5 },
+            { key: "51job", label: "51job", count: 3 },
         ]);
     });
 });

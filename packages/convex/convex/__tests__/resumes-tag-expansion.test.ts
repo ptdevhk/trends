@@ -25,6 +25,11 @@ describe("buildTagExpansionSearchQuery", () => {
     it("combines expanded terms for OR searches", () => {
         expect(buildTagExpansionSearchQuery(keywordGroups, "OR")).toBe("销售 业务 商务 sales cnc");
     });
+
+    it("returns empty string for empty keyword groups", () => {
+        expect(buildTagExpansionSearchQuery([], "AND")).toBe("");
+        expect(buildTagExpansionSearchQuery([], "OR")).toBe("");
+    });
 });
 
 describe("matchesTagExpansionSearchText", () => {
@@ -60,5 +65,13 @@ describe("collectSearchTextProvenance", () => {
                 expandedFrom: undefined,
             },
         ]);
+    });
+
+    it("returns empty array when no matches", () => {
+        expect(collectSearchTextProvenance("marketing director", keywordGroups, {})).toEqual([]);
+    });
+
+    it("returns empty array for empty keyword groups", () => {
+        expect(collectSearchTextProvenance("any text", [], {})).toEqual([]);
     });
 });
