@@ -2,6 +2,7 @@ import ExcelJS from "exceljs";
 import Papa from "papaparse";
 import {
   buildWorkHistoryEntryText,
+  inferSeekMarket,
   normalizeProfileUrlForDisplay,
   type ResumeWorkHistoryItem as SharedResumeWorkHistoryItem,
 } from "@trends/shared";
@@ -296,7 +297,15 @@ function toRow(
       .join(", "),
     roleEvidence: formatRoleEvidence(entry.resume.ingestData?.roleSignals),
     matchedWorkEntries: formatMatchedWorkEntries(entry.resume.ingestData?.roleSignals),
-    profileUrl: normalizeProfileUrlForDisplay(entry.resume.profileUrl, entry.resume.source),
+    profileUrl: normalizeProfileUrlForDisplay(
+      entry.resume.profileUrl,
+      entry.resume.source,
+      {
+        name: entry.resume.name,
+        market: entry.resume.source?.includes("seek") ? inferSeekMarket(entry.resume.source) : undefined,
+        roleTitles: entry.resume.workHistory?.[0]?.jobTitle,
+      }
+    ),
     workHistory,
     selfIntro: normalizeString(entry.resume.selfIntro),
     aiSummary: normalizeString(entry.match?.summary),

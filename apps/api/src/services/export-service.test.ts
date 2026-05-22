@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { ExportService } from "./export-service";
 
 import type { ResumeExportEntry, ExportBatchMeta } from "./export-service";
+import { buildSeekNameSearchUrl } from "@trends/shared";
 
 function buildEntry(age: string | undefined): ResumeExportEntry {
   return {
@@ -300,12 +301,33 @@ describe("ExportService", () => {
     expect(headers).toContain("Reference Note");
   });
 
-  it("keeps non-Job5156 profile URLs unchanged during export", async () => {
+  it("upgrades Seek UUID profile URLs to talentsearch name-search URLs in export", async () => {
     const service = new ExportService();
     const entry: ResumeExportEntry = {
       ...buildEntry("27"),
       resume: {
         ...buildEntry("27").resume,
+        name: "KHA LEONG CH'NG",
+        source: "hk.employer.seek.com",
+        profileUrl: "https://hk.employer.seek.com/candidates/891b1444-efa1-11e3-99bd-5e95a6174ad3",
+      },
+    };
+
+    const file = await service.exportResumes("csv", [entry]);
+    const csv = file.content.toString("utf8");
+    const parsed = Papa.parse<Record<string, string>>(csv, { header: true });
+
+    const expectedUrl = buildSeekNameSearchUrl("KHA LEONG CH'NG", "MY");
+    expect(parsed.data[0]?.profileUrl).toBe(expectedUrl);
+  });
+
+  it("keeps Seek UUID profile URL when candidate name is missing", async () => {
+    const service = new ExportService();
+    const entry: ResumeExportEntry = {
+      ...buildEntry("27"),
+      resume: {
+        ...buildEntry("27").resume,
+        name: undefined,
         source: "hk.employer.seek.com",
         profileUrl: "https://hk.employer.seek.com/candidates/503033454",
       },
