@@ -10,7 +10,7 @@ export type BrandDisplayEntry = {
   zhHans: string;
 };
 
-function hasChinese(value: string): boolean {
+export function hasChinese(value: string): boolean {
   // Basic CJK Unified Ideographs range; sufficient for our alias data.
   return /[\u4e00-\u9fff]/u.test(value);
 }
@@ -19,7 +19,7 @@ function normalizeBrandId(value: string): string {
   return normalizeCompanyPatternIdentifier(value);
 }
 
-function pickPreferredZhHansFromAliases(aliases: string[]): string | null {
+export function pickPreferredZhHansFromAliases(aliases: string[]): string | null {
   const candidates = aliases.map((alias) => alias.trim()).filter((alias) => alias && hasChinese(alias));
   if (candidates.length === 0) return null;
 
@@ -31,7 +31,7 @@ function pickPreferredZhHansFromAliases(aliases: string[]): string | null {
   return best;
 }
 
-function brandEntryToDisplay(brand: BrandEntry): BrandDisplayEntry {
+export function brandEntryToDisplay(brand: BrandEntry): BrandDisplayEntry {
   const displayName = brand.nameEn?.trim() || brand.nameCn.trim();
   return { displayName, zhHans: brand.nameCn.trim() };
 }
