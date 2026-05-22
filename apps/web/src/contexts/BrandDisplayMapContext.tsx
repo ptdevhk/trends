@@ -41,6 +41,7 @@ export function BrandDisplayMapProvider({ children }: { children: ReactNode }) {
   )
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- canonical context pattern: provider + hook
 export function useBrandDisplayMapResolve() {
   const map = useContext(BrandDisplayMapContext)
 

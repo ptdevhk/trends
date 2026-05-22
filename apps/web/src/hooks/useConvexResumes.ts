@@ -104,8 +104,6 @@ export type ConvexIngestData = {
   skillsVersion?: number
 }
 
-export type ConvexRoleSignal = NonNullable<ConvexIngestData['roleSignals']>[number]
-
 export type ConvexResumeItem = ResumeItem & {
   resumeId: Doc<'resumes'>['_id']
   identityKey?: string
