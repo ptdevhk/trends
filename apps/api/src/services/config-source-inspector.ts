@@ -45,26 +45,26 @@ export class UnknownConfigSourceError extends Error {
 
 const STATIC_SOURCES: StaticInspectableSourceDefinition[] = STATIC_INSPECTABLE_SOURCE_DEFINITIONS;
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function readString(value: unknown): string | undefined {
+export function readString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
 }
 
-function readNumber(value: unknown): number | undefined {
+export function readNumber(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
-function readErrorCode(error: unknown): string | undefined {
+export function readErrorCode(error: unknown): string | undefined {
   if (typeof error !== "object" || error === null || !("code" in error)) {
     return undefined;
   }
   return typeof error.code === "string" ? error.code : undefined;
 }
 
-function splitFrontmatter(rawSource: string): { frontmatter?: Record<string, unknown>; body: string } {
+export function splitFrontmatter(rawSource: string): { frontmatter?: Record<string, unknown>; body: string } {
   const lines = rawSource.split("\n");
   if (lines[0]?.trim() !== "---") {
     return { body: rawSource };
@@ -89,7 +89,7 @@ function splitFrontmatter(rawSource: string): { frontmatter?: Record<string, unk
   };
 }
 
-function parseMarkdownPreview(rawSource: string): MarkdownPreview {
+export function parseMarkdownPreview(rawSource: string): MarkdownPreview {
   const { frontmatter, body } = splitFrontmatter(rawSource);
   const lines = body.split("\n");
   const sections: MarkdownSectionPreview[] = [];
@@ -140,7 +140,7 @@ function parseMarkdownPreview(rawSource: string): MarkdownPreview {
   };
 }
 
-function toMetadata(frontmatter: Record<string, unknown> | undefined): ConfigSourceMetadata | undefined {
+export function toMetadata(frontmatter: Record<string, unknown> | undefined): ConfigSourceMetadata | undefined {
   if (!frontmatter) {
     return undefined;
   }
