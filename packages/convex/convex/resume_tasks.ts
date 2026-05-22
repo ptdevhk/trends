@@ -13,7 +13,7 @@ import { resolveDiagnosticsSourceKeyForResume } from "./resumes";
 const DEFAULT_WORKER_HEALTH_FRESHNESS_MS = 15_000;
 const DEFAULT_STALE_PENDING_MS = 180_000;
 
-function mergeTags(existing: string[], incoming: string[]): string[] {
+export function mergeTags(existing: string[], incoming: string[]): string[] {
     return Array.from(new Set([...existing, ...incoming]));
 }
 
@@ -43,7 +43,7 @@ function applyParsedAgePatch(
     patch.age = parsedAge;
 }
 
-function normalizeOptionalPositiveInt(value: number | undefined): number | undefined {
+export function normalizeOptionalPositiveInt(value: number | undefined): number | undefined {
     if (typeof value !== "number" || !Number.isFinite(value)) {
         return undefined;
     }
@@ -54,7 +54,7 @@ function normalizeOptionalPositiveInt(value: number | undefined): number | undef
     return truncated;
 }
 
-type RestoreState = {
+export type RestoreState = {
     crawledAt?: number;
     isArchived?: boolean;
     archivedAt?: number;
@@ -85,7 +85,7 @@ function resolveStoredSearchText(
     return baseText;
 }
 
-function shallowEqualNumberRecord(
+export function shallowEqualNumberRecord(
     a: Record<string, number> | undefined,
     b: Record<string, number>,
 ): boolean {
@@ -101,7 +101,7 @@ function shallowEqualNumberRecord(
     return true;
 }
 
-function shouldScheduleIngest(restoreState: RestoreState | undefined): boolean {
+export function shouldScheduleIngest(restoreState: RestoreState | undefined): boolean {
     return restoreState?.ingestData === undefined;
 }
 
