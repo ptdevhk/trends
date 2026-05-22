@@ -5,19 +5,19 @@ import { v } from "convex/values";
 
 import { DEFAULT_WORKSPACE_SLUG } from "./sessions";
 
-function normalizeWorkspaceSlug(input: string | undefined): string {
+export function normalizeWorkspaceSlug(input: string | undefined): string {
   const normalized = input?.trim();
   return normalized && normalized.length > 0 ? normalized : DEFAULT_WORKSPACE_SLUG;
 }
 
-function belongsToWorkspace(recordWorkspaceSlug: string | undefined, workspaceSlug: string): boolean {
+export function belongsToWorkspace(recordWorkspaceSlug: string | undefined, workspaceSlug: string): boolean {
   if (workspaceSlug === DEFAULT_WORKSPACE_SLUG) {
     return !recordWorkspaceSlug || recordWorkspaceSlug === DEFAULT_WORKSPACE_SLUG;
   }
   return recordWorkspaceSlug === workspaceSlug;
 }
 
-function asRecord(value: unknown): Record<string, unknown> | null {
+export function asRecord(value: unknown): Record<string, unknown> | null {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return null;
   }
@@ -28,7 +28,7 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return record;
 }
 
-function readString(value: unknown): string | undefined {
+export function readString(value: unknown): string | undefined {
   if (typeof value !== "string") {
     return undefined;
   }
@@ -36,7 +36,7 @@ function readString(value: unknown): string | undefined {
   return normalized.length > 0 ? normalized : undefined;
 }
 
-function readStringArray(value: unknown): string[] {
+export function readStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) {
     return [];
   }
@@ -46,7 +46,7 @@ function readStringArray(value: unknown): string[] {
   return Array.from(new Set(normalized));
 }
 
-function readProfileId(record: {
+export function readProfileId(record: {
   profileId?: string;
   profile?: unknown;
 }): string | undefined {
@@ -80,7 +80,7 @@ function findSearchProfileRecordById(
   ));
 }
 
-function normalizeCriteria(profile: unknown): { keywords: string[]; locations: string[] } {
+export function normalizeCriteria(profile: unknown): { keywords: string[]; locations: string[] } {
   const record = asRecord(profile);
   if (!record) {
     return {
@@ -106,7 +106,7 @@ function normalizeCriteria(profile: unknown): { keywords: string[]; locations: s
   };
 }
 
-function areStringArraysEqual(left: string[], right: string[]): boolean {
+export function areStringArraysEqual(left: string[], right: string[]): boolean {
   if (left.length !== right.length) {
     return false;
   }
