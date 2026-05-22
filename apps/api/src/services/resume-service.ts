@@ -58,7 +58,7 @@ export type ResumeFilters = {
   sources?: string[];
 };
 
-type ResumeMetadata = {
+export type ResumeMetadata = {
   sourceUrl?: string;
   sourceHost?: string;
   sourceKey?: string;
@@ -92,12 +92,12 @@ function toOptionalNumber(value: unknown): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
-function toStringArray(value: unknown): string[] {
+export function toStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value.map((item) => toStringValue(item)).filter(Boolean);
 }
 
-function normalizeIngestBrandHits(value: unknown): ResumeIngestBrandHit[] | undefined {
+export function normalizeIngestBrandHits(value: unknown): ResumeIngestBrandHit[] | undefined {
   if (!Array.isArray(value)) {
     return undefined;
   }
@@ -131,7 +131,7 @@ function normalizeIngestBrandHits(value: unknown): ResumeIngestBrandHit[] | unde
   return brandHits.length > 0 ? brandHits : undefined;
 }
 
-function normalizeMatchedWorkEntries(value: unknown): ResumeIngestMatchedWorkEntry[] | undefined {
+export function normalizeMatchedWorkEntries(value: unknown): ResumeIngestMatchedWorkEntry[] | undefined {
   if (!Array.isArray(value)) {
     return undefined;
   }
@@ -165,7 +165,7 @@ function normalizeMatchedWorkEntries(value: unknown): ResumeIngestMatchedWorkEnt
   return matchedWorkEntries.length > 0 ? matchedWorkEntries : undefined;
 }
 
-function normalizeRoleSignals(value: unknown): ResumeIngestRoleSignal[] | undefined {
+export function normalizeRoleSignals(value: unknown): ResumeIngestRoleSignal[] | undefined {
   if (!Array.isArray(value)) {
     return undefined;
   }
@@ -209,7 +209,7 @@ function normalizeRoleSignals(value: unknown): ResumeIngestRoleSignal[] | undefi
   return roleSignals.length > 0 ? roleSignals : undefined;
 }
 
-function normalizeIngestData(value: unknown): ResumeIngestData | undefined {
+export function normalizeIngestData(value: unknown): ResumeIngestData | undefined {
   if (!isRecord(value)) {
     return undefined;
   }
@@ -238,7 +238,7 @@ function normalizeIngestData(value: unknown): ResumeIngestData | undefined {
   };
 }
 
-function countOccurrences(haystack: string, needle: string): number {
+export function countOccurrences(haystack: string, needle: string): number {
   if (!needle) return 0;
 
   let count = 0;
@@ -274,7 +274,7 @@ function buildBffSearchText(item: ResumeItem): string {
   return parts.join(" ").toLowerCase();
 }
 
-function matchesAllRequiredKeywords(text: string, requiredKeywords: string[] | undefined): boolean {
+export function matchesAllRequiredKeywords(text: string, requiredKeywords: string[] | undefined): boolean {
   const normalizedKeywords = normalizeKeywordPhrases(requiredKeywords ?? []).map((keyword) => keyword.toLowerCase());
   if (normalizedKeywords.length === 0) {
     return true;
@@ -292,7 +292,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-function inferResumeSource(metadata?: ResumeMetadata): string | undefined {
+export function inferResumeSource(metadata?: ResumeMetadata): string | undefined {
   const sourceHost = toStringValue(metadata?.sourceHost).toLowerCase();
   if (sourceHost) {
     return sourceHost;

@@ -1538,10 +1538,12 @@
     return `https://${hostname}/candidates/${encodeURIComponent(profileId)}`;
   }
   __name(buildSeekProfileUrl, "buildSeekProfileUrl");
-  function buildSeekNameSearchUrl(name, market) {
+  function buildSeekNameSearchUrl(name, market, roleTitles) {
     const trimmed = typeof name === "string" ? name.trim() : "";
     if (!trimmed) return "";
-    return `https://${window.location.hostname.toLowerCase()}/talentsearch/profiles/search?searchQuery=${encodeURIComponent(trimmed)}&market=${encodeURIComponent(market || "MY")}&pageNumber=1`;
+    const trimmedRoleTitles = typeof roleTitles === "string" ? roleTitles.trim() : "";
+    const roleTitlesParam = trimmedRoleTitles ? `&roleTitles=${encodeURIComponent(trimmedRoleTitles)}` : "";
+    return `https://${window.location.hostname.toLowerCase()}/talentsearch/profiles/search?searchQuery=${encodeURIComponent(trimmed)}&market=${encodeURIComponent(market || "MY")}&pageNumber=1${roleTitlesParam}`;
   }
   __name(buildSeekNameSearchUrl, "buildSeekNameSearchUrl");
   function getSeekRecommendedRequest() {
@@ -3604,7 +3606,7 @@
         seekProfileGuid: profileGuid || void 0,
         externalId: profileId ? `${window.location.hostname.toLowerCase()}:profile:${profileId}` : "",
         name: [firstName, lastName].filter(Boolean).join(" ").trim(),
-        profileUrl: buildSeekNameSearchUrl([firstName, lastName].filter(Boolean).join(" "), url.searchParams.get("market") || void 0),
+        profileUrl: buildSeekNameSearchUrl([firstName, lastName].filter(Boolean).join(" "), url.searchParams.get("market") || void 0, currentJobTitle),
         activityStatus: lastModifiedDurationLabel,
         age: "",
         experience: "",
