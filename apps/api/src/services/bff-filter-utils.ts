@@ -11,8 +11,9 @@ import {
   normalizeResumeLocationHierarchy,
   parseSalaryRange,
   resolveResumeAnalysisSourceKey,
+  resolveExperienceYears,
 } from "@trends/shared";
-import { normalizeEducationLevel, parseExperienceYears } from "./resume-service.js";
+import { normalizeEducationLevel } from "./resume-service.js";
 
 // ---------------------------------------------------------------------------
 // Internal helpers (also extracted so tests don't need to replicate them)
@@ -92,7 +93,7 @@ export function bffMatchesResumeFilters(
 
   if (typeof filters.minExperience === "number" || typeof filters.maxExperience === "number") {
     const expStr = toStringValue(content.experience) ?? "";
-    const expYears = parseExperienceYears(expStr);
+    const expYears = resolveExperienceYears(expStr, content.workHistory);
     if (expYears === null) {
       // Unknown experience — exclude if maxExperience is set (cannot guarantee cap),
       // but skip minExperience (resume might meet the minimum).
