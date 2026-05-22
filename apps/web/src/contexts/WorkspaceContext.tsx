@@ -42,6 +42,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   )
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- canonical context pattern: provider + hook
 export function useWorkspace(): WorkspaceContextValue {
   const context = useContext(WorkspaceContext)
   if (!context) {

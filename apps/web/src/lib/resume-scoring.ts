@@ -402,20 +402,6 @@ function countHistogramSamples(histogram50: number[]): number {
 const INDUSTRY_DB_V2_SCORE_CAP = 50
 const RELATED_EXP_AI_WEIGHT = INDUSTRY_DB_V2_SCORE_CAP / 100
 const INDUSTRY_DB_V2_MIN_NONZERO_SAMPLE_SIZE = 5
-const INDUSTRY_DB_V2_BRAND_SECTION_SCORE = 30
-const INDUSTRY_DB_V2_COMPANY_SECTION_SCORE = 20
-
-export function bumpIndustryDbV2Raw(
-  raw: number | undefined,
-  hasBrandHits: boolean,
-  hasCompanyHits: boolean
-): number {
-  const sectionBump =
-    (hasBrandHits ? INDUSTRY_DB_V2_BRAND_SECTION_SCORE : 0) +
-    (hasCompanyHits ? INDUSTRY_DB_V2_COMPANY_SECTION_SCORE : 0)
-  const safeRaw = typeof raw === 'number' && Number.isFinite(raw) ? clamp(raw, 0, INDUSTRY_DB_V2_SCORE_CAP) : 0
-  return Math.max(safeRaw, sectionBump)
-}
 
 export function computeDirectIndustryDb(
   raw: number | undefined,

@@ -53,6 +53,7 @@ export function ResumeFieldUsagePolicyProvider({ children }: { children: ReactNo
   )
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- canonical context pattern: provider + hook
 export function useResumeFieldUsagePolicy(): ResumeFieldUsagePolicy {
   return useContext(ResumeFieldUsagePolicyContext)
 }
