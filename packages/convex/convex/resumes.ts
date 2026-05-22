@@ -9,6 +9,7 @@ import {
     buildResumeAnalysisStorageKey,
     buildWorkHistoryEntryText,
     computeVerifiedRoleYears,
+    computeExperienceFromWorkHistory,
     formatLocationHierarchySearchText,
     formatLocationHierarchyLabel,
     getVerifiedRoleSignalYears,
@@ -16,6 +17,8 @@ import {
     isLocationMatch,
     KNOWN_DIAGNOSTICS_SOURCE_KEYS,
     normalizeKeywordPhrases,
+    normalizeEducationLevel,
+    resolveExperienceYears,
     resolveResumeDiagnosticsSourceKey,
     normalizeResumeLocationHierarchy,
     resolveResumeAnalysisSourceKey,
@@ -840,108 +843,6 @@ function normalizeResumeListFilters(filters: ResumeListFilterArgs | undefined): 
     return Object.keys(normalized).length > 0 ? normalized : undefined;
 }
 
-function parseExperienceYears(value: string): number | null {
-    if (!value) {
-        return null;
-    }
-    const normalized = value.trim();
-    if (!normalized) {
-        return null;
-    }
-    if (/应届|无经验|fresh grad|entry level|no experience|fresh graduate|beginner/i.test(normalized)) {
-        return 0;
-    }
-    const match = normalized.match(/(\d+)(?:\s*[-~到]\s*(\d+))?/);
-    if (!match) {
-        return null;
-    }
-    const min = Number(match[1]);
-    const max = match[2] ? Number(match[2]) : min;
-    return Number.isNaN(max) ? null : max;
-}
-
-/**
- * Compute total experience years from workHistory date ranges.
- * Sums non-overlapping date ranges (merges overlapping periods).
- * Returns null if no parseable date ranges found.
- */
-function computeExperienceFromWorkHistory(workHistory: unknown): number | null {
-    if (!Array.isArray(workHistory) || workHistory.length === 0) {
-        return null;
-    }
-    const ranges: Array<{ start: number; end: number }> = [];
-    const now = Date.now();
-    for (const entry of workHistory) {
-        if (typeof entry !== "object" || entry === null) continue;
-        const rec = entry as Record<string, unknown>;
-        const startMs = parseDateToMs(rec.startDate);
-        const endMs = rec.endDate ? parseDateToMs(rec.endDate) : now;
-        if (startMs !== null && endMs !== null && endMs > startMs) {
-            ranges.push({ start: startMs, end: endMs });
-        }
-    }
-    if (ranges.length === 0) {
-        return null;
-    }
-    // Merge overlapping ranges
-    ranges.sort((a, b) => a.start - b.start);
-    const merged: Array<{ start: number; end: number }> = [ranges[0]];
-    for (let i = 1; i < ranges.length; i++) {
-        const last = merged[merged.length - 1];
-        if (ranges[i].start <= last.end) {
-            last.end = Math.max(last.end, ranges[i].end);
-        } else {
-            merged.push(ranges[i]);
-        }
-    }
-    const totalMs = merged.reduce((sum, r) => sum + (r.end - r.start), 0);
-    return Math.round(totalMs / (365.25 * 24 * 60 * 60 * 1000) * 10) / 10;
-}
-
-/** Parse date strings like "2023-06", "2023", "2023-06-15" to epoch ms. */
-function parseDateToMs(value: unknown): number | null {
-    if (typeof value !== "string") return null;
-    const trimmed = value.trim();
-    if (!trimmed) return null;
-    // Try YYYY-MM-DD or YYYY-MM or YYYY
-    const match = trimmed.match(/^(\d{4})(?:-(\d{1,2}))?(?:-(\d{1,2}))?$/);
-    if (!match) return null;
-    const year = Number(match[1]);
-    const month = match[2] ? Number(match[2]) - 1 : 0;
-    const day = match[3] ? Number(match[3]) : 1;
-    const ms = Date.UTC(year, month, day);
-    return Number.isNaN(ms) ? null : ms;
-}
-
-function resolveExperienceYears(content: Record<string, unknown>): number | null {
-    const parsed = parseExperienceYears(toStringValue(content.experience));
-    if (parsed !== null) return parsed;
-    return computeExperienceFromWorkHistory(content.workHistory);
-}
-
-function normalizeEducationLevel(value: string): string | null {
-    if (!value) {
-        return null;
-    }
-    const normalized = value.trim().toLowerCase();
-    if (!normalized) {
-        return null;
-    }
-    // Chinese education terms
-    if (/博士/.test(normalized)) return "phd";
-    if (/硕士|研究生/.test(normalized)) return "master";
-    if (/本科/.test(normalized)) return "bachelor";
-    if (/大专|专科/.test(normalized)) return "associate";
-    if (/中专|高中|中技/.test(normalized)) return "high_school";
-    // English education terms (Seek MY market)
-    if (/\bph\.?d\.?\b/.test(normalized) || /\bdoctorate\b/.test(normalized)) return "phd";
-    if (/\bmaster/.test(normalized) || /\bm\.?s\.?\b/.test(normalized) || /\bm\.?a\.?\b/.test(normalized) || /\bmba\b/.test(normalized)) return "master";
-    if (/\bdiploma\b/.test(normalized) || /\bassociate\b/.test(normalized)) return "associate";
-    if (/\bbachelor/.test(normalized) || /\bdegree\b/.test(normalized) || /\bb\.?s\.?\b/.test(normalized) || /\bb\.?a\.?\b/.test(normalized)) return "bachelor";
-    if (/\bhigh school\b/.test(normalized) || /\bspm\b/.test(normalized) || /\bstpm\b/.test(normalized)) return "high_school";
-    return null;
-}
-
 function buildResumeFilterSearchText(content: Record<string, unknown>, source?: string): string {
     const locationText = formatLocationHierarchySearchText(normalizeResumeLocationHierarchy(content, source)) || toStringValue(content.location);
     const latestWorkHistory = selectLatestWorkHistory(content.workHistory);
@@ -1043,7 +944,7 @@ function matchesResumeListFilters(resume: Doc<"resumes">, filters: ResumeListFil
 
     const effectiveMinExperience = (filters.minExperience ?? 0) > 0 ? filters.minExperience : undefined;
     if (effectiveMinExperience !== undefined || filters.maxExperience !== undefined) {
-        const experience = resolveExperienceYears(content);
+        const experience = resolveExperienceYears(toStringValue(content.experience), content.workHistory);
         if (experience === null) {
             // Unknown experience — skip filter instead of excluding.
             // Seek talentsearch resumes have empty experience fields;
@@ -1175,8 +1076,8 @@ function compareResumeListSort(
     const rightContent = isRecord(right.content) ? right.content : {};
 
     if (sortBy === "experience") {
-        const leftExperience = resolveExperienceYears(leftContent) ?? -1;
-        const rightExperience = resolveExperienceYears(rightContent) ?? -1;
+        const leftExperience = resolveExperienceYears(toStringValue(leftContent.experience), leftContent.workHistory) ?? -1;
+        const rightExperience = resolveExperienceYears(toStringValue(rightContent.experience), rightContent.workHistory) ?? -1;
         const diff = (leftExperience - rightExperience) * direction;
         if (diff !== 0) {
             return diff;
