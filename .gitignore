@@ -87,6 +87,8 @@ apps/web/public/extension/
 apps/worker/status.json
 .claude/scheduled_tasks.lock
 .claude/scheduled_tasks.json
+.claude/dev-loop-debug/
+.claude/dev-loop-work/
 
 .omc/
 .omx/

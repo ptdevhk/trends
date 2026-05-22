@@ -1,7 +1,10 @@
 # Dev Loop — trends
 
 > Multi-source data aggregation platform with pluggable domain workflows.
-> Primary direction: resume screening (ingest, scoring, filtering, notification).
+> Primary direction: resume screening (ingest → search → scoring → notification).
+> Optimised for: **autonomous long-running cycles**, **TDD on critical paths**,
+> **Playwright-CLI against `make dev`** for browser-facing changes,
+> **resume search · collection · AI scoring** as critical paths.
 
 ## Identity
 
@@ -10,14 +13,14 @@ slug: trends
 vault: ~/wiki
 release_branch: main
 project_filter: trends
-cron_schedule: "*/15 * * * *"
+cron_schedule: "7,22,37,52 * * * *"
 ```
 
 ## PRD layer
 
 ```yaml
 prd_layer: superpowers
-prd_pipeline: full
+prd_pipeline: full              # full pipeline by default; trivial fast-path auto-detected
 ```
 
 ### PRD backends registry
@@ -36,29 +39,225 @@ prd_backends:
 
 ### Cross-cutting disciplines
 
+> v1.16.1: `include_paths` is parsed. TDD is mandatory only on critical-path
+> code files; advisory catch-all for everything else. First-match-wins
+> resolution per the schema. systematic-debugging fires reactively on
+> failure (see `reactive_debugging` block for retry budget).
+> verification-before-completion gates REVIEW for every cycle.
+
 ```yaml
 prd_disciplines:
   - skill: superpowers:test-driven-development
     when: execute
-    mode: advisory
+    mode: mandatory
+    include_paths:
+      - packages/convex/convex/resumes.ts
+      - packages/convex/convex/searchProfiles.ts
+      - packages/convex/convex/aiScoring*.ts
+      - packages/convex/convex/scoring.ts
+      - packages/convex/convex/scoringEvaluation.ts
+      - apps/api/src/routes/resumes.ts
+      - apps/api/src/routes/scoring-evaluation.ts
+      - apps/api/src/services/bff-filter-utils.ts
+      - apps/web/src/lib/useConvexResumes.ts
+  - skill: superpowers:test-driven-development
+    when: execute
+    mode: advisory                       # catch-all for non-critical files
   - skill: superpowers:systematic-debugging
     when: failure
     mode: reactive
+  - skill: superpowers:verification-before-completion
+    when: review
+    mode: mandatory
 ```
 
-## Interview
+## Critical paths
+
+> Used by REFRESH (CRITICAL_PATHS), QUERY bias, IDLE research ranking,
+> and WORK auto-priority escalation when changed files match `*.code`.
 
 ```yaml
-interview:
-  setup:
-    skill: setup-dev-loop
-    glossary: grill-with-docs        # delegates domain section when installed
-  work_item:
-    default: native                  # built-in three questions (zero-dependency)
-    upgrade: grill-with-docs         # optional upgrade — delegates when installed
-    source: mattpocock/skills
-    install: "npx skills@latest add mattpocock/skills --skill grill-with-docs -a claude-code -g -y"
-    trigger: auto                    # auto | manual | never
+critical_paths:
+  resume_search:
+    code:
+      - packages/convex/convex/resumes.ts
+      - packages/convex/convex/searchProfiles.ts
+      - apps/api/src/routes/resumes.ts
+      - apps/api/src/services/bff-filter-utils.ts
+      - apps/web/src/lib/useConvexResumes.ts
+    vault:
+      - concepts/resume-search-architecture
+      - concepts/search-filter-semantic-mapping
+      - concepts/bff-convex-filter-path-alignment
+      - concepts/search-filter-component-test-patterns
+    history_pins:
+      - "16 MiB byte-limit incident (PR #168 / 2026-03-11)"
+      - "scanResumePageSlim batch=200 fix (2026-05-05)"
+      - "BFF↔Convex filter parity (2026-05-21)"
+  collection_ingest:
+    code:
+      - apps/worker/
+      - packages/cli/cmd/resume/
+      - packages/convex/convex/resumes.ts
+      - packages/shared/src/parseSalaryRange.ts
+    vault:
+      - concepts/multi-source-resume-collection
+      - concepts/resume-source-locale
+      - concepts/seek-talent-search-url-parameters
+      - concepts/regional-industry-db-graceful-degradation
+    history_pins:
+      - "seek.com en/zh chinese-rules mismatch (2026-05-22)"
+      - "my.market ingestData backfill (2026-05-21)"
+      - "seek malaysia zero-results fix (2026-05-21)"
+  ai_scoring:
+    code:
+      - packages/convex/convex/aiScoring.ts
+      - packages/convex/convex/scoring.ts
+      - packages/convex/convex/scoringEvaluation.ts
+      - apps/api/src/routes/scoring-evaluation.ts
+    vault:
+      - concepts/resume-scoring-pipeline
+      - concepts/self-tuning-scoring
+      - concepts/llm-cost-gating
+      - queries/ai-resume-screening-quality-measurement-2026
+    history_pins:
+      - "LLM-primary scoring switch (PR #674)"
+      - "scoring threshold mismatch fix (2026-05-21)"
+      - "industry_db score normalization review (2026-03-12)"
+```
+
+## Fact-check tier
+
+> Default first stop for any non-trivial claim during SPEC/PLAN/EXECUTE/REVIEW.
+> Local sources first, web only when freshness or external authority is required.
+
+```yaml
+fact_check:
+  enabled: true
+  source_order:
+    - local_repo
+    - context7
+    - vault_query
+    - web_search
+  web_tools:
+    primary: mcp__grok-search__web_search
+    deep_fetch: mcp__grok-search__web_fetch
+    site_map: mcp__grok-search__web_map
+    plan_first: mcp__grok-search__plan_intent
+  triggers:
+    - "version "
+    - "deprecat"
+    - "CVE-"
+    - "release dates"
+    - "third-party tool not already in repo"
+  evidence_contract:
+    require_sources_used_section: true
+    cite_session_id: true
+```
+
+## Idle deep-research
+
+> When mechanical scan returns no P2+ findings, rotate research topics
+> through /deep-research. Long-running cron loops compound research backlog
+> from otherwise-dead idle cycles.
+
+```yaml
+idle_deep_research:
+  enabled: true
+  skill: deep-research
+  trigger:
+    when: idle_after_mechanical_scan
+    if: no_p2_or_higher_findings
+    cooldown: every_3rd_idle_cycle
+    max_per_day: 4
+  topic_seeds:
+    - "Convex search index byte-budget patterns 2026 — beyond maximumBytesRead"
+    - "Resume screening LLM scoring — explainability + drift detection 2026"
+    - "Chinese resume text segmentation — Convex/Tantivy CJK gaps in 2026"
+    - "Hono OpenAPI streaming + Server-Timing best practices"
+    - "FastAPI worker scheduling + idempotent crawl resume patterns"
+    - "Browser-extension MV3 + CDP automation patterns 2026"
+    - "AI scoring evaluation — NDCG/recall metrics for hiring at scale"
+    - "Multi-source resume dedup heuristics across boards (seek/51job/zhipin/my)"
+  topic_selection:
+    bias_toward: critical_paths
+    skip_if_recent_query_page_exists: 14d
+  output_mode: vault
+  budget:
+    web_searches: 3
+    deep_fetches: 3
+    context7_calls: 3
+  followups:
+    on_finding: capture_to_vault_then_create_work_item
+    p_score_default: P3
+```
+
+## Browser verification
+
+> Per CLAUDE.md feedback memory: every browser-facing change MUST be
+> verified against the running `make dev` stack via `/playwright-cli`.
+> Localhost URL is `http://localhost:5173` — never the external hostname.
+
+```yaml
+browser_verification:
+  enabled: true
+  trigger:
+    - "apps/web/**"
+    - "apps/browser-extension/**"
+    - "packages/convex/convex/resumes.ts"
+  prerequisites:
+    - "curl -fsS http://localhost:5173 >/dev/null"
+    - "make chrome-debug"
+    - "make dev"
+  driver: playwright-cli
+  base_url: http://localhost:5173
+  smoke_routes:
+    - /
+    - /resumes
+    - /search-profiles
+    - /scoring
+  reviser_workflow:
+    - take_snapshot
+    - list_console_messages
+    - evaluate_script
+  e2e_fallback: make e2e
+```
+
+## Reactive debugging
+
+> Caps systematic-debugging retries, captures evidence, fact-checks
+> external-lib errors via grok-search, escalates to a P1 finding after
+> N idle cycles with the same error signature.
+
+```yaml
+reactive_debugging:
+  enabled: true
+  auto_retry_attempts: 2
+  evidence_dir: .claude/dev-loop-debug/
+  evidence_capture:
+    - "make check 2>&1 | tee {evidence_dir}/{cycle}-check.log"
+    - "git diff --stat > {evidence_dir}/{cycle}-diff.txt"
+    - "git log --oneline -5 > {evidence_dir}/{cycle}-log.txt"
+  fact_check_tool: mcp__grok-search__web_search
+  escalate_after:
+    consecutive_idle_cycles: 3
+    same_error_signature: true
+  escalation_action: surface_p1_finding
+```
+
+## Code review
+
+> v1.15.0: simplify-worker always runs (base). Codex second-opinion is
+> opt-in per intensity. Currently OFF — toggle `enabled_in_high: true`
+> if you want a parallel reviewer on /dev-loop high cycles.
+
+```yaml
+code_review:
+  parallel: true
+  codex:
+    enabled_in_normal: false
+    enabled_in_high: false
+    agent: dev-loop:codex-review-worker
 ```
 
 ## Knowledge layer
@@ -76,6 +275,25 @@ knowledge_backends:
     cli_entry: skillwiki
 ```
 
+## Interview
+
+> `auto` keeps the loop unattended; native 3-question backend gates only
+> ambiguous specs. Long-running cycles will skip interviews on clearly
+> scoped trivial fast-path items.
+
+```yaml
+interview:
+  setup:
+    skill: setup-dev-loop
+    glossary: grill-with-docs
+  work_item:
+    default: native
+    upgrade: grill-with-docs
+    source: mattpocock/skills
+    install: "npx skills@latest add mattpocock/skills --skill grill-with-docs -a claude-code -g -y"
+    trigger: auto
+```
+
 ## Code layout
 
 ```yaml
@@ -90,6 +308,12 @@ cli_entry_override: bin/trends
 ```yaml
 e2e_scripts:
   - scripts/e2e-smoke.ts
+e2e_prerequisites:
+  - "make chrome-debug"
+  - "make dev"
+e2e_optional_benchmarks:
+  - make benchmark-critical-path
+  - make benchmark-dev-resume-latency
 ```
 
 ## Release
@@ -118,10 +342,25 @@ notes:
   stack: Monorepo — React+Vite (web), Hono+OpenAPI (api), FastAPI (worker), Convex (data)
   deploy: production deploys via `make on-prod-deploy` on ptcloud after `make on-prod-deploy-check`
   config_docs: CLAUDE.md is canonical; AGENTS.md is symlink
-  planning: EnterPlanMode gated — use superpowers:brainstorming -> superpowers:writing-plans instead
+  planning: EnterPlanMode gated — use superpowers:brainstorming → superpowers:writing-plans instead
   gotcha: api-types.ts regenerates on make check after API schema edits — always stage it
   gotcha: better-sqlite3 needs npm rebuild after Node version bumps
-  vault_drift: concept pages drift when code changes without vault sync — check scoring/search concepts after relevant commits
-  cron: durable every-15m, runs /loop with '/dev-loop high' + research + wiki, auto-expires 7d — renew with CronCreate before expiry
-  oauth_blocker: WeChat OAuth requires business license, WeCom requires admin - external deps not available
+  gotcha: Convex 16 MiB per-query byte limit — keep paginate batches ≤200 docs (~5.4MB)
+  gotcha: localhost:5173 only — never the external hostname when verifying
+  gotcha: BFF and Convex search filters MUST stay in lockstep (3 paths) — see concepts/bff-convex-filter-path-alignment
+  gotcha: Resume backups live at output/resume-backups/ — restore via `make local-restore-from-prod FILE=...`
+  gotcha: cmux task sandboxes (CMUX_TASK_RUN_JWT set, CMUX_IS_ORCHESTRATION_HEAD unset) MUST NOT run gh pr create — cmux handles it
+  vault_drift: scoring + search concept pages drift fastest — re-check after PRs touching resumes.ts or aiScoring.ts
+  cron: "7,22,37,52 * * * *" durable, runs `/loop /dev-loop high` — auto-expires 7d, renew with CronCreate
+  oauth_blocker: WeChat OAuth requires business license, WeCom requires admin — external deps not available
+  critical_path_test_seed: prod snapshot under output/resume-backups/ (~89k resumes); use it instead of local 51job collector for search/scoring tests
+  tdd_test_locations:
+    - packages/convex/test/
+    - apps/api/test/
+    - apps/web/src/**/*.test.ts(x)
+    - apps/worker/tests/
+  tdd_forbidden:
+    - "Replicating production logic inline in tests (bff-filter-utils memory)"
+    - "Mocking the database in integration tests (superpowers feedback)"
+    - "Skipping a failing test to ship"
 ```
