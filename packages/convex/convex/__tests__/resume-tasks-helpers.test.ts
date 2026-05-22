@@ -95,4 +95,52 @@ describe("shouldScheduleIngest", () => {
   it("returns false when ingestData exists", () => {
     expect(shouldScheduleIngest({ ingestData: {} as any })).toBe(false);
   });
+
+  it("returns false when ingestData is null (falsy but defined)", () => {
+    expect(shouldScheduleIngest({ ingestData: null as any })).toBe(false);
+  });
+
+  it("returns true when restoreState has other fields but no ingestData", () => {
+    expect(shouldScheduleIngest({ isArchived: true, archivedAt: 1000 })).toBe(true);
+  });
+});
+
+// --- Additional edge cases for existing functions ---
+
+describe("mergeTags edge cases", () => {
+  it("preserves string values as-is (no normalization)", () => {
+    expect(mergeTags(["CNC"], ["cnc"])).toEqual(["CNC", "cnc"]);
+  });
+
+  it("handles tags with special characters", () => {
+    expect(mergeTags(["CNC/车床"], ["CNC/车床", "5-axis"])).toEqual(["CNC/车床", "5-axis"]);
+  });
+});
+
+describe("normalizeOptionalPositiveInt edge cases", () => {
+  it("handles very large numbers", () => {
+    expect(normalizeOptionalPositiveInt(1_000_000)).toBe(1_000_000);
+  });
+
+  it("handles Number.MIN_VALUE (positive but truncated to 0)", () => {
+    expect(normalizeOptionalPositiveInt(Number.MIN_VALUE)).toBeUndefined();
+  });
+
+  it("handles -0 (truncated to 0, which is non-positive)", () => {
+    expect(normalizeOptionalPositiveInt(-0)).toBeUndefined();
+  });
+});
+
+describe("shallowEqualNumberRecord edge cases", () => {
+  it("returns true for empty records", () => {
+    expect(shallowEqualNumberRecord({}, {})).toBe(true);
+  });
+
+  it("compares zero values correctly", () => {
+    expect(shallowEqualNumberRecord({ a: 0 }, { a: 0 })).toBe(true);
+  });
+
+  it("returns false when one has zero and other has different value", () => {
+    expect(shallowEqualNumberRecord({ a: 0 }, { a: 1 })).toBe(false);
+  });
 });
