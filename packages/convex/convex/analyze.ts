@@ -14,7 +14,7 @@ import {
 } from "@trends/shared";
 import { v } from "convex/values";
 import { api, internal } from "./_generated/api";
-import { action, internalMutation } from "./_generated/server";
+import { action, internalMutation, type ActionCtx } from "./_generated/server";
 import { resolveChatCompletionModel } from "./lib/ai_model";
 
 const DEFAULT_AI_OUTPUT_LOCALE = DEFAULT_RESUME_AI_PROMPT_LOCALE;
@@ -680,6 +680,8 @@ export const analyzeBatch = action({
         // Dispatch actions for each resume
         // This runs them securely in background without blocking
         await Promise.all(resumeIds.map(id => {
+            // analyzeResume is an action; the generated internal API types only expose mutations/queries
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             return ctx.scheduler.runAfter(0, (internal as any).analyze.analyzeResume, {
                 resumeId: id,
                 jobDescription,
@@ -699,7 +701,7 @@ export const analyzeBatch = action({
  * Throws if budget is exhausted.
  */
 export async function callLLMWithTracking(
-    ctx: any,
+    ctx: ActionCtx,
     messages: ChatMessage[],
     apiKey: string,
     workspaceId: string,
@@ -713,8 +715,8 @@ export async function callLLMWithTracking(
     const { content: result, usage } = await callLLM(messages, apiKey);
 
     // Record actual token usage from the API response
-    const inputTokens = (usage as any)?.prompt_tokens ?? 0;
-    const outputTokens = (usage as any)?.completion_tokens ?? 0;
+    const inputTokens = (usage as Record<string, unknown>)?.prompt_tokens as number ?? 0;
+    const outputTokens = (usage as Record<string, unknown>)?.completion_tokens as number ?? 0;
 
     if (inputTokens > 0 || outputTokens > 0) {
         await ctx.runMutation(internal.llm_cost.recordUsage, {
@@ -774,14 +776,14 @@ export const confirmSearchResults = action({
         resumeIds: v.array(v.id("resumes")),
         query: v.string(),
     },
-    handler: async (ctx: any, args) => {
+    handler: async (ctx: ActionCtx, args) => {
         const apiKey = getAiApiKey();
         if (!apiKey) {
             throw new Error("AI_API_KEY/OPENAI_API_KEY is not set in Convex environment variables.");
         }
 
         // Check confirm budget
-        const budget: any = await ctx.runQuery(api.llm_cost.getBudget, { workspaceId: args.workspaceId });
+        const budget = await ctx.runQuery(api.llm_cost.getBudget, { workspaceId: args.workspaceId }) as { remainingConfirms: number; remainingTokens: number };
         if (budget.remainingConfirms <= 0) {
             return {
                 confirmed: 0,
@@ -795,7 +797,7 @@ export const confirmSearchResults = action({
         const maxConfirms = Math.min(budget.remainingConfirms, args.resumeIds.length, 10);
         const confirmIds = args.resumeIds.slice(0, maxConfirms);
 
-        const results: any[] = [];
+        const results: Array<{ resumeId: string; confirmedScore: number; confirmedRecommendation: string; error?: string }> = [];
         let totalConfirmed = 0;
 
         for (const resumeId of confirmIds) {
@@ -875,10 +877,10 @@ export const confirmSearchResults = action({
     },
 });
 
-function buildConfirmPrompt(resume: any, query: string): string {
+function buildConfirmPrompt(resume: { content?: Record<string, unknown>; tags?: string[]; ingestData?: Record<string, unknown> }, query: string): string {
     const ingest = resume.ingestData ?? {};
     const signals = Array.isArray(ingest.roleSignals)
-        ? ingest.roleSignals.map((s: any) => `${s.type} (${s.years}y)`).join(", ")
+        ? (ingest.roleSignals as Array<Record<string, unknown>>).map((s) => `${s.type} (${s.years}y)`).join(", ")
         : "none";
 
     return [
