@@ -285,12 +285,12 @@ knowledge_backends:
 interview:
   setup:
     skill: setup-dev-loop
-    glossary: grill-with-docs
+    glossary: native           # grill-with-docs not installed; setup uses bundled prompts
   work_item:
     default: native
-    upgrade: grill-with-docs
+    upgrade: grill-me          # installed at ~/.claude/skills/grill-me/SKILL.md
     source: mattpocock/skills
-    install: "npx skills@latest add mattpocock/skills --skill grill-with-docs -a claude-code -g -y"
+    install: "npx skills@latest add mattpocock/skills --skill grill-me -a claude-code -g -y"
     trigger: auto
 ```
 
