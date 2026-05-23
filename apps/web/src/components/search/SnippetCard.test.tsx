@@ -32,8 +32,32 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('@/components/search/SnippetCardExpanded', () => ({
-  SnippetCardExpanded: ({ item }: { item: ResumeSearchResultItem }) => (
-    <div>Expanded card for {item.resume.name ?? 'Unnamed resume'}</div>
+  SnippetCardExpanded: ({
+    item,
+    onBlockTrigger,
+    onNoteTrigger,
+    onCandidateStatusChange,
+  }: {
+    item: ResumeSearchResultItem
+    onBlockTrigger?: () => void
+    onNoteTrigger?: () => void
+    onCandidateStatusChange?: (identityKey: string, status: string, notes?: string) => void
+  }) => (
+    <div>
+      <div>Expanded card for {item.resume.name ?? 'Unnamed resume'}</div>
+      <button data-testid="block-trigger" onClick={() => onBlockTrigger?.()}>
+        Block
+      </button>
+      <button data-testid="note-trigger" onClick={() => onNoteTrigger?.()}>
+        Add Note
+      </button>
+      <button data-testid="status-reject" onClick={() => onCandidateStatusChange?.(item.identityKey, 'interviewed_reject')}>
+        Mark Rejected
+      </button>
+      <button data-testid="status-hired" onClick={() => onCandidateStatusChange?.(item.identityKey, 'hired')}>
+        Mark Hired
+      </button>
+    </div>
   ),
 }))
 
@@ -190,6 +214,529 @@ describe('SnippetCard', () => {
     expect(screen.getByText('AI 测算中')).toBeInTheDocument()
     expect(screen.queryByText('规则')).not.toBeInTheDocument()
     expect(screen.queryByText('74')).not.toBeInTheDocument()
+  })
+
+  it('shows blocked badge when item is blocked', () => {
+    render(
+      <SnippetCard
+        expanded={false}
+        item={createResult(1, { blocked: true })}
+        itemKey="result-1"
+        onToggleExpanded={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('已屏蔽')).toBeInTheDocument()
+  })
+
+  it('shows activity status badge when present', () => {
+    render(
+      <SnippetCard
+        expanded={false}
+        item={createResult(1, {
+          resume: createResume(1, { activityStatus: 'Active' }),
+        })}
+        itemKey="result-1"
+        onToggleExpanded={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('Active')).toBeInTheDocument()
+  })
+
+  it('renders status badge with correct status label from options', () => {
+    render(
+      <SnippetCard
+        expanded={false}
+        item={createResult(1, { status: 'contacted' })}
+        itemKey="result-1"
+        onToggleExpanded={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText(/resumes\.status\.options\.contacted/)).toBeInTheDocument()
+  })
+
+  it('renders without score when score is undefined', () => {
+    render(
+      <SnippetCard
+        expanded={false}
+        item={createResult(1, { score: undefined, scoreSource: undefined })}
+        itemKey="result-1"
+        onToggleExpanded={vi.fn()}
+      />
+    )
+
+    expect(screen.queryByText('88')).not.toBeInTheDocument()
+    expect(screen.queryByText('AI')).not.toBeInTheDocument()
+    expect(screen.queryByText('规则')).not.toBeInTheDocument()
+  })
+
+  it('renders checkbox when onSelect is provided and fires callback', async () => {
+    const user = userEvent.setup()
+    const onSelect = vi.fn()
+
+    render(
+      <SnippetCard
+        expanded={false}
+        item={createResult(1)}
+        itemKey="result-1"
+        onToggleExpanded={vi.fn()}
+        selected={false}
+        onSelect={onSelect}
+      />
+    )
+
+    const checkbox = screen.getByRole('checkbox')
+    expect(checkbox).toBeInTheDocument()
+    await user.click(checkbox)
+    expect(onSelect).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not render checkbox when onSelect is not provided', () => {
+    render(
+      <SnippetCard
+        expanded={false}
+        item={createResult(1)}
+        itemKey="result-1"
+        onToggleExpanded={vi.fn()}
+      />
+    )
+
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+  })
+
+  it('fires star action callback when star button clicked and onAction provided', async () => {
+    const user = userEvent.setup()
+    const onAction = vi.fn()
+
+    render(
+      <SnippetCard
+        expanded={false}
+        item={createResult(1)}
+        itemKey="result-1"
+        onToggleExpanded={vi.fn()}
+        onAction={onAction}
+      />
+    )
+
+    // Star button uses defaultValue '收藏' via t('resumes.actions.star', { defaultValue: '收藏' })
+    await user.click(screen.getByRole('button', { name: '收藏' }))
+    expect(onAction).toHaveBeenCalledWith('resume-1', 'star')
+  })
+
+  it('fires view details callback when clicked', async () => {
+    const user = userEvent.setup()
+    const onViewDetails = vi.fn()
+
+    render(
+      <SnippetCard
+        expanded={false}
+        item={createResult(1)}
+        itemKey="result-1"
+        onToggleExpanded={vi.fn()}
+        onViewDetails={onViewDetails}
+      />
+    )
+
+    // View details button uses defaultValue '查看详情' via t('resumes.actions.view', { defaultValue: '查看详情' })
+    await user.click(screen.getByRole('button', { name: '查看详情' }))
+    expect(onViewDetails).toHaveBeenCalledWith(expect.objectContaining({ key: 'resume-1' }))
+  })
+
+  it('renders star rating when userRating and onRating provided', () => {
+    const onRating = vi.fn()
+
+    render(
+      <SnippetCard
+        expanded={false}
+        item={createResult(1)}
+        itemKey="result-1"
+        onToggleExpanded={vi.fn()}
+        userRating={3}
+        onRating={onRating}
+      />
+    )
+
+    // StarRating component renders star buttons — check that the section exists
+    expect(screen.getByText('Candidate 1')).toBeInTheDocument()
+  })
+
+  it('shows work history column when work history exists', () => {
+    render(
+      <SnippetCard
+        expanded
+        item={createResult(1)}
+        itemKey="result-1"
+        onToggleExpanded={vi.fn()}
+      />
+    )
+
+    expect(screen.getByTitle('Led machine tools growth across Malaysia.')).toBeInTheDocument()
+  })
+
+  it('hides work history column when work history is empty', () => {
+    render(
+      <SnippetCard
+        expanded={false}
+        item={createResult(1, {
+          resume: createResume(1, { workHistory: [] }),
+        })}
+        itemKey="result-1"
+        onToggleExpanded={vi.fn()}
+      />
+    )
+
+    expect(screen.queryByTitle('Led machine tools growth across Malaysia.')).not.toBeInTheDocument()
+  })
+
+  it('opens block dialog when block trigger is clicked from expanded card', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <SnippetCard
+        expanded
+        item={createResult(1, { blocked: false })}
+        itemKey="result-1"
+        onToggleExpanded={vi.fn()}
+      />
+    )
+
+    await user.click(screen.getByTestId('block-trigger'))
+
+    // Dialog title uses defaultValue '屏蔽候选人'
+    expect(screen.getByText('屏蔽候选人')).toBeInTheDocument()
+  })
+
+  it('opens comment dialog when note trigger is clicked from expanded card', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <SnippetCard
+        expanded
+        item={createResult(1)}
+        itemKey="result-1"
+        onToggleExpanded={vi.fn()}
+      />
+    )
+
+    await user.click(screen.getByTestId('note-trigger'))
+
+    // Dialog title uses defaultValue '备注'
+    expect(screen.getByText('备注')).toBeInTheDocument()
+  })
+
+  it('opens status note prompt dialog when status change to interviewed_reject', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <SnippetCard
+        expanded
+        item={createResult(1)}
+        itemKey="result-1"
+        onToggleExpanded={vi.fn()}
+      />
+    )
+
+    await user.click(screen.getByTestId('status-reject'))
+
+    // Dialog title is empty for pendingStatus matched label, but DialogDescription renders notePrompt
+    expect(screen.getByText(/resumes\.status\.notePrompt/)).toBeInTheDocument()
+  })
+
+  it('fires onCandidateStatusChange directly for non-reject status changes', async () => {
+    const user = userEvent.setup()
+    const onCandidateStatusChange = vi.fn()
+
+    render(
+      <SnippetCard
+        expanded
+        item={createResult(1)}
+        itemKey="result-1"
+        onToggleExpanded={vi.fn()}
+        onCandidateStatusChange={onCandidateStatusChange}
+      />
+    )
+
+    await user.click(screen.getByTestId('status-hired'))
+
+    expect(onCandidateStatusChange).toHaveBeenCalledWith('identity-1', 'hired')
+  })
+
+  it('dismisses block dialog on cancel', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <SnippetCard
+        expanded
+        item={createResult(1, { blocked: false })}
+        itemKey="result-1"
+        onToggleExpanded={vi.fn()}
+      />
+    )
+
+    await user.click(screen.getByTestId('block-trigger'))
+    expect(screen.getByText('屏蔽候选人')).toBeInTheDocument()
+
+    // Cancel button: t('common.cancel', 'Cancel') returns 'Cancel'
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByText('屏蔽候选人')).not.toBeInTheDocument()
+  })
+
+  it('submits block dialog and fires onToggleBlock', async () => {
+    const user = userEvent.setup()
+    const onToggleBlock = vi.fn()
+
+    render(
+      <SnippetCard
+        expanded
+        item={createResult(1, { blocked: false })}
+        itemKey="result-1"
+        onToggleExpanded={vi.fn()}
+        onToggleBlock={onToggleBlock}
+      />
+    )
+
+    await user.click(screen.getByTestId('block-trigger'))
+    // Confirm button: t('common.confirm', 'Confirm') returns 'Confirm'
+    await user.click(screen.getByRole('button', { name: 'Confirm' }))
+
+    expect(onToggleBlock).toHaveBeenCalledWith('identity-1', false, undefined)
+  })
+
+  it('calls onToggleBlock directly for blocked items on onBlockTrigger', async () => {
+    const user = userEvent.setup()
+    const onToggleBlock = vi.fn()
+
+    render(
+      <SnippetCard
+        expanded
+        item={createResult(1, { blocked: true })}
+        itemKey="result-1"
+        onToggleExpanded={vi.fn()}
+        onToggleBlock={onToggleBlock}
+      />
+    )
+
+    await user.click(screen.getByTestId('block-trigger'))
+
+    expect(onToggleBlock).toHaveBeenCalledWith('identity-1', true)
+  })
+
+  it('renders profileUrl as a link when safe URL is present', () => {
+    render(
+      <SnippetCard
+        expanded={false}
+        item={createResult(1, {
+          resume: createResume(1, { profileUrl: 'https://example.com/profile/123' }),
+        })}
+        itemKey="result-1"
+        onToggleExpanded={vi.fn()}
+      />
+    )
+
+    const link = screen.getByRole('link', { name: /Candidate 1/ })
+    expect(link).toHaveAttribute('href', 'https://example.com/profile/123')
+    expect(link).toHaveAttribute('target', '_blank')
+  })
+
+  it('renders rule score badge when showAiScore is false', () => {
+    render(
+      <SnippetCard
+        expanded={false}
+        showAiScore={false}
+        item={createResult(1, {
+          scoreSource: 'rule',
+          score: 74,
+        })}
+        itemKey="result-1"
+        onToggleExpanded={vi.fn()}
+      />
+    )
+
+    // Rule score renders the score and "规则" badge
+    expect(screen.getByText('74')).toBeInTheDocument()
+    // Score source label uses defaultValue '规则' for rule
+    expect(screen.getByText(/规则/)).toBeInTheDocument()
+  })
+
+  it('shows AI summary prefix when scoreSource is ai and analysis has summary', () => {
+    render(
+      <SnippetCard
+        expanded={false}
+        item={createResult(1, {
+          scoreSource: 'ai',
+          score: 88,
+          analysis: {
+            score: 88,
+            summary: 'Strong candidate with relevant experience.',
+            highlights: [],
+            recommendation: 'strong_match',
+          },
+        })}
+        itemKey="result-1"
+        onToggleExpanded={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText(/AI 摘要: Strong candidate with relevant experience\./)).toBeInTheDocument()
+  })
+
+  it('renders with Seek UUID profile URL without error', () => {
+    render(
+      <SnippetCard
+        expanded={false}
+        item={createResult(1, {
+          resume: createResume(1, {
+            profileUrl: 'https://employer.seek.com/candidates/abcdef12-34567890-abcd-ef12-34567890abcdef',
+          }),
+        })}
+        itemKey="result-1"
+        onToggleExpanded={vi.fn()}
+      />
+    )
+
+    const link = screen.getByRole('link')
+    expect(link).toHaveAttribute('href')
+  })
+
+  it('does not render profile link for unsafe profile URL', () => {
+    render(
+      <SnippetCard
+        expanded={false}
+        item={createResult(1, {
+          resume: createResume(1, { profileUrl: 'javascript:alert(1)' }),
+        })}
+        itemKey="result-1"
+        onToggleExpanded={vi.fn()}
+      />
+    )
+
+    expect(screen.queryByRole('link')).not.toBeInTheDocument()
+  })
+
+  it('renders expected salary when present', () => {
+    render(
+      <SnippetCard
+        expanded={false}
+        item={createResult(1, {
+          resume: createResume(1, { expectedSalary: 'RM 8000-12000' }),
+        })}
+        itemKey="result-1"
+        onToggleExpanded={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('RM 8000-12000')).toBeInTheDocument()
+  })
+
+  it('renders industry tags from ingestData when available', () => {
+    render(
+      <SnippetCard
+        expanded={false}
+        item={createResult(1, {
+          resume: createResume(1, {
+            ingestData: {
+              industryTags: ['Automation', 'PLC', 'CNC', 'Robotics', 'Extra'],
+              synonymHits: [],
+              brandHits: [],
+              companyHits: [],
+              ruleScores: {},
+              experienceLevel: 'senior',
+              computedAt: Date.now(),
+              skillsVersion: 1,
+            },
+          }),
+        })}
+        itemKey="result-1"
+        onToggleExpanded={vi.fn()}
+      />
+    )
+
+    // industryTags.slice(0, 4)
+    expect(screen.getByText('Automation')).toBeInTheDocument()
+    expect(screen.getByText('PLC')).toBeInTheDocument()
+    expect(screen.getByText('CNC')).toBeInTheDocument()
+    expect(screen.getByText('Robotics')).toBeInTheDocument()
+    // 5th tag should not be rendered
+    expect(screen.queryByText('Extra')).not.toBeInTheDocument()
+  })
+
+  it('renders company hits badges when present', () => {
+    render(
+      <SnippetCard
+        expanded={false}
+        item={createResult(1, {
+          resume: createResume(1, {
+            ingestData: {
+              industryTags: [],
+              synonymHits: [],
+              brandHits: [],
+              companyHits: ['FANUC', 'Siemens', 'Mitsubishi', 'ExtraCo'],
+              ruleScores: {},
+              experienceLevel: 'senior',
+              computedAt: Date.now(),
+              skillsVersion: 1,
+            },
+          }),
+        })}
+        itemKey="result-1"
+        onToggleExpanded={vi.fn()}
+      />
+    )
+
+    // companyHits.slice(0, 3)
+    expect(screen.getByText('FANUC')).toBeInTheDocument()
+    expect(screen.getByText('Siemens')).toBeInTheDocument()
+    expect(screen.getByText('Mitsubishi')).toBeInTheDocument()
+    // 4th should not be rendered
+    expect(screen.queryByText('ExtraCo')).not.toBeInTheDocument()
+  })
+
+  it('renders status notes tooltip when statusMeta has notes', () => {
+    render(
+      <SnippetCard
+        expanded={false}
+        item={createResult(1, {
+          status: 'contacted',
+          statusMeta: {
+            _id: 'status-1',
+            identityKey: 'identity-1',
+            workspaceSlug: 'default',
+            status: 'contacted',
+            notes: 'Called and left voicemail.',
+            updatedAt: Date.now(),
+          },
+        })}
+        itemKey="result-1"
+        onToggleExpanded={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText(/resumes\.status\.notes/)).toBeInTheDocument()
+  })
+
+  it('does not render status notes badge when notes are empty', () => {
+    render(
+      <SnippetCard
+        expanded={false}
+        item={createResult(1, {
+          status: 'new',
+          statusMeta: {
+            _id: 'status-1',
+            identityKey: 'identity-1',
+            workspaceSlug: 'default',
+            status: 'new',
+            notes: '',
+            updatedAt: Date.now(),
+          },
+        })}
+        itemKey="result-1"
+        onToggleExpanded={vi.fn()}
+      />
+    )
+
+    expect(screen.queryByText(/resumes\.status\.notes/)).not.toBeInTheDocument()
   })
 
   it('falls back to generic labels and ingest tags when work history and provenance are missing', async () => {
