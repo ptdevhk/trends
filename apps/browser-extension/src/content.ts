@@ -966,6 +966,9 @@ const _job51SearchExtractor = createJob51SearchExtractor({
   window,
   fetch: globalThis.fetch.bind(globalThis),
   delay,
+  isElementVisible,
+  activateElement,
+  findVueParentByName,
 });
 const {
   isJob51DetailPage,
@@ -988,6 +991,12 @@ const {
   enrich51JobSearchResumeWithDetail,
   extract51JobResumes,
   extractJob51DetailResume,
+  resolveJob51AgeFilterDropdown,
+  ensureJob51AgeCustomRangeInputs,
+  applyJob51AgeCustomRangeViaVue,
+  normalizeAgeRequestValue,
+  hasMatchingJob51AgeSearchRequest,
+  waitForJob51AgeFilterRefresh,
 } = _job51SearchExtractor;
 
 
@@ -3754,36 +3763,6 @@ function openAgeFilterDropdown(ageBlock) {
   );
 }
 
-function resolveJob51AgeFilterDropdown(ageBlock) {
-  const describedNode =
-    (ageBlock.getAttribute?.("aria-describedby") ? ageBlock : null) ||
-    ageBlock.querySelector("[aria-describedby]");
-  const popoverId = describedNode?.getAttribute("aria-describedby")?.trim();
-  if (popoverId) {
-    const popover = document.getElementById(popoverId);
-    if (popover) {
-      return popover;
-    }
-  }
-
-  const poppers = Array.from(document.querySelectorAll(".base-select-popper"));
-  return (
-    poppers.find((node) => {
-      const text = (node.textContent || "").replace(/\s+/g, "").trim();
-      return (
-        isElementVisible(node) &&
-        (text.includes("22岁及以下") ||
-          text.includes("45岁及以上") ||
-          Boolean(
-            node.querySelector(
-              'input[placeholder="最低"], input[placeholder="最高"]',
-            ),
-          ))
-      );
-    }) || null
-  );
-}
-
 function resolveAgeSelectBox(ageBlock) {
   return getCurrentSourceKey() === SOURCE_KEYS.JOB51
     ? resolveJob51AgeFilterDropdown(ageBlock)
@@ -3805,41 +3784,6 @@ async function waitForAgeFilterDropdown(ageBlock, { timeoutMs = 4000 } = {}) {
   return finalSelectBox && isElementVisible(finalSelectBox) ? finalSelectBox : null;
 }
 
-async function ensureJob51AgeCustomRangeInputs(selectBox, { timeoutMs = 2000 } = {}) {
-  if (getCurrentSourceKey() !== SOURCE_KEYS.JOB51) {
-    return selectBox;
-  }
-  if (
-    selectBox.querySelector('input[placeholder="最低"]') &&
-    selectBox.querySelector('input[placeholder="最高"]')
-  ) {
-    return selectBox;
-  }
-
-  const customButton = Array.from(selectBox.querySelectorAll("button")).find(
-    (button) =>
-      (button.textContent || "").replace(/\s+/g, "").trim() === "自定义",
-  );
-  if (!customButton) {
-    return selectBox;
-  }
-
-  activateElement(customButton);
-
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    if (
-      selectBox.querySelector('input[placeholder="最低"]') &&
-      selectBox.querySelector('input[placeholder="最高"]')
-    ) {
-      return selectBox;
-    }
-    await new Promise((resolve) => setTimeout(resolve, 120));
-  }
-
-  return selectBox;
-}
-
 function resolveAgeFilterActions(selectBox) {
   const minInput = selectBox.querySelector('input[placeholder="最低"]');
   const maxInput = selectBox.querySelector('input[placeholder="最高"]');
@@ -3854,87 +3798,6 @@ function resolveAgeFilterActions(selectBox) {
   });
 
   return { minInput, maxInput, confirmButton, cancelButton };
-}
-
-async function applyJob51AgeCustomRangeViaVue(
-  confirmButton,
-  { minAge, maxAge } = {},
-) {
-  if (getCurrentSourceKey() !== SOURCE_KEYS.JOB51 || !confirmButton) {
-    return false;
-  }
-
-  const customRangeVm = findVueParentByName(
-    confirmButton,
-    "BaseSelectCustomRange",
-  );
-  if (!customRangeVm || typeof customRangeVm.onClickOk !== "function") {
-    return false;
-  }
-
-  try {
-    if (!customRangeVm.form || typeof customRangeVm.form !== "object") {
-      customRangeVm.form = {};
-    }
-    customRangeVm.form.leftValue =
-      typeof minAge === "number" ? minAge : null;
-    customRangeVm.form.rightValue =
-      typeof maxAge === "number" ? maxAge : null;
-    await Promise.resolve(customRangeVm.onClickOk());
-    return true;
-  } catch (error) {
-    console.warn(
-      "🎯 [Auto Age] Failed to apply 51job age filter via Vue custom-range handler:",
-      error,
-    );
-    return false;
-  }
-}
-
-function normalizeAgeRequestValue(value) {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return value;
-  }
-  if (typeof value === "string") {
-    const trimmed = value.trim();
-    if (!trimmed) {
-      return null;
-    }
-    const parsed = Number.parseInt(trimmed, 10);
-    return Number.isFinite(parsed) ? parsed : null;
-  }
-  return null;
-}
-
-function hasMatchingJob51AgeSearchRequest(minAge, maxAge) {
-  const request = apiSnapshot.job51LastSearchRequest;
-  if (!request || typeof request !== "object") {
-    return false;
-  }
-
-  return (
-    normalizeAgeRequestValue(request.age_from) ===
-      normalizeAgeRequestValue(minAge) &&
-    normalizeAgeRequestValue(request.age_to) === normalizeAgeRequestValue(maxAge)
-  );
-}
-
-async function waitForJob51AgeFilterRefresh(
-  previousLastSearchAt,
-  { minAge, maxAge, timeoutMs = 5000 } = {},
-) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const hasFreshSearch =
-      typeof apiSnapshot.lastSearchAt === "string" &&
-      apiSnapshot.lastSearchAt.length > 0 &&
-      apiSnapshot.lastSearchAt !== previousLastSearchAt;
-    if (hasFreshSearch && hasMatchingJob51AgeSearchRequest(minAge, maxAge)) {
-      return true;
-    }
-    await new Promise((resolve) => setTimeout(resolve, 120));
-  }
-  return false;
 }
 
 async function autoApplyAgeFilterFromUrl() {
