@@ -30,6 +30,7 @@ import {
   summariesRoutes,
   webVitalsRoutes,
   searchAlertsRoutes,
+  resumesAdminRoutes,
 } from "./routes/index.js";
 import { config } from "./services/config.js";
 import { workspaceMiddleware } from "./middleware/workspace.js";
@@ -109,6 +110,7 @@ export function createApp() {
   app.route("/", searchRoutes);
   app.route("/", rssRoutes);
   app.route("/", resumesRoutes);
+  app.route("/", resumesAdminRoutes);
   app.route("/", resumeSubmitRoutes);
   app.route("/", industryRoutes);
   app.route("/", jobDescriptionsRoutes);
