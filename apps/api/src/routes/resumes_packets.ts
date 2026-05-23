@@ -20,7 +20,7 @@ import {
   ReviewPacketTrackedExportResponseSchema,
 } from "../schemas/index.js";
 import { config } from "../services/config.js";
-import { ResumeService, type ResumeFilters } from "../services/resume-service.js";
+import { ResumeService } from "../services/resume-service.js";
 import { DataNotFoundError } from "../services/errors.js";
 import { resolveConvexUrl } from "../services/resume-import-service.js";
 import { resolveResumeId } from "../services/resume-id.js";
@@ -39,6 +39,7 @@ import { callConvexQuery, callConvexMutation } from "../services/convex-utils.js
 import { notificationService } from "../services/notification-service.js";
 import { notificationTemplateService } from "../services/notification-template-service.js";
 import { formatIsoOffsetInTimezone } from "../services/timezone.js";
+import { triggerReingestStaleSkillsVersion, shouldTriggerSkillsReingest } from "./resumes.js";
 import { workspaceConfigService } from "../services/workspace-config-service.js";
 import { SearchEventLogger } from "../services/search-event-logger.js";
 import { SkillsKnowledgeService } from "../services/skills-knowledge.js";
@@ -49,8 +50,6 @@ import {
   type IndustryDbV2BatchStats,
 } from "../services/industry-db-batch-stats.js";
 import type { ResumeItem } from "../types/resume.js";
-import type { ResumeIndex } from "../services/resume-index.js";
-import { normalizeWorkHistoryEntry, buildKeywordAnalysisId, getCurrentResumeAiPromptVersion, resolveResumeAnalysisSourceKey, formatKeywordQuery } from "@trends/shared";
 
 const app = new OpenAPIHono();
 const skillsKnowledgeService = new SkillsKnowledgeService(config.projectRoot);
@@ -307,7 +306,6 @@ function buildResumeIngestData(value: unknown): ResumeItem["ingestData"] | undef
 // --- Export/packet types ---
 
 type ResumeExportCanonicalRequest = z.infer<typeof ResumeExportCanonicalRequestSchema>;
-type ResumeExportRequest = ResumeExportCanonicalRequest;
 type ReviewPacketExportRequest = z.infer<typeof ReviewPacketExportRequestSchema>;
 type ResumeExportEntryContext = ResumeExportCanonicalRequest["entries"][number];
 type ReviewPacketSummaryTemplateRequest = z.infer<typeof ReviewPacketSummaryPreviewRequestSchema>;
@@ -748,59 +746,6 @@ function toPublicReviewPacketRun(run: StoredReviewPacketRun): z.infer<typeof Rev
     } : undefined,
     error: run.error,
   };
-}
-
-async function triggerReingestStaleSkillsVersion(limit: number): Promise<{
-  scheduled: number;
-  batches: number;
-  currentVersion: number;
-  hasMore: boolean;
-}> {
-  const convexUrl = resolveConvexUrl().replace(/\/$/, "");
-  const response = await fetch(`${convexUrl}/api/action`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: JSON.stringify({
-      path: "migrations:reIngestStaleSkillsVersion",
-      args: { limit },
-    }),
-  });
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Convex action failed (${response.status}): ${text}`);
-  }
-
-  const payload = await response.json() as {
-    status?: string;
-    value?: unknown;
-    errorMessage?: string;
-  };
-
-  if (payload.status !== "success") {
-    throw new Error(payload.errorMessage || "Convex action failed");
-  }
-
-  if (!isRecord(payload.value)) {
-    throw new Error("Invalid re-ingest response from Convex");
-  }
-
-  const result = payload.value;
-
-  return {
-    scheduled: typeof result.scheduled === "number" ? result.scheduled : 0,
-    batches: typeof result.batches === "number" ? result.batches : 0,
-    currentVersion: typeof result.currentVersion === "number" ? result.currentVersion : skillsKnowledgeService.getVersion(),
-    hasMore: result.hasMore === true,
-  };
-}
-
-function shouldTriggerSkillsReingest(observation: string): boolean {
-  const normalized = observation.trim().toLowerCase();
-  return normalized.startsWith("synonym_suggestion:") || normalized.startsWith("domain_expansion:");
 }
 
 function buildResumeExportErrorResponse(c: Context, error: unknown) {

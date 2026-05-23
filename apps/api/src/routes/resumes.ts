@@ -1437,8 +1437,6 @@ function hasResumeListFilters(params: {
     || (params.sources?.length ?? 0) > 0;
 }
 
-// bffMatchesResumeFilters is now imported from ../services/bff-filter-utils.js
-
 // Collect provenance for AND-mode search results from BFF-side matching.
 function collectBffAndModeProvenance(
   searchText: string,
@@ -1470,7 +1468,7 @@ function resolveResumeSortOrder(sortBy: "score" | "name" | "experience" | "extra
   return sortOrder || "asc";
 }
 
-async function triggerReingestStaleSkillsVersion(limit: number): Promise<{
+export async function triggerReingestStaleSkillsVersion(limit: number): Promise<{
   scheduled: number;
   batches: number;
   currentVersion: number;
@@ -1518,7 +1516,7 @@ async function triggerReingestStaleSkillsVersion(limit: number): Promise<{
   };
 }
 
-function shouldTriggerSkillsReingest(observation: string): boolean {
+export function shouldTriggerSkillsReingest(observation: string): boolean {
   const normalized = observation.trim().toLowerCase();
   return normalized.startsWith("synonym_suggestion:") || normalized.startsWith("domain_expansion:");
 }
