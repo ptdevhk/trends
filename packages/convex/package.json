@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@trends/shared": "*",
-    "convex": "^1.36.0"
+    "convex": "^1.39.0"
   },
   "devDependencies": {
     "typescript": "^5.9.3"
