@@ -11,11 +11,16 @@ export function createJob51SearchExtractor(deps) {
     SOURCE_KEYS,
     apiSnapshot,
     normalizeJob51Text,
+    normalizeJob51MultilineText,
     normalizeResumeText,
+    buildWorkHistoryRawParts,
+    EHIRE_51JOB_PROFILE_URL_PREFIX,
+    EHIRE_51JOB_HOST,
     JOB51_PAGE_COOLDOWN_MS,
     JOB51_DETAIL_FETCH_TIMEOUT_MS,
     JOB51_RATE_LIMIT_ERROR_MESSAGE,
     buildJob51DetailResumeFromPayload,
+    filterCurrentResumesByAgeRange,
     chrome,
     window: win,
     fetch: globalFetch,
@@ -540,6 +545,227 @@ export function createJob51SearchExtractor(deps) {
     }
   }
 
+  /**
+   * Maps 51job search result rows from the API snapshot into normalized resume objects.
+   * Extracts identity, work history, education, skills, and profile metadata per row.
+   */
+  function extract51JobResumes() {
+    if (!Array.isArray(apiSnapshot.job51SearchRows)) return [];
+    return apiSnapshot.job51SearchRows.map((row, index) => {
+      const str = (v) => (v != null ? String(v) : "");
+      const baseInfo =
+        row?.base_info && typeof row.base_info === "object" ? row.base_info : {};
+      const jobIntentionInfo =
+        row?.job_intention && typeof row.job_intention === "object"
+          ? row.job_intention
+          : {};
+      const recentWorkInfo =
+        row?.recent_work_info && typeof row.recent_work_info === "object"
+          ? row.recent_work_info
+          : {};
+      const workList = Array.isArray(row?.work_list) ? row.work_list : [];
+      const educationList = Array.isArray(row?.education_list)
+        ? row.education_list
+        : [];
+      const latestWork =
+        workList.find(
+          (item) => item && typeof item === "object" && item.is_show,
+        ) ||
+        workList[0] ||
+        {};
+      const latestEducation =
+        educationList.find(
+          (item) => item && typeof item === "object" && item.degree_value,
+        ) ||
+        educationList[0] ||
+        {};
+      const uniqueSkillTags = Array.from(
+        new Set(
+          [
+            ...(Array.isArray(row?.label_sorted_skill_tag_list)
+              ? row.label_sorted_skill_tag_list
+              : []),
+            ...(Array.isArray(row?.label_list) ? row.label_list : []),
+          ]
+            .map((value) => normalizeJob51Text(value))
+            .filter(Boolean),
+        ),
+      );
+      const workHistory = workList
+        .map((item) => {
+          if (!item || typeof item !== "object") return null;
+          const startDate = normalizeJob51Text(item.start_time);
+          const endDate = normalizeJob51Text(item.end_time);
+          const durationLabel = normalizeJob51Text(item.working_years);
+          const companyName = normalizeJob51Text(item.company_name);
+          const jobTitle = normalizeJob51Text(
+            item.work_func_value || item.job_name,
+          );
+          const metaParts = [
+            ...(Array.isArray(item.industry_tag) ? item.industry_tag : []),
+            item.company_size_value,
+            item.work_type_value,
+          ]
+            .map((value) => normalizeJob51Text(value))
+            .filter(Boolean);
+          if (
+            !startDate &&
+            !endDate &&
+            !companyName &&
+            !jobTitle &&
+            metaParts.length === 0
+          ) {
+            return null;
+          }
+          return {
+            startDate: startDate || undefined,
+            endDate: endDate || undefined,
+            durationLabel: durationLabel || undefined,
+            companyName: companyName || undefined,
+            jobTitle: jobTitle || undefined,
+            description:
+              metaParts.length > 0
+                ? buildWorkHistoryRawParts(metaParts)
+                : undefined,
+          };
+        })
+        .filter(Boolean);
+      const name = normalizeJob51Text(
+        baseInfo.resume_name ||
+          row?.name ||
+          row?.userName ||
+          row?.candidateName ||
+          row?.fullName,
+      );
+      const ageValue = normalizeJob51Text(
+        baseInfo.age ||
+          baseInfo.displayage ||
+          baseInfo.age_value ||
+          row?.age ||
+          row?.realAge ||
+          row?.displayage ||
+          row?.age_value,
+      );
+      const age = ageValue
+        ? ageValue.includes("岁")
+          ? ageValue
+          : `${ageValue}岁`
+        : "";
+      const experience = normalizeJob51Text(
+        baseInfo.work_year_value ||
+          latestWork.working_years ||
+          row?.workYear ||
+          row?.workYears ||
+          row?.experienceYears ||
+          row?.experience,
+      );
+      const education = normalizeJob51Text(
+        baseInfo.top_degree_value ||
+          latestEducation.degree_value ||
+          row?.education ||
+          row?.educationLevel ||
+          row?.degree ||
+          row?.eduLevel,
+      );
+      const location = normalizeJob51Text(
+        jobIntentionInfo.expect_job_area_value ||
+          baseInfo.area_value ||
+          row?.location ||
+          row?.workCity ||
+          row?.city ||
+          row?.workLocation,
+      );
+      const jobIntention = normalizeJob51Text(
+        jobIntentionInfo.expect_work_function_value ||
+          latestWork.work_func_value ||
+          latestWork.job_name ||
+          recentWorkInfo.recent_position ||
+          row?.jobIntention ||
+          row?.desiredJob ||
+          row?.expectedPosition ||
+          row?.targetJob ||
+          row?.searchJob,
+      );
+      const expectedSalary = normalizeJob51Text(
+        jobIntentionInfo.new_expect_salary ||
+          jobIntentionInfo.expect_salary ||
+          row?.expectedSalary ||
+          row?.desiredSalary ||
+          row?.expectSalary ||
+          row?.salaryExpect,
+      );
+      const activityStatus = normalizeJob51Text(
+        row?.active_type ||
+          row?.activityStatus ||
+          row?.lastLoginTime ||
+          row?.activeTime ||
+          row?.refreshTime,
+      );
+      const selfIntro = normalizeJob51MultilineText(
+        row?.resume_slicing ||
+          row?.selfIntro ||
+          row?.advantage ||
+          row?.profile ||
+          row?.highlight ||
+          uniqueSkillTags.join("、"),
+      );
+      const resumeId = str(
+        row?.userid ||
+          row?.resumeId ||
+          row?.resumeNo ||
+          row?.resumekey ||
+          row?.id,
+      );
+      const perUserId = str(
+        baseInfo.accountid ||
+          row?.real_userid ||
+          row?.perUserId ||
+          row?.userId ||
+          row?.candidateId ||
+          row?.memberId,
+      );
+      const externalId = resumeId || perUserId;
+      const profileUrl = resumeId
+        ? EHIRE_51JOB_PROFILE_URL_PREFIX + encodeURIComponent(resumeId)
+        : normalizeJob51Text(row?.profileUrl || row?.resumeUrl);
+      return {
+        name,
+        age,
+        experience,
+        education,
+        location,
+        jobIntention,
+        expectedSalary,
+        activityStatus,
+        selfIntro,
+        resumeId: resumeId || undefined,
+        perUserId: perUserId || undefined,
+        externalId: externalId || undefined,
+        profileUrl: profileUrl || undefined,
+        source: EHIRE_51JOB_HOST,
+        workHistory,
+        pageIndex: index + 1,
+        rawData: row,
+        extractedAt: new Date().toISOString(),
+      };
+    });
+  }
+
+  /**
+   * Extracts a single 51job resume detail from the captured API payload.
+   * Requires being on a 51job detail page with a loaded payload.
+   */
+  function extractJob51DetailResume() {
+    if (!isJob51DetailPage() || !isJob51DetailReady()) return [];
+    return filterCurrentResumesByAgeRange(
+      buildJob51DetailResumeFromPayload(apiSnapshot.job51DetailPayload, {
+        resumeId:
+          new URL(win.location.href).searchParams.get("resumeId") || undefined,
+        profileUrl: win.location.href,
+      }),
+    );
+  }
+
   return {
     isJob51DetailPage,
     isJob51DetailReady,
@@ -559,5 +785,7 @@ export function createJob51SearchExtractor(deps) {
     collectJob51DetailFromBackground,
     fetch51JobResumeDetail,
     enrich51JobSearchResumeWithDetail,
+    extract51JobResumes,
+    extractJob51DetailResume,
   };
 }
