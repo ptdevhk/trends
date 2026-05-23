@@ -26,3 +26,4 @@ export { default as searchAlertsRoutes } from "./search-alerts.js";
 export { default as resumesAdminRoutes } from "./resumes_admin.js";
 export { default as resumesSearchRoutes } from "./resumes_search.js";
 export { default as resumesDiagnosticsRoutes } from "./resumes_diagnostics.js";
+export { default as resumesImportRoutes } from "./resumes_import.js";

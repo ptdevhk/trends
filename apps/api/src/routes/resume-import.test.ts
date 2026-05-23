@@ -2,6 +2,7 @@ import { OpenAPIHono } from "@hono/zod-openapi";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import resumesRoutes from "./resumes";
+import resumesImportRoutes from "./resumes_import";
 import { workspaceMiddleware } from "../middleware/workspace";
 
 type ConvexCall = {
@@ -12,6 +13,7 @@ type ConvexCall = {
 function createTestApp() {
   const app = new OpenAPIHono();
   app.use("*", workspaceMiddleware);
+  app.route("/", resumesImportRoutes);
   app.route("/", resumesRoutes);
   return app;
 }
