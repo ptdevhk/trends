@@ -13,7 +13,12 @@ export function createJob51SearchExtractor(deps) {
     normalizeJob51Text,
     normalizeResumeText,
     JOB51_PAGE_COOLDOWN_MS,
+    JOB51_DETAIL_FETCH_TIMEOUT_MS,
     JOB51_RATE_LIMIT_ERROR_MESSAGE,
+    buildJob51DetailResumeFromPayload,
+    chrome,
+    window: win,
+    fetch: globalFetch,
     delay,
   } = deps;
 
@@ -281,6 +286,260 @@ export function createJob51SearchExtractor(deps) {
     );
   }
 
+  /**
+   * Attempts to fetch a 51job resume detail via chrome.runtime.sendMessage
+   * to the background script (fallback path).
+   */
+  async function collectJob51DetailFromBackground(resumeId) {
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: "collectJob51ResumeDetail",
+        resumeId,
+      });
+      if (response?.success) {
+        return {
+          payload: response.data ?? response.payload ?? response.resume ?? null,
+          rateLimited: false,
+        };
+      }
+      const errorMessage = response?.error ? String(response.error) : "";
+      return {
+        payload: null,
+        rateLimited: isJob51RateLimitedErrorMessage(errorMessage),
+      };
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : String(error || "");
+      return {
+        payload: null,
+        rateLimited: isJob51RateLimitedErrorMessage(message),
+      };
+    }
+  }
+
+  /**
+   * Fetches resume detail directly from the 51job API endpoint.
+   * Falls back to collectJob51DetailFromBackground on failure/rate-limit.
+   */
+  async function fetch51JobResumeDetail(resumeId) {
+    const normalizedResumeId = normalizeJob51Text(resumeId);
+    if (!normalizedResumeId) {
+      return { payload: null, rateLimited: false };
+    }
+
+    const authContext = apiSnapshot.job51AuthContext;
+    const requestBody = {
+      resume_id: normalizedResumeId,
+      resumeId: normalizedResumeId,
+      userid: normalizedResumeId,
+      lan: "c",
+      timestamp: Math.floor(Date.now() / 1000),
+      ...(authContext?.property ? { property: authContext.property } : {}),
+    };
+
+    if (authContext?.accesstoken || authContext?.guid || authContext?.property) {
+      const headers = {
+        Accept: "application/json, text/plain, */*",
+        "Content-Type": "application/json",
+        ...(authContext.accesstoken
+          ? { accesstoken: authContext.accesstoken }
+          : {}),
+        ...(authContext.guid ? { guid: authContext.guid } : {}),
+        ...(authContext.property ? { property: authContext.property } : {}),
+      };
+      const controller = new AbortController();
+      const timeoutId = win.setTimeout(
+        () => controller.abort(),
+        JOB51_DETAIL_FETCH_TIMEOUT_MS,
+      );
+
+      try {
+        const response = await globalFetch(
+          "https://ehirej.51job.com/resumedtl/getresume",
+          {
+            method: "POST",
+            credentials: "include",
+            headers,
+            body: JSON.stringify(requestBody),
+            signal: controller.signal,
+          },
+        );
+
+        if (response.status === 403) {
+          return { payload: null, rateLimited: true };
+        }
+
+        if (response.ok) {
+          const payload = await response.json().catch(() => null);
+          if (isJob51RateLimitedPayload(payload)) {
+            return { payload: null, rateLimited: true };
+          }
+          if (isJob51DetailApiErrorPayload(payload)) {
+            console.warn(
+              "🎯 [Auto Sync] Job51 detail API error, falling back to background:",
+              normalizedResumeId,
+              payload?.code,
+              payload?.msg,
+            );
+          } else if (payload) {
+            return { payload, rateLimited: false };
+          }
+        }
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : String(error || "");
+        if (isJob51RateLimitedErrorMessage(message)) {
+          return { payload: null, rateLimited: true };
+        }
+        if (error instanceof DOMException && error.name === "AbortError") {
+          console.warn(
+            "🎯 [Auto Sync] Direct Job51 detail fetch timed out:",
+            normalizedResumeId,
+          );
+        } else {
+          console.warn(
+            "🎯 [Auto Sync] Direct Job51 detail fetch failed:",
+            normalizedResumeId,
+            error,
+          );
+        }
+      } finally {
+        win.clearTimeout(timeoutId);
+      }
+    }
+
+    return collectJob51DetailFromBackground(normalizedResumeId);
+  }
+
+  /**
+   * Enriches a single 51job search result resume with detail API data.
+   * Fetches detail via fetch51JobResumeDetail and merges fields.
+   */
+  async function enrich51JobSearchResumeWithDetail(resume, extractedAt) {
+    if (!resume || typeof resume !== "object") {
+      return {
+        resume: null,
+        enriched: false,
+        rateLimited: false,
+      };
+    }
+
+    const fallbackResume = {
+      ...resume,
+      extractedAt: resume.extractedAt || extractedAt,
+    };
+    const resumeId =
+      normalizeJob51Text(resume.resumeId) ||
+      normalizeJob51Text(resume.perUserId) ||
+      "";
+
+    if (!resumeId) {
+      return {
+        resume: fallbackResume,
+        enriched: false,
+        rateLimited: false,
+      };
+    }
+
+    try {
+      const detailResult = await fetch51JobResumeDetail(resumeId);
+      if (!detailResult?.payload) {
+        return {
+          resume: fallbackResume,
+          enriched: false,
+          rateLimited: !!detailResult?.rateLimited,
+        };
+      }
+
+      const detailResume =
+        buildJob51DetailResumeFromPayload(detailResult.payload, {
+          resumeId,
+          profileUrl: fallbackResume.profileUrl || "",
+        })[0] || null;
+
+      if (!detailResume) {
+        return {
+          resume: fallbackResume,
+          enriched: false,
+          rateLimited: !!detailResult.rateLimited,
+        };
+      }
+
+      return {
+        resume: {
+          ...fallbackResume,
+          ...detailResume,
+          name: detailResume.name || fallbackResume.name || "",
+          age: detailResume.age || fallbackResume.age || "",
+          experience: detailResume.experience || fallbackResume.experience || "",
+          education: detailResume.education || fallbackResume.education || "",
+          location: detailResume.location || fallbackResume.location || "",
+          jobIntention:
+            detailResume.jobIntention || fallbackResume.jobIntention || "",
+          expectedSalary:
+            detailResume.expectedSalary || fallbackResume.expectedSalary || "",
+          activityStatus:
+            detailResume.activityStatus || fallbackResume.activityStatus || "",
+          selfIntro: detailResume.selfIntro || fallbackResume.selfIntro || "",
+          resumeId: detailResume.resumeId || fallbackResume.resumeId,
+          perUserId: detailResume.perUserId || fallbackResume.perUserId,
+          externalId: detailResume.externalId || fallbackResume.externalId,
+          profileUrl: detailResume.profileUrl || fallbackResume.profileUrl,
+          extractedAt: fallbackResume.extractedAt,
+          pageIndex: fallbackResume.pageIndex,
+          pageNumber: fallbackResume.pageNumber,
+          workHistory:
+            Array.isArray(detailResume.workHistory) &&
+            detailResume.workHistory.length > 0
+              ? detailResume.workHistory
+              : Array.isArray(fallbackResume.workHistory)
+                ? fallbackResume.workHistory
+                : [],
+          projectExperience:
+            Array.isArray(detailResume.projectExperience) &&
+            detailResume.projectExperience.length > 0
+              ? detailResume.projectExperience
+              : Array.isArray(fallbackResume.projectExperience)
+                ? fallbackResume.projectExperience
+                : [],
+          profileEducation:
+            Array.isArray(detailResume.profileEducation) &&
+            detailResume.profileEducation.length > 0
+              ? detailResume.profileEducation
+              : Array.isArray(fallbackResume.profileEducation)
+                ? fallbackResume.profileEducation
+                : [],
+          skills:
+            Array.isArray(detailResume.skills) && detailResume.skills.length > 0
+              ? detailResume.skills
+              : Array.isArray(fallbackResume.skills)
+                ? fallbackResume.skills
+                : [],
+          licences:
+            Array.isArray(detailResume.licences) &&
+            detailResume.licences.length > 0
+              ? detailResume.licences
+              : Array.isArray(fallbackResume.licences)
+                ? fallbackResume.licences
+                : [],
+        },
+        enriched: true,
+        rateLimited: !!detailResult.rateLimited,
+      };
+    } catch (error) {
+      console.warn(
+        "🎯 [Auto Sync] Failed to enrich Job51 detail resume:",
+        resumeId,
+        error,
+      );
+      return {
+        resume: fallbackResume,
+        enriched: false,
+        rateLimited: false,
+      };
+    }
+  }
+
   return {
     isJob51DetailPage,
     isJob51DetailReady,
@@ -297,5 +556,8 @@ export function createJob51SearchExtractor(deps) {
     isJob51RateLimitedErrorMessage,
     isJob51RateLimitedPayload,
     isJob51DetailApiErrorPayload,
+    collectJob51DetailFromBackground,
+    fetch51JobResumeDetail,
+    enrich51JobSearchResumeWithDetail,
   };
 }
