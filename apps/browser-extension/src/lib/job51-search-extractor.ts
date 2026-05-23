@@ -36,7 +36,7 @@ export function createJob51SearchExtractor(deps) {
   function isJob51DetailPage() {
     return (
       getCurrentSourceKey() === SOURCE_KEYS.JOB51 &&
-      /\/Revision\/talent\/resume\/detail/i.test(window.location.pathname)
+      /\/Revision\/talent\/resume\/detail/i.test(win.location.pathname)
     );
   }
 
