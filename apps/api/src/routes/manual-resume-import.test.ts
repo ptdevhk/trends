@@ -10,9 +10,13 @@ type ConvexCall = {
 };
 
 async function createTestApp() {
-  const { default: resumesRoutes } = await import("./resumes");
+  const [{ default: resumesRoutes }, { default: resumesImportRoutes }] = await Promise.all([
+    import("./resumes"),
+    import("./resumes_import"),
+  ]);
   const app = new OpenAPIHono();
   app.use("*", workspaceMiddleware);
+  app.route("/", resumesImportRoutes);
   app.route("/", resumesRoutes);
   return app;
 }
