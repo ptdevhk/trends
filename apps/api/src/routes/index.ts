@@ -27,3 +27,4 @@ export { default as resumesAdminRoutes } from "./resumes_admin.js";
 export { default as resumesSearchRoutes } from "./resumes_search.js";
 export { default as resumesDiagnosticsRoutes } from "./resumes_diagnostics.js";
 export { default as resumesImportRoutes } from "./resumes_import.js";
+export { default as resumesPacketsRoutes } from "./resumes_packets.js";

@@ -958,159 +958,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/resumes/candidate-actions/reset": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Reset candidate actions for a workspace */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": {
-                        workspaceSlug?: string;
-                    };
-                };
-            };
-            responses: {
-                /** @description Reset result */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            /** @enum {boolean} */
-                            success: true;
-                            deleted: number;
-                        };
-                    };
-                };
-                /** @description Admin access required */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            /** @enum {boolean} */
-                            success: false;
-                            error: string;
-                        };
-                    };
-                };
-                /** @description Reset failed */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            /** @enum {boolean} */
-                            success: false;
-                            error: string;
-                        };
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/resumes/matches/rescore": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Re-score resumes with rule engine */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": {
-                        sessionId?: string;
-                        sample?: string;
-                        /**
-                         * @default sample
-                         * @enum {string}
-                         */
-                        source?: "sample" | "convex";
-                        /** @default true */
-                        persist?: boolean;
-                        jobDescriptionId?: string;
-                        keywords?: string[];
-                        location?: string;
-                        resumeIds?: string[];
-                        limit?: number;
-                    };
-                };
-            };
-            responses: {
-                /** @description Re-scored results */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["MatchResponse"];
-                    };
-                };
-                /** @description Invalid request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            /** @enum {boolean} */
-                            success: false;
-                            error: string;
-                        };
-                    };
-                };
-                /** @description Session or data not found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            /** @enum {boolean} */
-                            success: false;
-                            error: string;
-                        };
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/resumes/export": {
         parameters: {
             query?: never;
@@ -1616,6 +1463,159 @@ export interface paths {
                 };
                 /** @description Summary send failed */
                 500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/resumes/candidate-actions/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reset candidate actions for a workspace */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        workspaceSlug?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Reset result */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            deleted: number;
+                        };
+                    };
+                };
+                /** @description Admin access required */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Reset failed */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/resumes/matches/rescore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Re-score resumes with rule engine */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        sessionId?: string;
+                        sample?: string;
+                        /**
+                         * @default sample
+                         * @enum {string}
+                         */
+                        source?: "sample" | "convex";
+                        /** @default true */
+                        persist?: boolean;
+                        jobDescriptionId?: string;
+                        keywords?: string[];
+                        location?: string;
+                        resumeIds?: string[];
+                        limit?: number;
+                    };
+                };
+            };
+            responses: {
+                /** @description Re-scored results */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MatchResponse"];
+                    };
+                };
+                /** @description Invalid request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Session or data not found */
+                404: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -7646,178 +7646,6 @@ export interface components {
             sourceHosts?: string[];
             limit?: number;
         };
-        MatchResponse: {
-            /** @enum {boolean} */
-            success: true;
-            /** @enum {string} */
-            mode?: "rules_only" | "hybrid" | "ai_only";
-            streamPath?: string;
-            pendingAiCount?: number;
-            query?: {
-                source?: components["schemas"]["ResumeResultSource"];
-                persisted?: boolean;
-                keywordGroups?: {
-                    original: string;
-                    variants: string[];
-                }[];
-                expandedTo?: string[];
-                sourceMapping?: {
-                    [key: string]: string;
-                };
-                inferredRequiredRoles?: {
-                    /** @example sales */
-                    type: string;
-                    /**
-                     * @example [
-                     *       "销售",
-                     *       "业务"
-                     *     ]
-                     */
-                    signals: string[];
-                    /**
-                     * @example workHistory
-                     * @enum {string}
-                     */
-                    verifyIn: "workHistory" | "searchText";
-                    /** @example 2 */
-                    minYears?: number;
-                }[];
-            };
-            results: components["schemas"]["ResumeMatch"][];
-            stats: components["schemas"]["MatchStats"];
-        };
-        /** @enum {string} */
-        ResumeResultSource: "sample" | "convex";
-        ResumeMatch: {
-            /** @example R123456 */
-            resumeId: string;
-            /** @example lathe-sales */
-            jobDescriptionId: string;
-            /** @example 85 */
-            score: number;
-            /**
-             * @example match
-             * @enum {string}
-             */
-            recommendation: "strong_match" | "match" | "potential" | "no_match";
-            /**
-             * @example [
-             *       "客户开发经验丰富"
-             *     ]
-             */
-            highlights: string[];
-            /**
-             * @example [
-             *       "缺少机床销售经验"
-             *     ]
-             */
-            concerns: string[];
-            /** @example 候选人与岗位匹配良好，可安排面试。 */
-            summary: string;
-            breakdown?: components["schemas"]["MatchBreakdown"];
-            /**
-             * @example rule
-             * @enum {string}
-             */
-            scoreSource?: "rule" | "ai";
-            /** @example 2026-02-05T08:00:00.000Z */
-            matchedAt: string;
-            /** @example session-123 */
-            sessionId?: string;
-            /** @example user-abc */
-            userId?: string;
-            debug?: {
-                /** @example 85 */
-                primaryRuleScore?: number;
-                provenance?: {
-                    /** @example 销售 */
-                    term: string;
-                    /**
-                     * @example searchText
-                     * @enum {string}
-                     */
-                    source: "searchText" | "industryTags" | "companyHits" | "synonymHits";
-                    /** @example sales */
-                    expandedFrom?: string;
-                }[];
-                roleSignals?: {
-                    /** @example sales */
-                    type: string;
-                    /**
-                     * @example [
-                     *       "销售经理",
-                     *       "渠道"
-                     *     ]
-                     */
-                    matchedSignals: string[];
-                    /** @example 2 */
-                    signalCount: number;
-                    /** @example 2 */
-                    occurrences: number;
-                    /** @example 5 */
-                    years: number;
-                    /** @example 5 */
-                    industryVerifiedYears: number;
-                    /** @example 5 */
-                    roleRelevantYears?: number;
-                    /** @example 5 */
-                    industryVerifiedRelevantYears?: number;
-                    /**
-                     * @example workHistory
-                     * @enum {string}
-                     */
-                    verifyIn: "workHistory" | "searchText";
-                }[];
-                /**
-                 * @example [
-                 *       "fanuc"
-                 *     ]
-                 */
-                companyHits?: string[];
-                brandHits?: {
-                    /** @example fanuc */
-                    brand: string;
-                    /**
-                     * @example both
-                     * @enum {string}
-                     */
-                    role: "employer" | "equipment" | "both";
-                    /**
-                     * @example workHistory
-                     * @enum {string}
-                     */
-                    source: "workHistory" | "selfIntro" | "jobIntention";
-                    /**
-                     * @example employer
-                     * @enum {string}
-                     */
-                    context: "employer" | "equipment" | "sales" | "technical" | "general";
-                }[];
-            };
-        };
-        MatchBreakdown: {
-            /** @example 20 */
-            skillMatch: number;
-            /** @example 8 */
-            roleMatch?: number;
-            /** @example 18 */
-            experienceMatch: number;
-            /** @example 12 */
-            educationMatch: number;
-            /** @example 15 */
-            locationMatch: number;
-            /** @example 10 */
-            industryMatch: number;
-            /** @example 7 */
-            brandRelevance: number;
-        };
-        MatchStats: {
-            processed: number;
-            matched: number;
-            avgScore: number;
-            processingTimeMs?: number;
-            pendingAi?: number;
-        };
         ResumeExportCanonicalRequest: {
             /**
              * @default csv
@@ -8084,6 +7912,178 @@ export interface components {
              * @example https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=***
              */
             webhookUrl?: string;
+        };
+        MatchResponse: {
+            /** @enum {boolean} */
+            success: true;
+            /** @enum {string} */
+            mode?: "rules_only" | "hybrid" | "ai_only";
+            streamPath?: string;
+            pendingAiCount?: number;
+            query?: {
+                source?: components["schemas"]["ResumeResultSource"];
+                persisted?: boolean;
+                keywordGroups?: {
+                    original: string;
+                    variants: string[];
+                }[];
+                expandedTo?: string[];
+                sourceMapping?: {
+                    [key: string]: string;
+                };
+                inferredRequiredRoles?: {
+                    /** @example sales */
+                    type: string;
+                    /**
+                     * @example [
+                     *       "销售",
+                     *       "业务"
+                     *     ]
+                     */
+                    signals: string[];
+                    /**
+                     * @example workHistory
+                     * @enum {string}
+                     */
+                    verifyIn: "workHistory" | "searchText";
+                    /** @example 2 */
+                    minYears?: number;
+                }[];
+            };
+            results: components["schemas"]["ResumeMatch"][];
+            stats: components["schemas"]["MatchStats"];
+        };
+        /** @enum {string} */
+        ResumeResultSource: "sample" | "convex";
+        ResumeMatch: {
+            /** @example R123456 */
+            resumeId: string;
+            /** @example lathe-sales */
+            jobDescriptionId: string;
+            /** @example 85 */
+            score: number;
+            /**
+             * @example match
+             * @enum {string}
+             */
+            recommendation: "strong_match" | "match" | "potential" | "no_match";
+            /**
+             * @example [
+             *       "客户开发经验丰富"
+             *     ]
+             */
+            highlights: string[];
+            /**
+             * @example [
+             *       "缺少机床销售经验"
+             *     ]
+             */
+            concerns: string[];
+            /** @example 候选人与岗位匹配良好，可安排面试。 */
+            summary: string;
+            breakdown?: components["schemas"]["MatchBreakdown"];
+            /**
+             * @example rule
+             * @enum {string}
+             */
+            scoreSource?: "rule" | "ai";
+            /** @example 2026-02-05T08:00:00.000Z */
+            matchedAt: string;
+            /** @example session-123 */
+            sessionId?: string;
+            /** @example user-abc */
+            userId?: string;
+            debug?: {
+                /** @example 85 */
+                primaryRuleScore?: number;
+                provenance?: {
+                    /** @example 销售 */
+                    term: string;
+                    /**
+                     * @example searchText
+                     * @enum {string}
+                     */
+                    source: "searchText" | "industryTags" | "companyHits" | "synonymHits";
+                    /** @example sales */
+                    expandedFrom?: string;
+                }[];
+                roleSignals?: {
+                    /** @example sales */
+                    type: string;
+                    /**
+                     * @example [
+                     *       "销售经理",
+                     *       "渠道"
+                     *     ]
+                     */
+                    matchedSignals: string[];
+                    /** @example 2 */
+                    signalCount: number;
+                    /** @example 2 */
+                    occurrences: number;
+                    /** @example 5 */
+                    years: number;
+                    /** @example 5 */
+                    industryVerifiedYears: number;
+                    /** @example 5 */
+                    roleRelevantYears?: number;
+                    /** @example 5 */
+                    industryVerifiedRelevantYears?: number;
+                    /**
+                     * @example workHistory
+                     * @enum {string}
+                     */
+                    verifyIn: "workHistory" | "searchText";
+                }[];
+                /**
+                 * @example [
+                 *       "fanuc"
+                 *     ]
+                 */
+                companyHits?: string[];
+                brandHits?: {
+                    /** @example fanuc */
+                    brand: string;
+                    /**
+                     * @example both
+                     * @enum {string}
+                     */
+                    role: "employer" | "equipment" | "both";
+                    /**
+                     * @example workHistory
+                     * @enum {string}
+                     */
+                    source: "workHistory" | "selfIntro" | "jobIntention";
+                    /**
+                     * @example employer
+                     * @enum {string}
+                     */
+                    context: "employer" | "equipment" | "sales" | "technical" | "general";
+                }[];
+            };
+        };
+        MatchBreakdown: {
+            /** @example 20 */
+            skillMatch: number;
+            /** @example 8 */
+            roleMatch?: number;
+            /** @example 18 */
+            experienceMatch: number;
+            /** @example 12 */
+            educationMatch: number;
+            /** @example 15 */
+            locationMatch: number;
+            /** @example 10 */
+            industryMatch: number;
+            /** @example 7 */
+            brandRelevance: number;
+        };
+        MatchStats: {
+            processed: number;
+            matched: number;
+            avgScore: number;
+            processingTimeMs?: number;
+            pendingAi?: number;
         };
         ResumeDetailResponse: {
             /** @enum {boolean} */

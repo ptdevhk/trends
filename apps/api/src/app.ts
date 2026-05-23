@@ -32,6 +32,7 @@ import {
   searchAlertsRoutes,
   resumesDiagnosticsRoutes,
   resumesImportRoutes,
+  resumesPacketsRoutes,
   resumesAdminRoutes,
   resumesSearchRoutes,
 } from "./routes/index.js";
@@ -114,6 +115,7 @@ export function createApp() {
   app.route("/", rssRoutes);
   app.route("/", resumesDiagnosticsRoutes);
   app.route("/", resumesImportRoutes);
+  app.route("/", resumesPacketsRoutes);
   app.route("/", resumesRoutes);
   app.route("/", resumesAdminRoutes);
   app.route("/", resumesSearchRoutes);
