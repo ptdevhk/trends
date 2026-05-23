@@ -1,18 +1,6 @@
-function isPoeApiBase(apiBase: string): boolean {
-    try {
-        return new URL(apiBase).hostname === "api.poe.com";
-    } catch {
-        return apiBase.includes("api.poe.com");
-    }
-}
-
-export function resolveChatCompletionModel(apiBase: string, model: string): string {
+export function resolveChatCompletionModel(_apiBase: string, model: string): string {
     const trimmedModel = model.trim();
     if (!trimmedModel) {
-        return trimmedModel;
-    }
-
-    if (!isPoeApiBase(apiBase)) {
         return trimmedModel;
     }
 
