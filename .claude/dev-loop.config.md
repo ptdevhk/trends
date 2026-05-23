@@ -52,12 +52,12 @@ prd_disciplines:
     mode: mandatory
     include_paths:
       - packages/convex/convex/resumes.ts
-      - packages/convex/convex/searchProfiles.ts
-      - packages/convex/convex/aiScoring*.ts
-      - packages/convex/convex/scoring.ts
-      - packages/convex/convex/scoringEvaluation.ts
+      - packages/convex/convex/search_profiles.ts
       - apps/api/src/routes/resumes.ts
       - apps/api/src/routes/scoring-evaluation.ts
+      - apps/api/src/services/scoring-metrics.ts
+      - apps/api/src/services/scoring-auto-tuner.ts
+      - apps/api/src/services/rule-scoring.ts
       - apps/api/src/services/bff-filter-utils.ts
       - apps/web/src/lib/useConvexResumes.ts
   - skill: superpowers:test-driven-development
@@ -81,7 +81,7 @@ critical_paths:
   resume_search:
     code:
       - packages/convex/convex/resumes.ts
-      - packages/convex/convex/searchProfiles.ts
+      - packages/convex/convex/search_profiles.ts
       - apps/api/src/routes/resumes.ts
       - apps/api/src/services/bff-filter-utils.ts
       - apps/web/src/lib/useConvexResumes.ts
@@ -111,10 +111,10 @@ critical_paths:
       - "seek malaysia zero-results fix (2026-05-21)"
   ai_scoring:
     code:
-      - packages/convex/convex/aiScoring.ts
-      - packages/convex/convex/scoring.ts
-      - packages/convex/convex/scoringEvaluation.ts
       - apps/api/src/routes/scoring-evaluation.ts
+      - apps/api/src/services/scoring-metrics.ts
+      - apps/api/src/services/scoring-auto-tuner.ts
+      - apps/api/src/services/rule-scoring.ts
     vault:
       - concepts/resume-scoring-pipeline
       - concepts/self-tuning-scoring
