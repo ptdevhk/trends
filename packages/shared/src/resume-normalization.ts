@@ -113,7 +113,7 @@ function inferCountryFromSource(source: unknown): string | undefined {
   return key ? SOURCE_KEY_TO_COUNTRY[key] : undefined;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 

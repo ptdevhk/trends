@@ -1,6 +1,6 @@
 /**
  * Enhanced Job Description Service
- * 
+ *
  * Parses JD files with auto_match frontmatter for minimal-input matching
  */
 
@@ -9,6 +9,7 @@ import path from "node:path";
 import { parse as parseYaml } from "yaml";
 import { findProjectRoot } from "./db.js";
 import { DataNotFoundError } from "./errors.js";
+import { isRecord } from "@trends/shared";
 
 // Types
 export interface AutoMatchConfig {
@@ -53,9 +54,6 @@ export interface JobDescriptionFull extends JobDescriptionFile {
   extractedAt?: string;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 function toStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) {

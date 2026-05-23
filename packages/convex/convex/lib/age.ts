@@ -1,6 +1,4 @@
-function isRecord(value: unknown): value is Record<string, unknown> {
-    return typeof value === "object" && value !== null;
-}
+import { isRecord } from "@trends/shared";
 
 function parseAgeFromString(value: string): number | null {
     const trimmed = value.trim();

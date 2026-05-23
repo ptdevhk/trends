@@ -5,6 +5,7 @@ import type {
   RoleSignalSummary,
 } from "./rule-scoring.js";
 import type { ResumeItem } from "../types/resume.js";
+import { isRecord } from "@trends/shared";
 
 // ── Shared helpers for resume ingest data parsing ────────────────────────
 // These functions handle type-safe extraction of ingest-data fields from
@@ -12,9 +13,6 @@ import type { ResumeItem } from "../types/resume.js";
 // They are duplicated across resumes.ts, resumes_import.ts, and
 // resumes_search.ts — this file is the canonical source.
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 export function toStringValue(value: unknown): string {
   if (typeof value === "string") {

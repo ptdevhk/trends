@@ -8,6 +8,7 @@ import {
     resolveResumeAnalysisSourceKey,
     sanitizeResumeRecordForSurface,
     resolveResumeAiPromptLocale,
+    isRecord,
     selectLatestWorkHistory,
     type ResumeFieldUsagePolicy,
     type ResumeFieldUsagePolicyOverrides,
@@ -461,9 +462,6 @@ export function getAiTemperature(): number {
     return 0;
 }
 
-export function isRecord(value: unknown): value is Record<string, unknown> {
-    return typeof value === "object" && value !== null;
-}
 
 // Helper to normalize resume data
 export function normalizeResume(

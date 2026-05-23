@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { isRecord } from "@trends/shared";
 
 type BlockItem = {
   _id: string
@@ -9,9 +10,6 @@ type BlockItem = {
   blockedAt: number
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
 
 async function mockBlocksApi(page: Page, initialItems: BlockItem[]) {
   let items = [...initialItems]

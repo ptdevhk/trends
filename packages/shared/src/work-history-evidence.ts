@@ -1,10 +1,9 @@
+import { isRecord } from "./resume-normalization.js";
+
 function normalizeWhitespace(value: string): string {
   return value.replace(/\s+/g, " ").trim();
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
 
 function toOptionalString(value: unknown): string | undefined {
   if (typeof value !== "string") {

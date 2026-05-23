@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import JSON5 from "json5";
 import {
+  isRecord,
   parseResumeFieldUsagePolicyOverrides,
   resolveResumeFieldUsagePolicy,
   type ResumeFieldUsagePolicy,
@@ -43,9 +44,6 @@ type WorkspaceConfigEntry = {
   updatedAt: number;
 };
 
-export function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 export function readString(value: unknown): string | null {
   if (typeof value === "string" && value.trim().length > 0) {

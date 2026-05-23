@@ -1,6 +1,7 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { resolveConvexUrl } from "../services/resume-import-service.js";
 import { aiSummaryService } from "../services/ai-summary-service.js";
+import { isRecord } from "@trends/shared";
 
 const AI_SUMMARY_TTL_MS = 60 * 60 * 1000;
 const AI_SUMMARY_STALE_AFTER_MS = 50 * 60 * 1000;
@@ -46,9 +47,6 @@ const SearchSummaryErrorResponseSchema = z.object({
   error: z.string(),
 });
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
 
 async function callConvex(
   type: "query" | "mutation",

@@ -11,6 +11,7 @@ import type {
   SummaryWorkspaceActivityTotals,
 } from "@trends/shared";
 
+import { isRecord } from "@trends/shared";
 import {
   ActionStorage,
   type CandidateActionType,
@@ -95,9 +96,6 @@ const TASK_STATUS_LABELS: Record<string, string> = {
   cancelled: "Cancelled",
 };
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 function readString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;

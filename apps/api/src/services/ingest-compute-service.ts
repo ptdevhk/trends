@@ -3,6 +3,7 @@ import {
   buildWorkHistoryEntryText,
   computeVerifiedRoleYears,
   formatLocationHierarchySearchText,
+  isRecord,
   normalizeEducationLevel,
   normalizeResumeLocationHierarchy,
   normalizeWorkHistoryEntry,
@@ -98,9 +99,6 @@ interface VerifiedEmployerMatch {
   companyNameCn: string;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
 
 function toStringValue(value: unknown): string {
   return typeof value === "string" ? value : "";

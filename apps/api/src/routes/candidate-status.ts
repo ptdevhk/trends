@@ -1,16 +1,16 @@
 import fs from "node:fs";
 import path from "node:path";
+import { isRecord } from "@trends/shared";
+
 
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
+
 
 import { config } from "../services/config.js";
 import { workspaceConfigService } from "../services/workspace-config-service.js";
 
 const app = new OpenAPIHono();
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 function readString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;

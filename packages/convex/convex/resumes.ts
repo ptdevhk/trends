@@ -23,15 +23,13 @@ import {
     normalizeResumeLocationHierarchy,
     resolveResumeAnalysisSourceKey,
     selectLatestWorkHistory,
+    isRecord,
     parseSalaryRange,
 } from "@trends/shared";
 import { parseAgeFromContent } from "./lib/age";
 import { deriveResumeIdentity } from "./lib/resume_identity";
 import { buildSearchText, mergeSearchTextWithIngestData } from "./search_text";
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-    return typeof value === "object" && value !== null;
-}
 
 function toStringValue(value: unknown): string {
     if (typeof value === "string") {

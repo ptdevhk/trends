@@ -6,7 +6,7 @@ import type {
   InspectableSourceSummary as ConfigSourceSummary,
   SurfaceNavDefinition,
 } from '@trends/shared'
-import { SYSTEM_SETTINGS_NAV_ITEMS } from '@trends/shared'
+import { isRecord, SYSTEM_SETTINGS_NAV_ITEMS } from '@trends/shared'
 import { withWorkspaceHeaders } from '@/lib/workspace-ref'
 
 export type {
@@ -218,9 +218,6 @@ export function resolveSystemSettingsSubpages(
 
 export const SYSTEM_SETTINGS_SUBPAGES = resolveSystemSettingsSubpages(undefined)
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
-}
 
 function readString(value: unknown): string | null {
   if (typeof value === 'string') {

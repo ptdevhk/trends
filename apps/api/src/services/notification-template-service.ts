@@ -1,8 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
+import { isRecord } from "@trends/shared";
+
 
 import { parse as parseYaml } from "yaml";
+
 import { z } from "zod";
+
 
 import { findProjectRoot } from "./db.js";
 import { DataNotFoundError, FileParseError } from "./errors.js";
@@ -41,9 +45,6 @@ type RenderContext = {
   index?: number;
 };
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 function toStringValue(value: unknown): string {
   if (value === null || value === undefined) return "";

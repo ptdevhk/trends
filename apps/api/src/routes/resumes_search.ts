@@ -41,7 +41,7 @@ import {
   selectLatestWorkHistory,
 } from "@trends/shared";
 import { bffMatchesResumeFilters } from "../services/bff-filter-utils.js";
-import { buildKeywordAnalysisId, getCurrentResumeAiPromptVersion, resolveResumeAnalysisSourceKey } from "@trends/shared";
+import { isRecord, buildKeywordAnalysisId, getCurrentResumeAiPromptVersion, resolveResumeAnalysisSourceKey } from "@trends/shared";
 import { SkillsKnowledgeService } from "../services/skills-knowledge.js";
 import type { ResumeItem } from "../types/resume.js";
 import type { ResumeIndex } from "../services/resume-index.js";
@@ -253,9 +253,6 @@ function resolveResumeSortOrder(
   return sortOrder || "asc";
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
 
 function parseConvexProvenance(value: unknown): ResumeSearchProvenance[] | undefined {
   if (!Array.isArray(value)) {
