@@ -30,6 +30,7 @@ import {
   summariesRoutes,
   webVitalsRoutes,
   searchAlertsRoutes,
+  resumesDiagnosticsRoutes,
   resumesAdminRoutes,
   resumesSearchRoutes,
 } from "./routes/index.js";
@@ -110,6 +111,7 @@ export function createApp() {
   app.route("/", topicsRoutes);
   app.route("/", searchRoutes);
   app.route("/", rssRoutes);
+  app.route("/", resumesDiagnosticsRoutes);
   app.route("/", resumesRoutes);
   app.route("/", resumesAdminRoutes);
   app.route("/", resumesSearchRoutes);

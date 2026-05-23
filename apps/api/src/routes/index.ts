@@ -25,3 +25,4 @@ export { default as webVitalsRoutes } from "./web-vitals.js";
 export { default as searchAlertsRoutes } from "./search-alerts.js";
 export { default as resumesAdminRoutes } from "./resumes_admin.js";
 export { default as resumesSearchRoutes } from "./resumes_search.js";
+export { default as resumesDiagnosticsRoutes } from "./resumes_diagnostics.js";
