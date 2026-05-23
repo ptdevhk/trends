@@ -1,0 +1,301 @@
+// @ts-nocheck
+/**
+ * 51job eHire search-specific utility functions — payload parsing, page detection,
+ * rate-limit detection, and auth context extraction. All dependencies injected
+ * from content.ts via DI factory pattern.
+ */
+
+export function createJob51SearchExtractor(deps) {
+  const {
+    getCurrentSourceKey,
+    SOURCE_KEYS,
+    apiSnapshot,
+    normalizeJob51Text,
+    normalizeResumeText,
+    JOB51_PAGE_COOLDOWN_MS,
+    JOB51_RATE_LIMIT_ERROR_MESSAGE,
+    delay,
+  } = deps;
+
+  /**
+   * Checks if the current page is a 51job resume detail page.
+   */
+  function isJob51DetailPage() {
+    return (
+      getCurrentSourceKey() === SOURCE_KEYS.JOB51 &&
+      /\/Revision\/talent\/resume\/detail/i.test(window.location.pathname)
+    );
+  }
+
+  /**
+   * Checks if the 51job detail page has loaded its API payload.
+   */
+  function isJob51DetailReady() {
+    return isJob51DetailPage() && !!apiSnapshot.job51DetailPayload;
+  }
+
+  /**
+   * Extracts authentication headers from a captured 51job API request.
+   * Searches through both request headers and body for auth tokens.
+   */
+  function normalizeJob51AuthContext(requestHeaders, request) {
+    const headers =
+      requestHeaders && typeof requestHeaders === "object" ? requestHeaders : {};
+    const requestBody = request && typeof request === "object" ? request : {};
+    const pick = (...keys) => {
+      for (const key of keys) {
+        const headerValue = headers[key] ?? headers[key.toLowerCase()];
+        if (typeof headerValue === "string" && headerValue.trim()) {
+          return headerValue.trim();
+        }
+        const requestValue = requestBody[key];
+        if (typeof requestValue === "string" && requestValue.trim()) {
+          return requestValue.trim();
+        }
+      }
+      return "";
+    };
+
+    const accesstoken = pick("accesstoken", "access-token", "accessToken");
+    const guid = pick("guid");
+    const property = pick("property");
+    const sign = pick("sign");
+
+    if (!accesstoken && !guid && !property && !sign) {
+      return null;
+    }
+
+    return {
+      ...(accesstoken ? { accesstoken } : {}),
+      ...(guid ? { guid } : {}),
+      ...(property ? { property } : {}),
+      ...(sign ? { sign } : {}),
+    };
+  }
+
+  /**
+   * Extracts raw rows array from a 51job search API payload.
+   * Checks multiple possible key paths for the data array.
+   */
+  function getJob51RawRows(payload) {
+    const rows =
+      payload?.data?.list ||
+      payload?.data?.items ||
+      payload?.data?.rows ||
+      payload?.list ||
+      payload?.items ||
+      payload?.rows ||
+      (Array.isArray(payload?.data) ? payload.data : null) ||
+      (Array.isArray(payload) ? payload : null);
+    return Array.isArray(rows) ? rows : null;
+  }
+
+  /**
+   * Extracts the total count from a 51job search API payload.
+   */
+  function getJob51TotalFromPayload(payload) {
+    const total = payload?.data?.total ?? payload?.total;
+    return typeof total === "number" && total >= 0 ? total : null;
+  }
+
+  /**
+   * Validates whether a row object looks like a valid 51job resume row.
+   * Checks for identity fields (resumeId, perUserId, etc.), name fields,
+   * and detail fields (experience, education, location, etc.).
+   */
+  function isLikelyJob51ResumeRow(row) {
+    if (!row || typeof row !== "object") return false;
+    const baseInfo =
+      row.base_info && typeof row.base_info === "object" ? row.base_info : null;
+    const jobIntention =
+      row.job_intention && typeof row.job_intention === "object"
+        ? row.job_intention
+        : null;
+    const recentWorkInfo =
+      row.recent_work_info && typeof row.recent_work_info === "object"
+        ? row.recent_work_info
+        : null;
+    const identityCandidates = [
+      row.resumeId,
+      row.resumeNo,
+      row.resumekey,
+      row.perUserId,
+      row.userId,
+      row.candidateId,
+      row.memberId,
+      row.userid,
+      row.real_userid,
+      baseInfo?.accountid,
+    ];
+    const hasIdentity = identityCandidates.some((value) => {
+      if (value == null) return false;
+      return String(value).trim().length > 0;
+    });
+    const nameCandidates = [
+      row.name,
+      row.userName,
+      row.candidateName,
+      row.fullName,
+      baseInfo?.resume_name,
+    ];
+    const hasName = nameCandidates.some((value) => {
+      if (value == null) return false;
+      return normalizeJob51Text(String(value)).length > 0;
+    });
+    const detailCandidates = [
+      row.workYear,
+      row.workYears,
+      row.experienceYears,
+      row.experience,
+      row.education,
+      row.educationLevel,
+      row.degree,
+      row.eduLevel,
+      row.location,
+      row.workCity,
+      row.city,
+      row.workLocation,
+      row.jobIntention,
+      row.desiredJob,
+      row.expectedPosition,
+      row.targetJob,
+      row.searchJob,
+      baseInfo?.work_year_value,
+      baseInfo?.top_degree_value,
+      baseInfo?.area_value,
+      jobIntention?.expect_work_function_value,
+      jobIntention?.expect_job_area_value,
+      recentWorkInfo?.recent_position,
+    ];
+    const hasDetail = detailCandidates.some((value) => {
+      if (value == null) return false;
+      return normalizeJob51Text(String(value)).length > 0;
+    });
+
+    return (hasIdentity && hasName) || (hasName && hasDetail);
+  }
+
+  /**
+   * Filters raw payload rows to only include valid resume rows.
+   */
+  function getJob51ResumeRows(payload) {
+    const rows = getJob51RawRows(payload);
+    return Array.isArray(rows) ? rows.filter(isLikelyJob51ResumeRow) : null;
+  }
+
+  /**
+   * Checks if the API snapshot contains 51job search data.
+   */
+  function hasJob51SearchSnapshot() {
+    if (!Array.isArray(apiSnapshot.job51SearchRows)) return false;
+    return (
+      apiSnapshot.job51SearchRows.length > 0 ||
+      typeof apiSnapshot.job51Total === "number"
+    );
+  }
+
+  /**
+   * Detects if the 51job page shows the empty search prompt.
+   */
+  function isJob51EmptySearchPromptVisible() {
+    if (getCurrentSourceKey() !== SOURCE_KEYS.JOB51) return false;
+    const pageText = normalizeResumeText(document.body?.textContent || "");
+    return pageText.includes("输入关键词搜索寻找匹配人才");
+  }
+
+  /**
+   * Detects if the 51job page has triggered rate limiting by checking DOM text.
+   */
+  function isJob51RateLimitedPage() {
+    if (getCurrentSourceKey() !== SOURCE_KEYS.JOB51) return false;
+    const pageText = normalizeResumeText(document.body?.textContent || "");
+    return (
+      pageText.includes("搜索访问太快") && pageText.includes("请60分钟后再试")
+    );
+  }
+
+  /**
+   * Throws if the 51job page is rate-limited. Called as a guard before operations.
+   */
+  function ensureJob51PageAllowed() {
+    if (isJob51RateLimitedPage()) {
+      throw new Error(JOB51_RATE_LIMIT_ERROR_MESSAGE);
+    }
+  }
+
+  /**
+   * Waits for the configured cooldown period between 51job page navigations.
+   */
+  async function waitForJob51Cooldown() {
+    if (getCurrentSourceKey() !== SOURCE_KEYS.JOB51) return;
+    await delay(JOB51_PAGE_COOLDOWN_MS);
+  }
+
+  /**
+   * Checks if an error message string indicates 51job rate limiting.
+   */
+  function isJob51RateLimitedErrorMessage(message) {
+    const normalized = normalizeResumeText(String(message || ""));
+    return (
+      normalized.includes("搜索访问太快") ||
+      normalized.includes("请60分钟后再试") ||
+      normalized.includes("访问频率限制") ||
+      normalized.includes("频率限制") ||
+      normalized.toLowerCase().includes("rate limit")
+    );
+  }
+
+  /**
+   * Checks if an API response payload indicates rate limiting.
+   * Searches common error fields (error, message, msg, detail) for rate-limit text.
+   */
+  function isJob51RateLimitedPayload(payload) {
+    if (!payload) return false;
+    const candidates = [
+      payload.error,
+      payload.message,
+      payload.msg,
+      payload.detail,
+      payload.data?.error,
+      payload.data?.message,
+      payload.data?.msg,
+      payload.data?.detail,
+    ];
+    return candidates.some((value) => isJob51RateLimitedErrorMessage(value));
+  }
+
+  /**
+   * Checks if a 51job detail API response payload indicates an error.
+   * Returns true for result=0 responses or non-200 error codes with messages.
+   */
+  function isJob51DetailApiErrorPayload(payload) {
+    if (!payload || typeof payload !== "object") return false;
+    if (payload.result === "0" || payload.result === 0) return true;
+    return (
+      typeof payload.code === "string" &&
+      payload.code.length > 0 &&
+      payload.code !== "200" &&
+      payload.code !== "0" &&
+      typeof payload.msg === "string" &&
+      payload.msg.length > 0
+    );
+  }
+
+  return {
+    isJob51DetailPage,
+    isJob51DetailReady,
+    normalizeJob51AuthContext,
+    getJob51RawRows,
+    getJob51TotalFromPayload,
+    isLikelyJob51ResumeRow,
+    getJob51ResumeRows,
+    hasJob51SearchSnapshot,
+    isJob51EmptySearchPromptVisible,
+    isJob51RateLimitedPage,
+    ensureJob51PageAllowed,
+    waitForJob51Cooldown,
+    isJob51RateLimitedErrorMessage,
+    isJob51RateLimitedPayload,
+    isJob51DetailApiErrorPayload,
+  };
+}

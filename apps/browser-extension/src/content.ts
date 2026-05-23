@@ -27,6 +27,7 @@ import {
 } from "./lib/resume-text-utils";
 import { createSeekExtractor } from "./lib/seek-extractor";
 import { createJob5156Extractor } from "./lib/job5156-extractor";
+import { createJob51SearchExtractor } from "./lib/job51-search-extractor";
 
 /**
  * 智通直聘 Resume Collector - Content Script
@@ -509,52 +510,6 @@ function getCurrentSourceKey() {
   return SOURCE_KEYS.UNKNOWN;
 }
 
-function isJob51DetailPage() {
-  return (
-    getCurrentSourceKey() === SOURCE_KEYS.JOB51 &&
-    /\/Revision\/talent\/resume\/detail/i.test(window.location.pathname)
-  );
-}
-
-function isJob51DetailReady() {
-  return isJob51DetailPage() && !!apiSnapshot.job51DetailPayload;
-}
-
-function normalizeJob51AuthContext(requestHeaders, request) {
-  const headers =
-    requestHeaders && typeof requestHeaders === "object" ? requestHeaders : {};
-  const requestBody = request && typeof request === "object" ? request : {};
-  const pick = (...keys) => {
-    for (const key of keys) {
-      const headerValue = headers[key] ?? headers[key.toLowerCase()];
-      if (typeof headerValue === "string" && headerValue.trim()) {
-        return headerValue.trim();
-      }
-      const requestValue = requestBody[key];
-      if (typeof requestValue === "string" && requestValue.trim()) {
-        return requestValue.trim();
-      }
-    }
-    return "";
-  };
-
-  const accesstoken = pick("accesstoken", "access-token", "accessToken");
-  const guid = pick("guid");
-  const property = pick("property");
-  const sign = pick("sign");
-
-  if (!accesstoken && !guid && !property && !sign) {
-    return null;
-  }
-
-  return {
-    ...(accesstoken ? { accesstoken } : {}),
-    ...(guid ? { guid } : {}),
-    ...(property ? { property } : {}),
-    ...(sign ? { sign } : {}),
-  };
-}
-
 function getApiSnapshotCount() {
   if (Array.isArray(apiSnapshot.searchRows)) {
     return apiSnapshot.searchRows.length;
@@ -573,142 +528,11 @@ function getApiSnapshotCount() {
   return 0;
 }
 
-function getJob51RawRows(payload) {
-  const rows =
-    payload?.data?.list ||
-    payload?.data?.items ||
-    payload?.data?.rows ||
-    payload?.list ||
-    payload?.items ||
-    payload?.rows ||
-    (Array.isArray(payload?.data) ? payload.data : null) ||
-    (Array.isArray(payload) ? payload : null);
-  return Array.isArray(rows) ? rows : null;
-}
-
-function getJob51TotalFromPayload(payload) {
-  const total = payload?.data?.total ?? payload?.total;
-  return typeof total === "number" && total >= 0 ? total : null;
-}
-
-function isLikelyJob51ResumeRow(row) {
-  if (!row || typeof row !== "object") return false;
-  const baseInfo =
-    row.base_info && typeof row.base_info === "object" ? row.base_info : null;
-  const jobIntention =
-    row.job_intention && typeof row.job_intention === "object"
-      ? row.job_intention
-      : null;
-  const recentWorkInfo =
-    row.recent_work_info && typeof row.recent_work_info === "object"
-      ? row.recent_work_info
-      : null;
-  const identityCandidates = [
-    row.resumeId,
-    row.resumeNo,
-    row.resumekey,
-    row.perUserId,
-    row.userId,
-    row.candidateId,
-    row.memberId,
-    row.userid,
-    row.real_userid,
-    baseInfo?.accountid,
-  ];
-  const hasIdentity = identityCandidates.some((value) => {
-    if (value == null) return false;
-    return String(value).trim().length > 0;
-  });
-  const nameCandidates = [
-    row.name,
-    row.userName,
-    row.candidateName,
-    row.fullName,
-    baseInfo?.resume_name,
-  ];
-  const hasName = nameCandidates.some((value) => {
-    if (value == null) return false;
-    return normalizeJob51Text(String(value)).length > 0;
-  });
-  const detailCandidates = [
-    row.workYear,
-    row.workYears,
-    row.experienceYears,
-    row.experience,
-    row.education,
-    row.educationLevel,
-    row.degree,
-    row.eduLevel,
-    row.location,
-    row.workCity,
-    row.city,
-    row.workLocation,
-    row.jobIntention,
-    row.desiredJob,
-    row.expectedPosition,
-    row.targetJob,
-    row.searchJob,
-    baseInfo?.work_year_value,
-    baseInfo?.top_degree_value,
-    baseInfo?.area_value,
-    jobIntention?.expect_work_function_value,
-    jobIntention?.expect_job_area_value,
-    recentWorkInfo?.recent_position,
-  ];
-  const hasDetail = detailCandidates.some((value) => {
-    if (value == null) return false;
-    return normalizeJob51Text(String(value)).length > 0;
-  });
-
-  return (hasIdentity && hasName) || (hasName && hasDetail);
-}
-
-function getJob51ResumeRows(payload) {
-  const rows = getJob51RawRows(payload);
-  return Array.isArray(rows) ? rows.filter(isLikelyJob51ResumeRow) : null;
-}
-
-function hasJob51SearchSnapshot() {
-  if (!Array.isArray(apiSnapshot.job51SearchRows)) return false;
-  return (
-    apiSnapshot.job51SearchRows.length > 0 ||
-    typeof apiSnapshot.job51Total === "number"
-  );
-}
-
-function isJob51EmptySearchPromptVisible() {
-  if (getCurrentSourceKey() !== SOURCE_KEYS.JOB51) return false;
-  const pageText = normalizeResumeText(document.body?.textContent || "");
-  return pageText.includes("输入关键词搜索寻找匹配人才");
-}
-
-function isJob51RateLimitedPage() {
-  if (getCurrentSourceKey() !== SOURCE_KEYS.JOB51) return false;
-  const pageText = normalizeResumeText(document.body?.textContent || "");
-  return (
-    pageText.includes("搜索访问太快") && pageText.includes("请60分钟后再试")
-  );
-}
-
-function ensureJob51PageAllowed() {
-  if (isJob51RateLimitedPage()) {
-    throw new Error(JOB51_RATE_LIMIT_ERROR_MESSAGE);
-  }
-}
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function waitForJob51Cooldown() {
-  if (getCurrentSourceKey() !== SOURCE_KEYS.JOB51) return;
-  SyncStatusWidget.show({
-    state: "progress",
-    message: "51job 冷却中，暂缓翻页",
-    hint: `固定等待 ${Math.round(JOB51_PAGE_COOLDOWN_MS / 1000)} 秒，避免触发访问限制`,
-  });
-  await delay(JOB51_PAGE_COOLDOWN_MS);
-}
 
 function isExtractionReady() {
   if (getCurrentSourceKey() === SOURCE_KEYS.JOB51) {
@@ -1123,44 +947,34 @@ const {
   normalizeJob5156ProfileUrlForExport,
 } = _job5156Extractor;
 
-function isJob51RateLimitedErrorMessage(message) {
-  const normalized = normalizeResumeText(String(message || ""));
-  return (
-    normalized.includes("搜索访问太快") ||
-    normalized.includes("请60分钟后再试") ||
-    normalized.includes("访问频率限制") ||
-    normalized.includes("频率限制") ||
-    normalized.toLowerCase().includes("rate limit")
-  );
-}
+const _job51SearchExtractor = createJob51SearchExtractor({
+  getCurrentSourceKey,
+  SOURCE_KEYS,
+  apiSnapshot,
+  normalizeJob51Text,
+  normalizeResumeText,
+  JOB51_PAGE_COOLDOWN_MS,
+  JOB51_RATE_LIMIT_ERROR_MESSAGE,
+  delay,
+});
+const {
+  isJob51DetailPage,
+  isJob51DetailReady,
+  normalizeJob51AuthContext,
+  getJob51RawRows,
+  getJob51TotalFromPayload,
+  isLikelyJob51ResumeRow,
+  getJob51ResumeRows,
+  hasJob51SearchSnapshot,
+  isJob51EmptySearchPromptVisible,
+  isJob51RateLimitedPage,
+  ensureJob51PageAllowed,
+  waitForJob51Cooldown,
+  isJob51RateLimitedErrorMessage,
+  isJob51RateLimitedPayload,
+  isJob51DetailApiErrorPayload,
+} = _job51SearchExtractor;
 
-function isJob51RateLimitedPayload(payload) {
-  if (!payload) return false;
-  const candidates = [
-    payload.error,
-    payload.message,
-    payload.msg,
-    payload.detail,
-    payload.data?.error,
-    payload.data?.message,
-    payload.data?.msg,
-    payload.data?.detail,
-  ];
-  return candidates.some((value) => isJob51RateLimitedErrorMessage(value));
-}
-
-function isJob51DetailApiErrorPayload(payload) {
-  if (!payload || typeof payload !== "object") return false;
-  if (payload.result === "0" || payload.result === 0) return true;
-  return (
-    typeof payload.code === "string" &&
-    payload.code.length > 0 &&
-    payload.code !== "200" &&
-    payload.code !== "0" &&
-    typeof payload.msg === "string" &&
-    payload.msg.length > 0
-  );
-}
 
 async function collectJob51DetailFromBackground(resumeId) {
   try {
