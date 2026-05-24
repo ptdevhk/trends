@@ -1,10 +1,57 @@
-// @ts-nocheck
 /**
  * Extraction pipeline orchestrators — site-generic wait helpers, pagination,
  * resume extraction dispatch, detail backfill. Dependencies injected from content.ts.
  */
 
-export function createExtractionPipeline(deps) {
+export interface ExtractionPipelineDeps extends Record<string, unknown> {
+  getCurrentSourceKey: () => string;
+  SOURCE_KEYS: Record<string, string>;
+  apiSnapshot: Record<string, unknown>;
+  SELECTORS: Record<string, string>;
+  getApiSnapshotCount: () => number;
+  isExtractionReady: () => boolean;
+  isJob51RateLimitedPage: () => boolean;
+  JOB51_RATE_LIMIT_ERROR_MESSAGE: string;
+  getSeekCandidateIdentity: (candidate: unknown) => { profileId: string; profileType: string };
+  chrome: { storage: { local: { get: (defaults: unknown, cb: (items: unknown) => void) => void } } };
+  DEFAULT_COLLECTION_GUARDS: unknown;
+  CONTENT_SCRIPT_SOURCE: string;
+  JOB51_NEXT_PAGE_EVENT: string;
+  document: Document;
+  window: Window;
+  resolveCurrentJob51DetailFetchDelayMs: () => number;
+  JOB51_DETAIL_FETCH_CONCURRENCY: number;
+  enrich51JobSearchResumeWithDetail: (resume: unknown, extractedAt: string) => Promise<{ resume: unknown; enriched: boolean; rateLimited: boolean }>;
+  syncCurrentPageToServer: (resumes: unknown[]) => Promise<unknown>;
+  delay: (ms: number) => Promise<void>;
+  pipelineState: { runId: number; chain: Promise<unknown> };
+  isJob51DetailPage: () => boolean;
+  filterCurrentResumesByAgeRange: (resumes: unknown) => unknown[];
+  extractJob51DetailResume: () => unknown[];
+  extract51JobResumes: () => unknown[];
+  isSeekProfileMode: () => boolean;
+  hasSeekProfileSnapshot: () => boolean;
+  extractSeekProfileResume: () => unknown[];
+  hasSeekTalentSearchSnapshot: () => boolean;
+  extractSeekTalentSearchResumes: () => unknown[];
+  hasSeekListSnapshot: () => boolean;
+  extractSeekResumes: () => unknown[];
+  isJob5156DetailPage: () => boolean;
+  extractJob5156DetailResume: () => unknown[];
+  getApiRowForIndex: (index: number) => unknown;
+  extractSingleResume: (card: Element, apiRow: unknown) => Record<string, unknown>;
+  isJob51DetailReady: () => boolean;
+  getSeekProfileRequest: () => unknown;
+  getSeekTalentSearchRequest: () => unknown;
+  getSeekRecommendedRequest: () => unknown;
+  SEEK_PROFILE_TYPE: string;
+  getJob5156DetailRoot: () => unknown;
+  getSeekNextPageLinkForMode: () => HTMLElement | null;
+  getPaginationInfo: () => { currentPage: number; totalPages: number; totalItems: number; hasNextPage: boolean };
+  asHTMLElement: (el: unknown) => HTMLElement | null;
+}
+
+export function createExtractionPipeline(deps: ExtractionPipelineDeps) {
   const {
     getCurrentSourceKey,
     SOURCE_KEYS,
@@ -67,7 +114,7 @@ export function createExtractionPipeline(deps) {
     return new Promise((resolve) => {
       chrome.storage.local.get(
         { collectionGuards: DEFAULT_COLLECTION_GUARDS },
-        (items) => resolve(items.collectionGuards || {}),
+        (items) => resolve((items as Record<string, unknown>).collectionGuards || {}),
       );
     });
   }
@@ -239,7 +286,7 @@ export function createExtractionPipeline(deps) {
 
       const check = () => {
         if (done) return;
-        const snapshot = apiSnapshot.seekProfile;
+        const snapshot = apiSnapshot.seekProfile as Record<string, unknown> | null;
         const identity = snapshot ? getSeekCandidateIdentity(snapshot) : null;
         // Match by profileId (numeric) or profileGuid (UUID for talentsearch)
         const snapshotGuid =
@@ -314,7 +361,7 @@ export function createExtractionPipeline(deps) {
 
     cards.forEach((card, index) => {
       try {
-        const apiRow = getApiRowForIndex(index);
+        const apiRow = getApiRowForIndex(index) as Record<string, unknown> | null;
         const resume = extractSingleResume(card, apiRow);
         resume.pageIndex = index + 1;
         if (apiRow) {
@@ -336,7 +383,7 @@ export function createExtractionPipeline(deps) {
    * @param {boolean} [options.includePage=false] - Include full page HTML
    * @returns {Object} - Raw payload
    */
-  function extractResumesRaw(options = {}) {
+  function extractResumesRaw(options: Record<string, unknown> = {}) {
     const includePage = !!(
       options &&
       typeof options === "object" &&
@@ -356,10 +403,10 @@ export function createExtractionPipeline(deps) {
           ? apiSnapshot.seekTalentSearch
           : null;
       const candidates =
-        seekTalentSearchCandidates ||
+        (seekTalentSearchCandidates ||
         (!seekProfile && hasSeekListSnapshot()
           ? apiSnapshot.seekRecommendedCandidates
-          : []);
+          : [])) as unknown[];
       const seekRequest = seekProfile
         ? getSeekProfileRequest()
         : seekTalentSearchCandidates
@@ -375,10 +422,11 @@ export function createExtractionPipeline(deps) {
             },
           ]
         : candidates.map((candidate, index) => {
+            const cand = candidate as Record<string, unknown>;
             // Talent-search nodes use profileGuid (UUID); recommended nodes use numeric profileId
             const profileId = seekTalentSearchCandidates
-              ? typeof candidate?.profileGuid === "string" && candidate.profileGuid
-                ? candidate.profileGuid
+              ? typeof cand?.profileGuid === "string" && cand.profileGuid
+                ? cand.profileGuid
                 : ""
               : getSeekCandidateIdentity(candidate).profileId;
             const profileType = SEEK_PROFILE_TYPE;
@@ -391,7 +439,7 @@ export function createExtractionPipeline(deps) {
           });
 
       if (seekProfile || candidates.length > 0) {
-        const payload = {
+        const payload: Record<string, unknown> = {
           url: win.location.href,
           extractedAt: new Date().toISOString(),
           count: cards.length,
@@ -418,8 +466,8 @@ export function createExtractionPipeline(deps) {
 
     if (isJob51DetailPage() && isJob51DetailReady()) {
       const detailResumes = extractJob51DetailResume();
-      const detailResume = detailResumes[0] || null;
-      const payload = {
+      const detailResume = detailResumes[0] as Record<string, unknown> | null;
+      const payload: Record<string, unknown> = {
         url: win.location.href,
         extractedAt: new Date().toISOString(),
         count: detailResumes.length,
@@ -464,26 +512,27 @@ export function createExtractionPipeline(deps) {
         ? [
             {
               index: 1,
-              resumeId: detailResumes[0]?.resumeId || "",
+              resumeId: (detailResumes[0] as Record<string, unknown>)?.resumeId || "",
               perUserId: "",
-              html: detailRoot?.outerHTML || "",
-              text: detailRootElement?.innerText || detailRoot?.textContent || "",
+              html: (detailRoot as HTMLElement | null)?.outerHTML || "",
+              text: detailRootElement?.innerText || (detailRoot as HTMLElement | null)?.textContent || "",
             },
           ]
         : Array.from(doc.querySelectorAll(SELECTORS.resumeCard)).map(
             (card, index) => {
-              const el = /** @type {HTMLElement} */ (card);
+              const el = card as HTMLElement;
+              const apiRow = getApiRowForIndex(index) as Record<string, unknown> | null;
               return {
                 index: index + 1,
-                resumeId: getApiRowForIndex(index)?.resumeId ?? "",
-                perUserId: getApiRowForIndex(index)?.perUserId ?? "",
+                resumeId: apiRow?.resumeId ?? "",
+                perUserId: apiRow?.perUserId ?? "",
                 html: el.outerHTML,
                 text: el.innerText,
               };
             },
           );
 
-    const payload = {
+    const payload: Record<string, unknown> = {
       url: win.location.href,
       extractedAt: new Date().toISOString(),
       count: items.length,
@@ -533,7 +582,7 @@ export function createExtractionPipeline(deps) {
 
   // --- Detail enrichment / backfill ---
 
-  async function enrich51JobSearchResumesWithDetail(resumes, options = {}) {
+  async function enrich51JobSearchResumesWithDetail(resumes: unknown[], options: Record<string, unknown> = {}) {
     if (!Array.isArray(resumes) || resumes.length === 0) return [];
 
     const extractedAt = new Date().toISOString();
@@ -602,7 +651,7 @@ export function createExtractionPipeline(deps) {
     return enriched;
   }
 
-  function queueJob51DetailBackfill(resumes, context = {}) {
+  function queueJob51DetailBackfill(resumes: unknown[], context: Record<string, unknown> = {}) {
     if (!Array.isArray(resumes) || resumes.length === 0) {
       return Promise.resolve(null);
     }
@@ -650,7 +699,7 @@ export function createExtractionPipeline(deps) {
         return null;
       }
 
-      const response = await syncCurrentPageToServer(enrichedResumes);
+      const response = await syncCurrentPageToServer(enrichedResumes) as Record<string, unknown>;
       if (!response?.success) {
         throw response?.error || response || "51job detail backfill failed";
       }

@@ -2,11 +2,11 @@
  * @vitest-environment jsdom
  */
 import { describe, it, expect, vi } from "vitest";
-import { createUiUtils } from "../ui-utils.js";
+import { createUiUtils, type UiUtilsDeps } from "../ui-utils.js";
 
 const SOURCE_KEYS = { JOB5156: "job5156", JOB51: "51job", SEEK: "seek", UNKNOWN: "unknown" };
 
-function createMockDeps(overrides: Record<string, any> = {}): Record<string, any> {
+function createMockDeps(overrides: Record<string, any> = {}): UiUtilsDeps {
   return {
     win: window as unknown as Window,
     doc: document,
@@ -37,7 +37,7 @@ function createMockDeps(overrides: Record<string, any> = {}): Record<string, any
     isJob51DetailPage: vi.fn(() => false),
     chrome: { runtime: { getManifest: vi.fn(() => ({ version: "1.0.0" })) } } as any,
     ...overrides,
-  } as unknown as Record<string, any>;
+  } as unknown as UiUtilsDeps;
 }
 
 describe("ui-utils", () => {

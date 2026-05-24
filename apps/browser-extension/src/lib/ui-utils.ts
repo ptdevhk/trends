@@ -1,10 +1,40 @@
-// @ts-nocheck
 /**
  * UI/utility functions for export, auto-sync, and collection helpers.
  * All dependencies injected from content.ts via DI factory.
  */
 
-export function createUiUtils(deps) {
+export interface UiUtilsDeps extends Record<string, unknown> {
+  win: Window;
+  doc: Document;
+  SOURCE_KEYS: Record<string, string>;
+  AUTO_EXPORT_PARAM: string;
+  AUTO_SYNC_PARAM: string;
+  AUTO_LIMIT_PARAM: string;
+  AUTO_MAX_PAGES_PARAM: string;
+  AUTO_MIN_AGE_PARAM: string;
+  AUTO_MAX_AGE_PARAM: string;
+  AUTO_SEARCH_PARAM: string;
+  AUTO_LOCATION_PARAM: string;
+  SAMPLE_NAME_PARAM: string;
+  KEYWORD_MODE_CONCAT: string;
+  KEYWORD_MODE_SPACED: string;
+  LATEST_AUTO_SYNC_SUMMARIES_STORAGE_KEY: string;
+  JOB5156_HOST: string;
+  EHIRE_51JOB_HOST: string;
+  SEEK_HOST_SUFFIX: string;
+  getPaginationInfo: () => { currentPage: number; totalPages: number; totalItems: number; hasNextPage: boolean };
+  makeRandomId: () => string;
+  getExternalAccessorStatus: () => Record<string, unknown>;
+  getAgeRangeFromUrl: (search: string, minParam: string, maxParam: string) => { enabled: boolean; minAge?: number; maxAge?: number };
+  filterResumesByAgeRange: (resumes: unknown, search: string, minParam: string, maxParam: string) => unknown[];
+  resolveJob51CollectionLimits: (limit: number, maxPages: number, search: string) => { limit: number; maxPages: number };
+  resolveJob51DetailFetchDelayMs: (search: string) => number;
+  resolveJob51AutoSyncDetailWaitMode: (search: string) => string;
+  isJob51DetailPage: () => boolean;
+  chrome: { runtime?: { getManifest?: () => { version: string }; sendMessage?: (message: unknown) => Promise<unknown> }; storage?: { local?: { get?: (defaults: unknown, cb: (items: unknown) => void) => void; set?: (items: unknown) => void } } };
+}
+
+export function createUiUtils(deps: UiUtilsDeps) {
   const {
     // Window/Document
     win,
@@ -269,11 +299,11 @@ export function createUiUtils(deps) {
    * }} [options]
    */
   function buildAutoSyncProgressHint({
-    limit,
-    totalSubmitted,
+    limit = 0,
+    totalSubmitted = 0,
     selectedCount = null,
     ageHint = "",
-  } = {}) {
+  }: { limit?: number | null; totalSubmitted?: number | null; selectedCount?: number | null; ageHint?: string } = {}) {
     const progressHint =
       limit > 0
         ? `\u5df2\u91c7\u96c6 ${Math.min(totalSubmitted, limit)}/${limit}`
