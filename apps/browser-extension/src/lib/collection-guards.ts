@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Collection guard utilities — field validation and guard application
  * for resume data quality during extraction.
