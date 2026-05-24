@@ -6,6 +6,7 @@ import {
   ResumeSubmitSummarySchema,
 } from "../schemas/resumes.js";
 import { resolveConvexUrl, submitResumeImport } from "../services/resume-import-service.js";
+import { logger } from "../services/logger.js";
 
 const app = new OpenAPIHono();
 
@@ -33,7 +34,7 @@ async function recordSyncError(errorMessage: string): Promise<void> {
       }),
     });
   } catch (err) {
-    console.error("Failed to record sync error event", err);
+    logger.error("Failed to record sync error event", err, { route: "resume_submit" });
   }
 }
 
@@ -169,7 +170,7 @@ app.openapi(resumeSubmitRoute, async (c) => {
 
     return c.json(result, 200);
   } catch (error) {
-    console.error("Failed to submit resumes", error);
+    logger.error("Failed to submit resumes", error, { route: "resume_submit" });
     const msg = error instanceof Error ? error.message : "Failed to submit resumes";
     await recordSyncError(msg);
     return c.json({ success: false as const, error: "Failed to submit resumes" }, 500);

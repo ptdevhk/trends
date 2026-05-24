@@ -2,6 +2,7 @@ import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { resolveConvexUrl } from "../services/resume-import-service.js";
 import { aiSummaryService } from "../services/ai-summary-service.js";
 import { isRecord } from "@trends/shared";
+import { logger } from "../services/logger.js";
 
 const AI_SUMMARY_TTL_MS = 60 * 60 * 1000;
 const AI_SUMMARY_STALE_AFTER_MS = 50 * 60 * 1000;
@@ -173,7 +174,7 @@ app.openapi(searchSummaryRoute, async (c) => {
       generatedAt: now,
     }, 200);
   } catch (error) {
-    console.error("Failed to generate AI search summary", error);
+    logger.error("Failed to generate AI search summary", error, { route: "ai_summary" });
     if (
       cached
       && typeof cached.summary === "string"

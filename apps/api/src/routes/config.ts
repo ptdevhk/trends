@@ -23,6 +23,7 @@ import { getMaskedApiKey, loadAIConfig, validateAIConfig } from "../services/ai-
 import { configSourceInspector, UnknownConfigSourceError } from "../services/config-source-inspector.js";
 import { customKeywordService } from "../services/custom-keyword-service.js";
 import { workspaceConfigService } from "../services/workspace-config-service.js";
+import { logger } from "../services/logger.js";
 
 const app = new OpenAPIHono();
 const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -207,7 +208,7 @@ function readPackageVersion(relativePath: string): string {
       return parsed.version.trim();
     }
   } catch (error) {
-    console.error(`Failed to read package version from ${relativePath}`, error);
+    logger.error(`Failed to read package version from ${relativePath}`, error, { route: "config" });
   }
   return "unknown";
 }
@@ -321,7 +322,7 @@ app.get("/agents", async (c) => {
 
     return c.json({ success: true as const, config: parsedResult.data }, 200);
   } catch (error) {
-    console.error("Failed to load agents config", error);
+    logger.error("Failed to load agents config", error, { route: "config" });
     return c.json({ success: false as const, error: "Failed to load agents configuration" }, 500);
   }
 });
@@ -338,7 +339,7 @@ app.put("/agents", requireAdmin, async (c) => {
     await workspaceConfigService.setAgentOverrides(c.var.workspaceSlug, parsedBody.data);
     return c.json({ success: true as const, config: parsedBody.data }, 200);
   } catch (error) {
-    console.error("Failed to save agents config", error);
+    logger.error("Failed to save agents config", error, { route: "config" });
     return c.json({ success: false as const, error: "Failed to save agents configuration" }, 500);
   }
 });
@@ -366,7 +367,7 @@ app.get("/ai-status", (c) => {
       200,
     );
   } catch (error) {
-    console.error("Failed to load AI status", error);
+    logger.error("Failed to load AI status", error, { route: "config" });
     return c.json({ success: false as const, error: "Failed to load AI status" }, 500);
   }
 });
@@ -383,7 +384,7 @@ app.get("/custom-keywords", async (c) => {
     });
     return c.json(response, 200);
   } catch (error) {
-    console.error("Failed to load custom keywords", error);
+    logger.error("Failed to load custom keywords", error, { route: "config" });
     return c.json({ success: false as const, error: "Failed to load custom keywords" }, 500);
   }
 });
@@ -421,7 +422,7 @@ app.put("/custom-keywords/system-locations/:id", requireAdmin, async (c) => {
     await workspaceConfigService.setWorkspaceCustomKeywords(workspaceSlug, workspaceConfig);
     return c.json({ success: true as const, item: updatedItem }, 200);
   } catch (error) {
-    console.error("Failed to update system location visibility", error);
+    logger.error("Failed to update system location visibility", error, { route: "config" });
     return c.json({ success: false as const, error: "Failed to update system location visibility" }, 500);
   }
 });
@@ -459,7 +460,7 @@ app.post("/custom-keywords", requireAdmin, async (c) => {
     const tag = updatedConfig.tags.find((item) => item.id === parsedBody.data.id) ?? parsedBody.data;
     return c.json({ success: true as const, tag }, 201);
   } catch (error) {
-    console.error("Failed to add custom keyword", error);
+    logger.error("Failed to add custom keyword", error, { route: "config" });
     return c.json({ success: false as const, error: "Failed to add custom keyword" }, 500);
   }
 });
@@ -499,7 +500,7 @@ app.put("/custom-keywords/:id", requireAdmin, async (c) => {
     const tag = updatedConfig.tags.find((item) => item.id === id) ?? parsedBody.data;
     return c.json({ success: true as const, tag }, 200);
   } catch (error) {
-    console.error("Failed to update custom keyword", error);
+    logger.error("Failed to update custom keyword", error, { route: "config" });
     return c.json({ success: false as const, error: "Failed to update custom keyword" }, 500);
   }
 });
@@ -530,7 +531,7 @@ app.delete("/custom-keywords/:id", requireAdmin, async (c) => {
 
     return c.json({ success: true as const }, 200);
   } catch (error) {
-    console.error("Failed to delete custom keyword", error);
+    logger.error("Failed to delete custom keyword", error, { route: "config" });
     return c.json({ success: false as const, error: "Failed to delete custom keyword" }, 500);
   }
 });
@@ -559,7 +560,7 @@ app.post("/custom-keywords/workflow-seeds", requireAdmin, async (c) => {
     const workflowSeed = updatedConfig.workflowSeeds.find((item) => item.id === parsedBody.data.id) ?? parsedBody.data;
     return c.json({ success: true as const, workflowSeed }, 201);
   } catch (error) {
-    console.error("Failed to add workflow seed", error);
+    logger.error("Failed to add workflow seed", error, { route: "config" });
     return c.json({ success: false as const, error: "Failed to add workflow seed" }, 500);
   }
 });
@@ -593,7 +594,7 @@ app.put("/custom-keywords/workflow-seeds/:id", requireAdmin, async (c) => {
     const workflowSeed = updatedConfig.workflowSeeds.find((item) => item.id === id) ?? parsedBody.data;
     return c.json({ success: true as const, workflowSeed }, 200);
   } catch (error) {
-    console.error("Failed to update workflow seed", error);
+    logger.error("Failed to update workflow seed", error, { route: "config" });
     return c.json({ success: false as const, error: "Failed to update workflow seed" }, 500);
   }
 });
@@ -623,7 +624,7 @@ app.delete("/custom-keywords/workflow-seeds/:id", requireAdmin, async (c) => {
     await workspaceConfigService.setWorkspaceCustomKeywords(workspaceSlug, workspaceConfig);
     return c.json({ success: true as const }, 200);
   } catch (error) {
-    console.error("Failed to delete workflow seed", error);
+    logger.error("Failed to delete workflow seed", error, { route: "config" });
     return c.json({ success: false as const, error: "Failed to delete workflow seed" }, 500);
   }
 });
@@ -633,7 +634,7 @@ app.get("/rule-weights", async (c) => {
     const config = await workspaceConfigService.getRuleWeights(c.var.workspaceSlug);
     return c.json({ success: true as const, config }, 200);
   } catch (error) {
-    console.error("Failed to load rule weights", error);
+    logger.error("Failed to load rule weights", error, { route: "config" });
     return c.json({ success: false as const, error: "Failed to load rule weights" }, 500);
   }
 });
@@ -650,7 +651,7 @@ app.put("/rule-weights", requireAdmin, async (c) => {
     const merged = await workspaceConfigService.getRuleWeights(c.var.workspaceSlug);
     return c.json({ success: true as const, config: merged }, 200);
   } catch (error) {
-    console.error("Failed to update rule weights", error);
+    logger.error("Failed to update rule weights", error, { route: "config" });
     return c.json({ success: false as const, error: "Failed to update rule weights" }, 500);
   }
 });
@@ -664,7 +665,7 @@ app.get("/resume-field-usage-policy", async (c) => {
     }
     return c.json({ success: true as const, config: parsed.data }, 200);
   } catch (error) {
-    console.error("Failed to load resume field usage policy", error);
+    logger.error("Failed to load resume field usage policy", error, { route: "config" });
     return c.json({ success: false as const, error: "Failed to load resume field usage policy" }, 500);
   }
 });
@@ -681,7 +682,7 @@ app.put("/resume-field-usage-policy", requireAdmin, async (c) => {
     const merged = await workspaceConfigService.getResumeFieldUsagePolicy(c.var.workspaceSlug);
     return c.json({ success: true as const, config: merged }, 200);
   } catch (error) {
-    console.error("Failed to update resume field usage policy", error);
+    logger.error("Failed to update resume field usage policy", error, { route: "config" });
     return c.json({ success: false as const, error: "Failed to update resume field usage policy" }, 500);
   }
 });
@@ -695,7 +696,7 @@ app.get("/learning-log", async (c) => {
     }
     return c.json({ success: true as const, entries: parsed.data }, 200);
   } catch (error) {
-    console.error("Failed to load learning log", error);
+    logger.error("Failed to load learning log", error, { route: "config" });
     return c.json({ success: false as const, error: "Failed to load learning log" }, 500);
   }
 });
@@ -711,7 +712,7 @@ app.post("/learning-log", requireAdmin, async (c) => {
     const entry = await workspaceConfigService.appendLearningLogEntry(c.var.workspaceSlug, parsed.data.observation);
     return c.json({ success: true as const, entry }, 201);
   } catch (error) {
-    console.error("Failed to append learning log", error);
+    logger.error("Failed to append learning log", error, { route: "config" });
     return c.json({ success: false as const, error: "Failed to append learning log" }, 500);
   }
 });
@@ -725,7 +726,7 @@ app.get("/system-metadata", async (c) => {
     }
     return c.json({ success: true as const, metadata: parsed.data }, 200);
   } catch (error) {
-    console.error("Failed to load system metadata", error);
+    logger.error("Failed to load system metadata", error, { route: "config" });
     return c.json({ success: false as const, error: "Failed to load system metadata" }, 500);
   }
 });
@@ -743,7 +744,7 @@ app.get("/resume-display-limits", async (c) => {
     }
     return c.json(parsed.data, 200);
   } catch (error) {
-    console.error("Failed to load resume display limits", error);
+    logger.error("Failed to load resume display limits", error, { route: "config" });
     return c.json({ success: false as const, error: "Failed to load resume display limits" }, 500);
   }
 });
@@ -761,7 +762,7 @@ app.get("/sources", async (c) => {
     }
     return c.json({ success: true as const, sources: parsed.data }, 200);
   } catch (error) {
-    console.error("Failed to list config sources", error);
+    logger.error("Failed to list config sources", error, { route: "config" });
     return c.json({ success: false as const, error: "Failed to list config sources" }, 500);
   }
 });
@@ -776,7 +777,7 @@ app.get("/source-groups", async (c) => {
     }
     return c.json({ success: true as const, groups: parsed.data }, 200);
   } catch (error) {
-    console.error("Failed to list config source groups", error);
+    logger.error("Failed to list config source groups", error, { route: "config" });
     return c.json({ success: false as const, error: "Failed to list config source groups" }, 500);
   }
 });
@@ -794,7 +795,7 @@ app.get("/sources/:key", async (c) => {
     if (error instanceof UnknownConfigSourceError) {
       return c.json({ success: false as const, error: error.message }, 404);
     }
-    console.error("Failed to load config source", error);
+    logger.error("Failed to load config source", error, { route: "config" });
     return c.json({ success: false as const, error: "Failed to load config source" }, 500);
   }
 });

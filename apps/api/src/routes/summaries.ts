@@ -14,6 +14,7 @@ import { SummaryDataService } from "../services/summaries/summary-data-service.j
 import { summaryDispatcher } from "../services/summaries/summary-dispatcher.js";
 import { SummaryRenderer } from "../services/summaries/summary-renderer.js";
 import { workspaceConfigService } from "../services/workspace-config-service.js";
+import { logger } from "../services/logger.js";
 import {
   WorkspaceSummaryRunStorage,
   type StoredWorkspaceSummaryRun,
@@ -832,7 +833,7 @@ app.openapi(previewRoute, async (c) => {
       run: toPublicSummaryRun(run),
     }, 200);
   } catch (error) {
-    console.error("Failed to preview summary:", error);
+    logger.error("Failed to preview summary:", error, { route: "summaries" });
     return c.json({
       success: false as const,
       error: error instanceof Error ? error.message : "Unknown error",
@@ -953,7 +954,7 @@ app.openapi(runRoute, async (c) => {
         error: error instanceof Error ? error.message : "Unknown error",
       });
     }
-    console.error("Failed to run summary:", error);
+    logger.error("Failed to run summary:", error, { route: "summaries" });
     return c.json({
       success: false as const,
       error: error instanceof Error ? error.message : "Unknown error",

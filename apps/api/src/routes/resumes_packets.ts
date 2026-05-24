@@ -19,6 +19,7 @@ import {
   ReviewPacketSummarySendResponseSchema,
   ReviewPacketTrackedExportResponseSchema,
 } from "../schemas/index.js";
+import { logger } from "../services/logger.js";
 import { config } from "../services/config.js";
 import { ResumeService } from "../services/resume-service.js";
 import { DataNotFoundError } from "../services/errors.js";
@@ -531,7 +532,7 @@ function buildResumeExportErrorResponse(c: Context, error: unknown) {
     return c.json({ success: false, error: error.message }, 404);
   }
 
-  console.error("Failed to export resumes:", error);
+  logger.error("Failed to export resumes", error, { route: "resumes/export" });
   const message = error instanceof Error ? error.message : String(error);
   return c.json({ success: false, error: message }, 500);
 }
@@ -541,7 +542,7 @@ function buildReviewPacketErrorResponse(c: Context, error: unknown) {
     return c.json({ success: false as const, error: error.message }, 404);
   }
 
-  console.error("Review packet flow failed:", error);
+  logger.error("Review packet flow failed", error, { route: "review-packets" });
   const message = error instanceof Error ? error.message : String(error);
   return c.json({ success: false as const, error: message }, 500);
 }

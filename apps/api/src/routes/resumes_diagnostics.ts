@@ -2,6 +2,7 @@ import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { callConvexQuery, isConvexPaginatedQueryPage } from "../services/convex-utils.js";
 import { SkillsKnowledgeService } from "../services/skills-knowledge.js";
 import { config } from "../services/config.js";
+import { logger } from "../services/logger.js";
 import { resolveResumeDiagnosticsSourceKey } from "@trends/shared";
 import {
   AnalysisTasksResponseSchema,
@@ -58,7 +59,7 @@ app.get("/api/resumes/analysis-tasks", async (c) => {
       200,
     );
   } catch (error) {
-    console.error("Failed to list analysis tasks", error);
+    logger.error("Failed to list analysis tasks", error, { route: "resumes_diagnostics" });
     const message = error instanceof Error ? error.message : String(error);
     return c.json({ success: false, error: message }, 500);
   }
