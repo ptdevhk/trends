@@ -10,6 +10,7 @@ import { api } from "../_generated/api.js";
 import { internal } from "../_generated/api.js";
 import schema from "../schema.js";
 import type { Doc, Id } from "../_generated/dataModel.js";
+import { rrfMerge } from "../embeddings.js";
 
 const modules = (import.meta as any).glob("../**/*.ts", { eager: false });
 
@@ -262,5 +263,124 @@ describe("embeddings (convex-test)", () => {
       expect(stats.latestModel).toBe("text-embedding-3-small");
       expect(stats.latestGeneratedAt).toBeGreaterThan(0);
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Unit tests for RRF merge logic (pure function, no Convex needed)
+// ---------------------------------------------------------------------------
+
+describe("rrfMerge (unit)", () => {
+  it("merges BM25 and vector results with RRF scoring", () => {
+    const bm25Results = [
+      { id: "r1", data: { name: "Alice" } },
+      { id: "r2", data: { name: "Bob" } },
+      { id: "r3", data: { name: "Carol" } },
+    ];
+    const vectorResults = [
+      { id: "r2" },  // Also in BM25 (rank 2) → gets both scores
+      { id: "r4" },  // Vector-only → gets only semantic score
+      { id: "r1" },  // Also in BM25 (rank 1) → gets both scores
+    ];
+
+    const result = rrfMerge({
+      bm25Results,
+      vectorResults,
+      bm25Weight: 0.5,
+      semanticWeight: 0.5,
+    });
+
+    expect(result.bm25Count).toBe(3);
+    expect(result.vectorCount).toBe(3);
+    expect(result.merged.length).toBe(4); // r1, r2, r3, r4
+
+    // r1 and r2 should rank highest (both BM25 + vector contributions)
+    const topIds = result.merged.slice(0, 2).map((r) => r.id);
+    expect(topIds).toContain("r1");
+    expect(topIds).toContain("r2");
+  });
+
+  it("returns BM25 order when no vector results", () => {
+    const bm25Results = [
+      { id: "r1", data: { name: "Alice" } },
+      { id: "r2", data: { name: "Bob" } },
+    ];
+
+    const result = rrfMerge({
+      bm25Results,
+      vectorResults: [],
+      bm25Weight: 0.5,
+      semanticWeight: 0.5,
+    });
+
+    expect(result.merged.length).toBe(2);
+    expect(result.merged[0].id).toBe("r1");
+    expect(result.merged[1].id).toBe("r2");
+  });
+
+  it("returns vector order when no BM25 results", () => {
+    const vectorResults = [
+      { id: "r1" },
+      { id: "r2" },
+    ];
+
+    const result = rrfMerge({
+      bm25Results: [],
+      vectorResults,
+      bm25Weight: 0.5,
+      semanticWeight: 0.5,
+    });
+
+    expect(result.merged.length).toBe(2);
+    expect(result.merged[0].id).toBe("r1");
+    expect(result.merged[0].data).toEqual({}); // No BM25 data
+  });
+
+  it("applies weight asymmetry correctly", () => {
+    const bm25Results = [
+      { id: "r1", data: {} },
+    ];
+    const vectorResults = [
+      { id: "r2" },
+    ];
+
+    // With 100% BM25 weight, r1 should score higher
+    const bm25Heavy = rrfMerge({
+      bm25Results,
+      vectorResults: [{ id: "r2" }],
+      bm25Weight: 1.0,
+      semanticWeight: 0.0,
+    });
+    expect(bm25Heavy.merged[0].id).toBe("r1");
+
+    // With 100% semantic weight, r2 should score higher
+    const semanticHeavy = rrfMerge({
+      bm25Results,
+      vectorResults: [{ id: "r2" }],
+      bm25Weight: 0.0,
+      semanticWeight: 1.0,
+    });
+    expect(semanticHeavy.merged[0].id).toBe("r2");
+  });
+
+  it("deduplicates when same ID appears in both lists", () => {
+    const bm25Results = [
+      { id: "r1", data: { source: "bm25" } },
+    ];
+    const vectorResults = [
+      { id: "r1" },  // Same resume in both
+    ];
+
+    const result = rrfMerge({
+      bm25Results,
+      vectorResults,
+      bm25Weight: 0.5,
+      semanticWeight: 0.5,
+    });
+
+    expect(result.merged.length).toBe(1);
+    expect(result.merged[0].id).toBe("r1");
+    // Data comes from BM25 (primary source)
+    expect(result.merged[0].data).toEqual({ source: "bm25" });
   });
 });

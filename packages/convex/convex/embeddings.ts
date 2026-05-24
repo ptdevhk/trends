@@ -11,6 +11,56 @@ const EMBEDDING_MODEL = "text-embedding-3-small";
 const EMBEDDING_DIMENSIONS = 1536;
 const BATCH_SIZE = 100;
 
+// ---------------------------------------------------------------------------
+// RRF (Reciprocal Rank Fusion) merge — exported for testing
+// ---------------------------------------------------------------------------
+
+const RRF_K = 60;
+
+export function rrfMerge(params: {
+    bm25Results: Array<{ id: string; data: Record<string, unknown> }>;
+    vectorResults: Array<{ id: string }>;
+    bm25Weight: number;
+    semanticWeight: number;
+}): {
+    merged: Array<{ id: string; score: number; data: Record<string, unknown> }>;
+    bm25Count: number;
+    vectorCount: number;
+} {
+    const { bm25Results, vectorResults, bm25Weight, semanticWeight } = params;
+    const rrfScores = new Map<string, number>();
+    const dataMap = new Map<string, Record<string, unknown>>();
+
+    // BM25 contribution
+    bm25Results.forEach((result, idx) => {
+        const rank = idx + 1;
+        rrfScores.set(result.id, bm25Weight / (RRF_K + rank));
+        dataMap.set(result.id, result.data);
+    });
+
+    // Vector contribution
+    vectorResults.forEach((result, idx) => {
+        const rank = idx + 1;
+        const current = rrfScores.get(result.id) ?? 0;
+        rrfScores.set(result.id, current + semanticWeight / (RRF_K + rank));
+    });
+
+    // Sort by RRF score descending
+    const merged = [...rrfScores.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .map(([id, score]) => ({
+            id,
+            score,
+            data: dataMap.get(id) ?? {},
+        }));
+
+    return {
+        merged,
+        bm25Count: bm25Results.length,
+        vectorCount: vectorResults.length,
+    };
+}
+
 function getApiKey(): string {
     const key = process.env.AI_API_KEY || process.env.OPENAI_API_KEY;
     if (!key) throw new Error("AI_API_KEY/OPENAI_API_KEY is not set in Convex environment variables.");
@@ -346,32 +396,34 @@ export const hybridSearchResumes = action({
         const embeddings = await ctx.runQuery(internal.embeddings.getEmbeddingsByIds, {
             embeddingIds: vectorIds,
         });
-        const vectorResumeMap = new Map<string, number>(); // resumeId -> vector rank
-        embeddings.forEach((emb: Doc<"resume_embeddings">, idx: number) => {
-            vectorResumeMap.set(String(emb.resumeId), idx + 1); // 1-based rank
-        });
+        const vectorResults = embeddings.map((emb: Doc<"resume_embeddings">) => ({
+            id: String(emb.resumeId),
+        }));
 
-        // 5. RRF (Reciprocal Rank Fusion) merge with k=60
-        const K = 60;
-        const rrfScores = new Map<string, number>(); // resumeId -> RRF score
-        const resumeDocMap = new Map<string, HybridSearchResult["results"][number]>(); // resumeId -> result entry
+        // 5. RRF merge
+        const bm25Merged = bm25Result.results.map((result: HybridSearchResult["results"][number]) => ({
+            id: String((result.resume as { _id: string })._id),
+            data: result as Record<string, unknown>,
+        }));
 
-        // BM25 contribution
-        bm25Result.results.forEach((result: HybridSearchResult["results"][number], idx: number) => {
-            const resumeId = String((result.resume as { _id: string })._id);
-            const rank = idx + 1;
-            rrfScores.set(resumeId, bm25Weight / (K + rank));
-            resumeDocMap.set(resumeId, result);
-        });
-
-        // Vector contribution
-        vectorResumeMap.forEach((rank: number, resumeId: string) => {
-            const current = rrfScores.get(resumeId) ?? 0;
-            rrfScores.set(resumeId, current + semanticWeight / (K + rank));
+        const { merged: rrfMerged, bm25Count, vectorCount } = rrfMerge({
+            bm25Results: bm25Merged,
+            vectorResults,
+            bm25Weight,
+            semanticWeight,
         });
 
         // 6. Fetch docs for vector-only results (not in BM25 results)
-        const vectorOnlyIds = [...vectorResumeMap.keys()].filter((id) => !resumeDocMap.has(id));
+        const bm25Ids = new Set(bm25Merged.map((r) => r.id));
+        const vectorOnlyIds = vectorResults.map((v) => v.id).filter((id) => !bm25Ids.has(id));
+
+        const resumeDocMap = new Map<string, HybridSearchResult["results"][number]>();
+        // Seed with BM25 results
+        bm25Result.results.forEach((result: HybridSearchResult["results"][number]) => {
+            const resumeId = String((result.resume as { _id: string })._id);
+            resumeDocMap.set(resumeId, result);
+        });
+
         if (vectorOnlyIds.length > 0) {
             const additionalDocs = await ctx.runQuery(internal.resumes.getResumesByIds, {
                 resumeIds: vectorOnlyIds.map((id) => id as unknown as Id<"resumes">),
@@ -397,13 +449,9 @@ export const hybridSearchResumes = action({
             }
         }
 
-        // 7. Sort by RRF score (descending)
-        const sortedIds = [...rrfScores.entries()]
-            .sort((a, b) => b[1] - a[1])
-            .map(([id]) => id);
-
-        const mergedResults = sortedIds
-            .map((id) => resumeDocMap.get(id))
+        // 7. Build merged results from RRF ordering
+        const mergedResults = rrfMerged
+            .map((entry) => resumeDocMap.get(entry.id))
             .filter((r): r is NonNullable<typeof r> => r !== undefined);
 
         return {
@@ -412,8 +460,8 @@ export const hybridSearchResumes = action({
             results: mergedResults,
             searchMode: "hybrid" as const,
             debug: {
-                bm25Count: bm25Result.results.length,
-                vectorCount: vectorIds.length,
+                bm25Count,
+                vectorCount,
                 mergedCount: mergedResults.length,
                 semanticWeight,
             },

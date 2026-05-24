@@ -10,6 +10,52 @@ import {
 } from "./lib/bias_metrics.js";
 
 // ---------------------------------------------------------------------------
+// Internal query: listWorkspaceSlugsWithAuditLogs — distinct workspace slugs
+// ---------------------------------------------------------------------------
+
+export const listWorkspaceSlugsWithAuditLogs = internalQuery({
+    args: {},
+    handler: async (ctx) => {
+        // Use full table scan — this runs infrequently (weekly cron) and
+        // workspace count is small. Extract distinct slugs from audit logs.
+        const logs = await ctx.db
+            .query("analysis_audit_log")
+            .take(10000);
+        const slugs = new Set<string>();
+        for (const log of logs) {
+            slugs.add(log.workspaceSlug);
+        }
+        return [...slugs];
+    },
+});
+
+// ---------------------------------------------------------------------------
+// Internal action: computeBiasMetricsForAllWorkspaces — cron entry point
+// ---------------------------------------------------------------------------
+
+export const computeBiasMetricsForAllWorkspaces = internalAction({
+    args: {},
+    handler: async (ctx) => {
+        const workspaceSlugs = await ctx.runQuery(internal.bias_audit.listWorkspaceSlugsWithAuditLogs) as string[];
+        const results: Array<{ workspaceSlug: string; status: string }> = [];
+
+        for (const workspaceSlug of workspaceSlugs) {
+            try {
+                const result = await ctx.runAction(internal.bias_audit.computeBiasMetrics, {
+                    workspaceSlug,
+                    decisionType: "score",
+                }) as { status: string };
+                results.push({ workspaceSlug, status: result.status });
+            } catch (error) {
+                results.push({ workspaceSlug, status: `error: ${error instanceof Error ? error.message : String(error)}` });
+            }
+        }
+
+        return results;
+    },
+});
+
+// ---------------------------------------------------------------------------
 // Internal query: queryAuditLogs — fetches audit logs for bias computation
 // ---------------------------------------------------------------------------
 
