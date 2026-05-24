@@ -1,7 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
+import { isRecord } from "@trends/shared";
+
 
 import { findProjectRoot } from "./db.js";
+
 
 export interface WebVitalMetric {
   name: string;
@@ -27,9 +30,6 @@ export interface WebVitalsSummary {
   metrics: Record<string, MetricSummary>;
 }
 
-export function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
 
 export function readString(value: unknown): string | null {
   if (typeof value !== "string") return null;

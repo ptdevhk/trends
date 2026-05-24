@@ -1,3 +1,5 @@
+import { isRecord } from "@trends/shared";
+
 export type ResumeIdentitySource = "profileUrl" | "resumeId" | "perUserId" | "externalId";
 
 export type ResumeIdentityInput = {
@@ -20,9 +22,6 @@ const EXTERNAL_ID_KEYS = ["externalId", "external_id"];
 const JOB5156_HOST = "hr.job5156.com";
 export const SEEK_HOST_SUFFIX = ".employer.seek.com";
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-    return typeof value === "object" && value !== null;
-}
 
 function readString(value: unknown): string | null {
     if (typeof value !== "string") {

@@ -4,6 +4,7 @@ import type { Id } from "./_generated/dataModel";
 import { internalAction } from "./_generated/server";
 import { v } from "convex/values";
 import type { ResumeScanRow } from "./resumes";
+import { isRecord } from "@trends/shared";
 
 interface BrandHit {
   brand: string;
@@ -70,9 +71,6 @@ function getBffApiUrl(): string {
   return process.env.BFF_API_URL || "http://localhost:3000";
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
 
 function isStaleSkillsVersion(resume: ResumeScanRow, currentVersion: number): boolean {
   const version = resume.ingestData?.skillsVersion;

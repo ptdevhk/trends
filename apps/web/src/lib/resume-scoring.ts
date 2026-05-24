@@ -1,6 +1,7 @@
 import {
   buildLatestWorkHistoryEvidence,
   getCurrentResumeAiPromptVersion,
+  isRecord,
   normalizeOptionalString,
   resolveResumeId,
 } from '@trends/shared'
@@ -380,9 +381,6 @@ function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === 'string')
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
-}
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))

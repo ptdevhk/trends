@@ -16,7 +16,7 @@ import {
   ResumeSubmitSummarySchema,
 } from "../schemas/index.js";
 import { resolveResumeId } from "../services/resume-id.js";
-import { normalizeWorkHistoryEntry } from "@trends/shared";
+import { isRecord, normalizeWorkHistoryEntry } from "@trends/shared";
 import type { ResumeItem } from "../types/resume.js";
 import {
   buildResumeIngestData,
@@ -28,9 +28,6 @@ import {
 const app = new OpenAPIHono();
 const actionStorage = new ActionStorage(config.projectRoot);
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 function toResumeItemFromRecord(record: Record<string, unknown>, source?: string): ResumeItem {
   const profileUrl = toStringValue(

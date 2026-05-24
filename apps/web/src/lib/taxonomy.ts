@@ -1,3 +1,5 @@
+import { isRecord } from "@trends/shared";
+
 export type TaxonomyClusterSource = 'human' | 'ai' | 'merged'
 export type TaxonomyClusterStatus = 'active' | 'draft' | 'archived'
 
@@ -116,9 +118,6 @@ export function taxonomyClusterToForm(cluster: TaxonomyCluster): TaxonomyCluster
   }
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
-}
 
 export function parseTaxonomyCluster(value: unknown): TaxonomyCluster | null {
   if (!isRecord(value)) {

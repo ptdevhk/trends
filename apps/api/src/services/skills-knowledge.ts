@@ -1,7 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
+import { isRecord } from "@trends/shared";
+
 
 import { parse as parseYaml } from "yaml";
+
 
 import { FileParseError } from "./errors.js";
 import { findProjectRoot } from "./db.js";
@@ -184,9 +187,6 @@ function extractObservationFrequency(value: string): { normalized: string; count
   };
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
 
 function tokenizeQuery(value: string): string[] {
   return value

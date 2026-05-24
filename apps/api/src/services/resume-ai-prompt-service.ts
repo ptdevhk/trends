@@ -1,7 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
+import { isRecord } from "@trends/shared";
+
 
 import { parse as parseYaml } from "yaml";
+
 
 import { findProjectRoot } from "./db.js";
 import { FileParseError } from "./errors.js";
@@ -111,9 +114,6 @@ type CachedVariantLocales = {
   locales: Set<string>;
 };
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
 
 function readString(value: unknown): string | null {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;

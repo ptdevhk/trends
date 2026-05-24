@@ -6,6 +6,7 @@ import { z } from "@hono/zod-openapi";
 
 import {
   formatLocationHierarchyLabel,
+  isRecord,
   normalizeResumeLocationHierarchy,
   normalizeSeekProfileUrlForDisplay,
   inferSeekMarket,
@@ -63,9 +64,6 @@ export type NormalizedResumeImportPayload = {
   convexResumes: ConvexResumeSubmitItem[];
 };
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
 
 function stableStringify(value: unknown): string {
   if (value === null) return "null";

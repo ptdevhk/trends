@@ -4,6 +4,7 @@ import {
   buildWorkHistoryEntryText,
   formatLocationHierarchySearchText,
   isLocationMatch,
+  isRecord,
   normalizeEducationLevel,
   normalizeKeywordPhrases,
   normalizeProfileUrlForDisplay,
@@ -288,9 +289,6 @@ export function matchesAllRequiredKeywords(text: string, requiredKeywords: strin
   return normalizedKeywords.every((keyword) => haystack.includes(keyword));
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
 
 export function inferResumeSource(metadata?: ResumeMetadata): string | undefined {
   const sourceHost = toStringValue(metadata?.sourceHost).toLowerCase();

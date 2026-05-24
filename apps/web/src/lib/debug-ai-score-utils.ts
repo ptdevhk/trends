@@ -4,6 +4,7 @@
  * Extracted from DebugAI.tsx for testability.
  */
 
+import { isRecord } from "@trends/shared";
 export type BreakdownKey = "experience" | "skills" | "industry_db" | "education" | "location";
 
 export type ScoreBreakdown = Record<BreakdownKey, number>;
@@ -16,9 +17,6 @@ export const EMPTY_BREAKDOWN: ScoreBreakdown = {
   location: 0,
 };
 
-export function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
 
 export function toScore(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) {

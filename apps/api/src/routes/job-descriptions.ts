@@ -4,6 +4,7 @@ import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { jobDescriptionService } from "../services/job-description-service.js";
 import { jdKeywordExtractionService } from "../services/jd-keyword-extraction-service.js";
 import { DataNotFoundError } from "../services/errors.js";
+import { isRecord } from "@trends/shared";
 
 const app = new OpenAPIHono();
 
@@ -82,9 +83,6 @@ type ConvexJobDescriptionRecord = {
   maxAge?: unknown;
 };
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
 
 function readString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
