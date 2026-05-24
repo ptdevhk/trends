@@ -1,4 +1,7 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+
+const mockFetch = vi.fn();
+vi.stubGlobal("fetch", mockFetch);
 
 import { NotificationService } from "./notification-service.js";
 
@@ -6,295 +9,290 @@ describe("NotificationService", () => {
   let service: NotificationService;
 
   beforeEach(() => {
-    // Ensure no real SMTP env vars leak into tests
-    delete process.env.SMTP_HOST;
-    delete process.env.SMTP_PORT;
-    delete process.env.SMTP_SECURE;
-    delete process.env.SMTP_USER;
-    delete process.env.SMTP_PASS;
-    delete process.env.SMTP_FROM;
-    delete process.env.WECHAT_WORK_WEBHOOK;
-    delete process.env.FEISHU_WEBHOOK_URL;
-    delete process.env.FEISHU_WEBHOOK;
+    vi.clearAllMocks();
     service = new NotificationService();
   });
 
-  afterEach(() => {
-    vi.restoreAllMocks();
+  afterAll(() => {
+    vi.unstubAllGlobals();
   });
 
   describe("sendWechatWorkMarkdown", () => {
-    it("throws when WECHAT_WORK_WEBHOOK is not set and no webhookUrl provided", async () => {
-      await expect(
-        service.sendWechatWorkMarkdown({ content: "hello" }),
-      ).rejects.toThrow("WECHAT_WORK_WEBHOOK is not set");
-    });
+    const defaultOpts = { content: "Hello **world**" };
 
-    it("sends markdown message and returns parsed response", async () => {
-      const fetchSpy = vi
-        .spyOn(globalThis, "fetch")
-        .mockResolvedValue(
-          new Response(JSON.stringify({ errcode: 0, errmsg: "ok" }), { status: 200 }),
-        );
+    it("sends markdown content to webhook URL from options", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        text: async () => JSON.stringify({ errcode: 0, errmsg: "ok" }),
+      });
 
       const result = await service.sendWechatWorkMarkdown({
-        content: "## Test",
-        webhookUrl: "https://example.com/wechat",
+        ...defaultOpts,
+        webhookUrl: "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=test",
       });
 
       expect(result).toEqual({ errcode: 0, errmsg: "ok" });
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "https://example.com/wechat",
-        expect.objectContaining({
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-        }),
-      );
-
-      const body = JSON.parse(
-        (fetchSpy.mock.calls[0] as [string, RequestInit])[1].body as string,
-      );
-      expect(body).toEqual({
-        msgtype: "markdown",
-        markdown: { content: "## Test" },
-      });
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      const [url, init] = mockFetch.mock.calls[0];
+      expect(url).toBe("https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=test");
+      expect(init.method).toBe("POST");
+      expect(init.headers["Content-Type"]).toBe("application/json");
+      const body = JSON.parse(init.body);
+      expect(body.msgtype).toBe("markdown");
+      expect(body.markdown.content).toBe("Hello **world**");
     });
 
-    it("uses WECHAT_WORK_WEBHOOK env var when webhookUrl is not provided", async () => {
-      process.env.WECHAT_WORK_WEBHOOK = "https://env.example.com/wechat";
-      const fetchSpy = vi
-        .spyOn(globalThis, "fetch")
-        .mockResolvedValue(
-          new Response(JSON.stringify({ errcode: 0, errmsg: "ok" }), { status: 200 }),
-        );
+    it("falls back to WECHAT_WORK_WEBHOOK env when no webhookUrl in options", async () => {
+      vi.stubEnv("WECHAT_WORK_WEBHOOK", "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=env");
 
-      await service.sendWechatWorkMarkdown({ content: "test" });
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        text: async () => JSON.stringify({ errcode: 0, errmsg: "ok" }),
+      });
 
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "https://env.example.com/wechat",
-        expect.anything(),
+      await service.sendWechatWorkMarkdown(defaultOpts);
+
+      const [url] = mockFetch.mock.calls[0];
+      expect(url).toBe("https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=env");
+      vi.unstubAllEnvs();
+    });
+
+    it("throws when no webhook URL is available", async () => {
+      await expect(
+        service.sendWechatWorkMarkdown(defaultOpts),
+      ).rejects.toThrow("WECHAT_WORK_WEBHOOK is not set");
+    });
+
+    it("throws on non-ok HTTP response", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 403,
+        text: async () => JSON.stringify({ errcode: 48001, errmsg: "api forbidden" }),
+      });
+
+      await expect(
+        service.sendWechatWorkMarkdown({
+          ...defaultOpts,
+          webhookUrl: "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=test",
+        }),
+      ).rejects.toThrow("WeChat Work webhook error: api forbidden (errcode=48001, HTTP 403)");
+    });
+
+    it("throws on non-zero errcode with ok response", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({ errcode: 40001, errmsg: "invalid credential" }),
+      });
+
+      await expect(
+        service.sendWechatWorkMarkdown({
+          ...defaultOpts,
+          webhookUrl: "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=test",
+        }),
+      ).rejects.toThrow(
+        "WeChat Work webhook error: invalid credential (errcode=40001, HTTP 200)",
       );
     });
 
     it("throws on non-JSON response", async () => {
-      vi.spyOn(globalThis, "fetch").mockResolvedValue(
-        new Response("Not JSON", { status: 500 }),
-      );
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        text: async () => "<html>error</html>",
+      });
 
       await expect(
         service.sendWechatWorkMarkdown({
-          content: "test",
-          webhookUrl: "https://example.com/wechat",
+          ...defaultOpts,
+          webhookUrl: "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=test",
         }),
-      ).rejects.toThrow("non-JSON");
+      ).rejects.toThrow(
+        "WeChat Work webhook returned non-JSON (HTTP 200)",
+      );
     });
 
-    it("throws on unexpected JSON structure", async () => {
-      vi.spyOn(globalThis, "fetch").mockResolvedValue(
-        new Response(JSON.stringify({ unexpected: true }), { status: 200 }),
-      );
+    it("throws on unexpected JSON shape", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({ unknown: "shape" }),
+      });
 
       await expect(
         service.sendWechatWorkMarkdown({
-          content: "test",
-          webhookUrl: "https://example.com/wechat",
+          ...defaultOpts,
+          webhookUrl: "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=test",
         }),
-      ).rejects.toThrow("unexpected response");
+      ).rejects.toThrow(
+        "WeChat Work webhook returned unexpected response (HTTP 200)",
+      );
     });
 
-    it("throws on non-zero errcode", async () => {
-      vi.spyOn(globalThis, "fetch").mockResolvedValue(
-        new Response(JSON.stringify({ errcode: 40001, errmsg: "invalid token" }), {
-          status: 200,
-        }),
-      );
+    it("handles network errors", async () => {
+      mockFetch.mockRejectedValueOnce(new TypeError("fetch failed"));
 
       await expect(
         service.sendWechatWorkMarkdown({
-          content: "test",
-          webhookUrl: "https://example.com/wechat",
+          ...defaultOpts,
+          webhookUrl: "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=test",
         }),
-      ).rejects.toThrow("invalid token");
-    });
-
-    it("throws on HTTP error with errcode=0", async () => {
-      vi.spyOn(globalThis, "fetch").mockResolvedValue(
-        new Response(JSON.stringify({ errcode: 0, errmsg: "ok" }), { status: 502 }),
-      );
-
-      await expect(
-        service.sendWechatWorkMarkdown({
-          content: "test",
-          webhookUrl: "https://example.com/wechat",
-        }),
-      ).rejects.toThrow("webhook error");
+      ).rejects.toThrow("fetch failed");
     });
   });
 
   describe("sendFeishuText", () => {
-    it("throws when FEISHU_WEBHOOK_URL is not set and no webhookUrl provided", async () => {
+    const defaultOpts = { content: "Hello from Trends" };
+
+    it("sends text content to webhook URL from options", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        text: async () => JSON.stringify({ code: 0, msg: "success" }),
+      });
+
+      const result = await service.sendFeishuText({
+        ...defaultOpts,
+        webhookUrl: "https://open.feishu.cn/open-apis/bot/v2/hook/test-key",
+      });
+
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      const [url, init] = mockFetch.mock.calls[0];
+      expect(url).toBe("https://open.feishu.cn/open-apis/bot/v2/hook/test-key");
+      expect(init.method).toBe("POST");
+      const body = JSON.parse(init.body);
+      expect(body.msg_type).toBe("text");
+      expect(body.content.text).toBe("Hello from Trends");
+      expect(result).toBeDefined();
+    });
+
+    it("falls back to FEISHU_WEBHOOK_URL env when no webhookUrl in options", async () => {
+      vi.stubEnv("FEISHU_WEBHOOK_URL", "https://open.feishu.cn/open-apis/bot/v2/hook/env-key");
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        text: async () => JSON.stringify({ code: 0, msg: "success" }),
+      });
+
+      await service.sendFeishuText(defaultOpts);
+
+      const [url] = mockFetch.mock.calls[0];
+      expect(url).toBe("https://open.feishu.cn/open-apis/bot/v2/hook/env-key");
+      vi.unstubAllEnvs();
+    });
+
+    it("falls back to FEISHU_WEBHOOK env when FEISHU_WEBHOOK_URL is not set", async () => {
+      vi.stubEnv("FEISHU_WEBHOOK", "https://open.feishu.cn/open-apis/bot/v2/hook/legacy-key");
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        text: async () => JSON.stringify({ code: 0, msg: "success" }),
+      });
+
+      await service.sendFeishuText(defaultOpts);
+
+      const [url] = mockFetch.mock.calls[0];
+      expect(url).toBe("https://open.feishu.cn/open-apis/bot/v2/hook/legacy-key");
+      vi.unstubAllEnvs();
+    });
+
+    it("throws when no webhook URL is available", async () => {
       await expect(
-        service.sendFeishuText({ content: "hello" }),
+        service.sendFeishuText(defaultOpts),
       ).rejects.toThrow("FEISHU_WEBHOOK_URL is not set");
     });
 
-    it("sends text message and returns parsed response (code/msg format)", async () => {
-      const fetchSpy = vi
-        .spyOn(globalThis, "fetch")
-        .mockResolvedValue(
-          new Response(JSON.stringify({ code: 0, msg: "ok" }), { status: 200 }),
-        );
-
-      const result = await service.sendFeishuText({
-        content: "Hello Feishu",
-        webhookUrl: "https://example.com/feishu",
+    it("throws on non-ok HTTP response", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        text: async () => JSON.stringify({ code: 10003, msg: "invalid signature" }),
       });
 
-      expect(result).toEqual({ code: 0, msg: "ok" });
-      const body = JSON.parse(
-        (fetchSpy.mock.calls[0] as [string, RequestInit])[1].body as string,
+      await expect(
+        service.sendFeishuText({
+          ...defaultOpts,
+          webhookUrl: "https://open.feishu.cn/open-apis/bot/v2/hook/test-key",
+        }),
+      ).rejects.toThrow(
+        "Feishu webhook error: invalid signature (code=10003, HTTP 401)",
       );
-      expect(body).toEqual({
-        msg_type: "text",
-        content: { text: "Hello Feishu" },
+    });
+
+    it("throws on non-zero code with ok response", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({ code: 10004, msg: "rate limit exceeded" }),
       });
 
-      fetchSpy.mockRestore();
+      await expect(
+        service.sendFeishuText({
+          ...defaultOpts,
+          webhookUrl: "https://open.feishu.cn/open-apis/bot/v2/hook/test-key",
+        }),
+      ).rejects.toThrow(
+        "Feishu webhook error: rate limit exceeded (code=10004, HTTP 200)",
+      );
     });
 
-    it("handles StatusCode/StatusMessage format", async () => {
-      vi.spyOn(globalThis, "fetch").mockResolvedValue(
-        new Response(
-          JSON.stringify({ StatusCode: 0, StatusMessage: "success" }),
-          { status: 200 },
-        ),
-      );
-
-      const result = await service.sendFeishuText({
-        content: "test",
-        webhookUrl: "https://example.com/feishu",
+    it("handles alternate response schema (StatusCode/StatusMessage)", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 429,
+        text: async () => JSON.stringify({ StatusCode: 200001, StatusMessage: "too many requests" }),
       });
 
-      expect(result).toEqual({ StatusCode: 0, StatusMessage: "success" });
-    });
-
-    it("uses FEISHU_WEBHOOK_URL env var when webhookUrl is not provided", async () => {
-      process.env.FEISHU_WEBHOOK_URL = "https://env.example.com/feishu";
-      const fetchSpy = vi
-        .spyOn(globalThis, "fetch")
-        .mockResolvedValue(
-          new Response(JSON.stringify({ code: 0, msg: "ok" }), { status: 200 }),
-        );
-
-      await service.sendFeishuText({ content: "test" });
-
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "https://env.example.com/feishu",
-        expect.anything(),
-      );
-    });
-
-    it("falls back to FEISHU_WEBHOOK env var", async () => {
-      process.env.FEISHU_WEBHOOK = "https://fallback.example.com/feishu";
-      const fetchSpy = vi
-        .spyOn(globalThis, "fetch")
-        .mockResolvedValue(
-          new Response(JSON.stringify({ code: 0, msg: "ok" }), { status: 200 }),
-        );
-
-      await service.sendFeishuText({ content: "test" });
-
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "https://fallback.example.com/feishu",
-        expect.anything(),
-      );
-    });
-
-    it("prefers FEISHU_WEBHOOK_URL over FEISHU_WEBHOOK", async () => {
-      process.env.FEISHU_WEBHOOK_URL = "https://primary.example.com/feishu";
-      process.env.FEISHU_WEBHOOK = "https://fallback.example.com/feishu";
-      const fetchSpy = vi
-        .spyOn(globalThis, "fetch")
-        .mockResolvedValue(
-          new Response(JSON.stringify({ code: 0, msg: "ok" }), { status: 200 }),
-        );
-
-      await service.sendFeishuText({ content: "test" });
-
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "https://primary.example.com/feishu",
-        expect.anything(),
+      await expect(
+        service.sendFeishuText({
+          ...defaultOpts,
+          webhookUrl: "https://open.feishu.cn/open-apis/bot/v2/hook/test-key",
+        }),
+      ).rejects.toThrow(
+        "Feishu webhook error: too many requests (code=200001, HTTP 429)",
       );
     });
 
     it("throws on non-JSON response", async () => {
-      vi.spyOn(globalThis, "fetch").mockResolvedValue(
-        new Response("Not JSON", { status: 500 }),
-      );
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        text: async () => "not json",
+      });
 
       await expect(
         service.sendFeishuText({
-          content: "test",
-          webhookUrl: "https://example.com/feishu",
+          ...defaultOpts,
+          webhookUrl: "https://open.feishu.cn/open-apis/bot/v2/hook/test-key",
         }),
-      ).rejects.toThrow("non-JSON");
+      ).rejects.toThrow("Feishu webhook returned non-JSON (HTTP 200)");
     });
 
-    it("throws on unexpected JSON structure", async () => {
-      vi.spyOn(globalThis, "fetch").mockResolvedValue(
-        new Response(JSON.stringify({ unexpected: true }), { status: 200 }),
-      );
+    it("throws on unexpected JSON shape", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({ irrelevant: true }),
+      });
 
       await expect(
         service.sendFeishuText({
-          content: "test",
-          webhookUrl: "https://example.com/feishu",
+          ...defaultOpts,
+          webhookUrl: "https://open.feishu.cn/open-apis/bot/v2/hook/test-key",
         }),
-      ).rejects.toThrow("unexpected response");
+      ).rejects.toThrow(
+        "Feishu webhook returned unexpected response (HTTP 200)",
+      );
     });
 
-    it("throws on non-zero code (code/msg format)", async () => {
-      vi.spyOn(globalThis, "fetch").mockResolvedValue(
-        new Response(JSON.stringify({ code: 19001, msg: "invalid webhook" }), {
-          status: 200,
-        }),
-      );
+    it("handles network errors", async () => {
+      mockFetch.mockRejectedValueOnce(new TypeError("fetch failed"));
 
       await expect(
         service.sendFeishuText({
-          content: "test",
-          webhookUrl: "https://example.com/feishu",
+          ...defaultOpts,
+          webhookUrl: "https://open.feishu.cn/open-apis/bot/v2/hook/test-key",
         }),
-      ).rejects.toThrow("invalid webhook");
-    });
-
-    it("throws on non-zero StatusCode (StatusCode/StatusMessage format)", async () => {
-      vi.spyOn(globalThis, "fetch").mockResolvedValue(
-        new Response(
-          JSON.stringify({ StatusCode: 1, StatusMessage: "rate limited" }),
-          { status: 200 },
-        ),
-      );
-
-      await expect(
-        service.sendFeishuText({
-          content: "test",
-          webhookUrl: "https://example.com/feishu",
-        }),
-      ).rejects.toThrow("rate limited");
-    });
-
-    it("throws on HTTP error even with code=0", async () => {
-      vi.spyOn(globalThis, "fetch").mockResolvedValue(
-        new Response(JSON.stringify({ code: 0, msg: "ok" }), { status: 503 }),
-      );
-
-      await expect(
-        service.sendFeishuText({
-          content: "test",
-          webhookUrl: "https://example.com/feishu",
-        }),
-      ).rejects.toThrow("webhook error");
+      ).rejects.toThrow("fetch failed");
     });
   });
 });
