@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import taxonomyRoutes from "./taxonomy";
 import { workspaceMiddleware } from "../middleware/workspace";
+import { logger } from "../services/logger";
 
 const {
   resolveConvexUrlMock,
@@ -174,7 +175,7 @@ describe("taxonomy routes", () => {
   })
 
   it("returns a stable json error when taxonomy loading fails", async () => {
-    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {})
+    const loggerErrorSpy = vi.spyOn(logger, "error").mockImplementation(() => {})
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response("convex unavailable", { status: 502 }),
     )
@@ -191,9 +192,10 @@ describe("taxonomy routes", () => {
       success: false,
       error: "Failed to load taxonomy clusters",
     })
-    expect(consoleErrorSpy).toHaveBeenCalledWith(
+    expect(loggerErrorSpy).toHaveBeenCalledWith(
       "Failed to load taxonomy clusters",
       expect.any(Error),
+      { route: "taxonomy" },
     )
   })
 

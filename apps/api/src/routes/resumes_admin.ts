@@ -2,6 +2,7 @@ import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { callConvexAction, callConvexMutation } from "../services/convex-utils.js";
 import { IngestComputeService } from "../services/ingest-compute-service.js";
 import { config } from "../services/config.js";
+import { logger } from "../services/logger.js";
 
 const app = new OpenAPIHono();
 const ingestComputeService = new IngestComputeService(config.projectRoot);
@@ -127,7 +128,7 @@ app.post("/api/resumes/hard-reset-reingest", async (c) => {
       }), 200);
     } catch (schedulingError) {
       const message = schedulingError instanceof Error ? schedulingError.message : String(schedulingError);
-      console.error("Failed to schedule re-ingest after hard reset", schedulingError);
+      logger.error("Failed to schedule re-ingest after hard reset", schedulingError, { route: "resumes_admin" });
       return c.json(HardResetReingestResponseSchema.parse({
         success: true as const,
         cleared: totalCleared,
@@ -136,7 +137,7 @@ app.post("/api/resumes/hard-reset-reingest", async (c) => {
       }), 200);
     }
   } catch (error) {
-    console.error("Failed to hard reset ingest data", error);
+    logger.error("Failed to hard reset ingest data", error, { route: "resumes_admin" });
     const message = error instanceof Error ? error.message : String(error);
     return c.json({ success: false, error: message }, 500);
   }
@@ -239,7 +240,7 @@ app.post("/api/resumes/clear-analyses", async (c) => {
       jobDescriptionId: jobDescriptionId?.trim() || undefined,
     }), 200);
   } catch (error) {
-    console.error("Failed to clear analyses", error);
+    logger.error("Failed to clear analyses", error, { route: "resumes_admin" });
     const message = error instanceof Error ? error.message : String(error);
     return c.json({ success: false, error: message }, 500);
   }
@@ -278,7 +279,7 @@ app.post("/api/resumes/reset-database", async (c) => {
     const value = await callConvexMutation("resume_tasks:resetDatabase", {});
     return c.json(ResetDatabaseV2ResponseSchema.parse(value), 200);
   } catch (error) {
-    console.error("Failed to reset database", error);
+    logger.error("Failed to reset database", error, { route: "resumes_admin" });
     const message = error instanceof Error ? error.message : String(error);
     return c.json({ success: false, error: message }, 500);
   }
@@ -317,7 +318,7 @@ app.post("/api/resumes/archive", async (c) => {
       return c.json({ success: true, ...result }, 200);
     }
   } catch (error) {
-    console.error("Failed to archive/unarchive resumes", error);
+    logger.error("Failed to archive/unarchive resumes", error, { route: "resumes_admin" });
     const message = error instanceof Error ? error.message : String(error);
     return c.json({ success: false, error: message }, 500);
   }

@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import aiSummaryRoutes from "./ai-summary";
 import { workspaceMiddleware } from "../middleware/workspace";
 import { aiSummaryService } from "../services/ai-summary-service";
+import { logger } from "../services/logger";
 
 const DEFAULT_TEST_MODEL = "openai/gpt-4o-mini";
 
@@ -262,7 +263,7 @@ describe("ai summary routes", () => {
         resultSetHash: "older-result-set-hash",
       })
     })
-    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {})
+    const loggerErrorSpy = vi.spyOn(logger, "error").mockImplementation(() => {})
 
     const app = createTestApp()
     const response = await app.request("/api/resumes/search-summary", {
@@ -284,9 +285,10 @@ describe("ai summary routes", () => {
       generatedAt: now - (2 * 60 * 60 * 1000),
     })
     expect(fetchSpy).toHaveBeenCalledTimes(1)
-    expect(consoleErrorSpy).toHaveBeenCalledWith(
+    expect(loggerErrorSpy).toHaveBeenCalledWith(
       "Failed to generate AI search summary",
       expect.any(Error),
+      { route: "ai_summary" },
     )
   })
 
@@ -300,7 +302,7 @@ describe("ai summary routes", () => {
 
       return convexSuccess(null)
     })
-    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {})
+    const loggerErrorSpy = vi.spyOn(logger, "error").mockImplementation(() => {})
 
     const app = createTestApp()
     const response = await app.request("/api/resumes/search-summary", {
@@ -317,9 +319,10 @@ describe("ai summary routes", () => {
       success: false,
       error: "Failed to generate AI search summary",
     })
-    expect(consoleErrorSpy).toHaveBeenCalledWith(
+    expect(loggerErrorSpy).toHaveBeenCalledWith(
       "Failed to generate AI search summary",
       expect.any(Error),
+      { route: "ai_summary" },
     )
   })
 })

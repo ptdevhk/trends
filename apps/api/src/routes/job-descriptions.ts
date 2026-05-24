@@ -5,6 +5,7 @@ import { jobDescriptionService } from "../services/job-description-service.js";
 import { jdKeywordExtractionService } from "../services/jd-keyword-extraction-service.js";
 import { DataNotFoundError } from "../services/errors.js";
 import { isRecord } from "@trends/shared";
+import { logger } from "../services/logger.js";
 
 const app = new OpenAPIHono();
 
@@ -415,7 +416,7 @@ app.openapi(extractKeywordsRoute, async (c) => {
       model: extracted.model,
     }, 200);
   } catch (error) {
-    console.error("Failed to extract job description keywords", error);
+    logger.error("Failed to extract job description keywords", error, { route: "job_descriptions" });
     return c.json({
       success: false as const,
       error: "Failed to extract keywords from the job description",

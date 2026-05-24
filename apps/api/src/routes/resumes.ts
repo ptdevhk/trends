@@ -66,6 +66,7 @@ import { notificationTemplateService } from "../services/notification-template-s
 import { formatIsoOffsetInTimezone } from "../services/timezone.js";
 import { workspaceConfigService } from "../services/workspace-config-service.js";
 import { BrandDisplayResolver } from "../services/brand-display-resolver.js";
+import { logger } from "../services/logger.js";
 
 import { isRecord, buildKeywordAnalysisId, getCurrentResumeAiPromptVersion, resolveResumeAnalysisSourceKey } from "@trends/shared";
 import type { ResumeItem } from "../types/resume.js";
@@ -199,7 +200,7 @@ app.openapi(resetCandidateActionsRoute, async (c) => {
     const deleted = actionStorage.clearActionsForWorkspace(workspaceSlug, true);
     return c.json(ResetCandidateActionsResponseSchema.parse({ success: true, deleted }), 200);
   } catch (error) {
-    console.error("Failed to reset candidate actions", error);
+    logger.error("Failed to reset candidate actions", error, { route: "resumes" });
     const message = error instanceof Error ? error.message : String(error);
     return c.json({ success: false as const, error: message }, 500);
   }
@@ -2121,7 +2122,7 @@ app.post("/api/resumes/analyze", async (c) => {
       200,
     );
   } catch (error) {
-    console.error("Failed to dispatch analysis", error);
+    logger.error("Failed to dispatch analysis", error, { route: "resumes" });
     const message = error instanceof Error ? error.message : String(error);
     return c.json({ success: false, error: message }, 500);
   }

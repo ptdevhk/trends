@@ -13,6 +13,7 @@ import { JobDescriptionService } from "../services/job-description-service.js";
 import { RuleScoringService, type BrandHit, type RoleSignalSummary, type RuleScoringContext, type RuleScoringResult } from "../services/rule-scoring.js";
 import { SearchEventLogger } from "../services/search-event-logger.js";
 import { config } from "../services/config.js";
+import { logger } from "../services/logger.js";
 import { DataNotFoundError } from "../services/errors.js";
 import {
   ResumesQuerySchema,
@@ -1912,7 +1913,7 @@ app.openapi(getResumesRoute, (c) => {
         const scored = scorePreparedCandidates(preparedForScores, context);
         ruleScoreMap = new Map(scored.map((entry) => [entry.resumeId, entry.result.score]));
       } catch (error) {
-        console.error(`[Resumes] Failed to compute rule score map for ${resolvedJobId}:`, error);
+        logger.error(`[Resumes] Failed to compute rule score map for ${resolvedJobId}:`, error, { route: "resumes_search" });
       }
     }
 

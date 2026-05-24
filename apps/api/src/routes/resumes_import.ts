@@ -6,6 +6,7 @@ import { ActionStorage } from "../services/action-storage.js";
 import { submitResumeImport } from "../services/resume-import-service.js";
 import { getManualResumeImportMaxUploadBytes, importManualResumes } from "../services/manual-resume-import-service.js";
 import { config } from "../services/config.js";
+import { logger } from "../services/logger.js";
 import {
   ResumeBackupRequestSchema,
   ResumeImportRequestSchema,
@@ -338,7 +339,7 @@ app.openapi(importResumesRoute, async (c) => {
     const result = await submitResumeImport(payload, c.var.workspaceSlug);
     return c.json(result, 200);
   } catch (error) {
-    console.error("Failed to import resumes", error);
+    logger.error("Failed to import resumes", error, { route: "resumes_import" });
     return c.json({ success: false as const, error: "Failed to import resumes" }, 500);
   }
 });
@@ -370,7 +371,7 @@ app.openapi(manualImportResumesRoute, async (c) => {
     const result = await importManualResumes(parsedForm.data);
     return c.json(result, 200);
   } catch (error) {
-    console.error("Failed to import manual resumes", error);
+    logger.error("Failed to import manual resumes", error, { route: "resumes_import" });
     const message = error instanceof Error ? error.message : "Failed to import manual resumes";
     return c.json({ success: false as const, error: message }, 500);
   }
@@ -506,7 +507,7 @@ app.openapi(backupResumesRoute, async (c) => {
         candidateStatus = statusResponse;
       }
     } catch (error) {
-      console.error("Failed to query candidate_status for backup", error);
+      logger.error("Failed to query candidate_status for backup", error, { route: "resumes_import" });
     }
 
     c.header("Content-Disposition", `attachment; filename="resume-backup-${generatedAt.replace(/[:.]/g, "-")}.json"`);
@@ -524,7 +525,7 @@ app.openapi(backupResumesRoute, async (c) => {
       candidateStatus,
     }), 200);
   } catch (error) {
-    console.error("Failed to backup resumes", error);
+    logger.error("Failed to backup resumes", error, { route: "resumes_import" });
     const message = error instanceof Error ? error.message : String(error);
     return c.json({ success: false as const, error: message }, 500);
   }
@@ -539,7 +540,7 @@ app.openapi(resetResumesRoute, async (c) => {
     const value = await callConvexMutation("resume_tasks:resetDatabase", {});
     return c.json(ResumeResetResponseSchema.parse(value), 200);
   } catch (error) {
-    console.error("Failed to reset resumes", error);
+    logger.error("Failed to reset resumes", error, { route: "resumes_import" });
     const message = error instanceof Error ? error.message : String(error);
     return c.json({ success: false as const, error: message }, 500);
   }

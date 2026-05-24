@@ -22,6 +22,7 @@ import {
     type AutoMatchResult,
     type SearchProfile,
 } from "../services/search-profile-service.js";
+import { logger } from "../services/logger.js";
 
 const app = new OpenAPIHono();
 
@@ -1386,7 +1387,7 @@ app.openapi(getProfileStatusRoute, async (c) => {
             upsertRunStatus(workspaceSlug, resolvedStatus);
         }
     } catch (error) {
-        console.error("Failed to resolve profile run status:", error);
+        logger.error("Failed to resolve profile run status:", error, { route: "search_profiles" });
     }
 
     return c.json({ success: true as const, status: resolvedStatus }, 200);

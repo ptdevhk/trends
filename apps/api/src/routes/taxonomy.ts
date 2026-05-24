@@ -2,6 +2,7 @@ import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { requireAdmin } from "../middleware/workspace.js";
 import { resolveConvexUrl } from "../services/resume-import-service.js";
 import { isRecord } from "@trends/shared";
+import { logger } from "../services/logger.js";
 
 const app = new OpenAPIHono();
 
@@ -148,7 +149,7 @@ app.openapi(listRoute, async (c) => {
     });
     return c.json({ success: true as const, items: toTaxonomyItems(value) }, 200);
   } catch (error) {
-    console.error("Failed to load taxonomy clusters", error);
+    logger.error("Failed to load taxonomy clusters", error, { route: "taxonomy" });
     return c.json({ success: false as const, error: "Failed to load taxonomy clusters" }, 500);
   }
 });
@@ -199,7 +200,7 @@ app.openapi(upsertRoute, async (c) => {
     });
     return c.json({ success: true as const, items: toTaxonomyItems(value) }, 200);
   } catch (error) {
-    console.error("Failed to save taxonomy cluster", error);
+    logger.error("Failed to save taxonomy cluster", error, { route: "taxonomy" });
     return c.json({ success: false as const, error: "Failed to save taxonomy cluster" }, 500);
   }
 });
@@ -247,7 +248,7 @@ app.openapi(suggestRoute, async (c) => {
     });
     return c.json({ success: true as const, items: toTaxonomyItems(value) }, 200);
   } catch (error) {
-    console.error("Failed to suggest taxonomy clusters", error);
+    logger.error("Failed to suggest taxonomy clusters", error, { route: "taxonomy" });
     return c.json({ success: false as const, error: "Failed to suggest taxonomy clusters" }, 500);
   }
 });
@@ -292,7 +293,7 @@ app.openapi(deleteRoute, async (c) => {
     });
     return c.json({ success: true as const, items: toTaxonomyItems(value) }, 200);
   } catch (error) {
-    console.error("Failed to delete taxonomy cluster", error);
+    logger.error("Failed to delete taxonomy cluster", error, { route: "taxonomy" });
     return c.json({ success: false as const, error: "Failed to delete taxonomy cluster" }, 500);
   }
 });
