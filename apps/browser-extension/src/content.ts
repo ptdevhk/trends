@@ -32,6 +32,8 @@ import { createExtractionPipeline } from "./lib/extraction-pipeline";
 import { createSnapshotCollector } from "./lib/snapshot-collector";
 import { createAutoActions } from "./lib/auto-actions";
 import { createUiUtils } from "./lib/ui-utils";
+import { createPaginationUtils } from "./lib/pagination-utils";
+import { createResumeExtractor } from "./lib/resume-extractor";
 
 /**
  * 智通直聘 Resume Collector - Content Script
@@ -205,7 +207,6 @@ const _uiUtils = createUiUtils({
   JOB5156_HOST,
   EHIRE_51JOB_HOST,
   SEEK_HOST_SUFFIX,
-  getPaginationInfo,
   makeRandomId,
   getExternalAccessorStatus,
   getAgeRangeFromUrl,
@@ -1049,6 +1050,55 @@ const {
   resolveAutoSyncStopReason,
 } = _autoActions;
 
+const _paginationUtils = createPaginationUtils({
+  getCurrentSourceKey,
+  SOURCE_KEYS,
+  isJob51DetailPage,
+  isJob5156DetailPage,
+  isJob51DetailReady,
+  isJob5156DetailReady,
+  getSeekPaginationInfo,
+  getSeekNextPageLinkForMode,
+  getCurrentSeekMode,
+  apiSnapshot,
+  normalizeOptionalPositiveInt,
+  doc: document,
+  win: window,
+  SELECTORS,
+});
+const {
+  getPaginationInfo,
+  getNextPageButtonState,
+  waitForPagination,
+} = _paginationUtils;
+
+const _resumeExtractor = createResumeExtractor({
+  SELECTORS,
+  JOB5156_HOST,
+  doc: document,
+  getCurrentSourceKey,
+  SOURCE_KEYS,
+  extractProfileUrl,
+  parseJob5156BasicInfoItems,
+  buildJob5156WorkHistoryItem,
+  buildJob5156EducationItem,
+  isJob51DetailPage,
+  isJob5156DetailPage,
+  isJob51DetailReady,
+  isJob5156DetailReady,
+  getJob51DetailRoot,
+  getJob5156DetailRoot,
+  getJob51ResumePayload,
+  getJob5156ResumePayload,
+  getApiRowForIndex,
+  normalizeResumeText,
+  normalizeResumeMultilineText,
+  applyCollectionGuards,
+  parseGuardFieldNames,
+  GUARD_FIELD_NAMES,
+  DEFAULT_COLLECTION_GUARDS,
+});
+const { extractSingleResume } = _resumeExtractor;
 
 function buildSubmitMetadata(options = {}) {
   const url = new URL(window.location.href);
@@ -1244,293 +1294,7 @@ window.addEventListener(PAGE_BRIDGE_REQUEST_EVENT, async () => {
   window.dispatchEvent(new CustomEvent(PAGE_BRIDGE_RESPONSE_EVENT));
 });
 
-/**
- * Extract data from a single resume card
- * @param {Element} card - The resume card DOM element
- * @returns {Object} - Extracted resume data
- */
-function extractSingleResume(card, apiRow = null) {
-  const getText = (selector, root = card) => {
-    const el = root.querySelector(selector);
-    return el ? el.textContent.trim() : "";
-  };
 
-  const pickText = (selectors) => {
-    for (const selector of selectors) {
-      const text = getText(selector);
-      if (text) return text;
-    }
-    return "";
-  };
-
-  // Extract basic info (age, experience, education, location)
-  const basicInfoContainer =
-    card.querySelector(SELECTORS.basicInfoRow) ||
-    card.querySelector(".list-content__li__down-left-center");
-  const locationFromCard =
-    getText(SELECTORS.locationItem, basicInfoContainer || card) ||
-    getText(SELECTORS.locationFallbackItem, basicInfoContainer || card);
-  const basicInfoSpans = basicInfoContainer
-    ? basicInfoContainer.querySelectorAll(
-        `${SELECTORS.basicInfoItem}, div:nth-child(2) span, .basic-line span`,
-      )
-    : [];
-
-  const basicInfo = Array.from(basicInfoSpans).map(
-    (span) => span.textContent || "",
-  );
-  const { age, experience, education, location } = parseJob5156BasicInfoItems(
-    basicInfo,
-    locationFromCard,
-  );
-
-  // Extract top row (job intention, salary)
-  const topRow =
-    card.querySelector(SELECTORS.topRowText) ||
-    card.querySelector(SELECTORS.topRow);
-  const topRowText = topRow
-    ? topRow.textContent.trim().replace(/\s+/g, " ")
-    : "";
-  const topRowClean = topRowText
-    .split("人才洞察")[0]
-    .replace(/·\s*$/, "")
-    .trim();
-
-  let expectedSalary = "";
-  const salaryMatch = topRowClean.match(
-    /(\d[\d-]*\s*元\/月|\d[\d-]*\s*元|面议)/,
-  );
-  if (salaryMatch) expectedSalary = salaryMatch[0].replace(/\s+/g, "");
-
-  let jobIntention = topRowClean.replace(/^求职意向[:：]?\s*/, "");
-  jobIntention = jobIntention.replace(/（通勤距离[^）]*）/g, "").trim();
-  if (expectedSalary) {
-    jobIntention = jobIntention
-      .replace(expectedSalary, "")
-      .replace(/[·\s]+$/g, "")
-      .trim();
-  }
-
-  const selfIntro = pickText([
-    SELECTORS.selfIntro,
-    ".basic-keywords",
-    ".basic-keywords span",
-  ]);
-
-  // Extract work history
-  const workHistoryContainer =
-    card.querySelector(SELECTORS.workHistory) ||
-    card.querySelector(".list-content__li__down-right-center");
-  let workItems = [];
-  let educationItems = [];
-  if (workHistoryContainer) {
-    const primary = workHistoryContainer.querySelectorAll(SELECTORS.workItem);
-    if (primary.length > 0) {
-      workItems = Array.from(primary);
-      educationItems = Array.from(
-        workHistoryContainer.querySelectorAll(".school-item"),
-      );
-    } else {
-      workItems = Array.from(
-        workHistoryContainer.querySelectorAll('div[class*="history"]'),
-      );
-    }
-  }
-
-  const seenWorkHistory = new Set();
-  const workHistory = workItems
-    .map((item) => buildJob5156WorkHistoryItem(item))
-    .filter((item) => item && item.raw.length > 5)
-    .filter((item) => {
-      if (!item || seenWorkHistory.has(item.raw)) return false;
-      seenWorkHistory.add(item.raw);
-      return true;
-    });
-
-  const seenEducation = new Set();
-  const profileEducation = educationItems
-    .map((item) => buildJob5156EducationItem(item))
-    .filter(
-      (item) =>
-        item &&
-        [item.institution, item.qualification, item.endDate].some(Boolean),
-    )
-    .filter((item) => {
-      const signature = [
-        item.institution || "",
-        item.qualification || "",
-        item.endDate || "",
-      ].join("|");
-      if (seenEducation.has(signature)) return false;
-      seenEducation.add(signature);
-      return true;
-    });
-
-  return {
-    name: getText(SELECTORS.name),
-    profileUrl: extractProfileUrl(card, apiRow),
-    activityStatus: getText(SELECTORS.activityStatus),
-    age,
-    experience,
-    education,
-    location,
-    jobIntention,
-    expectedSalary,
-    selfIntro,
-    workHistory,
-    profileEducation:
-      profileEducation.length > 0 ? profileEducation : undefined,
-    extractedAt: new Date().toISOString(),
-    source: JOB5156_HOST,
-  };
-}
-
-/**
- * Extract all resumes from current page
- * @returns {Array} - Array of resume objects
- */
-function getPaginationInfo() {
-  const sourceKey = getCurrentSourceKey();
-  if (sourceKey === SOURCE_KEYS.SEEK) {
-    return getSeekPaginationInfo();
-  }
-
-  if (isJob51DetailPage()) {
-    return {
-      currentPage: 1,
-      totalPages: 1,
-      totalItems: isJob51DetailReady() ? 1 : 0,
-      hasNextPage: false,
-    };
-  }
-
-  if (sourceKey === SOURCE_KEYS.JOB51) {
-    // 51job eHire uses infinite scroll, not Element UI pagination.
-    // Derive current page from the captured API request's page_index.
-    const req = apiSnapshot.job51LastSearchRequest;
-    const currentPage =
-      normalizeOptionalPositiveInt(
-        req?.page_index ?? req?.pageIndex ?? req?.pageno,
-      ) || 1;
-    const pageSize =
-      normalizeOptionalPositiveInt(
-        req?.page_size ?? req?.pageSize ?? req?.pagesize,
-      ) || 50;
-    const total =
-      typeof apiSnapshot.job51Total === "number" && apiSnapshot.job51Total > 0
-        ? apiSnapshot.job51Total
-        : 0;
-    const hasData =
-      Array.isArray(apiSnapshot.job51SearchRows) &&
-      apiSnapshot.job51SearchRows.length > 0;
-    let totalPages = currentPage;
-    if (total > 0) {
-      totalPages = Math.ceil(total / pageSize);
-    } else if (hasData) {
-      totalPages = currentPage + 1;
-    }
-    return {
-      currentPage,
-      totalPages,
-      totalItems: total,
-      hasNextPage: total > 0 ? currentPage < totalPages : (hasData && currentPage < totalPages),
-    };
-  }
-
-  if (isJob5156DetailPage()) {
-    return {
-      currentPage: 1,
-      totalPages: 1,
-      totalItems: isJob5156DetailReady() ? 1 : 0,
-      hasNextPage: false,
-    };
-  }
-
-  const pagination = document.querySelector(SELECTORS.pagination);
-  if (!pagination)
-    return { currentPage: 1, totalPages: 1, totalItems: 0, hasNextPage: false };
-
-  const totalText = pagination.textContent || "";
-  const totalMatch = totalText.match(/共\s*([\d,，]+)\s*条/);
-  const totalItems = totalMatch
-    ? Number.parseInt(String(totalMatch[1]).replace(/[，,]/g, ""), 10) || 0
-    : 0;
-
-  const activePage = pagination.querySelector(
-    ".is-active, .active, .el-pager li.active",
-  );
-  const currentPage = activePage
-    ? Number.parseInt(activePage.textContent || "", 10) || 1
-    : 1;
-
-  const pagerItems = Array.from(pagination.querySelectorAll(".el-pager li"));
-  const pageNumbers = pagerItems
-    .map((item) => Number.parseInt(item.textContent || "", 10))
-    .filter((value) => Number.isFinite(value) && value > 0);
-  const totalPagesFromPager =
-    pageNumbers.length > 0 ? Math.max(...pageNumbers) : 0;
-  const totalPagesFromTotal = totalItems > 0 ? Math.ceil(totalItems / 20) : 0;
-  const totalPages = Math.max(
-    totalPagesFromTotal,
-    totalPagesFromPager,
-    currentPage,
-  );
-
-  return {
-    currentPage,
-    totalPages,
-    totalItems,
-    hasNextPage: totalPages > currentPage,
-  };
-}
-
-function getNextPageButtonState() {
-  const sourceKey = getCurrentSourceKey();
-  if (sourceKey === SOURCE_KEYS.SEEK) {
-    const nextBtn = getSeekNextPageLinkForMode();
-    if (!nextBtn) {
-      return {
-        exists: false,
-      };
-    }
-    return {
-      exists: true,
-      text: nextBtn.textContent || "",
-      href: nextBtn.getAttribute("href") || "",
-      className: nextBtn.className || "",
-      disabledAttr: nextBtn.getAttribute("disabled") || "",
-      ariaDisabled: nextBtn.getAttribute("aria-disabled") || "",
-      isDisabledClass: nextBtn.classList.contains("disabled"),
-      isIsDisabledClass: nextBtn.classList.contains("is-disabled"),
-    };
-  }
-  if (sourceKey === SOURCE_KEYS.JOB51) {
-    const pagination = getPaginationInfo();
-    return {
-      exists: pagination.hasNextPage,
-      source: "51job-api",
-      currentPage: pagination.currentPage,
-      totalPages: pagination.totalPages,
-      hasNextPage: pagination.hasNextPage,
-    };
-  }
-  const nextBtn = document.querySelector(SELECTORS.nextPageBtn);
-  if (!nextBtn) {
-    return {
-      exists: false,
-    };
-  }
-  return {
-    exists: true,
-    text: nextBtn.textContent || "",
-    href: nextBtn.getAttribute("href") || "",
-    className: nextBtn.className || "",
-    disabledAttr: nextBtn.getAttribute("disabled") || "",
-    ariaDisabled: nextBtn.getAttribute("aria-disabled") || "",
-    isDisabledClass: nextBtn.classList.contains("disabled"),
-    isIsDisabledClass: nextBtn.classList.contains("is-disabled"),
-  };
-}
 
 const SyncStatusWidget = (() => {
   const WIDGET_ID = "tr-sync-status-widget";
@@ -1681,54 +1445,6 @@ const SyncStatusWidget = (() => {
     hide,
   };
 })();
-
-function waitForPagination({ timeoutMs = 8000 } = {}) {
-  if (getCurrentSourceKey() === SOURCE_KEYS.JOB51) {
-    return Promise.resolve(true);
-  }
-  return new Promise((resolve, reject) => {
-    let done = false;
-    const deadline = Date.now() + timeoutMs;
-
-    const check = () => {
-      if (done) return;
-      const isSeek = getCurrentSourceKey() === SOURCE_KEYS.SEEK;
-      const seekTalentSearch = isSeek && getCurrentSeekMode() === "talentsearch";
-      const pagination = document.querySelector(
-        isSeek
-          ? (seekTalentSearch
-              ? SELECTORS.seekTalentSearchPagination
-              : SELECTORS.seekPagination)
-          : SELECTORS.pagination,
-      );
-      const nextBtn = isSeek
-        ? getSeekNextPageLinkForMode()
-        : document.querySelector(SELECTORS.nextPageBtn);
-      if (pagination && nextBtn) {
-        done = true;
-        cleanup();
-        resolve(true);
-      } else if (Date.now() > deadline) {
-        done = true;
-        cleanup();
-        reject(new Error("Timed out waiting for pagination controls"));
-      }
-    };
-
-    const cleanup = () => {
-      clearInterval(intervalId);
-      observer.disconnect();
-    };
-
-    const intervalId = setInterval(check, 300);
-    const observer = new MutationObserver(check);
-    observer.observe(document.body || document.documentElement, {
-      childList: true,
-      subtree: true,
-    });
-    check();
-  });
-}
 
 /**
  * @param {{ expectedPage?: number; timeoutMs?: number }} options
