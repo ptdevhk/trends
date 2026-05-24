@@ -34,6 +34,7 @@ function createMockDeps(overrides: Record<string, unknown> = {}): ExternalAccess
     goToNextPageInternal: vi.fn(() => undefined),
     version: "1.2.3",
     getExternalAccessorStatus: vi.fn(() => ({})),
+    document,
     ...overrides,
   } as unknown as ExternalAccessorDeps;
 }
@@ -217,6 +218,7 @@ describe("external-accessor", () => {
         isJob5156DetailPage: vi.fn(() => false),
         isJob5156DetailReady: vi.fn(() => false),
         version: "1.0.0",
+        document,
       } as unknown as ExternalAccessorDeps;
 
       installExternalAccessor(key, mockDeps);
@@ -263,6 +265,7 @@ describe("external-accessor", () => {
         isJob5156DetailPage: vi.fn(() => false),
         isJob5156DetailReady: vi.fn(() => false),
         version: "1.0.0",
+        document,
       } as unknown as ExternalAccessorDeps);
 
       const accessor = (window as unknown as Record<string, unknown>)[key] as Record<
