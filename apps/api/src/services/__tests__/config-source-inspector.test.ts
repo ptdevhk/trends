@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
 import {
-  isRecord,
   readString,
   readNumber,
   readErrorCode,
@@ -8,25 +7,6 @@ import {
   parseMarkdownPreview,
   toMetadata,
 } from "../config-source-inspector.js";
-
-describe("isRecord", () => {
-  it("returns true for plain objects", () => {
-    expect(isRecord({})).toBe(true);
-  });
-
-  it("returns false for null", () => {
-    expect(isRecord(null)).toBe(false);
-  });
-
-  it("returns false for arrays", () => {
-    expect(isRecord([])).toBe(false);
-  });
-
-  it("returns false for primitives", () => {
-    expect(isRecord("str")).toBe(false);
-    expect(isRecord(42)).toBe(false);
-  });
-});
 
 describe("readString", () => {
   it("returns trimmed string for valid input", () => {

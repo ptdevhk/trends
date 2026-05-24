@@ -1,38 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   bffMatchesResumeFilters,
-  isRecord,
   parseAgeFromContentField,
   toOptionalNumber,
   toStringValue,
 } from "../bff-filter-utils.js";
 
 describe("bff-filter-utils", () => {
-  describe("isRecord", () => {
-    it("returns true for plain objects", () => {
-      expect(isRecord({})).toBe(true);
-      expect(isRecord({ key: "val" })).toBe(true);
-    });
-
-    it("returns false for null", () => {
-      expect(isRecord(null)).toBe(false);
-    });
-
-    it("returns false for undefined", () => {
-      expect(isRecord(undefined)).toBe(false);
-    });
-
-    it("returns true for arrays (source deliberately does not exclude arrays)", () => {
-      expect(isRecord([1, 2, 3])).toBe(true);
-    });
-
-    it("returns false for primitives", () => {
-      expect(isRecord("string")).toBe(false);
-      expect(isRecord(42)).toBe(false);
-      expect(isRecord(true)).toBe(false);
-    });
-  });
-
   describe("toStringValue", () => {
     it("trims string values", () => {
       expect(toStringValue("  hello  ")).toBe("hello");

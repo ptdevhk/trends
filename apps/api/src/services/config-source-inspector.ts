@@ -82,7 +82,7 @@ export function splitFrontmatter(rawSource: string): { frontmatter?: Record<stri
 
   const parsed = parseYaml(lines.slice(1, frontmatterEnd).join("\n")) as unknown;
   return {
-    frontmatter: isRecord(parsed) ? parsed : undefined,
+    frontmatter: isRecord(parsed) && !Array.isArray(parsed) ? parsed : undefined,
     body: lines.slice(frontmatterEnd + 1).join("\n"),
   };
 }

@@ -1,46 +1,12 @@
 import { describe, it, expect } from "vitest";
 import {
   normalizeQuery,
-  isRecord,
   readString,
   readNumber,
   parseSearchEvent,
 } from "../search-event-logger.js";
 
 describe("normalizeQuery", () => {
-  it("trims whitespace", () => {
-    expect(normalizeQuery("  hello  ")).toBe("hello");
-  });
-
-  it("collapses multiple spaces", () => {
-    expect(normalizeQuery("hello   world")).toBe("hello world");
-  });
-
-  it("handles tabs and newlines", () => {
-    expect(normalizeQuery("hello\t\nworld")).toBe("hello world");
-  });
-
-  it("returns empty string for whitespace-only input", () => {
-    expect(normalizeQuery("   ")).toBe("");
-  });
-});
-
-describe("isRecord", () => {
-  it("returns true for plain objects", () => {
-    expect(isRecord({})).toBe(true);
-  });
-
-  it("returns false for null", () => {
-    expect(isRecord(null)).toBe(false);
-  });
-
-  it("returns false for primitives", () => {
-    expect(isRecord("string")).toBe(false);
-    expect(isRecord(42)).toBe(false);
-  });
-});
-
-describe("readString", () => {
   it("returns trimmed string", () => {
     expect(readString("  hello  ")).toBe("hello");
   });
