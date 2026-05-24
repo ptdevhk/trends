@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createApp } from '../app'
 import { searchProfileService } from '../services/search-profile-service'
+import { logger } from '../services/logger'
 
 type ConvexCall = {
   type: 'query' | 'mutation'
@@ -445,7 +446,7 @@ describe('search-profiles drift re-seed', () => {
   it('skips refresh and only logs when SEARCH_PROFILES_RESEED_ON_DRIFT is unset', async () => {
     delete process.env.SEARCH_PROFILES_RESEED_ON_DRIFT
     const updateCalls: ConvexCall[] = []
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {})
 
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
       const call = parseConvexCall(input, init)
@@ -519,6 +520,7 @@ describe('search-profiles drift re-seed', () => {
     expect(updateCalls).toHaveLength(0)
     expect(warnSpy).toHaveBeenCalledWith(
       expect.stringContaining('template drift detected for "seek-malaysia-sales"'),
+      expect.objectContaining({ route: 'search-profiles' }),
     )
   })
 

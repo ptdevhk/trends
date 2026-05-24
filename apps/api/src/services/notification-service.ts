@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer';
 import { z } from 'zod';
+import { logger } from './logger.js';
 
 export interface EmailOptions {
     to: string;
@@ -53,8 +54,8 @@ class EtherealAdapter implements NotificationAdapter {
                     pass: testAccount.pass,
                 },
             });
-            console.log('📧 Ethereal Email Adapter Ready');
-            console.log(`   User: ${testAccount.user}`);
+            logger.info('Ethereal Email Adapter Ready', { service: 'notification' });
+            logger.info(`User: ${testAccount.user}`, { service: 'notification' });
         }
         return this.transporter;
     }
@@ -69,8 +70,8 @@ class EtherealAdapter implements NotificationAdapter {
             html: options.html,
         });
 
-        console.log('Message sent: %s', info.messageId);
-        console.log('Preview URL: %s', nodemailer.getTestMessageUrl(info));
+        logger.info(`Message sent: ${info.messageId}`, { service: 'notification' });
+        logger.info(`Preview URL: ${nodemailer.getTestMessageUrl(info)}`, { service: 'notification' });
         return info;
     }
 }

@@ -695,10 +695,11 @@ async function ensureWorkspaceSeedProfiles(workspaceSlug: string): Promise<void>
         }
 
         if (!reseedOnDrift) {
-            console.warn(
-                `[search-profiles] template drift detected for "${logicalId}" (workspace=${workspaceSlug}); ` +
+            logger.warn(
+                `template drift detected for "${logicalId}" (workspace=${workspaceSlug}); ` +
                 `set SEARCH_PROFILES_RESEED_ON_DRIFT=true to refresh from YAML automatically, ` +
                 `or PUT the profile manually via the editor.`,
+                { route: "search-profiles" },
             );
             continue;
         }
@@ -716,9 +717,10 @@ async function ensureWorkspaceSeedProfiles(workspaceSlug: string): Promise<void>
             }),
             workspaceSlug,
         );
-        console.warn(
-            `[search-profiles] refreshed "${logicalId}" (workspace=${workspaceSlug}) from YAML template ` +
+        logger.warn(
+            `refreshed "${logicalId}" (workspace=${workspaceSlug}) from YAML template ` +
             `(hash ${existing.templateHash ?? "unknown"} → ${currentHash}).`,
+            { route: "search-profiles" },
         );
     }
 }
