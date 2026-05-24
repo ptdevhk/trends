@@ -1028,6 +1028,30 @@ const _extractionPipeline = createExtractionPipeline({
   syncCurrentPageToServer,
   delay,
   pipelineState,
+  isJob51DetailPage,
+  filterCurrentResumesByAgeRange,
+  extractJob51DetailResume,
+  extract51JobResumes,
+  isSeekProfileMode,
+  hasSeekProfileSnapshot,
+  extractSeekProfileResume,
+  hasSeekTalentSearchSnapshot,
+  extractSeekTalentSearchResumes,
+  hasSeekListSnapshot,
+  extractSeekResumes,
+  isJob5156DetailPage,
+  extractJob5156DetailResume,
+  getApiRowForIndex,
+  extractSingleResume,
+  isJob51DetailReady,
+  getSeekProfileRequest,
+  getSeekTalentSearchRequest,
+  getSeekRecommendedRequest,
+  SEEK_PROFILE_TYPE,
+  getJob5156DetailRoot,
+  getSeekNextPageLinkForMode,
+  getPaginationInfo,
+  asHTMLElement,
 });
 const {
   isDisabledPaginationControl,
@@ -1036,6 +1060,9 @@ const {
   waitForExtractionData,
   clearCapturedResultsForNextPage,
   waitForSeekProfileSnapshot,
+  extractResumes,
+  extractResumesRaw,
+  goToNextPageInternal,
   enrich51JobSearchResumesWithDetail,
   queueJob51DetailBackfill,
 } = _extractionPipeline;
@@ -2083,226 +2110,7 @@ function extractSeekTalentSearchResumes() {
     .filter(Boolean);
 }
 
-function extractResumes() {
-  if (isJob51DetailPage()) {
-    return filterCurrentResumesByAgeRange(extractJob51DetailResume());
-  }
-  if (getCurrentSourceKey() === SOURCE_KEYS.JOB51) {
-    return filterCurrentResumesByAgeRange(extract51JobResumes());
-  }
-  if (getCurrentSourceKey() === SOURCE_KEYS.SEEK) {
-    if (isSeekProfileMode()) {
-      if (hasSeekProfileSnapshot()) {
-        return extractSeekProfileResume();
-      }
-      return [];
-    }
-    if (hasSeekTalentSearchSnapshot()) {
-      return extractSeekTalentSearchResumes();
-    }
-    if (hasSeekListSnapshot()) {
-      return extractSeekResumes();
-    }
-  }
 
-  if (isJob5156DetailPage()) {
-    return filterCurrentResumesByAgeRange(extractJob5156DetailResume());
-  }
-
-  const cards = document.querySelectorAll(SELECTORS.resumeCard);
-  const resumes = [];
-
-  cards.forEach((card, index) => {
-    try {
-      const apiRow = getApiRowForIndex(index);
-      const resume = extractSingleResume(card, apiRow);
-      resume.pageIndex = index + 1;
-      if (apiRow) {
-        resume.resumeId = apiRow.resumeId ?? "";
-        resume.perUserId = apiRow.perUserId ?? "";
-      }
-      resumes.push(resume);
-    } catch (error) {
-      console.error(`Error extracting resume ${index}:`, error);
-    }
-  });
-
-  return filterCurrentResumesByAgeRange(resumes);
-}
-
-/**
- * Extract raw HTML/text from resume cards (no predefined schema).
- * @param {Object} [options]
- * @param {boolean} [options.includePage=false] - Include full page HTML
- * @returns {Object} - Raw payload
- */
-function extractResumesRaw(options = {}) {
-  const includePage = !!(
-    options &&
-    typeof options === "object" &&
-    options.includePage
-  );
-
-  if (getCurrentSourceKey() === SOURCE_KEYS.SEEK) {
-    const seekProfile =
-      isSeekProfileMode() && hasSeekProfileSnapshot()
-        ? apiSnapshot.seekProfile
-        : null;
-    const seekProfileIdentity = seekProfile
-      ? getSeekCandidateIdentity(seekProfile)
-      : null;
-    const seekTalentSearchCandidates =
-      !seekProfile && hasSeekTalentSearchSnapshot()
-        ? apiSnapshot.seekTalentSearch
-        : null;
-    const candidates =
-      seekTalentSearchCandidates ||
-      (!seekProfile && hasSeekListSnapshot()
-        ? apiSnapshot.seekRecommendedCandidates
-        : []);
-    const seekRequest = seekProfile
-      ? getSeekProfileRequest()
-      : seekTalentSearchCandidates
-        ? getSeekTalentSearchRequest()
-        : getSeekRecommendedRequest();
-    const cards = seekProfile
-      ? [
-          {
-            index: 1,
-            profileId: seekProfileIdentity?.profileId || "",
-            profileType: seekProfileIdentity?.profileType || SEEK_PROFILE_TYPE,
-            text: JSON.stringify(seekProfile, null, 2),
-          },
-        ]
-      : candidates.map((candidate, index) => {
-          // Talent-search nodes use profileGuid (UUID); recommended nodes use numeric profileId
-          const profileId = seekTalentSearchCandidates
-            ? typeof candidate?.profileGuid === "string" && candidate.profileGuid
-              ? candidate.profileGuid
-              : ""
-            : getSeekCandidateIdentity(candidate).profileId;
-          const profileType = SEEK_PROFILE_TYPE;
-          return {
-            index: index + 1,
-            profileId,
-            profileType,
-            text: JSON.stringify(candidate, null, 2),
-          };
-        });
-
-    if (seekProfile || candidates.length > 0) {
-      const payload = {
-        url: window.location.href,
-        extractedAt: new Date().toISOString(),
-        count: cards.length,
-        cards,
-        api: {
-          lastSearchAt: apiSnapshot.lastSearchAt,
-          lastUpdatedAt: apiSnapshot.lastUpdatedAt,
-          searchRowCount: cards.length,
-          sourceKey: SOURCE_KEYS.SEEK,
-          operationName: apiSnapshot.lastOperationName,
-          request: seekProfile
-            ? getSeekProfileRequest()
-            : seekRequest,
-        },
-      };
-
-      if (includePage) {
-        payload.pageHtml = document.documentElement.outerHTML;
-      }
-
-      return payload;
-    }
-  }
-
-  if (isJob51DetailPage() && isJob51DetailReady()) {
-    const detailResumes = extractJob51DetailResume();
-    const detailResume = detailResumes[0] || null;
-    const payload = {
-      url: window.location.href,
-      extractedAt: new Date().toISOString(),
-      count: detailResumes.length,
-      cards: [
-        {
-          index: 1,
-          resumeId: detailResume?.resumeId || "",
-          perUserId: detailResume?.perUserId || "",
-          text: JSON.stringify(
-            detailResume?.rawData || apiSnapshot.job51DetailPayload,
-            null,
-            2,
-          ),
-        },
-      ],
-      api: {
-        lastSearchAt: apiSnapshot.lastSearchAt,
-        lastUpdatedAt: apiSnapshot.lastUpdatedAt,
-        searchRowCount: detailResumes.length,
-        sourceKey: SOURCE_KEYS.JOB51,
-        operationName: apiSnapshot.lastOperationName,
-        request: apiSnapshot.job51AuthContext,
-        payload: apiSnapshot.job51DetailPayload,
-      },
-    };
-
-    if (includePage) {
-      payload.pageHtml = document.documentElement.outerHTML;
-    }
-
-    return payload;
-  }
-
-  const detailResumes = isJob5156DetailPage()
-    ? extractJob5156DetailResume()
-    : [];
-  const detailRoot = getJob5156DetailRoot();
-  const detailRootElement =
-    detailRoot instanceof HTMLElement ? detailRoot : null;
-  const items =
-    detailResumes.length > 0
-      ? [
-          {
-            index: 1,
-            resumeId: detailResumes[0]?.resumeId || "",
-            perUserId: "",
-            html: detailRoot?.outerHTML || "",
-            text: detailRootElement?.innerText || detailRoot?.textContent || "",
-          },
-        ]
-      : Array.from(document.querySelectorAll(SELECTORS.resumeCard)).map(
-          (card, index) => {
-            const el = /** @type {HTMLElement} */ (card);
-            return {
-              index: index + 1,
-              resumeId: getApiRowForIndex(index)?.resumeId ?? "",
-              perUserId: getApiRowForIndex(index)?.perUserId ?? "",
-              html: el.outerHTML,
-              text: el.innerText,
-            };
-          },
-        );
-
-  const payload = {
-    url: window.location.href,
-    extractedAt: new Date().toISOString(),
-    count: items.length,
-    cards: items,
-    api: {
-      lastSearchAt: apiSnapshot.lastSearchAt,
-      lastUpdatedAt: apiSnapshot.lastUpdatedAt,
-      searchRowCount: Array.isArray(apiSnapshot.searchRows)
-        ? apiSnapshot.searchRows.length
-        : 0,
-    },
-  };
-
-  if (includePage) {
-    payload.pageHtml = document.documentElement.outerHTML;
-  }
-
-  return payload;
-}
 
 function normalizeCardText(text) {
   if (!text) return "";
@@ -2596,31 +2404,6 @@ function getSeekNextPageLinkForMode() {
 }
 
 
-
-function goToNextPageInternal() {
-  const sourceKey = getCurrentSourceKey();
-  if (sourceKey === SOURCE_KEYS.SEEK) {
-    const nextBtn = getSeekNextPageLinkForMode();
-    if (!nextBtn || isDisabledPaginationControl(nextBtn)) return false;
-    nextBtn.click();
-    return true;
-  }
-  // 51job eHire uses infinite scroll — dispatch a custom event that
-  // page-hook.js (MAIN world) intercepts to call Vue listToBottom().
-  if (sourceKey === SOURCE_KEYS.JOB51) {
-    const pagination = getPaginationInfo();
-    if (!pagination.hasNextPage) return false;
-    window.postMessage(
-        { source: CONTENT_SCRIPT_SOURCE, action: JOB51_NEXT_PAGE_EVENT },
-        "*",
-      );
-    return true;
-  }
-  const nextBtn = asHTMLElement(document.querySelector(SELECTORS.nextPageBtn));
-  if (!nextBtn || isDisabledPaginationControl(nextBtn)) return false;
-  nextBtn.click();
-  return true;
-}
 
 function getNextPageButtonState() {
   const sourceKey = getCurrentSourceKey();
