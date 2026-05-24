@@ -34,7 +34,8 @@ describe('ResumeTable field usage policy', () => {
       />,
     )
 
-    expect(screen.getByText('--')).toBeInTheDocument()
+    // Both age and jobIntention are hidden on presentation surface → multiple '--'
+    expect(screen.getAllByText('--').length).toBeGreaterThanOrEqual(1)
     expect(screen.queryByText('Sales Engineer')).not.toBeInTheDocument()
   })
 })
