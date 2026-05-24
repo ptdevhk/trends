@@ -1,0 +1,315 @@
+/**
+ * Integration tests using convex-test for audit.ts and lib/bias_metrics.ts.
+ *
+ * Uses edge-runtime environment (configured via environmentMatchGlobs in root vitest.config.ts).
+ */
+import { convexTest } from "convex-test";
+import { describe, expect, it } from "vitest";
+import { api } from "../_generated/api.js";
+import { internal } from "../_generated/api.js";
+import schema from "../schema.js";
+import {
+    computeDemographicParity,
+    computeEqualizedOdds,
+    computeDisparateImpactRatio,
+    ageToBracket,
+    fnvHash,
+} from "../lib/bias_metrics.js";
+
+const modules = (import.meta as any).glob("../**/*.ts", { eager: false });
+
+// ---------------------------------------------------------------------------
+// Convex integration tests
+// ---------------------------------------------------------------------------
+
+describe("audit (convex-test)", () => {
+  describe("logAnalysisDecision (internal)", () => {
+    it("creates an audit log entry", async () => {
+      const t = convexTest(schema, modules);
+
+      const resumeId = await t.run(async (ctx) => {
+        return ctx.db.insert("resumes", {
+          externalId: "audit-r1",
+          content: {},
+          hash: "audit1",
+          tags: [],
+          crawledAt: Date.now(),
+          source: "test",
+          searchText: "Audit test resume",
+        });
+      });
+
+      await t.mutation(internal.audit.logAnalysisDecision, {
+        resumeId,
+        workspaceSlug: "ws-audit",
+        decisionType: "score",
+        actionRef: "analyze:analyzeResume",
+        inputSnapshot: {
+          jobDescriptionId: "jd-1",
+          scrubbedFields: ["age", "gender"],
+        },
+        modelMeta: {
+          model: "gpt-4-turbo",
+          provider: "openai",
+          promptTokens: 500,
+          completionTokens: 200,
+          latencyMs: 1500,
+        },
+        output: {
+          score: 78,
+          recommendation: "match",
+        },
+        protectedAttributeHashes: {
+          ageBracketHash: fnvHash(ageToBracket(32)),
+          sourceHash: fnvHash("test"),
+        },
+        explanation: {
+          summary: "Candidate scored 78/100 against CNC Operator role.",
+          keyFactors: [
+            { factor: "relevant_experience", weight: 0.4, value: "7 years in CNC machining" },
+            { factor: "skill_alignment", weight: 0.3, value: "4 of 5 required skills matched" },
+          ],
+        },
+        decidedAt: Date.now(),
+      });
+
+      // Verify the audit log was created
+      const logs = await t.run(async (ctx) => {
+        return ctx.db
+          .query("analysis_audit_log")
+          .withIndex("by_resume", (q) => q.eq("resumeId", resumeId))
+          .collect();
+      });
+
+      expect(logs.length).toBe(1);
+      expect(logs[0].workspaceSlug).toBe("ws-audit");
+      expect(logs[0].decisionType).toBe("score");
+      expect(logs[0].outcome).toBe("pending");
+      expect(logs[0].inputSnapshot.scrubbedFields).toEqual(["age", "gender"]);
+      expect(logs[0].output.score).toBe(78);
+      expect(logs[0].expiresAt).toBeGreaterThan(logs[0].decidedAt);
+    });
+  });
+
+  describe("getExplanationForCandidate", () => {
+    it("returns explanation for a scored resume", async () => {
+      const t = convexTest(schema, modules);
+
+      const resumeId = await t.run(async (ctx) => {
+        return ctx.db.insert("resumes", {
+          externalId: "explain-r1",
+          content: {},
+          hash: "explain1",
+          tags: [],
+          crawledAt: Date.now(),
+          source: "test",
+        });
+      });
+
+      const now = Date.now();
+      await t.run(async (ctx) => {
+        await ctx.db.insert("analysis_audit_log", {
+          resumeId,
+          workspaceSlug: "ws-explain",
+          decisionType: "score",
+          actionRef: "analyze:analyzeResume",
+          inputSnapshot: { scrubbedFields: ["age"] },
+          modelMeta: { model: "gpt-4", provider: "openai" },
+          output: { score: 85, recommendation: "strong_match" },
+          explanation: {
+            summary: "Strong candidate with 10 years experience.",
+            keyFactors: [
+              { factor: "experience", weight: 0.6, value: "10 years" },
+              { factor: "education", weight: 0.2, value: "Master's degree" },
+            ],
+            modelReasoning: "Internal reasoning text",
+          },
+          outcome: "pending",
+          decidedAt: now,
+          expiresAt: now + 2 * 365 * 24 * 60 * 60 * 1000,
+        });
+      });
+
+      const result = await t.query(api.audit.getExplanationForCandidate, {
+        resumeId,
+        workspaceSlug: "ws-explain",
+      });
+
+      expect(result).not.toBeNull();
+      expect(result!.summary).toBe("Strong candidate with 10 years experience.");
+      expect(result!.keyFactors.length).toBe(2);
+      // weight should NOT be exposed to candidates
+      expect(result!.keyFactors[0]).not.toHaveProperty("weight");
+      expect(result!.scrubbedFields).toEqual(["age"]);
+      expect(result!.protectedAttributesExcluded).toBe(true);
+    });
+
+    it("returns null when no explanation exists", async () => {
+      const t = convexTest(schema, modules);
+
+      const resumeId = await t.run(async (ctx) => {
+        return ctx.db.insert("resumes", {
+          externalId: "no-explain-r1",
+          content: {},
+          hash: "noexp1",
+          tags: [],
+          crawledAt: Date.now(),
+          source: "test",
+        });
+      });
+
+      const result = await t.query(api.audit.getExplanationForCandidate, {
+        resumeId,
+        workspaceSlug: "ws-noexplain",
+      });
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe("getAuditLogByWorkspace", () => {
+    it("returns audit logs filtered by decisionType", async () => {
+      const t = convexTest(schema, modules);
+
+      const resumeId = await t.run(async (ctx) => {
+        return ctx.db.insert("resumes", {
+          externalId: "filter-r1",
+          content: {},
+          hash: "filter1",
+          tags: [],
+          crawledAt: Date.now(),
+          source: "test",
+        });
+      });
+
+      const now = Date.now();
+      await t.run(async (ctx) => {
+        await ctx.db.insert("analysis_audit_log", {
+          resumeId,
+          workspaceSlug: "ws-filter",
+          decisionType: "score",
+          actionRef: "analyze:analyzeResume",
+          inputSnapshot: {},
+          modelMeta: { model: "gpt-4", provider: "openai" },
+          output: { score: 90 },
+          outcome: "pending",
+          decidedAt: now,
+          expiresAt: now + 2 * 365 * 24 * 60 * 60 * 1000,
+        });
+        await ctx.db.insert("analysis_audit_log", {
+          resumeId,
+          workspaceSlug: "ws-filter",
+          decisionType: "tag",
+          actionRef: "ai_tagging_results:tagResume",
+          inputSnapshot: {},
+          modelMeta: { model: "gpt-4", provider: "openai" },
+          output: { tags: ["senior"] },
+          outcome: "pending",
+          decidedAt: now + 1000,
+          expiresAt: now + 2 * 365 * 24 * 60 * 60 * 1000,
+        });
+      });
+
+      const scoreLogs = await t.query(api.audit.getAuditLogByWorkspace, {
+        workspaceSlug: "ws-filter",
+        decisionType: "score",
+      });
+      expect(scoreLogs.length).toBe(1);
+      expect(scoreLogs[0].decisionType).toBe("score");
+
+      const allLogs = await t.query(api.audit.getAuditLogByWorkspace, {
+        workspaceSlug: "ws-filter",
+      });
+      expect(allLogs.length).toBe(2);
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Unit tests for bias_metrics.ts (pure functions, no Convex needed)
+// ---------------------------------------------------------------------------
+
+describe("bias_metrics (unit)", () => {
+  describe("computeDemographicParity", () => {
+    it("passes when groups have similar selection rates", () => {
+      const groups = [
+        { groupKey: "age_25-29", total: 100, positive: 40, avgScore: 70, scoreStdDev: 10 },
+        { groupKey: "age_30-34", total: 100, positive: 45, avgScore: 72, scoreStdDev: 9 },
+        { groupKey: "age_35-39", total: 100, positive: 38, avgScore: 68, scoreStdDev: 11 },
+      ];
+      const result = computeDemographicParity(groups);
+      expect(result.passing).toBe(true);
+      expect(result.disparityRatio).toBeGreaterThanOrEqual(0.8);
+    });
+
+    it("fails when one group has significantly lower selection rate", () => {
+      const groups = [
+        { groupKey: "age_25-29", total: 100, positive: 50, avgScore: 75, scoreStdDev: 10 },
+        { groupKey: "age_50_plus", total: 100, positive: 10, avgScore: 50, scoreStdDev: 15 },
+      ];
+      const result = computeDemographicParity(groups);
+      expect(result.passing).toBe(false);
+      expect(result.disparityRatio).toBeLessThan(0.8);
+    });
+  });
+
+  describe("computeEqualizedOdds", () => {
+    it("passes when TPR and FPR are similar across groups", () => {
+      const groups = [
+        { groupKey: "g1", truePositives: 45, falsePositives: 5, trueNegatives: 45, falseNegatives: 5 },
+        { groupKey: "g2", truePositives: 43, falsePositives: 7, trueNegatives: 43, falseNegatives: 7 },
+      ];
+      const result = computeEqualizedOdds(groups);
+      expect(result.passing).toBe(true);
+      expect(result.tprDifference).toBeLessThanOrEqual(0.1);
+      expect(result.fprDifference).toBeLessThanOrEqual(0.1);
+    });
+
+    it("fails when TPR differs significantly", () => {
+      const groups = [
+        { groupKey: "g1", truePositives: 90, falsePositives: 5, trueNegatives: 90, falseNegatives: 10 },
+        { groupKey: "g2", truePositives: 50, falsePositives: 5, trueNegatives: 90, falseNegatives: 50 },
+      ];
+      const result = computeEqualizedOdds(groups);
+      expect(result.passing).toBe(false);
+    });
+  });
+
+  describe("computeDisparateImpactRatio", () => {
+    it("returns 1.0 when rates are equal", () => {
+      const protected_ = { groupKey: "a", total: 100, positive: 30, avgScore: 70, scoreStdDev: 10 };
+      const reference = { groupKey: "b", total: 100, positive: 30, avgScore: 70, scoreStdDev: 10 };
+      expect(computeDisparateImpactRatio(protected_, reference)).toBeCloseTo(1.0);
+    });
+
+    it("returns < 0.8 for disparate impact", () => {
+      const protected_ = { groupKey: "a", total: 100, positive: 10, avgScore: 50, scoreStdDev: 15 };
+      const reference = { groupKey: "b", total: 100, positive: 50, avgScore: 75, scoreStdDev: 10 };
+      expect(computeDisparateImpactRatio(protected_, reference)).toBeLessThan(0.8);
+    });
+  });
+
+  describe("ageToBracket", () => {
+    it("maps ages to correct brackets", () => {
+      expect(ageToBracket(22)).toBe("under_25");
+      expect(ageToBracket(25)).toBe("25-29");
+      expect(ageToBracket(30)).toBe("30-34");
+      expect(ageToBracket(35)).toBe("35-39");
+      expect(ageToBracket(40)).toBe("40-44");
+      expect(ageToBracket(45)).toBe("45-49");
+      expect(ageToBracket(55)).toBe("50_plus");
+    });
+  });
+
+  describe("fnvHash", () => {
+    it("produces consistent hashes", () => {
+      expect(fnvHash("30-34")).toBe(fnvHash("30-34"));
+      expect(fnvHash("30-34")).not.toBe(fnvHash("35-39"));
+    });
+
+    it("produces 8-char hex strings", () => {
+      const hash = fnvHash("test");
+      expect(hash).toMatch(/^[0-9a-f]{8}$/);
+    });
+  });
+});
