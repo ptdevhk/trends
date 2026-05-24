@@ -1,5 +1,6 @@
 import { loadAIConfig } from "./ai-config.js";
 import { callChatCompletion } from "./ai-chat-client.js";
+import { logger } from "./logger.js";
 import { workspaceConfigService } from "./workspace-config-service.js";
 
 const DEFAULT_AI_SUMMARY_MODEL = process.env.AI_SUMMARY_MODEL
@@ -146,7 +147,7 @@ export class AiSummaryService {
         summary: stripCodeFence(content),
       };
     } catch (error) {
-      console.error("AI summary generation unavailable, using heuristic fallback", error);
+      logger.error("AI summary generation unavailable, using heuristic fallback", error, { service: "ai-summary-service" });
       return {
         model: FALLBACK_AI_SUMMARY_MODEL,
         summary: this.buildFallbackSummary(request),

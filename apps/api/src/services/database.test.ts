@@ -17,6 +17,10 @@ vi.mock("better-sqlite3", () => ({
   default: constructorMock,
 }));
 
+vi.mock("./logger.js");
+
+import { logger } from "./logger.js";
+
 describe("getResumeScreeningDb", () => {
   afterEach(async () => {
     const { resetResumeScreeningDb } = await import("./database");
@@ -46,7 +50,6 @@ describe("getResumeScreeningDb", () => {
       return undefined;
     });
 
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const { getResumeScreeningDb } = await import("./database");
 
     const db = getResumeScreeningDb(process.cwd());
@@ -58,7 +61,7 @@ describe("getResumeScreeningDb", () => {
     expect(pragmaMock).toHaveBeenCalledWith("foreign_keys = ON");
     expect(execMock).toHaveBeenCalledWith(expect.stringContaining("CREATE TABLE IF NOT EXISTS users"));
     expect(execMock).toHaveBeenCalledTimes(1);
-    expect(errorSpy).toHaveBeenCalledTimes(1);
+    expect(logger.error).toHaveBeenCalledTimes(1);
   });
 
   it("ignores duplicate column errors during concurrent schema upgrades", async () => {

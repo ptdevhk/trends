@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import JSON5 from "json5";
+import { logger } from "./logger.js";
 import {
   isRecord,
   parseResumeFieldUsagePolicyOverrides,
@@ -668,7 +669,7 @@ export class WorkspaceConfigService {
       });
       return parseWorkspaceConfigEntry(value);
     } catch (error) {
-      console.error("Failed to get workspace config entry", error);
+      logger.error("Failed to get workspace config entry", error, { service: "workspace-config" });
       return null;
     }
   }
@@ -681,7 +682,7 @@ export class WorkspaceConfigService {
         configValue,
       });
     } catch (error) {
-      console.error("Failed to upsert workspace config entry", error);
+      logger.error("Failed to upsert workspace config entry", error, { service: "workspace-config" });
       throw error;
     }
   }

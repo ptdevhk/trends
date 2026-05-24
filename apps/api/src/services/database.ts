@@ -4,6 +4,7 @@ import path from "node:path";
 import Database from "better-sqlite3";
 
 import { findProjectRoot } from "./db.js";
+import { logger } from "./logger.js";
 
 const DEFAULT_DB_FILENAME = "resume_screening.db";
 
@@ -27,7 +28,7 @@ function configureResumeScreeningDb(db: Database.Database): void {
       db.pragma("journal_mode = WAL");
     }
   } catch (error) {
-    console.error("Failed to enable WAL for resume screening DB", error);
+    logger.error("Failed to enable WAL for resume screening DB", error, { service: "database" });
     if (getSqliteErrorCode(error) !== "SQLITE_BUSY") {
       throw error;
     }

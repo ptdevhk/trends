@@ -25,6 +25,9 @@ vi.mock("./workspace-config-service.js", () => ({
   },
 }));
 
+vi.mock("./logger.js");
+
+import { logger } from "./logger.js";
 import { AiSummaryService } from "./ai-summary-service.js";
 
 function createAIConfig(overrides: Partial<ReturnType<typeof loadAIConfigMock>> = {}) {
@@ -142,7 +145,7 @@ Strong overlap around machine tools and CNC sales backgrounds.
   it("fails before the AI call when the runtime has no API key", async () => {
     loadAIConfigMock.mockReturnValue(createAIConfig({ apiKey: "" }));
     getWorkspaceConfigValueMock.mockResolvedValue(undefined);
-    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    logger.error.mockClear();
 
     const service = new AiSummaryService();
     const result = await service.generateSummary({
@@ -167,9 +170,10 @@ Strong overlap around machine tools and CNC sales backgrounds.
     expect(result.summary).toContain('Visible results for "cnc" currently include 1 candidates.');
     expect(result.summary).toContain("Shared themes are strongest around CNC, Sales.");
     expect(result.summary).toContain("Keep the location filter on China");
-    expect(consoleErrorSpy).toHaveBeenCalledWith(
+    expect(logger.error).toHaveBeenCalledWith(
       "AI summary generation unavailable, using heuristic fallback",
       expect.any(Error),
+      { service: "ai-summary-service" },
     );
   });
 
@@ -177,7 +181,7 @@ Strong overlap around machine tools and CNC sales backgrounds.
     loadAIConfigMock.mockReturnValue(createAIConfig());
     getWorkspaceConfigValueMock.mockResolvedValue("anthropic/claude-3-5-haiku-20241022");
     callChatCompletionMock.mockRejectedValue(new Error("provider timeout"));
-    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    logger.error.mockClear();
 
     const service = new AiSummaryService();
     const result = await service.generateSummary({
@@ -209,9 +213,10 @@ Strong overlap around machine tools and CNC sales backgrounds.
     expect(result.summary).toContain('Visible results for "machine tools sales" currently include 2 candidates.');
     expect(result.summary).toContain("Shared themes are strongest around Machine Tools");
     expect(result.summary).toContain("Visible scores range from 87 to 92");
-    expect(consoleErrorSpy).toHaveBeenCalledWith(
+    expect(logger.error).toHaveBeenCalledWith(
       "AI summary generation unavailable, using heuristic fallback",
       expect.any(Error),
+      { service: "ai-summary-service" },
     );
   });
 });

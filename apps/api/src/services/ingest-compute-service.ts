@@ -14,6 +14,7 @@ import {
 } from "@trends/shared";
 
 import { IndustryDataService } from "./industry-data-service.js";
+import { logger } from "./logger.js";
 import { normalizeCompanyPatternIdentifier, SkillsKnowledgeService } from "./skills-knowledge.js";
 import { JobDescriptionService } from "./job-description-service.js";
 import { RuleScoringService, type MatchedWorkEntry, type RoleSignalSummary } from "./rule-scoring.js";
@@ -605,7 +606,7 @@ export class IngestComputeService {
         scores[jd.id] = result.score;
       } catch (error) {
         // Log error but don't fail the whole batch
-        console.error(`Failed to score resume against JD ${jd.name}:`, error);
+        logger.error(`Failed to score resume against JD ${jd.name}`, error, { service: "ingest-compute-service" });
         scores[jd.id] = 0;
       }
     }

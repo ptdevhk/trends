@@ -7,6 +7,7 @@ import { z } from "zod";
 
 import { findProjectRoot } from "./db.js";
 import { FilterPresetService } from "./filter-preset-service.js";
+import { logger } from "./logger.js";
 import { JobDescriptionService } from "./job-description-service.js";
 import { SkillsKnowledgeService } from "./skills-knowledge.js";
 import type { MatchingResult } from "./ai-matching.js";
@@ -155,13 +156,13 @@ export function loadRuleWeightsConfig(projectRoot: string): RuleWeightsConfig {
     const raw: unknown = JSON5.parse(content);
     const parsed = parseRuleWeightsOverrides(raw);
     if (!parsed) {
-      console.error("[RuleScoring] Failed to parse rule-weights.json5");
+      logger.error("[RuleScoring] Failed to parse rule-weights.json5", "", { service: "rule-scoring" });
       return DEFAULT_WEIGHTS;
     }
 
     return mergeRuleWeights(parsed);
   } catch (error) {
-    console.error("[RuleScoring] Failed to load rule-weights.json5:", error);
+    logger.error("[RuleScoring] Failed to load rule-weights.json5", error, { service: "rule-scoring" });
     return DEFAULT_WEIGHTS;
   }
 }
@@ -654,7 +655,7 @@ export class RuleScoringService {
         }
       }
     } catch (error) {
-      console.error("[RuleScoring] Failed to infer brand keywords:", error);
+      logger.error("[RuleScoring] Failed to infer brand keywords", error, { service: "rule-scoring" });
     }
 
     return Array.from(matches);

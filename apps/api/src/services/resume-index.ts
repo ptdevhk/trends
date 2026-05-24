@@ -15,6 +15,7 @@ import {
 } from "@trends/shared";
 
 import { findProjectRoot } from "./db.js";
+import { logger } from "./logger.js";
 import { JobDescriptionService } from "./job-description-service.js";
 import { SkillsKnowledgeService } from "./skills-knowledge.js";
 import { resolveResumeId } from "./resume-id.js";
@@ -270,7 +271,7 @@ export class ResumeIndexService {
         return normalizedTags;
       }
     } catch (error) {
-      console.error("Failed to load industry taxonomy for scoring:", error);
+      logger.error("Failed to load industry taxonomy for scoring", error, { service: "resume-index" });
     }
 
     return [];

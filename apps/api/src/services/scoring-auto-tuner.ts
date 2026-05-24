@@ -5,6 +5,8 @@ import { isRecord } from "@trends/shared";
 
 import { findProjectRoot } from "./db.js";
 
+import { logger } from "./logger.js";
+
 import { getResumeScreeningDb } from "./database.js";
 
 import { type RuleWeightsConfig } from "./rule-scoring.js";
@@ -509,7 +511,7 @@ export class ScoringAutoTuner {
     try {
       reingestTriggered = await this.triggerReingest(reingestLimit);
     } catch (error) {
-      console.error("[ScoringAutoTuner] Failed to trigger re-ingest:", error);
+      logger.error("[ScoringAutoTuner] Failed to trigger re-ingest", error, { service: "scoring-auto-tuner" });
     }
 
     this.writeState({
