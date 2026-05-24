@@ -1,4 +1,3 @@
-// @ts-nocheck
 import {
   filterResumesByAgeRange,
   getAgeRangeFromUrl,
@@ -8,6 +7,7 @@ import {
   EHIRE_51JOB_HOST,
   EHIRE_51JOB_PROFILE_URL_PREFIX,
   buildJob51DetailResumeFromPayload,
+  getJob51DetailRoot,
   normalizeJob51MultilineText,
   normalizeJob51Text,
 } from "./lib/job51-detail-parser";
@@ -27,16 +27,21 @@ import {
 } from "./lib/resume-text-utils";
 import { createSeekExtractor } from "./lib/seek-extractor";
 import { createJob5156Extractor } from "./lib/job5156-extractor";
-import { createJob51SearchExtractor } from "./lib/job51-search-extractor";
-import { createExtractionPipeline } from "./lib/extraction-pipeline";
+import { createJob51SearchExtractor, type Job51SearchExtractorDeps } from "./lib/job51-search-extractor";
+import { createExtractionPipeline, type ExtractionPipelineDeps } from "./lib/extraction-pipeline";
 import { createSnapshotCollector } from "./lib/snapshot-collector";
 import { createAutoActions } from "./lib/auto-actions";
-import { createUiUtils } from "./lib/ui-utils";
+import { createUiUtils, type UiUtilsDeps } from "./lib/ui-utils";
 import { createPaginationUtils } from "./lib/pagination-utils";
 import { createDomUtils, delay } from "./lib/dom-utils";
-import { createResumeExtractor } from "./lib/resume-extractor";
+import { createResumeExtractor, type ResumeExtractorDeps } from "./lib/resume-extractor";
 import { createSyncStatusWidget } from "./lib/sync-status-widget";
 import { createAutoSyncRunner } from "./lib/auto-sync-runner";
+import {
+  getExternalAccessorStatus as getExternalAccessorStatusFn,
+  installExternalAccessor as installExternalAccessorFn,
+  type ExternalAccessorDeps,
+} from "./lib/external-accessor";
 import {
   DEFAULT_COLLECTION_GUARDS,
   GUARD_FIELD_NAMES,
@@ -150,6 +155,23 @@ const pipelineState = {
   set runId(v) { job51DetailBackfillRunId = v; },
 };
 
+// Forward declarations — assigned after the factory that produces them
+let getCurrentSourceKey: () => string;
+let isJob51DetailPage: () => boolean;
+let isJob5156DetailPage: () => boolean;
+let isJob51DetailReady: () => boolean;
+let isJob5156DetailReady: () => boolean;
+let getSeekPaginationInfo: () => { currentPage: number; totalPages: number; totalItems: number; hasNextPage: boolean };
+let getSeekNextPageLinkForMode: () => HTMLElement | null;
+let getCurrentSeekMode: () => string;
+let makeRandomId: () => string;
+let getSeekCardCount: () => number;
+let isDisabledPaginationControl: (el: unknown) => boolean;
+let waitForSeekProfileSnapshot: (matchId: string, options: { timeoutMs: number }) => Promise<void>;
+let getApiSnapshotCount: () => number;
+let syncCurrentPageToServer: (resumes?: unknown) => Promise<unknown>;
+let getExternalAccessorStatus: () => Record<string, unknown>;
+
 const _paginationUtils = createPaginationUtils({
   getCurrentSourceKey,
   SOURCE_KEYS,
@@ -200,7 +222,7 @@ const _uiUtils = createUiUtils({
   resolveJob51DetailFetchDelayMs,
   resolveJob51AutoSyncDetailWaitMode,
   isJob51DetailPage,
-  chrome,
+  chrome: chrome as unknown as UiUtilsDeps["chrome"],
 });
 const {
   // Export & Metadata
@@ -210,7 +232,6 @@ const {
   normalizeCollectionLimit,
   buildExportFilename,
   buildExportMetadata,
-  getCurrentSourceKey,
   getExtensionGeneratedBy,
   parseAutoLocationValues,
   getAutoLocationValues,
@@ -232,6 +253,7 @@ const {
   installReloadHelper,
   isLoggedIn,
 } = _uiUtils;
+({ getCurrentSourceKey } = _uiUtils);
 
 const _domUtils = createDomUtils({
   win: window,
@@ -261,14 +283,14 @@ const _seekExtractor = createSeekExtractor({
   doc: document,
   // Pagination + extraction deps
   asHTMLElement,
-  isDisabledPaginationControl,
+  isDisabledPaginationControl: isDisabledPaginationControl as (el: unknown) => boolean,
   // Detail enrichment deps
-  waitForSeekProfileSnapshot,
+  waitForSeekProfileSnapshot: waitForSeekProfileSnapshot as unknown as (matchId: string, options: { timeoutMs: number }) => Promise<void>,
+  SELECTORS,
 });
 const {
   isSeekProfilePage,
   isSeekTalentSearchListPage,
-  getCurrentSeekMode,
   isSeekInlineProfileMode,
   isSeekProfileMode,
   hasSeekProfileSnapshot,
@@ -302,15 +324,13 @@ const {
   extractSeekResumes,
   extractSeekTalentSearchResumes,
   // Pagination helpers
-  getSeekCardCount,
-  getSeekPaginationInfo,
   getSeekNextPageLink,
   getSeekTalentSearchNextPageLink,
-  getSeekNextPageLinkForMode,
   // Detail enrichment
   enrichSingleSeekResumeWithDetail,
   enrichSeekResumesWithDetail,
 } = _seekExtractor;
+({ getCurrentSeekMode, getSeekCardCount, getSeekPaginationInfo, getSeekNextPageLinkForMode } = _seekExtractor);
 
 // Schedule restore after SEEK's SPA has had a chance to strip params.
 if (document.readyState === "loading") {
@@ -434,19 +454,17 @@ const _job5156Extractor = createJob5156Extractor({
   JOB5156_DETAIL_FETCH_TIMEOUT_MS,
   JOB5156_DETAIL_FETCH_CONCURRENCY,
   DEFAULT_COLLECTION_GUARDS,
-  GUARD_FIELD_NAMES,
-  GUARD_ARRAY_FIELD_NAMES,
+  GUARD_FIELD_NAMES: GUARD_FIELD_NAMES as unknown as string[],
+  GUARD_ARRAY_FIELD_NAMES: GUARD_ARRAY_FIELD_NAMES as unknown as string[],
   loadCollectionGuards,
-  parseGuardFieldNames,
+  parseGuardFieldNames: parseGuardFieldNames as (guards: unknown) => string[],
   applyCollectionGuards,
   isMeaningfulJob5156WorkHistoryEntry,
   collectJob5156SectionItemsByHeading,
 });
 const {
-  isJob5156DetailPage,
   getJob5156DetailRoot,
   getJob5156DetailHeaderText,
-  isJob5156DetailReady,
   isJob5156DetailRootReady,
   parseJob5156BasicInfoItems,
   buildJob5156WorkHistoryItem,
@@ -464,6 +482,7 @@ const {
   extractJob5156ResumeId,
   normalizeJob5156ProfileUrlForExport,
 } = _job5156Extractor;
+({ isJob5156DetailPage, isJob5156DetailReady } = _job5156Extractor);
 
 const _job51SearchExtractor = createJob51SearchExtractor({
   getCurrentSourceKey,
@@ -480,17 +499,15 @@ const _job51SearchExtractor = createJob51SearchExtractor({
   JOB51_RATE_LIMIT_ERROR_MESSAGE,
   buildJob51DetailResumeFromPayload,
   filterCurrentResumesByAgeRange,
-  chrome,
-  window,
+  chrome: chrome as Job51SearchExtractorDeps["chrome"],
+  window: window as Job51SearchExtractorDeps["window"],
   fetch: globalThis.fetch.bind(globalThis),
-  delay,
+  delay: delay as (ms: number) => Promise<void>,
   isElementVisible,
   activateElement,
   findVueParentByName,
 });
 const {
-  isJob51DetailPage,
-  isJob51DetailReady,
   normalizeJob51AuthContext,
   getJob51RawRows,
   getJob51TotalFromPayload,
@@ -516,6 +533,7 @@ const {
   hasMatchingJob51AgeSearchRequest,
   waitForJob51AgeFilterRefresh,
 } = _job51SearchExtractor;
+({ isJob51DetailPage, isJob51DetailReady } = _job51SearchExtractor);
 
 const _resumeExtractor = createResumeExtractor({
   SELECTORS,
@@ -523,21 +541,21 @@ const _resumeExtractor = createResumeExtractor({
   doc: document,
   getCurrentSourceKey,
   SOURCE_KEYS,
-  parseJob5156BasicInfoItems,
+  parseJob5156BasicInfoItems: parseJob5156BasicInfoItems as unknown as ResumeExtractorDeps["parseJob5156BasicInfoItems"],
   buildJob5156WorkHistoryItem,
   buildJob5156EducationItem,
   isJob51DetailPage,
   isJob5156DetailPage,
   isJob51DetailReady,
   isJob5156DetailReady,
-  getJob51DetailRoot,
-  getJob5156DetailRoot,
-  getJob51ResumePayload,
-  getJob5156ResumePayload,
+  getJob51DetailRoot: getJob51DetailRoot as () => Element | null,
+  getJob5156DetailRoot: getJob5156DetailRoot as () => Element | null,
+  getJob51ResumePayload: () => apiSnapshot.job51DetailPayload,
+  getJob5156ResumePayload: () => null,
   normalizeResumeText,
   normalizeResumeMultilineText,
-  applyCollectionGuards,
-  parseGuardFieldNames,
+  applyCollectionGuards: applyCollectionGuards as (resume: any, guardFieldNames: Set<string>) => any,
+  parseGuardFieldNames: parseGuardFieldNames as unknown as (csv: string) => Set<string>,
   GUARD_FIELD_NAMES,
   DEFAULT_COLLECTION_GUARDS,
   apiSnapshot,
@@ -572,7 +590,7 @@ const _extractionPipeline = createExtractionPipeline({
   isJob51RateLimitedPage,
   JOB51_RATE_LIMIT_ERROR_MESSAGE,
   getSeekCandidateIdentity,
-  chrome,
+  chrome: chrome as ExtractionPipelineDeps["chrome"],
   DEFAULT_COLLECTION_GUARDS,
   CONTENT_SCRIPT_SOURCE,
   JOB51_NEXT_PAGE_EVENT,
@@ -582,7 +600,7 @@ const _extractionPipeline = createExtractionPipeline({
   JOB51_DETAIL_FETCH_CONCURRENCY,
   enrich51JobSearchResumeWithDetail,
   syncCurrentPageToServer,
-  delay,
+  delay: delay as (ms: number) => Promise<void>,
   pipelineState,
   isJob51DetailPage,
   filterCurrentResumesByAgeRange,
@@ -598,7 +616,7 @@ const _extractionPipeline = createExtractionPipeline({
   isJob5156DetailPage,
   extractJob5156DetailResume,
   getApiRowForIndex,
-  extractSingleResume,
+  extractSingleResume: extractSingleResume as unknown as (card: Element, apiRow: unknown) => Record<string, unknown>,
   isJob51DetailReady,
   getSeekProfileRequest,
   getSeekTalentSearchRequest,
@@ -610,18 +628,18 @@ const _extractionPipeline = createExtractionPipeline({
   asHTMLElement,
 });
 const {
-  isDisabledPaginationControl,
   waitForResumeCards,
   waitForApiRows,
   waitForExtractionData,
   clearCapturedResultsForNextPage,
-  waitForSeekProfileSnapshot,
   extractResumes,
   extractResumesRaw,
   goToNextPageInternal,
   enrich51JobSearchResumesWithDetail,
   queueJob51DetailBackfill,
 } = _extractionPipeline;
+isDisabledPaginationControl = _extractionPipeline.isDisabledPaginationControl;
+waitForSeekProfileSnapshot = _extractionPipeline.waitForSeekProfileSnapshot as unknown as typeof waitForSeekProfileSnapshot;
 
 const _snapshotCollector = createSnapshotCollector({
   apiSnapshot,
@@ -634,7 +652,7 @@ const _snapshotCollector = createSnapshotCollector({
   getJob51TotalFromPayload,
   getJob51ResumeRows,
   getSeekPayloadData,
-  chrome,
+  chrome: chrome as Record<string, unknown>,
   normalizeCollectionLimit,
   pipelineState,
   waitForExtractionData,
@@ -655,16 +673,16 @@ const _snapshotCollector = createSnapshotCollector({
   goToNextPageInternal,
   waitForPageTransition,
   buildSubmitMetadata,
-  delay,
+  delay: delay as (ms: number) => Promise<void>,
   document,
 });
 const {
-  getApiSnapshotCount,
   updateApiSnapshot,
   installApiHook,
   normalizeSnapshotCollectOptions,
   collectSnapshotPayload,
 } = _snapshotCollector;
+({ getApiSnapshotCount } = _snapshotCollector);
 
 const _autoActions = createAutoActions({
   activateElement,
@@ -676,7 +694,7 @@ const _autoActions = createAutoActions({
   SOURCE_KEYS,
   isElementVisible,
   resolveJob51AgeFilterDropdown,
-  ensureJob51AgeCustomRangeInputs,
+  ensureJob51AgeCustomRangeInputs: ensureJob51AgeCustomRangeInputs as unknown as (selectBox: unknown, options?: Record<string, unknown>) => Promise<void>,
   applyJob51AgeCustomRangeViaVue,
   waitForJob51AgeFilterRefresh,
   waitForExtractionData,
@@ -688,7 +706,7 @@ const _autoActions = createAutoActions({
   KEYWORD_MODE_SPACED,
   normalizeKeyword,
   normalizeKeywordMode,
-  getKeywordMode,
+  getKeywordMode: getKeywordMode as () => Promise<string>,
   normalizeSeekLocationLabel,
   hasJob51SearchSnapshot,
   isJob51EmptySearchPromptVisible,
@@ -721,7 +739,6 @@ const {
   normalizeCardText,
   rawToMarkdown,
   resumesToCSV,
-  makeRandomId,
   downloadFile,
   getExtensionVersion,
   parseAutoExportMode,
@@ -729,10 +746,35 @@ const {
   parseAutoSyncFlag,
   getAutoSyncEnabled,
   runAutoExportIfEnabled,
-  syncCurrentPageToServer,
   resolveAutoSyncErrorStatus,
   resolveAutoSyncStopReason,
 } = _autoActions;
+({ makeRandomId, syncCurrentPageToServer } = _autoActions);
+
+// Assign getExternalAccessorStatus — wraps getExternalAccessorStatusFn with lazily-bound deps
+getExternalAccessorStatus = () =>
+  getExternalAccessorStatusFn({
+    getExtensionVersion,
+    getPaginationInfo,
+    getCurrentAgeRange,
+    getCurrentSourceKey,
+    getApiSnapshotCount,
+    getSeekCardCount,
+    SOURCE_KEYS,
+    isExtractionReady,
+    isLoggedIn,
+    apiSnapshot,
+    SELECTORS,
+    isJob5156DetailPage,
+    isJob5156DetailReady,
+    extractResumes,
+    extractResumesRaw: extractResumesRaw as unknown as ExternalAccessorDeps["extractResumesRaw"],
+    collectSnapshotPayload: collectSnapshotPayload as unknown as ExternalAccessorDeps["collectSnapshotPayload"],
+    syncToServer: syncCurrentPageToServer,
+    goToNextPageInternal,
+    getExternalAccessorStatus: getExternalAccessorStatusFn,
+    version: getExtensionVersion(),
+  });
 
 window.addEventListener("message", (event) => {
   if (event.source !== window) return;
@@ -916,15 +958,15 @@ const _autoSyncRunner = createAutoSyncRunner({
 
   // Resume extractor
   buildSubmitMetadata,
-  extractProfileUrl,
+  extractProfileUrl: ((resume: unknown) => extractProfileUrl(resume as Element, undefined)) as (resume: unknown) => string,
 
   // Collection guards
   loadCollectionGuards,
-  parseGuardFieldNames,
-  applyCollectionGuards,
+  parseGuardFieldNames: parseGuardFieldNames as unknown as (csv: string) => Set<string>,
+  applyCollectionGuards: applyCollectionGuards as (resume: unknown, fields: Set<string>) => unknown,
 
   // Job51 search extractor
-  ensureJob51PageAllowed,
+  ensureJob51PageAllowed: ensureJob51PageAllowed as unknown as () => boolean,
   isJob51RateLimitedPage,
   waitForJob51Cooldown,
 
@@ -943,13 +985,13 @@ const _autoSyncRunner = createAutoSyncRunner({
 
   // Dom utils
   waitForPageTransition,
-  delay,
+  delay: delay as (ms: number) => Promise<void>,
 
   // Content.ts scope helpers
   getCurrentSourceKey,
   SOURCE_KEYS,
-  getCollectionLimits,
-  getKeywordMode,
+  getCollectionLimits: getCollectionLimits as () => Promise<Record<string, unknown>>,
+  getKeywordMode: getKeywordMode as unknown as () => string,
 
   // Job5156 extractor
   isJob5156DetailPage,
@@ -965,7 +1007,7 @@ const _autoSyncRunner = createAutoSyncRunner({
   window,
 
   // Browser API
-  chrome,
+  chrome: chrome as Record<string, unknown>,
 });
 const { runAutoSyncIfEnabled } = _autoSyncRunner;
 
@@ -1028,11 +1070,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
 
 
-import {
-  getExternalAccessorStatus as getExternalAccessorStatusFn,
-  installExternalAccessor as installExternalAccessorFn,
-} from "./lib/external-accessor";
-
 function installContentTestExports() {
   if (typeof globalThis.__TR_BROWSER_EXTENSION_TEST__ !== "object") {
     return null;
@@ -1060,7 +1097,14 @@ function installContentTestExports() {
         SELECTORS,
         isJob5156DetailPage,
         isJob5156DetailReady,
-      }),
+        extractResumes,
+        extractResumesRaw,
+        collectSnapshotPayload,
+        syncToServer: syncCurrentPageToServer,
+        goToNextPageInternal,
+        getExternalAccessorStatus: getExternalAccessorStatusFn,
+        version: getExtensionVersion(),
+      } as unknown as ExternalAccessorDeps),
   };
   return globalThis.__TR_BROWSER_EXTENSION_TEST__.content;
 }
@@ -1071,31 +1115,27 @@ console.log("🎯 智通直聘 Resume Collector loaded");
 installApiHook();
 installReloadHelper();
 installExternalAccessorFn(EXTERNAL_ACCESS_KEY, {
+  getExtensionVersion,
+  getPaginationInfo,
+  getCurrentAgeRange,
+  getCurrentSourceKey,
+  getApiSnapshotCount,
+  getSeekCardCount,
+  SOURCE_KEYS,
+  isExtractionReady,
+  isLoggedIn,
+  apiSnapshot,
+  SELECTORS,
+  isJob5156DetailPage,
+  isJob5156DetailReady,
   extractResumes,
   extractResumesRaw,
   collectSnapshotPayload,
-  apiSnapshot,
-  getPaginationInfo,
-  isExtractionReady,
-  isLoggedIn,
-  getExternalAccessorStatus: () =>
-    getExternalAccessorStatusFn({
-      getExtensionVersion,
-      getPaginationInfo,
-      getCurrentAgeRange,
-      getCurrentSourceKey,
-      getApiSnapshotCount,
-      getSeekCardCount,
-      SOURCE_KEYS,
-      isExtractionReady,
-      isLoggedIn,
-      apiSnapshot,
-      SELECTORS,
-    }),
   syncToServer: syncCurrentPageToServer,
   goToNextPageInternal,
+  getExternalAccessorStatus: getExternalAccessorStatusFn,
   version: getExtensionVersion(),
-});
+} as unknown as ExternalAccessorDeps);
 installContentTestExports();
 autoSelectLocation()
   .catch((error) => console.warn("🎯 [Auto Location] Failed:", error))
