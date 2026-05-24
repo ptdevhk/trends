@@ -21,6 +21,12 @@ export function createExtractionPipeline(deps) {
     JOB51_NEXT_PAGE_EVENT,
     document: doc,
     window: win,
+    resolveCurrentJob51DetailFetchDelayMs,
+    JOB51_DETAIL_FETCH_CONCURRENCY,
+    enrich51JobSearchResumeWithDetail,
+    syncCurrentPageToServer,
+    delay,
+    pipelineState,
   } = deps;
 
   // --- Collection guards ---
@@ -251,6 +257,152 @@ export function createExtractionPipeline(deps) {
     return style.display !== "none" && style.visibility !== "hidden";
   }
 
+  // --- Detail enrichment / backfill ---
+
+  async function enrich51JobSearchResumesWithDetail(resumes, options = {}) {
+    if (!Array.isArray(resumes) || resumes.length === 0) return [];
+
+    const extractedAt = new Date().toISOString();
+    const interBatchDelayMs =
+      typeof options.interBatchDelayMs === "number" &&
+      Number.isFinite(options.interBatchDelayMs)
+        ? options.interBatchDelayMs
+        : resolveCurrentJob51DetailFetchDelayMs();
+    const collectionGuards = await loadCollectionGuards();
+    const guardFields = parseGuardFieldNames(
+      collectionGuards?.[SOURCE_KEYS.JOB51],
+    );
+    const shouldContinue =
+      typeof options.shouldContinue === "function"
+        ? options.shouldContinue
+        : () => true;
+    const enriched = [];
+    let enrichedCount = 0;
+
+    let rateLimited = false;
+
+    for (
+      let start = 0;
+      start < resumes.length;
+      start += JOB51_DETAIL_FETCH_CONCURRENCY
+    ) {
+      if (!shouldContinue() || rateLimited) {
+        break;
+      }
+
+      const batch = resumes.slice(
+        start,
+        start + JOB51_DETAIL_FETCH_CONCURRENCY,
+      );
+      const batchResults = await Promise.all(
+        batch.map((resume) =>
+          enrich51JobSearchResumeWithDetail(resume, extractedAt),
+        ),
+      );
+
+      for (const result of batchResults) {
+        if (result?.resume) {
+          enriched.push(applyCollectionGuards(result.resume, guardFields));
+        }
+        if (result?.enriched) {
+          enrichedCount += 1;
+        }
+        if (result?.rateLimited) {
+          rateLimited = true;
+        }
+      }
+
+      console.log(
+        `51job detail enrichment: ${Math.min(start + batch.length, resumes.length)}/${resumes.length} (${enrichedCount} enriched)`,
+      );
+
+      if (rateLimited || !shouldContinue()) {
+        break;
+      }
+
+      if (start + JOB51_DETAIL_FETCH_CONCURRENCY < resumes.length) {
+        await delay(interBatchDelayMs);
+      }
+    }
+
+    return enriched;
+  }
+
+  function queueJob51DetailBackfill(resumes, context = {}) {
+    if (!Array.isArray(resumes) || resumes.length === 0) {
+      return Promise.resolve(null);
+    }
+
+    const runId =
+      typeof context.runId === "number" && Number.isFinite(context.runId)
+        ? context.runId
+        : null;
+    const isCancelled = () =>
+      runId !== null && runId !== pipelineState.runId;
+
+    const task = async () => {
+      const detailFetchDelayMs = resolveCurrentJob51DetailFetchDelayMs();
+
+      if (isCancelled()) {
+        console.log("51job detail backfill skipped", {
+          count: resumes.length,
+          currentPage: context.currentPage,
+          totalPages: context.totalPages,
+        });
+        return null;
+      }
+
+      console.log("51job detail backfill queued", {
+        count: resumes.length,
+        currentPage: context.currentPage,
+        totalPages: context.totalPages,
+        delayMs: detailFetchDelayMs,
+        concurrency: JOB51_DETAIL_FETCH_CONCURRENCY,
+      });
+
+      const enrichedResumes = await enrich51JobSearchResumesWithDetail(resumes, {
+        interBatchDelayMs: detailFetchDelayMs,
+        shouldContinue: () => !isCancelled(),
+      });
+      if (!Array.isArray(enrichedResumes) || enrichedResumes.length === 0) {
+        return null;
+      }
+      if (isCancelled()) {
+        console.log("51job detail backfill cancelled", {
+          count: resumes.length,
+          currentPage: context.currentPage,
+          totalPages: context.totalPages,
+        });
+        return null;
+      }
+
+      const response = await syncCurrentPageToServer(enrichedResumes);
+      if (!response?.success) {
+        throw response?.error || response || "51job detail backfill failed";
+      }
+
+      console.log("51job detail backfill synced", {
+        submitted:
+          typeof response.submitted === "number"
+            ? response.submitted
+            : enrichedResumes.length,
+        inserted: typeof response.inserted === "number" ? response.inserted : 0,
+        updated: typeof response.updated === "number" ? response.updated : 0,
+        currentPage: context.currentPage,
+        totalPages: context.totalPages,
+      });
+
+      return response;
+    };
+
+    const scheduled = pipelineState.chain.catch(() => null).then(task);
+    pipelineState.chain = scheduled.catch((error) => {
+      console.warn("51job detail backfill failed:", error);
+      return null;
+    });
+    return scheduled;
+  }
+
   return {
     loadCollectionGuards,
     parseGuardFieldNames,
@@ -262,5 +414,7 @@ export function createExtractionPipeline(deps) {
     clearCapturedResultsForNextPage,
     waitForSeekProfileSnapshot,
     isElementVisible,
+    enrich51JobSearchResumesWithDetail,
+    queueJob51DetailBackfill,
   };
 }
