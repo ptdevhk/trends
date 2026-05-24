@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@trends/shared": "*",
-    "convex": "^1.39.0"
+    "convex": "^1.39.1"
   },
   "devDependencies": {
     "@edge-runtime/vm": "^5.0.0",
