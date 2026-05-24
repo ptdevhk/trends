@@ -35,6 +35,7 @@ import { createUiUtils, type UiUtilsDeps } from "./lib/ui-utils";
 import { createPaginationUtils } from "./lib/pagination-utils";
 import { createDomUtils, delay } from "./lib/dom-utils";
 import { createResumeExtractor, type ResumeExtractorDeps } from "./lib/resume-extractor";
+import { createPageBridge, type PageBridgeDeps } from "./lib/page-bridge";
 import { createSyncStatusWidget } from "./lib/sync-status-widget";
 import { createAutoSyncRunner } from "./lib/auto-sync-runner";
 import {
@@ -73,10 +74,6 @@ import {
   JOB51_RATE_LIMIT_ERROR_MESSAGE,
   API_CAPTURE_SOURCE,
   EXTERNAL_ACCESS_KEY,
-  PAGE_BRIDGE_REQUEST_EVENT,
-  PAGE_BRIDGE_RESPONSE_EVENT,
-  PAGE_BRIDGE_REQUEST_ATTR,
-  PAGE_BRIDGE_RESPONSE_ATTR,
   JOB51_NEXT_PAGE_EVENT,
   CONTENT_SCRIPT_SOURCE,
   JOB5156_DETAIL_FETCH_TIMEOUT_MS,
@@ -783,123 +780,20 @@ window.addEventListener("message", (event) => {
   updateApiSnapshot(msg);
 });
 
-window.addEventListener(PAGE_BRIDGE_REQUEST_EVENT, async () => {
-  const requestPayload = document.documentElement.getAttribute(
-    PAGE_BRIDGE_REQUEST_ATTR,
-  );
-  if (!requestPayload) return;
-
-  let response = {
-    id: null,
-    ok: false,
-    error: "Invalid bridge request",
-    value: undefined,
-  };
-
-  try {
-    const request = JSON.parse(requestPayload);
-    const requestId = request?.id ?? null;
-    const method = typeof request?.method === "string" ? request.method : "";
-    const args = Array.isArray(request?.args) ? request.args : [];
-
-    response.id = requestId;
-
-    switch (method) {
-      case "extract":
-        response = {
-          id: requestId,
-          ok: true,
-          error: "",
-          value: extractResumes(),
-        };
-        break;
-      case "extractRaw":
-        response = {
-          id: requestId,
-          ok: true,
-          error: "",
-          value: extractResumesRaw(args[0]),
-        };
-        break;
-      case "collect":
-        response = {
-          id: requestId,
-          ok: true,
-          error: "",
-          value: await collectSnapshotPayload(args[0]),
-        };
-        break;
-      case "getApiSnapshot":
-        response = { id: requestId, ok: true, error: "", value: apiSnapshot };
-        break;
-      case "getPaginationInfo":
-        response = {
-          id: requestId,
-          ok: true,
-          error: "",
-          value: getPaginationInfo(),
-        };
-        break;
-      case "isReady":
-        response = {
-          id: requestId,
-          ok: true,
-          error: "",
-          value: isExtractionReady(),
-        };
-        break;
-      case "isLoggedIn":
-        response = { id: requestId, ok: true, error: "", value: isLoggedIn() };
-        break;
-      case "status":
-        response = {
-          id: requestId,
-          ok: true,
-          error: "",
-          value: window[EXTERNAL_ACCESS_KEY]?.status?.(),
-        };
-        break;
-      case "syncToServer":
-        response = {
-          id: requestId,
-          ok: true,
-          error: "",
-          value: await syncCurrentPageToServer(args[0]),
-        };
-        break;
-      case "goToNextPage":
-        response = {
-          id: requestId,
-          ok: true,
-          error: "",
-          value: goToNextPageInternal(),
-        };
-        break;
-      default:
-        response = {
-          id: requestId,
-          ok: false,
-          error: method
-            ? `Unsupported bridge method: ${method}`
-            : "Missing bridge method",
-          value: undefined,
-        };
-        break;
-    }
-  } catch (error) {
-    response = {
-      ...response,
-      ok: false,
-      error: error instanceof Error ? error.message : String(error),
-    };
-  }
-
-  document.documentElement.setAttribute(
-    PAGE_BRIDGE_RESPONSE_ATTR,
-    JSON.stringify(response),
-  );
-  window.dispatchEvent(new CustomEvent(PAGE_BRIDGE_RESPONSE_EVENT));
+const _pageBridge = createPageBridge({
+  doc: document,
+  win: window as PageBridgeDeps["win"],
+  extractResumes,
+  extractResumesRaw,
+  collectSnapshotPayload,
+  getApiSnapshot: () => apiSnapshot,
+  getPaginationInfo,
+  isExtractionReady,
+  isLoggedIn,
+  syncCurrentPageToServer,
+  goToNextPageInternal,
 });
+_pageBridge.installPageBridgeListener();
 
 
 
