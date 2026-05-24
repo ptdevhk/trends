@@ -1405,6 +1405,7 @@ export function createAutoActions(deps: AutoActionsDeps) {
     waitForAgeFilterDropdown,
     resolveAgeFilterActions,
     autoApplyAgeFilterFromUrl,
+    setAutoAgeAttributes,
     autoSelectLocation,
     autoSearchFromUrl,
     normalizeCardText,

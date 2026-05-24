@@ -24,6 +24,7 @@ export interface ExternalAccessorDeps extends Record<string, unknown> {
   goToNextPageInternal: () => unknown;
   getExternalAccessorStatus: (deps: ExternalAccessorDeps) => unknown;
   version: string;
+  document: Document;
 }
 
 export function getExternalAccessorStatus(deps: ExternalAccessorDeps) {
@@ -41,6 +42,7 @@ export function getExternalAccessorStatus(deps: ExternalAccessorDeps) {
     SELECTORS,
     isJob5156DetailPage,
     isJob5156DetailReady,
+    document: doc,
   } = deps;
   const version = getExtensionVersion();
   const pagination = getPaginationInfo();
@@ -56,39 +58,39 @@ export function getExternalAccessorStatus(deps: ExternalAccessorDeps) {
           ? isJob5156DetailReady()
             ? 1
             : 0
-          : document.querySelectorAll(SELECTORS.resumeCard as string).length;
+          : doc.querySelectorAll(SELECTORS.resumeCard as string).length;
   const autoSearch =
-    document.documentElement.getAttribute("data-tr-auto-search") || "";
+    doc.documentElement.getAttribute("data-tr-auto-search") || "";
   const autoLocation =
-    document.documentElement.getAttribute("data-tr-auto-location") || "";
+    doc.documentElement.getAttribute("data-tr-auto-location") || "";
   const autoAge =
-    document.documentElement.getAttribute("data-tr-auto-age") || "";
+    doc.documentElement.getAttribute("data-tr-auto-age") || "";
   const autoExport =
-    document.documentElement.getAttribute("data-tr-auto-export") || "";
+    doc.documentElement.getAttribute("data-tr-auto-export") || "";
   const autoSync =
-    document.documentElement.getAttribute("data-tr-auto-sync") || "";
+    doc.documentElement.getAttribute("data-tr-auto-sync") || "";
   const autoSyncCountRaw =
-    document.documentElement.getAttribute("data-tr-auto-sync-count") || "";
+    doc.documentElement.getAttribute("data-tr-auto-sync-count") || "";
   const autoSyncPagesRaw =
-    document.documentElement.getAttribute("data-tr-auto-sync-pages") || "";
+    doc.documentElement.getAttribute("data-tr-auto-sync-pages") || "";
   const autoSyncTargetStartRaw =
-    document.documentElement.getAttribute("data-tr-auto-sync-target-start") ||
+    doc.documentElement.getAttribute("data-tr-auto-sync-target-start") ||
     "";
   const autoSyncTargetEndRaw =
-    document.documentElement.getAttribute("data-tr-auto-sync-target-end") || "";
+    doc.documentElement.getAttribute("data-tr-auto-sync-target-end") || "";
   const autoSyncEffectivePageSizeRaw =
-    document.documentElement.getAttribute(
+    doc.documentElement.getAttribute(
       "data-tr-auto-sync-effective-page-size",
     ) || "";
   const autoSyncSelectedCountRaw =
-    document.documentElement.getAttribute("data-tr-auto-sync-selected-count") ||
+    doc.documentElement.getAttribute("data-tr-auto-sync-selected-count") ||
     "";
   const autoSyncRemainingCapacityRaw =
-    document.documentElement.getAttribute(
+    doc.documentElement.getAttribute(
       "data-tr-auto-sync-remaining-capacity",
     ) || "";
   const autoSyncStopReason =
-    document.documentElement.getAttribute("data-tr-auto-sync-stop-reason") ||
+    doc.documentElement.getAttribute("data-tr-auto-sync-stop-reason") ||
     "";
   const autoSyncCount = Number.parseInt(autoSyncCountRaw, 10);
   const autoSyncPages = Number.parseInt(autoSyncPagesRaw, 10);

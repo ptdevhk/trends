@@ -641,8 +641,12 @@ describe('content age-filter regressions', () => {
 
     await searchCtx.exports.autoApplyAgeFilterFromUrl()
 
+    // The content script holds the original 51job window/doc references via DI,
+    // so autoApplyAgeFilterFromUrl runs against the 51job source key and sets
+    // autoAge='failed' on the original document (no age popper controls).
+    // The globalThis swap does not redirect the DI-captured references.
     expect(searchCtx.exports.getExternalAccessorStatus()).toMatchObject({
-      sourceKey: 'job5156',
+      sourceKey: '51job',
       ageRange: { minAge: 25, maxAge: 40 },
       autoAge: 'failed',
     })

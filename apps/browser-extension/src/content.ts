@@ -168,17 +168,18 @@ let waitForSeekProfileSnapshot: (matchId: string, options: { timeoutMs: number }
 let getApiSnapshotCount: () => number;
 let syncCurrentPageToServer: (resumes?: unknown) => Promise<unknown>;
 let getExternalAccessorStatus: () => Record<string, unknown>;
+let setAutoAgeAttributes: (status: string, minAge?: number | null, maxAge?: number | null) => void;
 
 const _paginationUtils = createPaginationUtils({
-  getCurrentSourceKey,
+  getCurrentSourceKey: () => getCurrentSourceKey(),
   SOURCE_KEYS,
-  isJob51DetailPage,
-  isJob5156DetailPage,
-  isJob51DetailReady,
-  isJob5156DetailReady,
-  getSeekPaginationInfo,
-  getSeekNextPageLinkForMode,
-  getCurrentSeekMode,
+  isJob51DetailPage: () => isJob51DetailPage(),
+  isJob5156DetailPage: () => isJob5156DetailPage(),
+  isJob51DetailReady: () => isJob51DetailReady(),
+  isJob5156DetailReady: () => isJob5156DetailReady(),
+  getSeekPaginationInfo: () => getSeekPaginationInfo(),
+  getSeekNextPageLinkForMode: () => getSeekNextPageLinkForMode(),
+  getCurrentSeekMode: () => getCurrentSeekMode(),
   apiSnapshot,
   normalizeOptionalPositiveInt,
   doc: document,
@@ -210,15 +211,15 @@ const _uiUtils = createUiUtils({
   JOB5156_HOST,
   EHIRE_51JOB_HOST,
   SEEK_HOST_SUFFIX,
-  makeRandomId,
+  makeRandomId: () => makeRandomId(),
   getPaginationInfo,
-  getExternalAccessorStatus,
+  getExternalAccessorStatus: () => getExternalAccessorStatus(),
   getAgeRangeFromUrl,
   filterResumesByAgeRange,
   resolveJob51CollectionLimits,
   resolveJob51DetailFetchDelayMs,
   resolveJob51AutoSyncDetailWaitMode,
-  isJob51DetailPage,
+  isJob51DetailPage: () => isJob51DetailPage(),
   chrome: chrome as unknown as UiUtilsDeps["chrome"],
 });
 const {
@@ -280,9 +281,9 @@ const _seekExtractor = createSeekExtractor({
   doc: document,
   // Pagination + extraction deps
   asHTMLElement,
-  isDisabledPaginationControl: isDisabledPaginationControl as (el: unknown) => boolean,
+  isDisabledPaginationControl: ((el: unknown) => isDisabledPaginationControl(el)) as (el: unknown) => boolean,
   // Detail enrichment deps
-  waitForSeekProfileSnapshot: waitForSeekProfileSnapshot as unknown as (matchId: string, options: { timeoutMs: number }) => Promise<void>,
+  waitForSeekProfileSnapshot: ((matchId: string, options: { timeoutMs: number }) => waitForSeekProfileSnapshot(matchId, options)) as unknown as (matchId: string, options: { timeoutMs: number }) => Promise<void>,
   SELECTORS,
 });
 const {
@@ -582,7 +583,7 @@ const _extractionPipeline = createExtractionPipeline({
   SOURCE_KEYS,
   apiSnapshot,
   SELECTORS,
-  getApiSnapshotCount,
+  getApiSnapshotCount: () => getApiSnapshotCount(),
   isExtractionReady,
   isJob51RateLimitedPage,
   JOB51_RATE_LIMIT_ERROR_MESSAGE,
@@ -596,7 +597,7 @@ const _extractionPipeline = createExtractionPipeline({
   resolveCurrentJob51DetailFetchDelayMs,
   JOB51_DETAIL_FETCH_CONCURRENCY,
   enrich51JobSearchResumeWithDetail,
-  syncCurrentPageToServer,
+  syncCurrentPageToServer: (resumes?: unknown) => syncCurrentPageToServer(resumes),
   delay: delay as (ms: number) => Promise<void>,
   pipelineState,
   isJob51DetailPage,
@@ -620,7 +621,7 @@ const _extractionPipeline = createExtractionPipeline({
   getSeekRecommendedRequest,
   SEEK_PROFILE_TYPE,
   getJob5156DetailRoot,
-  getSeekNextPageLinkForMode,
+  getSeekNextPageLinkForMode: () => getSeekNextPageLinkForMode(),
   getPaginationInfo,
   asHTMLElement,
 });
@@ -746,9 +747,10 @@ const {
   resolveAutoSyncErrorStatus,
   resolveAutoSyncStopReason,
 } = _autoActions;
-({ makeRandomId, syncCurrentPageToServer } = _autoActions);
+({ makeRandomId, syncCurrentPageToServer, setAutoAgeAttributes } = _autoActions);
 
 // Assign getExternalAccessorStatus — wraps getExternalAccessorStatusFn with lazily-bound deps
+const _accessorDoc = document;
 getExternalAccessorStatus = () =>
   getExternalAccessorStatusFn({
     getExtensionVersion,
@@ -771,6 +773,7 @@ getExternalAccessorStatus = () =>
     goToNextPageInternal,
     getExternalAccessorStatus: getExternalAccessorStatusFn,
     version: getExtensionVersion(),
+    document: _accessorDoc,
   });
 
 window.addEventListener("message", (event) => {
@@ -971,6 +974,7 @@ function installContentTestExports() {
   globalThis.__TR_BROWSER_EXTENSION_TEST__.content = {
     SOURCE_KEYS,
     autoApplyAgeFilterFromUrl,
+    setAutoAgeAttributes,
     extractResumes,
     extractJob51DetailResume,
     extractJob5156DetailResume,
@@ -998,6 +1002,7 @@ function installContentTestExports() {
         goToNextPageInternal,
         getExternalAccessorStatus: getExternalAccessorStatusFn,
         version: getExtensionVersion(),
+        document: _accessorDoc,
       } as unknown as ExternalAccessorDeps),
   };
   return globalThis.__TR_BROWSER_EXTENSION_TEST__.content;
@@ -1029,6 +1034,7 @@ installExternalAccessorFn(EXTERNAL_ACCESS_KEY, {
   goToNextPageInternal,
   getExternalAccessorStatus: getExternalAccessorStatusFn,
   version: getExtensionVersion(),
+  document: _accessorDoc,
 } as unknown as ExternalAccessorDeps);
 installContentTestExports();
 autoSelectLocation()
