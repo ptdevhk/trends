@@ -1,4 +1,3 @@
-// @ts-nocheck
 import type { Selectors } from "./types";
 
 export interface PaginationInfo {
