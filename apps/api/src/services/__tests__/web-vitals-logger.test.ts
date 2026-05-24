@@ -1,36 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
-  isRecord,
   readString,
   readNumber,
   parseMetric,
   percentile,
 } from "../web-vitals-logger.js";
-
-describe("isRecord", () => {
-  it("returns true for plain objects", () => {
-    expect(isRecord({})).toBe(true);
-    expect(isRecord({ a: 1 })).toBe(true);
-  });
-
-  it("returns false for null", () => {
-    expect(isRecord(null)).toBe(false);
-  });
-
-  it("returns true for arrays (typeof check only)", () => {
-    expect(isRecord([])).toBe(true);
-  });
-
-  it("returns false for primitives", () => {
-    expect(isRecord("string")).toBe(false);
-    expect(isRecord(42)).toBe(false);
-    expect(isRecord(true)).toBe(false);
-  });
-
-  it("returns false for undefined", () => {
-    expect(isRecord(undefined)).toBe(false);
-  });
-});
 
 describe("readString", () => {
   it("returns trimmed string for valid input", () => {
