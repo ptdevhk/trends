@@ -298,16 +298,11 @@ const _seekExtractor = createSeekExtractor({
   // Extraction deps
   win: window,
   doc: document,
-  buildSeekWorkHistoryItem,
-  buildSeekProfileEducationItem,
-  formatSeekExpectedSalary,
   // Pagination + extraction deps
   asHTMLElement,
   isDisabledPaginationControl,
   // Detail enrichment deps
-  findSeekTalentSearchCardTrigger,
   waitForSeekProfileSnapshot,
-  mergeSeekListResumeWithDetail,
 });
 const {
   isSeekProfilePage,
@@ -468,303 +463,6 @@ function isExtractionReady() {
   return document.querySelector(SELECTORS.listContainer) !== null;
 }
 
-/**
- * Talentsearch cards have no <a> links — candidate name is a [data-role="heading"]
- * element clicked via SPA event handlers. Find the card matching this profileId
- * (UUID) by checking data attributes or card index.
- */
-function findSeekTalentSearchCardTrigger(profileId, resume, cachedHeadings) {
-  if (!profileId) return null;
-  // Try matching by data-tr-candidate-id attribute (set during extraction)
-  const byAttr = document.querySelector(
-    `[data-tr-candidate-id="${CSS.escape(profileId)}"]`,
-  );
-  if (byAttr instanceof HTMLElement) return byAttr;
-  // Fallback: match heading elements that contain the candidate name.
-  // Talentsearch cards use [data-role="heading"] for the candidate name.
-  const candidateName = typeof resume?.name === "string" ? resume.name.trim() : "";
-  if (candidateName) {
-    const headings = cachedHeadings ||
-      Array.from(document.querySelectorAll('[data-role="heading"]'));
-    const match = headings.find((h) => {
-      const text = (h.textContent || "").trim();
-      return text === candidateName;
-    });
-    if (match instanceof HTMLElement) return match;
-  }
-  return null;
-}
-
-function mergeSeekListResumeWithDetail(baseResume, detailResume, isTalentSearch = false) {
-  if (!detailResume || typeof detailResume !== "object") {
-    return baseResume;
-  }
-
-  // For talentsearch: if V3 detail provides a numeric profileId, use it for
-  // profileUrl construction but preserve the UUID seekProfileGuid
-  const seekProfileGuid = baseResume.seekProfileGuid || detailResume.seekProfileGuid || undefined;
-  const numericProfileId = isTalentSearch && detailResume.profileId && /^\d+$/.test(detailResume.profileId)
-    ? detailResume.profileId
-    : undefined;
-
-  // If we got a numeric profileId from V3 detail, update the profileUrl
-  let profileUrl = detailResume.profileUrl || baseResume.profileUrl;
-  if (numericProfileId) {
-    // Derive jobId from the current page URL or API request for recommended URL format
-    const seekRequest = getSeekTalentSearchRequest();
-    const requestJobId = seekRequest?.variables?.input?.jobId;
-    const urlJobId = normalizeOptionalPositiveInt(
-      new URL(window.location.href).searchParams.get("jobId"),
-    );
-    const jobId = requestJobId != null
-      ? String(requestJobId)
-      : urlJobId != null
-        ? String(urlJobId)
-        : undefined;
-    profileUrl = buildSeekProfileUrl(numericProfileId, jobId);
-  }
-
-  return {
-    ...baseResume,
-    ...detailResume,
-    ...(seekProfileGuid ? { seekProfileGuid } : {}),
-    ...(numericProfileId ? { profileId: numericProfileId } : {}),
-    ...(profileUrl ? { profileUrl } : {}),
-    pageIndex: baseResume.pageIndex,
-    pageNumber: baseResume.pageNumber,
-    extractedAt: baseResume.extractedAt,
-    source: baseResume.source,
-    searchProfileId: detailResume.searchProfileId || baseResume.searchProfileId,
-  };
-}
-
-function formatSeekExpectedSalary(expectedSalary) {
-  if (!expectedSalary || typeof expectedSalary !== "object") return "";
-
-  const amounts = Array.isArray(expectedSalary.amount)
-    ? expectedSalary.amount
-    : [];
-  const preferredFrequencies = ["MONTHLY", "ANNUAL", "HOURLY"];
-  const amount =
-    preferredFrequencies
-      .map((frequency) =>
-        amounts.find((entry) => entry?.frequency === frequency),
-      )
-      .find(Boolean) || amounts[0];
-
-  if (!amount || typeof amount !== "object") return "";
-
-  const value =
-    typeof amount.value === "number" ? amount.value : Number(amount.value);
-  const formattedValue = Number.isFinite(value)
-    ? new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value)
-    : "";
-  const currency =
-    typeof expectedSalary.currency === "string"
-      ? expectedSalary.currency.trim()
-      : "";
-  const period =
-    amount.frequency === "ANNUAL"
-      ? "/year"
-      : amount.frequency === "HOURLY"
-        ? "/hour"
-        : amount.frequency === "DAILY"
-          ? "/day"
-          : "/month";
-
-  const prefix = [currency, formattedValue].filter(Boolean).join(" ");
-  return prefix ? `${prefix}${period}` : "";
-}
-
-function buildSeekWorkHistoryItem(item) {
-  if (!item || typeof item !== "object") return null;
-
-  const companyName =
-    typeof item.companyName === "string" ? item.companyName.trim() : "";
-  const jobTitle =
-    typeof item.jobTitle === "string" ? item.jobTitle.trim() : "";
-  const description =
-    typeof item.description === "string" ? item.description.trim() : "";
-  const startDate =
-    typeof item.startDate === "string" ? item.startDate.trim() : "";
-  const endDate = typeof item.endDate === "string" ? item.endDate.trim() : "";
-  const durationLabel =
-    typeof item.durationLabel === "string" ? item.durationLabel.trim() : "";
-  const raw = [jobTitle, companyName, durationLabel]
-    .filter(Boolean)
-    .join(" · ");
-
-  if (!raw && !description) return null;
-
-  return {
-    raw: raw || description,
-    companyName: companyName || undefined,
-    jobTitle: jobTitle || undefined,
-    description: description || undefined,
-    startDate: startDate || undefined,
-    endDate: endDate || undefined,
-  };
-}
-
-function buildSeekProfileEducationItem(item) {
-  if (!item || typeof item !== "object") return null;
-
-  const institution =
-    typeof item.institutionName === "string" ? item.institutionName.trim() : "";
-  const qualification =
-    typeof item.qualificationName === "string"
-      ? item.qualificationName.trim()
-      : "";
-  const completionYear = Number.isFinite(item.completionYear)
-    ? String(item.completionYear)
-    : "";
-  const completionMonth =
-    Number.isFinite(item.completionMonth) && item.completionMonth > 0
-      ? String(item.completionMonth).padStart(2, "0")
-      : "";
-  const endDate = completionYear
-    ? completionMonth
-      ? `${completionYear}-${completionMonth}`
-      : completionYear
-    : "";
-
-  if (!institution && !qualification && !endDate) return null;
-
-  return {
-    institution: institution || undefined,
-    qualification: qualification || undefined,
-    endDate: endDate || undefined,
-  };
-}
-
-function parseJob5156BasicInfoItems(items, locationOverride = "") {
-  const basicInfo = Array.isArray(items)
-    ? items.map((item) => normalizeResumeText(item)).filter(Boolean)
-    : [];
-
-  let age = "";
-  let experience = "";
-  let education = "";
-  let location = "";
-  if (basicInfo.length >= 4) {
-    [age, experience, education, location] = basicInfo;
-  } else {
-    basicInfo.forEach((item) => {
-      if (!age && item.includes("岁")) age = item;
-      else if (!experience && item.includes("年") && !item.includes("元"))
-        experience = item;
-      else if (
-        !education &&
-        /(中专|高中|大专|本科|硕|博|研究生|MBA|EMBA)/.test(item)
-      )
-        education = item;
-      else if (!location && !item.includes("元")) location = item;
-    });
-  }
-
-  if (locationOverride) {
-    location = normalizeResumeText(locationOverride);
-  }
-
-  return { age, experience, education, location };
-}
-
-function buildJob5156WorkHistoryItem(item) {
-  if (!(item instanceof Element)) return null;
-
-  const startDate = normalizeResumeText(
-    item.querySelector(".work-time > span:first-child")?.textContent,
-  );
-  const durationLabel = normalizeResumeText(
-    item.querySelector(".work-time-other")?.textContent,
-  );
-  const companyName = normalizeResumeText(
-    item.querySelector(".work-company")?.textContent,
-  );
-  const jobTitle = normalizeResumeText(
-    item.querySelector(".work-position")?.textContent,
-  );
-  const description = normalizeResumeText(
-    item.querySelector(
-      ".work-desc, .work-detail, .work-content, .work-responsibility, .work-duty",
-    )?.textContent,
-  );
-  const endDate = startDate.includes("~")
-    ? normalizeResumeText(startDate.split("~").slice(1).join("~"))
-    : "";
-  const raw = buildWorkHistoryRawParts([
-    startDate,
-    durationLabel,
-    companyName,
-    jobTitle,
-    description,
-  ]);
-
-  if (!raw) return null;
-
-  return {
-    raw,
-    companyName: companyName || undefined,
-    jobTitle: jobTitle || undefined,
-    description: description || undefined,
-    startDate: startDate || undefined,
-    endDate: endDate || undefined,
-  };
-}
-
-function buildJob5156EducationItem(item) {
-  if (!(item instanceof Element)) return null;
-
-  const liveEducationText = normalizeResumeText(item.textContent);
-  if (
-    item.classList.contains("resume-education__info") ||
-    item.closest(".resume-education")
-  ) {
-    const institution = normalizeResumeText(
-      item.querySelector(".flex.w-full > div:last-child")?.textContent,
-    );
-    const rowText = Array.from(item.querySelectorAll(".flex.w-full > div"))
-      .map((node) => normalizeResumeText(node.textContent))
-      .filter(Boolean);
-    const endDate = rowText.find((value) => /^\d{4}(~|-)/.test(value)) || "";
-    const qualification = rowText
-      .filter((value) => value !== institution && value !== endDate)
-      .join(" · ");
-
-    if (!institution && !qualification && !endDate && !liveEducationText)
-      return null;
-
-    return {
-      institution: institution || undefined,
-      qualification: qualification || undefined,
-      endDate: endDate || undefined,
-      description: liveEducationText || undefined,
-    };
-  }
-
-  const institution = normalizeResumeText(
-    item.querySelector(".school-name")?.textContent,
-  );
-  const qualification = normalizeResumeText(
-    item.querySelector(".school-major")?.textContent,
-  );
-  const degree = normalizeResumeText(
-    item.querySelector(".school-degree")?.textContent,
-  );
-  const endDate = normalizeResumeText(
-    item.querySelector(".school-time")?.textContent,
-  );
-
-  if (!institution && !qualification && !degree && !endDate) return null;
-
-  return {
-    institution: institution || undefined,
-    qualification:
-      [qualification, degree].filter(Boolean).join(" · ") || undefined,
-    endDate: endDate || undefined,
-  };
-}
-
 const GUARD_FIELD_NAMES = new Set([
   "experience",
   "jobIntention",
@@ -840,9 +538,6 @@ const _job5156Extractor = createJob5156Extractor({
   loadCollectionGuards,
   parseGuardFieldNames,
   applyCollectionGuards,
-  parseJob5156BasicInfoItems,
-  buildJob5156WorkHistoryItem,
-  buildJob5156EducationItem,
   isMeaningfulJob5156WorkHistoryEntry,
   collectJob5156SectionItemsByHeading,
 });
@@ -852,6 +547,9 @@ const {
   getJob5156DetailHeaderText,
   isJob5156DetailReady,
   isJob5156DetailRootReady,
+  parseJob5156BasicInfoItems,
+  buildJob5156WorkHistoryItem,
+  buildJob5156EducationItem,
   buildJob5156DetailWorkHistoryItem,
   buildJob5156DetailResumeFromRoot,
   extractJob5156DetailResume,
