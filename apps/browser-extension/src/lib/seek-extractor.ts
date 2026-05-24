@@ -22,6 +22,10 @@ export function createSeekExtractor(deps) {
     // Pagination + extraction deps
     asHTMLElement,
     isDisabledPaginationControl,
+    // Detail enrichment deps
+    findSeekTalentSearchCardTrigger,
+    waitForSeekProfileSnapshot,
+    mergeSeekListResumeWithDetail,
   } = deps;
 
   function isSeekProfilePage() {
@@ -788,6 +792,76 @@ export function createSeekExtractor(deps) {
     return getSeekNextPageLink();
   }
 
+  // ============================================================================
+  // Seek Detail Enrichment
+  // ============================================================================
+
+  async function enrichSingleSeekResumeWithDetail(resume, cachedHeadings) {
+    const profileId =
+      typeof resume?.profileId === "string" ? resume.profileId.trim() : "";
+    if (!profileId) {
+      return resume;
+    }
+
+    const isTalentSearch = getCurrentSeekMode() === "talentsearch";
+    const trigger = isTalentSearch
+      ? findSeekTalentSearchCardTrigger(profileId, resume, cachedHeadings)
+      : findSeekProfileTrigger(profileId);
+    if (!(trigger instanceof HTMLElement)) {
+      return resume;
+    }
+
+    try {
+      trigger.click();
+      // For talentsearch, match by profileGuid (UUID); for recommended, match by numeric profileId
+      const matchId = isTalentSearch ? resume.seekProfileGuid || profileId : profileId;
+      await waitForSeekProfileSnapshot(matchId, { timeoutMs: 12000 });
+      const [detailResume] = extractSeekProfileResume();
+      if (!detailResume) {
+        return resume;
+      }
+      // For talentsearch, verify the detail profile matches by profileGuid or profileId
+      if (isTalentSearch) {
+        const detailGuid = detailResume.seekProfileGuid || "";
+        const detailProfileId = detailResume.profileId || "";
+        if (detailGuid !== profileId && detailProfileId !== profileId) {
+          return resume;
+        }
+        // Merge: talentsearch detail may provide numeric profileId from V3 response
+        return mergeSeekListResumeWithDetail(resume, detailResume, isTalentSearch);
+      }
+      if (detailResume.profileId !== profileId) {
+        return resume;
+      }
+      return mergeSeekListResumeWithDetail(resume, detailResume, isTalentSearch);
+    } catch (error) {
+      console.warn(
+        "🎯 [Auto Sync] Failed to enrich Seek detail resume:",
+        profileId,
+        error,
+      );
+      return resume;
+    }
+  }
+
+  async function enrichSeekResumesWithDetail(resumes) {
+    if (!Array.isArray(resumes) || resumes.length === 0) return [];
+    if (getCurrentSourceKey() !== SOURCE_KEYS.SEEK) return resumes;
+    if (isSeekProfileMode()) return resumes;
+
+    // Cache DOM headings once for talentsearch card-finding (avoids O(N²) queries)
+    const isTalentSearch = getCurrentSeekMode() === "talentsearch";
+    const cachedHeadings = isTalentSearch
+      ? Array.from(doc.querySelectorAll('[data-role="heading"]'))
+      : null;
+
+    const enriched = [];
+    for (const resume of resumes) {
+      enriched.push(await enrichSingleSeekResumeWithDetail(resume, cachedHeadings));
+    }
+    return enriched;
+  }
+
   return {
     isSeekProfilePage,
     isSeekTalentSearchListPage,
@@ -830,5 +904,8 @@ export function createSeekExtractor(deps) {
     getSeekNextPageLink,
     getSeekTalentSearchNextPageLink,
     getSeekNextPageLinkForMode,
+    // Detail enrichment
+    enrichSingleSeekResumeWithDetail,
+    enrichSeekResumesWithDetail,
   };
 }
