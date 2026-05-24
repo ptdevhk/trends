@@ -103,6 +103,9 @@ export default defineSchema({
 
         // Pre-computed Ingest Data (M3)
         ingestData: v.optional(ingestDataValidator),
+
+        // Link to vector embedding for semantic search
+        embeddingId: v.optional(v.id("resume_embeddings")),
     })
         .index("by_externalId", ["externalId"])
         .index("by_identityKey", ["identityKey"])
@@ -444,4 +447,19 @@ export default defineSchema({
         updatedAt: v.number(),
     })
         .index("by_workspace_period", ["workspaceId", "period"]),
+
+    // Resume Embeddings — vector representations for semantic search
+    resume_embeddings: defineTable({
+        resumeId: v.id("resumes"),
+        embedding: v.array(v.float64()),
+        model: v.string(), // e.g. "text-embedding-3-small"
+        sourceKey: v.optional(v.string()),
+        generatedAt: v.number(),
+    })
+        .index("by_resumeId", ["resumeId"])
+        .vectorIndex("by_embedding", {
+            vectorField: "embedding",
+            dimensions: 1536,
+            filterFields: ["sourceKey"],
+        }),
 });

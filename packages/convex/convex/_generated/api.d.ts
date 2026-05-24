@@ -15,6 +15,7 @@ import type * as analyze from "../analyze.js";
 import type * as candidate_blocks from "../candidate_blocks.js";
 import type * as candidate_status from "../candidate_status.js";
 import type * as crons from "../crons.js";
+import type * as embeddings from "../embeddings.js";
 import type * as ingest_agent from "../ingest_agent.js";
 import type * as job_descriptions from "../job_descriptions.js";
 import type * as lib_age from "../lib/age.js";
@@ -49,6 +50,7 @@ declare const fullApi: ApiFromModules<{
   candidate_blocks: typeof candidate_blocks;
   candidate_status: typeof candidate_status;
   crons: typeof crons;
+  embeddings: typeof embeddings;
   ingest_agent: typeof ingest_agent;
   job_descriptions: typeof job_descriptions;
   "lib/age": typeof lib_age;
