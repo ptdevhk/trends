@@ -188,6 +188,28 @@ const pipelineState = {
   set runId(v) { job51DetailBackfillRunId = v; },
 };
 
+const _paginationUtils = createPaginationUtils({
+  getCurrentSourceKey,
+  SOURCE_KEYS,
+  isJob51DetailPage,
+  isJob5156DetailPage,
+  isJob51DetailReady,
+  isJob5156DetailReady,
+  getSeekPaginationInfo,
+  getSeekNextPageLinkForMode,
+  getCurrentSeekMode,
+  apiSnapshot,
+  normalizeOptionalPositiveInt,
+  doc: document,
+  win: window,
+  SELECTORS,
+});
+const {
+  getPaginationInfo,
+  getNextPageButtonState,
+  waitForPagination,
+} = _paginationUtils;
+
 const _uiUtils = createUiUtils({
   win: window,
   doc: document,
@@ -208,6 +230,7 @@ const _uiUtils = createUiUtils({
   EHIRE_51JOB_HOST,
   SEEK_HOST_SUFFIX,
   makeRandomId,
+  getPaginationInfo,
   getExternalAccessorStatus,
   getAgeRangeFromUrl,
   filterResumesByAgeRange,
@@ -1049,28 +1072,6 @@ const {
   resolveAutoSyncErrorStatus,
   resolveAutoSyncStopReason,
 } = _autoActions;
-
-const _paginationUtils = createPaginationUtils({
-  getCurrentSourceKey,
-  SOURCE_KEYS,
-  isJob51DetailPage,
-  isJob5156DetailPage,
-  isJob51DetailReady,
-  isJob5156DetailReady,
-  getSeekPaginationInfo,
-  getSeekNextPageLinkForMode,
-  getCurrentSeekMode,
-  apiSnapshot,
-  normalizeOptionalPositiveInt,
-  doc: document,
-  win: window,
-  SELECTORS,
-});
-const {
-  getPaginationInfo,
-  getNextPageButtonState,
-  waitForPagination,
-} = _paginationUtils;
 
 const _resumeExtractor = createResumeExtractor({
   SELECTORS,
