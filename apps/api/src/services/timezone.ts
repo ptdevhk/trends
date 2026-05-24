@@ -4,6 +4,7 @@ import { isRecord } from "@trends/shared";
 
 
 import yaml from "js-yaml";
+import { logger } from "./logger";
 
 
 export const DEFAULT_TIMEZONE = "Asia/Hong_Kong";
@@ -63,7 +64,7 @@ export function resolveTimezone(options: ResolveTimezoneOptions = {}): string {
   for (const candidate of candidates) {
     if (!candidate) continue;
     if (isValidTimezone(candidate)) return candidate;
-    console.warn(`[timezone] Invalid timezone '${candidate}', trying fallback.`);
+    logger.warn(`Invalid timezone '${candidate}', trying fallback.`, { service: "timezone" });
   }
   return fallbackTimezone;
 }

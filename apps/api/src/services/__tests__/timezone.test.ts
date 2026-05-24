@@ -4,6 +4,7 @@ import path from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { logger } from "../logger";
 import {
   DEFAULT_TIMEZONE,
   formatDateInTimezone,
@@ -60,7 +61,7 @@ describe("resolveTimezone", () => {
 
   it("falls back to default timezone when inputs are invalid", () => {
     const projectRoot = createProjectConfig("Invalid/Config");
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => undefined);
 
     try {
       const resolved = resolveTimezone({

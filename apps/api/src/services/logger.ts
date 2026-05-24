@@ -47,4 +47,14 @@ export const logger = {
     };
     process.stderr.write(`${JSON.stringify(entry)}\n`);
   },
+
+  info(message: string, context?: LogContext): void {
+    const entry = {
+      level: "info",
+      timestamp: formatTimestamp(),
+      message,
+      ...context,
+    };
+    process.stderr.write(`${JSON.stringify(entry)}\n`);
+  },
 };
