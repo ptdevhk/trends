@@ -462,4 +462,90 @@ export default defineSchema({
             dimensions: 1536,
             filterFields: ["sourceKey"],
         }),
+
+    // Analysis Audit Log — EU AI Act compliance (Annex III §4a high-risk)
+    analysis_audit_log: defineTable({
+        resumeId: v.id("resumes"),
+        identityKey: v.optional(v.string()),
+        workspaceSlug: v.string(),
+
+        // Decision Context
+        decisionType: v.union(
+            v.literal("score"),
+            v.literal("tag"),
+            v.literal("rank"),
+            v.literal("filter"),
+            v.literal("confirm"),
+        ),
+        actionRef: v.string(),
+
+        // Input Snapshot
+        inputSnapshot: v.object({
+            jobDescriptionId: v.optional(v.string()),
+            profileKey: v.optional(v.string()),
+            promptVersion: v.optional(v.string()),
+            fieldUsagePolicyVersion: v.optional(v.number()),
+            scrubbedFields: v.optional(v.array(v.string())),
+            searchKeywords: v.optional(v.array(v.string())),
+            searchLocation: v.optional(v.string()),
+        }),
+
+        // Model Metadata
+        modelMeta: v.object({
+            model: v.string(),
+            provider: v.string(),
+            apiBase: v.optional(v.string()),
+            promptTokens: v.optional(v.number()),
+            completionTokens: v.optional(v.number()),
+            latencyMs: v.optional(v.number()),
+        }),
+
+        // Output
+        output: v.object({
+            score: v.optional(v.number()),
+            recommendation: v.optional(v.string()),
+            roleFit: v.optional(v.string()),
+            confidence: v.optional(v.number()),
+            tags: v.optional(v.array(v.string())),
+        }),
+
+        // Protected Attribute Hashes (SHA-256 of bracket values, NOT raw PII)
+        protectedAttributeHashes: v.optional(v.object({
+            ageBracketHash: v.optional(v.string()),
+            genderHash: v.optional(v.string()),
+            locationHash: v.optional(v.string()),
+            sourceHash: v.optional(v.string()),
+        })),
+
+        // Explanation (Right to Explanation — GDPR Art. 22)
+        explanation: v.optional(v.object({
+            summary: v.string(),
+            keyFactors: v.array(v.object({
+                factor: v.string(),
+                weight: v.optional(v.number()),
+                value: v.string(),
+            })),
+            modelReasoning: v.optional(v.string()),
+        })),
+
+        // Outcome Tracking
+        outcome: v.optional(v.union(
+            v.literal("pending"),
+            v.literal("accepted"),
+            v.literal("overridden"),
+            v.literal("appealed"),
+        )),
+        outcomeSetBy: v.optional(v.string()),
+        outcomeSetAt: v.optional(v.number()),
+
+        // Timestamps
+        decidedAt: v.number(),
+        reviewedAt: v.optional(v.number()),
+        expiresAt: v.number(), // GDPR retention limit
+    })
+        .index("by_resume", ["resumeId"])
+        .index("by_workspace", ["workspaceSlug"])
+        .index("by_workspace_decision", ["workspaceSlug", "decisionType"])
+        .index("by_workspace_outcome", ["workspaceSlug", "outcome"])
+        .index("by_expires_at", ["expiresAt"]),
 });
