@@ -23,9 +23,6 @@ export function createJob5156Extractor(deps) {
     loadCollectionGuards,
     parseGuardFieldNames,
     applyCollectionGuards,
-    parseJob5156BasicInfoItems,
-    buildJob5156WorkHistoryItem,
-    buildJob5156EducationItem,
     isMeaningfulJob5156WorkHistoryEntry,
     collectJob5156SectionItemsByHeading,
   } = deps;
@@ -873,6 +870,134 @@ export function createJob5156Extractor(deps) {
     }
 
     return enriched;
+  }
+
+  function parseJob5156BasicInfoItems(items, locationOverride = "") {
+    const basicInfo = Array.isArray(items)
+      ? items.map((item) => normalizeResumeText(item)).filter(Boolean)
+      : [];
+
+    let age = "";
+    let experience = "";
+    let education = "";
+    let location = "";
+    if (basicInfo.length >= 4) {
+      [age, experience, education, location] = basicInfo;
+    } else {
+      basicInfo.forEach((item) => {
+        if (!age && item.includes("岁")) age = item;
+        else if (!experience && item.includes("年") && !item.includes("元"))
+          experience = item;
+        else if (
+          !education &&
+          /(中专|高中|大专|本科|硕|博|研究生|MBA|EMBA)/.test(item)
+        )
+          education = item;
+        else if (!location && !item.includes("元")) location = item;
+      });
+    }
+
+    if (locationOverride) {
+      location = normalizeResumeText(locationOverride);
+    }
+
+    return { age, experience, education, location };
+  }
+
+  function buildJob5156WorkHistoryItem(item) {
+    if (!(item instanceof Element)) return null;
+
+    const startDate = normalizeResumeText(
+      item.querySelector(".work-time > span:first-child")?.textContent,
+    );
+    const durationLabel = normalizeResumeText(
+      item.querySelector(".work-time-other")?.textContent,
+    );
+    const companyName = normalizeResumeText(
+      item.querySelector(".work-company")?.textContent,
+    );
+    const jobTitle = normalizeResumeText(
+      item.querySelector(".work-position")?.textContent,
+    );
+    const description = normalizeResumeText(
+      item.querySelector(
+        ".work-desc, .work-detail, .work-content, .work-responsibility, .work-duty",
+      )?.textContent,
+    );
+    const endDate = startDate.includes("~")
+      ? normalizeResumeText(startDate.split("~").slice(1).join("~"))
+      : "";
+    const raw = buildWorkHistoryRawParts([
+      startDate,
+      durationLabel,
+      companyName,
+      jobTitle,
+      description,
+    ]);
+
+    if (!raw) return null;
+
+    return {
+      raw,
+      companyName: companyName || undefined,
+      jobTitle: jobTitle || undefined,
+      description: description || undefined,
+      startDate: startDate || undefined,
+      endDate: endDate || undefined,
+    };
+  }
+
+  function buildJob5156EducationItem(item) {
+    if (!(item instanceof Element)) return null;
+
+    const liveEducationText = normalizeResumeText(item.textContent);
+    if (
+      item.classList.contains("resume-education__info") ||
+      item.closest(".resume-education")
+    ) {
+      const institution = normalizeResumeText(
+        item.querySelector(".flex.w-full > div:last-child")?.textContent,
+      );
+      const rowText = Array.from(item.querySelectorAll(".flex.w-full > div"))
+        .map((node) => normalizeResumeText(node.textContent))
+        .filter(Boolean);
+      const endDate = rowText.find((value) => /^\d{4}(~|-)/.test(value)) || "";
+      const qualification = rowText
+        .filter((value) => value !== institution && value !== endDate)
+        .join(" · ");
+
+      if (!institution && !qualification && !endDate && !liveEducationText)
+        return null;
+
+      return {
+        institution: institution || undefined,
+        qualification: qualification || undefined,
+        endDate: endDate || undefined,
+        description: liveEducationText || undefined,
+      };
+    }
+
+    const institution = normalizeResumeText(
+      item.querySelector(".school-name")?.textContent,
+    );
+    const qualification = normalizeResumeText(
+      item.querySelector(".school-major")?.textContent,
+    );
+    const degree = normalizeResumeText(
+      item.querySelector(".school-degree")?.textContent,
+    );
+    const endDate = normalizeResumeText(
+      item.querySelector(".school-time")?.textContent,
+    );
+
+    if (!institution && !qualification && !degree && !endDate) return null;
+
+    return {
+      institution: institution || undefined,
+      qualification:
+        [qualification, degree].filter(Boolean).join(" · ") || undefined,
+      endDate: endDate || undefined,
+    };
   }
 
   return {

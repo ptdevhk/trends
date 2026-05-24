@@ -132,3 +132,10 @@ export function createDomUtils(deps: DomUtilsDeps) {
     findVueParentByName,
   };
 }
+
+/**
+ * Simple delay utility for async timing.
+ */
+export function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
