@@ -33,8 +33,16 @@ import { createSnapshotCollector } from "./lib/snapshot-collector";
 import { createAutoActions } from "./lib/auto-actions";
 import { createUiUtils } from "./lib/ui-utils";
 import { createPaginationUtils } from "./lib/pagination-utils";
-import { createDomUtils } from "./lib/dom-utils";
+import { createDomUtils, delay } from "./lib/dom-utils";
 import { createResumeExtractor } from "./lib/resume-extractor";
+import {
+  DEFAULT_COLLECTION_GUARDS,
+  GUARD_FIELD_NAMES,
+  GUARD_ARRAY_FIELD_NAMES,
+  loadCollectionGuards,
+  parseGuardFieldNames,
+  applyCollectionGuards,
+} from "./lib/collection-guards";
 
 /**
  * 智通直聘 Resume Collector - Content Script
@@ -151,11 +159,6 @@ const INITIAL_URL_CAPTURED_PARAMS = (() => {
   }
 })();
 
-const DEFAULT_COLLECTION_GUARDS = {
-  job5156: "experience,jobIntention,selfIntro",
-  "51job": "experience,jobIntention,selfIntro",
-  seek: "experience,jobIntention,selfIntro",
-};
 
 const apiSnapshot = {
   searchRows: null,
@@ -443,10 +446,6 @@ async function getCollectionLimits() {
 
 
 
-function delay(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 
 function isExtractionReady() {
   if (getCurrentSourceKey() === SOURCE_KEYS.JOB51) {
@@ -463,62 +462,6 @@ function isExtractionReady() {
   return document.querySelector(SELECTORS.listContainer) !== null;
 }
 
-const GUARD_FIELD_NAMES = new Set([
-  "experience",
-  "jobIntention",
-  "selfIntro",
-  "expectedSalary",
-  "workHistory",
-  "profileEducation",
-  "projectExperience",
-  "skills",
-  "licences",
-]);
-const GUARD_ARRAY_FIELD_NAMES = new Set([
-  "workHistory",
-  "profileEducation",
-  "projectExperience",
-  "skills",
-  "licences",
-]);
-
-async function loadCollectionGuards() {
-  return new Promise((resolve) => {
-    chrome.storage.local.get(
-      { collectionGuards: DEFAULT_COLLECTION_GUARDS },
-      (items) => resolve(items.collectionGuards || {}),
-    );
-  });
-}
-
-function parseGuardFieldNames(csv) {
-  if (!csv || typeof csv !== "string") return [];
-  return Array.from(
-    new Set(
-      csv
-        .split(",")
-        .map((field) => field.trim())
-        .filter((field) => GUARD_FIELD_NAMES.has(field)),
-    ),
-  );
-}
-
-function applyCollectionGuards(resume, guardFieldNames) {
-  if (
-    !resume ||
-    typeof resume !== "object" ||
-    !Array.isArray(guardFieldNames) ||
-    guardFieldNames.length === 0
-  ) {
-    return resume;
-  }
-
-  const guarded = { ...resume };
-  for (const field of guardFieldNames) {
-    guarded[field] = GUARD_ARRAY_FIELD_NAMES.has(field) ? [] : "";
-  }
-  return guarded;
-}
 
 const _job5156Extractor = createJob5156Extractor({
   getCurrentSourceKey,
