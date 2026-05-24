@@ -45,13 +45,13 @@
   "license": "ISC",
   "devDependencies": {
     "@axe-core/playwright": "^4.11.3",
-    "@playwright/test": "^1.58.2",
+    "@playwright/test": "^1.60.0",
     "@types/node": "^25.9.1",
     "@vitest/coverage-v8": "^4.1.7",
-    "playwright": "^1.58.2",
-    "tsx": "^4.21.0",
+    "playwright": "^1.60.0",
+    "tsx": "^4.22.3",
     "typescript": "^5.9.3",
     "vitest": "^4.1.7",
-    "yaml": "^2.8.2"
+    "yaml": "^2.9.0"
   }
 }
