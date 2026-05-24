@@ -24,13 +24,14 @@ export function createUiUtils(deps) {
     KEYWORD_MODE_CONCAT,
     KEYWORD_MODE_SPACED,
     LATEST_AUTO_SYNC_SUMMARIES_STORAGE_KEY,
-    CONTENT_SCRIPT_SOURCE,
+    JOB5156_HOST,
+    EHIRE_51JOB_HOST,
+    SEEK_HOST_SUFFIX,
 
     // Functions from other factories
     getPaginationInfo,
     makeRandomId,
     getExternalAccessorStatus,
-    getApiSnapshotCount,
     getAgeRangeFromUrl,
     filterResumesByAgeRange,
     resolveJob51CollectionLimits,
@@ -173,9 +174,9 @@ export function createUiUtils(deps) {
 
   function getCurrentSourceKey() {
     const hostname = win.location.hostname.toLowerCase();
-    if (hostname === "hr.job5156.com") return SOURCE_KEYS.JOB5156;
-    if (hostname === "ehire.51job.com") return SOURCE_KEYS.JOB51;
-    if (hostname.endsWith(".employer.seek.com")) return SOURCE_KEYS.SEEK;
+    if (hostname === JOB5156_HOST) return SOURCE_KEYS.JOB5156;
+    if (hostname === EHIRE_51JOB_HOST) return SOURCE_KEYS.JOB51;
+    if (hostname.endsWith(SEEK_HOST_SUFFIX)) return SOURCE_KEYS.SEEK;
     return SOURCE_KEYS.UNKNOWN;
   }
 
@@ -409,15 +410,23 @@ export function createUiUtils(deps) {
   // ============================================================================
 
   function installReloadHelper() {
-    const winAny = win;
-    if (!winAny.__TR_RESUME_RELOAD_HOOK__) {
-      winAny.__TR_RESUME_RELOAD_HOOK__ = () => {
-        console.log("[Content] Reloading content script...");
-        const script = doc.createElement("script");
-        script.src = chrome.runtime.getURL("content.js");
-        script.onload = () => script.remove();
-        (doc.head || doc.documentElement).appendChild(script);
+    try {
+      if (globalThis.trReloadExtension) return;
+      globalThis.trReloadExtension = async () => {
+        try {
+          const response = await chrome.runtime.sendMessage({
+            action: "reloadExtension",
+          });
+          console.log("🎯 [DEV] Reload requested", response);
+        } catch (error) {
+          console.warn("🎯 [DEV] Reload failed:", error);
+        }
       };
+      console.log(
+        '🎯 [DEV] Use trReloadExtension() in the DevTools "Content scripts" context to reload the extension',
+      );
+    } catch (error) {
+      console.warn("🎯 [DEV] Failed to install reload helper:", error);
     }
   }
 
