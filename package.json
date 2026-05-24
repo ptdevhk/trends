@@ -46,12 +46,12 @@
   "devDependencies": {
     "@axe-core/playwright": "^4.11.3",
     "@playwright/test": "^1.58.2",
-    "@types/node": "^25.0.10",
-    "@vitest/coverage-v8": "^4.1.1",
+    "@types/node": "^25.9.1",
+    "@vitest/coverage-v8": "^4.1.7",
     "playwright": "^1.58.2",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
-    "vitest": "^4.1.1",
+    "vitest": "^4.1.7",
     "yaml": "^2.8.2"
   }
 }

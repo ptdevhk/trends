@@ -11,19 +11,19 @@
     "openapi:gen": "tsx src/openapi.ts"
   },
   "dependencies": {
-    "@hono/node-server": "^2.0.3",
+    "@hono/node-server": "^2.0.4",
     "@hono/zod-openapi": "^1.4.0",
     "@trends/shared": "*",
     "@types/nodemailer": "^7.0.9",
     "better-sqlite3": "^12.0.0",
     "exceljs": "^4.4.0",
-    "fflate": "^0.8.2",
-    "hono": "^4.12.21",
+    "fflate": "^0.8.3",
+    "hono": "^4.12.22",
     "js-yaml": "^4.1.0",
     "json5": "^2.2.3",
     "mammoth": "^1.12.0",
     "node-unrar-js": "^2.0.2",
-    "nodemailer": "^8.0.1",
+    "nodemailer": "^8.0.8",
     "papaparse": "^5.5.3",
     "pdf-parse": "^2.4.5",
     "yaml": "^2.8.2",
@@ -32,7 +32,7 @@
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.0",
     "@types/js-yaml": "^4.0.0",
-    "@types/node": "^25.5.0",
+    "@types/node": "^25.9.1",
     "@types/papaparse": "^5.3.16",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"
