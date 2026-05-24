@@ -27,7 +27,7 @@
     "@trends/shared": "*",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
-    "convex": "^1.36.0",
+    "convex": "^1.39.0",
     "date-fns": "^4.1.0",
     "dotenv": "^17.2.4",
     "i18next": "^26.2.0",
