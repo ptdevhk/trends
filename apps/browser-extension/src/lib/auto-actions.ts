@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Auto-actions — automatic age filter, location, search, export, and sync
  * orchestration. Dependencies injected from content.ts.
@@ -6,7 +5,51 @@
  * Created as Phase 4 of content.ts extraction.
  */
 
-export function createAutoActions(deps) {
+export interface AutoActionsDeps extends Record<string, unknown> {
+  activateElement: (el: unknown) => void;
+  fireMouseEvent: (el: unknown, type: string) => void;
+  setInputValue: (el: unknown, value: string) => void;
+  apiSnapshot: Record<string, unknown>;
+  getCurrentSourceKey: () => string;
+  getCurrentAgeRange: () => { enabled: boolean; minAge?: number; maxAge?: number };
+  SOURCE_KEYS: Record<string, string>;
+  isElementVisible: (el: unknown) => boolean;
+  resolveJob51AgeFilterDropdown: (ageBlock: unknown) => unknown;
+  ensureJob51AgeCustomRangeInputs: (selectBox: unknown, options?: Record<string, unknown>) => Promise<void>;
+  applyJob51AgeCustomRangeViaVue: (confirmButton: unknown, options: Record<string, unknown>) => Promise<boolean>;
+  waitForJob51AgeFilterRefresh: (previousLastSearchAt: unknown, options: Record<string, unknown>) => Promise<boolean>;
+  waitForExtractionData: (options?: Record<string, unknown>) => Promise<unknown>;
+  asHTMLElement: (el: unknown) => HTMLElement | null;
+  SELECTORS: Record<string, string>;
+  AUTO_LOCATION_PARAM: string;
+  AUTO_SEARCH_PARAM: string;
+  AUTO_KEYWORD_MODE_PARAM: string;
+  KEYWORD_MODE_SPACED: string;
+  normalizeKeyword: (value: string) => string;
+  normalizeKeywordMode: (mode: string) => string;
+  getKeywordMode: () => Promise<string>;
+  normalizeSeekLocationLabel: (label: string) => string;
+  hasJob51SearchSnapshot: () => boolean;
+  isJob51EmptySearchPromptVisible: () => boolean;
+  parseAutoLocationValues: (raw: string) => string[];
+  extractResumes: () => unknown[];
+  extractResumesRaw: (options?: Record<string, unknown>) => Record<string, unknown>;
+  isJob51DetailPage: () => boolean;
+  isJob5156DetailPage: () => boolean;
+  isSeekProfileMode: () => boolean;
+  enrich51JobSearchResumesWithDetail: (resumes: unknown[]) => Promise<unknown[]>;
+  enrichJob5156SearchResumesWithDetail: (resumes: unknown[]) => Promise<unknown[]>;
+  enrichSeekResumesWithDetail: (resumes: unknown[]) => Promise<unknown[]>;
+  buildSubmitMetadata: (options?: Record<string, unknown>) => Record<string, unknown>;
+  AUTO_EXPORT_PARAM: string;
+  AUTO_SYNC_PARAM: string;
+  buildExportMetadata: (resumes: unknown[]) => Record<string, unknown>;
+  buildExportFilename: () => string;
+  document: Document;
+  window: Window;
+}
+
+export function createAutoActions(deps: AutoActionsDeps) {
   const {
     activateElement,
     fireMouseEvent,
@@ -53,7 +96,7 @@ export function createAutoActions(deps) {
 
   // ── setAutoAgeAttributes ──
 
-  function setAutoAgeAttributes(status, minAge, maxAge) {
+  function setAutoAgeAttributes(status: string, minAge?: number | null, maxAge?: number | null) {
     try {
       doc.documentElement.setAttribute("data-tr-auto-age", status);
       const normalizedMin =
@@ -83,27 +126,27 @@ export function createAutoActions(deps) {
     if (getCurrentSourceKey() === SOURCE_KEYS.JOB51) {
       const labels = doc.querySelectorAll(".base-select-label");
       const label = Array.from(labels).find(
-        (node) => (node.textContent || "").replace(/\s+/g, "").trim() === "年龄",
+        (node) => ((node as Element).textContent || "").replace(/\s+/g, "").trim() === "年龄",
       );
       if (label) {
         return (
-          label.closest(".el-popover__reference") ||
-          label.closest(".base-select-button") ||
-          label.closest(".el-popover__reference-wrapper")
+          (label as Element).closest(".el-popover__reference") ||
+          (label as Element).closest(".base-select-button") ||
+          (label as Element).closest(".el-popover__reference-wrapper")
         );
       }
     }
 
     const titles = doc.querySelectorAll(".base-input-block__title__text");
     const label = Array.from(titles).find(
-      (node) => (node.textContent || "").replace(/\s+/g, "").trim() === "年龄",
+      (node) => ((node as Element).textContent || "").replace(/\s+/g, "").trim() === "年龄",
     );
-    return label ? label.closest(".base-input-block") : null;
+    return label ? (label as Element).closest(".base-input-block") : null;
   }
 
   // ── openAgeFilterDropdown ──
 
-  function openAgeFilterDropdown(ageBlock) {
+  function openAgeFilterDropdown(ageBlock: Element) {
     if (getCurrentSourceKey() === SOURCE_KEYS.JOB51) {
       const trigger =
         ageBlock.querySelector(".base-select-button") ||
@@ -121,7 +164,7 @@ export function createAutoActions(deps) {
 
   // ── resolveAgeSelectBox ──
 
-  function resolveAgeSelectBox(ageBlock) {
+  function resolveAgeSelectBox(ageBlock: Element) {
     return getCurrentSourceKey() === SOURCE_KEYS.JOB51
       ? resolveJob51AgeFilterDropdown(ageBlock)
       : ageBlock.querySelector(".base-input-block__select_box");
@@ -129,8 +172,9 @@ export function createAutoActions(deps) {
 
   // ── waitForAgeFilterDropdown ──
 
-  async function waitForAgeFilterDropdown(ageBlock, { timeoutMs = 4000 } = {}) {
-    const deadline = Date.now() + timeoutMs;
+  async function waitForAgeFilterDropdown(ageBlock: Element, { timeoutMs = 4000 }: Record<string, unknown> = {}) {
+    const timeout = typeof timeoutMs === "number" ? timeoutMs : 4000;
+    const deadline = Date.now() + timeout;
     while (Date.now() < deadline) {
       const selectBox = resolveAgeSelectBox(ageBlock);
       if (selectBox && isElementVisible(selectBox)) {
@@ -146,16 +190,16 @@ export function createAutoActions(deps) {
 
   // ── resolveAgeFilterActions ──
 
-  function resolveAgeFilterActions(selectBox) {
+  function resolveAgeFilterActions(selectBox: Element) {
     const minInput = selectBox.querySelector('input[placeholder="最低"]');
     const maxInput = selectBox.querySelector('input[placeholder="最高"]');
     const buttons = Array.from(selectBox.querySelectorAll("button"));
     const confirmButton = buttons.find((button) => {
-      const text = (button.textContent || "").replace(/\s+/g, "").trim();
-      return text === "确定" || text === "確定";
+      const text = (button as HTMLElement).textContent || "";
+      return text.replace(/\s+/g, "").trim() === "确定" || text.replace(/\s+/g, "").trim() === "確定";
     });
     const cancelButton = buttons.find((button) => {
-      const text = (button.textContent || "").replace(/\s+/g, "").trim();
+      const text = ((button as HTMLElement).textContent || "").replace(/\s+/g, "").trim();
       return text === "取消";
     });
 
@@ -232,13 +276,13 @@ export function createAutoActions(deps) {
     }
 
     if (sourceKey === SOURCE_KEYS.JOB51) {
-      await ensureJob51AgeCustomRangeInputs(selectBox, {
+      await ensureJob51AgeCustomRangeInputs(selectBox as Element, {
         timeoutMs: 2500,
       });
     }
 
     const { minInput, maxInput, confirmButton, cancelButton } =
-      resolveAgeFilterActions(selectBox);
+      resolveAgeFilterActions(selectBox as Element);
     if (!minInput || !maxInput || !confirmButton) {
       if (sourceKey === SOURCE_KEYS.JOB51) {
         setAutoAgeAttributes("failed", minAge, maxAge);
@@ -361,10 +405,11 @@ export function createAutoActions(deps) {
 
   // ── waitForSearchElements ──
 
-  function waitForSearchElements({ timeoutMs = 8000 } = {}) {
+  function waitForSearchElements({ timeoutMs = 8000 }: Record<string, unknown> = {}): Promise<{ input: Element; button: Element }> {
+    const timeout = typeof timeoutMs === "number" ? timeoutMs : 8000;
     return new Promise((resolve, reject) => {
       let done = false;
-      const deadline = Date.now() + timeoutMs;
+      const deadline = Date.now() + timeout;
 
       const check = () => {
         if (done) return;
@@ -407,10 +452,11 @@ export function createAutoActions(deps) {
 
   // ── waitForAreaModal ──
 
-  function waitForAreaModal({ timeoutMs = 8000 } = {}) {
+  function waitForAreaModal({ timeoutMs = 8000 }: Record<string, unknown> = {}): Promise<Element> {
+    const timeout = typeof timeoutMs === "number" ? timeoutMs : 8000;
     return new Promise((resolve, reject) => {
       let done = false;
-      const deadline = Date.now() + timeoutMs;
+      const deadline = Date.now() + timeout;
 
       const check = () => {
         if (done) return;
@@ -444,10 +490,10 @@ export function createAutoActions(deps) {
 
   // ── getAreaItemText ──
 
-  function getAreaItemText(item) {
+  function getAreaItemText(item: Element | null) {
     if (!item) return "";
     const source = item.querySelector("span") || item;
-    const clone = source.cloneNode(true);
+    const clone = source.cloneNode(true) as Element;
     clone.querySelectorAll(".select-num").forEach((node) => node.remove());
     return (
       (clone.textContent || "")
@@ -459,7 +505,7 @@ export function createAutoActions(deps) {
 
   // ── findAreaItemByText ──
 
-  function findAreaItemByText(container, text) {
+  function findAreaItemByText(container: Element | null, text: string) {
     if (!container || !text) return null;
     const target = text.replace(/\s+/g, " ").trim();
     const normalizedTarget = normalizeSeekLocationLabel(target);
@@ -488,14 +534,15 @@ export function createAutoActions(deps) {
   // ── waitForAreaItems ──
 
   function waitForAreaItems(
-    blockSelector,
-    { timeoutMs = 5000, itemSelector } = {},
-  ) {
+    blockSelector: string,
+    { timeoutMs = 5000, itemSelector }: Record<string, unknown> = {},
+  ): Promise<{ block: Element; items: Element[] }> {
+    const timeout = typeof timeoutMs === "number" ? timeoutMs : 5000;
     return new Promise((resolve, reject) => {
       let done = false;
-      const deadline = Date.now() + timeoutMs;
+      const deadline = Date.now() + timeout;
       const targetSelector =
-        itemSelector || `${SELECTORS.areaItem}, ${SELECTORS.areaDistrictItem}`;
+        (typeof itemSelector === "string" && itemSelector) || `${SELECTORS.areaItem}, ${SELECTORS.areaDistrictItem}`;
 
       const check = () => {
         if (done) return;
@@ -531,10 +578,11 @@ export function createAutoActions(deps) {
 
   // ── waitForAreaTrigger ──
 
-  function waitForAreaTrigger({ timeoutMs = 8000 } = {}) {
+  function waitForAreaTrigger({ timeoutMs = 8000 }: Record<string, unknown> = {}): Promise<HTMLElement> {
+    const timeout = typeof timeoutMs === "number" ? timeoutMs : 8000;
     return new Promise((resolve, reject) => {
       let done = false;
-      const deadline = Date.now() + timeoutMs;
+      const deadline = Date.now() + timeout;
 
       const check = () => {
         if (done) return;
@@ -570,7 +618,7 @@ export function createAutoActions(deps) {
 
   // ── setAutoSearchAttributes ──
 
-  function setAutoSearchAttributes(status, keyword) {
+  function setAutoSearchAttributes(status: string, keyword?: string) {
     try {
       doc.documentElement.setAttribute("data-tr-auto-search", status);
       if (keyword) {
@@ -585,7 +633,7 @@ export function createAutoActions(deps) {
 
   // ── setAutoLocationAttributes ──
 
-  function setAutoLocationAttributes(status, location) {
+  function setAutoLocationAttributes(status: string, location?: string) {
     try {
       doc.documentElement.setAttribute("data-tr-auto-location", status);
       if (location) {
@@ -1006,7 +1054,7 @@ export function createAutoActions(deps) {
 
   // ── parseAutoExportMode ──
 
-  function parseAutoExportMode(value) {
+  function parseAutoExportMode(value: string | undefined): Record<string, boolean> {
     if (!value) return { enabled: false };
     const mode = String(value).trim().toLowerCase();
     if (!mode) return { enabled: false };

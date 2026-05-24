@@ -1,10 +1,36 @@
-// @ts-nocheck
 /**
  * Job5156-specific resume extraction utilities — page detection, DOM parsing,
  * API payload processing, and enrichment. All dependencies injected from content.ts.
  */
 
-export function createJob5156Extractor(deps) {
+export interface Job5156ExtractorDeps extends Record<string, unknown> {
+  getCurrentSourceKey: () => string;
+  SOURCE_KEYS: Record<string, string>;
+  apiSnapshot: Record<string, unknown>;
+  normalizeResumeText: (value: unknown) => string;
+  normalizeResumeMultilineText: (value: unknown) => string;
+  buildWorkHistoryRawParts: (parts: string[]) => string;
+  normalizeOptionalPositiveInt: (value: unknown) => number | null;
+  JOB5156_HOST: string;
+  JOB5156_PROFILE_URL_PREFIX: string;
+  JOB5156_DETAIL_FETCH_TIMEOUT_MS: number;
+  JOB5156_DETAIL_FETCH_CONCURRENCY: number;
+  DEFAULT_COLLECTION_GUARDS: unknown;
+  GUARD_FIELD_NAMES: string[];
+  GUARD_ARRAY_FIELD_NAMES: string[];
+  loadCollectionGuards: () => Promise<unknown>;
+  parseGuardFieldNames: (guards: unknown) => string[];
+  applyCollectionGuards: (resume: unknown, fields: string[]) => unknown;
+  isMeaningfulJob5156WorkHistoryEntry: (entry: unknown) => boolean;
+  collectJob5156SectionItemsByHeading: (
+    root: unknown,
+    headingPattern: RegExp,
+    primarySelectors: string[],
+    fallbackSelectors?: string[],
+  ) => Element[];
+}
+
+export function createJob5156Extractor(deps: Job5156ExtractorDeps) {
   const {
     getCurrentSourceKey,
     SOURCE_KEYS,
@@ -369,7 +395,7 @@ export function createJob5156Extractor(deps) {
     );
   }
 
-  function buildJob5156DetailResumeFromRoot(root, options = {}) {
+  function buildJob5156DetailResumeFromRoot(root, options: Record<string, unknown> = {}) {
     if (!(root instanceof Element)) return [];
 
     const {
@@ -609,7 +635,7 @@ export function createJob5156Extractor(deps) {
     };
   }
 
-  function normalizeJob5156ExtractOptions(options = {}) {
+  function normalizeJob5156ExtractOptions(options: Record<string, unknown> = {}) {
     return {
       pathname:
         typeof options.pathname === "string"
@@ -626,7 +652,7 @@ export function createJob5156Extractor(deps) {
     };
   }
 
-  function buildJob5156DetailResumeFromApiPayload(payload, options = {}) {
+  function buildJob5156DetailResumeFromApiPayload(payload, options: Record<string, unknown> = {}) {
     if (!payload || typeof payload !== "object") return [];
 
     const { pathname, profileUrl, extractedAt } =
@@ -844,7 +870,7 @@ export function createJob5156Extractor(deps) {
 
     const extractedAt = new Date().toISOString();
     const collectionGuards = await loadCollectionGuards();
-    const guardFields = parseGuardFieldNames(collectionGuards?.job5156);
+    const guardFields = parseGuardFieldNames((collectionGuards as Record<string, unknown>)?.job5156);
     const enriched = [];
 
     for (

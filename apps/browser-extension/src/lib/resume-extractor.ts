@@ -1,4 +1,3 @@
-// @ts-nocheck
 import type { Selectors } from "./types";
 
 export interface ResumeWorkHistoryItem {
@@ -31,7 +30,7 @@ export interface ResumeData {
   source: string;
 }
 
-export interface ResumeExtractorDeps {
+export interface ResumeExtractorDeps extends Record<string, unknown> {
   SELECTORS: Selectors;
   JOB5156_HOST: string;
   doc: Document;
@@ -174,7 +173,7 @@ export function createResumeExtractor(deps: ResumeExtractorDeps) {
     return buildProfileUrlFromApiRow(apiRow);
   }
 
-  function buildSubmitMetadata(options = {}) {
+  function buildSubmitMetadata(options: Record<string, unknown> = {}) {
     const url = new URL(win.location.href);
     const sourceKey = getCurrentSourceKey();
     const keyword = normalizeKeyword(
@@ -188,7 +187,7 @@ export function createResumeExtractor(deps: ResumeExtractorDeps) {
     url.searchParams.delete(AUTO_MAX_PAGES_PARAM);
     url.searchParams.delete(SAMPLE_NAME_PARAM);
 
-    const metadata = {
+    const metadata: Record<string, unknown> = {
       sourceKey,
       sourceHost: url.hostname.toLowerCase(),
       sourceUrl: url.toString(),
@@ -199,7 +198,7 @@ export function createResumeExtractor(deps: ResumeExtractorDeps) {
     if (location) metadata.location = location;
     if (sourceKey === SOURCE_KEYS.SEEK) {
       metadata.collectionContext = buildSeekCollectionContext({
-        captureModeOverride: options.seekCaptureMode,
+        captureModeOverride: options.seekCaptureMode as string | undefined,
       });
     }
 

@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
 
-import { createSeekExtractor } from "../seek-extractor";
+import { createSeekExtractor, type SeekExtractorDeps } from "../seek-extractor";
 
-function createMockDeps(overrides = {}) {
+function createMockDeps(overrides: Record<string, unknown> = {}): SeekExtractorDeps {
   return {
     getCurrentSourceKey: vi.fn(() => "seek"),
     SOURCE_KEYS: { JOB51: "job51", JOB5156: "job5156", SEEK: "seek" },
@@ -34,12 +34,13 @@ function createMockDeps(overrides = {}) {
         search: "",
       },
     },
-    doc: { querySelectorAll: vi.fn(() => []) },
-    asHTMLElement: (el: unknown) => el,
+    doc: { querySelectorAll: vi.fn(() => []), querySelector: vi.fn(() => null) },
+    asHTMLElement: (el: unknown) => el as HTMLElement | null,
     isDisabledPaginationControl: vi.fn(() => false),
     waitForSeekProfileSnapshot: vi.fn(),
+    SELECTORS: { seekPagination: ".seek-pagination", seekTalentSearchPagination: ".seek-ts-pagination" },
     ...overrides,
-  };
+  } as unknown as SeekExtractorDeps;
 }
 
 describe("seek-extractor", () => {

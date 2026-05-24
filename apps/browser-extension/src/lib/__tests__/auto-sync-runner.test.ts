@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 
-import { createAutoSyncRunner } from "../auto-sync-runner";
+import { createAutoSyncRunner, type AutoSyncRunnerDeps } from "../auto-sync-runner";
 
-function createMockDeps(overrides = {}) {
+function createMockDeps(overrides: Record<string, unknown> = {}): AutoSyncRunnerDeps {
   return {
     getAutoSyncEnabled: vi.fn(() => true),
     setAutoSyncAttributes: vi.fn(),
@@ -89,7 +89,7 @@ function createMockDeps(overrides = {}) {
       _autoSyncCancelled: false,
     },
     ...overrides,
-  };
+  } as unknown as AutoSyncRunnerDeps;
 }
 
 describe("auto-sync-runner", () => {

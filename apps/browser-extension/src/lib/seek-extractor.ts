@@ -1,10 +1,25 @@
-// @ts-nocheck
 /**
  * Seek-specific resume extraction utilities — page detection, snapshot query,
  * URL building, and auto-sync helpers. All dependencies injected from content.ts.
  */
 
-export function createSeekExtractor(deps) {
+export interface SeekExtractorDeps extends Record<string, unknown> {
+  getCurrentSourceKey: () => string;
+  SOURCE_KEYS: Record<string, string>;
+  apiSnapshot: Record<string, unknown>;
+  normalizeOptionalPositiveInt: (value: unknown) => number | null;
+  DEFAULT_SEEK_PAGE_SIZE: number;
+  SEEK_PROFILE_TYPE: string;
+  persistLatestAutoSyncSummary: () => void;
+  win: { location: { pathname: string; href: string; hostname: string; search: string } };
+  doc: { querySelector: (selector: string) => Element | null; querySelectorAll: (selector: string) => NodeListOf<Element> };
+  asHTMLElement: (el: unknown) => HTMLElement | null;
+  isDisabledPaginationControl: (el: unknown) => boolean;
+  waitForSeekProfileSnapshot: (matchId: string, options: { timeoutMs: number }) => Promise<void>;
+  SELECTORS: Record<string, string>;
+}
+
+export function createSeekExtractor(deps: SeekExtractorDeps) {
   const {
     getCurrentSourceKey,
     SOURCE_KEYS,
@@ -21,6 +36,8 @@ export function createSeekExtractor(deps) {
     isDisabledPaginationControl,
     // Detail enrichment deps
     waitForSeekProfileSnapshot,
+    // Pagination selectors
+    SELECTORS,
   } = deps;
 
   function isSeekProfilePage() {
@@ -74,10 +91,10 @@ export function createSeekExtractor(deps) {
       return hasSeekProfileSnapshot() ? 1 : 0;
     }
     if (hasSeekTalentSearchSnapshot()) {
-      return apiSnapshot.seekTalentSearch.length;
+      return (apiSnapshot.seekTalentSearch as unknown[]).length;
     }
     return hasSeekListSnapshot()
-      ? apiSnapshot.seekRecommendedCandidates.length
+      ? (apiSnapshot.seekRecommendedCandidates as unknown[]).length
       : 0;
   }
 
@@ -85,19 +102,20 @@ export function createSeekExtractor(deps) {
     return getSeekSnapshotCount() > 0;
   }
 
-  function getSeekCandidateIdentity(candidate) {
+  function getSeekCandidateIdentity(candidate: unknown) {
+    const rec = candidate as Record<string, unknown> | null | undefined;
     const profileId =
-      candidate?.profileId != null ? String(candidate.profileId) : "";
+      rec?.profileId != null ? String(rec.profileId) : "";
     return {
       profileId,
       profileType:
-        typeof candidate?.profileType === "string"
-          ? candidate.profileType
+        typeof rec?.profileType === "string"
+          ? rec.profileType
           : SEEK_PROFILE_TYPE,
     };
   }
 
-  function buildSeekProfileUrl(profileId, jobId) {
+  function buildSeekProfileUrl(profileId: string, jobId: string | undefined) {
     if (!profileId) return "";
     const hostname = window.location.hostname.toLowerCase();
     if (jobId) {
@@ -106,7 +124,7 @@ export function createSeekExtractor(deps) {
     return `https://${hostname}/candidates/${encodeURIComponent(profileId)}`;
   }
 
-  function buildSeekNameSearchUrl(name, market, roleTitles) {
+  function buildSeekNameSearchUrl(name: string, market: string | undefined, roleTitles: string | undefined) {
     const trimmed = typeof name === "string" ? name.trim() : "";
     if (!trimmed) return "";
     const trimmedRoleTitles = typeof roleTitles === "string" ? roleTitles.trim() : "";
@@ -114,7 +132,7 @@ export function createSeekExtractor(deps) {
     return `https://${window.location.hostname.toLowerCase()}/talentsearch/profiles/search?searchQuery=${encodeURIComponent(trimmed)}&market=${encodeURIComponent(market || "MY")}&pageNumber=1${roleTitlesParam}`;
   }
 
-  function normalizeSeekLocationLabel(value) {
+  function normalizeSeekLocationLabel(value: unknown) {
     return String(value || "")
       .toLowerCase()
       .replace(/\bmalaysia\b/g, "")
@@ -148,15 +166,15 @@ export function createSeekExtractor(deps) {
   }
 
   function getSeekRecommendedRequest() {
-    return apiSnapshot.seekRecommendedRequest;
+    return apiSnapshot.seekRecommendedRequest as Record<string, unknown> | null | undefined;
   }
 
   function getSeekTalentSearchRequest() {
-    return apiSnapshot.seekTalentSearchRequest;
+    return apiSnapshot.seekTalentSearchRequest as Record<string, unknown> | null | undefined;
   }
 
   function getSeekProfileRequest() {
-    return apiSnapshot.seekProfileRequest || apiSnapshot.seekRecommendedRequest;
+    return (apiSnapshot.seekProfileRequest || apiSnapshot.seekRecommendedRequest) as Record<string, unknown> | null | undefined;
   }
 
   function getSeekAutoSyncHelpers() {
@@ -164,7 +182,7 @@ export function createSeekExtractor(deps) {
     return helpers && typeof helpers === "object" ? helpers : null;
   }
 
-  function resolveSeekAutoSyncPageSize(options = {}) {
+  function resolveSeekAutoSyncPageSize(options: Record<string, unknown> = {}) {
     const { requestedPageSize, currentPageCandidateCount, fallbackPageSize = DEFAULT_SEEK_PAGE_SIZE } = options;
     const helpers = getSeekAutoSyncHelpers();
     if (typeof helpers?.resolveSeekAutoSyncPageSize === "function") {
@@ -178,7 +196,7 @@ export function createSeekExtractor(deps) {
     );
   }
 
-  function resolveSeekAutoSyncPageWindow(options = {}) {
+  function resolveSeekAutoSyncPageWindow(options: Record<string, unknown> = {}) {
     const { startPage, limit, maxPages, requestedPageSize, currentPageCandidateCount } = options;
     const helpers = getSeekAutoSyncHelpers();
     if (typeof helpers?.resolveSeekAutoSyncPageWindow === "function") {
@@ -200,7 +218,7 @@ export function createSeekExtractor(deps) {
     return { startPage: normalizedStartPage, targetPageEnd: allowedPageCount ? normalizedStartPage + allowedPageCount - 1 : null, effectivePageSize, limitPageCount, maxPages: normalizedMaxPages, allowedPageCount };
   }
 
-  function isSeekAutoSyncPageWindowReached(pageWindow, currentPage) {
+  function isSeekAutoSyncPageWindowReached(pageWindow: Record<string, unknown> | null, currentPage: unknown) {
     const helpers = getSeekAutoSyncHelpers();
     if (typeof helpers?.isSeekAutoSyncPageWindowReached === "function") {
       return helpers.isSeekAutoSyncPageWindowReached({ currentPage, targetPageEnd: pageWindow?.targetPageEnd });
@@ -210,7 +228,7 @@ export function createSeekExtractor(deps) {
     return !!(normalizedCurrentPage && targetPageEnd && normalizedCurrentPage >= targetPageEnd);
   }
 
-  function resolveSeekAutoSyncCurrentPageSelection(options = {}) {
+  function resolveSeekAutoSyncCurrentPageSelection(options: Record<string, unknown> = {}) {
     const helpers = getSeekAutoSyncHelpers();
     if (typeof helpers?.resolveSeekAutoSyncCurrentPageSelection === "function") {
       return helpers.resolveSeekAutoSyncCurrentPageSelection(options);
@@ -224,19 +242,20 @@ export function createSeekExtractor(deps) {
   }
 
   function getSeekRequestedPageSize() {
-    const requestInput = getSeekRecommendedRequest()?.variables?.input;
+    const variables = getSeekRecommendedRequest()?.variables as Record<string, unknown> | undefined;
+    const requestInput = variables?.input as Record<string, unknown> | undefined;
     return normalizeOptionalPositiveInt(requestInput?.size);
   }
 
   function getSeekCurrentCandidateCount() {
     if (getCurrentSeekMode() === "talentsearch") {
-      return Array.isArray(apiSnapshot.seekTalentSearch) ? apiSnapshot.seekTalentSearch.length : 0;
+      return Array.isArray(apiSnapshot.seekTalentSearch) ? (apiSnapshot.seekTalentSearch as unknown[]).length : 0;
     }
-    return Array.isArray(apiSnapshot.seekRecommendedCandidates) ? apiSnapshot.seekRecommendedCandidates.length : 0;
+    return Array.isArray(apiSnapshot.seekRecommendedCandidates) ? (apiSnapshot.seekRecommendedCandidates as unknown[]).length : 0;
   }
 
-  function setSeekAutoSyncWindowAttributes(pageWindow) {
-    const attrs = [
+  function setSeekAutoSyncWindowAttributes(pageWindow: Record<string, unknown> | null) {
+    const attrs: [string, unknown][] = [
       ["data-tr-auto-sync-target-start", pageWindow?.startPage],
       ["data-tr-auto-sync-target-end", pageWindow?.targetPageEnd],
       ["data-tr-auto-sync-effective-page-size", pageWindow?.effectivePageSize],
@@ -253,8 +272,8 @@ export function createSeekExtractor(deps) {
     persistLatestAutoSyncSummary();
   }
 
-  function setSeekAutoSyncSelectionAttributes(selection) {
-    const attrs = [
+  function setSeekAutoSyncSelectionAttributes(selection: Record<string, unknown> | null) {
+    const attrs: [string, unknown][] = [
       ["data-tr-auto-sync-selected-count", selection?.selectedCount],
       ["data-tr-auto-sync-remaining-capacity", selection?.remainingCapacity],
     ];
@@ -270,7 +289,7 @@ export function createSeekExtractor(deps) {
     persistLatestAutoSyncSummary();
   }
 
-  function findSeekProfileTrigger(profileId) {
+  function findSeekProfileTrigger(profileId: string) {
     if (!profileId) return null;
     const candidateLinks = Array.from(document.querySelectorAll("a[href]"));
     return candidateLinks.find((link) => {
@@ -287,12 +306,13 @@ export function createSeekExtractor(deps) {
   // ============================================================================
 
   function extractSeekProfileResume() {
-    const profile = apiSnapshot.seekProfile;
+    const profile = apiSnapshot.seekProfile as Record<string, unknown> | null;
     if (!profile || typeof profile !== "object") return [];
 
     const request = getSeekProfileRequest();
-    const requestInput = request?.variables?.input;
-    const language = request?.variables?.language;
+    const variables = request?.variables as Record<string, unknown> | undefined;
+    const requestInput = variables?.input as Record<string, unknown> | undefined;
+    const language = variables?.language;
     const profileUrl = new URL(win.location.href);
     const jobIdFromUrl = normalizeOptionalPositiveInt(
       profileUrl.searchParams.get("jobId"),
@@ -369,8 +389,8 @@ export function createSeekExtractor(deps) {
         ? profile.currentSubindustry.trim()
         : "";
     const rightToWork =
-      typeof profile.rightToWork?.label === "string"
-        ? profile.rightToWork.label.trim()
+      typeof (profile.rightToWork as Record<string, unknown> | undefined)?.label === "string"
+        ? ((profile.rightToWork as Record<string, unknown>).label as string).trim()
         : "";
     const education = profileEducation[0]?.qualification || "";
     const pageNumber =
@@ -393,7 +413,7 @@ export function createSeekExtractor(deps) {
         education,
         location: currentLocation,
         jobIntention: currentJobTitle,
-        expectedSalary: formatSeekExpectedSalary(profile.salary?.expected),
+        expectedSalary: formatSeekExpectedSalary((profile.salary as Record<string, unknown> | undefined)?.expected),
         selfIntro: resumeSnippet,
         workHistory,
         profileEducation:
@@ -405,8 +425,8 @@ export function createSeekExtractor(deps) {
         currentIndustry: currentIndustry || undefined,
         currentSubindustry: currentSubindustry || undefined,
         rightToWork: rightToWork || undefined,
-        noticePeriodDays: Number.isFinite(profile.noticePeriodDays)
-          ? profile.noticePeriodDays
+        noticePeriodDays: Number.isFinite(profile.noticePeriodDays as number)
+          ? (profile.noticePeriodDays as number)
           : undefined,
         extractedAt: new Date().toISOString(),
         pageIndex: 1,
@@ -421,7 +441,7 @@ export function createSeekExtractor(deps) {
     ];
   }
 
-  function buildSeekCollectionContext(options = {}) {
+  function buildSeekCollectionContext(options: Record<string, unknown> = {}) {
     /** @type {{ captureModeOverride?: string }} */
     const normalizedOptions =
       typeof options === "object" && options ? options : {};
@@ -432,14 +452,15 @@ export function createSeekExtractor(deps) {
       ? captureModeOverride === "graphql-profile"
       : isSeekProfileMode();
     const talentSearchRequest = isTalentSearchList
-      ? apiSnapshot.seekTalentSearchRequest
+      ? apiSnapshot.seekTalentSearchRequest as Record<string, unknown> | null
       : null;
     const request = talentSearchRequest ??
       (useProfileMode
         ? getSeekProfileRequest()
         : getSeekRecommendedRequest());
-    const requestInput = request?.variables?.input;
-    const language = request?.variables?.language;
+    const variables = request?.variables as Record<string, unknown> | undefined;
+    const requestInput = variables?.input as Record<string, unknown> | undefined;
+    const language = variables?.language;
     const url = new URL(win.location.href);
     const pageNumberFromUrl = normalizeOptionalPositiveInt(
       url.searchParams.get("pageNumber"),
@@ -462,7 +483,7 @@ export function createSeekExtractor(deps) {
           : "GetTalentSearchRecommendedCandidates";
 
     /** @type {Record<string, unknown>} */
-    const context = {
+    const context: Record<string, unknown> = {
       captureMode,
       operation: apiSnapshot.lastOperationName || defaultOperation,
       profileType: SEEK_PROFILE_TYPE,
@@ -495,7 +516,7 @@ export function createSeekExtractor(deps) {
     return context;
   }
 
-  function getSeekPayloadData(payload, kind) {
+  function getSeekPayloadData(payload: unknown, kind: string) {
     if (!payload) return null;
 
     if (Array.isArray(payload)) {
@@ -525,8 +546,9 @@ export function createSeekExtractor(deps) {
     }
 
     if (payload && typeof payload === "object") {
-      return payload.data && typeof payload.data === "object"
-        ? payload.data
+      const obj = payload as Record<string, unknown>;
+      return obj.data && typeof obj.data === "object"
+        ? obj.data
         : payload;
     }
 
@@ -543,11 +565,12 @@ export function createSeekExtractor(deps) {
    */
   function extractSeekResumes() {
     const candidates = Array.isArray(apiSnapshot.seekRecommendedCandidates)
-      ? apiSnapshot.seekRecommendedCandidates
+      ? (apiSnapshot.seekRecommendedCandidates as Record<string, unknown>[])
       : [];
     const request = getSeekRecommendedRequest();
-    const requestInput = request?.variables?.input;
-    const language = request?.variables?.language;
+    const variables = request?.variables as Record<string, unknown> | undefined;
+    const requestInput = variables?.input as Record<string, unknown> | undefined;
+    const language = variables?.language;
     const url = new URL(win.location.href);
     const jobIdFromUrl = normalizeOptionalPositiveInt(
       url.searchParams.get("jobId"),
@@ -583,7 +606,7 @@ export function createSeekExtractor(deps) {
         typeof candidate?.lastModifiedDate === "string"
           ? candidate.lastModifiedDate
           : "";
-      const salary = candidate?.salary;
+      const salary = candidate?.salary as Record<string, unknown> | undefined;
       const salaryParts = [salary?.minLabel, salary?.maxLabel].filter(
         (value) => typeof value === "string" && value.trim(),
       );
@@ -628,11 +651,12 @@ export function createSeekExtractor(deps) {
    */
   function extractSeekTalentSearchResumes() {
     const candidates = Array.isArray(apiSnapshot.seekTalentSearch)
-      ? apiSnapshot.seekTalentSearch
+      ? (apiSnapshot.seekTalentSearch as Record<string, unknown>[])
       : [];
     const request = getSeekTalentSearchRequest();
-    const requestInput = request?.variables?.input;
-    const language = request?.variables?.language;
+    const variables = request?.variables as Record<string, unknown> | undefined;
+    const requestInput = variables?.input as Record<string, unknown> | undefined;
+    const language = variables?.language;
     const url = new URL(win.location.href);
     const currentPage =
       typeof requestInput?.pageNumber === "number"
@@ -791,9 +815,10 @@ export function createSeekExtractor(deps) {
   // Seek Detail Enrichment
   // ============================================================================
 
-  async function enrichSingleSeekResumeWithDetail(resume, cachedHeadings) {
+  async function enrichSingleSeekResumeWithDetail(resume: unknown, cachedHeadings: unknown) {
+    const rec = resume as Record<string, unknown> | null | undefined;
     const profileId =
-      typeof resume?.profileId === "string" ? resume.profileId.trim() : "";
+      typeof rec?.profileId === "string" ? rec.profileId.trim() : "";
     if (!profileId) {
       return resume;
     }
@@ -809,16 +834,16 @@ export function createSeekExtractor(deps) {
     try {
       trigger.click();
       // For talentsearch, match by profileGuid (UUID); for recommended, match by numeric profileId
-      const matchId = isTalentSearch ? resume.seekProfileGuid || profileId : profileId;
+      const matchId = isTalentSearch ? (rec?.seekProfileGuid as string) || profileId : profileId;
       await waitForSeekProfileSnapshot(matchId, { timeoutMs: 12000 });
-      const [detailResume] = extractSeekProfileResume();
+      const [detailResume] = extractSeekProfileResume() as (Record<string, unknown> | undefined)[];
       if (!detailResume) {
         return resume;
       }
       // For talentsearch, verify the detail profile matches by profileGuid or profileId
       if (isTalentSearch) {
-        const detailGuid = detailResume.seekProfileGuid || "";
-        const detailProfileId = detailResume.profileId || "";
+        const detailGuid = (detailResume.seekProfileGuid as string) || "";
+        const detailProfileId = (detailResume.profileId as string) || "";
         if (detailGuid !== profileId && detailProfileId !== profileId) {
           return resume;
         }
@@ -839,7 +864,7 @@ export function createSeekExtractor(deps) {
     }
   }
 
-  async function enrichSeekResumesWithDetail(resumes) {
+  async function enrichSeekResumesWithDetail(resumes: unknown[]) {
     if (!Array.isArray(resumes) || resumes.length === 0) return [];
     if (getCurrentSourceKey() !== SOURCE_KEYS.SEEK) return resumes;
     if (isSeekProfileMode()) return resumes;
@@ -866,7 +891,7 @@ export function createSeekExtractor(deps) {
    * element clicked via SPA event handlers. Find the card matching this profileId
    * (UUID) by checking data attributes or card index.
    */
-  function findSeekTalentSearchCardTrigger(profileId, resume, cachedHeadings) {
+  function findSeekTalentSearchCardTrigger(profileId: string, resume: unknown, cachedHeadings: unknown) {
     if (!profileId) return null;
     // Try matching by data-tr-candidate-id attribute (set during extraction)
     const byAttr = doc.querySelector(
@@ -875,9 +900,9 @@ export function createSeekExtractor(deps) {
     if (byAttr instanceof HTMLElement) return byAttr;
     // Fallback: match heading elements that contain the candidate name.
     // Talentsearch cards use [data-role="heading"] for the candidate name.
-    const candidateName = typeof resume?.name === "string" ? resume.name.trim() : "";
+    const candidateName = typeof (resume as Record<string, unknown> | null)?.name === "string" ? ((resume as Record<string, unknown>).name as string).trim() : "";
     if (candidateName) {
-      const headings = cachedHeadings ||
+      const headings = (cachedHeadings as Element[] | null) ||
         Array.from(doc.querySelectorAll('[data-role="heading"]'));
       const match = headings.find((h) => {
         const text = (h.textContent || "").trim();
@@ -888,24 +913,27 @@ export function createSeekExtractor(deps) {
     return null;
   }
 
-  function mergeSeekListResumeWithDetail(baseResume, detailResume, isTalentSearch = false) {
+  function mergeSeekListResumeWithDetail(baseResume: unknown, detailResume: unknown, isTalentSearch = false) {
+    const base = baseResume as Record<string, unknown>;
+    const detail = detailResume as Record<string, unknown>;
     if (!detailResume || typeof detailResume !== "object") {
       return baseResume;
     }
 
     // For talentsearch: if V3 detail provides a numeric profileId, use it for
     // profileUrl construction but preserve the UUID seekProfileGuid
-    const seekProfileGuid = baseResume.seekProfileGuid || detailResume.seekProfileGuid || undefined;
-    const numericProfileId = isTalentSearch && detailResume.profileId && /^\d+$/.test(detailResume.profileId)
-      ? detailResume.profileId
+    const seekProfileGuid = base.seekProfileGuid || detail.seekProfileGuid || undefined;
+    const numericProfileId = isTalentSearch && detail.profileId && /^\d+$/.test(String(detail.profileId))
+      ? String(detail.profileId)
       : undefined;
 
     // If we got a numeric profileId from V3 detail, update the profileUrl
-    let profileUrl = detailResume.profileUrl || baseResume.profileUrl;
+    let profileUrl = detail.profileUrl || base.profileUrl;
     if (numericProfileId) {
       // Derive jobId from the current page URL or API request for recommended URL format
       const seekRequest = getSeekTalentSearchRequest();
-      const requestJobId = seekRequest?.variables?.input?.jobId;
+      const seekVariables = seekRequest?.variables as Record<string, unknown> | undefined;
+      const requestJobId = (seekVariables?.input as Record<string, unknown> | undefined)?.jobId;
       const urlJobId = normalizeOptionalPositiveInt(
         new URL(win.location.href).searchParams.get("jobId"),
       );
@@ -918,24 +946,25 @@ export function createSeekExtractor(deps) {
     }
 
     return {
-      ...baseResume,
-      ...detailResume,
+      ...base,
+      ...detail,
       ...(seekProfileGuid ? { seekProfileGuid } : {}),
       ...(numericProfileId ? { profileId: numericProfileId } : {}),
       ...(profileUrl ? { profileUrl } : {}),
-      pageIndex: baseResume.pageIndex,
-      pageNumber: baseResume.pageNumber,
-      extractedAt: baseResume.extractedAt,
-      source: baseResume.source,
-      searchProfileId: detailResume.searchProfileId || baseResume.searchProfileId,
+      pageIndex: base.pageIndex,
+      pageNumber: base.pageNumber,
+      extractedAt: base.extractedAt,
+      source: base.source,
+      searchProfileId: detail.searchProfileId || base.searchProfileId,
     };
   }
 
-  function formatSeekExpectedSalary(expectedSalary) {
+  function formatSeekExpectedSalary(expectedSalary: unknown) {
     if (!expectedSalary || typeof expectedSalary !== "object") return "";
 
-    const amounts = Array.isArray(expectedSalary.amount)
-      ? expectedSalary.amount
+    const salary = expectedSalary as Record<string, unknown>;
+    const amounts = Array.isArray(salary.amount)
+      ? (salary.amount as Record<string, unknown>[])
       : [];
     const preferredFrequencies = ["MONTHLY", "ANNUAL", "HOURLY"];
     const amount =
@@ -953,8 +982,8 @@ export function createSeekExtractor(deps) {
       ? new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value)
       : "";
     const currency =
-      typeof expectedSalary.currency === "string"
-        ? expectedSalary.currency.trim()
+      typeof salary.currency === "string"
+        ? salary.currency.trim()
         : "";
     const period =
       amount.frequency === "ANNUAL"
@@ -969,20 +998,21 @@ export function createSeekExtractor(deps) {
     return prefix ? `${prefix}${period}` : "";
   }
 
-  function buildSeekWorkHistoryItem(item) {
+  function buildSeekWorkHistoryItem(item: unknown) {
     if (!item || typeof item !== "object") return null;
 
+    const rec = item as Record<string, unknown>;
     const companyName =
-      typeof item.companyName === "string" ? item.companyName.trim() : "";
+      typeof rec.companyName === "string" ? rec.companyName.trim() : "";
     const jobTitle =
-      typeof item.jobTitle === "string" ? item.jobTitle.trim() : "";
+      typeof rec.jobTitle === "string" ? rec.jobTitle.trim() : "";
     const description =
-      typeof item.description === "string" ? item.description.trim() : "";
+      typeof rec.description === "string" ? rec.description.trim() : "";
     const startDate =
-      typeof item.startDate === "string" ? item.startDate.trim() : "";
-    const endDate = typeof item.endDate === "string" ? item.endDate.trim() : "";
+      typeof rec.startDate === "string" ? rec.startDate.trim() : "";
+    const endDate = typeof rec.endDate === "string" ? rec.endDate.trim() : "";
     const durationLabel =
-      typeof item.durationLabel === "string" ? item.durationLabel.trim() : "";
+      typeof rec.durationLabel === "string" ? rec.durationLabel.trim() : "";
     const raw = [jobTitle, companyName, durationLabel]
       .filter(Boolean)
       .join(" · ");
@@ -999,21 +1029,22 @@ export function createSeekExtractor(deps) {
     };
   }
 
-  function buildSeekProfileEducationItem(item) {
+  function buildSeekProfileEducationItem(item: unknown) {
     if (!item || typeof item !== "object") return null;
 
+    const rec = item as Record<string, unknown>;
     const institution =
-      typeof item.institutionName === "string" ? item.institutionName.trim() : "";
+      typeof rec.institutionName === "string" ? rec.institutionName.trim() : "";
     const qualification =
-      typeof item.qualificationName === "string"
-        ? item.qualificationName.trim()
+      typeof rec.qualificationName === "string"
+        ? rec.qualificationName.trim()
         : "";
-    const completionYear = Number.isFinite(item.completionYear)
-      ? String(item.completionYear)
+    const completionYear = Number.isFinite(rec.completionYear)
+      ? String(rec.completionYear)
       : "";
     const completionMonth =
-      Number.isFinite(item.completionMonth) && item.completionMonth > 0
-        ? String(item.completionMonth).padStart(2, "0")
+      Number.isFinite(rec.completionMonth) && (rec.completionMonth as number) > 0
+        ? String(rec.completionMonth).padStart(2, "0")
         : "";
     const endDate = completionYear
       ? completionMonth

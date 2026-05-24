@@ -1,10 +1,16 @@
-// @ts-nocheck
 /**
  * Sync status widget for browser extension content scripts.
  * All dependencies injected from content.ts via DI factory.
  */
 
-export function createSyncStatusWidget(deps) {
+export interface SyncStatusWidgetDeps extends Record<string, unknown> {
+  win: Window;
+  doc: Document;
+  chrome: { runtime?: { sendMessage?: (message: unknown) => Promise<unknown> } };
+  onCancel: () => void;
+}
+
+export function createSyncStatusWidget(deps: SyncStatusWidgetDeps) {
   const {
     win,
     doc,
@@ -15,9 +21,9 @@ export function createSyncStatusWidget(deps) {
   const WIDGET_ID = "tr-sync-status-widget";
   const DEFAULT_AUTO_DISMISS_MS = 5000;
   const HIDE_DELAY_MS = 220;
-  let widgetEl = null;
-  let dismissTimer = null;
-  let hideTimer = null;
+  let widgetEl: HTMLElement | null = null;
+  let dismissTimer: ReturnType<typeof setTimeout> | null = null;
+  let hideTimer: ReturnType<typeof setTimeout> | null = null;
 
   function escapeHtml(value) {
     return String(value ?? "")
@@ -80,7 +86,7 @@ export function createSyncStatusWidget(deps) {
     message = "",
     hint = "",
     autoDismiss = false,
-  } = {}) {
+  }: { state?: string; message?: string; hint?: string; autoDismiss?: boolean | number } = {}) {
     const normalizedState =
       state === "success" || state === "error" ? state : "progress";
     const safeMessage = escapeHtml(message);

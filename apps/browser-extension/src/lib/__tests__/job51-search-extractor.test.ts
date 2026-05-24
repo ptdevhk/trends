@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 
-import { createJob51SearchExtractor } from "../job51-search-extractor";
+import { createJob51SearchExtractor, type Job51SearchExtractorDeps } from "../job51-search-extractor";
 
-function createMockDeps(overrides = {}) {
+function createMockDeps(overrides: Record<string, unknown> = {}): Job51SearchExtractorDeps {
   return {
     getCurrentSourceKey: vi.fn(() => "job51"),
     SOURCE_KEYS: { JOB51: "job51", JOB5156: "job5156", SEEK: "seek" },
@@ -24,17 +24,15 @@ function createMockDeps(overrides = {}) {
     buildJob51DetailResumeFromPayload: vi.fn(() => []),
     filterCurrentResumesByAgeRange: vi.fn((r) => r),
     chrome: { runtime: { sendMessage: vi.fn() } },
-    window: { location: { pathname: "/", href: "https://ehire.51job.com/" }, setTimeout: vi.fn(), clearTimeout: vi.fn() },
+    window: { location: { pathname: "/", href: "https://ehire.51job.com/" }, setTimeout: vi.fn(), clearTimeout: vi.fn(), document: document },
     fetch: vi.fn(),
     delay: vi.fn(),
     isElementVisible: vi.fn(() => true),
     activateElement: vi.fn(),
     findVueParentByName: vi.fn(() => null),
     ...overrides,
-  };
+  } as unknown as Job51SearchExtractorDeps;
 }
-
-import { vi } from "vitest";
 
 describe("job51-search-extractor", () => {
   describe("normalizeJob51AuthContext", () => {

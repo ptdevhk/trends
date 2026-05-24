@@ -2,11 +2,11 @@
  * @vitest-environment jsdom
  */
 import { describe, it, expect, vi } from "vitest";
-import { createAutoActions } from "../auto-actions.js";
+import { createAutoActions, type AutoActionsDeps } from "../auto-actions.js";
 
 const SOURCE_KEYS = { JOB5156: "job5156", JOB51: "51job", SEEK: "seek", UNKNOWN: "unknown" };
 
-function createMockDeps(overrides: Record<string, any> = {}): Record<string, any> {
+function createMockDeps(overrides: Record<string, unknown> = {}): AutoActionsDeps {
   return {
     activateElement: vi.fn(),
     fireMouseEvent: vi.fn(),
@@ -21,7 +21,7 @@ function createMockDeps(overrides: Record<string, any> = {}): Record<string, any
     applyJob51AgeCustomRangeViaVue: vi.fn(),
     waitForJob51AgeFilterRefresh: vi.fn(),
     waitForExtractionData: vi.fn(),
-    asHTMLElement: vi.fn((el: any) => el),
+    asHTMLElement: vi.fn((el: unknown) => el as HTMLElement | null),
     SELECTORS: {},
     AUTO_LOCATION_PARAM: "location",
     AUTO_SEARCH_PARAM: "keyword",
@@ -39,19 +39,19 @@ function createMockDeps(overrides: Record<string, any> = {}): Record<string, any
     isJob51DetailPage: vi.fn(() => false),
     isJob5156DetailPage: vi.fn(() => false),
     isSeekProfileMode: vi.fn(() => false),
-    enrich51JobSearchResumesWithDetail: vi.fn(async (r: any[]) => r),
-    enrichJob5156SearchResumesWithDetail: vi.fn(async (r: any[]) => r),
-    enrichSeekResumesWithDetail: vi.fn(async (r: any[]) => r),
+    enrich51JobSearchResumesWithDetail: vi.fn(async (r: unknown[]) => r),
+    enrichJob5156SearchResumesWithDetail: vi.fn(async (r: unknown[]) => r),
+    enrichSeekResumesWithDetail: vi.fn(async (r: unknown[]) => r),
     buildSubmitMetadata: vi.fn(() => ({})),
     AUTO_EXPORT_PARAM: "tr_auto_export",
     AUTO_SYNC_PARAM: "tr_auto_sync",
     buildExportMetadata: vi.fn(() => ({})),
     buildExportFilename: vi.fn(() => "resumes.json"),
-    doc: document,
-    win: window as unknown as Window,
-    chrome: { runtime: { sendMessage: vi.fn(), getManifest: vi.fn(() => ({ version: "1.0.0" })) } } as any,
+    document,
+    window: window as unknown as Window,
+    chrome: { runtime: { sendMessage: vi.fn(), getManifest: vi.fn(() => ({ version: "1.0.0" })) } } as unknown as AutoActionsDeps["chrome"],
     ...overrides,
-  };
+  } as AutoActionsDeps;
 }
 
 describe("auto-actions", () => {
