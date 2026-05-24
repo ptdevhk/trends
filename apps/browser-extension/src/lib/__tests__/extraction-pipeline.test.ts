@@ -2,11 +2,11 @@
  * @vitest-environment jsdom
  */
 import { describe, it, expect, vi } from "vitest";
-import { createExtractionPipeline } from "../extraction-pipeline.js";
+import { createExtractionPipeline, type ExtractionPipelineDeps } from "../extraction-pipeline.js";
 
 const SOURCE_KEYS = { JOB5156: "job5156", JOB51: "51job", SEEK: "seek", UNKNOWN: "unknown" };
 
-function createMockDeps(overrides: Record<string, any> = {}): Record<string, any> {
+function createMockDeps(overrides: Record<string, any> = {}): ExtractionPipelineDeps {
   return {
     getCurrentSourceKey: vi.fn(() => SOURCE_KEYS.JOB5156),
     SOURCE_KEYS,
@@ -25,7 +25,7 @@ function createMockDeps(overrides: Record<string, any> = {}): Record<string, any
     window: window as unknown as Window,
     resolveCurrentJob51DetailFetchDelayMs: vi.fn(() => 1000),
     JOB51_DETAIL_FETCH_CONCURRENCY: 2,
-    enrich51JobSearchResumeWithDetail: vi.fn(async (r: any) => ({ resume: r, enriched: false })),
+    enrich51JobSearchResumeWithDetail: vi.fn(async (r: any) => ({ resume: r, enriched: false, rateLimited: false })),
     syncCurrentPageToServer: vi.fn(async () => ({ success: true })),
     delay: vi.fn(async () => {}),
     pipelineState: { runId: 1, chain: Promise.resolve() },
