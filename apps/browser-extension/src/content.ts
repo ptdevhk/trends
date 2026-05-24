@@ -28,6 +28,7 @@ import {
 import { createSeekExtractor } from "./lib/seek-extractor";
 import { createJob5156Extractor } from "./lib/job5156-extractor";
 import { createJob51SearchExtractor } from "./lib/job51-search-extractor";
+import { createExtractionPipeline } from "./lib/extraction-pipeline";
 
 /**
  * 智通直聘 Resume Collector - Content Script
@@ -998,6 +999,32 @@ const {
   hasMatchingJob51AgeSearchRequest,
   waitForJob51AgeFilterRefresh,
 } = _job51SearchExtractor;
+
+const _extractionPipeline = createExtractionPipeline({
+  getCurrentSourceKey,
+  SOURCE_KEYS,
+  apiSnapshot,
+  SELECTORS,
+  getApiSnapshotCount,
+  isExtractionReady,
+  isJob51RateLimitedPage,
+  JOB51_RATE_LIMIT_ERROR_MESSAGE,
+  getSeekCandidateIdentity,
+  chrome,
+  DEFAULT_COLLECTION_GUARDS,
+  CONTENT_SCRIPT_SOURCE,
+  JOB51_NEXT_PAGE_EVENT,
+  document,
+  window,
+});
+const {
+  isDisabledPaginationControl,
+  waitForResumeCards,
+  waitForApiRows,
+  waitForExtractionData,
+  clearCapturedResultsForNextPage,
+  waitForSeekProfileSnapshot,
+} = _extractionPipeline;
 
 
 async function enrich51JobSearchResumesWithDetail(resumes, options = {}) {
@@ -2624,17 +2651,7 @@ function getSeekNextPageLinkForMode() {
   return getSeekNextPageLink();
 }
 
-function isDisabledPaginationControl(control) {
-  if (!control) return true;
-  return (
-    control.hasAttribute("disabled") ||
-    control.classList.contains("disabled") ||
-    control.classList.contains("is-disabled") ||
-    control.getAttribute("aria-disabled") === "true" ||
-    control.getAttribute("aria-hidden") === "true" ||
-    control.getAttribute("tabindex") === "-1"
-  );
-}
+
 
 function goToNextPageInternal() {
   const sourceKey = getCurrentSourceKey();
@@ -3079,163 +3096,6 @@ const SyncStatusWidget = (() => {
   };
 })();
 
-function waitForResumeCards({ timeoutMs = 30000, minCount = 1 } = {}) {
-  return new Promise((resolve, reject) => {
-    let done = false;
-    const deadline = Date.now() + timeoutMs;
-
-    const check = () => {
-      if (done) return;
-      const count = document.querySelectorAll(SELECTORS.resumeCard).length;
-      if (count >= minCount) {
-        done = true;
-        cleanup();
-        resolve(count);
-      } else if (Date.now() > deadline) {
-        done = true;
-        cleanup();
-        reject(new Error("Timed out waiting for resume cards"));
-      }
-    };
-
-    const cleanup = () => {
-      clearInterval(intervalId);
-      observer.disconnect();
-    };
-
-    const intervalId = setInterval(check, 500);
-    const observer = new MutationObserver(check);
-    observer.observe(document.body || document.documentElement, {
-      childList: true,
-      subtree: true,
-    });
-    check();
-  });
-}
-
-function waitForApiRows({ timeoutMs = 15000, minCount = 1 } = {}) {
-  return new Promise((resolve, reject) => {
-    let done = false;
-    const deadline = Date.now() + timeoutMs;
-
-    const check = () => {
-      if (done) return;
-      if (
-        getCurrentSourceKey() === SOURCE_KEYS.JOB51 &&
-        isJob51RateLimitedPage()
-      ) {
-        done = true;
-        cleanup();
-        reject(new Error(JOB51_RATE_LIMIT_ERROR_MESSAGE));
-        return;
-      }
-      const count = getApiSnapshotCount();
-      if (
-        count >= minCount ||
-        (getCurrentSourceKey() === SOURCE_KEYS.JOB51 && isExtractionReady())
-      ) {
-        done = true;
-        cleanup();
-        resolve(count);
-      } else if (Date.now() > deadline) {
-        done = true;
-        cleanup();
-        reject(new Error("Timed out waiting for API rows"));
-      }
-    };
-
-    const cleanup = () => {
-      clearInterval(intervalId);
-      observer.disconnect();
-    };
-
-    const intervalId = setInterval(check, 300);
-    const observer = new MutationObserver(check);
-    observer.observe(document.body || document.documentElement, {
-      childList: true,
-      subtree: true,
-    });
-    check();
-  });
-}
-
-async function waitForExtractionData({ timeoutMs = 30000, minCount = 1 } = {}) {
-  if (
-    getCurrentSourceKey() === SOURCE_KEYS.SEEK ||
-    getCurrentSourceKey() === SOURCE_KEYS.JOB51
-  ) {
-    return waitForApiRows({ timeoutMs, minCount });
-  }
-
-  const count = await waitForResumeCards({ timeoutMs, minCount });
-  try {
-    await waitForApiRows({ timeoutMs, minCount });
-  } catch {
-    // API rows are optional for Job5156 DOM extraction.
-  }
-  return count;
-}
-
-function clearCapturedResultsForNextPage() {
-  apiSnapshot.searchRows = null;
-  apiSnapshot.job51SearchRows = null;
-  // Preserve job51LastSearchRequest across page transitions so that
-  // getPaginationInfo() can track the current page index from the last
-  // captured request. It will be overwritten by the next API response.
-  // apiSnapshot.job51LastSearchRequest = null;
-  apiSnapshot.job51DetailPayload = null;
-  if (getCurrentSourceKey() === SOURCE_KEYS.SEEK) {
-    apiSnapshot.seekRecommendedCandidates = null;
-    apiSnapshot.seekRecommendedRequest = null;
-    apiSnapshot.seekProfile = null;
-    apiSnapshot.seekProfileRequest = null;
-    apiSnapshot.seekTalentSearch = null;
-    apiSnapshot.seekTalentSearchRequest = null;
-  }
-}
-
-function waitForSeekProfileSnapshot(profileId, { timeoutMs = 12000 } = {}) {
-  return new Promise((resolve, reject) => {
-    let done = false;
-    const deadline = Date.now() + timeoutMs;
-
-    const check = () => {
-      if (done) return;
-      const snapshot = apiSnapshot.seekProfile;
-      const identity = snapshot ? getSeekCandidateIdentity(snapshot) : null;
-      // Match by profileId (numeric) or profileGuid (UUID for talentsearch)
-      const snapshotGuid =
-        typeof snapshot?.profileGuid === "string" ? snapshot.profileGuid : "";
-      if (
-        identity?.profileId === String(profileId) ||
-        snapshotGuid === String(profileId)
-      ) {
-        done = true;
-        cleanup();
-        resolve(snapshot);
-        return;
-      }
-      if (Date.now() > deadline) {
-        done = true;
-        cleanup();
-        reject(new Error(`Timed out waiting for Seek profile ${profileId}`));
-      }
-    };
-
-    const cleanup = () => {
-      clearInterval(intervalId);
-      observer.disconnect();
-    };
-
-    const intervalId = setInterval(check, 200);
-    const observer = new MutationObserver(check);
-    observer.observe(document.body || document.documentElement, {
-      childList: true,
-      subtree: true,
-    });
-    check();
-  });
-}
 
 async function enrichSingleSeekResumeWithDetail(resume, cachedHeadings) {
   const profileId =
