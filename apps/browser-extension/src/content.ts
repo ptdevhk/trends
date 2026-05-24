@@ -254,6 +254,12 @@ const _seekExtractor = createSeekExtractor({
   DEFAULT_SEEK_PAGE_SIZE,
   SEEK_PROFILE_TYPE,
   persistLatestAutoSyncSummary,
+  // Extraction deps
+  win: window,
+  doc: document,
+  buildSeekWorkHistoryItem,
+  buildSeekProfileEducationItem,
+  formatSeekExpectedSalary,
 });
 const {
   isSeekProfilePage,
@@ -284,6 +290,10 @@ const {
   setSeekAutoSyncWindowAttributes,
   setSeekAutoSyncSelectionAttributes,
   findSeekProfileTrigger,
+  // Extraction functions
+  extractSeekProfileResume,
+  buildSeekCollectionContext,
+  getSeekPayloadData,
 } = _seekExtractor;
 
 // Schedule restore after SEEK's SPA has had a chance to strip params.
@@ -1021,255 +1031,6 @@ const {
 } = _autoActions;
 
 
-function extractSeekProfileResume() {
-  const profile = apiSnapshot.seekProfile;
-  if (!profile || typeof profile !== "object") return [];
-
-  const request = getSeekProfileRequest();
-  const requestInput = request?.variables?.input;
-  const language = request?.variables?.language;
-  const profileUrl = new URL(window.location.href);
-  const jobIdFromUrl = normalizeOptionalPositiveInt(
-    profileUrl.searchParams.get("jobId"),
-  );
-  const jobId =
-    requestInput?.jobId != null
-      ? String(requestInput.jobId)
-      : jobIdFromUrl != null
-        ? String(jobIdFromUrl)
-        : undefined;
-  const { profileId, profileType } = getSeekCandidateIdentity(profile);
-  const seekProfileGuid =
-    typeof profile.profileGuid === "string" && profile.profileGuid
-      ? profile.profileGuid
-      : undefined;
-  const firstName =
-    typeof profile.firstName === "string" ? profile.firstName.trim() : "";
-  const lastName =
-    typeof profile.lastName === "string" ? profile.lastName.trim() : "";
-  const currentJobTitle =
-    typeof profile.currentJobTitle === "string"
-      ? profile.currentJobTitle.trim()
-      : "";
-  const currentLocation =
-    typeof profile.currentLocation === "string"
-      ? profile.currentLocation.trim()
-      : "";
-  const lastModifiedDate =
-    typeof profile.lastModifiedDate === "string"
-      ? profile.lastModifiedDate
-      : "";
-  const workHistory = Array.isArray(profile.workHistories)
-    ? profile.workHistories
-        .map((item) => buildSeekWorkHistoryItem(item))
-        .filter(Boolean)
-    : [];
-  const profileEducation = Array.isArray(profile.profileEducation)
-    ? profile.profileEducation
-        .map((item) => buildSeekProfileEducationItem(item))
-        .filter(Boolean)
-    : [];
-  const licences = Array.isArray(profile.licences)
-    ? profile.licences
-        .map((item) => {
-          if (!item || typeof item !== "object") return null;
-          const name = typeof item.name === "string" ? item.name.trim() : "";
-          const authority =
-            typeof item.issuingOrganisationName === "string"
-              ? item.issuingOrganisationName.trim()
-              : "";
-          if (!name && !authority) return null;
-          return {
-            name,
-            authority: authority || undefined,
-          };
-        })
-        .filter(Boolean)
-    : [];
-  const skills = Array.isArray(profile.skills)
-    ? profile.skills.filter((item) => typeof item === "string" && item.trim())
-    : [];
-  const languages = Array.isArray(profile.languages)
-    ? profile.languages.filter(
-        (item) => typeof item === "string" && item.trim(),
-      )
-    : [];
-  const resumeSnippet =
-    typeof profile.resumeSnippet === "string"
-      ? profile.resumeSnippet.trim()
-      : "";
-  const currentIndustry =
-    typeof profile.currentIndustry === "string"
-      ? profile.currentIndustry.trim()
-      : "";
-  const currentSubindustry =
-    typeof profile.currentSubindustry === "string"
-      ? profile.currentSubindustry.trim()
-      : "";
-  const rightToWork =
-    typeof profile.rightToWork?.label === "string"
-      ? profile.rightToWork.label.trim()
-      : "";
-  const education = profileEducation[0]?.qualification || "";
-  const pageNumber =
-    normalizeOptionalPositiveInt(profileUrl.searchParams.get("pageNumber")) ||
-    1;
-
-  return [
-    {
-      profileId,
-      profileType,
-      seekProfileGuid,
-      externalId: profileId
-        ? `${window.location.hostname.toLowerCase()}:profile:${profileId}`
-        : "",
-      name: [firstName, lastName].filter(Boolean).join(" ").trim(),
-      profileUrl: buildSeekProfileUrl(profileId, jobId),
-      activityStatus: lastModifiedDate,
-      age: "",
-      experience: "",
-      education,
-      location: currentLocation,
-      jobIntention: currentJobTitle,
-      expectedSalary: formatSeekExpectedSalary(profile.salary?.expected),
-      selfIntro: resumeSnippet,
-      workHistory,
-      profileEducation:
-        profileEducation.length > 0 ? profileEducation : undefined,
-      skills: skills.length > 0 ? skills : undefined,
-      languages: languages.length > 0 ? languages : undefined,
-      licences: licences.length > 0 ? licences : undefined,
-      resumeSnippet: resumeSnippet || undefined,
-      currentIndustry: currentIndustry || undefined,
-      currentSubindustry: currentSubindustry || undefined,
-      rightToWork: rightToWork || undefined,
-      noticePeriodDays: Number.isFinite(profile.noticePeriodDays)
-        ? profile.noticePeriodDays
-        : undefined,
-      extractedAt: new Date().toISOString(),
-      pageIndex: 1,
-      source: window.location.hostname.toLowerCase(),
-      searchProfileId:
-        typeof requestInput?.searchId === "string" ? requestInput.searchId : "",
-      language: typeof language === "string" ? language : "",
-      pageNumber,
-    },
-  ];
-}
-
-function buildSeekCollectionContext(options = {}) {
-  /** @type {{ captureModeOverride?: string }} */
-  const normalizedOptions =
-    typeof options === "object" && options ? options : {};
-  const captureModeOverride = normalizedOptions.captureModeOverride;
-  const seekMode = getCurrentSeekMode();
-  const isTalentSearchList = seekMode === "talentsearch";
-  const useProfileMode = captureModeOverride
-    ? captureModeOverride === "graphql-profile"
-    : isSeekProfileMode();
-  const talentSearchRequest = isTalentSearchList
-    ? apiSnapshot.seekTalentSearchRequest
-    : null;
-  const request = talentSearchRequest
-    ?? (useProfileMode
-      ? getSeekProfileRequest()
-      : getSeekRecommendedRequest());
-  const requestInput = request?.variables?.input;
-  const language = request?.variables?.language;
-  const url = new URL(window.location.href);
-  const pageNumberFromUrl = normalizeOptionalPositiveInt(
-    url.searchParams.get("pageNumber"),
-  );
-  const jobIdFromUrl = normalizeOptionalPositiveInt(
-    url.searchParams.get("jobId"),
-  );
-  const captureMode =
-    captureModeOverride ||
-    (isTalentSearchList
-      ? "graphql-talentsearch"
-      : (useProfileMode && apiSnapshot.seekProfile
-          ? "graphql-profile"
-          : "graphql-list"));
-  const defaultOperation =
-    captureMode === "graphql-profile"
-      ? "GetTalentSearchProfileCompleteV2"
-      : captureMode === "graphql-talentsearch"
-        ? "SearchProfilesByNaturalLanguage"
-        : "GetTalentSearchRecommendedCandidates";
-
-  /** @type {Record<string, unknown>} */
-  const context = {
-    captureMode,
-    operation: apiSnapshot.lastOperationName || defaultOperation,
-    profileType: SEEK_PROFILE_TYPE,
-  };
-  if (seekMode) {
-    context.seekMode = seekMode;
-  }
-  if (typeof language === "string") {
-    context.language = language;
-  }
-
-  if (isTalentSearchList) {
-    // Talent-search variables are nested under input.{...} per recon.
-    // Surface the search-shaping fields so analytics can later distinguish
-    // discovery-lane characteristics.
-    if (typeof requestInput?.pageNumber === "number") {
-      context.pageNumber = requestInput.pageNumber;
-    } else if (pageNumberFromUrl != null) {
-      context.pageNumber = pageNumberFromUrl;
-    }
-    if (typeof requestInput?.originalNaturalLanguageQuery === "string") {
-      context.searchQuery = requestInput.originalNaturalLanguageQuery;
-    }
-    if (typeof requestInput?.countryCode === "string") {
-      context.market = requestInput.countryCode;
-    }
-    if (Array.isArray(requestInput?.roleTitles?.values)) {
-      context.roleTitles = requestInput.roleTitles.values;
-    }
-    if (Array.isArray(requestInput?.keywords?.values)) {
-      context.keywords = requestInput.keywords.values;
-    }
-    if (typeof requestInput?.keywords?.matchAll === "boolean") {
-      context.matchAll = requestInput.keywords.matchAll;
-    }
-    if (typeof requestInput?.sortBy === "string") {
-      context.sortBy = requestInput.sortBy;
-    }
-    if (typeof requestInput?.salary?.frequency === "string") {
-      context.salaryType = requestInput.salary.frequency;
-    }
-    if (typeof requestInput?.salary?.range?.minimum === "number") {
-      context.minSalary = requestInput.salary.range.minimum;
-    }
-    if (typeof requestInput?.salary?.includeUnspecified === "boolean") {
-      context.salaryUnspecified = requestInput.salary.includeUnspecified;
-    }
-    if (typeof requestInput?.searchId === "string") {
-      context.searchId = requestInput.searchId;
-    }
-  } else {
-    // Recommended / profile path uses the existing flat input shape.
-    if (requestInput?.jobId != null) {
-      context.jobId = String(requestInput.jobId);
-    } else if (jobIdFromUrl != null) {
-      context.jobId = String(jobIdFromUrl);
-    }
-    if (typeof requestInput?.searchId === "string") {
-      context.searchId = requestInput.searchId;
-    }
-    if (typeof requestInput?.page === "number") {
-      context.pageNumber = requestInput.page;
-    } else if (pageNumberFromUrl != null) {
-      context.pageNumber = pageNumberFromUrl;
-    }
-  }
-
-  return context;
-}
-
-
 function buildSubmitMetadata(options = {}) {
   const url = new URL(window.location.href);
   const sourceKey = getCurrentSourceKey();
@@ -1316,64 +1077,6 @@ function isPlaceholderProfileUrl(value) {
     normalized.startsWith("javascript:") ||
     normalized === "about:blank"
   );
-}
-
-function toAbsoluteHttpUrl(value) {
-  if (!value || typeof value !== "string") return "";
-  try {
-    const url = new URL(value, window.location.origin);
-    if (url.protocol !== "http:" && url.protocol !== "https:") return "";
-    if (isPlaceholderProfileUrl(url.href)) return "";
-    return url.href;
-  } catch {
-    return "";
-  }
-}
-
-function buildProfileUrlFromApiRow(apiRow) {
-  if (!apiRow || typeof apiRow !== "object") return "";
-  const resumeId = apiRow.resumeId;
-  if (resumeId === null || resumeId === undefined || resumeId === "") return "";
-  const encodedId = encodeURIComponent(String(resumeId));
-  return `${JOB5156_PROFILE_URL_PREFIX}${encodedId}`;
-}
-
-function getSeekPayloadData(payload, kind) {
-  if (!payload) return null;
-
-  if (Array.isArray(payload)) {
-    const entry = payload.find((item) => {
-      const data = item?.data;
-      if (!data || typeof data !== "object") return false;
-      if (kind === "seekRecommendedCandidates") {
-        return !!(
-          data.talentSearchRecommendedCandidatesV2 ||
-          data.getTalentSearchRecommendedCandidates
-        );
-      }
-      if (kind === "seekTalentSearch") {
-        return !!data.talentSearchProfilesNaturalLanguageSearch;
-      }
-      if (kind === "seekProfile") {
-        return !!(
-          data.talentSearchProfileV2 ||
-          data.talentSearchProfileCompleteV2 ||
-          data.getTalentSearchProfileCompleteV2 ||
-          data.talentSearchProfileV3
-        );
-      }
-      return false;
-    });
-    return entry?.data || null;
-  }
-
-  if (payload && typeof payload === "object") {
-    return payload.data && typeof payload.data === "object"
-      ? payload.data
-      : payload;
-  }
-
-  return null;
 }
 
 function extractProfileUrl(card, apiRow) {
