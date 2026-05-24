@@ -7,13 +7,17 @@
     "dev": "env -u TZ convex dev --local --local-force-upgrade",
     "predev": "env -u TZ convex dev --once --local --local-force-upgrade",
     "build": "convex codegen",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@trends/shared": "*",
     "convex": "^1.39.0"
   },
   "devDependencies": {
+    "@edge-runtime/vm": "^5.0.0",
+    "convex-test": "^0.0.53",
     "typescript": "^5.9.3"
   }
 }
