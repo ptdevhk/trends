@@ -33,6 +33,7 @@ import { createSnapshotCollector } from "./lib/snapshot-collector";
 import { createAutoActions } from "./lib/auto-actions";
 import { createUiUtils } from "./lib/ui-utils";
 import { createPaginationUtils } from "./lib/pagination-utils";
+import { createDomUtils } from "./lib/dom-utils";
 import { createResumeExtractor } from "./lib/resume-extractor";
 
 /**
@@ -270,6 +271,22 @@ const {
   installReloadHelper,
   isLoggedIn,
 } = _uiUtils;
+
+const _domUtils = createDomUtils({
+  win: window,
+  doc: document,
+  getPaginationInfo,
+});
+const {
+  waitForPageTransition,
+  isElementVisible,
+  asHTMLElement,
+  setInputValue,
+  fireMouseEvent,
+  activateElement,
+  findVueParentByName,
+} = _domUtils;
+
 const _seekExtractor = createSeekExtractor({
   getCurrentSourceKey,
   SOURCE_KEYS,
@@ -1446,139 +1463,6 @@ const SyncStatusWidget = (() => {
     hide,
   };
 })();
-
-/**
- * @param {{ expectedPage?: number; timeoutMs?: number }} options
- */
-function waitForPageTransition(options = {}) {
-  const { expectedPage, timeoutMs = 15000 } = options;
-  return new Promise((resolve, reject) => {
-    if (!Number.isFinite(expectedPage) || expectedPage < 1) {
-      reject(new Error("Invalid expected page"));
-      return;
-    }
-
-    let done = false;
-    const deadline = Date.now() + timeoutMs;
-
-    const check = () => {
-      if (done) return;
-      const pagination = getPaginationInfo();
-      if (pagination.currentPage === expectedPage) {
-        done = true;
-        cleanup();
-        resolve(pagination.currentPage);
-      } else if (Date.now() > deadline) {
-        done = true;
-        cleanup();
-        reject(new Error(`Timed out waiting for page ${expectedPage}`));
-      }
-    };
-
-    const cleanup = () => {
-      clearInterval(intervalId);
-      observer.disconnect();
-    };
-
-    const intervalId = setInterval(check, 300);
-    const observer = new MutationObserver(check);
-    observer.observe(document.body || document.documentElement, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-    });
-    check();
-  });
-}
-
-
-function isElementVisible(element) {
-  if (!element) return false;
-  const style = window.getComputedStyle(element);
-  return style.display !== "none" && style.visibility !== "hidden";
-}
-
-
-
-/**
- * @param {Element | null | undefined} element
- * @returns {HTMLElement | null}
- */
-function asHTMLElement(element) {
-  return element instanceof HTMLElement ? element : null;
-}
-
-/**
- * @param {ParentNode | null | undefined} container
- * @param {string} text
- * @returns {HTMLElement | null}
- */
-
-/**
- * @param {string} blockSelector
- * @param {{ timeoutMs?: number, itemSelector?: string }} [options]
- * @returns {Promise<{ block: Element, items: Element[] }>}
- */
-
-
-
-
-
-function setInputValue(input, value) {
-  const inputWindow = input?.ownerDocument?.defaultView || window;
-  const inputCtor =
-    inputWindow.HTMLInputElement ||
-    globalThis.HTMLInputElement;
-  const descriptor = inputCtor
-    ? Object.getOwnPropertyDescriptor(inputCtor.prototype, "value")
-    : null;
-  if (descriptor?.set) {
-    descriptor.set.call(input, value);
-  } else {
-    input.value = value;
-  }
-  input.dispatchEvent(new inputWindow.Event("input", { bubbles: true }));
-  input.dispatchEvent(new inputWindow.Event("change", { bubbles: true }));
-}
-
-function fireMouseEvent(target, type) {
-  try {
-    const targetWindow = target?.ownerDocument?.defaultView || window;
-    target.dispatchEvent(
-      new targetWindow.MouseEvent(type, {
-        bubbles: true,
-        cancelable: true,
-        view: targetWindow,
-      }),
-    );
-  } catch {
-    // ignore
-  }
-}
-
-function activateElement(target) {
-  if (!target) {
-    return;
-  }
-  ["mouseenter", "mouseover", "mousedown", "mouseup"].forEach((type) =>
-    fireMouseEvent(target, type),
-  );
-  target.click?.();
-}
-
-function findVueParentByName(node, componentName, { maxDepth = 8 } = {}) {
-  let vm = node?.__vue__ || null;
-  for (let depth = 0; vm && depth < maxDepth; depth += 1) {
-    if (vm?.$options?.name === componentName) {
-      return vm;
-    }
-    vm = vm?.$parent || null;
-  }
-  return null;
-}
-
-
-
 
 async function runAutoSyncIfEnabled() {
   if (autoSyncTriggered) return;
