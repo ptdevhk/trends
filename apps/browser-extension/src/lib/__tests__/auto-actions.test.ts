@@ -64,42 +64,42 @@ describe("auto-actions", () => {
 
     it("enables markdown for boolean-like values", () => {
       const actions = createAutoActions(createMockDeps());
-      const result = actions.parseAutoExportMode("1");
+      const result = actions.parseAutoExportMode("1") as Record<string, any>;
       expect(result.enabled).toBe(true);
       expect(result.downloadMarkdown).toBe(true);
     });
 
     it("enables console logging for 'console' mode", () => {
       const actions = createAutoActions(createMockDeps());
-      const result = actions.parseAutoExportMode("console");
+      const result = actions.parseAutoExportMode("console") as Record<string, any>;
       expect(result.enabled).toBe(true);
       expect(result.logStructured).toBe(true);
     });
 
     it("enables CSV download for 'csv' mode", () => {
       const actions = createAutoActions(createMockDeps());
-      const result = actions.parseAutoExportMode("csv");
+      const result = actions.parseAutoExportMode("csv") as Record<string, any>;
       expect(result.enabled).toBe(true);
       expect(result.downloadCsv).toBe(true);
     });
 
     it("enables JSON download for 'json' mode", () => {
       const actions = createAutoActions(createMockDeps());
-      const result = actions.parseAutoExportMode("json");
+      const result = actions.parseAutoExportMode("json") as Record<string, any>;
       expect(result.enabled).toBe(true);
       expect(result.downloadJson).toBe(true);
     });
 
     it("enables raw JSON download for 'raw_json' mode", () => {
       const actions = createAutoActions(createMockDeps());
-      const result = actions.parseAutoExportMode("raw_json");
+      const result = actions.parseAutoExportMode("raw_json") as Record<string, any>;
       expect(result.enabled).toBe(true);
       expect(result.downloadRawJson).toBe(true);
     });
 
     it("parses combined token modes", () => {
       const actions = createAutoActions(createMockDeps());
-      const result = actions.parseAutoExportMode("md,rawjson,saveas");
+      const result = actions.parseAutoExportMode("md,rawjson,saveas") as Record<string, any>;
       expect(result.enabled).toBe(true);
       expect(result.downloadMarkdown).toBe(true);
       expect(result.downloadRawJson).toBe(true);
@@ -108,7 +108,7 @@ describe("auto-actions", () => {
 
     it("defaults to markdown when no recognized tokens", () => {
       const actions = createAutoActions(createMockDeps());
-      const result = actions.parseAutoExportMode("unknown");
+      const result = actions.parseAutoExportMode("unknown") as Record<string, any>;
       expect(result.enabled).toBe(true);
       expect(result.downloadMarkdown).toBe(true);
     });
