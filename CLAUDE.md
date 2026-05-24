@@ -170,6 +170,11 @@ TARGET=all make sync-agent-governance  # Optional: run policy sync + governance 
 - After Node.js version bumps, run `npm rebuild better-sqlite3` — native module must match the running Node ABI or `make check` fails.
 - When removing a skill from `config/skills/install.yaml`, also delete installed copies from `.agents/skills/`, `.claude/skills/`, and `~/.codex/skills/` — `make check` fails on stale/unexpected entries.
 - Pre-push hook runs `make i18n-check` when locale files changed — blocks push on missing/mismatched keys. Activate with `make install-hooks` (also runs as part of `make install-deps`).
+- Always start `make dev` and verify with `/playwright-cli` before claiming browser-facing changes are done — TypeScript compilation doesn't verify runtime behavior.
+- For URL-gated or mode-gated changes, verify against the deployed host the user reports from (not just localhost) — local seed fixtures only cover the back-compat path and hide defects.
+- When changing any search filter, update all 3 paths simultaneously: (1) Convex `matchesResumeListFilters`, (2) BFF AND-mode `bffMatchesResumeFilters`, (3) BFF OR-mode `ResumeService.filterResumes`. The Convex filter is the source of truth.
+- Convex test mock query builders must support `.take()`, `.order()`, `.paginate()` (with `maximumBytesRead`/`maximumRowsRead` params) — missing these causes false-positive test failures that `make check` won't catch (it only runs typecheck + lint, not `npm test`).
+- Module-level `vi.stubGlobal()` in vitest must be paired with `afterAll(() => vi.unstubAllGlobals())` — without it, stubbed globals leak to subsequent test files.
 
 ## Browser Testing & Debugging
 
