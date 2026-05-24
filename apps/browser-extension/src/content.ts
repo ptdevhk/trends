@@ -31,6 +31,7 @@ import { createJob51SearchExtractor } from "./lib/job51-search-extractor";
 import { createExtractionPipeline } from "./lib/extraction-pipeline";
 import { createSnapshotCollector } from "./lib/snapshot-collector";
 import { createAutoActions } from "./lib/auto-actions";
+import { createUiUtils } from "./lib/ui-utils";
 
 /**
  * 智通直聘 Resume Collector - Content Script
@@ -176,7 +177,6 @@ const apiSnapshot = {
   lastOperationName: null,
 };
 
-const lastPersistedAutoSyncSummaryFingerprintBySource = {};
 let job51DetailBackfillChain = Promise.resolve();
 let job51DetailBackfillRunId = 0;
 const pipelineState = {
@@ -186,6 +186,65 @@ const pipelineState = {
   set runId(v) { job51DetailBackfillRunId = v; },
 };
 
+const _uiUtils = createUiUtils({
+  win: window,
+  doc: document,
+  SOURCE_KEYS,
+  AUTO_EXPORT_PARAM,
+  AUTO_SYNC_PARAM,
+  AUTO_LIMIT_PARAM,
+  AUTO_MAX_PAGES_PARAM,
+  AUTO_MIN_AGE_PARAM,
+  AUTO_MAX_AGE_PARAM,
+  AUTO_SEARCH_PARAM,
+  AUTO_LOCATION_PARAM,
+  SAMPLE_NAME_PARAM,
+  KEYWORD_MODE_CONCAT,
+  KEYWORD_MODE_SPACED,
+  LATEST_AUTO_SYNC_SUMMARIES_STORAGE_KEY,
+  CONTENT_SCRIPT_SOURCE,
+  getPaginationInfo,
+  makeRandomId,
+  getExternalAccessorStatus,
+  getApiSnapshotCount,
+  getAgeRangeFromUrl,
+  filterResumesByAgeRange,
+  resolveJob51CollectionLimits,
+  resolveJob51DetailFetchDelayMs,
+  resolveJob51AutoSyncDetailWaitMode,
+  isJob51DetailPage,
+  chrome,
+});
+const {
+  // Export & Metadata
+  sanitizeSampleName,
+  normalizeKeyword,
+  normalizeKeywordMode,
+  normalizeCollectionLimit,
+  buildExportFilename,
+  buildExportMetadata,
+  getCurrentSourceKey,
+  getExtensionGeneratedBy,
+  parseAutoLocationValues,
+  getAutoLocationValues,
+  // Collection Helpers
+  getCurrentLocationSearch,
+  getCurrentAgeRange,
+  filterCurrentResumesByAgeRange,
+  resolveCurrentJob51CollectionLimits,
+  resolveCurrentJob51DetailFetchDelayMs,
+  resolveCurrentJob51AutoSyncDetailWaitMode,
+  // Auto-Sync UI
+  setAutoSyncAttributes,
+  buildAutoSyncProgressHint,
+  buildAutoSyncSelectedCountHint,
+  buildAutoSyncCompletionHint,
+  buildPersistedAutoSyncSummary,
+  persistLatestAutoSyncSummary,
+  // Additional Utilities
+  installReloadHelper,
+  isLoggedIn,
+} = _uiUtils;
 const _seekExtractor = createSeekExtractor({
   getCurrentSourceKey,
   SOURCE_KEYS,
@@ -233,85 +292,15 @@ if (document.readyState === "loading") {
   restoreSeekSearchParams();
 }
 
-function sanitizeSampleName(value) {
-  if (!value) return "";
-  return value
-    .trim()
-    .replace(/[\\/:*?"<>|]/g, "-")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^\.+/, "")
-    .slice(0, 80);
-}
 
-/**
- * Normalize keyword for consistent handling
- * - Full-width space (U+3000) → half-width space (U+0020)
- * - Multiple spaces → single space
- * - Trim leading/trailing
- */
-function normalizeKeyword(keyword) {
-  if (!keyword) return "";
-  return keyword
-    .replace(/[\u3000]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
 
-function normalizeKeywordMode(mode) {
-  return mode === KEYWORD_MODE_SPACED
-    ? KEYWORD_MODE_SPACED
-    : KEYWORD_MODE_CONCAT;
-}
 
-function normalizeCollectionLimit(value) {
-  const parsed = Number.parseInt(String(value ?? ""), 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
-}
 
-function getCurrentLocationSearch() {
-  return window.location.search || "";
-}
 
-function getCurrentAgeRange() {
-  return getAgeRangeFromUrl(
-    getCurrentLocationSearch(),
-    AUTO_MIN_AGE_PARAM,
-    AUTO_MAX_AGE_PARAM,
-  );
-}
 
-function filterCurrentResumesByAgeRange(resumes) {
-  if (
-    getCurrentSourceKey() === SOURCE_KEYS.JOB51 &&
-    !isJob51DetailPage() &&
-    document.documentElement.getAttribute("data-tr-auto-age") !== "done"
-  ) {
-    return Array.isArray(resumes) ? resumes : [];
-  }
-  return filterResumesByAgeRange(
-    resumes,
-    getCurrentLocationSearch(),
-    AUTO_MIN_AGE_PARAM,
-    AUTO_MAX_AGE_PARAM,
-  );
-}
 
-function resolveCurrentJob51CollectionLimits(limit, maxPages) {
-  return resolveJob51CollectionLimits(
-    limit,
-    maxPages,
-    getCurrentLocationSearch(),
-  );
-}
 
-function resolveCurrentJob51DetailFetchDelayMs() {
-  return resolveJob51DetailFetchDelayMs(getCurrentLocationSearch());
-}
 
-function resolveCurrentJob51AutoSyncDetailWaitMode() {
-  return resolveJob51AutoSyncDetailWaitMode(getCurrentLocationSearch());
-}
 
 
 async function getKeywordMode() {
@@ -382,88 +371,10 @@ async function getCollectionLimits() {
   });
 }
 
-function buildExportFilename() {
-  const params = new URLSearchParams(window.location.search || "");
-  const rawSampleName = params.get(SAMPLE_NAME_PARAM) || "";
-  const sampleName = sanitizeSampleName(rawSampleName).replace(/\.json$/i, "");
-  const timestamp = new Date().toISOString().slice(0, 10);
 
-  if (sampleName) return `${sampleName}.json`;
 
-  const rawKeyword = params.get(AUTO_SEARCH_PARAM) || "";
-  const keyword = sanitizeSampleName(normalizeKeyword(rawKeyword));
-  if (keyword) return `sample-${keyword}-${timestamp}.json`;
 
-  return `resumes_${timestamp}_${makeRandomId()}.json`;
-}
 
-function parseAutoLocationValues(locationRaw) {
-  if (!locationRaw) return [];
-  return Array.from(
-    new Set(
-      String(locationRaw)
-        .split(/[，,、]+/)
-        .map((location) => location.trim())
-        .filter(Boolean),
-    ),
-  ).slice(0, 10);
-}
-
-function getAutoLocationValues(url) {
-  return parseAutoLocationValues(
-    url.searchParams.get(AUTO_LOCATION_PARAM) || "",
-  );
-}
-
-function buildExportMetadata(resumes) {
-  const url = new URL(window.location.href);
-  const keyword = normalizeKeyword(
-    url.searchParams.get(AUTO_SEARCH_PARAM) || "",
-  );
-  const locationArray = getAutoLocationValues(url);
-  const rawSampleName = url.searchParams.get(SAMPLE_NAME_PARAM) || "";
-  const sampleName = sanitizeSampleName(rawSampleName).replace(/\.json$/i, "");
-
-  url.searchParams.delete(AUTO_EXPORT_PARAM);
-  url.searchParams.delete(AUTO_SYNC_PARAM);
-  url.searchParams.delete(AUTO_LIMIT_PARAM);
-  url.searchParams.delete(AUTO_MAX_PAGES_PARAM);
-  url.searchParams.delete(SAMPLE_NAME_PARAM);
-
-  const filters = {};
-  for (const [key, value] of url.searchParams.entries()) {
-    if (key === AUTO_SEARCH_PARAM || key === AUTO_LOCATION_PARAM) continue;
-    if (!value) continue;
-    filters[key] = value;
-  }
-
-  const pagination = getPaginationInfo();
-  const reproductionParams = new URLSearchParams();
-  reproductionParams.set(AUTO_EXPORT_PARAM, "json");
-  if (sampleName) reproductionParams.set(SAMPLE_NAME_PARAM, sampleName);
-
-  return {
-    sourceUrl: url.toString(),
-    searchCriteria: {
-      keyword,
-      location: locationArray.length > 0 ? locationArray : "",
-      filters: Object.keys(filters).length ? filters : {},
-    },
-    generatedAt: new Date().toISOString(),
-    generatedBy: getExtensionGeneratedBy(),
-    totalPages: pagination.totalPages,
-    totalResumes: resumes.length,
-    reproduction: `Navigate to sourceUrl, then add ?${reproductionParams.toString()}`,
-  };
-}
-
-function getCurrentSourceKey() {
-  const hostname = window.location.hostname.toLowerCase();
-  if (hostname === JOB5156_HOST) return SOURCE_KEYS.JOB5156;
-  if (hostname === EHIRE_51JOB_HOST) return SOURCE_KEYS.JOB51;
-  if (hostname.endsWith(SEEK_HOST_SUFFIX)) return SOURCE_KEYS.SEEK;
-  return SOURCE_KEYS.UNKNOWN;
-}
 
 
 function delay(ms) {
@@ -1108,6 +1019,7 @@ const {
   resolveAutoSyncStopReason,
 } = _autoActions;
 
+
 function extractSeekProfileResume() {
   const profile = apiSnapshot.seekProfile;
   if (!profile || typeof profile !== "object") return [];
@@ -1356,16 +1268,6 @@ function buildSeekCollectionContext(options = {}) {
   return context;
 }
 
-function getExtensionGeneratedBy() {
-  let generatedBy = "browser-extension";
-  try {
-    const version = chrome?.runtime?.getManifest?.().version;
-    if (version) generatedBy = `browser-extension@${version}`;
-  } catch {
-    // ignore
-  }
-  return generatedBy;
-}
 
 function buildSubmitMetadata(options = {}) {
   const url = new URL(window.location.href);
@@ -1493,26 +1395,6 @@ function extractProfileUrl(card, apiRow) {
   return buildProfileUrlFromApiRow(apiRow);
 }
 
-function installReloadHelper() {
-  try {
-    if (globalThis.trReloadExtension) return;
-    globalThis.trReloadExtension = async () => {
-      try {
-        const response = await chrome.runtime.sendMessage({
-          action: "reloadExtension",
-        });
-        console.log("🎯 [DEV] Reload requested", response);
-      } catch (error) {
-        console.warn("🎯 [DEV] Reload failed:", error);
-      }
-    };
-    console.log(
-      '🎯 [DEV] Use trReloadExtension() in the DevTools "Content scripts" context to reload the extension',
-    );
-  } catch (error) {
-    console.warn("🎯 [DEV] Failed to install reload helper:", error);
-  }
-}
 
 window.addEventListener("message", (event) => {
   if (event.source !== window) return;
@@ -2179,92 +2061,6 @@ function getNextPageButtonState() {
     isDisabledClass: nextBtn.classList.contains("disabled"),
     isIsDisabledClass: nextBtn.classList.contains("is-disabled"),
   };
-}
-function setAutoSyncAttributes(status, count, pagesProcessed) {
-  try {
-    document.documentElement.setAttribute("data-tr-auto-sync", status);
-    if (typeof count === "number" && Number.isFinite(count)) {
-      document.documentElement.setAttribute(
-        "data-tr-auto-sync-count",
-        String(count),
-      );
-    } else {
-      document.documentElement.removeAttribute("data-tr-auto-sync-count");
-    }
-    if (typeof pagesProcessed === "number" && Number.isFinite(pagesProcessed)) {
-      document.documentElement.setAttribute(
-        "data-tr-auto-sync-pages",
-        String(pagesProcessed),
-      );
-    } else {
-      document.documentElement.removeAttribute("data-tr-auto-sync-pages");
-    }
-  } catch {
-    // ignore
-  }
-
-  if (status && status !== "skipped") {
-    persistLatestAutoSyncSummary();
-  }
-}
-
-/**
- * @param {{
- *   limit?: number | null;
- *   totalSubmitted?: number | null;
- *   selectedCount?: number | null;
- *   ageHint?: string;
- * }} [options]
- */
-function buildAutoSyncProgressHint({
-  limit,
-  totalSubmitted,
-  selectedCount = null,
-  ageHint = "",
-} = {}) {
-  const progressHint =
-    limit > 0
-      ? `已采集 ${Math.min(totalSubmitted, limit)}/${limit}`
-      : `已采集 ${totalSubmitted}`;
-  const selectedHint = buildAutoSyncSelectedCountHint({ selectedCount });
-
-  return `${progressHint}${selectedHint}${ageHint}`;
-}
-
-/**
- * @param {{
- *   selectedCount?: number | null;
- *   prefix?: string;
- * }} [options]
- */
-function buildAutoSyncSelectedCountHint({
-  selectedCount = null,
-  prefix = " · ",
-} = {}) {
-  return typeof selectedCount === "number" && Number.isFinite(selectedCount)
-    ? `${prefix}本页选中 ${selectedCount} 份`
-    : "";
-}
-
-/**
- * @param {{
- *   totalInserted?: number | null;
- *   totalUpdated?: number | null;
- *   pagesVisited?: number | null;
- *   selectedCount?: number | null;
- * }} [options]
- */
-function buildAutoSyncCompletionHint({
-  totalInserted = 0,
-  totalUpdated = 0,
-  pagesVisited = 0,
-  selectedCount = null,
-} = {}) {
-  return `${totalInserted} 新增, ${totalUpdated} 更新, 共 ${pagesVisited} 页${buildAutoSyncSelectedCountHint(
-    {
-      selectedCount,
-    },
-  )}`;
 }
 
 const SyncStatusWidget = (() => {
@@ -3104,95 +2900,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   return true; // Keep channel open for async response
 });
 
-function isLoggedIn() {
-  return !document.querySelector('.login-btn, [href*="login"]');
-}
 
-function buildPersistedAutoSyncSummary(status = getExternalAccessorStatus()) {
-  const autoSync = typeof status?.autoSync === "string" ? status.autoSync : "";
-  if (!autoSync || autoSync === "skipped") {
-    return null;
-  }
 
-  return {
-    autoSync,
-    autoSyncCount:
-      typeof status?.autoSyncCount === "number" ? status.autoSyncCount : 0,
-    autoSyncPages:
-      typeof status?.autoSyncPages === "number" ? status.autoSyncPages : 0,
-    autoSyncTargetPageStart: status?.autoSyncTargetPageStart ?? null,
-    autoSyncTargetPageEnd: status?.autoSyncTargetPageEnd ?? null,
-    autoSyncEffectivePageSize: status?.autoSyncEffectivePageSize ?? null,
-    autoSyncSelectedCount: status?.autoSyncSelectedCount ?? null,
-    autoSyncRemainingCapacity: status?.autoSyncRemainingCapacity ?? null,
-    autoSyncStopReason: status?.autoSyncStopReason ?? null,
-    sourceKey:
-      typeof status?.sourceKey === "string"
-        ? status.sourceKey
-        : getCurrentSourceKey(),
-    sourceUrl: window.location.href,
-    summarySource: "stored",
-    persistedAt: new Date().toISOString(),
-  };
-}
-
-function persistLatestAutoSyncSummary() {
-  try {
-    if (!chrome?.storage?.local?.get || !chrome?.storage?.local?.set) return;
-    const summary = buildPersistedAutoSyncSummary();
-    if (!summary) return;
-    const sourceKey =
-      typeof summary.sourceKey === "string" && summary.sourceKey
-        ? summary.sourceKey
-        : SOURCE_KEYS.UNKNOWN;
-
-    const fingerprint = JSON.stringify({
-      autoSync: summary.autoSync,
-      autoSyncCount: summary.autoSyncCount,
-      autoSyncPages: summary.autoSyncPages,
-      autoSyncTargetPageStart: summary.autoSyncTargetPageStart,
-      autoSyncTargetPageEnd: summary.autoSyncTargetPageEnd,
-      autoSyncEffectivePageSize: summary.autoSyncEffectivePageSize,
-      autoSyncSelectedCount: summary.autoSyncSelectedCount,
-      autoSyncRemainingCapacity: summary.autoSyncRemainingCapacity,
-      autoSyncStopReason: summary.autoSyncStopReason,
-      sourceKey: summary.sourceKey,
-      sourceUrl: summary.sourceUrl,
-      summarySource: summary.summarySource,
-    });
-
-    if (
-      summary.autoSync === "running" &&
-      lastPersistedAutoSyncSummaryFingerprintBySource[sourceKey] === fingerprint
-    ) {
-      return;
-    }
-
-    lastPersistedAutoSyncSummaryFingerprintBySource[sourceKey] = fingerprint;
-    chrome.storage.local.get(
-      { [LATEST_AUTO_SYNC_SUMMARIES_STORAGE_KEY]: {} },
-      (items) => {
-        const existingSummaries =
-          items?.[LATEST_AUTO_SYNC_SUMMARIES_STORAGE_KEY];
-        const nextSummaries =
-          existingSummaries &&
-          typeof existingSummaries === "object" &&
-          !Array.isArray(existingSummaries)
-            ? { ...existingSummaries }
-            : {};
-        nextSummaries[sourceKey] = summary;
-        chrome.storage.local.set({
-          [LATEST_AUTO_SYNC_SUMMARIES_STORAGE_KEY]: nextSummaries,
-        });
-      },
-    );
-  } catch (error) {
-    console.warn(
-      "🎯 [Auto Sync] Failed to persist latest auto sync summary:",
-      error,
-    );
-  }
-}
 
 import {
   getExternalAccessorStatus as getExternalAccessorStatusFn,
