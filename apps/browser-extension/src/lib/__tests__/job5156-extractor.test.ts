@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
 
-import { createJob5156Extractor } from "../job5156-extractor";
+import { createJob5156Extractor, type Job5156ExtractorDeps } from "../job5156-extractor";
 
-function createMockDeps(overrides = {}) {
+function createMockDeps(overrides: Record<string, unknown> = {}): Job5156ExtractorDeps {
   return {
     getCurrentSourceKey: vi.fn(() => "job5156"),
     SOURCE_KEYS: { JOB51: "job51", JOB5156: "job5156", SEEK: "seek" },
@@ -35,7 +35,7 @@ function createMockDeps(overrides = {}) {
     isMeaningfulJob5156WorkHistoryEntry: vi.fn(() => true),
     collectJob5156SectionItemsByHeading: vi.fn(() => []),
     ...overrides,
-  };
+  } as unknown as Job5156ExtractorDeps;
 }
 
 describe("job5156-extractor", () => {

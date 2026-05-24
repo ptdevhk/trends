@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 
-import { createSnapshotCollector } from "../snapshot-collector";
+import { createSnapshotCollector, type SnapshotCollectorDeps } from "../snapshot-collector";
 
-function createMockDeps(overrides = {}) {
+function createMockDeps(overrides: Record<string, unknown> = {}): SnapshotCollectorDeps {
   return {
     apiSnapshot: {
       searchRows: [],
@@ -71,7 +71,7 @@ function createMockDeps(overrides = {}) {
       head: { prepend: vi.fn() },
     },
     ...overrides,
-  };
+  } as unknown as SnapshotCollectorDeps;
 }
 
 describe("snapshot-collector", () => {

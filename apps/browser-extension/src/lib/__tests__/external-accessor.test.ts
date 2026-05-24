@@ -4,9 +4,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   getExternalAccessorStatus,
   installExternalAccessor,
+  type ExternalAccessorDeps,
 } from "../external-accessor";
 
-function createMockDeps(overrides = {}) {
+function createMockDeps(overrides: Record<string, unknown> = {}): ExternalAccessorDeps {
   return {
     getExtensionVersion: vi.fn(() => "1.2.3"),
     getPaginationInfo: vi.fn(() => ({
@@ -26,8 +27,15 @@ function createMockDeps(overrides = {}) {
     SELECTORS: { resumeCard: ".resume-card" },
     isJob5156DetailPage: vi.fn(() => false),
     isJob5156DetailReady: vi.fn(() => false),
+    extractResumes: vi.fn(() => []),
+    extractResumesRaw: vi.fn(() => []),
+    collectSnapshotPayload: vi.fn(() => ({})),
+    syncToServer: vi.fn(async () => ({ success: true })),
+    goToNextPageInternal: vi.fn(() => undefined),
+    version: "1.2.3",
+    getExternalAccessorStatus: vi.fn(() => ({})),
     ...overrides,
-  };
+  } as unknown as ExternalAccessorDeps;
 }
 
 describe("external-accessor", () => {
@@ -199,8 +207,17 @@ describe("external-accessor", () => {
         getExternalAccessorStatus: vi.fn(() => ({ loaded: true })),
         syncToServer: vi.fn(() => Promise.resolve()),
         goToNextPageInternal: vi.fn(() => true),
+        getExtensionVersion: vi.fn(() => "1.0.0"),
+        getCurrentAgeRange: vi.fn(() => ({ enabled: false })),
+        getCurrentSourceKey: vi.fn(() => "job51"),
+        getApiSnapshotCount: vi.fn(() => 0),
+        getSeekCardCount: vi.fn(() => 0),
+        SOURCE_KEYS: { JOB51: "job51", JOB5156: "job5156", SEEK: "seek" },
+        SELECTORS: { resumeCard: ".resume-card" },
+        isJob5156DetailPage: vi.fn(() => false),
+        isJob5156DetailReady: vi.fn(() => false),
         version: "1.0.0",
-      };
+      } as unknown as ExternalAccessorDeps;
 
       installExternalAccessor(key, mockDeps);
 
@@ -236,8 +253,17 @@ describe("external-accessor", () => {
         getExternalAccessorStatus: vi.fn(),
         syncToServer: vi.fn(),
         goToNextPageInternal: vi.fn(),
+        getExtensionVersion: vi.fn(() => "1.0.0"),
+        getCurrentAgeRange: vi.fn(() => ({ enabled: false })),
+        getCurrentSourceKey: vi.fn(() => "job51"),
+        getApiSnapshotCount: vi.fn(() => 0),
+        getSeekCardCount: vi.fn(() => 0),
+        SOURCE_KEYS: { JOB51: "job51", JOB5156: "job5156", SEEK: "seek" },
+        SELECTORS: { resumeCard: ".resume-card" },
+        isJob5156DetailPage: vi.fn(() => false),
+        isJob5156DetailReady: vi.fn(() => false),
         version: "1.0.0",
-      });
+      } as unknown as ExternalAccessorDeps);
 
       const accessor = (window as unknown as Record<string, unknown>)[key] as Record<
         string,

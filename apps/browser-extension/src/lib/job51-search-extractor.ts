@@ -1,11 +1,34 @@
-// @ts-nocheck
 /**
  * 51job eHire search-specific utility functions — payload parsing, page detection,
  * rate-limit detection, and auth context extraction. All dependencies injected
  * from content.ts via DI factory pattern.
  */
 
-export function createJob51SearchExtractor(deps) {
+export interface Job51SearchExtractorDeps extends Record<string, unknown> {
+  getCurrentSourceKey: () => string;
+  SOURCE_KEYS: Record<string, string>;
+  apiSnapshot: Record<string, unknown>;
+  normalizeJob51Text: (value: unknown) => string;
+  normalizeJob51MultilineText: (value: unknown) => string;
+  normalizeResumeText: (value: unknown) => string;
+  buildWorkHistoryRawParts: (parts: string[]) => string;
+  EHIRE_51JOB_PROFILE_URL_PREFIX: string;
+  EHIRE_51JOB_HOST: string;
+  JOB51_PAGE_COOLDOWN_MS: number;
+  JOB51_DETAIL_FETCH_TIMEOUT_MS: number;
+  JOB51_RATE_LIMIT_ERROR_MESSAGE: string;
+  buildJob51DetailResumeFromPayload: (payload: unknown, options: Record<string, unknown>) => unknown[];
+  filterCurrentResumesByAgeRange: (resumes: unknown) => unknown[];
+  chrome: { runtime: { sendMessage: (message: unknown) => Promise<unknown> } };
+  window: { location: { pathname: string; href: string }; setTimeout: (cb: () => void, ms: number) => number; clearTimeout: (id: number) => void; document: Document };
+  fetch: (url: string, init?: RequestInit) => Promise<Response>;
+  delay: (ms: number) => Promise<void>;
+  isElementVisible: (el: unknown) => boolean;
+  activateElement: (el: unknown) => void;
+  findVueParentByName: (el: unknown, name: string) => unknown;
+}
+
+export function createJob51SearchExtractor(deps: Job51SearchExtractorDeps) {
   const {
     getCurrentSourceKey,
     SOURCE_KEYS,
@@ -116,28 +139,29 @@ export function createJob51SearchExtractor(deps) {
    * Checks for identity fields (resumeId, perUserId, etc.), name fields,
    * and detail fields (experience, education, location, etc.).
    */
-  function isLikelyJob51ResumeRow(row) {
+  function isLikelyJob51ResumeRow(row: unknown) {
     if (!row || typeof row !== "object") return false;
+    const rec = row as Record<string, unknown>;
     const baseInfo =
-      row.base_info && typeof row.base_info === "object" ? row.base_info : null;
+      rec.base_info && typeof rec.base_info === "object" ? rec.base_info as Record<string, unknown> : null;
     const jobIntention =
-      row.job_intention && typeof row.job_intention === "object"
-        ? row.job_intention
+      rec.job_intention && typeof rec.job_intention === "object"
+        ? rec.job_intention as Record<string, unknown>
         : null;
     const recentWorkInfo =
-      row.recent_work_info && typeof row.recent_work_info === "object"
-        ? row.recent_work_info
+      rec.recent_work_info && typeof rec.recent_work_info === "object"
+        ? rec.recent_work_info as Record<string, unknown>
         : null;
     const identityCandidates = [
-      row.resumeId,
-      row.resumeNo,
-      row.resumekey,
-      row.perUserId,
-      row.userId,
-      row.candidateId,
-      row.memberId,
-      row.userid,
-      row.real_userid,
+      rec.resumeId,
+      rec.resumeNo,
+      rec.resumekey,
+      rec.perUserId,
+      rec.userId,
+      rec.candidateId,
+      rec.memberId,
+      rec.userid,
+      rec.real_userid,
       baseInfo?.accountid,
     ];
     const hasIdentity = identityCandidates.some((value) => {
@@ -145,10 +169,10 @@ export function createJob51SearchExtractor(deps) {
       return String(value).trim().length > 0;
     });
     const nameCandidates = [
-      row.name,
-      row.userName,
-      row.candidateName,
-      row.fullName,
+      rec.name,
+      rec.userName,
+      rec.candidateName,
+      rec.fullName,
       baseInfo?.resume_name,
     ];
     const hasName = nameCandidates.some((value) => {
@@ -156,23 +180,23 @@ export function createJob51SearchExtractor(deps) {
       return normalizeJob51Text(String(value)).length > 0;
     });
     const detailCandidates = [
-      row.workYear,
-      row.workYears,
-      row.experienceYears,
-      row.experience,
-      row.education,
-      row.educationLevel,
-      row.degree,
-      row.eduLevel,
-      row.location,
-      row.workCity,
-      row.city,
-      row.workLocation,
-      row.jobIntention,
-      row.desiredJob,
-      row.expectedPosition,
-      row.targetJob,
-      row.searchJob,
+      rec.workYear,
+      rec.workYears,
+      rec.experienceYears,
+      rec.experience,
+      rec.education,
+      rec.educationLevel,
+      rec.degree,
+      rec.eduLevel,
+      rec.location,
+      rec.workCity,
+      rec.city,
+      rec.workLocation,
+      rec.jobIntention,
+      rec.desiredJob,
+      rec.expectedPosition,
+      rec.targetJob,
+      rec.searchJob,
       baseInfo?.work_year_value,
       baseInfo?.top_degree_value,
       baseInfo?.area_value,
@@ -262,17 +286,19 @@ export function createJob51SearchExtractor(deps) {
    * Checks if an API response payload indicates rate limiting.
    * Searches common error fields (error, message, msg, detail) for rate-limit text.
    */
-  function isJob51RateLimitedPayload(payload) {
+  function isJob51RateLimitedPayload(payload: unknown) {
     if (!payload) return false;
+    const rec = payload as Record<string, unknown>;
+    const data = rec.data as Record<string, unknown> | undefined;
     const candidates = [
-      payload.error,
-      payload.message,
-      payload.msg,
-      payload.detail,
-      payload.data?.error,
-      payload.data?.message,
-      payload.data?.msg,
-      payload.data?.detail,
+      rec.error,
+      rec.message,
+      rec.msg,
+      rec.detail,
+      data?.error,
+      data?.message,
+      data?.msg,
+      data?.detail,
     ];
     return candidates.some((value) => isJob51RateLimitedErrorMessage(value));
   }
@@ -303,7 +329,7 @@ export function createJob51SearchExtractor(deps) {
       const response = await chrome.runtime.sendMessage({
         action: "collectJob51ResumeDetail",
         resumeId,
-      });
+      }) as Record<string, unknown> | null;
       if (response?.success) {
         return {
           payload: response.data ?? response.payload ?? response.resume ?? null,
@@ -335,7 +361,7 @@ export function createJob51SearchExtractor(deps) {
       return { payload: null, rateLimited: false };
     }
 
-    const authContext = apiSnapshot.job51AuthContext;
+    const authContext = apiSnapshot.job51AuthContext as Record<string, unknown> | null | undefined;
     const requestBody = {
       resume_id: normalizedResumeId,
       resumeId: normalizedResumeId,
@@ -350,10 +376,10 @@ export function createJob51SearchExtractor(deps) {
         Accept: "application/json, text/plain, */*",
         "Content-Type": "application/json",
         ...(authContext.accesstoken
-          ? { accesstoken: authContext.accesstoken }
+          ? { accesstoken: authContext.accesstoken as string }
           : {}),
-        ...(authContext.guid ? { guid: authContext.guid } : {}),
-        ...(authContext.property ? { property: authContext.property } : {}),
+        ...(authContext.guid ? { guid: authContext.guid as string } : {}),
+        ...(authContext.property ? { property: authContext.property as string } : {}),
       };
       const controller = new AbortController();
       const timeoutId = win.setTimeout(
@@ -423,7 +449,7 @@ export function createJob51SearchExtractor(deps) {
    * Enriches a single 51job search result resume with detail API data.
    * Fetches detail via fetch51JobResumeDetail and merges fields.
    */
-  async function enrich51JobSearchResumeWithDetail(resume, extractedAt) {
+  async function enrich51JobSearchResumeWithDetail(resume: unknown, extractedAt: string) {
     if (!resume || typeof resume !== "object") {
       return {
         resume: null,
@@ -432,13 +458,14 @@ export function createJob51SearchExtractor(deps) {
       };
     }
 
-    const fallbackResume = {
-      ...resume,
-      extractedAt: resume.extractedAt || extractedAt,
+    const rec = resume as Record<string, unknown>;
+    const fallbackResume: Record<string, unknown> = {
+      ...rec,
+      extractedAt: rec.extractedAt || extractedAt,
     };
     const resumeId =
-      normalizeJob51Text(resume.resumeId) ||
-      normalizeJob51Text(resume.perUserId) ||
+      normalizeJob51Text(rec.resumeId as string) ||
+      normalizeJob51Text(rec.perUserId as string) ||
       "";
 
     if (!resumeId) {
@@ -462,8 +489,8 @@ export function createJob51SearchExtractor(deps) {
       const detailResume =
         buildJob51DetailResumeFromPayload(detailResult.payload, {
           resumeId,
-          profileUrl: fallbackResume.profileUrl || "",
-        })[0] || null;
+          profileUrl: (fallbackResume.profileUrl as string | undefined) || "",
+        })[0] as Record<string, unknown> | null || null;
 
       if (!detailResume) {
         return {
@@ -477,58 +504,58 @@ export function createJob51SearchExtractor(deps) {
         resume: {
           ...fallbackResume,
           ...detailResume,
-          name: detailResume.name || fallbackResume.name || "",
-          age: detailResume.age || fallbackResume.age || "",
-          experience: detailResume.experience || fallbackResume.experience || "",
-          education: detailResume.education || fallbackResume.education || "",
-          location: detailResume.location || fallbackResume.location || "",
+          name: (detailResume.name as string) || (fallbackResume.name as string) || "",
+          age: (detailResume.age as string) || (fallbackResume.age as string) || "",
+          experience: (detailResume.experience as string) || (fallbackResume.experience as string) || "",
+          education: (detailResume.education as string) || (fallbackResume.education as string) || "",
+          location: (detailResume.location as string) || (fallbackResume.location as string) || "",
           jobIntention:
-            detailResume.jobIntention || fallbackResume.jobIntention || "",
+            (detailResume.jobIntention as string) || (fallbackResume.jobIntention as string) || "",
           expectedSalary:
-            detailResume.expectedSalary || fallbackResume.expectedSalary || "",
+            (detailResume.expectedSalary as string) || (fallbackResume.expectedSalary as string) || "",
           activityStatus:
-            detailResume.activityStatus || fallbackResume.activityStatus || "",
-          selfIntro: detailResume.selfIntro || fallbackResume.selfIntro || "",
-          resumeId: detailResume.resumeId || fallbackResume.resumeId,
-          perUserId: detailResume.perUserId || fallbackResume.perUserId,
-          externalId: detailResume.externalId || fallbackResume.externalId,
-          profileUrl: detailResume.profileUrl || fallbackResume.profileUrl,
+            (detailResume.activityStatus as string) || (fallbackResume.activityStatus as string) || "",
+          selfIntro: (detailResume.selfIntro as string) || (fallbackResume.selfIntro as string) || "",
+          resumeId: (detailResume.resumeId as string) || (fallbackResume.resumeId as string),
+          perUserId: (detailResume.perUserId as string) || (fallbackResume.perUserId as string),
+          externalId: (detailResume.externalId as string) || (fallbackResume.externalId as string),
+          profileUrl: (detailResume.profileUrl as string) || (fallbackResume.profileUrl as string),
           extractedAt: fallbackResume.extractedAt,
           pageIndex: fallbackResume.pageIndex,
           pageNumber: fallbackResume.pageNumber,
           workHistory:
             Array.isArray(detailResume.workHistory) &&
             detailResume.workHistory.length > 0
-              ? detailResume.workHistory
+              ? detailResume.workHistory as unknown[]
               : Array.isArray(fallbackResume.workHistory)
-                ? fallbackResume.workHistory
+                ? fallbackResume.workHistory as unknown[]
                 : [],
           projectExperience:
             Array.isArray(detailResume.projectExperience) &&
             detailResume.projectExperience.length > 0
-              ? detailResume.projectExperience
+              ? detailResume.projectExperience as unknown[]
               : Array.isArray(fallbackResume.projectExperience)
-                ? fallbackResume.projectExperience
+                ? fallbackResume.projectExperience as unknown[]
                 : [],
           profileEducation:
             Array.isArray(detailResume.profileEducation) &&
             detailResume.profileEducation.length > 0
-              ? detailResume.profileEducation
+              ? detailResume.profileEducation as unknown[]
               : Array.isArray(fallbackResume.profileEducation)
-                ? fallbackResume.profileEducation
+                ? fallbackResume.profileEducation as unknown[]
                 : [],
           skills:
             Array.isArray(detailResume.skills) && detailResume.skills.length > 0
-              ? detailResume.skills
+              ? detailResume.skills as unknown[]
               : Array.isArray(fallbackResume.skills)
-                ? fallbackResume.skills
+                ? fallbackResume.skills as unknown[]
                 : [],
           licences:
             Array.isArray(detailResume.licences) &&
             detailResume.licences.length > 0
-              ? detailResume.licences
+              ? detailResume.licences as unknown[]
               : Array.isArray(fallbackResume.licences)
-                ? fallbackResume.licences
+                ? fallbackResume.licences as unknown[]
                 : [],
         },
         enriched: true,
@@ -554,21 +581,21 @@ export function createJob51SearchExtractor(deps) {
    */
   function extract51JobResumes() {
     if (!Array.isArray(apiSnapshot.job51SearchRows)) return [];
-    return apiSnapshot.job51SearchRows.map((row, index) => {
-      const str = (v) => (v != null ? String(v) : "");
+    return (apiSnapshot.job51SearchRows as Record<string, unknown>[]).map((row, index) => {
+      const str = (v: unknown) => (v != null ? String(v) : "");
       const baseInfo =
-        row?.base_info && typeof row.base_info === "object" ? row.base_info : {};
+        row?.base_info && typeof row.base_info === "object" ? (row.base_info as Record<string, unknown>) : {};
       const jobIntentionInfo =
         row?.job_intention && typeof row.job_intention === "object"
-          ? row.job_intention
+          ? (row.job_intention as Record<string, unknown>)
           : {};
       const recentWorkInfo =
         row?.recent_work_info && typeof row.recent_work_info === "object"
-          ? row.recent_work_info
+          ? (row.recent_work_info as Record<string, unknown>)
           : {};
-      const workList = Array.isArray(row?.work_list) ? row.work_list : [];
+      const workList = Array.isArray(row?.work_list) ? (row.work_list as Record<string, unknown>[]) : [];
       const educationList = Array.isArray(row?.education_list)
-        ? row.education_list
+        ? (row.education_list as Record<string, unknown>[])
         : [];
       const latestWork =
         workList.find(
@@ -771,10 +798,11 @@ export function createJob51SearchExtractor(deps) {
 
   // ── Vue interaction (age filter) ────────────────────────────
 
-  function resolveJob51AgeFilterDropdown(ageBlock) {
+  function resolveJob51AgeFilterDropdown(ageBlock: unknown) {
+    const el = ageBlock as Element | null;
     const describedNode =
-      (ageBlock.getAttribute?.("aria-describedby") ? ageBlock : null) ||
-      ageBlock.querySelector("[aria-describedby]");
+      (el?.getAttribute?.("aria-describedby") ? el : null) ||
+      el?.querySelector("[aria-describedby]");
     const popoverId = describedNode?.getAttribute("aria-describedby")?.trim();
     if (popoverId) {
       const popover = win.document.getElementById(popoverId);
@@ -801,23 +829,24 @@ export function createJob51SearchExtractor(deps) {
     );
   }
 
-  async function ensureJob51AgeCustomRangeInputs(selectBox, { timeoutMs = 2000 } = {}) {
+  async function ensureJob51AgeCustomRangeInputs(selectBox: unknown, { timeoutMs = 2000 }: { timeoutMs?: number } = {}) {
+    const el = selectBox as Element | null;
     if (getCurrentSourceKey() !== SOURCE_KEYS.JOB51) {
-      return selectBox;
+      return el;
     }
     if (
-      selectBox.querySelector('input[placeholder="最低"]') &&
-      selectBox.querySelector('input[placeholder="最高"]')
+      el?.querySelector('input[placeholder="最低"]') &&
+      el?.querySelector('input[placeholder="最高"]')
     ) {
-      return selectBox;
+      return el;
     }
 
-    const customButton = Array.from(selectBox.querySelectorAll("button")).find(
+    const customButton = Array.from(el?.querySelectorAll("button") || []).find(
       (button) =>
         (button.textContent || "").replace(/\s+/g, "").trim() === "自定义",
     );
     if (!customButton) {
-      return selectBox;
+      return el;
     }
 
     activateElement(customButton);
@@ -825,20 +854,20 @@ export function createJob51SearchExtractor(deps) {
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
       if (
-        selectBox.querySelector('input[placeholder="最低"]') &&
-        selectBox.querySelector('input[placeholder="最高"]')
+        el?.querySelector('input[placeholder="最低"]') &&
+        el?.querySelector('input[placeholder="最高"]')
       ) {
-        return selectBox;
+        return el;
       }
       await new Promise((resolve) => setTimeout(resolve, 120));
     }
 
-    return selectBox;
+    return el;
   }
 
   async function applyJob51AgeCustomRangeViaVue(
-    confirmButton,
-    { minAge, maxAge } = {},
+    confirmButton: unknown,
+    { minAge, maxAge }: { minAge?: number; maxAge?: number } = {},
   ) {
     if (getCurrentSourceKey() !== SOURCE_KEYS.JOB51 || !confirmButton) {
       return false;
@@ -847,7 +876,7 @@ export function createJob51SearchExtractor(deps) {
     const customRangeVm = findVueParentByName(
       confirmButton,
       "BaseSelectCustomRange",
-    );
+    ) as Record<string, unknown> | null;
     if (!customRangeVm || typeof customRangeVm.onClickOk !== "function") {
       return false;
     }
@@ -856,9 +885,9 @@ export function createJob51SearchExtractor(deps) {
       if (!customRangeVm.form || typeof customRangeVm.form !== "object") {
         customRangeVm.form = {};
       }
-      customRangeVm.form.leftValue =
+      (customRangeVm.form as Record<string, unknown>).leftValue =
         typeof minAge === "number" ? minAge : null;
-      customRangeVm.form.rightValue =
+      (customRangeVm.form as Record<string, unknown>).rightValue =
         typeof maxAge === "number" ? maxAge : null;
       await Promise.resolve(customRangeVm.onClickOk());
       return true;
@@ -871,7 +900,7 @@ export function createJob51SearchExtractor(deps) {
     }
   }
 
-  function normalizeAgeRequestValue(value) {
+  function normalizeAgeRequestValue(value: unknown) {
     if (typeof value === "number" && Number.isFinite(value)) {
       return value;
     }
@@ -886,8 +915,8 @@ export function createJob51SearchExtractor(deps) {
     return null;
   }
 
-  function hasMatchingJob51AgeSearchRequest(minAge, maxAge) {
-    const request = apiSnapshot.job51LastSearchRequest;
+  function hasMatchingJob51AgeSearchRequest(minAge: unknown, maxAge: unknown) {
+    const request = apiSnapshot.job51LastSearchRequest as Record<string, unknown> | null;
     if (!request || typeof request !== "object") {
       return false;
     }
@@ -900,8 +929,8 @@ export function createJob51SearchExtractor(deps) {
   }
 
   async function waitForJob51AgeFilterRefresh(
-    previousLastSearchAt,
-    { minAge, maxAge, timeoutMs = 5000 } = {},
+    previousLastSearchAt: string | undefined,
+    { minAge, maxAge, timeoutMs = 5000 }: { minAge?: number; maxAge?: number; timeoutMs?: number } = {},
   ) {
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {

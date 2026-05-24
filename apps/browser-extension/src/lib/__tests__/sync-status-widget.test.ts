@@ -1,15 +1,15 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-import { createSyncStatusWidget } from "../sync-status-widget";
+import { createSyncStatusWidget, type SyncStatusWidgetDeps } from "../sync-status-widget";
 
-function createMockDeps() {
+function createMockDeps(): SyncStatusWidgetDeps {
   return {
     win: window,
     doc: document,
     chrome: { runtime: { sendMessage: vi.fn(() => Promise.resolve()) } },
     onCancel: vi.fn(),
-  };
+  } as unknown as SyncStatusWidgetDeps;
 }
 
 describe("sync-status-widget", () => {

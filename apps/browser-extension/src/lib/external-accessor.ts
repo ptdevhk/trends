@@ -1,10 +1,32 @@
-// @ts-nocheck
 /**
  * External CDP accessor — exposes content script functions via window.__TR_RESUME_DATA__
  * for CDP automation and testing.
  */
 
-export function getExternalAccessorStatus(deps) {
+export interface ExternalAccessorDeps extends Record<string, unknown> {
+  getExtensionVersion: () => string;
+  getPaginationInfo: () => { currentPage: number; totalPages: number; totalItems: number; hasNextPage: boolean };
+  getCurrentAgeRange: () => { enabled: boolean; minAge?: number; maxAge?: number };
+  getCurrentSourceKey: () => string;
+  getApiSnapshotCount: () => number;
+  getSeekCardCount: () => number;
+  SOURCE_KEYS: Record<string, string>;
+  isExtractionReady: () => boolean;
+  isLoggedIn: () => boolean;
+  apiSnapshot: Record<string, unknown>;
+  SELECTORS: Record<string, unknown>;
+  isJob5156DetailPage: () => boolean;
+  isJob5156DetailReady: () => boolean;
+  extractResumes: () => unknown[];
+  extractResumesRaw: (options?: unknown) => unknown[];
+  collectSnapshotPayload: (options?: unknown) => unknown;
+  syncToServer: (resumes?: unknown) => Promise<unknown>;
+  goToNextPageInternal: () => unknown;
+  getExternalAccessorStatus: (deps: ExternalAccessorDeps) => unknown;
+  version: string;
+}
+
+export function getExternalAccessorStatus(deps: ExternalAccessorDeps) {
   const {
     getExtensionVersion,
     getPaginationInfo,
@@ -34,7 +56,7 @@ export function getExternalAccessorStatus(deps) {
           ? isJob5156DetailReady()
             ? 1
             : 0
-          : document.querySelectorAll(SELECTORS.resumeCard).length;
+          : document.querySelectorAll(SELECTORS.resumeCard as string).length;
   const autoSearch =
     document.documentElement.getAttribute("data-tr-auto-search") || "";
   const autoLocation =
@@ -120,12 +142,12 @@ export function getExternalAccessorStatus(deps) {
       : null,
     autoSyncStopReason: autoSyncStopReason || null,
     pagination,
-    lastOperationName: apiSnapshot.lastOperationName,
+    lastOperationName: apiSnapshot.lastOperationName as string | null,
     timestamp: new Date().toISOString(),
   };
 }
 
-export function installExternalAccessor(key, deps) {
+export function installExternalAccessor(key: string, deps: ExternalAccessorDeps) {
   try {
     const {
       extractResumes,
@@ -140,7 +162,7 @@ export function installExternalAccessor(key, deps) {
       goToNextPageInternal,
       version,
     } = deps;
-    window[key] = {
+    (window as unknown as Record<string, unknown>)[key] = {
       extract: () => extractResumes(),
       extractRaw: (options) => extractResumesRaw(options),
       collect: (options) => collectSnapshotPayload(options),
@@ -148,7 +170,7 @@ export function installExternalAccessor(key, deps) {
       getPaginationInfo: () => getPaginationInfo(),
       isReady: () => isExtractionReady(),
       isLoggedIn: () => isLoggedIn(),
-      status: () => getExternalAccessorStatus(),
+      status: () => getExternalAccessorStatus(deps),
       syncToServer: () => syncToServer(),
       version,
       goToNextPage: () => goToNextPageInternal(),

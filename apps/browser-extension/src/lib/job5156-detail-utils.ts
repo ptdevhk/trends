@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { normalizeResumeText } from './resume-text-utils'
 
 const SECTION_SELECTORS = [
@@ -35,7 +34,7 @@ const DATE_LIKE_PATTERN = /(?:19|20)\d{2}(?:[-./年]\d{1,2})?|至今|目前|pres
  * @param {unknown} value
  * @returns {value is Element}
  */
-function isElement(value) {
+function isElement(value: unknown): value is Element {
   return Boolean(
     value
       && typeof value === 'object'
@@ -50,7 +49,7 @@ function isElement(value) {
  * @param {string} selector
  * @returns {Element[]}
  */
-function queryAllSafe(root, selector) {
+function queryAllSafe(root: Element, selector: string): Element[] {
   try {
     return Array.from(root.querySelectorAll(selector)).filter(isElement)
   } catch {
@@ -66,18 +65,18 @@ function queryAllSafe(root, selector) {
  * @returns {Element[]}
  */
 export function collectJob5156SectionItemsByHeading(
-  root,
-  headingPattern,
-  primarySelectors,
-  fallbackSelectors = [],
-) {
+  root: unknown,
+  headingPattern: RegExp,
+  primarySelectors: string[],
+  fallbackSelectors: string[] = [],
+): Element[] {
   if (!isElement(root)) {
     return []
   }
 
   const sections = queryAllSafe(root, SECTION_SELECTORS.join(', '))
   for (const section of sections) {
-    const currentSection = /** @type {Element} */ (section)
+    const currentSection = section as Element
     const heading = normalizeResumeText(currentSection.querySelector(HEADING_SELECTOR)?.textContent || '')
     if (!heading || !headingPattern.test(heading)) {
       continue
@@ -107,7 +106,7 @@ export function collectJob5156SectionItemsByHeading(
  * @param {string} value
  * @returns {boolean}
  */
-function isPlaceholderDurationText(value) {
+function isPlaceholderDurationText(value: string): boolean {
   const normalized = value.replace(/[\s·]+/g, '')
   return WORK_HISTORY_PLACEHOLDER_PATTERN.test(normalized)
 }
@@ -123,7 +122,16 @@ function isPlaceholderDurationText(value) {
  * } | null | undefined} entry
  * @returns {boolean}
  */
-export function isMeaningfulJob5156WorkHistoryEntry(entry) {
+export interface Job5156WorkHistoryEntry {
+  raw?: string;
+  companyName?: string;
+  jobTitle?: string;
+  description?: string;
+  startDate?: string;
+  endDate?: string;
+}
+
+export function isMeaningfulJob5156WorkHistoryEntry(entry: Job5156WorkHistoryEntry | null | undefined): boolean {
   if (!entry) {
     return false
   }

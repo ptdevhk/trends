@@ -1,10 +1,45 @@
-// @ts-nocheck
 /**
  * Snapshot collector — API state management, message hook installation,
  * and snapshot payload collection. Dependencies injected from content.ts.
  */
 
-export function createSnapshotCollector(deps) {
+export interface SnapshotCollectorDeps extends Record<string, unknown> {
+  apiSnapshot: Record<string, unknown>;
+  getCurrentSourceKey: () => string;
+  SOURCE_KEYS: Record<string, string>;
+  isJob51DetailPage: () => boolean;
+  isJob51DetailReady: () => boolean;
+  getSeekSnapshotCount: () => number;
+  normalizeJob51AuthContext: (headers: unknown, request: unknown) => Record<string, unknown> | null;
+  getJob51TotalFromPayload: (payload: unknown) => number | null;
+  getJob51ResumeRows: (payload: unknown) => unknown[];
+  getSeekPayloadData: (payload: unknown, kind: string) => Record<string, unknown> | null;
+  chrome: Record<string, unknown>;
+  normalizeCollectionLimit: (value: unknown) => number;
+  pipelineState: Record<string, unknown>;
+  waitForExtractionData: (options?: unknown) => Promise<unknown>;
+  isSeekProfileMode: () => boolean;
+  resolveSeekAutoSyncPageWindow: (options: Record<string, unknown>) => unknown;
+  getSeekRequestedPageSize: () => number;
+  getSeekCurrentCandidateCount: () => number;
+  resolveSeekAutoSyncCurrentPageSelection: (options: Record<string, unknown>) => Record<string, unknown>;
+  extractResumes: () => unknown[];
+  enrich51JobSearchResumesWithDetail: (resumes: unknown[]) => Promise<unknown[]>;
+  enrichJob5156SearchResumesWithDetail: (resumes: unknown[]) => Promise<unknown[]>;
+  isJob5156DetailPage: () => boolean;
+  enrichSeekResumesWithDetail: (resumes: unknown[]) => Promise<unknown[]>;
+  getPaginationInfo: () => { currentPage: number; totalPages: number; totalItems: number; hasNextPage: boolean };
+  isSeekAutoSyncPageWindowReached: (pageWindow: unknown, currentPage: number) => boolean;
+  waitForPagination: (options?: unknown) => Promise<unknown>;
+  clearCapturedResultsForNextPage: () => void;
+  goToNextPageInternal: () => unknown;
+  waitForPageTransition: (options: Record<string, unknown>) => Promise<unknown>;
+  buildSubmitMetadata: (options?: unknown) => Record<string, unknown>;
+  delay: (ms: number) => Promise<void>;
+  document: Document;
+}
+
+export function createSnapshotCollector(deps: SnapshotCollectorDeps) {
   const {
     apiSnapshot,
     getCurrentSourceKey,
@@ -45,14 +80,14 @@ export function createSnapshotCollector(deps) {
 
   function getApiSnapshotCount() {
     if (Array.isArray(apiSnapshot.searchRows)) {
-      return apiSnapshot.searchRows.length;
+      return (apiSnapshot.searchRows as unknown[]).length;
     }
     if (getCurrentSourceKey() === SOURCE_KEYS.JOB51) {
       if (isJob51DetailPage()) {
         return isJob51DetailReady() ? 1 : 0;
       }
       return Array.isArray(apiSnapshot.job51SearchRows)
-        ? apiSnapshot.job51SearchRows.length
+        ? (apiSnapshot.job51SearchRows as unknown[]).length
         : 0;
     }
     if (getCurrentSourceKey() === SOURCE_KEYS.SEEK) {
@@ -63,7 +98,7 @@ export function createSnapshotCollector(deps) {
 
   // ── normalizeSnapshotCollectOptions ──
 
-  function normalizeSnapshotCollectOptions(options = {}) {
+  function normalizeSnapshotCollectOptions(options: Record<string, unknown> = {}) {
     /** @type {{ limit?: number; maxPages?: number; allowEmpty?: boolean }} */
     const normalizedOptions =
       typeof options === "object" && options ? options : {};
@@ -83,8 +118,8 @@ export function createSnapshotCollector(deps) {
         return;
       }
       if (doc.documentElement.hasAttribute("data-tr-resume-hook")) return;
-      const script = doc.createElement("script");
-      script.src = chrome.runtime.getURL("page-hook.js");
+      const script = doc.createElement("script") as HTMLScriptElement;
+      script.src = (chrome as { runtime: { getURL: (path: string) => string } }).runtime.getURL("page-hook.js");
       script.async = false;
       script.setAttribute("data-tr-resume-hook", "true");
       script.onload = () => script.remove();
@@ -109,17 +144,17 @@ export function createSnapshotCollector(deps) {
     }
   }
 
-  function mergeJob51AuthContext(requestHeaders, request) {
+  function mergeJob51AuthContext(requestHeaders: unknown, request: unknown) {
     const authContext = normalizeJob51AuthContext(requestHeaders, request);
     if (authContext) {
       apiSnapshot.job51AuthContext = {
-        ...(apiSnapshot.job51AuthContext || {}),
+        ...((apiSnapshot.job51AuthContext || {}) as Record<string, unknown>),
         ...authContext,
       };
     }
   }
 
-  function updateApiSnapshot(message) {
+  function updateApiSnapshot(message: Record<string, unknown>) {
     const {
       kind,
       payload,
@@ -129,26 +164,28 @@ export function createSnapshotCollector(deps) {
       request,
       requestHeaders,
     } = message;
+    const p = (payload ?? {}) as Record<string, unknown>;
+    const pd = (p.data ?? {}) as Record<string, unknown>;
     apiSnapshot.lastUpdatedAt = new Date().toISOString();
-    if (url) apiSnapshot.lastUrl = url;
-    apiSnapshot.lastSourceKey = sourceKey || null;
-    apiSnapshot.lastOperationName = operationName || null;
+    if (url) apiSnapshot.lastUrl = url as string;
+    apiSnapshot.lastSourceKey = sourceKey as string || null;
+    apiSnapshot.lastOperationName = operationName as string || null;
 
     try {
-      doc.documentElement.setAttribute("data-tr-api-last", kind);
+      doc.documentElement.setAttribute("data-tr-api-last", kind as string);
       doc.documentElement.setAttribute(
         "data-tr-api-updated",
-        apiSnapshot.lastUpdatedAt,
+        apiSnapshot.lastUpdatedAt as string,
       );
       if (sourceKey) {
-        doc.documentElement.setAttribute("data-tr-source-key", sourceKey);
+        doc.documentElement.setAttribute("data-tr-source-key", sourceKey as string);
       }
     } catch {
       // ignore
     }
 
     if (kind === "search") {
-      const rows = payload?.data?.resumePage?.rows;
+      const rows = ((pd.resumePage ?? {}) as Record<string, unknown>)?.rows;
       if (Array.isArray(rows)) {
         apiSnapshot.searchRows = rows;
         apiSnapshot.lastSearchAt = apiSnapshot.lastUpdatedAt;
@@ -180,21 +217,22 @@ export function createSnapshotCollector(deps) {
       return;
     }
     if (kind === "attach") {
-      apiSnapshot.attachInfo = payload?.data?.attachResumeInfo || null;
+      apiSnapshot.attachInfo = pd.attachResumeInfo || null;
       return;
     }
     if (kind === "chat") {
-      apiSnapshot.chatInfo = payload?.data?.chatInfo || null;
+      apiSnapshot.chatInfo = pd.chatInfo || null;
       return;
     }
     if (kind === "insight") {
       apiSnapshot.insightInfo =
-        payload?.data?.talentInsightInfo || payload?.data || null;
+        pd.talentInsightInfo || p.data || null;
       return;
     }
     if (kind === "seekTalentSearch") {
       const data = getSeekPayloadData(payload, kind);
-      const result = data?.talentSearchProfilesNaturalLanguageSearch?.result;
+      const tsResult = data?.talentSearchProfilesNaturalLanguageSearch as Record<string, unknown> | undefined;
+      const result = tsResult?.result as Record<string, unknown> | undefined;
       const edges = Array.isArray(result?.edges) ? result.edges : null;
       if (edges) {
         // Unwrap Relay edges into bare nodes — downstream code expects an array
@@ -211,9 +249,11 @@ export function createSnapshotCollector(deps) {
     }
     if (kind === "seekRecommendedCandidates") {
       const data = getSeekPayloadData(payload, kind);
+      const v2 = data?.talentSearchRecommendedCandidatesV2 as Record<string, unknown> | undefined;
+      const legacy = data?.getTalentSearchRecommendedCandidates as Record<string, unknown> | undefined;
       const candidates =
-        data?.talentSearchRecommendedCandidatesV2?.items ||
-        data?.getTalentSearchRecommendedCandidates?.candidates;
+        v2?.items ||
+        legacy?.candidates;
       if (Array.isArray(candidates)) {
         apiSnapshot.seekRecommendedCandidates = candidates;
         apiSnapshot.seekRecommendedRequest = request || null;
@@ -250,12 +290,12 @@ export function createSnapshotCollector(deps) {
    *   allowEmpty?: boolean;
    * } | null | undefined} [options]
    */
-  async function collectSnapshotPayload(options = {}) {
+  async function collectSnapshotPayload(options: Record<string, unknown> = {}) {
     const { limit, maxPages, allowEmpty } =
       normalizeSnapshotCollectOptions(options);
     const sourceKey = getCurrentSourceKey();
     const job51BackfillRunId =
-      sourceKey === SOURCE_KEYS.JOB51 ? pipelineState.runId + 1 : null;
+      sourceKey === SOURCE_KEYS.JOB51 ? (pipelineState.runId as number) + 1 : null;
 
     if (sourceKey === SOURCE_KEYS.JOB51) {
       pipelineState.runId = job51BackfillRunId;
@@ -270,12 +310,12 @@ export function createSnapshotCollector(deps) {
       throw new Error(`Unsupported source for snapshot collection: ${sourceKey}`);
     }
 
-    let collectedResumes = [];
+    let collectedResumes: unknown[] = [];
     let pagesVisited = 0;
     let stopReason = "completed";
-    let seekStartPage = null;
+    let seekStartPage: number | null = null;
     let lastPageResumeCount = 0;
-    let finalPagination;
+    let finalPagination: { currentPage: number; totalPages: number; totalItems: number; hasNextPage: boolean };
 
     while (true) {
       finalPagination = getPaginationInfo();
@@ -316,14 +356,14 @@ export function createSnapshotCollector(deps) {
                 : false,
           };
 
-      if (pageSelection.limitAlreadyReached) {
+      if (pageSelection.limitAlreadyReached as boolean) {
         stopReason = "limit-reached";
         break;
       }
 
       let pageResumes = extractResumes();
       const hitLimitWithinPage = isSeekListPage
-        ? pageSelection.hitLimitWithinPage
+        ? pageSelection.hitLimitWithinPage as boolean
         : limit > 0 &&
           typeof pageSelection.remainingCapacity === "number" &&
           pageResumes.length > pageSelection.remainingCapacity;
@@ -428,7 +468,7 @@ export function createSnapshotCollector(deps) {
       resumes: collectedResumes,
       summary: {
         sourceKey,
-        sourceHost: metadata.sourceHost,
+        sourceHost: metadata.sourceHost as string,
         count: collectedResumes.length,
         pagesVisited,
         stopReason,

@@ -1,11 +1,71 @@
-// @ts-nocheck
 /**
  * Factory: createAutoSyncRunner
  * Extracts the runAutoSyncIfEnabled orchestration from content.ts into a
  * dependency-injected module so content.ts stays thin.
  */
 
-export function createAutoSyncRunner(deps) {
+export interface AutoSyncRunnerDeps extends Record<string, unknown> {
+  getAutoSyncEnabled: () => boolean;
+  setAutoSyncAttributes: (status: string, count?: number, pages?: number) => void;
+  resolveAutoSyncErrorStatus: (error: unknown) => { message: string; hint: string };
+  resolveAutoSyncStopReason: (...args: unknown[]) => string;
+  runAutoExportIfEnabled: () => Promise<unknown>;
+  syncCurrentPageToServer: (resumes?: unknown) => Promise<unknown>;
+  setSeekAutoSyncWindowAttributes: (attrs: unknown) => void;
+  setSeekAutoSyncSelectionAttributes: (attrs: unknown) => void;
+  isSeekProfileMode: () => boolean;
+  resolveSeekAutoSyncPageWindow: (options?: unknown) => unknown;
+  isSeekAutoSyncPageWindowReached: (pageWindow?: unknown, currentPage?: number) => boolean;
+  resolveSeekAutoSyncCurrentPageSelection: (options?: unknown) => { remainingCapacity: number | null; selectedCount: number | null; hitLimitWithinPage: boolean; limitAlreadyReached: boolean };
+  getSeekRequestedPageSize: () => number;
+  getSeekCurrentCandidateCount: () => number;
+  resolveSeekAutoSyncPageSize: () => number;
+  enrichSeekResumesWithDetail: (resumes: unknown[]) => Promise<unknown[]>;
+  getPaginationInfo: () => { currentPage: number; totalPages: number; totalItems: number; hasNextPage: boolean };
+  waitForPagination: (options?: unknown) => Promise<unknown>;
+  getNextPageButtonState: () => unknown;
+  waitForExtractionData: (options?: unknown) => Promise<unknown>;
+  extractResumes: () => unknown[];
+  goToNextPageInternal: () => unknown;
+  clearCapturedResultsForNextPage: () => void;
+  enrich51JobSearchResumesWithDetail: (resumes: unknown[]) => Promise<unknown[]>;
+  enrichJob5156SearchResumesWithDetail: (resumes: unknown[]) => Promise<unknown[]>;
+  queueJob51DetailBackfill: (...args: unknown[]) => unknown;
+  collectSnapshotPayload: (options?: unknown) => unknown;
+  getApiSnapshotCount: () => number;
+  buildSubmitMetadata: (options?: unknown) => unknown;
+  extractProfileUrl: (resume: unknown) => string;
+  loadCollectionGuards: () => unknown;
+  parseGuardFieldNames: (csv: string) => Set<string>;
+  applyCollectionGuards: (resume: unknown, fields: Set<string>) => unknown;
+  ensureJob51PageAllowed: () => boolean;
+  isJob51RateLimitedPage: () => boolean;
+  waitForJob51Cooldown: () => Promise<unknown>;
+  filterResumesByAgeRange: (resumes: unknown[]) => unknown[];
+  getAgeRangeFromUrl: (...args: unknown[]) => unknown;
+  normalizeOptionalPositiveInt: (value: unknown) => number;
+  buildAutoSyncProgressHint: (options: Record<string, unknown>) => string;
+  buildAutoSyncSelectedCountHint: (options: Record<string, unknown>) => string;
+  buildAutoSyncCompletionHint: (options: Record<string, unknown>) => string;
+  persistLatestAutoSyncSummary: () => void;
+  getCurrentAgeRange: () => { enabled: boolean; minAge?: number; maxAge?: number };
+  resolveCurrentJob51AutoSyncDetailWaitMode: () => string;
+  waitForPageTransition: (options?: unknown) => Promise<unknown>;
+  delay: (ms: number) => Promise<void>;
+  getCurrentSourceKey: () => string;
+  SOURCE_KEYS: Record<string, string>;
+  getCollectionLimits: () => Promise<Record<string, unknown>>;
+  getKeywordMode: () => string;
+  isJob5156DetailPage: () => boolean;
+  isJob51DetailPage: () => boolean;
+  SyncStatusWidget: { show: (options: Record<string, unknown>) => void; hide: () => void };
+  document: Document;
+  window: Window;
+  chrome: Record<string, unknown>;
+  state: Record<string, unknown>;
+}
+
+export function createAutoSyncRunner(deps: AutoSyncRunnerDeps) {
   const {
     // Auto-actions helpers
     getAutoSyncEnabled,
@@ -100,7 +160,7 @@ export function createAutoSyncRunner(deps) {
   } = deps;
 
   async function runAutoSyncIfEnabled() {
-    if (deps.state._autoSyncTriggered) return;
+    if (deps.state._autoSyncTriggered as boolean) return;
     const enabled = getAutoSyncEnabled();
     if (!enabled) {
       setAutoSyncAttributes("skipped");
@@ -109,11 +169,11 @@ export function createAutoSyncRunner(deps) {
       return;
     }
 
-    const { limit, maxPages } = await getCollectionLimits();
+    const { limit, maxPages } = (await getCollectionLimits()) as { limit: number; maxPages: number };
     const isJob51Source = getCurrentSourceKey() === SOURCE_KEYS.JOB51;
 
-    deps.state._autoSyncTriggered = true;
-    deps.state._autoSyncCancelled = false;
+    deps.state._autoSyncTriggered = true as boolean;
+    deps.state._autoSyncCancelled = false as boolean;
     setAutoSyncAttributes("running", 0, 0);
     setSeekAutoSyncWindowAttributes(null);
     setSeekAutoSyncSelectionAttributes(null);
@@ -323,7 +383,7 @@ export function createAutoSyncRunner(deps) {
           hint: progressHint,
         });
 
-        const response = await syncCurrentPageToServer(resumes);
+        const response = (await syncCurrentPageToServer(resumes)) as Record<string, unknown> | null;
         if (!response?.success) {
           throw response?.error || response || "Auto sync failed";
         }
