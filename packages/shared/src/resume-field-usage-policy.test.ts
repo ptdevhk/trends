@@ -8,14 +8,18 @@ import {
 } from "./resume-field-usage-policy";
 
 describe("resume field usage policy", () => {
-  it("excludes jobIntention and selfIntro from all protected surfaces, plus resumeSnippet from analysis", () => {
+  it("excludes protected fields per surface: age/gender/jobIntention/selfIntro from presentation/outreach/debug; age/gender/jobIntention/resumeSnippet/selfIntro from analysis", () => {
     for (const surface of ["presentation", "outreach", "debug"] as const) {
-      expect(getDisallowedResumeFieldKeys(surface)).toEqual(["jobIntention", "selfIntro"]);
+      expect(getDisallowedResumeFieldKeys(surface)).toEqual(["age", "gender", "jobIntention", "selfIntro"]);
+      expect(isResumeFieldAllowed("age", surface)).toBe(false);
+      expect(isResumeFieldAllowed("gender", surface)).toBe(false);
       expect(isResumeFieldAllowed("jobIntention", surface)).toBe(false);
       expect(isResumeFieldAllowed("selfIntro", surface)).toBe(false);
     }
 
-    expect(getDisallowedResumeFieldKeys("analysis")).toEqual(["jobIntention", "resumeSnippet", "selfIntro"]);
+    expect(getDisallowedResumeFieldKeys("analysis")).toEqual(["age", "gender", "jobIntention", "resumeSnippet", "selfIntro"]);
+    expect(isResumeFieldAllowed("age", "analysis")).toBe(false);
+    expect(isResumeFieldAllowed("gender", "analysis")).toBe(false);
     expect(isResumeFieldAllowed("jobIntention", "analysis")).toBe(false);
     expect(isResumeFieldAllowed("resumeSnippet", "analysis")).toBe(false);
     expect(isResumeFieldAllowed("selfIntro", "analysis")).toBe(false);
@@ -46,6 +50,8 @@ describe("resume field usage policy", () => {
   it("creates sanitized projections without mutating the raw resume record", () => {
     const rawResume = {
       name: "Alice",
+      age: "30",
+      gender: "F",
       jobIntention: "Sales Engineer",
       selfIntro: "CNC sales background",
       education: "Bachelor",
@@ -59,6 +65,8 @@ describe("resume field usage policy", () => {
     });
     expect(rawResume).toEqual({
       name: "Alice",
+      age: "30",
+      gender: "F",
       jobIntention: "Sales Engineer",
       selfIntro: "CNC sales background",
       education: "Bachelor",
