@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import JSON5 from "json5";
 import { findProjectRoot } from "./db.js";
+import { logger } from "./logger.js";
 
 export type KeywordMarket = "CN" | "MY";
 export type ConfigSourceOrigin = "system" | "workspace";
@@ -418,7 +419,7 @@ export class CustomKeywordService {
                 return left.keyword.localeCompare(right.keyword, "zh-Hans-CN");
             });
         } catch (error) {
-            console.error("Failed to load Job5156 location snapshot", error);
+            logger.error("Failed to load Job5156 location snapshot", error, { service: "custom-keyword-service" });
             return [];
         }
     }

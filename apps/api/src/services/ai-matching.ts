@@ -16,6 +16,7 @@ import {
     type ResumeFieldUsagePolicy,
     type ResumeFieldUsagePolicyOverrides,
 } from "@trends/shared";
+import { logger } from "./logger.js";
 import { aiConfig, validateResumeAIConfig, getMaskedApiKey } from "./ai-config.js";
 import { findProjectRoot } from "./db.js";
 import { localeToNaturalLanguage, resolveAIOutputLocale } from "./locale-utils.js";
@@ -144,7 +145,7 @@ function loadConfiguredConcurrency(): number {
             }
         }
     } catch (error) {
-        console.error("[AI Matching] Failed to read agents config:", error);
+        logger.error("[AI Matching] Failed to read agents config", error, { service: "ai-matching" });
     }
 
     return 5;
@@ -328,7 +329,7 @@ export class AIMatchingService {
             return parsed;
         } catch (error) {
             const errorMessage = toCompactErrorMessage(error);
-            console.error("[AI Matching] Error:", errorMessage);
+            logger.error("[AI Matching] Error", errorMessage, { service: "ai-matching" });
             const localeText = getResumeAiLocaleText(prompt.normalized.locale);
             return {
                 score: 0,
@@ -486,7 +487,7 @@ Return strictly valid JSON:
                 body: parsed.body as string
             };
         } catch (error) {
-            console.error("[AI Outreach] Error:", error);
+            logger.error("[AI Outreach] Error", error, { service: "ai-matching" });
             throw error;
         }
     }
@@ -666,7 +667,7 @@ Return strictly valid JSON:
                 scoreSource: "ai",
             };
         } catch (error) {
-            console.error("[AI Matching] Parse error:", error);
+            logger.error("[AI Matching] Parse error", error, { service: "ai-matching" });
             const localeText = getResumeAiLocaleText(prompt?.normalized.locale);
             return {
                 score: 0,

@@ -19,6 +19,7 @@ import {
   ResumeSubmitSummarySchema,
 } from "../schemas/resumes.js";
 import { config } from "./config.js";
+import { logger } from "./logger.js";
 import { ActionStorage, type CandidateActionBackupRow } from "./action-storage.js";
 
 const JOB5156_HOST = "hr.job5156.com";
@@ -98,7 +99,7 @@ function readEnvVarFromFile(filePath: string, key: string): string | null {
     }
     return null;
   } catch (error) {
-    console.error("Failed to read env var from file", { filePath, key, error });
+    logger.error("Failed to read env var from file", error, { service: "resume-import-service", filePath, key });
     return null;
   }
 }
@@ -191,7 +192,7 @@ function resolveResumeSource(metadata: ResumeImportMetadata): string {
   try {
     return new URL(metadata.sourceUrl).hostname.toLowerCase();
   } catch (error) {
-    console.error("Failed to parse resume source URL", { sourceUrl: metadata.sourceUrl, error });
+    logger.error("Failed to parse resume source URL", error, { service: "resume-import-service", sourceUrl: metadata.sourceUrl });
     return sourceKey || JOB5156_HOST;
   }
 }
@@ -489,16 +490,10 @@ export async function replayCandidateState(params: {
         if (response.ok) {
           result.statusReplayed++;
         } else {
-          console.error("candidate_status:upsert failed", {
-            identityKey: entry.identityKey,
-            status: response.status,
-          });
+          logger.error("candidate_status:upsert failed", "no error object", { service: "resume-import-service", identityKey: entry.identityKey, status: response.status });
         }
       } catch (error) {
-        console.error("candidate_status:upsert error", {
-          identityKey: entry.identityKey,
-          error: error instanceof Error ? error.message : String(error),
-        });
+        logger.error("candidate_status:upsert error", error, { service: "resume-import-service", identityKey: entry.identityKey });
       }
     }
   }

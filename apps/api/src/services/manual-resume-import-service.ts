@@ -12,6 +12,7 @@ import {
   stripManual51jobUnreadableControlCharacters,
 } from "@trends/shared";
 
+import { logger } from "./logger.js";
 import {
   type ResumeImportItem,
   type ResumeImportRequest,
@@ -492,7 +493,7 @@ async function parsePdfFile(file: EnumeratedImportFile): Promise<ParsedImportCan
     };
   } finally {
     await parser.destroy().catch((error) => {
-      console.error("Failed to destroy PDF parser", error);
+      logger.error("Failed to destroy PDF parser", error, { service: "manual-resume-import-service" });
     });
   }
 }
