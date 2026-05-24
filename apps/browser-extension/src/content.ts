@@ -260,6 +260,9 @@ const _seekExtractor = createSeekExtractor({
   buildSeekWorkHistoryItem,
   buildSeekProfileEducationItem,
   formatSeekExpectedSalary,
+  // Pagination + extraction deps
+  asHTMLElement,
+  isDisabledPaginationControl,
 });
 const {
   isSeekProfilePage,
@@ -294,6 +297,15 @@ const {
   extractSeekProfileResume,
   buildSeekCollectionContext,
   getSeekPayloadData,
+  // Resumes extraction
+  extractSeekResumes,
+  extractSeekTalentSearchResumes,
+  // Pagination helpers
+  getSeekCardCount,
+  getSeekPaginationInfo,
+  getSeekNextPageLink,
+  getSeekTalentSearchNextPageLink,
+  getSeekNextPageLinkForMode,
 } = _seekExtractor;
 
 // Schedule restore after SEEK's SPA has had a chance to strip params.
@@ -1370,228 +1382,6 @@ function extractSingleResume(card, apiRow = null) {
  * Extract all resumes from current page
  * @returns {Array} - Array of resume objects
  */
-function extractSeekResumes() {
-  const candidates = Array.isArray(apiSnapshot.seekRecommendedCandidates)
-    ? apiSnapshot.seekRecommendedCandidates
-    : [];
-  const request = getSeekRecommendedRequest();
-  const requestInput = request?.variables?.input;
-  const language = request?.variables?.language;
-  const url = new URL(window.location.href);
-  const jobIdFromUrl = normalizeOptionalPositiveInt(
-    url.searchParams.get("jobId"),
-  );
-  const jobId =
-    requestInput?.jobId != null
-      ? String(requestInput.jobId)
-      : jobIdFromUrl != null
-        ? String(jobIdFromUrl)
-        : undefined;
-  const currentPage =
-    typeof requestInput?.page === "number"
-      ? requestInput.page
-      : normalizeOptionalPositiveInt(url.searchParams.get("pageNumber")) || 1;
-
-  return candidates.map((candidate, index) => {
-    const { profileId, profileType } = getSeekCandidateIdentity(candidate);
-    const firstName =
-      typeof candidate?.firstName === "string"
-        ? candidate.firstName.trim()
-        : "";
-    const lastName =
-      typeof candidate?.lastName === "string" ? candidate.lastName.trim() : "";
-    const currentJobTitle =
-      typeof candidate?.currentJobTitle === "string"
-        ? candidate.currentJobTitle.trim()
-        : "";
-    const currentLocation =
-      typeof candidate?.currentLocation === "string"
-        ? candidate.currentLocation.trim()
-        : "";
-    const lastModifiedDate =
-      typeof candidate?.lastModifiedDate === "string"
-        ? candidate.lastModifiedDate
-        : "";
-    const salary = candidate?.salary;
-    const salaryParts = [salary?.minLabel, salary?.maxLabel].filter(
-      (value) => typeof value === "string" && value.trim(),
-    );
-    const workHistory = Array.isArray(candidate?.workHistories)
-      ? candidate.workHistories
-          .map((item) => buildSeekWorkHistoryItem(item))
-          .filter(Boolean)
-      : [];
-
-    return {
-      profileId,
-      profileType,
-      externalId: profileId
-        ? `${window.location.hostname.toLowerCase()}:profile:${profileId}`
-        : "",
-      name: [firstName, lastName].filter(Boolean).join(" ").trim(),
-      profileUrl: buildSeekProfileUrl(profileId, jobId),
-      activityStatus: lastModifiedDate,
-      age: "",
-      experience: "",
-      education: "",
-      location: currentLocation,
-      jobIntention: currentJobTitle,
-      expectedSalary: salaryParts.join(" - "),
-      selfIntro: "",
-      workHistory,
-      extractedAt: new Date().toISOString(),
-      pageIndex: index + 1,
-      source: window.location.hostname.toLowerCase(),
-      searchProfileId:
-        typeof requestInput?.searchId === "string" ? requestInput.searchId : "",
-      language: typeof language === "string" ? language : "",
-      pageNumber: currentPage,
-    };
-  });
-}
-
-/**
- * Extract resumes from seek talent-search (SearchProfilesByNaturalLanguage) list-page snapshot.
- * Mirrors the output shape of extractSeekResumes() exactly so downstream submit/identity/storage
- * code is unchanged.
- *
- * Node shape is TalentSearchProfileResultV2 — see dev-docs/seek-talent-search-graphql-recon.txt.
- *
- * externalId precedence: talent-search nodes have profileGuid (UUID) but NO numeric profileId.
- * We use profileGuid as the primary identifier. If the node had both a numeric profileId and a
- * profileGuid (not observed on talent-search, but defensively handled), we prefer profileGuid
- * to match the V3 profile request semantics (input.profileGuid: UUID).
- */
-function extractSeekTalentSearchResumes() {
-  const candidates = Array.isArray(apiSnapshot.seekTalentSearch)
-    ? apiSnapshot.seekTalentSearch
-    : [];
-  const request = getSeekTalentSearchRequest();
-  const requestInput = request?.variables?.input;
-  const language = request?.variables?.language;
-  const url = new URL(window.location.href);
-  const currentPage =
-    typeof requestInput?.pageNumber === "number"
-      ? requestInput.pageNumber
-      : normalizeOptionalPositiveInt(url.searchParams.get("pageNumber")) || 1;
-
-  return candidates
-    .map((node, index) => {
-      // profileGuid (UUID) is the primary identity for talentsearch
-      const profileGuid =
-        typeof node?.profileGuid === "string" && node.profileGuid
-          ? node.profileGuid
-          : "";
-      // Relay "id" — numeric-looking string, used as fallback
-      const relayId =
-        typeof node?.id === "string" && node.id ? node.id : "";
-      // For talentsearch, profileId = profileGuid (UUID); numeric profileId
-      // may become available after V3 detail enrichment
-      const profileId = profileGuid || relayId;
-      if (!profileId) return null;
-
-      const firstName =
-        typeof node?.firstName === "string" ? node.firstName.trim() : "";
-      const lastName =
-        typeof node?.lastName === "string" ? node.lastName.trim() : "";
-      const currentJobTitle =
-        typeof node?.currentJobTitle === "string"
-          ? node.currentJobTitle.trim()
-          : "";
-      const currentLocation =
-        typeof node?.currentLocation === "string"
-          ? node.currentLocation.trim()
-          : "";
-      const lastModifiedDurationLabel =
-        typeof node?.lastModifiedDurationLabel === "string"
-          ? node.lastModifiedDurationLabel
-          : "";
-      const workHistory = Array.isArray(node?.workHistories)
-        ? node.workHistories
-            .map((item) => buildSeekWorkHistoryItem(item))
-            .filter(Boolean)
-        : [];
-
-      return {
-        profileId,
-        profileType: "seek",
-        seekProfileGuid: profileGuid || undefined,
-        externalId: profileId
-          ? `${window.location.hostname.toLowerCase()}:profile:${profileId}`
-          : "",
-        name: [firstName, lastName].filter(Boolean).join(" ").trim(),
-        profileUrl: buildSeekNameSearchUrl([firstName, lastName].filter(Boolean).join(" "), url.searchParams.get("market") || undefined, currentJobTitle),
-        activityStatus: lastModifiedDurationLabel,
-        age: "",
-        experience: "",
-        education: "",
-        location: currentLocation,
-        jobIntention: currentJobTitle,
-        expectedSalary: "",
-        selfIntro: "",
-        workHistory,
-        extractedAt: new Date().toISOString(),
-        pageIndex: index + 1,
-        source: window.location.hostname.toLowerCase(),
-        searchProfileId: "",
-        language: typeof language === "string" ? language : "",
-        pageNumber: currentPage,
-      };
-    })
-    .filter(Boolean);
-}
-
-/**
- * Get pagination info
- * @returns {Object} - Current page, total pages, total items
- */
-function getSeekCardCount() {
-  return document.querySelectorAll(
-    'a[href*="/talentsearch/profile/"][href*="profilePosition="]',
-  ).length;
-}
-
-function getSeekPaginationInfo() {
-  const isTalentSearch = getCurrentSeekMode() === "talentsearch";
-  const currentPage =
-    normalizeOptionalPositiveInt(
-      new URL(window.location.href).searchParams.get("pageNumber"),
-    ) || 1;
-  const pagination = document.querySelector(
-    isTalentSearch
-      ? SELECTORS.seekTalentSearchPagination
-      : SELECTORS.seekPagination,
-  );
-  if (!pagination) {
-    return {
-      currentPage,
-      totalPages: currentPage,
-      totalItems: 0,
-      hasNextPage: false,
-    };
-  }
-
-  const links = Array.from(pagination.querySelectorAll("a"));
-  const pageNumbers = links
-    .map((item) => {
-      const label = item.getAttribute("aria-label") || "";
-      const text = item.textContent || "";
-      const match =
-        label.match(/page\s+(\d+)/i) || text.trim().match(/^(\d+)$/);
-      return match ? Number.parseInt(match[1], 10) : 0;
-    })
-    .filter((value) => Number.isFinite(value) && value > 0);
-  const totalPages = Math.max(
-    pageNumbers.length > 0 ? Math.max(...pageNumbers) : 0,
-    currentPage,
-  );
-  const nextLink = getSeekNextPageLinkForMode();
-  const hasNextPage =
-    totalPages > currentPage && !isDisabledPaginationControl(nextLink);
-
-  return { currentPage, totalPages, totalItems: 0, hasNextPage };
-}
-
 function getPaginationInfo() {
   const sourceKey = getCurrentSourceKey();
   if (sourceKey === SOURCE_KEYS.SEEK) {
@@ -1686,38 +1476,6 @@ function getPaginationInfo() {
     hasNextPage: totalPages > currentPage,
   };
 }
-
-function getSeekNextPageLink() {
-  const pagination = document.querySelector(SELECTORS.seekPagination);
-  if (!pagination) return null;
-  const links = Array.from(pagination.querySelectorAll("a"));
-  const nextLink = links.find((node) =>
-    /next/i.test((node.textContent || "").trim()),
-  );
-  return asHTMLElement(nextLink || null);
-}
-
-function getSeekTalentSearchNextPageLink() {
-  const pagination = document.querySelector(SELECTORS.seekTalentSearchPagination);
-  if (!pagination) return null;
-  // Talent search pager exposes a[rel="next"] per recon; fall back to last anchor.
-  const explicit = pagination.querySelector('a[rel="next"]');
-  if (explicit) return asHTMLElement(explicit);
-  const links = Array.from(pagination.querySelectorAll("a"));
-  const labeled = links.find((node) =>
-    /next/i.test((node.getAttribute("aria-label") || node.textContent || "").trim()),
-  );
-  return asHTMLElement(labeled || null);
-}
-
-function getSeekNextPageLinkForMode() {
-  if (getCurrentSeekMode() === "talentsearch") {
-    return getSeekTalentSearchNextPageLink();
-  }
-  return getSeekNextPageLink();
-}
-
-
 
 function getNextPageButtonState() {
   const sourceKey = getCurrentSourceKey();
