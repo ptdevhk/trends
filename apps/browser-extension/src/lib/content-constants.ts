@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Shared content-script constants and CSS selectors.
  * Extracted from content.ts composition root for reuse across lib/ factories.
