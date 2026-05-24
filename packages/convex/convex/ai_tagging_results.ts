@@ -8,6 +8,7 @@ import { v } from "convex/values";
 import type { ChatMessage } from "./analyze";
 import { resolveChatCompletionModel } from "./lib/ai_model";
 import { resolveAiTaggingParallelism } from "./lib/parallelism";
+import { computeProtectedAttributeHashes } from "./audit.js";
 
 type RoleFit = "sales_verified" | "sales_unverified" | "operator_only";
 type Recommendation = "strong_match" | "match" | "potential" | "no_match";
@@ -760,6 +761,43 @@ export const drainQueue = internalAction({
             tokensOut,
           },
         });
+
+        // Audit log — EU AI Act compliance for tag decisions
+        try {
+          const protectedHashes = computeProtectedAttributeHashes({
+            age: typeof resume.age === "number" ? resume.age : undefined,
+            source: typeof resume.source === "string" ? resume.source : undefined,
+          });
+
+          await ctx.runMutation(internal.audit.logAnalysisDecision, {
+            resumeId: row.resumeId,
+            identityKey: row.identityKey ?? undefined,
+            workspaceSlug: row.workspaceSlug,
+            decisionType: "tag",
+            actionRef: "ai_tagging_results:drainQueue",
+            inputSnapshot: {
+              profileKey: row.profileKey,
+              promptVersion: row.promptVersion,
+            },
+            modelMeta: {
+              model: row.model,
+              provider: "openai",
+              promptTokens: tokensIn,
+              completionTokens: tokensOut,
+              latencyMs: Date.now() - start,
+            },
+            output: {
+              roleFit: parsed.roleFit,
+              confidence: parsed.confidence,
+              tags: parsed.tags,
+              recommendation: parsed.recommendation,
+            },
+            protectedAttributeHashes: protectedHashes,
+            decidedAt: Date.now(),
+          });
+        } catch (auditError) {
+          console.error("Audit logging failed for tagging:", auditError);
+        }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         await ctx.runMutation(internal.ai_tagging_results.markFailed, {

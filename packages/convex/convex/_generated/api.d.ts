@@ -13,6 +13,7 @@ import type * as ai_tagging_results from "../ai_tagging_results.js";
 import type * as analysis_tasks from "../analysis_tasks.js";
 import type * as analyze from "../analyze.js";
 import type * as audit from "../audit.js";
+import type * as bias_audit from "../bias_audit.js";
 import type * as candidate_blocks from "../candidate_blocks.js";
 import type * as candidate_status from "../candidate_status.js";
 import type * as crons from "../crons.js";
@@ -50,6 +51,7 @@ declare const fullApi: ApiFromModules<{
   analysis_tasks: typeof analysis_tasks;
   analyze: typeof analyze;
   audit: typeof audit;
+  bias_audit: typeof bias_audit;
   candidate_blocks: typeof candidate_blocks;
   candidate_status: typeof candidate_status;
   crons: typeof crons;
