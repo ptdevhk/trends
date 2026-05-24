@@ -223,6 +223,73 @@ describe("audit (convex-test)", () => {
       expect(allLogs.length).toBe(2);
     });
   });
+
+  describe("listWorkspaceSlugsWithAuditLogs", () => {
+    it("returns distinct workspace slugs from audit logs", async () => {
+      const t = convexTest(schema, modules);
+
+      const resumeId = await t.run(async (ctx) => {
+        return ctx.db.insert("resumes", {
+          externalId: "slug-r1",
+          content: {},
+          hash: "slug1",
+          tags: [],
+          crawledAt: Date.now(),
+          source: "test",
+        });
+      });
+
+      const now = Date.now();
+      await t.run(async (ctx) => {
+        await ctx.db.insert("analysis_audit_log", {
+          resumeId,
+          workspaceSlug: "ws-alpha",
+          decisionType: "score",
+          actionRef: "analyze:analyzeResume",
+          inputSnapshot: {},
+          modelMeta: { model: "gpt-4", provider: "openai" },
+          output: { score: 80 },
+          outcome: "pending",
+          decidedAt: now,
+          expiresAt: now + 2 * 365 * 24 * 60 * 60 * 1000,
+        });
+        await ctx.db.insert("analysis_audit_log", {
+          resumeId,
+          workspaceSlug: "ws-beta",
+          decisionType: "score",
+          actionRef: "analyze:analyzeResume",
+          inputSnapshot: {},
+          modelMeta: { model: "gpt-4", provider: "openai" },
+          output: { score: 85 },
+          outcome: "pending",
+          decidedAt: now + 1000,
+          expiresAt: now + 2 * 365 * 24 * 60 * 60 * 1000,
+        });
+        // Same workspace slug — should be deduplicated
+        await ctx.db.insert("analysis_audit_log", {
+          resumeId,
+          workspaceSlug: "ws-alpha",
+          decisionType: "tag",
+          actionRef: "ai_tagging_results:tagResume",
+          inputSnapshot: {},
+          modelMeta: { model: "gpt-4", provider: "openai" },
+          output: { tags: ["lead"] },
+          outcome: "pending",
+          decidedAt: now + 2000,
+          expiresAt: now + 2 * 365 * 24 * 60 * 60 * 1000,
+        });
+      });
+
+      const slugs = await t.query(internal.bias_audit.listWorkspaceSlugsWithAuditLogs, {});
+      expect(slugs.sort()).toEqual(["ws-alpha", "ws-beta"]);
+    });
+
+    it("returns empty array when no audit logs exist", async () => {
+      const t = convexTest(schema, modules);
+      const slugs = await t.query(internal.bias_audit.listWorkspaceSlugsWithAuditLogs, {});
+      expect(slugs).toEqual([]);
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------

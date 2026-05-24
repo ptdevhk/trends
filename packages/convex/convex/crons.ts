@@ -24,4 +24,11 @@ crons.daily(
     {},
 );
 
+crons.weekly(
+    "compute bias audit metrics",
+    { dayOfWeek: "monday", hourUTC: 4, minuteUTC: 0 },
+    internal.bias_audit.computeBiasMetricsForAllWorkspaces,
+    {},
+);
+
 export default crons;
