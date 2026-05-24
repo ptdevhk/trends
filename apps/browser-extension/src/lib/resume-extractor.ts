@@ -37,7 +37,6 @@ export interface ResumeExtractorDeps {
   doc: Document;
   getCurrentSourceKey: () => string;
   SOURCE_KEYS: Record<string, string>;
-  extractProfileUrl: (card: Element, apiRow: any) => string;
   parseJob5156BasicInfoItems: (items: string[], locationOverride: string) => {
     age?: number;
     experience?: string;
@@ -55,13 +54,28 @@ export interface ResumeExtractorDeps {
   getJob5156DetailRoot: () => Element | null;
   getJob51ResumePayload: () => any;
   getJob5156ResumePayload: () => any;
-  getApiRowForIndex: (index: number) => any;
   normalizeResumeText: (text: string) => string;
   normalizeResumeMultilineText: (text: string) => string;
   applyCollectionGuards: (resume: any, guardFieldNames: Set<string>) => any;
   parseGuardFieldNames: (csv: string) => Set<string>;
   GUARD_FIELD_NAMES: Set<string>;
   DEFAULT_COLLECTION_GUARDS: Record<string, string>;
+  // Profile URL extraction deps
+  apiSnapshot: { searchRows?: any[] | null; [key: string]: any };
+  JOB5156_PROFILE_URL_PREFIX: string;
+  normalizeJob5156ProfileUrlForExport: (value: string) => string;
+  win: Window;
+  // buildSubmitMetadata deps
+  normalizeKeyword: (value: string) => string;
+  AUTO_SEARCH_PARAM: string;
+  getAutoLocationValues: (url: URL) => string[];
+  AUTO_EXPORT_PARAM: string;
+  AUTO_SYNC_PARAM: string;
+  AUTO_LIMIT_PARAM: string;
+  AUTO_MAX_PAGES_PARAM: string;
+  SAMPLE_NAME_PARAM: string;
+  getExtensionGeneratedBy: () => string;
+  buildSeekCollectionContext: (options?: { captureModeOverride?: string }) => any;
 }
 
 export function createResumeExtractor(deps: ResumeExtractorDeps) {
@@ -71,7 +85,6 @@ export function createResumeExtractor(deps: ResumeExtractorDeps) {
     doc,
     getCurrentSourceKey,
     SOURCE_KEYS,
-    extractProfileUrl,
     parseJob5156BasicInfoItems,
     buildJob5156WorkHistoryItem,
     buildJob5156EducationItem,
@@ -83,14 +96,115 @@ export function createResumeExtractor(deps: ResumeExtractorDeps) {
     getJob5156DetailRoot,
     getJob51ResumePayload,
     getJob5156ResumePayload,
-    getApiRowForIndex,
     normalizeResumeText,
     normalizeResumeMultilineText,
     applyCollectionGuards,
     parseGuardFieldNames,
     GUARD_FIELD_NAMES,
     DEFAULT_COLLECTION_GUARDS,
+    apiSnapshot,
+    JOB5156_PROFILE_URL_PREFIX,
+    normalizeJob5156ProfileUrlForExport,
+    win,
+    normalizeKeyword,
+    AUTO_SEARCH_PARAM,
+    getAutoLocationValues,
+    AUTO_EXPORT_PARAM,
+    AUTO_SYNC_PARAM,
+    AUTO_LIMIT_PARAM,
+    AUTO_MAX_PAGES_PARAM,
+    SAMPLE_NAME_PARAM,
+    getExtensionGeneratedBy,
+    buildSeekCollectionContext,
   } = deps;
+
+  function getApiRowForIndex(index) {
+    if (!Array.isArray(apiSnapshot.searchRows)) return null;
+    return apiSnapshot.searchRows[index] || null;
+  }
+
+  function isPlaceholderProfileUrl(value) {
+    if (!value) return true;
+    const normalized = String(value).trim().toLowerCase();
+    return (
+      normalized === "" ||
+      normalized === "#" ||
+      normalized.startsWith("javascript:") ||
+      normalized === "about:blank"
+    );
+  }
+
+  function toAbsoluteHttpUrl(value) {
+    if (!value || typeof value !== "string") return "";
+    try {
+      const url = new URL(value, win.location.origin);
+      if (url.protocol !== "http:" && url.protocol !== "https:") return "";
+      if (isPlaceholderProfileUrl(url.href)) return "";
+      return url.href;
+    } catch {
+      return "";
+    }
+  }
+
+  function buildProfileUrlFromApiRow(apiRow) {
+    if (!apiRow || typeof apiRow !== "object") return "";
+    const resumeId = apiRow.resumeId;
+    if (resumeId === null || resumeId === undefined || resumeId === "") return "";
+    const encodedId = encodeURIComponent(String(resumeId));
+    return `${JOB5156_PROFILE_URL_PREFIX}${encodedId}`;
+  }
+
+  function extractProfileUrl(card, apiRow) {
+    const nameLink = card.querySelector(SELECTORS.name);
+    if (!nameLink) return buildProfileUrlFromApiRow(apiRow);
+
+    const candidates = [
+      nameLink.getAttribute("href"),
+      nameLink.getAttribute("data-href"),
+      nameLink.getAttribute("data-url"),
+      nameLink.getAttribute("data-link"),
+      nameLink.href,
+    ];
+
+    for (const candidate of candidates) {
+      const normalized = toAbsoluteHttpUrl(candidate);
+      if (normalized) return normalizeJob5156ProfileUrlForExport(normalized);
+    }
+
+    return buildProfileUrlFromApiRow(apiRow);
+  }
+
+  function buildSubmitMetadata(options = {}) {
+    const url = new URL(win.location.href);
+    const sourceKey = getCurrentSourceKey();
+    const keyword = normalizeKeyword(
+      url.searchParams.get(AUTO_SEARCH_PARAM) || "",
+    );
+    const location = getAutoLocationValues(url).join(",");
+
+    url.searchParams.delete(AUTO_EXPORT_PARAM);
+    url.searchParams.delete(AUTO_SYNC_PARAM);
+    url.searchParams.delete(AUTO_LIMIT_PARAM);
+    url.searchParams.delete(AUTO_MAX_PAGES_PARAM);
+    url.searchParams.delete(SAMPLE_NAME_PARAM);
+
+    const metadata = {
+      sourceKey,
+      sourceHost: url.hostname.toLowerCase(),
+      sourceUrl: url.toString(),
+      generatedBy: getExtensionGeneratedBy(),
+    };
+
+    if (keyword) metadata.keyword = keyword;
+    if (location) metadata.location = location;
+    if (sourceKey === SOURCE_KEYS.SEEK) {
+      metadata.collectionContext = buildSeekCollectionContext({
+        captureModeOverride: options.seekCaptureMode,
+      });
+    }
+
+    return metadata;
+  }
 
   function extractSingleResume(card: Element, apiRow: any = null): ResumeData {
     const getText = (selector: string, root: Element = card): string => {
@@ -230,5 +344,9 @@ export function createResumeExtractor(deps: ResumeExtractorDeps) {
 
   return {
     extractSingleResume,
+    getApiRowForIndex,
+    isPlaceholderProfileUrl,
+    extractProfileUrl,
+    buildSubmitMetadata,
   };
 }

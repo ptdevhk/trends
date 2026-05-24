@@ -35,6 +35,7 @@ import { createUiUtils } from "./lib/ui-utils";
 import { createPaginationUtils } from "./lib/pagination-utils";
 import { createDomUtils, delay } from "./lib/dom-utils";
 import { createResumeExtractor } from "./lib/resume-extractor";
+import { createSyncStatusWidget } from "./lib/sync-status-widget";
 import {
   DEFAULT_COLLECTION_GUARDS,
   GUARD_FIELD_NAMES,
@@ -559,6 +560,51 @@ const {
   waitForJob51AgeFilterRefresh,
 } = _job51SearchExtractor;
 
+const _resumeExtractor = createResumeExtractor({
+  SELECTORS,
+  JOB5156_HOST,
+  doc: document,
+  getCurrentSourceKey,
+  SOURCE_KEYS,
+  parseJob5156BasicInfoItems,
+  buildJob5156WorkHistoryItem,
+  buildJob5156EducationItem,
+  isJob51DetailPage,
+  isJob5156DetailPage,
+  isJob51DetailReady,
+  isJob5156DetailReady,
+  getJob51DetailRoot,
+  getJob5156DetailRoot,
+  getJob51ResumePayload,
+  getJob5156ResumePayload,
+  normalizeResumeText,
+  normalizeResumeMultilineText,
+  applyCollectionGuards,
+  parseGuardFieldNames,
+  GUARD_FIELD_NAMES,
+  DEFAULT_COLLECTION_GUARDS,
+  apiSnapshot,
+  JOB5156_PROFILE_URL_PREFIX,
+  normalizeJob5156ProfileUrlForExport,
+  win: window,
+  normalizeKeyword,
+  AUTO_SEARCH_PARAM,
+  getAutoLocationValues,
+  AUTO_EXPORT_PARAM,
+  AUTO_SYNC_PARAM,
+  AUTO_LIMIT_PARAM,
+  AUTO_MAX_PAGES_PARAM,
+  SAMPLE_NAME_PARAM,
+  getExtensionGeneratedBy,
+  buildSeekCollectionContext,
+});
+const {
+  extractSingleResume,
+  getApiRowForIndex,
+  extractProfileUrl,
+  buildSubmitMetadata,
+} = _resumeExtractor;
+
 const _extractionPipeline = createExtractionPipeline({
   getCurrentSourceKey,
   SOURCE_KEYS,
@@ -731,103 +777,6 @@ const {
   resolveAutoSyncStopReason,
 } = _autoActions;
 
-const _resumeExtractor = createResumeExtractor({
-  SELECTORS,
-  JOB5156_HOST,
-  doc: document,
-  getCurrentSourceKey,
-  SOURCE_KEYS,
-  extractProfileUrl,
-  parseJob5156BasicInfoItems,
-  buildJob5156WorkHistoryItem,
-  buildJob5156EducationItem,
-  isJob51DetailPage,
-  isJob5156DetailPage,
-  isJob51DetailReady,
-  isJob5156DetailReady,
-  getJob51DetailRoot,
-  getJob5156DetailRoot,
-  getJob51ResumePayload,
-  getJob5156ResumePayload,
-  getApiRowForIndex,
-  normalizeResumeText,
-  normalizeResumeMultilineText,
-  applyCollectionGuards,
-  parseGuardFieldNames,
-  GUARD_FIELD_NAMES,
-  DEFAULT_COLLECTION_GUARDS,
-});
-const { extractSingleResume } = _resumeExtractor;
-
-function buildSubmitMetadata(options = {}) {
-  const url = new URL(window.location.href);
-  const sourceKey = getCurrentSourceKey();
-  const keyword = normalizeKeyword(
-    url.searchParams.get(AUTO_SEARCH_PARAM) || "",
-  );
-  const location = getAutoLocationValues(url).join(",");
-
-  url.searchParams.delete(AUTO_EXPORT_PARAM);
-  url.searchParams.delete(AUTO_SYNC_PARAM);
-  url.searchParams.delete(AUTO_LIMIT_PARAM);
-  url.searchParams.delete(AUTO_MAX_PAGES_PARAM);
-  url.searchParams.delete(SAMPLE_NAME_PARAM);
-
-  const metadata = {
-    sourceKey,
-    sourceHost: url.hostname.toLowerCase(),
-    sourceUrl: url.toString(),
-    generatedBy: getExtensionGeneratedBy(),
-  };
-
-  if (keyword) metadata.keyword = keyword;
-  if (location) metadata.location = location;
-  if (sourceKey === SOURCE_KEYS.SEEK) {
-    metadata.collectionContext = buildSeekCollectionContext({
-      captureModeOverride: options.seekCaptureMode,
-    });
-  }
-
-  return metadata;
-}
-
-function getApiRowForIndex(index) {
-  if (!Array.isArray(apiSnapshot.searchRows)) return null;
-  return apiSnapshot.searchRows[index] || null;
-}
-
-function isPlaceholderProfileUrl(value) {
-  if (!value) return true;
-  const normalized = String(value).trim().toLowerCase();
-  return (
-    normalized === "" ||
-    normalized === "#" ||
-    normalized.startsWith("javascript:") ||
-    normalized === "about:blank"
-  );
-}
-
-function extractProfileUrl(card, apiRow) {
-  const nameLink = card.querySelector(SELECTORS.name);
-  if (!nameLink) return buildProfileUrlFromApiRow(apiRow);
-
-  const candidates = [
-    nameLink.getAttribute("href"),
-    nameLink.getAttribute("data-href"),
-    nameLink.getAttribute("data-url"),
-    nameLink.getAttribute("data-link"),
-    nameLink.href,
-  ];
-
-  for (const candidate of candidates) {
-    const normalized = toAbsoluteHttpUrl(candidate);
-    if (normalized) return normalizeJob5156ProfileUrlForExport(normalized);
-  }
-
-  return buildProfileUrlFromApiRow(apiRow);
-}
-
-
 window.addEventListener("message", (event) => {
   if (event.source !== window) return;
   const msg = event.data;
@@ -955,155 +904,12 @@ window.addEventListener(PAGE_BRIDGE_REQUEST_EVENT, async () => {
 
 
 
-const SyncStatusWidget = (() => {
-  const WIDGET_ID = "tr-sync-status-widget";
-  const DEFAULT_AUTO_DISMISS_MS = 5000;
-  const HIDE_DELAY_MS = 220;
-  let widgetEl = null;
-  let dismissTimer = null;
-  let hideTimer = null;
-
-  function escapeHtml(value) {
-    return String(value ?? "")
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#39;");
-  }
-
-  function clearTimers() {
-    if (dismissTimer) {
-      clearTimeout(dismissTimer);
-      dismissTimer = null;
-    }
-    if (hideTimer) {
-      clearTimeout(hideTimer);
-      hideTimer = null;
-    }
-  }
-
-  function ensureWidget() {
-    if (widgetEl && widgetEl.isConnected) return widgetEl;
-
-    widgetEl = document.createElement("div");
-    widgetEl.id = WIDGET_ID;
-    widgetEl.className = "tr-sync-widget";
-    widgetEl.setAttribute("role", "status");
-    widgetEl.setAttribute("aria-live", "polite");
-    widgetEl.setAttribute("aria-atomic", "true");
-    const mountTarget = document.body || document.documentElement;
-    mountTarget.appendChild(widgetEl);
-    return widgetEl;
-  }
-
-  function renderIcon(state) {
-    if (state === "progress") {
-      return '<span class="tr-sync-widget__spinner" aria-hidden="true"></span>';
-    }
-    if (state === "success") {
-      return '<span aria-hidden="true">✓</span>';
-    }
-    return '<span aria-hidden="true">!</span>';
-  }
-
-  function openOptionsPage() {
-    try {
-      void chrome.runtime
-        .sendMessage({ action: "openOptionsPage" })
-        .catch((error) => {
-          console.warn("🎯 [Auto Sync] Failed to open options page:", error);
-        });
-    } catch (error) {
-      console.warn("🎯 [Auto Sync] Failed to request options page:", error);
-    }
-  }
-
-  function show({
-    state = "progress",
-    message = "",
-    hint = "",
-    autoDismiss = false,
-  } = {}) {
-    const normalizedState =
-      state === "success" || state === "error" ? state : "progress";
-    const safeMessage = escapeHtml(message);
-    const safeHint = escapeHtml(hint);
-    const widget = ensureWidget();
-    clearTimers();
-
-    widget.className = `tr-sync-widget tr-sync-widget--${normalizedState}`;
-    widget.classList.remove("tr-sync-widget--hidden");
-    widget.innerHTML = `
-      <div class="tr-sync-widget__icon">${renderIcon(normalizedState)}</div>
-      <div class="tr-sync-widget__content">
-        <div class="tr-sync-widget__message">${safeMessage}</div>
-        ${safeHint ? `<div class="tr-sync-widget__hint">${safeHint}</div>` : ""}
-      </div>
-      ${
-        normalizedState === "progress"
-          ? '<button type="button" class="tr-sync-widget__cancel" aria-label="取消同步">取消</button>'
-          : normalizedState === "error"
-            ? '<button type="button" class="tr-sync-widget__close" aria-label="关闭提示">×</button>'
-            : ""
-      }
-    `;
-
-    widget.onclick = null;
-    if (normalizedState === "progress") {
-      const cancelBtn = widget.querySelector(".tr-sync-widget__cancel");
-      cancelBtn?.addEventListener("click", (event) => {
-        event.stopPropagation();
-        autoSyncCancelled = true;
-        cancelBtn.setAttribute("disabled", "true");
-        cancelBtn.textContent = "取消中...";
-      });
-    }
-    if (normalizedState === "error") {
-      widget.onclick = (event) => {
-        const target = event.target instanceof Element ? event.target : null;
-        if (target?.closest(".tr-sync-widget__close")) return;
-        openOptionsPage();
-      };
-
-      const closeBtn = widget.querySelector(".tr-sync-widget__close");
-      closeBtn?.addEventListener("click", (event) => {
-        event.stopPropagation();
-        hide();
-      });
-    }
-
-    const dismissMs =
-      typeof autoDismiss === "number"
-        ? autoDismiss
-        : autoDismiss
-          ? DEFAULT_AUTO_DISMISS_MS
-          : 0;
-    if (dismissMs > 0) {
-      dismissTimer = setTimeout(() => {
-        hide();
-      }, dismissMs);
-    }
-  }
-
-  function hide() {
-    if (!widgetEl) return;
-    clearTimers();
-    widgetEl.classList.add("tr-sync-widget--hidden");
-    hideTimer = setTimeout(() => {
-      if (widgetEl) {
-        widgetEl.remove();
-        widgetEl = null;
-      }
-      hideTimer = null;
-    }, HIDE_DELAY_MS);
-  }
-
-  return {
-    show,
-    hide,
-  };
-})();
+const SyncStatusWidget = createSyncStatusWidget({
+  win: window,
+  doc: document,
+  chrome,
+  onCancel: () => { autoSyncCancelled = true; },
+});
 
 async function runAutoSyncIfEnabled() {
   if (autoSyncTriggered) return;
