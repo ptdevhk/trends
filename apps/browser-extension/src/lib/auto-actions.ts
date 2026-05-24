@@ -34,6 +34,19 @@ export function createAutoActions(deps) {
     hasJob51SearchSnapshot,
     isJob51EmptySearchPromptVisible,
     parseAutoLocationValues,
+    extractResumes,
+    extractResumesRaw,
+    isJob51DetailPage,
+    isJob5156DetailPage,
+    isSeekProfileMode,
+    enrich51JobSearchResumesWithDetail,
+    enrichJob5156SearchResumesWithDetail,
+    enrichSeekResumesWithDetail,
+    buildSubmitMetadata,
+    AUTO_EXPORT_PARAM,
+    AUTO_SYNC_PARAM,
+    buildExportMetadata,
+    buildExportFilename,
     document: doc,
     window: win,
   } = deps;
@@ -866,6 +879,477 @@ export function createAutoActions(deps) {
     }
   }
 
+  // ── autoExportTriggered (module-level flag, moved inline) ──
+
+  let autoExportTriggered = false;
+
+  // ── normalizeCardText ──
+
+  function normalizeCardText(text) {
+    if (!text) return "";
+    return text
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .join("\n");
+  }
+
+  // ── rawToMarkdown ──
+
+  function rawToMarkdown(rawPayload) {
+    const lines = [];
+    lines.push("# Resume Dump (Raw)");
+    lines.push("");
+    lines.push(`- URL: ${rawPayload.url}`);
+    lines.push(`- Extracted: ${rawPayload.extractedAt}`);
+    lines.push(`- Count: ${rawPayload.count}`);
+    lines.push("");
+
+    rawPayload.cards.forEach((card, idx) => {
+      const indexLabel = String(idx + 1).padStart(2, "0");
+      lines.push(`## Card ${indexLabel}`);
+      if (card.resumeId || card.perUserId) {
+        lines.push(`- resumeId: ${card.resumeId || ""}`);
+        lines.push(`- perUserId: ${card.perUserId || ""}`);
+        lines.push("");
+      }
+      lines.push("```text");
+      const normalized = normalizeCardText(card.text);
+      lines.push(normalized || "(empty)");
+      lines.push("```");
+      lines.push("");
+    });
+
+    return lines.join("\n");
+  }
+
+  // ── resumesToCSV ──
+
+  function resumesToCSV(resumes) {
+    if (resumes.length === 0) return "";
+
+    const headers = [
+      "序号",
+      "resumeId",
+      "perUserId",
+      "姓名",
+      "年龄",
+      "工作经验",
+      "学历",
+      "所在地",
+      "自我评价",
+      "期望薪资",
+      "活跃状态",
+      "求职意向",
+      "简历链接",
+      "提取时间",
+    ];
+    const rows = resumes.map((r, i) =>
+      [
+        i + 1,
+        r.resumeId || "",
+        r.perUserId || "",
+        r.name,
+        r.age,
+        r.experience,
+        r.education,
+        r.location,
+        r.selfIntro,
+        r.expectedSalary,
+        r.activityStatus,
+        r.jobIntention?.replace(/,/g, ";").substring(0, 100),
+        r.profileUrl,
+        r.extractedAt,
+      ]
+        .map((cell) => `"${String(cell || "").replace(/"/g, '""')}"`)
+        .join(","),
+    );
+
+    return [headers.join(","), ...rows].join("\n");
+  }
+
+  // ── makeRandomId ──
+
+  function makeRandomId() {
+    try {
+      if (globalThis.crypto?.randomUUID)
+        return globalThis.crypto.randomUUID().split("-")[0];
+    } catch {
+      // ignore
+    }
+    return Math.random().toString(16).slice(2, 10);
+  }
+
+  // ── downloadFile ──
+
+  async function downloadFile(content, filename, mimeType, saveAs = false) {
+    const response = await chrome.runtime.sendMessage({
+      action: "downloadFile",
+      content: content,
+      filename: filename,
+      mimeType: mimeType,
+      saveAs: !!saveAs,
+    });
+    if (response?.success) return response;
+    throw new Error(response?.error || "Download failed");
+  }
+
+  // ── getExtensionVersion ──
+
+  function getExtensionVersion() {
+    try {
+      return chrome?.runtime?.getManifest?.().version || SOURCE_KEYS.UNKNOWN;
+    } catch {
+      return SOURCE_KEYS.UNKNOWN;
+    }
+  }
+
+  // ── parseAutoExportMode ──
+
+  function parseAutoExportMode(value) {
+    if (!value) return { enabled: false };
+    const mode = String(value).trim().toLowerCase();
+    if (!mode) return { enabled: false };
+
+    const config = {
+      enabled: true,
+      logStructured: false,
+      logRaw: false,
+      downloadCsv: false,
+      downloadJson: false,
+      downloadRawJson: false,
+      downloadMarkdown: false,
+      saveAs: false,
+      rawIncludePage: false,
+    };
+
+    if (mode === "1" || mode === "true") {
+      config.downloadMarkdown = true;
+      return config;
+    }
+    if (mode === "console" || mode === "log") {
+      config.logStructured = true;
+      return config;
+    }
+    if (mode === "csv") {
+      config.downloadCsv = true;
+      return config;
+    }
+    if (mode === "json") {
+      config.downloadJson = true;
+      return config;
+    }
+    if (mode === "both" || mode === "all") {
+      config.downloadCsv = true;
+      config.downloadJson = mode === "all";
+      config.logStructured = true;
+      return config;
+    }
+    if (mode === "raw") {
+      config.logRaw = true;
+      return config;
+    }
+    if (mode === "raw_json" || mode === "rawjson") {
+      config.downloadRawJson = true;
+      return config;
+    }
+    if (mode === "md" || mode === "markdown") {
+      config.downloadMarkdown = true;
+      return config;
+    }
+
+    const tokens = mode
+      .split(/[,+|]/)
+      .map((token) => token.trim())
+      .filter(Boolean);
+
+    for (const token of tokens) {
+      if (token === "console" || token === "log") config.logStructured = true;
+      if (token === "csv") config.downloadCsv = true;
+      if (token === "json") config.downloadJson = true;
+      if (token === "raw") config.logRaw = true;
+      if (token === "rawjson" || token === "raw_json")
+        config.downloadRawJson = true;
+      if (token === "md" || token === "markdown") config.downloadMarkdown = true;
+      if (token === "page" || token === "rawpage") config.rawIncludePage = true;
+      if (token === "saveas") config.saveAs = true;
+    }
+
+    if (
+      !config.logStructured &&
+      !config.logRaw &&
+      !config.downloadCsv &&
+      !config.downloadJson &&
+      !config.downloadRawJson &&
+      !config.downloadMarkdown
+    ) {
+      config.downloadMarkdown = true;
+    }
+
+    return config;
+  }
+
+  // ── getAutoExportConfig ──
+
+  function getAutoExportConfig() {
+    const params = new URLSearchParams(win.location.search || "");
+    const paramValue = params.get(AUTO_EXPORT_PARAM);
+    if (paramValue) return parseAutoExportMode(paramValue);
+
+    try {
+      const localValue = win.localStorage?.getItem(AUTO_EXPORT_PARAM);
+      return parseAutoExportMode(localValue);
+    } catch {
+      return { enabled: false };
+    }
+  }
+
+  // ── parseAutoSyncFlag ──
+
+  function parseAutoSyncFlag(value) {
+    if (!value) return false;
+    const normalized = String(value).trim().toLowerCase();
+    return (
+      normalized === "1" ||
+      normalized === "true" ||
+      normalized === "yes" ||
+      normalized === "on"
+    );
+  }
+
+  // ── getAutoSyncEnabled ──
+
+  function getAutoSyncEnabled() {
+    const params = new URLSearchParams(win.location.search || "");
+    if (params.has(AUTO_SYNC_PARAM)) {
+      return parseAutoSyncFlag(params.get(AUTO_SYNC_PARAM));
+    }
+
+    try {
+      const captured = sessionStorage.getItem("tr_auto_sync_captured");
+      if (captured !== null) {
+        return parseAutoSyncFlag(captured);
+      }
+    } catch {
+      // sessionStorage may not be available in all contexts
+    }
+
+    try {
+      const localValue = win.localStorage?.getItem(AUTO_SYNC_PARAM);
+      return parseAutoSyncFlag(localValue);
+    } catch {
+      return false;
+    }
+  }
+
+
+
+  async function runAutoExportIfEnabled() {
+    if (autoExportTriggered) return;
+    const config = getAutoExportConfig();
+    if (!config.enabled) return;
+    autoExportTriggered = true;
+
+    try {
+      await waitForExtractionData({});
+      const resumes = extractResumes();
+      if (config.logStructured) {
+        console.log("🎯 [Auto Export] Extracted resumes", {
+          count: resumes.length,
+          resumes,
+        });
+      }
+
+      try {
+        doc.documentElement.setAttribute("data-tr-auto-export", "done");
+        doc.documentElement.setAttribute(
+          "data-tr-auto-export-count",
+          String(resumes.length),
+        );
+      } catch {
+        // ignore
+      }
+
+      let rawPayload = null;
+      if (
+        config.logRaw ||
+        config.downloadRawJson ||
+        config.downloadMarkdown ||
+        config.rawIncludePage
+      ) {
+        rawPayload = extractResumesRaw({ includePage: config.rawIncludePage });
+        if (config.logRaw) {
+          console.log("🎯 [Auto Export] Raw resumes", rawPayload);
+        }
+        if (config.downloadRawJson) {
+          const timestamp = new Date().toISOString().slice(0, 10);
+          const filename = `resumes_raw_${timestamp}_${makeRandomId()}.json`;
+          await downloadFile(
+            JSON.stringify(rawPayload, null, 2),
+            filename,
+            "application/json",
+            config.saveAs,
+          );
+          console.log("🎯 [Auto Export] Raw JSON download triggered:", filename);
+        }
+        if (config.downloadMarkdown) {
+          const markdown = rawToMarkdown(rawPayload);
+          const timestamp = new Date().toISOString().slice(0, 10);
+          const filename = `resumes_md_${timestamp}_${makeRandomId()}.md`;
+          await downloadFile(markdown, filename, "text/markdown", config.saveAs);
+          console.log("🎯 [Auto Export] Markdown download triggered:", filename);
+        }
+      }
+
+      if (config.downloadCsv) {
+        const csv = resumesToCSV(resumes);
+        const timestamp = new Date().toISOString().slice(0, 10);
+        const filename = `resumes_${timestamp}_${makeRandomId()}.csv`;
+        await downloadFile(csv, filename, "text/csv", config.saveAs);
+        console.log("🎯 [Auto Export] CSV download triggered:", filename);
+      }
+
+      if (config.downloadJson) {
+        const metadata = buildExportMetadata(resumes);
+        const payload = { metadata, data: resumes };
+        const json = JSON.stringify(payload, null, 2);
+        const filename = buildExportFilename();
+        await downloadFile(json, filename, "application/json", config.saveAs);
+        console.log("🎯 [Auto Export] JSON download triggered:", filename);
+      }
+    } catch (error) {
+      console.warn("🎯 [Auto Export] Failed:", error);
+      try {
+        doc.documentElement.setAttribute("data-tr-auto-export", "failed");
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  // ── syncCurrentPageToServer ──
+
+  async function syncCurrentPageToServer(resumesOverride) {
+    let resumes = Array.isArray(resumesOverride)
+      ? resumesOverride
+      : extractResumes();
+    const shouldEnrichFromCurrentPage = !Array.isArray(resumesOverride);
+    if (
+      shouldEnrichFromCurrentPage &&
+      getCurrentSourceKey() === SOURCE_KEYS.JOB51 &&
+      !isJob51DetailPage() &&
+      resumes.length > 0
+    ) {
+      resumes = await enrich51JobSearchResumesWithDetail(resumes);
+    }
+    if (
+      shouldEnrichFromCurrentPage &&
+      getCurrentSourceKey() === SOURCE_KEYS.JOB5156 &&
+      !isJob5156DetailPage() &&
+      resumes.length > 0
+    ) {
+      resumes = await enrichJob5156SearchResumesWithDetail(resumes);
+    }
+    if (
+      shouldEnrichFromCurrentPage &&
+      getCurrentSourceKey() === SOURCE_KEYS.SEEK &&
+      !isSeekProfileMode() &&
+      resumes.length > 0
+    ) {
+      resumes = await enrichSeekResumesWithDetail(resumes);
+    }
+    const metadata = buildSubmitMetadata({
+      seekCaptureMode:
+        Array.isArray(resumesOverride) &&
+        win.location.pathname.includes("/candidates/recommended")
+          ? "graphql-list"
+          : undefined,
+    });
+    return chrome.runtime.sendMessage({
+      action: "syncToServer",
+      metadata,
+      resumes,
+    });
+  }
+
+  // ── resolveAutoSyncErrorStatus ──
+
+  function resolveAutoSyncErrorStatus(errorLike) {
+    const rawError =
+      typeof errorLike === "string"
+        ? errorLike
+        : errorLike?.error || errorLike?.message || String(errorLike || "");
+    const message = String(rawError).trim() || "Unknown error";
+    const lowerMessage = message.toLowerCase();
+
+    if (
+      message.includes("搜索访问太快") ||
+      message.includes("60分钟后再试")
+    ) {
+      return {
+        message: "51job 已触发访问限制",
+        hint: "扩展已停止自动翻页。至少等待60分钟后重试，并保持小页数、小批量。",
+      };
+    }
+
+    if (message === "Server token not configured") {
+      return {
+        message: "Token 未配置",
+        hint: "点击此提示打开扩展设置并填写 Token",
+      };
+    }
+
+    if (message.includes("401") || lowerMessage.includes("unauthorized")) {
+      return {
+        message: "认证失败 - Token 无效或已过期",
+        hint: "点击此提示打开扩展设置并更新 Token",
+      };
+    }
+
+    if (message === "Server URL not configured") {
+      return {
+        message: "服务器地址未配置",
+        hint: "点击此提示打开扩展设置并填写服务器地址",
+      };
+    }
+
+    if (
+      lowerMessage.includes("failed to fetch") ||
+      lowerMessage.includes("networkerror") ||
+      lowerMessage.includes("network error") ||
+      lowerMessage.includes("err_network") ||
+      lowerMessage.includes("load failed") ||
+      lowerMessage.includes("connection")
+    ) {
+      return {
+        message: "无法连接服务器",
+        hint: "请检查网络连接和服务器状态后重试",
+      };
+    }
+
+    return {
+      message: `同步失败: ${message}`,
+      hint: "点击此提示打开扩展设置排查问题",
+    };
+  }
+
+  // ── resolveAutoSyncStopReason ──
+
+  function resolveAutoSyncStopReason(errorLike) {
+    const rawError =
+      typeof errorLike === "string"
+        ? errorLike
+        : errorLike?.error || errorLike?.message || String(errorLike || "");
+    const message = String(rawError).trim();
+    if (
+      message.includes("搜索访问太快") ||
+      message.includes("60分钟后再试")
+    ) {
+      return "job51-rate-limited";
+    }
+    return "failed";
+  }
+
   return {
     findAgeFilterBlock,
     openAgeFilterDropdown,
@@ -875,5 +1359,19 @@ export function createAutoActions(deps) {
     autoApplyAgeFilterFromUrl,
     autoSelectLocation,
     autoSearchFromUrl,
+    normalizeCardText,
+    rawToMarkdown,
+    resumesToCSV,
+    makeRandomId,
+    downloadFile,
+    getExtensionVersion,
+    parseAutoExportMode,
+    getAutoExportConfig,
+    parseAutoSyncFlag,
+    getAutoSyncEnabled,
+    runAutoExportIfEnabled,
+    syncCurrentPageToServer,
+    resolveAutoSyncErrorStatus,
+    resolveAutoSyncStopReason,
   };
 }
