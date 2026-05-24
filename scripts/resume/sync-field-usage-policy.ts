@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 
 import JSON5 from "json5";
 
-const RESUME_FIELD_USAGE_SURFACES = ["analysis", "presentation", "outreach", "debug"] as const;
+const RESUME_FIELD_USAGE_SURFACES = ["analysis", "presentation", "outreach", "audit", "debug"] as const;
 
 type ResumeFieldUsageSurface = (typeof RESUME_FIELD_USAGE_SURFACES)[number];
 type ResumeFieldUsageFieldPolicy = {

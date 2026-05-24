@@ -1,14 +1,15 @@
 // Canonical per-surface field-usage policy for normalized resume fields.
 {
-  version: 1,
-  updatedAt: "2026-03-20",
-  description: "Controls which canonical resume fields participate in analysis, presentation, outreach, and debug surfaces without deleting raw stored resume data.",
+  version: 2,
+  updatedAt: "2026-05-24",
+  description: "Controls which canonical resume fields participate in analysis, presentation, outreach, audit, and debug surfaces without deleting raw stored resume data. The 'audit' surface allows protected attributes for compliance logging while keeping them scrubbed from AI analysis.",
   fields: {
     jobIntention: {
       surfaces: {
         analysis: false,
         presentation: false,
         outreach: false,
+        audit: false,
         debug: false,
       },
     },
@@ -17,12 +18,31 @@
         analysis: false,
         presentation: false,
         outreach: false,
+        audit: false,
         debug: false,
       },
     },
     resumeSnippet: {
       surfaces: {
         analysis: false,
+      },
+    },
+    age: {
+      surfaces: {
+        analysis: false,
+        presentation: false,
+        outreach: false,
+        audit: true,
+        debug: false,
+      },
+    },
+    gender: {
+      surfaces: {
+        analysis: false,
+        presentation: false,
+        outreach: false,
+        audit: true,
+        debug: false,
       },
     },
   },

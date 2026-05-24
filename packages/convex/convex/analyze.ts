@@ -17,6 +17,7 @@ import { v } from "convex/values";
 import { api, internal } from "./_generated/api";
 import { action, internalMutation, type ActionCtx } from "./_generated/server";
 import { resolveChatCompletionModel } from "./lib/ai_model";
+import { computeProtectedAttributeHashes } from "./audit.js";
 
 const DEFAULT_AI_OUTPUT_LOCALE = DEFAULT_RESUME_AI_PROMPT_LOCALE;
 
@@ -656,6 +657,59 @@ export const analyzeResume = action({
                 analyzedAt: Date.now(),
             },
         });
+
+        // 5. Audit log — EU AI Act compliance
+        try {
+            const rawRoot: Record<string, unknown> = isRecord(resume) ? resume : {};
+            const rawContent = isRecord(rawRoot.content) ? rawRoot.content : rawRoot;
+            const scrubbedContent = sanitizeResumeRecordForSurface(rawContent, "analysis");
+            const auditContent = sanitizeResumeRecordForSurface(rawContent, "audit");
+            const scrubbedFields = Object.keys(rawContent).filter(
+                (key) => !(key in scrubbedContent) || scrubbedContent[key] === undefined
+            );
+            const auditAge = auditContent.age ?? rawRoot.age;
+            const protectedHashes = computeProtectedAttributeHashes({
+                age: typeof auditAge === "number" ? auditAge : undefined,
+                gender: typeof auditContent.gender === "string" ? auditContent.gender : undefined,
+                location: typeof rawRoot.source === "string" ? String(rawRoot.source) : undefined,
+                source: typeof resume.source === "string" ? resume.source : undefined,
+            });
+
+            await ctx.runMutation(internal.audit.logAnalysisDecision, {
+                resumeId: args.resumeId,
+                identityKey: resume.identityKey ?? undefined,
+                workspaceSlug: resume.sourceKey ?? "default",
+                decisionType: "score",
+                actionRef: "analyze:analyzeResume",
+                inputSnapshot: {
+                    jobDescriptionId: args.jobDescriptionId,
+                    promptVersion: String(promptVersion),
+                    scrubbedFields: scrubbedFields.length > 0 ? scrubbedFields : undefined,
+                    searchKeywords: args.keywords,
+                },
+                modelMeta: {
+                    model: getAiModel(),
+                    provider: "openai",
+                    apiBase: getAiApiBase(),
+                },
+                output: {
+                    score: result.score,
+                    recommendation: result.recommendation,
+                },
+                protectedAttributeHashes: protectedHashes,
+                explanation: {
+                    summary: `Scored ${result.score}/100 against "${jd.title}". ${result.summary || ""}`,
+                    keyFactors: (result.highlights || []).slice(0, 4).map((h: string) => ({
+                        factor: "highlight",
+                        value: h,
+                    })),
+                },
+                decidedAt: Date.now(),
+            });
+        } catch (auditError) {
+            // Audit logging failure must NOT block the analysis result
+            console.error("Audit logging failed:", auditError);
+        }
 
         return result;
     },
