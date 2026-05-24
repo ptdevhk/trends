@@ -98,6 +98,27 @@ export function createSnapshotCollector(deps) {
 
   // ── updateApiSnapshot ──
 
+  function setApiRowsAttribute() {
+    try {
+      doc.documentElement.setAttribute(
+        "data-tr-api-rows",
+        String(getApiSnapshotCount()),
+      );
+    } catch {
+      // ignore
+    }
+  }
+
+  function mergeJob51AuthContext(requestHeaders, request) {
+    const authContext = normalizeJob51AuthContext(requestHeaders, request);
+    if (authContext) {
+      apiSnapshot.job51AuthContext = {
+        ...(apiSnapshot.job51AuthContext || {}),
+        ...authContext,
+      };
+    }
+  }
+
   function updateApiSnapshot(message) {
     const {
       kind,
@@ -131,27 +152,14 @@ export function createSnapshotCollector(deps) {
       if (Array.isArray(rows)) {
         apiSnapshot.searchRows = rows;
         apiSnapshot.lastSearchAt = apiSnapshot.lastUpdatedAt;
-        try {
-          doc.documentElement.setAttribute(
-            "data-tr-api-rows",
-            String(getApiSnapshotCount()),
-          );
-        } catch {
-          // ignore
-        }
+        setApiRowsAttribute();
       }
       return;
     }
     if (kind === "job51search") {
       apiSnapshot.job51LastSearchRequest =
         request && typeof request === "object" ? request : null;
-      const authContext = normalizeJob51AuthContext(requestHeaders, request);
-      if (authContext) {
-        apiSnapshot.job51AuthContext = {
-          ...(apiSnapshot.job51AuthContext || {}),
-          ...authContext,
-        };
-      }
+      mergeJob51AuthContext(requestHeaders, request);
       const total = getJob51TotalFromPayload(payload);
       if (typeof total === "number") {
         apiSnapshot.job51Total = total;
@@ -161,34 +169,14 @@ export function createSnapshotCollector(deps) {
       if (hasResultPayload) {
         apiSnapshot.job51SearchRows = Array.isArray(rows) ? rows : [];
         apiSnapshot.lastSearchAt = apiSnapshot.lastUpdatedAt;
-        try {
-          doc.documentElement.setAttribute(
-            "data-tr-api-rows",
-            String(getApiSnapshotCount()),
-          );
-        } catch {
-          // ignore
-        }
+        setApiRowsAttribute();
       }
       return;
     }
     if (kind === "job51detail") {
-      const authContext = normalizeJob51AuthContext(requestHeaders, request);
-      if (authContext) {
-        apiSnapshot.job51AuthContext = {
-          ...(apiSnapshot.job51AuthContext || {}),
-          ...authContext,
-        };
-      }
+      mergeJob51AuthContext(requestHeaders, request);
       apiSnapshot.job51DetailPayload = payload || null;
-      try {
-        doc.documentElement.setAttribute(
-          "data-tr-api-rows",
-          String(getApiSnapshotCount()),
-        );
-      } catch {
-        // ignore
-      }
+      setApiRowsAttribute();
       return;
     }
     if (kind === "attach") {
@@ -217,14 +205,7 @@ export function createSnapshotCollector(deps) {
         apiSnapshot.seekTalentSearch = nodes;
         apiSnapshot.seekTalentSearchRequest = request || null;
         apiSnapshot.lastSearchAt = apiSnapshot.lastUpdatedAt;
-        try {
-          doc.documentElement.setAttribute(
-            "data-tr-api-rows",
-            String(getApiSnapshotCount()),
-          );
-        } catch {
-          // ignore
-        }
+        setApiRowsAttribute();
       }
       return;
     }
@@ -237,14 +218,7 @@ export function createSnapshotCollector(deps) {
         apiSnapshot.seekRecommendedCandidates = candidates;
         apiSnapshot.seekRecommendedRequest = request || null;
         apiSnapshot.lastSearchAt = apiSnapshot.lastUpdatedAt;
-        try {
-          doc.documentElement.setAttribute(
-            "data-tr-api-rows",
-            String(getApiSnapshotCount()),
-          );
-        } catch {
-          // ignore
-        }
+        setApiRowsAttribute();
       }
       return;
     }
@@ -262,14 +236,7 @@ export function createSnapshotCollector(deps) {
         apiSnapshot.seekProfileRequest ||
         apiSnapshot.seekRecommendedRequest ||
         null;
-      try {
-        doc.documentElement.setAttribute(
-          "data-tr-api-rows",
-          String(getApiSnapshotCount()),
-        );
-      } catch {
-        // ignore
-      }
+      setApiRowsAttribute();
       return;
     }
   }
@@ -308,11 +275,11 @@ export function createSnapshotCollector(deps) {
     let stopReason = "completed";
     let seekStartPage = null;
     let lastPageResumeCount = 0;
-    let finalPagination = getPaginationInfo();
+    let finalPagination;
 
     while (true) {
-      const paginationBefore = getPaginationInfo();
-      const currentPage = paginationBefore.currentPage;
+      finalPagination = getPaginationInfo();
+      const currentPage = finalPagination.currentPage;
       const isSeekListPage =
         sourceKey === SOURCE_KEYS.SEEK && !isSeekProfileMode();
       if (isSeekListPage && seekStartPage === null) {
