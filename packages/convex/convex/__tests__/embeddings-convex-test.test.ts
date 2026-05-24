@@ -227,6 +227,46 @@ describe("embeddings (convex-test)", () => {
     });
   });
 
+  describe("batchGenerateEmbeddings (internal) — dryRun", () => {
+    it("dryRun reports scope without generating embeddings", async () => {
+      const t = convexTest(schema, modules);
+
+      // Insert resumes without embeddings
+      await t.run(async (ctx) => {
+        await ctx.db.insert("resumes", {
+          externalId: "dry-1",
+          content: {},
+          hash: "dry1",
+          tags: [],
+          crawledAt: Date.now(),
+          source: "test",
+          searchText: "Resume for dry run test",
+        });
+        await ctx.db.insert("resumes", {
+          externalId: "dry-2",
+          content: {},
+          hash: "dry2",
+          tags: [],
+          crawledAt: Date.now(),
+          source: "test",
+          searchText: "", // Empty — should be skipped
+        });
+      });
+
+      const result = await t.action(internal.embeddings.batchGenerateEmbeddings, {
+        dryRun: true,
+        limit: 10,
+      });
+
+      // dryRun should not generate any embeddings
+      expect(result.generated).toBe(0);
+      // Should report how many would be generated (1 resume with non-empty searchText)
+      expect(result.wouldGenerate).toBe(1);
+      // All resumes counted as skipped in dryRun
+      expect(result.skipped).toBe(2);
+    });
+  });
+
   describe("getEmbeddingStats (public)", () => {
     it("returns empty stats when no embeddings exist", async () => {
       const t = convexTest(schema, modules);

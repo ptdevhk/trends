@@ -193,6 +193,7 @@ export const storeEmbedding = internalMutation({
 interface BatchResult {
     generated: number;
     skipped: number;
+    wouldGenerate?: number;
     hasMore: boolean;
     cursor: string | null;
 }
@@ -201,9 +202,13 @@ export const batchGenerateEmbeddings = internalAction({
     args: {
         cursor: v.optional(v.string()),
         limit: v.optional(v.number()),
+        dryRun: v.optional(v.boolean()),
+        delayMs: v.optional(v.number()),
     },
     handler: async (ctx, args): Promise<BatchResult> => {
         const limit = Math.min(args.limit ?? BATCH_SIZE, BATCH_SIZE);
+        const dryRun = args.dryRun ?? false;
+        const delayMs = Math.max(args.delayMs ?? 0, 0);
 
         // Fetch resumes without embeddings, paginated
         const page = await ctx.runQuery(internal.embeddings.getResumesWithoutEmbeddings, {
@@ -211,10 +216,25 @@ export const batchGenerateEmbeddings = internalAction({
             numItems: limit,
         });
 
+        // dryRun: report scope without calling the API
+        if (dryRun) {
+            const emptySearchText = page.resumes.filter((r) => !buildEmbeddingText(r).trim()).length;
+            const toEmbed = page.resumes.length - emptySearchText;
+            console.log(`[dryRun] ${toEmbed} resumes would be embedded, ${emptySearchText} skipped (empty searchText), ${page.hasMore ? "more pages available" : "last page"}`);
+            return {
+                generated: 0,
+                skipped: page.resumes.length,
+                wouldGenerate: toEmbed,
+                hasMore: page.hasMore,
+                cursor: page.nextCursor,
+            };
+        }
+
         let generated = 0;
         let skipped = 0;
 
-        for (const resume of page.resumes) {
+        for (let i = 0; i < page.resumes.length; i++) {
+            const resume = page.resumes[i];
             const text = buildEmbeddingText(resume);
             if (!text.trim()) {
                 skipped++;
@@ -230,6 +250,11 @@ export const batchGenerateEmbeddings = internalAction({
                     sourceKey: resume.sourceKey ?? undefined,
                 });
                 generated++;
+
+                // Throttle between API calls to stay within rate limits
+                if (delayMs > 0 && i < page.resumes.length - 1) {
+                    await new Promise((resolve) => setTimeout(resolve, delayMs));
+                }
             } catch (err) {
                 console.error(`Failed to generate embedding for resume ${resume._id}:`, err);
                 skipped++;
