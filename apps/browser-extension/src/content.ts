@@ -36,6 +36,7 @@ import { createPaginationUtils } from "./lib/pagination-utils";
 import { createDomUtils, delay } from "./lib/dom-utils";
 import { createResumeExtractor } from "./lib/resume-extractor";
 import { createSyncStatusWidget } from "./lib/sync-status-widget";
+import { createAutoSyncRunner } from "./lib/auto-sync-runner";
 import {
   DEFAULT_COLLECTION_GUARDS,
   GUARD_FIELD_NAMES,
@@ -115,8 +116,6 @@ const JOB51_PAGE_COOLDOWN_MS = 8000;
 const JOB51_RATE_LIMIT_ERROR_MESSAGE =
   "51job 已触发访问频率限制，请60分钟后再试";
 let autoExportTriggered = false;
-let autoSyncTriggered = false;
-let autoSyncCancelled = false;
 const API_CAPTURE_SOURCE = "tr-resume-api";
 const EXTERNAL_ACCESS_KEY = "__TR_RESUME_DATA__";
 const PAGE_BRIDGE_REQUEST_EVENT = "trResumeBridgeRequest";
@@ -904,395 +903,113 @@ window.addEventListener(PAGE_BRIDGE_REQUEST_EVENT, async () => {
 
 
 
+const _autoSyncRunnerState = {
+  _autoSyncTriggered: false,
+  _autoSyncCancelled: false,
+};
+
 const SyncStatusWidget = createSyncStatusWidget({
   win: window,
   doc: document,
   chrome,
-  onCancel: () => { autoSyncCancelled = true; },
+  onCancel: () => { _autoSyncRunnerState._autoSyncCancelled = true; },
 });
 
-async function runAutoSyncIfEnabled() {
-  if (autoSyncTriggered) return;
-  const enabled = getAutoSyncEnabled();
-  if (!enabled) {
-    setAutoSyncAttributes("skipped");
-    setSeekAutoSyncWindowAttributes(null);
-    setSeekAutoSyncSelectionAttributes(null);
-    return;
-  }
+const _autoSyncRunner = createAutoSyncRunner({
+  state: _autoSyncRunnerState,
 
-  const { limit, maxPages } = await getCollectionLimits();
-  const isJob51Source = getCurrentSourceKey() === SOURCE_KEYS.JOB51;
+  // Auto-actions helpers
+  getAutoSyncEnabled,
+  setAutoSyncAttributes,
+  resolveAutoSyncErrorStatus,
+  resolveAutoSyncStopReason,
+  runAutoExportIfEnabled,
+  syncCurrentPageToServer,
 
-  autoSyncTriggered = true;
-  autoSyncCancelled = false;
-  setAutoSyncAttributes("running", 0, 0);
-  setSeekAutoSyncWindowAttributes(null);
-  setSeekAutoSyncSelectionAttributes(null);
-  try {
-    document.documentElement.setAttribute(
-      "data-tr-auto-sync-limit",
-      String(limit),
-    );
-    document.documentElement.setAttribute(
-      "data-tr-auto-sync-max-pages",
-      String(maxPages),
-    );
-  } catch {
-    // ignore
-  }
-  SyncStatusWidget.show({
-    state: "progress",
-    message: "正在同步简历到服务器...",
-    hint: `${isJob51Source ? "51job 保守模式 · " : ""}数量上限: ${limit > 0 ? limit : "不限"} · 页数上限: ${maxPages > 0 ? maxPages : "不限"}`,
-  });
+  // Seek extractor
+  setSeekAutoSyncWindowAttributes,
+  setSeekAutoSyncSelectionAttributes,
+  isSeekProfileMode,
+  resolveSeekAutoSyncPageWindow,
+  isSeekAutoSyncPageWindowReached,
+  resolveSeekAutoSyncCurrentPageSelection,
+  getSeekRequestedPageSize,
+  getSeekCurrentCandidateCount,
+  resolveSeekAutoSyncPageSize,
+  enrichSeekResumesWithDetail,
 
-  try {
-    let totalSubmitted = 0;
-    let totalInserted = 0;
-    let totalUpdated = 0;
-    let pagesVisited = 0;
-    let lastSelectedCount = null;
-    let stopReason = "completed";
-    let seekStartPage = null;
+  // Pagination utils
+  getPaginationInfo,
+  waitForPagination,
+  getNextPageButtonState,
 
-    while (true) {
-      if (autoSyncCancelled) {
-        stopReason = "cancelled";
-        break;
-      }
+  // Extraction pipeline
+  waitForExtractionData,
+  extractResumes,
+  goToNextPageInternal,
+  clearCapturedResultsForNextPage,
+  enrich51JobSearchResumesWithDetail,
+  enrichJob5156SearchResumesWithDetail,
+  queueJob51DetailBackfill,
 
-      ensureJob51PageAllowed();
+  // Snapshot collector
+  collectSnapshotPayload,
+  getApiSnapshotCount,
 
-      const paginationBefore = getPaginationInfo();
-      const currentPage = paginationBefore.currentPage;
-      const totalPages = paginationBefore.totalPages;
-      const isSeekListPage =
-        getCurrentSourceKey() === SOURCE_KEYS.SEEK && !isSeekProfileMode();
-      if (isSeekListPage && seekStartPage === null) {
-        seekStartPage = currentPage;
-      }
+  // Resume extractor
+  buildSubmitMetadata,
+  extractProfileUrl,
 
-      try {
-        await waitForExtractionData({});
-      } catch {
-        // waitForExtractionData timed out — SEEK may be rate-limiting or
-        // the page loaded without API rows. Don't abort the entire sync:
-        // let the resumes.length check below handle it (skip to next page).
-        console.warn(
-          "🎯 [Auto Sync] waitForExtractionData timed out — continuing",
-        );
-      }
-      ensureJob51PageAllowed();
+  // Collection guards
+  loadCollectionGuards,
+  parseGuardFieldNames,
+  applyCollectionGuards,
 
-      pagesVisited += 1;
+  // Job51 search extractor
+  ensureJob51PageAllowed,
+  isJob51RateLimitedPage,
+  waitForJob51Cooldown,
 
-      const seekPageWindow = isSeekListPage
-        ? resolveSeekAutoSyncPageWindow({
-            startPage: seekStartPage || currentPage,
-            limit,
-            maxPages,
-            requestedPageSize: getSeekRequestedPageSize(),
-            currentPageCandidateCount: getSeekCurrentCandidateCount(),
-          })
-        : null;
-      setSeekAutoSyncWindowAttributes(seekPageWindow);
+  // Job51 age filter
+  filterResumesByAgeRange,
+  getAgeRangeFromUrl,
+  normalizeOptionalPositiveInt,
 
-      const pageSelection = isSeekListPage
-        ? resolveSeekAutoSyncCurrentPageSelection({
-            limit,
-            totalSubmitted,
-            currentPageResumeCount: getSeekCurrentCandidateCount(),
-          })
-        : {
-            remainingCapacity:
-              limit > 0 ? Math.max(limit - totalSubmitted, 0) : null,
-            selectedCount: null,
-            hitLimitWithinPage: false,
-            limitAlreadyReached:
-              limit > 0 ? Math.max(limit - totalSubmitted, 0) <= 0 : false,
-          };
-      setSeekAutoSyncSelectionAttributes(isSeekListPage ? pageSelection : null);
+  // UI utils
+  buildAutoSyncProgressHint,
+  buildAutoSyncSelectedCountHint,
+  buildAutoSyncCompletionHint,
+  persistLatestAutoSyncSummary,
+  getCurrentAgeRange,
+  resolveCurrentJob51AutoSyncDetailWaitMode,
 
-      if (
-        (isSeekListPage && pageSelection.limitAlreadyReached) ||
-        (!isSeekListPage && limit > 0 && pageSelection.limitAlreadyReached)
-      ) {
-        stopReason = "limit-reached";
-        break;
-      }
+  // Dom utils
+  waitForPageTransition,
+  delay,
 
-      let resumes = extractResumes();
-      const hitLimitWithinPage = isSeekListPage
-        ? pageSelection.hitLimitWithinPage
-        : limit > 0 &&
-          typeof pageSelection.remainingCapacity === "number" &&
-          resumes.length > pageSelection.remainingCapacity;
-      if (isSeekListPage && typeof pageSelection.selectedCount === "number") {
-        resumes = resumes.slice(0, pageSelection.selectedCount);
-      } else if (
-        limit > 0 &&
-        typeof pageSelection.remainingCapacity === "number" &&
-        resumes.length > pageSelection.remainingCapacity
-      ) {
-        resumes = resumes.slice(0, pageSelection.remainingCapacity);
-      }
-      lastSelectedCount = isSeekListPage ? resumes.length : null;
-      if (
-        getCurrentSourceKey() === SOURCE_KEYS.JOB5156 &&
-        !isJob5156DetailPage() &&
-        resumes.length > 0
-      ) {
-        resumes = await enrichJob5156SearchResumesWithDetail(resumes);
-      }
-      if (
-        getCurrentSourceKey() === SOURCE_KEYS.SEEK &&
-        !isSeekProfileMode() &&
-        resumes.length > 0
-      ) {
-        resumes = await enrichSeekResumesWithDetail(resumes);
-      }
-      if (resumes.length <= 0) {
-        const ageRange = getCurrentAgeRange();
-        const ageHint = ageRange.enabled
-          ? ` · 年龄: ${typeof ageRange.minAge === "number" ? ageRange.minAge : "—"}-${typeof ageRange.maxAge === "number" ? ageRange.maxAge : "—"}`
-          : "";
-        const progressHint = buildAutoSyncProgressHint({
-          limit,
-          totalSubmitted,
-          selectedCount: isSeekListPage ? resumes.length : null,
-          ageHint,
-        });
+  // Content.ts scope helpers
+  getCurrentSourceKey,
+  SOURCE_KEYS,
+  getCollectionLimits,
+  getKeywordMode,
 
-        SyncStatusWidget.show({
-          state: "progress",
-          message: `第 ${currentPage}/${Math.max(totalPages, currentPage)} 页无符合条件的简历，继续...`,
-          hint: progressHint,
-        });
-        setAutoSyncAttributes("running", totalSubmitted, pagesVisited);
+  // Job5156 extractor
+  isJob5156DetailPage,
 
-        if (autoSyncCancelled) {
-          stopReason = "cancelled";
-          break;
-        }
-        if (
-          isSeekListPage &&
-          isSeekAutoSyncPageWindowReached(seekPageWindow, currentPage)
-        ) {
-          stopReason = "page-window-reached";
-          break;
-        }
-        if (!isSeekListPage && maxPages > 0 && pagesVisited >= maxPages) {
-          stopReason = "max-pages-reached";
-          break;
-        }
+  // Job51 extractor
+  isJob51DetailPage,
 
-        const paginationAfter = getPaginationInfo();
-        if (
-          !paginationAfter.hasNextPage ||
-          paginationAfter.currentPage >= paginationAfter.totalPages
-        ) {
-          stopReason = "no-next-page";
-          break;
-        }
-        try {
-          await waitForPagination({ timeoutMs: 8000 });
-        } catch {
-          // Some layouts render pagination late or omit it on single-page results.
-        }
-        const nextPage = paginationAfter.currentPage + 1;
-        try {
-          document.documentElement.setAttribute(
-            "data-tr-auto-sync-next-state",
-            JSON.stringify(getNextPageButtonState()),
-          );
-        } catch {
-          // ignore
-        }
-        await waitForJob51Cooldown();
-        clearCapturedResultsForNextPage();
-        const moved = goToNextPageInternal();
-        if (!moved) {
-          stopReason = "no-next-page";
-          break;
-        }
-        await waitForPageTransition({
-          expectedPage: nextPage,
-          timeoutMs: 15000,
-        });
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        continue;
-      }
+  // SyncStatusWidget
+  SyncStatusWidget,
 
-      const progressHint = buildAutoSyncProgressHint({
-        limit,
-        totalSubmitted,
-        selectedCount: isSeekListPage ? resumes.length : null,
-      });
-      SyncStatusWidget.show({
-        state: "progress",
-        message: `正在同步第 ${currentPage}/${Math.max(totalPages, currentPage)} 页 (${resumes.length} 份)...`,
-        hint: progressHint,
-      });
+  // DOM globals
+  document,
+  window,
 
-      const response = await syncCurrentPageToServer(resumes);
-      if (!response?.success) {
-        throw response?.error || response || "Auto sync failed";
-      }
-
-      const submitted =
-        typeof response.submitted === "number"
-          ? response.submitted
-          : resumes.length;
-      const inserted =
-        typeof response.inserted === "number" ? response.inserted : 0;
-      const updated =
-        typeof response.updated === "number" ? response.updated : 0;
-      totalSubmitted += submitted;
-      totalInserted += inserted;
-      totalUpdated += updated;
-      setAutoSyncAttributes("running", totalSubmitted, pagesVisited);
-
-      if (
-        getCurrentSourceKey() === SOURCE_KEYS.JOB51 &&
-        !isJob51DetailPage() &&
-        resumes.length > 0
-      ) {
-        const detailBackfillPromise = queueJob51DetailBackfill(resumes, {
-          currentPage,
-          totalPages: Math.max(totalPages, currentPage),
-        });
-        const waitMode = resolveCurrentJob51AutoSyncDetailWaitMode();
-        const shouldWaitForDetails =
-          waitMode === "all" || (waitMode === "page1" && currentPage === 1);
-        if (shouldWaitForDetails) {
-          SyncStatusWidget.show({
-            state: "progress",
-            message: `正在补充第 ${currentPage}/${Math.max(totalPages, currentPage)} 页详情...`,
-            hint: "等待 51job 详情补充后再完成本页同步",
-          });
-          await detailBackfillPromise;
-        }
-      }
-
-      if (autoSyncCancelled) {
-        stopReason = "cancelled";
-        break;
-      }
-      if (isSeekListPage && hitLimitWithinPage) {
-        stopReason = "limit-reached";
-        break;
-      }
-      if (
-        isSeekListPage &&
-        isSeekAutoSyncPageWindowReached(seekPageWindow, currentPage)
-      ) {
-        stopReason = "page-window-reached";
-        break;
-      }
-      if (!isSeekListPage && limit > 0 && totalSubmitted >= limit) {
-        stopReason = "limit-reached";
-        break;
-      }
-      if (!isSeekListPage && maxPages > 0 && pagesVisited >= maxPages) {
-        stopReason = "max-pages-reached";
-        break;
-      }
-
-      const paginationAfter = getPaginationInfo();
-      if (
-        !paginationAfter.hasNextPage ||
-        paginationAfter.currentPage >= paginationAfter.totalPages
-      ) {
-        stopReason = "no-next-page";
-        break;
-      }
-      try {
-        await waitForPagination({ timeoutMs: 8000 });
-      } catch {
-        // Some layouts render pagination late or omit it on single-page results.
-      }
-      const nextPage = paginationAfter.currentPage + 1;
-      try {
-        document.documentElement.setAttribute(
-          "data-tr-auto-sync-next-state",
-          JSON.stringify(getNextPageButtonState()),
-        );
-      } catch {
-        // ignore
-      }
-      await waitForJob51Cooldown();
-      clearCapturedResultsForNextPage();
-      const moved = goToNextPageInternal();
-      if (!moved) {
-        stopReason = "no-next-page";
-        break;
-      }
-      await waitForPageTransition({ expectedPage: nextPage, timeoutMs: 15000 });
-      await new Promise((resolve) => setTimeout(resolve, 500));
-    }
-
-    try {
-      document.documentElement.setAttribute(
-        "data-tr-auto-sync-stop-reason",
-        stopReason,
-      );
-    } catch {
-      // ignore
-    }
-    persistLatestAutoSyncSummary();
-
-    if (autoSyncCancelled) {
-      SyncStatusWidget.show({
-        state: "success",
-        message: `同步已取消，已同步 ${totalSubmitted} 份简历`,
-        hint: buildAutoSyncCompletionHint({
-          totalInserted,
-          totalUpdated,
-          pagesVisited,
-          selectedCount: lastSelectedCount,
-        }),
-        autoDismiss: true,
-      });
-      setAutoSyncAttributes("cancelled", totalSubmitted, pagesVisited);
-      return;
-    }
-
-    SyncStatusWidget.show({
-      state: "success",
-      message: `已同步 ${totalSubmitted} 份简历 (${totalInserted} 新增, ${totalUpdated} 更新), 共 ${pagesVisited} 页`,
-      hint: [
-        buildAutoSyncSelectedCountHint({
-          selectedCount: lastSelectedCount,
-          prefix: "",
-        }),
-        isJob51Source ? "51job 详情补充正在后台继续" : "",
-      ]
-        .filter(Boolean)
-        .join(" · "),
-      autoDismiss: true,
-    });
-    setAutoSyncAttributes("done", totalSubmitted, pagesVisited);
-  } catch (error) {
-    console.warn("🎯 [Auto Sync] Failed:", error);
-    const status = resolveAutoSyncErrorStatus(error);
-    SyncStatusWidget.show({
-      state: "error",
-      message: status.message,
-      hint: status.hint,
-    });
-    setAutoSyncAttributes("failed");
-    try {
-      document.documentElement.setAttribute(
-        "data-tr-auto-sync-stop-reason",
-        resolveAutoSyncStopReason(error),
-      );
-    } catch {
-      // ignore
-    }
-    persistLatestAutoSyncSummary();
-  }
-}
+  // Browser API
+  chrome,
+});
+const { runAutoSyncIfEnabled } = _autoSyncRunner;
 
 // Listen for messages from popup
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
