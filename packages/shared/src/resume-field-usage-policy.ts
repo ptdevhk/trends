@@ -5,6 +5,7 @@ import {
   type ResumeFieldUsagePolicy,
   type ResumeFieldUsageSurface,
 } from "./generated/resume-field-usage-policy.js";
+import { isRecord } from "./resume-normalization.js";
 
 export type {
   ResumeFieldUsageFieldPolicy,
@@ -20,9 +21,6 @@ export type ResumeFieldUsagePolicyOverrides = {
   fields?: Record<string, ResumeFieldUsageFieldPolicy>;
 };
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 function readString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;

@@ -1,10 +1,16 @@
 import fs from "node:fs";
 import path from "node:path";
+import { isRecord } from "@trends/shared";
+
 
 import { findProjectRoot } from "./db.js";
+
 import { getResumeScreeningDb } from "./database.js";
+
 import { type RuleWeightsConfig } from "./rule-scoring.js";
+
 import { spearmanRho } from "./scoring-metrics.js";
+
 import {
   SearchEventAnalyzer,
   scoreFromBreakdown,
@@ -75,9 +81,6 @@ function clampInteger(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, Math.round(value)));
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
 
 const CATEGORY_KEYS: CategoryKey[] = [
   "skillMatch",

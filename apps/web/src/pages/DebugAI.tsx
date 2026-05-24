@@ -3,6 +3,7 @@ import {
   DEBUG_AI_BREAKDOWN_LABELS,
   DEBUG_AI_KEYWORD_PROMPT_VARIANT,
   getResumeAiPromptDefinition,
+  isRecord,
   sanitizeResumeRecordForSurface,
   type ResumeFieldUsagePolicy,
 } from '@trends/shared'
@@ -21,7 +22,6 @@ import { useResumeFieldUsagePolicy } from '@/contexts/ResumeFieldUsagePolicyCont
 import {
   type BreakdownKey,
   extractBreakdown,
-  isRecord,
   readTextField,
 } from '@/lib/debug-ai-score-utils'
 

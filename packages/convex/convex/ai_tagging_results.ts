@@ -1,5 +1,5 @@
 /// <reference path="./convex-env.d.ts" />
-import { buildLatestWorkHistoryEvidence } from "@trends/shared";
+import { isRecord, buildLatestWorkHistoryEvidence } from "@trends/shared";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalAction, internalMutation, internalQuery, mutation, query } from "./_generated/server";
@@ -28,9 +28,6 @@ type RoleSignalSnapshot = {
   verifyIn: string;
 };
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
 
 
 export function stableHash(seed: string): string {

@@ -1,7 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
+import { isRecord } from "@trends/shared";
+
 
 import yaml from "js-yaml";
+
 
 export const DEFAULT_TIMEZONE = "Asia/Hong_Kong";
 
@@ -17,9 +20,6 @@ type ResolveTimezoneOptions = {
   defaultTimezone?: string;
 };
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 export function isValidTimezone(value: string): boolean {
   try {

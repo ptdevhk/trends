@@ -105,7 +105,7 @@ import { formatIsoOffsetInTimezone } from "../services/timezone.js";
 import { workspaceConfigService } from "../services/workspace-config-service.js";
 import { BrandDisplayResolver } from "../services/brand-display-resolver.js";
 
-import { buildKeywordAnalysisId, getCurrentResumeAiPromptVersion, resolveResumeAnalysisSourceKey } from "@trends/shared";
+import { isRecord, buildKeywordAnalysisId, getCurrentResumeAiPromptVersion, resolveResumeAnalysisSourceKey } from "@trends/shared";
 import type { ResumeItem } from "../types/resume.js";
 import type { ResumeIndex } from "../services/resume-index.js";
 import {
@@ -409,9 +409,6 @@ function normalizeMatchRecommendations(
   return normalized.length > 0 ? normalized : undefined;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 function parseConvexProvenance(value: unknown): ResumeSearchProvenance[] | undefined {
   if (!Array.isArray(value)) {

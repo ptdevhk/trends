@@ -1,4 +1,5 @@
 import { resolveConvexUrl } from "../services/resume-import-service.js";
+import { isRecord } from "@trends/shared";
 
 export type ConvexPaginatedQueryPage = {
   page: unknown[];
@@ -6,9 +7,6 @@ export type ConvexPaginatedQueryPage = {
   isDone: boolean;
 };
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 export function isConvexPaginatedQueryPage(value: unknown): value is ConvexPaginatedQueryPage {
   if (!isRecord(value)) {

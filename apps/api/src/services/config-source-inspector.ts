@@ -14,6 +14,7 @@ import {
 import {
   INSPECTABLE_SOURCE_GROUP_DEFINITIONS,
   STATIC_INSPECTABLE_SOURCE_DEFINITIONS,
+  isRecord,
   type ConfigSourceMetadata,
   type InspectableSourceDetail,
   type InspectableSourceGroupSummary,
@@ -45,9 +46,6 @@ export class UnknownConfigSourceError extends Error {
 
 const STATIC_SOURCES: StaticInspectableSourceDefinition[] = STATIC_INSPECTABLE_SOURCE_DEFINITIONS;
 
-export function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 export function readString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;

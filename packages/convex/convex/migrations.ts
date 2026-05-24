@@ -18,6 +18,7 @@ import {
     parse51jobManualResume,
     shouldPreferManual51jobOptionalField,
     splitManual51jobLines,
+    isRecord,
 } from "@trends/shared";
 
 import { buildSearchText, mergeSearchTextWithIngestData } from "./search_text";
@@ -30,9 +31,6 @@ const JOB5156_HOST = "hr.job5156.com";
 const MANUAL_51JOB_SOURCE = "51job-manual";
 const PROFILE_URL_CONTENT_KEYS = ["profileUrl", "profile_url", "profileURL", "url"];
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-    return typeof value === "object" && value !== null;
-}
 
 function rewriteJob5156ProfileUrlsInContent(content: unknown): {
     content: Record<string, unknown> | null;

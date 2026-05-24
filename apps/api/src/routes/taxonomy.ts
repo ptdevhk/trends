@@ -1,6 +1,7 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { requireAdmin } from "../middleware/workspace.js";
 import { resolveConvexUrl } from "../services/resume-import-service.js";
+import { isRecord } from "@trends/shared";
 
 const app = new OpenAPIHono();
 
@@ -49,9 +50,6 @@ const DeleteTaxonomyParamsSchema = z.object({
 
 type TaxonomyClusterResponse = z.infer<typeof TaxonomyClusterSchema>;
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
 
 async function callConvex(
   type: "query" | "mutation",

@@ -16,6 +16,7 @@ import {
   SYSTEM_SETTINGS_NAV_ITEMS,
   SYSTEM_CAPABILITY_DESCRIPTORS,
   SYSTEM_NAV_ITEMS,
+  isRecord,
 } from "@trends/shared";
 import { requireAdmin } from "../middleware/workspace.js";
 import { getMaskedApiKey, loadAIConfig, validateAIConfig } from "../services/ai-config.js";
@@ -196,9 +197,6 @@ const ResumeDisplayLimitsSchema = z.object({
   source: z.string(),
 });
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 function readPackageVersion(relativePath: string): string {
   const packageJsonPath = path.resolve(REPO_ROOT, relativePath);

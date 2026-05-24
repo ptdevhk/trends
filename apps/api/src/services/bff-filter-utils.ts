@@ -8,6 +8,7 @@ import {
   getVerifiedRoleSignalYears,
   type AnalysisRoleSignalLike,
   isLocationMatch,
+  isRecord,
   normalizeResumeLocationHierarchy,
   parseSalaryRange,
   resolveResumeAnalysisSourceKey,
@@ -19,9 +20,6 @@ import { normalizeEducationLevel } from "./resume-service.js";
 // Internal helpers (also extracted so tests don't need to replicate them)
 // ---------------------------------------------------------------------------
 
-export function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
 
 export function toStringValue(value: unknown): string {
   if (typeof value === "string") {

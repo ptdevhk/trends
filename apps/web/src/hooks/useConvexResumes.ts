@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { normalizeProfileUrlForDisplay, normalizeSharedResumeFields, parseKeywordQuery, inferSeekMarket } from '@trends/shared'
+import { isRecord, normalizeProfileUrlForDisplay, normalizeSharedResumeFields, parseKeywordQuery, inferSeekMarket } from '@trends/shared'
 import { usePaginatedQuery, useQuery } from 'convex/react'
 import { api } from '../../../../packages/convex/convex/_generated/api'
 import type { Doc } from '../../../../packages/convex/convex/_generated/dataModel'
@@ -234,9 +234,6 @@ export function buildFallbackKeywordExpansion(query: string): KeywordExpansionSu
   }
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
-}
 
 function buildMockSearchText(doc: ResumeListDocLike): string {
   const content = isRecord(doc.content) ? doc.content : {}

@@ -1,9 +1,14 @@
 import fs from "node:fs";
 import path from "node:path";
+import { isRecord } from "@trends/shared";
+
 
 import { findProjectRoot } from "./db.js";
+
 import { type RuleWeightsConfig } from "./rule-scoring.js";
+
 import { workspaceConfigService } from "./workspace-config-service.js";
+
 
 type RuleCategoryWeights = RuleWeightsConfig["categoryWeights"];
 
@@ -21,9 +26,6 @@ export interface WeightHistoryEntry {
   };
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
 
 export function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);

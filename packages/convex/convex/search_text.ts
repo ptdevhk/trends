@@ -2,8 +2,11 @@ import {
     buildLatestWorkHistoryEvidence,
     formatLocationHierarchySearchText,
     getDisallowedResumeFieldKeys,
+    isRecord,
     type LocationHierarchy,
 } from "@trends/shared";
+
+type UnknownRecord = Record<string, unknown>;
 
 const PRIORITY_KEYS = [
     "name",
@@ -24,11 +27,7 @@ const EXCLUDED_KEYS = new Set([
     ...getDisallowedResumeFieldKeys("analysis"),
 ]);
 
-type UnknownRecord = Record<string, unknown>;
 
-export function isRecord(value: unknown): value is UnknownRecord {
-    return typeof value === "object" && value !== null;
-}
 
 export function normalizeWhitespace(value: string): string {
     return value.replace(/\s+/g, " ").trim();

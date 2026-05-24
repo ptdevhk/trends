@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { isRecord } from "@trends/shared";
 import {
   clampScore,
   extractBreakdown,
-  isRecord,
   parseBreakdownCandidate,
   readTextField,
   toScore,

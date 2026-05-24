@@ -6,7 +6,7 @@
 
 import path from "node:path";
 
-import { normalizeKeywordPhrases } from "@trends/shared";
+import { isRecord, normalizeKeywordPhrases } from "@trends/shared";
 
 import { findProjectRoot } from "./db.js";
 
@@ -131,9 +131,6 @@ type ProfileQuickStart = NonNullable<SearchProfile["quickStart"]>;
 type ProfileSession = NonNullable<SearchProfile["session"]>;
 type ProfileRetention = NonNullable<ProfileSession["retention"]>;
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-    return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 function hasOwn(record: Record<string, unknown>, key: string): boolean {
     return Object.prototype.hasOwnProperty.call(record, key);

@@ -1,7 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
+import { isRecord } from "@trends/shared";
+
 
 import { findProjectRoot } from "./db.js";
+
 
 export type SearchEventType = "search_query" | "search_zero_results" | "candidate_action";
 
@@ -54,9 +57,6 @@ export function normalizeQuery(value: string): string {
   return value.trim().replace(/\s+/g, " ");
 }
 
-export function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
 
 export function readString(value: unknown): string | null {
   if (typeof value !== "string") return null;
