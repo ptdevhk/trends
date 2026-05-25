@@ -11,11 +11,11 @@ type LogContext = {
   [key: string]: unknown;
 };
 
-function formatTimestamp(): string {
+export function formatTimestamp(): string {
   return new Date().toISOString();
 }
 
-function serializeError(error: unknown): Record<string, unknown> {
+export function serializeError(error: unknown): Record<string, unknown> {
   if (error instanceof Error) {
     return {
       name: error.name,
