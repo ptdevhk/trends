@@ -3,8 +3,10 @@ import { callConvexAction, callConvexMutation } from "../services/convex-utils.j
 import { IngestComputeService } from "../services/ingest-compute-service.js";
 import { config } from "../services/config.js";
 import { logger } from "../services/logger.js";
+import { requireAdmin } from "../middleware/workspace.js";
 
 const app = new OpenAPIHono();
+app.use("*", requireAdmin);
 const ingestComputeService = new IngestComputeService(config.projectRoot);
 
 const HardResetReingestRequestSchema = z.object({
@@ -59,10 +61,6 @@ const ResetDatabaseV2ResponseSchema = z.object({
 
 // Hard reset re-ingest: clear computed fields and reschedule
 app.post("/api/resumes/hard-reset-reingest", async (c) => {
-  if (c.var.accessLevel !== "admin") {
-    return c.json({ success: false, error: "Admin access required" }, 403);
-  }
-
   const body = await c.req.json().catch(() => ({}));
   const parsed = HardResetReingestRequestSchema.safeParse(body);
   if (!parsed.success) {
@@ -145,10 +143,6 @@ app.post("/api/resumes/hard-reset-reingest", async (c) => {
 
 // Clear analyses for specific JDs or resume IDs
 app.post("/api/resumes/clear-analyses", async (c) => {
-  if (c.var.accessLevel !== "admin") {
-    return c.json({ success: false, error: "Admin access required" }, 403);
-  }
-
   const body = await c.req.json().catch(() => ({}));
   const parsed = ClearAnalysesRequestSchema.safeParse(body);
   if (!parsed.success) {
@@ -248,10 +242,6 @@ app.post("/api/resumes/clear-analyses", async (c) => {
 
 // Reset database (admin only)
 app.post("/api/resumes/reset-database", async (c) => {
-  if (c.var.accessLevel !== "admin") {
-    return c.json({ success: false, error: "Admin access required" }, 403);
-  }
-
   const body = await c.req.json().catch(() => ({}));
   const parsed = ResetDatabaseRequestSchema.safeParse(body);
   if (!parsed.success) {
@@ -287,10 +277,6 @@ app.post("/api/resumes/reset-database", async (c) => {
 
 // Archive/unarchive resumes
 app.post("/api/resumes/archive", async (c) => {
-  if (c.var.accessLevel !== "admin") {
-    return c.json({ success: false, error: "Admin access required" }, 403);
-  }
-
   const body = await c.req.json().catch(() => ({}));
   const parsed = ArchiveResumesRequestSchema.safeParse(body);
   if (!parsed.success) {

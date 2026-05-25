@@ -60,6 +60,7 @@ import { formatIsoOffsetInTimezone } from "../services/timezone.js";
 import { workspaceConfigService } from "../services/workspace-config-service.js";
 import { BrandDisplayResolver } from "../services/brand-display-resolver.js";
 import { logger } from "../services/logger.js";
+import { requireAdmin } from "../middleware/workspace.js";
 
 import { isRecord } from "@trends/shared";
 import type { ResumeItem } from "../types/resume.js";
@@ -103,6 +104,9 @@ import {
 } from "../services/resume-candidate-prep.js";
 
 const app = new OpenAPIHono();
+app.use("/api/resumes/candidate-actions/reset", requireAdmin);
+app.use("/api/resumes/trigger-reingest", requireAdmin);
+app.use("/api/resumes/analyze", requireAdmin);
 const resumeService = new ResumeService(config.projectRoot);
 const aiService = new AIMatchingService();
 const matchStorage = new MatchStorage(config.projectRoot);
@@ -182,10 +186,6 @@ const resetCandidateActionsRoute = createRoute({
 });
 
 app.openapi(resetCandidateActionsRoute, async (c) => {
-  if (c.var.accessLevel !== "admin") {
-    return c.json({ success: false as const, error: "Admin access required" }, 403);
-  }
-
   try {
     const request = c.req.valid("json");
     const workspaceSlug = request.workspaceSlug || c.var.workspaceSlug;

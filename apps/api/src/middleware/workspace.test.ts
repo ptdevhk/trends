@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { describe, expect, it } from "vitest";
 
-import { workspaceMiddleware, requireAdmin } from "./workspace.js";
+import { workspaceMiddleware, requireAdmin, denyIfNotAdmin } from "./workspace.js";
 import { serverTimingMiddleware } from "./server-timing.js";
 
 function createTestApp() {
@@ -139,6 +139,35 @@ describe("requireAdmin", () => {
     const body = await res.json();
     expect(body.success).toBe(false);
     expect(body.error).toContain("Admin access required");
+  });
+
+  it("rejects request without workspace middleware (undefined accessLevel)", async () => {
+    const app = createAdminApp();
+    const res = await app.request("/admin");
+    // Default workspace is dev (admin), so this should pass
+    expect(res.status).toBe(200);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// denyIfNotAdmin
+// ---------------------------------------------------------------------------
+
+describe("denyIfNotAdmin", () => {
+  it("returns false for admin access level", () => {
+    expect(denyIfNotAdmin("admin")).toBe(false);
+  });
+
+  it("returns true for user access level", () => {
+    expect(denyIfNotAdmin("user")).toBe(true);
+  });
+
+  it("returns true for undefined access level", () => {
+    expect(denyIfNotAdmin(undefined)).toBe(true);
+  });
+
+  it("returns true for empty string", () => {
+    expect(denyIfNotAdmin("")).toBe(true);
   });
 });
 

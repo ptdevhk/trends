@@ -4,6 +4,7 @@
 
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { workspaceConfigService } from "../services/workspace-config-service.js";
+import { denyIfNotAdmin } from "../middleware/workspace.js";
 
 const app = new OpenAPIHono();
 
@@ -217,7 +218,7 @@ const createPresetRoute = createRoute({
 });
 
 app.openapi(createPresetRoute, async (c) => {
-    if (c.var.accessLevel !== "admin") {
+    if (denyIfNotAdmin(c.var.accessLevel)) {
         return c.json({ success: false as const, error: "Admin access required" }, 403);
     }
     const payload = c.req.valid("json");
@@ -278,7 +279,7 @@ const updatePresetRoute = createRoute({
 });
 
 app.openapi(updatePresetRoute, async (c) => {
-    if (c.var.accessLevel !== "admin") {
+    if (denyIfNotAdmin(c.var.accessLevel)) {
         return c.json({ success: false as const, error: "Admin access required" }, 403);
     }
     const { id } = c.req.valid("param");
@@ -336,7 +337,7 @@ const deletePresetRoute = createRoute({
 });
 
 app.openapi(deletePresetRoute, async (c) => {
-    if (c.var.accessLevel !== "admin") {
+    if (denyIfNotAdmin(c.var.accessLevel)) {
         return c.json({ success: false as const, error: "Admin access required" }, 403);
     }
     const { id } = c.req.valid("param");
