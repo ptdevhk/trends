@@ -57,7 +57,7 @@ export default defineSchema({
         externalId: v.string(), // e.g. from job site
         identityKey: v.optional(v.string()),
         age: v.optional(v.number()),
-        content: v.any(), // JSON payload from crawler
+        content: v.record(v.string(), v.any()), // JSON payload from crawler
         hash: v.string(), // Content hash for change detection
         tags: v.array(v.string()), // e.g. search profile IDs
         crawledAt: v.number(),
@@ -132,7 +132,7 @@ export default defineSchema({
             keywords: v.array(v.string()),
             locations: v.array(v.string()),
         }),
-        profile: v.optional(v.any()),
+        profile: v.optional(v.record(v.string(), v.any())),
         lastRunAt: v.optional(v.number()),
         createdAt: v.optional(v.number()),
         updatedAt: v.optional(v.number()),
@@ -376,7 +376,7 @@ export default defineSchema({
     workspace_config: defineTable({
         workspaceSlug: v.string(),
         configKey: v.string(),
-        configValue: v.any(),
+        configValue: v.union(v.string(), v.number(), v.boolean(), v.array(v.any()), v.record(v.string(), v.any())),
         updatedAt: v.number(),
     })
         .index("by_workspace_key", ["workspaceSlug", "configKey"])
