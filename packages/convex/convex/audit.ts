@@ -1,6 +1,6 @@
-import { internalMutation, internalQuery, internalAction, query } from "./_generated/server";
+import { internalMutation, internalQuery, internalAction, query, mutation } from "./_generated/server";
 import { internal } from "./_generated/api";
-import type { Doc } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { fnvHash, ageToBracket } from "./lib/bias_metrics.js";
 
@@ -69,8 +69,8 @@ export const logAnalysisDecision = internalMutation({
             v.literal("system"),
         )),
     },
-    handler: async (ctx, args) => {
-        await ctx.db.insert("analysis_audit_log", {
+    handler: async (ctx, args): Promise<Id<"analysis_audit_log">> => {
+        const auditLogId = await ctx.db.insert("analysis_audit_log", {
             resumeId: args.resumeId,
             identityKey: args.identityKey,
             workspaceSlug: args.workspaceSlug,
@@ -87,6 +87,7 @@ export const logAnalysisDecision = internalMutation({
             actorId: args.actorId,
             actorRole: args.actorRole,
         });
+        return auditLogId;
     },
 });
 
@@ -127,10 +128,10 @@ export const getExplanationForCandidate = query({
 });
 
 // ---------------------------------------------------------------------------
-// Public mutation: setAuditOutcome
+// Public mutation: setAuditOutcome (also callable from BFF for human oversight)
 // ---------------------------------------------------------------------------
 
-export const setAuditOutcome = internalMutation({
+export const setAuditOutcome = mutation({
     args: {
         auditLogId: v.id("analysis_audit_log"),
         outcome: v.union(

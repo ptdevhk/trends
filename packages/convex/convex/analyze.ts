@@ -654,7 +654,7 @@ export const confirmSearchResults = action({
                 try {
                     const { scrubbedFields, protectedHashes } = computeAuditFields(resume as Record<string, unknown>);
 
-                    await ctx.runMutation(internal.audit.logAnalysisDecision, {
+                    const auditLogId = await ctx.runMutation(internal.audit.logAnalysisDecision, {
                         resumeId,
                         identityKey: resume.identityKey ?? undefined,
                         workspaceSlug: args.workspaceId,
@@ -686,6 +686,13 @@ export const confirmSearchResults = action({
                         decidedAt: Date.now(),
                         actorId: "system",
                         actorRole: "system",
+                    });
+
+                    // Mark confirm audit outcome as accepted — human confirmed the decision
+                    await ctx.runMutation(api.audit.setAuditOutcome, {
+                        auditLogId,
+                        outcome: "accepted",
+                        setBy: "system:confirmSearchResults",
                     });
                 } catch (auditError) {
                     // Audit logging failure must NOT block the confirm result

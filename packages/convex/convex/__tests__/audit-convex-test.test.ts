@@ -586,7 +586,7 @@ describe("audit (convex-test)", () => {
         });
       });
 
-      await t.mutation(internal.audit.setAuditOutcome, {
+      await t.mutation(api.audit.setAuditOutcome, {
         auditLogId: logId,
         outcome: "accepted",
         setBy: "admin_abc",
@@ -629,7 +629,7 @@ describe("audit (convex-test)", () => {
         });
       });
 
-      await t.mutation(internal.audit.setAuditOutcome, {
+      await t.mutation(api.audit.setAuditOutcome, {
         auditLogId: logId,
         outcome: "overridden",
         setBy: "operator_xyz",
@@ -670,7 +670,7 @@ describe("audit (convex-test)", () => {
         });
       });
 
-      await t.mutation(internal.audit.setAuditOutcome, {
+      await t.mutation(api.audit.setAuditOutcome, {
         auditLogId: logId,
         outcome: "appealed",
       });
@@ -1032,6 +1032,85 @@ describe("audit log retention (EU AI Act / GDPR)", () => {
         return ctx.db.get(logId);
       });
       expect(after).toBeNull();
+    });
+  });
+
+  describe("logAnalysisDecision returns audit log ID", () => {
+    it("returns the created audit log document ID", async () => {
+      const t = convexTest(schema, modules);
+
+      const resumeId = await t.run(async (ctx) => {
+        return ctx.db.insert("resumes", {
+          externalId: "return-id-r1",
+          content: {},
+          hash: "return-id1",
+          tags: [],
+          crawledAt: Date.now(),
+          source: "test",
+        });
+      });
+
+      const auditLogId = await t.mutation(internal.audit.logAnalysisDecision, {
+        resumeId,
+        workspaceSlug: "ws-return-id",
+        decisionType: "confirm",
+        actionRef: "analyze:confirmSearchResults",
+        inputSnapshot: {},
+        modelMeta: { model: "gpt-4", provider: "openai" },
+        output: { score: 90, recommendation: "strong_match" },
+        decidedAt: Date.now(),
+      });
+
+      expect(auditLogId).toBeDefined();
+
+      const log = await t.run(async (ctx) => ctx.db.get(auditLogId));
+      expect(log).toBeDefined();
+      expect(log!.decisionType).toBe("confirm");
+      expect(log!.outcome).toBe("pending");
+    });
+
+    it("supports confirm-then-set-outcome flow", async () => {
+      const t = convexTest(schema, modules);
+
+      const resumeId = await t.run(async (ctx) => {
+        return ctx.db.insert("resumes", {
+          externalId: "confirm-flow-r1",
+          content: {},
+          hash: "confirm-flow1",
+          tags: [],
+          crawledAt: Date.now(),
+          source: "test",
+        });
+      });
+
+      // Simulate the confirm flow: logAnalysisDecision then setAuditOutcome
+      const auditLogId = await t.mutation(internal.audit.logAnalysisDecision, {
+        resumeId,
+        workspaceSlug: "ws-confirm-flow",
+        decisionType: "confirm",
+        actionRef: "analyze:confirmSearchResults",
+        inputSnapshot: {},
+        modelMeta: { model: "gpt-4", provider: "openai" },
+        output: { score: 90, recommendation: "strong_match" },
+        decidedAt: Date.now(),
+      });
+
+      // Verify initial state is "pending"
+      const beforeSet = await t.run(async (ctx) => ctx.db.get(auditLogId));
+      expect(beforeSet!.outcome).toBe("pending");
+
+      // Set outcome to "accepted" (mimics the automatic wiring in confirmSearchResults)
+      await t.mutation(api.audit.setAuditOutcome, {
+        auditLogId,
+        outcome: "accepted",
+        setBy: "system:confirmSearchResults",
+      });
+
+      const afterSet = await t.run(async (ctx) => ctx.db.get(auditLogId));
+      expect(afterSet!.outcome).toBe("accepted");
+      expect(afterSet!.outcomeSetBy).toBe("system:confirmSearchResults");
+      expect(afterSet!.outcomeSetAt).toBeDefined();
+      expect(afterSet!.reviewedAt).toBeDefined();
     });
   });
 });
