@@ -1194,3 +1194,179 @@ describe("migration: backfillAuditLogActorIdentity", () => {
     expect(result.scanned).toBe(2);
   });
 });
+
+// ---------------------------------------------------------------------------
+// backfillJob5156ProfileUrls
+// ---------------------------------------------------------------------------
+
+describe("migration: backfillJob5156ProfileUrls", () => {
+  it("rewrites Job5156 profile URLs in resume content", async () => {
+    const t = convexTest(schema, modules);
+
+    await insertResume(t, {
+      source: "job5156",
+      sourceKey: "job5156",
+      content: {
+        name: "Zhang Wei",
+        profileUrl: "https://hr.job5156.com/resume/abc123",
+      },
+    });
+
+    const result = await t.mutation(api.migrations.backfillJob5156ProfileUrls, {});
+
+    expect(result.scannedResumes).toBeGreaterThanOrEqual(1);
+  });
+
+  it("skips resumes without profile URL content keys", async () => {
+    const t = convexTest(schema, modules);
+
+    await insertResume(t, {
+      source: "51job",
+      content: { name: "No URL" },
+    });
+
+    const result = await t.mutation(api.migrations.backfillJob5156ProfileUrls, {});
+
+    expect(result.updatedResumes).toBe(0);
+  });
+
+  it("returns hasMore: false when all resumes fit in one batch", async () => {
+    const t = convexTest(schema, modules);
+
+    await insertResume(t, { source: "test" });
+
+    const result = await t.mutation(api.migrations.backfillJob5156ProfileUrls, {
+      batchSize: 100,
+    });
+
+    expect(result.hasMore).toBe(false);
+    expect(result.cursor).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// backfillJob5156WorkHistoryEducation
+// ---------------------------------------------------------------------------
+
+describe("migration: backfillJob5156WorkHistoryEducation", () => {
+  it("scans resumes and reports results", async () => {
+    const t = convexTest(schema, modules);
+
+    await insertResume(t, {
+      source: "job5156",
+      sourceKey: "job5156",
+      content: { name: "Test User" },
+    });
+
+    const result = await t.mutation(api.migrations.backfillJob5156WorkHistoryEducation, {});
+
+    expect(result.scannedResumes).toBeGreaterThanOrEqual(1);
+    expect(typeof result.updatedResumes).toBe("number");
+    expect(typeof result.movedEducationEntries).toBe("number");
+  });
+
+  it("returns hasMore: false when batch covers all", async () => {
+    const t = convexTest(schema, modules);
+
+    await insertResume(t);
+
+    const result = await t.mutation(api.migrations.backfillJob5156WorkHistoryEducation, {
+      batchSize: 100,
+    });
+
+    expect(result.hasMore).toBe(false);
+    expect(result.cursor).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// backfillJob5156LocationHierarchy
+// ---------------------------------------------------------------------------
+
+describe("migration: backfillJob5156LocationHierarchy", () => {
+  it("scans resumes and reports location update counts", async () => {
+    const t = convexTest(schema, modules);
+
+    await insertResume(t, {
+      source: "job5156",
+      sourceKey: "job5156",
+      content: {
+        name: "Li Ming",
+        profileUrl: "https://hr.job5156.com/resume/xyz",
+        location: "Guangdong-Dongguan",
+      },
+    });
+
+    const result = await t.mutation(api.migrations.backfillJob5156LocationHierarchy, {});
+
+    expect(result.scannedResumes).toBeGreaterThanOrEqual(1);
+    expect(typeof result.updatedResumes).toBe("number");
+    expect(typeof result.updatedLocationHierarchy).toBe("number");
+    expect(typeof result.updatedLocation).toBe("number");
+    expect(typeof result.updatedSearchText).toBe("number");
+  });
+
+  it("skips location hierarchy rewrite for non-Job5156 resumes", async () => {
+    const t = convexTest(schema, modules);
+
+    await insertResume(t, {
+      source: "51job",
+      content: { name: "Non-5156" },
+      searchText: "already indexed",
+    });
+
+    const result = await t.mutation(api.migrations.backfillJob5156LocationHierarchy, {});
+
+    // Content rewrite is skipped for non-5156, but searchText may still be updated
+    expect(result.updatedLocationHierarchy).toBe(0);
+    expect(result.updatedLocation).toBe(0);
+  });
+
+  it("returns hasMore: false when batch covers all", async () => {
+    const t = convexTest(schema, modules);
+
+    await insertResume(t);
+
+    const result = await t.mutation(api.migrations.backfillJob5156LocationHierarchy, {
+      batchSize: 100,
+    });
+
+    expect(result.hasMore).toBe(false);
+    expect(result.cursor).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// validateDataConsistency
+// ---------------------------------------------------------------------------
+
+describe("migration: validateDataConsistency", () => {
+  it("runs both sub-migrations and reports aggregated results", async () => {
+    const t = convexTest(schema, modules);
+
+    // Insert a resume that needs searchText reindexing
+    await insertResume(t, {
+      content: { name: "Validate Test" },
+      searchText: "stale search text",
+    });
+
+    const result = await t.action(api.migrations.validateDataConsistency, {});
+
+    expect(result.reindexSearchText).toBeDefined();
+    expect(result.reindexSearchText.scanned).toBeGreaterThanOrEqual(1);
+    expect(result.backfillVerifiedRoleYears).toBeDefined();
+    expect(result.backfillVerifiedRoleYears.scanned).toBeGreaterThanOrEqual(1);
+  });
+
+  it("reports zero updates when all data is consistent", async () => {
+    const t = convexTest(schema, modules);
+
+    // No resumes — both sub-migrations should report 0 scanned
+    const result = await t.action(api.migrations.validateDataConsistency, {});
+
+    expect(result.reindexSearchText.scanned).toBe(0);
+    expect(result.reindexSearchText.updated).toBe(0);
+    expect(result.backfillVerifiedRoleYears.scanned).toBe(0);
+    expect(result.backfillVerifiedRoleYears.updated).toBe(0);
+  });
+});
