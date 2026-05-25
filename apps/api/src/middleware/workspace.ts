@@ -48,3 +48,9 @@ export const requireAdmin: MiddlewareHandler = async (c, next) => {
   }
   await next();
 };
+
+/** Helper to add admin guard inline in OpenAPI route handlers.
+ *  Returns true if access is denied (handler should return early). */
+export function denyIfNotAdmin(accessLevel: string | undefined): boolean {
+  return accessLevel !== "admin";
+}

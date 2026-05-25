@@ -7,6 +7,7 @@ import { submitResumeImport } from "../services/resume-import-service.js";
 import { getManualResumeImportMaxUploadBytes, importManualResumes } from "../services/manual-resume-import-service.js";
 import { config } from "../services/config.js";
 import { logger } from "../services/logger.js";
+import { requireAdmin } from "../middleware/workspace.js";
 import {
   ResumeBackupRequestSchema,
   ResumeImportRequestSchema,
@@ -28,6 +29,9 @@ import {
 import { toResumeItemFromRecord } from "../services/resume-candidate-prep.js";
 
 const app = new OpenAPIHono();
+app.use("/api/resumes/import", requireAdmin);
+app.use("/api/resumes/backup", requireAdmin);
+app.use("/api/resumes/reset", requireAdmin);
 const actionStorage = new ActionStorage(config.projectRoot);
 
 // --- Backup-specific helpers ---
@@ -244,10 +248,6 @@ const resetResumesRoute = createRoute({
 });
 
 app.openapi(importResumesRoute, async (c) => {
-  if (c.var.accessLevel !== "admin") {
-    return c.json({ success: false as const, error: "Admin access required" }, 403);
-  }
-
   try {
     const payload = c.req.valid("json");
     const result = await submitResumeImport(payload, c.var.workspaceSlug);
@@ -292,10 +292,6 @@ app.openapi(manualImportResumesRoute, async (c) => {
 });
 
 app.openapi(backupResumesRoute, async (c) => {
-  if (c.var.accessLevel !== "admin") {
-    return c.json({ success: false as const, error: "Admin access required" }, 403);
-  }
-
   try {
     const request = c.req.valid("json");
     const requestedResumeIds = normalizeResumeBackupFilterValues(request.resumeIds);
@@ -446,10 +442,6 @@ app.openapi(backupResumesRoute, async (c) => {
 });
 
 app.openapi(resetResumesRoute, async (c) => {
-  if (c.var.accessLevel !== "admin") {
-    return c.json({ success: false as const, error: "Admin access required" }, 403);
-  }
-
   try {
     const value = await callConvexMutation("resume_tasks:resetDatabase", {});
     return c.json(ResumeResetResponseSchema.parse(value), 200);

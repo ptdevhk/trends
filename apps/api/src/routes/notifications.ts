@@ -7,6 +7,7 @@ import { notificationService } from "../services/notification-service.js";
 import { notificationTemplateService } from "../services/notification-template-service.js";
 import { config } from "../services/config.js";
 import { formatIsoOffsetInTimezone } from "../services/timezone.js";
+import { requireAdmin } from "../middleware/workspace.js";
 
 const app = new Hono();
 
@@ -189,6 +190,7 @@ app.post(
 // POST /api/notifications/send
 app.post(
     "/send",
+    requireAdmin,
     zValidator("json", sendSchema),
     async (c) => {
         const { to, subject, body } = c.req.valid("json");
@@ -209,6 +211,7 @@ app.post(
 // POST /api/notifications/send-template
 app.post(
     "/send-template",
+    requireAdmin,
     zValidator("json", sendTemplateSchema),
     async (c) => {
         const payload = c.req.valid("json");

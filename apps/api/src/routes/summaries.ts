@@ -15,6 +15,7 @@ import { summaryDispatcher } from "../services/summaries/summary-dispatcher.js";
 import { SummaryRenderer } from "../services/summaries/summary-renderer.js";
 import { workspaceConfigService } from "../services/workspace-config-service.js";
 import { logger } from "../services/logger.js";
+import { denyIfNotAdmin } from "../middleware/workspace.js";
 import {
   WorkspaceSummaryRunStorage,
   type StoredWorkspaceSummaryRun,
@@ -427,7 +428,7 @@ const listProfilesRoute = createRoute({
 });
 
 app.openapi(listProfilesRoute, async (c) => {
-  if (c.var.accessLevel !== "admin") {
+  if (denyIfNotAdmin(c.var.accessLevel)) {
     return c.json({ success: false as const, error: "Admin access required" }, 403);
   }
 
@@ -489,7 +490,7 @@ const createProfileRoute = createRoute({
 });
 
 app.openapi(createProfileRoute, async (c) => {
-  if (c.var.accessLevel !== "admin") {
+  if (denyIfNotAdmin(c.var.accessLevel)) {
     return c.json({ success: false as const, error: "Admin access required" }, 403);
   }
 
@@ -594,7 +595,7 @@ const getProfileRoute = createRoute({
 });
 
 app.openapi(getProfileRoute, async (c) => {
-  if (c.var.accessLevel !== "admin") {
+  if (denyIfNotAdmin(c.var.accessLevel)) {
     return c.json({ success: false as const, error: "Admin access required" }, 403);
   }
 
@@ -668,7 +669,7 @@ const updateProfileRoute = createRoute({
 });
 
 app.openapi(updateProfileRoute, async (c) => {
-  if (c.var.accessLevel !== "admin") {
+  if (denyIfNotAdmin(c.var.accessLevel)) {
     return c.json({ success: false as const, error: "Admin access required" }, 403);
   }
 
@@ -748,7 +749,7 @@ const deleteProfileRoute = createRoute({
 });
 
 app.openapi(deleteProfileRoute, async (c) => {
-  if (c.var.accessLevel !== "admin") {
+  if (denyIfNotAdmin(c.var.accessLevel)) {
     return c.json({ success: false as const, error: "Admin access required" }, 403);
   }
 

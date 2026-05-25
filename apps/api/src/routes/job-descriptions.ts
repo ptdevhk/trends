@@ -6,6 +6,7 @@ import { isRecord } from "@trends/shared";
 import { logger } from "../services/logger.js";
 import { callConvexQuery, callConvexMutation } from "../services/convex-utils.js";
 import { readString } from "../services/workspace-config-service.js";
+import { denyIfNotAdmin } from "../middleware/workspace.js";
 
 const app = new OpenAPIHono();
 
@@ -217,7 +218,7 @@ const createRouteDef = createRoute({
 });
 
 app.openapi(createRouteDef, async (c) => {
-  if (c.var.accessLevel !== "admin") {
+  if (denyIfNotAdmin(c.var.accessLevel)) {
     return c.json({ success: false, error: "Admin access required" }, 403);
   }
   const { name, content, overwrite } = c.req.valid("json");
