@@ -115,8 +115,8 @@ export function createAutoActions(deps: AutoActionsDeps) {
       } else {
         doc.documentElement.removeAttribute("data-tr-age-range");
       }
-    } catch {
-      // ignore
+    } catch (e) {
+      console.warn("[tr-auto-actions]", "setAutoAgeAttributes: DOM attribute set failed", e?.message || e);
     }
   }
 
@@ -626,8 +626,8 @@ export function createAutoActions(deps: AutoActionsDeps) {
       } else {
         doc.documentElement.removeAttribute("data-tr-search-keyword");
       }
-    } catch {
-      // ignore
+    } catch (e) {
+      console.warn("[tr-auto-actions]", "setAutoSearchAttributes: DOM attribute set failed", e?.message || e);
     }
   }
 
@@ -641,8 +641,8 @@ export function createAutoActions(deps: AutoActionsDeps) {
       } else {
         doc.documentElement.removeAttribute("data-tr-location-value");
       }
-    } catch {
-      // ignore
+    } catch (e) {
+      console.warn("[tr-auto-actions]", "setAutoLocationAttributes: DOM attribute set failed", e?.message || e);
     }
   }
 
@@ -1047,7 +1047,8 @@ export function createAutoActions(deps: AutoActionsDeps) {
   function getExtensionVersion() {
     try {
       return chrome?.runtime?.getManifest?.().version || SOURCE_KEYS.UNKNOWN;
-    } catch {
+    } catch (e) {
+      console.warn("[tr-auto-actions]", "getExtensionVersion: chrome.runtime.getManifest failed", e?.message || e);
       return SOURCE_KEYS.UNKNOWN;
     }
   }
@@ -1147,7 +1148,8 @@ export function createAutoActions(deps: AutoActionsDeps) {
     try {
       const localValue = win.localStorage?.getItem(AUTO_EXPORT_PARAM);
       return parseAutoExportMode(localValue);
-    } catch {
+    } catch (e) {
+      console.warn("[tr-auto-actions]", "getAutoExportConfig: localStorage access failed", e?.message || e);
       return { enabled: false };
     }
   }
@@ -1185,7 +1187,8 @@ export function createAutoActions(deps: AutoActionsDeps) {
     try {
       const localValue = win.localStorage?.getItem(AUTO_SYNC_PARAM);
       return parseAutoSyncFlag(localValue);
-    } catch {
+    } catch (e) {
+      console.warn("[tr-auto-actions]", "getAutoSyncEnabled: localStorage access failed", e?.message || e);
       return false;
     }
   }
@@ -1214,8 +1217,8 @@ export function createAutoActions(deps: AutoActionsDeps) {
           "data-tr-auto-export-count",
           String(resumes.length),
         );
-      } catch {
-        // ignore
+      } catch (e) {
+        console.warn("[tr-auto-actions]", "runAutoExportIfEnabled: DOM attribute set failed", e?.message || e);
       }
 
       let rawPayload = null;
@@ -1269,8 +1272,8 @@ export function createAutoActions(deps: AutoActionsDeps) {
       console.warn("🎯 [Auto Export] Failed:", error);
       try {
         doc.documentElement.setAttribute("data-tr-auto-export", "failed");
-      } catch {
-        // ignore
+      } catch (e) {
+        console.warn("[tr-auto-actions]", "runAutoExportIfEnabled: fallback attribute set failed", e?.message || e);
       }
     }
   }
