@@ -17,34 +17,15 @@ import {
 import { normalizeEducationLevel } from "./resume-service.js";
 
 // ---------------------------------------------------------------------------
-// Internal helpers (also extracted so tests don't need to replicate them)
+// Re-exported parse helpers (canonical source: resume-ingest-utils.ts)
 // ---------------------------------------------------------------------------
 
+import { toStringValue, toOptionalNumber } from "./resume-ingest-utils.js";
+export { toStringValue, toOptionalNumber };
 
-export function toStringValue(value: unknown): string {
-  if (typeof value === "string") {
-    return value.trim();
-  }
-  if (value === null || value === undefined) {
-    return "";
-  }
-  return String(value).trim();
-}
-
-export function toOptionalNumber(value: unknown): number | undefined {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return value;
-  }
-  if (typeof value !== "string") {
-    return undefined;
-  }
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return undefined;
-  }
-  const parsed = Number(trimmed);
-  return Number.isFinite(parsed) ? parsed : undefined;
-}
+// ---------------------------------------------------------------------------
+// Internal helpers (also extracted so tests don't need to replicate them)
+// ---------------------------------------------------------------------------
 
 export function parseAgeFromContentField(content: Record<string, unknown>): number | null {
   const ageStr = toStringValue(content.age);
