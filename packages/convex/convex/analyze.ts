@@ -1,12 +1,7 @@
 /// <reference path="./convex-env.d.ts" />
 import {
-    DEFAULT_RESUME_AI_PROMPT_LOCALE,
-    buildResumeAiSystemPrompt,
     getResumeAiLocaleText,
     getResumeAiPromptDefinition,
-    getResumeAiUserPromptTemplate,
-    resolveResumeAnalysisSourceKey,
-    resolveResumeAiPromptLocale,
     sanitizeResumeRecordForSurface,
     isRecord,
     selectLatestWorkHistory,
@@ -16,7 +11,7 @@ import {
 import { v } from "convex/values";
 import { api, internal } from "./_generated/api";
 import { action, internalMutation, type ActionCtx } from "./_generated/server";
-import { resolveChatCompletionModel, warnUnknownModel } from "./lib/ai_model";
+import { resolveChatCompletionModel } from "./lib/ai_model";
 import { computeProtectedAttributeHashes } from "./audit.js";
 import {
     toNumber,
@@ -41,13 +36,25 @@ import {
 } from "./lib/analysis_normalization.js";
 import {
     isEnglishResumeAiLocale,
-    formatWorkEntry,
     formatRoleSignals,
     hydrateUserPrompt,
     buildKeywordRequirements,
     buildKeywordMatchingRules,
     buildConfirmPrompt,
 } from "./lib/analysis_prompts.js";
+import {
+    inferSourceKey,
+    resolveAIOutputLocale,
+    buildSystemPrompt,
+    getUserPromptTemplate,
+    getAiApiKey,
+    getAiApiBase,
+    getAiModel,
+    getAiTemperature,
+    SYSTEM_PROMPT,
+    USER_PROMPT_TEMPLATE,
+    type ChatMessage,
+} from "./lib/analysis_config.js";
 
 // Re-export for backward compatibility
 export {
@@ -80,63 +87,19 @@ export {
     buildKeywordMatchingRules,
     buildConfirmPrompt,
 } from "./lib/analysis_prompts.js";
-
-const DEFAULT_AI_OUTPUT_LOCALE = DEFAULT_RESUME_AI_PROMPT_LOCALE;
-
-export type ChatMessage = {
-    role: "system" | "user";
-    content: string;
-};
-
-export const SYSTEM_PROMPT = getResumeAiPromptDefinition(DEFAULT_AI_OUTPUT_LOCALE).sections.systemPrompt;
-export const USER_PROMPT_TEMPLATE = getResumeAiUserPromptTemplate(DEFAULT_AI_OUTPUT_LOCALE);
-
-export function inferSourceKey(source: string | undefined) {
-    return resolveResumeAnalysisSourceKey({ source });
-}
-
-// For Convex deployments, set AI_OUTPUT_LOCALE via the dashboard or `convex env set`.
-export function resolveAIOutputLocale(scope?: { sourceKey?: string }): string {
-    // Source-specific overrides take priority over the env var default.
-    // Without this, AI_OUTPUT_LOCALE=zh-Hans makes the seek→en branch dead code.
-    if (scope?.sourceKey === "seek") {
-        return "en";
-    }
-    const locale = process.env.AI_OUTPUT_LOCALE?.trim();
-    if (locale && locale.length > 0) {
-        return resolveResumeAiPromptLocale(locale).requestedLocale;
-    }
-    return resolveResumeAiPromptLocale(undefined).requestedLocale;
-}
-
-export function buildSystemPrompt(locale: string): string {
-    return buildResumeAiSystemPrompt(locale);
-}
-
-export function getUserPromptTemplate(locale: string): string {
-    return getResumeAiUserPromptTemplate(locale);
-}
-
-export function getAiApiKey(): string | undefined {
-    return process.env.AI_API_KEY || process.env.OPENAI_API_KEY || undefined;
-}
-
-export function getAiApiBase(): string {
-    return process.env.AI_API_BASE || process.env.OPENAI_API_BASE || "https://api.openai.com/v1";
-}
-
-export function getAiModel(): string {
-    return warnUnknownModel(process.env.AI_MODEL || process.env.OPENAI_MODEL || "gpt-4-turbo-preview");
-}
-
-export function getAiTemperature(): number {
-    const raw = process.env.AI_TEMPERATURE;
-    if (raw !== undefined && raw.trim().length > 0) {
-        const parsed = parseFloat(raw);
-        if (Number.isFinite(parsed)) return parsed;
-    }
-    return 0;
-}
+export {
+    inferSourceKey,
+    resolveAIOutputLocale,
+    buildSystemPrompt,
+    getUserPromptTemplate,
+    getAiApiKey,
+    getAiApiBase,
+    getAiModel,
+    getAiTemperature,
+    SYSTEM_PROMPT,
+    USER_PROMPT_TEMPLATE,
+} from "./lib/analysis_config.js";
+export type { ChatMessage } from "./lib/analysis_config.js";
 
 
 // Helper to normalize resume data
