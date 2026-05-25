@@ -701,11 +701,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            /** @enum {boolean} */
-                            success: false;
-                            error: string;
-                        };
+                        "application/json": components["schemas"]["SimpleError"];
                     };
                 };
                 /** @description Admin access required */
@@ -714,11 +710,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            /** @enum {boolean} */
-                            success: false;
-                            error: string;
-                        };
+                        "application/json": components["schemas"]["SimpleError"];
                     };
                 };
                 /** @description Import failed */
@@ -727,11 +719,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            /** @enum {boolean} */
-                            success: false;
-                            error: string;
-                        };
+                        "application/json": components["schemas"]["SimpleError"];
                     };
                 };
             };
@@ -847,11 +835,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            /** @enum {boolean} */
-                            success: false;
-                            error: string;
-                        };
+                        "application/json": components["schemas"]["SimpleError"];
                     };
                 };
                 /** @description Requested resume records could not be resolved */
@@ -860,11 +844,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            /** @enum {boolean} */
-                            success: false;
-                            error: string;
-                        };
+                        "application/json": components["schemas"]["SimpleError"];
                     };
                 };
                 /** @description Backup failed */
@@ -873,11 +853,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            /** @enum {boolean} */
-                            success: false;
-                            error: string;
-                        };
+                        "application/json": components["schemas"]["SimpleError"];
                     };
                 };
             };
@@ -913,15 +889,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            /** @enum {boolean} */
-                            success: true;
-                            count: number;
-                            partial: boolean;
-                            deleted: {
-                                [key: string]: number;
-                            };
-                        };
+                        "application/json": components["schemas"]["ResumeResetResponse"];
                     };
                 };
                 /** @description Admin access required */
@@ -930,11 +898,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            /** @enum {boolean} */
-                            success: false;
-                            error: string;
-                        };
+                        "application/json": components["schemas"]["SimpleError"];
                     };
                 };
                 /** @description Reset failed */
@@ -943,11 +907,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            /** @enum {boolean} */
-                            success: false;
-                            error: string;
-                        };
+                        "application/json": components["schemas"]["SimpleError"];
                     };
                 };
             };
@@ -1466,11 +1426,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            /** @enum {boolean} */
-                            success: false;
-                            error: string;
-                        };
+                        "application/json": components["schemas"]["SimpleError"];
                     };
                 };
                 /** @description Reset failed */
@@ -1479,11 +1435,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            /** @enum {boolean} */
-                            success: false;
-                            error: string;
-                        };
+                        "application/json": components["schemas"]["SimpleError"];
                     };
                 };
             };
@@ -1888,12 +1840,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            /** @enum {boolean} */
-                            success: true;
-                            deleted: number;
-                            jobDescriptionId?: string;
-                        };
+                        "application/json": components["schemas"]["ClearMatchesResponse"];
                     };
                 };
             };
@@ -7225,6 +7172,11 @@ export interface components {
             unchanged: number;
             deduped: number;
         };
+        SimpleError: {
+            /** @enum {boolean} */
+            success: false;
+            error: string;
+        };
         ResumeImportRequest: {
             metadata: components["schemas"]["ResumeImportMetadata"];
             resumes?: components["schemas"]["ResumeImportItem"][];
@@ -7562,10 +7514,14 @@ export interface components {
             sourceHosts?: string[];
             limit?: number;
         };
-        SimpleError: {
+        ResumeResetResponse: {
             /** @enum {boolean} */
-            success: false;
-            error: string;
+            success: true;
+            count: number;
+            partial: boolean;
+            deleted: {
+                [key: string]: number;
+            };
         };
         ResumeExportCanonicalRequest: {
             /**
@@ -8317,6 +8273,12 @@ export interface components {
             completedAt?: string;
             /** @example AI provider timeout */
             error?: string;
+        };
+        ClearMatchesResponse: {
+            /** @enum {boolean} */
+            success: true;
+            deleted: number;
+            jobDescriptionId?: string;
         };
         ResumeFilters: {
             minExperience?: number;

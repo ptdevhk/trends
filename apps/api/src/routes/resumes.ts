@@ -23,6 +23,8 @@ import {
   AnalyzeRequestSchema,
   AnalyzeResponseSchema,
   SimpleErrorSchema,
+  ClearMatchesResponseSchema,
+  ResumeResetResponseSchema,
 } from "../schemas/index.js";
 import { config } from "../services/config.js";
 import { ResumeService, normalizeEducationLevel, parseExperienceYears, type ResumeFilters } from "../services/resume-service.js";
@@ -117,12 +119,6 @@ const MAX_SAFE_CONVEX_POST_FILTER_SCAN = 250;
 
 type MatchMode = "rules_only" | "hybrid" | "ai_only";
 
-const ClearMatchesResponseSchema = z.object({
-  success: z.literal(true),
-  deleted: z.number().int(),
-  jobDescriptionId: z.string().optional(),
-});
-
 const RescoreRequestSchema = z.object({
   sessionId: z.string().optional(),
   sample: z.string().optional(),
@@ -139,17 +135,7 @@ const MatchRescoreResponseSchema = MatchResponseSchema;
 const TriggerReingestRequestSchema = z.object({
   limit: z.number().int().min(1).max(1000).optional(),
 });
-const ResumeImportErrorSchema = z.object({
-  success: z.literal(false),
-  error: z.string(),
-});
-
-const ResumeResetResponseSchema = z.object({
-  success: z.literal(true),
-  count: z.number().int(),
-  partial: z.boolean(),
-  deleted: z.record(z.string(), z.number().int()),
-});
+const ResumeImportErrorSchema = SimpleErrorSchema;
 
 const ResetCandidateActionsRequestSchema = z.object({
   workspaceSlug: z.string().optional(),

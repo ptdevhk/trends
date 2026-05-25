@@ -28,6 +28,7 @@ import {
   MatchRunsResponseSchema,
   MatchRunsQuerySchema,
   SimpleErrorSchema,
+  ClearMatchesResponseSchema,
 } from "../schemas/index.js";
 import { resolveResumeId } from "../services/resume-id.js";
 import { callConvexQuery, isConvexPaginatedQueryPage } from "../services/convex-utils.js";
@@ -88,12 +89,6 @@ const jobService = new JobDescriptionService(config.projectRoot);
 const ruleScoringService = new RuleScoringService(config.projectRoot);
 const skillsKnowledgeService = new SkillsKnowledgeService(config.projectRoot);
 const searchEventLogger = new SearchEventLogger(config.projectRoot);
-
-const ClearMatchesResponseSchema = z.object({
-  success: z.literal(true),
-  deleted: z.number().int(),
-  jobDescriptionId: z.string().optional(),
-});
 
 const DEFAULT_AI_TOP_N = 20;
 const DEFAULT_CONVEX_RESUME_PAGE_SIZE = 50;
