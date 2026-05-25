@@ -1,10 +1,12 @@
 /// <reference path="./convex-env.d.ts" />
 import { internal } from "./_generated/api";
+import { api } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { internalAction } from "./_generated/server";
 import { v } from "convex/values";
 import type { ResumeScanRow } from "./resumes";
 import { isRecord } from "@trends/shared";
+import { computeProtectedAttributeHashes } from "./audit.js";
 
 interface BrandHit {
   brand: string;
@@ -169,6 +171,40 @@ export const processNewResumes = internalAction({
       await ctx.runMutation(internal.resumes.updateIngestDataBatch, {
         updates,
       });
+
+      // Audit log — EU AI Act compliance for automated rank/tag decisions
+      for (const update of updates) {
+        try {
+          const resumeDoc = resumes.find((r) => String(r._id) === String(update.resumeId));
+          const protectedHashes = computeProtectedAttributeHashes({
+            source: resumeDoc?.sourceKey ?? undefined,
+          });
+          const auditLogId = await ctx.runMutation(internal.audit.logAnalysisDecision, {
+            resumeId: update.resumeId,
+            workspaceSlug: "default",
+            decisionType: "rank",
+            actionRef: "ingest_agent:processNewResumes",
+            inputSnapshot: {},
+            modelMeta: {
+              model: "rule-based",
+              provider: "internal",
+            },
+            output: {
+              score: update.primaryRuleScore > 0 ? update.primaryRuleScore : undefined,
+              tags: update.ingestData.industryTags,
+            },
+            protectedAttributeHashes: protectedHashes,
+            decidedAt: update.ingestData.computedAt ?? Date.now(),
+          });
+          await ctx.runMutation(api.audit.setAuditOutcome, {
+            auditLogId,
+            outcome: "accepted",
+            setBy: "system:ingest_agent",
+          });
+        } catch (auditError) {
+          console.error(`[audit] Failed to log ingest decision for resume ${String(update.resumeId)}:`, auditError);
+        }
+      }
 
       console.log(`[ingest_agent] Successfully processed ${updates.length} resumes`);
 

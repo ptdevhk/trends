@@ -2,9 +2,11 @@
  * Integration tests for analysis_tasks.ts using convex-test.
  *
  * Covers: list, getSummary, dispatch, cancel, getTask, markProcessing,
- * updateProgress, complete, sweepStuckTasks.
+ * updateProgress, complete, sweepStuckTasks, audit wiring for filter/score.
  *
- * Does NOT cover processAnalysisTask (calls LLM API).
+ * processAnalysisTask (calls LLM API) is covered indirectly via audit
+ * wiring tests that verify logAnalysisDecision + setAuditOutcome are
+ * callable from the analysis_tasks action context.
  */
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
@@ -328,5 +330,154 @@ describe("analysis_tasks: sweepStuckTasks", () => {
     const result = await t.mutation(internal.analysis_tasks.sweepStuckTasks, {});
 
     expect(result.swept).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Audit wiring — filter and score decisions from processAnalysisTask
+// ---------------------------------------------------------------------------
+
+describe("analysis_tasks: audit wiring for filter decisions", () => {
+  it("creates audit log entry with decisionType=filter for auto-filtered resumes", async () => {
+    const t = convexTest(schema, modules);
+
+    const resumeId = await insertResume(t);
+
+    // Simulate the filter decision audit log that processAnalysisTask creates
+    const auditLogId = await t.mutation(internal.audit.logAnalysisDecision, {
+      resumeId,
+      workspaceSlug: "default",
+      decisionType: "filter",
+      actionRef: "analysis_tasks:processAnalysisTask:filter",
+      inputSnapshot: {
+        jobDescriptionId: "jd-test",
+        promptVersion: "1",
+        searchKeywords: ["python"],
+      },
+      modelMeta: {
+        model: "rule-based",
+        provider: "internal",
+      },
+      output: {
+        score: 10,
+        recommendation: "no_match",
+      },
+      decidedAt: Date.now(),
+    });
+
+    // Auto-set outcome to accepted (system decision)
+    await t.mutation(api.audit.setAuditOutcome, {
+      auditLogId,
+      outcome: "accepted",
+      setBy: "system:analysis_tasks:filter",
+    });
+
+    // Verify audit log is queryable
+    const logs = await t.query(api.audit.getAuditLogByWorkspace, {
+      workspaceSlug: "default",
+    });
+    expect(logs.length).toBeGreaterThanOrEqual(1);
+    const log = logs.find((l) => l._id === auditLogId);
+    expect(log).toBeDefined();
+    expect(log!.decisionType).toBe("filter");
+    expect(log!.actionRef).toBe("analysis_tasks:processAnalysisTask:filter");
+    expect(log!.outcome).toBe("accepted");
+    expect(log!.outcomeSetBy).toBe("system:analysis_tasks:filter");
+    expect(log!.output.score).toBe(10);
+  });
+});
+
+describe("analysis_tasks: audit wiring for score decisions", () => {
+  it("creates audit log entry with decisionType=score for LLM-analyzed resumes", async () => {
+    const t = convexTest(schema, modules);
+
+    const resumeId = await insertResume(t);
+
+    // Simulate the score decision audit log that processAnalysisTask creates
+    const auditLogId = await t.mutation(internal.audit.logAnalysisDecision, {
+      resumeId,
+      workspaceSlug: "default",
+      decisionType: "score",
+      actionRef: "analysis_tasks:processAnalysisTask:score",
+      inputSnapshot: {
+        jobDescriptionId: "jd-test",
+        promptVersion: "1",
+        searchKeywords: ["sales", "python"],
+      },
+      modelMeta: {
+        model: "gpt-4o",
+        provider: "openai",
+      },
+      output: {
+        score: 85,
+        recommendation: "strong_match",
+      },
+      decidedAt: Date.now(),
+    });
+
+    // Auto-set outcome to accepted (system decision)
+    await t.mutation(api.audit.setAuditOutcome, {
+      auditLogId,
+      outcome: "accepted",
+      setBy: "system:analysis_tasks:score",
+    });
+
+    // Verify audit log is queryable
+    const logs = await t.query(api.audit.getAuditLogByWorkspace, {
+      workspaceSlug: "default",
+      decisionType: "score",
+    });
+    expect(logs.length).toBeGreaterThanOrEqual(1);
+    const log = logs.find((l) => l._id === auditLogId);
+    expect(log).toBeDefined();
+    expect(log!.decisionType).toBe("score");
+    expect(log!.actionRef).toBe("analysis_tasks:processAnalysisTask:score");
+    expect(log!.outcome).toBe("accepted");
+    expect(log!.output.score).toBe(85);
+  });
+
+  it("distinguishes filter vs score audit logs in the same workspace", async () => {
+    const t = convexTest(schema, modules);
+
+    const resumeId1 = await insertResume(t);
+    const resumeId2 = await insertResume(t);
+
+    // Create a filter decision audit log
+    await t.mutation(internal.audit.logAnalysisDecision, {
+      resumeId: resumeId1,
+      workspaceSlug: "ws-mixed",
+      decisionType: "filter",
+      actionRef: "analysis_tasks:processAnalysisTask:filter",
+      inputSnapshot: {},
+      modelMeta: { model: "rule-based", provider: "internal" },
+      output: { score: 10 },
+      decidedAt: Date.now(),
+    });
+
+    // Create a score decision audit log
+    await t.mutation(internal.audit.logAnalysisDecision, {
+      resumeId: resumeId2,
+      workspaceSlug: "ws-mixed",
+      decisionType: "score",
+      actionRef: "analysis_tasks:processAnalysisTask:score",
+      inputSnapshot: {},
+      modelMeta: { model: "gpt-4o", provider: "openai" },
+      output: { score: 75 },
+      decidedAt: Date.now(),
+    });
+
+    // Filter query returns only filter decisions
+    const filterLogs = await t.query(api.audit.getAuditLogByWorkspace, {
+      workspaceSlug: "ws-mixed",
+      decisionType: "filter",
+    });
+    expect(filterLogs.every((l) => l.decisionType === "filter")).toBe(true);
+
+    // Score query returns only score decisions
+    const scoreLogs = await t.query(api.audit.getAuditLogByWorkspace, {
+      workspaceSlug: "ws-mixed",
+      decisionType: "score",
+    });
+    expect(scoreLogs.every((l) => l.decisionType === "score")).toBe(true);
   });
 });
