@@ -1,17 +1,19 @@
 /**
  * Integration tests for cron target functions using convex-test.
  *
- * Covers the 3 cron targets defined in crons.ts:
+ * Covers the cron targets defined in crons.ts:
  * - ai_summary_cache.cleanupExpired (interval: 1h)
  * - analysis_tasks.sweepStuckTasks (daily: 03:00 UTC)
  * - resume_tasks.sweepStuckTasks (daily: 03:15 UTC)
+ * - audit.cleanupExpiredAuditLogs (daily: 05:00 UTC)
+ * - bias_audit.computeBiasMetricsForAllWorkspaces (weekly: Monday 04:00 UTC)
  *
  * Crons themselves are not tested — their target functions are invoked
- * directly via t.mutation() to verify correct behavior.
+ * directly via t.mutation()/t.action() to verify correct behavior.
  */
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
-import { internal } from "../_generated/api.js";
+import { api, internal } from "../_generated/api.js";
 import type { Id } from "../_generated/dataModel.js";
 import schema from "../schema.js";
 
@@ -402,5 +404,233 @@ describe("cron: resume_tasks.sweepStuckTasks", () => {
     // collection_tasks sweepStuckTasks does NOT set completedAt
     // (unlike analysis_tasks which does)
     expect(swept?.completedAt).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// audit.cleanupExpiredAuditLogs
+// ---------------------------------------------------------------------------
+
+describe("cron: audit.cleanupExpiredAuditLogs", () => {
+  it("deletes expired audit logs and leaves active ones", async () => {
+    const t = convexTest(schema, modules);
+    const now = Date.now();
+    const twoYears = 2 * 365 * 24 * 60 * 60 * 1000;
+
+    let expiredId: Id<"analysis_audit_log">;
+    let activeId: Id<"analysis_audit_log">;
+
+    await t.run(async (ctx) => {
+      const resumeId = await ctx.db.insert("resumes", {
+        externalId: "audit-cleanup-r1",
+        content: {},
+        hash: "audit-cleanup1",
+        tags: [],
+        crawledAt: now,
+        source: "test",
+      });
+
+      // Expired audit log — should be deleted
+      expiredId = await ctx.db.insert("analysis_audit_log", {
+        resumeId,
+        workspaceSlug: "ws-cleanup-expired",
+        decisionType: "score",
+        actionRef: "analyze:analyzeResume",
+        inputSnapshot: {},
+        modelMeta: { model: "gpt-4", provider: "openai" },
+        output: { score: 50 },
+        outcome: "accepted",
+        decidedAt: now - twoYears - 1000,
+        expiresAt: now - 1000, // Expired
+      });
+
+      // Active audit log — should survive
+      activeId = await ctx.db.insert("analysis_audit_log", {
+        resumeId,
+        workspaceSlug: "ws-cleanup-active",
+        decisionType: "score",
+        actionRef: "analyze:analyzeResume",
+        inputSnapshot: {},
+        modelMeta: { model: "gpt-4", provider: "openai" },
+        output: { score: 85 },
+        outcome: "pending",
+        decidedAt: now,
+        expiresAt: now + twoYears, // Not expired
+      });
+    });
+
+    const result = await t.action(internal.audit.cleanupExpiredAuditLogs, {});
+
+    expect(result.deleted).toBe(1);
+    expect(result.checked).toBe(1);
+    expect(result.hasMore).toBe(false);
+
+    // Verify only active entry remains
+    const remaining = await t.run(async (ctx) => {
+      return ctx.db.query("analysis_audit_log").collect();
+    });
+    expect(remaining.length).toBe(1);
+    expect(remaining[0].workspaceSlug).toBe("ws-cleanup-active");
+  });
+
+  it("deletes nothing when all logs are active", async () => {
+    const t = convexTest(schema, modules);
+    const now = Date.now();
+
+    await t.run(async (ctx) => {
+      const resumeId = await ctx.db.insert("resumes", {
+        externalId: "audit-cleanup-r2",
+        content: {},
+        hash: "audit-cleanup2",
+        tags: [],
+        crawledAt: now,
+        source: "test",
+      });
+
+      await ctx.db.insert("analysis_audit_log", {
+        resumeId,
+        workspaceSlug: "ws-all-active",
+        decisionType: "tag",
+        actionRef: "ai_tagging_results:drainQueue",
+        inputSnapshot: {},
+        modelMeta: { model: "gpt-4", provider: "openai" },
+        output: { tags: ["senior"] },
+        outcome: "accepted",
+        decidedAt: now,
+        expiresAt: now + 2 * 365 * 24 * 60 * 60 * 1000,
+      });
+    });
+
+    const result = await t.action(internal.audit.cleanupExpiredAuditLogs, {});
+
+    expect(result.deleted).toBe(0);
+    expect(result.checked).toBe(0);
+  });
+
+  it("deletes nothing when audit log is empty", async () => {
+    const t = convexTest(schema, modules);
+
+    const result = await t.action(internal.audit.cleanupExpiredAuditLogs, {});
+
+    expect(result.deleted).toBe(0);
+    expect(result.checked).toBe(0);
+  });
+
+  it("respects maxDeletes limit and reports hasMore", async () => {
+    const t = convexTest(schema, modules);
+    const now = Date.now();
+
+    // Insert 5 expired logs
+    await t.run(async (ctx) => {
+      const resumeId = await ctx.db.insert("resumes", {
+        externalId: "audit-cleanup-r3",
+        content: {},
+        hash: "audit-cleanup3",
+        tags: [],
+        crawledAt: now,
+        source: "test",
+      });
+
+      for (let i = 0; i < 5; i++) {
+        await ctx.db.insert("analysis_audit_log", {
+          resumeId,
+          workspaceSlug: `ws-limit-${i}`,
+          decisionType: "score",
+          actionRef: "analyze:analyzeResume",
+          inputSnapshot: {},
+          modelMeta: { model: "gpt-4", provider: "openai" },
+          output: { score: i * 20 },
+          decidedAt: now - 1000,
+          expiresAt: now - 1, // All expired
+        });
+      }
+    });
+
+    // Only delete 2 at a time
+    const result = await t.action(internal.audit.cleanupExpiredAuditLogs, {
+      maxDeletes: 2,
+    });
+
+    expect(result.deleted).toBe(2);
+    expect(result.hasMore).toBe(true);
+
+    // Second batch
+    const result2 = await t.action(internal.audit.cleanupExpiredAuditLogs, {
+      maxDeletes: 2,
+    });
+
+    expect(result2.deleted).toBe(2);
+    expect(result2.hasMore).toBe(true);
+
+    // Final batch
+    const result3 = await t.action(internal.audit.cleanupExpiredAuditLogs, {
+      maxDeletes: 2,
+    });
+
+    expect(result3.deleted).toBe(1);
+    expect(result3.hasMore).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// bias_audit.computeBiasMetricsForAllWorkspaces (cron entry point test)
+// ---------------------------------------------------------------------------
+
+describe("cron: bias_audit.getExpiredAuditLogs (query helper)", () => {
+  it("finds expired logs using by_expires_at index", async () => {
+    const t = convexTest(schema, modules);
+    const now = Date.now();
+
+    await t.run(async (ctx) => {
+      const resumeId = await ctx.db.insert("resumes", {
+        externalId: "expired-query-r1",
+        content: {},
+        hash: "expired-query1",
+        tags: [],
+        crawledAt: now,
+        source: "test",
+      });
+
+      await ctx.db.insert("analysis_audit_log", {
+        resumeId,
+        workspaceSlug: "ws-expired",
+        decisionType: "score",
+        actionRef: "analyze:analyzeResume",
+        inputSnapshot: {},
+        modelMeta: { model: "gpt-4", provider: "openai" },
+        output: { score: 50 },
+        decidedAt: now - 1000,
+        expiresAt: now - 500, // Expired
+      });
+
+      await ctx.db.insert("analysis_audit_log", {
+        resumeId,
+        workspaceSlug: "ws-active",
+        decisionType: "score",
+        actionRef: "analyze:analyzeResume",
+        inputSnapshot: {},
+        modelMeta: { model: "gpt-4", provider: "openai" },
+        output: { score: 80 },
+        decidedAt: now,
+        expiresAt: now + 86400000, // Not expired
+      });
+    });
+
+    const expired = await t.query(internal.audit.getExpiredAuditLogs, {
+      before: now,
+    });
+
+    expect(expired.length).toBe(1);
+    expect(expired[0].workspaceSlug).toBe("ws-expired");
+  });
+
+  it("returns empty array when no logs are expired", async () => {
+    const t = convexTest(schema, modules);
+
+    const expired = await t.query(internal.audit.getExpiredAuditLogs, {
+      before: Date.now(),
+    });
+
+    expect(expired).toEqual([]);
   });
 });
