@@ -2,7 +2,7 @@ import { internalMutation, mutation, query } from "./_generated/server";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
-import { collectionTaskResultsValidator } from "./validators.js";
+import { collectionTaskResultsValidator, ingestDataValidator, analysisResultValidator, resumeAnalysisValidator } from "./validators.js";
 import { buildSearchText, mergeSearchTextWithIngestData } from "./search_text";
 import { computeVerifiedRoleYears } from "@trends/shared";
 import { resolveSubmitResumeParallelism } from "./lib/parallelism";
@@ -456,9 +456,9 @@ export const submitResumes = mutation({
                     archivedAt: v.optional(v.number()),
                     searchText: v.optional(v.string()),
                     primaryRuleScore: v.optional(v.number()),
-                    ingestData: v.optional(v.any()),
-                    analysis: v.optional(v.any()),
-                    analyses: v.optional(v.any()),
+                    ingestData: v.optional(ingestDataValidator),
+                    analysis: v.optional(resumeAnalysisValidator),
+                    analyses: v.optional(v.record(v.string(), analysisResultValidator)),
                 })),
             })
         ),
