@@ -16,7 +16,8 @@
     "jds": "职位",
     "archived": "已归档",
     "aiTaggingCompare": "AI 标注（对比）",
-    "dataInspector": "数据检查"
+    "dataInspector": "数据检查",
+    "auditCompliance": "审计与合规"
   },
   "common": {
     "loading": "加载中...",
@@ -1359,5 +1360,55 @@
     "feedbackImportSuccess": "已导入 {{count}} 行审阅数据",
     "summaryCardDescription": "生成 WeChat 摘要预览，然后使用配置的模板和可选的 webhook 覆盖发送。",
     "webhookUrlPlaceholder": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=***"
+  },
+  "auditCompliance": {
+    "title": "审计与合规",
+    "description": "EU AI Act 合规仪表盘 — 审计追踪、人工监督和偏差监控。",
+    "pendingBadge": "{{count}} 条待审核",
+    "anomalyBadge": "{{count}} 个异常标记",
+    "biasReport": {
+      "title": "偏差审计报告",
+      "description": "最新偏差指标报告（EU AI Act 第12条 — 监控与文档化）。",
+      "workspace": "工作区",
+      "generatedAt": "生成时间",
+      "anomalyDetected": "是否检测到异常",
+      "noReport": "暂无偏差审计报告。"
+    },
+    "auditLog": {
+      "title": "决策审计日志",
+      "description": "所有自动化决策及人工监督追踪（EU AI Act 第14条）。",
+      "empty": "未找到审计日志条目。"
+    },
+    "filters": {
+      "decisionType": "决策类型",
+      "outcome": "结果",
+      "all": "全部"
+    },
+    "columns": {
+      "time": "时间",
+      "type": "类型",
+      "action": "操作",
+      "model": "模型",
+      "output": "输出",
+      "outcome": "结果",
+      "actor": "操作者",
+      "anomaly": "异常",
+      "actions": "操作"
+    },
+    "actions": {
+      "review": "审核"
+    },
+    "setOutcome": {
+      "title": "设置审计结果",
+      "description": "为此自动化决策设置人工监督结果（EU AI Act 第14条）。",
+      "decisionType": "决策类型",
+      "score": "分数",
+      "recommendation": "推荐",
+      "confirm": "确认设置"
+    },
+    "toasts": {
+      "outcomeSet": "审计结果已更新",
+      "outcomeFailed": "更新审计结果失败"
+    }
   }
 }

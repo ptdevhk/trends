@@ -16,8 +16,8 @@ type AuditLogEntry = {
 }
 
 const mockApiClient = vi.hoisted(() => ({
-  GET: vi.fn(async () => ({ data: { success: true } })),
-  POST: vi.fn(async () => ({ data: { success: true } })),
+  GET: vi.fn(async () => ({ data: { success: true } as Record<string, unknown> })),
+  POST: vi.fn(async () => ({ data: { success: true } as Record<string, unknown> })),
 }))
 
 vi.mock('@/lib/api-helpers', () => ({
@@ -65,7 +65,7 @@ describe('useAuditLogs', () => {
   })
 
   it('does not fetch when workspace slug is empty', async () => {
-    const { result } = renderHook(() => useAuditLogs('', true))
+    renderHook(() => useAuditLogs('', true))
     await act(async () => {})
 
     expect(mockApiClient.POST).not.toHaveBeenCalled()

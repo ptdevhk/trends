@@ -16,7 +16,8 @@
     "jds": "職位",
     "archived": "已歸檔",
     "aiTaggingCompare": "AI 標註（對比）",
-    "dataInspector": "資料檢查"
+    "dataInspector": "資料檢查",
+    "auditCompliance": "稽核與合規"
   },
   "common": {
     "loading": "載入中...",
@@ -1332,5 +1333,55 @@
     "feedbackImportSuccess": "已匯入 {{count}} 行審閱資料",
     "summaryCardDescription": "生成 WeChat 摘要預覽，然後使用配置的模板和可選的 webhook 覆蓋發送。",
     "webhookUrlPlaceholder": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=***"
+  },
+  "auditCompliance": {
+    "title": "稽核與合規",
+    "description": "EU AI Act 合規儀表盤 — 稽核追蹤、人工監督和偏差監控。",
+    "pendingBadge": "{{count}} 條待審核",
+    "anomalyBadge": "{{count}} 個異常標記",
+    "biasReport": {
+      "title": "偏差稽核報告",
+      "description": "最新偏差指標報告（EU AI Act 第12條 — 監控與文檔化）。",
+      "workspace": "工作區",
+      "generatedAt": "生成時間",
+      "anomalyDetected": "是否偵測到異常",
+      "noReport": "暫無偏差稽核報告。"
+    },
+    "auditLog": {
+      "title": "決策稽核日誌",
+      "description": "所有自動化決策及人工監督追蹤（EU AI Act 第14條）。",
+      "empty": "未找到稽核日誌條目。"
+    },
+    "filters": {
+      "decisionType": "決策類型",
+      "outcome": "結果",
+      "all": "全部"
+    },
+    "columns": {
+      "time": "時間",
+      "type": "類型",
+      "action": "操作",
+      "model": "模型",
+      "output": "輸出",
+      "outcome": "結果",
+      "actor": "操作者",
+      "anomaly": "異常",
+      "actions": "操作"
+    },
+    "actions": {
+      "review": "審核"
+    },
+    "setOutcome": {
+      "title": "設置稽核結果",
+      "description": "為此自動化決策設置人工監督結果（EU AI Act 第14條）。",
+      "decisionType": "決策類型",
+      "score": "分數",
+      "recommendation": "推薦",
+      "confirm": "確認設置"
+    },
+    "toasts": {
+      "outcomeSet": "稽核結果已更新",
+      "outcomeFailed": "更新稽核結果失敗"
+    }
   }
 }
