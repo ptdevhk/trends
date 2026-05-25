@@ -165,10 +165,27 @@ export const getAuditLogByWorkspace = query({
             v.literal("filter"),
             v.literal("confirm"),
         )),
+        outcome: v.optional(v.union(
+            v.literal("pending"),
+            v.literal("accepted"),
+            v.literal("overridden"),
+            v.literal("appealed"),
+        )),
         limit: v.optional(v.number()),
     },
     handler: async (ctx, args) => {
         const limit = Math.min(args.limit ?? 50, 200);
+
+        // Use outcome-indexed query when filtering by outcome (human oversight dashboard)
+        if (args.outcome && !args.decisionType) {
+            return ctx.db
+                .query("analysis_audit_log")
+                .withIndex("by_workspace_outcome", (q) =>
+                    q.eq("workspaceSlug", args.workspaceSlug).eq("outcome", args.outcome!)
+                )
+                .order("desc")
+                .take(limit);
+        }
 
         if (args.decisionType) {
             return ctx.db

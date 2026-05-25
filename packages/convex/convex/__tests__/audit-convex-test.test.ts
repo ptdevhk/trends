@@ -223,6 +223,63 @@ describe("audit (convex-test)", () => {
       });
       expect(allLogs.length).toBe(2);
     });
+
+    it("filters audit logs by outcome", async () => {
+      const t = convexTest(schema, modules);
+
+      const resumeId = await t.run(async (ctx) => {
+        return ctx.db.insert("resumes", {
+          externalId: "outcome-filter-r1",
+          content: {},
+          hash: "outcome-filter1",
+          tags: [],
+          crawledAt: Date.now(),
+          source: "test",
+        });
+      });
+
+      const now = Date.now();
+      await t.run(async (ctx) => {
+        await ctx.db.insert("analysis_audit_log", {
+          resumeId,
+          workspaceSlug: "ws-outcome-filter",
+          decisionType: "score",
+          actionRef: "analyze:analyzeResume",
+          inputSnapshot: {},
+          modelMeta: { model: "gpt-4", provider: "openai" },
+          output: { score: 90 },
+          outcome: "pending",
+          decidedAt: now,
+          expiresAt: now + 2 * 365 * 24 * 60 * 60 * 1000,
+        });
+        await ctx.db.insert("analysis_audit_log", {
+          resumeId,
+          workspaceSlug: "ws-outcome-filter",
+          decisionType: "confirm",
+          actionRef: "analyze:confirmSearchResults",
+          inputSnapshot: {},
+          modelMeta: { model: "gpt-4", provider: "openai" },
+          output: { score: 85 },
+          outcome: "accepted",
+          decidedAt: now + 1000,
+          expiresAt: now + 2 * 365 * 24 * 60 * 60 * 1000,
+        });
+      });
+
+      const pendingLogs = await t.query(api.audit.getAuditLogByWorkspace, {
+        workspaceSlug: "ws-outcome-filter",
+        outcome: "pending",
+      });
+      expect(pendingLogs.length).toBe(1);
+      expect(pendingLogs[0].outcome).toBe("pending");
+
+      const acceptedLogs = await t.query(api.audit.getAuditLogByWorkspace, {
+        workspaceSlug: "ws-outcome-filter",
+        outcome: "accepted",
+      });
+      expect(acceptedLogs.length).toBe(1);
+      expect(acceptedLogs[0].outcome).toBe("accepted");
+    });
   });
 
   describe("confirm audit log (decisionType: confirm)", () => {

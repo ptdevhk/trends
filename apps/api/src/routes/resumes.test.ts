@@ -1803,6 +1803,38 @@ describe("resume routes", () => {
 
       expect(response.status).toBe(400);
     });
+
+    it("filters audit logs by outcome", async () => {
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+        const call = parseConvexCall(input, init);
+        expect(call.args).toEqual({ workspaceSlug: "ws1", outcome: "pending" });
+        return convexSuccess([
+          { _id: "al1", decisionType: "score", outcome: "pending" },
+        ]);
+      });
+
+      const app = createApp();
+      const response = await app.request("/api/resumes/audit-logs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workspaceSlug: "ws1", outcome: "pending" }),
+      });
+
+      expect(response.status).toBe(200);
+      const payload = await response.json();
+      expect(payload.data.length).toBe(1);
+    });
+
+    it("returns 400 for invalid outcome", async () => {
+      const app = createApp();
+      const response = await app.request("/api/resumes/audit-logs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workspaceSlug: "ws1", outcome: "invalid" }),
+      });
+
+      expect(response.status).toBe(400);
+    });
   });
 
   describe("POST /api/resumes/audit-outcome", () => {
