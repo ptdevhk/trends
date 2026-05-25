@@ -60,6 +60,12 @@ export const logAnalysisDecision = internalMutation({
         })),
         decidedAt: v.number(),
         expiresAt: v.optional(v.number()),
+        actorId: v.optional(v.string()),
+        actorRole: v.optional(v.union(
+            v.literal("admin"),
+            v.literal("operator"),
+            v.literal("system"),
+        )),
     },
     handler: async (ctx, args) => {
         await ctx.db.insert("analysis_audit_log", {
@@ -76,6 +82,8 @@ export const logAnalysisDecision = internalMutation({
             outcome: "pending",
             decidedAt: args.decidedAt,
             expiresAt: args.expiresAt ?? args.decidedAt + 2 * 365 * 24 * 60 * 60 * 1000,
+            actorId: args.actorId,
+            actorRole: args.actorRole,
         });
     },
 });

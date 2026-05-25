@@ -794,6 +794,8 @@ export const drainQueue = internalAction({
             },
             protectedAttributeHashes: protectedHashes,
             decidedAt: Date.now(),
+            actorId: "system",
+            actorRole: "system",
           });
         } catch (auditError) {
           console.error("Audit logging failed for tagging:", auditError);

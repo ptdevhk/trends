@@ -1067,3 +1067,130 @@ describe("migration: backfillSeekNameSearchUrls", () => {
     expect(result.updatedResumes).toBe(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// backfillAuditLogActorIdentity
+// ---------------------------------------------------------------------------
+
+describe("migration: backfillAuditLogActorIdentity", () => {
+  it("patches audit logs without actorId/actorRole", async () => {
+    const t = convexTest(schema, modules);
+
+    const resumeId = await insertResume(t);
+
+    // Insert an audit log without actor fields (simulates pre-feature data)
+    const now = Date.now();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("analysis_audit_log", {
+        resumeId,
+        workspaceSlug: "ws-backfill",
+        decisionType: "score",
+        actionRef: "analyze:analyzeResume",
+        inputSnapshot: {},
+        modelMeta: { model: "gpt-4", provider: "openai" },
+        output: { score: 80 },
+        outcome: "pending",
+        decidedAt: now,
+        expiresAt: now + 2 * 365 * 24 * 60 * 60 * 1000,
+        // No actorId or actorRole — pre-tracking state
+      });
+    });
+
+    const result = await t.mutation(api.migrations.backfillAuditLogActorIdentity, {});
+
+    expect(result.updated).toBeGreaterThanOrEqual(1);
+    expect(result.scanned).toBeGreaterThanOrEqual(1);
+
+    // Verify the audit log now has actor fields
+    const logs = await t.run(async (ctx) => {
+      return ctx.db
+        .query("analysis_audit_log")
+        .withIndex("by_workspace", (q) => q.eq("workspaceSlug", "ws-backfill"))
+        .collect();
+    });
+
+    expect(logs.length).toBe(1);
+    expect(logs[0].actorId).toBe("pre-tracking");
+    expect(logs[0].actorRole).toBe("system");
+  });
+
+  it("skips audit logs that already have actor identity", async () => {
+    const t = convexTest(schema, modules);
+
+    const resumeId = await insertResume(t);
+
+    const now = Date.now();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("analysis_audit_log", {
+        resumeId,
+        workspaceSlug: "ws-skip",
+        decisionType: "tag",
+        actionRef: "ai_tagging_results:drainQueue",
+        inputSnapshot: {},
+        modelMeta: { model: "gpt-4", provider: "openai" },
+        output: { tags: ["senior"] },
+        outcome: "pending",
+        decidedAt: now,
+        expiresAt: now + 2 * 365 * 24 * 60 * 60 * 1000,
+        actorId: "system",
+        actorRole: "system",
+      });
+    });
+
+    const result = await t.mutation(api.migrations.backfillAuditLogActorIdentity, {});
+
+    expect(result.updated).toBe(0);
+
+    // Verify the existing actor fields were not changed
+    const logs = await t.run(async (ctx) => {
+      return ctx.db
+        .query("analysis_audit_log")
+        .withIndex("by_workspace", (q) => q.eq("workspaceSlug", "ws-skip"))
+        .collect();
+    });
+
+    expect(logs.length).toBe(1);
+    expect(logs[0].actorId).toBe("system");
+    expect(logs[0].actorRole).toBe("system");
+  });
+
+  it("handles pagination with cursor", async () => {
+    const t = convexTest(schema, modules);
+
+    const resumeId = await insertResume(t);
+
+    const now = Date.now();
+    // Insert 2 audit logs without actor fields
+    await t.run(async (ctx) => {
+      await ctx.db.insert("analysis_audit_log", {
+        resumeId,
+        workspaceSlug: "ws-paginate",
+        decisionType: "score",
+        actionRef: "analyze:analyzeResume",
+        inputSnapshot: {},
+        modelMeta: { model: "gpt-4", provider: "openai" },
+        output: { score: 70 },
+        outcome: "pending",
+        decidedAt: now,
+        expiresAt: now + 2 * 365 * 24 * 60 * 60 * 1000,
+      });
+      await ctx.db.insert("analysis_audit_log", {
+        resumeId,
+        workspaceSlug: "ws-paginate",
+        decisionType: "tag",
+        actionRef: "ai_tagging_results:drainQueue",
+        inputSnapshot: {},
+        modelMeta: { model: "gpt-4", provider: "openai" },
+        output: { tags: ["lead"] },
+        outcome: "pending",
+        decidedAt: now + 1000,
+        expiresAt: now + 2 * 365 * 24 * 60 * 60 * 1000,
+      });
+    });
+
+    const result = await t.mutation(api.migrations.backfillAuditLogActorIdentity, {});
+
+    expect(result.updated).toBe(2);
+    expect(result.scanned).toBe(2);
+  });
+});

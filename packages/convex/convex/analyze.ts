@@ -735,6 +735,8 @@ export const analyzeResume = action({
                         })),
                 },
                 decidedAt: Date.now(),
+                actorId: "system",
+                actorRole: "system",
             });
         } catch (auditError) {
             // Audit logging failure must NOT block the analysis result
@@ -961,6 +963,8 @@ export const confirmSearchResults = action({
                                 })),
                         },
                         decidedAt: Date.now(),
+                        actorId: "system",
+                        actorRole: "system",
                     });
                 } catch (auditError) {
                     // Audit logging failure must NOT block the confirm result
