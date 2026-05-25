@@ -207,9 +207,12 @@ export const getById = query({
   },
 });
 
+/** Validator for the profile object passed to create/update. Accepts any plain key-value record. */
+const profileInputValidator = v.record(v.string(), v.any());
+
 export const create = mutation({
   args: {
-    profile: v.any(),
+    profile: profileInputValidator,
     workspaceSlug: v.optional(v.string()),
     jobDescriptionSync: v.optional(jobDescriptionSyncSchema),
   },
@@ -240,7 +243,7 @@ export const create = mutation({
 export const update = mutation({
   args: {
     id: v.string(),
-    profile: v.any(),
+    profile: profileInputValidator,
     workspaceSlug: v.optional(v.string()),
     jobDescriptionSync: v.optional(jobDescriptionSyncSchema),
   },
