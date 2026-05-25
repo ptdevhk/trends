@@ -34,6 +34,13 @@ export const DateFilterSchema = z.object({
 });
 
 // Error response schema
+export const SimpleErrorSchema = z
+  .object({
+    success: z.literal(false),
+    error: z.string(),
+  })
+  .openapi("SimpleError");
+
 export const ErrorResponseSchema = z
   .object({
     success: z.literal(false),

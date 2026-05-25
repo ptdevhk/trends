@@ -22,6 +22,7 @@ import {
   MatchRunsQuerySchema,
   AnalyzeRequestSchema,
   AnalyzeResponseSchema,
+  SimpleErrorSchema,
 } from "../schemas/index.js";
 import { config } from "../services/config.js";
 import { ResumeService, normalizeEducationLevel, parseExperienceYears, type ResumeFilters } from "../services/resume-service.js";
@@ -115,11 +116,6 @@ const DEFAULT_CONVEX_RESUME_PAGE_SIZE = 50;
 const MAX_SAFE_CONVEX_POST_FILTER_SCAN = 250;
 
 type MatchMode = "rules_only" | "hybrid" | "ai_only";
-
-const SimpleErrorSchema = z.object({
-  success: z.literal(false),
-  error: z.string(),
-});
 
 const ClearMatchesResponseSchema = z.object({
   success: z.literal(true),
