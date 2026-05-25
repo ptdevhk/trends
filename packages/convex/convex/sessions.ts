@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query, type MutationCtx } from "./_generated/server";
+import { resumeFiltersValidator } from "./validators.js";
 
 export const DEFAULT_WORKSPACE_SLUG = "dev";
 
@@ -189,7 +190,7 @@ export const saveSession = mutation({
             type: v.union(v.literal("job5156"), v.literal("51job"), v.literal("seek")),
             exactUrl: v.optional(v.string()),
         })),
-        filters: v.optional(v.any()),
+        filters: resumeFiltersValidator,
     },
     handler: async (ctx, args) => {
         const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
@@ -356,7 +357,7 @@ export const saveSearchHistory = mutation({
             type: v.union(v.literal("job5156"), v.literal("51job"), v.literal("seek")),
             exactUrl: v.optional(v.string()),
         })),
-        filters: v.optional(v.any()),
+        filters: resumeFiltersValidator,
         selectedTags: v.optional(v.array(v.string())),
         selectedCompanies: v.optional(v.array(v.string())),
         selectedExperienceLevel: v.optional(v.string()),
