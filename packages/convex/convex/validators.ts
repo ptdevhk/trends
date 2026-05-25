@@ -64,7 +64,21 @@ export const ingestDataValidator = v.object({
         })),
     })),
     // Legacy field: migrated to taggingEnvelope; retained for documents not yet migrated.
-    tagEnvelope: v.optional(v.any()),
+    tagEnvelope: v.optional(v.object({
+        schemaVersion: v.number(),
+        generatedAt: v.number(),
+        entries: v.array(v.object({
+            tag: v.string(),
+            source: v.string(),
+            confidence: v.number(),
+            version: v.number(),
+            provenance: v.object({
+                stage: v.string(),
+                generatedBy: v.string(),
+                evidence: v.array(v.string()),
+            }),
+        })),
+    })),
     ruleScores: v.record(v.string(), v.number()),
     experienceLevel: v.string(),
     computedAt: v.number(),
