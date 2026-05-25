@@ -1733,4 +1733,171 @@ describe("resume routes", () => {
       expect(response.status).toBe(500);
     });
   });
+
+  describe("POST /api/resumes/audit-logs", () => {
+    it("returns audit logs for a workspace", async () => {
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+        const call = parseConvexCall(input, init);
+        if (call.pathName !== "audit:getAuditLogByWorkspace") {
+          throw new Error(`Unexpected convex path: ${call.pathName}`);
+        }
+        expect(call.args.workspaceSlug).toBe("ws1");
+        return convexSuccess([
+          { _id: "al1", decisionType: "score", outcome: "pending", output: { score: 85 } },
+          { _id: "al2", decisionType: "confirm", outcome: "pending", output: { score: 90 } },
+        ]);
+      });
+
+      const app = createApp();
+      const response = await app.request("/api/resumes/audit-logs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workspaceSlug: "ws1" }),
+      });
+
+      expect(response.status).toBe(200);
+      const payload = await response.json();
+      expect(payload.success).toBe(true);
+      expect(payload.data.length).toBe(2);
+    });
+
+    it("filters audit logs by decisionType", async () => {
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+        const call = parseConvexCall(input, init);
+        expect(call.args).toEqual({ workspaceSlug: "ws1", decisionType: "score" });
+        return convexSuccess([
+          { _id: "al1", decisionType: "score", outcome: "pending" },
+        ]);
+      });
+
+      const app = createApp();
+      const response = await app.request("/api/resumes/audit-logs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workspaceSlug: "ws1", decisionType: "score" }),
+      });
+
+      expect(response.status).toBe(200);
+      const payload = await response.json();
+      expect(payload.data.length).toBe(1);
+    });
+
+    it("returns 400 when workspaceSlug is missing", async () => {
+      const app = createApp();
+      const response = await app.request("/api/resumes/audit-logs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+
+      expect(response.status).toBe(400);
+    });
+
+    it("returns 400 for invalid decisionType", async () => {
+      const app = createApp();
+      const response = await app.request("/api/resumes/audit-logs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workspaceSlug: "ws1", decisionType: "invalid" }),
+      });
+
+      expect(response.status).toBe(400);
+    });
+  });
+
+  describe("POST /api/resumes/audit-outcome", () => {
+    it("sets audit outcome to accepted", async () => {
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+        const call = parseConvexCall(input, init, "/api/mutation");
+        expect(call.pathName).toBe("audit:setAuditOutcome");
+        expect(call.args).toEqual({ auditLogId: "al1", outcome: "accepted" });
+        return convexSuccess(null);
+      });
+
+      const app = createApp();
+      const response = await app.request("/api/resumes/audit-outcome", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ auditLogId: "al1", outcome: "accepted" }),
+      });
+
+      expect(response.status).toBe(200);
+      const payload = await response.json();
+      expect(payload.success).toBe(true);
+    });
+
+    it("sets audit outcome to overridden with setBy", async () => {
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+        const call = parseConvexCall(input, init, "/api/mutation");
+        expect(call.args).toEqual({ auditLogId: "al1", outcome: "overridden", setBy: "reviewer@example.com" });
+        return convexSuccess(null);
+      });
+
+      const app = createApp();
+      const response = await app.request("/api/resumes/audit-outcome", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ auditLogId: "al1", outcome: "overridden", setBy: "reviewer@example.com" }),
+      });
+
+      expect(response.status).toBe(200);
+    });
+
+    it("sets audit outcome to appealed", async () => {
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+        const call = parseConvexCall(input, init, "/api/mutation");
+        expect(call.args.outcome).toBe("appealed");
+        return convexSuccess(null);
+      });
+
+      const app = createApp();
+      const response = await app.request("/api/resumes/audit-outcome", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ auditLogId: "al1", outcome: "appealed" }),
+      });
+
+      expect(response.status).toBe(200);
+    });
+
+    it("returns 400 when auditLogId is missing", async () => {
+      const app = createApp();
+      const response = await app.request("/api/resumes/audit-outcome", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ outcome: "accepted" }),
+      });
+
+      expect(response.status).toBe(400);
+    });
+
+    it("returns 400 for invalid outcome", async () => {
+      const app = createApp();
+      const response = await app.request("/api/resumes/audit-outcome", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ auditLogId: "al1", outcome: "invalid" }),
+      });
+
+      expect(response.status).toBe(400);
+    });
+
+    it("returns 500 when Convex call fails", async () => {
+      vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
+        return new Response(JSON.stringify({ status: "error", errorMessage: "Not found" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      });
+
+      const app = createApp();
+      const response = await app.request("/api/resumes/audit-outcome", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ auditLogId: "al1", outcome: "accepted" }),
+      });
+
+      expect(response.status).toBe(500);
+    });
+  });
 });

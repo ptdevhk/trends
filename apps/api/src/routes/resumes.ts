@@ -1275,4 +1275,62 @@ app.post("/api/resumes/explanation", async (c) => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// Audit log endpoints (EU AI Act Art. 14 human oversight)
+// ---------------------------------------------------------------------------
+
+app.post("/api/resumes/audit-logs", async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const workspaceSlug = typeof body.workspaceSlug === "string" ? body.workspaceSlug.trim() : "";
+  const decisionType = typeof body.decisionType === "string" ? body.decisionType.trim() : undefined;
+
+  if (!workspaceSlug) {
+    return c.json({ success: false, error: "workspaceSlug is required" }, 400);
+  }
+
+  if (decisionType && decisionType !== "score" && decisionType !== "tag" && decisionType !== "confirm") {
+    return c.json({ success: false, error: "decisionType must be 'score', 'tag', or 'confirm'" }, 400);
+  }
+
+  try {
+    const logs = await callConvexQuery("audit:getAuditLogByWorkspace", {
+      workspaceSlug,
+      ...(decisionType ? { decisionType } : {}),
+    });
+
+    return c.json({ success: true, data: logs }, 200);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return c.json({ success: false, error: message }, 500);
+  }
+});
+
+app.post("/api/resumes/audit-outcome", async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const auditLogId = typeof body.auditLogId === "string" ? body.auditLogId.trim() : "";
+  const outcome = typeof body.outcome === "string" ? body.outcome.trim() : "";
+  const setBy = typeof body.setBy === "string" ? body.setBy.trim() : undefined;
+
+  if (!auditLogId || !outcome) {
+    return c.json({ success: false, error: "auditLogId and outcome are required" }, 400);
+  }
+
+  if (outcome !== "accepted" && outcome !== "overridden" && outcome !== "appealed") {
+    return c.json({ success: false, error: "outcome must be 'accepted', 'overridden', or 'appealed'" }, 400);
+  }
+
+  try {
+    await callConvexMutation("audit:setAuditOutcome", {
+      auditLogId,
+      outcome,
+      ...(setBy ? { setBy } : {}),
+    });
+
+    return c.json({ success: true }, 200);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return c.json({ success: false, error: message }, 500);
+  }
+});
+
 export default app;
