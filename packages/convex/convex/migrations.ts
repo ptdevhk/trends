@@ -32,7 +32,7 @@ const MANUAL_51JOB_SOURCE = "51job-manual";
 const PROFILE_URL_CONTENT_KEYS = ["profileUrl", "profile_url", "profileURL", "url"];
 
 
-function rewriteJob5156ProfileUrlsInContent(content: unknown): {
+export function rewriteJob5156ProfileUrlsInContent(content: unknown): {
     content: Record<string, unknown> | null;
     updatedFields: string[];
 } {
@@ -76,7 +76,7 @@ type RewriteJob5156LocationHierarchyResult = {
     updatedLocation: boolean;
 };
 
-function rewriteJob5156LocationHierarchyInContent(content: unknown): RewriteJob5156LocationHierarchyResult {
+export function rewriteJob5156LocationHierarchyInContent(content: unknown): RewriteJob5156LocationHierarchyResult {
     if (!isRecord(content)) {
         return {
             content: null,
@@ -121,7 +121,7 @@ function rewriteJob5156LocationHierarchyInContent(content: unknown): RewriteJob5
     };
 }
 
-function toRuleScores(value: unknown): Record<string, number> {
+export function toRuleScores(value: unknown): Record<string, number> {
     if (!isRecord(value)) {
         return {};
     }
@@ -135,7 +135,7 @@ function toRuleScores(value: unknown): Record<string, number> {
     return scores;
 }
 
-function isManual51jobResumeContent(content: unknown, source: unknown): content is Record<string, unknown> {
+export function isManual51jobResumeContent(content: unknown, source: unknown): content is Record<string, unknown> {
     if (!isRecord(content)) {
         return false;
     }
@@ -149,15 +149,15 @@ function isManual51jobResumeContent(content: unknown, source: unknown): content 
     return profileType === MANUAL_51JOB_SOURCE;
 }
 
-function isImplausibleManual51jobCompanyName(value: string): boolean {
+export function isImplausibleManual51jobCompanyName(value: string): boolean {
     return !isLikelyManual51jobCompanyName(value);
 }
 
-function isImplausibleManual51jobJobTitle(value: string): boolean {
+export function isImplausibleManual51jobJobTitle(value: string): boolean {
     return !isLikelyManual51jobJobTitle(value);
 }
 
-function hasMisplacedManual51jobCompanyLine(raw: string, companyName: string): boolean {
+export function hasMisplacedManual51jobCompanyLine(raw: string, companyName: string): boolean {
     const lines = splitManual51jobLines(raw).filter(Boolean);
     if (lines.length < 2) {
         return false;
@@ -176,7 +176,7 @@ function hasMisplacedManual51jobCompanyLine(raw: string, companyName: string): b
     return lines.slice(1).some((line) => line !== companyName && isLikelyManual51jobCompanyName(line));
 }
 
-function isManual51jobWorkHistoryEntryMalformed(entry: unknown): boolean {
+export function isManual51jobWorkHistoryEntryMalformed(entry: unknown): boolean {
     const normalized = normalizeWorkHistoryEntry(entry);
     if (!normalized) {
         return true;
@@ -225,7 +225,7 @@ function isManual51jobWorkHistoryEntryMalformed(entry: unknown): boolean {
     return false;
 }
 
-function hasStructuredWorkHistory(content: Record<string, unknown>): boolean {
+export function hasStructuredWorkHistory(content: Record<string, unknown>): boolean {
     if (!Array.isArray(content.workHistory)) {
         return false;
     }
@@ -236,7 +236,7 @@ function hasStructuredWorkHistory(content: Record<string, unknown>): boolean {
     });
 }
 
-function workHistoryMatches(existing: unknown, next: unknown): boolean {
+export function workHistoryMatches(existing: unknown, next: unknown): boolean {
     if (!Array.isArray(existing) || !Array.isArray(next)) {
         return false;
     }
@@ -259,7 +259,7 @@ function workHistoryMatches(existing: unknown, next: unknown): boolean {
     });
 }
 
-function locationHierarchySpecificity(value: {
+export function locationHierarchySpecificity(value: {
     province?: string;
     city?: string;
     district?: string;
@@ -267,7 +267,7 @@ function locationHierarchySpecificity(value: {
     return [value?.province, value?.city, value?.district].filter(Boolean).length;
 }
 
-function shouldReplaceManual51jobName(existing: unknown, parsedName: string | undefined): boolean {
+export function shouldReplaceManual51jobName(existing: unknown, parsedName: string | undefined): boolean {
     const nextName = typeof parsedName === "string" ? parsedName.trim() : "";
     if (!nextName) {
         return false;
@@ -290,7 +290,7 @@ function shouldReplaceManual51jobName(existing: unknown, parsedName: string | un
     return false;
 }
 
-function shouldPreferManual51jobLocation(existing: unknown, parsedLocation: string | undefined): boolean {
+export function shouldPreferManual51jobLocation(existing: unknown, parsedLocation: string | undefined): boolean {
     const nextLocation = typeof parsedLocation === "string" ? parsedLocation.trim() : "";
     if (!nextLocation) {
         return false;
@@ -316,7 +316,7 @@ function shouldPreferManual51jobLocation(existing: unknown, parsedLocation: stri
     return locationHierarchySpecificity(nextHierarchy) > locationHierarchySpecificity(currentHierarchy);
 }
 
-function rewrite51jobManualContent(content: unknown, source: string): {
+export function rewrite51jobManualContent(content: unknown, source: string): {
     content: Record<string, unknown> | null;
     contentChanged: boolean;
     evidenceText: string;
@@ -420,7 +420,7 @@ function rewrite51jobManualContent(content: unknown, source: string): {
     };
 }
 
-function analysisRichness(resume: Doc<"resumes">): number {
+export function analysisRichness(resume: Doc<"resumes">): number {
     let richness = 0;
     if (resume.analysis !== undefined) {
         richness += 1;
@@ -431,7 +431,7 @@ function analysisRichness(resume: Doc<"resumes">): number {
     return richness;
 }
 
-function resumeIdentityKey(resume: Doc<"resumes">): string {
+export function resumeIdentityKey(resume: Doc<"resumes">): string {
     return resume.identityKey ?? deriveResumeIdentityKey({
         content: resume.content,
         externalId: resume.externalId,
@@ -439,7 +439,7 @@ function resumeIdentityKey(resume: Doc<"resumes">): string {
     });
 }
 
-function sortForCanonical(resumes: Doc<"resumes">[]): Doc<"resumes">[] {
+export function sortForCanonical(resumes: Doc<"resumes">[]): Doc<"resumes">[] {
     return [...resumes].sort((left, right) => {
         if (left.crawledAt !== right.crawledAt) {
             return right.crawledAt - left.crawledAt;
@@ -452,7 +452,7 @@ function sortForCanonical(resumes: Doc<"resumes">[]): Doc<"resumes">[] {
     });
 }
 
-function mergeAnalyses(resumes: Doc<"resumes">[]): {
+export function mergeAnalyses(resumes: Doc<"resumes">[]): {
     analyses: Record<string, unknown>;
     analysis: Doc<"resumes">["analysis"];
 } {
@@ -480,7 +480,7 @@ function mergeAnalyses(resumes: Doc<"resumes">[]): {
     };
 }
 
-function groupDuplicatesByIdentity(resumes: Doc<"resumes">[]): Array<{
+export function groupDuplicatesByIdentity(resumes: Doc<"resumes">[]): Array<{
     identityKey: string;
     resumes: Doc<"resumes">[];
 }> {
@@ -846,7 +846,7 @@ export const backfillEvidenceText = mutation({
     },
 });
 
-function looksLikeJob5156EducationEntry(value: unknown): boolean {
+export function looksLikeJob5156EducationEntry(value: unknown): boolean {
     const normalized = normalizeWorkHistoryEntry(value);
     if (!normalized) {
         return false;
@@ -857,7 +857,7 @@ function looksLikeJob5156EducationEntry(value: unknown): boolean {
     return raw.includes("学院") || raw.includes("大学") || raw.includes("学历") || companyName.includes("学院") || companyName.includes("大学");
 }
 
-function rewriteJob5156WorkHistoryContent(content: unknown): {
+export function rewriteJob5156WorkHistoryContent(content: unknown): {
     content: Record<string, unknown> | null;
     movedEducationEntries: number;
 } {
@@ -1456,7 +1456,7 @@ export const backfillVerifiedRoleYears = mutation({
     },
 });
 
-function shallowEqualNumberRecord(
+export function shallowEqualNumberRecord(
     a: Record<string, number> | undefined,
     b: Record<string, number>,
 ): boolean {
