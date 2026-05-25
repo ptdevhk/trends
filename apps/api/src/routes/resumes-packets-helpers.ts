@@ -1,4 +1,5 @@
 import type { ResumeItem } from "../types/resume.js";
+import { toStringValue, toOptionalNumber, toStringArray } from "../services/resume-ingest-utils.js";
 
 // --- Pure helper functions for data parsing ---
 
@@ -6,39 +7,8 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-export function toStringValue(value: unknown): string {
-  if (typeof value === "string") {
-    return value.trim();
-  }
-  if (value === null || value === undefined) {
-    return "";
-  }
-  return String(value).trim();
-}
-
-export function toOptionalNumber(value: unknown): number | undefined {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return value;
-  }
-  if (typeof value !== "string") {
-    return undefined;
-  }
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return undefined;
-  }
-  const parsed = Number(trimmed);
-  return Number.isFinite(parsed) ? parsed : undefined;
-}
-
-export function toStringArray(value: unknown): string[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  return value
-    .map((item) => toStringValue(item))
-    .filter(Boolean);
-}
+// Re-exported from canonical source for backward compatibility
+export { toStringValue, toOptionalNumber, toStringArray };
 
 export function toBrandRole(value: unknown): "employer" | "equipment" | "both" | null {
   if (value === "employer" || value === "equipment" || value === "both") {
