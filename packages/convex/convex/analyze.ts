@@ -825,7 +825,7 @@ export const storeConfirmResult = internalMutation({
             summary: v.string(),
             highlights: v.array(v.string()),
             recommendation: v.string(),
-            breakdown: v.optional(v.any()),
+            breakdown: v.optional(v.record(v.string(), v.number())),
             keyFactors: v.optional(v.array(v.object({
                 factor: v.string(),
                 weight: v.optional(v.number()),
