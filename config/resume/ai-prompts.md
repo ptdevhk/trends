@@ -97,7 +97,11 @@ description: >
   "recommendation": "strong_match" | "match" | "potential" | "no_match",
   "highlights": ["匹配亮点1", "匹配亮点2"],
   "concerns": ["不足之处1", "不足之处2"],
-  "summary": "中文总结"
+  "summary": "中文总结",
+  "keyFactors": [
+    {"factor": "technical_skills", "weight": 0.4, "value": "5年CNC编程，3年FANUC系统"},
+    {"factor": "industry_experience", "weight": 0.3, "value": "数控机械行业销售工程师7年"}
+  ]
 }
 ```
 
@@ -105,6 +109,12 @@ description: >
 - `related_exp`: 基于"工作经历证据"评估候选人与目标岗位的相关经验匹配度（0-100）。运行时按 50% 权重换算为 0-50 贡献。
 - `industry_db`: 基于已知行业数据库公司/品牌命中情况评估（0-100，参考用途）。运行时将以规则引擎计算值（公司命中 + 品牌命中）替换 AI 提供的值；AI 提供值不影响最终得分，仅供参考。
 - `score` = `related_exp`（AI 值 × 0.5）+ `industry_db`（系统规则计算值），合计 0-100，不得包含其他未提供数据支撑的维度。
+
+### keyFactors 字段说明
+- `keyFactors`: 提供3-6个影响评分的关键因素，每个因素包含：
+  - `factor`: 短类别名（如 "technical_skills", "industry_experience", "education", "role_relevance"）
+  - `weight`: 相对重要性（0-1，所有权重之和约等于1.0）
+  - `value`: 基于候选人简历的人类可读证据描述
 
 ## Prompt Variables
 

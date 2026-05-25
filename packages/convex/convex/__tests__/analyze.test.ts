@@ -13,6 +13,7 @@ import {
   normalizeSummaryConsistency,
   parseRoleSignals,
   normalizeAnalysisResult,
+  parseKeyFactors,
   isEnglishResumeAiLocale,
 } from "../analyze.js";
 
@@ -546,6 +547,85 @@ describe("normalizeAnalysisResult", () => {
       { ingestData: { companyHits: ["Acme"] } },
     );
     expect(withHits.score).toBeGreaterThan(withoutHits.score);
+  });
+
+  it("extracts keyFactors from LLM response", () => {
+    const result = normalizeAnalysisResult(
+      {
+        breakdown: { related_exp: 60 },
+        keyFactors: [
+          { factor: "technical_skills", weight: 0.4, value: "5 years CNC" },
+          { factor: "industry_experience", weight: 0.3, value: "Sales engineer 7 years" },
+        ],
+      },
+      {},
+    );
+    expect(result.keyFactors).toHaveLength(2);
+    expect(result.keyFactors[0]).toEqual({ factor: "technical_skills", weight: 0.4, value: "5 years CNC" });
+    expect(result.keyFactors[1]).toEqual({ factor: "industry_experience", weight: 0.3, value: "Sales engineer 7 years" });
+  });
+
+  it("returns empty keyFactors when not provided by LLM", () => {
+    const result = normalizeAnalysisResult(
+      { breakdown: { related_exp: 60 } },
+      {},
+    );
+    expect(result.keyFactors).toEqual([]);
+  });
+});
+
+// --- parseKeyFactors ---
+
+describe("parseKeyFactors", () => {
+  it("parses valid keyFactors array", () => {
+    const result = parseKeyFactors([
+      { factor: "skills", weight: 0.5, value: "Python, React" },
+      { factor: "experience", weight: 0.3, value: "5 years" },
+    ]);
+    expect(result).toHaveLength(2);
+    expect(result[0]).toEqual({ factor: "skills", weight: 0.5, value: "Python, React" });
+  });
+
+  it("defaults weight to undefined when missing", () => {
+    const result = parseKeyFactors([
+      { factor: "skills", value: "Python" },
+    ]);
+    expect(result[0]?.weight).toBeUndefined();
+  });
+
+  it("defaults factor to 'unknown' when not a string", () => {
+    const result = parseKeyFactors([
+      { factor: 42, value: "Python" },
+    ]);
+    expect(result).toHaveLength(1);
+    expect(result[0]?.factor).toBe("unknown");
+    expect(result[0]?.value).toBe("Python");
+  });
+
+  it("returns empty array for non-array input", () => {
+    expect(parseKeyFactors(null)).toEqual([]);
+    expect(parseKeyFactors({})).toEqual([]);
+    expect(parseKeyFactors("string")).toEqual([]);
+    expect(parseKeyFactors(undefined)).toEqual([]);
+  });
+
+  it("skips non-object items in array", () => {
+    const result = parseKeyFactors(["string", 42, null]);
+    expect(result).toEqual([]);
+  });
+
+  it("filters out entries with unknown factor and empty value", () => {
+    const result = parseKeyFactors([
+      { value: "has value" },  // factor undefined → "unknown", value "has value" → kept
+    ]);
+    expect(result).toHaveLength(1);
+  });
+
+  it("ignores NaN weight values", () => {
+    const result = parseKeyFactors([
+      { factor: "skills", weight: NaN, value: "Python" },
+    ]);
+    expect(result[0]?.weight).toBeUndefined();
   });
 });
 
