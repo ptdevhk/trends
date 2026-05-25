@@ -38,15 +38,38 @@ export const computeBiasMetricsForAllWorkspaces = internalAction({
     args: {},
     handler: async (ctx) => {
         const workspaceSlugs = await ctx.runQuery(internal.bias_audit.listWorkspaceSlugsWithAuditLogs) as string[];
-        const results: Array<{ workspaceSlug: string; status: string }> = [];
+        const results: Array<{ workspaceSlug: string; status: string; anomalyDetected?: boolean }> = [];
 
         for (const workspaceSlug of workspaceSlugs) {
             try {
                 const result = await ctx.runAction(internal.bias_audit.computeBiasMetrics, {
                     workspaceSlug,
                     decisionType: "score",
-                }) as { status: string };
-                results.push({ workspaceSlug, status: result.status });
+                }) as BiasMetricsResult | { status: string };
+
+                if ("anomalyFlags" in result) {
+                    const { statisticalParityViolation, disparateImpactViolation, scoreDriftDetected } = result.anomalyFlags;
+                    const hasAnomaly = statisticalParityViolation || disparateImpactViolation || scoreDriftDetected;
+
+                    if (hasAnomaly) {
+                        const flags: string[] = [];
+                        if (statisticalParityViolation) flags.push("statistical_parity_violation");
+                        if (disparateImpactViolation) flags.push("disparate_impact_violation");
+                        if (scoreDriftDetected) flags.push("score_drift_detected");
+
+                        await ctx.runMutation(internal.bias_audit.storeAnomalyAlert, {
+                            workspaceSlug,
+                            flags,
+                            computedAt: result.computedAt,
+                            psiValue: result.scoreDrift.psi,
+                            disparityRatio: result.demographicParity.disparityRatio,
+                        });
+                    }
+
+                    results.push({ workspaceSlug, status: result.status, anomalyDetected: hasAnomaly });
+                } else {
+                    results.push({ workspaceSlug, status: result.status });
+                }
             } catch (error) {
                 results.push({ workspaceSlug, status: `error: ${error instanceof Error ? error.message : String(error)}` });
             }
@@ -355,6 +378,69 @@ export const getLatestBiasReport = query({
             .query("workspace_config")
             .withIndex("by_workspace_key", (q) =>
                 q.eq("workspaceSlug", args.workspaceSlug).eq("configKey", "bias_audit_report")
+            )
+            .first();
+        return config?.configValue ?? null;
+    },
+});
+
+// ---------------------------------------------------------------------------
+// Internal mutation: storeAnomalyAlert — persists anomaly alert after cron
+// ---------------------------------------------------------------------------
+
+export const storeAnomalyAlert = internalMutation({
+    args: {
+        workspaceSlug: v.string(),
+        flags: v.array(v.string()),
+        computedAt: v.number(),
+        psiValue: v.optional(v.number()),
+        disparityRatio: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const existing = await ctx.db
+            .query("workspace_config")
+            .withIndex("by_workspace_key", (q) =>
+                q.eq("workspaceSlug", args.workspaceSlug).eq("configKey", "bias_audit_anomaly_alert")
+            )
+            .first();
+
+        const alertData = {
+            workspaceSlug: args.workspaceSlug,
+            flags: args.flags,
+            psiValue: args.psiValue ?? null,
+            disparityRatio: args.disparityRatio ?? null,
+            alertedAt: args.computedAt,
+        };
+
+        if (existing) {
+            await ctx.db.patch(existing._id, {
+                configValue: alertData,
+                updatedAt: Date.now(),
+            });
+        } else {
+            await ctx.db.insert("workspace_config", {
+                workspaceSlug: args.workspaceSlug,
+                configKey: "bias_audit_anomaly_alert",
+                configValue: alertData,
+                updatedAt: Date.now(),
+            });
+        }
+    },
+});
+
+// ---------------------------------------------------------------------------
+// Public query: getAnomalyAlerts — fetch active anomaly alerts for workspace
+// ---------------------------------------------------------------------------
+
+export const getAnomalyAlerts = query({
+    args: {
+        workspaceSlug: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const config = await ctx.db
+            .query("workspace_config")
+            .withIndex("by_workspace_key", (q) =>
+                q.eq("workspaceSlug", args.workspaceSlug).eq("configKey", "bias_audit_anomaly_alert")
             )
             .first();
         return config?.configValue ?? null;

@@ -1345,6 +1345,7 @@
       "workspace": "工作區",
       "generatedAt": "生成時間",
       "anomalyDetected": "是否偵測到異常",
+      "activeAlerts": "活躍異常警報",
       "noReport": "暫無偏差稽核報告。"
     },
     "auditLog": {

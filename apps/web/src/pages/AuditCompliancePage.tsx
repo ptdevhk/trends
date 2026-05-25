@@ -143,7 +143,7 @@ export function AuditCompliancePage() {
   const { t } = useTranslation()
   const { slug, isAdmin } = useWorkspace()
   const { logs, loading, error, filters, setFilters, setOutcome } = useAuditLogs(slug, isAdmin)
-  const { report, loading: reportLoading, error: reportError } = useBiasReport(slug, isAdmin)
+  const { report, anomalyAlerts, loading: reportLoading, error: reportError } = useBiasReport(slug, isAdmin)
 
   const [outcomeDialogEntry, setOutcomeDialogEntry] = useState<
     (typeof logs)[number] | null
@@ -249,37 +249,61 @@ export function AuditCompliancePage() {
           ) : reportError ? (
             <div className="text-sm text-destructive">{reportError}</div>
           ) : biasReportSummary ? (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
-              <div>
-                <span className="text-muted-foreground">
-                  {t('auditCompliance.biasReport.workspace', { defaultValue: 'Workspace' })}:
-                </span>{' '}
-                {biasReportSummary.workspaceSlug ?? '-'}
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+                <div>
+                  <span className="text-muted-foreground">
+                    {t('auditCompliance.biasReport.workspace', { defaultValue: 'Workspace' })}:
+                  </span>{' '}
+                  {biasReportSummary.workspaceSlug ?? '-'}
+                </div>
+                <div>
+                  <span className="text-muted-foreground">
+                    {t('auditCompliance.biasReport.generatedAt', {
+                      defaultValue: 'Generated At',
+                    })}
+                    :
+                  </span>{' '}
+                  {biasReportSummary.generatedAt ?? '-'}
+                </div>
+                <div>
+                  <span className="text-muted-foreground">
+                    {t('auditCompliance.biasReport.anomalyDetected', {
+                      defaultValue: 'Anomaly Detected',
+                    })}
+                    :
+                  </span>{' '}
+                  {biasReportSummary.anomalyDetected != null ? (
+                    <Badge variant={biasReportSummary.anomalyDetected ? 'destructive' : 'default'}>
+                      {biasReportSummary.anomalyDetected ? 'Yes' : 'No'}
+                    </Badge>
+                  ) : (
+                    '-'
+                  )}
+                </div>
               </div>
-              <div>
-                <span className="text-muted-foreground">
-                  {t('auditCompliance.biasReport.generatedAt', {
-                    defaultValue: 'Generated At',
-                  })}
-                  :
-                </span>{' '}
-                {biasReportSummary.generatedAt ?? '-'}
-              </div>
-              <div>
-                <span className="text-muted-foreground">
-                  {t('auditCompliance.biasReport.anomalyDetected', {
-                    defaultValue: 'Anomaly Detected',
-                  })}
-                  :
-                </span>{' '}
-                {biasReportSummary.anomalyDetected != null ? (
-                  <Badge variant={biasReportSummary.anomalyDetected ? 'destructive' : 'default'}>
-                    {biasReportSummary.anomalyDetected ? 'Yes' : 'No'}
-                  </Badge>
-                ) : (
-                  '-'
-                )}
-              </div>
+              {anomalyAlerts && anomalyAlerts.flags.length > 0 && (
+                <div className="border rounded-md p-3 bg-destructive/5 border-destructive/20" data-testid="anomaly-alert-banner">
+                  <div className="text-sm font-medium text-destructive mb-1">
+                    {t('auditCompliance.biasReport.activeAlerts', { defaultValue: 'Active Anomaly Alerts' })}:
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {anomalyAlerts.flags.map((flag) => (
+                      <Badge key={flag} variant="destructive">{flag}</Badge>
+                    ))}
+                  </div>
+                  {anomalyAlerts.psiValue != null && (
+                    <div className="text-xs text-muted-foreground mt-1">
+                      PSI: {anomalyAlerts.psiValue.toFixed(4)}
+                    </div>
+                  )}
+                  {anomalyAlerts.disparityRatio != null && (
+                    <div className="text-xs text-muted-foreground">
+                      Disparity Ratio: {anomalyAlerts.disparityRatio.toFixed(4)}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           ) : (
             <div className="text-sm text-muted-foreground">

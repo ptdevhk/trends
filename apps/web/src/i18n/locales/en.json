@@ -1345,6 +1345,7 @@
       "workspace": "Workspace",
       "generatedAt": "Generated At",
       "anomalyDetected": "Anomaly Detected",
+      "activeAlerts": "Active Anomaly Alerts",
       "noReport": "No bias audit report available yet."
     },
     "auditLog": {

@@ -72,6 +72,13 @@ vi.mock('@/hooks/useAuditLogs', () => ({
       workspaceSlug: 'test-workspace',
       anomalyDetected: true,
     },
+    anomalyAlerts: {
+      workspaceSlug: 'test-workspace',
+      flags: ['statistical_parity_violation', 'disparate_impact_violation'],
+      psiValue: 0.25,
+      disparityRatio: 0.65,
+      alertedAt: Date.now(),
+    },
     loading: false,
     error: null,
     reload: vi.fn(),
@@ -172,5 +179,12 @@ describe('AuditCompliancePage', () => {
   it('renders outcome filter', () => {
     renderPage()
     expect(screen.getByTestId('filter-outcome')).toBeInTheDocument()
+  })
+
+  it('renders anomaly alert banner when alerts are active', () => {
+    renderPage()
+    expect(screen.getByTestId('anomaly-alert-banner')).toBeInTheDocument()
+    expect(screen.getByText('statistical_parity_violation')).toBeInTheDocument()
+    expect(screen.getByText('disparate_impact_violation')).toBeInTheDocument()
   })
 })

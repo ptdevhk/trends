@@ -482,3 +482,108 @@ describe("bias_audit: computeBiasMetricsForAllWorkspaces", () => {
     expect(results).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// storeAnomalyAlert + getAnomalyAlerts
+// ---------------------------------------------------------------------------
+
+describe("bias_audit: storeAnomalyAlert + getAnomalyAlerts", () => {
+  it("stores and retrieves anomaly alerts", async () => {
+    const t = convexTest(schema, modules);
+
+    await t.run(async (ctx) => {
+      await ctx.db.insert("workspace_config", {
+        workspaceSlug: "ws-alert-test",
+        configKey: "bias_audit_anomaly_alert",
+        configValue: {
+          workspaceSlug: "ws-alert-test",
+          flags: ["statistical_parity_violation", "disparate_impact_violation"],
+          psiValue: 0.25,
+          disparityRatio: 0.65,
+          alertedAt: Date.now(),
+        },
+        updatedAt: Date.now(),
+      });
+    });
+
+    // @ts-ignore — getAnomalyAlerts not yet in generated API
+    const alerts = await t.query(internal.bias_audit.getAnomalyAlerts, {
+      workspaceSlug: "ws-alert-test",
+    });
+
+    expect(alerts).toBeDefined();
+    expect(alerts.flags).toEqual(["statistical_parity_violation", "disparate_impact_violation"]);
+    expect(alerts.psiValue).toBeCloseTo(0.25);
+    expect(alerts.disparityRatio).toBeCloseTo(0.65);
+  });
+
+  it("returns null when no anomaly alerts exist", async () => {
+    const t = convexTest(schema, modules);
+
+    // @ts-ignore — getAnomalyAlerts not yet in generated API
+    const alerts = await t.query(internal.bias_audit.getAnomalyAlerts, {
+      workspaceSlug: "ws-no-alerts",
+    });
+
+    expect(alerts).toBeNull();
+  });
+
+  it("upserts existing anomaly alert", async () => {
+    const t = convexTest(schema, modules);
+    const now = Date.now();
+
+    // Store initial alert
+    // @ts-ignore — storeAnomalyAlert not yet in generated API
+    await t.mutation(internal.bias_audit.storeAnomalyAlert, {
+      workspaceSlug: "ws-upsert",
+      flags: ["statistical_parity_violation"],
+      computedAt: now,
+      psiValue: 0.15,
+      disparityRatio: 0.75,
+    });
+
+    // Verify initial alert
+    // @ts-ignore — getAnomalyAlerts not yet in generated API
+    const first = await t.query(internal.bias_audit.getAnomalyAlerts, {
+      workspaceSlug: "ws-upsert",
+    });
+    expect(first.flags).toEqual(["statistical_parity_violation"]);
+
+    // Store updated alert (should overwrite)
+    // @ts-ignore — storeAnomalyAlert not yet in generated API
+    await t.mutation(internal.bias_audit.storeAnomalyAlert, {
+      workspaceSlug: "ws-upsert",
+      flags: ["statistical_parity_violation", "score_drift_detected"],
+      computedAt: now + 1000,
+      psiValue: 0.35,
+      disparityRatio: 0.70,
+    });
+
+    // @ts-ignore — getAnomalyAlerts not yet in generated API
+    const updated = await t.query(internal.bias_audit.getAnomalyAlerts, {
+      workspaceSlug: "ws-upsert",
+    });
+    expect(updated.flags).toEqual(["statistical_parity_violation", "score_drift_detected"]);
+    expect(updated.psiValue).toBeCloseTo(0.35);
+  });
+
+  it("stores anomaly alert with optional fields omitted", async () => {
+    const t = convexTest(schema, modules);
+
+    // @ts-ignore — storeAnomalyAlert not yet in generated API
+    await t.mutation(internal.bias_audit.storeAnomalyAlert, {
+      workspaceSlug: "ws-minimal",
+      flags: ["score_drift_detected"],
+      computedAt: Date.now(),
+    });
+
+    // @ts-ignore — getAnomalyAlerts not yet in generated API
+    const alerts = await t.query(internal.bias_audit.getAnomalyAlerts, {
+      workspaceSlug: "ws-minimal",
+    });
+    expect(alerts).toBeDefined();
+    expect(alerts.flags).toEqual(["score_drift_detected"]);
+    expect(alerts.psiValue).toBeNull();
+    expect(alerts.disparityRatio).toBeNull();
+  });
+});
