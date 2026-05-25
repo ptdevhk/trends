@@ -612,6 +612,7 @@ export const submitResumes = mutation({
                         analysis?: Doc<"resumes">["analysis"];
                         analyses?: Doc<"resumes">["analyses"];
                         age?: number;
+                        needsEmbedding?: boolean;
                     } = {
                         externalId: resume.externalId,
                         identityKey: entry.identityKey,
@@ -622,6 +623,7 @@ export const submitResumes = mutation({
                         source: resume.source,
                         crawledAt: restoreState?.crawledAt ?? Date.now(),
                         sourceKey: resolveDiagnosticsSourceKeyForResume({ source: resume.source, content: resume.content }),
+                        needsEmbedding: true,
                     };
                     applyRestoreStateFields(insertPayload, restoreState);
                     applyParsedAgePatch(insertPayload, parsedAge);

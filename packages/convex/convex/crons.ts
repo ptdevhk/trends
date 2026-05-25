@@ -31,4 +31,11 @@ crons.weekly(
     {},
 );
 
+crons.interval(
+    "incremental embedding backfill",
+    { hours: 1 },
+    internal.embeddings.scheduledBackfill,
+    {},
+);
+
 export default crons;

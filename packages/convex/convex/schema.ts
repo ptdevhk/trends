@@ -106,6 +106,8 @@ export default defineSchema({
 
         // Link to vector embedding for semantic search
         embeddingId: v.optional(v.id("resume_embeddings")),
+        // Flag for incremental embedding backfill — indexed to avoid full-table scan
+        needsEmbedding: v.optional(v.boolean()),
     })
         .index("by_externalId", ["externalId"])
         .index("by_identityKey", ["identityKey"])
@@ -113,6 +115,7 @@ export default defineSchema({
         .index("by_crawledAt", ["crawledAt"])
         .index("by_primaryRuleScore", ["primaryRuleScore"])
         .index("by_sourceKey", ["sourceKey"])
+        .index("by_needsEmbedding", ["needsEmbedding"])
         .searchIndex("search_body", {
             searchField: "searchText",
             filterFields: ["isArchived"],
@@ -455,8 +458,10 @@ export default defineSchema({
         model: v.string(), // e.g. "text-embedding-3-small"
         sourceKey: v.optional(v.string()),
         generatedAt: v.number(),
+        searchTextHash: v.optional(v.string()), // SHA-256 of normalized searchText for staleness detection
     })
         .index("by_resumeId", ["resumeId"])
+        .index("by_generatedAt", ["generatedAt"])
         .vectorIndex("by_embedding", {
             vectorField: "embedding",
             dimensions: 1536,
