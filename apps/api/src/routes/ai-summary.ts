@@ -1,7 +1,6 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { resolveConvexUrl } from "../services/resume-import-service.js";
+import { callConvexQuery, callConvexMutation } from "../services/convex-utils.js";
 import { aiSummaryService } from "../services/ai-summary-service.js";
-import { isRecord } from "@trends/shared";
 import { logger } from "../services/logger.js";
 
 const AI_SUMMARY_TTL_MS = 60 * 60 * 1000;
@@ -49,33 +48,6 @@ const SearchSummaryErrorResponseSchema = z.object({
 });
 
 
-async function callConvex(
-  type: "query" | "mutation",
-  pathName: string,
-  args: Record<string, unknown>,
-): Promise<unknown> {
-  const convexUrl = resolveConvexUrl().replace(/\/$/, "");
-  const response = await fetch(`${convexUrl}/api/${type}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: JSON.stringify({ path: pathName, args }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Convex ${type} failed (${response.status}): ${await response.text()}`);
-  }
-
-  const payload = await response.json() as unknown;
-  if (!isRecord(payload) || payload.status !== "success") {
-    throw new Error(`Convex ${type} failed for ${pathName}`);
-  }
-
-  return payload.value;
-}
-
 const searchSummaryRoute = createRoute({
   method: "post",
   path: "/api/resumes/search-summary",
@@ -114,7 +86,7 @@ app.openapi(searchSummaryRoute, async (c) => {
   const body = c.req.valid("json");
   const workspaceSlug = c.var.workspaceSlug;
   const now = Date.now();
-  const cached = await callConvex("query", "ai_summary_cache:get", {
+  const cached = await callConvexQuery( "ai_summary_cache:get", {
     workspaceSlug,
     urlHash: body.urlHash,
   }) as {
@@ -154,7 +126,7 @@ app.openapi(searchSummaryRoute, async (c) => {
       results: body.results,
     });
 
-    await callConvex("mutation", "ai_summary_cache:upsert", {
+    await callConvexMutation( "ai_summary_cache:upsert", {
       urlHash: body.urlHash,
       workspaceSlug,
       query: body.query,

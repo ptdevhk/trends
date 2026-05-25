@@ -1,11 +1,11 @@
-import fs from "node:fs";
-import path from "node:path";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { jobDescriptionService } from "../services/job-description-service.js";
 import { jdKeywordExtractionService } from "../services/jd-keyword-extraction-service.js";
 import { DataNotFoundError } from "../services/errors.js";
 import { isRecord } from "@trends/shared";
 import { logger } from "../services/logger.js";
+import { callConvexQuery, callConvexMutation } from "../services/convex-utils.js";
+import { readString } from "../services/workspace-config-service.js";
 
 const app = new OpenAPIHono();
 
@@ -85,102 +85,8 @@ type ConvexJobDescriptionRecord = {
 };
 
 
-function readString(value: unknown): string | undefined {
-  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
-}
-
-function readEnvVarFromFile(filePath: string, key: string): string | null {
-  if (!fs.existsSync(filePath)) {
-    return null;
-  }
-
-  const lines = fs.readFileSync(filePath, "utf8").split(/\r?\n/);
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) {
-      continue;
-    }
-
-    const match = trimmed.match(/^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)=(.*)$/);
-    if (!match || match[1] !== key) {
-      continue;
-    }
-
-    let value = match[2].trim();
-    const hasDoubleQuotes = value.startsWith("\"") && value.endsWith("\"");
-    const hasSingleQuotes = value.startsWith("'") && value.endsWith("'");
-    if (hasDoubleQuotes || hasSingleQuotes) {
-      value = value.slice(1, -1);
-    }
-
-    return value;
-  }
-
-  return null;
-}
-
-function resolveConvexUrl(): string {
-  if (process.env.CONVEX_URL) {
-    return process.env.CONVEX_URL;
-  }
-  if (process.env.VITE_CONVEX_URL) {
-    return process.env.VITE_CONVEX_URL;
-  }
-
-  const projectRoot = jobDescriptionService.projectRoot;
-  const candidateFiles = [
-    path.join(projectRoot, "packages", "convex", ".env.local"),
-    path.join(projectRoot, "apps", "web", ".env.local"),
-    path.join(projectRoot, ".env.local"),
-    path.join(projectRoot, ".env"),
-  ];
-
-  for (const filePath of candidateFiles) {
-    const direct = readEnvVarFromFile(filePath, "CONVEX_URL");
-    if (direct) {
-      return direct;
-    }
-
-    const vite = readEnvVarFromFile(filePath, "VITE_CONVEX_URL");
-    if (vite) {
-      return vite;
-    }
-  }
-
-  return "http://127.0.0.1:3210";
-}
-
-async function callConvex(
-  type: "query" | "mutation",
-  pathName: string,
-  args: Record<string, unknown>
-): Promise<unknown> {
-  const convexUrl = resolveConvexUrl().replace(/\/$/, "");
-  const response = await fetch(`${convexUrl}/api/${type}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: JSON.stringify({ path: pathName, args }),
-  });
-
-  if (!response.ok) {
-    const message = await response.text();
-    throw new Error(`Convex ${type} failed (${response.status}): ${message}`);
-  }
-
-  const payload = await response.json() as unknown;
-  if (!isRecord(payload) || payload.status !== "success") {
-    const errorMessage = isRecord(payload) ? readString(payload.errorMessage) : undefined;
-    throw new Error(errorMessage ?? `Convex ${type} failed for ${pathName}`);
-  }
-
-  return payload.value;
-}
-
 async function listConvexJobDescriptions(workspaceSlug: string): Promise<ConvexJobDescriptionRecord[]> {
-  const value = await callConvex("query", "job_descriptions:list", { workspaceSlug });
+  const value = await callConvexQuery( "job_descriptions:list", { workspaceSlug });
   if (!Array.isArray(value)) {
     return [];
   }
@@ -212,7 +118,7 @@ function toJobDescriptionFile(item: ConvexJobDescriptionRecord): {
     return null;
   }
 
-  const title = readString(item.title);
+  const title = readString(item.title) ?? undefined;
   const name = readString(item.slug) ?? id;
   const lastModified = typeof item.lastModified === "number" ? item.lastModified : Date.now();
   const enabled = item.enabled === false ? "inactive" : "active";
@@ -240,7 +146,7 @@ function toJobDescriptionFile(item: ConvexJobDescriptionRecord): {
     size: content.length,
     title,
     status: enabled,
-    location: readString(item.location),
+    location: readString(item.location) ?? undefined,
     suggestedFilters,
     autoMatch: customKeywords.length > 0 ? { keywords: customKeywords } : undefined,
   };
@@ -320,7 +226,7 @@ app.openapi(createRouteDef, async (c) => {
       return c.json({ success: false, error: "Overwrite is not supported for read-only system files" }, 400);
     }
 
-    const createdId = await callConvex("mutation", "job_descriptions:create", {
+    const createdId = await callConvexMutation( "job_descriptions:create", {
       title: name,
       content,
       type: "custom",
