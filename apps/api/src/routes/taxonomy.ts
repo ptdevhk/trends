@@ -1,6 +1,6 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { requireAdmin } from "../middleware/workspace.js";
-import { resolveConvexUrl } from "../services/resume-import-service.js";
+import { callConvexQuery, callConvexMutation } from "../services/convex-utils.js";
 import { isRecord } from "@trends/shared";
 import { logger } from "../services/logger.js";
 
@@ -51,33 +51,6 @@ const DeleteTaxonomyParamsSchema = z.object({
 
 type TaxonomyClusterResponse = z.infer<typeof TaxonomyClusterSchema>;
 
-
-async function callConvex(
-  type: "query" | "mutation",
-  pathName: string,
-  args: Record<string, unknown>,
-): Promise<unknown> {
-  const convexUrl = resolveConvexUrl().replace(/\/$/, "");
-  const response = await fetch(`${convexUrl}/api/${type}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: JSON.stringify({ path: pathName, args }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Convex ${type} failed (${response.status}): ${await response.text()}`);
-  }
-
-  const payload = await response.json() as unknown;
-  if (!isRecord(payload) || payload.status !== "success") {
-    throw new Error(`Convex ${type} failed for ${pathName}`);
-  }
-
-  return payload.value;
-}
 
 function toTaxonomyCluster(value: unknown): TaxonomyClusterResponse | null {
   if (!isRecord(value) || typeof value._id !== "string") {
@@ -144,7 +117,7 @@ const listRoute = createRoute({
 
 app.openapi(listRoute, async (c) => {
   try {
-    const value = await callConvex("query", "taxonomy_clusters:list", {
+    const value = await callConvexQuery( "taxonomy_clusters:list", {
       workspaceSlug: c.var.workspaceSlug,
     });
     return c.json({ success: true as const, items: toTaxonomyItems(value) }, 200);
@@ -191,11 +164,11 @@ const upsertRoute = createRoute({
 app.openapi(upsertRoute, async (c) => {
   try {
     const body = c.req.valid("json");
-    await callConvex("mutation", "taxonomy_clusters:upsert", {
+    await callConvexMutation( "taxonomy_clusters:upsert", {
       ...body,
       workspaceSlug: c.var.workspaceSlug,
     });
-    const value = await callConvex("query", "taxonomy_clusters:list", {
+    const value = await callConvexQuery( "taxonomy_clusters:list", {
       workspaceSlug: c.var.workspaceSlug,
     });
     return c.json({ success: true as const, items: toTaxonomyItems(value) }, 200);
@@ -242,7 +215,7 @@ const suggestRoute = createRoute({
 app.openapi(suggestRoute, async (c) => {
   try {
     const body = c.req.valid("json");
-    const value = await callConvex("mutation", "taxonomy_clusters:suggest", {
+    const value = await callConvexMutation( "taxonomy_clusters:suggest", {
       workspaceSlug: c.var.workspaceSlug,
       limit: body.limit,
     });
@@ -284,11 +257,11 @@ const deleteRoute = createRoute({
 app.openapi(deleteRoute, async (c) => {
   try {
     const { id } = c.req.valid("param");
-    await callConvex("mutation", "taxonomy_clusters:remove", {
+    await callConvexMutation( "taxonomy_clusters:remove", {
       id,
       workspaceSlug: c.var.workspaceSlug,
     });
-    const value = await callConvex("query", "taxonomy_clusters:list", {
+    const value = await callConvexQuery( "taxonomy_clusters:list", {
       workspaceSlug: c.var.workspaceSlug,
     });
     return c.json({ success: true as const, items: toTaxonomyItems(value) }, 200);

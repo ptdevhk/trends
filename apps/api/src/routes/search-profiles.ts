@@ -23,6 +23,9 @@ import {
     type SearchProfile,
 } from "../services/search-profile-service.js";
 import { logger } from "../services/logger.js";
+import { callConvexQuery, callConvexMutation } from "../services/convex-utils.js";
+import { resolveConvexUrl } from "../services/resume-import-service.js";
+import { readString, readNumber } from "../services/workspace-config-service.js";
 
 const app = new OpenAPIHono();
 
@@ -133,21 +136,9 @@ const ProfileRunStatusSchema = z.object({
 type ProfileRunStatus = z.infer<typeof ProfileRunStatusSchema>;
 
 
-function readString(value: unknown): string | undefined {
-    return typeof value === "string" && value.trim().length > 0
-        ? value.trim()
-        : undefined;
-}
-
-function readNumber(value: unknown): number | undefined {
-    return typeof value === "number" && Number.isFinite(value)
-        ? value
-        : undefined;
-}
-
 function toIsoTimestamp(value: unknown): string | undefined {
     const numeric = readNumber(value);
-    if (numeric === undefined) {
+    if (numeric === null) {
         return undefined;
     }
     return new Date(numeric).toISOString();
@@ -209,67 +200,6 @@ function upsertRunStatus(workspaceSlug: string, status: ProfileRunStatus): void 
     writeRunStatusStore(store);
 }
 
-function readEnvVarFromFile(filePath: string, key: string): string | null {
-    if (!fs.existsSync(filePath)) {
-        return null;
-    }
-
-    const lines = fs.readFileSync(filePath, "utf8").split(/\r?\n/);
-    for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed || trimmed.startsWith("#")) {
-            continue;
-        }
-
-        const match = trimmed.match(/^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)=(.*)$/);
-        if (!match || match[1] !== key) {
-            continue;
-        }
-
-        let value = match[2].trim();
-        const hasDoubleQuotes = value.startsWith("\"") && value.endsWith("\"");
-        const hasSingleQuotes = value.startsWith("'") && value.endsWith("'");
-        if (hasDoubleQuotes || hasSingleQuotes) {
-            value = value.slice(1, -1);
-        }
-
-        return value;
-    }
-
-    return null;
-}
-
-function resolveConvexUrl(): string {
-    if (process.env.CONVEX_URL) {
-        return process.env.CONVEX_URL;
-    }
-    if (process.env.VITE_CONVEX_URL) {
-        return process.env.VITE_CONVEX_URL;
-    }
-
-    const projectRoot = searchProfileService.projectRoot;
-    const candidateFiles = [
-        path.join(projectRoot, "packages", "convex", ".env.local"),
-        path.join(projectRoot, "apps", "web", ".env.local"),
-        path.join(projectRoot, ".env.local"),
-        path.join(projectRoot, ".env"),
-    ];
-
-    for (const filePath of candidateFiles) {
-        const direct = readEnvVarFromFile(filePath, "CONVEX_URL");
-        if (direct) {
-            return direct;
-        }
-
-        const vite = readEnvVarFromFile(filePath, "VITE_CONVEX_URL");
-        if (vite) {
-            return vite;
-        }
-    }
-
-    return "http://127.0.0.1:3210";
-}
-
 async function dispatchCollectionTask(args: {
     keyword: string;
     location: string;
@@ -280,37 +210,10 @@ async function dispatchCollectionTask(args: {
     autoAnalyze: boolean;
     analysisTopN: number;
 }): Promise<{ taskId: string; convexUrl: string }> {
-    const convexUrl = resolveConvexUrl().replace(/\/$/, "");
-    const response = await fetch(`${convexUrl}/api/mutation`, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json",
-        },
-        body: JSON.stringify({
-            path: "resume_tasks:dispatch",
-            args,
-        }),
-    });
-
-    if (!response.ok) {
-        const text = await response.text();
-        throw new Error(`Convex dispatch failed (${response.status}): ${text}`);
-    }
-
-    const payload = await response.json() as {
-        status?: string;
-        value?: unknown;
-        errorMessage?: string;
-    };
-
-    if (payload.status !== "success") {
-        throw new Error(payload.errorMessage || "Convex mutation failed.");
-    }
-
+    const value = await callConvexMutation("resume_tasks:dispatch", args);
     return {
-        taskId: String(payload.value),
-        convexUrl,
+        taskId: String(value),
+        convexUrl: resolveConvexUrl().replace(/\/$/, ""),
     };
 }
 
@@ -326,39 +229,13 @@ function normalizePositiveInt(value: unknown): number | undefined {
 }
 
 async function getCollectionTaskStatus(taskId: string): Promise<Partial<ProfileRunStatus> | null> {
-    const convexUrl = resolveConvexUrl().replace(/\/$/, "");
-    const response = await fetch(`${convexUrl}/api/query`, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json",
-        },
-        body: JSON.stringify({
-            path: "resume_tasks:getById",
-            args: { taskId },
-        }),
-    });
+    const value = await callConvexQuery("resume_tasks:getById", { taskId });
 
-    if (!response.ok) {
-        const text = await response.text();
-        throw new Error(`Convex task query failed (${response.status}): ${text}`);
-    }
-
-    const payload = await response.json() as {
-        status?: string;
-        value?: unknown;
-        errorMessage?: string;
-    };
-
-    if (payload.status !== "success") {
-        throw new Error(payload.errorMessage || "Convex query failed.");
-    }
-
-    if (!isRecord(payload.value)) {
+    if (!isRecord(value)) {
         return null;
     }
 
-    const task = payload.value;
+    const task = value;
 
     const results = isRecord(task.results) ? task.results : undefined;
     const progress = isRecord(task.progress) ? task.progress : undefined;
@@ -370,10 +247,10 @@ async function getCollectionTaskStatus(taskId: string): Promise<Partial<ProfileR
   return {
     taskStatus: normalizeTaskStatus(task.status),
     completedAt: toIsoTimestamp(task.completedAt),
-    resultCount: resultCount !== undefined ? Math.round(resultCount) : undefined,
-    extracted: extracted !== undefined ? Math.round(extracted) : undefined,
-    submitted: submitted !== undefined ? Math.round(submitted) : undefined,
-    error: readString(task.error),
+    resultCount: resultCount !== null ? Math.round(resultCount) : undefined,
+    extracted: extracted !== null ? Math.round(extracted) : undefined,
+    submitted: submitted !== null ? Math.round(submitted) : undefined,
+    error: readString(task.error) ?? undefined,
   };
 }
 
@@ -456,12 +333,12 @@ function readLogicalProfileId(record: ConvexSearchProfileRecord): string | null 
 
 function readDeletedAt(record: ConvexSearchProfileRecord): number | undefined {
     const profilePayload = readProfilePayload(record);
-    return readNumber(profilePayload.deletedAt);
+    return readNumber(profilePayload.deletedAt) ?? undefined;
 }
 
 function readTemplateHash(record: ConvexSearchProfileRecord): string | undefined {
     const profilePayload = readProfilePayload(record);
-    return readString(profilePayload.templateHash);
+    return readString(profilePayload.templateHash) ?? undefined;
 }
 
 function isSeededFromConfig(record: ConvexSearchProfileRecord): boolean {
@@ -537,42 +414,13 @@ type ResolvedCustomProfileRecord = {
     deletedAt?: number;
 };
 
-async function callConvex(
-    type: "query" | "mutation",
-    pathName: string,
-    args: Record<string, unknown>
-): Promise<unknown> {
-    const convexUrl = resolveConvexUrl().replace(/\/$/, "");
-    const response = await fetch(`${convexUrl}/api/${type}`, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json",
-        },
-        body: JSON.stringify({ path: pathName, args }),
-    });
-
-    if (!response.ok) {
-        const text = await response.text();
-        throw new Error(`Convex ${type} failed (${response.status}): ${text}`);
-    }
-
-    const payload = await response.json() as unknown;
-    if (!isRecord(payload) || payload.status !== "success") {
-        const errorMessage = isRecord(payload) ? readString(payload.errorMessage) : undefined;
-        throw new Error(errorMessage ?? `Convex ${type} failed for ${pathName}`);
-    }
-
-    return payload.value;
-}
-
 async function listCustomProfileRecords(
     workspaceSlug: string,
     options?: {
         includeDeleted?: boolean;
     }
 ): Promise<ResolvedCustomProfileRecord[]> {
-    const value = await callConvex("query", "search_profiles:list", { workspaceSlug });
+    const value = await callConvexQuery( "search_profiles:list", { workspaceSlug });
     if (!Array.isArray(value)) {
         return [];
     }
@@ -623,7 +471,7 @@ async function findCustomProfileRecordById(
         includeDeleted?: boolean;
     }
 ): Promise<ResolvedCustomProfileRecord | null> {
-    const value = await callConvex("query", "search_profiles:getById", { id, workspaceSlug });
+    const value = await callConvexQuery( "search_profiles:getById", { id, workspaceSlug });
     if (!isRecord(value)) {
         return null;
     }
@@ -755,7 +603,7 @@ async function getLinkedCustomJobDescription(
 ): Promise<ConvexJobDescriptionRecord | null> {
     let value: unknown;
     try {
-        value = await callConvex("query", "job_descriptions:get", { id });
+        value = await callConvexQuery( "job_descriptions:get", { id });
     } catch {
         return null;
     }
@@ -788,12 +636,12 @@ async function buildJobDescriptionSyncPayload(
     const title = readString(jobDescription.title) ?? profile.name;
     const content = generateStructuredJobDescriptionContent({
         title,
-        location: readString(jobDescription.location),
+        location: readString(jobDescription.location) ?? undefined,
         industryTags: normalizeKeywordList(jobDescription.industryTags),
-        minExperience: readNumber(jobDescription.minExperience),
-        maxExperience: readNumber(jobDescription.maxExperience),
-        minAge: readNumber(jobDescription.minAge),
-        maxAge: readNumber(jobDescription.maxAge),
+        minExperience: readNumber(jobDescription.minExperience) ?? undefined,
+        maxExperience: readNumber(jobDescription.maxExperience) ?? undefined,
+        minAge: readNumber(jobDescription.minAge) ?? undefined,
+        maxAge: readNumber(jobDescription.maxAge) ?? undefined,
         customKeywords: profile.keywords,
     });
 
@@ -809,7 +657,7 @@ async function createCustomProfile(
     workspaceSlug: string,
     jobDescriptionSync?: JobDescriptionSyncPayload
 ): Promise<SearchProfile> {
-    const value = await callConvex("mutation", "search_profiles:create", {
+    const value = await callConvexMutation( "search_profiles:create", {
         profile,
         workspaceSlug,
         jobDescriptionSync,
@@ -831,7 +679,7 @@ async function updateCustomProfile(
     workspaceSlug: string,
     jobDescriptionSync?: JobDescriptionSyncPayload
 ): Promise<SearchProfile> {
-    const value = await callConvex("mutation", "search_profiles:update", {
+    const value = await callConvexMutation( "search_profiles:update", {
         id,
         profile,
         workspaceSlug,
@@ -849,7 +697,7 @@ async function updateCustomProfile(
 }
 
 async function deleteCustomProfile(id: string, workspaceSlug: string): Promise<boolean> {
-    const value = await callConvex("mutation", "search_profiles:remove", {
+    const value = await callConvexMutation( "search_profiles:remove", {
         id,
         workspaceSlug,
     });
@@ -987,10 +835,10 @@ app.openapi(listRoute, async (c) => {
         quickStart: profile.quickStart,
         filters: profile.filters
             ? {
-                minAge: readNumber(profile.filters.minAge),
-                maxAge: readNumber(profile.filters.maxAge),
-                minExperience: readNumber(profile.filters.minExperience),
-                maxExperience: readNumber(profile.filters.maxExperience),
+                minAge: readNumber(profile.filters.minAge) ?? undefined,
+                maxAge: readNumber(profile.filters.maxAge) ?? undefined,
+                minExperience: readNumber(profile.filters.minExperience) ?? undefined,
+                maxExperience: readNumber(profile.filters.maxExperience) ?? undefined,
             }
             : undefined,
     }));

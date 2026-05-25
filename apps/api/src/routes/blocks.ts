@@ -1,107 +1,13 @@
-import fs from "node:fs";
-import path from "node:path";
 import { isRecord } from "@trends/shared";
 
 
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 
 
-import { config } from "../services/config.js";
+import { callConvexQuery, callConvexMutation } from "../services/convex-utils.js";
 
 const app = new OpenAPIHono();
 
-
-function readString(value: unknown): string | undefined {
-  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
-}
-
-function readEnvVarFromFile(filePath: string, key: string): string | null {
-  if (!fs.existsSync(filePath)) {
-    return null;
-  }
-
-  const lines = fs.readFileSync(filePath, "utf8").split(/\r?\n/);
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) {
-      continue;
-    }
-
-    const match = trimmed.match(/^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)=(.*)$/);
-    if (!match || match[1] !== key) {
-      continue;
-    }
-
-    let value = match[2].trim();
-    const hasDoubleQuotes = value.startsWith("\"") && value.endsWith("\"");
-    const hasSingleQuotes = value.startsWith("'") && value.endsWith("'");
-    if (hasDoubleQuotes || hasSingleQuotes) {
-      value = value.slice(1, -1);
-    }
-
-    return value;
-  }
-
-  return null;
-}
-
-function resolveConvexUrl(): string {
-  if (process.env.CONVEX_URL) {
-    return process.env.CONVEX_URL;
-  }
-  if (process.env.VITE_CONVEX_URL) {
-    return process.env.VITE_CONVEX_URL;
-  }
-
-  const candidateFiles = [
-    path.join(config.projectRoot, "packages", "convex", ".env.local"),
-    path.join(config.projectRoot, "apps", "web", ".env.local"),
-    path.join(config.projectRoot, ".env.local"),
-    path.join(config.projectRoot, ".env"),
-  ];
-
-  for (const filePath of candidateFiles) {
-    const direct = readEnvVarFromFile(filePath, "CONVEX_URL");
-    if (direct) {
-      return direct;
-    }
-    const vite = readEnvVarFromFile(filePath, "VITE_CONVEX_URL");
-    if (vite) {
-      return vite;
-    }
-  }
-
-  return "http://127.0.0.1:3210";
-}
-
-async function callConvex(
-  type: "query" | "mutation",
-  pathName: string,
-  args: Record<string, unknown>
-): Promise<unknown> {
-  const convexUrl = resolveConvexUrl().replace(/\/$/, "");
-  const response = await fetch(`${convexUrl}/api/${type}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: JSON.stringify({ path: pathName, args }),
-  });
-
-  if (!response.ok) {
-    const message = await response.text();
-    throw new Error(`Convex ${type} failed (${response.status}): ${message}`);
-  }
-
-  const payload = await response.json() as unknown;
-  if (!isRecord(payload) || payload.status !== "success") {
-    const errorMessage = isRecord(payload) ? readString(payload.errorMessage) : undefined;
-    throw new Error(errorMessage ?? `Convex ${type} failed for ${pathName}`);
-  }
-
-  return payload.value;
-}
 
 const CandidateBlockSchema = z.object({
   _id: z.string(),
@@ -170,7 +76,7 @@ const listRoute = createRoute({
 });
 
 app.openapi(listRoute, async (c) => {
-  const value = await callConvex("query", "candidate_blocks:list", {
+  const value = await callConvexQuery( "candidate_blocks:list", {
     workspaceSlug: c.var.workspaceSlug,
   });
   const items = Array.isArray(value) ? value : [];
@@ -211,7 +117,7 @@ app.openapi(upsertRoute, async (c) => {
   }
 
   if (identityKeys.length === 1) {
-    const id = await callConvex("mutation", "candidate_blocks:upsert", {
+    const id = await callConvexMutation( "candidate_blocks:upsert", {
       workspaceSlug: c.var.workspaceSlug,
       identityKey: identityKeys[0],
       reason: body.reason,
@@ -227,7 +133,7 @@ app.openapi(upsertRoute, async (c) => {
     }, 200);
   }
 
-  const result = await callConvex("mutation", "candidate_blocks:bulkUpsert", {
+  const result = await callConvexMutation( "candidate_blocks:bulkUpsert", {
     workspaceSlug: c.var.workspaceSlug,
     identityKeys,
     reason: body.reason,
@@ -274,7 +180,7 @@ app.openapi(patchRoute, async (c) => {
     return c.json({ success: true as const, updated: false }, 200);
   }
 
-  const updated = await callConvex("mutation", "candidate_blocks:updateReason", {
+  const updated = await callConvexMutation( "candidate_blocks:updateReason", {
     workspaceSlug: c.var.workspaceSlug,
     identityKey,
     reason: body.reason,
@@ -301,7 +207,7 @@ const deleteRoute = createRoute({
 
 app.openapi(deleteRoute, async (c) => {
   const query = c.req.valid("query");
-  const removed = await callConvex("mutation", "candidate_blocks:remove", {
+  const removed = await callConvexMutation( "candidate_blocks:remove", {
     workspaceSlug: c.var.workspaceSlug,
     identityKey: query.identityKey,
   });
