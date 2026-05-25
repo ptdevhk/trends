@@ -650,3 +650,420 @@ describe("migration: backfillAnalysesValidator", () => {
     expect(result.updatedResumes).toBe(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// backfillWorkspaceSlugs
+// ---------------------------------------------------------------------------
+
+describe("migration: backfillWorkspaceSlugs", () => {
+  it("patches job_descriptions with missing workspaceSlug", async () => {
+    const t = convexTest(schema, modules);
+
+    await t.run(async (ctx) => {
+      await ctx.db.insert("job_descriptions", {
+        title: "Test JD",
+        content: "Requirements here",
+        type: "custom",
+        enabled: true,
+        lastModified: Date.now(),
+        // workspaceSlug intentionally omitted
+      });
+    });
+
+    const result = await t.mutation(api.migrations.backfillWorkspaceSlugs, {});
+
+    expect(result.patchedJobDescriptions).toBeGreaterThanOrEqual(1);
+    expect(result.defaultWorkspace).toBe("dev");
+
+    const jds = await t.run(async (ctx) => ctx.db.query("job_descriptions").collect());
+    expect(jds[0].workspaceSlug).toBe("dev");
+  });
+
+  it("patches search_profiles, screening_sessions, and search_history", async () => {
+    const t = convexTest(schema, modules);
+
+    await t.run(async (ctx) => {
+      await ctx.db.insert("search_profiles", {
+        name: "Test Profile",
+        criteria: { keywords: ["python"], locations: [] },
+        // workspaceSlug omitted
+      });
+      await ctx.db.insert("screening_sessions", {
+        sessionKey: "sess-ws",
+        config: { location: "", keywords: [], filters: {} },
+        status: "active",
+        reviewedResumeIds: [],
+        lastActive: Date.now(),
+      });
+      await ctx.db.insert("search_history", {
+        sessionKey: "hist-ws",
+        title: "Test",
+        location: "Shanghai",
+        keywords: [],
+        filters: {},
+        createdAt: Date.now(),
+      });
+    });
+
+    const result = await t.mutation(api.migrations.backfillWorkspaceSlugs, {});
+
+    expect(result.patchedSearchProfiles).toBeGreaterThanOrEqual(1);
+    expect(result.patchedScreeningSessions).toBeGreaterThanOrEqual(1);
+    expect(result.patchedSearchHistory).toBeGreaterThanOrEqual(1);
+  });
+
+  it("skips records that already have a workspaceSlug", async () => {
+    const t = convexTest(schema, modules);
+
+    await t.run(async (ctx) => {
+      await ctx.db.insert("job_descriptions", {
+        title: "Has Workspace",
+        content: "Content",
+        type: "custom",
+        enabled: true,
+        lastModified: Date.now(),
+        workspaceSlug: "hr",
+      });
+    });
+
+    const result = await t.mutation(api.migrations.backfillWorkspaceSlugs, {});
+
+    expect(result.patchedJobDescriptions).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// backfillPrimaryRuleScore
+// ---------------------------------------------------------------------------
+
+describe("migration: backfillPrimaryRuleScore", () => {
+  it("computes max rule score for resumes missing primaryRuleScore", async () => {
+    const t = convexTest(schema, modules);
+
+    await insertResume(t, {
+      ingestData: {
+        evidenceText: "",
+        industryTags: [],
+        synonymHits: [],
+        brandHits: [],
+        companyHits: [],
+        ruleScores: { skill: 80, experience: 60, education: 70 },
+        experienceLevel: "senior",
+        computedAt: Date.now(),
+        skillsVersion: 1,
+      },
+    });
+
+    const result = await t.mutation(api.migrations.backfillPrimaryRuleScore, {});
+
+    expect(result.updatedResumes).toBeGreaterThanOrEqual(1);
+    expect(result.hasMore).toBe(false);
+    expect(result.cursor).toBeNull();
+
+    const resumes = await t.run(async (ctx) => ctx.db.query("resumes").collect());
+    expect(resumes[0].primaryRuleScore).toBe(80);
+  });
+
+  it("defaults to 0 when ruleScores is empty", async () => {
+    const t = convexTest(schema, modules);
+
+    await insertResume(t, {
+      ingestData: {
+        evidenceText: "",
+        industryTags: [],
+        synonymHits: [],
+        brandHits: [],
+        companyHits: [],
+        ruleScores: {},
+        experienceLevel: "junior",
+        computedAt: Date.now(),
+        skillsVersion: 1,
+      },
+    });
+
+    const result = await t.mutation(api.migrations.backfillPrimaryRuleScore, {});
+
+    expect(result.updatedResumes).toBeGreaterThanOrEqual(1);
+
+    const resumes = await t.run(async (ctx) => ctx.db.query("resumes").collect());
+    expect(resumes[0].primaryRuleScore).toBe(0);
+  });
+
+  it("skips resumes that already have primaryRuleScore", async () => {
+    const t = convexTest(schema, modules);
+
+    await insertResume(t, {
+      primaryRuleScore: 50,
+      ingestData: {
+        evidenceText: "",
+        industryTags: [],
+        synonymHits: [],
+        brandHits: [],
+        companyHits: [],
+        ruleScores: { skill: 90 },
+        experienceLevel: "mid",
+        computedAt: Date.now(),
+        skillsVersion: 1,
+      },
+    });
+
+    const result = await t.mutation(api.migrations.backfillPrimaryRuleScore, {});
+
+    expect(result.updatedResumes).toBe(0);
+  });
+
+  it("sets primaryRuleScore to 0 for resumes with no ingestData", async () => {
+    const t = convexTest(schema, modules);
+
+    await insertResume(t);
+
+    const result = await t.mutation(api.migrations.backfillPrimaryRuleScore, {});
+
+    expect(result.updatedResumes).toBeGreaterThanOrEqual(1);
+
+    const resumes = await t.run(async (ctx) => ctx.db.query("resumes").collect());
+    expect(resumes[0].primaryRuleScore).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// backfillSearchProfileTemplateHash
+// ---------------------------------------------------------------------------
+
+describe("migration: backfillSearchProfileTemplateHash", () => {
+  it("skips profiles that already have a templateHash", async () => {
+    const t = convexTest(schema, modules);
+
+    await t.run(async (ctx) => {
+      await ctx.db.insert("search_profiles", {
+        name: "Has Hash",
+        profileId: "some-id",
+        criteria: { keywords: [], locations: [] },
+        profile: { id: "some-id", seedSource: "config/search-profiles", templateHash: "abc123" },
+      });
+    });
+
+    const result = await t.mutation(api.migrations.backfillSearchProfileTemplateHash, {});
+
+    expect(result.updated).toBe(0);
+  });
+
+  it("skips profiles not seeded from config", async () => {
+    const t = convexTest(schema, modules);
+
+    await t.run(async (ctx) => {
+      await ctx.db.insert("search_profiles", {
+        name: "Manual Profile",
+        profileId: "job5156-cn-cnc-sales", // matches a real template ID
+        criteria: { keywords: [], locations: [] },
+        profile: { id: "job5156-cn-cnc-sales", seedSource: "manual" },
+      });
+    });
+
+    const result = await t.mutation(api.migrations.backfillSearchProfileTemplateHash, {});
+
+    expect(result.updated).toBe(0);
+  });
+
+  it("skips profiles with no profile data", async () => {
+    const t = convexTest(schema, modules);
+
+    await t.run(async (ctx) => {
+      await ctx.db.insert("search_profiles", {
+        name: "No Profile Data",
+        profileId: "empty-1",
+        criteria: { keywords: [], locations: [] },
+      });
+    });
+
+    const result = await t.mutation(api.migrations.backfillSearchProfileTemplateHash, {});
+
+    expect(result.scanned).toBeGreaterThanOrEqual(1);
+    expect(result.updated).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// backfillTaggingEnvelope
+// ---------------------------------------------------------------------------
+
+describe("migration: backfillTaggingEnvelope", () => {
+  it("migrates legacy tagEnvelope to taggingEnvelope with provenance", async () => {
+    const t = convexTest(schema, modules);
+
+    const computedAt = Date.now();
+    await insertResume(t, {
+      ingestData: {
+        evidenceText: "",
+        industryTags: [],
+        synonymHits: [],
+        brandHits: [],
+        companyHits: [],
+        ruleScores: {},
+        experienceLevel: "mid",
+        computedAt,
+        skillsVersion: 1,
+        tagEnvelope: [
+          { tag: "industry:software", source: "ingest", confidence: 0.9, version: 1, evidence: ["skill match"] },
+          { tag: "role:developer", source: "ingest", confidence: 0.8, version: 1 },
+        ],
+      },
+    });
+
+    const result = await t.mutation(api.migrations.backfillTaggingEnvelope, {});
+
+    expect(result.updatedResumes).toBeGreaterThanOrEqual(1);
+    expect(result.hasMore).toBe(false);
+    expect(result.cursor).toBeNull();
+
+    const resumes = await t.run(async (ctx) => ctx.db.query("resumes").collect());
+    const te = resumes[0].ingestData?.taggingEnvelope;
+    expect(te).toBeDefined();
+    expect(te!.schemaVersion).toBe(1);
+    expect(te!.generatedAt).toBe(computedAt);
+    expect(te!.entries).toHaveLength(2);
+    expect(te!.entries[0].tag).toBe("industry:software");
+    expect(te!.entries[0].provenance.stage).toBe("industry_taxonomy");
+    expect(te!.entries[0].provenance.generatedBy).toBe("migration_backfill");
+    expect(te!.entries[1].provenance.stage).toBe("role_signal_aggregation");
+    expect(te!.entries[0].provenance.evidence).toEqual(["skill match"]);
+    expect(te!.entries[1].provenance.evidence).toEqual([]);
+  });
+
+  it("skips resumes that already have taggingEnvelope", async () => {
+    const t = convexTest(schema, modules);
+
+    await insertResume(t, {
+      ingestData: {
+        evidenceText: "",
+        industryTags: [],
+        synonymHits: [],
+        brandHits: [],
+        companyHits: [],
+        ruleScores: {},
+        experienceLevel: "mid",
+        computedAt: Date.now(),
+        skillsVersion: 1,
+        taggingEnvelope: {
+          schemaVersion: 1,
+          generatedAt: Date.now(),
+          entries: [],
+        },
+        tagEnvelope: [{ tag: "x", source: "y", confidence: 0.5, version: 1 }],
+      },
+    });
+
+    const result = await t.mutation(api.migrations.backfillTaggingEnvelope, {});
+
+    expect(result.updatedResumes).toBe(0);
+  });
+
+  it("skips resumes with no ingestData", async () => {
+    const t = convexTest(schema, modules);
+
+    await insertResume(t);
+
+    const result = await t.mutation(api.migrations.backfillTaggingEnvelope, {});
+
+    expect(result.updatedResumes).toBe(0);
+  });
+
+  it("skips resumes with empty tagEnvelope array", async () => {
+    const t = convexTest(schema, modules);
+
+    await insertResume(t, {
+      ingestData: {
+        evidenceText: "",
+        industryTags: [],
+        synonymHits: [],
+        brandHits: [],
+        companyHits: [],
+        ruleScores: {},
+        experienceLevel: "mid",
+        computedAt: Date.now(),
+        skillsVersion: 1,
+        tagEnvelope: [],
+      },
+    });
+
+    const result = await t.mutation(api.migrations.backfillTaggingEnvelope, {});
+
+    expect(result.updatedResumes).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// backfillSeekNameSearchUrls
+// ---------------------------------------------------------------------------
+
+describe("migration: backfillSeekNameSearchUrls", () => {
+  it("rewrites Seek resumes with UUID profile URLs to name-search format", async () => {
+    const t = convexTest(schema, modules);
+
+    await insertResume(t, {
+      source: "seek",
+      content: {
+        name: "Zhang Wei",
+        profileUrl: "https://www.seek.com.au/candidates/550e8400-e29b-41d4-a716-446655440000",
+      },
+    });
+
+    const result = await t.mutation(api.migrations.backfillSeekNameSearchUrls, {});
+
+    expect(result.updatedResumes).toBeGreaterThanOrEqual(1);
+    expect(result.hasMore).toBe(false);
+    expect(result.cursor).toBeNull();
+
+    const resumes = await t.run(async (ctx) => ctx.db.query("resumes").collect());
+    const newUrl = (resumes[0].content as Record<string, unknown>).profileUrl as string;
+    expect(newUrl).toContain("talentsearch");
+    expect(newUrl).toContain("Zhang");
+  });
+
+  it("skips non-Seek resumes", async () => {
+    const t = convexTest(schema, modules);
+
+    await insertResume(t, {
+      source: "51job",
+      content: {
+        name: "Li Ming",
+        profileUrl: "https://ehire.51job.com/Candidate/ResumeView.aspx?resumeid=123",
+      },
+    });
+
+    const result = await t.mutation(api.migrations.backfillSeekNameSearchUrls, {});
+
+    expect(result.updatedResumes).toBe(0);
+  });
+
+  it("skips Seek resumes already with name-search URL containing roleTitles", async () => {
+    const t = convexTest(schema, modules);
+
+    await insertResume(t, {
+      source: "seek",
+      content: {
+        name: "Already Done",
+        profileUrl: "https://www.seek.com.au/talentsearch/profiles/search?roleTitles=Developer&keywords=Already",
+      },
+    });
+
+    const result = await t.mutation(api.migrations.backfillSeekNameSearchUrls, {});
+
+    expect(result.updatedResumes).toBe(0);
+  });
+
+  it("skips Seek resumes with no name in content", async () => {
+    const t = convexTest(schema, modules);
+
+    await insertResume(t, {
+      source: "seek",
+      content: {
+        profileUrl: "https://www.seek.com.au/candidates/550e8400-e29b-41d4-a716-446655440000",
+      },
+    });
+
+    const result = await t.mutation(api.migrations.backfillSeekNameSearchUrls, {});
+
+    expect(result.updatedResumes).toBe(0);
+  });
+});
