@@ -102,7 +102,7 @@ type ReviewPacketStatusListItem = {
 
 // --- Export/packet helper functions ---
 
-function toExportResumePayload(resume: ResumeItem): ExportResumePayload {
+export function toExportResumePayload(resume: ResumeItem): ExportResumePayload {
   return {
     externalId: resume.externalId,
     name: resume.name,
@@ -120,7 +120,7 @@ function toExportResumePayload(resume: ResumeItem): ExportResumePayload {
   };
 }
 
-function normalizeExportResumePayload(
+export function normalizeExportResumePayload(
   resume: z.infer<typeof ResumeExportResolvedResumeSchema>
 ): ExportResumePayload {
   return {
@@ -140,7 +140,7 @@ function normalizeExportResumePayload(
   };
 }
 
-function toExportEntryFields(entry: ResumeExportEntryContext): ResumeExportEntryFields {
+export function toExportEntryFields(entry: ResumeExportEntryContext): ResumeExportEntryFields {
   return {
     match: entry.match,
     action: entry.action,
@@ -151,7 +151,7 @@ function toExportEntryFields(entry: ResumeExportEntryContext): ResumeExportEntry
   };
 }
 
-function toExportEntry(key: string, resume: ExportResumePayload, fields: ResumeExportEntryFields): ResumeExportEntry {
+export function toExportEntry(key: string, resume: ExportResumePayload, fields: ResumeExportEntryFields): ResumeExportEntry {
   return {
     key: key.trim(),
     resume,
@@ -209,7 +209,7 @@ function resolveSampleExportResumeMap(
   return resolved;
 }
 
-function buildExportEntriesFromResolvedResumes(
+export function buildExportEntriesFromResolvedResumes(
   entries: ResumeExportEntryContext[],
   resolvedResumes: Map<string, ExportResumePayload>
 ): ResumeExportEntry[] {
@@ -279,7 +279,7 @@ async function buildResumeExportResponse(request: ResumeExportCanonicalRequest) 
   });
 }
 
-function buildReviewPacketIdentityKey(params: {
+export function buildReviewPacketIdentityKey(params: {
   resumeId: string;
   profileUrl?: string;
   source?: string;
@@ -291,7 +291,7 @@ function buildReviewPacketIdentityKey(params: {
   return `resumeId:${params.resumeId.trim().toLowerCase()}`;
 }
 
-function toReviewPacketItemSnapshot(
+export function toReviewPacketItemSnapshot(
   record: ReviewPacketResolvedRecord
 ): ReviewPacketItemSnapshot {
   return {
@@ -303,7 +303,7 @@ function toReviewPacketItemSnapshot(
   };
 }
 
-function buildReviewPacketEntriesFromResolvedRecords(
+export function buildReviewPacketEntriesFromResolvedRecords(
   entries: ResumeExportEntryContext[],
   resolvedRecords: Map<string, ReviewPacketResolvedRecord>
 ): {
@@ -447,15 +447,15 @@ async function resolveReviewPacketExportRequest(
   };
 }
 
-function buildReviewPacketDownloadPath(runId: string): string {
+export function buildReviewPacketDownloadPath(runId: string): string {
   return `/api/resumes/review-packets/${encodeURIComponent(runId)}/download`;
 }
 
-function buildReviewPacketSessionId(runId: string): string {
+export function buildReviewPacketSessionId(runId: string): string {
   return `review-packet:${runId}`;
 }
 
-function buildReviewPacketFilename(runId: string, format: ExportFormat): string {
+export function buildReviewPacketFilename(runId: string, format: ExportFormat): string {
   return `review-packet-${runId}.${format}`;
 }
 
@@ -467,7 +467,7 @@ function getReviewPacketFilePath(runId: string, format: ExportFormat): string {
   return path.join(getReviewPacketOutputDir(), buildReviewPacketFilename(runId, format));
 }
 
-function toPublicReviewPacketRun(run: StoredReviewPacketRun): z.infer<typeof ReviewPacketRunSchema> {
+export function toPublicReviewPacketRun(run: StoredReviewPacketRun): z.infer<typeof ReviewPacketRunSchema> {
   const importStats = run.stats?.import
     ? {
         importedAt: run.stats.import.importedAt,
@@ -597,7 +597,7 @@ async function buildReviewPacketDownloadResponse(run: StoredReviewPacketRun): Pr
   });
 }
 
-function toReviewPacketStatusListItem(value: unknown): ReviewPacketStatusListItem | null {
+export function toReviewPacketStatusListItem(value: unknown): ReviewPacketStatusListItem | null {
   if (!isRecord(value)) {
     return null;
   }
