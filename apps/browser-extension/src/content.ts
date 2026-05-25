@@ -36,6 +36,7 @@ import { createPaginationUtils } from "./lib/pagination-utils";
 import { createDomUtils, delay } from "./lib/dom-utils";
 import { createResumeExtractor, type ResumeExtractorDeps } from "./lib/resume-extractor";
 import { createPageBridge, type PageBridgeDeps } from "./lib/page-bridge";
+import { createChromeMessageHandler, type ChromeMessageHandlerDeps } from "./lib/chrome-message-handler";
 import { createSyncStatusWidget } from "./lib/sync-status-widget";
 import { createAutoSyncRunner } from "./lib/auto-sync-runner";
 import {
@@ -908,61 +909,18 @@ const _autoSyncRunner = createAutoSyncRunner({
 });
 const { runAutoSyncIfEnabled } = _autoSyncRunner;
 
-// Listen for messages from popup
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.action === "extractCurrentPage") {
-    const resumes = extractResumes();
-    const pagination = getPaginationInfo();
-    const metadata = buildSubmitMetadata();
-    sendResponse({
-      success: true,
-      data: resumes,
-      count: resumes.length,
-      pagination,
-      metadata,
-    });
-  } else if (request.action === "downloadCSV") {
-    const resumes = extractResumes();
-    const csv = resumesToCSV(resumes);
-    const timestamp = new Date().toISOString().slice(0, 10);
-    const filename = `resumes_${timestamp}_${makeRandomId()}.csv`;
-    const saveAs = !!request.saveAs;
-
-    // Download via background script (chrome.downloads API preserves filenames)
-    downloadFile(csv, filename, "text/csv", saveAs)
-      .then(() =>
-        sendResponse({ success: true, count: resumes.length, filename }),
-      )
-      .catch((err) => sendResponse({ success: false, error: err.message }));
-    return true; // Keep channel open for async
-  } else if (request.action === "downloadJSON") {
-    const resumes = extractResumes();
-    const metadata = buildExportMetadata(resumes);
-    const payload = { metadata, data: resumes };
-    const json = JSON.stringify(payload, null, 2);
-    const filename = buildExportFilename();
-    const saveAs = !!request.saveAs;
-
-    // Download via background script (chrome.downloads API preserves filenames)
-    downloadFile(json, filename, "application/json", saveAs)
-      .then(() =>
-        sendResponse({ success: true, count: resumes.length, filename }),
-      )
-      .catch((err) => sendResponse({ success: false, error: err.message }));
-    return true; // Keep channel open for async
-  } else if (request.action === "getPaginationInfo") {
-    sendResponse(getPaginationInfo());
-  } else if (request.action === "getRuntimeStatus") {
-    sendResponse({
-      success: true,
-      status: getExternalAccessorStatus(),
-    });
-  } else if (request.action === "ping") {
-    sendResponse({ success: true, message: "Content script loaded" });
-  }
-
-  return true; // Keep channel open for async response
+const _chromeMessageHandler = createChromeMessageHandler({
+  extractResumes,
+  getPaginationInfo,
+  buildSubmitMetadata,
+  resumesToCSV,
+  makeRandomId,
+  downloadFile,
+  buildExportMetadata,
+  buildExportFilename,
+  getExternalAccessorStatus,
 });
+_chromeMessageHandler.installChromeMessageListener();
 
 
 
