@@ -543,6 +543,25 @@ export function normalizeResume(
     };
 }
 
+// Helper to compute audit fields from a resume record
+function computeAuditFields(resume: Record<string, unknown>) {
+    const rawRoot = isRecord(resume) ? resume : {};
+    const rawContent = isRecord(rawRoot.content) ? rawRoot.content : rawRoot;
+    const scrubbedContent = sanitizeResumeRecordForSurface(rawContent, "analysis");
+    const auditContent = sanitizeResumeRecordForSurface(rawContent, "audit");
+    const scrubbedFields = Object.keys(rawContent).filter(
+        (key) => !(key in scrubbedContent) || scrubbedContent[key] === undefined
+    );
+    const auditAge = auditContent.age ?? rawRoot.age;
+    const protectedHashes = computeProtectedAttributeHashes({
+        age: typeof auditAge === "number" ? auditAge : undefined,
+        gender: typeof auditContent.gender === "string" ? auditContent.gender : undefined,
+        location: typeof rawRoot.source === "string" ? String(rawRoot.source) : undefined,
+        source: typeof rawRoot.source === "string" ? rawRoot.source : undefined,
+    });
+    return { scrubbedFields, protectedHashes };
+}
+
 // Helper to call OpenAI/Compatible API
 export async function callLLM(messages: ChatMessage[], apiKey: string) {
     const apiBase = getAiApiBase();
@@ -682,20 +701,7 @@ export const analyzeResume = action({
 
         // 5. Audit log — EU AI Act compliance
         try {
-            const rawRoot: Record<string, unknown> = isRecord(resume) ? resume : {};
-            const rawContent = isRecord(rawRoot.content) ? rawRoot.content : rawRoot;
-            const scrubbedContent = sanitizeResumeRecordForSurface(rawContent, "analysis");
-            const auditContent = sanitizeResumeRecordForSurface(rawContent, "audit");
-            const scrubbedFields = Object.keys(rawContent).filter(
-                (key) => !(key in scrubbedContent) || scrubbedContent[key] === undefined
-            );
-            const auditAge = auditContent.age ?? rawRoot.age;
-            const protectedHashes = computeProtectedAttributeHashes({
-                age: typeof auditAge === "number" ? auditAge : undefined,
-                gender: typeof auditContent.gender === "string" ? auditContent.gender : undefined,
-                location: typeof rawRoot.source === "string" ? String(rawRoot.source) : undefined,
-                source: typeof resume.source === "string" ? resume.source : undefined,
-            });
+            const { scrubbedFields, protectedHashes } = computeAuditFields(resume as Record<string, unknown>);
 
             await ctx.runMutation(internal.audit.logAnalysisDecision, {
                 resumeId: args.resumeId,
@@ -920,6 +926,46 @@ export const confirmSearchResults = action({
                         analyzedAt: Date.now(),
                     },
                 });
+
+                // Audit log — EU AI Act compliance for confirm decisions
+                try {
+                    const { scrubbedFields, protectedHashes } = computeAuditFields(resume as Record<string, unknown>);
+
+                    await ctx.runMutation(internal.audit.logAnalysisDecision, {
+                        resumeId,
+                        identityKey: resume.identityKey ?? undefined,
+                        workspaceSlug: args.workspaceId,
+                        decisionType: "confirm",
+                        actionRef: "analyze:confirmSearchResults",
+                        inputSnapshot: {
+                            searchKeywords: [args.query],
+                            scrubbedFields: scrubbedFields.length > 0 ? scrubbedFields : undefined,
+                        },
+                        modelMeta: {
+                            model: getAiModel(),
+                            provider: "openai",
+                            apiBase: getAiApiBase(),
+                        },
+                        output: {
+                            score: analysis.score,
+                            recommendation: analysis.recommendation,
+                        },
+                        protectedAttributeHashes: protectedHashes,
+                        explanation: {
+                            summary: `Confirmed score ${analysis.score}/100 for query "${args.query}". ${analysis.summary || ""}`,
+                            keyFactors: analysis.keyFactors.length > 0
+                                ? analysis.keyFactors
+                                : (analysis.highlights || []).slice(0, 4).map((h: string) => ({
+                                    factor: "highlight",
+                                    value: h,
+                                })),
+                        },
+                        decidedAt: Date.now(),
+                    });
+                } catch (auditError) {
+                    // Audit logging failure must NOT block the confirm result
+                    console.error("Audit logging failed for confirm:", auditError);
+                }
 
                 totalConfirmed++;
 

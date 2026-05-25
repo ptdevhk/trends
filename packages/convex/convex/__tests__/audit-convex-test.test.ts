@@ -224,6 +224,187 @@ describe("audit (convex-test)", () => {
     });
   });
 
+  describe("confirm audit log (decisionType: confirm)", () => {
+    it("creates a confirm audit log entry via logAnalysisDecision", async () => {
+      const t = convexTest(schema, modules);
+
+      const resumeId = await t.run(async (ctx) => {
+        return ctx.db.insert("resumes", {
+          externalId: "confirm-r1",
+          content: { age: 30, gender: "M", name: "Test", skills: ["CNC"] },
+          hash: "confirm1",
+          tags: [],
+          crawledAt: Date.now(),
+          source: "test",
+          searchText: "Confirm test resume",
+        });
+      });
+
+      await t.mutation(internal.audit.logAnalysisDecision, {
+        resumeId,
+        workspaceSlug: "ws-confirm",
+        decisionType: "confirm",
+        actionRef: "analyze:confirmSearchResults",
+        inputSnapshot: {
+          searchKeywords: ["CNC operator"],
+          scrubbedFields: ["age"],
+        },
+        modelMeta: {
+          model: "gpt-4-turbo",
+          provider: "openai",
+          latencyMs: 800,
+        },
+        output: {
+          score: 82,
+          recommendation: "match",
+        },
+        protectedAttributeHashes: {
+          sourceHash: fnvHash("test"),
+        },
+        explanation: {
+          summary: "Confirmed score 82/100 for query \"CNC operator\".",
+          keyFactors: [
+            { factor: "skill_alignment", weight: 0.5, value: "5 years CNC experience" },
+          ],
+        },
+        decidedAt: Date.now(),
+      });
+
+      const logs = await t.run(async (ctx) => {
+        return ctx.db
+          .query("analysis_audit_log")
+          .withIndex("by_resume", (q) => q.eq("resumeId", resumeId))
+          .collect();
+      });
+
+      expect(logs.length).toBe(1);
+      expect(logs[0].decisionType).toBe("confirm");
+      expect(logs[0].actionRef).toBe("analyze:confirmSearchResults");
+      expect(logs[0].inputSnapshot.searchKeywords).toEqual(["CNC operator"]);
+      expect(logs[0].output.score).toBe(82);
+      expect(logs[0].explanation?.summary).toContain("Confirmed score 82");
+      expect(logs[0].explanation?.keyFactors.length).toBe(1);
+    });
+
+    it("captures scrubbedFields and protectedAttributeHashes from resume content", async () => {
+      const t = convexTest(schema, modules);
+
+      const resumeId = await t.run(async (ctx) => {
+        return ctx.db.insert("resumes", {
+          externalId: "confirm-scrub-r1",
+          content: { age: 28, gender: "F", name: "Jane", skills: ["Python"] },
+          hash: "scrub1",
+          tags: [],
+          crawledAt: Date.now(),
+          source: "51job",
+          searchText: "Scrub test",
+        });
+      });
+
+      const protectedHashes = {
+        ageBracketHash: fnvHash(ageToBracket(28)),
+        genderHash: fnvHash("F"),
+        sourceHash: fnvHash("51job"),
+      };
+
+      await t.mutation(internal.audit.logAnalysisDecision, {
+        resumeId,
+        workspaceSlug: "ws-scrub",
+        decisionType: "confirm",
+        actionRef: "analyze:confirmSearchResults",
+        inputSnapshot: {
+          searchKeywords: ["Python developer"],
+          scrubbedFields: ["age", "gender"],
+        },
+        modelMeta: {
+          model: "gpt-4-turbo",
+          provider: "openai",
+        },
+        output: {
+          score: 90,
+          recommendation: "strong_match",
+        },
+        protectedAttributeHashes: protectedHashes,
+        explanation: {
+          summary: "Confirmed score 90/100 for query \"Python developer\".",
+          keyFactors: [
+            { factor: "skill_alignment", value: "3 years Python" },
+          ],
+        },
+        decidedAt: Date.now(),
+      });
+
+      const logs = await t.run(async (ctx) => {
+        return ctx.db
+          .query("analysis_audit_log")
+          .withIndex("by_resume", (q) => q.eq("resumeId", resumeId))
+          .collect();
+      });
+
+      expect(logs.length).toBe(1);
+      expect(logs[0].inputSnapshot.scrubbedFields).toEqual(["age", "gender"]);
+      expect(logs[0].protectedAttributeHashes?.ageBracketHash).toBe(protectedHashes.ageBracketHash);
+      expect(logs[0].protectedAttributeHashes?.genderHash).toBe(protectedHashes.genderHash);
+      expect(logs[0].protectedAttributeHashes?.sourceHash).toBe(protectedHashes.sourceHash);
+    });
+
+    it("filters confirm logs by decisionType via getAuditLogByWorkspace", async () => {
+      const t = convexTest(schema, modules);
+
+      const resumeId = await t.run(async (ctx) => {
+        return ctx.db.insert("resumes", {
+          externalId: "confirm-filter-r1",
+          content: {},
+          hash: "cfilter1",
+          searchText: "Filter test",
+          tags: [],
+          crawledAt: Date.now(),
+          source: "test",
+        });
+      });
+
+      const now = Date.now();
+      await t.run(async (ctx) => {
+        await ctx.db.insert("analysis_audit_log", {
+          resumeId,
+          workspaceSlug: "ws-cfilter",
+          decisionType: "score",
+          actionRef: "analyze:analyzeResume",
+          inputSnapshot: {},
+          modelMeta: { model: "gpt-4", provider: "openai" },
+          output: { score: 75 },
+          outcome: "pending",
+          decidedAt: now,
+          expiresAt: now + 2 * 365 * 24 * 60 * 60 * 1000,
+        });
+        await ctx.db.insert("analysis_audit_log", {
+          resumeId,
+          workspaceSlug: "ws-cfilter",
+          decisionType: "confirm",
+          actionRef: "analyze:confirmSearchResults",
+          inputSnapshot: { searchKeywords: ["sales"] },
+          modelMeta: { model: "gpt-4", provider: "openai" },
+          output: { score: 85, recommendation: "strong_match" },
+          outcome: "pending",
+          decidedAt: now + 1000,
+          expiresAt: now + 2 * 365 * 24 * 60 * 60 * 1000,
+        });
+      });
+
+      const confirmLogs = await t.query(api.audit.getAuditLogByWorkspace, {
+        workspaceSlug: "ws-cfilter",
+        decisionType: "confirm",
+      });
+      expect(confirmLogs.length).toBe(1);
+      expect(confirmLogs[0].decisionType).toBe("confirm");
+
+      const allLogs = await t.query(api.audit.getAuditLogByWorkspace, {
+        workspaceSlug: "ws-cfilter",
+      });
+      expect(allLogs.length).toBe(2);
+    });
+  });
+
   describe("listWorkspaceSlugsWithAuditLogs", () => {
     it("returns distinct workspace slugs from audit logs", async () => {
       const t = convexTest(schema, modules);
