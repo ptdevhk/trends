@@ -1000,11 +1000,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            /** @enum {boolean} */
-                            success: false;
-                            error: string;
-                        };
+                        "application/json": components["schemas"]["SimpleError"];
                     };
                 };
                 /** @description Export failed */
@@ -1013,11 +1009,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            /** @enum {boolean} */
-                            success: false;
-                            error: string;
-                        };
+                        "application/json": components["schemas"]["SimpleError"];
                     };
                 };
             };
@@ -1066,11 +1058,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            /** @enum {boolean} */
-                            success: false;
-                            error: string;
-                        };
+                        "application/json": components["schemas"]["SimpleError"];
                     };
                 };
                 /** @description Tracked export failed */
@@ -1079,11 +1067,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            /** @enum {boolean} */
-                            success: false;
-                            error: string;
-                        };
+                        "application/json": components["schemas"]["SimpleError"];
                     };
                 };
             };
@@ -1170,11 +1154,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            /** @enum {boolean} */
-                            success: false;
-                            error: string;
-                        };
+                        "application/json": components["schemas"]["SimpleError"];
                     };
                 };
                 /** @description Run lookup failed */
@@ -1183,11 +1163,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            /** @enum {boolean} */
-                            success: false;
-                            error: string;
-                        };
+                        "application/json": components["schemas"]["SimpleError"];
                     };
                 };
             };
@@ -1235,11 +1211,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            /** @enum {boolean} */
-                            success: false;
-                            error: string;
-                        };
+                        "application/json": components["schemas"]["SimpleError"];
                     };
                 };
                 /** @description Download failed */
@@ -1248,11 +1220,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            /** @enum {boolean} */
-                            success: false;
-                            error: string;
-                        };
+                        "application/json": components["schemas"]["SimpleError"];
                     };
                 };
             };
@@ -1305,11 +1273,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            /** @enum {boolean} */
-                            success: false;
-                            error: string;
-                        };
+                        "application/json": components["schemas"]["SimpleError"];
                     };
                 };
                 /** @description Run not found */
@@ -1318,11 +1282,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            /** @enum {boolean} */
-                            success: false;
-                            error: string;
-                        };
+                        "application/json": components["schemas"]["SimpleError"];
                     };
                 };
                 /** @description Feedback import failed */
@@ -1331,11 +1291,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            /** @enum {boolean} */
-                            success: false;
-                            error: string;
-                        };
+                        "application/json": components["schemas"]["SimpleError"];
                     };
                 };
             };
@@ -1386,11 +1342,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            /** @enum {boolean} */
-                            success: false;
-                            error: string;
-                        };
+                        "application/json": components["schemas"]["SimpleError"];
                     };
                 };
                 /** @description Summary preview failed */
@@ -1399,11 +1351,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            /** @enum {boolean} */
-                            success: false;
-                            error: string;
-                        };
+                        "application/json": components["schemas"]["SimpleError"];
                     };
                 };
             };
@@ -1454,11 +1402,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            /** @enum {boolean} */
-                            success: false;
-                            error: string;
-                        };
+                        "application/json": components["schemas"]["SimpleError"];
                     };
                 };
                 /** @description Summary send failed */
@@ -1467,11 +1411,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            /** @enum {boolean} */
-                            success: false;
-                            error: string;
-                        };
+                        "application/json": components["schemas"]["SimpleError"];
                     };
                 };
             };
@@ -1607,11 +1547,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            /** @enum {boolean} */
-                            success: false;
-                            error: string;
-                        };
+                        "application/json": components["schemas"]["SimpleError"];
                     };
                 };
                 /** @description Session or data not found */
@@ -1620,11 +1556,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            /** @enum {boolean} */
-                            success: false;
-                            error: string;
-                        };
+                        "application/json": components["schemas"]["SimpleError"];
                     };
                 };
             };
@@ -1675,11 +1607,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            /** @enum {boolean} */
-                            success: false;
-                            error: string;
-                        };
+                        "application/json": components["schemas"]["SimpleError"];
                     };
                 };
             };
@@ -1877,11 +1805,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            /** @enum {boolean} */
-                            success: false;
-                            error: string;
-                        };
+                        "application/json": components["schemas"]["SimpleError"];
                     };
                 };
                 /** @description Session or job description not found */
@@ -1890,11 +1814,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            /** @enum {boolean} */
-                            success: false;
-                            error: string;
-                        };
+                        "application/json": components["schemas"]["SimpleError"];
                     };
                 };
             };
@@ -1943,11 +1863,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            /** @enum {boolean} */
-                            success: false;
-                            error: string;
-                        };
+                        "application/json": components["schemas"]["SimpleError"];
                     };
                 };
             };
@@ -7645,6 +7561,11 @@ export interface components {
             resumeIds?: string[];
             sourceHosts?: string[];
             limit?: number;
+        };
+        SimpleError: {
+            /** @enum {boolean} */
+            success: false;
+            error: string;
         };
         ResumeExportCanonicalRequest: {
             /**

@@ -18,6 +18,7 @@ import {
   ReviewPacketSummarySendRequestSchema,
   ReviewPacketSummarySendResponseSchema,
   ReviewPacketTrackedExportResponseSchema,
+  SimpleErrorSchema,
 } from "../schemas/index.js";
 import { logger } from "../services/logger.js";
 import { config } from "../services/config.js";
@@ -76,11 +77,6 @@ const feedbackImportService = new FeedbackImportService();
 const feedbackSummaryService = new FeedbackSummaryService();
 const resumeService = new ResumeService(config.projectRoot);
 const searchEventLogger = new SearchEventLogger(config.projectRoot);
-
-const SimpleErrorSchema = z.object({
-  success: z.literal(false),
-  error: z.string(),
-});
 
 // --- Export/packet types ---
 
