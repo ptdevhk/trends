@@ -1169,5 +1169,52 @@ describe("audit log retention (EU AI Act / GDPR)", () => {
       expect(afterSet!.outcomeSetAt).toBeDefined();
       expect(afterSet!.reviewedAt).toBeDefined();
     });
+
+    it("supports tag-then-set-outcome flow", async () => {
+      const t = convexTest(schema, modules);
+
+      const resumeId = await t.run(async (ctx) => {
+        return ctx.db.insert("resumes", {
+          externalId: "tag-flow-r1",
+          content: {},
+          hash: "tag-flow1",
+          tags: [],
+          crawledAt: Date.now(),
+          source: "test",
+        });
+      });
+
+      // Simulate the tagging flow: logAnalysisDecision then setAuditOutcome
+      const auditLogId = await t.mutation(internal.audit.logAnalysisDecision, {
+        resumeId,
+        workspaceSlug: "ws-tag-flow",
+        decisionType: "tag",
+        actionRef: "ai_tagging_results:drainQueue",
+        inputSnapshot: {
+          profileKey: "default",
+          promptVersion: "v1",
+        },
+        modelMeta: { model: "gpt-4", provider: "openai", promptTokens: 100, completionTokens: 50 },
+        output: { roleFit: "strong", confidence: 0.9, tags: ["senior", "cnc"], recommendation: "strong_match" },
+        decidedAt: Date.now(),
+      });
+
+      // Verify initial state is "pending"
+      const beforeSet = await t.run(async (ctx) => ctx.db.get(auditLogId));
+      expect(beforeSet!.outcome).toBe("pending");
+      expect(beforeSet!.decisionType).toBe("tag");
+
+      // Set outcome to "accepted" (mimics the automatic wiring in drainQueue)
+      await t.mutation(api.audit.setAuditOutcome, {
+        auditLogId,
+        outcome: "accepted",
+        setBy: "system:ai_tagging_results",
+      });
+
+      const afterSet = await t.run(async (ctx) => ctx.db.get(auditLogId));
+      expect(afterSet!.outcome).toBe("accepted");
+      expect(afterSet!.outcomeSetBy).toBe("system:ai_tagging_results");
+      expect(afterSet!.outcomeSetAt).toBeDefined();
+    });
   });
 });
