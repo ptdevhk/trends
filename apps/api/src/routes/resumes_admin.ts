@@ -1,5 +1,5 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { callConvexAction, callConvexMutation } from "../services/convex-utils.js";
+import { callConvexAction, callConvexMutation, callConvexQuery } from "../services/convex-utils.js";
 import { IngestComputeService } from "../services/ingest-compute-service.js";
 import { config } from "../services/config.js";
 import { logger } from "../services/logger.js";
@@ -325,6 +325,24 @@ app.post("/api/resumes/ingest-compute", requireAdmin, async (c) => {
     const results = ingestComputeService.computeBatch(resumes);
     return c.json({ success: true, results }, 200);
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return c.json({ success: false, error: message }, 500);
+  }
+});
+
+// Bias audit report — fetch latest for workspace (EU AI Act Art. 12)
+app.get("/api/resumes/bias-report", requireAdmin, async (c) => {
+  const workspaceSlug = c.req.query("workspaceSlug");
+
+  if (!workspaceSlug) {
+    return c.json({ success: false, error: "Missing required query param: workspaceSlug" }, 400);
+  }
+
+  try {
+    const report = await callConvexQuery("bias_audit:getLatestBiasReport", { workspaceSlug });
+    return c.json({ success: true, report }, 200);
+  } catch (error) {
+    logger.error("Failed to fetch bias report", error, { route: "resumes_admin" });
     const message = error instanceof Error ? error.message : String(error);
     return c.json({ success: false, error: message }, 500);
   }

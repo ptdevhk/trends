@@ -27,6 +27,7 @@ import type * as lib_parallelism from "../lib/parallelism.js";
 import type * as lib_resume_identity from "../lib/resume_identity.js";
 import type * as llm_cost from "../llm_cost.js";
 import type * as migrations from "../migrations.js";
+import type * as resume_helpers from "../resume_helpers.js";
 import type * as resume_tasks from "../resume_tasks.js";
 import type * as resumes from "../resumes.js";
 import type * as search_alerts from "../search_alerts.js";
@@ -65,6 +66,7 @@ declare const fullApi: ApiFromModules<{
   "lib/resume_identity": typeof lib_resume_identity;
   llm_cost: typeof llm_cost;
   migrations: typeof migrations;
+  resume_helpers: typeof resume_helpers;
   resume_tasks: typeof resume_tasks;
   resumes: typeof resumes;
   search_alerts: typeof search_alerts;
