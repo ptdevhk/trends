@@ -541,6 +541,15 @@ export default defineSchema({
         outcomeSetBy: v.optional(v.string()),
         outcomeSetAt: v.optional(v.number()),
 
+        // Anomaly/Drift Flags (EU AI Act Article 12 monitoring)
+        anomalyFlags: v.optional(v.object({
+            statisticalParityViolation: v.optional(v.boolean()),
+            disparateImpactViolation: v.optional(v.boolean()),
+            scoreDriftDetected: v.optional(v.boolean()),
+            psiValue: v.optional(v.number()),
+            flagReason: v.optional(v.string()),
+        })),
+
         // Timestamps
         decidedAt: v.number(),
         reviewedAt: v.optional(v.number()),

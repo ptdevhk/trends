@@ -128,6 +128,55 @@ export function computeDisparateImpactRatio(
 }
 
 // ---------------------------------------------------------------------------
+// Population Stability Index (PSI)
+// ---------------------------------------------------------------------------
+
+/**
+ * Compute the Population Stability Index between a baseline and current
+ * score distribution. PSI > 0.25 indicates significant drift.
+ *
+ * Both distributions are bucketed into equal-width bins across [0, 100].
+ * Returns PSI value and a boolean indicating whether drift is significant.
+ */
+export function computePSI(
+    baseline: number[],
+    current: number[],
+    numBins: number = 10,
+): { psi: number; driftDetected: boolean; baselineCounts: number[]; currentCounts: number[] } {
+    const binWidth = 100 / numBins;
+    const baselineCounts = new Array(numBins).fill(0) as number[];
+    const currentCounts = new Array(numBins).fill(0) as number[];
+
+    for (const score of baseline) {
+        const bin = Math.min(Math.floor(score / binWidth), numBins - 1);
+        baselineCounts[bin]++;
+    }
+    for (const score of current) {
+        const bin = Math.min(Math.floor(score / binWidth), numBins - 1);
+        currentCounts[bin]++;
+    }
+
+    // Convert to proportions with Laplace smoothing to avoid zero divisions
+    const smooth = 0.001;
+    const baselineTotal = baseline.length + numBins * smooth;
+    const currentTotal = current.length + numBins * smooth;
+
+    let psi = 0;
+    for (let i = 0; i < numBins; i++) {
+        const p = (baselineCounts[i] + smooth) / baselineTotal;
+        const q = (currentCounts[i] + smooth) / currentTotal;
+        psi += (q - p) * Math.log(q / p);
+    }
+
+    return {
+        psi,
+        driftDetected: psi > 0.25,
+        baselineCounts,
+        currentCounts,
+    };
+}
+
+// ---------------------------------------------------------------------------
 // Protected Attribute Hashing
 // ---------------------------------------------------------------------------
 
