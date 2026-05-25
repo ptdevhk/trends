@@ -246,7 +246,7 @@ export const seedResumes = mutation({
     resumes: v.array(
       v.object({
         externalId: v.string(),
-        content: v.any(),
+        content: v.record(v.string(), v.any()),
         hash: v.string(),
         source: v.string(),
         tags: v.array(v.string()),
