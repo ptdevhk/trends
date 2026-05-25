@@ -300,7 +300,7 @@ export const analyzeResume = action({
         try {
             const { scrubbedFields, protectedHashes } = computeAuditFields(resume as Record<string, unknown>);
 
-            await ctx.runMutation(internal.audit.logAnalysisDecision, {
+            const auditLogId = await ctx.runMutation(internal.audit.logAnalysisDecision, {
                 resumeId: args.resumeId,
                 identityKey: resume.identityKey ?? undefined,
                 workspaceSlug: resume.sourceKey ?? "default",
@@ -334,6 +334,14 @@ export const analyzeResume = action({
                 decidedAt: Date.now(),
                 actorId: "system",
                 actorRole: "system",
+            });
+
+            // Auto-set outcome to "accepted" for successful score decisions
+            // (Human overrides via setAuditOutcome mutation still possible)
+            await ctx.runMutation(api.audit.setAuditOutcome, {
+                auditLogId,
+                outcome: "accepted",
+                setBy: "system:analyzeResume",
             });
         } catch (auditError) {
             // Audit logging failure must NOT block the analysis result
