@@ -1,6 +1,6 @@
 /// <reference path="./convex-env.d.ts" />
 import { isRecord, buildLatestWorkHistoryEvidence } from "@trends/shared";
-import { internal } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalAction, internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
@@ -769,7 +769,7 @@ export const drainQueue = internalAction({
             source: typeof resume.source === "string" ? resume.source : undefined,
           });
 
-          await ctx.runMutation(internal.audit.logAnalysisDecision, {
+          const auditLogId = await ctx.runMutation(internal.audit.logAnalysisDecision, {
             resumeId: row.resumeId,
             identityKey: row.identityKey ?? undefined,
             workspaceSlug: row.workspaceSlug,
@@ -796,6 +796,14 @@ export const drainQueue = internalAction({
             decidedAt: Date.now(),
             actorId: "system",
             actorRole: "system",
+          });
+
+          // Auto-set outcome to "accepted" for successful tag decisions
+          // (Human overrides via setAuditOutcome mutation still possible)
+          await ctx.runMutation(api.audit.setAuditOutcome, {
+            auditLogId,
+            outcome: "accepted",
+            setBy: "system:ai_tagging_results",
           });
         } catch (auditError) {
           console.error("Audit logging failed for tagging:", auditError);
