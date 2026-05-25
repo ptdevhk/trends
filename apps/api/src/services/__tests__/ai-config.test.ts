@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { loadAIConfig, getMaskedApiKey } from "../ai-config.js";
 
 describe("loadAIConfig", () => {
@@ -166,5 +166,151 @@ describe("getMaskedApiKey", () => {
       // Key is 8+ chars — should show first 5 chars + mask
       expect(result).toMatch(/^.{5}\*{6}$/);
     }
+  });
+});
+
+describe("validateAIConfig", () => {
+  const originals: Record<string, string | undefined> = {};
+
+  beforeEach(() => {
+    for (const key of [
+      "AI_ANALYSIS_ENABLED",
+      "AI_ANALYSIS_RESUMES_ENABLED",
+      "AI_MODEL",
+      "AI_API_KEY",
+      "AI_API_BASE",
+    ]) {
+      originals[key] = process.env[key];
+    }
+  });
+
+  afterEach(() => {
+    for (const [key, value] of Object.entries(originals)) {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
+    vi.resetModules();
+  });
+
+  async function importWithEnv() {
+    const mod = await import("../ai-config.js");
+    return mod;
+  }
+
+  it("returns invalid when AI is disabled", async () => {
+    delete process.env.AI_ANALYSIS_ENABLED;
+    delete process.env.AI_API_KEY;
+    delete process.env.AI_MODEL;
+    const { validateAIConfig } = await importWithEnv();
+    expect(validateAIConfig()).toEqual({
+      valid: false,
+      error: "AI analysis is disabled (AI_ANALYSIS_ENABLED=false)",
+    });
+  });
+
+  it("returns invalid when API key is missing", async () => {
+    process.env.AI_ANALYSIS_ENABLED = "true";
+    delete process.env.AI_API_KEY;
+    process.env.AI_MODEL = "openai/gpt-4o-mini";
+    const { validateAIConfig } = await importWithEnv();
+    expect(validateAIConfig()).toEqual({
+      valid: false,
+      error: "Missing AI_API_KEY environment variable",
+    });
+  });
+
+  it("returns invalid when model format is wrong", async () => {
+    process.env.AI_ANALYSIS_ENABLED = "true";
+    process.env.AI_API_KEY = "sk-test-key-12345";
+    process.env.AI_MODEL = "gpt-4o-mini";
+    const { validateAIConfig } = await importWithEnv();
+    expect(validateAIConfig()).toEqual({
+      valid: false,
+      error: "Invalid model format: gpt-4o-mini. Should be 'provider/model' (e.g., 'openai/gpt-4o-mini')",
+    });
+  });
+
+  it("returns valid when all checks pass", async () => {
+    process.env.AI_ANALYSIS_ENABLED = "true";
+    process.env.AI_API_KEY = "sk-test-key-12345";
+    process.env.AI_MODEL = "openai/gpt-4o-mini";
+    const { validateAIConfig } = await importWithEnv();
+    expect(validateAIConfig()).toEqual({ valid: true });
+  });
+});
+
+describe("validateResumeAIConfig", () => {
+  const originals: Record<string, string | undefined> = {};
+
+  beforeEach(() => {
+    for (const key of [
+      "AI_ANALYSIS_ENABLED",
+      "AI_ANALYSIS_RESUMES_ENABLED",
+      "AI_MODEL",
+      "AI_API_KEY",
+      "AI_API_BASE",
+    ]) {
+      originals[key] = process.env[key];
+    }
+  });
+
+  afterEach(() => {
+    for (const [key, value] of Object.entries(originals)) {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
+    vi.resetModules();
+  });
+
+  async function importWithEnv() {
+    const mod = await import("../ai-config.js");
+    return mod;
+  }
+
+  it("returns invalid when resume AI is disabled", async () => {
+    process.env.AI_ANALYSIS_RESUMES_ENABLED = "false";
+    process.env.AI_API_KEY = "sk-test-key-12345";
+    process.env.AI_MODEL = "openai/gpt-4o-mini";
+    const { validateResumeAIConfig } = await importWithEnv();
+    expect(validateResumeAIConfig()).toEqual({
+      valid: false,
+      error: "Resume AI analysis is disabled (AI_ANALYSIS_RESUMES_ENABLED=false)",
+    });
+  });
+
+  it("returns invalid when API key is missing", async () => {
+    delete process.env.AI_ANALYSIS_RESUMES_ENABLED;
+    delete process.env.AI_API_KEY;
+    process.env.AI_MODEL = "openai/gpt-4o-mini";
+    const { validateResumeAIConfig } = await importWithEnv();
+    expect(validateResumeAIConfig()).toEqual({
+      valid: false,
+      error: "Missing AI_API_KEY environment variable",
+    });
+  });
+
+  it("returns invalid when model format is wrong", async () => {
+    delete process.env.AI_ANALYSIS_RESUMES_ENABLED;
+    process.env.AI_API_KEY = "sk-test-key-12345";
+    process.env.AI_MODEL = "gpt-4o-mini";
+    const { validateResumeAIConfig } = await importWithEnv();
+    expect(validateResumeAIConfig()).toEqual({
+      valid: false,
+      error: "Invalid model format: gpt-4o-mini. Should be 'provider/model' (e.g., 'openai/gpt-4o-mini')",
+    });
+  });
+
+  it("returns valid when all checks pass", async () => {
+    delete process.env.AI_ANALYSIS_RESUMES_ENABLED;
+    process.env.AI_API_KEY = "sk-test-key-12345";
+    process.env.AI_MODEL = "openai/gpt-4o-mini";
+    const { validateResumeAIConfig } = await importWithEnv();
+    expect(validateResumeAIConfig()).toEqual({ valid: true });
   });
 });
