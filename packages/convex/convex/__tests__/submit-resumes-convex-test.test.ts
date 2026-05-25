@@ -225,6 +225,90 @@ describe("resume_tasks: submitResumes — restoreState", () => {
     });
     expect(resumes[0].ingestData).toBeDefined();
   });
+
+  it("applies analysis from restoreState with typed validator", async () => {
+    const t = convexTest(schema, modules);
+
+    const analysis = {
+      score: 85,
+      summary: "Strong candidate with relevant experience",
+      highlights: ["5 years in sales", "Industry verified"],
+      recommendation: "strong_match",
+      breakdown: { experience: 30, skills: 25 },
+      jobDescriptionId: "jd-test-1",
+      promptVersion: 2,
+      analyzedAt: Date.now(),
+    };
+
+    const result = await t.mutation(api.resume_tasks.submitResumes, {
+      resumes: [makeResume({
+        externalId: "ext-analysis",
+        restoreState: { analysis },
+      })],
+    });
+
+    expect(result.inserted).toBe(1);
+
+    const resumes = await t.run(async (ctx) => {
+      return ctx.db.query("resumes").collect();
+    });
+    expect(resumes[0].analysis).toBeDefined();
+    expect(resumes[0].analysis!.score).toBe(85);
+    expect(resumes[0].analysis!.summary).toBe("Strong candidate with relevant experience");
+  });
+
+  it("applies analyses from restoreState with typed validator", async () => {
+    const t = convexTest(schema, modules);
+
+    const analyses = {
+      "source:test|analysis:jd-1": {
+        score: 78,
+        summary: "Good match",
+        highlights: ["Relevant experience"],
+        recommendation: "match",
+        breakdown: { skills: 20 },
+        jobDescriptionId: "jd-1",
+        analyzedAt: Date.now(),
+      },
+      "default": {
+        score: 65,
+        summary: "Decent candidate",
+        highlights: ["Some relevant skills"],
+        recommendation: "potential",
+        analyzedAt: Date.now(),
+      },
+    };
+
+    const result = await t.mutation(api.resume_tasks.submitResumes, {
+      resumes: [makeResume({
+        externalId: "ext-analyses",
+        restoreState: { analyses },
+      })],
+    });
+
+    expect(result.inserted).toBe(1);
+
+    const resumes = await t.run(async (ctx) => {
+      return ctx.db.query("resumes").collect();
+    });
+    expect(resumes[0].analyses).toBeDefined();
+  });
+
+  it("rejects restoreState with invalid analysis shape", async () => {
+    const t = convexTest(schema, modules);
+
+    // Missing required fields (score, summary, highlights, recommendation)
+    await expect(
+      t.mutation(api.resume_tasks.submitResumes, {
+        resumes: [makeResume({
+          externalId: "ext-bad-analysis",
+          restoreState: {
+            analysis: { bad: "data" } as any,
+          },
+        })],
+      }),
+    ).rejects.toThrow();
+  });
 });
 
 // ---------------------------------------------------------------------------
