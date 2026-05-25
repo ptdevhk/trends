@@ -1,6 +1,6 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
-import { ingestDataValidator, collectionTaskResultsValidator } from "./validators.js";
+import { ingestDataValidator, collectionTaskResultsValidator, resumeFiltersValidator } from "./validators.js";
 
 export default defineSchema({
     // Tasks for resume collection
@@ -69,7 +69,7 @@ export default defineSchema({
             summary: v.string(),
             highlights: v.array(v.string()),
             recommendation: v.string(),
-            breakdown: v.optional(v.any()), // Stores detailed scores per category
+            breakdown: v.optional(v.record(v.string(), v.number())),
             jobDescriptionId: v.optional(v.string()), // Tracks which JD was used for analysis
             promptVersion: v.optional(v.number()),
             locale: v.optional(v.string()),
@@ -220,7 +220,7 @@ export default defineSchema({
         baseline: v.optional(v.object({
             jobDescriptionId: v.optional(v.string()),
             ruleScore: v.number(),
-            breakdown: v.optional(v.any()),
+            breakdown: v.optional(v.record(v.string(), v.number())),
             roleSignals: v.optional(v.array(v.object({
                 type: v.string(),
                 matchedSignals: v.array(v.string()),
@@ -283,7 +283,7 @@ export default defineSchema({
                 type: v.union(v.literal("job5156"), v.literal("51job"), v.literal("seek")),
                 exactUrl: v.optional(v.string()),
             })),
-            filters: v.optional(v.any()), // Stores ResumeFilters object
+            filters: resumeFiltersValidator,
         }),
         reviewedResumeIds: v.array(v.string()), // IDs of resumes seen/acted upon
         workspaceSlug: v.optional(v.string()),
@@ -305,7 +305,7 @@ export default defineSchema({
             type: v.union(v.literal("job5156"), v.literal("51job"), v.literal("seek")),
             exactUrl: v.optional(v.string()),
         })),
-        filters: v.optional(v.any()),
+        filters: resumeFiltersValidator,
         selectedTags: v.optional(v.array(v.string())),
         selectedCompanies: v.optional(v.array(v.string())),
         selectedExperienceLevel: v.optional(v.string()),
