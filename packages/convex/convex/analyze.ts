@@ -16,7 +16,7 @@ import {
 import { v } from "convex/values";
 import { api, internal } from "./_generated/api";
 import { action, internalMutation, type ActionCtx } from "./_generated/server";
-import { resolveChatCompletionModel } from "./lib/ai_model";
+import { resolveChatCompletionModel, warnUnknownModel } from "./lib/ai_model";
 import { computeProtectedAttributeHashes } from "./audit.js";
 
 const DEFAULT_AI_OUTPUT_LOCALE = DEFAULT_RESUME_AI_PROMPT_LOCALE;
@@ -451,7 +451,7 @@ export function getAiApiBase(): string {
 }
 
 export function getAiModel(): string {
-    return process.env.AI_MODEL || process.env.OPENAI_MODEL || "gpt-4-turbo-preview";
+    return warnUnknownModel(process.env.AI_MODEL || process.env.OPENAI_MODEL || "gpt-4-turbo-preview");
 }
 
 export function getAiTemperature(): number {

@@ -6,7 +6,7 @@ import { internalAction, internalMutation, internalQuery, mutation, query } from
 import { v } from "convex/values";
 
 import type { ChatMessage } from "./analyze";
-import { resolveChatCompletionModel } from "./lib/ai_model";
+import { resolveChatCompletionModel, warnUnknownModel } from "./lib/ai_model";
 import { resolveAiTaggingParallelism } from "./lib/parallelism";
 import { computeProtectedAttributeHashes } from "./audit.js";
 
@@ -176,7 +176,7 @@ function resolveAiTaggingModel(override: string | undefined): string {
   }
   const env = process.env.AI_TAGGING_MODEL || process.env.AI_MODEL || process.env.OPENAI_MODEL;
   if (env && env.trim().length > 0) {
-    return env.trim();
+    return warnUnknownModel(env.trim());
   }
   return "gpt-4-turbo-preview";
 }
