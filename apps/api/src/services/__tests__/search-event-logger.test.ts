@@ -7,6 +7,28 @@ import {
 } from "../search-event-logger.js";
 
 describe("normalizeQuery", () => {
+  it("trims and collapses whitespace", () => {
+    expect(normalizeQuery("  CNC   operator  ")).toBe("CNC operator");
+  });
+
+  it("returns already-trimmed string unchanged", () => {
+    expect(normalizeQuery("CNC operator")).toBe("CNC operator");
+  });
+
+  it("returns empty string for whitespace-only input", () => {
+    expect(normalizeQuery("   ")).toBe("");
+  });
+
+  it("returns empty string for empty input", () => {
+    expect(normalizeQuery("")).toBe("");
+  });
+
+  it("collapses tabs and newlines to single spaces", () => {
+    expect(normalizeQuery("CNC\t\noperator")).toBe("CNC operator");
+  });
+});
+
+describe("readString", () => {
   it("returns trimmed string", () => {
     expect(readString("  hello  ")).toBe("hello");
   });
