@@ -186,8 +186,8 @@ export function createAutoSyncRunner(deps: AutoSyncRunnerDeps) {
         "data-tr-auto-sync-max-pages",
         String(maxPages),
       );
-    } catch {
-      // ignore
+    } catch (e) {
+      console.warn("[tr-auto-sync]", "runAutoSyncIfEnabled: DOM attribute set failed (limit/maxPages)", e?.message || e);
     }
     SyncStatusWidget.show({
       state: "progress",
@@ -345,8 +345,8 @@ export function createAutoSyncRunner(deps: AutoSyncRunnerDeps) {
           }
           try {
             await waitForPagination({ timeoutMs: 8000 });
-          } catch {
-            // Some layouts render pagination late or omit it on single-page results.
+          } catch (e) {
+            console.warn("[tr-auto-sync]", "waitForPagination timed out (empty-resumes branch)", e?.message || e);
           }
           const nextPage = paginationAfter.currentPage + 1;
           try {
@@ -354,8 +354,8 @@ export function createAutoSyncRunner(deps: AutoSyncRunnerDeps) {
               "data-tr-auto-sync-next-state",
               JSON.stringify(getNextPageButtonState()),
             );
-          } catch {
-            // ignore
+          } catch (e) {
+            console.warn("[tr-auto-sync]", "DOM attribute set failed (next-state, empty-resumes)", e?.message || e);
           }
           await waitForJob51Cooldown();
           clearCapturedResultsForNextPage();
@@ -457,8 +457,8 @@ export function createAutoSyncRunner(deps: AutoSyncRunnerDeps) {
         }
         try {
           await waitForPagination({ timeoutMs: 8000 });
-        } catch {
-          // Some layouts render pagination late or omit it on single-page results.
+        } catch (e) {
+          console.warn("[tr-auto-sync]", "waitForPagination timed out (sync-success branch)", e?.message || e);
         }
         const nextPage = paginationAfter.currentPage + 1;
         try {
@@ -466,8 +466,8 @@ export function createAutoSyncRunner(deps: AutoSyncRunnerDeps) {
             "data-tr-auto-sync-next-state",
             JSON.stringify(getNextPageButtonState()),
           );
-        } catch {
-          // ignore
+        } catch (e) {
+          console.warn("[tr-auto-sync]", "DOM attribute set failed (next-state, sync-success)", e?.message || e);
         }
         await waitForJob51Cooldown();
         clearCapturedResultsForNextPage();
@@ -485,8 +485,8 @@ export function createAutoSyncRunner(deps: AutoSyncRunnerDeps) {
           "data-tr-auto-sync-stop-reason",
           stopReason,
         );
-      } catch {
-        // ignore
+      } catch (e) {
+        console.warn("[tr-auto-sync]", "runAutoSyncIfEnabled: DOM attribute set failed (stop-reason)", e?.message || e);
       }
       persistLatestAutoSyncSummary();
 
@@ -535,8 +535,8 @@ export function createAutoSyncRunner(deps: AutoSyncRunnerDeps) {
           "data-tr-auto-sync-stop-reason",
           resolveAutoSyncStopReason(error),
         );
-      } catch {
-        // ignore
+      } catch (e) {
+        console.warn("[tr-auto-sync]", "runAutoSyncIfEnabled: fallback attribute set failed (stop-reason)", e?.message || e);
       }
       persistLatestAutoSyncSummary();
     }
