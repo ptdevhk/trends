@@ -1216,5 +1216,59 @@ describe("audit log retention (EU AI Act / GDPR)", () => {
       expect(afterSet!.outcomeSetBy).toBe("system:ai_tagging_results");
       expect(afterSet!.outcomeSetAt).toBeDefined();
     });
+
+    it("supports score-then-set-outcome flow", async () => {
+      const t = convexTest(schema, modules);
+
+      const resumeId = await t.run(async (ctx) => {
+        return ctx.db.insert("resumes", {
+          externalId: "score-flow-r1",
+          content: {},
+          hash: "score-flow1",
+          tags: [],
+          crawledAt: Date.now(),
+          source: "test",
+        });
+      });
+
+      // Simulate the scoring flow: logAnalysisDecision then setAuditOutcome
+      const auditLogId = await t.mutation(internal.audit.logAnalysisDecision, {
+        resumeId,
+        workspaceSlug: "ws-score-flow",
+        decisionType: "score",
+        actionRef: "analyze:analyzeResume",
+        inputSnapshot: {
+          jobDescriptionId: "jd-test",
+          promptVersion: "1",
+        },
+        modelMeta: { model: "gpt-4", provider: "openai", promptTokens: 200, completionTokens: 100 },
+        output: { score: 85, recommendation: "strong_match" },
+        protectedAttributeHashes: {},
+        explanation: {
+          summary: "Scored 85/100 against test JD",
+          keyFactors: [{ factor: "experience", value: "5 years CNC" }],
+        },
+        decidedAt: Date.now(),
+        actorId: "system",
+        actorRole: "system",
+      });
+
+      // Verify initial state is "pending"
+      const beforeSet = await t.run(async (ctx) => ctx.db.get(auditLogId));
+      expect(beforeSet!.outcome).toBe("pending");
+      expect(beforeSet!.decisionType).toBe("score");
+
+      // Set outcome to "accepted" (mimics the automatic wiring in analyzeResume)
+      await t.mutation(api.audit.setAuditOutcome, {
+        auditLogId,
+        outcome: "accepted",
+        setBy: "system:analyzeResume",
+      });
+
+      const afterSet = await t.run(async (ctx) => ctx.db.get(auditLogId));
+      expect(afterSet!.outcome).toBe("accepted");
+      expect(afterSet!.outcomeSetBy).toBe("system:analyzeResume");
+      expect(afterSet!.outcomeSetAt).toBeDefined();
+    });
   });
 });
