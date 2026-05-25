@@ -18,34 +18,58 @@ import { api, internal } from "./_generated/api";
 import { action, internalMutation, type ActionCtx } from "./_generated/server";
 import { resolveChatCompletionModel, warnUnknownModel } from "./lib/ai_model";
 import { computeProtectedAttributeHashes } from "./audit.js";
+import {
+    toNumber,
+    clamp,
+    parseKeyFactors,
+    parseNumericBreakdown,
+    hasNonEmployerBrandHits,
+    hasCompanyHits,
+    getResumeIngestData,
+    computeDirectIndustryDbScoreFromResume,
+    recommendationFromScore,
+    hasHanText,
+    normalizeSummaryConsistency,
+    normalizeAnalysisResult,
+    parseRoleSignals,
+    INDUSTRY_DB_SCORE_CAP,
+    RELATED_EXP_WEIGHT,
+    type AnalysisRecommendation,
+    type KeyFactor,
+    type NormalizedMatchedWorkEntry,
+    type NormalizedRoleSignal,
+} from "./lib/analysis_normalization.js";
+
+// Re-export for backward compatibility
+export {
+    toNumber,
+    clamp,
+    parseKeyFactors,
+    parseNumericBreakdown,
+    hasNonEmployerBrandHits,
+    hasCompanyHits,
+    getResumeIngestData,
+    computeDirectIndustryDbScoreFromResume,
+    recommendationFromScore,
+    hasHanText,
+    normalizeSummaryConsistency,
+    normalizeAnalysisResult,
+    parseRoleSignals,
+    INDUSTRY_DB_SCORE_CAP,
+    RELATED_EXP_WEIGHT,
+} from "./lib/analysis_normalization.js";
+export type {
+    AnalysisRecommendation,
+    KeyFactor,
+    NormalizedMatchedWorkEntry,
+    NormalizedRoleSignal,
+} from "./lib/analysis_normalization.js";
 
 const DEFAULT_AI_OUTPUT_LOCALE = DEFAULT_RESUME_AI_PROMPT_LOCALE;
 
 export type ChatMessage = {
     role: "system" | "user";
     content: string;
-};
-
-export type NormalizedMatchedWorkEntry = {
-    companyName?: string;
-    jobTitle?: string;
-    years: number;
-    industryVerified: boolean;
-    matchedSignals: string[];
-    directRoleMatch?: boolean;
-};
-
-export type NormalizedRoleSignal = {
-    type: string;
-    matchedSignals: string[];
-    signalCount: number;
-    occurrences: number;
-    years: number;
-    industryVerifiedYears: number;
-    roleRelevantYears?: number;
-    industryVerifiedRelevantYears?: number;
-    matchedWorkEntries?: NormalizedMatchedWorkEntry[];
-    verifyIn: "searchText" | "workHistory";
 };
 
 export const SYSTEM_PROMPT = getResumeAiPromptDefinition(DEFAULT_AI_OUTPUT_LOCALE).sections.systemPrompt;
@@ -79,235 +103,6 @@ export function getUserPromptTemplate(locale: string): string {
 
 export function isEnglishResumeAiLocale(locale?: string): boolean {
     return resolveResumeAiPromptLocale(locale).resolvedSourceLocale === "en";
-}
-
-export function toNumber(value: unknown): number | undefined {
-    if (typeof value === "number" && Number.isFinite(value)) {
-        return value;
-    }
-    if (typeof value === "string") {
-        const parsed = Number(value);
-        return Number.isFinite(parsed) ? parsed : undefined;
-    }
-    return undefined;
-}
-
-const INDUSTRY_DB_SCORE_CAP = 50;
-const RELATED_EXP_WEIGHT = INDUSTRY_DB_SCORE_CAP / 100;
-
-export type AnalysisRecommendation = "strong_match" | "match" | "potential" | "no_match";
-
-export function parseKeyFactors(value: unknown): KeyFactor[] {
-    if (!Array.isArray(value)) return [];
-    return value
-        .filter((item): item is Record<string, unknown> => isRecord(item))
-        .map((item) => ({
-            factor: typeof item.factor === "string" ? item.factor : "unknown",
-            weight: typeof item.weight === "number" && Number.isFinite(item.weight) ? item.weight : undefined,
-            value: typeof item.value === "string" ? item.value : "",
-        }))
-        .filter((f) => f.factor !== "unknown" || f.value.length > 0);
-}
-
-export function clamp(value: number, min: number, max: number): number {
-    return Math.min(max, Math.max(min, value));
-}
-
-export function parseNumericBreakdown(value: unknown): Record<string, number> | undefined {
-    if (!isRecord(value)) {
-        return undefined;
-    }
-
-    const parsed: Record<string, number> = {};
-    for (const [key, rawValue] of Object.entries(value)) {
-        const numeric = toNumber(rawValue);
-        if (numeric !== undefined) {
-            parsed[key] = numeric;
-        }
-    }
-
-    return Object.keys(parsed).length > 0 ? parsed : undefined;
-}
-
-export function hasNonEmployerBrandHits(value: unknown): boolean {
-    if (!Array.isArray(value)) {
-        return false;
-    }
-
-    return value.some((item) => {
-        if (!isRecord(item)) {
-            return false;
-        }
-
-        const context = typeof item.context === "string" ? item.context.trim().toLowerCase() : "";
-        return context !== "employer";
-    });
-}
-
-export function hasCompanyHits(value: unknown): boolean {
-    if (!Array.isArray(value)) {
-        return false;
-    }
-
-    return value.some((item) => typeof item === "string" && item.trim().length > 0);
-}
-
-export function getResumeIngestData(resume: unknown): Record<string, unknown> {
-    const root = isRecord(resume) ? resume : {};
-    const content = isRecord(root.content) ? root.content : {};
-    if (isRecord(root.ingestData)) {
-        return root.ingestData;
-    }
-    if (isRecord(content.ingestData)) {
-        return content.ingestData;
-    }
-    return {};
-}
-
-export function computeDirectIndustryDbScoreFromResume(resume: unknown): number {
-    const ingestData = getResumeIngestData(resume);
-    const brandHits = hasNonEmployerBrandHits(ingestData.brandHits);
-    const companyHits = hasCompanyHits(ingestData.companyHits);
-    if (brandHits || companyHits) {
-        return INDUSTRY_DB_SCORE_CAP;
-    }
-
-    const raw = toNumber(ingestData.industryDbV2Raw) ?? 0;
-    return clamp(raw, 0, INDUSTRY_DB_SCORE_CAP);
-}
-
-export function recommendationFromScore(score: number): AnalysisRecommendation {
-    if (score >= 85) return "strong_match";
-    if (score >= 70) return "match";
-    if (score >= 40) return "potential";
-    return "no_match";
-}
-
-export function hasHanText(value: string): boolean {
-    return /[\u4e00-\u9fff]/.test(value);
-}
-
-export function normalizeSummaryConsistency(
-    summary: string,
-    normalized: {
-        score: number;
-        recommendation: AnalysisRecommendation;
-    },
-): string {
-    if (summary.trim().length === 0) {
-        return summary;
-    }
-
-    let next = summary.trim();
-
-    const mentionedScores = Array.from(
-        next.matchAll(/\bscore\s*[:：]?\s*(\d{1,3}(?:\.\d+)?)/gi),
-        (match) => Number(match[1]),
-    ).filter((value) => Number.isFinite(value));
-    const hasScoreMention = mentionedScores.length > 0;
-    const hasScoreMismatch = hasScoreMention
-        && !mentionedScores.some((value) => Math.round(value) === normalized.score);
-
-    if (hasScoreMismatch) {
-        next = next.replace(
-            /(\bscore\s*[:：]?\s*)\d{1,3}(?:\.\d+)?/gi,
-            (_raw, prefix: string) => `${prefix}${normalized.score}`,
-        );
-    }
-
-    const recommendationMentions = Array.from(
-        next.matchAll(/\b(strong_match|match|potential|no_match)\b/gi),
-        (match) => match[1].toLowerCase(),
-    );
-    const hasRecommendationMention = recommendationMentions.length > 0;
-    const hasRecommendationMismatch = hasRecommendationMention
-        && !recommendationMentions.includes(normalized.recommendation);
-
-    if (hasRecommendationMismatch) {
-        next = next.replace(
-            /\b(strong_match|match|potential|no_match)\b/gi,
-            normalized.recommendation,
-        );
-    }
-
-    // If model prose is still semantically stale (common in zh summaries), append
-    // a canonical normalized statement to remove ambiguity.
-    if (hasScoreMismatch || hasRecommendationMismatch) {
-        const normalizedLine = hasHanText(next)
-            ? `系统归一化结果：score ${normalized.score}，recommendation ${normalized.recommendation}。`
-            : `Normalized result: score ${normalized.score}, recommendation ${normalized.recommendation}.`;
-        if (!next.includes(normalizedLine)) {
-            next = `${next} ${normalizedLine}`.trim();
-        }
-    }
-
-    return next;
-}
-
-
-export interface KeyFactor {
-    factor: string;
-    weight?: number;
-    value: string;
-}
-
-export function normalizeAnalysisResult(
-    result: {
-        score?: unknown;
-        recommendation?: unknown;
-        summary?: unknown;
-        highlights?: unknown;
-        concerns?: unknown;
-        breakdown?: unknown;
-        keyFactors?: unknown;
-    },
-    resume: unknown,
-): {
-    score: number;
-    recommendation: AnalysisRecommendation;
-    summary: string;
-    highlights: string[];
-    concerns: string[];
-    breakdown: Record<string, number>;
-    keyFactors: KeyFactor[];
-} {
-    const breakdown = parseNumericBreakdown(result.breakdown);
-    const llmRelatedExp = toNumber(breakdown?.related_exp);
-    const industryDb = computeDirectIndustryDbScoreFromResume(resume);
-
-    if (llmRelatedExp === undefined) {
-        console.warn("LLM related_exp invalid, falling back to related_exp=0");
-    }
-
-    // LLM-primary: trust LLM's related_exp, combine with rule-based industry_db
-    const relatedExpRaw = clamp(llmRelatedExp ?? 0, 0, 100);
-    const score = clamp(Math.round(relatedExpRaw * RELATED_EXP_WEIGHT) + industryDb, 0, 100);
-
-    const recommendation = recommendationFromScore(score);
-    const rawSummary = typeof result.summary === "string" && result.summary.trim().length > 0
-        ? result.summary
-        : "No summary provided.";
-
-    return {
-        score,
-        recommendation,
-        summary: normalizeSummaryConsistency(rawSummary, {
-            score,
-            recommendation,
-        }),
-        highlights: Array.isArray(result.highlights)
-            ? result.highlights.filter((item): item is string => typeof item === "string")
-            : [],
-        concerns: Array.isArray(result.concerns)
-            ? result.concerns.filter((item): item is string => typeof item === "string")
-            : [],
-        breakdown: {
-            ...(breakdown ?? {}),
-            related_exp: relatedExpRaw,
-            industry_db: industryDb,
-        },
-        keyFactors: parseKeyFactors(result.keyFactors),
-    };
 }
 
 function formatWorkEntry(
@@ -349,80 +144,6 @@ function formatRoleSignals(
         ].filter((item): item is string => Boolean(item));
         return `- ${parts.join(" | ")}`;
     }).join("\n");
-}
-
-export function parseRoleSignals(value: unknown): NormalizedRoleSignal[] {
-    if (!Array.isArray(value)) {
-        return [];
-    }
-
-    return value.flatMap((item) => {
-        if (!isRecord(item)) {
-            return [];
-        }
-
-        const type = typeof item.type === "string" ? item.type.trim() : "";
-        const years = toNumber(item.years);
-        if (!type || years === undefined) {
-            return [];
-        }
-
-        const verifyIn = item.verifyIn === "searchText" ? "searchText" : "workHistory";
-        const matchedSignals = Array.isArray(item.matchedSignals)
-            ? item.matchedSignals.filter((signal): signal is string => typeof signal === "string" && signal.length > 0)
-            : [];
-        const signalCount = toNumber(item.signalCount) ?? matchedSignals.length;
-        const occurrences = toNumber(item.occurrences) ?? matchedSignals.length;
-        const industryVerifiedYears = toNumber(item.industryVerifiedYears) ?? 0;
-        const roleRelevantYears = toNumber(item.roleRelevantYears);
-        const industryVerifiedRelevantYears = toNumber(item.industryVerifiedRelevantYears);
-        const matchedWorkEntries = Array.isArray(item.matchedWorkEntries)
-            ? item.matchedWorkEntries.flatMap((entry) => {
-                if (!isRecord(entry)) {
-                    return [];
-                }
-
-                const entryYears = toNumber(entry.years);
-                if (entryYears === undefined) {
-                    return [];
-                }
-
-                const matchedEntrySignals = Array.isArray(entry.matchedSignals)
-                    ? entry.matchedSignals.filter(
-                        (signal): signal is string => typeof signal === "string" && signal.length > 0
-                    )
-                    : [];
-
-                return [{
-                    companyName: typeof entry.companyName === "string" && entry.companyName.trim().length > 0
-                        ? entry.companyName.trim()
-                        : undefined,
-                    jobTitle: typeof entry.jobTitle === "string" && entry.jobTitle.trim().length > 0
-                        ? entry.jobTitle.trim()
-                        : undefined,
-                    years: entryYears,
-                    industryVerified: entry.industryVerified === true,
-                    matchedSignals: matchedEntrySignals,
-                    ...(typeof entry.directRoleMatch === "boolean"
-                        ? { directRoleMatch: entry.directRoleMatch }
-                        : {}),
-                }];
-            })
-            : undefined;
-
-        return [{
-            type,
-            matchedSignals,
-            signalCount,
-            occurrences,
-            years,
-            industryVerifiedYears,
-            ...(roleRelevantYears === undefined ? {} : { roleRelevantYears }),
-            ...(industryVerifiedRelevantYears === undefined ? {} : { industryVerifiedRelevantYears }),
-            ...(matchedWorkEntries && matchedWorkEntries.length > 0 ? { matchedWorkEntries } : {}),
-            verifyIn,
-        }];
-    });
 }
 
 export function hydrateUserPrompt(
