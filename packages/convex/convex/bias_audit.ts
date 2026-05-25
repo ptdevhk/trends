@@ -5,6 +5,7 @@ import {
     computeDemographicParity,
     computeEqualizedOdds,
     computeDisparateImpactRatio,
+    computePSI,
     type GroupOutcome,
     type GroupConfusion,
 } from "./lib/bias_metrics.js";
@@ -96,6 +97,15 @@ interface BiasMetricsResult {
         tprDifference: number;
         fprDifference: number;
         passing: boolean;
+    };
+    scoreDrift: {
+        psi: number;
+        driftDetected: boolean;
+    };
+    anomalyFlags: {
+        statisticalParityViolation: boolean;
+        disparateImpactViolation: boolean;
+        scoreDriftDetected: boolean;
     };
     computedAt: number;
 }
@@ -198,7 +208,25 @@ export const computeBiasMetrics = internalAction({
         }));
         const equalizedOdds = computeEqualizedOdds(confusionGroups);
 
-        // 6. Store results
+        // 6. Compute PSI (Population Stability Index) for score drift
+        // Split audit logs into baseline (first half by time) and current (second half)
+        const allScores = auditLogs
+            .map((log) => log.output.score)
+            .filter((s): s is number => typeof s === "number");
+        const midPoint = Math.floor(allScores.length / 2);
+        // Use earlier half as baseline, later half as current
+        const baselineScores = allScores.slice(0, Math.max(midPoint, 1));
+        const currentScores = allScores.slice(Math.max(midPoint, 1));
+        const psiResult = baselineScores.length >= 10 && currentScores.length >= 10
+            ? computePSI(baselineScores, currentScores)
+            : { psi: 0, driftDetected: false, baselineCounts: [], currentCounts: [] };
+
+        // 7. Compute anomaly flags
+        const statisticalParityViolation = !demographicParity.passing;
+        const disparateImpactViolation = disparateImpact.some((di) => di.ratio < 0.8);
+        const scoreDriftDetected = psiResult.driftDetected;
+
+        // 8. Store results
         const metrics: BiasMetricsResult = {
             status: "ok",
             workspaceSlug,
@@ -217,6 +245,15 @@ export const computeBiasMetrics = internalAction({
                 tprDifference: equalizedOdds.tprDifference,
                 fprDifference: equalizedOdds.fprDifference,
                 passing: equalizedOdds.passing,
+            },
+            scoreDrift: {
+                psi: psiResult.psi,
+                driftDetected: psiResult.driftDetected,
+            },
+            anomalyFlags: {
+                statisticalParityViolation,
+                disparateImpactViolation,
+                scoreDriftDetected,
             },
             computedAt: Date.now(),
         };

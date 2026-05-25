@@ -5,6 +5,7 @@ import {
   computeDemographicParity,
   computeDisparateImpactRatio,
   computeEqualizedOdds,
+  computePSI,
   fnvHash,
   type GroupConfusion,
   type GroupOutcome,
@@ -213,6 +214,49 @@ describe("bias_metrics", () => {
     it("handles unicode input", () => {
       const hash = fnvHash("年龄-30-34");
       expect(hash).toMatch(/^[0-9a-f]{8}$/);
+    });
+  });
+
+  describe("computePSI", () => {
+    it("returns low PSI for identical distributions", () => {
+      const scores = Array.from({ length: 100 }, (_, i) => (i + 1));
+      const result = computePSI(scores, scores);
+      expect(result.psi).toBeLessThan(0.1);
+      expect(result.driftDetected).toBe(false);
+    });
+
+    it("returns high PSI for shifted distributions", () => {
+      // Baseline: uniform 0-100
+      const baseline = Array.from({ length: 100 }, (_, i) => i);
+      // Current: all scores shifted to 80-100
+      const current = Array.from({ length: 100 }, (_, i) => 80 + (i * 0.2));
+      const result = computePSI(baseline, current);
+      expect(result.psi).toBeGreaterThan(0.25);
+      expect(result.driftDetected).toBe(true);
+    });
+
+    it("handles small sample sizes with Laplace smoothing", () => {
+      const baseline = [50, 60, 70];
+      const current = [80, 90, 95];
+      // Should not throw, just return a value
+      const result = computePSI(baseline, current);
+      expect(typeof result.psi).toBe("number");
+      expect(isFinite(result.psi)).toBe(true);
+    });
+
+    it("returns zero-like PSI for similar distributions", () => {
+      const baseline = Array.from({ length: 50 }, (_, i) => 30 + Math.random() * 40);
+      const current = Array.from({ length: 50 }, (_, i) => 32 + Math.random() * 38);
+      const result = computePSI(baseline, current);
+      expect(result.psi).toBeLessThan(0.25);
+      expect(result.driftDetected).toBe(false);
+    });
+
+    it("returns bin counts for transparency", () => {
+      const scores = Array.from({ length: 100 }, (_, i) => i);
+      const result = computePSI(scores, scores, 5);
+      expect(result.baselineCounts.length).toBe(5);
+      expect(result.currentCounts.length).toBe(5);
     });
   });
 });

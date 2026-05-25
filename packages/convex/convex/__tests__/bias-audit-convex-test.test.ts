@@ -38,6 +38,15 @@ interface BiasMetricsOk {
     fprDifference: number;
     passing: boolean;
   };
+  scoreDrift: {
+    psi: number;
+    driftDetected: boolean;
+  };
+  anomalyFlags: {
+    statisticalParityViolation: boolean;
+    disparateImpactViolation: boolean;
+    scoreDriftDetected: boolean;
+  };
   computedAt: number;
 }
 
@@ -166,6 +175,8 @@ describe("bias_audit: storeBiasReport + getLatestBiasReport", () => {
       },
       disparateImpact: [],
       overrideRate: { tprDifference: 0.05, fprDifference: 0.03, passing: true },
+      scoreDrift: { psi: 0.05, driftDetected: false },
+      anomalyFlags: { statisticalParityViolation: false, disparateImpactViolation: false, scoreDriftDetected: false },
       computedAt: Date.now(),
     };
 
@@ -202,6 +213,8 @@ describe("bias_audit: storeBiasReport + getLatestBiasReport", () => {
       },
       disparateImpact: [],
       overrideRate: { tprDifference: 0.02, fprDifference: 0.01, passing: true },
+      scoreDrift: { psi: 0.03, driftDetected: false },
+      anomalyFlags: { statisticalParityViolation: false, disparateImpactViolation: false, scoreDriftDetected: false },
       computedAt: Date.now(),
     };
 
