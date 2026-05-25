@@ -15,6 +15,7 @@ import {
     ageToBracket,
     fnvHash,
 } from "../lib/bias_metrics.js";
+import { computeProtectedAttributeHashes } from "../audit.js";
 
 const modules = (import.meta as any).glob("../**/*.ts", { eager: false });
 
@@ -551,6 +552,207 @@ describe("audit (convex-test)", () => {
           actorRole: "superadmin" as any, // Invalid — not in union
         }),
       ).rejects.toThrow();
+    });
+  });
+
+  describe("setAuditOutcome", () => {
+    it("sets outcome to accepted on an audit log entry", async () => {
+      const t = convexTest(schema, modules);
+
+      const resumeId = await t.run(async (ctx) => {
+        return ctx.db.insert("resumes", {
+          externalId: "outcome-r1",
+          content: {},
+          hash: "outcome1",
+          tags: [],
+          crawledAt: Date.now(),
+          source: "test",
+        });
+      });
+
+      const now = Date.now();
+      const logId = await t.run(async (ctx) => {
+        return ctx.db.insert("analysis_audit_log", {
+          resumeId,
+          workspaceSlug: "ws-outcome",
+          decisionType: "score",
+          actionRef: "analyze:analyzeResume",
+          inputSnapshot: {},
+          modelMeta: { model: "gpt-4", provider: "openai" },
+          output: { score: 85 },
+          outcome: "pending",
+          decidedAt: now,
+          expiresAt: now + 2 * 365 * 24 * 60 * 60 * 1000,
+        });
+      });
+
+      await t.mutation(internal.audit.setAuditOutcome, {
+        auditLogId: logId,
+        outcome: "accepted",
+        setBy: "admin_abc",
+      });
+
+      const log = await t.run(async (ctx) => ctx.db.get(logId));
+      expect(log!.outcome).toBe("accepted");
+      expect(log!.outcomeSetBy).toBe("admin_abc");
+      expect(log!.outcomeSetAt).toBeDefined();
+      expect(log!.reviewedAt).toBeDefined();
+    });
+
+    it("sets outcome to overridden", async () => {
+      const t = convexTest(schema, modules);
+
+      const resumeId = await t.run(async (ctx) => {
+        return ctx.db.insert("resumes", {
+          externalId: "override-r1",
+          content: {},
+          hash: "override1",
+          tags: [],
+          crawledAt: Date.now(),
+          source: "test",
+        });
+      });
+
+      const now = Date.now();
+      const logId = await t.run(async (ctx) => {
+        return ctx.db.insert("analysis_audit_log", {
+          resumeId,
+          workspaceSlug: "ws-override",
+          decisionType: "confirm",
+          actionRef: "analyze:confirmSearchResults",
+          inputSnapshot: {},
+          modelMeta: { model: "gpt-4", provider: "openai" },
+          output: { score: 60 },
+          outcome: "pending",
+          decidedAt: now,
+          expiresAt: now + 2 * 365 * 24 * 60 * 60 * 1000,
+        });
+      });
+
+      await t.mutation(internal.audit.setAuditOutcome, {
+        auditLogId: logId,
+        outcome: "overridden",
+        setBy: "operator_xyz",
+      });
+
+      const log = await t.run(async (ctx) => ctx.db.get(logId));
+      expect(log!.outcome).toBe("overridden");
+      expect(log!.outcomeSetBy).toBe("operator_xyz");
+    });
+
+    it("sets outcome to appealed", async () => {
+      const t = convexTest(schema, modules);
+
+      const resumeId = await t.run(async (ctx) => {
+        return ctx.db.insert("resumes", {
+          externalId: "appeal-r1",
+          content: {},
+          hash: "appeal1",
+          tags: [],
+          crawledAt: Date.now(),
+          source: "test",
+        });
+      });
+
+      const now = Date.now();
+      const logId = await t.run(async (ctx) => {
+        return ctx.db.insert("analysis_audit_log", {
+          resumeId,
+          workspaceSlug: "ws-appeal",
+          decisionType: "filter",
+          actionRef: "analyze:filterResumes",
+          inputSnapshot: {},
+          modelMeta: { model: "gpt-4", provider: "openai" },
+          output: { score: 40 },
+          outcome: "pending",
+          decidedAt: now,
+          expiresAt: now + 2 * 365 * 24 * 60 * 60 * 1000,
+        });
+      });
+
+      await t.mutation(internal.audit.setAuditOutcome, {
+        auditLogId: logId,
+        outcome: "appealed",
+      });
+
+      const log = await t.run(async (ctx) => ctx.db.get(logId));
+      expect(log!.outcome).toBe("appealed");
+      expect(log!.outcomeSetBy).toBeUndefined();
+    });
+  });
+
+  describe("computeProtectedAttributeHashes (unit)", () => {
+    it("hashes all provided attributes", () => {
+      const hashes = computeProtectedAttributeHashes({
+        age: 32,
+        gender: "F",
+        location: "Shanghai",
+        source: "51job",
+      });
+      expect(hashes.ageBracketHash).toBe(fnvHash(ageToBracket(32)));
+      expect(hashes.genderHash).toBe(fnvHash("F"));
+      expect(hashes.locationHash).toBe(fnvHash("Shanghai"));
+      expect(hashes.sourceHash).toBe(fnvHash("51job"));
+    });
+
+    it("returns undefined for missing attributes", () => {
+      const hashes = computeProtectedAttributeHashes({});
+      expect(hashes.ageBracketHash).toBeUndefined();
+      expect(hashes.genderHash).toBeUndefined();
+      expect(hashes.locationHash).toBeUndefined();
+      expect(hashes.sourceHash).toBeUndefined();
+    });
+
+    it("hashes age by bracket, not exact age", () => {
+      const hash30 = computeProtectedAttributeHashes({ age: 30 });
+      const hash32 = computeProtectedAttributeHashes({ age: 32 });
+      // Both ages 30 and 32 fall in bracket "30-34"
+      expect(hash30.ageBracketHash).toBe(hash32.ageBracketHash);
+    });
+  });
+
+  describe("getExplanationForCandidate — workspace isolation", () => {
+    it("does not return explanation from another workspace", async () => {
+      const t = convexTest(schema, modules);
+
+      const resumeId = await t.run(async (ctx) => {
+        return ctx.db.insert("resumes", {
+          externalId: "iso-r1",
+          content: {},
+          hash: "iso1",
+          tags: [],
+          crawledAt: Date.now(),
+          source: "test",
+        });
+      });
+
+      const now = Date.now();
+      await t.run(async (ctx) => {
+        await ctx.db.insert("analysis_audit_log", {
+          resumeId,
+          workspaceSlug: "ws-iso-a",
+          decisionType: "score",
+          actionRef: "analyze:analyzeResume",
+          inputSnapshot: {},
+          modelMeta: { model: "gpt-4", provider: "openai" },
+          output: { score: 90 },
+          explanation: {
+            summary: "Workspace A explanation",
+            keyFactors: [{ factor: "experience", value: "10 years" }],
+          },
+          outcome: "pending",
+          decidedAt: now,
+          expiresAt: now + 2 * 365 * 24 * 60 * 60 * 1000,
+        });
+      });
+
+      // Query with a different workspace slug
+      const result = await t.query(api.audit.getExplanationForCandidate, {
+        resumeId,
+        workspaceSlug: "ws-iso-b",
+      });
+
+      expect(result).toBeNull();
     });
   });
 
