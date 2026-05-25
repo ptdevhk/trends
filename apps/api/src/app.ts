@@ -3,6 +3,7 @@ import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import { prettyJSON } from "hono/pretty-json";
 import { secureHeaders } from "hono/secure-headers";
+import { bodyLimit } from "hono/body-limit";
 
 import {
   healthRoutes,
@@ -104,6 +105,23 @@ export function createApp() {
 
   // Rate limiting on API routes (100 req/min per IP)
   app.use("/api/*", rateLimit({ limit: 100, windowMs: 60_000 }));
+
+  // Body size limit on API routes (10 MiB default — manual-import has its own larger limit)
+  app.use(
+    "/api/*",
+    async (c, next) => {
+      // Skip for manual-import which has its own larger body limit
+      if (c.req.path === "/api/resumes/manual-import") {
+        return next();
+      }
+      return bodyLimit({
+        maxSize: 10 * 1024 * 1024,
+        onError: (c) => {
+          return c.json({ success: false, error: "Request body exceeds 10 MiB limit" }, 413);
+        },
+      })(c, next);
+    },
+  );
 
   // Mount routes
   app.route("/", healthRoutes);
