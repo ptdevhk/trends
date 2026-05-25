@@ -11,7 +11,6 @@ import {
     computeVerifiedRoleYears,
     computeExperienceFromWorkHistory,
     formatLocationHierarchySearchText,
-    formatLocationHierarchyLabel,
     getVerifiedRoleSignalYears,
     isResumeAnalysisKeyForJobDescription,
     isLocationMatch,
@@ -19,7 +18,6 @@ import {
     normalizeKeywordPhrases,
     normalizeEducationLevel,
     resolveExperienceYears,
-    resolveResumeDiagnosticsSourceKey,
     normalizeResumeLocationHierarchy,
     resolveResumeAnalysisSourceKey,
     selectLatestWorkHistory,
@@ -41,6 +39,20 @@ import {
     splitQueryTokens,
     matchesAllTokens,
 } from "./resume_helpers.js";
+import {
+    resolveDiagnosticsSourceKeyForResume,
+    matchesDiagnosticsSourceKeys,
+    buildDiagnosticsSourceFacetRows,
+    projectIngestDiagnosticsRow,
+    normalizeDiagnosticsSourceFilterValues,
+    MAX_INGEST_DIAGNOSTICS_PAGE_SIZE,
+    MAX_INGEST_DIAGNOSTICS_TAGGING_ENTRIES,
+    DIAGNOSTICS_SOURCE_FILTER_BATCH_MULTIPLIER,
+    type IngestDiagnosticsBrandHit,
+    type IngestDiagnosticsTaggingEntry,
+    type IngestDiagnosticsRow,
+    type DiagnosticsSourceFacetRow,
+} from "./lib/resumes_diagnostics.js";
 
 // Re-export for backward compatibility
 export {
@@ -55,6 +67,21 @@ export {
     splitQueryTokens,
     matchesAllTokens,
 } from "./resume_helpers.js";
+
+// Re-export diagnostics helpers for backward compatibility
+export {
+    resolveDiagnosticsSourceKeyForResume,
+    matchesDiagnosticsSourceKeys,
+    buildDiagnosticsSourceFacetRows,
+    projectIngestDiagnosticsRow,
+    normalizeDiagnosticsSourceFilterValues,
+} from "./lib/resumes_diagnostics.js";
+export type {
+    IngestDiagnosticsRow,
+    DiagnosticsSourceFacetRow,
+    IngestDiagnosticsBrandHit,
+    IngestDiagnosticsTaggingEntry,
+} from "./lib/resumes_diagnostics.js";
 
 function getIngestRuleScore(resume: Doc<"resumes">, jobDescriptionId: string | undefined): number {
     const ruleScores = toRuleScores(resume.ingestData?.ruleScores);
@@ -97,57 +124,12 @@ type SearchProvenance = {
     expandedFrom?: string;
 };
 
-type IngestDiagnosticsBrandHit = {
-    brand: string;
-    role: string;
-    source: string;
-    context: string;
-};
-
-type IngestDiagnosticsTaggingEntry = {
-    tag: string;
-    source: string;
-    confidence: number;
-    provenance: {
-        stage: string;
-        evidence: string[];
-    };
-};
-
-export type IngestDiagnosticsRow = {
-    resumeId: string;
-    externalId: string;
-    source: string;
-    sourceKey: string;
-    name: string;
-    jobIntention: string;
-    location: string;
-    isArchived?: boolean;
-    archivedAt?: number;
-    ingestData?: {
-        industryTags: string[];
-        companyHits: string[];
-        brandHits: IngestDiagnosticsBrandHit[];
-        experienceLevel: string;
-        ruleScoreCount: number;
-        computedAt: number;
-        skillsVersion: number;
-        taggingEntries: IngestDiagnosticsTaggingEntry[];
-    };
-};
-
 export type ResumeScanRow = {
     _id: Doc<"resumes">["_id"];
     content: Doc<"resumes">["content"];
     ingestData: Doc<"resumes">["ingestData"];
     primaryRuleScore: Doc<"resumes">["primaryRuleScore"];
     searchText: Doc<"resumes">["searchText"];
-};
-
-export type DiagnosticsSourceFacetRow = {
-    key: string;
-    label: string;
-    count: number;
 };
 
 export type ResumeUsageScanRow = {
@@ -344,9 +326,6 @@ const MAX_SAFE_SEARCH_PAGINATE_SCAN_UNFILTERED = 16;
 // Convex search index scans up to 1024 results; 1024 × 27KB = 27MB > 16 MiB.
 // Cap .take() path to 400 docs × 30KB = ~12MB, safely under 16 MiB limit.
 const MAX_SAFE_SEARCH_TAKE_LIMIT = 400;
-const MAX_INGEST_DIAGNOSTICS_PAGE_SIZE = 100;
-const MAX_INGEST_DIAGNOSTICS_TAGGING_ENTRIES = 8;
-const DIAGNOSTICS_SOURCE_FILTER_BATCH_MULTIPLIER = 3;
 const DEFAULT_RESUME_SCAN_BATCH_SIZE = 25;
 const MAX_RESUME_SCAN_BATCH_SIZE = 50;
 const DEFAULT_RESUME_BACKUP_PAGE_SIZE = 25;
@@ -368,114 +347,6 @@ function dedupeProvenance(items: SearchProvenance[]): SearchProvenance[] {
     return deduped;
 }
 
-function countRuleScores(value: unknown): number {
-    return Object.keys(toRuleScores(value)).length;
-}
-
-function projectIngestDiagnosticsBrandHits(
-    brandHits: NonNullable<Doc<"resumes">["ingestData"]>["brandHits"]
-): IngestDiagnosticsBrandHit[] {
-    return (brandHits ?? []).map((hit) => ({
-        brand: hit.brand,
-        role: hit.role,
-        source: hit.source,
-        context: hit.context,
-    }));
-}
-
-function projectIngestDiagnosticsTaggingEntries(
-    taggingEnvelope: NonNullable<Doc<"resumes">["ingestData"]>["taggingEnvelope"]
-): IngestDiagnosticsTaggingEntry[] {
-    return taggingEnvelope?.entries.slice(0, MAX_INGEST_DIAGNOSTICS_TAGGING_ENTRIES).map((entry) => ({
-        tag: entry.tag,
-        source: entry.source,
-        confidence: entry.confidence,
-        provenance: {
-            stage: entry.provenance.stage,
-            evidence: entry.provenance.evidence,
-        },
-    })) ?? [];
-}
-
-function normalizeDiagnosticsSourceFilterValues(values: string[] | undefined): string[] | undefined {
-    if (!Array.isArray(values)) {
-        return undefined;
-    }
-
-    const normalized = Array.from(new Set(values
-        .map((value) => value.trim())
-        .filter((value) => value.length > 0)
-        .map((value) => resolveResumeDiagnosticsSourceKey({ sourceKey: value, source: value }))
-    ));
-
-    return normalized.length > 0 ? normalized : undefined;
-}
-
-export function resolveDiagnosticsSourceKeyForResume(
-    resume: {
-        source: string;
-        content: unknown;
-    }
-): string {
-    const content = isRecord(resume.content) ? resume.content : {};
-    return resolveResumeDiagnosticsSourceKey({
-        sourceKey: toOptionalStringValue(content.profileType),
-        source: resume.source,
-    });
-}
-
-function resolveDiagnosticsSourceLabel(sourceKey: string): string {
-    switch (sourceKey) {
-        case "job5156":
-            return "Job5156";
-        case "51job":
-            return "51job";
-        case "51job-manual":
-            return "51job manual";
-        case "seek":
-            return "SEEK";
-        default:
-            return "Unknown";
-    }
-}
-
-export function matchesDiagnosticsSourceKeys(
-    resume: {
-        source: string;
-        content: unknown;
-        sourceKey?: string;
-    },
-    sourceKeys: Set<string> | undefined
-): boolean {
-    if (!sourceKeys || sourceKeys.size === 0) {
-        return true;
-    }
-
-    const key = resume.sourceKey ?? resolveDiagnosticsSourceKeyForResume(resume);
-    return sourceKeys.has(key);
-}
-
-export function buildDiagnosticsSourceFacetRows(
-    input: Array<{ source: string; content: unknown }> | Map<string, number>
-): DiagnosticsSourceFacetRow[] {
-    const counts = input instanceof Map ? input : new Map<string, number>();
-
-    if (Array.isArray(input)) {
-        for (const resume of input) {
-            const sourceKey = resolveDiagnosticsSourceKeyForResume(resume);
-            counts.set(sourceKey, (counts.get(sourceKey) ?? 0) + 1);
-        }
-    }
-
-    return Array.from(counts.entries())
-        .map(([key, count]) => ({
-            key,
-            label: resolveDiagnosticsSourceLabel(key),
-            count,
-        }))
-        .sort((left, right) => right.count - left.count || left.key.localeCompare(right.key));
-}
-
 function normalizeRequestedResumeIds(resumeIds: string[]): string[] {
     const normalizedIds: string[] = [];
     const seen = new Set<string>();
@@ -490,47 +361,6 @@ function normalizeRequestedResumeIds(resumeIds: string[]): string[] {
     }
 
     return normalizedIds;
-}
-
-export function projectIngestDiagnosticsRow(
-    resume: {
-        _id: string;
-        externalId: string;
-        source: string;
-        content: unknown;
-        sourceKey?: string;
-        ingestData?: Doc<"resumes">["ingestData"];
-        isArchived?: boolean;
-        archivedAt?: number;
-    }
-): IngestDiagnosticsRow {
-    const content = isRecord(resume.content) ? resume.content : {};
-    const ingestData = resume.ingestData;
-    const locationHierarchy = normalizeResumeLocationHierarchy(content, resume.source);
-
-    return {
-        resumeId: resume._id,
-        externalId: resume.externalId,
-        source: resume.source,
-        sourceKey: resume.sourceKey ?? resolveDiagnosticsSourceKeyForResume({
-            source: resume.source,
-            content: resume.content,
-        }),
-        name: toStringValue(content.name),
-        jobIntention: toStringValue(content.jobIntention),
-        location: toStringValue(content.location) || formatLocationHierarchyLabel(locationHierarchy),
-        ...(resume.isArchived === true ? { isArchived: true, archivedAt: resume.archivedAt } : {}),
-        ingestData: ingestData ? {
-            industryTags: ingestData.industryTags,
-            companyHits: ingestData.companyHits ?? [],
-            brandHits: projectIngestDiagnosticsBrandHits(ingestData.brandHits),
-            experienceLevel: ingestData.experienceLevel,
-            ruleScoreCount: countRuleScores(ingestData.ruleScores),
-            computedAt: ingestData.computedAt,
-            skillsVersion: ingestData.skillsVersion,
-            taggingEntries: projectIngestDiagnosticsTaggingEntries(ingestData.taggingEnvelope),
-        } : undefined,
-    };
 }
 
 export function resolveListWithIngestWindow(requestedLimit: number | undefined): {
