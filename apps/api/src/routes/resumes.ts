@@ -1283,19 +1283,27 @@ app.post("/api/resumes/audit-logs", async (c) => {
   const body = await c.req.json().catch(() => ({}));
   const workspaceSlug = typeof body.workspaceSlug === "string" ? body.workspaceSlug.trim() : "";
   const decisionType = typeof body.decisionType === "string" ? body.decisionType.trim() : undefined;
+  const outcome = typeof body.outcome === "string" ? body.outcome.trim() : undefined;
 
   if (!workspaceSlug) {
     return c.json({ success: false, error: "workspaceSlug is required" }, 400);
   }
 
-  if (decisionType && decisionType !== "score" && decisionType !== "tag" && decisionType !== "confirm") {
-    return c.json({ success: false, error: "decisionType must be 'score', 'tag', or 'confirm'" }, 400);
+  const validDecisionTypes = ["score", "tag", "rank", "filter", "confirm"];
+  if (decisionType && !validDecisionTypes.includes(decisionType)) {
+    return c.json({ success: false, error: `decisionType must be one of: ${validDecisionTypes.join(", ")}` }, 400);
+  }
+
+  const validOutcomes = ["pending", "accepted", "overridden", "appealed"];
+  if (outcome && !validOutcomes.includes(outcome)) {
+    return c.json({ success: false, error: `outcome must be one of: ${validOutcomes.join(", ")}` }, 400);
   }
 
   try {
     const logs = await callConvexQuery("audit:getAuditLogByWorkspace", {
       workspaceSlug,
       ...(decisionType ? { decisionType } : {}),
+      ...(outcome ? { outcome } : {}),
     });
 
     return c.json({ success: true, data: logs }, 200);
