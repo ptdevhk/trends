@@ -53,6 +53,18 @@ import {
     type IngestDiagnosticsRow,
     type DiagnosticsSourceFacetRow,
 } from "./lib/resumes_diagnostics.js";
+import {
+    normalizeTagExpansionKeywordGroups,
+    collectExpandedTerms,
+    selectTagExpansionAnchorGroup,
+    dedupeProvenance as _dedupeProvenance,
+    buildTagExpansionSearchQuery,
+    matchesTagExpansionSearchText,
+    collectSearchTextProvenance,
+    type TagExpansionKeywordGroup,
+    type MatchSource,
+    type SearchProvenance,
+} from "./lib/resumes_tag_expansion.js";
 
 // Re-export for backward compatibility
 export {
@@ -83,6 +95,17 @@ export type {
     IngestDiagnosticsTaggingEntry,
 } from "./lib/resumes_diagnostics.js";
 
+// Re-export tag expansion helpers for backward compatibility
+export {
+    buildTagExpansionSearchQuery,
+    matchesTagExpansionSearchText,
+    collectSearchTextProvenance,
+} from "./lib/resumes_tag_expansion.js";
+export type {
+    TagExpansionKeywordGroup,
+    SearchProvenance,
+} from "./lib/resumes_tag_expansion.js";
+
 function getIngestRuleScore(resume: Doc<"resumes">, jobDescriptionId: string | undefined): number {
     const ruleScores = toRuleScores(resume.ingestData?.ruleScores);
     for (const key of resolveRuleScoreLookupKeys(jobDescriptionId)) {
@@ -110,19 +133,6 @@ function sortByIngestRuleScore(
         return right.crawledAt - left.crawledAt;
     });
 }
-
-type TagExpansionKeywordGroup = {
-    original: string;
-    variants: string[];
-};
-
-type MatchSource = "searchText" | "industryTags" | "companyHits" | "synonymHits";
-
-type SearchProvenance = {
-    term: string;
-    source: MatchSource;
-    expandedFrom?: string;
-};
 
 export type ResumeScanRow = {
     _id: Doc<"resumes">["_id"];
@@ -330,22 +340,6 @@ const DEFAULT_RESUME_SCAN_BATCH_SIZE = 25;
 const MAX_RESUME_SCAN_BATCH_SIZE = 50;
 const DEFAULT_RESUME_BACKUP_PAGE_SIZE = 25;
 const MAX_RESUME_BACKUP_PAGE_SIZE = 25;
-
-function dedupeProvenance(items: SearchProvenance[]): SearchProvenance[] {
-    const seen = new Set<string>();
-    const deduped: SearchProvenance[] = [];
-
-    for (const item of items) {
-        const key = `${item.source}|${item.term}|${item.expandedFrom ?? ""}`;
-        if (seen.has(key)) {
-            continue;
-        }
-        seen.add(key);
-        deduped.push(item);
-    }
-
-    return deduped;
-}
 
 function normalizeRequestedResumeIds(resumeIds: string[]): string[] {
     const normalizedIds: string[] = [];
@@ -1078,98 +1072,6 @@ function normalizeResumeBackupArgs(args: ResumeBackupFilterArgs): ResumeBackupFi
     };
 }
 
-function normalizeTagExpansionKeywordGroups(
-    keywordGroups: Array<{ original: string; variants: string[] }>
-): TagExpansionKeywordGroup[] {
-    return keywordGroups
-        .map((group) => ({
-            original: group.original.trim().toLowerCase(),
-            variants: Array.from(
-                new Set(
-                    group.variants
-                        .map((term) => term.trim().toLowerCase())
-                        .filter((term) => term.length >= 2)
-                )
-            ),
-        }))
-        .filter((group) => group.original.length >= 1 && group.variants.length > 0);
-}
-
-function collectExpandedTerms(keywordGroups: TagExpansionKeywordGroup[]): string[] {
-    return Array.from(new Set(keywordGroups.flatMap((group) => group.variants)));
-}
-
-function selectTagExpansionAnchorGroup(keywordGroups: TagExpansionKeywordGroup[]): TagExpansionKeywordGroup {
-    const [firstGroup, ...remainingGroups] = keywordGroups;
-    if (!firstGroup) {
-        throw new Error("Keyword groups are required for tag expansion search");
-    }
-
-    return remainingGroups.reduce((selected, candidate) => {
-        if (candidate.variants.length !== selected.variants.length) {
-            return candidate.variants.length < selected.variants.length ? candidate : selected;
-        }
-        return candidate.original.length > selected.original.length ? candidate : selected;
-    }, firstGroup);
-}
-
-export function buildTagExpansionSearchQuery(
-    keywordGroups: TagExpansionKeywordGroup[],
-    mode: "AND" | "OR"
-): string {
-    if (keywordGroups.length === 0) {
-        return "";
-    }
-
-    if (mode === "AND") {
-        return selectTagExpansionAnchorGroup(keywordGroups).variants.join(" ");
-    }
-
-    return collectExpandedTerms(keywordGroups).join(" ");
-}
-
-function matchesTagExpansionGroup(searchText: string, group: TagExpansionKeywordGroup): boolean {
-    return group.variants.some((variant) => searchText.includes(variant));
-}
-
-export function matchesTagExpansionSearchText(
-    searchText: string,
-    keywordGroups: TagExpansionKeywordGroup[],
-    mode: "AND" | "OR"
-): boolean {
-    return mode === "AND"
-        ? keywordGroups.every((group) => matchesTagExpansionGroup(searchText, group))
-        : keywordGroups.some((group) => matchesTagExpansionGroup(searchText, group));
-}
-
-export function collectSearchTextProvenance(
-    searchText: string,
-    keywordGroups: TagExpansionKeywordGroup[],
-    sourceMapping: Record<string, string>
-): SearchProvenance[] {
-    const matches: SearchProvenance[] = [];
-    const seen = new Set<string>();
-
-    for (const group of keywordGroups) {
-        for (const term of group.variants) {
-            if (!searchText.includes(term)) {
-                continue;
-            }
-            if (seen.has(term)) {
-                continue;
-            }
-            seen.add(term);
-            matches.push({
-                term,
-                source: "searchText",
-                expandedFrom: sourceMapping[term],
-            });
-        }
-    }
-
-    return matches;
-}
-
 function compareResumes(
     left: Doc<"resumes">,
     right: Doc<"resumes">,
@@ -1206,7 +1108,7 @@ function mergeResumeDocs(
         if (!existing) {
             merged.set(identityKey, {
                 resume: doc,
-                provenance: dedupeProvenance(incomingProvenance),
+                provenance: _dedupeProvenance(incomingProvenance),
             });
             continue;
         }
@@ -1216,7 +1118,7 @@ function mergeResumeDocs(
             : doc;
         merged.set(identityKey, {
             resume: preferredResume,
-            provenance: dedupeProvenance([...existing.provenance, ...incomingProvenance]),
+            provenance: _dedupeProvenance([...existing.provenance, ...incomingProvenance]),
         });
     }
 
