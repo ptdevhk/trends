@@ -1765,3 +1765,42 @@ export const backfillAnalysesValidator = mutation({
         };
     },
 });
+
+/**
+ * Backfill actorId/actorRole on existing analysis_audit_log records.
+ * Records created before the actor identity feature have no actor fields.
+ * Mark them with actorId: "pre-tracking" and actorRole: "system" so that
+ * every audit record has traceability (EU AI Act Art. 12).
+ */
+export const backfillAuditLogActorIdentity = mutation({
+    args: {
+        cursor: v.optional(v.string()),
+    },
+    handler: async (ctx, args) => {
+        const logs = await ctx.db
+            .query("analysis_audit_log")
+            .order("desc")
+            .paginate({
+                cursor: args.cursor ?? null,
+                numItems: 100,
+            });
+
+        let updated = 0;
+        for (const log of logs.page) {
+            if (log.actorId === undefined && log.actorRole === undefined) {
+                await ctx.db.patch(log._id, {
+                    actorId: "pre-tracking",
+                    actorRole: "system",
+                });
+                updated += 1;
+            }
+        }
+
+        return {
+            scanned: logs.page.length,
+            updated,
+            hasMore: !logs.isDone,
+            cursor: logs.isDone ? null : logs.continueCursor,
+        };
+    },
+});

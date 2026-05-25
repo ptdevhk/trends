@@ -555,6 +555,14 @@ export default defineSchema({
             flagReason: v.optional(v.string()),
         })),
 
+        // Actor Identity (EU AI Act Art. 12 — traceability to specific operator)
+        actorId: v.optional(v.string()),
+        actorRole: v.optional(v.union(
+            v.literal("admin"),
+            v.literal("operator"),
+            v.literal("system"),
+        )),
+
         // Timestamps
         decidedAt: v.number(),
         reviewedAt: v.optional(v.number()),

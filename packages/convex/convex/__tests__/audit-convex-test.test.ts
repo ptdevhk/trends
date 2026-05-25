@@ -405,6 +405,155 @@ describe("audit (convex-test)", () => {
     });
   });
 
+  describe("actor identity in audit trail (EU AI Act Art. 12)", () => {
+    it("logs actorId and actorRole when provided", async () => {
+      const t = convexTest(schema, modules);
+
+      const resumeId = await t.run(async (ctx) => {
+        return ctx.db.insert("resumes", {
+          externalId: "actor-r1",
+          content: {},
+          hash: "actor1",
+          tags: [],
+          crawledAt: Date.now(),
+          source: "test",
+          searchText: "Actor test resume",
+        });
+      });
+
+      await t.mutation(internal.audit.logAnalysisDecision, {
+        resumeId,
+        workspaceSlug: "ws-actor",
+        decisionType: "score",
+        actionRef: "analyze:analyzeResume",
+        inputSnapshot: {},
+        modelMeta: { model: "gpt-4-turbo", provider: "openai" },
+        output: { score: 75 },
+        decidedAt: Date.now(),
+        actorId: "system",
+        actorRole: "system",
+      });
+
+      const logs = await t.run(async (ctx) => {
+        return ctx.db
+          .query("analysis_audit_log")
+          .withIndex("by_resume", (q) => q.eq("resumeId", resumeId))
+          .collect();
+      });
+
+      expect(logs.length).toBe(1);
+      expect(logs[0].actorId).toBe("system");
+      expect(logs[0].actorRole).toBe("system");
+    });
+
+    it("logs admin actor identity", async () => {
+      const t = convexTest(schema, modules);
+
+      const resumeId = await t.run(async (ctx) => {
+        return ctx.db.insert("resumes", {
+          externalId: "actor-admin-r1",
+          content: {},
+          hash: "actor-admin1",
+          tags: [],
+          crawledAt: Date.now(),
+          source: "test",
+        });
+      });
+
+      await t.mutation(internal.audit.logAnalysisDecision, {
+        resumeId,
+        workspaceSlug: "ws-actor-admin",
+        decisionType: "score",
+        actionRef: "analyze:analyzeResume",
+        inputSnapshot: {},
+        modelMeta: { model: "gpt-4", provider: "openai" },
+        output: { score: 88 },
+        decidedAt: Date.now(),
+        actorId: "user_abc123",
+        actorRole: "admin",
+      });
+
+      const logs = await t.run(async (ctx) => {
+        return ctx.db
+          .query("analysis_audit_log")
+          .withIndex("by_resume", (q) => q.eq("resumeId", resumeId))
+          .collect();
+      });
+
+      expect(logs.length).toBe(1);
+      expect(logs[0].actorId).toBe("user_abc123");
+      expect(logs[0].actorRole).toBe("admin");
+    });
+
+    it("allows optional actor identity (backward compatible)", async () => {
+      const t = convexTest(schema, modules);
+
+      const resumeId = await t.run(async (ctx) => {
+        return ctx.db.insert("resumes", {
+          externalId: "actor-opt-r1",
+          content: {},
+          hash: "actor-opt1",
+          tags: [],
+          crawledAt: Date.now(),
+          source: "test",
+        });
+      });
+
+      await t.mutation(internal.audit.logAnalysisDecision, {
+        resumeId,
+        workspaceSlug: "ws-actor-opt",
+        decisionType: "tag",
+        actionRef: "ai_tagging_results:drainQueue",
+        inputSnapshot: {},
+        modelMeta: { model: "gpt-4", provider: "openai" },
+        output: { tags: ["senior"] },
+        decidedAt: Date.now(),
+        // No actorId/actorRole — backward compatible
+      });
+
+      const logs = await t.run(async (ctx) => {
+        return ctx.db
+          .query("analysis_audit_log")
+          .withIndex("by_resume", (q) => q.eq("resumeId", resumeId))
+          .collect();
+      });
+
+      expect(logs.length).toBe(1);
+      expect(logs[0].actorId).toBeUndefined();
+      expect(logs[0].actorRole).toBeUndefined();
+    });
+
+    it("rejects invalid actorRole values", async () => {
+      const t = convexTest(schema, modules);
+
+      const resumeId = await t.run(async (ctx) => {
+        return ctx.db.insert("resumes", {
+          externalId: "actor-invalid-r1",
+          content: {},
+          hash: "actor-inv1",
+          tags: [],
+          crawledAt: Date.now(),
+          source: "test",
+        });
+      });
+
+      await expect(
+        t.mutation(internal.audit.logAnalysisDecision, {
+          resumeId,
+          workspaceSlug: "ws-actor-invalid",
+          decisionType: "score",
+          actionRef: "analyze:analyzeResume",
+          inputSnapshot: {},
+          modelMeta: { model: "gpt-4", provider: "openai" },
+          output: { score: 50 },
+          decidedAt: Date.now(),
+          actorId: "user_x",
+          actorRole: "superadmin" as any, // Invalid — not in union
+        }),
+      ).rejects.toThrow();
+    });
+  });
+
   describe("listWorkspaceSlugsWithAuditLogs", () => {
     it("returns distinct workspace slugs from audit logs", async () => {
       const t = convexTest(schema, modules);
