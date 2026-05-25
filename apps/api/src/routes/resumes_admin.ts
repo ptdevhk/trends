@@ -6,7 +6,9 @@ import { logger } from "../services/logger.js";
 import { requireAdmin } from "../middleware/workspace.js";
 
 const app = new OpenAPIHono();
-app.use("*", requireAdmin);
+// Per-route requireAdmin — do NOT use app.use("*", requireAdmin) here
+// because that would apply to ALL routes in the parent app, not just
+// this sub-app's routes (Hono mounts sub-apps at / with wildcard).
 const ingestComputeService = new IngestComputeService(config.projectRoot);
 
 const HardResetReingestRequestSchema = z.object({
@@ -60,7 +62,7 @@ const ResetDatabaseV2ResponseSchema = z.object({
 });
 
 // Hard reset re-ingest: clear computed fields and reschedule
-app.post("/api/resumes/hard-reset-reingest", async (c) => {
+app.post("/api/resumes/hard-reset-reingest", requireAdmin, async (c) => {
   const body = await c.req.json().catch(() => ({}));
   const parsed = HardResetReingestRequestSchema.safeParse(body);
   if (!parsed.success) {
@@ -142,7 +144,7 @@ app.post("/api/resumes/hard-reset-reingest", async (c) => {
 });
 
 // Clear analyses for specific JDs or resume IDs
-app.post("/api/resumes/clear-analyses", async (c) => {
+app.post("/api/resumes/clear-analyses", requireAdmin, async (c) => {
   const body = await c.req.json().catch(() => ({}));
   const parsed = ClearAnalysesRequestSchema.safeParse(body);
   if (!parsed.success) {
@@ -241,7 +243,7 @@ app.post("/api/resumes/clear-analyses", async (c) => {
 });
 
 // Reset database (admin only)
-app.post("/api/resumes/reset-database", async (c) => {
+app.post("/api/resumes/reset-database", requireAdmin, async (c) => {
   const body = await c.req.json().catch(() => ({}));
   const parsed = ResetDatabaseRequestSchema.safeParse(body);
   if (!parsed.success) {
@@ -276,7 +278,7 @@ app.post("/api/resumes/reset-database", async (c) => {
 });
 
 // Archive/unarchive resumes
-app.post("/api/resumes/archive", async (c) => {
+app.post("/api/resumes/archive", requireAdmin, async (c) => {
   const body = await c.req.json().catch(() => ({}));
   const parsed = ArchiveResumesRequestSchema.safeParse(body);
   if (!parsed.success) {
@@ -311,7 +313,7 @@ app.post("/api/resumes/archive", async (c) => {
 });
 
 // Ingest compute (internal — called by Convex action)
-app.post("/api/resumes/ingest-compute", async (c) => {
+app.post("/api/resumes/ingest-compute", requireAdmin, async (c) => {
   const body = await c.req.json();
   const resumes = body.resumes as Array<{ resumeId: string; content: unknown; sourceKey?: string }>;
 

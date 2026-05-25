@@ -2907,6 +2907,11 @@ export const updateAnalysis = internalMutation({
             highlights: v.array(v.string()),
             recommendation: v.string(),
             breakdown: v.optional(v.any()),
+            keyFactors: v.optional(v.array(v.object({
+                factor: v.string(),
+                weight: v.optional(v.number()),
+                value: v.string(),
+            }))),
             jobDescriptionId: v.optional(v.string()),
             promptVersion: v.optional(v.number()),
             locale: v.optional(v.string()),
@@ -2943,6 +2948,11 @@ export const updateAnalysisBatch = internalMutation({
                 highlights: v.array(v.string()),
                 recommendation: v.string(),
                 breakdown: v.optional(v.any()),
+                keyFactors: v.optional(v.array(v.object({
+                    factor: v.string(),
+                    weight: v.optional(v.number()),
+                    value: v.string(),
+                }))),
                 jobDescriptionId: v.optional(v.string()),
                 promptVersion: v.optional(v.number()),
                 locale: v.optional(v.string()),

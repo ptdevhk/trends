@@ -97,7 +97,11 @@ Return the analysis as JSON and ensure score is numeric:
   "recommendation": "strong_match" | "match" | "potential" | "no_match",
   "highlights": ["Matching highlight 1", "Matching highlight 2"],
   "concerns": ["Concern 1", "Concern 2"],
-  "summary": "English summary"
+  "summary": "English summary",
+  "keyFactors": [
+    {"factor": "technical_skills", "weight": 0.4, "value": "5 years CNC programming, 3 years FANUC systems"},
+    {"factor": "industry_experience", "weight": 0.3, "value": "Sales engineer at CNC machinery company for 7 years"}
+  ]
 }
 ```
 
@@ -105,6 +109,12 @@ Return the analysis as JSON and ensure score is numeric:
 - `related_exp`: Scores how well the candidate's work-history evidence matches the target role (0-100). Runtime converts it into a 0-50 contribution using a fixed 50% weight.
 - `industry_db`: Scores known industry database company/brand hits (0-100, reference only). Runtime replaces the AI-provided value with the rule-engine result (company hits + brand hits); the AI-provided value does not affect the final score.
 - `score` = `related_exp` (AI value × 0.5) + `industry_db` (system rule result), for a 0-100 total. Do not include dimensions without grounded data.
+
+### keyFactors Field Description
+- `keyFactors`: Provide 3-6 key factors that most influenced the score, each containing:
+  - `factor`: A short category name (e.g., "technical_skills", "industry_experience", "education", "role_relevance")
+  - `weight`: Relative importance (0-1, all weights should sum to approximately 1.0)
+  - `value`: A brief human-readable description of the evidence from the candidate's resume
 
 ## Prompt Variables
 
