@@ -14,17 +14,6 @@ import { action, internalMutation, type ActionCtx } from "./_generated/server";
 import { resolveChatCompletionModel } from "./lib/ai_model";
 import { computeProtectedAttributeHashes } from "./audit.js";
 import {
-    toNumber,
-    clamp,
-    parseKeyFactors,
-    parseNumericBreakdown,
-    hasNonEmployerBrandHits,
-    hasCompanyHits,
-    getResumeIngestData,
-    computeDirectIndustryDbScoreFromResume,
-    recommendationFromScore,
-    hasHanText,
-    normalizeSummaryConsistency,
     normalizeAnalysisResult,
     parseRoleSignals,
 } from "./lib/analysis_normalization.js";
