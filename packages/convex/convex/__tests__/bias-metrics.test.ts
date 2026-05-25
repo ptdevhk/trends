@@ -245,8 +245,9 @@ describe("bias_metrics", () => {
     });
 
     it("returns zero-like PSI for similar distributions", () => {
-      const baseline = Array.from({ length: 50 }, (_, i) => 30 + Math.random() * 40);
-      const current = Array.from({ length: 50 }, (_, i) => 32 + Math.random() * 38);
+      // Use deterministic data to avoid flaky CI from Math.random()
+      const baseline = Array.from({ length: 50 }, (_, i) => 30 + (i * 0.8));
+      const current = Array.from({ length: 50 }, (_, i) => 32 + (i * 0.76));
       const result = computePSI(baseline, current);
       expect(result.psi).toBeLessThan(0.25);
       expect(result.driftDetected).toBe(false);
