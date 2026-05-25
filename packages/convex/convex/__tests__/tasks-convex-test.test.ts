@@ -13,6 +13,7 @@
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api.js";
+import { internal } from "../_generated/api.js";
 import schema from "../schema.js";
 
 const modules = (import.meta as any).glob("../**/*.ts", { eager: false });
@@ -624,5 +625,70 @@ describe("resume_tasks: updateProgress", () => {
     });
 
     expect(result).toEqual({ status: "cancelled" });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// sweepStuckTasks
+// ---------------------------------------------------------------------------
+
+describe("resume_tasks: sweepStuckTasks", () => {
+  it("sweeps tasks stuck in processing for >24h", async () => {
+    const t = convexTest(schema, modules);
+
+    // Insert a collection task stuck in processing for 25h
+    const taskId = await t.run(async (ctx) => {
+      return ctx.db.insert("collection_tasks", {
+        status: "processing",
+        config: { keyword: "test", location: "Shanghai", limit: 100 },
+        progress: { current: 0, total: 0, page: 0 },
+        workerId: "worker-stuck",
+        startedAt: Date.now() - 25 * 60 * 60 * 1000,
+      });
+    });
+
+    const result = await t.mutation(internal.resume_tasks.sweepStuckTasks, {});
+    expect(result.swept).toBe(1);
+
+    const task = await t.run(async (ctx) => ctx.db.get(taskId));
+    expect(task?.status).toBe("failed");
+    expect(task?.error).toContain("Swept");
+  });
+
+  it("skips tasks that are not stuck (recent processing)", async () => {
+    const t = convexTest(schema, modules);
+
+    // Insert a collection task that started recently (not stuck)
+    await t.run(async (ctx) => {
+      await ctx.db.insert("collection_tasks", {
+        status: "processing",
+        config: { keyword: "test", location: "Shanghai", limit: 100 },
+        progress: { current: 0, total: 0, page: 0 },
+        workerId: "worker-active",
+        startedAt: Date.now(),
+      });
+    });
+
+    const result = await t.mutation(internal.resume_tasks.sweepStuckTasks, {});
+    expect(result.swept).toBe(0);
+  });
+
+  it("skips tasks not in processing status", async () => {
+    const t = convexTest(schema, modules);
+
+    // Insert a completed task that's old
+    await t.run(async (ctx) => {
+      await ctx.db.insert("collection_tasks", {
+        status: "completed",
+        config: { keyword: "test", location: "Shanghai", limit: 100 },
+        progress: { current: 50, total: 50, page: 3 },
+        results: { extracted: 0, submitted: 0, deduped: 0, inserted: 0, updated: 0, unchanged: 0 },
+        startedAt: Date.now() - 48 * 60 * 60 * 1000,
+        completedAt: Date.now() - 48 * 60 * 60 * 1000,
+      });
+    });
+
+    const result = await t.mutation(internal.resume_tasks.sweepStuckTasks, {});
+    expect(result.swept).toBe(0);
   });
 });
