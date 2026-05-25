@@ -79,7 +79,9 @@ describe("processNewResumes", () => {
   })
 
   it("processes resumes and stores ingest data via mutation", async () => {
-    const mutations: Array<{ updates: Array<Record<string, unknown>> }> = []
+    const ingestMutations: Array<{ updates: Array<Record<string, unknown>> }> = []
+    const auditLogMutations: Array<Record<string, unknown>> = []
+    const auditOutcomeMutations: Array<Record<string, unknown>> = []
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       makeBffResponse(200, {
         success: true,
@@ -123,21 +125,39 @@ describe("processNewResumes", () => {
           { _id: "r2", content: { name: "Bob" } },
         ]
       },
-      async runMutation(_fn: unknown, args: { updates: Array<Record<string, unknown>> }) {
-        mutations.push(args)
+      async runMutation(_fn: unknown, args: Record<string, unknown>) {
+        if ("updates" in args) {
+          ingestMutations.push(args as { updates: Array<Record<string, unknown>> })
+        } else if ("decisionType" in args) {
+          auditLogMutations.push(args)
+          return `audit-log-${auditLogMutations.length}`
+        } else if ("outcome" in args && "auditLogId" in args) {
+          auditOutcomeMutations.push(args)
+        }
       },
     }
 
     const result = await processNewResumesHandler(ctx as never, { resumeIds: ["r1", "r2"] })
 
     expect(result).toEqual({ processed: 2, error: null })
-    expect(mutations).toHaveLength(1)
-    expect(mutations[0].updates).toHaveLength(2)
-    const update0 = mutations[0].updates[0] as Record<string, Record<string, unknown>>
+    expect(ingestMutations).toHaveLength(1)
+    expect(ingestMutations[0].updates).toHaveLength(2)
+    const update0 = ingestMutations[0].updates[0] as Record<string, Record<string, unknown>>
     expect(update0.resumeId).toBe("r1")
     expect((update0.ingestData as Record<string, unknown>).market).toBe("tech")
     expect((update0.ingestData as Record<string, unknown>).skillsVersion).toBe(2)
-    expect(mutations[0].updates[1].resumeId).toBe("r2")
+    expect(ingestMutations[0].updates[1].resumeId).toBe("r2")
+
+    // Verify audit log mutations were called for each processed resume (EU AI Act Art. 12)
+    expect(auditLogMutations).toHaveLength(2)
+    expect(auditLogMutations[0].decisionType).toBe("rank")
+    expect(auditLogMutations[0].actionRef).toBe("ingest_agent:processNewResumes")
+    expect(auditLogMutations[0].output).toMatchObject({ tags: ["software"], score: 0.9 })
+
+    // Verify setAuditOutcome mutations were called for each audit log
+    expect(auditOutcomeMutations).toHaveLength(2)
+    expect(auditOutcomeMutations[0].outcome).toBe("accepted")
+    expect(auditOutcomeMutations[0].setBy).toBe("system:ingest_agent")
 
     // Verify the BFF payload includes sourceKey
     const callArgs = fetchSpy.mock.calls[0]

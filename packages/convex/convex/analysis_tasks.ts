@@ -2,6 +2,7 @@ import { internal } from "./_generated/api";
 import type { Doc } from "./_generated/dataModel";
 import { internalAction, internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { api } from "./_generated/api";
 import {
     buildKeywordAnalysisId as buildSharedKeywordAnalysisId,
     getCurrentResumeAiPromptVersion,
@@ -13,6 +14,8 @@ import {
     callLLM,
     type ChatMessage,
     getAiApiKey,
+    getAiModel,
+    getAiApiBase,
     getUserPromptTemplate,
     hydrateUserPrompt,
     inferSourceKey,
@@ -21,6 +24,7 @@ import {
     resolveAIOutputLocale,
 } from "./analyze";
 import { resolveAnalysisParallelism } from "./lib/parallelism";
+import { computeProtectedAttributeHashes } from "./audit.js";
 
 type AnalysisTaskStatus = "pending" | "processing" | "completed" | "failed" | "cancelled";
 
@@ -666,6 +670,46 @@ export const processAnalysisTask = internalAction({
                         },
                     })),
                 });
+
+                // Audit log — EU AI Act compliance for auto-filter decisions
+                for (const resume of toSkip) {
+                    try {
+                        const protectedHashes = computeProtectedAttributeHashes({
+                            age: typeof resume.age === "number" ? resume.age : undefined,
+                            source: typeof resume.source === "string" ? resume.source : undefined,
+                        });
+                        const auditLogId = await ctx.runMutation(internal.audit.logAnalysisDecision, {
+                            resumeId: resume._id,
+                            identityKey: resume.identityKey ?? undefined,
+                            workspaceSlug: resume.sourceKey ?? "default",
+                            decisionType: "filter",
+                            actionRef: "analysis_tasks:processAnalysisTask:filter",
+                            inputSnapshot: {
+                                jobDescriptionId: analysisJobDescriptionId,
+                                promptVersion: String(promptVersion),
+                                searchKeywords: keywords,
+                                searchLocation: normalizedLocation,
+                            },
+                            modelMeta: {
+                                model: "rule-based",
+                                provider: "internal",
+                            },
+                            output: {
+                                score: 10,
+                                recommendation: "no_match",
+                            },
+                            protectedAttributeHashes: protectedHashes,
+                            decidedAt: Date.now(),
+                        });
+                        await ctx.runMutation(api.audit.setAuditOutcome, {
+                            auditLogId,
+                            outcome: "accepted",
+                            setBy: "system:analysis_tasks:filter",
+                        });
+                    } catch (auditError) {
+                        console.error(`[audit] Failed to log filter decision for resume ${String(resume._id)}:`, auditError);
+                    }
+                }
             }
 
             let current = skippedCount;
@@ -723,6 +767,45 @@ export const processAnalysisTask = internalAction({
                                     analyzedAt: Date.now(),
                                 },
                             });
+
+                            // Audit log — EU AI Act compliance for score decisions
+                            try {
+                                const protectedHashes = computeProtectedAttributeHashes({
+                                    age: typeof resume.age === "number" ? resume.age : undefined,
+                                    source: typeof resume.source === "string" ? resume.source : undefined,
+                                });
+                                const auditLogId = await ctx.runMutation(internal.audit.logAnalysisDecision, {
+                                    resumeId: resume._id,
+                                    identityKey: resume.identityKey ?? undefined,
+                                    workspaceSlug: resume.sourceKey ?? "default",
+                                    decisionType: "score",
+                                    actionRef: "analysis_tasks:processAnalysisTask:score",
+                                    inputSnapshot: {
+                                        jobDescriptionId: analysisJobDescriptionId,
+                                        promptVersion: String(promptVersion),
+                                        searchKeywords: keywords,
+                                        searchLocation: normalizedLocation,
+                                    },
+                                    modelMeta: {
+                                        model: getAiModel(),
+                                        provider: "openai",
+                                        apiBase: getAiApiBase(),
+                                    },
+                                    output: {
+                                        score: result.score,
+                                        recommendation: result.recommendation,
+                                    },
+                                    protectedAttributeHashes: protectedHashes,
+                                    decidedAt: Date.now(),
+                                });
+                                await ctx.runMutation(api.audit.setAuditOutcome, {
+                                    auditLogId,
+                                    outcome: "accepted",
+                                    setBy: "system:analysis_tasks:score",
+                                });
+                            } catch (auditError) {
+                                console.error(`[audit] Failed to log score decision for resume ${String(resume._id)}:`, auditError);
+                            }
 
                             analyzedCount += 1;
                             scoreSum += result.score;
