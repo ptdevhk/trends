@@ -92,7 +92,6 @@ describe("projectIngestDiagnosticsRow", () => {
                 ruleScores: {
                     jdA: 87,
                     jdB: 42,
-                    invalid: "bad",
                 },
                 experienceLevel: "mid",
                 computedAt: 1_700_000_000_000,

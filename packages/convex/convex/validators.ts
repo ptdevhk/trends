@@ -65,7 +65,7 @@ export const ingestDataValidator = v.object({
     })),
     // Legacy field: migrated to taggingEnvelope; retained for documents not yet migrated.
     tagEnvelope: v.optional(v.any()),
-    ruleScores: v.any(),
+    ruleScores: v.record(v.string(), v.number()),
     experienceLevel: v.string(),
     computedAt: v.number(),
     skillsVersion: v.number(),
@@ -95,7 +95,7 @@ export const analysisResultValidator = v.object({
     summary: v.optional(v.string()),
     highlights: v.optional(v.array(v.string())),
     recommendation: v.optional(v.string()),
-    breakdown: v.optional(v.any()),
+    breakdown: v.optional(v.record(v.string(), v.number())),
     keyFactors: v.optional(v.array(v.object({
         factor: v.string(),
         weight: v.optional(v.number()),
