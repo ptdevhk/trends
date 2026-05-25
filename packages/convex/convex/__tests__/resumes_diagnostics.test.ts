@@ -176,13 +176,17 @@ describe("projectIngestDiagnosticsRow", () => {
                 industryTags: ["CNC"],
                 companyHits: ["Acme"],
                 brandHits: [],
+                synonymHits: [],
+                ruleScores: {},
                 experienceLevel: "senior",
                 computedAt: Date.now(),
                 skillsVersion: 2,
                 taggingEnvelope: {
                     entries: [
-                        { tag: "CNC", source: "rule", confidence: 0.9, provenance: { stage: "rule", evidence: ["keyword"] } },
+                        { tag: "CNC", source: "rule", confidence: 0.9, version: 1, provenance: { stage: "rule", generatedBy: "rule-engine", evidence: ["keyword"] } },
                     ],
+                    schemaVersion: 1,
+                    generatedAt: Date.now(),
                 },
             },
         });
@@ -220,7 +224,8 @@ describe("projectIngestDiagnosticsRow", () => {
             tag: `tag-${i}`,
             source: "rule",
             confidence: 0.8,
-            provenance: { stage: "rule", evidence: [] },
+            version: 1,
+            provenance: { stage: "rule", generatedBy: "rule-engine", evidence: [] },
         }));
         const row = projectIngestDiagnosticsRow({
             _id: "r5",
@@ -231,10 +236,12 @@ describe("projectIngestDiagnosticsRow", () => {
                 industryTags: [],
                 companyHits: [],
                 brandHits: [],
+                synonymHits: [],
+                ruleScores: {},
                 experienceLevel: "mid",
                 computedAt: Date.now(),
                 skillsVersion: 1,
-                taggingEnvelope: { entries: manyEntries },
+                taggingEnvelope: { entries: manyEntries, schemaVersion: 1, generatedAt: Date.now() },
             },
         });
         expect(row.ingestData!.taggingEntries.length).toBeLessThanOrEqual(MAX_INGEST_DIAGNOSTICS_TAGGING_ENTRIES);
