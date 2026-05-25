@@ -1104,6 +1104,10 @@ check: check-python check-node check-project-skills check-agent-policy check-age
 check-concept-drift:
 	@bash scripts/check-concept-drift.sh
 
+# AI model compatibility check — validates AI_MODEL against AI_API_BASE
+check-model:
+	@bash scripts/ai-model-check.sh
+
 # Python checks
 check-python:
 	@echo "Running Python checks..."

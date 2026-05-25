@@ -6,6 +6,9 @@ import { logger } from "../services/logger.js";
 import { requireAdmin } from "../middleware/workspace.js";
 
 const app = new OpenAPIHono();
+// Per-route requireAdmin — do NOT use app.use("*", requireAdmin) here
+// because that would apply to ALL routes in the parent app, not just
+// this sub-app's routes (Hono mounts sub-apps at / with wildcard).
 const ingestComputeService = new IngestComputeService(config.projectRoot);
 
 const HardResetReingestRequestSchema = z.object({
@@ -310,7 +313,7 @@ app.post("/api/resumes/archive", requireAdmin, async (c) => {
 });
 
 // Ingest compute (internal — called by Convex action)
-app.post("/api/resumes/ingest-compute", async (c) => {
+app.post("/api/resumes/ingest-compute", requireAdmin, async (c) => {
   const body = await c.req.json();
   const resumes = body.resumes as Array<{ resumeId: string; content: unknown; sourceKey?: string }>;
 

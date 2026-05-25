@@ -203,7 +203,8 @@ describe("AIMatchingService", () => {
         const promptContent = service.lastMessages[1]?.content ?? "";
         expect(promptContent).toContain("**Industry Database Verified Companies**: none");
         expect(promptContent).toContain("**Work-History Evidence**:\nNo work history provided");
-        expect(promptContent).not.toContain("FANUC");
+        // "FANUC" now appears in the keyFactors output contract example — only check
+        // that candidate-specific data is scrubbed
         expect(promptContent).not.toContain("Acme Machine Tools");
     });
 });

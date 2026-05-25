@@ -16,7 +16,7 @@ import {
 import { v } from "convex/values";
 import { api, internal } from "./_generated/api";
 import { action, internalMutation, type ActionCtx } from "./_generated/server";
-import { resolveChatCompletionModel } from "./lib/ai_model";
+import { resolveChatCompletionModel, warnUnknownModel } from "./lib/ai_model";
 import { computeProtectedAttributeHashes } from "./audit.js";
 
 const DEFAULT_AI_OUTPUT_LOCALE = DEFAULT_RESUME_AI_PROMPT_LOCALE;
@@ -96,6 +96,18 @@ const INDUSTRY_DB_SCORE_CAP = 50;
 const RELATED_EXP_WEIGHT = INDUSTRY_DB_SCORE_CAP / 100;
 
 export type AnalysisRecommendation = "strong_match" | "match" | "potential" | "no_match";
+
+export function parseKeyFactors(value: unknown): KeyFactor[] {
+    if (!Array.isArray(value)) return [];
+    return value
+        .filter((item): item is Record<string, unknown> => isRecord(item))
+        .map((item) => ({
+            factor: typeof item.factor === "string" ? item.factor : "unknown",
+            weight: typeof item.weight === "number" && Number.isFinite(item.weight) ? item.weight : undefined,
+            value: typeof item.value === "string" ? item.value : "",
+        }))
+        .filter((f) => f.factor !== "unknown" || f.value.length > 0);
+}
 
 export function clamp(value: number, min: number, max: number): number {
     return Math.min(max, Math.max(min, value));
@@ -233,6 +245,12 @@ export function normalizeSummaryConsistency(
 }
 
 
+export interface KeyFactor {
+    factor: string;
+    weight?: number;
+    value: string;
+}
+
 export function normalizeAnalysisResult(
     result: {
         score?: unknown;
@@ -241,6 +259,7 @@ export function normalizeAnalysisResult(
         highlights?: unknown;
         concerns?: unknown;
         breakdown?: unknown;
+        keyFactors?: unknown;
     },
     resume: unknown,
 ): {
@@ -250,6 +269,7 @@ export function normalizeAnalysisResult(
     highlights: string[];
     concerns: string[];
     breakdown: Record<string, number>;
+    keyFactors: KeyFactor[];
 } {
     const breakdown = parseNumericBreakdown(result.breakdown);
     const llmRelatedExp = toNumber(breakdown?.related_exp);
@@ -286,6 +306,7 @@ export function normalizeAnalysisResult(
             related_exp: relatedExpRaw,
             industry_db: industryDb,
         },
+        keyFactors: parseKeyFactors(result.keyFactors),
     };
 }
 
@@ -451,7 +472,7 @@ export function getAiApiBase(): string {
 }
 
 export function getAiModel(): string {
-    return process.env.AI_MODEL || process.env.OPENAI_MODEL || "gpt-4-turbo-preview";
+    return warnUnknownModel(process.env.AI_MODEL || process.env.OPENAI_MODEL || "gpt-4-turbo-preview");
 }
 
 export function getAiTemperature(): number {
@@ -651,6 +672,7 @@ export const analyzeResume = action({
                 summary: result.summary,
                 highlights: result.highlights || [],
                 recommendation: result.recommendation || "no_match",
+                keyFactors: result.keyFactors.length > 0 ? result.keyFactors : undefined,
                 jobDescriptionId: args.jobDescriptionId || "default",
                 promptVersion,
                 locale,
@@ -699,10 +721,12 @@ export const analyzeResume = action({
                 protectedAttributeHashes: protectedHashes,
                 explanation: {
                     summary: `Scored ${result.score}/100 against "${jd.title}". ${result.summary || ""}`,
-                    keyFactors: (result.highlights || []).slice(0, 4).map((h: string) => ({
-                        factor: "highlight",
-                        value: h,
-                    })),
+                    keyFactors: result.keyFactors.length > 0
+                        ? result.keyFactors
+                        : (result.highlights || []).slice(0, 4).map((h: string) => ({
+                            factor: "highlight",
+                            value: h,
+                        })),
                 },
                 decidedAt: Date.now(),
             });
@@ -794,6 +818,11 @@ export const storeConfirmResult = internalMutation({
             highlights: v.array(v.string()),
             recommendation: v.string(),
             breakdown: v.optional(v.any()),
+            keyFactors: v.optional(v.array(v.object({
+                factor: v.string(),
+                weight: v.optional(v.number()),
+                value: v.string(),
+            }))),
             jobDescriptionId: v.optional(v.string()),
             promptVersion: v.number(),
             locale: v.string(),

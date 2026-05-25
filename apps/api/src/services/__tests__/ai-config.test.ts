@@ -240,6 +240,14 @@ describe("validateAIConfig", () => {
     const { validateAIConfig } = await importWithEnv();
     expect(validateAIConfig()).toEqual({ valid: true });
   });
+
+  it("accepts openai/openai-gpt-oss-120b model format", async () => {
+    process.env.AI_ANALYSIS_ENABLED = "true";
+    process.env.AI_API_KEY = "sk-test-key-12345";
+    process.env.AI_MODEL = "openai/openai-gpt-oss-120b";
+    const { validateAIConfig } = await importWithEnv();
+    expect(validateAIConfig()).toEqual({ valid: true });
+  });
 });
 
 describe("validateResumeAIConfig", () => {
