@@ -31,7 +31,7 @@ import {
   ClearMatchesResponseSchema,
 } from "../schemas/index.js";
 import { resolveResumeId } from "../services/resume-id.js";
-import { callConvexQuery, isConvexPaginatedQueryPage } from "../services/convex-utils.js";
+import { callConvexAction, callConvexQuery, isConvexPaginatedQueryPage } from "../services/convex-utils.js";
 import {
   formatKeywordQuery,
   parseKeywordQuery,
@@ -842,6 +842,9 @@ app.openapi(getResumesRoute, (c) => {
     sortOrder,
     sessionId,
     jobDescriptionId,
+    enableSemantic,
+    semanticWeight,
+    semanticLimit,
   } = c.req.valid("query");
   const sampleName = sample?.trim() || undefined;
   const keyword = q?.trim() || undefined;
@@ -914,26 +917,100 @@ app.openapi(getResumesRoute, (c) => {
         let totalCount: number | undefined;
         let matchMap: Map<string, ResumeMatchContext> | null = null;
         let usedServerSideFilters = false;
+        let hybridSearchMode: "bm25" | "bm25_fallback" | "bm25_only_no_vectors" | "hybrid" | undefined;
 
-        if (canUseMatchStoragePagination && resolvedJobId) {
-          const matchPage = matchStorage.getMatchesPageForJob({
-            jobDescriptionId: resolvedJobId,
-            offset,
-            limit,
-            minScore: minMatchScore,
-            recommendation: normalizedRecommendations,
-            sortOrder: matchSortOrder,
-          });
-          const pagedResumeIds = matchPage.matches.map((match) => match.resumeId);
-          matchMap = new Map(matchPage.matches.map((match) => [match.resumeId, match]));
-          totalCount = matchPage.total;
-          if (pagedResumeIds.length > 0) {
-            prepared = (await prepareConvexCandidates({
-              resumeIds: pagedResumeIds,
-              resumeService,
-            })).prepared;
+        // Hybrid search path: when enableSemantic=true and there's a keyword query,
+        // call hybridSearchResumes which does BM25 + vector + RRF merge in Convex.
+        if (enableSemantic && keyword) {
+          try {
+            const hybridResult = await callConvexAction("embeddings:hybridSearchResumes", {
+              query: keyword,
+              keywordGroups: keywordExpansion?.groups ?? [],
+              sourceMappings: Object.entries(keywordExpansion?.sourceMapping ?? {}).map(([term, expandedFrom]) => ({
+                term,
+                expandedFrom,
+              })),
+              minExperience,
+              maxExperience,
+              minRoleYears,
+              roleFilterType,
+              minAge,
+              maxAge,
+              education,
+              skills,
+              requiredKeywords: normalizedRequiredKeywords,
+              locations,
+              minSalary,
+              maxSalary,
+              sources,
+              jobDescriptionId: resolvedJobId,
+              sortBy: sortBy === "score" ? undefined : sortBy,
+              sortOrder,
+              semanticWeight,
+              semanticLimit,
+              enableSemantic: true,
+            }) as Record<string, unknown>;
+
+            hybridSearchMode = (typeof hybridResult.searchMode === "string" ? hybridResult.searchMode : undefined) as typeof hybridSearchMode;
+
+            if (isRecord(hybridResult) && Array.isArray(hybridResult.results)) {
+              const hybridResults = hybridResult.results as Array<Record<string, unknown>>;
+              const hybridExpansion = isRecord(hybridResult.expansion) ? hybridResult.expansion : null;
+
+              prepared = hybridResults.map((entry) => {
+                const resumeRecord = isRecord(entry.resume) ? entry.resume : {};
+                const resume = toResumeItemFromRecord(resumeRecord);
+                const resumeId = toStringValue(resumeRecord._id) ?? resolveResumeId(resume, 0);
+                return prepareResumeCandidate({
+                  resume,
+                  resumeId,
+                  ingestData: isRecord(resumeRecord) ? resumeRecord.ingestData : undefined,
+                });
+              });
+
+              if (hybridExpansion && Array.isArray(hybridExpansion.groups)) {
+                liveExpansion = {
+                  flatTerms: (hybridExpansion.expanded as string[]) ?? [],
+                  groups: (hybridExpansion.groups as Array<{ original: string; variants: string[] }>) ?? [],
+                  mode: "AND" as const,
+                  originalKeyword: keyword,
+                  sourceMapping: keywordExpansion?.sourceMapping ?? {},
+                };
+              }
+
+              totalCount = typeof hybridResult.total === "number" ? hybridResult.total : prepared.length;
+              usedServerSideFilters = true;
+            }
+          } catch (err) {
+            console.error("Hybrid search failed, falling back to BM25-only:", err);
+            hybridSearchMode = "bm25_fallback";
+            // Fall through to existing BM25 paths below
+            prepared = [];
+            totalCount = undefined;
+            usedServerSideFilters = false;
           }
-        } else if (canUseFilteredMatchStoragePagination && resolvedJobId) {
+        }
+
+        if (prepared.length === 0 && !hybridSearchMode) {
+          if (canUseMatchStoragePagination && resolvedJobId) {
+            const matchPage = matchStorage.getMatchesPageForJob({
+              jobDescriptionId: resolvedJobId,
+              offset,
+              limit,
+              minScore: minMatchScore,
+              recommendation: normalizedRecommendations,
+              sortOrder: matchSortOrder,
+            });
+            const pagedResumeIds = matchPage.matches.map((match) => match.resumeId);
+            matchMap = new Map(matchPage.matches.map((match) => [match.resumeId, match]));
+            totalCount = matchPage.total;
+            if (pagedResumeIds.length > 0) {
+              prepared = (await prepareConvexCandidates({
+                resumeIds: pagedResumeIds,
+                resumeService,
+              })).prepared;
+            }
+          } else if (canUseFilteredMatchStoragePagination && resolvedJobId) {
           const filteredMatchPage = await prepareFilteredMatchStoragePage({
             jobDescriptionId: resolvedJobId,
             offset,
@@ -988,6 +1065,7 @@ app.openapi(getResumesRoute, (c) => {
           totalCount = preparedResult.total;
           usedServerSideFilters = preparedResult.usedServerSideFilters ?? false;
         }
+        } // end if (prepared.length === 0 && !hybridSearchMode)
 
         // When the cursor scan path already applied filters server-side via
         // Convex's matchesResumeListFilters, skip redundant local filtering
@@ -1085,6 +1163,7 @@ app.openapi(getResumesRoute, (c) => {
             query: keyword,
             source,
             ...buildKeywordExpansionSummary(liveExpansion ?? keywordExpansion),
+            searchMode: hybridSearchMode,
           },
           data: limited,
         }, 200);
