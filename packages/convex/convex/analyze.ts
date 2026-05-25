@@ -27,7 +27,6 @@ import {
     normalizeSummaryConsistency,
     normalizeAnalysisResult,
     parseRoleSignals,
-    INDUSTRY_DB_SCORE_CAP,
 } from "./lib/analysis_normalization.js";
 import {
     isEnglishResumeAiLocale,
