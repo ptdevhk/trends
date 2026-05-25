@@ -43,6 +43,11 @@ const LazySummaryRunsPage = lazy(async () => {
 
 const LazySearchAnalyticsPage = lazy(() => import('@/pages/SearchAnalyticsPage'))
 
+const LazyAuditCompliancePage = lazy(async () => {
+  const module = await import('@/pages/AuditCompliancePage')
+  return { default: module.AuditCompliancePage }
+})
+
 const LazySystemSettingsConfigSourcesPage = lazy(async () => {
   const module = await import('@/pages/system-settings/SystemSettingsConfigSourcesPage')
   return { default: module.SystemSettingsConfigSourcesPage }
@@ -287,6 +292,14 @@ function App() {
                 element={(
                   <RouteSuspense>
                     <LazySearchAnalyticsPage />
+                  </RouteSuspense>
+                )}
+              />
+              <Route
+                path="audit-compliance"
+                element={(
+                  <RouteSuspense>
+                    <LazyAuditCompliancePage />
                   </RouteSuspense>
                 )}
               />

@@ -282,6 +282,13 @@ export const SYSTEM_NAV_ITEMS: SurfaceNavDefinition[] = [
     hrefSuffix: "/system/archived",
     matchesSuffixes: ["/system/archived"],
   },
+  {
+    id: "audit-compliance",
+    titleKey: "nav.auditCompliance",
+    defaultTitle: "Audit & Compliance",
+    hrefSuffix: "/system/audit-compliance",
+    matchesSuffixes: ["/system/audit-compliance"],
+  },
 ];
 
 export const SETTINGS_NAV_ITEMS: SurfaceNavDefinition[] = [

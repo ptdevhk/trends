@@ -16,7 +16,8 @@
     "jds": "JDs",
     "archived": "Archived",
     "aiTaggingCompare": "AI Tagging (Compare)",
-    "dataInspector": "Data Inspector"
+    "dataInspector": "Data Inspector",
+    "auditCompliance": "Audit & Compliance"
   },
   "common": {
     "loading": "Loading",
@@ -1332,5 +1333,55 @@
     "feedbackImportSuccess": "Imported {{count}} reviewed rows",
     "summaryCardDescription": "Generate the WeChat summary preview, then send it with the configured template and optional webhook override.",
     "webhookUrlPlaceholder": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=***"
+  },
+  "auditCompliance": {
+    "title": "Audit & Compliance",
+    "description": "EU AI Act compliance dashboard — audit trail, human oversight, and bias monitoring.",
+    "pendingBadge": "{{count}} pending review",
+    "anomalyBadge": "{{count}} anomaly flags",
+    "biasReport": {
+      "title": "Bias Audit Report",
+      "description": "Latest bias metrics report (EU AI Act Art. 12 — monitoring and documentation).",
+      "workspace": "Workspace",
+      "generatedAt": "Generated At",
+      "anomalyDetected": "Anomaly Detected",
+      "noReport": "No bias audit report available yet."
+    },
+    "auditLog": {
+      "title": "Decision Audit Log",
+      "description": "All automated decisions with human oversight tracking (EU AI Act Art. 14).",
+      "empty": "No audit log entries found."
+    },
+    "filters": {
+      "decisionType": "Decision Type",
+      "outcome": "Outcome",
+      "all": "All"
+    },
+    "columns": {
+      "time": "Time",
+      "type": "Type",
+      "action": "Action",
+      "model": "Model",
+      "output": "Output",
+      "outcome": "Outcome",
+      "actor": "Actor",
+      "anomaly": "Anomaly",
+      "actions": "Actions"
+    },
+    "actions": {
+      "review": "Review"
+    },
+    "setOutcome": {
+      "title": "Set Audit Outcome",
+      "description": "Set the human oversight outcome for this automated decision (EU AI Act Art. 14).",
+      "decisionType": "Decision Type",
+      "score": "Score",
+      "recommendation": "Recommendation",
+      "confirm": "Set Outcome"
+    },
+    "toasts": {
+      "outcomeSet": "Audit outcome updated",
+      "outcomeFailed": "Failed to update audit outcome"
+    }
   }
 }

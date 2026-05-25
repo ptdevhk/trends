@@ -14,6 +14,7 @@ import {
   Database,
   BarChart3,
   Archive,
+  ShieldCheck,
   X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -41,6 +42,7 @@ const NAV_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   'search-analytics': BarChart3,
   'data-inspector': LayoutDashboard,
   archived: Archive,
+  'audit-compliance': ShieldCheck,
 }
 
 interface SystemSidebarProps {
