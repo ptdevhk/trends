@@ -40,18 +40,13 @@ import {
     matchesAllTokens,
 } from "./resume_helpers.js";
 import {
-    resolveDiagnosticsSourceKeyForResume,
     matchesDiagnosticsSourceKeys,
     buildDiagnosticsSourceFacetRows,
     projectIngestDiagnosticsRow,
     normalizeDiagnosticsSourceFilterValues,
     MAX_INGEST_DIAGNOSTICS_PAGE_SIZE,
-    MAX_INGEST_DIAGNOSTICS_TAGGING_ENTRIES,
     DIAGNOSTICS_SOURCE_FILTER_BATCH_MULTIPLIER,
-    type IngestDiagnosticsBrandHit,
-    type IngestDiagnosticsTaggingEntry,
     type IngestDiagnosticsRow,
-    type DiagnosticsSourceFacetRow,
 } from "./lib/resumes_diagnostics.js";
 import {
     normalizeTagExpansionKeywordGroups,
@@ -62,7 +57,6 @@ import {
     matchesTagExpansionSearchText,
     collectSearchTextProvenance,
     type TagExpansionKeywordGroup,
-    type MatchSource,
     type SearchProvenance,
 } from "./lib/resumes_tag_expansion.js";
 

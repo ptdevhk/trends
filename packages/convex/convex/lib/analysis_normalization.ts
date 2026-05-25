@@ -6,7 +6,6 @@
  */
 import {
     isRecord,
-    sanitizeResumeRecordForSurface,
 } from "@trends/shared";
 
 // ---------------------------------------------------------------------------
