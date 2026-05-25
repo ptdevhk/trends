@@ -108,6 +108,21 @@ export const analysisResultValidator = v.object({
     analyzedAt: v.optional(v.number()),
 });
 
+// --- Resume analysis (resumes.analysis — summary/highlights required) ---
+
+export const resumeAnalysisValidator = v.object({
+    score: v.number(),
+    summary: v.string(),
+    highlights: v.array(v.string()),
+    recommendation: v.string(),
+    breakdown: v.optional(v.record(v.string(), v.number())),
+    jobDescriptionId: v.optional(v.string()),
+    promptVersion: v.optional(v.number()),
+    locale: v.optional(v.string()),
+    queryLocation: v.optional(v.string()),
+    analyzedAt: v.optional(v.number()),
+});
+
 // --- ResumeFilters (screening_sessions.config.filters, search_history.filters) ---
 
 export const resumeFiltersValidator = v.optional(v.object({
