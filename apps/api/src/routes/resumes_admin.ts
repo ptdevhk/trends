@@ -348,4 +348,22 @@ app.get("/api/resumes/bias-report", requireAdmin, async (c) => {
   }
 });
 
+// Bias audit anomaly alerts — fetch active alerts for workspace (EU AI Act Art. 12)
+app.get("/api/resumes/anomaly-alerts", requireAdmin, async (c) => {
+  const workspaceSlug = c.req.query("workspaceSlug");
+
+  if (!workspaceSlug) {
+    return c.json({ success: false, error: "Missing required query param: workspaceSlug" }, 400);
+  }
+
+  try {
+    const alerts = await callConvexQuery("bias_audit:getAnomalyAlerts", { workspaceSlug });
+    return c.json({ success: true, alerts }, 200);
+  } catch (error) {
+    logger.error("Failed to fetch anomaly alerts", error, { route: "resumes_admin" });
+    const message = error instanceof Error ? error.message : String(error);
+    return c.json({ success: false, error: message }, 500);
+  }
+});
+
 export default app;

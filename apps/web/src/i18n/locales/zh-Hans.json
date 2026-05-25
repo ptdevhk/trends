@@ -1372,6 +1372,7 @@
       "workspace": "工作区",
       "generatedAt": "生成时间",
       "anomalyDetected": "是否检测到异常",
+      "activeAlerts": "活跃异常警报",
       "noReport": "暂无偏差审计报告。"
     },
     "auditLog": {

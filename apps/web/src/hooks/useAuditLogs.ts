@@ -156,8 +156,23 @@ export function useAuditLogs(workspaceSlug: string, enabled: boolean = true) {
   }
 }
 
+export type AnomalyAlert = {
+  workspaceSlug: string
+  flags: string[]
+  psiValue: number | null
+  disparityRatio: number | null
+  alertedAt: number
+}
+
+type AnomalyAlertsResponse = {
+  success: boolean
+  alerts?: AnomalyAlert | null
+  error?: string
+}
+
 export function useBiasReport(workspaceSlug: string, enabled: boolean = true) {
   const [report, setReport] = useState<BiasReportData | null>(null)
+  const [anomalyAlerts, setAnomalyAlerts] = useState<AnomalyAlert | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -169,18 +184,26 @@ export function useBiasReport(workspaceSlug: string, enabled: boolean = true) {
     }
     setLoading(true)
     setError(null)
-    const { data, error: apiError } = await rawApiClient.GET<BiasReportResponse>(
-      '/api/resumes/bias-report',
-      { params: { query: { workspaceSlug } } },
-    )
 
-    if (apiError || !data?.success) {
-      setError(data?.error ?? 'Failed to load bias report')
+    const [reportResult, alertsResult] = await Promise.all([
+      rawApiClient.GET<BiasReportResponse>(
+        '/api/resumes/bias-report',
+        { params: { query: { workspaceSlug } } },
+      ),
+      rawApiClient.GET<AnomalyAlertsResponse>(
+        '/api/resumes/anomaly-alerts',
+        { params: { query: { workspaceSlug } } },
+      ),
+    ])
+
+    if (reportResult.error || !reportResult.data?.success) {
+      setError(reportResult.data?.error ?? 'Failed to load bias report')
       setLoading(false)
       return
     }
 
-    setReport(data.report ?? null)
+    setReport(reportResult.data.report ?? null)
+    setAnomalyAlerts(alertsResult.data?.alerts ?? null)
     setLoading(false)
   }, [enabled, workspaceSlug])
 
@@ -194,6 +217,7 @@ export function useBiasReport(workspaceSlug: string, enabled: boolean = true) {
 
   return {
     report,
+    anomalyAlerts,
     loading,
     error,
     reload: load,
