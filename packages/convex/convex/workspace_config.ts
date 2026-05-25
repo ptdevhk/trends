@@ -16,11 +16,23 @@ export const get = query({
     },
 });
 
+/**
+ * Validator for workspace config values. Accepts any JSON-compatible value
+ * except null: string, number, boolean, array, or record.
+ */
+const configValueValidator = v.union(
+    v.string(),
+    v.number(),
+    v.boolean(),
+    v.array(v.any()),
+    v.record(v.string(), v.any()),
+);
+
 export const upsert = mutation({
     args: {
         workspaceSlug: v.string(),
         configKey: v.string(),
-        configValue: v.any(),
+        configValue: configValueValidator,
     },
     handler: async (ctx, args) => {
         const existing = await ctx.db
