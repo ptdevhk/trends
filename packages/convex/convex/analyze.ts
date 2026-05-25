@@ -625,7 +625,7 @@ export const analyzeResume = action({
             title: v.string(),
             requirements: v.string(),
         })),
-        matchingRules: v.optional(v.any()), // New unified config
+        matchingRules: v.optional(v.union(v.string(), v.record(v.string(), v.any()), v.array(v.any()))),
         jobDescriptionId: v.optional(v.string()), // Added ID
         keywords: v.optional(v.array(v.string())),
     },
@@ -754,7 +754,7 @@ export const analyzeBatch = action({
             title: v.string(),
             requirements: v.string(),
         })),
-        matchingRules: v.optional(v.any()),
+        matchingRules: v.optional(v.union(v.string(), v.record(v.string(), v.any()), v.array(v.any()))),
         jobDescriptionId: v.optional(v.string()),
         keywords: v.optional(v.array(v.string())),
     },
