@@ -28,18 +28,11 @@ import {
     normalizeAnalysisResult,
     parseRoleSignals,
     INDUSTRY_DB_SCORE_CAP,
-    RELATED_EXP_WEIGHT,
-    type AnalysisRecommendation,
-    type KeyFactor,
-    type NormalizedMatchedWorkEntry,
-    type NormalizedRoleSignal,
 } from "./lib/analysis_normalization.js";
 import {
     isEnglishResumeAiLocale,
     formatRoleSignals,
     hydrateUserPrompt,
-    buildKeywordRequirements,
-    buildKeywordMatchingRules,
     buildConfirmPrompt,
 } from "./lib/analysis_prompts.js";
 import {
@@ -51,8 +44,6 @@ import {
     getAiApiBase,
     getAiModel,
     getAiTemperature,
-    SYSTEM_PROMPT,
-    USER_PROMPT_TEMPLATE,
     type ChatMessage,
 } from "./lib/analysis_config.js";
 import { matchingRulesValidator } from "./validators.js";
