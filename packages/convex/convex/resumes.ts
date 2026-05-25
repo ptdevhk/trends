@@ -29,74 +29,32 @@ import {
 import { parseAgeFromContent } from "./lib/age";
 import { deriveResumeIdentity } from "./lib/resume_identity";
 import { buildSearchText, mergeSearchTextWithIngestData } from "./search_text";
+import {
+    toStringValue,
+    toOptionalStringValue,
+    hasNonEmptyArray,
+    readRecordArray,
+    hasResumeFieldValue,
+    hasWorkHistoryDescriptionEntries,
+    toRuleScores,
+    resolveRuleScoreLookupKeys,
+    splitQueryTokens,
+    matchesAllTokens,
+} from "./resume_helpers.js";
 
-
-function toStringValue(value: unknown): string {
-    if (typeof value === "string") {
-        return value.trim();
-    }
-    if (value === null || value === undefined) {
-        return "";
-    }
-    return String(value).trim();
-}
-
-function toOptionalStringValue(value: unknown): string | undefined {
-    const normalized = toStringValue(value);
-    return normalized.length > 0 ? normalized : undefined;
-}
-
-function hasNonEmptyArray(value: unknown): boolean {
-    return Array.isArray(value) && value.length > 0;
-}
-
-function readRecordArray(value: unknown): Record<string, unknown>[] {
-    if (!Array.isArray(value)) {
-        return [];
-    }
-    return value.filter(isRecord);
-}
-
-function hasResumeFieldValue(content: Record<string, unknown>, keys: string[]): boolean {
-    return keys.some((key) => Boolean(toOptionalStringValue(content[key])));
-}
-
-function hasWorkHistoryDescriptionEntries(value: unknown): boolean {
-    return readRecordArray(value).some((entry) => Boolean(toOptionalStringValue(entry.description)));
-}
-
-function toRuleScores(value: unknown): Record<string, number> {
-    if (!isRecord(value)) {
-        return {};
-    }
-
-    const scores: Record<string, number> = {};
-    for (const [key, rawScore] of Object.entries(value)) {
-        if (typeof rawScore === "number" && Number.isFinite(rawScore)) {
-            scores[key] = rawScore;
-        }
-    }
-    return scores;
-}
-
-function resolveRuleScoreLookupKeys(jobDescriptionId: string | undefined): string[] {
-    const normalized = toOptionalStringValue(jobDescriptionId);
-    if (!normalized) {
-        return [];
-    }
-
-    const keys = new Set<string>([normalized]);
-    if (normalized.startsWith("jd-")) {
-        const legacySlug = normalized.slice(3).trim();
-        if (legacySlug) {
-            keys.add(legacySlug);
-        }
-    } else {
-        keys.add(`jd-${normalized}`);
-    }
-
-    return Array.from(keys);
-}
+// Re-export for backward compatibility
+export {
+    toStringValue,
+    toOptionalStringValue,
+    hasNonEmptyArray,
+    readRecordArray,
+    hasResumeFieldValue,
+    hasWorkHistoryDescriptionEntries,
+    toRuleScores,
+    resolveRuleScoreLookupKeys,
+    splitQueryTokens,
+    matchesAllTokens,
+} from "./resume_helpers.js";
 
 function getIngestRuleScore(resume: Doc<"resumes">, jobDescriptionId: string | undefined): number {
     const ruleScores = toRuleScores(resume.ingestData?.ruleScores);
@@ -124,22 +82,6 @@ function sortByIngestRuleScore(
         }
         return right.crawledAt - left.crawledAt;
     });
-}
-
-function splitQueryTokens(query: string): string[] {
-    return query
-        .trim()
-        .toLowerCase()
-        .split(/\s+/)
-        .filter((token) => token.length >= 1);
-}
-
-function matchesAllTokens(searchText: string | undefined, tokens: string[]): boolean {
-    if (tokens.length <= 1) {
-        return true;
-    }
-    const normalizedText = (searchText || "").toLowerCase();
-    return tokens.every((token) => normalizedText.includes(token));
 }
 
 type TagExpansionKeywordGroup = {
