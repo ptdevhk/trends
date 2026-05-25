@@ -4,14 +4,14 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { BrowserRouter } from 'react-router-dom'
 
 const enqueueBatchMock = vi.hoisted(() => vi.fn())
-const useQueryMock = vi.hoisted(() => vi.fn())
+const queryMock = vi.hoisted(() => vi.fn())
 const useConvexResumesMock = vi.hoisted(() => vi.fn())
 
 vi.mock('convex/react', () => ({
   useMutation: () => enqueueBatchMock,
   useQuery: (ref: string, args: unknown) => {
     if (args === 'skip') return undefined
-    return useQueryMock(ref, args)
+    return queryMock(ref, args)
   },
 }))
 
@@ -141,7 +141,7 @@ describe('DebugAiTaggingResults', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     useConvexResumesMock.mockReturnValue({ resumes: mockResumes, loading: false })
-    useQueryMock.mockImplementation((ref: string) => {
+    queryMock.mockImplementation((ref: string) => {
       if (ref === 'ai:summary') return mockSummary
       if (ref === 'ai:compare') return mockCompareRows
       return undefined
@@ -267,7 +267,7 @@ describe('DebugAiTaggingResults', () => {
   })
 
   it('shows loading state for results', async () => {
-    useQueryMock.mockImplementation((ref: string) => {
+    queryMock.mockImplementation((ref: string) => {
       if (ref === 'ai:summary') return mockSummary
       if (ref === 'ai:compare') return undefined // Loading
       return undefined
@@ -285,7 +285,7 @@ describe('DebugAiTaggingResults', () => {
   })
 
   it('shows no results message', async () => {
-    useQueryMock.mockImplementation((ref: string) => {
+    queryMock.mockImplementation((ref: string) => {
       if (ref === 'ai:summary') return mockSummary
       if (ref === 'ai:compare') return []
       return undefined
