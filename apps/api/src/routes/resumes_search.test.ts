@@ -55,3 +55,61 @@ describe("resumes_search", () => {
     });
   });
 });
+
+describe("ResumesQuerySchema semantic search params", () => {
+  it("accepts enableSemantic parameter", async () => {
+    vi.spyOn(ResumeService.prototype, "loadSample").mockReturnValue({
+      items: [],
+      sample: undefined,
+      metadata: undefined,
+      indexes: [],
+    });
+
+    const app = createTestApp();
+    const response = await app.request("/api/resumes?enableSemantic=true");
+
+    expect(response.status).toBe(200);
+  });
+
+  it("accepts semanticWeight parameter", async () => {
+    vi.spyOn(ResumeService.prototype, "loadSample").mockReturnValue({
+      items: [],
+      sample: undefined,
+      metadata: undefined,
+      indexes: [],
+    });
+
+    const app = createTestApp();
+    const response = await app.request("/api/resumes?semanticWeight=0.7");
+
+    expect(response.status).toBe(200);
+  });
+
+  it("accepts semanticLimit parameter", async () => {
+    vi.spyOn(ResumeService.prototype, "loadSample").mockReturnValue({
+      items: [],
+      sample: undefined,
+      metadata: undefined,
+      indexes: [],
+    });
+
+    const app = createTestApp();
+    const response = await app.request("/api/resumes?semanticLimit=100");
+
+    expect(response.status).toBe(200);
+  });
+
+  it("rejects semanticWeight outside 0-1 range", async () => {
+    const app = createTestApp();
+    const response = await app.request("/api/resumes?semanticWeight=2.0");
+
+    expect(response.status).toBe(400);
+  });
+
+  it("rejects semanticLimit above 256", async () => {
+    const app = createTestApp();
+    const response = await app.request("/api/resumes?semanticLimit=500");
+
+    expect(response.status).toBe(400);
+  });
+});

@@ -1690,6 +1690,9 @@ export interface paths {
                     maxAge?: string;
                     sources?: string | string[];
                     recommendation?: string | string[];
+                    enableSemantic?: "true" | "false";
+                    semanticWeight?: number | null;
+                    semanticLimit?: string;
                 };
                 header?: never;
                 path?: never;
@@ -8172,6 +8175,8 @@ export interface components {
                 sourceMapping?: {
                     [key: string]: string;
                 };
+                /** @enum {string} */
+                searchMode?: "bm25" | "bm25_fallback" | "bm25_only_no_vectors" | "hybrid";
             };
             data: components["schemas"]["ResumeItem"][];
         };

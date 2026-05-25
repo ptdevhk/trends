@@ -6,6 +6,7 @@ describe("resolveChatCompletionModel", () => {
     it("strips provider prefixes for all API bases", () => {
         expect(resolveChatCompletionModel("https://api.openai.com/v1", "openai/gpt-5.3-instant")).toBe("gpt-5.3-instant");
         expect(resolveChatCompletionModel("https://new-api.example.com", "openai/kimi-k2.5")).toBe("kimi-k2.5");
+        expect(resolveChatCompletionModel("https://api.openai.com/v1", "openai/openai-gpt-oss-120b")).toBe("openai-gpt-oss-120b");
     });
 
     it("leaves model identifiers without a prefix unchanged", () => {

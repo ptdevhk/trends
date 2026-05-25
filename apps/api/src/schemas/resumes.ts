@@ -596,6 +596,26 @@ export const ResumesQuerySchema = z.object({
     param: { name: "recommendation", in: "query" },
     example: "strong_match,match",
   }),
+  // Semantic search parameters
+  enableSemantic: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((value) => value === "true")
+    .openapi({
+      param: { name: "enableSemantic", in: "query" },
+      example: "true",
+    }),
+  semanticWeight: z
+    .coerce
+    .number()
+    .min(0)
+    .max(1)
+    .optional()
+    .openapi({
+      param: { name: "semanticWeight", in: "query" },
+      example: "0.5",
+    }),
+  semanticLimit: OptionalIntParam({ name: "semanticLimit", max: 256, example: "50" }),
 });
 
 const KeywordGroupSchema = z.object({
@@ -618,6 +638,7 @@ export const ResumesResponseSchema = z
         mode: z.enum(["AND", "OR"]).optional(),
         keywordGroups: z.array(KeywordGroupSchema).optional(),
         sourceMapping: z.record(z.string(), z.string()).optional(),
+        searchMode: z.enum(["bm25", "bm25_fallback", "bm25_only_no_vectors", "hybrid"]).optional(),
       })
       .optional(),
     data: z.array(ResumeItemSchema),
