@@ -5,8 +5,8 @@
   trWindow.__trResumeHookInstalled = true;
   try {
     document.documentElement?.setAttribute("data-tr-page-hook", "true");
-  } catch {
-    // ignore
+  } catch (e) {
+    console.warn("[tr-page-hook] setAttribute failed", e?.message || e);
   }
 
   const SOURCE = "tr-resume-api";
@@ -134,8 +134,8 @@
         ) {
           return { kind: "job51search", sourceKey: "51job" };
         }
-      } catch {
-        // ignore
+      } catch (e) {
+        console.warn("[tr-page-hook] URL parse failed for classify", e?.message || e);
       }
     }
     if (url.includes("/graphql")) {
@@ -202,7 +202,8 @@
       const raw =
         typeof input === "string" ? input : (input && input.url) || "";
       return raw ? new URL(raw, window.location.href).href : "";
-    } catch {
+    } catch (e) {
+      console.warn("[tr-page-hook] normalizeUrl failed", e?.message || e);
       return "";
     }
   };
@@ -214,6 +215,7 @@
     try {
       return JSON.parse(value);
     } catch {
+      // non-JSON string — expected for many XHR bodies
       return null;
     }
   };
@@ -226,7 +228,8 @@
     if (typeof Request !== "undefined" && input instanceof Request) {
       try {
         return parseJsonString(await input.clone().text());
-      } catch {
+      } catch (e) {
+        console.warn("[tr-page-hook] parseRequestBody clone failed", e?.message || e);
         return null;
       }
     }
@@ -236,8 +239,8 @@
   const post = (message) => {
     try {
       window.postMessage({ source: SOURCE, ...message }, "*");
-    } catch {
-      // ignore
+    } catch (e) {
+      console.warn("[tr-page-hook] postMessage failed", e?.message || e);
     }
   };
 
@@ -379,7 +382,8 @@
     if (!raw) return null;
     try {
       return JSON.parse(raw);
-    } catch {
+    } catch (e) {
+      console.warn("[tr-page-hook] bridge response parse failed", e?.message || e);
       return null;
     }
   };
@@ -577,7 +581,8 @@
       status: () => {
         try {
           return requestContentScriptSync("status");
-        } catch {
+        } catch (e) {
+          console.warn("[tr-page-hook] status() fell back to buildFallbackStatus", e?.message || e);
           return buildFallbackStatus();
         }
       },
@@ -596,6 +601,7 @@
             "page-bridge"
           );
         } catch {
+          // bridge unavailable — expected when content script hasn't loaded yet
           return "page-bridge";
         }
       },
@@ -631,10 +637,10 @@
                   .clone()
                   .json()
                   .then((data) => capture(classification, requestUrl, data, requestHeaders, requestBody))
-                  .catch(() => {});
+                  .catch((e) => { console.warn("[tr-page-hook] fetch response.json() failed", e?.message || e); });
               }
-            } catch {
-              // ignore
+            } catch (e) {
+              console.warn("[tr-page-hook] fetch capture failed", e?.message || e);
             }
             return res;
           });
@@ -724,8 +730,8 @@
         }
         if (!data) return;
         capture(classification, url, data, request.__tr_requestHeaders, request.__tr_body);
-      } catch {
-        // ignore
+      } catch (e) {
+        console.warn("[tr-page-hook] XHR load capture failed", e?.message || e);
       }
     });
     return originalSend.apply(this, args);
