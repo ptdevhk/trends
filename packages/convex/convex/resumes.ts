@@ -7,24 +7,12 @@ import { ingestDataValidator } from "./validators.js";
 
 import {
     buildResumeAnalysisStorageKey,
-    buildWorkHistoryEntryText,
     computeVerifiedRoleYears,
-    computeExperienceFromWorkHistory,
-    formatLocationHierarchySearchText,
-    getVerifiedRoleSignalYears,
     isResumeAnalysisKeyForJobDescription,
-    isLocationMatch,
     KNOWN_DIAGNOSTICS_SOURCE_KEYS,
-    normalizeKeywordPhrases,
-    normalizeEducationLevel,
-    resolveExperienceYears,
-    normalizeResumeLocationHierarchy,
     resolveResumeAnalysisSourceKey,
-    selectLatestWorkHistory,
     isRecord,
-    parseSalaryRange,
 } from "@trends/shared";
-import { parseAgeFromContent } from "./lib/age";
 import { deriveResumeIdentity } from "./lib/resume_identity";
 import { buildSearchText, mergeSearchTextWithIngestData } from "./search_text";
 import {
@@ -34,8 +22,6 @@ import {
     readRecordArray,
     hasResumeFieldValue,
     hasWorkHistoryDescriptionEntries,
-    toRuleScores,
-    resolveRuleScoreLookupKeys,
     splitQueryTokens,
     matchesAllTokens,
 } from "./resume_helpers.js";
@@ -59,6 +45,24 @@ import {
     type TagExpansionKeywordGroup,
     type SearchProvenance,
 } from "./lib/resumes_tag_expansion.js";
+import {
+    projectResumeListDoc,
+    projectResumeDetailDoc,
+    normalizeResumeListFilters,
+    matchesResumeListFilters,
+    sortResumeDocs,
+    compareResumeListSort,
+    resolveResumeListSortOrder,
+    getIngestRuleScore,
+    sortByIngestRuleScore,
+} from "./lib/resumes_list_projections.js";
+import type {
+    ResumeListProjectedDoc,
+    ResumeListPageArgs,
+    SearchWithTagExpansionPageArgs,
+    SearchWithTagExpansionScanPageArgs,
+    DeleteResumesResult,
+} from "./lib/resumes_list_projections.js";
 
 // Re-export for backward compatibility
 export {
@@ -100,33 +104,36 @@ export type {
     SearchProvenance,
 } from "./lib/resumes_tag_expansion.js";
 
-function getIngestRuleScore(resume: Doc<"resumes">, jobDescriptionId: string | undefined): number {
-    const ruleScores = toRuleScores(resume.ingestData?.ruleScores);
-    for (const key of resolveRuleScoreLookupKeys(jobDescriptionId)) {
-        const score = ruleScores[key];
-        if (typeof score === "number" && Number.isFinite(score)) {
-            return score;
-        }
-    }
-    return 0;
-}
-
-function sortByIngestRuleScore(
-    resumes: Doc<"resumes">[],
-    jobDescriptionId: string | undefined
-): Doc<"resumes">[] {
-    if (!jobDescriptionId) {
-        return resumes;
-    }
-
-    return [...resumes].sort((left, right) => {
-        const scoreDiff = getIngestRuleScore(right, jobDescriptionId) - getIngestRuleScore(left, jobDescriptionId);
-        if (scoreDiff !== 0) {
-            return scoreDiff;
-        }
-        return right.crawledAt - left.crawledAt;
-    });
-}
+// Re-export list projections for backward compatibility
+export {
+    projectResumeBaseContent,
+    projectResumeListWorkHistory,
+    projectResumeListContent,
+    projectResumeDetailContent,
+    projectResumeListIngestData,
+    projectResumeListDoc,
+    projectResumeDetailDoc,
+    normalizeResumeListFilters,
+    buildResumeFilterSearchText,
+    matchesAllRequiredKeywords,
+    hasMatchingRoleSignal,
+    getResumeRoleYears,
+    resolveResumeAge,
+    matchesResumeListFilters,
+    resolveResumeListSortOrder,
+    compareResumeListSort,
+    sortResumeDocs,
+} from "./lib/resumes_list_projections.js";
+export type {
+    ResumeListProjectedDoc,
+    ResumeListFilterArgs,
+    ResumeListSortBy,
+    ResumeListSortOrder,
+    ResumeListPageArgs,
+    SearchWithTagExpansionPageArgs,
+    SearchWithTagExpansionScanPageArgs,
+    DeleteResumesResult,
+} from "./lib/resumes_list_projections.js";
 
 export type ResumeScanRow = {
     _id: Doc<"resumes">["_id"];
@@ -187,127 +194,6 @@ type ResumeBackupFilterArgs = {
 type ResumeBackupFilterSets = {
     resumeIds?: Set<string>;
     sourceHosts?: Set<string>;
-};
-
-type ResumeListProjectedDoc = {
-    _id: Doc<"resumes">["_id"];
-    externalId: string;
-    identityKey?: string;
-    age?: number;
-    content: Record<string, unknown>;
-    crawledAt: number;
-    source: string;
-    tags: string[];
-    analysis?: Doc<"resumes">["analysis"];
-    analyses?: Doc<"resumes">["analyses"];
-    confirmedScore?: number;
-    confirmedAt?: number;
-    primaryRuleScore?: number;
-    isArchived?: boolean;
-    archivedAt?: number;
-    ingestData?: {
-        industryTags: string[];
-        synonymHits: string[];
-        evidenceText?: string;
-        brandHits?: Array<{
-            brand: string;
-            role: string;
-            source: string;
-            context: string;
-        }>;
-        companyHits?: string[];
-        industryDbV2Raw?: number;
-        roleSignals?: Array<{
-            type: string;
-            matchedSignals: string[];
-            signalCount: number;
-            occurrences: number;
-            years: number;
-            industryVerifiedYears?: number;
-            roleRelevantYears?: number;
-            industryVerifiedRelevantYears?: number;
-            matchedWorkEntries?: Array<{
-                companyName?: string;
-                jobTitle?: string;
-                years: number;
-                industryVerified: boolean;
-                matchedSignals: string[];
-                directRoleMatch?: boolean;
-            }>;
-            verifyIn: string;
-        }>;
-        ruleScores: unknown;
-        experienceLevel: string;
-        market?: string;
-        computedAt: number;
-        skillsVersion: number;
-    };
-};
-
-type ResumeListFilterArgs = {
-    minExperience?: number;
-    maxExperience?: number;
-    minRoleYears?: number;
-    roleFilterType?: string;
-    minAge?: number;
-    maxAge?: number;
-    education?: string[];
-    skills?: string[];
-    requiredKeywords?: string[];
-    locations?: string[];
-    minSalary?: number;
-    maxSalary?: number;
-    showArchived?: boolean;
-    sources?: string[];
-};
-
-type ResumeListSortBy = "name" | "experience" | "extractedAt";
-type ResumeListSortOrder = "asc" | "desc";
-
-type ResumeListPageArgs = ResumeListFilterArgs & {
-    limit?: number;
-    offset?: number;
-    jobDescriptionId?: string;
-    sortBy?: ResumeListSortBy;
-    sortOrder?: ResumeListSortOrder;
-};
-
-type SearchWithTagExpansionPageArgs = ResumeListPageArgs & {
-    query: string;
-    keywordGroups: Array<{
-        original: string;
-        variants: string[];
-    }>;
-    mode?: "AND" | "OR";
-    sourceMappings?: Array<{
-        term: string;
-        expandedFrom: string;
-    }>;
-};
-
-type SearchWithTagExpansionScanPageArgs = ResumeListFilterArgs & {
-    paginationOpts: {
-        cursor: string | null;
-        numItems: number;
-    };
-    query: string;
-    keywordGroups: Array<{
-        original: string;
-        variants: string[];
-    }>;
-    mode?: "AND" | "OR";
-    sourceMappings?: Array<{
-        term: string;
-        expandedFrom: string;
-    }>;
-};
-
-type DeleteResumesResult = {
-    requested: number;
-    deleted: number;
-    missingResumeIds: string[];
-    deletedAiTaggingResults: number;
-    patchedScreeningSessions: number;
 };
 
 const DEFAULT_RESUME_LIMIT = 50;
@@ -379,501 +265,6 @@ export function resolveSearchWithTagExpansionTakeLimit(params: {
         Math.max(overfetchLimit, requestedWindow, MAX_SAFE_JD_PAGINATE_SCAN),
         MAX_SAFE_SEARCH_TAKE_LIMIT,
     );
-}
-
-function projectResumeBaseContent(
-    resume: Doc<"resumes">,
-    workHistory: unknown,
-): Record<string, unknown> {
-    const content = isRecord(resume.content) ? resume.content : {};
-    const locationHierarchy = normalizeResumeLocationHierarchy(content, resume.source);
-    const name = toOptionalStringValue(content.name);
-    const profileUrl = toOptionalStringValue(content.profileUrl)
-        ?? toOptionalStringValue(content.profile_url)
-        ?? toOptionalStringValue(content.profileURL)
-        ?? toOptionalStringValue(content.url);
-    const activityStatus = toOptionalStringValue(content.activityStatus);
-    const age = toOptionalStringValue(content.age);
-    const experience = toOptionalStringValue(content.experience)
-        ?? (() => {
-            const years = computeExperienceFromWorkHistory(content.workHistory);
-            return years !== null ? `${years} years` : undefined;
-        })();
-    const education = toOptionalStringValue(content.education);
-    const location = toOptionalStringValue(content.location);
-    const selfIntro = toOptionalStringValue(content.selfIntro);
-    const jobIntention = toOptionalStringValue(content.jobIntention);
-    const expectedSalary = toOptionalStringValue(content.expectedSalary);
-    const extractedAt = toOptionalStringValue(content.extractedAt);
-    const resumeId = toOptionalStringValue(content.resumeId);
-    const perUserId = toOptionalStringValue(content.perUserId);
-    const profileId = toOptionalStringValue(content.profileId);
-    const profileType = toOptionalStringValue(content.profileType);
-
-    return {
-        ...(name ? { name } : {}),
-        ...(profileUrl ? { profileUrl } : {}),
-        ...(activityStatus ? { activityStatus } : {}),
-        ...(age ? { age } : {}),
-        ...(experience ? { experience } : {}),
-        ...(education ? { education } : {}),
-        ...(location ? { location } : {}),
-        ...(locationHierarchy ? { locationHierarchy } : {}),
-        ...(selfIntro ? { selfIntro } : {}),
-        ...(jobIntention ? { jobIntention } : {}),
-        ...(expectedSalary ? { expectedSalary } : {}),
-        ...(Array.isArray(workHistory) && workHistory.length > 0 ? { workHistory } : {}),
-        ...(extractedAt ? { extractedAt } : {}),
-        ...(resumeId ? { resumeId } : {}),
-        ...(perUserId ? { perUserId } : {}),
-        ...(profileId ? { profileId } : {}),
-        ...(profileType ? { profileType } : {}),
-        externalId: resume.externalId,
-    };
-}
-
-function projectResumeListWorkHistory(workHistory: unknown): Array<Record<string, string>> {
-    return selectLatestWorkHistory(workHistory).map((entry) => {
-        const projected = {
-            ...(entry.companyName ? { companyName: entry.companyName } : {}),
-            ...(entry.jobTitle ? { jobTitle: entry.jobTitle } : {}),
-            ...(entry.startDate ? { startDate: entry.startDate } : {}),
-            ...(entry.endDate ? { endDate: entry.endDate } : {}),
-        };
-
-        if (Object.keys(projected).length > 0) {
-            return projected;
-        }
-
-        return entry.raw ? { raw: entry.raw.slice(0, 160) } : {};
-    });
-}
-
-function projectResumeListContent(resume: Doc<"resumes">): Record<string, unknown> {
-    const content = isRecord(resume.content) ? resume.content : {};
-    return projectResumeBaseContent(resume, projectResumeListWorkHistory(content.workHistory));
-}
-
-function projectResumeDetailContent(resume: Doc<"resumes">): Record<string, unknown> {
-    const content = isRecord(resume.content) ? resume.content : {};
-    const workHistory = selectLatestWorkHistory(content.workHistory);
-    return projectResumeBaseContent(resume, workHistory);
-}
-
-function projectResumeListIngestData(
-    ingestData: Doc<"resumes">["ingestData"],
-): ResumeListProjectedDoc["ingestData"] {
-    if (!ingestData) {
-        return undefined;
-    }
-
-    return {
-        industryTags: ingestData.industryTags,
-        synonymHits: ingestData.synonymHits,
-        ...(ingestData.evidenceText === undefined ? {} : { evidenceText: ingestData.evidenceText }),
-        ...(ingestData.brandHits
-            ? {
-                brandHits: ingestData.brandHits.map((hit) => ({
-                    brand: hit.brand,
-                    role: hit.role,
-                    source: hit.source,
-                    context: hit.context,
-                })),
-            }
-            : {}),
-        ...(ingestData.companyHits ? { companyHits: ingestData.companyHits } : {}),
-        ...(ingestData.industryDbV2Raw === undefined ? {} : { industryDbV2Raw: ingestData.industryDbV2Raw }),
-        ...(ingestData.roleSignals
-            ? {
-                roleSignals: ingestData.roleSignals.map((signal) => ({
-                    type: signal.type,
-                    matchedSignals: signal.matchedSignals,
-                    signalCount: signal.signalCount,
-                    occurrences: signal.occurrences,
-                    years: signal.years,
-                    ...(signal.industryVerifiedYears === undefined ? {} : { industryVerifiedYears: signal.industryVerifiedYears }),
-                    ...(signal.roleRelevantYears === undefined ? {} : { roleRelevantYears: signal.roleRelevantYears }),
-                    ...(signal.industryVerifiedRelevantYears === undefined ? {} : { industryVerifiedRelevantYears: signal.industryVerifiedRelevantYears }),
-                    ...(signal.matchedWorkEntries
-                        ? {
-                            matchedWorkEntries: signal.matchedWorkEntries.map((entry) => ({
-                                ...(entry.companyName ? { companyName: entry.companyName } : {}),
-                                ...(entry.jobTitle ? { jobTitle: entry.jobTitle } : {}),
-                                years: entry.years,
-                                industryVerified: entry.industryVerified,
-                                matchedSignals: entry.matchedSignals,
-                                ...(typeof entry.directRoleMatch === "boolean"
-                                    ? { directRoleMatch: entry.directRoleMatch }
-                                    : {}),
-                            })),
-                        }
-                        : {}),
-                    verifyIn: signal.verifyIn,
-                })),
-            }
-            : {}),
-        ...(ingestData.verifiedRoleYears ? { verifiedRoleYears: ingestData.verifiedRoleYears } : {}),
-        ruleScores: ingestData.ruleScores,
-        experienceLevel: ingestData.experienceLevel,
-        ...(ingestData.market === undefined ? {} : { market: ingestData.market }),
-        computedAt: ingestData.computedAt,
-        skillsVersion: ingestData.skillsVersion,
-    };
-}
-
-function projectResumeListDoc(resume: Doc<"resumes">): ResumeListProjectedDoc {
-    return {
-        _id: resume._id,
-        externalId: resume.externalId,
-        ...(resume.identityKey ? { identityKey: resume.identityKey } : {}),
-        ...(resume.age === undefined ? {} : { age: resume.age }),
-        content: projectResumeListContent(resume),
-        crawledAt: resume.crawledAt,
-        source: resume.source,
-        tags: resume.tags,
-        ...(resume.analysis ? { analysis: resume.analysis } : {}),
-        ...(resume.analyses ? { analyses: resume.analyses } : {}),
-        ...(resume.confirmedScore === undefined ? {} : { confirmedScore: resume.confirmedScore }),
-        ...(resume.confirmedAt === undefined ? {} : { confirmedAt: resume.confirmedAt }),
-        ...(resume.primaryRuleScore === undefined ? {} : { primaryRuleScore: resume.primaryRuleScore }),
-        ...(resume.isArchived === true ? { isArchived: true, archivedAt: resume.archivedAt } : {}),
-        ...(resume.ingestData ? { ingestData: projectResumeListIngestData(resume.ingestData) } : {}),
-    };
-}
-
-function projectResumeDetailDoc(resume: Doc<"resumes">): ResumeListProjectedDoc {
-    return {
-        _id: resume._id,
-        externalId: resume.externalId,
-        ...(resume.identityKey ? { identityKey: resume.identityKey } : {}),
-        ...(resume.age === undefined ? {} : { age: resume.age }),
-        content: projectResumeDetailContent(resume),
-        crawledAt: resume.crawledAt,
-        source: resume.source,
-        tags: resume.tags,
-        ...(resume.analysis ? { analysis: resume.analysis } : {}),
-        ...(resume.analyses ? { analyses: resume.analyses } : {}),
-        ...(resume.confirmedScore === undefined ? {} : { confirmedScore: resume.confirmedScore }),
-        ...(resume.confirmedAt === undefined ? {} : { confirmedAt: resume.confirmedAt }),
-        ...(resume.primaryRuleScore === undefined ? {} : { primaryRuleScore: resume.primaryRuleScore }),
-        ...(resume.isArchived === true ? { isArchived: true, archivedAt: resume.archivedAt } : {}),
-        ...(resume.ingestData ? { ingestData: projectResumeListIngestData(resume.ingestData) } : {}),
-    };
-}
-
-function normalizeResumeListFilters(filters: ResumeListFilterArgs | undefined): ResumeListFilterArgs | undefined {
-    if (!filters) {
-        return undefined;
-    }
-
-    const education = filters.education?.map((value) => value.trim().toLowerCase()).filter((value) => value.length > 0);
-    const skills = filters.skills?.map((value) => value.trim().toLowerCase()).filter((value) => value.length > 0);
-    const requiredKeywords = normalizeKeywordPhrases(filters.requiredKeywords ?? [])
-        .map((value) => value.toLowerCase())
-        .filter((value) => value.length > 0);
-    const locations = filters.locations?.map((value) => value.trim()).filter((value) => value.length > 0);
-    const sources = filters.sources?.map((value) => value.trim().toLowerCase()).filter((value) => value.length > 0);
-    const roleFilterType = toOptionalStringValue(filters.roleFilterType)?.toLowerCase();
-    const minAge = typeof filters.minAge === "number" && Number.isFinite(filters.minAge) && filters.minAge > 0
-        ? Math.trunc(filters.minAge)
-        : undefined;
-    const maxAge = typeof filters.maxAge === "number" && Number.isFinite(filters.maxAge) && filters.maxAge > 0
-        ? Math.trunc(filters.maxAge)
-        : undefined;
-
-    const normalized: ResumeListFilterArgs = {
-        ...((filters.minExperience ?? 0) > 0 ? { minExperience: filters.minExperience } : {}),
-        ...(filters.maxExperience === undefined ? {} : { maxExperience: filters.maxExperience }),
-        ...((filters.minRoleYears ?? 0) > 0 ? { minRoleYears: filters.minRoleYears } : {}),
-        ...(roleFilterType ? { roleFilterType } : {}),
-        ...(minAge === undefined ? {} : { minAge }),
-        ...(maxAge === undefined ? {} : { maxAge }),
-        ...(education && education.length > 0 ? { education } : {}),
-        ...(skills && skills.length > 0 ? { skills } : {}),
-        ...(requiredKeywords.length > 0 ? { requiredKeywords } : {}),
-        ...(locations && locations.length > 0 ? { locations } : {}),
-        ...(filters.minSalary === undefined ? {} : { minSalary: filters.minSalary }),
-        ...(filters.maxSalary === undefined ? {} : { maxSalary: filters.maxSalary }),
-        ...(filters.showArchived ? { showArchived: true } : {}),
-        ...(sources && sources.length > 0 ? { sources } : {}),
-    };
-
-    return Object.keys(normalized).length > 0 ? normalized : undefined;
-}
-
-function buildResumeFilterSearchText(content: Record<string, unknown>, source?: string): string {
-    const locationText = formatLocationHierarchySearchText(normalizeResumeLocationHierarchy(content, source)) || toStringValue(content.location);
-    const latestWorkHistory = selectLatestWorkHistory(content.workHistory);
-    const parts = [
-        toStringValue(content.name),
-        toStringValue(content.education),
-        locationText,
-        toStringValue(content.expectedSalary),
-        ...latestWorkHistory.map((entry) => buildWorkHistoryEntryText(entry)),
-    ];
-    return parts.join(" ").toLowerCase();
-}
-
-function matchesAllRequiredKeywords(text: string, requiredKeywords: string[] | undefined): boolean {
-    const normalizedKeywords = normalizeKeywordPhrases(requiredKeywords ?? [])
-        .map((keyword) => keyword.toLowerCase());
-    if (normalizedKeywords.length === 0) {
-        return true;
-    }
-
-    const haystack = text.trim().toLowerCase();
-    if (!haystack) {
-        return false;
-    }
-
-    return normalizedKeywords.every((keyword) => haystack.includes(keyword));
-}
-
-/**
- * Resolve the verified role-years value used by the `minRoleYears` filter.
- *
- * Preference order:
- *   1. Precomputed `ingestData.verifiedRoleYears[roleType]` (populated at
- *      ingest time and by the paginated backfill migration).
- *   2. Live compute via `getVerifiedRoleSignalYears` — same semantics as the
- *      stored projection. Guards the transition window before backfill
- *      completes, and old resumes whose `ingestData` has not been rewritten.
- *
- * Never consults unverified `roleRelevantYears` or raw `years`. See plan:
- * docs/superpowers/plans/2026-04-24-direct-role-years-precomputed-field-plan.md
- */
-function hasMatchingRoleSignal(resume: Doc<"resumes">, roleType: string | undefined): boolean {
-    const key = toOptionalStringValue(roleType)?.toLowerCase() ?? "";
-    if (!key) {
-        return true;
-    }
-
-    // The stored verifiedRoleYears field is the source of truth for role years;
-    // if it has an entry for the given role type, the resume matches that role.
-    const verifiedRoleYears = resume.ingestData?.verifiedRoleYears;
-    if (isRecord(verifiedRoleYears) && typeof verifiedRoleYears[key] === "number") {
-        return true;
-    }
-
-    const roleSignals = resume.ingestData?.roleSignals;
-    if (!Array.isArray(roleSignals) || roleSignals.length === 0) {
-        return false;
-    }
-
-    return roleSignals.some((signal) => signal.type?.trim().toLowerCase() === key);
-}
-
-function getResumeRoleYears(resume: Doc<"resumes">, roleType: string | undefined): number {
-    const key = toOptionalStringValue(roleType)?.toLowerCase() ?? "";
-    if (!key) {
-        return 0;
-    }
-
-    const stored = resume.ingestData?.verifiedRoleYears?.[key];
-    if (typeof stored === "number" && Number.isFinite(stored)) {
-        return stored;
-    }
-
-    const roleSignals = resume.ingestData?.roleSignals;
-    if (!Array.isArray(roleSignals) || roleSignals.length === 0) {
-        return 0;
-    }
-
-    return getVerifiedRoleSignalYears(roleSignals, key);
-}
-
-function resolveResumeAge(resume: Doc<"resumes">, content: Record<string, unknown>): number | null {
-    if (typeof resume.age === "number" && Number.isFinite(resume.age) && resume.age > 0) {
-        return Math.trunc(resume.age);
-    }
-
-    return parseAgeFromContent(content);
-}
-
-function matchesResumeListFilters(resume: Doc<"resumes">, filters: ResumeListFilterArgs | undefined): boolean {
-    if (!filters?.showArchived && resume.isArchived === true) {
-        return false;
-    }
-    if (!filters) {
-        return true;
-    }
-
-    const content = isRecord(resume.content) ? resume.content : {};
-
-    const effectiveMinExperience = (filters.minExperience ?? 0) > 0 ? filters.minExperience : undefined;
-    if (effectiveMinExperience !== undefined || filters.maxExperience !== undefined) {
-        const experience = resolveExperienceYears(toStringValue(content.experience), content.workHistory);
-        if (experience === null) {
-            // Unknown experience — skip filter instead of excluding.
-            // Seek talentsearch resumes have empty experience fields;
-            // excluding them when minExperience is set drops all results.
-            // Only apply maxExperience if known.
-            if (filters.maxExperience !== undefined) {
-                return false;
-            }
-        } else {
-            if (effectiveMinExperience !== undefined && experience < effectiveMinExperience) {
-                return false;
-            }
-            if (filters.maxExperience !== undefined && experience > filters.maxExperience) {
-                return false;
-            }
-        }
-    }
-
-    if (filters.roleFilterType) {
-        if (!hasMatchingRoleSignal(resume, filters.roleFilterType)) {
-            return false;
-        }
-    }
-
-    if ((filters.minRoleYears ?? 0) > 0) {
-        const roleYears = getResumeRoleYears(resume, filters.roleFilterType);
-        if (roleYears < filters.minRoleYears!) {
-            return false;
-        }
-    }
-
-    if (filters.minAge !== undefined || filters.maxAge !== undefined) {
-        const age = resolveResumeAge(resume, content);
-        if (age !== null) {
-            if (filters.minAge !== undefined && age < filters.minAge) {
-                return false;
-            }
-            if (filters.maxAge !== undefined && age > filters.maxAge) {
-                return false;
-            }
-        }
-    }
-
-    if (filters.education?.length) {
-        const level = normalizeEducationLevel(toStringValue(content.education));
-        if (!level || !filters.education.includes(level)) {
-            return false;
-        }
-    }
-
-    if (filters.locations?.length) {
-        const location = formatLocationHierarchySearchText(normalizeResumeLocationHierarchy(content, resume.source)) || toStringValue(content.location);
-        const hasLocation = filters.locations.some((target) => isLocationMatch(location, target));
-        if (!hasLocation) {
-            return false;
-        }
-    }
-
-    if (filters.skills?.length) {
-        // Use full searchText (includes name, all workHistory, industryTags, synonyms, etc.)
-        // rather than narrow buildResumeFilterSearchText (only latest workHistory).
-        // Aligns with BFF bffMatchesResumeFilters which uses full doc.searchText.
-        const haystack = resume.searchText?.toLowerCase() ?? buildResumeFilterSearchText(content, resume.source);
-        const hasSkill = filters.skills.some((skill) => haystack.includes(skill.toLowerCase()));
-        if (!hasSkill) {
-            return false;
-        }
-    }
-
-    if (filters.requiredKeywords?.length) {
-        const haystack = resume.searchText?.toLowerCase() ?? buildResumeFilterSearchText(content, resume.source);
-        if (!matchesAllRequiredKeywords(haystack, filters.requiredKeywords)) {
-            return false;
-        }
-    }
-
-    if (filters.minSalary !== undefined || filters.maxSalary !== undefined) {
-        const salary = parseSalaryRange(toStringValue(content.expectedSalary));
-        if (!salary) {
-            // Unknown salary — skip salary filter instead of excluding.
-            // Same graceful-degradation pattern as experience filter:
-            // minSalary passes through (candidate might meet it),
-            // maxSalary excludes (cannot guarantee the cap).
-            if (filters.maxSalary !== undefined) {
-                return false;
-            }
-        } else {
-            if (filters.minSalary !== undefined) {
-                const maxSalary = salary.max ?? salary.min;
-                if (maxSalary !== undefined && maxSalary < filters.minSalary) {
-                    return false;
-                }
-            }
-            if (filters.maxSalary !== undefined) {
-                const minSalary = salary.min ?? salary.max;
-                if (minSalary !== undefined && minSalary > filters.maxSalary) {
-                    return false;
-                }
-            }
-        }
-    }
-
-    if (filters.sources?.length) {
-        const resumeSourceKey = resume.sourceKey
-            ?? resolveResumeAnalysisSourceKey({ source: resume.source });
-        if (!resumeSourceKey || !filters.sources.includes(resumeSourceKey)) {
-            return false;
-        }
-    }
-
-    return true;
-}
-
-function resolveResumeListSortOrder(sortOrder: ResumeListSortOrder | undefined): ResumeListSortOrder {
-    if (sortOrder === "asc" || sortOrder === "desc") {
-        return sortOrder;
-    }
-    return "asc";
-}
-
-function compareResumeListSort(
-    left: Doc<"resumes">,
-    right: Doc<"resumes">,
-    sortBy: ResumeListSortBy,
-    sortOrder: ResumeListSortOrder
-): number {
-    const direction = sortOrder === "desc" ? -1 : 1;
-    const leftContent = isRecord(left.content) ? left.content : {};
-    const rightContent = isRecord(right.content) ? right.content : {};
-
-    if (sortBy === "experience") {
-        const leftExperience = resolveExperienceYears(toStringValue(leftContent.experience), leftContent.workHistory) ?? -1;
-        const rightExperience = resolveExperienceYears(toStringValue(rightContent.experience), rightContent.workHistory) ?? -1;
-        const diff = (leftExperience - rightExperience) * direction;
-        if (diff !== 0) {
-            return diff;
-        }
-    } else if (sortBy === "extractedAt") {
-        const leftTime = Date.parse(toStringValue(leftContent.extractedAt)) || 0;
-        const rightTime = Date.parse(toStringValue(rightContent.extractedAt)) || 0;
-        const diff = (leftTime - rightTime) * direction;
-        if (diff !== 0) {
-            return diff;
-        }
-    } else {
-        const leftName = toStringValue(leftContent.name).toLowerCase();
-        const rightName = toStringValue(rightContent.name).toLowerCase();
-        const diff = leftName.localeCompare(rightName) * direction;
-        if (diff !== 0) {
-            return diff;
-        }
-    }
-
-    return 0;
-}
-
-function sortResumeDocs(
-    resumes: Doc<"resumes">[],
-    options: {
-        jobDescriptionId?: string;
-        sortBy?: ResumeListSortBy;
-        sortOrder?: ResumeListSortOrder;
-    }
-): Doc<"resumes">[] {
-    if (options.sortBy) {
-        const { sortBy } = options;
-        const resolvedSortOrder = resolveResumeListSortOrder(options.sortOrder);
-        return [...resumes].sort((left, right) => compareResumeListSort(left, right, sortBy, resolvedSortOrder));
-    }
-
-    return sortByIngestRuleScore(resumes, options.jobDescriptionId);
 }
 
 function resolveListWithIngestPageWindow(requestedLimit: number | undefined, requestedOffset: number | undefined): {
