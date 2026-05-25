@@ -1632,4 +1632,105 @@ describe("resume routes", () => {
     });
     expect(readOnlyResponse.status).toBe(400);
   });
+
+  describe("POST /api/resumes/explanation", () => {
+    it("returns explanation from Convex when available", async () => {
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+        const call = parseConvexCall(input, init);
+        if (call.pathName !== "audit:getExplanationForCandidate") {
+          throw new Error(`Unexpected convex path: ${call.pathName}`);
+        }
+        expect(call.args).toEqual({ resumeId: "r1", workspaceSlug: "ws1" });
+        return convexSuccess({
+          summary: "Candidate scored 85/100 for CNC operator role.",
+          keyFactors: [
+            { factor: "skill_alignment", value: "5 years CNC experience" },
+            { factor: "experience", value: "8 years total" },
+          ],
+          decidedAt: 1748200000000,
+          decisionType: "score",
+          scrubbedFields: ["age", "gender"],
+          protectedAttributesExcluded: true,
+        });
+      });
+
+      const app = createApp();
+      const response = await app.request("/api/resumes/explanation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ resumeId: "r1", workspaceSlug: "ws1" }),
+      });
+
+      expect(response.status).toBe(200);
+      const payload = await response.json();
+      expect(payload.success).toBe(true);
+      expect(payload.data.summary).toBe("Candidate scored 85/100 for CNC operator role.");
+      expect(payload.data.keyFactors.length).toBe(2);
+      expect(payload.data.scrubbedFields).toEqual(["age", "gender"]);
+      expect(payload.data.protectedAttributesExcluded).toBe(true);
+    });
+
+    it("returns null data when no explanation exists", async () => {
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+        parseConvexCall(input, init);
+        return convexSuccess(null);
+      });
+
+      const app = createApp();
+      const response = await app.request("/api/resumes/explanation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ resumeId: "r2", workspaceSlug: "ws1" }),
+      });
+
+      expect(response.status).toBe(200);
+      const payload = await response.json();
+      expect(payload.success).toBe(true);
+      expect(payload.data).toBeNull();
+    });
+
+    it("returns 400 when resumeId is missing", async () => {
+      const app = createApp();
+      const response = await app.request("/api/resumes/explanation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workspaceSlug: "ws1" }),
+      });
+
+      expect(response.status).toBe(400);
+      const payload = await response.json();
+      expect(payload.success).toBe(false);
+    });
+
+    it("returns 400 when workspaceSlug is missing", async () => {
+      const app = createApp();
+      const response = await app.request("/api/resumes/explanation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ resumeId: "r1" }),
+      });
+
+      expect(response.status).toBe(400);
+      const payload = await response.json();
+      expect(payload.success).toBe(false);
+    });
+
+    it("returns 500 when Convex call fails", async () => {
+      vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
+        return new Response(JSON.stringify({ status: "error", errorMessage: "Not found" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      });
+
+      const app = createApp();
+      const response = await app.request("/api/resumes/explanation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ resumeId: "r1", workspaceSlug: "ws1" }),
+      });
+
+      expect(response.status).toBe(500);
+    });
+  });
 });

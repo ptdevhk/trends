@@ -1249,4 +1249,30 @@ app.post("/api/resumes/analyze", async (c) => {
 });
 
 
+app.post("/api/resumes/explanation", async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const resumeId = typeof body.resumeId === "string" ? body.resumeId.trim() : "";
+  const workspaceSlug = typeof body.workspaceSlug === "string" ? body.workspaceSlug.trim() : "";
+
+  if (!resumeId || !workspaceSlug) {
+    return c.json({ success: false, error: "resumeId and workspaceSlug are required" }, 400);
+  }
+
+  try {
+    const explanation = await callConvexQuery("audit:getExplanationForCandidate", {
+      resumeId,
+      workspaceSlug,
+    });
+
+    if (!explanation) {
+      return c.json({ success: true, data: null }, 200);
+    }
+
+    return c.json({ success: true, data: explanation }, 200);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return c.json({ success: false, error: message }, 500);
+  }
+});
+
 export default app;
