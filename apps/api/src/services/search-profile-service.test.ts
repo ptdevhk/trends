@@ -5,6 +5,666 @@ import {
   type SearchProfile,
 } from './search-profile-service.js'
 
+const svc = new SearchProfileService()
+
+// ---------------------------------------------------------------------------
+// normalizeProfileIdentifier
+// ---------------------------------------------------------------------------
+
+describe('SearchProfileService.normalizeProfileIdentifier', () => {
+  it('lowercases and replaces spaces/underscores with hyphens', () => {
+    expect(svc.normalizeProfileIdentifier('CNC Sales Profile')).toBe('cnc-sales-profile')
+    expect(svc.normalizeProfileIdentifier('cnc_sales_profile')).toBe('cnc-sales-profile')
+  })
+
+  it('strips non-alphanumeric characters', () => {
+    expect(svc.normalizeProfileIdentifier('CNC/销售@Profile!')).toBe('cnc-profile')
+  })
+
+  it('collapses multiple hyphens', () => {
+    expect(svc.normalizeProfileIdentifier('a---b')).toBe('a-b')
+  })
+
+  it('strips leading/trailing hyphens', () => {
+    expect(svc.normalizeProfileIdentifier('-profile-')).toBe('profile')
+  })
+
+  it('returns "profile" for empty/whitespace-only input', () => {
+    expect(svc.normalizeProfileIdentifier('')).toBe('profile')
+    expect(svc.normalizeProfileIdentifier('   ')).toBe('profile')
+  })
+
+  it('preserves digits and hyphens', () => {
+    expect(svc.normalizeProfileIdentifier('Profile-123')).toBe('profile-123')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// coerceProfile (via normalizeProfileInput) — filters
+// ---------------------------------------------------------------------------
+
+describe('SearchProfileService normalizeProfileInput — filters', () => {
+  it('parses minExperience and maxExperience', () => {
+    const result = svc.normalizeProfileInput({
+      id: 'test',
+      name: 'Test',
+      keywords: ['test'],
+      filters: { minExperience: 3, maxExperience: 10 },
+    })
+    expect(result.filters?.minExperience).toBe(3)
+    expect(result.filters?.maxExperience).toBe(10)
+  })
+
+  it('allows null maxExperience to clear the field', () => {
+    const result = svc.normalizeProfileInput({
+      id: 'test',
+      name: 'Test',
+      keywords: ['test'],
+      filters: { maxExperience: null },
+    })
+    expect(result.filters?.maxExperience).toBeNull()
+  })
+
+  it('parses salaryRange', () => {
+    const result = svc.normalizeProfileInput({
+      id: 'test',
+      name: 'Test',
+      keywords: ['test'],
+      filters: { salaryRange: { min: 10000, max: 20000, currency: 'CNY', period: 'monthly' } },
+    })
+    expect(result.filters?.salaryRange).toEqual({ min: 10000, max: 20000, currency: 'CNY', period: 'monthly' })
+  })
+
+  it('parses education array', () => {
+    const result = svc.normalizeProfileInput({
+      id: 'test',
+      name: 'Test',
+      keywords: ['test'],
+      filters: { education: ['本科', '硕士'] },
+    })
+    expect(result.filters?.education).toEqual(['本科', '硕士'])
+  })
+
+  it('parses locations array', () => {
+    const result = svc.normalizeProfileInput({
+      id: 'test',
+      name: 'Test',
+      keywords: ['test'],
+      filters: { locations: ['深圳', '广州'] },
+    })
+    expect(result.filters?.locations).toEqual(['深圳', '广州'])
+  })
+
+  it('returns undefined when filters key is missing', () => {
+    const result = svc.normalizeProfileInput({
+      id: 'test',
+      name: 'Test',
+      keywords: ['test'],
+    })
+    expect(result.filters).toBeUndefined()
+  })
+
+  it('returns undefined when all filter fields are empty', () => {
+    const result = svc.normalizeProfileInput({
+      id: 'test',
+      name: 'Test',
+      keywords: ['test'],
+      filters: {},
+    })
+    expect(result.filters).toBeUndefined()
+  })
+
+  it('parses minAge and maxAge', () => {
+    const result = svc.normalizeProfileInput({
+      id: 'test',
+      name: 'Test',
+      keywords: ['test'],
+      filters: { minAge: 25, maxAge: 40 },
+    })
+    expect(result.filters?.minAge).toBe(25)
+    expect(result.filters?.maxAge).toBe(40)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// coerceProfile (via normalizeProfileInput) — schedule
+// ---------------------------------------------------------------------------
+
+describe('SearchProfileService normalizeProfileInput — schedule', () => {
+  it('parses schedule with enabled and cron', () => {
+    const result = svc.normalizeProfileInput({
+      id: 'test',
+      name: 'Test',
+      keywords: ['test'],
+      schedule: { enabled: true, cron: '0 9 * * 1-5' },
+    })
+    expect(result.schedule).toEqual({ enabled: true, cron: '0 9 * * 1-5' })
+  })
+
+  it('returns undefined when schedule is empty', () => {
+    const result = svc.normalizeProfileInput({
+      id: 'test',
+      name: 'Test',
+      keywords: ['test'],
+      schedule: {},
+    })
+    expect(result.schedule).toBeUndefined()
+  })
+
+  it('returns undefined when only enabled is explicitly false with no other fields', () => {
+    const result = svc.normalizeProfileInput({
+      id: 'test',
+      name: 'Test',
+      keywords: ['test'],
+      schedule: { enabled: false },
+    })
+    expect(result.schedule).toBeUndefined()
+  })
+
+  it('parses timezone and maxCandidates', () => {
+    const result = svc.normalizeProfileInput({
+      id: 'test',
+      name: 'Test',
+      keywords: ['test'],
+      schedule: { enabled: true, timezone: 'Asia/Shanghai', maxCandidates: 50 },
+    })
+    expect(result.schedule?.timezone).toBe('Asia/Shanghai')
+    expect(result.schedule?.maxCandidates).toBe(50)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// coerceProfile (via normalizeProfileInput) — sources
+// ---------------------------------------------------------------------------
+
+describe('SearchProfileService normalizeProfileInput — sources', () => {
+  it('parses source array with required fields', () => {
+    const result = svc.normalizeProfileInput({
+      id: 'test',
+      name: 'Test',
+      keywords: ['test'],
+      sources: [{ type: 'seek', enabled: true }],
+    })
+    expect(result.sources).toEqual([{ type: 'seek', enabled: true }])
+  })
+
+  it('skips sources missing type or enabled', () => {
+    const result = svc.normalizeProfileInput({
+      id: 'test',
+      name: 'Test',
+      keywords: ['test'],
+      sources: [{ type: 'seek' }, { enabled: true }, { type: '51job', enabled: true }],
+    })
+    expect(result.sources).toHaveLength(1)
+    expect(result.sources![0]!.type).toBe('51job')
+  })
+
+  it('parses source with jobUrl and mode', () => {
+    const result = svc.normalizeProfileInput({
+      id: 'test',
+      name: 'Test',
+      keywords: ['test'],
+      sources: [{ type: 'seek', enabled: true, mode: 'recommended', jobUrl: 'https://hk.employer.seek.com/candidates/recommended' }],
+    })
+    expect(result.sources![0]!.mode).toBe('recommended')
+    expect(result.sources![0]!.jobUrl).toBe('https://hk.employer.seek.com/candidates/recommended')
+  })
+
+  it('returns undefined for empty sources array', () => {
+    const result = svc.normalizeProfileInput({
+      id: 'test',
+      name: 'Test',
+      keywords: ['test'],
+      sources: [],
+    })
+    expect(result.sources).toBeUndefined()
+  })
+
+  it('returns undefined when sources key is missing', () => {
+    const result = svc.normalizeProfileInput({
+      id: 'test',
+      name: 'Test',
+      keywords: ['test'],
+    })
+    expect(result.sources).toBeUndefined()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// coerceProfile (via normalizeProfileInput) — quickStart
+// ---------------------------------------------------------------------------
+
+describe('SearchProfileService normalizeProfileInput — quickStart', () => {
+  it('parses quickStart with enabled and label', () => {
+    const result = svc.normalizeProfileInput({
+      id: 'test',
+      name: 'Test',
+      keywords: ['test'],
+      quickStart: { enabled: true, label: 'Quick Start', rank: 1 },
+    })
+    expect(result.quickStart).toEqual({ enabled: true, label: 'Quick Start', rank: 1 })
+  })
+
+  it('returns undefined for empty quickStart', () => {
+    const result = svc.normalizeProfileInput({
+      id: 'test',
+      name: 'Test',
+      keywords: ['test'],
+      quickStart: {},
+    })
+    expect(result.quickStart).toBeUndefined()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// coerceProfile (via normalizeProfileInput) — notifications
+// ---------------------------------------------------------------------------
+
+describe('SearchProfileService normalizeProfileInput — notifications', () => {
+  it('parses notifications with channels and triggers', () => {
+    const result = svc.normalizeProfileInput({
+      id: 'test',
+      name: 'Test',
+      keywords: ['test'],
+      notifications: {
+        enabled: true,
+        channels: [{ type: 'webhook', enabled: true, webhook: 'https://example.com/hook' }],
+        triggers: [{ event: 'new_candidates', threshold: 5 }],
+      },
+    })
+    expect(result.notifications?.enabled).toBe(true)
+    expect(result.notifications?.channels).toHaveLength(1)
+    expect(result.notifications?.triggers).toHaveLength(1)
+  })
+
+  it('returns undefined for empty notifications', () => {
+    const result = svc.normalizeProfileInput({
+      id: 'test',
+      name: 'Test',
+      keywords: ['test'],
+      notifications: {},
+    })
+    expect(result.notifications).toBeUndefined()
+  })
+
+  it('skips channel entries missing type or enabled', () => {
+    const result = svc.normalizeProfileInput({
+      id: 'test',
+      name: 'Test',
+      keywords: ['test'],
+      notifications: {
+        enabled: true,
+        channels: [{ type: 'webhook' }, { type: 'email', enabled: true }],
+      },
+    })
+    expect(result.notifications?.channels).toHaveLength(1)
+  })
+
+  it('skips trigger entries missing event', () => {
+    const result = svc.normalizeProfileInput({
+      id: 'test',
+      name: 'Test',
+      keywords: ['test'],
+      notifications: {
+        enabled: true,
+        triggers: [{ threshold: 5 }, { event: 'new_candidates' }],
+      },
+    })
+    expect(result.notifications?.triggers).toHaveLength(1)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// coerceProfile (via normalizeProfileInput) — ai
+// ---------------------------------------------------------------------------
+
+describe('SearchProfileService normalizeProfileInput — ai', () => {
+  it('parses ai config with pipeline', () => {
+    const result = svc.normalizeProfileInput({
+      id: 'test',
+      name: 'Test',
+      keywords: ['test'],
+      ai: {
+        pipeline: [{ stage: 'screen', model: 'gpt-4', threshold: 0.8 }],
+        generateOutreach: true,
+        outreachTemplate: 'Hello {{name}}',
+      },
+    })
+    expect(result.ai?.pipeline).toHaveLength(1)
+    expect(result.ai?.generateOutreach).toBe(true)
+    expect(result.ai?.outreachTemplate).toBe('Hello {{name}}')
+  })
+
+  it('returns undefined for empty ai config', () => {
+    const result = svc.normalizeProfileInput({
+      id: 'test',
+      name: 'Test',
+      keywords: ['test'],
+      ai: {},
+    })
+    expect(result.ai).toBeUndefined()
+  })
+
+  it('skips pipeline entries missing stage or model', () => {
+    const result = svc.normalizeProfileInput({
+      id: 'test',
+      name: 'Test',
+      keywords: ['test'],
+      ai: {
+        pipeline: [{ stage: 'screen' }, { stage: 'screen', model: 'gpt-4' }],
+      },
+    })
+    expect(result.ai?.pipeline).toHaveLength(1)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// coerceProfile (via normalizeProfileInput) — session
+// ---------------------------------------------------------------------------
+
+describe('SearchProfileService normalizeProfileInput — session', () => {
+  it('parses session with scope and retention', () => {
+    const result = svc.normalizeProfileInput({
+      id: 'test',
+      name: 'Test',
+      keywords: ['test'],
+      session: {
+        scope: 'screening',
+        resetTriggers: ['new_resume'],
+        retention: { mode: 'archive', archiveAfterDays: 30 },
+      },
+    })
+    expect(result.session?.scope).toBe('screening')
+    expect(result.session?.resetTriggers).toEqual(['new_resume'])
+    expect(result.session?.retention?.mode).toBe('archive')
+    expect(result.session?.retention?.archiveAfterDays).toBe(30)
+  })
+
+  it('returns undefined for empty session', () => {
+    const result = svc.normalizeProfileInput({
+      id: 'test',
+      name: 'Test',
+      keywords: ['test'],
+      session: {},
+    })
+    expect(result.session).toBeUndefined()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// coerceProfile — fallback behavior
+// ---------------------------------------------------------------------------
+
+describe('SearchProfileService normalizeProfileInput — fallback', () => {
+  it('preserves existing values not in input', () => {
+    const existing: SearchProfile = {
+      id: 'existing',
+      name: 'Existing Profile',
+      status: 'active',
+      location: '深圳',
+      keywords: ['CNC'],
+      jobDescription: 'jd-123',
+      filterPreset: 'cnc-sales',
+      filters: { minExperience: 3 },
+      schedule: { enabled: true, cron: '0 9 * * 1-5' },
+    }
+    const result = svc.normalizeProfileInput({ name: 'Updated' }, existing)
+    expect(result.name).toBe('Updated')
+    expect(result.location).toBe('深圳')
+    expect(result.keywords).toEqual(['CNC'])
+    expect(result.jobDescription).toBe('jd-123')
+    expect(result.filterPreset).toBe('cnc-sales')
+    expect(result.filters?.minExperience).toBe(3)
+    expect(result.schedule?.cron).toBe('0 9 * * 1-5')
+  })
+
+  it('clears optional fields when null is provided', () => {
+    const existing: SearchProfile = {
+      id: 'existing',
+      name: 'Existing',
+      status: 'active',
+      location: '深圳',
+      keywords: ['CNC'],
+      jobDescription: 'jd-123',
+      filterPreset: 'cnc-sales',
+    }
+    const result = svc.normalizeProfileInput({ jobDescription: null, filterPreset: null }, existing)
+    expect(result.jobDescription).toBeUndefined()
+    expect(result.filterPreset).toBeUndefined()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// coerceProfile — non-record input
+// ---------------------------------------------------------------------------
+
+describe('SearchProfileService normalizeProfileInput — non-record input', () => {
+  it('handles null input by using defaults', () => {
+    const result = svc.normalizeProfileInput(null)
+    expect(result.id).toBe('profile')
+    expect(result.name).toBe('profile')
+    expect(result.keywords).toEqual([])
+  })
+
+  it('handles numeric input by using defaults', () => {
+    const result = svc.normalizeProfileInput(42)
+    expect(result.id).toBe('profile')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// validateProfile
+// ---------------------------------------------------------------------------
+
+describe('SearchProfileService validateProfile', () => {
+  it('throws when id is empty', () => {
+    expect(() => svc.validateProfile({ id: '', name: 'Test', keywords: ['a'] } as SearchProfile)).toThrow(/id is required/)
+  })
+
+  it('throws when name is empty', () => {
+    expect(() => svc.validateProfile({ id: 'p1', name: '', keywords: ['a'] } as SearchProfile)).toThrow(/name is required/)
+  })
+
+  it('throws when keywords is empty', () => {
+    expect(() => svc.validateProfile({ id: 'p1', name: 'Test', keywords: [] } as SearchProfile)).toThrow(/keywords/)
+  })
+
+  it('does not throw for valid profile', () => {
+    expect(() => svc.validateProfile({ id: 'p1', name: 'Test', status: 'active', location: '', keywords: ['a'] })).not.toThrow()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// seek URL validation helpers (via validateProfile)
+// ---------------------------------------------------------------------------
+
+describe('SearchProfileService seek URL validation', () => {
+  it('accepts seek recommended URL with mode=recommended', () => {
+    expect(() =>
+      svc.validateProfile({
+        id: 'test',
+        name: 'Test',
+        status: 'active',
+        location: '',
+        keywords: ['a'],
+        sources: [{
+          type: 'seek',
+          enabled: true,
+          mode: 'recommended',
+          jobUrl: 'https://hk.employer.seek.com/candidates/recommended',
+        }],
+      })
+    ).not.toThrow()
+  })
+
+  it('accepts seek talentsearch URL with mode=talentsearch', () => {
+    expect(() =>
+      svc.validateProfile({
+        id: 'test',
+        name: 'Test',
+        status: 'active',
+        location: '',
+        keywords: ['a'],
+        sources: [{
+          type: 'seek',
+          enabled: true,
+          mode: 'talentsearch',
+          jobUrl: 'https://hk.employer.seek.com/talentsearch?keywords=test',
+        }],
+      })
+    ).not.toThrow()
+  })
+
+  it('rejects seek recommended URL when mode is talentsearch', () => {
+    expect(() =>
+      svc.validateProfile({
+        id: 'test',
+        name: 'Test',
+        status: 'active',
+        location: '',
+        keywords: ['a'],
+        sources: [{
+          type: 'seek',
+          enabled: true,
+          mode: 'talentsearch',
+          jobUrl: 'https://hk.employer.seek.com/candidates/recommended',
+        }],
+      })
+    ).toThrow(/Seek/)
+  })
+
+  it('rejects seek source with non-Seek URL', () => {
+    expect(() =>
+      svc.validateProfile({
+        id: 'test',
+        name: 'Test',
+        status: 'active',
+        location: '',
+        keywords: ['a'],
+        sources: [{
+          type: 'seek',
+          enabled: true,
+          mode: 'recommended',
+          jobUrl: 'https://example.com/not-seek',
+        }],
+      })
+    ).toThrow(/Seek/)
+  })
+
+  it('skips validation for disabled seek sources', () => {
+    expect(() =>
+      svc.validateProfile({
+        id: 'test',
+        name: 'Test',
+        status: 'active',
+        location: '',
+        keywords: ['a'],
+        sources: [{
+          type: 'seek',
+          enabled: false,
+          mode: 'recommended',
+          jobUrl: 'https://example.com/not-seek',
+        }],
+      })
+    ).not.toThrow()
+  })
+
+  it('skips validation for non-seek sources', () => {
+    expect(() =>
+      svc.validateProfile({
+        id: 'test',
+        name: 'Test',
+        status: 'active',
+        location: '',
+        keywords: ['a'],
+        sources: [{
+          type: '51job',
+          enabled: true,
+          jobUrl: 'https://example.com/anything',
+        }],
+      })
+    ).not.toThrow()
+  })
+
+  it('rejects seek source with empty jobUrl', () => {
+    expect(() =>
+      svc.validateProfile({
+        id: 'test',
+        name: 'Test',
+        status: 'active',
+        location: '',
+        keywords: ['a'],
+        sources: [{
+          type: 'seek',
+          enabled: true,
+          mode: 'recommended',
+        }],
+      })
+    ).toThrow(/Seek/)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// coerceProfile — status parsing
+// ---------------------------------------------------------------------------
+
+describe('SearchProfileService normalizeProfileInput — status', () => {
+  it('accepts valid status values', () => {
+    for (const status of ['active', 'paused', 'archived'] as const) {
+      const result = svc.normalizeProfileInput({ id: 'test', name: 'Test', keywords: ['a'], status })
+      expect(result.status).toBe(status)
+    }
+  })
+
+  it('defaults to active for invalid status', () => {
+    const result = svc.normalizeProfileInput({ id: 'test', name: 'Test', keywords: ['a'], status: 'invalid' })
+    expect(result.status).toBe('active')
+  })
+
+  it('defaults to active when status is missing', () => {
+    const result = svc.normalizeProfileInput({ id: 'test', name: 'Test', keywords: ['a'] })
+    expect(result.status).toBe('active')
+  })
+
+  it('falls back to existing status when not provided', () => {
+    const existing: SearchProfile = { id: 'test', name: 'Test', status: 'paused', location: '', keywords: ['a'] }
+    const result = svc.normalizeProfileInput({}, existing)
+    expect(result.status).toBe('paused')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// coerceProfile — description, createdAt, updatedAt
+// ---------------------------------------------------------------------------
+
+describe('SearchProfileService normalizeProfileInput — metadata fields', () => {
+  it('parses description, createdAt, updatedAt', () => {
+    const result = svc.normalizeProfileInput({
+      id: 'test',
+      name: 'Test',
+      keywords: ['a'],
+      description: 'A test profile',
+      createdAt: '2024-01-01',
+      updatedAt: '2024-06-01',
+    })
+    expect(result.description).toBe('A test profile')
+    expect(result.createdAt).toBe('2024-01-01')
+    expect(result.updatedAt).toBe('2024-06-01')
+  })
+
+  it('trims whitespace from string fields', () => {
+    const result = svc.normalizeProfileInput({
+      id: ' test ',
+      name: ' Test ',
+      keywords: ['a'],
+      description: '  desc  ',
+    })
+    expect(result.id).toBe('test')
+    expect(result.name).toBe('Test')
+    expect(result.description).toBe('desc')
+  })
+})
+
 describe('SearchProfileService explicit clear semantics', () => {
   it('clears optional linkage fields when null is provided in an update payload', () => {
     const service = new SearchProfileService()
