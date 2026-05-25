@@ -1,4 +1,6 @@
-import { internalMutation, query } from "./_generated/server";
+import { internalMutation, internalQuery, internalAction, query } from "./_generated/server";
+import { internal } from "./_generated/api";
+import type { Doc } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { fnvHash, ageToBracket } from "./lib/bias_metrics.js";
 
@@ -207,3 +209,63 @@ export function computeProtectedAttributeHashes(data: {
         sourceHash: data.source ? fnvHash(data.source) : undefined,
     };
 }
+
+// ---------------------------------------------------------------------------
+// Internal action: cleanupExpiredAuditLogs (2-year retention, GDPR/EU AI Act)
+// ---------------------------------------------------------------------------
+
+export const cleanupExpiredAuditLogs = internalAction({
+    args: {
+        maxDeletes: v.optional(v.number()),
+    },
+    handler: async (ctx, args): Promise<{ deleted: number; checked: number; hasMore: boolean }> => {
+        const maxDeletes = Math.min(args.maxDeletes ?? 500, 2000);
+        const now = Date.now();
+
+        const expired = await ctx.runQuery(internal.audit.getExpiredAuditLogs, {
+            before: now,
+            limit: maxDeletes,
+        });
+
+        let deleted = 0;
+        for (const log of expired) {
+            await ctx.runMutation(internal.audit.deleteAuditLog, {
+                auditLogId: log._id,
+            });
+            deleted += 1;
+        }
+
+        return { deleted, checked: expired.length, hasMore: expired.length === maxDeletes };
+    },
+});
+
+// ---------------------------------------------------------------------------
+// Internal query: getExpiredAuditLogs (used by cleanup action)
+// ---------------------------------------------------------------------------
+
+export const getExpiredAuditLogs = internalQuery({
+    args: {
+        before: v.number(),
+        limit: v.optional(v.number()),
+    },
+    handler: async (ctx, args): Promise<Array<Doc<"analysis_audit_log">>> => {
+        const limit = Math.min(args.limit ?? 500, 2000);
+        return ctx.db
+            .query("analysis_audit_log")
+            .withIndex("by_expires_at", (q) => q.lte("expiresAt", args.before))
+            .take(limit);
+    },
+});
+
+// ---------------------------------------------------------------------------
+// Internal mutation: deleteAuditLog
+// ---------------------------------------------------------------------------
+
+export const deleteAuditLog = internalMutation({
+    args: {
+        auditLogId: v.id("analysis_audit_log"),
+    },
+    handler: async (ctx, args): Promise<void> => {
+        await ctx.db.delete(args.auditLogId);
+    },
+});
