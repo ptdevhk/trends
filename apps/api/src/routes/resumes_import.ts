@@ -17,95 +17,16 @@ import {
   ResumeSubmitSummarySchema,
 } from "../schemas/index.js";
 import { resolveResumeId } from "../services/resume-id.js";
-import { isRecord, normalizeWorkHistoryEntry } from "@trends/shared";
-import type { ResumeItem } from "../types/resume.js";
+import { isRecord } from "@trends/shared";
 import {
-  buildResumeIngestData,
   toOptionalNumber,
   toStringArray,
   toStringValue,
 } from "../services/resume-ingest-utils.js";
+import { toResumeItemFromRecord } from "../services/resume-candidate-prep.js";
 
 const app = new OpenAPIHono();
 const actionStorage = new ActionStorage(config.projectRoot);
-
-
-function toResumeItemFromRecord(record: Record<string, unknown>, source?: string): ResumeItem {
-  const profileUrl = toStringValue(
-    record.profileUrl ?? record.profile_url ?? record.profileURL ?? record.url
-  );
-  const workHistory = Array.isArray(record.workHistory)
-    ? record.workHistory
-      .map((entry: unknown) => normalizeWorkHistoryEntry(entry))
-      .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
-    : [];
-  const projectExperience = Array.isArray(record.projectExperience)
-    ? record.projectExperience
-      .map((entry: unknown) => normalizeWorkHistoryEntry(entry))
-      .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
-    : [];
-  const profileEducation = Array.isArray(record.profileEducation)
-    ? record.profileEducation
-      .map((entry: unknown) => {
-        if (!isRecord(entry)) {
-          return null;
-        }
-
-        const institution = toStringValue(entry.institution) || undefined;
-        const qualification = toStringValue(entry.qualification) || undefined;
-        const fieldOfStudy = toStringValue(entry.fieldOfStudy) || undefined;
-        const description = toStringValue(entry.description) || undefined;
-        const startDate = toStringValue(entry.startDate) || undefined;
-        const endDate = toStringValue(entry.endDate) || undefined;
-
-        if (
-          !institution
-          && !qualification
-          && !fieldOfStudy
-          && !description
-          && !startDate
-          && !endDate
-        ) {
-          return null;
-        }
-
-        return {
-          ...(institution ? { institution } : {}),
-          ...(qualification ? { qualification } : {}),
-          ...(fieldOfStudy ? { fieldOfStudy } : {}),
-          ...(description ? { description } : {}),
-          ...(startDate ? { startDate } : {}),
-          ...(endDate ? { endDate } : {}),
-        };
-      })
-      .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
-    : [];
-
-  return {
-    name: toStringValue(record.name),
-    profileUrl,
-    ...(toStringValue(record.source) || source ? { source: toStringValue(record.source) || source } : {}),
-    activityStatus: toStringValue(record.activityStatus),
-    age: toStringValue(record.age),
-    experience: toStringValue(record.experience),
-    education: toStringValue(record.education),
-    location: toStringValue(record.location),
-    selfIntro: toStringValue(record.selfIntro),
-    jobIntention: toStringValue(record.jobIntention),
-    expectedSalary: toStringValue(record.expectedSalary),
-    workHistory,
-    ...(projectExperience.length > 0 ? { projectExperience } : {}),
-    ...(profileEducation.length > 0 ? { profileEducation } : {}),
-    extractedAt: toStringValue(record.extractedAt),
-    ingestData: buildResumeIngestData(record.ingestData),
-    resumeId: toStringValue(record.resumeId) || undefined,
-    perUserId: toStringValue(record.perUserId) || undefined,
-    profileId: toStringValue(record.profileId) || undefined,
-    profileType: toStringValue(record.profileType) || (source ? source : undefined),
-    externalId: toStringValue(record.externalId) || undefined,
-    ...(typeof record.searchText === "string" ? { searchText: record.searchText } : {}),
-  };
-}
 
 // --- Backup-specific helpers ---
 
