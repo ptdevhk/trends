@@ -153,6 +153,7 @@ describe("embeddings (convex-test)", () => {
           crawledAt: Date.now(),
           source: "test",
           searchText: "No embedding",
+          needsEmbedding: true,
         });
       });
 
@@ -241,6 +242,7 @@ describe("embeddings (convex-test)", () => {
           crawledAt: Date.now(),
           source: "test",
           searchText: "Resume for dry run test",
+          needsEmbedding: true,
         });
         await ctx.db.insert("resumes", {
           externalId: "dry-2",
@@ -250,6 +252,7 @@ describe("embeddings (convex-test)", () => {
           crawledAt: Date.now(),
           source: "test",
           searchText: "", // Empty — should be skipped
+          needsEmbedding: true,
         });
       });
 

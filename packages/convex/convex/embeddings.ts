@@ -4,6 +4,21 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
 
 // ---------------------------------------------------------------------------
+// Embedding staleness detection
+// ---------------------------------------------------------------------------
+
+/** Compute SHA-256 hash of text for staleness detection. */
+async function computeSearchTextHash(text: string): Promise<string> {
+    const normalized = text.trim().toLowerCase();
+    if (!normalized) return "";
+    const encoder = new TextEncoder();
+    const data = encoder.encode(normalized);
+    const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+// ---------------------------------------------------------------------------
 // Embedding generation helpers
 // ---------------------------------------------------------------------------
 
@@ -72,26 +87,54 @@ function getApiBase(): string {
 }
 
 async function fetchEmbedding(text: string): Promise<number[]> {
-    const response = await fetch(`${getApiBase()}/embeddings`, {
-        method: "POST",
-        headers: {
-            "Authorization": `Bearer ${getApiKey()}`,
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-            model: EMBEDDING_MODEL,
-            input: text,
-            dimensions: EMBEDDING_DIMENSIONS,
-        }),
-    });
+    const maxRetries = 3;
+    const baseDelayMs = 1000;
+    const timeoutMs = 30000;
 
-    if (!response.ok) {
-        const body = await response.text();
-        throw new Error(`Embedding API error (${response.status}): ${body}`);
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+            const response = await fetch(`${getApiBase()}/embeddings`, {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${getApiKey()}`,
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    model: EMBEDDING_MODEL,
+                    input: text,
+                    dimensions: EMBEDDING_DIMENSIONS,
+                }),
+                signal: AbortSignal.timeout(timeoutMs),
+            });
+
+            if (!response.ok) {
+                const body = await response.text();
+                // Retry on 429 (rate limit) and 5xx (server errors)
+                if ((response.status === 429 || response.status >= 500) && attempt < maxRetries) {
+                    const delay = baseDelayMs * Math.pow(2, attempt);
+                    console.warn(`Embedding API ${response.status}, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`);
+                    await new Promise((resolve) => setTimeout(resolve, delay));
+                    continue;
+                }
+                throw new Error(`Embedding API error (${response.status}): ${body}`);
+            }
+
+            const data = await response.json();
+            return (data as { data: Array<{ embedding: number[] }> }).data[0].embedding;
+        } catch (err) {
+            // Timeout or network error — retry if attempts remain
+            if (attempt < maxRetries && err instanceof Error && (err.name === "AbortError" || err.name === "TypeError")) {
+                const delay = baseDelayMs * Math.pow(2, attempt);
+                console.warn(`Embedding API request failed, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries}): ${err.message}`);
+                await new Promise((resolve) => setTimeout(resolve, delay));
+                continue;
+            }
+            throw err;
+        }
     }
 
-    const data = await response.json();
-    return (data as { data: Array<{ embedding: number[] }> }).data[0].embedding;
+    // Unreachable, but satisfies TypeScript
+    throw new Error("Embedding API failed after all retries");
 }
 
 /** Build the text to embed from a resume's searchText. */
@@ -121,12 +164,14 @@ export const generateEmbedding = action({
         }
 
         const embedding = await fetchEmbedding(text);
+        const searchTextHash = await computeSearchTextHash(text);
 
         const embeddingId = await ctx.runMutation(internal.embeddings.storeEmbedding, {
             resumeId: args.resumeId,
             embedding,
             model: EMBEDDING_MODEL,
             sourceKey: resume.sourceKey ?? undefined,
+            searchTextHash,
         });
 
         return { embeddingId, dimensions: embedding.length };
@@ -150,6 +195,7 @@ export const storeEmbedding = internalMutation({
         embedding: v.array(v.float64()),
         model: v.string(),
         sourceKey: v.optional(v.string()),
+        searchTextHash: v.optional(v.string()),
     },
     handler: async (ctx, args): Promise<Id<"resume_embeddings">> => {
         // Check for existing embedding for this resume
@@ -165,9 +211,10 @@ export const storeEmbedding = internalMutation({
                 model: args.model,
                 sourceKey: args.sourceKey,
                 generatedAt: Date.now(),
+                searchTextHash: args.searchTextHash,
             });
-            // Update back-link on resume
-            await ctx.db.patch(args.resumeId, { embeddingId: existing._id });
+            // Update back-link on resume + clear needsEmbedding flag
+            await ctx.db.patch(args.resumeId, { embeddingId: existing._id, needsEmbedding: false });
             return existing._id;
         }
 
@@ -177,10 +224,11 @@ export const storeEmbedding = internalMutation({
             model: args.model,
             sourceKey: args.sourceKey,
             generatedAt: Date.now(),
+            searchTextHash: args.searchTextHash,
         });
 
-        // Set back-link on resume
-        await ctx.db.patch(args.resumeId, { embeddingId });
+        // Set back-link on resume + clear needsEmbedding flag
+        await ctx.db.patch(args.resumeId, { embeddingId, needsEmbedding: false });
 
         return embeddingId;
     },
@@ -193,6 +241,7 @@ export const storeEmbedding = internalMutation({
 interface BatchResult {
     generated: number;
     skipped: number;
+    apiErrors: number;
     wouldGenerate?: number;
     hasMore: boolean;
     cursor: string | null;
@@ -224,6 +273,7 @@ export const batchGenerateEmbeddings = internalAction({
             return {
                 generated: 0,
                 skipped: page.resumes.length,
+                apiErrors: 0,
                 wouldGenerate: toEmbed,
                 hasMore: page.hasMore,
                 cursor: page.nextCursor,
@@ -232,6 +282,7 @@ export const batchGenerateEmbeddings = internalAction({
 
         let generated = 0;
         let skipped = 0;
+        let apiErrors = 0;
 
         for (let i = 0; i < page.resumes.length; i++) {
             const resume = page.resumes[i];
@@ -243,11 +294,13 @@ export const batchGenerateEmbeddings = internalAction({
 
             try {
                 const embedding = await fetchEmbedding(text);
+                const searchTextHash = await computeSearchTextHash(text);
                 await ctx.runMutation(internal.embeddings.storeEmbedding, {
                     resumeId: resume._id,
                     embedding,
                     model: EMBEDDING_MODEL,
                     sourceKey: resume.sourceKey ?? undefined,
+                    searchTextHash,
                 });
                 generated++;
 
@@ -258,15 +311,58 @@ export const batchGenerateEmbeddings = internalAction({
             } catch (err) {
                 console.error(`Failed to generate embedding for resume ${resume._id}:`, err);
                 skipped++;
+                apiErrors++;
             }
         }
 
         return {
             generated,
             skipped,
+            apiErrors,
             hasMore: page.hasMore,
             cursor: page.nextCursor,
         };
+    },
+});
+
+// ---------------------------------------------------------------------------
+// Scheduled backfill action — called by cron for incremental embedding
+// ---------------------------------------------------------------------------
+
+export const scheduledBackfill = internalAction({
+    args: {},
+    handler: async (ctx): Promise<{ generated: number; apiErrors: number; batches: number }> => {
+        let totalGenerated = 0;
+        let totalApiErrors = 0;
+        let batches = 0;
+        let cursor: string | undefined = undefined;
+
+        // Process up to 5 batches per cron run (500 resumes max per hour)
+        for (let i = 0; i < 5; i++) {
+            const batchResult: { generated: number; apiErrors: number; hasMore: boolean; cursor: string | null } = await ctx.runAction(internal.embeddings.batchGenerateEmbeddings, {
+                cursor,
+                limit: 50,
+                delayMs: 200,
+            });
+            totalGenerated += batchResult.generated;
+            totalApiErrors += batchResult.apiErrors;
+            batches++;
+
+            if (!batchResult.hasMore) break;
+            cursor = batchResult.cursor ?? undefined;
+
+            // If too many API errors, stop early to avoid wasting resources
+            if (batchResult.apiErrors > 5) {
+                console.warn(`Scheduled backfill stopping early: ${batchResult.apiErrors} API errors in last batch`);
+                break;
+            }
+        }
+
+        if (totalGenerated > 0 || totalApiErrors > 0) {
+            console.log(`Scheduled backfill: ${totalGenerated} generated, ${totalApiErrors} API errors, ${batches} batches`);
+        }
+
+        return { generated: totalGenerated, apiErrors: totalApiErrors, batches };
     },
 });
 
@@ -276,10 +372,11 @@ export const getResumesWithoutEmbeddings = internalQuery({
         numItems: v.number(),
     },
     handler: async (ctx, args) => {
-        // Scan resumes where embeddingId is undefined
+        // Use indexed needsEmbedding flag for efficient lookup
+        // Falls back to filter scan if needsEmbedding is not yet set
         const results = await ctx.db
             .query("resumes")
-            .filter((q) => q.eq(q.field("embeddingId"), undefined))
+            .withIndex("by_needsEmbedding", (q) => q.eq("needsEmbedding", true))
             .paginate({ cursor: args.cursor ?? null, numItems: args.numItems });
 
         return {
