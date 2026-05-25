@@ -340,3 +340,289 @@ describe("resume_tasks: resetDatabase", () => {
     expect(result.count).toBe(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// resume_tasks.claim
+// ---------------------------------------------------------------------------
+
+describe("resume_tasks: claim", () => {
+  it("claims the oldest pending task", async () => {
+    const t = convexTest(schema, modules);
+
+    const taskId = await t.mutation(api.resume_tasks.dispatch, {
+      keyword: "test",
+      location: "test",
+      limit: 10,
+    });
+
+    const claimed = await t.mutation(api.resume_tasks.claim, {
+      workerId: "worker-1",
+    });
+
+    expect(claimed).toBeDefined();
+    expect(claimed!._id).toBe(taskId);
+
+    const task = await t.run(async (ctx) => {
+      return ctx.db.get(taskId);
+    });
+    expect(task?.status).toBe("processing");
+    expect(task?.workerId).toBe("worker-1");
+    expect(task?.startedAt).toBeDefined();
+  });
+
+  it("returns null when no pending tasks", async () => {
+    const t = convexTest(schema, modules);
+
+    const claimed = await t.mutation(api.resume_tasks.claim, {
+      workerId: "worker-1",
+    });
+
+    expect(claimed).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resume_tasks.heartbeat
+// ---------------------------------------------------------------------------
+
+describe("resume_tasks: heartbeat", () => {
+  it("creates a new worker on first heartbeat", async () => {
+    const t = convexTest(schema, modules);
+
+    const workerId = await t.mutation(api.resume_tasks.heartbeat, {
+      workerId: "worker-1",
+      state: "idle",
+    });
+
+    expect(workerId).toBeDefined();
+
+    const workers = await t.run(async (ctx) => {
+      return ctx.db.query("collection_workers").collect();
+    });
+    expect(workers).toHaveLength(1);
+    expect(workers[0].workerId).toBe("worker-1");
+    expect(workers[0].state).toBe("idle");
+  });
+
+  it("updates existing worker on subsequent heartbeat", async () => {
+    const t = convexTest(schema, modules);
+
+    await t.mutation(api.resume_tasks.heartbeat, {
+      workerId: "worker-1",
+      state: "idle",
+    });
+
+    await t.mutation(api.resume_tasks.heartbeat, {
+      workerId: "worker-1",
+      state: "processing",
+    });
+
+    const workers = await t.run(async (ctx) => {
+      return ctx.db.query("collection_workers").collect();
+    });
+    expect(workers).toHaveLength(1);
+    expect(workers[0].state).toBe("processing");
+  });
+
+  it("stores activeTaskId and lastError", async () => {
+    const t = convexTest(schema, modules);
+
+    const taskId = await t.mutation(api.resume_tasks.dispatch, {
+      keyword: "test",
+      location: "test",
+      limit: 10,
+    });
+
+    await t.mutation(api.resume_tasks.heartbeat, {
+      workerId: "worker-1",
+      state: "error",
+      activeTaskId: taskId,
+      lastError: "connection timeout",
+    });
+
+    const workers = await t.run(async (ctx) => {
+      return ctx.db.query("collection_workers").collect();
+    });
+    expect(workers[0].state).toBe("error");
+    expect(workers[0].activeTaskId).toBe(taskId);
+    expect(workers[0].lastError).toBe("connection timeout");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resume_tasks.getWorkerHealth
+// ---------------------------------------------------------------------------
+
+describe("resume_tasks: getWorkerHealth", () => {
+  it("reports healthy workers", async () => {
+    const t = convexTest(schema, modules);
+
+    await t.mutation(api.resume_tasks.heartbeat, {
+      workerId: "worker-1",
+      state: "idle",
+    });
+
+    const health = await t.query(api.resume_tasks.getWorkerHealth, {});
+
+    expect(health.totalWorkers).toBe(1);
+    expect(health.healthyWorkers).toBe(1);
+    expect(health.workers).toHaveLength(1);
+    expect(health.workers[0].healthy).toBe(true);
+  });
+
+  it("reports unhealthy workers when in error state", async () => {
+    const t = convexTest(schema, modules);
+
+    await t.mutation(api.resume_tasks.heartbeat, {
+      workerId: "worker-1",
+      state: "error",
+      lastError: "crashed",
+    });
+
+    const health = await t.query(api.resume_tasks.getWorkerHealth, {});
+
+    expect(health.totalWorkers).toBe(1);
+    expect(health.healthyWorkers).toBe(0);
+    expect(health.workers[0].healthy).toBe(false);
+  });
+
+  it("returns zeros when no workers exist", async () => {
+    const t = convexTest(schema, modules);
+
+    const health = await t.query(api.resume_tasks.getWorkerHealth, {});
+
+    expect(health.totalWorkers).toBe(0);
+    expect(health.healthyWorkers).toBe(0);
+    expect(health.workers).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resume_tasks.complete
+// ---------------------------------------------------------------------------
+
+describe("resume_tasks: complete", () => {
+  it("completes a processing task", async () => {
+    const t = convexTest(schema, modules);
+
+    const taskId = await t.mutation(api.resume_tasks.dispatch, {
+      keyword: "test",
+      location: "test",
+      limit: 10,
+    });
+
+    await t.mutation(api.resume_tasks.claim, { workerId: "worker-1" });
+
+    await t.mutation(api.resume_tasks.complete, {
+      taskId,
+      status: "completed",
+    });
+
+    const task = await t.run(async (ctx) => {
+      return ctx.db.get(taskId);
+    });
+    expect(task?.status).toBe("completed");
+    expect(task?.completedAt).toBeDefined();
+  });
+
+  it("fails a processing task with error", async () => {
+    const t = convexTest(schema, modules);
+
+    const taskId = await t.mutation(api.resume_tasks.dispatch, {
+      keyword: "test",
+      location: "test",
+      limit: 10,
+    });
+
+    await t.mutation(api.resume_tasks.claim, { workerId: "worker-1" });
+
+    await t.mutation(api.resume_tasks.complete, {
+      taskId,
+      status: "failed",
+      error: "network timeout",
+    });
+
+    const task = await t.run(async (ctx) => {
+      return ctx.db.get(taskId);
+    });
+    expect(task?.status).toBe("failed");
+    expect(task?.error).toBe("network timeout");
+  });
+
+  it("is a no-op for cancelled tasks", async () => {
+    const t = convexTest(schema, modules);
+
+    const taskId = await t.mutation(api.resume_tasks.dispatch, {
+      keyword: "test",
+      location: "test",
+      limit: 10,
+    });
+
+    await t.mutation(api.resume_tasks.cancel, { taskId });
+
+    await t.mutation(api.resume_tasks.complete, {
+      taskId,
+      status: "completed",
+    });
+
+    const task = await t.run(async (ctx) => {
+      return ctx.db.get(taskId);
+    });
+    // Should remain cancelled
+    expect(task?.status).toBe("cancelled");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resume_tasks.updateProgress
+// ---------------------------------------------------------------------------
+
+describe("resume_tasks: updateProgress", () => {
+  it("updates progress on a processing task", async () => {
+    const t = convexTest(schema, modules);
+
+    const taskId = await t.mutation(api.resume_tasks.dispatch, {
+      keyword: "test",
+      location: "test",
+      limit: 10,
+    });
+
+    await t.mutation(api.resume_tasks.claim, { workerId: "worker-1" });
+
+    await t.mutation(api.resume_tasks.updateProgress, {
+      taskId,
+      current: 5,
+      page: 2,
+      total: 50,
+      lastStatus: "Scraping page 3",
+    });
+
+    const task = await t.run(async (ctx) => {
+      return ctx.db.get(taskId);
+    });
+    expect(task?.progress.current).toBe(5);
+    expect(task?.progress.page).toBe(2);
+    expect(task?.progress.total).toBe(50);
+    expect(task?.lastStatus).toBe("Scraping page 3");
+  });
+
+  it("returns cancelled status for cancelled tasks", async () => {
+    const t = convexTest(schema, modules);
+
+    const taskId = await t.mutation(api.resume_tasks.dispatch, {
+      keyword: "test",
+      location: "test",
+      limit: 10,
+    });
+
+    await t.mutation(api.resume_tasks.cancel, { taskId });
+
+    const result = await t.mutation(api.resume_tasks.updateProgress, {
+      taskId,
+      current: 5,
+      page: 2,
+    });
+
+    expect(result).toEqual({ status: "cancelled" });
+  });
+});

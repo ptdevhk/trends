@@ -87,3 +87,37 @@ export const collectionTaskResultsValidator = v.object({
     autoAnalyzed: v.optional(v.number()),
     autoAnalysisTaskId: v.optional(v.string()),
 });
+
+// --- ResumeFilters (screening_sessions.config.filters, search_history.filters) ---
+
+export const resumeFiltersValidator = v.optional(v.object({
+    minExperience: v.optional(v.number()),
+    maxExperience: v.optional(v.number()),
+    education: v.optional(v.array(v.string())),
+    skills: v.optional(v.array(v.string())),
+    locations: v.optional(v.array(v.string())),
+    minSalary: v.optional(v.number()),
+    maxSalary: v.optional(v.number()),
+    minRoleYears: v.optional(v.number()),
+    roleFilterType: v.optional(v.string()),
+    minAge: v.optional(v.number()),
+    maxAge: v.optional(v.number()),
+    sources: v.optional(v.array(v.string())),
+    minMatchScore: v.optional(v.number()),
+    recommendation: v.optional(v.array(v.union(
+        v.literal("strong_match"),
+        v.literal("match"),
+        v.literal("potential"),
+        v.literal("no_match"),
+    ))),
+    sortBy: v.optional(v.union(
+        v.literal("score"),
+        v.literal("name"),
+        v.literal("experience"),
+        v.literal("extractedAt"),
+    )),
+    sortOrder: v.optional(v.union(
+        v.literal("asc"),
+        v.literal("desc"),
+    )),
+}));
