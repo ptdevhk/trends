@@ -1700,3 +1700,68 @@ export const backfillSeekNameSearchUrls = mutation({
         };
     },
 });
+
+/**
+ * Backfill `resumes.analyses` to conform to the typed `analysisResultValidator`.
+ *
+ * The `analyses` field was originally `v.any()`. This migration normalizes each
+ * entry so that every value has at minimum a `score: number` field. Entries that
+ * already conform are left untouched. Non-conforming entries get `score: 0` as
+ * a fallback.
+ *
+ * After this migration runs to completion (no more pages), the `v.any()` bridge
+ * in the schema can be removed, leaving only the strict typed validator.
+ */
+export const backfillAnalysesValidator = mutation({
+    args: {
+        cursor: v.optional(v.string()),
+        batchSize: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const resumes = await ctx.db
+            .query("resumes")
+            .order("desc")
+            .paginate({
+                cursor: args.cursor ?? null,
+                numItems: resolveResumeScanBatchSize(args.batchSize),
+            });
+
+        let updated = 0;
+        for (const resume of resumes.page) {
+            if (!resume.analyses || typeof resume.analyses !== "object" || Array.isArray(resume.analyses)) {
+                continue;
+            }
+
+            // Check if all entries already conform (have score:number)
+            const entries = Object.entries(resume.analyses as Record<string, unknown>);
+            const allConform = entries.every(([, val]) =>
+                typeof val === "object" && val !== null && !Array.isArray(val) && typeof (val as Record<string, unknown>).score === "number",
+            );
+            if (allConform) continue;
+
+            // Normalize non-conforming entries
+            const normalized: Record<string, unknown> = {};
+            for (const [key, val] of entries) {
+                if (typeof val === "object" && val !== null && !Array.isArray(val) && typeof (val as Record<string, unknown>).score === "number") {
+                    normalized[key] = val;
+                } else if (typeof val === "object" && val !== null && !Array.isArray(val)) {
+                    // Has structure but missing score — add score: 0
+                    normalized[key] = { ...val, score: 0 };
+                } else {
+                    // Completely malformed — minimal valid entry
+                    normalized[key] = { score: 0 };
+                }
+            }
+
+            await ctx.db.patch(resume._id, { analyses: normalized });
+            updated += 1;
+        }
+
+        return {
+            scannedResumes: resumes.page.length,
+            updatedResumes: updated,
+            hasMore: !resumes.isDone,
+            cursor: resumes.isDone ? null : resumes.continueCursor,
+        };
+    },
+});

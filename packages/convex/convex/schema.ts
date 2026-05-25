@@ -1,6 +1,6 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
-import { ingestDataValidator, collectionTaskResultsValidator, resumeFiltersValidator } from "./validators.js";
+import { ingestDataValidator, collectionTaskResultsValidator, resumeFiltersValidator, analysisResultValidator } from "./validators.js";
 
 export default defineSchema({
     // Tasks for resume collection
@@ -81,7 +81,10 @@ export default defineSchema({
         // Key: `source:<sourceKey>|analysis:<jobDescriptionId>` when the resume source is known,
         //       otherwise the legacy bare `jobDescriptionId` / `default` key.
         // Value: Analysis object (the payload keeps bare jobDescriptionId for compatibility)
-        analyses: v.optional(v.any()),
+        analyses: v.optional(v.union(
+            v.any(),  // Bridge: accepts existing unstructured data
+            v.record(v.string(), analysisResultValidator),  // New: typed analysis results
+        )),
 
         // AI Confirm Score (cost-gated L4 batch confirm pass)
         confirmedScore: v.optional(v.number()),
