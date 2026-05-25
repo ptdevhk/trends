@@ -180,3 +180,8 @@ export const resumeFiltersValidator = v.optional(v.object({
         v.literal("desc"),
     )),
 }));
+
+// --- Matching rules (analyze args) ---
+
+const primitiveValueValidator = v.union(v.string(), v.number(), v.boolean());
+export const matchingRulesValidator = v.optional(v.union(v.string(), v.record(v.string(), primitiveValueValidator), v.array(primitiveValueValidator)));
