@@ -15,6 +15,8 @@ import {
   ResumeManualImportFormSchema,
   ResumeManualImportResponseSchema,
   ResumeSubmitSummarySchema,
+  SimpleErrorSchema,
+  ResumeResetResponseSchema,
 } from "../schemas/index.js";
 import { resolveResumeId } from "../services/resume-id.js";
 import { isRecord, normalizeWorkHistoryEntry } from "@trends/shared";
@@ -184,17 +186,8 @@ function normalizeResumeBackupSourceHosts(values: string[] | undefined): string[
   return normalized?.map((value) => value.toLowerCase());
 }
 
-const ResumeImportErrorSchema = z.object({
-  success: z.literal(false),
-  error: z.string(),
-});
+const ResumeImportErrorSchema = SimpleErrorSchema;
 
-const ResumeResetResponseSchema = z.object({
-  success: z.literal(true),
-  count: z.number().int(),
-  partial: z.boolean(),
-  deleted: z.record(z.string(), z.number().int()),
-});
 const manualImportResumesRoute = createRoute({
   method: "post",
   path: "/api/resumes/manual-import",

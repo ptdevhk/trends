@@ -1392,3 +1392,22 @@ export const AnalysisTasksResponseSchema = z
     tasks: z.array(AnalysisTaskSchema),
   })
   .openapi("AnalysisTasksResponse");
+
+// Shared route-level schemas (previously duplicated across route files)
+
+export const ClearMatchesResponseSchema = z
+  .object({
+    success: z.literal(true),
+    deleted: z.number().int(),
+    jobDescriptionId: z.string().optional(),
+  })
+  .openapi("ClearMatchesResponse");
+
+export const ResumeResetResponseSchema = z
+  .object({
+    success: z.literal(true),
+    count: z.number().int(),
+    partial: z.boolean(),
+    deleted: z.record(z.string(), z.number().int()),
+  })
+  .openapi("ResumeResetResponse");
