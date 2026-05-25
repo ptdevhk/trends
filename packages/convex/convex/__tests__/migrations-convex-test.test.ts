@@ -574,3 +574,79 @@ describe("migration: removeScreeningSessionCollectUrl", () => {
     expect(result.total).toBe(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// backfillAnalysesValidator
+// ---------------------------------------------------------------------------
+
+describe("migration: backfillAnalysesValidator", () => {
+  it("normalizes analyses entries missing score field", async () => {
+    const t = convexTest(schema, modules);
+
+    const resumeId = await insertResume(t, {
+      analyses: {
+        "source:seek|analysis:jd-1": { summary: "Good candidate", recommendation: "match" },
+        "default": { score: 85, summary: "Solid", recommendation: "strong_match" },
+      },
+    });
+
+    const result = await t.mutation(api.migrations.backfillAnalysesValidator, {});
+
+    expect(result.updatedResumes).toBe(1);
+
+    const resume = await t.run(async (ctx) => ctx.db.get(resumeId));
+    const analyses = resume?.analyses as Record<string, Record<string, unknown>>;
+    // Entry with missing score gets score: 0
+    expect(typeof analyses["source:seek|analysis:jd-1"].score).toBe("number");
+    expect(analyses["source:seek|analysis:jd-1"].score).toBe(0);
+    // Preserves other fields
+    expect(analyses["source:seek|analysis:jd-1"].summary).toBe("Good candidate");
+    // Entry that already conformed is untouched
+    expect(analyses["default"].score).toBe(85);
+  });
+
+  it("skips resumes where all analyses already conform", async () => {
+    const t = convexTest(schema, modules);
+
+    await insertResume(t, {
+      analyses: {
+        "default": { score: 90, summary: "Great", recommendation: "strong_match" },
+        "source:seek|analysis:jd-2": { score: 72, summary: "OK" },
+      },
+    });
+
+    const result = await t.mutation(api.migrations.backfillAnalysesValidator, {});
+    expect(result.updatedResumes).toBe(0);
+  });
+
+  it("replaces completely malformed entries with minimal valid object", async () => {
+    const t = convexTest(schema, modules);
+
+    const resumeId = await insertResume(t, {
+      analyses: {
+        bad: "not-an-object",
+        alsoBad: 42,
+        good: { score: 50, summary: "Decent" },
+      },
+    });
+
+    const result = await t.mutation(api.migrations.backfillAnalysesValidator, {});
+    expect(result.updatedResumes).toBe(1);
+
+    const resume = await t.run(async (ctx) => ctx.db.get(resumeId));
+    const analyses = resume?.analyses as Record<string, Record<string, unknown>>;
+    expect(analyses.bad).toEqual({ score: 0 });
+    expect(analyses.alsoBad).toEqual({ score: 0 });
+    expect(analyses.good).toEqual({ score: 50, summary: "Decent" });
+  });
+
+  it("skips resumes with no analyses field", async () => {
+    const t = convexTest(schema, modules);
+
+    await insertResume(t, {}); // No analyses
+    await insertResume(t, { analyses: undefined }); // Explicitly undefined
+
+    const result = await t.mutation(api.migrations.backfillAnalysesValidator, {});
+    expect(result.updatedResumes).toBe(0);
+  });
+});

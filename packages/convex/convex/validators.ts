@@ -88,6 +88,26 @@ export const collectionTaskResultsValidator = v.object({
     autoAnalysisTaskId: v.optional(v.string()),
 });
 
+// --- Analysis result (resumes.analyses values) ---
+
+export const analysisResultValidator = v.object({
+    score: v.number(),
+    summary: v.optional(v.string()),
+    highlights: v.optional(v.array(v.string())),
+    recommendation: v.optional(v.string()),
+    breakdown: v.optional(v.any()),
+    keyFactors: v.optional(v.array(v.object({
+        factor: v.string(),
+        weight: v.optional(v.number()),
+        value: v.string(),
+    }))),
+    jobDescriptionId: v.optional(v.string()),
+    promptVersion: v.optional(v.number()),
+    locale: v.optional(v.string()),
+    queryLocation: v.optional(v.string()),
+    analyzedAt: v.optional(v.number()),
+});
+
 // --- ResumeFilters (screening_sessions.config.filters, search_history.filters) ---
 
 export const resumeFiltersValidator = v.optional(v.object({
