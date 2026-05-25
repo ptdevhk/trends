@@ -38,4 +38,11 @@ crons.interval(
     {},
 );
 
+crons.daily(
+    "cleanup expired audit logs",
+    { hourUTC: 5, minuteUTC: 0 },
+    internal.audit.cleanupExpiredAuditLogs,
+    {},
+);
+
 export default crons;

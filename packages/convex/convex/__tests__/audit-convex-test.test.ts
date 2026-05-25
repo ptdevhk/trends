@@ -710,3 +710,126 @@ describe("bias_metrics (unit)", () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// Audit log retention / cleanup tests
+// ---------------------------------------------------------------------------
+
+describe("audit log retention (EU AI Act / GDPR)", () => {
+  describe("getExpiredAuditLogs", () => {
+    it("returns audit logs with expiresAt before the given timestamp", async () => {
+      const t = convexTest(schema, modules);
+
+      const resumeId = await t.run(async (ctx) => {
+        return ctx.db.insert("resumes", {
+          externalId: "expired-r1",
+          content: {},
+          hash: "expired1",
+          tags: [],
+          crawledAt: Date.now(),
+          source: "test",
+        });
+      });
+
+      const now = Date.now();
+      const twoYearsMs = 2 * 365 * 24 * 60 * 60 * 1000;
+
+      // Insert an expired log (decidedAt 3 years ago, expiresAt 1 year ago)
+      await t.run(async (ctx) => {
+        await ctx.db.insert("analysis_audit_log", {
+          resumeId,
+          workspaceSlug: "ws-expired",
+          decisionType: "score",
+          actionRef: "analyze:analyzeResume",
+          inputSnapshot: {},
+          modelMeta: { model: "gpt-4", provider: "openai" },
+          output: { score: 70 },
+          outcome: "pending",
+          decidedAt: now - 3 * twoYearsMs / 2,
+          expiresAt: now - 1000, // Already expired
+        });
+      });
+
+      // Insert a non-expired log
+      await t.run(async (ctx) => {
+        await ctx.db.insert("analysis_audit_log", {
+          resumeId,
+          workspaceSlug: "ws-expired",
+          decisionType: "tag",
+          actionRef: "ai_tagging_results:drainQueue",
+          inputSnapshot: {},
+          modelMeta: { model: "gpt-4", provider: "openai" },
+          output: { tags: ["senior"] },
+          outcome: "pending",
+          decidedAt: now,
+          expiresAt: now + twoYearsMs, // Not yet expired
+        });
+      });
+
+      const expired = await t.query(internal.audit.getExpiredAuditLogs, {
+        before: now,
+      });
+
+      expect(expired.length).toBe(1);
+      expect(expired[0].decisionType).toBe("score");
+    });
+
+    it("returns empty array when no expired logs exist", async () => {
+      const t = convexTest(schema, modules);
+
+      const expired = await t.query(internal.audit.getExpiredAuditLogs, {
+        before: Date.now(),
+      });
+
+      expect(expired).toEqual([]);
+    });
+  });
+
+  describe("deleteAuditLog", () => {
+    it("deletes an audit log entry", async () => {
+      const t = convexTest(schema, modules);
+
+      const resumeId = await t.run(async (ctx) => {
+        return ctx.db.insert("resumes", {
+          externalId: "delete-r1",
+          content: {},
+          hash: "delete1",
+          tags: [],
+          crawledAt: Date.now(),
+          source: "test",
+        });
+      });
+
+      const now = Date.now();
+      const logId = await t.run(async (ctx) => {
+        return ctx.db.insert("analysis_audit_log", {
+          resumeId,
+          workspaceSlug: "ws-delete",
+          decisionType: "score",
+          actionRef: "analyze:analyzeResume",
+          inputSnapshot: {},
+          modelMeta: { model: "gpt-4", provider: "openai" },
+          output: { score: 50 },
+          outcome: "pending",
+          decidedAt: now,
+          expiresAt: now + 2 * 365 * 24 * 60 * 60 * 1000,
+        });
+      });
+
+      // Verify it exists
+      const before = await t.run(async (ctx) => {
+        return ctx.db.get(logId);
+      });
+      expect(before).not.toBeNull();
+
+      // Delete
+      await t.mutation(internal.audit.deleteAuditLog, { auditLogId: logId });
+
+      // Verify it's gone
+      const after = await t.run(async (ctx) => {
+        return ctx.db.get(logId);
+      });
+      expect(after).toBeNull();
+    });
+  });
+});
