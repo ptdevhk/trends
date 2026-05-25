@@ -245,6 +245,33 @@ describe("bias_audit: storeBiasReport + getLatestBiasReport", () => {
 
     expect(result).toBeNull();
   });
+
+  it("rejects a report with invalid shape (typed validator)", async () => {
+    const t = convexTest(schema, modules);
+
+    // status must be "ok" — passing a different value should throw
+    await expect(
+      t.mutation(internal.bias_audit.storeBiasReport, {
+        workspaceSlug: "ws-invalid",
+        report: {
+          status: "bad_status",
+          workspaceSlug: "ws-invalid",
+          decisionType: "score",
+        } as any,
+      }),
+    ).rejects.toThrow();
+
+    // Missing required fields should also throw
+    await expect(
+      t.mutation(internal.bias_audit.storeBiasReport, {
+        workspaceSlug: "ws-invalid",
+        report: {
+          status: "ok",
+          workspaceSlug: "ws-invalid",
+        } as any,
+      }),
+    ).rejects.toThrow();
+  });
 });
 
 // ---------------------------------------------------------------------------

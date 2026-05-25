@@ -268,13 +268,55 @@ export const computeBiasMetrics = internalAction({
 });
 
 // ---------------------------------------------------------------------------
+// Validator: biasMetricsReportValidator — typed replacement for v.any()
+// ---------------------------------------------------------------------------
+
+export const biasMetricsReportValidator = v.object({
+    status: v.literal("ok"),
+    workspaceSlug: v.string(),
+    decisionType: v.string(),
+    scoreThreshold: v.number(),
+    totalAuditRecords: v.number(),
+    groupCount: v.number(),
+    demographicParity: v.object({
+        disparityRatio: v.number(),
+        maxDifference: v.number(),
+        passing: v.boolean(),
+        groupRates: v.array(v.object({
+            groupKey: v.string(),
+            rate: v.number(),
+        })),
+    }),
+    disparateImpact: v.array(v.object({
+        groupKey: v.string(),
+        ratio: v.number(),
+        referenceGroupKey: v.string(),
+    })),
+    overrideRate: v.object({
+        tprDifference: v.number(),
+        fprDifference: v.number(),
+        passing: v.boolean(),
+    }),
+    scoreDrift: v.object({
+        psi: v.number(),
+        driftDetected: v.boolean(),
+    }),
+    anomalyFlags: v.object({
+        statisticalParityViolation: v.boolean(),
+        disparateImpactViolation: v.boolean(),
+        scoreDriftDetected: v.boolean(),
+    }),
+    computedAt: v.number(),
+});
+
+// ---------------------------------------------------------------------------
 // Internal mutation: storeBiasReport
 // ---------------------------------------------------------------------------
 
 export const storeBiasReport = internalMutation({
     args: {
         workspaceSlug: v.string(),
-        report: v.any(),
+        report: biasMetricsReportValidator,
     },
     handler: async (ctx, args) => {
         const existing = await ctx.db
