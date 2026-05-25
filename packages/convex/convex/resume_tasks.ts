@@ -530,7 +530,7 @@ export const submitResumes = mutation({
                         const patch: {
                             externalId: string;
                             identityKey: string;
-                            content: unknown;
+                            content: Record<string, any>;
                             hash: string;
                             crawledAt: number;
                             source: string;
@@ -600,7 +600,7 @@ export const submitResumes = mutation({
                     const insertPayload: {
                         externalId: string;
                         identityKey: string;
-                        content: unknown;
+                        content: Record<string, any>;
                         hash: string;
                         searchText: string;
                         tags: string[];
