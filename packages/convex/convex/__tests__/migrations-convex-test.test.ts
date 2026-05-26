@@ -1565,3 +1565,98 @@ describe("migration: validateDataConsistency", () => {
     expect(result.backfillVerifiedRoleYears.updated).toBe(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// backfillEvidenceText
+// ---------------------------------------------------------------------------
+
+describe("migration: backfillEvidenceText", () => {
+  it("patches resumes with ingestData but missing evidenceText", async () => {
+    const t = convexTest(schema, modules);
+
+    // Resume with ingestData but no evidenceText
+    await insertResume(t, {
+      content: {
+        name: "Legacy Resume",
+        workHistory: [
+          { raw: "2020-2025 Sales Engineer" },
+          { raw: "CNC 机床" },
+        ],
+      },
+      ingestData: {
+        industryTags: ["machinery"],
+        synonymHits: [],
+        brandHits: [],
+        companyHits: [],
+        ruleScores: { jd1: 80 },
+        experienceLevel: "mid",
+        computedAt: 1_700_000_000_000,
+        skillsVersion: 1,
+      },
+    });
+
+    // Resume with evidenceText already present — should be skipped
+    await insertResume(t, {
+      ingestData: {
+        evidenceText: "existing evidence",
+        industryTags: ["sales"],
+        synonymHits: [],
+        brandHits: [],
+        companyHits: [],
+        ruleScores: { jd2: 75 },
+        experienceLevel: "senior",
+        computedAt: 1_700_000_000_100,
+        skillsVersion: 2,
+      },
+    });
+
+    // Resume without ingestData — should be skipped
+    await insertResume(t);
+
+    const result = await t.mutation(api.migrations.backfillEvidenceText, {});
+
+    expect(result.scannedResumes).toBe(3);
+    expect(result.patched).toBe(1);
+    expect(result.hasMore).toBe(false);
+    expect(result.cursor).toBeNull();
+
+    // Verify the resume now has evidenceText
+    const resumes = await t.run(async (ctx) => ctx.db.query("resumes").collect());
+    const legacy = resumes.find((r) =>
+      (r.content as Record<string, unknown>).name === "Legacy Resume",
+    );
+    expect(legacy!.ingestData?.evidenceText).toBeDefined();
+    expect(typeof legacy!.ingestData?.evidenceText).toBe("string");
+  });
+
+  it("returns zero patched when all resumes already have evidenceText", async () => {
+    const t = convexTest(schema, modules);
+
+    await insertResume(t, {
+      ingestData: {
+        evidenceText: "already done",
+        industryTags: [],
+        synonymHits: [],
+        brandHits: [],
+        companyHits: [],
+        ruleScores: {},
+        experienceLevel: "mid",
+        computedAt: Date.now(),
+        skillsVersion: 1,
+      },
+    });
+
+    const result = await t.mutation(api.migrations.backfillEvidenceText, {});
+
+    expect(result.patched).toBe(0);
+  });
+
+  it("returns zero scanned when no resumes exist", async () => {
+    const t = convexTest(schema, modules);
+
+    const result = await t.mutation(api.migrations.backfillEvidenceText, {});
+
+    expect(result.scannedResumes).toBe(0);
+    expect(result.patched).toBe(0);
+  });
+});
