@@ -26,7 +26,7 @@ const CandidateActionSchema = z.object({
   sessionId: z.string().optional(),
   resumeId: z.string(),
   actionType: ActionTypeSchema,
-  actionData: z.record(z.string(), z.any()).optional(),
+  actionData: z.record(z.string(), z.unknown()).optional(),
   createdAt: z.string(),
 });
 
@@ -45,7 +45,7 @@ const CreateActionSchema = z.object({
   sessionId: z.string().optional(),
   resumeId: z.string(),
   actionType: ActionTypeSchema,
-  actionData: z.record(z.string(), z.any()).optional(),
+  actionData: z.record(z.string(), z.unknown()).optional(),
 });
 
 const ActionsQuerySchema = z.object({
