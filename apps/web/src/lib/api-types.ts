@@ -5616,6 +5616,1859 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/config/agents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get agents configuration */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Agents config */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            config: {
+                                [key: string]: unknown;
+                            };
+                        };
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        /** Update agents configuration */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            responses: {
+                /** @description Updated agents config */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            config: {
+                                [key: string]: unknown;
+                            };
+                        };
+                    };
+                };
+                /** @description Invalid payload */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/config/ai-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get AI configuration status */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description AI status */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            enabled?: boolean | null;
+                            resumesEnabled?: boolean | null;
+                            model?: string | null;
+                            apiBase?: string | null;
+                            temperature?: number | null;
+                            maxTokens?: number | null;
+                            timeout?: number | null;
+                            apiKeyMasked?: string | null;
+                            valid: boolean;
+                            validationError?: string | null;
+                            bonded?: string[] | null;
+                        };
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/config/custom-keywords": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get custom keywords configuration */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Custom keywords */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            tags: {
+                                id: string;
+                                keyword: string;
+                                english?: string;
+                                category: string;
+                                markets?: ("CN" | "MY")[];
+                                visible?: boolean;
+                                /** @enum {string} */
+                                source?: "system" | "workspace";
+                            }[];
+                            categories: {
+                                id: string;
+                                name: string;
+                                icon?: string;
+                            }[];
+                            systemLocations: {
+                                id: string;
+                                keyword: string;
+                                /** @enum {string} */
+                                level: "province" | "city";
+                                parentKeyword?: string;
+                                visible: boolean;
+                                markets?: ("CN" | "MY")[];
+                            }[];
+                            workflowSeeds: {
+                                id: string;
+                                label: string;
+                                /** @enum {string} */
+                                market: "CN" | "MY";
+                                location: string;
+                                keywords: string[];
+                                collectionSource: {
+                                    /** @enum {string} */
+                                    type: "job5156" | "51job" | "seek";
+                                    exactUrl?: string;
+                                };
+                                visible?: boolean;
+                                /** @enum {string} */
+                                source?: "system" | "workspace";
+                            }[];
+                        };
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Add a custom keyword tag */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        id: string;
+                        keyword: string;
+                        english?: string;
+                        category: string;
+                        markets?: ("CN" | "MY")[];
+                        visible?: boolean;
+                        /** @enum {string} */
+                        source?: "system" | "workspace";
+                    };
+                };
+            };
+            responses: {
+                /** @description Created tag */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            tag: {
+                                id: string;
+                                keyword: string;
+                                english?: string;
+                                category: string;
+                                markets?: ("CN" | "MY")[];
+                                visible?: boolean;
+                                /** @enum {string} */
+                                source?: "system" | "workspace";
+                            };
+                        };
+                    };
+                };
+                /** @description Invalid payload */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Already exists */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/config/custom-keywords/system-locations/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Update system location visibility */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        visible: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description Updated location */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            item: {
+                                id: string;
+                                keyword: string;
+                                /** @enum {string} */
+                                level: "province" | "city";
+                                parentKeyword?: string;
+                                visible: boolean;
+                                markets?: ("CN" | "MY")[];
+                            };
+                        };
+                    };
+                };
+                /** @description Invalid payload */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/config/custom-keywords/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Update a custom keyword tag */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        id: string;
+                        keyword: string;
+                        english?: string;
+                        category: string;
+                        markets?: ("CN" | "MY")[];
+                        visible?: boolean;
+                        /** @enum {string} */
+                        source?: "system" | "workspace";
+                    };
+                };
+            };
+            responses: {
+                /** @description Updated tag */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            tag: {
+                                id: string;
+                                keyword: string;
+                                english?: string;
+                                category: string;
+                                markets?: ("CN" | "MY")[];
+                                visible?: boolean;
+                                /** @enum {string} */
+                                source?: "system" | "workspace";
+                            };
+                        };
+                    };
+                };
+                /** @description Invalid payload */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        post?: never;
+        /** Delete a custom keyword tag */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Deleted */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                        };
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/config/custom-keywords/workflow-seeds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add a workflow seed */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        id: string;
+                        label: string;
+                        /** @enum {string} */
+                        market: "CN" | "MY";
+                        location: string;
+                        keywords: string[];
+                        collectionSource: {
+                            /** @enum {string} */
+                            type: "job5156" | "51job" | "seek";
+                            exactUrl?: string;
+                        };
+                        visible?: boolean;
+                        /** @enum {string} */
+                        source?: "system" | "workspace";
+                    };
+                };
+            };
+            responses: {
+                /** @description Created seed */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            workflowSeed: {
+                                id: string;
+                                label: string;
+                                /** @enum {string} */
+                                market: "CN" | "MY";
+                                location: string;
+                                keywords: string[];
+                                collectionSource: {
+                                    /** @enum {string} */
+                                    type: "job5156" | "51job" | "seek";
+                                    exactUrl?: string;
+                                };
+                                visible?: boolean;
+                                /** @enum {string} */
+                                source?: "system" | "workspace";
+                            };
+                        };
+                    };
+                };
+                /** @description Invalid payload */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Already exists */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/config/custom-keywords/workflow-seeds/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Update a workflow seed */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        id: string;
+                        label: string;
+                        /** @enum {string} */
+                        market: "CN" | "MY";
+                        location: string;
+                        keywords: string[];
+                        collectionSource: {
+                            /** @enum {string} */
+                            type: "job5156" | "51job" | "seek";
+                            exactUrl?: string;
+                        };
+                        visible?: boolean;
+                        /** @enum {string} */
+                        source?: "system" | "workspace";
+                    };
+                };
+            };
+            responses: {
+                /** @description Updated seed */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            workflowSeed: {
+                                id: string;
+                                label: string;
+                                /** @enum {string} */
+                                market: "CN" | "MY";
+                                location: string;
+                                keywords: string[];
+                                collectionSource: {
+                                    /** @enum {string} */
+                                    type: "job5156" | "51job" | "seek";
+                                    exactUrl?: string;
+                                };
+                                visible?: boolean;
+                                /** @enum {string} */
+                                source?: "system" | "workspace";
+                            };
+                        };
+                    };
+                };
+                /** @description Invalid payload */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        post?: never;
+        /** Delete a workflow seed */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Deleted */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                        };
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/config/rule-weights": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get rule weights configuration */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Rule weights */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            config: {
+                                [key: string]: unknown;
+                            };
+                        };
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        /** Update rule weights configuration */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            responses: {
+                /** @description Updated rule weights */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            config: {
+                                [key: string]: unknown;
+                            };
+                        };
+                    };
+                };
+                /** @description Invalid payload */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/config/resume-field-usage-policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get resume field usage policy */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Resume field usage policy */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            config: {
+                                version?: number;
+                                updatedAt?: string;
+                                description?: string;
+                                sourceFileRelativePath?: string;
+                                /** @default {} */
+                                fields: {
+                                    [key: string]: {
+                                        surfaces?: {
+                                            analysis?: boolean;
+                                            presentation?: boolean;
+                                            outreach?: boolean;
+                                            audit?: boolean;
+                                            debug?: boolean;
+                                        };
+                                    };
+                                };
+                            };
+                        };
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        /** Update resume field usage policy */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        version?: number;
+                        updatedAt?: string;
+                        description?: string;
+                        sourceFileRelativePath?: string;
+                        /** @default {} */
+                        fields?: {
+                            [key: string]: {
+                                surfaces?: {
+                                    analysis?: boolean;
+                                    presentation?: boolean;
+                                    outreach?: boolean;
+                                    audit?: boolean;
+                                    debug?: boolean;
+                                };
+                            };
+                        };
+                    };
+                };
+            };
+            responses: {
+                /** @description Updated policy */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            config: {
+                                version?: number;
+                                updatedAt?: string;
+                                description?: string;
+                                sourceFileRelativePath?: string;
+                                /** @default {} */
+                                fields: {
+                                    [key: string]: {
+                                        surfaces?: {
+                                            analysis?: boolean;
+                                            presentation?: boolean;
+                                            outreach?: boolean;
+                                            audit?: boolean;
+                                            debug?: boolean;
+                                        };
+                                    };
+                                };
+                            };
+                        };
+                    };
+                };
+                /** @description Invalid payload */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/config/learning-log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get learning log entries */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Learning log entries */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            entries: {
+                                date: string;
+                                observation: string;
+                            }[];
+                        };
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Append a learning log entry */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        observation: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Appended entry */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            entry: {
+                                date: string;
+                                observation: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Invalid payload */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/config/system-metadata": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get system metadata */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description System metadata */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            metadata: {
+                                identity: {
+                                    appName: string;
+                                    homeTitle: string;
+                                    systemTitle: string;
+                                    settingsTitle: string;
+                                    adminBadgeLabel: string;
+                                    settingsBadgeLabel: string;
+                                    appVersion: string;
+                                    apiVersion: string;
+                                    webVersion: string;
+                                };
+                                navigation: {
+                                    system: {
+                                        id: string;
+                                        titleKey: string;
+                                        defaultTitle: string;
+                                        hrefSuffix: string;
+                                        matchesSuffixes?: string[];
+                                    }[];
+                                    settings: {
+                                        id: string;
+                                        titleKey: string;
+                                        defaultTitle: string;
+                                        hrefSuffix: string;
+                                        matchesSuffixes?: string[];
+                                    }[];
+                                    systemSettings: {
+                                        id: string;
+                                        titleKey: string;
+                                        defaultTitle: string;
+                                        hrefSuffix: string;
+                                        matchesSuffixes?: string[];
+                                    }[];
+                                    debugPage: {
+                                        id: string;
+                                        titleKey: string;
+                                        defaultTitle: string;
+                                        hrefSuffix: string;
+                                        matchesSuffixes?: string[];
+                                    }[];
+                                };
+                                labels: {
+                                    aiBreakdown: {
+                                        key: string;
+                                        aliases: string[];
+                                        labelKey: string;
+                                        defaultLabel: string;
+                                    }[];
+                                    ingestBrandSource: {
+                                        value: string;
+                                        labelKey: string;
+                                        defaultLabel: string;
+                                    }[];
+                                    ingestBrandContext: {
+                                        value: string;
+                                        labelKey: string;
+                                        defaultLabel: string;
+                                    }[];
+                                    ingestBrandRole: {
+                                        value: string;
+                                        labelKey: string;
+                                        defaultLabel: string;
+                                    }[];
+                                };
+                                prompt: {
+                                    keywordVariantTitle: string;
+                                    keywordVariantBody: string;
+                                };
+                                capabilities: {
+                                    id: string;
+                                    title: string;
+                                    description: string;
+                                    /** @enum {string} */
+                                    category: "inspect" | "debug" | "settings" | "navigation" | "cli";
+                                    /** @enum {string} */
+                                    audience: "developer" | "admin" | "app";
+                                    relatedSourceGroups?: ("prompt" | "config" | "project-notes")[];
+                                }[];
+                            };
+                        };
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/config/resume-display-limits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get resume display limits */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Resume display limits */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            latestWorkHistoryLimit: number;
+                            source: string;
+                        };
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/config/sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List config sources */
+        get: {
+            parameters: {
+                query?: {
+                    locale?: string;
+                    group?: "prompt" | "config" | "project-notes";
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Config sources */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            sources: {
+                                key: string;
+                                label: string;
+                                relativePath: string;
+                                /** @enum {string} */
+                                type: "markdown" | "json5" | "text";
+                                /** @enum {string} */
+                                group: "prompt" | "config" | "project-notes";
+                                /** @enum {string} */
+                                audience: "developer" | "admin" | "app";
+                                /** @enum {boolean} */
+                                readOnly: true;
+                                metadata?: {
+                                    version?: number;
+                                    updatedAt?: string;
+                                    description?: string;
+                                    locale?: string;
+                                    requestedLocale?: string;
+                                    resolvedSourceLocale?: string;
+                                    fallbackToZhHans?: boolean;
+                                };
+                                parseError?: string;
+                            }[];
+                        };
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/config/source-groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List config source groups */
+        get: {
+            parameters: {
+                query?: {
+                    locale?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Source groups */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            groups: {
+                                /** @enum {string} */
+                                key: "prompt" | "config" | "project-notes";
+                                label: string;
+                                description: string;
+                                /** @enum {string} */
+                                audience: "developer" | "admin" | "app";
+                                sources: {
+                                    key: string;
+                                    label: string;
+                                    relativePath: string;
+                                    /** @enum {string} */
+                                    type: "markdown" | "json5" | "text";
+                                    /** @enum {string} */
+                                    group: "prompt" | "config" | "project-notes";
+                                    /** @enum {string} */
+                                    audience: "developer" | "admin" | "app";
+                                    /** @enum {boolean} */
+                                    readOnly: true;
+                                    metadata?: {
+                                        version?: number;
+                                        updatedAt?: string;
+                                        description?: string;
+                                        locale?: string;
+                                        requestedLocale?: string;
+                                        resolvedSourceLocale?: string;
+                                        fallbackToZhHans?: boolean;
+                                    };
+                                    parseError?: string;
+                                }[];
+                            }[];
+                        };
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/config/sources/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get config source detail by key */
+        get: {
+            parameters: {
+                query?: {
+                    locale?: string;
+                };
+                header?: never;
+                path: {
+                    key: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Config source detail */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            source: {
+                                key: string;
+                                label: string;
+                                relativePath: string;
+                                /** @enum {string} */
+                                type: "markdown" | "json5" | "text";
+                                /** @enum {string} */
+                                group: "prompt" | "config" | "project-notes";
+                                /** @enum {string} */
+                                audience: "developer" | "admin" | "app";
+                                /** @enum {boolean} */
+                                readOnly: true;
+                                metadata?: {
+                                    version?: number;
+                                    updatedAt?: string;
+                                    description?: string;
+                                    locale?: string;
+                                    requestedLocale?: string;
+                                    resolvedSourceLocale?: string;
+                                    fallbackToZhHans?: boolean;
+                                };
+                                parseError?: string;
+                                rawSource: string;
+                                parsedPreview?: unknown;
+                            };
+                        };
+                    };
+                };
+                /** @description Not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/summaries/profiles": {
         parameters: {
             query?: never;

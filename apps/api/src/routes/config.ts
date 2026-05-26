@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { OpenAPIHono, z } from "@hono/zod-openapi";
+import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import {
   APP_SURFACE_IDENTITY,
   DEBUG_AI_BREAKDOWN_LABELS,
@@ -18,7 +18,7 @@ import {
   SYSTEM_NAV_ITEMS,
   isRecord,
 } from "@trends/shared";
-import { requireAdmin } from "../middleware/workspace.js";
+import { denyIfNotAdmin } from "../middleware/workspace.js";
 import { getMaskedApiKey, loadAIConfig, validateAIConfig } from "../services/ai-config.js";
 import { configSourceInspector, UnknownConfigSourceError } from "../services/config-source-inspector.js";
 import { customKeywordService } from "../services/custom-keyword-service.js";
@@ -29,6 +29,8 @@ const app = new OpenAPIHono();
 const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
 const API_ROOT = path.resolve(MODULE_DIR, "../..");
 const REPO_ROOT = path.resolve(API_ROOT, "../..");
+
+// --- Shared schemas ---
 
 const AgentsConfigSchema = z.record(z.string(), z.unknown());
 const KeywordMarketSchema = z.enum(["CN", "MY"]);
@@ -85,10 +87,11 @@ const ResumeFieldUsageSurfaceRulesSchema = z.object({
   analysis: z.boolean().optional(),
   presentation: z.boolean().optional(),
   outreach: z.boolean().optional(),
+  audit: z.boolean().optional(),
   debug: z.boolean().optional(),
 });
 const ResumeFieldUsageFieldSchema = z.object({
-  surfaces: ResumeFieldUsageSurfaceRulesSchema,
+  surfaces: ResumeFieldUsageSurfaceRulesSchema.optional(),
 });
 const ResumeFieldUsagePolicySchema = z.object({
   version: z.number().int().positive().optional(),
@@ -198,6 +201,87 @@ const ResumeDisplayLimitsSchema = z.object({
   source: z.string(),
 });
 
+// --- Shared response schemas ---
+
+const SuccessResponseSchema = z.object({ success: z.literal(true) });
+const ErrorResponseSchema = z.object({ success: z.literal(false), error: z.string() });
+
+const AIStatusResponseSchema = z.object({
+  success: z.literal(true),
+  enabled: z.boolean().nullish(),
+  resumesEnabled: z.boolean().nullish(),
+  model: z.string().nullish(),
+  apiBase: z.string().nullish(),
+  temperature: z.number().nullish(),
+  maxTokens: z.number().nullish(),
+  timeout: z.number().nullish(),
+  apiKeyMasked: z.string().nullish(),
+  valid: z.boolean(),
+  validationError: z.string().nullish(),
+  bonded: z.array(z.string()).nullish(),
+});
+
+const AgentsGetResponseSchema = z.object({
+  success: z.literal(true),
+  config: AgentsConfigSchema,
+});
+
+const RuleWeightsResponseSchema = z.object({
+  success: z.literal(true),
+  config: RuleWeightsConfigSchema,
+});
+
+const ResumeFieldUsagePolicyResponseSchema = z.object({
+  success: z.literal(true),
+  config: ResumeFieldUsagePolicySchema,
+});
+
+const LearningLogResponseSchema = z.object({
+  success: z.literal(true),
+  entries: z.array(LearningLogEntrySchema),
+});
+
+const LearningLogAppendResponseSchema = z.object({
+  success: z.literal(true),
+  entry: LearningLogEntrySchema,
+});
+
+const SystemMetadataResponseSchema = z.object({
+  success: z.literal(true),
+  metadata: SystemMetadataSchema,
+});
+
+const ConfigSourcesResponseSchema = z.object({
+  success: z.literal(true),
+  sources: z.array(ConfigSourceSummarySchema),
+});
+
+const SourceGroupsResponseSchema = z.object({
+  success: z.literal(true),
+  groups: z.array(SourceGroupSummarySchema),
+});
+
+const ConfigSourceDetailResponseSchema = z.object({
+  success: z.literal(true),
+  source: ConfigSourceDetailSchema,
+});
+
+const CustomKeywordTagResponseSchema = z.object({
+  success: z.literal(true),
+  tag: CustomKeywordTagSchema,
+});
+
+const CustomKeywordWorkflowSeedResponseSchema = z.object({
+  success: z.literal(true),
+  workflowSeed: CustomKeywordWorkflowSeedSchema,
+});
+
+const SystemLocationUpdateResponseSchema = z.object({
+  success: z.literal(true),
+  item: SystemLocationItemSchema,
+});
+
+// --- Helpers ---
 
 function readPackageVersion(relativePath: string): string {
   const packageJsonPath = path.resolve(REPO_ROOT, relativePath);
@@ -302,7 +386,20 @@ function applyBondedModel(configValue: Record<string, unknown>, model: string): 
   };
 }
 
-app.get("/agents", async (c) => {
+// --- Route definitions ---
+
+const getAgentsRoute = createRoute({
+  method: "get",
+  path: "/agents",
+  tags: ["config"],
+  summary: "Get agents configuration",
+  responses: {
+    200: { description: "Agents config", content: { "application/json": { schema: AgentsGetResponseSchema } } },
+    500: { description: "Server error", content: { "application/json": { schema: ErrorResponseSchema } } },
+  },
+});
+
+app.openapi(getAgentsRoute, async (c) => {
   try {
     const workspaceSlug = c.var.workspaceSlug;
     const mergedConfig = await workspaceConfigService.getAgentsConfig(workspaceSlug);
@@ -327,24 +424,48 @@ app.get("/agents", async (c) => {
   }
 });
 
-app.put("/agents", requireAdmin, async (c) => {
+const putAgentsRoute = createRoute({
+  method: "put",
+  path: "/agents",
+  tags: ["config"],
+  summary: "Update agents configuration",
+  request: {
+    body: { content: { "application/json": { schema: AgentsConfigSchema } } },
+  },
+  responses: {
+    200: { description: "Updated agents config", content: { "application/json": { schema: AgentsGetResponseSchema } } },
+    400: { description: "Invalid payload", content: { "application/json": { schema: ErrorResponseSchema } } },
+    403: { description: "Forbidden", content: { "application/json": { schema: ErrorResponseSchema } } },
+    500: { description: "Server error", content: { "application/json": { schema: ErrorResponseSchema } } },
+  },
+});
+
+app.openapi(putAgentsRoute, async (c) => {
+  if (denyIfNotAdmin(c.var.accessLevel)) {
+    return c.json({ success: false as const, error: "Admin access required" }, 403);
+  }
   try {
-    const body: unknown = await c.req.json();
-    const parsedBody = AgentsConfigSchema.safeParse(body);
-
-    if (!parsedBody.success) {
-      return c.json({ success: false as const, error: "Invalid agents configuration payload" }, 400);
-    }
-
-    await workspaceConfigService.setAgentOverrides(c.var.workspaceSlug, parsedBody.data);
-    return c.json({ success: true as const, config: parsedBody.data }, 200);
+    const data = c.req.valid("json");
+    await workspaceConfigService.setAgentOverrides(c.var.workspaceSlug, data);
+    return c.json({ success: true as const, config: data }, 200);
   } catch (error) {
     logger.error("Failed to save agents config", error, { route: "config" });
     return c.json({ success: false as const, error: "Failed to save agents configuration" }, 500);
   }
 });
 
-app.get("/ai-status", (c) => {
+const getAIStatusRoute = createRoute({
+  method: "get",
+  path: "/ai-status",
+  tags: ["config"],
+  summary: "Get AI configuration status",
+  responses: {
+    200: { description: "AI status", content: { "application/json": { schema: AIStatusResponseSchema } } },
+    500: { description: "Server error", content: { "application/json": { schema: ErrorResponseSchema } } },
+  },
+});
+
+app.openapi(getAIStatusRoute, (c) => {
   try {
     const aiConfig = loadAIConfig();
     const validation = validateAIConfig();
@@ -352,17 +473,17 @@ app.get("/ai-status", (c) => {
     return c.json(
       {
         success: true as const,
-        enabled: aiConfig.enabled,
-        resumesEnabled: aiConfig.resumesEnabled,
-        model: aiConfig.model,
-        apiBase: aiConfig.apiBase,
-        temperature: aiConfig.temperature,
-        maxTokens: aiConfig.maxTokens,
-        timeout: aiConfig.timeout,
-        apiKeyMasked: getMaskedApiKey(),
+        enabled: aiConfig.enabled ?? null,
+        resumesEnabled: aiConfig.resumesEnabled ?? null,
+        model: aiConfig.model ?? null,
+        apiBase: aiConfig.apiBase ?? null,
+        temperature: aiConfig.temperature ?? null,
+        maxTokens: aiConfig.maxTokens ?? null,
+        timeout: aiConfig.timeout ?? null,
+        apiKeyMasked: getMaskedApiKey() ?? null,
         valid: validation.valid,
-        validationError: validation.error,
-        bonded: aiConfig.bonded,
+        validationError: validation.error ?? null,
+        bonded: aiConfig.bonded ?? null,
       },
       200,
     );
@@ -372,7 +493,18 @@ app.get("/ai-status", (c) => {
   }
 });
 
-app.get("/custom-keywords", async (c) => {
+const getCustomKeywordsRoute = createRoute({
+  method: "get",
+  path: "/custom-keywords",
+  tags: ["config"],
+  summary: "Get custom keywords configuration",
+  responses: {
+    200: { description: "Custom keywords", content: { "application/json": { schema: CustomKeywordsResponseSchema } } },
+    500: { description: "Server error", content: { "application/json": { schema: ErrorResponseSchema } } },
+  },
+});
+
+app.openapi(getCustomKeywordsRoute, async (c) => {
   try {
     const config = await workspaceConfigService.getCustomKeywords(c.var.workspaceSlug);
     const response = CustomKeywordsResponseSchema.parse({
@@ -389,16 +521,33 @@ app.get("/custom-keywords", async (c) => {
   }
 });
 
-app.put("/custom-keywords/system-locations/:id", requireAdmin, async (c) => {
+const putSystemLocationRoute = createRoute({
+  method: "put",
+  path: "/custom-keywords/system-locations/{id}",
+  tags: ["config"],
+  summary: "Update system location visibility",
+  request: {
+    params: z.object({
+      id: z.string().openapi({ param: { name: "id", in: "path" } }),
+    }),
+    body: { content: { "application/json": { schema: SystemLocationVisibilityUpdateSchema } } },
+  },
+  responses: {
+    200: { description: "Updated location", content: { "application/json": { schema: SystemLocationUpdateResponseSchema } } },
+    400: { description: "Invalid payload", content: { "application/json": { schema: ErrorResponseSchema } } },
+    403: { description: "Forbidden", content: { "application/json": { schema: ErrorResponseSchema } } },
+    404: { description: "Not found", content: { "application/json": { schema: ErrorResponseSchema } } },
+    500: { description: "Server error", content: { "application/json": { schema: ErrorResponseSchema } } },
+  },
+});
+
+app.openapi(putSystemLocationRoute, async (c) => {
+  if (denyIfNotAdmin(c.var.accessLevel)) {
+    return c.json({ success: false as const, error: "Admin access required" }, 403);
+  }
   try {
-    const id = c.req.param("id");
-    const body: unknown = await c.req.json();
-    const parsedBody = SystemLocationVisibilityUpdateSchema.safeParse(body);
-
-    if (!parsedBody.success) {
-      return c.json({ success: false as const, error: "Invalid system location payload" }, 400);
-    }
-
+    const { id } = c.req.valid("param");
+    const data = c.req.valid("json");
     const workspaceSlug = c.var.workspaceSlug;
     const mergedConfig = await workspaceConfigService.getCustomKeywords(workspaceSlug);
     const matched = mergedConfig.systemLocations.find((item) => item.id === id);
@@ -410,7 +559,7 @@ app.put("/custom-keywords/system-locations/:id", requireAdmin, async (c) => {
     const index = workspaceConfig.systemLocations.findIndex((item) => item.id === id);
     const updatedItem = {
       ...matched,
-      visible: parsedBody.data.visible,
+      visible: data.visible,
     };
 
     if (index === -1) {
@@ -427,37 +576,51 @@ app.put("/custom-keywords/system-locations/:id", requireAdmin, async (c) => {
   }
 });
 
-app.post("/custom-keywords", requireAdmin, async (c) => {
+const postCustomKeywordRoute = createRoute({
+  method: "post",
+  path: "/custom-keywords",
+  tags: ["config"],
+  summary: "Add a custom keyword tag",
+  request: {
+    body: { content: { "application/json": { schema: CustomKeywordTagSchema } } },
+  },
+  responses: {
+    201: { description: "Created tag", content: { "application/json": { schema: CustomKeywordTagResponseSchema } } },
+    400: { description: "Invalid payload", content: { "application/json": { schema: ErrorResponseSchema } } },
+    403: { description: "Forbidden", content: { "application/json": { schema: ErrorResponseSchema } } },
+    409: { description: "Already exists", content: { "application/json": { schema: ErrorResponseSchema } } },
+    500: { description: "Server error", content: { "application/json": { schema: ErrorResponseSchema } } },
+  },
+});
+
+app.openapi(postCustomKeywordRoute, async (c) => {
+  if (denyIfNotAdmin(c.var.accessLevel)) {
+    return c.json({ success: false as const, error: "Admin access required" }, 403);
+  }
   try {
-    const body: unknown = await c.req.json();
-    const parsedBody = CustomKeywordTagSchema.safeParse(body);
-
-    if (!parsedBody.success) {
-      return c.json({ success: false as const, error: "Invalid custom keyword payload" }, 400);
-    }
-
+    const data = c.req.valid("json");
     const workspaceSlug = c.var.workspaceSlug;
     const mergedConfig = await workspaceConfigService.getCustomKeywords(workspaceSlug);
-    const exists = mergedConfig.tags.some((tag) => tag.id === parsedBody.data.id);
+    const exists = mergedConfig.tags.some((tag) => tag.id === data.id);
     if (exists) {
-      return c.json({ success: false as const, error: `Tag already exists: ${parsedBody.data.id}` }, 409);
+      return c.json({ success: false as const, error: `Tag already exists: ${data.id}` }, 409);
     }
 
     const workspaceConfig = await workspaceConfigService.getWorkspaceCustomKeywords(workspaceSlug);
-    upsertWorkspaceItem(workspaceConfig.tags, parsedBody.data);
+    upsertWorkspaceItem(workspaceConfig.tags, data);
 
-    const categoryExists = mergedConfig.categories.some((category) => category.id === parsedBody.data.category)
-      || workspaceConfig.categories.some((category) => category.id === parsedBody.data.category);
+    const categoryExists = mergedConfig.categories.some((category) => category.id === data.category)
+      || workspaceConfig.categories.some((category) => category.id === data.category);
     if (!categoryExists) {
       workspaceConfig.categories.push({
-        id: parsedBody.data.category,
-        name: parsedBody.data.category,
+        id: data.category,
+        name: data.category,
       });
     }
 
     await workspaceConfigService.setWorkspaceCustomKeywords(workspaceSlug, workspaceConfig);
     const updatedConfig = await workspaceConfigService.getCustomKeywords(workspaceSlug);
-    const tag = updatedConfig.tags.find((item) => item.id === parsedBody.data.id) ?? parsedBody.data;
+    const tag = updatedConfig.tags.find((item) => item.id === data.id) ?? data;
     return c.json({ success: true as const, tag }, 201);
   } catch (error) {
     logger.error("Failed to add custom keyword", error, { route: "config" });
@@ -465,17 +628,35 @@ app.post("/custom-keywords", requireAdmin, async (c) => {
   }
 });
 
-app.put("/custom-keywords/:id", requireAdmin, async (c) => {
+const putCustomKeywordRoute = createRoute({
+  method: "put",
+  path: "/custom-keywords/{id}",
+  tags: ["config"],
+  summary: "Update a custom keyword tag",
+  request: {
+    params: z.object({
+      id: z.string().openapi({ param: { name: "id", in: "path" } }),
+    }),
+    body: { content: { "application/json": { schema: CustomKeywordUpdateSchema } } },
+  },
+  responses: {
+    200: { description: "Updated tag", content: { "application/json": { schema: CustomKeywordTagResponseSchema } } },
+    400: { description: "Invalid payload", content: { "application/json": { schema: ErrorResponseSchema } } },
+    403: { description: "Forbidden", content: { "application/json": { schema: ErrorResponseSchema } } },
+    404: { description: "Not found", content: { "application/json": { schema: ErrorResponseSchema } } },
+    500: { description: "Server error", content: { "application/json": { schema: ErrorResponseSchema } } },
+  },
+});
+
+app.openapi(putCustomKeywordRoute, async (c) => {
+  if (denyIfNotAdmin(c.var.accessLevel)) {
+    return c.json({ success: false as const, error: "Admin access required" }, 403);
+  }
   try {
-    const id = c.req.param("id");
-    const body: unknown = await c.req.json();
-    const parsedBody = CustomKeywordUpdateSchema.safeParse(body);
+    const { id } = c.req.valid("param");
+    const data = c.req.valid("json");
 
-    if (!parsedBody.success) {
-      return c.json({ success: false as const, error: "Invalid custom keyword update payload" }, 400);
-    }
-
-    if (parsedBody.data.id !== id) {
+    if (data.id !== id) {
       return c.json({ success: false as const, error: "Path id does not match payload id" }, 400);
     }
 
@@ -487,17 +668,17 @@ app.put("/custom-keywords/:id", requireAdmin, async (c) => {
     }
 
     const workspaceConfig = await workspaceConfigService.getWorkspaceCustomKeywords(workspaceSlug);
-    upsertWorkspaceItem(workspaceConfig.tags, parsedBody.data);
+    upsertWorkspaceItem(workspaceConfig.tags, data);
 
-    const categoryExists = mergedConfig.categories.some((category) => category.id === parsedBody.data.category)
-      || workspaceConfig.categories.some((category) => category.id === parsedBody.data.category);
+    const categoryExists = mergedConfig.categories.some((category) => category.id === data.category)
+      || workspaceConfig.categories.some((category) => category.id === data.category);
     if (!categoryExists) {
-      workspaceConfig.categories.push({ id: parsedBody.data.category, name: parsedBody.data.category });
+      workspaceConfig.categories.push({ id: data.category, name: data.category });
     }
 
     await workspaceConfigService.setWorkspaceCustomKeywords(workspaceSlug, workspaceConfig);
     const updatedConfig = await workspaceConfigService.getCustomKeywords(workspaceSlug);
-    const tag = updatedConfig.tags.find((item) => item.id === id) ?? parsedBody.data;
+    const tag = updatedConfig.tags.find((item) => item.id === id) ?? data;
     return c.json({ success: true as const, tag }, 200);
   } catch (error) {
     logger.error("Failed to update custom keyword", error, { route: "config" });
@@ -505,9 +686,30 @@ app.put("/custom-keywords/:id", requireAdmin, async (c) => {
   }
 });
 
-app.delete("/custom-keywords/:id", requireAdmin, async (c) => {
+const deleteCustomKeywordRoute = createRoute({
+  method: "delete",
+  path: "/custom-keywords/{id}",
+  tags: ["config"],
+  summary: "Delete a custom keyword tag",
+  request: {
+    params: z.object({
+      id: z.string().openapi({ param: { name: "id", in: "path" } }),
+    }),
+  },
+  responses: {
+    200: { description: "Deleted", content: { "application/json": { schema: SuccessResponseSchema } } },
+    403: { description: "Forbidden", content: { "application/json": { schema: ErrorResponseSchema } } },
+    404: { description: "Not found", content: { "application/json": { schema: ErrorResponseSchema } } },
+    500: { description: "Server error", content: { "application/json": { schema: ErrorResponseSchema } } },
+  },
+});
+
+app.openapi(deleteCustomKeywordRoute, async (c) => {
+  if (denyIfNotAdmin(c.var.accessLevel)) {
+    return c.json({ success: false as const, error: "Admin access required" }, 403);
+  }
   try {
-    const id = c.req.param("id");
+    const { id } = c.req.valid("param");
     const workspaceSlug = c.var.workspaceSlug;
     const mergedConfig = await workspaceConfigService.getCustomKeywords(workspaceSlug);
     const workspaceConfig = await workspaceConfigService.getWorkspaceCustomKeywords(workspaceSlug);
@@ -536,28 +738,42 @@ app.delete("/custom-keywords/:id", requireAdmin, async (c) => {
   }
 });
 
-app.post("/custom-keywords/workflow-seeds", requireAdmin, async (c) => {
+const postWorkflowSeedRoute = createRoute({
+  method: "post",
+  path: "/custom-keywords/workflow-seeds",
+  tags: ["config"],
+  summary: "Add a workflow seed",
+  request: {
+    body: { content: { "application/json": { schema: CustomKeywordWorkflowSeedSchema } } },
+  },
+  responses: {
+    201: { description: "Created seed", content: { "application/json": { schema: CustomKeywordWorkflowSeedResponseSchema } } },
+    400: { description: "Invalid payload", content: { "application/json": { schema: ErrorResponseSchema } } },
+    403: { description: "Forbidden", content: { "application/json": { schema: ErrorResponseSchema } } },
+    409: { description: "Already exists", content: { "application/json": { schema: ErrorResponseSchema } } },
+    500: { description: "Server error", content: { "application/json": { schema: ErrorResponseSchema } } },
+  },
+});
+
+app.openapi(postWorkflowSeedRoute, async (c) => {
+  if (denyIfNotAdmin(c.var.accessLevel)) {
+    return c.json({ success: false as const, error: "Admin access required" }, 403);
+  }
   try {
-    const body: unknown = await c.req.json();
-    const parsedBody = CustomKeywordWorkflowSeedSchema.safeParse(body);
-
-    if (!parsedBody.success) {
-      return c.json({ success: false as const, error: "Invalid workflow seed payload" }, 400);
-    }
-
+    const data = c.req.valid("json");
     const workspaceSlug = c.var.workspaceSlug;
     const mergedConfig = await workspaceConfigService.getCustomKeywords(workspaceSlug);
-    const exists = mergedConfig.workflowSeeds.some((seed) => seed.id === parsedBody.data.id);
+    const exists = mergedConfig.workflowSeeds.some((seed) => seed.id === data.id);
     if (exists) {
-      return c.json({ success: false as const, error: `Workflow seed already exists: ${parsedBody.data.id}` }, 409);
+      return c.json({ success: false as const, error: `Workflow seed already exists: ${data.id}` }, 409);
     }
 
     const workspaceConfig = await workspaceConfigService.getWorkspaceCustomKeywords(workspaceSlug);
-    upsertWorkspaceItem(workspaceConfig.workflowSeeds, parsedBody.data);
+    upsertWorkspaceItem(workspaceConfig.workflowSeeds, data);
 
     await workspaceConfigService.setWorkspaceCustomKeywords(workspaceSlug, workspaceConfig);
     const updatedConfig = await workspaceConfigService.getCustomKeywords(workspaceSlug);
-    const workflowSeed = updatedConfig.workflowSeeds.find((item) => item.id === parsedBody.data.id) ?? parsedBody.data;
+    const workflowSeed = updatedConfig.workflowSeeds.find((item) => item.id === data.id) ?? data;
     return c.json({ success: true as const, workflowSeed }, 201);
   } catch (error) {
     logger.error("Failed to add workflow seed", error, { route: "config" });
@@ -565,17 +781,35 @@ app.post("/custom-keywords/workflow-seeds", requireAdmin, async (c) => {
   }
 });
 
-app.put("/custom-keywords/workflow-seeds/:id", requireAdmin, async (c) => {
+const putWorkflowSeedRoute = createRoute({
+  method: "put",
+  path: "/custom-keywords/workflow-seeds/{id}",
+  tags: ["config"],
+  summary: "Update a workflow seed",
+  request: {
+    params: z.object({
+      id: z.string().openapi({ param: { name: "id", in: "path" } }),
+    }),
+    body: { content: { "application/json": { schema: CustomKeywordWorkflowSeedUpdateSchema } } },
+  },
+  responses: {
+    200: { description: "Updated seed", content: { "application/json": { schema: CustomKeywordWorkflowSeedResponseSchema } } },
+    400: { description: "Invalid payload", content: { "application/json": { schema: ErrorResponseSchema } } },
+    403: { description: "Forbidden", content: { "application/json": { schema: ErrorResponseSchema } } },
+    404: { description: "Not found", content: { "application/json": { schema: ErrorResponseSchema } } },
+    500: { description: "Server error", content: { "application/json": { schema: ErrorResponseSchema } } },
+  },
+});
+
+app.openapi(putWorkflowSeedRoute, async (c) => {
+  if (denyIfNotAdmin(c.var.accessLevel)) {
+    return c.json({ success: false as const, error: "Admin access required" }, 403);
+  }
   try {
-    const id = c.req.param("id");
-    const body: unknown = await c.req.json();
-    const parsedBody = CustomKeywordWorkflowSeedUpdateSchema.safeParse(body);
+    const { id } = c.req.valid("param");
+    const data = c.req.valid("json");
 
-    if (!parsedBody.success) {
-      return c.json({ success: false as const, error: "Invalid workflow seed update payload" }, 400);
-    }
-
-    if (parsedBody.data.id !== id) {
+    if (data.id !== id) {
       return c.json({ success: false as const, error: "Path id does not match payload id" }, 400);
     }
 
@@ -587,11 +821,11 @@ app.put("/custom-keywords/workflow-seeds/:id", requireAdmin, async (c) => {
     }
 
     const workspaceConfig = await workspaceConfigService.getWorkspaceCustomKeywords(workspaceSlug);
-    upsertWorkspaceItem(workspaceConfig.workflowSeeds, parsedBody.data);
+    upsertWorkspaceItem(workspaceConfig.workflowSeeds, data);
 
     await workspaceConfigService.setWorkspaceCustomKeywords(workspaceSlug, workspaceConfig);
     const updatedConfig = await workspaceConfigService.getCustomKeywords(workspaceSlug);
-    const workflowSeed = updatedConfig.workflowSeeds.find((item) => item.id === id) ?? parsedBody.data;
+    const workflowSeed = updatedConfig.workflowSeeds.find((item) => item.id === id) ?? data;
     return c.json({ success: true as const, workflowSeed }, 200);
   } catch (error) {
     logger.error("Failed to update workflow seed", error, { route: "config" });
@@ -599,9 +833,30 @@ app.put("/custom-keywords/workflow-seeds/:id", requireAdmin, async (c) => {
   }
 });
 
-app.delete("/custom-keywords/workflow-seeds/:id", requireAdmin, async (c) => {
+const deleteWorkflowSeedRoute = createRoute({
+  method: "delete",
+  path: "/custom-keywords/workflow-seeds/{id}",
+  tags: ["config"],
+  summary: "Delete a workflow seed",
+  request: {
+    params: z.object({
+      id: z.string().openapi({ param: { name: "id", in: "path" } }),
+    }),
+  },
+  responses: {
+    200: { description: "Deleted", content: { "application/json": { schema: SuccessResponseSchema } } },
+    403: { description: "Forbidden", content: { "application/json": { schema: ErrorResponseSchema } } },
+    404: { description: "Not found", content: { "application/json": { schema: ErrorResponseSchema } } },
+    500: { description: "Server error", content: { "application/json": { schema: ErrorResponseSchema } } },
+  },
+});
+
+app.openapi(deleteWorkflowSeedRoute, async (c) => {
+  if (denyIfNotAdmin(c.var.accessLevel)) {
+    return c.json({ success: false as const, error: "Admin access required" }, 403);
+  }
   try {
-    const id = c.req.param("id");
+    const { id } = c.req.valid("param");
     const workspaceSlug = c.var.workspaceSlug;
     const mergedConfig = await workspaceConfigService.getCustomKeywords(workspaceSlug);
     const workspaceConfig = await workspaceConfigService.getWorkspaceCustomKeywords(workspaceSlug);
@@ -629,7 +884,18 @@ app.delete("/custom-keywords/workflow-seeds/:id", requireAdmin, async (c) => {
   }
 });
 
-app.get("/rule-weights", async (c) => {
+const getRuleWeightsRoute = createRoute({
+  method: "get",
+  path: "/rule-weights",
+  tags: ["config"],
+  summary: "Get rule weights configuration",
+  responses: {
+    200: { description: "Rule weights", content: { "application/json": { schema: RuleWeightsResponseSchema } } },
+    500: { description: "Server error", content: { "application/json": { schema: ErrorResponseSchema } } },
+  },
+});
+
+app.openapi(getRuleWeightsRoute, async (c) => {
   try {
     const config = await workspaceConfigService.getRuleWeights(c.var.workspaceSlug);
     return c.json({ success: true as const, config }, 200);
@@ -639,15 +905,30 @@ app.get("/rule-weights", async (c) => {
   }
 });
 
-app.put("/rule-weights", requireAdmin, async (c) => {
-  try {
-    const body: unknown = await c.req.json();
-    const parsed = RuleWeightsConfigSchema.safeParse(body);
-    if (!parsed.success) {
-      return c.json({ success: false as const, error: "Invalid rule weights payload" }, 400);
-    }
+const putRuleWeightsRoute = createRoute({
+  method: "put",
+  path: "/rule-weights",
+  tags: ["config"],
+  summary: "Update rule weights configuration",
+  request: {
+    body: { content: { "application/json": { schema: RuleWeightsConfigSchema } } },
+  },
+  responses: {
+    200: { description: "Updated rule weights", content: { "application/json": { schema: RuleWeightsResponseSchema } } },
+    400: { description: "Invalid payload", content: { "application/json": { schema: ErrorResponseSchema } } },
+    403: { description: "Forbidden", content: { "application/json": { schema: ErrorResponseSchema } } },
+    500: { description: "Server error", content: { "application/json": { schema: ErrorResponseSchema } } },
+  },
+});
 
-    await workspaceConfigService.setWorkspaceRuleWeights(c.var.workspaceSlug, parsed.data);
+app.openapi(putRuleWeightsRoute, async (c) => {
+  if (denyIfNotAdmin(c.var.accessLevel)) {
+    return c.json({ success: false as const, error: "Admin access required" }, 403);
+  }
+  try {
+    const data = c.req.valid("json");
+
+    await workspaceConfigService.setWorkspaceRuleWeights(c.var.workspaceSlug, data);
     const merged = await workspaceConfigService.getRuleWeights(c.var.workspaceSlug);
     return c.json({ success: true as const, config: merged }, 200);
   } catch (error) {
@@ -656,7 +937,18 @@ app.put("/rule-weights", requireAdmin, async (c) => {
   }
 });
 
-app.get("/resume-field-usage-policy", async (c) => {
+const getResumeFieldUsagePolicyRoute = createRoute({
+  method: "get",
+  path: "/resume-field-usage-policy",
+  tags: ["config"],
+  summary: "Get resume field usage policy",
+  responses: {
+    200: { description: "Resume field usage policy", content: { "application/json": { schema: ResumeFieldUsagePolicyResponseSchema } } },
+    500: { description: "Server error", content: { "application/json": { schema: ErrorResponseSchema } } },
+  },
+});
+
+app.openapi(getResumeFieldUsagePolicyRoute, async (c) => {
   try {
     const config = await workspaceConfigService.getResumeFieldUsagePolicy(c.var.workspaceSlug);
     const parsed = ResumeFieldUsagePolicySchema.safeParse(config);
@@ -670,15 +962,30 @@ app.get("/resume-field-usage-policy", async (c) => {
   }
 });
 
-app.put("/resume-field-usage-policy", requireAdmin, async (c) => {
-  try {
-    const body: unknown = await c.req.json();
-    const parsed = ResumeFieldUsagePolicySchema.safeParse(body);
-    if (!parsed.success) {
-      return c.json({ success: false as const, error: "Invalid resume field usage policy payload" }, 400);
-    }
+const putResumeFieldUsagePolicyRoute = createRoute({
+  method: "put",
+  path: "/resume-field-usage-policy",
+  tags: ["config"],
+  summary: "Update resume field usage policy",
+  request: {
+    body: { content: { "application/json": { schema: ResumeFieldUsagePolicySchema } } },
+  },
+  responses: {
+    200: { description: "Updated policy", content: { "application/json": { schema: ResumeFieldUsagePolicyResponseSchema } } },
+    400: { description: "Invalid payload", content: { "application/json": { schema: ErrorResponseSchema } } },
+    403: { description: "Forbidden", content: { "application/json": { schema: ErrorResponseSchema } } },
+    500: { description: "Server error", content: { "application/json": { schema: ErrorResponseSchema } } },
+  },
+});
 
-    await workspaceConfigService.setWorkspaceResumeFieldUsagePolicy(c.var.workspaceSlug, parsed.data);
+app.openapi(putResumeFieldUsagePolicyRoute, async (c) => {
+  if (denyIfNotAdmin(c.var.accessLevel)) {
+    return c.json({ success: false as const, error: "Admin access required" }, 403);
+  }
+  try {
+    const data = c.req.valid("json");
+
+    await workspaceConfigService.setWorkspaceResumeFieldUsagePolicy(c.var.workspaceSlug, data);
     const merged = await workspaceConfigService.getResumeFieldUsagePolicy(c.var.workspaceSlug);
     return c.json({ success: true as const, config: merged }, 200);
   } catch (error) {
@@ -687,7 +994,18 @@ app.put("/resume-field-usage-policy", requireAdmin, async (c) => {
   }
 });
 
-app.get("/learning-log", async (c) => {
+const getLearningLogRoute = createRoute({
+  method: "get",
+  path: "/learning-log",
+  tags: ["config"],
+  summary: "Get learning log entries",
+  responses: {
+    200: { description: "Learning log entries", content: { "application/json": { schema: LearningLogResponseSchema } } },
+    500: { description: "Server error", content: { "application/json": { schema: ErrorResponseSchema } } },
+  },
+});
+
+app.openapi(getLearningLogRoute, async (c) => {
   try {
     const entries = await workspaceConfigService.getLearningLog(c.var.workspaceSlug);
     const parsed = z.array(LearningLogEntrySchema).safeParse(entries);
@@ -701,15 +1019,30 @@ app.get("/learning-log", async (c) => {
   }
 });
 
-app.post("/learning-log", requireAdmin, async (c) => {
-  try {
-    const body: unknown = await c.req.json();
-    const parsed = LearningLogAppendSchema.safeParse(body);
-    if (!parsed.success) {
-      return c.json({ success: false as const, error: "Invalid learning log payload" }, 400);
-    }
+const postLearningLogRoute = createRoute({
+  method: "post",
+  path: "/learning-log",
+  tags: ["config"],
+  summary: "Append a learning log entry",
+  request: {
+    body: { content: { "application/json": { schema: LearningLogAppendSchema } } },
+  },
+  responses: {
+    201: { description: "Appended entry", content: { "application/json": { schema: LearningLogAppendResponseSchema } } },
+    400: { description: "Invalid payload", content: { "application/json": { schema: ErrorResponseSchema } } },
+    403: { description: "Forbidden", content: { "application/json": { schema: ErrorResponseSchema } } },
+    500: { description: "Server error", content: { "application/json": { schema: ErrorResponseSchema } } },
+  },
+});
 
-    const entry = await workspaceConfigService.appendLearningLogEntry(c.var.workspaceSlug, parsed.data.observation);
+app.openapi(postLearningLogRoute, async (c) => {
+  if (denyIfNotAdmin(c.var.accessLevel)) {
+    return c.json({ success: false as const, error: "Admin access required" }, 403);
+  }
+  try {
+    const data = c.req.valid("json");
+
+    const entry = await workspaceConfigService.appendLearningLogEntry(c.var.workspaceSlug, data.observation);
     return c.json({ success: true as const, entry }, 201);
   } catch (error) {
     logger.error("Failed to append learning log", error, { route: "config" });
@@ -717,7 +1050,18 @@ app.post("/learning-log", requireAdmin, async (c) => {
   }
 });
 
-app.get("/system-metadata", async (c) => {
+const getSystemMetadataRoute = createRoute({
+  method: "get",
+  path: "/system-metadata",
+  tags: ["config"],
+  summary: "Get system metadata",
+  responses: {
+    200: { description: "System metadata", content: { "application/json": { schema: SystemMetadataResponseSchema } } },
+    500: { description: "Server error", content: { "application/json": { schema: ErrorResponseSchema } } },
+  },
+});
+
+app.openapi(getSystemMetadataRoute, async (c) => {
   try {
     const payload = buildSystemMetadata();
     const parsed = SystemMetadataSchema.safeParse(payload);
@@ -731,7 +1075,18 @@ app.get("/system-metadata", async (c) => {
   }
 });
 
-app.get("/resume-display-limits", async (c) => {
+const getResumeDisplayLimitsRoute = createRoute({
+  method: "get",
+  path: "/resume-display-limits",
+  tags: ["config"],
+  summary: "Get resume display limits",
+  responses: {
+    200: { description: "Resume display limits", content: { "application/json": { schema: ResumeDisplayLimitsSchema } } },
+    500: { description: "Server error", content: { "application/json": { schema: ErrorResponseSchema } } },
+  },
+});
+
+app.openapi(getResumeDisplayLimitsRoute, async (c) => {
   try {
     const payload = {
       success: true as const,
@@ -749,13 +1104,29 @@ app.get("/resume-display-limits", async (c) => {
   }
 });
 
-app.get("/sources", async (c) => {
+const getSourcesRoute = createRoute({
+  method: "get",
+  path: "/sources",
+  tags: ["config"],
+  summary: "List config sources",
+  request: {
+    query: z.object({
+      locale: z.string().optional(),
+      group: z.enum(["prompt", "config", "project-notes"]).optional(),
+    }),
+  },
+  responses: {
+    200: { description: "Config sources", content: { "application/json": { schema: ConfigSourcesResponseSchema } } },
+    500: { description: "Server error", content: { "application/json": { schema: ErrorResponseSchema } } },
+  },
+});
+
+app.openapi(getSourcesRoute, async (c) => {
   try {
-    const requestedLocale = c.req.query("locale");
-    const group = c.req.query("group");
-    const summaries = group === "prompt" || group === "config" || group === "project-notes"
-      ? configSourceInspector.getSourcesByGroup(group, requestedLocale)
-      : configSourceInspector.listSources(requestedLocale);
+    const { locale, group } = c.req.valid("query");
+    const summaries = group
+      ? configSourceInspector.getSourcesByGroup(group, locale)
+      : configSourceInspector.listSources(locale);
     const parsed = z.array(ConfigSourceSummarySchema).safeParse(summaries);
     if (!parsed.success) {
       return c.json({ success: false as const, error: "Invalid config sources response" }, 500);
@@ -767,10 +1138,26 @@ app.get("/sources", async (c) => {
   }
 });
 
-app.get("/source-groups", async (c) => {
+const getSourceGroupsRoute = createRoute({
+  method: "get",
+  path: "/source-groups",
+  tags: ["config"],
+  summary: "List config source groups",
+  request: {
+    query: z.object({
+      locale: z.string().optional(),
+    }),
+  },
+  responses: {
+    200: { description: "Source groups", content: { "application/json": { schema: SourceGroupsResponseSchema } } },
+    500: { description: "Server error", content: { "application/json": { schema: ErrorResponseSchema } } },
+  },
+});
+
+app.openapi(getSourceGroupsRoute, async (c) => {
   try {
-    const requestedLocale = c.req.query("locale");
-    const groups = configSourceInspector.listSourceGroups(requestedLocale);
+    const { locale } = c.req.valid("query");
+    const groups = configSourceInspector.listSourceGroups(locale);
     const parsed = z.array(SourceGroupSummarySchema).safeParse(groups);
     if (!parsed.success) {
       return c.json({ success: false as const, error: "Invalid config source groups response" }, 500);
@@ -782,10 +1169,31 @@ app.get("/source-groups", async (c) => {
   }
 });
 
-app.get("/sources/:key", async (c) => {
+const getSourceByKeyRoute = createRoute({
+  method: "get",
+  path: "/sources/{key}",
+  tags: ["config"],
+  summary: "Get config source detail by key",
+  request: {
+    params: z.object({
+      key: z.string().openapi({ param: { name: "key", in: "path" } }),
+    }),
+    query: z.object({
+      locale: z.string().optional(),
+    }),
+  },
+  responses: {
+    200: { description: "Config source detail", content: { "application/json": { schema: ConfigSourceDetailResponseSchema } } },
+    404: { description: "Not found", content: { "application/json": { schema: ErrorResponseSchema } } },
+    500: { description: "Server error", content: { "application/json": { schema: ErrorResponseSchema } } },
+  },
+});
+
+app.openapi(getSourceByKeyRoute, async (c) => {
   try {
-    const requestedLocale = c.req.query("locale");
-    const detail = configSourceInspector.getSource(c.req.param("key"), requestedLocale);
+    const { key } = c.req.valid("param");
+    const { locale } = c.req.valid("query");
+    const detail = configSourceInspector.getSource(key, locale);
     const parsed = ConfigSourceDetailSchema.safeParse(detail);
     if (!parsed.success) {
       return c.json({ success: false as const, error: "Invalid config source response" }, 500);
