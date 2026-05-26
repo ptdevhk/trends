@@ -684,6 +684,18 @@ const LearningFeedbackRequestSchema = z.object({
   autoReingestLimit: z.number().int().min(1).max(1000).optional(),
 });
 
+const LearningFeedbackResponseSchema = z.object({
+  success: z.literal(true),
+  entry: z.string(),
+  bumpedVersion: z.number().optional(),
+  reingest: z.object({
+    scheduled: z.number().int(),
+    batches: z.number().int(),
+    currentVersion: z.number().int(),
+    hasMore: z.boolean(),
+  }).optional(),
+});
+
 const ResumeExportFormSchema = z.object({
   payload: z.string().min(1),
 });
@@ -1191,7 +1203,29 @@ app.openapi(sendReviewPacketSummaryRoute, async (c) => {
   }
 });
 
-app.post("/api/resumes/export/download", async (c) => {
+const exportDownloadRoute = createRoute({
+  method: "post",
+  path: "/api/resumes/export/download",
+  tags: ["resumes"],
+  summary: "Export resumes via form-data download",
+  request: {
+    body: {
+      content: { "multipart/form-data": { schema: ResumeExportFormSchema } },
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        "text/csv": { schema: ResumeExportBinaryResponseSchema },
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": { schema: ResumeExportBinaryResponseSchema },
+      },
+      description: "Exported file",
+    },
+    404: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Resumes not found" },
+    500: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Export failed" },
+  },
+});
+app.openapi(exportDownloadRoute, async (c) => {
   try {
     const request = await parseResumeExportDownloadRequest(c);
     return await buildResumeExportResponse(request);
@@ -1200,24 +1234,34 @@ app.post("/api/resumes/export/download", async (c) => {
   }
 });
 
-app.post("/api/resumes/learning-feedback", async (c) => {
-  const body = await c.req.json().catch(() => ({}));
-  const parsed = LearningFeedbackRequestSchema.safeParse(body);
-  if (!parsed.success) {
-    return c.json({ success: false, error: "Invalid request: observation is required" }, 400);
-  }
+const learningFeedbackRoute = createRoute({
+  method: "post",
+  path: "/api/resumes/learning-feedback",
+  tags: ["resumes"],
+  summary: "Append a learning log entry from candidate review feedback",
+  request: {
+    body: { content: { "application/json": { schema: LearningFeedbackRequestSchema } } },
+  },
+  responses: {
+    200: { content: { "application/json": { schema: LearningFeedbackResponseSchema } }, description: "Feedback logged" },
+    400: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Invalid request" },
+    500: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Internal error" },
+  },
+});
+app.openapi(learningFeedbackRoute, async (c) => {
+  const { observation, action, resumeId, query, autoReingestLimit } = c.req.valid("json");
 
   try {
     const learningEntry = await workspaceConfigService.appendLearningLogEntry(
       c.var.workspaceSlug,
-      parsed.data.observation
+      observation
     );
     const entry = `- ${learningEntry.date}: ${learningEntry.observation}`;
-    if (parsed.data.action && parsed.data.resumeId) {
+    if (action && resumeId) {
       searchEventLogger.logCandidateAction({
-        resumeId: parsed.data.resumeId,
-        action: parsed.data.action,
-        query: parsed.data.query,
+        resumeId,
+        action,
+        query,
       });
     }
 
@@ -1231,12 +1275,12 @@ app.post("/api/resumes/learning-feedback", async (c) => {
       }
       | undefined;
 
-    if (shouldTriggerSkillsReingest(parsed.data.observation)) {
+    if (shouldTriggerSkillsReingest(observation)) {
       bumpedVersion = skillsKnowledgeService.getVersion();
-      reingest = await triggerReingestStaleSkillsVersion(parsed.data.autoReingestLimit ?? 200);
+      reingest = await triggerReingestStaleSkillsVersion(autoReingestLimit ?? 200);
     }
 
-    return c.json({ success: true, entry, bumpedVersion, reingest }, 200);
+    return c.json({ success: true as const, entry, bumpedVersion, reingest }, 200);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return c.json({ success: false, error: message }, 500);
