@@ -14,7 +14,7 @@ const app = new OpenAPIHono();
 const skillsKnowledgeService = new SkillsKnowledgeService(config.projectRoot);
 
 const SimpleErrorSchema = z.object({ success: z.literal(false), error: z.string() });
-const AnalysisTasksSuccessSchema = z.object({ success: z.literal(true), tasks: z.any() });
+const AnalysisTasksSuccessSchema = AnalysisTasksResponseSchema;
 const SkillsVersionResponseSchema = z.object({ success: z.literal(true), version: z.number() });
 const FieldCoverageResponseSchema = z.object({
   success: z.literal(true),

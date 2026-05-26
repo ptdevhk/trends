@@ -148,18 +148,43 @@ const ExplanationRequestSchema = z.object({
   resumeId: z.string().min(1),
   workspaceSlug: z.string().min(1),
 });
+const ExplanationKeyFactorSchema = z.object({
+  factor: z.string(),
+  value: z.string(),
+});
+const ExplanationDataSchema = z.object({
+  identityKey: z.string(),
+  summary: z.string(),
+  keyFactors: z.array(ExplanationKeyFactorSchema),
+  decidedAt: z.number(),
+  decisionType: z.string(),
+  scrubbedFields: z.array(z.string()).optional(),
+  protectedAttributesExcluded: z.boolean(),
+});
 const ExplanationResponseSchema = z.object({
   success: z.literal(true),
-  data: z.any().nullable(),
+  data: ExplanationDataSchema.nullable(),
 });
 const AuditLogsRequestSchema = z.object({
   workspaceSlug: z.string().min(1),
   decisionType: z.enum(["score", "tag", "rank", "filter", "confirm"]).optional(),
   outcome: z.enum(["pending", "accepted", "overridden", "appealed"]).optional(),
 });
+const AuditLogEntrySchema = z.object({
+  _id: z.string(),
+  _creationTime: z.number(),
+  workspaceSlug: z.string(),
+  resumeId: z.string(),
+  identityKey: z.string().optional(),
+  decidedAt: z.number(),
+  decisionType: z.enum(["score", "tag", "rank", "filter", "confirm"]),
+  outcome: z.enum(["pending", "accepted", "overridden", "appealed"]).optional(),
+  setBy: z.string().optional(),
+  setAt: z.number().optional(),
+});
 const AuditLogsResponseSchema = z.object({
   success: z.literal(true),
-  data: z.any(),
+  data: z.array(AuditLogEntrySchema),
 });
 const AuditOutcomeRequestSchema = z.object({
   auditLogId: z.string().min(1),
@@ -1330,7 +1355,7 @@ app.openapi(explanationRoute, async (c) => {
       return c.json({ success: true as const, data: null }, 200);
     }
 
-    return c.json({ success: true as const, data: explanation }, 200);
+    return c.json({ success: true as const, data: explanation as z.infer<typeof ExplanationDataSchema> | null }, 200);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return c.json({ success: false, error: message }, 500);
@@ -1367,7 +1392,7 @@ app.openapi(auditLogsRoute, async (c) => {
       ...(outcome ? { outcome } : {}),
     });
 
-    return c.json({ success: true as const, data: logs }, 200);
+    return c.json({ success: true as const, data: logs as z.infer<typeof AuditLogEntrySchema>[] }, 200);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return c.json({ success: false, error: message }, 500);

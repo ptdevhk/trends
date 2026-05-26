@@ -646,11 +646,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            /** @enum {boolean} */
-                            success: true;
-                            tasks?: unknown;
-                        };
+                        "application/json": components["schemas"]["AnalysisTasksResponse"];
                     };
                 };
                 /** @description Internal error */
@@ -2379,7 +2375,18 @@ export interface paths {
                         "application/json": {
                             /** @enum {boolean} */
                             success: true;
-                            data?: unknown;
+                            data: {
+                                identityKey: string;
+                                summary: string;
+                                keyFactors: {
+                                    factor: string;
+                                    value: string;
+                                }[];
+                                decidedAt: number;
+                                decisionType: string;
+                                scrubbedFields?: string[];
+                                protectedAttributesExcluded: boolean;
+                            } | null;
                         };
                     };
                 };
@@ -2447,7 +2454,20 @@ export interface paths {
                         "application/json": {
                             /** @enum {boolean} */
                             success: true;
-                            data?: unknown;
+                            data: {
+                                _id: string;
+                                _creationTime: number;
+                                workspaceSlug: string;
+                                resumeId: string;
+                                identityKey?: string;
+                                decidedAt: number;
+                                /** @enum {string} */
+                                decisionType: "score" | "tag" | "rank" | "filter" | "confirm";
+                                /** @enum {string} */
+                                outcome?: "pending" | "accepted" | "overridden" | "appealed";
+                                setBy?: string;
+                                setAt?: number;
+                            }[];
                         };
                     };
                 };
@@ -2882,7 +2902,9 @@ export interface paths {
                     "application/json": {
                         resumes: {
                             resumeId: string;
-                            content?: unknown;
+                            content: {
+                                [key: string]: unknown;
+                            };
                             sourceKey?: string;
                         }[];
                     };
@@ -2898,7 +2920,9 @@ export interface paths {
                         "application/json": {
                             /** @enum {boolean} */
                             success: true;
-                            results?: unknown;
+                            results: {
+                                [key: string]: unknown;
+                            }[];
                         };
                     };
                 };
@@ -2964,7 +2988,44 @@ export interface paths {
                         "application/json": {
                             /** @enum {boolean} */
                             success: true;
-                            report?: unknown;
+                            report: {
+                                /** @enum {string} */
+                                status: "ok";
+                                workspaceSlug: string;
+                                decisionType: string;
+                                scoreThreshold: number;
+                                totalAuditRecords: number;
+                                groupCount: number;
+                                demographicParity: {
+                                    disparityRatio: number;
+                                    maxDifference: number;
+                                    passing: boolean;
+                                    groupRates: {
+                                        groupKey: string;
+                                        rate: number;
+                                    }[];
+                                };
+                                disparateImpact: {
+                                    groupKey: string;
+                                    ratio: number;
+                                    referenceGroupKey: string;
+                                }[];
+                                overrideRate: {
+                                    tprDifference: number;
+                                    fprDifference: number;
+                                    passing: boolean;
+                                };
+                                scoreDrift: {
+                                    psi: number;
+                                    driftDetected: boolean;
+                                };
+                                anomalyFlags: {
+                                    statisticalParityViolation: boolean;
+                                    disparateImpactViolation: boolean;
+                                    scoreDriftDetected: boolean;
+                                };
+                                computedAt: number;
+                            } | null;
                         };
                     };
                 };
@@ -3032,7 +3093,13 @@ export interface paths {
                         "application/json": {
                             /** @enum {boolean} */
                             success: true;
-                            alerts?: unknown;
+                            alerts: {
+                                workspaceSlug: string;
+                                flags: string[];
+                                psiValue: number | null;
+                                disparityRatio: number | null;
+                                alertedAt: number;
+                            } | null;
                         };
                     };
                 };
@@ -9279,7 +9346,10 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": unknown;
+                        "application/json": {
+                            subject: string;
+                            body: string;
+                        };
                     };
                 };
                 /** @description Generation failed */
@@ -9337,7 +9407,24 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": unknown;
+                        "application/json": {
+                            /** @enum {string} */
+                            channel: "email";
+                            templateId: string;
+                            subject: string;
+                            markdown: string;
+                            html: string;
+                        } | {
+                            /** @enum {string} */
+                            channel: "feishu";
+                            templateId: string;
+                            content: string;
+                        } | {
+                            /** @enum {string} */
+                            channel: "wechat_work";
+                            templateId: string;
+                            content: string;
+                        };
                     };
                 };
                 /** @description Render failed */
@@ -9393,7 +9480,12 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": unknown;
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            messageId?: string;
+                            preview?: string;
+                        };
                     };
                 };
                 /** @description Send failed */
@@ -11436,6 +11528,37 @@ export interface components {
             fetch_time?: string;
             summary?: string;
         };
+        AnalysisTasksResponse: {
+            /** @enum {boolean} */
+            success: true;
+            tasks: {
+                _id: string;
+                /** @enum {string} */
+                status: "pending" | "processing" | "completed" | "failed" | "cancelled";
+                _creationTime: number;
+                config?: {
+                    jobDescriptionId?: string;
+                    jobDescriptionTitle?: string;
+                    keywords?: string[];
+                    location?: string;
+                    promptVersion?: number;
+                    resumeCount?: number;
+                };
+                progress?: {
+                    current?: number;
+                    total?: number;
+                    skipped?: number;
+                };
+                results?: {
+                    analyzed?: number;
+                    failed?: number;
+                    avgScore?: number;
+                    highScoreCount?: number;
+                };
+                lastStatus?: string;
+                error?: string;
+            }[];
+        };
         ResumeDiagnosticsResponse: {
             /** @enum {boolean} */
             success: true;
@@ -11691,9 +11814,39 @@ export interface components {
             searchText?: string;
             /** @example 85 */
             primaryRuleScore?: number;
-            ingestData?: unknown;
-            analysis?: unknown;
-            analyses?: unknown;
+            ingestData?: {
+                [key: string]: unknown;
+            };
+            analysis?: {
+                score: number;
+                summary?: string;
+                highlights?: string[];
+                recommendation?: string;
+                breakdown?: {
+                    [key: string]: number;
+                };
+                jobDescriptionId?: string;
+                promptVersion?: number;
+                locale?: string;
+                queryLocation?: string;
+                analyzedAt?: number;
+            };
+            analyses?: {
+                [key: string]: {
+                    score: number;
+                    summary?: string;
+                    highlights?: string[];
+                    recommendation?: string;
+                    breakdown?: {
+                        [key: string]: number;
+                    };
+                    jobDescriptionId?: string;
+                    promptVersion?: number;
+                    locale?: string;
+                    queryLocation?: string;
+                    analyzedAt?: number;
+                };
+            };
         };
         ResumeImportOptions: {
             /** @example true */

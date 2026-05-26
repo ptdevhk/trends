@@ -48,7 +48,7 @@ const templateIdSchema = z
     .max(128)
     .regex(/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/);
 
-const templateDataSchema = z.record(z.string(), z.any());
+const templateDataSchema = z.record(z.string(), z.unknown());
 
 const previewSchema = z.object({
     channel: z.enum(["email", "wechat_work", "feishu"]),
@@ -128,6 +128,33 @@ function buildTemplateData(data: Record<string, unknown>): Record<string, unknow
     };
 }
 
+const DraftResponseSchema = z.object({ subject: z.string(), body: z.string() });
+const EmailPreviewResponseSchema = z.object({
+    channel: z.literal("email"),
+    templateId: z.string(),
+    subject: z.string(),
+    markdown: z.string(),
+    html: z.string(),
+});
+const FeishuPreviewResponseSchema = z.object({
+    channel: z.literal("feishu"),
+    templateId: z.string(),
+    content: z.string(),
+});
+const WechatPreviewResponseSchema = z.object({
+    channel: z.literal("wechat_work"),
+    templateId: z.string(),
+    content: z.string(),
+});
+const PreviewResponseSchema = z.union([EmailPreviewResponseSchema, FeishuPreviewResponseSchema, WechatPreviewResponseSchema]);
+const SendResponseSchema = z.object({
+    success: z.literal(true),
+    messageId: z.string().optional(),
+    preview: z.string().optional(),
+});
+// send-template has 3 different response shapes (email/wechat/feishu) with spread operators — z.any() is the pragmatic choice
+const SendTemplateResponseSchema = z.any();
+
 // GET /api/notifications/templates
 const templatesRoute = createRoute({
     method: "get",
@@ -159,7 +186,7 @@ const draftRoute = createRoute({
         body: { content: { "application/json": { schema: draftSchema } } },
     },
     responses: {
-        200: { content: { "application/json": { schema: z.any() } }, description: "Draft generated" },
+        200: { content: { "application/json": { schema: DraftResponseSchema } }, description: "Draft generated" },
         500: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Generation failed" },
     },
 });
@@ -167,7 +194,7 @@ app.openapi(draftRoute, async (c) => {
     const { resume, jobDescription, analysis } = c.req.valid("json");
     try {
         const draft = await aiMatchingService.generateOutreach(resume, jobDescription, analysis);
-        return c.json(draft as Record<string, unknown>, 200);
+        return c.json({ subject: (draft as Record<string, unknown>).subject ?? "", body: (draft as Record<string, unknown>).body ?? "" } as z.infer<typeof DraftResponseSchema>, 200);
     } catch (e: unknown) {
         return c.json({ error: getErrorMessage(e) }, 500);
     }
@@ -183,7 +210,7 @@ const previewRoute = createRoute({
         body: { content: { "application/json": { schema: previewSchema } } },
     },
     responses: {
-        200: { content: { "application/json": { schema: z.any() } }, description: "Preview rendered" },
+        200: { content: { "application/json": { schema: PreviewResponseSchema } }, description: "Preview rendered" },
         500: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Render failed" },
     },
 });
@@ -223,7 +250,7 @@ const sendRoute = createRoute({
         body: { content: { "application/json": { schema: sendSchema } } },
     },
     responses: {
-        200: { content: { "application/json": { schema: z.any() } }, description: "Email sent" },
+        200: { content: { "application/json": { schema: SendResponseSchema } }, description: "Email sent" },
         500: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Send failed" },
     },
 });
@@ -236,7 +263,7 @@ app.openapi(sendRoute, async (c) => {
             html: body.replace(/\n/g, "<br>"),
         });
         const messageId = getMessageId(info);
-        return c.json({ success: true, messageId, preview: messageId ? undefined : "Check server logs" }, 200);
+        return c.json({ success: true as const, messageId, preview: messageId ? undefined : "Check server logs" }, 200);
     } catch (e: unknown) {
         return c.json({ error: getErrorMessage(e) }, 500);
     }
@@ -253,7 +280,7 @@ const sendTemplateRoute = createRoute({
         body: { content: { "application/json": { schema: sendTemplateSchema } } },
     },
     responses: {
-        200: { content: { "application/json": { schema: z.any() } }, description: "Notification sent" },
+        200: { content: { "application/json": { schema: SendTemplateResponseSchema } }, description: "Notification sent" },
         500: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Send failed" },
     },
 });
@@ -271,7 +298,7 @@ app.openapi(sendTemplateRoute, async (c) => {
                 html: renderMarkdownAsHtml(rendered.markdown),
             });
             const messageId = getMessageId(info);
-            return c.json({ success: true, channel: payload.channel, messageId }, 200);
+            return c.json({ success: true as const, channel: payload.channel, messageId }, 200);
         }
 
         if (payload.channel === "wechat_work") {
@@ -279,14 +306,14 @@ app.openapi(sendTemplateRoute, async (c) => {
                 webhookUrl: payload.webhookUrl,
                 content: rendered.markdown,
             });
-            return c.json({ success: true, channel: payload.channel, ...result }, 200);
+            return c.json({ success: true as const, channel: payload.channel, ...result }, 200);
         }
 
         const result = await notificationService.sendFeishuText({
             webhookUrl: payload.webhookUrl,
             content: rendered.markdown,
         });
-        return c.json({ success: true, channel: payload.channel, ...result }, 200);
+        return c.json({ success: true as const, channel: payload.channel, ...result }, 200);
     } catch (e: unknown) {
         return c.json({ error: getErrorMessage(e) }, 500);
     }
