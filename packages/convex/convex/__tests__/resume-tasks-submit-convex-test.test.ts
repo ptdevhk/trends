@@ -4,16 +4,14 @@
  * Replaces resume-tasks-submit.test.ts (hand-crafted mocks)
  * with proper convex-test infrastructure.
  */
-import { convexTest } from "convex-test";
+import { createTest } from "./test-helpers.js";
 import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api.js";
-import schema from "../schema.js";
 
-const modules = (import.meta as any).glob("../**/*.ts", { eager: false });
 
 describe("resume_tasks: submitResumes", () => {
   it("preserves restore state and skips ingest scheduling for restored resumes", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const result = await t.mutation(api.resume_tasks.submitResumes, {
       resumes: [{
@@ -79,7 +77,7 @@ describe("resume_tasks: submitResumes", () => {
   });
 
   it("submits fresh resume without restore state", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const result = await t.mutation(api.resume_tasks.submitResumes, {
       resumes: [{
@@ -108,7 +106,7 @@ describe("resume_tasks: submitResumes", () => {
   });
 
   it("deduplicates resumes with the same externalId", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     // Submit the same resume twice
     await t.mutation(api.resume_tasks.submitResumes, {

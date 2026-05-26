@@ -4,17 +4,15 @@
  * Replaces the hand-crafted mock test (resumes-hard-reset.test.ts)
  * with proper convex-test infrastructure.
  */
-import { convexTest } from "convex-test";
+import { createTest } from "./test-helpers.js";
 import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api.js";
-import schema from "../schema.js";
 
-const modules = (import.meta as any).glob("../**/*.ts", { eager: false });
 
 // Helper: insert a minimal resume document
 let _resumeCounter = 0;
 async function insertResume(
-  t: ReturnType<typeof convexTest>,
+  t: ReturnType<typeof createTest>,
   overrides: Record<string, unknown> = {},
 ) {
   _resumeCounter += 1;
@@ -38,7 +36,7 @@ async function insertResume(
 
 describe("resumes: hardResetIngestData", () => {
   it("clears computed ingest and analysis fields while preserving raw data", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, {
       content: { name: "Alice" },
@@ -82,7 +80,7 @@ describe("resumes: hardResetIngestData", () => {
   });
 
   it("skips resumes without computed fields", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, {
       content: { name: "Bob" },
@@ -94,7 +92,7 @@ describe("resumes: hardResetIngestData", () => {
   });
 
   it("processes multiple resumes in a batch", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     // Insert one with computed fields, one without
     await insertResume(t, {
@@ -124,7 +122,7 @@ describe("resumes: hardResetIngestData", () => {
   });
 
   it("returns hasMore: true when there are more resumes than batch size", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     // Insert enough resumes to exceed a small batch
     for (let i = 0; i < 3; i++) {
@@ -152,7 +150,7 @@ describe("resumes: hardResetIngestData", () => {
 
 describe("resumes: clearAnalyses", () => {
   it("clears analysis and analyses fields on specified resumes", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const resumeId = await insertResume(t, {
       content: { name: "Analyzed" },
@@ -182,7 +180,7 @@ describe("resumes: clearAnalyses", () => {
   });
 
   it("handles resumes without analysis gracefully", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const resumeId = await insertResume(t, {
       content: { name: "No Analysis" },

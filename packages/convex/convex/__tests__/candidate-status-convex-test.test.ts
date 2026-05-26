@@ -3,12 +3,10 @@
  *
  * Covers: list, listForBackup, getByIdentity, upsert (insert + update + history).
  */
-import { convexTest } from "convex-test";
+import { createTest } from "./test-helpers.js";
 import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api.js";
-import schema from "../schema.js";
 
-const modules = (import.meta as any).glob("../**/*.ts", { eager: false });
 
 // ---------------------------------------------------------------------------
 // upsert + getByIdentity
@@ -16,7 +14,7 @@ const modules = (import.meta as any).glob("../**/*.ts", { eager: false });
 
 describe("candidate_status: upsert + getByIdentity", () => {
   it("inserts a new candidate status", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const id = await t.mutation(api.candidate_status.upsert, {
       identityKey: "candidate-1",
@@ -40,7 +38,7 @@ describe("candidate_status: upsert + getByIdentity", () => {
   });
 
   it("updates an existing candidate status and appends history", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await t.mutation(api.candidate_status.upsert, {
       identityKey: "candidate-2",
@@ -67,7 +65,7 @@ describe("candidate_status: upsert + getByIdentity", () => {
   });
 
   it("does not append history when status unchanged", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await t.mutation(api.candidate_status.upsert, {
       identityKey: "candidate-3",
@@ -91,7 +89,7 @@ describe("candidate_status: upsert + getByIdentity", () => {
   });
 
   it("returns null for nonexistent identityKey", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const result = await t.query(api.candidate_status.getByIdentity, {
       identityKey: "nonexistent",
@@ -101,7 +99,7 @@ describe("candidate_status: upsert + getByIdentity", () => {
   });
 
   it("throws when identityKey is empty", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await expect(
       t.mutation(api.candidate_status.upsert, {
@@ -112,7 +110,7 @@ describe("candidate_status: upsert + getByIdentity", () => {
   });
 
   it("defaults workspaceSlug to 'dev' when empty string", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await t.mutation(api.candidate_status.upsert, {
       workspaceSlug: "",
@@ -130,7 +128,7 @@ describe("candidate_status: upsert + getByIdentity", () => {
   });
 
   it("returns null for empty identityKey in getByIdentity", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const result = await t.query(api.candidate_status.getByIdentity, {
       identityKey: "",
@@ -146,7 +144,7 @@ describe("candidate_status: upsert + getByIdentity", () => {
 
 describe("candidate_status: list + listForBackup", () => {
   it("returns empty array when no records exist", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const list = await t.query(api.candidate_status.list, {
       workspaceSlug: "ws-empty",
@@ -156,7 +154,7 @@ describe("candidate_status: list + listForBackup", () => {
   });
 
   it("lists candidate statuses for a workspace", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await t.mutation(api.candidate_status.upsert, {
       workspaceSlug: "ws-list",
@@ -184,7 +182,7 @@ describe("candidate_status: list + listForBackup", () => {
   });
 
   it("listForBackup returns projected fields", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await t.mutation(api.candidate_status.upsert, {
       workspaceSlug: "ws-backup",

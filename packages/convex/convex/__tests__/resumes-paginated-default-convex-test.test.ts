@@ -5,17 +5,15 @@
  * Replaces resumes-paginated-default.test.ts (hand-crafted mocks)
  * with proper convex-test infrastructure.
  */
-import { convexTest } from "convex-test";
+import { createTest } from "./test-helpers.js";
 import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api.js";
-import schema from "../schema.js";
 
-const modules = (import.meta as any).glob("../**/*.ts", { eager: false });
 
 // Helper: insert a minimal resume document
 let _counter = 0;
 async function insertResume(
-  t: ReturnType<typeof convexTest>,
+  t: ReturnType<typeof createTest>,
   overrides: Record<string, unknown> = {},
 ) {
   _counter += 1;
@@ -39,7 +37,7 @@ async function insertResume(
 
 describe("resumes: listWithIngestDataPaginated", () => {
   it("returns paginated resumes ordered by primaryRuleScore desc", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, {
       content: { name: "Alice" },
@@ -59,7 +57,7 @@ describe("resumes: listWithIngestDataPaginated", () => {
   });
 
   it("excludes archived resumes", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, {
       content: { name: "Active" },
@@ -84,7 +82,7 @@ describe("resumes: listWithIngestDataPaginated", () => {
   });
 
   it("sorts by JD-specific rule score when jobDescriptionId is provided", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, {
       content: { name: "LowPrimaryHighJd" },
@@ -129,7 +127,7 @@ describe("resumes: listWithIngestDataPaginated", () => {
   });
 
   it("filters by location", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, {
       content: { name: "Alice", location: "东莞" },
@@ -151,7 +149,7 @@ describe("resumes: listWithIngestDataPaginated", () => {
   });
 
   it("filters by minRoleYears with verified role signals", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, {
       content: { name: "Alice" },
@@ -221,7 +219,7 @@ describe("resumes: listWithIngestDataPaginated", () => {
   });
 
   it("rejects resumes with only unverified role years from minRoleYears filter", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, {
       content: { name: "Unverified" },
@@ -289,7 +287,7 @@ describe("resumes: listWithIngestDataPaginated", () => {
   });
 
   it("reads ingestData.verifiedRoleYears directly when present", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, {
       content: { name: "StoredVerified" },
@@ -319,7 +317,7 @@ describe("resumes: listWithIngestDataPaginated", () => {
   });
 
   it("filters by minAge/maxAge on stored numeric age", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, {
       content: { name: "WithinAge" },
@@ -344,7 +342,7 @@ describe("resumes: listWithIngestDataPaginated", () => {
   });
 
   it("filters by source keys", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, {
       content: { name: "Job5156" },
@@ -370,7 +368,7 @@ describe("resumes: listWithIngestDataPaginated", () => {
   });
 
   it("returns all resumes when sources is empty", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, {
       content: { name: "Job5156" },
@@ -394,7 +392,7 @@ describe("resumes: listWithIngestDataPaginated", () => {
   });
 
   it("matches resumes by source hostname when sourceKey is not set", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     // Insert directly without sourceKey to test hostname fallback
     _counter += 1;
@@ -439,7 +437,7 @@ describe("resumes: listWithIngestDataPaginated", () => {
 
 describe("resumes: getResumeDetail", () => {
   it("projects only the latest three work history entries", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const resumeId = await insertResume(t, {
       content: {
@@ -465,7 +463,7 @@ describe("resumes: getResumeDetail", () => {
   });
 
   it("returns null for non-existent resume", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     // Insert a resume just to have a valid ID format
     const realId = await insertResume(t, {});
@@ -486,7 +484,7 @@ describe("resumes: getResumeDetail", () => {
 
 describe("resumes: searchWithTagExpansionPaginated", () => {
   it("returns matching resumes for a search query", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, {
       content: { name: "Alice" },
@@ -514,7 +512,7 @@ describe("resumes: searchWithTagExpansionPaginated", () => {
   });
 
   it("filters search results by role years and age", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, {
       content: { name: "Matching" },
@@ -607,7 +605,7 @@ describe("resumes: searchWithTagExpansionPaginated", () => {
   });
 
   it("filters by direct sales years when matchedWorkEntries metadata is present", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, {
       content: { name: "DirectSales" },

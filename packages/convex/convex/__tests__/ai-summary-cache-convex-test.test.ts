@@ -3,12 +3,10 @@
  *
  * Covers: get, upsert (insert + update + dedup), cleanupExpired.
  */
-import { convexTest } from "convex-test";
+import { createTest } from "./test-helpers.js";
 import { describe, expect, it } from "vitest";
 import { api, internal } from "../_generated/api.js";
-import schema from "../schema.js";
 
-const modules = (import.meta as any).glob("../**/*.ts", { eager: false });
 
 // ---------------------------------------------------------------------------
 // get + upsert
@@ -18,7 +16,7 @@ describe("ai_summary_cache: get + upsert", () => {
   const now = Date.now();
 
   it("returns null when no cached summary exists", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const result = await t.query(api.ai_summary_cache.get, {
       workspaceSlug: "ws-cache",
@@ -29,7 +27,7 @@ describe("ai_summary_cache: get + upsert", () => {
   });
 
   it("inserts and retrieves a cached summary", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await t.mutation(api.ai_summary_cache.upsert, {
       urlHash: "hash-abc",
@@ -54,7 +52,7 @@ describe("ai_summary_cache: get + upsert", () => {
   });
 
   it("upserts — updates existing record", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await t.mutation(api.ai_summary_cache.upsert, {
       urlHash: "hash-upsert",
@@ -90,7 +88,7 @@ describe("ai_summary_cache: get + upsert", () => {
   });
 
   it("deduplicates stale duplicate records", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     // Insert a record directly
     const id1 = await t.run(async (ctx) => {
@@ -151,7 +149,7 @@ describe("ai_summary_cache: get + upsert", () => {
 
 describe("ai_summary_cache: cleanupExpired", () => {
   it("deletes expired records", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const now = Date.now();
 
@@ -199,7 +197,7 @@ describe("ai_summary_cache: cleanupExpired", () => {
   });
 
   it("returns zero when nothing is expired", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const result = await t.mutation(internal.ai_summary_cache.cleanupExpired, {
       now: Date.now(),

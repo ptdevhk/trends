@@ -4,16 +4,14 @@
  * Replaces seed-workspace-demo-data.test.ts (hand-crafted mocks)
  * with proper convex-test infrastructure.
  */
-import { convexTest } from "convex-test";
+import { createTest } from "./test-helpers.js";
 import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api.js";
-import schema from "../schema.js";
 
-const modules = (import.meta as any).glob("../**/*.ts", { eager: false });
 
 describe("seed: seedWorkspaceDemoData", () => {
   it("does not seed demo resumes unless explicitly requested", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const result = await t.mutation(api.seed.seedWorkspaceDemoData, {});
 
@@ -25,7 +23,7 @@ describe("seed: seedWorkspaceDemoData", () => {
   });
 
   it("seeds search profiles without JD linkage for the four seed profiles", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const result = await t.mutation(api.seed.seedWorkspaceDemoData, {});
 
@@ -73,7 +71,7 @@ describe("seed: seedWorkspaceDemoData", () => {
 
 describe("seed: clearWorkspaceDemoResumes", () => {
   it("clears only workspace-demo resumes", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     // Insert a demo resume (with workspace-demo tag)
     await t.run(async (ctx) => {

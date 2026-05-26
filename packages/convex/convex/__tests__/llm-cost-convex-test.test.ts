@@ -3,12 +3,10 @@
  *
  * Covers: recordUsage (insert + upsert accumulation), getBudget.
  */
-import { convexTest } from "convex-test";
+import { createTest } from "./test-helpers.js";
 import { describe, expect, it } from "vitest";
 import { api, internal } from "../_generated/api.js";
-import schema from "../schema.js";
 
-const modules = (import.meta as any).glob("../**/*.ts", { eager: false });
 
 // ---------------------------------------------------------------------------
 // recordUsage
@@ -16,7 +14,7 @@ const modules = (import.meta as any).glob("../**/*.ts", { eager: false });
 
 describe("llm_cost: recordUsage", () => {
   it("inserts a new daily cost record", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await t.mutation(internal.llm_cost.recordUsage, {
       workspaceId: "ws-cost",
@@ -35,7 +33,7 @@ describe("llm_cost: recordUsage", () => {
   });
 
   it("accumulates tokens on repeated calls", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await t.mutation(internal.llm_cost.recordUsage, {
       workspaceId: "ws-acc",
@@ -61,7 +59,7 @@ describe("llm_cost: recordUsage", () => {
   });
 
   it("isolates different workspaces", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await t.mutation(internal.llm_cost.recordUsage, {
       workspaceId: "ws-a",
@@ -92,7 +90,7 @@ describe("llm_cost: recordUsage", () => {
 
 describe("llm_cost: getBudget", () => {
   it("returns budget with remaining tokens", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     // Record some usage
     await t.mutation(internal.llm_cost.recordUsage, {
@@ -113,7 +111,7 @@ describe("llm_cost: getBudget", () => {
   });
 
   it("returns full budget when no usage recorded", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const budget = await t.query(api.llm_cost.getBudget, {
       workspaceId: "ws-nousage",

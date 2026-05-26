@@ -4,16 +4,14 @@
  * storeConfirmResult is the only Convex mutation in analyze.ts that can be
  * tested without mocking external LLM APIs.
  */
-import { convexTest } from "convex-test";
+import { createTest } from "./test-helpers.js";
 import { describe, expect, it } from "vitest";
 import { internal } from "../_generated/api.js";
-import schema from "../schema.js";
 
-const modules = (import.meta as any).glob("../**/*.ts", { eager: false });
 
 // Helper: insert a minimal resume document
 async function insertResume(
-  t: ReturnType<typeof convexTest>,
+  t: ReturnType<typeof createTest>,
   overrides: Record<string, unknown> = {},
 ) {
   return t.run(async (ctx) => {
@@ -32,7 +30,7 @@ async function insertResume(
 
 describe("analyze: storeConfirmResult", () => {
   it("stores confirm result in analyses map", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const resumeId = await insertResume(t, {
       analysis: {
@@ -77,7 +75,7 @@ describe("analyze: storeConfirmResult", () => {
   });
 
   it("preserves existing analyses when adding confirm result", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const existingAnalysis = {
       score: 60,
@@ -124,7 +122,7 @@ describe("analyze: storeConfirmResult", () => {
   });
 
   it("throws when resume not found", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     // Create and delete a resume to get a valid but non-existent ID
     const resumeId = await insertResume(t);
@@ -147,7 +145,7 @@ describe("analyze: storeConfirmResult", () => {
   });
 
   it("stores breakdown and keyFactors in confirm result", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const resumeId = await insertResume(t);
 

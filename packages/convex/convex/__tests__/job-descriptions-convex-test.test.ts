@@ -4,14 +4,12 @@
  * Covers: list, create, update, get, list_all, listAllForWorkspace,
  * delete_jd, delete_batch, list_with_usage (deprecated), list_with_usage_action.
  */
-import { convexTest } from "convex-test";
+import { createTest } from "./test-helpers.js";
 import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api.js";
 import { internal } from "../_generated/api.js";
-import schema from "../schema.js";
 import type { Id } from "../_generated/dataModel.js";
 
-const modules = (import.meta as any).glob("../**/*.ts", { eager: false });
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -19,7 +17,7 @@ const modules = (import.meta as any).glob("../**/*.ts", { eager: false });
 
 /** Insert a system JD directly. */
 async function insertSystemJD(
-  t: ReturnType<typeof convexTest>,
+  t: ReturnType<typeof createTest>,
   overrides: Record<string, unknown> = {},
 ): Promise<Id<"job_descriptions">> {
   return t.run(async (ctx) => {
@@ -41,7 +39,7 @@ async function insertSystemJD(
 
 describe("job_descriptions: list", () => {
   it("returns system JDs and workspace-specific custom JDs", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertSystemJD(t, { title: "System A" });
 
@@ -63,7 +61,7 @@ describe("job_descriptions: list", () => {
   });
 
   it("filters custom JDs by userId when provided", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await t.mutation(api.job_descriptions.create, {
       title: "User1 JD",
@@ -101,7 +99,7 @@ describe("job_descriptions: list", () => {
   });
 
   it("excludes disabled JDs", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertSystemJD(t, { title: "Enabled", enabled: true });
     await insertSystemJD(t, { title: "Disabled", enabled: false });
@@ -114,7 +112,7 @@ describe("job_descriptions: list", () => {
   });
 
   it("sorts by lastModified descending", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertSystemJD(t, { title: "First", lastModified: 1000 });
     await insertSystemJD(t, { title: "Second", lastModified: 2000 });
@@ -126,7 +124,7 @@ describe("job_descriptions: list", () => {
   });
 
   it("defaults workspaceSlug to default when empty/undefined", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await t.mutation(api.job_descriptions.create, {
       title: "Default WS JD",
@@ -147,7 +145,7 @@ describe("job_descriptions: list", () => {
 
 describe("job_descriptions: create", () => {
   it("creates a custom JD with all fields", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const id = await t.mutation(api.job_descriptions.create, {
       title: "Senior Developer",
@@ -182,7 +180,7 @@ describe("job_descriptions: create", () => {
   });
 
   it("sanitizes non-canonical industry tags", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const id = await t.mutation(api.job_descriptions.create, {
       title: "CNC Operator",
@@ -198,7 +196,7 @@ describe("job_descriptions: create", () => {
   });
 
   it("sets industryTags to undefined when all tags are non-canonical", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const id = await t.mutation(api.job_descriptions.create, {
       title: "Test JD",
@@ -220,7 +218,7 @@ describe("job_descriptions: create", () => {
 
 describe("job_descriptions: update", () => {
   it("updates provided fields and sets lastModified", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const id = await t.mutation(api.job_descriptions.create, {
       title: "Original",
@@ -242,7 +240,7 @@ describe("job_descriptions: update", () => {
   });
 
   it("clears optional fields when null is passed", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const id = await t.mutation(api.job_descriptions.create, {
       title: "With Location",
@@ -262,7 +260,7 @@ describe("job_descriptions: update", () => {
   });
 
   it("disables a JD via enabled: false", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const id = await t.mutation(api.job_descriptions.create, {
       title: "Active",
@@ -287,7 +285,7 @@ describe("job_descriptions: update", () => {
 
 describe("job_descriptions: get", () => {
   it("returns the JD by ID", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const id = await t.mutation(api.job_descriptions.create, {
       title: "Fetchable",
@@ -302,7 +300,7 @@ describe("job_descriptions: get", () => {
   });
 
   it("returns null for non-existent ID", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     // Create and delete a JD to get a valid but non-existent ID
     const id = await t.mutation(api.job_descriptions.create, {
@@ -328,7 +326,7 @@ describe("job_descriptions: get", () => {
 
 describe("job_descriptions: list_all", () => {
   it("returns all JDs including disabled ones", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertSystemJD(t, { title: "Sys Enabled", enabled: true });
     await insertSystemJD(t, { title: "Sys Disabled", enabled: false });
@@ -343,7 +341,7 @@ describe("job_descriptions: list_all", () => {
 
 describe("job_descriptions: listAllForWorkspace (internal)", () => {
   it("returns system JDs + workspace custom JDs", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertSystemJD(t, { title: "Sys JD" });
 
@@ -378,7 +376,7 @@ describe("job_descriptions: listAllForWorkspace (internal)", () => {
 
 describe("job_descriptions: delete_jd", () => {
   it("deletes a custom JD in the correct workspace", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const id = await t.mutation(api.job_descriptions.create, {
       title: "Deletable",
@@ -397,7 +395,7 @@ describe("job_descriptions: delete_jd", () => {
   });
 
   it("throws when deleting a system JD", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const id = await insertSystemJD(t);
 
@@ -407,7 +405,7 @@ describe("job_descriptions: delete_jd", () => {
   });
 
   it("throws when deleting from another workspace", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const id = await t.mutation(api.job_descriptions.create, {
       title: "WS1 JD",
@@ -422,7 +420,7 @@ describe("job_descriptions: delete_jd", () => {
   });
 
   it("allows default workspace to delete JDs without workspaceSlug", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const id = await t.mutation(api.job_descriptions.create, {
       title: "Default WS JD",
@@ -443,7 +441,7 @@ describe("job_descriptions: delete_jd", () => {
 
 describe("job_descriptions: delete_batch", () => {
   it("deletes multiple custom JDs in the same workspace", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const id1 = await t.mutation(api.job_descriptions.create, {
       title: "Batch 1",
@@ -473,7 +471,7 @@ describe("job_descriptions: delete_batch", () => {
   });
 
   it("throws if any JD is a system JD", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const systemId = await insertSystemJD(t);
     const customId = await t.mutation(api.job_descriptions.create, {
@@ -492,7 +490,7 @@ describe("job_descriptions: delete_batch", () => {
   });
 
   it("throws if any JD belongs to another workspace", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const id1 = await t.mutation(api.job_descriptions.create, {
       title: "WS1",
@@ -522,7 +520,7 @@ describe("job_descriptions: delete_batch", () => {
 
 describe("job_descriptions: list_with_usage (deprecated)", () => {
   it("throws a deprecation error", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await expect(
       t.query(api.job_descriptions.list_with_usage, {}),

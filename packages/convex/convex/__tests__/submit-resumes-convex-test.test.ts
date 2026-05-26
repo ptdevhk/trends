@@ -10,12 +10,10 @@
  *
  * Uses convex-test with real schema validation — no mocks.
  */
-import { convexTest } from "convex-test";
+import { createTest } from "./test-helpers.js";
 import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api.js";
-import schema from "../schema.js";
 
-const modules = (import.meta as any).glob("../**/*.ts", { eager: false });
 
 // Helper: build a minimal resume payload for submitResumes
 let _resumeCounter = 0;
@@ -37,7 +35,7 @@ function makeResume(overrides: Record<string, unknown> = {}) {
 
 describe("resume_tasks: submitResumes — insert", () => {
   it("inserts a new resume", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const result = await t.mutation(api.resume_tasks.submitResumes, {
       resumes: [makeResume()],
@@ -51,7 +49,7 @@ describe("resume_tasks: submitResumes — insert", () => {
   });
 
   it("inserts multiple new resumes", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const result = await t.mutation(api.resume_tasks.submitResumes, {
       resumes: [makeResume(), makeResume(), makeResume()],
@@ -62,7 +60,7 @@ describe("resume_tasks: submitResumes — insert", () => {
   });
 
   it("stores resume fields correctly", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await t.mutation(api.resume_tasks.submitResumes, {
       resumes: [makeResume({ externalId: "ext-store-test", tags: ["python", "react"] })],
@@ -84,7 +82,7 @@ describe("resume_tasks: submitResumes — insert", () => {
 
 describe("resume_tasks: submitResumes — dedup", () => {
   it("deduplicates identical resumes within a batch", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const resume = makeResume({ externalId: "ext-dedup" });
     const result = await t.mutation(api.resume_tasks.submitResumes, {
@@ -104,7 +102,7 @@ describe("resume_tasks: submitResumes — dedup", () => {
 
 describe("resume_tasks: submitResumes — update", () => {
   it("updates a resume when hash changes", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     // First insert
     await t.mutation(api.resume_tasks.submitResumes, {
@@ -129,7 +127,7 @@ describe("resume_tasks: submitResumes — update", () => {
   });
 
   it("leaves resume unchanged when hash is the same", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     // First insert
     await t.mutation(api.resume_tasks.submitResumes, {
@@ -146,7 +144,7 @@ describe("resume_tasks: submitResumes — update", () => {
   });
 
   it("merges tags on update", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     // First insert with tags ["python"]
     await t.mutation(api.resume_tasks.submitResumes, {
@@ -172,7 +170,7 @@ describe("resume_tasks: submitResumes — update", () => {
 
 describe("resume_tasks: submitResumes — restoreState", () => {
   it("applies restoreState fields to new resume", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const result = await t.mutation(api.resume_tasks.submitResumes, {
       resumes: [makeResume({
@@ -195,7 +193,7 @@ describe("resume_tasks: submitResumes — restoreState", () => {
   });
 
   it("applies ingestData from restoreState", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const ingestData = {
       industryTags: ["tech"],
@@ -227,7 +225,7 @@ describe("resume_tasks: submitResumes — restoreState", () => {
   });
 
   it("applies analysis from restoreState with typed validator", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const analysis = {
       score: 85,
@@ -258,7 +256,7 @@ describe("resume_tasks: submitResumes — restoreState", () => {
   });
 
   it("applies analyses from restoreState with typed validator", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const analyses = {
       "source:test|analysis:jd-1": {
@@ -295,7 +293,7 @@ describe("resume_tasks: submitResumes — restoreState", () => {
   });
 
   it("rejects restoreState with invalid analysis shape", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     // Missing required fields (score, summary, highlights, recommendation)
     await expect(
@@ -317,7 +315,7 @@ describe("resume_tasks: submitResumes — restoreState", () => {
 
 describe("resume_tasks: submitResumes — sync events", () => {
   it("creates a sync event after submission", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await t.mutation(api.resume_tasks.submitResumes, {
       resumes: [makeResume()],

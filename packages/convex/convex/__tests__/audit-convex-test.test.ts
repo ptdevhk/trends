@@ -3,11 +3,10 @@
  *
  * Uses edge-runtime environment (configured via environmentMatchGlobs in root vitest.config.ts).
  */
-import { convexTest } from "convex-test";
+import { createTest } from "./test-helpers.js";
 import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api.js";
 import { internal } from "../_generated/api.js";
-import schema from "../schema.js";
 import {
     computeDemographicParity,
     computeEqualizedOdds,
@@ -17,7 +16,6 @@ import {
 } from "../lib/bias_metrics.js";
 import { computeProtectedAttributeHashes } from "../audit.js";
 
-const modules = (import.meta as any).glob("../**/*.ts", { eager: false });
 
 // ---------------------------------------------------------------------------
 // Convex integration tests
@@ -26,7 +24,7 @@ const modules = (import.meta as any).glob("../**/*.ts", { eager: false });
 describe("audit (convex-test)", () => {
   describe("logAnalysisDecision (internal)", () => {
     it("creates an audit log entry", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       const resumeId = await t.run(async (ctx) => {
         return ctx.db.insert("resumes", {
@@ -94,7 +92,7 @@ describe("audit (convex-test)", () => {
 
   describe("getExplanationForCandidate", () => {
     it("returns explanation for a scored resume", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       const resumeId = await t.run(async (ctx) => {
         return ctx.db.insert("resumes", {
@@ -146,7 +144,7 @@ describe("audit (convex-test)", () => {
     });
 
     it("returns null when no explanation exists", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       const resumeId = await t.run(async (ctx) => {
         return ctx.db.insert("resumes", {
@@ -170,7 +168,7 @@ describe("audit (convex-test)", () => {
 
   describe("getAuditLogByWorkspace", () => {
     it("returns audit logs filtered by decisionType", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       const resumeId = await t.run(async (ctx) => {
         return ctx.db.insert("resumes", {
@@ -225,7 +223,7 @@ describe("audit (convex-test)", () => {
     });
 
     it("filters audit logs by outcome", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       const resumeId = await t.run(async (ctx) => {
         return ctx.db.insert("resumes", {
@@ -284,7 +282,7 @@ describe("audit (convex-test)", () => {
 
   describe("confirm audit log (decisionType: confirm)", () => {
     it("creates a confirm audit log entry via logAnalysisDecision", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       const resumeId = await t.run(async (ctx) => {
         return ctx.db.insert("resumes", {
@@ -345,7 +343,7 @@ describe("audit (convex-test)", () => {
     });
 
     it("captures scrubbedFields and protectedAttributeHashes from resume content", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       const resumeId = await t.run(async (ctx) => {
         return ctx.db.insert("resumes", {
@@ -407,7 +405,7 @@ describe("audit (convex-test)", () => {
     });
 
     it("filters confirm logs by decisionType via getAuditLogByWorkspace", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       const resumeId = await t.run(async (ctx) => {
         return ctx.db.insert("resumes", {
@@ -465,7 +463,7 @@ describe("audit (convex-test)", () => {
 
   describe("actor identity in audit trail (EU AI Act Art. 12)", () => {
     it("logs actorId and actorRole when provided", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       const resumeId = await t.run(async (ctx) => {
         return ctx.db.insert("resumes", {
@@ -505,7 +503,7 @@ describe("audit (convex-test)", () => {
     });
 
     it("logs admin actor identity", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       const resumeId = await t.run(async (ctx) => {
         return ctx.db.insert("resumes", {
@@ -544,7 +542,7 @@ describe("audit (convex-test)", () => {
     });
 
     it("allows optional actor identity (backward compatible)", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       const resumeId = await t.run(async (ctx) => {
         return ctx.db.insert("resumes", {
@@ -582,7 +580,7 @@ describe("audit (convex-test)", () => {
     });
 
     it("rejects invalid actorRole values", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       const resumeId = await t.run(async (ctx) => {
         return ctx.db.insert("resumes", {
@@ -614,7 +612,7 @@ describe("audit (convex-test)", () => {
 
   describe("setAuditOutcome", () => {
     it("sets outcome to accepted on an audit log entry", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       const resumeId = await t.run(async (ctx) => {
         return ctx.db.insert("resumes", {
@@ -657,7 +655,7 @@ describe("audit (convex-test)", () => {
     });
 
     it("sets outcome to overridden", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       const resumeId = await t.run(async (ctx) => {
         return ctx.db.insert("resumes", {
@@ -698,7 +696,7 @@ describe("audit (convex-test)", () => {
     });
 
     it("sets outcome to appealed", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       const resumeId = await t.run(async (ctx) => {
         return ctx.db.insert("resumes", {
@@ -770,7 +768,7 @@ describe("audit (convex-test)", () => {
 
   describe("getExplanationForCandidate — workspace isolation", () => {
     it("does not return explanation from another workspace", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       const resumeId = await t.run(async (ctx) => {
         return ctx.db.insert("resumes", {
@@ -815,7 +813,7 @@ describe("audit (convex-test)", () => {
 
   describe("listWorkspaceSlugsWithAuditLogs", () => {
     it("returns distinct workspace slugs from audit logs", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       const resumeId = await t.run(async (ctx) => {
         return ctx.db.insert("resumes", {
@@ -874,7 +872,7 @@ describe("audit (convex-test)", () => {
     });
 
     it("returns empty array when no audit logs exist", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
       const slugs = await t.query(internal.bias_audit.listWorkspaceSlugsWithAuditLogs, {});
       expect(slugs).toEqual([]);
     });
@@ -977,7 +975,7 @@ describe("bias_metrics (unit)", () => {
 describe("audit log retention (EU AI Act / GDPR)", () => {
   describe("getExpiredAuditLogs", () => {
     it("returns audit logs with expiresAt before the given timestamp", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       const resumeId = await t.run(async (ctx) => {
         return ctx.db.insert("resumes", {
@@ -1034,7 +1032,7 @@ describe("audit log retention (EU AI Act / GDPR)", () => {
     });
 
     it("returns empty array when no expired logs exist", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       const expired = await t.query(internal.audit.getExpiredAuditLogs, {
         before: Date.now(),
@@ -1046,7 +1044,7 @@ describe("audit log retention (EU AI Act / GDPR)", () => {
 
   describe("deleteAuditLog", () => {
     it("deletes an audit log entry", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       const resumeId = await t.run(async (ctx) => {
         return ctx.db.insert("resumes", {
@@ -1094,7 +1092,7 @@ describe("audit log retention (EU AI Act / GDPR)", () => {
 
   describe("logAnalysisDecision returns audit log ID", () => {
     it("returns the created audit log document ID", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       const resumeId = await t.run(async (ctx) => {
         return ctx.db.insert("resumes", {
@@ -1127,7 +1125,7 @@ describe("audit log retention (EU AI Act / GDPR)", () => {
     });
 
     it("supports confirm-then-set-outcome flow", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       const resumeId = await t.run(async (ctx) => {
         return ctx.db.insert("resumes", {
@@ -1171,7 +1169,7 @@ describe("audit log retention (EU AI Act / GDPR)", () => {
     });
 
     it("supports tag-then-set-outcome flow", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       const resumeId = await t.run(async (ctx) => {
         return ctx.db.insert("resumes", {
@@ -1218,7 +1216,7 @@ describe("audit log retention (EU AI Act / GDPR)", () => {
     });
 
     it("supports score-then-set-outcome flow", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       const resumeId = await t.run(async (ctx) => {
         return ctx.db.insert("resumes", {

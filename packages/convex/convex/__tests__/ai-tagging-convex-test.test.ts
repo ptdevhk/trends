@@ -7,17 +7,16 @@
  *
  * Uses convex-test with real schema validation — no mocks.
  */
-import { convexTest } from "convex-test";
+import { createTest } from "./test-helpers.js";
 import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api.js";
-import schema from "../schema.js";
+import type { Id } from "../_generated/dataModel.js";
 
-const modules = (import.meta as any).glob("../**/*.ts", { eager: false });
 
 // Helper: insert a minimal resume with ingestData that has work history evidence
 let _resumeCounter = 0;
 async function insertResumeWithTaggingData(
-  t: ReturnType<typeof convexTest>,
+  t: ReturnType<typeof createTest>,
   overrides: Record<string, unknown> = {},
 ) {
   _resumeCounter += 1;
@@ -69,7 +68,7 @@ async function insertResumeWithTaggingData(
 
 // Helper: insert a minimal resume without ingestData
 async function insertMinimalResume(
-  t: ReturnType<typeof convexTest>,
+  t: ReturnType<typeof createTest>,
   overrides: Record<string, unknown> = {},
 ) {
   _resumeCounter += 1;
@@ -88,13 +87,13 @@ async function insertMinimalResume(
 
 // Helper: insert an ai_tagging_result directly
 async function insertTaggingResult(
-  t: ReturnType<typeof convexTest>,
+  t: ReturnType<typeof createTest>,
   overrides: Record<string, unknown> = {},
 ) {
   _resumeCounter += 1;
   return t.run(async (ctx) => {
     return ctx.db.insert("ai_tagging_results", {
-      resumeId: overrides.resumeId ?? `fake-id-${_resumeCounter}`,
+      resumeId: (overrides.resumeId ?? `fake-id-${_resumeCounter}`) as Id<"resumes">,
       workspaceSlug: "dev",
       profileKey: "test-profile",
       evidenceHash: `eh-${_resumeCounter}`,
@@ -115,7 +114,7 @@ async function insertTaggingResult(
 
 describe("ai_tagging_results: enqueueBatch", () => {
   it("throws when workspaceSlug is empty", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await expect(
       t.mutation(api.ai_tagging_results.enqueueBatch, {
@@ -127,7 +126,7 @@ describe("ai_tagging_results: enqueueBatch", () => {
   });
 
   it("throws when profileKey is empty", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await expect(
       t.mutation(api.ai_tagging_results.enqueueBatch, {
@@ -139,7 +138,7 @@ describe("ai_tagging_results: enqueueBatch", () => {
   });
 
   it("creates tagging results for resumes with evidence", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const resumeId = await insertResumeWithTaggingData(t);
 
@@ -160,7 +159,7 @@ describe("ai_tagging_results: enqueueBatch", () => {
   });
 
   it("skips resumes without ingestData evidence", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const resumeId = await insertMinimalResume(t);
 
@@ -175,7 +174,7 @@ describe("ai_tagging_results: enqueueBatch", () => {
   });
 
   it("reuses existing results with same idempotency key", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const resumeId = await insertResumeWithTaggingData(t);
 
@@ -203,7 +202,7 @@ describe("ai_tagging_results: enqueueBatch", () => {
   });
 
   it("retries failed results when retryFailed is true", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const resumeId = await insertResumeWithTaggingData(t);
 
@@ -244,7 +243,7 @@ describe("ai_tagging_results: enqueueBatch", () => {
 
 describe("ai_tagging_results: getSummary", () => {
   it("returns zeros when no results exist", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const result = await t.query(api.ai_tagging_results.getSummary, {
       workspaceSlug: "dev",
@@ -255,7 +254,7 @@ describe("ai_tagging_results: getSummary", () => {
   });
 
   it("counts results by status", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     // Insert a resume so we have a valid resumeId
     const resumeId = await insertMinimalResume(t);
@@ -278,7 +277,7 @@ describe("ai_tagging_results: getSummary", () => {
   });
 
   it("returns zeros when workspaceSlug or profileKey is blank", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const result = await t.query(api.ai_tagging_results.getSummary, {
       workspaceSlug: "  ",

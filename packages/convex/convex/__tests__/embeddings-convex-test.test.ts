@@ -4,20 +4,18 @@
  * Uses edge-runtime environment (configured via environmentMatchGlobs in root vitest.config.ts).
  * Internal functions (internalQuery/internalMutation) are accessed via internal API reference.
  */
-import { convexTest } from "convex-test";
+import { createTest } from "./test-helpers.js";
 import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api.js";
 import { internal } from "../_generated/api.js";
-import schema from "../schema.js";
 import type { Doc, Id } from "../_generated/dataModel.js";
 import { rrfMerge } from "../embeddings.js";
 
-const modules = (import.meta as any).glob("../**/*.ts", { eager: false });
 
 describe("embeddings (convex-test)", () => {
   describe("storeEmbedding (internal)", () => {
     it("creates new embedding and links to resume", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       const resumeId = await t.run(async (ctx) => {
         return ctx.db.insert("resumes", {
@@ -57,7 +55,7 @@ describe("embeddings (convex-test)", () => {
     });
 
     it("creates embedding with searchTextHash and clears needsEmbedding flag", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       const resumeId = await t.run(async (ctx) => {
         return ctx.db.insert("resumes", {
@@ -94,7 +92,7 @@ describe("embeddings (convex-test)", () => {
     });
 
     it("replaces existing embedding on upsert", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       const resumeId = await t.run(async (ctx) => {
         return ctx.db.insert("resumes", {
@@ -130,7 +128,7 @@ describe("embeddings (convex-test)", () => {
     });
 
     it("upsert updates searchTextHash and generatedAt", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       const resumeId = await t.run(async (ctx) => {
         return ctx.db.insert("resumes", {
@@ -171,7 +169,7 @@ describe("embeddings (convex-test)", () => {
 
   describe("getResumeForEmbedding (internal)", () => {
     it("returns resume by id", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       const resumeId = await t.run(async (ctx) => {
         return ctx.db.insert("resumes", {
@@ -193,7 +191,7 @@ describe("embeddings (convex-test)", () => {
     });
 
     it("returns null for non-existent resume", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       // Create and delete a resume to get a valid-looking ID that doesn't exist
       const tempId = await t.run(async (ctx) => {
@@ -218,7 +216,7 @@ describe("embeddings (convex-test)", () => {
 
   describe("getResumesWithoutEmbeddings (internal)", () => {
     it("returns resumes without embeddingId", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       await t.run(async (ctx) => {
         await ctx.db.insert("resumes", {
@@ -242,7 +240,7 @@ describe("embeddings (convex-test)", () => {
     });
 
     it("excludes resumes with needsEmbedding=false", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       await t.run(async (ctx) => {
         // Resume that needs embedding
@@ -279,7 +277,7 @@ describe("embeddings (convex-test)", () => {
     });
 
     it("reports hasMore correctly when more pages exist", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       // Insert 5 resumes needing embeddings
       await t.run(async (ctx) => {
@@ -310,7 +308,7 @@ describe("embeddings (convex-test)", () => {
 
   describe("getEmbeddingsByIds (internal)", () => {
     it("returns embeddings for given ids", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       const { resumeId, embeddingId } = await t.run(async (ctx) => {
         const resumeId = await ctx.db.insert("resumes", {
@@ -341,7 +339,7 @@ describe("embeddings (convex-test)", () => {
     });
 
     it("filters out null results for non-existent ids", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       // Create and delete an embedding to get a valid-looking ID that doesn't exist
       const tempId = await t.run(async (ctx) => {
@@ -372,7 +370,7 @@ describe("embeddings (convex-test)", () => {
 
   describe("batchGenerateEmbeddings (internal) — dryRun", () => {
     it("dryRun reports scope without generating embeddings", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       // Insert resumes without embeddings
       await t.run(async (ctx) => {
@@ -414,7 +412,7 @@ describe("embeddings (convex-test)", () => {
 
   describe("getEmbeddingStats (public)", () => {
     it("returns empty stats when no embeddings exist", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       const stats = await t.query(api.embeddings.getEmbeddingStats, {});
       expect(stats.hasEmbeddings).toBe(false);
@@ -422,7 +420,7 @@ describe("embeddings (convex-test)", () => {
     });
 
     it("returns stats when embeddings exist", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       await t.run(async (ctx) => {
         const resumeId = await ctx.db.insert("resumes", {

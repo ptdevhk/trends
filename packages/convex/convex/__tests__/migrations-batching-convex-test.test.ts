@@ -4,17 +4,15 @@
  * Replaces migrations-batching.test.ts (hand-crafted mocks)
  * with proper convex-test infrastructure.
  */
-import { convexTest } from "convex-test";
+import { createTest } from "./test-helpers.js";
 import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api.js";
-import schema from "../schema.js";
 
-const modules = (import.meta as any).glob("../**/*.ts", { eager: false });
 
 // Helper: insert a minimal resume document matching schema requirements
 let _resumeCounter = 0;
 async function insertResume(
-  t: ReturnType<typeof convexTest>,
+  t: ReturnType<typeof createTest>,
   overrides: Record<string, unknown> = {},
 ) {
   _resumeCounter += 1;
@@ -34,7 +32,7 @@ async function insertResume(
 
 describe("migration: backfillIngestData", () => {
   it("schedules only unprocessed resumes and returns the next cursor", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     // Insert 2 resumes: one without ingestData (unprocessed), one with (already processed)
     await insertResume(t); // No ingestData — should be scheduled
@@ -68,7 +66,7 @@ describe("migration: backfillIngestData", () => {
   });
 
   it("returns zero scheduled when all resumes are already processed", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, {
       ingestData: {
@@ -97,7 +95,7 @@ describe("migration: backfillIngestData", () => {
   });
 
   it("returns zero scheduled when no resumes exist", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const result = await t.action(api.migrations.backfillIngestData, {
       limit: 100,

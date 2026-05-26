@@ -4,17 +4,15 @@
  * Replaces resumes-archive-unarchive.test.ts (hand-crafted mocks)
  * with proper convex-test infrastructure.
  */
-import { convexTest } from "convex-test";
+import { createTest } from "./test-helpers.js";
 import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api.js";
-import schema from "../schema.js";
 
-const modules = (import.meta as any).glob("../**/*.ts", { eager: false });
 
 // Helper: insert a minimal resume document
 let _resumeCounter = 0;
 async function insertResume(
-  t: ReturnType<typeof convexTest>,
+  t: ReturnType<typeof createTest>,
   overrides: Record<string, unknown> = {},
 ) {
   _resumeCounter += 1;
@@ -38,7 +36,7 @@ async function insertResume(
 
 describe("resumes: archiveResumes", () => {
   it("archives active resumes and reports already-archived ones", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const id1 = await insertResume(t, { content: { name: "Alice" } });
     const id2 = await insertResume(t, {
@@ -68,7 +66,7 @@ describe("resumes: archiveResumes", () => {
   });
 
   it("deduplicates resume IDs", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const id1 = await insertResume(t, { content: { name: "Alice" } });
 
@@ -82,7 +80,7 @@ describe("resumes: archiveResumes", () => {
   });
 
   it("reports missing resume IDs", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const result = await t.mutation(api.resumes.archiveResumes, {
       resumeIds: ["nonexistent-id-1", "nonexistent-id-2"],
@@ -94,7 +92,7 @@ describe("resumes: archiveResumes", () => {
   });
 
   it("returns zeros for empty input", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const result = await t.mutation(api.resumes.archiveResumes, {
       resumeIds: [],
@@ -115,7 +113,7 @@ describe("resumes: archiveResumes", () => {
 
 describe("resumes: unarchiveResumes", () => {
   it("unarchives previously archived resumes", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const id1 = await insertResume(t, {
       content: { name: "Alice" },
@@ -144,7 +142,7 @@ describe("resumes: unarchiveResumes", () => {
   });
 
   it("reports missing IDs for non-existent resumes", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const result = await t.mutation(api.resumes.unarchiveResumes, {
       resumeIds: ["nonexistent-id"],
@@ -155,7 +153,7 @@ describe("resumes: unarchiveResumes", () => {
   });
 
   it("returns zeros for empty input", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const result = await t.mutation(api.resumes.unarchiveResumes, {
       resumeIds: [],

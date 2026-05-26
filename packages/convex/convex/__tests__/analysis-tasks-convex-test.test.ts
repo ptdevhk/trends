@@ -8,15 +8,13 @@
  * wiring tests that verify logAnalysisDecision + setAuditOutcome are
  * callable from the analysis_tasks action context.
  */
-import { convexTest } from "convex-test";
+import { createTest } from "./test-helpers.js";
 import { describe, expect, it } from "vitest";
 import { api, internal } from "../_generated/api.js";
-import schema from "../schema.js";
 
-const modules = (import.meta as any).glob("../**/*.ts", { eager: false });
 
 /** Insert a minimal resume and return its ID. */
-async function insertResume(t: ReturnType<typeof convexTest>) {
+async function insertResume(t: ReturnType<typeof createTest>) {
   return t.run(async (ctx) => {
     return ctx.db.insert("resumes", {
       externalId: `r-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -31,7 +29,7 @@ async function insertResume(t: ReturnType<typeof convexTest>) {
 
 /** Insert a task directly for testing. */
 async function insertTask(
-  t: ReturnType<typeof convexTest>,
+  t: ReturnType<typeof createTest>,
   overrides: Record<string, unknown> = {},
 ) {
   return t.run(async (ctx) => {
@@ -55,7 +53,7 @@ async function insertTask(
 
 describe("analysis_tasks: list + getSummary", () => {
   it("returns tasks in desc order", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertTask(t);
     await insertTask(t, { status: "completed" });
@@ -66,7 +64,7 @@ describe("analysis_tasks: list + getSummary", () => {
   });
 
   it("returns summary counts by status", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertTask(t, { status: "pending" });
     await insertTask(t, { status: "completed" });
@@ -87,7 +85,7 @@ describe("analysis_tasks: list + getSummary", () => {
 
 describe("analysis_tasks: dispatch", () => {
   it("creates a task with keywords", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const resumeId = await insertResume(t);
 
@@ -105,7 +103,7 @@ describe("analysis_tasks: dispatch", () => {
   });
 
   it("throws when neither jobDescriptionContent nor keywords provided", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const resumeId = await insertResume(t);
 
@@ -123,7 +121,7 @@ describe("analysis_tasks: dispatch", () => {
 
 describe("analysis_tasks: cancel", () => {
   it("cancels a pending task", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const taskId = await insertTask(t, { status: "pending" });
 
@@ -135,7 +133,7 @@ describe("analysis_tasks: cancel", () => {
   });
 
   it("does not cancel a completed task", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const taskId = await insertTask(t, {
       status: "completed",
@@ -156,7 +154,7 @@ describe("analysis_tasks: cancel", () => {
 
 describe("analysis_tasks: markProcessing", () => {
   it("transitions pending task to processing", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const taskId = await insertTask(t, { status: "pending" });
 
@@ -170,7 +168,7 @@ describe("analysis_tasks: markProcessing", () => {
   });
 
   it("returns cancelled status for cancelled task", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const taskId = await insertTask(t, { status: "cancelled" });
 
@@ -186,7 +184,7 @@ describe("analysis_tasks: markProcessing", () => {
 
 describe("analysis_tasks: updateProgress", () => {
   it("updates progress fields", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const taskId = await insertTask(t, {
       status: "processing",
@@ -209,7 +207,7 @@ describe("analysis_tasks: updateProgress", () => {
   });
 
   it("returns cancelled for cancelled task", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const taskId = await insertTask(t, {
       status: "cancelled",
@@ -232,7 +230,7 @@ describe("analysis_tasks: updateProgress", () => {
 
 describe("analysis_tasks: complete", () => {
   it("marks task as completed with results", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const taskId = await insertTask(t, { status: "processing" });
 
@@ -256,7 +254,7 @@ describe("analysis_tasks: complete", () => {
   });
 
   it("marks task as failed with error", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const taskId = await insertTask(t, { status: "processing" });
 
@@ -272,7 +270,7 @@ describe("analysis_tasks: complete", () => {
   });
 
   it("preserves cancelled status when task was already cancelled", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const taskId = await insertTask(t, { status: "cancelled" });
 
@@ -299,7 +297,7 @@ describe("analysis_tasks: complete", () => {
 
 describe("analysis_tasks: sweepStuckTasks", () => {
   it("sweeps tasks stuck in processing for >24h", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const yesterday = Date.now() - 25 * 60 * 60 * 1000;
 
@@ -319,7 +317,7 @@ describe("analysis_tasks: sweepStuckTasks", () => {
   });
 
   it("does not sweep recently started tasks", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertTask(t, {
       status: "processing",
@@ -339,7 +337,7 @@ describe("analysis_tasks: sweepStuckTasks", () => {
 
 describe("analysis_tasks: audit wiring for filter decisions", () => {
   it("creates audit log entry with decisionType=filter for auto-filtered resumes", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const resumeId = await insertResume(t);
 
@@ -389,7 +387,7 @@ describe("analysis_tasks: audit wiring for filter decisions", () => {
 
 describe("analysis_tasks: audit wiring for score decisions", () => {
   it("creates audit log entry with decisionType=score for LLM-analyzed resumes", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const resumeId = await insertResume(t);
 
@@ -437,7 +435,7 @@ describe("analysis_tasks: audit wiring for score decisions", () => {
   });
 
   it("distinguishes filter vs score audit logs in the same workspace", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const resumeId1 = await insertResume(t);
     const resumeId2 = await insertResume(t);

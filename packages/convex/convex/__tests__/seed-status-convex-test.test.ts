@@ -4,16 +4,14 @@
  * Replaces seed-status.test.ts (hand-crafted mocks)
  * with proper convex-test infrastructure.
  */
-import { convexTest } from "convex-test";
+import { createTest } from "./test-helpers.js";
 import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api.js";
-import schema from "../schema.js";
 
-const modules = (import.meta as any).glob("../**/*.ts", { eager: false });
 
 describe("seed: status", () => {
   it("reports an empty database as empty", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const result = await t.query(api.seed.status, {});
 
@@ -23,7 +21,7 @@ describe("seed: status", () => {
   });
 
   it("reports presence as 0/1 after seeding data", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await t.mutation(api.seed.seedJobDescriptions, {
       items: [{ title: "Test JD", content: "c", type: "system" }],
