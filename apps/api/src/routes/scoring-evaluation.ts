@@ -25,6 +25,164 @@ const ErrorResponseSchema = z.object({
   error: z.string(),
 });
 
+// -- Shared schemas for scoring evaluation response types --
+
+const ScoreDistributionBucketSchema = z.object({
+  count: z.number(),
+  mean: z.number(),
+  median: z.number(),
+  p25: z.number(),
+  p75: z.number(),
+  min: z.number(),
+  max: z.number(),
+});
+
+const WeightAdjustmentSuggestionSchema = z.object({
+  category: z.string(),
+  delta: z.number(),
+  confidence: z.number(),
+  reason: z.string(),
+});
+
+const SynonymSuggestionSchema = z.object({
+  query: z.string(),
+  variant: z.string(),
+  canonical: z.string(),
+  confidence: z.number(),
+  reason: z.string(),
+});
+
+const DomainExpansionSuggestionSchema = z.object({
+  keyword: z.string(),
+  count: z.number(),
+  queries: z.array(z.string()),
+});
+
+const QueryMetricsSchema = z.object({
+  query: z.string(),
+  searchCount: z.number(),
+  avgResultCount: z.number(),
+  actions: z.number(),
+  shortlist: z.number(),
+  reject: z.number(),
+  ndcgAtK: z.number(),
+  shortlistAtK: z.number(),
+  lastSearchAt: z.string().optional(),
+  lastActionAt: z.string().optional(),
+});
+
+const AnalysisReportSchema = z.object({
+  generatedAt: z.string(),
+  periodDays: z.number(),
+  summary: z.object({
+    totalEvents: z.number(),
+    searchQueries: z.number(),
+    zeroResultQueries: z.number(),
+    candidateActions: z.number(),
+    labeledActions: z.number(),
+    scoredActions: z.number(),
+  }),
+  queryMetrics: z.array(QueryMetricsSchema),
+  rankingMetrics: z.object({
+    k: z.number(),
+    ndcgAtK: z.number(),
+    shortlistAtK: z.number(),
+    scoredCount: z.number(),
+    shortlistCount: z.number(),
+    rejectCount: z.number(),
+    topJobDescriptionId: z.string().optional(),
+  }),
+  scoreDistribution: z.object({
+    overall: ScoreDistributionBucketSchema,
+    shortlist: ScoreDistributionBucketSchema,
+    reject: ScoreDistributionBucketSchema,
+    separation: z.object({
+      meanGap: z.number(),
+      medianGap: z.number(),
+      overlapRate: z.number(),
+      shortlistAboveRejectRate: z.number(),
+    }),
+  }),
+  learningPatterns: z.object({
+    shortlistPatterns: z.array(z.object({
+      keywords: z.array(z.string()),
+      priority: z.string(),
+      count: z.number(),
+    })),
+    rejectPatterns: z.array(z.object({
+      keyword: z.string(),
+      negativeSignal: z.string(),
+      count: z.number(),
+    })),
+  }),
+  suggestions: z.object({
+    weightAdjustments: z.array(WeightAdjustmentSuggestionSchema),
+    synonymSuggestions: z.array(SynonymSuggestionSchema),
+    domainExpansionSuggestions: z.array(DomainExpansionSuggestionSchema),
+  }),
+});
+
+const JobScoringMetricsSchema = z.object({
+  jobDescriptionId: z.string(),
+  periodDays: z.number(),
+  k: z.number(),
+  rankedCount: z.number(),
+  labeledCount: z.number(),
+  shortlistCount: z.number(),
+  rejectCount: z.number(),
+  ndcgAtK: z.number(),
+  shortlistAtK: z.number(),
+});
+
+const WeightValidationMetricsSchema = z.object({
+  ndcgAtK: z.number(),
+  shortlistAtK: z.number(),
+});
+
+const WeightValidationReportSchema = z.object({
+  jobDescriptionId: z.string(),
+  periodDays: z.number(),
+  k: z.number(),
+  sampleSize: z.number(),
+  current: WeightValidationMetricsSchema,
+  projected: WeightValidationMetricsSchema,
+  delta: z.object({
+    ndcgAtK: z.number(),
+    shortlistAtK: z.number(),
+  }),
+});
+
+const WeightHistoryEntrySchema = z.object({
+  ts: z.string(),
+  reason: z.string(),
+  jobDescriptionId: z.string().optional(),
+  before: CategoryWeightsSchema,
+  after: CategoryWeightsSchema,
+  metrics: z.object({
+    currentNdcgAtK: z.number().optional(),
+    projectedNdcgAtK: z.number().optional(),
+    currentShortlistAtK: z.number().optional(),
+    projectedShortlistAtK: z.number().optional(),
+  }).optional(),
+});
+
+const ScoringAutoTuneRunResultSchema = z.object({
+  status: z.enum([
+    "applied", "dry_run", "cooldown", "insufficient_data",
+    "no_job_description", "no_suggestions", "no_improvement",
+    "hr_rating_divergence",
+  ]),
+  executedAt: z.string(),
+  reason: z.string().optional(),
+  report: AnalysisReportSchema,
+  jobDescriptionId: z.string().optional(),
+  proposedCategoryWeights: CategoryWeightsSchema.optional(),
+  validation: WeightValidationReportSchema.optional(),
+  historyEntry: WeightHistoryEntrySchema.optional(),
+  synonymsApplied: z.number().optional(),
+  reingestTriggered: z.boolean().optional(),
+});
+
 const reportRoute = createRoute({
   method: "get",
   path: "/report",
@@ -43,7 +201,7 @@ const reportRoute = createRoute({
         "application/json": {
           schema: z.object({
             success: z.literal(true),
-            report: z.any(),
+            report: AnalysisReportSchema,
           }),
         },
       },
@@ -79,7 +237,7 @@ const metricsRoute = createRoute({
         "application/json": {
           schema: z.object({
             success: z.literal(true),
-            metrics: z.any(),
+            metrics: JobScoringMetricsSchema,
           }),
         },
       },
@@ -123,7 +281,7 @@ const validateWeightsRoute = createRoute({
         "application/json": {
           schema: z.object({
             success: z.literal(true),
-            validation: z.any(),
+            validation: WeightValidationReportSchema,
           }),
         },
       },
@@ -184,7 +342,7 @@ const runTunerRoute = createRoute({
         "application/json": {
           schema: z.object({
             success: z.literal(true),
-            result: z.any(),
+            result: ScoringAutoTuneRunResultSchema,
           }),
         },
       },
@@ -231,7 +389,7 @@ const historyRoute = createRoute({
         "application/json": {
           schema: z.object({
             success: z.literal(true),
-            items: z.array(z.any()),
+            items: z.array(WeightHistoryEntrySchema),
           }),
         },
       },
@@ -268,8 +426,8 @@ const rollbackRoute = createRoute({
         "application/json": {
           schema: z.object({
             success: z.literal(true),
-            restored: z.any(),
-            rollbackEntry: z.any(),
+            restored: WeightHistoryEntrySchema,
+            rollbackEntry: WeightHistoryEntrySchema,
             currentCategoryWeights: CategoryWeightsSchema,
           }),
         },
