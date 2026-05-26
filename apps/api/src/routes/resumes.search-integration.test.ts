@@ -95,7 +95,7 @@ function mockAndModeScanPath(slimDocs: Array<{ _id: string; searchText: string }
     return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
         const call = parseConvexCall(input, init);
 
-        if (call.pathName === "resumes:scanResumePageSlim") {
+        if (call.pathName === "resumes_search:scanResumePageSlim") {
             return convexSuccess({
                 docs: slimDocs.map((d) => ({
                     _id: d._id,
@@ -109,7 +109,7 @@ function mockAndModeScanPath(slimDocs: Array<{ _id: string; searchText: string }
                 cursor: null,
             });
         }
-        if (call.pathName === "resumes:getResumeDocsByIds") {
+        if (call.pathName === "resumes_search:getResumeDocsByIds") {
             const ids = call.args.ids as string[];
             return convexSuccess(fullDocs.filter((d) => ids.includes(d._id)));
         }
@@ -130,14 +130,14 @@ describe("BFF search dispatcher integration", () => {
             vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
                 const call = parseConvexCall(input, init);
                 calls.push(call);
-                if (call.pathName === "resumes:scanResumePageSlim") {
+                if (call.pathName === "resumes_search:scanResumePageSlim") {
                     return convexSuccess({
                         docs: [{ _id: "r1", source: "seek", searchText: "cnc 销售工程师", isArchived: false, primaryRuleScore: 0, age: 30 }],
                         isDone: true,
                         cursor: null,
                     });
                 }
-                if (call.pathName === "resumes:getResumeDocsByIds") {
+                if (call.pathName === "resumes_search:getResumeDocsByIds") {
                     return convexSuccess([buildConvexResumeRecord("r1", { name: "Alice" })]);
                 }
                 throw new Error(`Unexpected convex path: ${call.pathName}`);
@@ -152,11 +152,11 @@ describe("BFF search dispatcher integration", () => {
             expect(payload.summary.source).toBe("convex");
 
             // AND-mode triggers scanResumePageSlim
-            const slimCalls = calls.filter((c) => c.pathName === "resumes:scanResumePageSlim");
+            const slimCalls = calls.filter((c) => c.pathName === "resumes_search:scanResumePageSlim");
             expect(slimCalls.length).toBeGreaterThan(0);
 
             // Followed by getResumeDocsByIds for matches
-            const docCalls = calls.filter((c) => c.pathName === "resumes:getResumeDocsByIds");
+            const docCalls = calls.filter((c) => c.pathName === "resumes_search:getResumeDocsByIds");
             expect(docCalls.length).toBeGreaterThan(0);
         });
 
@@ -166,7 +166,7 @@ describe("BFF search dispatcher integration", () => {
                 const call = parseConvexCall(input, init);
                 calls.push(call);
 
-                if (call.pathName === "resumes:scanResumePageSlim") {
+                if (call.pathName === "resumes_search:scanResumePageSlim") {
                     return convexSuccess({
                         docs: [
                             { _id: "r1", source: "seek", searchText: "cnc 销售工程师", isArchived: false, primaryRuleScore: 0, age: 30 },
@@ -176,7 +176,7 @@ describe("BFF search dispatcher integration", () => {
                         cursor: null,
                     });
                 }
-                if (call.pathName === "resumes:getResumeDocsByIds") {
+                if (call.pathName === "resumes_search:getResumeDocsByIds") {
                     return convexSuccess([buildConvexResumeRecord("r1", { name: "Alice" })]);
                 }
                 throw new Error(`Unexpected convex path: ${call.pathName}`);
@@ -187,7 +187,7 @@ describe("BFF search dispatcher integration", () => {
             expect(response.status).toBe(200);
 
             // Only r1 (cnc+销售 match) should be fetched; r2 (java only) excluded
-            const docCalls = calls.filter((c) => c.pathName === "resumes:getResumeDocsByIds");
+            const docCalls = calls.filter((c) => c.pathName === "resumes_search:getResumeDocsByIds");
             const allIds = docCalls.flatMap((c) => (c.args.ids as string[]));
             expect(allIds).toContain("r1");
             expect(allIds).not.toContain("r2");
@@ -198,10 +198,10 @@ describe("BFF search dispatcher integration", () => {
             vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
                 const call = parseConvexCall(input, init);
                 calls.push(call);
-                if (call.pathName === "resumes:scanResumePageSlim") {
+                if (call.pathName === "resumes_search:scanResumePageSlim") {
                     return convexSuccess({ docs: [], isDone: true, cursor: null });
                 }
-                if (call.pathName === "resumes:getResumeDocsByIds") {
+                if (call.pathName === "resumes_search:getResumeDocsByIds") {
                     return convexSuccess([]);
                 }
                 throw new Error(`Unexpected convex path: ${call.pathName}`);
@@ -210,7 +210,7 @@ describe("BFF search dispatcher integration", () => {
             const app = createApp();
             await app.request("/api/resumes?source=convex&q=CNC%20销售&limit=5");
 
-            const slimCall = calls.find((c) => c.pathName === "resumes:scanResumePageSlim");
+            const slimCall = calls.find((c) => c.pathName === "resumes_search:scanResumePageSlim");
             expect(slimCall).toBeDefined();
             const numItems = slimCall!.args.numItems as number;
             expect(numItems).toBeGreaterThan(0);
@@ -222,10 +222,10 @@ describe("BFF search dispatcher integration", () => {
         it("returns empty data when no docs match AND-mode keywords", async () => {
             vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
                 const call = parseConvexCall(input, init);
-                if (call.pathName === "resumes:scanResumePageSlim") {
+                if (call.pathName === "resumes_search:scanResumePageSlim") {
                     return convexSuccess({ docs: [], isDone: true, cursor: null });
                 }
-                if (call.pathName === "resumes:getResumeDocsByIds") {
+                if (call.pathName === "resumes_search:getResumeDocsByIds") {
                     return convexSuccess([]);
                 }
                 throw new Error(`Unexpected convex path: ${call.pathName}`);
@@ -247,10 +247,10 @@ describe("BFF search dispatcher integration", () => {
             vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
                 const call = parseConvexCall(input, init);
                 calls.push(call);
-                if (call.pathName === "resumes:scanResumePageSlim") {
+                if (call.pathName === "resumes_search:scanResumePageSlim") {
                     return convexSuccess({ docs: [], isDone: true, cursor: null });
                 }
-                if (call.pathName === "resumes:getResumeDocsByIds") {
+                if (call.pathName === "resumes_search:getResumeDocsByIds") {
                     return convexSuccess([]);
                 }
                 throw new Error(`Unexpected convex path: ${call.pathName}`);
@@ -260,7 +260,7 @@ describe("BFF search dispatcher integration", () => {
             await app.request("/api/resumes?source=convex&q=CNC%20销售&minAge=25&maxAge=40");
 
             // Filters are applied BFF-side after scanResumePageSlim
-            const slimCalls = calls.filter((c) => c.pathName === "resumes:scanResumePageSlim");
+            const slimCalls = calls.filter((c) => c.pathName === "resumes_search:scanResumePageSlim");
             expect(slimCalls.length).toBeGreaterThan(0);
         });
     });
@@ -271,11 +271,11 @@ describe("BFF search dispatcher integration", () => {
             vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
                 const call = parseConvexCall(input, init);
 
-                if (call.pathName === "resumes:scanResumePageSlim") {
+                if (call.pathName === "resumes_search:scanResumePageSlim") {
                     batchSizes.push(call.args.numItems as number);
                     return convexSuccess({ docs: [], isDone: true, cursor: null });
                 }
-                if (call.pathName === "resumes:getResumeDocsByIds") {
+                if (call.pathName === "resumes_search:getResumeDocsByIds") {
                     return convexSuccess([]);
                 }
                 throw new Error(`Unexpected convex path: ${call.pathName}`);

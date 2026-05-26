@@ -1067,7 +1067,7 @@ export function useConvexResumes(
   )
 
   const paginatedSearchResults = usePaginatedQuery(
-    api.resumes.searchWithTagExpansionPaginated,
+    api.resumes_search.searchWithTagExpansionPaginated,
     mockPayload
       ? 'skip'
       : enabled && !useExactKeywordScan && normalizedQuery && keywordExpansion && keywordExpansion.mode !== 'AND'
@@ -1093,7 +1093,7 @@ export function useConvexResumes(
   )
 
   const paginatedKeywordScanResults = usePaginatedQuery(
-    api.resumes.searchWithTagExpansionScanPage,
+    api.resumes_search.searchWithTagExpansionScanPage,
     mockPayload
       ? 'skip'
       : enabled && normalizedQuery && normalizedJobDescriptionId && keywordExpansion
