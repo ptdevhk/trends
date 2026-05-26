@@ -207,7 +207,6 @@ export {
     listIngestDiagnostics,
     listArchivedDiagnostics,
     listDiagnosticsSourceFacets,
-    countSourceKeyPage,
     listWorkflowDatasetPage,
     listFieldCoverageDatasetPage,
 } from "./resumes_diagnostics.js";

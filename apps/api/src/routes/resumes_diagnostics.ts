@@ -128,7 +128,7 @@ app.openapi(listResumeDiagnosticsRoute, async (c) => {
   const includeArchived = archived === true;
   const requestedLimit = Math.min(Math.max(limit ?? 100, 1), 500);
   const normalizedSourceKeys = normalizeResumeDiagnosticsSourceKeys(sourceKey);
-  const pathName = includeArchived ? "resumes:listArchivedDiagnostics" : "resumes:listIngestDiagnostics";
+  const pathName = includeArchived ? "resumes_diagnostics:listArchivedDiagnostics" : "resumes_diagnostics:listIngestDiagnostics";
   const rows: unknown[] = [];
   let cursor: string | null = null;
 
