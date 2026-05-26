@@ -12,6 +12,8 @@ const app = new OpenAPIHono();
 // this sub-app's routes (Hono mounts sub-apps at / with wildcard).
 const ingestComputeService = new IngestComputeService(config.projectRoot);
 
+const SimpleErrorSchema = z.object({ success: z.literal(false), error: z.string() });
+
 const HardResetReingestRequestSchema = z.object({
   dryRun: z.boolean().optional(),
 });
@@ -53,6 +55,16 @@ const ArchiveResumesRequestSchema = z.object({
   action: z.union([z.literal("archive"), z.literal("unarchive")]),
 });
 
+const ArchiveResumesResponseSchema = z.object({
+  success: z.literal(true),
+  requested: z.number().int(),
+  archived: z.number().int().optional(),
+  alreadyArchived: z.number().int().optional(),
+  unarchived: z.number().int().optional(),
+  notArchived: z.number().int().optional(),
+  missingResumeIds: z.array(z.string()).optional(),
+});
+
 const ResetDatabaseV2ResponseSchema = z.object({
   success: z.literal(true),
   dryRun: z.boolean().optional(),
@@ -62,15 +74,67 @@ const ResetDatabaseV2ResponseSchema = z.object({
   deleted: z.record(z.string(), z.number().int()).optional(),
 });
 
-// Hard reset re-ingest: clear computed fields and reschedule
-app.post("/api/resumes/hard-reset-reingest", requireAdmin, async (c) => {
-  const body = await c.req.json().catch(() => ({}));
-  const parsed = HardResetReingestRequestSchema.safeParse(body);
-  if (!parsed.success) {
-    return c.json({ success: false, error: "Invalid request payload" }, 400);
-  }
+const IngestComputeRequestSchema = z.object({
+  resumes: z.array(z.object({
+    resumeId: z.string(),
+    content: z.any(),
+    sourceKey: z.string().optional(),
+  })),
+});
+const IngestComputeResponseSchema = z.object({
+  success: z.literal(true),
+  results: z.any(),
+});
 
-  const { dryRun } = parsed.data;
+const BiasReportQuerySchema = z.object({
+  workspaceSlug: z.string().min(1),
+});
+const BiasReportResponseSchema = z.object({
+  success: z.literal(true),
+  report: z.any().nullable(),
+});
+
+const AnomalyAlertsQuerySchema = z.object({
+  workspaceSlug: z.string().min(1),
+});
+const AnomalyAlertsResponseSchema = z.object({
+  success: z.literal(true),
+  alerts: z.any().nullable(),
+});
+
+const BiasAnomalyNotifyRequestSchema = z.object({
+  workspaceSlug: z.string().min(1),
+  channel: z.enum(["feishu", "wechat_work", "email"]).optional(),
+});
+const BiasAnomalyNotifyResponseSchema = z.object({
+  success: z.literal(true),
+  notified: z.boolean(),
+  reason: z.string().optional(),
+  alerts: z.object({ flags: z.array(z.string()), alertedAt: z.string() }).optional(),
+  channels: z.array(z.object({ channel: z.string(), success: z.boolean(), error: z.string().optional() })).optional(),
+});
+
+// ---------------------------------------------------------------------------
+// Route definitions (createRoute OpenAPI pattern)
+// ---------------------------------------------------------------------------
+
+const hardResetReingestRoute = createRoute({
+  method: "post",
+  path: "/api/resumes/hard-reset-reingest",
+  tags: ["admin"],
+  summary: "Hard reset ingest data and reschedule re-ingest (admin only)",
+  middleware: [requireAdmin] as const,
+  request: {
+    body: { content: { "application/json": { schema: HardResetReingestRequestSchema } } },
+  },
+  responses: {
+    200: { content: { "application/json": { schema: HardResetReingestResponseSchema } }, description: "Reset result" },
+    400: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Invalid request" },
+    500: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Internal error" },
+  },
+});
+app.openapi(hardResetReingestRoute, async (c) => {
+  const { dryRun } = c.req.valid("json");
 
   try {
     if (dryRun) {
@@ -144,15 +208,23 @@ app.post("/api/resumes/hard-reset-reingest", requireAdmin, async (c) => {
   }
 });
 
-// Clear analyses for specific JDs or resume IDs
-app.post("/api/resumes/clear-analyses", requireAdmin, async (c) => {
-  const body = await c.req.json().catch(() => ({}));
-  const parsed = ClearAnalysesRequestSchema.safeParse(body);
-  if (!parsed.success) {
-    return c.json({ success: false, error: "Invalid request payload" }, 400);
-  }
-
-  const { jobDescriptionId, resumeIds, batchSize, dryRun } = parsed.data;
+const clearAnalysesRoute = createRoute({
+  method: "post",
+  path: "/api/resumes/clear-analyses",
+  tags: ["admin"],
+  summary: "Clear analyses for specific JDs or resume IDs (admin only)",
+  middleware: [requireAdmin] as const,
+  request: {
+    body: { content: { "application/json": { schema: ClearAnalysesRequestSchema } } },
+  },
+  responses: {
+    200: { content: { "application/json": { schema: ClearAnalysesResponseSchema } }, description: "Clear result" },
+    400: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Invalid request" },
+    500: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Internal error" },
+  },
+});
+app.openapi(clearAnalysesRoute, async (c) => {
+  const { jobDescriptionId, resumeIds, batchSize, dryRun } = c.req.valid("json");
   const isTargeted = (jobDescriptionId?.trim()?.length ?? 0) > 0 || (resumeIds?.length ?? 0) > 0;
   const buildClearAnalysesArgs = (cursor?: string | null): Record<string, unknown> => {
     const args: Record<string, unknown> = {
@@ -243,15 +315,23 @@ app.post("/api/resumes/clear-analyses", requireAdmin, async (c) => {
   }
 });
 
-// Reset database (admin only)
-app.post("/api/resumes/reset-database", requireAdmin, async (c) => {
-  const body = await c.req.json().catch(() => ({}));
-  const parsed = ResetDatabaseRequestSchema.safeParse(body);
-  if (!parsed.success) {
-    return c.json({ success: false, error: "Invalid request payload" }, 400);
-  }
-
-  const { dryRun } = parsed.data;
+const resetDatabaseRoute = createRoute({
+  method: "post",
+  path: "/api/resumes/reset-database",
+  tags: ["admin"],
+  summary: "Reset the database (admin only)",
+  middleware: [requireAdmin] as const,
+  request: {
+    body: { content: { "application/json": { schema: ResetDatabaseRequestSchema } } },
+  },
+  responses: {
+    200: { content: { "application/json": { schema: ResetDatabaseV2ResponseSchema } }, description: "Reset result" },
+    400: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Invalid request" },
+    500: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Internal error" },
+  },
+});
+app.openapi(resetDatabaseRoute, async (c) => {
+  const { dryRun } = c.req.valid("json");
 
   try {
     if (dryRun) {
@@ -278,15 +358,23 @@ app.post("/api/resumes/reset-database", requireAdmin, async (c) => {
   }
 });
 
-// Archive/unarchive resumes
-app.post("/api/resumes/archive", requireAdmin, async (c) => {
-  const body = await c.req.json().catch(() => ({}));
-  const parsed = ArchiveResumesRequestSchema.safeParse(body);
-  if (!parsed.success) {
-    return c.json({ success: false, error: "Invalid request payload" }, 400);
-  }
-
-  const { resumeIds, action } = parsed.data;
+const archiveResumesRoute = createRoute({
+  method: "post",
+  path: "/api/resumes/archive",
+  tags: ["admin"],
+  summary: "Archive or unarchive resumes (admin only)",
+  middleware: [requireAdmin] as const,
+  request: {
+    body: { content: { "application/json": { schema: ArchiveResumesRequestSchema } } },
+  },
+  responses: {
+    200: { content: { "application/json": { schema: ArchiveResumesResponseSchema } }, description: "Archive result" },
+    400: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Invalid request" },
+    500: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Internal error" },
+  },
+});
+app.openapi(archiveResumesRoute, async (c) => {
+  const { resumeIds, action } = c.req.valid("json");
 
   try {
     if (action === "archive") {
@@ -296,7 +384,7 @@ app.post("/api/resumes/archive", requireAdmin, async (c) => {
         alreadyArchived: number;
         missingResumeIds: string[];
       };
-      return c.json({ success: true, ...result }, 200);
+      return c.json({ success: true as const, ...result }, 200);
     } else {
       const result = await callConvexMutation("resumes_mutations:unarchiveResumes", { resumeIds }) as {
         requested: number;
@@ -304,7 +392,7 @@ app.post("/api/resumes/archive", requireAdmin, async (c) => {
         notArchived: number;
         missingResumeIds: string[];
       };
-      return c.json({ success: true, ...result }, 200);
+      return c.json({ success: true as const, ...result }, 200);
     }
   } catch (error) {
     logger.error("Failed to archive/unarchive resumes", error, { route: "resumes_admin" });
@@ -313,35 +401,54 @@ app.post("/api/resumes/archive", requireAdmin, async (c) => {
   }
 });
 
-// Ingest compute (internal — called by Convex action)
-app.post("/api/resumes/ingest-compute", requireAdmin, async (c) => {
-  const body = await c.req.json();
-  const resumes = body.resumes as Array<{ resumeId: string; content: unknown; sourceKey?: string }>;
-
-  if (!Array.isArray(resumes)) {
-    return c.json({ success: false, error: "Invalid request: expected { resumes: [...] }" }, 400);
-  }
+const ingestComputeRoute = createRoute({
+  method: "post",
+  path: "/api/resumes/ingest-compute",
+  tags: ["admin"],
+  summary: "Compute ingest data for a batch of resumes (internal)",
+  middleware: [requireAdmin] as const,
+  request: {
+    body: { content: { "application/json": { schema: IngestComputeRequestSchema } } },
+  },
+  responses: {
+    200: { content: { "application/json": { schema: IngestComputeResponseSchema } }, description: "Compute result" },
+    400: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Invalid request" },
+    500: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Internal error" },
+  },
+});
+app.openapi(ingestComputeRoute, async (c) => {
+  const { resumes } = c.req.valid("json");
 
   try {
     const results = ingestComputeService.computeBatch(resumes);
-    return c.json({ success: true, results }, 200);
+    return c.json({ success: true as const, results }, 200);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return c.json({ success: false, error: message }, 500);
   }
 });
 
-// Bias audit report — fetch latest for workspace (EU AI Act Art. 12)
-app.get("/api/resumes/bias-report", requireAdmin, async (c) => {
-  const workspaceSlug = c.req.query("workspaceSlug");
-
-  if (!workspaceSlug) {
-    return c.json({ success: false, error: "Missing required query param: workspaceSlug" }, 400);
-  }
+const biasReportRoute = createRoute({
+  method: "get",
+  path: "/api/resumes/bias-report",
+  tags: ["admin"],
+  summary: "Get latest bias audit report for workspace (EU AI Act Art. 12)",
+  middleware: [requireAdmin] as const,
+  request: {
+    query: BiasReportQuerySchema,
+  },
+  responses: {
+    200: { content: { "application/json": { schema: BiasReportResponseSchema } }, description: "Bias report" },
+    400: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Invalid request" },
+    500: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Internal error" },
+  },
+});
+app.openapi(biasReportRoute, async (c) => {
+  const { workspaceSlug } = c.req.valid("query");
 
   try {
     const report = await callConvexQuery("bias_audit:getLatestBiasReport", { workspaceSlug });
-    return c.json({ success: true, report }, 200);
+    return c.json({ success: true as const, report }, 200);
   } catch (error) {
     logger.error("Failed to fetch bias report", error, { route: "resumes_admin" });
     const message = error instanceof Error ? error.message : String(error);
@@ -349,17 +456,27 @@ app.get("/api/resumes/bias-report", requireAdmin, async (c) => {
   }
 });
 
-// Bias audit anomaly alerts — fetch active alerts for workspace (EU AI Act Art. 12)
-app.get("/api/resumes/anomaly-alerts", requireAdmin, async (c) => {
-  const workspaceSlug = c.req.query("workspaceSlug");
-
-  if (!workspaceSlug) {
-    return c.json({ success: false, error: "Missing required query param: workspaceSlug" }, 400);
-  }
+const anomalyAlertsRoute = createRoute({
+  method: "get",
+  path: "/api/resumes/anomaly-alerts",
+  tags: ["admin"],
+  summary: "Get active anomaly alerts for workspace (EU AI Act Art. 12)",
+  middleware: [requireAdmin] as const,
+  request: {
+    query: AnomalyAlertsQuerySchema,
+  },
+  responses: {
+    200: { content: { "application/json": { schema: AnomalyAlertsResponseSchema } }, description: "Anomaly alerts" },
+    400: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Invalid request" },
+    500: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Internal error" },
+  },
+});
+app.openapi(anomalyAlertsRoute, async (c) => {
+  const { workspaceSlug } = c.req.valid("query");
 
   try {
     const alerts = await callConvexQuery("bias_audit:getAnomalyAlerts", { workspaceSlug });
-    return c.json({ success: true, alerts }, 200);
+    return c.json({ success: true as const, alerts }, 200);
   } catch (error) {
     logger.error("Failed to fetch anomaly alerts", error, { route: "resumes_admin" });
     const message = error instanceof Error ? error.message : String(error);
@@ -367,20 +484,23 @@ app.get("/api/resumes/anomaly-alerts", requireAdmin, async (c) => {
   }
 });
 
-// Bias anomaly notification — dispatch alerts for active anomalies (EU AI Act Art. 12)
-app.post("/api/resumes/bias-anomaly-notify", requireAdmin, async (c) => {
-  const body = await c.req.json().catch(() => ({}));
-  const workspaceSlug = typeof body.workspaceSlug === "string" ? body.workspaceSlug.trim() : "";
-  const channel = typeof body.channel === "string" ? body.channel : "";
-
-  if (!workspaceSlug) {
-    return c.json({ success: false, error: "workspaceSlug is required" }, 400);
-  }
-
-  const validChannels = ["feishu", "wechat_work", "email"];
-  if (channel && !validChannels.includes(channel)) {
-    return c.json({ success: false, error: `Invalid channel. Must be one of: ${validChannels.join(", ")}` }, 400);
-  }
+const biasAnomalyNotifyRoute = createRoute({
+  method: "post",
+  path: "/api/resumes/bias-anomaly-notify",
+  tags: ["admin"],
+  summary: "Dispatch bias anomaly alert notifications (EU AI Act Art. 12)",
+  middleware: [requireAdmin] as const,
+  request: {
+    body: { content: { "application/json": { schema: BiasAnomalyNotifyRequestSchema } } },
+  },
+  responses: {
+    200: { content: { "application/json": { schema: BiasAnomalyNotifyResponseSchema } }, description: "Notification result" },
+    400: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Invalid request" },
+    500: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Internal error" },
+  },
+});
+app.openapi(biasAnomalyNotifyRoute, async (c) => {
+  const { workspaceSlug, channel } = c.req.valid("json");
 
   try {
     const alerts = await callConvexQuery("bias_audit:getAnomalyAlerts", { workspaceSlug }) as {
@@ -392,7 +512,7 @@ app.post("/api/resumes/bias-anomaly-notify", requireAdmin, async (c) => {
     } | null;
 
     if (!alerts || alerts.flags.length === 0) {
-      return c.json({ success: true, notified: false, reason: "No active anomaly alerts" }, 200);
+      return c.json({ success: true as const, notified: false, reason: "No active anomaly alerts" }, 200);
     }
 
     const alertDate = new Date(alerts.alertedAt).toISOString();
@@ -413,6 +533,7 @@ app.post("/api/resumes/bias-anomaly-notify", requireAdmin, async (c) => {
       `Please review the Audit & Compliance dashboard for details.`,
     ].join("\n");
 
+    const validChannels = ["feishu", "wechat_work", "email"] as const;
     const channels = channel ? [channel] : validChannels;
     const results: Array<{ channel: string; success: boolean; error?: string }> = [];
 
@@ -447,7 +568,7 @@ app.post("/api/resumes/bias-anomaly-notify", requireAdmin, async (c) => {
 
     const anySuccess = results.some((r) => r.success);
     return c.json({
-      success: true,
+      success: true as const,
       notified: anySuccess,
       alerts: { flags: alerts.flags, alertedAt: alertDate },
       channels: results,

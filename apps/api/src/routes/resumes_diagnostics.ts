@@ -13,6 +13,17 @@ import {
 const app = new OpenAPIHono();
 const skillsKnowledgeService = new SkillsKnowledgeService(config.projectRoot);
 
+const SimpleErrorSchema = z.object({ success: z.literal(false), error: z.string() });
+const AnalysisTasksSuccessSchema = z.object({ success: z.literal(true), tasks: z.any() });
+const SkillsVersionResponseSchema = z.object({ success: z.literal(true), version: z.number() });
+const FieldCoverageResponseSchema = z.object({
+  success: z.literal(true),
+  scanned: z.number().int(),
+  missingSearchText: z.number().int(),
+  missingVerifiedRoleYears: z.number().int(),
+  hasRoleSignals: z.number().int(),
+});
+
 function normalizeResumeDiagnosticsSourceKeys(values: string[] | undefined): string[] | undefined {
   if (!values?.length) {
     return undefined;
@@ -26,7 +37,17 @@ function normalizeResumeDiagnosticsSourceKeys(values: string[] | undefined): str
   return resolved.length > 0 ? resolved : undefined;
 }
 
-app.get("/api/resumes/analysis-tasks", async (c) => {
+const listAnalysisTasksRoute = createRoute({
+  method: "get",
+  path: "/api/resumes/analysis-tasks",
+  tags: ["resumes"],
+  summary: "List analysis tasks",
+  responses: {
+    200: { content: { "application/json": { schema: AnalysisTasksSuccessSchema } }, description: "Analysis tasks" },
+    500: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Internal error" },
+  },
+});
+app.openapi(listAnalysisTasksRoute, async (c) => {
   try {
     const tasks = (await callConvexQuery("analysis_tasks:list", {})) as Array<{
       _id: string;
@@ -65,12 +86,30 @@ app.get("/api/resumes/analysis-tasks", async (c) => {
   }
 });
 
-app.get("/api/resumes/skills-version", (c) => {
+const getSkillsVersionRoute = createRoute({
+  method: "get",
+  path: "/api/resumes/skills-version",
+  tags: ["resumes"],
+  summary: "Get current skills knowledge version",
+  responses: {
+    200: { content: { "application/json": { schema: SkillsVersionResponseSchema } }, description: "Skills version" },
+  },
+});
+app.openapi(getSkillsVersionRoute, (c) => {
   const version = skillsKnowledgeService.getVersion();
   return c.json({ success: true, version }, 200);
 });
 
-app.get("/api/resumes/field-coverage", async (c) => {
+const getFieldCoverageRoute = createRoute({
+  method: "get",
+  path: "/api/resumes/field-coverage",
+  tags: ["resumes"],
+  summary: "Get field coverage stats across all resumes",
+  responses: {
+    200: { content: { "application/json": { schema: FieldCoverageResponseSchema } }, description: "Field coverage" },
+  },
+});
+app.openapi(getFieldCoverageRoute, async (c) => {
   const total = { scanned: 0, missingSearchText: 0, missingVerifiedRoleYears: 0, hasRoleSignals: 0 };
   let cursor: string | null = null;
 
