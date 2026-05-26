@@ -1033,6 +1033,9 @@ refresh-sample:
 	CDP_PORT="$(or $(CDP_PORT),9222)" \
 	ALLOW_EMPTY="$(ALLOW_EMPTY)" \
 	LOCATION="$(LOCATION)" \
+	SOURCE="$(or $(SOURCE),job5156)" \
+	MARKET="$(or $(MARKET),MY)" \
+	ROLE_TITLES="$(ROLE_TITLES)" \
 	./scripts/refresh-sample.sh --limit $(or $(LIMIT),200) --max-pages $(or $(MAX_PAGES),10)
 
 # Show instructions for refreshing resume sample data

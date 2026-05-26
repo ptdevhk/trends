@@ -6,10 +6,21 @@ SAMPLE="${SAMPLE:-sample-initial}"
 CDP_PORT="${CDP_PORT:-9222}"
 ALLOW_EMPTY="${ALLOW_EMPTY:-}"
 LOCATION="${LOCATION:-}"
+SOURCE="${SOURCE:-job5156}"
+MARKET="${MARKET:-MY}"
+ROLE_TITLES="${ROLE_TITLES:-}"
 
 LOCATION_ARGS=()
 if [[ -n "${LOCATION}" ]]; then
   LOCATION_ARGS=(--location "${LOCATION}")
+fi
+
+SEEK_ARGS=()
+if [[ "${SOURCE}" == "seek" ]]; then
+  SEEK_ARGS=(--source seek --market "${MARKET}")
+  if [[ -n "${ROLE_TITLES}" ]]; then
+    SEEK_ARGS+=(--role-titles "${ROLE_TITLES}")
+  fi
 fi
 
 if ! curl -fsS "http://127.0.0.1:${CDP_PORT}/json" >/dev/null 2>&1; then
@@ -23,6 +34,8 @@ exec uv run python scripts/refresh_sample.py \
   --keyword "${KEYWORD}" \
   --sample "${SAMPLE}" \
   --port "${CDP_PORT}" \
+  --source "${SOURCE}" \
   ${ALLOW_EMPTY:+--allow-empty} \
   "${LOCATION_ARGS[@]}" \
+  "${SEEK_ARGS[@]}" \
   "$@"
