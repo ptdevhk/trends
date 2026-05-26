@@ -1,7 +1,5 @@
 
-import { Hono } from "hono";
-import { zValidator } from "@hono/zod-validator";
-import { z } from "zod";
+import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { aiMatchingService } from "../services/ai-matching.js";
 import { notificationService } from "../services/notification-service.js";
 import { notificationTemplateService } from "../services/notification-template-service.js";
@@ -9,9 +7,10 @@ import { config } from "../services/config.js";
 import { formatIsoOffsetInTimezone } from "../services/timezone.js";
 import { requireAdmin } from "../middleware/workspace.js";
 
-const app = new Hono();
+const app = new OpenAPIHono();
 
-// Schema for generating a draft
+const SimpleErrorSchema = z.object({ error: z.string() });
+
 const draftSchema = z.object({
     resume: z.object({
         id: z.string(),
@@ -37,11 +36,10 @@ const draftSchema = z.object({
     }),
 });
 
-// Schema for sending an email
 const sendSchema = z.object({
     to: z.string().email(),
     subject: z.string(),
-    body: z.string(), // HTML is expected
+    body: z.string(),
 });
 
 const templateIdSchema = z
@@ -50,7 +48,7 @@ const templateIdSchema = z
     .max(128)
     .regex(/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/);
 
-const templateDataSchema = z.record(z.string(), z.unknown());
+const templateDataSchema = z.record(z.string(), z.any());
 
 const previewSchema = z.object({
     channel: z.enum(["email", "wechat_work", "feishu"]),
@@ -131,7 +129,16 @@ function buildTemplateData(data: Record<string, unknown>): Record<string, unknow
 }
 
 // GET /api/notifications/templates
-app.get("/templates", async (c) => {
+const templatesRoute = createRoute({
+    method: "get",
+    path: "/templates",
+    tags: ["notifications"],
+    summary: "List notification templates",
+    responses: {
+        200: { content: { "application/json": { schema: z.object({ templates: z.array(z.object({ id: z.string(), filename: z.string(), updatedAt: z.string(), size: z.number(), subject: z.string().optional() })) }) } }, description: "Templates" },
+    },
+});
+app.openapi(templatesRoute, async (c) => {
     const templates = notificationTemplateService.listTemplates().map((item) => ({
         id: item.id,
         filename: item.filename,
@@ -143,110 +150,146 @@ app.get("/templates", async (c) => {
 });
 
 // POST /api/notifications/draft
-app.post(
-    "/draft",
-    zValidator("json", draftSchema),
-    async (c) => {
-        const { resume, jobDescription, analysis } = c.req.valid("json");
-        try {
-            const draft = await aiMatchingService.generateOutreach(resume, jobDescription, analysis);
-            return c.json(draft);
-        } catch (e: unknown) {
-            return c.json({ error: getErrorMessage(e) }, 500);
-        }
+const draftRoute = createRoute({
+    method: "post",
+    path: "/draft",
+    tags: ["notifications"],
+    summary: "Generate outreach draft",
+    request: {
+        body: { content: { "application/json": { schema: draftSchema } } },
+    },
+    responses: {
+        200: { content: { "application/json": { schema: z.any() } }, description: "Draft generated" },
+        500: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Generation failed" },
+    },
+});
+app.openapi(draftRoute, async (c) => {
+    const { resume, jobDescription, analysis } = c.req.valid("json");
+    try {
+        const draft = await aiMatchingService.generateOutreach(resume, jobDescription, analysis);
+        return c.json(draft as Record<string, unknown>, 200);
+    } catch (e: unknown) {
+        return c.json({ error: getErrorMessage(e) }, 500);
     }
-);
+});
 
 // POST /api/notifications/preview
-app.post(
-    "/preview",
-    zValidator("json", previewSchema),
-    async (c) => {
-        const { channel, templateId, data } = c.req.valid("json");
-        try {
-            const rendered = notificationTemplateService.render(templateId, buildTemplateData(data));
+const previewRoute = createRoute({
+    method: "post",
+    path: "/preview",
+    tags: ["notifications"],
+    summary: "Preview notification template",
+    request: {
+        body: { content: { "application/json": { schema: previewSchema } } },
+    },
+    responses: {
+        200: { content: { "application/json": { schema: z.any() } }, description: "Preview rendered" },
+        500: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Render failed" },
+    },
+});
+app.openapi(previewRoute, async (c) => {
+    const { channel, templateId, data } = c.req.valid("json");
+    try {
+        const rendered = notificationTemplateService.render(templateId, buildTemplateData(data));
 
-            if (channel === "email") {
-                return c.json({
-                    channel,
-                    templateId,
-                    subject: rendered.subject ?? "",
-                    markdown: rendered.markdown,
-                    html: renderMarkdownAsHtml(rendered.markdown),
-                });
-            }
-
+        if (channel === "email") {
             return c.json({
                 channel,
                 templateId,
-                content: rendered.markdown,
-            });
-        } catch (e: unknown) {
-            return c.json({ error: getErrorMessage(e) }, 500);
+                subject: rendered.subject ?? "",
+                markdown: rendered.markdown,
+                html: renderMarkdownAsHtml(rendered.markdown),
+            }, 200);
         }
+
+        return c.json({
+            channel,
+            templateId,
+            content: rendered.markdown,
+        }, 200);
+    } catch (e: unknown) {
+        return c.json({ error: getErrorMessage(e) }, 500);
     }
-);
+});
 
 // POST /api/notifications/send
-app.post(
-    "/send",
-    requireAdmin,
-    zValidator("json", sendSchema),
-    async (c) => {
-        const { to, subject, body } = c.req.valid("json");
-        try {
-            const info = await notificationService.sendEmail({
-                to,
-                subject,
-                html: body.replace(/\n/g, "<br>"), // Simple text-to-HTML conversion
-            });
-            const messageId = getMessageId(info);
-            return c.json({ success: true, messageId, preview: messageId ? undefined : "Check server logs" });
-        } catch (e: unknown) {
-            return c.json({ error: getErrorMessage(e) }, 500);
-        }
+const sendRoute = createRoute({
+    method: "post",
+    path: "/send",
+    tags: ["notifications"],
+    summary: "Send email notification",
+    middleware: [requireAdmin] as const,
+    request: {
+        body: { content: { "application/json": { schema: sendSchema } } },
+    },
+    responses: {
+        200: { content: { "application/json": { schema: z.any() } }, description: "Email sent" },
+        500: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Send failed" },
+    },
+});
+app.openapi(sendRoute, async (c) => {
+    const { to, subject, body } = c.req.valid("json");
+    try {
+        const info = await notificationService.sendEmail({
+            to,
+            subject,
+            html: body.replace(/\n/g, "<br>"),
+        });
+        const messageId = getMessageId(info);
+        return c.json({ success: true, messageId, preview: messageId ? undefined : "Check server logs" }, 200);
+    } catch (e: unknown) {
+        return c.json({ error: getErrorMessage(e) }, 500);
     }
-);
+});
 
 // POST /api/notifications/send-template
-app.post(
-    "/send-template",
-    requireAdmin,
-    zValidator("json", sendTemplateSchema),
-    async (c) => {
-        const payload = c.req.valid("json");
-        try {
-            const rendered = notificationTemplateService.render(payload.templateId, buildTemplateData(payload.data));
+const sendTemplateRoute = createRoute({
+    method: "post",
+    path: "/send-template",
+    tags: ["notifications"],
+    summary: "Send templated notification",
+    middleware: [requireAdmin] as const,
+    request: {
+        body: { content: { "application/json": { schema: sendTemplateSchema } } },
+    },
+    responses: {
+        200: { content: { "application/json": { schema: z.any() } }, description: "Notification sent" },
+        500: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Send failed" },
+    },
+});
+app.openapi(sendTemplateRoute, async (c) => {
+    const payload = c.req.valid("json");
+    try {
+        const rendered = notificationTemplateService.render(payload.templateId, buildTemplateData(payload.data));
 
-            if (payload.channel === "email") {
-                const subject = payload.subject ?? rendered.subject ?? "";
-                const info = await notificationService.sendEmail({
-                    to: payload.to,
-                    subject,
-                    text: rendered.markdown,
-                    html: renderMarkdownAsHtml(rendered.markdown),
-                });
-                const messageId = getMessageId(info);
-                return c.json({ success: true, channel: payload.channel, messageId });
-            }
+        if (payload.channel === "email") {
+            const subject = payload.subject ?? rendered.subject ?? "";
+            const info = await notificationService.sendEmail({
+                to: payload.to,
+                subject,
+                text: rendered.markdown,
+                html: renderMarkdownAsHtml(rendered.markdown),
+            });
+            const messageId = getMessageId(info);
+            return c.json({ success: true, channel: payload.channel, messageId }, 200);
+        }
 
-            if (payload.channel === "wechat_work") {
-                const result = await notificationService.sendWechatWorkMarkdown({
-                    webhookUrl: payload.webhookUrl,
-                    content: rendered.markdown,
-                });
-                return c.json({ success: true, channel: payload.channel, ...result });
-            }
-
-            const result = await notificationService.sendFeishuText({
+        if (payload.channel === "wechat_work") {
+            const result = await notificationService.sendWechatWorkMarkdown({
                 webhookUrl: payload.webhookUrl,
                 content: rendered.markdown,
             });
-            return c.json({ success: true, channel: payload.channel, ...result });
-        } catch (e: unknown) {
-            return c.json({ error: getErrorMessage(e) }, 500);
+            return c.json({ success: true, channel: payload.channel, ...result }, 200);
         }
+
+        const result = await notificationService.sendFeishuText({
+            webhookUrl: payload.webhookUrl,
+            content: rendered.markdown,
+        });
+        return c.json({ success: true, channel: payload.channel, ...result }, 200);
+    } catch (e: unknown) {
+        return c.json({ error: getErrorMessage(e) }, 500);
     }
-);
+});
 
 export default app;
