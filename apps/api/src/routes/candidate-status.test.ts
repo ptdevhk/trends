@@ -204,4 +204,97 @@ describe("candidate-status route", () => {
     expect(calls[0]?.args.workspaceSlug).toBe("hr");
     expect(calls[1]?.args.workspaceSlug).toBe("dev");
   });
+
+  describe("POST /api/candidate-appeal", () => {
+    it("submits an appeal and returns appeal_submitted status", async () => {
+      const calls: ConvexCall[] = [];
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+        const call = parseConvexCall(input, init);
+        calls.push(call);
+
+        if (call.pathName === "audit:submitAppeal") {
+          return convexSuccess({ success: true, status: "appeal_submitted" });
+        }
+
+        throw new Error(`Unexpected convex path: ${call.pathName}`);
+      });
+
+      const app = createApp();
+      const response = await app.request("/api/candidate-appeal", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Workspace-Slug": "dev",
+        },
+        body: JSON.stringify({
+          resumeId: "resume-abc123",
+          identityKey: "candidate-1",
+          reason: "I believe the score is incorrect",
+        }),
+      });
+
+      expect(response.status).toBe(200);
+      const payload = await response.json();
+      expect(payload).toMatchObject({
+        success: true,
+        status: "appeal_submitted",
+      });
+
+      expect(calls).toHaveLength(1);
+      expect(calls[0]).toMatchObject({
+        type: "mutation",
+        pathName: "audit:submitAppeal",
+        args: {
+          resumeId: "resume-abc123",
+          identityKey: "candidate-1",
+          workspaceSlug: "dev",
+          reason: "I believe the score is incorrect",
+        },
+      });
+    });
+
+    it("rejects missing resumeId", async () => {
+      const app = createApp();
+      const response = await app.request("/api/candidate-appeal", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          identityKey: "candidate-1",
+        }),
+      });
+
+      expect(response.status).toBe(400);
+    });
+
+    it("handles Convex errors gracefully", async () => {
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+        const call = parseConvexCall(input, init);
+        if (call.pathName === "audit:submitAppeal") {
+          return new Response(
+            JSON.stringify({ status: "error", errorMessage: "Resume not found" }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          );
+        }
+        throw new Error(`Unexpected convex path: ${call.pathName}`);
+      });
+
+      const app = createApp();
+      const response = await app.request("/api/candidate-appeal", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          resumeId: "nonexistent",
+          identityKey: "candidate-1",
+        }),
+      });
+
+      expect(response.status).toBe(400);
+      const payload = await response.json();
+      expect(payload.success).toBe(false);
+    });
+  });
 });

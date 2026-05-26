@@ -309,6 +309,10 @@
         "interviewing": "面试中",
         "interviewed_pass": "面试通过",
         "interviewed_reject": "面试淘汰",
+        "appeal_submitted": "已申诉",
+        "human_review": "人工审核中",
+        "upheld": "维持原判",
+        "reversed": "撤销原判",
         "offer": "已发 Offer",
         "hired": "已入职",
         "withdrawn": "已放弃"
@@ -1456,6 +1460,13 @@
       "title": "您的权利",
       "description": "您有权要求人工审核此决定。专业人员将独立重新评估您的申请。",
       "requestReview": "请求人工审核"
+    },
+    "appeal": {
+      "placeholder": "可选：说明您认为此决定应被重新审核的理由...",
+      "submitting": "提交中...",
+      "success": "您的申诉已提交。专业人员将审核您的申请。",
+      "nextSteps": "您将收到审核结果通知。",
+      "error": "申诉提交失败，请重试。"
     },
     "footer": {
       "compliance": "此说明依据 EU AI Act 第13条提供。"

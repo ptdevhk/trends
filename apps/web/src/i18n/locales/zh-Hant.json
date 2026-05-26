@@ -309,6 +309,10 @@
         "interviewing": "面試中",
         "interviewed_pass": "面試通過",
         "interviewed_reject": "面試淘汰",
+        "appeal_submitted": "已申訴",
+        "human_review": "人工審核中",
+        "upheld": "維持原判",
+        "reversed": "撤銷原判",
         "offer": "已發 Offer",
         "hired": "已入職",
         "withdrawn": "已放棄"
@@ -1429,6 +1433,13 @@
       "title": "您的權利",
       "description": "您有權要求人工審核此決定。專業人員將獨立重新評估您的申請。",
       "requestReview": "請求人工審核"
+    },
+    "appeal": {
+      "placeholder": "可選：說明您認為此決定應被重新審核的理由...",
+      "submitting": "提交中...",
+      "success": "您的申訴已提交。專業人員將審核您的申請。",
+      "nextSteps": "您將收到審核結果通知。",
+      "error": "申訴提交失敗，請重試。"
     },
     "footer": {
       "compliance": "此說明依據 EU AI Act 第13條提供。"

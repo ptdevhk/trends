@@ -5,6 +5,7 @@ import { rawApiClient } from '@/lib/api-helpers'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Textarea } from '@/components/ui/textarea'
 import {
   Table,
   TableBody,
@@ -15,6 +16,7 @@ import {
 } from '@/components/ui/table'
 
 type CandidateExplanation = {
+  identityKey: string
   summary: string
   keyFactors: Array<{ factor: string; value: string }>
   decidedAt: number
@@ -62,6 +64,74 @@ function formatFactorName(factor: string): string {
   return factor
     .replace(/_/g, ' ')
     .replace(/\b\w/g, (c) => c.toUpperCase())
+}
+
+function AppealForm({ resumeId, identityKey }: { resumeId: string; identityKey: string }) {
+  const { t } = useTranslation('explanationPage')
+  const [reason, setReason] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [submitted, setSubmitted] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleSubmit = useCallback(async () => {
+    setSubmitting(true)
+    setError(null)
+    try {
+      const { error: apiError } = await rawApiClient.POST('/api/candidate-appeal', {
+        body: {
+          resumeId,
+          identityKey,
+          reason: reason.trim() || undefined,
+        },
+      })
+      if (apiError) {
+        setError(t('appeal.error', { defaultValue: 'Failed to submit appeal. Please try again.' }))
+        setSubmitting(false)
+        return
+      }
+      setSubmitted(true)
+    } catch {
+      setError(t('appeal.error', { defaultValue: 'Failed to submit appeal. Please try again.' }))
+    } finally {
+      setSubmitting(false)
+    }
+  }, [resumeId, identityKey, reason, t])
+
+  if (submitted) {
+    return (
+      <div className="space-y-2" data-testid="appeal-submitted">
+        <p className="text-sm font-medium text-green-700 dark:text-green-400">
+          {t('appeal.success', { defaultValue: 'Your appeal has been submitted. A qualified person will review your application.' })}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {t('appeal.nextSteps', { defaultValue: 'You will be notified of the review outcome.' })}
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-3">
+      <Textarea
+        placeholder={t('appeal.placeholder', { defaultValue: 'Optional: explain why you believe this decision should be reviewed...' })}
+        value={reason}
+        onChange={(e) => setReason(e.target.value)}
+        rows={3}
+        maxLength={2000}
+        data-testid="appeal-reason"
+      />
+      {error && <p className="text-sm text-destructive">{error}</p>}
+      <Button
+        onClick={handleSubmit}
+        disabled={submitting}
+        data-testid="request-human-review"
+      >
+        {submitting
+          ? t('appeal.submitting', { defaultValue: 'Submitting...' })
+          : t('rights.requestReview', { defaultValue: 'Request Human Review' })}
+      </Button>
+    </div>
+  )
 }
 
 export function CandidateExplanationPage() {
@@ -251,9 +321,10 @@ export function CandidateExplanationPage() {
                 defaultValue: 'You have the right to request human review of this decision. A qualified person will re-evaluate your application independently.',
               })}
             </p>
-            <Button data-testid="request-human-review">
-              {t('rights.requestReview', { defaultValue: 'Request Human Review' })}
-            </Button>
+            <AppealForm
+              resumeId={resumeId}
+              identityKey={data.identityKey}
+            />
           </CardContent>
         </Card>
 

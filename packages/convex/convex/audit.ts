@@ -113,6 +113,7 @@ export const getExplanationForCandidate = query({
 
         // Return ONLY the human-facing explanation, not internal model reasoning
         return {
+            identityKey: auditLog.identityKey ?? "",
             summary: auditLog.explanation.summary,
             keyFactors: auditLog.explanation.keyFactors.map((f) => ({
                 factor: f.factor,
@@ -124,6 +125,71 @@ export const getExplanationForCandidate = query({
             scrubbedFields: auditLog.inputSnapshot.scrubbedFields,
             protectedAttributesExcluded: (auditLog.inputSnapshot.scrubbedFields?.length ?? 0) > 0,
         };
+    },
+});
+
+// ---------------------------------------------------------------------------
+// Public mutation: submitAppeal (EU AI Act Art. 14 — candidate appeal)
+// ---------------------------------------------------------------------------
+
+export const submitAppeal = mutation({
+    args: {
+        resumeId: v.id("resumes"),
+        identityKey: v.string(),
+        workspaceSlug: v.string(),
+        reason: v.optional(v.string()),
+    },
+    handler: async (ctx, args) => {
+        const now = Date.now();
+
+        // Update candidate_status to appeal_submitted
+        const existing = await ctx.db
+            .query("candidate_status")
+            .withIndex("by_workspace_identity", (q) =>
+                q.eq("workspaceSlug", args.workspaceSlug).eq("identityKey", args.identityKey)
+            )
+            .unique();
+
+        if (existing) {
+            const nextHistory = [...(existing.history ?? [])];
+            nextHistory.push({
+                status: existing.status,
+                updatedAt: existing.updatedAt,
+                notes: existing.notes,
+            });
+            await ctx.db.patch(existing._id, {
+                status: "appeal_submitted",
+                notes: args.reason ?? existing.notes,
+                updatedAt: now,
+                history: nextHistory,
+            });
+        } else {
+            await ctx.db.insert("candidate_status", {
+                workspaceSlug: args.workspaceSlug,
+                identityKey: args.identityKey,
+                status: "appeal_submitted",
+                notes: args.reason,
+                updatedAt: now,
+                history: [],
+            });
+        }
+
+        // Set audit log outcome to "appealed"
+        const auditLog = await ctx.db
+            .query("analysis_audit_log")
+            .withIndex("by_resume", (q) => q.eq("resumeId", args.resumeId))
+            .filter((q) => q.eq(q.field("workspaceSlug"), args.workspaceSlug))
+            .first();
+
+        if (auditLog) {
+            await ctx.db.patch(auditLog._id, {
+                outcome: "appealed",
+                outcomeSetAt: now,
+                reviewedAt: now,
+            });
+        }
+
+        return { success: true, status: "appeal_submitted" };
     },
 });
 

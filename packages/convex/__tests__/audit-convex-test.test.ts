@@ -1269,4 +1269,127 @@ describe("audit log retention (EU AI Act / GDPR)", () => {
       expect(afterSet!.outcomeSetAt).toBeDefined();
     });
   });
+
+  describe("submitAppeal", () => {
+    it("creates candidate_status with appeal_submitted and sets audit log to appealed", async () => {
+      const t = createTest();
+
+      const resumeId = await t.run(async (ctx) => {
+        return ctx.db.insert("resumes", {
+          externalId: "appeal-submit-r1",
+          content: {},
+          hash: "appeal-submit1",
+          source: "test",
+          tags: [],
+          crawledAt: Date.now(),
+        });
+      });
+
+      const auditLogId = await t.mutation(internal.audit.logAnalysisDecision, {
+        resumeId,
+        identityKey: "candidate-1",
+        workspaceSlug: "ws1",
+        decisionType: "score",
+        actionRef: "resumes:score",
+        inputSnapshot: {},
+        modelMeta: { model: "test", provider: "test" },
+        output: { score: 45 },
+        decidedAt: Date.now(),
+      });
+
+      const result = await t.mutation(api.audit.submitAppeal, {
+        resumeId,
+        identityKey: "candidate-1",
+        workspaceSlug: "ws1",
+        reason: "I believe the score should be higher",
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.status).toBe("appeal_submitted");
+
+      const status = await t.query(api.candidate_status.getByIdentity, {
+        workspaceSlug: "ws1",
+        identityKey: "candidate-1",
+      });
+      expect(status).not.toBeNull();
+      expect(status!.status).toBe("appeal_submitted");
+      expect(status!.notes).toBe("I believe the score should be higher");
+
+      const auditLog = await t.run(async (ctx) => ctx.db.get(auditLogId));
+      expect(auditLog!.outcome).toBe("appealed");
+    });
+
+    it("updates existing candidate_status and appends history", async () => {
+      const t = createTest();
+
+      await t.mutation(api.candidate_status.upsert, {
+        workspaceSlug: "ws1",
+        identityKey: "candidate-2",
+        status: "interviewed_reject",
+        notes: "Not suitable",
+      });
+
+      const resumeId = await t.run(async (ctx) => {
+        return ctx.db.insert("resumes", {
+          externalId: "appeal-update-r1",
+          content: {},
+          hash: "appeal-update1",
+          source: "test",
+          tags: [],
+          crawledAt: Date.now(),
+        });
+      });
+
+      await t.mutation(internal.audit.logAnalysisDecision, {
+        resumeId,
+        identityKey: "candidate-2",
+        workspaceSlug: "ws1",
+        decisionType: "filter",
+        actionRef: "resumes:filter",
+        inputSnapshot: {},
+        modelMeta: { model: "test", provider: "test" },
+        output: {},
+        decidedAt: Date.now(),
+      });
+
+      await t.mutation(api.audit.submitAppeal, {
+        resumeId,
+        identityKey: "candidate-2",
+        workspaceSlug: "ws1",
+        reason: "Requesting human review",
+      });
+
+      const status = await t.query(api.candidate_status.getByIdentity, {
+        workspaceSlug: "ws1",
+        identityKey: "candidate-2",
+      });
+      expect(status!.status).toBe("appeal_submitted");
+      expect(status!.history).toHaveLength(1);
+      expect(status!.history![0].status).toBe("interviewed_reject");
+    });
+
+    it("works without an existing audit log", async () => {
+      const t = createTest();
+
+      const resumeId = await t.run(async (ctx) => {
+        return ctx.db.insert("resumes", {
+          externalId: "appeal-no-audit-r1",
+          content: {},
+          hash: "appeal-no-audit1",
+          source: "test",
+          tags: [],
+          crawledAt: Date.now(),
+        });
+      });
+
+      const result = await t.mutation(api.audit.submitAppeal, {
+        resumeId,
+        identityKey: "candidate-3",
+        workspaceSlug: "ws1",
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.status).toBe("appeal_submitted");
+    });
+  });
 });

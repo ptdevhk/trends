@@ -401,6 +401,10 @@ export default defineSchema({
             v.literal("interviewing"),
             v.literal("interviewed_pass"),
             v.literal("interviewed_reject"),
+            v.literal("appeal_submitted"),
+            v.literal("human_review"),
+            v.literal("upheld"),
+            v.literal("reversed"),
             v.literal("offer"),
             v.literal("hired"),
             v.literal("withdrawn")

@@ -6,6 +6,7 @@ import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 
 import { callConvexQuery, callConvexMutation } from "../services/convex-utils.js";
 import { workspaceConfigService } from "../services/workspace-config-service.js";
+import { logger } from "../services/logger.js";
 
 const app = new OpenAPIHono();
 
@@ -16,6 +17,10 @@ const CandidateStatusEnum = z.enum([
   "interviewing",
   "interviewed_pass",
   "interviewed_reject",
+  "appeal_submitted",
+  "human_review",
+  "upheld",
+  "reversed",
   "offer",
   "hired",
   "withdrawn",
@@ -55,6 +60,22 @@ const UpdateResponseSchema = z.object({
     date: z.string(),
     observation: z.string(),
   }).optional(),
+});
+
+const AppealRequestSchema = z.object({
+  resumeId: z.string().min(1),
+  identityKey: z.string().min(1),
+  reason: z.string().max(2000).optional(),
+});
+
+const AppealResponseSchema = z.object({
+  success: z.literal(true),
+  status: z.literal("appeal_submitted"),
+});
+
+const SimpleErrorSchema = z.object({
+  success: z.literal(false),
+  error: z.string(),
 });
 
 type CandidateStatusItem = z.infer<typeof CandidateStatusSchema>;
@@ -147,6 +168,57 @@ app.openapi(updateRoute, async (c) => {
     item: toCandidateStatusItem(item),
     learningEntry,
   }, 200);
+});
+
+// ---------------------------------------------------------------------------
+// Candidate appeal submission (EU AI Act Art. 14 — right to human review)
+// ---------------------------------------------------------------------------
+
+const submitAppealRoute = createRoute({
+  method: "post",
+  path: "/api/candidate-appeal",
+  tags: ["actions"],
+  summary: "Submit a candidate appeal for human review",
+  description: "Allows a candidate to request human review of an AI-assisted decision. Transitions candidate_status to appeal_submitted and sets the audit log outcome to appealed.",
+  request: {
+    body: {
+      content: {
+        "application/json": { schema: AppealRequestSchema },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: { "application/json": { schema: AppealResponseSchema } },
+      description: "Appeal submitted",
+    },
+    400: {
+      content: { "application/json": { schema: SimpleErrorSchema } },
+      description: "Invalid request",
+    },
+  },
+});
+
+app.openapi(submitAppealRoute, async (c) => {
+  const body = c.req.valid("json");
+
+  try {
+    const result = await callConvexMutation("audit:submitAppeal", {
+      resumeId: body.resumeId,
+      identityKey: body.identityKey,
+      workspaceSlug: c.var.workspaceSlug,
+      reason: body.reason,
+    }) as { success: boolean; status: string };
+
+    return c.json(AppealResponseSchema.parse({
+      success: true as const,
+      status: "appeal_submitted",
+    }), 200);
+  } catch (error) {
+    logger.error("Failed to submit candidate appeal", error, { route: "candidate-appeal" });
+    const message = error instanceof Error ? error.message : String(error);
+    return c.json({ success: false as const, error: message }, 400);
+  }
 });
 
 export default app;
