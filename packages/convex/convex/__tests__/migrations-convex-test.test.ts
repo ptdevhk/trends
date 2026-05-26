@@ -488,10 +488,45 @@ describe("migration: auditDuplicateResumesByIdentity", () => {
     expect(result.duplicateGroupCount).toBe(0);
     expect(result.duplicateResumeCount).toBe(0);
   });
+
+  it("picks canonical by crawledAt then analysis richness", async () => {
+    const t = convexTest(schema, modules);
+
+    const sharedKey = "richness-test-key";
+    // All three have same crawledAt, but different analysis richness
+    await insertResume(t, {
+      content: { name: "Low Richness" },
+      identityKey: sharedKey,
+      crawledAt: 100,
+      analyses: { jd1: { score: 80, summary: "ok" } },
+    });
+    await insertResume(t, {
+      content: { name: "High Richness" },
+      identityKey: sharedKey,
+      crawledAt: 100,
+      analyses: { jd1: { score: 80, summary: "ok" }, jd2: { score: 70, summary: "good" } },
+    });
+    await insertResume(t, {
+      content: { name: "No Analysis" },
+      identityKey: sharedKey,
+      crawledAt: 100,
+    });
+
+    const result = await t.mutation(
+      api.migrations.auditDuplicateResumesByIdentity,
+      {},
+    );
+
+    expect(result.duplicateGroupCount).toBe(1);
+    // Canonical should be the one with most analyses
+    const group = result.groups[0];
+    expect(group.count).toBe(3);
+    expect(group.duplicateIds).toHaveLength(2);
+  });
 });
 
 // ---------------------------------------------------------------------------
-// mergeDuplicateResumesByIdentity (dryRun)
+// mergeDuplicateResumesByIdentity
 // ---------------------------------------------------------------------------
 
 describe("migration: mergeDuplicateResumesByIdentity", () => {
@@ -525,6 +560,138 @@ describe("migration: mergeDuplicateResumesByIdentity", () => {
       return ctx.db.query("resumes").collect();
     });
     expect(resumes.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("in live mode, patches canonical and deletes duplicates", async () => {
+    const t = convexTest(schema, modules);
+
+    const sharedKey = "live-merge-key";
+    await insertResume(t, {
+      content: { name: "Canonical" },
+      identityKey: sharedKey,
+      crawledAt: 300,
+      tags: ["a", "b"],
+    });
+    await insertResume(t, {
+      content: { name: "Duplicate" },
+      identityKey: sharedKey,
+      crawledAt: 200,
+      tags: ["b", "c"],
+    });
+    await insertResume(t, {
+      content: { name: "Unique" },
+      identityKey: "unique-key",
+      crawledAt: 100,
+    });
+
+    const result = await t.mutation(
+      api.migrations.mergeDuplicateResumesByIdentity,
+      { dryRun: false, batchSize: 10 },
+    );
+
+    expect(result.dryRun).toBe(false);
+    expect(result.patchedCanonicals).toBe(1);
+    expect(result.deleted).toBe(1);
+
+    // Only 2 resumes should remain (canonical + unique)
+    const resumes = await t.run(async (ctx) => {
+      return ctx.db.query("resumes").collect();
+    });
+    expect(resumes).toHaveLength(2);
+
+    // Canonical should have merged tags
+    const canonical = resumes.find((r) => (r.content as Record<string, unknown>).name === "Canonical");
+    expect(canonical).toBeDefined();
+    expect(canonical!.tags).toEqual(expect.arrayContaining(["a", "b", "c"]));
+    expect(canonical!.tags).toHaveLength(3);
+  });
+
+  it("merges analyses from duplicates into canonical", async () => {
+    const t = convexTest(schema, modules);
+
+    const sharedKey = "analysis-merge-key";
+    await insertResume(t, {
+      content: { name: "With Analyses" },
+      identityKey: sharedKey,
+      crawledAt: 300,
+      tags: [],
+      analyses: { jd1: { score: 80, summary: "primary analysis" } },
+      analysis: {
+        score: 80,
+        summary: "primary",
+        highlights: ["experienced"],
+        recommendation: "yes",
+        jobDescriptionId: "jd-1",
+      },
+    });
+    await insertResume(t, {
+      content: { name: "Dup With More" },
+      identityKey: sharedKey,
+      crawledAt: 200,
+      tags: [],
+      analyses: { jd2: { score: 90, summary: "dup analysis" } },
+    });
+
+    const result = await t.mutation(
+      api.migrations.mergeDuplicateResumesByIdentity,
+      { dryRun: false, batchSize: 10 },
+    );
+
+    expect(result.patchedCanonicals).toBe(1);
+    expect(result.groups[0].mergedAnalysisCount).toBe(2);
+
+    // Canonical should have both analyses merged
+    const resumes = await t.run(async (ctx) => {
+      return ctx.db.query("resumes").collect();
+    });
+    const canonical = resumes.find((r) => (r.content as Record<string, unknown>).name === "With Analyses");
+    const mergedAnalyses = canonical!.analyses as Record<string, unknown>;
+    expect("jd1" in mergedAnalyses).toBe(true);
+    expect("jd2" in mergedAnalyses).toBe(true);
+    // analysis field should be preserved
+    expect(canonical!.analysis).toBeDefined();
+    expect((canonical!.analysis as Record<string, unknown>).score).toBe(80);
+  });
+
+  it("respects batchSize to limit processed groups", async () => {
+    const t = convexTest(schema, modules);
+
+    // Create 2 duplicate groups (need batchSize large enough to scan all 4 resumes)
+    await insertResume(t, {
+      content: { name: "A1" },
+      identityKey: "key-a",
+      crawledAt: 300,
+      tags: ["a"],
+    });
+    await insertResume(t, {
+      content: { name: "A2" },
+      identityKey: "key-a",
+      crawledAt: 200,
+      tags: [],
+    });
+    await insertResume(t, {
+      content: { name: "B1" },
+      identityKey: "key-b",
+      crawledAt: 300,
+      tags: ["b"],
+    });
+    await insertResume(t, {
+      content: { name: "B2" },
+      identityKey: "key-b",
+      crawledAt: 200,
+      tags: [],
+    });
+
+    const result = await t.mutation(
+      api.migrations.mergeDuplicateResumesByIdentity,
+      { dryRun: true, batchSize: 100 }, // scan batch large enough to find both groups
+    );
+
+    // effectiveBatchSize = Math.max(1, Math.trunc(100)) = 100
+    // Both groups should be found in the scan
+    expect(result.duplicateGroupCount).toBeGreaterThanOrEqual(2);
+    // With batchSize=100, both groups should be processed
+    expect(result.processedGroupCount).toBeGreaterThanOrEqual(2);
   });
 });
 
@@ -989,6 +1156,34 @@ describe("migration: backfillTaggingEnvelope", () => {
     const result = await t.mutation(api.migrations.backfillTaggingEnvelope, {});
 
     expect(result.updatedResumes).toBe(0);
+  });
+
+  it("uses computedAt=0 for generatedAt (nullish coalescing only falls back on null/undefined)", async () => {
+    const t = convexTest(schema, modules);
+
+    await insertResume(t, {
+      ingestData: {
+        evidenceText: "",
+        industryTags: [],
+        synonymHits: [],
+        brandHits: [],
+        companyHits: [],
+        ruleScores: {},
+        experienceLevel: "mid",
+        computedAt: 0,
+        skillsVersion: 1,
+        tagEnvelope: [{ tag: "test", source: "rule", confidence: 0.5, version: 1 }],
+      },
+    });
+
+    const result = await t.mutation(api.migrations.backfillTaggingEnvelope, {});
+
+    expect(result.updatedResumes).toBe(1);
+
+    const resumes = await t.run(async (ctx) => ctx.db.query("resumes").collect());
+    const te = resumes[0].ingestData?.taggingEnvelope;
+    // ?? only falls back on null/undefined, not 0 — so computedAt: 0 passes through
+    expect(te!.generatedAt).toBe(0);
   });
 });
 
