@@ -280,7 +280,7 @@ export const analyzeResume = action({
         );
 
         // 4. Update Resume with result
-        await ctx.runMutation(internal.resumes.updateAnalysis, {
+        await ctx.runMutation(internal.resumes_mutations.updateAnalysis, {
             resumeId: args.resumeId,
             analysis: {
                 score: result.score,

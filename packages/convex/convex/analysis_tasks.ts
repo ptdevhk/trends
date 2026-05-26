@@ -482,7 +482,7 @@ export const processAnalysisTask = internalAction({
             skippedCount = toSkip.length;
 
             if (toSkip.length > 0) {
-                await ctx.runMutation(internal.resumes.updateAnalysisBatch, {
+                await ctx.runMutation(internal.resumes_mutations.updateAnalysisBatch, {
                     updates: toSkip.map((resume) => ({
                         resumeId: resume._id,
                         analysis: {
@@ -583,7 +583,7 @@ export const processAnalysisTask = internalAction({
                                 apiKey
                             );
 
-                            await ctx.runMutation(internal.resumes.updateAnalysis, {
+                            await ctx.runMutation(internal.resumes_mutations.updateAnalysis, {
                                 resumeId: resume._id,
                                 analysis: {
                                     score: result.score,

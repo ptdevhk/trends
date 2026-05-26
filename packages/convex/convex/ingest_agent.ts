@@ -168,7 +168,7 @@ export const processNewResumes = internalAction({
         primaryRuleScore: typeof item.primaryRuleScore === "number" ? item.primaryRuleScore : 0,
       }));
 
-      await ctx.runMutation(internal.resumes.updateIngestDataBatch, {
+      await ctx.runMutation(internal.resumes_mutations.updateIngestDataBatch, {
         updates,
       });
 
