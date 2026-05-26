@@ -77,29 +77,75 @@ const ResetDatabaseV2ResponseSchema = z.object({
 const IngestComputeRequestSchema = z.object({
   resumes: z.array(z.object({
     resumeId: z.string(),
-    content: z.any(),
+    content: z.record(z.string(), z.unknown()),
     sourceKey: z.string().optional(),
   })),
 });
 const IngestComputeResponseSchema = z.object({
   success: z.literal(true),
-  results: z.any(),
+  results: z.array(z.record(z.string(), z.unknown())),
 });
 
 const BiasReportQuerySchema = z.object({
   workspaceSlug: z.string().min(1),
 });
+const GroupRateSchema = z.object({
+  groupKey: z.string(),
+  rate: z.number(),
+});
+const DisparateImpactEntrySchema = z.object({
+  groupKey: z.string(),
+  ratio: z.number(),
+  referenceGroupKey: z.string(),
+});
+const BiasMetricsReportSchema = z.object({
+  status: z.literal("ok"),
+  workspaceSlug: z.string(),
+  decisionType: z.string(),
+  scoreThreshold: z.number(),
+  totalAuditRecords: z.number(),
+  groupCount: z.number(),
+  demographicParity: z.object({
+    disparityRatio: z.number(),
+    maxDifference: z.number(),
+    passing: z.boolean(),
+    groupRates: z.array(GroupRateSchema),
+  }),
+  disparateImpact: z.array(DisparateImpactEntrySchema),
+  overrideRate: z.object({
+    tprDifference: z.number(),
+    fprDifference: z.number(),
+    passing: z.boolean(),
+  }),
+  scoreDrift: z.object({
+    psi: z.number(),
+    driftDetected: z.boolean(),
+  }),
+  anomalyFlags: z.object({
+    statisticalParityViolation: z.boolean(),
+    disparateImpactViolation: z.boolean(),
+    scoreDriftDetected: z.boolean(),
+  }),
+  computedAt: z.number(),
+});
 const BiasReportResponseSchema = z.object({
   success: z.literal(true),
-  report: z.any().nullable(),
+  report: BiasMetricsReportSchema.nullable(),
 });
 
 const AnomalyAlertsQuerySchema = z.object({
   workspaceSlug: z.string().min(1),
 });
+const AnomalyAlertSchema = z.object({
+  workspaceSlug: z.string(),
+  flags: z.array(z.string()),
+  psiValue: z.number().nullable(),
+  disparityRatio: z.number().nullable(),
+  alertedAt: z.number(),
+});
 const AnomalyAlertsResponseSchema = z.object({
   success: z.literal(true),
-  alerts: z.any().nullable(),
+  alerts: AnomalyAlertSchema.nullable(),
 });
 
 const BiasAnomalyNotifyRequestSchema = z.object({
@@ -448,7 +494,7 @@ app.openapi(biasReportRoute, async (c) => {
 
   try {
     const report = await callConvexQuery("bias_audit:getLatestBiasReport", { workspaceSlug });
-    return c.json({ success: true as const, report }, 200);
+    return c.json({ success: true as const, report: report as z.infer<typeof BiasMetricsReportSchema> | null }, 200);
   } catch (error) {
     logger.error("Failed to fetch bias report", error, { route: "resumes_admin" });
     const message = error instanceof Error ? error.message : String(error);
@@ -476,7 +522,7 @@ app.openapi(anomalyAlertsRoute, async (c) => {
 
   try {
     const alerts = await callConvexQuery("bias_audit:getAnomalyAlerts", { workspaceSlug });
-    return c.json({ success: true as const, alerts }, 200);
+    return c.json({ success: true as const, alerts: alerts as z.infer<typeof AnomalyAlertSchema> | null }, 200);
   } catch (error) {
     logger.error("Failed to fetch anomaly alerts", error, { route: "resumes_admin" });
     const message = error instanceof Error ? error.message : String(error);
