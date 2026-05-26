@@ -353,8 +353,8 @@ export function QuickStartPanel({
     if (!convexProfiles) return new Map<string, SearchProfileFilters>()
     const map = new Map<string, SearchProfileFilters>()
     for (const doc of convexProfiles) {
-      const profileId: string | undefined = doc?.profile?.id
-      const filters: SearchProfileFilters | undefined = doc?.profile?.filters
+      const profileId = typeof doc?.profile?.id === 'string' ? doc.profile.id : undefined
+      const filters = (doc?.profile?.filters && typeof doc.profile.filters === 'object' && !Array.isArray(doc.profile.filters)) ? doc.profile.filters as SearchProfileFilters : undefined
       if (profileId && filters) {
         map.set(profileId, filters)
       }

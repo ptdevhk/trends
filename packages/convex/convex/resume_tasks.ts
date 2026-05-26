@@ -2,7 +2,7 @@ import { internalMutation, mutation, query } from "./_generated/server";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
-import { collectionTaskResultsValidator, ingestDataValidator, analysisResultValidator, resumeAnalysisValidator } from "./validators.js";
+import { collectionTaskResultsValidator, ingestDataValidator, analysisResultValidator, resumeAnalysisValidator, jsonRecordValidator } from "./validators.js";
 import { resolveSubmitResumeParallelism } from "./lib/parallelism";
 import { deriveResumeIdentity } from "./lib/resume_identity";
 import { parseAgeFromContent } from "./lib/age";
@@ -313,7 +313,7 @@ export const submitResumes = mutation({
         resumes: v.array(
             v.object({
                 externalId: v.string(),
-                content: v.record(v.string(), v.any()),
+                content: jsonRecordValidator,
                 hash: v.string(),
                 source: v.string(),
                 tags: v.array(v.string()),

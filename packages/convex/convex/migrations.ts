@@ -453,10 +453,10 @@ export function sortForCanonical(resumes: Doc<"resumes">[]): Doc<"resumes">[] {
 }
 
 export function mergeAnalyses(resumes: Doc<"resumes">[]): {
-    analyses: Record<string, unknown>;
+    analyses: Doc<"resumes">["analyses"];
     analysis: Doc<"resumes">["analysis"];
 } {
-    const mergedAnalyses: Record<string, unknown> = {};
+    const mergedAnalyses: NonNullable<Doc<"resumes">["analyses"]> = {};
     let primaryAnalysis: Doc<"resumes">["analysis"] = undefined;
 
     for (const resume of resumes) {
@@ -469,7 +469,7 @@ export function mergeAnalyses(resumes: Doc<"resumes">[]): {
         }
         for (const [key, value] of Object.entries(resume.analyses)) {
             if (!(key in mergedAnalyses)) {
-                mergedAnalyses[key] = value;
+                mergedAnalyses[key] = value as NonNullable<Doc<"resumes">["analyses"]>[string];
             }
         }
     }
@@ -943,7 +943,7 @@ export const backfillJob5156ProfileUrls = mutation({
 
             const searchText = buildSearchText(rewritten.content);
             await ctx.db.patch(resume._id, {
-                content: rewritten.content,
+                content: rewritten.content as Doc<"resumes">["content"],
                 searchText,
             });
 
@@ -985,7 +985,7 @@ export const backfillJob5156WorkHistoryEducation = mutation({
 
             const searchText = buildSearchText(rewritten.content);
             await ctx.db.patch(resume._id, {
-                content: rewritten.content,
+                content: rewritten.content as Doc<"resumes">["content"],
                 searchText,
                 ingestData: resume.ingestData
                     ? {
@@ -1040,12 +1040,12 @@ export const backfillJob5156LocationHierarchy = mutation({
             );
 
             const patch: {
-                content?: Record<string, unknown>;
+                content?: Doc<"resumes">["content"];
                 searchText?: string;
             } = {};
 
             if (rewritten.content) {
-                patch.content = rewritten.content;
+                patch.content = rewritten.content as Doc<"resumes">["content"];
                 if (rewritten.updatedLocationHierarchy) {
                     updatedLocationHierarchy += 1;
                 }
@@ -1115,13 +1115,13 @@ export const backfillManual51jobStructuredContent = mutation({
             );
 
             const patch: {
-                content?: Record<string, unknown>;
+                content?: Doc<"resumes">["content"];
                 searchText?: string;
                 ingestData?: Doc<"resumes">["ingestData"];
             } = {};
 
             if (rewritten.contentChanged) {
-                patch.content = rewritten.content;
+                patch.content = rewritten.content as Doc<"resumes">["content"];
             }
 
             if (searchText !== resume.searchText) {
@@ -1326,14 +1326,14 @@ export const mergeDuplicateResumesByIdentity = mutation({
                 const patch: {
                     identityKey: string;
                     tags: string[];
-                    analyses?: Record<string, unknown>;
+                    analyses?: Doc<"resumes">["analyses"];
                     analysis?: Doc<"resumes">["analysis"];
                 } = {
                     identityKey: group.identityKey,
                     tags: mergedTags,
                 };
 
-                if (Object.keys(mergedAnalysis.analyses).length > 0) {
+                if (mergedAnalysis.analyses && Object.keys(mergedAnalysis.analyses).length > 0) {
                     patch.analyses = mergedAnalysis.analyses;
                 }
                 if (mergedAnalysis.analysis !== undefined) {
@@ -1355,7 +1355,7 @@ export const mergeDuplicateResumesByIdentity = mutation({
                 duplicateIds: duplicates.map((resume) => String(resume._id)),
                 duplicateCount: duplicates.length,
                 mergedTagCount: mergedTags.length,
-                mergedAnalysisCount: Object.keys(mergedAnalysis.analyses).length,
+                mergedAnalysisCount: mergedAnalysis.analyses ? Object.keys(mergedAnalysis.analyses).length : 0,
             });
         }
 
@@ -1740,16 +1740,16 @@ export const backfillAnalysesValidator = mutation({
             if (allConform) continue;
 
             // Normalize non-conforming entries
-            const normalized: Record<string, unknown> = {};
+            const normalized: Doc<"resumes">["analyses"] = {};
             for (const [key, val] of entries) {
                 if (typeof val === "object" && val !== null && !Array.isArray(val) && typeof (val as Record<string, unknown>).score === "number") {
-                    normalized[key] = val;
+                    normalized[key] = val as Doc<"resumes">["analyses"] extends Record<string, infer V> | undefined ? V : never;
                 } else if (typeof val === "object" && val !== null && !Array.isArray(val)) {
                     // Has structure but missing score — add score: 0
-                    normalized[key] = { ...val, score: 0 };
+                    normalized[key] = { ...val, score: 0 } as Doc<"resumes">["analyses"] extends Record<string, infer V> | undefined ? V : never;
                 } else {
                     // Completely malformed — minimal valid entry
-                    normalized[key] = { score: 0 };
+                    normalized[key] = { score: 0 } as Doc<"resumes">["analyses"] extends Record<string, infer V> | undefined ? V : never;
                 }
             }
 

@@ -195,6 +195,20 @@ export const resumeFiltersValidator = v.optional(v.object({
     )),
 }));
 
+// --- Shared JSON value validator (replaces v.any() for typed JSON fields) ---
+
+const jsonPrimitive = v.union(v.string(), v.number(), v.boolean(), v.null());
+const jsonL1 = v.union(jsonPrimitive, v.array(jsonPrimitive), v.record(v.string(), jsonPrimitive));
+const jsonL2 = v.union(jsonPrimitive, v.array(jsonL1), v.record(v.string(), jsonL1));
+const jsonL3 = v.union(jsonPrimitive, v.array(jsonL2), v.record(v.string(), jsonL2));
+const jsonL4 = v.union(jsonPrimitive, v.array(jsonL3), v.record(v.string(), jsonL3));
+
+/** Accepts any JSON-safe value up to 4 levels of nesting (string|number|boolean|null leaves). */
+export const jsonValueValidator = v.union(jsonPrimitive, v.array(jsonL4), v.record(v.string(), jsonL4));
+
+/** Accepts a record<string, JSON> — for content, profile, and similar semi-structured fields. */
+export const jsonRecordValidator = v.record(v.string(), jsonL4);
+
 // --- Matching rules (analyze args) ---
 
 const primitiveValueValidator = v.union(v.string(), v.number(), v.boolean());
