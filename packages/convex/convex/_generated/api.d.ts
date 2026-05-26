@@ -30,6 +30,7 @@ import type * as lib_bias_metrics from "../lib/bias_metrics.js";
 import type * as lib_parallelism from "../lib/parallelism.js";
 import type * as lib_resume_identity from "../lib/resume_identity.js";
 import type * as lib_resume_task_helpers from "../lib/resume_task_helpers.js";
+import type * as lib_resumes_backup from "../lib/resumes_backup.js";
 import type * as lib_resumes_diagnostics from "../lib/resumes_diagnostics.js";
 import type * as lib_resumes_list_projections from "../lib/resumes_list_projections.js";
 import type * as lib_resumes_pagination from "../lib/resumes_pagination.js";
@@ -78,6 +79,7 @@ declare const fullApi: ApiFromModules<{
   "lib/parallelism": typeof lib_parallelism;
   "lib/resume_identity": typeof lib_resume_identity;
   "lib/resume_task_helpers": typeof lib_resume_task_helpers;
+  "lib/resumes_backup": typeof lib_resumes_backup;
   "lib/resumes_diagnostics": typeof lib_resumes_diagnostics;
   "lib/resumes_list_projections": typeof lib_resumes_list_projections;
   "lib/resumes_pagination": typeof lib_resumes_pagination;
