@@ -110,6 +110,34 @@ describe("candidate_status: upsert + getByIdentity", () => {
       }),
     ).rejects.toThrow("identityKey is required");
   });
+
+  it("defaults workspaceSlug to 'dev' when empty string", async () => {
+    const t = convexTest(schema, modules);
+
+    await t.mutation(api.candidate_status.upsert, {
+      workspaceSlug: "",
+      identityKey: "candidate-empty-ws",
+      status: "new",
+    });
+
+    const result = await t.query(api.candidate_status.getByIdentity, {
+      workspaceSlug: "dev",
+      identityKey: "candidate-empty-ws",
+    });
+
+    expect(result).not.toBeNull();
+    expect(result!.identityKey).toBe("candidate-empty-ws");
+  });
+
+  it("returns null for empty identityKey in getByIdentity", async () => {
+    const t = convexTest(schema, modules);
+
+    const result = await t.query(api.candidate_status.getByIdentity, {
+      identityKey: "",
+    });
+
+    expect(result).toBeNull();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -117,6 +145,16 @@ describe("candidate_status: upsert + getByIdentity", () => {
 // ---------------------------------------------------------------------------
 
 describe("candidate_status: list + listForBackup", () => {
+  it("returns empty array when no records exist", async () => {
+    const t = convexTest(schema, modules);
+
+    const list = await t.query(api.candidate_status.list, {
+      workspaceSlug: "ws-empty",
+    });
+
+    expect(list).toEqual([]);
+  });
+
   it("lists candidate statuses for a workspace", async () => {
     const t = convexTest(schema, modules);
 
