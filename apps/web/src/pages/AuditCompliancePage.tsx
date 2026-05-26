@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { PageHeader } from '@/components/PageHeader'
@@ -24,6 +24,37 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+
+type BiasMetricsReport = {
+  status: 'ok'
+  workspaceSlug: string
+  decisionType: string
+  scoreThreshold: number
+  totalAuditRecords: number
+  groupCount: number
+  demographicParity: {
+    disparityRatio: number
+    maxDifference: number
+    passing: boolean
+    groupRates: Array<{ groupKey: string; rate: number }>
+  }
+  disparateImpact: Array<{ groupKey: string; ratio: number; referenceGroupKey: string }>
+  overrideRate: {
+    tprDifference: number
+    fprDifference: number
+    passing: boolean
+  }
+  scoreDrift: {
+    psi: number
+    driftDetected: boolean
+  }
+  anomalyFlags: {
+    statisticalParityViolation: boolean
+    disparateImpactViolation: boolean
+    scoreDriftDetected: boolean
+  }
+  computedAt: number
+}
 
 type OutcomeValue = 'accepted' | 'overridden' | 'appealed'
 
@@ -63,6 +94,60 @@ const outcomeVariant = (outcome?: string): 'default' | 'secondary' | 'destructiv
     default:
       return 'outline'
   }
+}
+
+function RelativeTime({ epoch }: { epoch: number }) {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 60000)
+    return () => clearInterval(timer)
+  }, [])
+  const diffMs = now - epoch
+  const minutes = Math.floor(diffMs / 60000)
+  if (minutes < 1) return <span>just now</span>
+  if (minutes < 60) return <span>{minutes}m ago</span>
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return <span>{hours}h ago</span>
+  const days = Math.floor(hours / 24)
+  return <span>{days}d ago</span>
+}
+
+function KpiCard({ label, value, passing }: { label: string; value: string; passing: boolean }) {
+  return (
+    <div className="border rounded-md p-3 space-y-1">
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className="text-lg font-semibold">{value}</div>
+      <Badge variant={passing ? 'default' : 'destructive'} data-testid={passing ? 'kpi-pass' : 'kpi-fail'}>
+        {passing ? 'PASS' : 'FAIL'}
+      </Badge>
+    </div>
+  )
+}
+
+function AnomalyFlag({ label, active }: { label: string; active: boolean }) {
+  return (
+    <div className="text-xs flex items-center gap-1.5">
+      <Badge variant={active ? 'destructive' : 'outline'} data-testid={active ? 'anomaly-active' : 'anomaly-inactive'}>
+        {active ? 'TRUE' : 'FALSE'}
+      </Badge>
+      <span className="text-muted-foreground">{label}</span>
+    </div>
+  )
+}
+
+function MetricRow({ label, value, threshold, passing }: { label: string; value: string; threshold: string; passing: boolean }) {
+  return (
+    <TableRow>
+      <TableCell className="font-medium text-xs">{label}</TableCell>
+      <TableCell className="text-xs font-mono">{value}</TableCell>
+      <TableCell className="text-xs text-muted-foreground">{threshold}</TableCell>
+      <TableCell>
+        <Badge variant={passing ? 'default' : 'destructive'}>
+          {passing ? 'PASS' : 'FAIL'}
+        </Badge>
+      </TableCell>
+    </TableRow>
+  )
 }
 
 function OutcomeDialog({
@@ -187,15 +272,11 @@ export function AuditCompliancePage() {
     [outcomeDialogEntry, setOutcome, t],
   )
 
-  const biasReportSummary = useMemo(() => {
+  const biasMetrics = useMemo((): BiasMetricsReport | null => {
     if (!report || typeof report !== 'object') return null
     const r = report as Record<string, unknown>
-    return {
-      generatedAt:
-        typeof r.generatedAt === 'number' ? new Date(r.generatedAt).toLocaleString() : undefined,
-      workspaceSlug: typeof r.workspaceSlug === 'string' ? r.workspaceSlug : undefined,
-      anomalyDetected: typeof r.anomalyDetected === 'boolean' ? r.anomalyDetected : undefined,
-    }
+    if (r.status !== 'ok') return null
+    return report as unknown as BiasMetricsReport
   }, [report])
 
   return (
@@ -248,40 +329,62 @@ export function AuditCompliancePage() {
             </div>
           ) : reportError ? (
             <div className="text-sm text-destructive">{reportError}</div>
-          ) : biasReportSummary ? (
-            <div className="space-y-3">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
-                <div>
-                  <span className="text-muted-foreground">
-                    {t('auditCompliance.biasReport.workspace', { defaultValue: 'Workspace' })}:
-                  </span>{' '}
-                  {biasReportSummary.workspaceSlug ?? '-'}
-                </div>
-                <div>
-                  <span className="text-muted-foreground">
-                    {t('auditCompliance.biasReport.generatedAt', {
-                      defaultValue: 'Generated At',
-                    })}
-                    :
-                  </span>{' '}
-                  {biasReportSummary.generatedAt ?? '-'}
-                </div>
-                <div>
-                  <span className="text-muted-foreground">
-                    {t('auditCompliance.biasReport.anomalyDetected', {
-                      defaultValue: 'Anomaly Detected',
-                    })}
-                    :
-                  </span>{' '}
-                  {biasReportSummary.anomalyDetected != null ? (
-                    <Badge variant={biasReportSummary.anomalyDetected ? 'destructive' : 'default'}>
-                      {biasReportSummary.anomalyDetected ? 'Yes' : 'No'}
-                    </Badge>
-                  ) : (
-                    '-'
+          ) : biasMetrics ? (
+            <div className="space-y-4">
+              {/* KPI Cards Row */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3" data-testid="bias-kpi-cards">
+                <KpiCard
+                  label={t('auditCompliance.kpi.dir', { defaultValue: 'DIR Ratio' })}
+                  value={biasMetrics.demographicParity.disparityRatio.toFixed(2)}
+                  passing={biasMetrics.demographicParity.passing}
+                />
+                <KpiCard
+                  label={t('auditCompliance.kpi.parity', { defaultValue: 'Parity Diff' })}
+                  value={biasMetrics.demographicParity.maxDifference.toFixed(2)}
+                  passing={biasMetrics.demographicParity.passing}
+                />
+                <KpiCard
+                  label={t('auditCompliance.kpi.psi', { defaultValue: 'PSI Drift' })}
+                  value={biasMetrics.scoreDrift.psi.toFixed(3)}
+                  passing={!biasMetrics.scoreDrift.driftDetected}
+                />
+                <KpiCard
+                  label={t('auditCompliance.kpi.anomalies', { defaultValue: 'Anomalies' })}
+                  value={String(
+                    Object.values(biasMetrics.anomalyFlags).filter(Boolean).length,
                   )}
+                  passing={Object.values(biasMetrics.anomalyFlags).every((v) => !v)}
+                />
+              </div>
+
+              {/* Anomaly Flags */}
+              <div className="border rounded-md p-3 space-y-2" data-testid="anomaly-flags-section">
+                <div className="text-sm font-medium">
+                  {t('auditCompliance.biasReport.anomalyFlags', { defaultValue: 'Anomaly Flags' })}
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <AnomalyFlag
+                    label={t('auditCompliance.flag.parity', { defaultValue: 'Parity Violation' })}
+                    active={biasMetrics.anomalyFlags.statisticalParityViolation}
+                  />
+                  <AnomalyFlag
+                    label={t('auditCompliance.flag.impact', { defaultValue: 'Impact Violation' })}
+                    active={biasMetrics.anomalyFlags.disparateImpactViolation}
+                  />
+                  <AnomalyFlag
+                    label={t('auditCompliance.flag.drift', { defaultValue: 'Score Drift' })}
+                    active={biasMetrics.anomalyFlags.scoreDriftDetected}
+                  />
+                  <div className="text-xs text-muted-foreground flex items-center gap-1">
+                    <span className="text-muted-foreground">
+                      {t('auditCompliance.flag.reportAge', { defaultValue: 'Report Age' })}:
+                    </span>{' '}
+                    <RelativeTime epoch={biasMetrics.computedAt} />
+                  </div>
                 </div>
               </div>
+
+              {/* Anomaly alert banner (from alerts endpoint) */}
               {anomalyAlerts && anomalyAlerts.flags.length > 0 && (
                 <div className="border rounded-md p-3 bg-destructive/5 border-destructive/20" data-testid="anomaly-alert-banner">
                   <div className="text-sm font-medium text-destructive mb-1">
@@ -304,6 +407,110 @@ export function AuditCompliancePage() {
                   )}
                 </div>
               )}
+
+              {/* Metric Breakdown Table */}
+              <div data-testid="metric-breakdown-table">
+                <div className="text-sm font-medium mb-2">
+                  {t('auditCompliance.metricBreakdown.title', { defaultValue: 'Metric Breakdown' })}
+                </div>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>{t('auditCompliance.metricBreakdown.metric', { defaultValue: 'Metric' })}</TableHead>
+                      <TableHead>{t('auditCompliance.metricBreakdown.value', { defaultValue: 'Value' })}</TableHead>
+                      <TableHead>{t('auditCompliance.metricBreakdown.threshold', { defaultValue: 'Threshold' })}</TableHead>
+                      <TableHead>{t('auditCompliance.metricBreakdown.status', { defaultValue: 'Status' })}</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    <MetricRow
+                      label="DIR"
+                      value={biasMetrics.demographicParity.disparityRatio.toFixed(2)}
+                      threshold=">= 0.80"
+                      passing={biasMetrics.demographicParity.passing}
+                    />
+                    <MetricRow
+                      label={t('auditCompliance.metric.parity', { defaultValue: 'Parity' })}
+                      value={biasMetrics.demographicParity.maxDifference.toFixed(2)}
+                      threshold="< 0.10"
+                      passing={biasMetrics.demographicParity.passing}
+                    />
+                    <MetricRow
+                      label="PSI"
+                      value={biasMetrics.scoreDrift.psi.toFixed(3)}
+                      threshold="< 0.25"
+                      passing={!biasMetrics.scoreDrift.driftDetected}
+                    />
+                    <MetricRow
+                      label={t('auditCompliance.metric.override', { defaultValue: 'Override' })}
+                      value={`${(biasMetrics.overrideRate.tprDifference * 100).toFixed(0)}%/${(biasMetrics.overrideRate.fprDifference * 100).toFixed(0)}%`}
+                      threshold="< 10%"
+                      passing={biasMetrics.overrideRate.passing}
+                    />
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Group Rates Table */}
+              {biasMetrics.demographicParity.groupRates.length > 0 && (
+                <div data-testid="group-rates-table">
+                  <div className="text-sm font-medium mb-2">
+                    {t('auditCompliance.groupRates.title', { defaultValue: 'Group Rates' })}
+                  </div>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>{t('auditCompliance.groupRates.group', { defaultValue: 'Group' })}</TableHead>
+                        <TableHead>{t('auditCompliance.groupRates.selectionRate', { defaultValue: 'Selection Rate' })}</TableHead>
+                        <TableHead>{t('auditCompliance.groupRates.dirVsRef', { defaultValue: 'DIR vs Ref' })}</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {biasMetrics.demographicParity.groupRates.map((g) => {
+                        const diEntry = biasMetrics.disparateImpact.find(
+                          (di) => di.groupKey === g.groupKey,
+                        )
+                        const isRef = !diEntry
+                        return (
+                          <TableRow key={g.groupKey}>
+                            <TableCell className="font-mono text-xs">{g.groupKey}</TableCell>
+                            <TableCell className="text-xs">{(g.rate * 100).toFixed(1)}%</TableCell>
+                            <TableCell className="text-xs">
+                              {isRef ? (
+                                <Badge variant="outline">{t('auditCompliance.groupRates.reference', { defaultValue: 'reference' })}</Badge>
+                              ) : (
+                                <Badge variant={diEntry!.ratio >= 0.8 ? 'default' : 'destructive'}>
+                                  {diEntry!.ratio.toFixed(2)}
+                                </Badge>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+
+              {/* Report metadata footer */}
+              <div className="text-xs text-muted-foreground flex flex-wrap gap-x-4 gap-y-1">
+                <span>
+                  {t('auditCompliance.biasReport.computedAt', { defaultValue: 'Last computed' })}:{' '}
+                  {new Date(biasMetrics.computedAt).toLocaleString()}
+                </span>
+                <span>
+                  {t('auditCompliance.biasReport.totalRecords', { defaultValue: 'Records' })}:{' '}
+                  {biasMetrics.totalAuditRecords}
+                </span>
+                <span>
+                  {t('auditCompliance.biasReport.scoreThreshold', { defaultValue: 'Threshold' })}:{' '}
+                  {biasMetrics.scoreThreshold}
+                </span>
+                <span>
+                  {t('auditCompliance.biasReport.groupCount', { defaultValue: 'Groups' })}:{' '}
+                  {biasMetrics.groupCount}
+                </span>
+              </div>
             </div>
           ) : (
             <div className="text-sm text-muted-foreground">
