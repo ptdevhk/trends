@@ -6,7 +6,7 @@ import type { SourceFacet } from '@/components/SourceFacetSelect'
 export function useSourceFacets(archived: boolean) {
   const [facets, setFacets] = useState<SourceFacet[] | undefined>(undefined)
   const [error, setError] = useState<unknown>(undefined)
-  const fetchFacets = useAction(api.resumes.listDiagnosticsSourceFacets)
+  const fetchFacets = useAction(api.resumes_diagnostics.listDiagnosticsSourceFacets)
 
   useEffect(() => {
     let cancelled = false
