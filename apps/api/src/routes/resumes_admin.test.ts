@@ -4,6 +4,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import resumesAdminRoutes from "./resumes_admin";
 import { workspaceMiddleware } from "../middleware/workspace";
 
+vi.mock("../services/notification-service", () => ({
+  notificationService: {
+    sendFeishuText: vi.fn().mockResolvedValue({ code: 0, msg: "ok" }),
+    sendWechatWorkMarkdown: vi.fn().mockResolvedValue({ errcode: 0, errmsg: "ok" }),
+    sendEmail: vi.fn().mockResolvedValue({ messageId: "test-123" }),
+  },
+}));
+
 function createTestApp() {
   const app = new OpenAPIHono();
   app.use("*", workspaceMiddleware);
@@ -213,6 +221,87 @@ describe("resumes_admin", () => {
       expect(response.status).toBe(400);
       const payload = await response.json();
       expect(payload.success).toBe(false);
+    });
+  });
+
+  describe("POST /api/resumes/bias-anomaly-notify", () => {
+    it("rejects non-admin access with 403", async () => {
+      const app = createTestApp();
+      const response = await app.request("/api/resumes/bias-anomaly-notify", {
+        method: "POST",
+        headers: { "X-Workspace-Slug": "hr" },
+        body: JSON.stringify({}),
+      });
+
+      expect(response.status).toBe(403);
+    });
+
+    it("returns 400 when workspaceSlug is missing", async () => {
+      const app = createTestApp();
+      const response = await app.request("/api/resumes/bias-anomaly-notify", {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+
+      expect(response.status).toBe(400);
+      const payload = await response.json();
+      expect(payload.error).toContain("workspaceSlug");
+    });
+
+    it("returns 400 for invalid channel", async () => {
+      const app = createTestApp();
+      const response = await app.request("/api/resumes/bias-anomaly-notify", {
+        method: "POST",
+        body: JSON.stringify({ workspaceSlug: "test-ws", channel: "slack" }),
+      });
+
+      expect(response.status).toBe(400);
+      const payload = await response.json();
+      expect(payload.error).toContain("Invalid channel");
+    });
+
+    it("returns notified:false when no active alerts", async () => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        convexSuccess(null),
+      );
+
+      const app = createTestApp();
+      const response = await app.request("/api/resumes/bias-anomaly-notify", {
+        method: "POST",
+        body: JSON.stringify({ workspaceSlug: "test-ws" }),
+      });
+
+      expect(response.status).toBe(200);
+      const payload = await response.json();
+      expect(payload.success).toBe(true);
+      expect(payload.notified).toBe(false);
+      expect(payload.reason).toContain("No active anomaly alerts");
+    });
+
+    it("sends notification via feishu when channel specified", async () => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        convexSuccess({
+          workspaceSlug: "test-ws",
+          flags: ["disparate_impact_violation"],
+          psiValue: 0.35,
+          disparityRatio: 0.72,
+          alertedAt: Date.now(),
+        }),
+      );
+
+      const app = createTestApp();
+      const response = await app.request("/api/resumes/bias-anomaly-notify", {
+        method: "POST",
+        body: JSON.stringify({ workspaceSlug: "test-ws", channel: "feishu" }),
+      });
+
+      expect(response.status).toBe(200);
+      const payload = await response.json();
+      expect(payload.success).toBe(true);
+      expect(payload.notified).toBe(true);
+      expect(payload.channels).toHaveLength(1);
+      expect(payload.channels[0].channel).toBe("feishu");
+      expect(payload.channels[0].success).toBe(true);
     });
   });
 });

@@ -4,6 +4,7 @@ import { IngestComputeService } from "../services/ingest-compute-service.js";
 import { config } from "../services/config.js";
 import { logger } from "../services/logger.js";
 import { requireAdmin } from "../middleware/workspace.js";
+import { notificationService } from "../services/notification-service.js";
 
 const app = new OpenAPIHono();
 // Per-route requireAdmin — do NOT use app.use("*", requireAdmin) here
@@ -361,6 +362,98 @@ app.get("/api/resumes/anomaly-alerts", requireAdmin, async (c) => {
     return c.json({ success: true, alerts }, 200);
   } catch (error) {
     logger.error("Failed to fetch anomaly alerts", error, { route: "resumes_admin" });
+    const message = error instanceof Error ? error.message : String(error);
+    return c.json({ success: false, error: message }, 500);
+  }
+});
+
+// Bias anomaly notification — dispatch alerts for active anomalies (EU AI Act Art. 12)
+app.post("/api/resumes/bias-anomaly-notify", requireAdmin, async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const workspaceSlug = typeof body.workspaceSlug === "string" ? body.workspaceSlug.trim() : "";
+  const channel = typeof body.channel === "string" ? body.channel : "";
+
+  if (!workspaceSlug) {
+    return c.json({ success: false, error: "workspaceSlug is required" }, 400);
+  }
+
+  const validChannels = ["feishu", "wechat_work", "email"];
+  if (channel && !validChannels.includes(channel)) {
+    return c.json({ success: false, error: `Invalid channel. Must be one of: ${validChannels.join(", ")}` }, 400);
+  }
+
+  try {
+    const alerts = await callConvexQuery("bias_audit:getAnomalyAlerts", { workspaceSlug }) as {
+      workspaceSlug: string;
+      flags: string[];
+      psiValue: number | null;
+      disparityRatio: number | null;
+      alertedAt: number;
+    } | null;
+
+    if (!alerts || alerts.flags.length === 0) {
+      return c.json({ success: true, notified: false, reason: "No active anomaly alerts" }, 200);
+    }
+
+    const alertDate = new Date(alerts.alertedAt).toISOString();
+    const flagList = alerts.flags.join(", ");
+    const psiNote = alerts.psiValue != null ? `PSI: ${alerts.psiValue.toFixed(4)}` : "";
+    const dirNote = alerts.disparityRatio != null ? `DIR: ${alerts.disparityRatio.toFixed(4)}` : "";
+    const metricsNote = [psiNote, dirNote].filter(Boolean).join(" | ");
+
+    const subject = `[Trends] Bias Anomaly Alert — ${workspaceSlug}`;
+    const textContent = [
+      `Bias Audit Anomaly Alert`,
+      `Workspace: ${workspaceSlug}`,
+      `Flags: ${flagList}`,
+      `Metrics: ${metricsNote}`,
+      `Detected at: ${alertDate}`,
+      ``,
+      `This alert was generated automatically by the weekly bias audit (EU AI Act Art. 12).`,
+      `Please review the Audit & Compliance dashboard for details.`,
+    ].join("\n");
+
+    const channels = channel ? [channel] : validChannels;
+    const results: Array<{ channel: string; success: boolean; error?: string }> = [];
+
+    for (const ch of channels) {
+      try {
+        if (ch === "feishu") {
+          await notificationService.sendFeishuText({ content: textContent });
+          results.push({ channel: ch, success: true });
+        } else if (ch === "wechat_work") {
+          await notificationService.sendWechatWorkMarkdown({ content: textContent });
+          results.push({ channel: ch, success: true });
+        } else if (ch === "email") {
+          const adminEmail = process.env.BIAS_ALERT_EMAIL;
+          if (!adminEmail) {
+            results.push({ channel: ch, success: false, error: "BIAS_ALERT_EMAIL not configured" });
+            continue;
+          }
+          await notificationService.sendEmail({
+            to: adminEmail,
+            subject,
+            html: `<pre>${textContent}</pre>`,
+            text: textContent,
+          });
+          results.push({ channel: ch, success: true });
+        }
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        logger.error(`Failed to send bias anomaly notification via ${ch}`, error, { route: "resumes_admin" });
+        results.push({ channel: ch, success: false, error: msg });
+      }
+    }
+
+    const anySuccess = results.some((r) => r.success);
+    return c.json({
+      success: true,
+      notified: anySuccess,
+      alerts: { flags: alerts.flags, alertedAt: alertDate },
+      channels: results,
+    }, 200);
+  } catch (error) {
+    logger.error("Failed to dispatch bias anomaly notification", error, { route: "resumes_admin" });
     const message = error instanceof Error ? error.message : String(error);
     return c.json({ success: false, error: message }, 500);
   }
