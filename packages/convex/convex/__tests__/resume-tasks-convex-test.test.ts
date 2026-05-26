@@ -5,16 +5,14 @@
  * - list, getById, failStalePending, getSummary, getSummaryWindow
  * - submitResumes (full integration with schema validation)
  */
-import { convexTest } from "convex-test";
+import { createTest } from "./test-helpers.js";
 import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api.js";
-import schema from "../schema.js";
 
-const modules = (import.meta as any).glob("../**/*.ts", { eager: false });
 
 // Helper: insert a minimal collection task
 async function insertTask(
-  t: ReturnType<typeof convexTest>,
+  t: ReturnType<typeof createTest>,
   overrides: Record<string, unknown> = {},
 ) {
   return t.run(async (ctx) => {
@@ -33,7 +31,7 @@ async function insertTask(
 
 describe("resume_tasks: list", () => {
   it("returns pending and processing tasks", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const id1 = await insertTask(t, { status: "pending" });
     const id2 = await insertTask(t, { status: "processing", workerId: "w1", startedAt: Date.now() });
@@ -46,7 +44,7 @@ describe("resume_tasks: list", () => {
   });
 
   it("includes recent finished tasks", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertTask(t, {
       status: "completed",
@@ -59,7 +57,7 @@ describe("resume_tasks: list", () => {
   });
 
   it("returns empty when no tasks exist", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const tasks = await t.query(api.resume_tasks.list, {});
     expect(tasks).toHaveLength(0);
@@ -72,7 +70,7 @@ describe("resume_tasks: list", () => {
 
 describe("resume_tasks: getById", () => {
   it("returns a task by ID", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const taskId = await insertTask(t, { status: "pending" });
 
@@ -83,7 +81,7 @@ describe("resume_tasks: getById", () => {
   });
 
   it("returns null for non-existent task", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     // Create then delete to get an ID that returns null
     const taskId = await insertTask(t, { status: "pending" });
@@ -100,7 +98,7 @@ describe("resume_tasks: getById", () => {
 
 describe("resume_tasks: failStalePending", () => {
   it("fails stale pending tasks and reports counts", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     // Insert a pending task — failStalePending uses the by_status index
     // with _creationTime filter. With staleMs=0, the threshold is now(),
@@ -120,7 +118,7 @@ describe("resume_tasks: failStalePending", () => {
   });
 
   it("does not fail recent pending tasks with large staleMs", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertTask(t, { status: "pending" });
 
@@ -133,7 +131,7 @@ describe("resume_tasks: failStalePending", () => {
   });
 
   it("does not fail tasks in non-pending statuses", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertTask(t, { status: "processing", workerId: "w1", startedAt: Date.now() });
     await insertTask(t, { status: "completed", completedAt: Date.now(), progress: { current: 50, total: 50, page: 3 } });
@@ -153,7 +151,7 @@ describe("resume_tasks: failStalePending", () => {
 
 describe("resume_tasks: getSummary", () => {
   it("returns counts by status", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertTask(t, { status: "pending" });
     await insertTask(t, { status: "pending" });
@@ -172,7 +170,7 @@ describe("resume_tasks: getSummary", () => {
   });
 
   it("returns zeros when no tasks exist", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const stats = await t.query(api.resume_tasks.getSummary, {});
 
@@ -188,7 +186,7 @@ describe("resume_tasks: getSummary", () => {
 
 describe("resume_tasks: getSummaryWindow", () => {
   it("returns tasks completed within time window", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const now = Date.now();
     await insertTask(t, {
@@ -208,7 +206,7 @@ describe("resume_tasks: getSummaryWindow", () => {
   });
 
   it("returns empty when no tasks in window", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const now = Date.now();
     const result = await t.query(api.resume_tasks.getSummaryWindow, {
@@ -221,7 +219,7 @@ describe("resume_tasks: getSummaryWindow", () => {
   });
 
   it("sorts byStatus by count descending", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const now = Date.now();
     // Insert 2 completed, 1 failed
@@ -260,7 +258,7 @@ describe("resume_tasks: getSummaryWindow", () => {
 
 describe("resume_tasks: submitResumes", () => {
   it("inserts new resumes and returns counts", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const result = await t.mutation(api.resume_tasks.submitResumes, {
       resumes: [
@@ -281,7 +279,7 @@ describe("resume_tasks: submitResumes", () => {
   });
 
   it("updates existing resume when hash changes", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     // First submission
     await t.mutation(api.resume_tasks.submitResumes, {
@@ -315,7 +313,7 @@ describe("resume_tasks: submitResumes", () => {
   });
 
   it("marks unchanged when hash matches and no tag changes", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     // First submission
     await t.mutation(api.resume_tasks.submitResumes, {
@@ -348,7 +346,7 @@ describe("resume_tasks: submitResumes", () => {
   });
 
   it("merges tags from incoming resume", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     // First submission
     await t.mutation(api.resume_tasks.submitResumes, {
@@ -389,7 +387,7 @@ describe("resume_tasks: submitResumes", () => {
   });
 
   it("preserves restoreState for migrated resumes", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const result = await t.mutation(api.resume_tasks.submitResumes, {
       resumes: [
@@ -425,7 +423,7 @@ describe("resume_tasks: submitResumes", () => {
   });
 
   it("deduplicates resumes with same identity within batch", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const result = await t.mutation(api.resume_tasks.submitResumes, {
       resumes: [
@@ -453,7 +451,7 @@ describe("resume_tasks: submitResumes", () => {
   });
 
   it("creates a sync event on submission", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await t.mutation(api.resume_tasks.submitResumes, {
       resumes: [
@@ -478,7 +476,7 @@ describe("resume_tasks: submitResumes", () => {
   });
 
   it("handles batch of 5 resumes", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const resumes = Array.from({ length: 5 }, (_, i) => ({
       externalId: `ext-batch5-${i}`,

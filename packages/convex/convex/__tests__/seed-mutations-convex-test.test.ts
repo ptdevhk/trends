@@ -4,16 +4,14 @@
  * Replaces seed-mutations.test.ts (hand-crafted mocks)
  * with proper convex-test infrastructure.
  */
-import { convexTest } from "convex-test";
+import { createTest } from "./test-helpers.js";
 import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api.js";
-import schema from "../schema.js";
 
-const modules = (import.meta as any).glob("../**/*.ts", { eager: false });
 
 describe("seed: seedJobDescriptions", () => {
   it("inserts new job descriptions", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const result = await t.mutation(api.seed.seedJobDescriptions, {
       items: [
@@ -27,7 +25,7 @@ describe("seed: seedJobDescriptions", () => {
   });
 
   it("skips existing job descriptions with identical content", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await t.mutation(api.seed.seedJobDescriptions, {
       items: [
@@ -47,7 +45,7 @@ describe("seed: seedJobDescriptions", () => {
   });
 
   it("updates existing job descriptions when content changes", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await t.mutation(api.seed.seedJobDescriptions, {
       items: [
@@ -69,7 +67,7 @@ describe("seed: seedJobDescriptions", () => {
 
 describe("seed: seedResumes", () => {
   it("inserts new resumes", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const result = await t.mutation(api.seed.seedResumes, {
       resumes: [
@@ -88,7 +86,7 @@ describe("seed: seedResumes", () => {
   });
 
   it("skips resumes that already exist by externalId", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await t.mutation(api.seed.seedResumes, {
       resumes: [
@@ -121,7 +119,7 @@ describe("seed: seedResumes", () => {
 
 describe("seed: clearWorkspaceData", () => {
   it("deletes custom JDs and search profiles for the specified workspace", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     // Seed some data first
     await t.mutation(api.seed.seedJobDescriptions, {
@@ -141,7 +139,7 @@ describe("seed: clearWorkspaceData", () => {
   });
 
   it("only deletes data for the specified workspace", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await t.mutation(api.seed.seedJobDescriptions, {
       items: [
@@ -167,7 +165,7 @@ describe("seed: clearWorkspaceData", () => {
 
 describe("seed: clearAll", () => {
   it("deletes all data from every table", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     // Seed some data first
     await t.mutation(api.seed.seedJobDescriptions, {

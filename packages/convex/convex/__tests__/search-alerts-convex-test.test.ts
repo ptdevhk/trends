@@ -3,12 +3,10 @@
  *
  * Uses edge-runtime environment (configured via environmentMatchGlobs in root vitest.config.ts).
  */
-import { convexTest } from "convex-test";
+import { createTest } from "./test-helpers.js";
 import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api.js";
-import schema from "../schema.js";
 
-const modules = (import.meta as any).glob("../**/*.ts", { eager: false });
 
 function seedAlert(overrides: Record<string, unknown> = {}) {
   return {
@@ -23,7 +21,7 @@ function seedAlert(overrides: Record<string, unknown> = {}) {
 describe("search_alerts (convex-test)", () => {
   describe("create", () => {
     it("creates a new alert with enabled=true by default", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       const id = await t.mutation(api.search_alerts.create, seedAlert());
       expect(id).toBeDefined();
@@ -37,7 +35,7 @@ describe("search_alerts (convex-test)", () => {
     });
 
     it("creates alert with keywords and createdBy", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       await t.mutation(
         api.search_alerts.create,
@@ -57,7 +55,7 @@ describe("search_alerts (convex-test)", () => {
 
   describe("toggle", () => {
     it("disables an enabled alert", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       const id = await t.mutation(api.search_alerts.create, seedAlert());
 
@@ -73,7 +71,7 @@ describe("search_alerts (convex-test)", () => {
     });
 
     it("re-enables a disabled alert", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       const id = await t.mutation(api.search_alerts.create, seedAlert());
 
@@ -95,7 +93,7 @@ describe("search_alerts (convex-test)", () => {
 
   describe("list", () => {
     it("returns empty array when no alerts exist", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
       const result = await t.query(api.search_alerts.list, {
         workspaceSlug: "ws1",
       });
@@ -103,7 +101,7 @@ describe("search_alerts (convex-test)", () => {
     });
 
     it("returns alerts filtered by workspaceSlug", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       await t.mutation(
         api.search_alerts.create,
@@ -124,7 +122,7 @@ describe("search_alerts (convex-test)", () => {
 
   describe("listEnabled", () => {
     it("returns only enabled alerts", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       const id1 = await t.mutation(
         api.search_alerts.create,
@@ -150,7 +148,7 @@ describe("search_alerts (convex-test)", () => {
 
   describe("markNotified", () => {
     it("updates lastNotifiedAt on the alert", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       const id = await t.mutation(api.search_alerts.create, seedAlert());
 
@@ -171,7 +169,7 @@ describe("search_alerts (convex-test)", () => {
 
   describe("remove", () => {
     it("deletes an alert", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       const id = await t.mutation(api.search_alerts.create, seedAlert());
 

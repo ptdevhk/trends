@@ -4,17 +4,15 @@
  * Replaces resumes-clear-analyses.test.ts (hand-crafted mocks)
  * with proper convex-test infrastructure.
  */
-import { convexTest } from "convex-test";
+import { createTest } from "./test-helpers.js";
 import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api.js";
-import schema from "../schema.js";
 
-const modules = (import.meta as any).glob("../**/*.ts", { eager: false });
 
 // Helper: insert a minimal resume document with analysis
 let _resumeCounter = 0;
 async function insertResumeWithAnalysis(
-  t: ReturnType<typeof convexTest>,
+  t: ReturnType<typeof createTest>,
   overrides: Record<string, unknown> = {},
 ) {
   _resumeCounter += 1;
@@ -55,7 +53,7 @@ async function insertResumeWithAnalysis(
 
 describe("resumes: clearAnalyses", () => {
   it("clears all analyses when no jobDescriptionId filter", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const resumeId = await insertResumeWithAnalysis(t);
 
@@ -75,7 +73,7 @@ describe("resumes: clearAnalyses", () => {
   });
 
   it("clears only analyses matching jobDescriptionId", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const resumeId = await insertResumeWithAnalysis(t);
 
@@ -98,7 +96,7 @@ describe("resumes: clearAnalyses", () => {
   });
 
   it("skips resumes without analysis", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     // Insert a resume without analysis
     _resumeCounter += 1;
@@ -122,7 +120,7 @@ describe("resumes: clearAnalyses", () => {
   });
 
   it("paginates full-table clear for large datasets", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     // Insert 3 resumes with analysis
     for (let i = 0; i < 3; i++) {

@@ -4,17 +4,15 @@
  * Replaces resumes-delete.test.ts (hand-crafted mocks)
  * with proper convex-test infrastructure.
  */
-import { convexTest } from "convex-test";
+import { createTest } from "./test-helpers.js";
 import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api.js";
-import schema from "../schema.js";
 
-const modules = (import.meta as any).glob("../**/*.ts", { eager: false });
 
 // Helper: insert a minimal resume
 let _resumeCounter = 0;
 async function insertResume(
-  t: ReturnType<typeof convexTest>,
+  t: ReturnType<typeof createTest>,
   overrides: Record<string, unknown> = {},
 ) {
   _resumeCounter += 1;
@@ -34,7 +32,7 @@ async function insertResume(
 
 describe("resumes: deleteResumes", () => {
   it("deletes targeted resumes and reports results", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const resumeId1 = await insertResume(t, { content: { name: "Alice" } });
     const resumeId2 = await insertResume(t, { content: { name: "Bob" } });
@@ -75,7 +73,7 @@ describe("resumes: deleteResumes", () => {
   });
 
   it("reports missing resume IDs for non-existent resumes", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const result = await t.mutation(api.resumes.deleteResumes, {
       resumeIds: ["nonexistent-id"],
@@ -88,7 +86,7 @@ describe("resumes: deleteResumes", () => {
   });
 
   it("returns zeros for empty input", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const result = await t.mutation(api.resumes.deleteResumes, {
       resumeIds: [],

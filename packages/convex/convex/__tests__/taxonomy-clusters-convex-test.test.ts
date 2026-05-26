@@ -3,12 +3,10 @@
  *
  * Covers: list, upsert (insert + update + validation), remove, suggest.
  */
-import { convexTest } from "convex-test";
+import { createTest } from "./test-helpers.js";
 import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api.js";
-import schema from "../schema.js";
 
-const modules = (import.meta as any).glob("../**/*.ts", { eager: false });
 
 // ---------------------------------------------------------------------------
 // upsert
@@ -16,7 +14,7 @@ const modules = (import.meta as any).glob("../**/*.ts", { eager: false });
 
 describe("taxonomy_clusters: upsert", () => {
   it("inserts a new taxonomy cluster", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const result = await t.mutation(api.taxonomy_clusters.upsert, {
       workspaceSlug: "ws-test",
@@ -35,7 +33,7 @@ describe("taxonomy_clusters: upsert", () => {
   });
 
   it("updates an existing cluster by id", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const created = await t.mutation(api.taxonomy_clusters.upsert, {
       workspaceSlug: "ws-test",
@@ -62,7 +60,7 @@ describe("taxonomy_clusters: upsert", () => {
   });
 
   it("updates by slug when no id provided", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await t.mutation(api.taxonomy_clusters.upsert, {
       workspaceSlug: "ws-test",
@@ -87,7 +85,7 @@ describe("taxonomy_clusters: upsert", () => {
   });
 
   it("throws when required fields are missing", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await expect(
       t.mutation(api.taxonomy_clusters.upsert, {
@@ -102,7 +100,7 @@ describe("taxonomy_clusters: upsert", () => {
   });
 
   it("deduplicates tags (case-insensitive)", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const result = await t.mutation(api.taxonomy_clusters.upsert, {
       workspaceSlug: "ws-test",
@@ -124,7 +122,7 @@ describe("taxonomy_clusters: upsert", () => {
 
 describe("taxonomy_clusters: list", () => {
   it("lists clusters for a workspace", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await t.mutation(api.taxonomy_clusters.upsert, {
       workspaceSlug: "ws-list",
@@ -154,7 +152,7 @@ describe("taxonomy_clusters: list", () => {
   });
 
   it("filters by status", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await t.mutation(api.taxonomy_clusters.upsert, {
       workspaceSlug: "ws-filter",
@@ -189,7 +187,7 @@ describe("taxonomy_clusters: list", () => {
 
 describe("taxonomy_clusters: remove", () => {
   it("deletes a cluster by id", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const created = await t.mutation(api.taxonomy_clusters.upsert, {
       workspaceSlug: "ws-remove",
@@ -214,7 +212,7 @@ describe("taxonomy_clusters: remove", () => {
   });
 
   it("returns false for wrong workspace", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const created = await t.mutation(api.taxonomy_clusters.upsert, {
       workspaceSlug: "ws-a",
@@ -240,7 +238,7 @@ describe("taxonomy_clusters: remove", () => {
 
 describe("taxonomy_clusters: suggest", () => {
   it("suggests clusters from resume tags", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     // Insert a resume with industryTags
     await t.run(async (ctx) => {
@@ -277,7 +275,7 @@ describe("taxonomy_clusters: suggest", () => {
   });
 
   it("returns empty when no resumes have tags", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const suggestions = await t.mutation(api.taxonomy_clusters.suggest, {
       workspaceSlug: "ws-empty",

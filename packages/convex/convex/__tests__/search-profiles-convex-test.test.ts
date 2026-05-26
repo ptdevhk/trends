@@ -10,12 +10,10 @@
  *
  * Uses convex-test with real schema validation — no mocks.
  */
-import { convexTest } from "convex-test";
+import { createTest } from "./test-helpers.js";
 import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api.js";
-import schema from "../schema.js";
 
-const modules = (import.meta as any).glob("../**/*.ts", { eager: false });
 
 // ---------------------------------------------------------------------------
 // list
@@ -23,7 +21,7 @@ const modules = (import.meta as any).glob("../**/*.ts", { eager: false });
 
 describe("search_profiles: list", () => {
   it("returns profiles for the default workspace", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     // Create a profile in the default workspace
     await t.mutation(api.search_profiles.create, {
@@ -37,7 +35,7 @@ describe("search_profiles: list", () => {
   });
 
   it("returns profiles sorted by updatedAt descending", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await t.mutation(api.search_profiles.create, {
       profile: { name: "First", id: "prof-first" },
@@ -55,7 +53,7 @@ describe("search_profiles: list", () => {
   });
 
   it("isolates workspaces", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await t.mutation(api.search_profiles.create, {
       profile: { name: "Default WS", id: "prof-default" },
@@ -75,7 +73,7 @@ describe("search_profiles: list", () => {
   });
 
   it("returns empty array when no profiles exist", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const results = await t.query(api.search_profiles.list, {});
 
@@ -89,7 +87,7 @@ describe("search_profiles: list", () => {
 
 describe("search_profiles: getById", () => {
   it("finds a profile by Convex _id", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const created = await t.mutation(api.search_profiles.create, {
       profile: { name: "Find Me", id: "prof-find" },
@@ -104,7 +102,7 @@ describe("search_profiles: getById", () => {
   });
 
   it("finds a profile by profileId", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await t.mutation(api.search_profiles.create, {
       profile: { name: "By ProfileId", id: "prof-lookup" },
@@ -119,7 +117,7 @@ describe("search_profiles: getById", () => {
   });
 
   it("returns null for nonexistent id", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const found = await t.query(api.search_profiles.getById, {
       id: "nonexistent",
@@ -129,7 +127,7 @@ describe("search_profiles: getById", () => {
   });
 
   it("does not return profiles from other workspaces", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await t.mutation(api.search_profiles.create, {
       profile: { name: "Other WS", id: "prof-cross" },
@@ -151,7 +149,7 @@ describe("search_profiles: getById", () => {
 
 describe("search_profiles: create", () => {
   it("creates a profile with name and criteria", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const result = await t.mutation(api.search_profiles.create, {
       profile: {
@@ -170,7 +168,7 @@ describe("search_profiles: create", () => {
   });
 
   it("defaults name to 'Profile' when not provided", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const result = await t.mutation(api.search_profiles.create, {
       profile: { id: "prof-noname" },
@@ -180,7 +178,7 @@ describe("search_profiles: create", () => {
   });
 
   it("sets createdAt and updatedAt", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const result = await t.mutation(api.search_profiles.create, {
       profile: { name: "Timestamped" },
@@ -192,7 +190,7 @@ describe("search_profiles: create", () => {
   });
 
   it("extracts criteria from profile.filters.locations", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const result = await t.mutation(api.search_profiles.create, {
       profile: {
@@ -211,7 +209,7 @@ describe("search_profiles: create", () => {
 
 describe("search_profiles: update", () => {
   it("updates a profile by Convex _id", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const created = await t.mutation(api.search_profiles.create, {
       profile: { name: "Original", id: "prof-update" },
@@ -228,7 +226,7 @@ describe("search_profiles: update", () => {
   });
 
   it("updates a profile by profileId", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await t.mutation(api.search_profiles.create, {
       profile: { name: "Original", id: "prof-update-pid" },
@@ -243,7 +241,7 @@ describe("search_profiles: update", () => {
   });
 
   it("throws for nonexistent profile", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await expect(
       t.mutation(api.search_profiles.update, {
@@ -254,7 +252,7 @@ describe("search_profiles: update", () => {
   });
 
   it("preserves existing name when not provided", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const created = await t.mutation(api.search_profiles.create, {
       profile: { name: "Keep Name", id: "prof-keep-name" },
@@ -275,7 +273,7 @@ describe("search_profiles: update", () => {
 
 describe("search_profiles: remove", () => {
   it("deletes a profile by Convex _id", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const created = await t.mutation(api.search_profiles.create, {
       profile: { name: "Delete Me", id: "prof-delete" },
@@ -293,7 +291,7 @@ describe("search_profiles: remove", () => {
   });
 
   it("deletes a profile by profileId", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await t.mutation(api.search_profiles.create, {
       profile: { name: "Delete By PID", id: "prof-delete-pid" },
@@ -310,7 +308,7 @@ describe("search_profiles: remove", () => {
   });
 
   it("returns false for nonexistent id", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const result = await t.mutation(api.search_profiles.remove, {
       id: "nonexistent",
@@ -320,7 +318,7 @@ describe("search_profiles: remove", () => {
   });
 
   it("does not delete profiles from other workspaces", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await t.mutation(api.search_profiles.create, {
       profile: { name: "Other WS", id: "prof-cross-del" },

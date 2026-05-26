@@ -3,17 +3,15 @@
  *
  * Uses edge-runtime environment (configured via environmentMatchGlobs in root vitest.config.ts).
  */
-import { convexTest } from "convex-test";
+import { createTest } from "./test-helpers.js";
 import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api.js";
-import schema from "../schema.js";
 
-const modules = (import.meta as any).glob("../**/*.ts", { eager: false });
 
 describe("workspace_config (convex-test)", () => {
   describe("get", () => {
     it("returns null for non-existent config", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
       const result = await t.query(api.workspace_config.get, {
         workspaceSlug: "ws1",
         configKey: "missing",
@@ -22,7 +20,7 @@ describe("workspace_config (convex-test)", () => {
     });
 
     it("returns existing config", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       await t.run(async (ctx) => {
         await ctx.db.insert("workspace_config", {
@@ -44,7 +42,7 @@ describe("workspace_config (convex-test)", () => {
 
   describe("upsert", () => {
     it("inserts a new config", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       const id = await t.mutation(api.workspace_config.upsert, {
         workspaceSlug: "ws1",
@@ -62,7 +60,7 @@ describe("workspace_config (convex-test)", () => {
     });
 
     it("updates existing config on second upsert", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       const id1 = await t.mutation(api.workspace_config.upsert, {
         workspaceSlug: "ws1",
@@ -86,7 +84,7 @@ describe("workspace_config (convex-test)", () => {
     });
 
     it("handles complex configValue objects", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       const complexValue = { filters: { age: [25, 40] }, mode: "strict" };
       await t.mutation(api.workspace_config.upsert, {
@@ -105,7 +103,7 @@ describe("workspace_config (convex-test)", () => {
 
   describe("listForWorkspace", () => {
     it("returns empty array when no configs exist", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
       const result = await t.query(api.workspace_config.listForWorkspace, {
         workspaceSlug: "ws1",
       });
@@ -113,7 +111,7 @@ describe("workspace_config (convex-test)", () => {
     });
 
     it("returns all configs for a workspace", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       await t.mutation(api.workspace_config.upsert, {
         workspaceSlug: "ws1",
@@ -140,7 +138,7 @@ describe("workspace_config (convex-test)", () => {
 
   describe("remove", () => {
     it("removes an existing config", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       await t.mutation(api.workspace_config.upsert, {
         workspaceSlug: "ws1",
@@ -162,7 +160,7 @@ describe("workspace_config (convex-test)", () => {
     });
 
     it("returns false for non-existent config", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
       const removed = await t.mutation(api.workspace_config.remove, {
         workspaceSlug: "ws1",
         configKey: "nonexistent",

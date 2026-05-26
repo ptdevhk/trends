@@ -6,15 +6,14 @@
  *
  * Does NOT cover drainQueue (calls LLM API).
  */
-import { convexTest } from "convex-test";
+import { createTest } from "./test-helpers.js";
 import { describe, expect, it } from "vitest";
 import { api, internal } from "../_generated/api.js";
-import schema from "../schema.js";
+import type { Id } from "../_generated/dataModel.js";
 
-const modules = (import.meta as any).glob("../**/*.ts", { eager: false });
 
 /** Insert a minimal resume with ingestData.evidenceText and return its ID. */
-async function insertResumeWithEvidence(t: ReturnType<typeof convexTest>) {
+async function insertResumeWithEvidence(t: ReturnType<typeof createTest>) {
   return t.run(async (ctx) => {
     return ctx.db.insert("resumes", {
       externalId: `r-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -40,19 +39,19 @@ async function insertResumeWithEvidence(t: ReturnType<typeof convexTest>) {
 
 /** Insert a tagging result directly for testing. */
 async function insertTaggingResult(
-  t: ReturnType<typeof convexTest>,
+  t: ReturnType<typeof createTest>,
   overrides: Record<string, unknown> = {},
 ) {
   return t.run(async (ctx) => {
     return ctx.db.insert("ai_tagging_results", {
-      resumeId: overrides.resumeId ?? (await ctx.db.insert("resumes", {
+      resumeId: (overrides.resumeId ?? (await ctx.db.insert("resumes", {
         externalId: `r-${Math.random().toString(36).slice(2, 6)}`,
         content: {},
         hash: `h-${Math.random().toString(36).slice(2, 8)}`,
         tags: [],
         crawledAt: Date.now(),
         source: "test",
-      })),
+      }))) as Id<"resumes">,
       workspaceSlug: "ws-test",
       profileKey: "default",
       evidenceHash: "eh-test",
@@ -72,7 +71,7 @@ async function insertTaggingResult(
 
 describe("ai_tagging_results: enqueueBatch", () => {
   it("creates tagging results for resumes with evidence text", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const resumeId = await insertResumeWithEvidence(t);
 
@@ -87,7 +86,7 @@ describe("ai_tagging_results: enqueueBatch", () => {
   });
 
   it("throws when workspaceSlug is empty", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const resumeId = await insertResumeWithEvidence(t);
 
@@ -101,7 +100,7 @@ describe("ai_tagging_results: enqueueBatch", () => {
   });
 
   it("reuses existing results (idempotency)", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const resumeId = await insertResumeWithEvidence(t);
 
@@ -128,7 +127,7 @@ describe("ai_tagging_results: enqueueBatch", () => {
 
 describe("ai_tagging_results: getSummary", () => {
   it("returns zero counts when no results exist", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const summary = await t.query(api.ai_tagging_results.getSummary, {
       workspaceSlug: "ws-empty",
@@ -139,7 +138,7 @@ describe("ai_tagging_results: getSummary", () => {
   });
 
   it("counts results by status", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertTaggingResult(t, {
       workspaceSlug: "ws-summary",
@@ -169,7 +168,7 @@ describe("ai_tagging_results: getSummary", () => {
 
 describe("ai_tagging_results: claim + complete/fail lifecycle", () => {
   it("claims a pending result and transitions to processing", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const id = await insertTaggingResult(t, { status: "pending" });
 
@@ -185,7 +184,7 @@ describe("ai_tagging_results: claim + complete/fail lifecycle", () => {
   });
 
   it("returns null for non-pending result", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const id = await insertTaggingResult(t, { status: "completed" });
 
@@ -195,7 +194,7 @@ describe("ai_tagging_results: claim + complete/fail lifecycle", () => {
   });
 
   it("marks a processing result as completed", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const id = await insertTaggingResult(t, { status: "processing" });
 
@@ -218,7 +217,7 @@ describe("ai_tagging_results: claim + complete/fail lifecycle", () => {
   });
 
   it("marks a processing result as failed", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const id = await insertTaggingResult(t, { status: "processing" });
 
@@ -233,7 +232,7 @@ describe("ai_tagging_results: claim + complete/fail lifecycle", () => {
   });
 
   it("does not overwrite a completed result", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const id = await insertTaggingResult(t, { status: "completed" });
 
@@ -253,7 +252,7 @@ describe("ai_tagging_results: claim + complete/fail lifecycle", () => {
 
 describe("ai_tagging_results: listPending", () => {
   it("returns only pending results for workspace/profile", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertTaggingResult(t, {
       workspaceSlug: "ws-pending",

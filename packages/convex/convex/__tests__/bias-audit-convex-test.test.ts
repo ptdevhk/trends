@@ -6,14 +6,12 @@
  *
  * Unit tests for bias_metrics.ts live in audit-convex-test.test.ts.
  */
-import { convexTest } from "convex-test";
+import { createTest } from "./test-helpers.js";
 import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api.js";
 import { internal } from "../_generated/api.js";
-import schema from "../schema.js";
 import { ageToBracket, fnvHash } from "../lib/bias_metrics.js";
 
-const modules = (import.meta as any).glob("../**/*.ts", { eager: false });
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -70,7 +68,7 @@ function asInsufficient(result: BiasMetricsResult): BiasMetricsInsufficient {
 }
 
 /** Insert a minimal resume and return its ID. */
-async function insertResume(t: ReturnType<typeof convexTest>) {
+async function insertResume(t: ReturnType<typeof createTest>) {
   return t.run(async (ctx) => {
     return ctx.db.insert("resumes", {
       externalId: `r-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -85,7 +83,7 @@ async function insertResume(t: ReturnType<typeof convexTest>) {
 
 /** Insert an audit log entry for bias testing. */
 async function insertAuditLog(
-  t: ReturnType<typeof convexTest>,
+  t: ReturnType<typeof createTest>,
   opts: {
     workspaceSlug: string;
     decisionType?: "score" | "tag" | "rank" | "filter" | "confirm";
@@ -121,7 +119,7 @@ async function insertAuditLog(
 
 describe("bias_audit: queryAuditLogs", () => {
   it("returns logs filtered by workspace and decisionType", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertAuditLog(t, { workspaceSlug: "ws-a", decisionType: "score", score: 80 });
     await insertAuditLog(t, { workspaceSlug: "ws-a", decisionType: "tag", score: 70 });
@@ -138,7 +136,7 @@ describe("bias_audit: queryAuditLogs", () => {
   });
 
   it("returns empty array when no logs match", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const logs = await t.query(internal.bias_audit.queryAuditLogs, {
       workspaceSlug: "ws-empty",
@@ -155,7 +153,7 @@ describe("bias_audit: queryAuditLogs", () => {
 
 describe("bias_audit: storeBiasReport + getLatestBiasReport", () => {
   it("stores a new report and retrieves it", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const report: BiasMetricsOk = {
       status: "ok",
@@ -196,7 +194,7 @@ describe("bias_audit: storeBiasReport + getLatestBiasReport", () => {
   });
 
   it("upserts — overwrites an existing report", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const reportV1: BiasMetricsOk = {
       status: "ok",
@@ -237,7 +235,7 @@ describe("bias_audit: storeBiasReport + getLatestBiasReport", () => {
   });
 
   it("returns null when no report exists", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const result = await t.query(api.bias_audit.getLatestBiasReport, {
       workspaceSlug: "ws-none",
@@ -247,7 +245,7 @@ describe("bias_audit: storeBiasReport + getLatestBiasReport", () => {
   });
 
   it("rejects a report with invalid shape (typed validator)", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     // status must be "ok" — passing a different value should throw
     await expect(
@@ -280,7 +278,7 @@ describe("bias_audit: storeBiasReport + getLatestBiasReport", () => {
 
 describe("bias_audit: computeBiasMetrics", () => {
   it("returns insufficient_data when < 30 audit records", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     // Insert 5 records — below the 30 minimum
     for (let i = 0; i < 5; i++) {
@@ -303,7 +301,7 @@ describe("bias_audit: computeBiasMetrics", () => {
   });
 
   it("computes bias metrics with sufficient data", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     // Insert 40 records across two age groups
     const ageGroup1 = ageToBracket(28); // "25-29"
@@ -354,7 +352,7 @@ describe("bias_audit: computeBiasMetrics", () => {
   });
 
   it("respects custom scoreThreshold", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const ageGroup = ageToBracket(30); // "30-34"
 
@@ -389,7 +387,7 @@ describe("bias_audit: computeBiasMetrics", () => {
   });
 
   it("groups records without ageBracketHash as 'unknown'", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     // 20 records with age bracket
     const ageGroup = ageToBracket(28);
@@ -430,7 +428,7 @@ describe("bias_audit: computeBiasMetrics", () => {
 
 describe("bias_audit: computeBiasMetricsForAllWorkspaces", () => {
   it("processes all workspaces and isolates errors", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     // Workspace with sufficient data
     const ageGroup = ageToBracket(30);
@@ -472,7 +470,7 @@ describe("bias_audit: computeBiasMetricsForAllWorkspaces", () => {
   });
 
   it("returns empty array when no workspaces have audit logs", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const results = await t.action(
       internal.bias_audit.computeBiasMetricsForAllWorkspaces,
@@ -489,7 +487,7 @@ describe("bias_audit: computeBiasMetricsForAllWorkspaces", () => {
 
 describe("bias_audit: storeAnomalyAlert + getAnomalyAlerts", () => {
   it("stores and retrieves anomaly alerts", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await t.run(async (ctx) => {
       await ctx.db.insert("workspace_config", {
@@ -518,7 +516,7 @@ describe("bias_audit: storeAnomalyAlert + getAnomalyAlerts", () => {
   });
 
   it("returns null when no anomaly alerts exist", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     // @ts-ignore — getAnomalyAlerts not yet in generated API
     const alerts = await t.query(internal.bias_audit.getAnomalyAlerts, {
@@ -529,7 +527,7 @@ describe("bias_audit: storeAnomalyAlert + getAnomalyAlerts", () => {
   });
 
   it("upserts existing anomaly alert", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
     const now = Date.now();
 
     // Store initial alert
@@ -568,7 +566,7 @@ describe("bias_audit: storeAnomalyAlert + getAnomalyAlerts", () => {
   });
 
   it("stores anomaly alert with optional fields omitted", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     // @ts-ignore — storeAnomalyAlert not yet in generated API
     await t.mutation(internal.bias_audit.storeAnomalyAlert, {

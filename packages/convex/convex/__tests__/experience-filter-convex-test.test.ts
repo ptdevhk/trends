@@ -5,17 +5,15 @@
  * Replaces experience-filter-graceful-degradation.test.ts (hand-crafted mocks)
  * with proper convex-test infrastructure.
  */
-import { convexTest } from "convex-test";
+import { createTest } from "./test-helpers.js";
 import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api.js";
-import schema from "../schema.js";
 
-const modules = (import.meta as any).glob("../**/*.ts", { eager: false });
 
 // Helper: insert a resume for filter testing
 let _counter = 0;
 async function insertResume(
-  t: ReturnType<typeof convexTest>,
+  t: ReturnType<typeof createTest>,
   overrides: Record<string, unknown> = {},
 ) {
   _counter += 1;
@@ -36,7 +34,7 @@ async function insertResume(
 
 describe("minExperience filter graceful degradation", () => {
   it("resumes with empty experience pass minExperience filter", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, {
       content: { name: "Alice", experience: "" },
@@ -65,7 +63,7 @@ describe("minExperience filter graceful degradation", () => {
   });
 
   it("resumes with unparseable experience pass minExperience filter", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, {
       content: { name: "Bob", experience: "?" },
@@ -93,7 +91,7 @@ describe("minExperience filter graceful degradation", () => {
   });
 
   it("resumes with unknown experience are excluded by maxExperience", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, {
       content: { name: "Carol", experience: "" },
@@ -122,7 +120,7 @@ describe("minExperience filter graceful degradation", () => {
   });
 
   it("resumes with known high experience pass minExperience", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, {
       content: { name: "Dave", experience: "5" },
@@ -152,7 +150,7 @@ describe("minExperience filter graceful degradation", () => {
 
 describe("skills filter uses full searchText", () => {
   it("matches skills from full searchText", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, {
       content: { name: "Eve", experience: "" },
@@ -181,7 +179,7 @@ describe("skills filter uses full searchText", () => {
   });
 
   it("excludes resumes without matching skills in searchText", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, {
       content: { name: "Frank", experience: "" },
@@ -212,7 +210,7 @@ describe("skills filter uses full searchText", () => {
 
 describe("requiredKeywords filter uses full searchText", () => {
   it("matches required keywords from full searchText", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, {
       content: { name: "Grace", experience: "" },
@@ -241,7 +239,7 @@ describe("requiredKeywords filter uses full searchText", () => {
   });
 
   it("excludes resumes missing required keywords in searchText", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, {
       content: { name: "Hank", experience: "" },
@@ -272,7 +270,7 @@ describe("requiredKeywords filter uses full searchText", () => {
 
 describe("experience from workHistory date ranges", () => {
   it("resumes with empty experience but workHistory dates pass minExperience filter", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, {
       content: {
@@ -307,7 +305,7 @@ describe("experience from workHistory date ranges", () => {
   });
 
   it("resumes with short workHistory dates are excluded by minExperience", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, {
       content: {
@@ -342,7 +340,7 @@ describe("experience from workHistory date ranges", () => {
   });
 
   it("resumes with empty experience and no parseable workHistory dates still pass minExperience", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, {
       content: {

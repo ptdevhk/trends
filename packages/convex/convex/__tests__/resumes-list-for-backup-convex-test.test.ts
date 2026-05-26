@@ -4,17 +4,15 @@
  * Replaces resumes-list-for-backup.test.ts (hand-crafted mocks)
  * with proper convex-test infrastructure.
  */
-import { convexTest } from "convex-test";
+import { createTest } from "./test-helpers.js";
 import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api.js";
-import schema from "../schema.js";
 
-const modules = (import.meta as any).glob("../**/*.ts", { eager: false });
 
 // Helper: insert a minimal resume
 let _counter = 0;
 async function insertResume(
-  t: ReturnType<typeof convexTest>,
+  t: ReturnType<typeof createTest>,
   overrides: Record<string, unknown> = {},
 ) {
   _counter += 1;
@@ -34,7 +32,7 @@ async function insertResume(
 
 describe("resumes: listForBackup", () => {
   it("filters by sourceHosts and limits results", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     // Insert resumes from different sources
     await insertResume(t, {
@@ -87,7 +85,7 @@ describe("resumes: listForBackup", () => {
   });
 
   it("matches requested resume IDs using the shared resume ID resolver", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const id1 = await insertResume(t, {
       externalId: "seek:profile:2002",

@@ -5,12 +5,10 @@
  * archiveSession, saveSearchHistory, recentSearches,
  * markSearchHistoryOpened, listSearchHistory.
  */
-import { convexTest } from "convex-test";
+import { createTest } from "./test-helpers.js";
 import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api.js";
-import schema from "../schema.js";
 
-const modules = (import.meta as any).glob("../**/*.ts", { eager: false });
 
 // ---------------------------------------------------------------------------
 // getActiveSession + saveSession
@@ -18,7 +16,7 @@ const modules = (import.meta as any).glob("../**/*.ts", { eager: false });
 
 describe("sessions: getActiveSession + saveSession", () => {
   it("returns null when no active session exists", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const session = await t.query(api.sessions.getActiveSession, {
       sessionKey: "sk-none",
@@ -29,7 +27,7 @@ describe("sessions: getActiveSession + saveSession", () => {
   });
 
   it("creates and retrieves an active session", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await t.mutation(api.sessions.saveSession, {
       sessionKey: "sk-test",
@@ -52,7 +50,7 @@ describe("sessions: getActiveSession + saveSession", () => {
   });
 
   it("updates an existing active session", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await t.mutation(api.sessions.saveSession, {
       sessionKey: "sk-update",
@@ -80,7 +78,7 @@ describe("sessions: getActiveSession + saveSession", () => {
   });
 
   it("isolates sessions by workspace", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await t.mutation(api.sessions.saveSession, {
       sessionKey: "sk-iso",
@@ -104,7 +102,7 @@ describe("sessions: getActiveSession + saveSession", () => {
   });
 
   it("saves collectionSource on session", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await t.mutation(api.sessions.saveSession, {
       sessionKey: "sk-source",
@@ -130,7 +128,7 @@ describe("sessions: getActiveSession + saveSession", () => {
 
 describe("sessions: addReviewedItem", () => {
   it("adds a resume to the reviewed list", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await t.mutation(api.sessions.saveSession, {
       sessionKey: "sk-review",
@@ -157,7 +155,7 @@ describe("sessions: addReviewedItem", () => {
   });
 
   it("does not duplicate reviewed resume IDs", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await t.mutation(api.sessions.saveSession, {
       sessionKey: "sk-dedup",
@@ -188,7 +186,7 @@ describe("sessions: addReviewedItem", () => {
   });
 
   it("returns null when no active session exists", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const result = await t.mutation(api.sessions.addReviewedItem, {
       sessionKey: "sk-noexist",
@@ -206,7 +204,7 @@ describe("sessions: addReviewedItem", () => {
 
 describe("sessions: archiveSession", () => {
   it("archives an active session", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await t.mutation(api.sessions.saveSession, {
       sessionKey: "sk-archive",
@@ -236,7 +234,7 @@ describe("sessions: archiveSession", () => {
 
 describe("sessions: search history", () => {
   it("saves and retrieves search history", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await t.mutation(api.sessions.saveSearchHistory, {
       sessionKey: "sk-hist",
@@ -257,7 +255,7 @@ describe("sessions: search history", () => {
   });
 
   it("generates title from location and keywords when not provided", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await t.mutation(api.sessions.saveSearchHistory, {
       sessionKey: "sk-title",
@@ -277,7 +275,7 @@ describe("sessions: search history", () => {
   });
 
   it("uses custom title when provided", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await t.mutation(api.sessions.saveSearchHistory, {
       sessionKey: "sk-custom",
@@ -297,7 +295,7 @@ describe("sessions: search history", () => {
   });
 
   it("limits recent searches to 10", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     for (let i = 0; i < 12; i++) {
       await t.mutation(api.sessions.saveSearchHistory, {
@@ -319,7 +317,7 @@ describe("sessions: search history", () => {
   });
 
   it("listSearchHistory returns all history for workspace", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await t.mutation(api.sessions.saveSearchHistory, {
       sessionKey: "sk-list-a",
@@ -350,7 +348,7 @@ describe("sessions: search history", () => {
 
 describe("sessions: markSearchHistoryOpened", () => {
   it("updates lastOpenedAt on a search history entry", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const historyId = await t.mutation(api.sessions.saveSearchHistory, {
       sessionKey: "sk-open",
@@ -375,7 +373,7 @@ describe("sessions: markSearchHistoryOpened", () => {
   });
 
   it("returns null for history entry from another workspace", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const historyId = await t.mutation(api.sessions.saveSearchHistory, {
       sessionKey: "sk-ws-iso",

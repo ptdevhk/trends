@@ -3,23 +3,21 @@
  *
  * Uses edge-runtime environment (configured via environmentMatchGlobs in root vitest.config.ts).
  */
-import { convexTest } from "convex-test";
+import { createTest } from "./test-helpers.js";
 import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api.js";
-import schema from "../schema.js";
 
-const modules = (import.meta as any).glob("../**/*.ts", { eager: false });
 
 describe("candidate_blocks (convex-test)", () => {
   describe("list", () => {
     it("returns empty array when no blocks exist", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
       const result = await t.query(api.candidate_blocks.list, {});
       expect(result).toEqual([]);
     });
 
     it("returns blocks filtered by workspaceSlug", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       await t.run(async (ctx) => {
         await ctx.db.insert("candidate_blocks", {
@@ -42,7 +40,7 @@ describe("candidate_blocks (convex-test)", () => {
     });
 
     it("defaults workspaceSlug when not provided", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       const result = await t.query(api.candidate_blocks.list, {});
       expect(result).toEqual([]);
@@ -51,7 +49,7 @@ describe("candidate_blocks (convex-test)", () => {
 
   describe("getByIdentity", () => {
     it("returns null for non-existent identity", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
       const result = await t.query(api.candidate_blocks.getByIdentity, {
         identityKey: "nonexistent",
       });
@@ -59,7 +57,7 @@ describe("candidate_blocks (convex-test)", () => {
     });
 
     it("returns block by identity key", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       await t.run(async (ctx) => {
         await ctx.db.insert("candidate_blocks", {
@@ -80,7 +78,7 @@ describe("candidate_blocks (convex-test)", () => {
     });
 
     it("returns null for empty identityKey", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
       const result = await t.query(api.candidate_blocks.getByIdentity, {
         identityKey: "  ",
       });
@@ -90,7 +88,7 @@ describe("candidate_blocks (convex-test)", () => {
 
   describe("upsert", () => {
     it("inserts a new block", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       const id = await t.mutation(api.candidate_blocks.upsert, {
         workspaceSlug: "ws1",
@@ -109,7 +107,7 @@ describe("candidate_blocks (convex-test)", () => {
     });
 
     it("updates existing block on second upsert", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       const id1 = await t.mutation(api.candidate_blocks.upsert, {
         workspaceSlug: "ws1",
@@ -135,7 +133,7 @@ describe("candidate_blocks (convex-test)", () => {
     });
 
     it("throws for empty identityKey", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
       await expect(
         t.mutation(api.candidate_blocks.upsert, {
           identityKey: "  ",
@@ -146,7 +144,7 @@ describe("candidate_blocks (convex-test)", () => {
 
   describe("updateReason", () => {
     it("updates reason for existing block", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       await t.mutation(api.candidate_blocks.upsert, {
         workspaceSlug: "ws1",
@@ -169,7 +167,7 @@ describe("candidate_blocks (convex-test)", () => {
     });
 
     it("returns false for non-existent block", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
       const updated = await t.mutation(api.candidate_blocks.updateReason, {
         workspaceSlug: "ws1",
         identityKey: "nonexistent",
@@ -181,7 +179,7 @@ describe("candidate_blocks (convex-test)", () => {
 
   describe("bulkUpsert", () => {
     it("inserts multiple blocks", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       const result = await t.mutation(api.candidate_blocks.bulkUpsert, {
         workspaceSlug: "ws1",
@@ -195,7 +193,7 @@ describe("candidate_blocks (convex-test)", () => {
     });
 
     it("deduplicates identity keys", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       const result = await t.mutation(api.candidate_blocks.bulkUpsert, {
         workspaceSlug: "ws1",
@@ -208,7 +206,7 @@ describe("candidate_blocks (convex-test)", () => {
     });
 
     it("updates existing and inserts new blocks", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       await t.mutation(api.candidate_blocks.upsert, {
         workspaceSlug: "ws1",
@@ -228,7 +226,7 @@ describe("candidate_blocks (convex-test)", () => {
     });
 
     it("filters out empty identity keys", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       const result = await t.mutation(api.candidate_blocks.bulkUpsert, {
         workspaceSlug: "ws1",
@@ -242,7 +240,7 @@ describe("candidate_blocks (convex-test)", () => {
 
   describe("remove", () => {
     it("removes an existing block", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       await t.mutation(api.candidate_blocks.upsert, {
         workspaceSlug: "ws1",
@@ -263,7 +261,7 @@ describe("candidate_blocks (convex-test)", () => {
     });
 
     it("returns false for non-existent block", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
       const removed = await t.mutation(api.candidate_blocks.remove, {
         workspaceSlug: "ws1",
         identityKey: "nonexistent",
@@ -272,7 +270,7 @@ describe("candidate_blocks (convex-test)", () => {
     });
 
     it("returns false for empty identityKey", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
       const removed = await t.mutation(api.candidate_blocks.remove, {
         workspaceSlug: "ws1",
         identityKey: "  ",

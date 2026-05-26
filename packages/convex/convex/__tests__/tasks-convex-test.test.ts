@@ -10,18 +10,16 @@
  *
  * Uses convex-test with real schema validation — no mocks.
  */
-import { convexTest } from "convex-test";
+import { createTest } from "./test-helpers.js";
 import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api.js";
 import { internal } from "../_generated/api.js";
-import schema from "../schema.js";
 
-const modules = (import.meta as any).glob("../**/*.ts", { eager: false });
 
 // Helper: insert a minimal resume document matching schema requirements
 let _resumeCounter = 0;
 async function insertResume(
-  t: ReturnType<typeof convexTest>,
+  t: ReturnType<typeof createTest>,
   overrides: Record<string, unknown> = {},
 ) {
   _resumeCounter += 1;
@@ -44,7 +42,7 @@ async function insertResume(
 
 describe("analysis_tasks: dispatch", () => {
   it("creates an analysis task with keywords", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const resumeId1 = await insertResume(t);
     const resumeId2 = await insertResume(t);
@@ -70,7 +68,7 @@ describe("analysis_tasks: dispatch", () => {
   });
 
   it("creates an analysis task with jobDescriptionContent", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const resumeId = await insertResume(t);
 
@@ -88,7 +86,7 @@ describe("analysis_tasks: dispatch", () => {
   });
 
   it("throws when neither jobDescriptionContent nor keywords provided", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const resumeId = await insertResume(t);
 
@@ -100,7 +98,7 @@ describe("analysis_tasks: dispatch", () => {
   });
 
   it("deduplicates resume IDs", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const resumeId = await insertResume(t);
 
@@ -119,7 +117,7 @@ describe("analysis_tasks: dispatch", () => {
   });
 
   it("returns existing task when idempotency key matches", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const resumeId = await insertResume(t);
 
@@ -151,7 +149,7 @@ describe("analysis_tasks: dispatch", () => {
 
 describe("analysis_tasks: cancel", () => {
   it("cancels a pending task", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const resumeId = await insertResume(t);
     const taskId = await t.mutation(api.analysis_tasks.dispatch, {
@@ -169,7 +167,7 @@ describe("analysis_tasks: cancel", () => {
   });
 
   it("is a no-op for already completed tasks", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const resumeId = await insertResume(t);
     const taskId = await t.mutation(api.analysis_tasks.dispatch, {
@@ -201,7 +199,7 @@ describe("analysis_tasks: cancel", () => {
 
 describe("resume_tasks: dispatch", () => {
   it("creates a collection task", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const taskId = await t.mutation(api.resume_tasks.dispatch, {
       keyword: "python developer",
@@ -221,7 +219,7 @@ describe("resume_tasks: dispatch", () => {
   });
 
   it("throws when minAge > maxAge", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await expect(
       t.mutation(api.resume_tasks.dispatch, {
@@ -235,7 +233,7 @@ describe("resume_tasks: dispatch", () => {
   });
 
   it("accepts optional fields", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const taskId = await t.mutation(api.resume_tasks.dispatch, {
       keyword: "test",
@@ -263,7 +261,7 @@ describe("resume_tasks: dispatch", () => {
 
 describe("resume_tasks: cancel", () => {
   it("cancels a pending collection task", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const taskId = await t.mutation(api.resume_tasks.dispatch, {
       keyword: "test",
@@ -281,7 +279,7 @@ describe("resume_tasks: cancel", () => {
   });
 
   it("is a no-op for completed tasks", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const taskId = await t.mutation(api.resume_tasks.dispatch, {
       keyword: "test",
@@ -312,7 +310,7 @@ describe("resume_tasks: cancel", () => {
 
 describe("resume_tasks: resetDatabase", () => {
   it("deletes all data from reset tables when under batch size", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     // Insert a resume and a collection task
     await insertResume(t);
@@ -332,7 +330,7 @@ describe("resume_tasks: resetDatabase", () => {
   });
 
   it("returns zero count when tables are empty", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const result = await t.mutation(api.resume_tasks.resetDatabase, {});
 
@@ -348,7 +346,7 @@ describe("resume_tasks: resetDatabase", () => {
 
 describe("resume_tasks: claim", () => {
   it("claims the oldest pending task", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const taskId = await t.mutation(api.resume_tasks.dispatch, {
       keyword: "test",
@@ -372,7 +370,7 @@ describe("resume_tasks: claim", () => {
   });
 
   it("returns null when no pending tasks", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const claimed = await t.mutation(api.resume_tasks.claim, {
       workerId: "worker-1",
@@ -388,7 +386,7 @@ describe("resume_tasks: claim", () => {
 
 describe("resume_tasks: heartbeat", () => {
   it("creates a new worker on first heartbeat", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const workerId = await t.mutation(api.resume_tasks.heartbeat, {
       workerId: "worker-1",
@@ -406,7 +404,7 @@ describe("resume_tasks: heartbeat", () => {
   });
 
   it("updates existing worker on subsequent heartbeat", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await t.mutation(api.resume_tasks.heartbeat, {
       workerId: "worker-1",
@@ -426,7 +424,7 @@ describe("resume_tasks: heartbeat", () => {
   });
 
   it("stores activeTaskId and lastError", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const taskId = await t.mutation(api.resume_tasks.dispatch, {
       keyword: "test",
@@ -456,7 +454,7 @@ describe("resume_tasks: heartbeat", () => {
 
 describe("resume_tasks: getWorkerHealth", () => {
   it("reports healthy workers", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await t.mutation(api.resume_tasks.heartbeat, {
       workerId: "worker-1",
@@ -472,7 +470,7 @@ describe("resume_tasks: getWorkerHealth", () => {
   });
 
   it("reports unhealthy workers when in error state", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await t.mutation(api.resume_tasks.heartbeat, {
       workerId: "worker-1",
@@ -488,7 +486,7 @@ describe("resume_tasks: getWorkerHealth", () => {
   });
 
   it("returns zeros when no workers exist", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const health = await t.query(api.resume_tasks.getWorkerHealth, {});
 
@@ -504,7 +502,7 @@ describe("resume_tasks: getWorkerHealth", () => {
 
 describe("resume_tasks: complete", () => {
   it("completes a processing task", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const taskId = await t.mutation(api.resume_tasks.dispatch, {
       keyword: "test",
@@ -527,7 +525,7 @@ describe("resume_tasks: complete", () => {
   });
 
   it("fails a processing task with error", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const taskId = await t.mutation(api.resume_tasks.dispatch, {
       keyword: "test",
@@ -551,7 +549,7 @@ describe("resume_tasks: complete", () => {
   });
 
   it("is a no-op for cancelled tasks", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const taskId = await t.mutation(api.resume_tasks.dispatch, {
       keyword: "test",
@@ -580,7 +578,7 @@ describe("resume_tasks: complete", () => {
 
 describe("resume_tasks: updateProgress", () => {
   it("updates progress on a processing task", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const taskId = await t.mutation(api.resume_tasks.dispatch, {
       keyword: "test",
@@ -608,7 +606,7 @@ describe("resume_tasks: updateProgress", () => {
   });
 
   it("returns cancelled status for cancelled tasks", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const taskId = await t.mutation(api.resume_tasks.dispatch, {
       keyword: "test",
@@ -634,7 +632,7 @@ describe("resume_tasks: updateProgress", () => {
 
 describe("resume_tasks: sweepStuckTasks", () => {
   it("sweeps tasks stuck in processing for >24h", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     // Insert a collection task stuck in processing for 25h
     const taskId = await t.run(async (ctx) => {
@@ -656,7 +654,7 @@ describe("resume_tasks: sweepStuckTasks", () => {
   });
 
   it("skips tasks that are not stuck (recent processing)", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     // Insert a collection task that started recently (not stuck)
     await t.run(async (ctx) => {
@@ -674,7 +672,7 @@ describe("resume_tasks: sweepStuckTasks", () => {
   });
 
   it("skips tasks not in processing status", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     // Insert a completed task that's old
     await t.run(async (ctx) => {

@@ -10,15 +10,13 @@
  * - No cron support in tests
  * - ID format differs from production
  */
-import { convexTest } from "convex-test";
+import { createTest } from "./test-helpers.js";
 import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api.js";
-import schema from "../schema.js";
 
 // Explicitly provide module glob so convex-test can discover Convex functions.
 // Vite transforms import.meta.glob at compile time — works regardless of runtime.
 // Type assertion needed because convex tsconfig doesn't include Vitest types.
-const modules = (import.meta as any).glob("../**/*.ts", { eager: false });
 
 function seedResume(overrides: Record<string, unknown> = {}) {
   return {
@@ -35,13 +33,13 @@ function seedResume(overrides: Record<string, unknown> = {}) {
 
 describe("resumes.listWithIngestData (convex-test)", () => {
   it("returns empty array when no resumes exist", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
     const result = await t.query(api.resumes.listWithIngestData, { limit: 10 });
     expect(result).toEqual([]);
   });
 
   it("returns resumes filtered by primaryRuleScore index", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await t.run(async (ctx) => {
       await ctx.db.insert("resumes", seedResume({
@@ -65,7 +63,7 @@ describe("resumes.listWithIngestData (convex-test)", () => {
   });
 
   it("excludes archived resumes", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await t.run(async (ctx) => {
       await ctx.db.insert("resumes", seedResume({
@@ -88,7 +86,7 @@ describe("resumes.listWithIngestData (convex-test)", () => {
   });
 
   it("respects the limit parameter", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await t.run(async (ctx) => {
       for (let i = 0; i < 5; i++) {
@@ -108,7 +106,7 @@ describe("resumes.listWithIngestData (convex-test)", () => {
 
 describe("resumes.search (convex-test)", () => {
   it("finds resumes matching the search query", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await t.run(async (ctx) => {
       await ctx.db.insert("resumes", seedResume({
@@ -133,7 +131,7 @@ describe("resumes.search (convex-test)", () => {
   });
 
   it("excludes archived resumes from search", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await t.run(async (ctx) => {
       await ctx.db.insert("resumes", seedResume({
@@ -158,7 +156,7 @@ describe("resumes.search (convex-test)", () => {
   });
 
   it("post-filters AND logic for multi-token queries", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await t.run(async (ctx) => {
       await ctx.db.insert("resumes", seedResume({
@@ -184,7 +182,7 @@ describe("resumes.search (convex-test)", () => {
 
 describe("resumes.deleteResumes (convex-test)", () => {
   it("deletes targeted resumes", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const resumeId = await t.run(async (ctx) => {
       const id = await ctx.db.insert("resumes", seedResume({
@@ -207,7 +205,7 @@ describe("resumes.deleteResumes (convex-test)", () => {
   });
 
   it("reports missing IDs when deleting non-existent resumes", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const result = await t.mutation(api.resumes.deleteResumes, {
       resumeIds: ["nonexistent-id-1" as any, "nonexistent-id-2" as any],

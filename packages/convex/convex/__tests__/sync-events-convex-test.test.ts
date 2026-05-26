@@ -3,17 +3,15 @@
  *
  * Uses edge-runtime environment (configured via environmentMatchGlobs in root vitest.config.ts).
  */
-import { convexTest } from "convex-test";
+import { createTest } from "./test-helpers.js";
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { api } from "../_generated/api.js";
-import schema from "../schema.js";
 
-const modules = (import.meta as any).glob("../**/*.ts", { eager: false });
 
 describe("sync_events (convex-test)", () => {
   describe("recordError", () => {
     it("inserts an error event", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       await t.mutation(api.sync_events.recordError, {
         source: "51job",
@@ -30,13 +28,13 @@ describe("sync_events (convex-test)", () => {
 
   describe("getLatest", () => {
     it("returns null when no events exist", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
       const result = await t.query(api.sync_events.getLatest, {});
       expect(result).toBeNull();
     });
 
     it("returns the most recent event", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       await t.run(async (ctx) => {
         await ctx.db.insert("sync_events", {
@@ -78,7 +76,7 @@ describe("sync_events (convex-test)", () => {
     });
 
     it("deletes stale events older than 1 hour", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
       const STALE_EVENT_MS = 3_600_000;
 
       await t.run(async (ctx) => {
@@ -113,7 +111,7 @@ describe("sync_events (convex-test)", () => {
     });
 
     it("returns zero deleted when no stale events", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
 
       await t.run(async (ctx) => {
         await ctx.db.insert("sync_events", {
@@ -132,7 +130,7 @@ describe("sync_events (convex-test)", () => {
     });
 
     it("respects MAX_CLEANUP_BATCH limit", async () => {
-      const t = convexTest(schema, modules);
+      const t = createTest();
       const STALE_EVENT_MS = 3_600_000;
       const staleTs = 10_000_000 - STALE_EVENT_MS - 1000;
 

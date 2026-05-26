@@ -11,13 +11,11 @@
  * Crons themselves are not tested — their target functions are invoked
  * directly via t.mutation()/t.action() to verify correct behavior.
  */
-import { convexTest } from "convex-test";
+import { createTest } from "./test-helpers.js";
 import { describe, expect, it } from "vitest";
 import { api, internal } from "../_generated/api.js";
 import type { Id } from "../_generated/dataModel.js";
-import schema from "../schema.js";
 
-const modules = (import.meta as any).glob("../**/*.ts", { eager: false });
 
 // ---------------------------------------------------------------------------
 // ai_summary_cache.cleanupExpired
@@ -25,7 +23,7 @@ const modules = (import.meta as any).glob("../**/*.ts", { eager: false });
 
 describe("cron: ai_summary_cache.cleanupExpired", () => {
   it("deletes expired cache entries and leaves active ones", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
     const now = Date.now();
 
     // Insert expired entries
@@ -81,7 +79,7 @@ describe("cron: ai_summary_cache.cleanupExpired", () => {
   });
 
   it("deletes nothing when all entries are active", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
     const now = Date.now();
 
     await t.run(async (ctx) => {
@@ -106,7 +104,7 @@ describe("cron: ai_summary_cache.cleanupExpired", () => {
   });
 
   it("deletes nothing when cache is empty", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const result = await t.mutation(internal.ai_summary_cache.cleanupExpired, {
       now: Date.now(),
@@ -116,7 +114,7 @@ describe("cron: ai_summary_cache.cleanupExpired", () => {
   });
 
   it("uses Date.now() as default when now arg is omitted", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
     const now = Date.now();
 
     // Insert one already-expired entry
@@ -149,7 +147,7 @@ describe("cron: ai_summary_cache.cleanupExpired", () => {
 
 describe("cron: analysis_tasks.sweepStuckTasks", () => {
   it("marks processing tasks older than 24h as failed", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
     const now = Date.now();
     const staleStartedAt = now - 25 * 60 * 60 * 1000; // 25h ago
 
@@ -207,7 +205,7 @@ describe("cron: analysis_tasks.sweepStuckTasks", () => {
   });
 
   it("sweeps nothing when no tasks are stuck", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
     const now = Date.now();
 
     await t.run(async (ctx) => {
@@ -236,7 +234,7 @@ describe("cron: analysis_tasks.sweepStuckTasks", () => {
   });
 
   it("sweeps nothing when collection is empty", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const result = await t.mutation(
       internal.analysis_tasks.sweepStuckTasks,
@@ -247,7 +245,7 @@ describe("cron: analysis_tasks.sweepStuckTasks", () => {
   });
 
   it("sweeps multiple stuck tasks", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
     const now = Date.now();
     const staleStartedAt = now - 48 * 60 * 60 * 1000; // 48h ago
 
@@ -286,7 +284,7 @@ describe("cron: analysis_tasks.sweepStuckTasks", () => {
 
 describe("cron: resume_tasks.sweepStuckTasks", () => {
   it("marks stuck collection tasks older than 24h as failed", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
     const now = Date.now();
     const staleStartedAt = now - 25 * 60 * 60 * 1000;
 
@@ -343,7 +341,7 @@ describe("cron: resume_tasks.sweepStuckTasks", () => {
   });
 
   it("sweeps nothing when no collection tasks are stuck", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
     const now = Date.now();
 
     await t.run(async (ctx) => {
@@ -370,7 +368,7 @@ describe("cron: resume_tasks.sweepStuckTasks", () => {
   });
 
   it("sweeps nothing when collection is empty", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const result = await t.mutation(
       internal.resume_tasks.sweepStuckTasks,
@@ -381,7 +379,7 @@ describe("cron: resume_tasks.sweepStuckTasks", () => {
   });
 
   it("does not set completedAt on swept collection tasks (unlike analysis_tasks)", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
     const now = Date.now();
 
     let staleId: Id<"collection_tasks">;
@@ -413,7 +411,7 @@ describe("cron: resume_tasks.sweepStuckTasks", () => {
 
 describe("cron: audit.cleanupExpiredAuditLogs", () => {
   it("deletes expired audit logs and leaves active ones", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
     const now = Date.now();
     const twoYears = 2 * 365 * 24 * 60 * 60 * 1000;
 
@@ -474,7 +472,7 @@ describe("cron: audit.cleanupExpiredAuditLogs", () => {
   });
 
   it("deletes nothing when all logs are active", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
     const now = Date.now();
 
     await t.run(async (ctx) => {
@@ -508,7 +506,7 @@ describe("cron: audit.cleanupExpiredAuditLogs", () => {
   });
 
   it("deletes nothing when audit log is empty", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const result = await t.action(internal.audit.cleanupExpiredAuditLogs, {});
 
@@ -517,7 +515,7 @@ describe("cron: audit.cleanupExpiredAuditLogs", () => {
   });
 
   it("respects maxDeletes limit and reports hasMore", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
     const now = Date.now();
 
     // Insert 5 expired logs
@@ -578,7 +576,7 @@ describe("cron: audit.cleanupExpiredAuditLogs", () => {
 
 describe("cron: bias_audit.getExpiredAuditLogs (query helper)", () => {
   it("finds expired logs using by_expires_at index", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
     const now = Date.now();
 
     await t.run(async (ctx) => {
@@ -625,7 +623,7 @@ describe("cron: bias_audit.getExpiredAuditLogs (query helper)", () => {
   });
 
   it("returns empty array when no logs are expired", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const expired = await t.query(internal.audit.getExpiredAuditLogs, {
       before: Date.now(),

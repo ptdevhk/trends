@@ -8,17 +8,15 @@
  *
  * Uses convex-test with real schema validation — no mocks.
  */
-import { convexTest } from "convex-test";
+import { createTest } from "./test-helpers.js";
 import { describe, expect, it } from "vitest";
 import { api, internal } from "../_generated/api.js";
-import schema from "../schema.js";
 
-const modules = (import.meta as any).glob("../**/*.ts", { eager: false });
 
 // Helper: insert a minimal resume document matching schema requirements
 let _resumeCounter = 0;
 async function insertResume(
-  t: ReturnType<typeof convexTest>,
+  t: ReturnType<typeof createTest>,
   overrides: Record<string, unknown> = {},
 ) {
   _resumeCounter += 1;
@@ -37,7 +35,7 @@ async function insertResume(
 
 // Helper: dispatch an analysis task and return the taskId
 async function dispatchAnalysisTask(
-  t: ReturnType<typeof convexTest>,
+  t: ReturnType<typeof createTest>,
   overrides: Record<string, unknown> = {},
 ) {
   const resumeId = await insertResume(t);
@@ -54,7 +52,7 @@ async function dispatchAnalysisTask(
 
 describe("analysis_tasks: markProcessing", () => {
   it("transitions a pending task to processing", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const taskId = await dispatchAnalysisTask(t);
 
@@ -72,7 +70,7 @@ describe("analysis_tasks: markProcessing", () => {
   });
 
   it("returns cancelled status for cancelled tasks", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const taskId = await dispatchAnalysisTask(t);
 
@@ -87,7 +85,7 @@ describe("analysis_tasks: markProcessing", () => {
   });
 
   it("returns null for nonexistent tasks", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     // Create and delete a task to get a valid-format ID that no longer exists
     const tempResumeId = await insertResume(t);
@@ -113,7 +111,7 @@ describe("analysis_tasks: markProcessing", () => {
 
 describe("analysis_tasks: updateProgress", () => {
   it("updates progress on a processing task", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const taskId = await dispatchAnalysisTask(t);
 
@@ -137,7 +135,7 @@ describe("analysis_tasks: updateProgress", () => {
   });
 
   it("is monotonic — does not decrease current/skipped", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const taskId = await dispatchAnalysisTask(t);
 
@@ -165,7 +163,7 @@ describe("analysis_tasks: updateProgress", () => {
   });
 
   it("returns cancelled status for cancelled tasks", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const taskId = await dispatchAnalysisTask(t);
 
@@ -187,7 +185,7 @@ describe("analysis_tasks: updateProgress", () => {
 
 describe("analysis_tasks: complete", () => {
   it("completes a processing task with results", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const taskId = await dispatchAnalysisTask(t);
 
@@ -215,7 +213,7 @@ describe("analysis_tasks: complete", () => {
   });
 
   it("fails a processing task with error", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const taskId = await dispatchAnalysisTask(t);
 
@@ -235,7 +233,7 @@ describe("analysis_tasks: complete", () => {
   });
 
   it("cannot un-cancel a cancelled task", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const taskId = await dispatchAnalysisTask(t);
 

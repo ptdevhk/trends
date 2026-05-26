@@ -8,17 +8,15 @@
  *
  * Uses convex-test with real schema validation — no mocks.
  */
-import { convexTest } from "convex-test";
+import { createTest } from "./test-helpers.js";
 import { describe, expect, it } from "vitest";
 import { api, internal } from "../_generated/api.js";
-import schema from "../schema.js";
 
-const modules = (import.meta as any).glob("../**/*.ts", { eager: false });
 
 // Helper: insert a minimal resume document matching schema requirements
 let _resumeCounter = 0;
 async function insertResume(
-  t: ReturnType<typeof convexTest>,
+  t: ReturnType<typeof createTest>,
   overrides: Record<string, unknown> = {},
 ) {
   _resumeCounter += 1;
@@ -37,7 +35,7 @@ async function insertResume(
 
 // Helper: dispatch an analysis task and return the taskId
 async function dispatchAnalysisTask(
-  t: ReturnType<typeof convexTest>,
+  t: ReturnType<typeof createTest>,
   overrides: Record<string, unknown> = {},
 ) {
   const resumeId = await insertResume(t);
@@ -50,7 +48,7 @@ async function dispatchAnalysisTask(
 
 // Helper: dispatch a collection task and return the taskId
 async function dispatchCollectionTask(
-  t: ReturnType<typeof convexTest>,
+  t: ReturnType<typeof createTest>,
   overrides: Record<string, unknown> = {},
 ) {
   return t.mutation(api.resume_tasks.dispatch, {
@@ -67,7 +65,7 @@ async function dispatchCollectionTask(
 
 describe("analysis_tasks: list", () => {
   it("returns recent analysis tasks", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await dispatchAnalysisTask(t);
     await dispatchAnalysisTask(t, { keywords: ["golang"] });
@@ -78,7 +76,7 @@ describe("analysis_tasks: list", () => {
   });
 
   it("returns empty array when no tasks exist", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const results = await t.query(api.analysis_tasks.list, {});
 
@@ -92,7 +90,7 @@ describe("analysis_tasks: list", () => {
 
 describe("analysis_tasks: getSummary", () => {
   it("returns summary with counts by status", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await dispatchAnalysisTask(t);
     await dispatchAnalysisTask(t, { keywords: ["golang"] });
@@ -108,7 +106,7 @@ describe("analysis_tasks: getSummary", () => {
   });
 
   it("counts tasks across statuses", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const taskId = await dispatchAnalysisTask(t);
     await dispatchAnalysisTask(t, { keywords: ["golang"] });
@@ -123,7 +121,7 @@ describe("analysis_tasks: getSummary", () => {
   });
 
   it("returns zeros when no tasks exist", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const summary = await t.query(api.analysis_tasks.getSummary, {});
 
@@ -138,7 +136,7 @@ describe("analysis_tasks: getSummary", () => {
 
 describe("analysis_tasks: getTask", () => {
   it("returns a task by ID", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const taskId = await dispatchAnalysisTask(t);
 
@@ -149,7 +147,7 @@ describe("analysis_tasks: getTask", () => {
   });
 
   it("returns null for nonexistent task", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     // Create and delete a task to get a valid-format ID
     const tempResumeId = await insertResume(t);
@@ -173,7 +171,7 @@ describe("analysis_tasks: getTask", () => {
 
 describe("analysis_tasks: sweepStuckTasks", () => {
   it("sweeps processing tasks stuck for >24h", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const taskId = await dispatchAnalysisTask(t);
 
@@ -197,7 +195,7 @@ describe("analysis_tasks: sweepStuckTasks", () => {
   });
 
   it("does not sweep recently started tasks", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const taskId = await dispatchAnalysisTask(t);
     await t.mutation(internal.analysis_tasks.markProcessing, { taskId });
@@ -213,7 +211,7 @@ describe("analysis_tasks: sweepStuckTasks", () => {
   });
 
   it("does not sweep non-processing tasks", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await dispatchAnalysisTask(t); // pending, not processing
 
@@ -229,7 +227,7 @@ describe("analysis_tasks: sweepStuckTasks", () => {
 
 describe("resume_tasks: list", () => {
   it("returns active and recent finished tasks", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await dispatchCollectionTask(t);
     await dispatchCollectionTask(t, { keyword: "golang" });
@@ -241,7 +239,7 @@ describe("resume_tasks: list", () => {
   });
 
   it("returns empty array when no tasks exist", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const results = await t.query(api.resume_tasks.list, {});
 
@@ -255,7 +253,7 @@ describe("resume_tasks: list", () => {
 
 describe("resume_tasks: getById", () => {
   it("returns a task by ID", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const taskId = await dispatchCollectionTask(t);
 
@@ -266,7 +264,7 @@ describe("resume_tasks: getById", () => {
   });
 
   it("returns null for nonexistent task", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     // Create and delete to get a valid-format ID
     const tempTaskId = await dispatchCollectionTask(t);
@@ -286,7 +284,7 @@ describe("resume_tasks: getById", () => {
 
 describe("resume_tasks: failStalePending", () => {
   it("fails pending tasks older than staleMs", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     // Insert a pending task
     const taskId = await t.run(async (ctx) => {
@@ -330,7 +328,7 @@ describe("resume_tasks: failStalePending", () => {
   });
 
   it("does not fail recent pending tasks with large staleMs", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await dispatchCollectionTask(t);
 
@@ -342,7 +340,7 @@ describe("resume_tasks: failStalePending", () => {
   });
 
   it("does not fail processing tasks", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await dispatchCollectionTask(t);
     await t.mutation(api.resume_tasks.claim, { workerId: "worker-1" });
@@ -362,7 +360,7 @@ describe("resume_tasks: failStalePending", () => {
 
 describe("resume_tasks: getSummary", () => {
   it("returns summary with counts by status", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await dispatchCollectionTask(t);
     await dispatchCollectionTask(t, { keyword: "golang" });
@@ -375,7 +373,7 @@ describe("resume_tasks: getSummary", () => {
   });
 
   it("counts active workers from processing tasks", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await dispatchCollectionTask(t);
     await t.mutation(api.resume_tasks.claim, { workerId: "worker-1" });
@@ -387,7 +385,7 @@ describe("resume_tasks: getSummary", () => {
   });
 
   it("returns zeros when no tasks exist", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const summary = await t.query(api.resume_tasks.getSummary, {});
 
@@ -402,7 +400,7 @@ describe("resume_tasks: getSummary", () => {
 
 describe("resume_tasks: getSummaryWindow", () => {
   it("returns counts by status within time window", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const taskId = await dispatchCollectionTask(t);
     await t.mutation(api.resume_tasks.claim, { workerId: "worker-1" });
@@ -424,7 +422,7 @@ describe("resume_tasks: getSummaryWindow", () => {
   });
 
   it("returns zero when no tasks in window", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const result = await t.query(api.resume_tasks.getSummaryWindow, {
       fromTimestamp: 0,
@@ -442,7 +440,7 @@ describe("resume_tasks: getSummaryWindow", () => {
 
 describe("resume_tasks: sweepStuckTasks", () => {
   it("sweeps processing tasks stuck for >24h", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const taskId = await dispatchCollectionTask(t);
     await t.mutation(api.resume_tasks.claim, { workerId: "worker-1" });
@@ -465,7 +463,7 @@ describe("resume_tasks: sweepStuckTasks", () => {
   });
 
   it("does not sweep recently started tasks", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await dispatchCollectionTask(t);
     await t.mutation(api.resume_tasks.claim, { workerId: "worker-1" });

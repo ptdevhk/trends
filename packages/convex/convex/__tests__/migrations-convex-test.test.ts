@@ -15,17 +15,15 @@
  * Each test inserts realistic data, runs the migration, and verifies
  * the database state matches expectations.
  */
-import { convexTest } from "convex-test";
+import { createTest } from "./test-helpers.js";
 import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api.js";
-import schema from "../schema.js";
 
-const modules = (import.meta as any).glob("../**/*.ts", { eager: false });
 
 // Helper: insert a minimal resume document matching schema requirements
 let _resumeCounter = 0;
 async function insertResume(
-  t: ReturnType<typeof convexTest>,
+  t: ReturnType<typeof createTest>,
   overrides: Record<string, unknown> = {},
 ) {
   _resumeCounter += 1;
@@ -49,7 +47,7 @@ async function insertResume(
 
 describe("migration: backfillSearchText", () => {
   it("patches resumes that have no searchText", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, {
       content: { name: "Alice", location: "Shanghai" },
@@ -81,7 +79,7 @@ describe("migration: backfillSearchText", () => {
   });
 
   it("skips resumes that already have searchText", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, { searchText: "already indexed" });
 
@@ -91,7 +89,7 @@ describe("migration: backfillSearchText", () => {
   });
 
   it("returns hasMore: false when all resumes fit in one batch", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t);
 
@@ -110,7 +108,7 @@ describe("migration: backfillSearchText", () => {
 
 describe("migration: reindexSearchText", () => {
   it("updates resumes where searchText differs from recomputed value", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, {
       content: { name: "Bob" },
@@ -139,7 +137,7 @@ describe("migration: reindexSearchText", () => {
   });
 
   it("skips resumes where searchText matches recomputed value", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, { searchText: "exact match" });
 
@@ -151,7 +149,7 @@ describe("migration: reindexSearchText", () => {
   });
 
   it("force flag updates all resumes regardless of match", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, { searchText: "already current" });
 
@@ -169,7 +167,7 @@ describe("migration: reindexSearchText", () => {
 
 describe("migration: backfillAge", () => {
   it("patches resumes where age can be parsed from content but is missing", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, {
       content: { name: "Carol", age: "30岁" },
@@ -186,7 +184,7 @@ describe("migration: backfillAge", () => {
   });
 
   it("skips resumes where age already matches", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, {
       content: { name: "Dave", age: "25岁" },
@@ -199,7 +197,7 @@ describe("migration: backfillAge", () => {
   });
 
   it("skips resumes where age cannot be parsed", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, {
       content: { name: "Eve" },
@@ -218,7 +216,7 @@ describe("migration: backfillAge", () => {
 
 describe("migration: backfillMarketField", () => {
   it("patches Seek resumes that have ingestData but no market", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, {
       sourceKey: "seek",
@@ -246,7 +244,7 @@ describe("migration: backfillMarketField", () => {
   });
 
   it("skips Seek resumes that already have a market", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, {
       sourceKey: "seek",
@@ -270,7 +268,7 @@ describe("migration: backfillMarketField", () => {
   });
 
   it("skips non-Seek resumes", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, {
       sourceKey: "51job",
@@ -293,7 +291,7 @@ describe("migration: backfillMarketField", () => {
   });
 
   it("skips Seek resumes with no ingestData", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, { sourceKey: "seek" });
 
@@ -309,7 +307,7 @@ describe("migration: backfillMarketField", () => {
 
 describe("migration: backfillSourceKey", () => {
   it("patches resumes that have no sourceKey", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     // Insert resume without sourceKey — need to use run() since insertResume sets it
     await t.run(async (ctx) => {
@@ -329,7 +327,7 @@ describe("migration: backfillSourceKey", () => {
   });
 
   it("skips resumes that already have a sourceKey", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, { sourceKey: "51job" });
 
@@ -345,7 +343,7 @@ describe("migration: backfillSourceKey", () => {
 
 describe("migration: backfillVerifiedRoleYears", () => {
   it("patches resumes where verifiedRoleYears differs from computed value", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, {
       ingestData: {
@@ -386,7 +384,7 @@ describe("migration: backfillVerifiedRoleYears", () => {
   });
 
   it("skips resumes where verifiedRoleYears already matches", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     // computeVerifiedRoleYears uses signal.type as key (lowercased).
     // For type "industry" with industryVerifiedYears=8, the computed
@@ -427,7 +425,7 @@ describe("migration: backfillVerifiedRoleYears", () => {
   });
 
   it("skips resumes with no ingestData", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t);
 
@@ -446,7 +444,7 @@ describe("migration: backfillVerifiedRoleYears", () => {
 
 describe("migration: auditDuplicateResumesByIdentity", () => {
   it("detects duplicate resumes by identity key", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const sharedContent = { name: "Same Person", phone: "13800138000" };
 
@@ -469,7 +467,7 @@ describe("migration: auditDuplicateResumesByIdentity", () => {
   });
 
   it("returns zero duplicates when all resumes are unique", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, {
       content: { name: "Unique A" },
@@ -490,7 +488,7 @@ describe("migration: auditDuplicateResumesByIdentity", () => {
   });
 
   it("picks canonical by crawledAt then analysis richness", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const sharedKey = "richness-test-key";
     // All three have same crawledAt, but different analysis richness
@@ -531,7 +529,7 @@ describe("migration: auditDuplicateResumesByIdentity", () => {
 
 describe("migration: mergeDuplicateResumesByIdentity", () => {
   it("dryRun reports duplicates but does not delete", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const sharedKey = "merge-test-key";
     await insertResume(t, {
@@ -563,7 +561,7 @@ describe("migration: mergeDuplicateResumesByIdentity", () => {
   });
 
   it("in live mode, patches canonical and deletes duplicates", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const sharedKey = "live-merge-key";
     await insertResume(t, {
@@ -607,7 +605,7 @@ describe("migration: mergeDuplicateResumesByIdentity", () => {
   });
 
   it("merges analyses from duplicates into canonical", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const sharedKey = "analysis-merge-key";
     await insertResume(t, {
@@ -654,7 +652,7 @@ describe("migration: mergeDuplicateResumesByIdentity", () => {
   });
 
   it("respects batchSize to limit processed groups", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     // Create 2 duplicate groups (need batchSize large enough to scan all 4 resumes)
     await insertResume(t, {
@@ -701,7 +699,7 @@ describe("migration: mergeDuplicateResumesByIdentity", () => {
 
 describe("migration: removeScreeningSessionCollectUrl", () => {
   it("reports zero patched when sessions have no collectUrl", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await t.run(async (ctx) => {
       await ctx.db.insert("screening_sessions", {
@@ -730,7 +728,7 @@ describe("migration: removeScreeningSessionCollectUrl", () => {
   });
 
   it("returns zero total when no sessions exist", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const result = await t.mutation(
       api.migrations.removeScreeningSessionCollectUrl,
@@ -748,7 +746,7 @@ describe("migration: removeScreeningSessionCollectUrl", () => {
 
 describe("migration: backfillAnalysesValidator", () => {
   it("normalizes analyses entries missing score field", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const resumeId = await insertResume(t, {
       analyses: {
@@ -773,7 +771,7 @@ describe("migration: backfillAnalysesValidator", () => {
   });
 
   it("skips resumes where all analyses already conform", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, {
       analyses: {
@@ -787,7 +785,7 @@ describe("migration: backfillAnalysesValidator", () => {
   });
 
   it("replaces completely malformed entries with minimal valid object", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const resumeId = await insertResume(t, {
       analyses: {
@@ -808,7 +806,7 @@ describe("migration: backfillAnalysesValidator", () => {
   });
 
   it("skips resumes with no analyses field", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, {}); // No analyses
     await insertResume(t, { analyses: undefined }); // Explicitly undefined
@@ -824,7 +822,7 @@ describe("migration: backfillAnalysesValidator", () => {
 
 describe("migration: backfillWorkspaceSlugs", () => {
   it("patches job_descriptions with missing workspaceSlug", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await t.run(async (ctx) => {
       await ctx.db.insert("job_descriptions", {
@@ -847,7 +845,7 @@ describe("migration: backfillWorkspaceSlugs", () => {
   });
 
   it("patches search_profiles, screening_sessions, and search_history", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await t.run(async (ctx) => {
       await ctx.db.insert("search_profiles", {
@@ -880,7 +878,7 @@ describe("migration: backfillWorkspaceSlugs", () => {
   });
 
   it("skips records that already have a workspaceSlug", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await t.run(async (ctx) => {
       await ctx.db.insert("job_descriptions", {
@@ -905,7 +903,7 @@ describe("migration: backfillWorkspaceSlugs", () => {
 
 describe("migration: backfillPrimaryRuleScore", () => {
   it("computes max rule score for resumes missing primaryRuleScore", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, {
       ingestData: {
@@ -932,7 +930,7 @@ describe("migration: backfillPrimaryRuleScore", () => {
   });
 
   it("defaults to 0 when ruleScores is empty", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, {
       ingestData: {
@@ -957,7 +955,7 @@ describe("migration: backfillPrimaryRuleScore", () => {
   });
 
   it("skips resumes that already have primaryRuleScore", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, {
       primaryRuleScore: 50,
@@ -980,7 +978,7 @@ describe("migration: backfillPrimaryRuleScore", () => {
   });
 
   it("sets primaryRuleScore to 0 for resumes with no ingestData", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t);
 
@@ -999,7 +997,7 @@ describe("migration: backfillPrimaryRuleScore", () => {
 
 describe("migration: backfillSearchProfileTemplateHash", () => {
   it("skips profiles that already have a templateHash", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await t.run(async (ctx) => {
       await ctx.db.insert("search_profiles", {
@@ -1016,7 +1014,7 @@ describe("migration: backfillSearchProfileTemplateHash", () => {
   });
 
   it("skips profiles not seeded from config", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await t.run(async (ctx) => {
       await ctx.db.insert("search_profiles", {
@@ -1033,7 +1031,7 @@ describe("migration: backfillSearchProfileTemplateHash", () => {
   });
 
   it("skips profiles with no profile data", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await t.run(async (ctx) => {
       await ctx.db.insert("search_profiles", {
@@ -1056,7 +1054,7 @@ describe("migration: backfillSearchProfileTemplateHash", () => {
 
 describe("migration: backfillTaggingEnvelope", () => {
   it("migrates legacy tagEnvelope to taggingEnvelope with provenance", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const computedAt = Date.now();
     await insertResume(t, {
@@ -1098,7 +1096,7 @@ describe("migration: backfillTaggingEnvelope", () => {
   });
 
   it("skips resumes that already have taggingEnvelope", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, {
       ingestData: {
@@ -1126,7 +1124,7 @@ describe("migration: backfillTaggingEnvelope", () => {
   });
 
   it("skips resumes with no ingestData", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t);
 
@@ -1136,7 +1134,7 @@ describe("migration: backfillTaggingEnvelope", () => {
   });
 
   it("skips resumes with empty tagEnvelope array", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, {
       ingestData: {
@@ -1159,7 +1157,7 @@ describe("migration: backfillTaggingEnvelope", () => {
   });
 
   it("uses computedAt=0 for generatedAt (nullish coalescing only falls back on null/undefined)", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, {
       ingestData: {
@@ -1193,7 +1191,7 @@ describe("migration: backfillTaggingEnvelope", () => {
 
 describe("migration: backfillSeekNameSearchUrls", () => {
   it("rewrites Seek resumes with UUID profile URLs to name-search format", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, {
       source: "seek",
@@ -1216,7 +1214,7 @@ describe("migration: backfillSeekNameSearchUrls", () => {
   });
 
   it("skips non-Seek resumes", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, {
       source: "51job",
@@ -1232,7 +1230,7 @@ describe("migration: backfillSeekNameSearchUrls", () => {
   });
 
   it("skips Seek resumes already with name-search URL containing roleTitles", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, {
       source: "seek",
@@ -1248,7 +1246,7 @@ describe("migration: backfillSeekNameSearchUrls", () => {
   });
 
   it("skips Seek resumes with no name in content", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, {
       source: "seek",
@@ -1269,7 +1267,7 @@ describe("migration: backfillSeekNameSearchUrls", () => {
 
 describe("migration: backfillAuditLogActorIdentity", () => {
   it("patches audit logs without actorId/actorRole", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const resumeId = await insertResume(t);
 
@@ -1310,7 +1308,7 @@ describe("migration: backfillAuditLogActorIdentity", () => {
   });
 
   it("skips audit logs that already have actor identity", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const resumeId = await insertResume(t);
 
@@ -1350,7 +1348,7 @@ describe("migration: backfillAuditLogActorIdentity", () => {
   });
 
   it("handles pagination with cursor", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const resumeId = await insertResume(t);
 
@@ -1396,7 +1394,7 @@ describe("migration: backfillAuditLogActorIdentity", () => {
 
 describe("migration: backfillJob5156ProfileUrls", () => {
   it("rewrites Job5156 profile URLs in resume content", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, {
       source: "job5156",
@@ -1413,7 +1411,7 @@ describe("migration: backfillJob5156ProfileUrls", () => {
   });
 
   it("skips resumes without profile URL content keys", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, {
       source: "51job",
@@ -1426,7 +1424,7 @@ describe("migration: backfillJob5156ProfileUrls", () => {
   });
 
   it("returns hasMore: false when all resumes fit in one batch", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, { source: "test" });
 
@@ -1445,7 +1443,7 @@ describe("migration: backfillJob5156ProfileUrls", () => {
 
 describe("migration: backfillJob5156WorkHistoryEducation", () => {
   it("scans resumes and reports results", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, {
       source: "job5156",
@@ -1461,7 +1459,7 @@ describe("migration: backfillJob5156WorkHistoryEducation", () => {
   });
 
   it("returns hasMore: false when batch covers all", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t);
 
@@ -1480,7 +1478,7 @@ describe("migration: backfillJob5156WorkHistoryEducation", () => {
 
 describe("migration: backfillJob5156LocationHierarchy", () => {
   it("scans resumes and reports location update counts", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, {
       source: "job5156",
@@ -1502,7 +1500,7 @@ describe("migration: backfillJob5156LocationHierarchy", () => {
   });
 
   it("skips location hierarchy rewrite for non-Job5156 resumes", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, {
       source: "51job",
@@ -1518,7 +1516,7 @@ describe("migration: backfillJob5156LocationHierarchy", () => {
   });
 
   it("returns hasMore: false when batch covers all", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t);
 
@@ -1537,7 +1535,7 @@ describe("migration: backfillJob5156LocationHierarchy", () => {
 
 describe("migration: validateDataConsistency", () => {
   it("runs both sub-migrations and reports aggregated results", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     // Insert a resume that needs searchText reindexing
     await insertResume(t, {
@@ -1554,7 +1552,7 @@ describe("migration: validateDataConsistency", () => {
   });
 
   it("reports zero updates when all data is consistent", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     // No resumes — both sub-migrations should report 0 scanned
     const result = await t.action(api.migrations.validateDataConsistency, {});
@@ -1572,7 +1570,7 @@ describe("migration: validateDataConsistency", () => {
 
 describe("migration: backfillEvidenceText", () => {
   it("patches resumes with ingestData but missing evidenceText", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     // Resume with ingestData but no evidenceText
     await insertResume(t, {
@@ -1630,7 +1628,7 @@ describe("migration: backfillEvidenceText", () => {
   });
 
   it("returns zero patched when all resumes already have evidenceText", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     await insertResume(t, {
       ingestData: {
@@ -1652,7 +1650,7 @@ describe("migration: backfillEvidenceText", () => {
   });
 
   it("returns zero scanned when no resumes exist", async () => {
-    const t = convexTest(schema, modules);
+    const t = createTest();
 
     const result = await t.mutation(api.migrations.backfillEvidenceText, {});
 
