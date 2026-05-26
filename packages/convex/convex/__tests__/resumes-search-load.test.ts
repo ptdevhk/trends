@@ -1,9 +1,9 @@
 /**
  * Keyword search load and correctness tests.
  *
- * Tests the pure-function helpers used by every keyword search path in
- * resumes.ts: query building, AND/OR matching, provenance tracking,
- * batch-size limits, and edge-case handling.
+ * Tests the pure-function helpers used by every keyword search path:
+ * query building, AND/OR matching, provenance tracking, batch-size limits,
+ * and edge-case handling.
  *
  * These run as vitest unit tests — no live Convex instance required.
  */
@@ -13,8 +13,10 @@ import {
     buildTagExpansionSearchQuery,
     collectSearchTextProvenance,
     matchesTagExpansionSearchText,
+} from "../lib/resumes_tag_expansion.js";
+import {
     resolveListWithIngestWindow,
-} from "../resumes";
+} from "../lib/resumes_pagination.js";
 
 // ── Test fixtures ──────────────────────────────────────────────────────
 
