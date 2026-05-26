@@ -29,6 +29,8 @@ from browser_cdp import (
 
 DEFAULT_KEYWORD = "销售"
 DEFAULT_SAMPLE = "sample-initial"
+DEFAULT_SOURCE = "job5156"
+SEEK_HOST = "my.employer.seek.com"
 OUTPUT_DIR = Path(__file__).resolve().parent.parent / "output" / "resumes" / "samples"
 
 
@@ -59,15 +61,35 @@ def build_search_url(
     return "https://hr.job5156.com/search?" + urllib.parse.urlencode(params)
 
 
-def build_metadata(page_url: str, sample_name: str, status: dict | None, resumes: list) -> dict:
+def build_seek_search_url(
+    keyword: str,
+    market: str = "MY",
+    role_titles: str = "",
+) -> str:
+    params: dict[str, str] = {"keywords": keyword}
+    if market:
+        params["market"] = market
+    if role_titles:
+        params["roleTitles"] = role_titles
+    return f"https://{SEEK_HOST}/talentsearch?" + urllib.parse.urlencode(params)
+
+
+def build_metadata(page_url: str, sample_name: str, status: dict | None, resumes: list, source: str = DEFAULT_SOURCE) -> dict:
     parsed = urllib.parse.urlparse(page_url)
     query = urllib.parse.parse_qs(parsed.query, keep_blank_values=True)
-    keyword = (query.get("keyword", [""])[0] or "").strip()
-    location = (query.get("location", [""])[0] or "").strip()
+
+    is_seek = source == "seek" or ".employer.seek.com" in page_url
+
+    if is_seek:
+        keyword = (query.get("keywords", [""])[0] or "").strip()
+        location = ""
+    else:
+        keyword = (query.get("keyword", [""])[0] or "").strip()
+        location = (query.get("location", [""])[0] or "").strip()
 
     filters = {}
     for key, values in query.items():
-        if key in ("keyword", "location", "tr_auto_export", "tr_sample_name"):
+        if key in ("keyword", "keywords", "location", "tr_auto_export", "tr_sample_name", "market", "roleTitles"):
             continue
         if not values:
             continue
@@ -103,8 +125,10 @@ def build_metadata(page_url: str, sample_name: str, status: dict | None, resumes
         {"tr_auto_export": "json", "tr_sample_name": sample_name}
     )
 
-    return {
+    result = {
         "sourceUrl": source_url,
+        "sourceKey": "seek" if is_seek else "job5156",
+        "sourceHost": parsed.hostname.lower() if parsed.hostname else "",
         "searchCriteria": {
             "keyword": keyword,
             "location": location,
@@ -116,6 +140,20 @@ def build_metadata(page_url: str, sample_name: str, status: dict | None, resumes
         "totalResumes": len(resumes),
         "reproduction": f"Navigate to sourceUrl, then add ?{reproduction_params}",
     }
+
+    if is_seek:
+        seek_mode = "talentsearch" if "/talentsearch" in parsed.path else "recommended"
+        result["collectionContext"] = {
+            "captureMode": "graphql-talentsearch" if seek_mode == "talentsearch" else "graphql-list",
+            "operation": "SearchProfilesByNaturalLanguage" if seek_mode == "talentsearch" else "GetTalentSearchRecommendedCandidates",
+            "profileType": "seek",
+            "language": "en-MY",
+            "searchQuery": keyword,
+            "searchMode": "NATURAL_LANGUAGE",
+            "pageNumber": 1,
+        }
+
+    return result
 
 
 async def execute_scrape_job(
@@ -290,6 +328,9 @@ async def run():
     parser.add_argument("--max-pages", type=int, default=10, help="Max pages to scrape")
     parser.add_argument("--sample", default=DEFAULT_SAMPLE, help="Sample file name")
     parser.add_argument("--port", type=int, default=CDP_PORT, help="CDP port")
+    parser.add_argument("--source", default=DEFAULT_SOURCE, choices=["job5156", "seek"], help="Source platform (default: job5156)")
+    parser.add_argument("--market", default="MY", help="Seek market code (default: MY)")
+    parser.add_argument("--role-titles", default="", help="Seek roleTitles filter for name-search URL")
     parser.add_argument(
         "--allow-empty",
         action="store_true",
@@ -306,12 +347,20 @@ async def run():
     if args.min_age is not None and args.max_age is not None and args.min_age > args.max_age:
         raise CDPError("Invalid age range (min-age cannot be greater than max-age).")
 
-    search_url = build_search_url(
-        args.keyword,
-        args.location,
-        min_age=args.min_age,
-        max_age=args.max_age,
-    )
+    source = args.source
+    if source == "seek":
+        search_url = build_seek_search_url(
+            args.keyword,
+            market=args.market,
+            role_titles=args.role_titles,
+        )
+    else:
+        search_url = build_search_url(
+            args.keyword,
+            args.location,
+            min_age=args.min_age,
+            max_age=args.max_age,
+        )
 
     async with open_cdp_session(args.port, search_url) as (client, context_id):
         # We might need to ensure navigation if the page wasn't already on the right URL
@@ -343,7 +392,7 @@ async def run():
         if not page_url:
             page_url = search_url
 
-        metadata = build_metadata(page_url, sample_name, status, resumes)
+        metadata = build_metadata(page_url, sample_name, status, resumes, source=source)
         payload = {"metadata": metadata, "data": resumes}
 
         OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
