@@ -36,6 +36,7 @@ import {
   resumesPacketsRoutes,
   resumesAdminRoutes,
   resumesSearchRoutes,
+  resumesMatchRoutes,
 } from "./routes/index.js";
 import { config } from "./services/config.js";
 import { workspaceMiddleware } from "./middleware/workspace.js";
@@ -135,6 +136,7 @@ export function createApp() {
   app.route("/", resumesImportRoutes);
   app.route("/", resumesPacketsRoutes);
   app.route("/", resumesSearchRoutes);
+  app.route("/", resumesMatchRoutes);
   app.route("/", resumesRoutes);
   app.route("/", resumesAdminRoutes);
   app.route("/", resumeSubmitRoutes);
