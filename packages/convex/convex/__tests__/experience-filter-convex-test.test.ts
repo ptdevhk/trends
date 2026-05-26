@@ -53,7 +53,7 @@ describe("minExperience filter graceful degradation", () => {
       },
     });
 
-    const result = await t.query(api.resumes.searchWithTagExpansionPaginated, {
+    const result = await t.query(api.resumes_search.searchWithTagExpansionPaginated, {
       paginationOpts: { cursor: null, numItems: 10 },
       query: "cnc sales",
       keywordGroups: [{ original: "cnc", variants: ["cnc"] }],
@@ -82,7 +82,7 @@ describe("minExperience filter graceful degradation", () => {
       },
     });
 
-    const result = await t.query(api.resumes.searchWithTagExpansionPaginated, {
+    const result = await t.query(api.resumes_search.searchWithTagExpansionPaginated, {
       paginationOpts: { cursor: null, numItems: 10 },
       query: "cnc sales",
       keywordGroups: [{ original: "cnc", variants: ["cnc"] }],
@@ -110,7 +110,7 @@ describe("minExperience filter graceful degradation", () => {
       },
     });
 
-    const result = await t.query(api.resumes.searchWithTagExpansionPaginated, {
+    const result = await t.query(api.resumes_search.searchWithTagExpansionPaginated, {
       paginationOpts: { cursor: null, numItems: 10 },
       query: "cnc sales",
       keywordGroups: [{ original: "cnc", variants: ["cnc"] }],
@@ -139,7 +139,7 @@ describe("minExperience filter graceful degradation", () => {
       },
     });
 
-    const result = await t.query(api.resumes.searchWithTagExpansionPaginated, {
+    const result = await t.query(api.resumes_search.searchWithTagExpansionPaginated, {
       paginationOpts: { cursor: null, numItems: 10 },
       query: "cnc sales",
       keywordGroups: [{ original: "cnc", variants: ["cnc"] }],
@@ -169,7 +169,7 @@ describe("skills filter uses full searchText", () => {
       },
     });
 
-    const result = await t.query(api.resumes.searchWithTagExpansionPaginated, {
+    const result = await t.query(api.resumes_search.searchWithTagExpansionPaginated, {
       paginationOpts: { cursor: null, numItems: 10 },
       query: "cnc sales",
       keywordGroups: [{ original: "cnc", variants: ["cnc"] }],
@@ -198,7 +198,7 @@ describe("skills filter uses full searchText", () => {
       },
     });
 
-    const result = await t.query(api.resumes.searchWithTagExpansionPaginated, {
+    const result = await t.query(api.resumes_search.searchWithTagExpansionPaginated, {
       paginationOpts: { cursor: null, numItems: 10 },
       query: "cnc sales",
       keywordGroups: [{ original: "cnc", variants: ["cnc"] }],
@@ -229,7 +229,7 @@ describe("requiredKeywords filter uses full searchText", () => {
       },
     });
 
-    const result = await t.query(api.resumes.searchWithTagExpansionPaginated, {
+    const result = await t.query(api.resumes_search.searchWithTagExpansionPaginated, {
       paginationOpts: { cursor: null, numItems: 10 },
       query: "cnc",
       keywordGroups: [{ original: "cnc", variants: ["cnc"] }],
@@ -258,7 +258,7 @@ describe("requiredKeywords filter uses full searchText", () => {
       },
     });
 
-    const result = await t.query(api.resumes.searchWithTagExpansionPaginated, {
+    const result = await t.query(api.resumes_search.searchWithTagExpansionPaginated, {
       paginationOpts: { cursor: null, numItems: 10 },
       query: "cnc sales",
       keywordGroups: [{ original: "cnc", variants: ["cnc"] }],
@@ -295,7 +295,7 @@ describe("experience from workHistory date ranges", () => {
       },
     });
 
-    const result = await t.query(api.resumes.searchWithTagExpansionPaginated, {
+    const result = await t.query(api.resumes_search.searchWithTagExpansionPaginated, {
       paginationOpts: { cursor: null, numItems: 10 },
       query: "cnc sales",
       keywordGroups: [{ original: "cnc", variants: ["cnc"] }],
@@ -330,7 +330,7 @@ describe("experience from workHistory date ranges", () => {
       },
     });
 
-    const result = await t.query(api.resumes.searchWithTagExpansionPaginated, {
+    const result = await t.query(api.resumes_search.searchWithTagExpansionPaginated, {
       paginationOpts: { cursor: null, numItems: 10 },
       query: "cnc sales",
       keywordGroups: [{ original: "cnc", variants: ["cnc"] }],
@@ -365,7 +365,7 @@ describe("experience from workHistory date ranges", () => {
       },
     });
 
-    const result = await t.query(api.resumes.searchWithTagExpansionPaginated, {
+    const result = await t.query(api.resumes_search.searchWithTagExpansionPaginated, {
       paginationOpts: { cursor: null, numItems: 10 },
       query: "cnc sales",
       keywordGroups: [{ original: "cnc", variants: ["cnc"] }],

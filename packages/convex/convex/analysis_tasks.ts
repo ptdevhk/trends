@@ -461,7 +461,7 @@ export const processAnalysisTask = internalAction({
                 throw new Error(`Analysis task not found: ${String(args.taskId)}`);
             }
 
-            const resumes = await ctx.runQuery(internal.resumes.getResumesByIds, {
+            const resumes = await ctx.runQuery(internal.resumes_search.getResumesByIds, {
                 resumeIds: args.resumeIds,
             });
             const keywordSource = `${task.config.jobDescriptionContent ?? ""} ${task.config.jobDescriptionTitle ?? ""}`;

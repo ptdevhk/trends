@@ -482,7 +482,7 @@ async function prepareKeywordMatchPageByCursor(params: {
   let cursor: string | null = null;
 
   while (true) {
-    const value = await callConvexQuery("resumes:searchWithTagExpansionScanPage", {
+    const value = await callConvexQuery("resumes_search:searchWithTagExpansionScanPage", {
       paginationOpts: {
         cursor,
         numItems: MATCH_STORAGE_FILTER_SCAN_BATCH_SIZE,
@@ -1176,7 +1176,7 @@ app.post("/api/resumes/analyze", async (c) => {
     };
 
     const searchResult = (await callConvexQuery(
-      "resumes:searchWithTagExpansionPaginated",
+      "resumes_search:searchWithTagExpansionPaginated",
       searchArgs,
     )) as {
       page: Array<{ resume: { _id: string } }>;

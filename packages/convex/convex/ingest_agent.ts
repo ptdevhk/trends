@@ -97,7 +97,7 @@ export const processNewResumes = internalAction({
 
     try {
       // 1. Fetch resume documents
-      const resumes: Array<{ _id: Id<"resumes">; content: Record<string, unknown>; sourceKey?: string }> = await ctx.runQuery(internal.resumes.getResumesByIds, {
+      const resumes: Array<{ _id: Id<"resumes">; content: Record<string, unknown>; sourceKey?: string }> = await ctx.runQuery(internal.resumes_search.getResumesByIds, {
         resumeIds,
       });
 

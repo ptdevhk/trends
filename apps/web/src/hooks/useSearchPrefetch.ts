@@ -6,7 +6,7 @@ export function useSearchPrefetch(query: string | undefined) {
   const deferredQuery = useDeferredValue(query)
   const trimmed = (deferredQuery ?? '').trim()
   return useQuery(
-    api.resumes.search,
+    api.resumes_search.search,
     trimmed ? { query: trimmed, limit: 10 } : 'skip',
   )
 }

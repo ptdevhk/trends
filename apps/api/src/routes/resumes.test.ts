@@ -288,7 +288,7 @@ describe("resume routes", () => {
       calls.push(call);
 
       // AND-mode queries use two-phase scan: phase 1 via scanResumePageSlim
-      if (call.pathName === "resumes:scanResumePageSlim") {
+      if (call.pathName === "resumes_search:scanResumePageSlim") {
         const cursor = typeof call.args.cursor === "string" ? call.args.cursor : null;
         // Phase 1: slim projection — only searchText and basic fields
         return convexSuccess({
@@ -309,7 +309,7 @@ describe("resume routes", () => {
       }
 
       // Phase 2: fetch full docs by IDs
-      if (call.pathName === "resumes:getResumeDocsByIds") {
+      if (call.pathName === "resumes_search:getResumeDocsByIds") {
         return convexSuccess([
           {
             _id: "resume-live-1",
@@ -356,7 +356,7 @@ describe("resume routes", () => {
       })
     );
     expect(calls[0]).toEqual(expect.objectContaining({
-      pathName: "resumes:scanResumePageSlim",
+      pathName: "resumes_search:scanResumePageSlim",
     }));
   });
 
@@ -591,7 +591,7 @@ describe("resume routes", () => {
       calls.push(call);
 
       // AND-mode queries use two-phase scan: phase 1 via scanResumePageSlim
-      if (call.pathName === "resumes:scanResumePageSlim") {
+      if (call.pathName === "resumes_search:scanResumePageSlim") {
         const cursor = typeof call.args.cursor === "string" ? call.args.cursor : null;
         return convexSuccess({
           docs: cursor
@@ -608,7 +608,7 @@ describe("resume routes", () => {
       }
 
       // Phase 2: fetch full docs by IDs
-      if (call.pathName === "resumes:getResumeDocsByIds") {
+      if (call.pathName === "resumes_search:getResumeDocsByIds") {
         return convexSuccess([
           { ...buildConvexResumeRecord("resume-live-1", { name: "Alice" }), searchText: "cnc sales engineer", isArchived: false },
           { ...buildConvexResumeRecord("resume-live-2", { name: "Bob" }), searchText: "cnc sales manager", isArchived: false },
@@ -633,7 +633,7 @@ describe("resume routes", () => {
     }));
     expect(payload.data.map((item: { name: string }) => item.name)).toEqual(["Carla", "Dylan"]);
     expect(calls[0]).toEqual(expect.objectContaining({
-      pathName: "resumes:scanResumePageSlim",
+      pathName: "resumes_search:scanResumePageSlim",
     }));
   });
 
@@ -645,7 +645,7 @@ describe("resume routes", () => {
       calls.push(call);
 
       // AND-mode queries use two-phase scan: phase 1 via scanResumePageSlim
-      if (call.pathName === "resumes:scanResumePageSlim") {
+      if (call.pathName === "resumes_search:scanResumePageSlim") {
         const cursor = typeof call.args.cursor === "string" ? call.args.cursor : null;
         return convexSuccess({
           docs: cursor
@@ -660,7 +660,7 @@ describe("resume routes", () => {
       }
 
       // Phase 2: fetch full docs by IDs
-      if (call.pathName === "resumes:getResumeDocsByIds") {
+      if (call.pathName === "resumes_search:getResumeDocsByIds") {
         return convexSuccess([
           { ...buildConvexResumeRecord("resume-live-3", { name: "Carla" }), searchText: "cnc sales director", isArchived: false },
           { ...buildConvexResumeRecord("resume-live-4", { name: "Dylan" }), searchText: "cnc sales vp", isArchived: false },
@@ -677,7 +677,7 @@ describe("resume routes", () => {
     const payload = await response.json();
     expect(payload.success).toBe(true);
     expect(calls[0]).toEqual(expect.objectContaining({
-      pathName: "resumes:scanResumePageSlim",
+      pathName: "resumes_search:scanResumePageSlim",
     }));
   });
 
@@ -723,7 +723,7 @@ describe("resume routes", () => {
       calls.push(call);
 
       // AND-mode queries use two-phase scan: phase 1 via scanResumePageSlim
-      if (call.pathName === "resumes:scanResumePageSlim") {
+      if (call.pathName === "resumes_search:scanResumePageSlim") {
         const cursor = typeof call.args.cursor === "string" ? call.args.cursor : null;
         return convexSuccess({
           docs: cursor
@@ -738,7 +738,7 @@ describe("resume routes", () => {
       }
 
       // Phase 2: fetch full docs by IDs
-      if (call.pathName === "resumes:getResumeDocsByIds") {
+      if (call.pathName === "resumes_search:getResumeDocsByIds") {
         return convexSuccess([
           { ...keeKimLoong, searchText: "machine tools precision machinery sales engineer", isArchived: false },
           { ...johnsonLeeWeiTao, searchText: "precision machinery sales engineer account design", isArchived: false },
@@ -767,7 +767,7 @@ describe("resume routes", () => {
       "Johnson Lee Wei Tao",
     ]);
     expect(calls[0]).toEqual(expect.objectContaining({
-      pathName: "resumes:scanResumePageSlim",
+      pathName: "resumes_search:scanResumePageSlim",
     }));
   });
 
@@ -779,7 +779,7 @@ describe("resume routes", () => {
       calls.push(call);
 
       // AND-mode queries use two-phase scan: phase 1 via scanResumePageSlim
-      if (call.pathName === "resumes:scanResumePageSlim") {
+      if (call.pathName === "resumes_search:scanResumePageSlim") {
         const cursor = typeof call.args.cursor === "string" ? call.args.cursor : null;
         return convexSuccess({
           docs: cursor
@@ -798,7 +798,7 @@ describe("resume routes", () => {
       }
 
       // Phase 2: fetch full docs by IDs
-      if (call.pathName === "resumes:getResumeDocsByIds") {
+      if (call.pathName === "resumes_search:getResumeDocsByIds") {
         return convexSuccess([
           {
             ...buildConvexResumeRecord("resume-live-3", { name: "Carla" }),
@@ -816,7 +816,7 @@ describe("resume routes", () => {
 
     expect(response.status).toBe(200);
     // AND-mode now uses scanResumePageSlim instead of the action
-    expect(calls.some((c) => c.pathName === "resumes:scanResumePageSlim")).toBe(true);
+    expect(calls.some((c) => c.pathName === "resumes_search:scanResumePageSlim")).toBe(true);
     // Required keywords are applied as local filters in BFF AND-mode path
     const payload = await response.json();
     expect(payload.success).toBe(true);
@@ -951,7 +951,7 @@ describe("resume routes", () => {
       }),
     ]);
     expect(calls.some((call) => call.pathName === "resumes:listWithIngestData")).toBe(false);
-    expect(calls.some((call) => call.pathName === "resumes:searchWithTagExpansion")).toBe(false);
+    expect(calls.some((call) => call.pathName === "resumes_search:searchWithTagExpansion")).toBe(false);
   });
 
   it("pages score-sorted keyword convex results through exact keyword scan pages when local resume filters are present", async () => {
@@ -968,7 +968,7 @@ describe("resume routes", () => {
       const call = parseConvexCall(input, init);
       calls.push(call);
 
-      if (call.pathName === "resumes:searchWithTagExpansionScanPage") {
+      if (call.pathName === "resumes_search:searchWithTagExpansionScanPage") {
         return convexSuccess({
           page: [
             { resume: buildConvexResumeRecord("resume-live-1", { name: "Alice" }), provenance: [{ term: "sales", source: "searchText" }] },
@@ -999,14 +999,14 @@ describe("resume routes", () => {
     expect(getMatchesPageSpy).not.toHaveBeenCalled();
     expect(getMatchesByResumeIdsSpy).toHaveBeenCalledWith(["resume-live-1", "resume-live-3"], "jd-1");
     expect(calls[0]).toEqual(expect.objectContaining({
-      pathName: "resumes:searchWithTagExpansionScanPage",
+      pathName: "resumes_search:searchWithTagExpansionScanPage",
       args: expect.objectContaining({
         paginationOpts: expect.objectContaining({ cursor: null, numItems: 250 }),
         locations: ["东莞"],
       }),
     }));
-    expect(calls.some((call) => call.pathName === "resumes:searchWithTagExpansionPage")).toBe(false);
-    expect(calls.some((call) => call.pathName === "resumes:searchWithTagExpansion")).toBe(false);
+    expect(calls.some((call) => call.pathName === "resumes_search:searchWithTagExpansionPage")).toBe(false);
+    expect(calls.some((call) => call.pathName === "resumes_search:searchWithTagExpansion")).toBe(false);
   });
 
   it("pages bounded score-sorted keyword convex results through exact keyword scan pages without source-side resume filters", async () => {
@@ -1023,7 +1023,7 @@ describe("resume routes", () => {
       const call = parseConvexCall(input, init);
       calls.push(call);
 
-      if (call.pathName === "resumes:searchWithTagExpansionScanPage") {
+      if (call.pathName === "resumes_search:searchWithTagExpansionScanPage") {
         return convexSuccess({
           page: [
             { resume: buildConvexResumeRecord("resume-live-1", { name: "Alice" }), provenance: [{ term: "sales", source: "searchText" }] },
@@ -1052,13 +1052,13 @@ describe("resume routes", () => {
     expect(getMatchesPageSpy).not.toHaveBeenCalled();
     expect(getMatchesByResumeIdsSpy).toHaveBeenCalledWith(["resume-live-1", "resume-live-3"], "jd-1");
     expect(calls[0]).toEqual(expect.objectContaining({
-      pathName: "resumes:searchWithTagExpansionScanPage",
+      pathName: "resumes_search:searchWithTagExpansionScanPage",
       args: expect.objectContaining({
         paginationOpts: expect.objectContaining({ cursor: null, numItems: 250 }),
       }),
     }));
-    expect(calls.some((call) => call.pathName === "resumes:searchWithTagExpansionPage")).toBe(false);
-    expect(calls.some((call) => call.pathName === "resumes:searchWithTagExpansion")).toBe(false);
+    expect(calls.some((call) => call.pathName === "resumes_search:searchWithTagExpansionPage")).toBe(false);
+    expect(calls.some((call) => call.pathName === "resumes_search:searchWithTagExpansion")).toBe(false);
   });
 
   it("scans oversized score-sorted keyword searches through exact cursor pages without fallback overfetch", async () => {
@@ -1075,7 +1075,7 @@ describe("resume routes", () => {
       const call = parseConvexCall(input, init);
       calls.push(call);
 
-      if (call.pathName === "resumes:searchWithTagExpansionScanPage") {
+      if (call.pathName === "resumes_search:searchWithTagExpansionScanPage") {
         return convexSuccess({
           page: call.args.paginationOpts && isRecord(call.args.paginationOpts) && call.args.paginationOpts.cursor === "scan-2"
             ? [
@@ -1104,19 +1104,19 @@ describe("resume routes", () => {
     expect(getMatchesPageSpy).not.toHaveBeenCalled();
     expect(getMatchesByResumeIdsSpy).toHaveBeenCalledWith(["resume-live-1", "resume-live-3"], "jd-1");
     expect(calls[0]).toEqual(expect.objectContaining({
-      pathName: "resumes:searchWithTagExpansionScanPage",
+      pathName: "resumes_search:searchWithTagExpansionScanPage",
       args: expect.objectContaining({
         paginationOpts: expect.objectContaining({ cursor: null, numItems: 250 }),
       }),
     }));
     expect(calls[1]).toEqual(expect.objectContaining({
-      pathName: "resumes:searchWithTagExpansionScanPage",
+      pathName: "resumes_search:searchWithTagExpansionScanPage",
       args: expect.objectContaining({
         paginationOpts: expect.objectContaining({ cursor: "scan-2", numItems: 250 }),
       }),
     }));
-    expect(calls.some((call) => call.pathName === "resumes:searchWithTagExpansionPage")).toBe(false);
-    expect(calls.some((call) => call.pathName === "resumes:searchWithTagExpansion")).toBe(false);
+    expect(calls.some((call) => call.pathName === "resumes_search:searchWithTagExpansionPage")).toBe(false);
+    expect(calls.some((call) => call.pathName === "resumes_search:searchWithTagExpansion")).toBe(false);
   });
 
   it("keeps the best-scoring duplicate identity when oversized keyword scans merge exact cursor pages", async () => {
@@ -1144,7 +1144,7 @@ describe("resume routes", () => {
       const call = parseConvexCall(input, init);
       calls.push(call);
 
-      if (call.pathName === "resumes:searchWithTagExpansionPage") {
+      if (call.pathName === "resumes_search:searchWithTagExpansionPage") {
         return convexSuccess({
           expansion: {
             original: "cnc sales",
@@ -1169,7 +1169,7 @@ describe("resume routes", () => {
         });
       }
 
-      if (call.pathName === "resumes:searchWithTagExpansionScanPage") {
+      if (call.pathName === "resumes_search:searchWithTagExpansionScanPage") {
         return convexSuccess({
           page: call.args.paginationOpts && isRecord(call.args.paginationOpts) && call.args.paginationOpts.cursor === "scan-2"
             ? [
@@ -1224,7 +1224,7 @@ describe("resume routes", () => {
     expect(payload.data.map((item: { name: string }) => item.name)).toEqual(["Alice Better", "Carla"]);
     expect(getMatchesPageSpy).not.toHaveBeenCalled();
     expect(getMatchesByResumeIdsSpy).toHaveBeenCalledWith(["resume-live-1", "resume-live-2", "resume-live-3"], "jd-1");
-    expect(calls.some((call) => call.pathName === "resumes:searchWithTagExpansionScanPage")).toBe(true);
+    expect(calls.some((call) => call.pathName === "resumes_search:searchWithTagExpansionScanPage")).toBe(true);
   });
 
   it("keeps explicit non-score keyword sorts when match filters require keyword scan pagination", async () => {
@@ -1252,7 +1252,7 @@ describe("resume routes", () => {
       const call = parseConvexCall(input, init);
       calls.push(call);
 
-      if (call.pathName === "resumes:searchWithTagExpansionScanPage") {
+      if (call.pathName === "resumes_search:searchWithTagExpansionScanPage") {
         return convexSuccess({
           page: [
             { resume: buildConvexResumeRecord("resume-live-1", { name: "Alice", location: "东莞" }), provenance: [{ term: "sales", source: "searchText" }] },
@@ -1284,7 +1284,7 @@ describe("resume routes", () => {
     expect(getMatchesPageSpy).not.toHaveBeenCalled();
     expect(getMatchesByResumeIdsSpy).toHaveBeenCalledWith(["resume-live-1", "resume-live-2", "resume-live-3"], "jd-1");
     expect(calls[0]).toEqual(expect.objectContaining({
-      pathName: "resumes:searchWithTagExpansionScanPage",
+      pathName: "resumes_search:searchWithTagExpansionScanPage",
       args: expect.objectContaining({
         paginationOpts: expect.objectContaining({ cursor: null, numItems: 250 }),
       }),
@@ -1458,7 +1458,7 @@ describe("resume routes", () => {
       const call = parseConvexCall(input, init);
       calls.push(call);
 
-      if (call.pathName === "resumes:searchWithTagExpansionPaginated") {
+      if (call.pathName === "resumes_search:searchWithTagExpansionPaginated") {
         expect(call.args).toEqual(expect.objectContaining({
           query: "cnc 销售",
           locations: ["China"],
@@ -1506,7 +1506,7 @@ describe("resume routes", () => {
     }));
     expect(calls).toHaveLength(1);
     expect(calls[0]).toEqual(expect.objectContaining({
-      pathName: "resumes:searchWithTagExpansionPaginated",
+      pathName: "resumes_search:searchWithTagExpansionPaginated",
     }));
   });
 

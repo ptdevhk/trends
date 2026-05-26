@@ -121,7 +121,7 @@ describe("resumes.search (convex-test)", () => {
       }));
     });
 
-    const results = await t.query(api.resumes.search, {
+    const results = await t.query(api.resumes_search.search, {
       query: "cnc",
       limit: 10,
     });
@@ -147,7 +147,7 @@ describe("resumes.search (convex-test)", () => {
       }));
     });
 
-    const results = await t.query(api.resumes.search, {
+    const results = await t.query(api.resumes_search.search, {
       query: "cnc",
       limit: 10,
     });
@@ -171,7 +171,7 @@ describe("resumes.search (convex-test)", () => {
       }));
     });
 
-    const results = await t.query(api.resumes.search, {
+    const results = await t.query(api.resumes_search.search, {
       query: "cnc sales",
       limit: 10,
     });

@@ -527,7 +527,7 @@ export async function prepareConvexCandidates(params: {
       // Only collect IDs of docs matching keyword groups + basic filters.
       const matchingIds: string[] = [];
       while (true) {
-        const page = await callConvexQuery("resumes:scanResumePageSlim", {
+        const page = await callConvexQuery("resumes_search:scanResumePageSlim", {
           ...(scanCursor ? { cursor: scanCursor } : {}),
           numItems: 1000,
         });
@@ -567,7 +567,7 @@ export async function prepareConvexCandidates(params: {
       const BATCH_SIZE = 100;
       for (let i = 0; i < matchingIds.length; i += BATCH_SIZE) {
         const batchIds = matchingIds.slice(i, i + BATCH_SIZE);
-        const fullDocs = await callConvexQuery("resumes:getResumeDocsByIds", {
+        const fullDocs = await callConvexQuery("resumes_search:getResumeDocsByIds", {
           ids: batchIds,
         });
 
@@ -640,7 +640,7 @@ export async function prepareConvexCandidates(params: {
       let totalScanned = 0;
 
       while (true) {
-        const value = await callConvexQuery("resumes:searchWithTagExpansionScanPage", {
+        const value = await callConvexQuery("resumes_search:searchWithTagExpansionScanPage", {
           paginationOpts: {
             cursor,
             numItems: MATCH_STORAGE_FILTER_SCAN_BATCH_SIZE,
@@ -701,7 +701,7 @@ export async function prepareConvexCandidates(params: {
     }
 
     // Fallback: non-paged, no-filters path uses the simple search query
-    const value = await callConvexQuery("resumes:searchWithTagExpansion", {
+    const value = await callConvexQuery("resumes_search:searchWithTagExpansion", {
       query: canonicalKeywordQuery,
       keywordGroups: keywordExpansion?.groups ?? [],
       mode: keywordExpansion?.mode ?? "AND",

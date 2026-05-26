@@ -452,7 +452,7 @@ export const hybridSearchResumes = action({
         const bm25Weight = 1 - semanticWeight;
 
         // 1. Run existing BM25 search
-        const bm25Result = (await ctx.runAction(api.resumes.searchWithTagExpansionAndMode, {
+        const bm25Result = (await ctx.runAction(api.resumes_search.searchWithTagExpansionAndMode, {
             query: args.query,
             keywordGroups: args.keywordGroups,
             sourceMappings: args.sourceMappings,
@@ -547,7 +547,7 @@ export const hybridSearchResumes = action({
         });
 
         if (vectorOnlyIds.length > 0) {
-            const additionalDocs = await ctx.runQuery(internal.resumes.getResumesByIds, {
+            const additionalDocs = await ctx.runQuery(internal.resumes_search.getResumesByIds, {
                 resumeIds: vectorOnlyIds.map((id) => id as unknown as Id<"resumes">),
             });
             for (const doc of additionalDocs) {

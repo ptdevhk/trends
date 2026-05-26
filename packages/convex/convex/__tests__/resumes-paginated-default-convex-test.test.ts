@@ -499,7 +499,7 @@ describe("resumes: searchWithTagExpansionPaginated", () => {
       searchText: "java developer backend",
     });
 
-    const result = await t.query(api.resumes.searchWithTagExpansionPaginated, {
+    const result = await t.query(api.resumes_search.searchWithTagExpansionPaginated, {
       paginationOpts: { cursor: null, numItems: 10 },
       query: "CNC 销售",
       keywordGroups: [
@@ -591,7 +591,7 @@ describe("resumes: searchWithTagExpansionPaginated", () => {
       },
     });
 
-    const result = await t.query(api.resumes.searchWithTagExpansionPaginated, {
+    const result = await t.query(api.resumes_search.searchWithTagExpansionPaginated, {
       paginationOpts: { cursor: null, numItems: 10 },
       query: "CNC 销售",
       keywordGroups: [
