@@ -381,7 +381,7 @@ describe("resume routes", () => {
       const call = parseConvexCall(input, init);
       calls.push(call);
 
-      if (call.pathName === "resumes:listArchivedDiagnostics") {
+      if (call.pathName === "resumes_diagnostics:listArchivedDiagnostics") {
         expect(call.args).toEqual(expect.objectContaining({
           sourceKeys: ["51job-manual", "seek"],
         }));
@@ -428,7 +428,7 @@ describe("resume routes", () => {
       ],
     }));
     expect(calls[0]).toEqual(expect.objectContaining({
-      pathName: "resumes:listArchivedDiagnostics",
+      pathName: "resumes_diagnostics:listArchivedDiagnostics",
     }));
   });
 

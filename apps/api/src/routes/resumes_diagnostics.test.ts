@@ -192,7 +192,7 @@ describe("resumes_diagnostics", () => {
       expect(response.status).toBe(200);
       const payload = await response.json();
       expect(payload.success).toBe(true);
-      expect(calls[0].path).toBe("resumes:listArchivedDiagnostics");
+      expect(calls[0].path).toBe("resumes_diagnostics:listArchivedDiagnostics");
     });
   });
 });
