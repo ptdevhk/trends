@@ -310,6 +310,10 @@
         "interviewing": "Interviewing",
         "interviewed_pass": "Interview passed",
         "interviewed_reject": "Interview rejected",
+        "appeal_submitted": "Appeal submitted",
+        "human_review": "Under human review",
+        "upheld": "Decision upheld",
+        "reversed": "Decision reversed",
         "offer": "Offer sent",
         "hired": "Hired",
         "withdrawn": "Withdrawn"
@@ -1429,6 +1433,13 @@
       "title": "Your Rights",
       "description": "You have the right to request human review of this decision. A qualified person will re-evaluate your application independently.",
       "requestReview": "Request Human Review"
+    },
+    "appeal": {
+      "placeholder": "Optional: explain why you believe this decision should be reviewed...",
+      "submitting": "Submitting...",
+      "success": "Your appeal has been submitted. A qualified person will review your application.",
+      "nextSteps": "You will be notified of the review outcome.",
+      "error": "Failed to submit appeal. Please try again."
     },
     "footer": {
       "compliance": "This explanation is provided in compliance with EU AI Act Article 13."
