@@ -32,6 +32,7 @@ import type * as lib_resume_identity from "../lib/resume_identity.js";
 import type * as lib_resume_task_helpers from "../lib/resume_task_helpers.js";
 import type * as lib_resumes_diagnostics from "../lib/resumes_diagnostics.js";
 import type * as lib_resumes_list_projections from "../lib/resumes_list_projections.js";
+import type * as lib_resumes_pagination from "../lib/resumes_pagination.js";
 import type * as lib_resumes_tag_expansion from "../lib/resumes_tag_expansion.js";
 import type * as llm_cost from "../llm_cost.js";
 import type * as migrations from "../migrations.js";
@@ -79,6 +80,7 @@ declare const fullApi: ApiFromModules<{
   "lib/resume_task_helpers": typeof lib_resume_task_helpers;
   "lib/resumes_diagnostics": typeof lib_resumes_diagnostics;
   "lib/resumes_list_projections": typeof lib_resumes_list_projections;
+  "lib/resumes_pagination": typeof lib_resumes_pagination;
   "lib/resumes_tag_expansion": typeof lib_resumes_tag_expansion;
   llm_cost: typeof llm_cost;
   migrations: typeof migrations;
