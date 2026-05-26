@@ -1411,5 +1411,54 @@
       "outcomeSet": "审计结果已更新",
       "outcomeFailed": "更新审计结果失败"
     }
+  },
+  "explanationPage": {
+    "loading": "正在加载您的申请状态...",
+    "missingId": {
+      "title": "链接无效",
+      "description": "此说明链接缺少必要信息，请联系雇主获取有效链接。"
+    },
+    "error": {
+      "title": "无法加载",
+      "description": "我们无法加载此申请的说明，请稍后重试。"
+    },
+    "noData": {
+      "title": "暂无说明",
+      "description": "此申请决定的说明当前不可用。您有权向雇主请求获取。"
+    },
+    "summary": {
+      "status": "申请状态",
+      "title": "您的申请状态",
+      "decidedAt": "决定时间"
+    },
+    "decisionType": {
+      "score": "评分",
+      "tag": "标记",
+      "rank": "排名",
+      "filter": "筛选",
+      "confirm": "确认"
+    },
+    "factors": {
+      "title": "关键因素",
+      "description": "以下是影响此决定的主要因素。",
+      "factor": "因素",
+      "value": "值"
+    },
+    "safeguards": {
+      "title": "AI 安全保障",
+      "description": "此决定由 AI 辅助，并采取了以下保障措施：",
+      "biasAudit": "每周偏差审计监控",
+      "humanOversight": "人工监督追踪",
+      "anomalyDetection": "评分漂移异常检测",
+      "protectedExcluded": "受保护属性（如年龄、性别）已从决策过程中排除。"
+    },
+    "rights": {
+      "title": "您的权利",
+      "description": "您有权要求人工审核此决定。专业人员将独立重新评估您的申请。",
+      "requestReview": "请求人工审核"
+    },
+    "footer": {
+      "compliance": "此说明依据 EU AI Act 第13条提供。"
+    }
   }
 }

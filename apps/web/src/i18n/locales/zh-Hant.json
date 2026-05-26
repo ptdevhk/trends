@@ -1384,5 +1384,54 @@
       "outcomeSet": "稽核結果已更新",
       "outcomeFailed": "更新稽核結果失敗"
     }
+  },
+  "explanationPage": {
+    "loading": "正在載入您的申請狀態...",
+    "missingId": {
+      "title": "連結無效",
+      "description": "此說明連結缺少必要資訊，請聯絡雇主取得有效連結。"
+    },
+    "error": {
+      "title": "無法載入",
+      "description": "我們無法載入此申請的說明，請稍後重試。"
+    },
+    "noData": {
+      "title": "暫無說明",
+      "description": "此申請決定的說明當前不可用。您有權向雇主請求取得。"
+    },
+    "summary": {
+      "status": "申請狀態",
+      "title": "您的申請狀態",
+      "decidedAt": "決定時間"
+    },
+    "decisionType": {
+      "score": "評分",
+      "tag": "標記",
+      "rank": "排名",
+      "filter": "篩選",
+      "confirm": "確認"
+    },
+    "factors": {
+      "title": "關鍵因素",
+      "description": "以下是影響此決定的主要因素。",
+      "factor": "因素",
+      "value": "值"
+    },
+    "safeguards": {
+      "title": "AI 安全保障",
+      "description": "此決定由 AI 輔助，並採取了以下保障措施：",
+      "biasAudit": "每週偏差稽核監控",
+      "humanOversight": "人工監督追蹤",
+      "anomalyDetection": "評分漂移異常偵測",
+      "protectedExcluded": "受保護屬性（如年齡、性別）已從決策過程中排除。"
+    },
+    "rights": {
+      "title": "您的權利",
+      "description": "您有權要求人工審核此決定。專業人員將獨立重新評估您的申請。",
+      "requestReview": "請求人工審核"
+    },
+    "footer": {
+      "compliance": "此說明依據 EU AI Act 第13條提供。"
+    }
   }
 }
