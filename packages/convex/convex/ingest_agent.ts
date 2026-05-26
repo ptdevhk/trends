@@ -93,7 +93,7 @@ export const processNewResumes = internalAction({
       return { processed: 0, error: null };
     }
 
-    console.log(`[ingest_agent] Processing ${resumeIds.length} resumes...`);
+    console.debug(`[ingest_agent] Processing ${resumeIds.length} resumes...`);
 
     try {
       // 1. Fetch resume documents
@@ -102,7 +102,7 @@ export const processNewResumes = internalAction({
       });
 
       if (resumes.length === 0) {
-        console.log("[ingest_agent] No resumes found");
+        console.debug("[ingest_agent] No resumes found");
         return { processed: 0, error: null };
       }
 
@@ -119,7 +119,7 @@ export const processNewResumes = internalAction({
       const bffUrl = getBffApiUrl();
       const endpoint = `${bffUrl}/api/resumes/ingest-compute`;
 
-      console.log(`[ingest_agent] Calling BFF at ${endpoint}...`);
+      console.debug(`[ingest_agent] Calling BFF at ${endpoint}...`);
 
       const response = await fetch(endpoint, {
         method: "POST",
@@ -206,7 +206,7 @@ export const processNewResumes = internalAction({
         }
       }
 
-      console.log(`[ingest_agent] Successfully processed ${updates.length} resumes`);
+      console.debug(`[ingest_agent] Successfully processed ${updates.length} resumes`);
 
       return { processed: updates.length, error: null };
     } catch (error) {

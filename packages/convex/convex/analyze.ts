@@ -165,7 +165,7 @@ export async function callLLM(messages: ChatMessage[], apiKey: string) {
     const url = `${apiBase}/chat/completions`;
     const model = resolveChatCompletionModel(apiBase, getAiModel());
 
-    console.log(`Calling LLM at ${url} with model ${model}...`);
+    console.debug(`Calling LLM at ${url} with model ${model}...`);
 
     const response = await fetch(url, {
         method: "POST",
