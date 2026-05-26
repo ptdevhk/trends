@@ -376,7 +376,7 @@ export default defineSchema({
     workspace_config: defineTable({
         workspaceSlug: v.string(),
         configKey: v.string(),
-        configValue: v.union(v.string(), v.number(), v.boolean(), v.array(v.any()), v.record(v.string(), v.any())),
+        configValue: v.any(),
         updatedAt: v.number(),
     })
         .index("by_workspace_key", ["workspaceSlug", "configKey"])
