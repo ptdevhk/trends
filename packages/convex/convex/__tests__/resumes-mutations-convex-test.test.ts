@@ -9,24 +9,9 @@ import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { api, internal } from "../_generated/api.js";
 import schema from "../schema.js";
+import { seedResume } from "./test-helpers.js";
 
 const modules = (import.meta as any).glob("../**/*.ts", { eager: false });
-
-function seedResume(t: ReturnType<typeof convexTest>, overrides: Record<string, unknown> = {}) {
-    return t.run(async (ctx) => {
-        return ctx.db.insert("resumes", {
-            externalId: "test-resume-1",
-            identityKey: "profileUrl:example.com/candidates/1",
-            content: { name: "Test Candidate" },
-            hash: "hash-test",
-            source: "example.com",
-            sourceKey: "test",
-            tags: ["test"],
-            crawledAt: Date.now(),
-            ...overrides,
-        });
-    });
-}
 
 describe("resumes: updateAnalysis", () => {
     it("stores analysis on an existing resume", async () => {
