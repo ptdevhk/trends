@@ -73,7 +73,7 @@ app.post("/api/resumes/hard-reset-reingest", requireAdmin, async (c) => {
 
   try {
     if (dryRun) {
-      const firstPage = await callConvexMutation("resumes:hardResetIngestData", {
+      const firstPage = await callConvexMutation("resumes_mutations:hardResetIngestData", {
         cursor: null,
         batchSize: 50,
       }) as { cleared: number; hasMore: boolean; cursor?: string };
@@ -83,7 +83,7 @@ app.post("/api/resumes/hard-reset-reingest", requireAdmin, async (c) => {
       let hasMore = firstPage.hasMore;
 
       for (let i = 0; i < 10000 && hasMore; i++) {
-        const page = await callConvexMutation("resumes:hardResetIngestData", {
+        const page = await callConvexMutation("resumes_mutations:hardResetIngestData", {
           cursor,
           batchSize: 50,
         }) as { cleared: number; hasMore: boolean; cursor?: string };
@@ -105,7 +105,7 @@ app.post("/api/resumes/hard-reset-reingest", requireAdmin, async (c) => {
     let hasMore = true;
 
     for (let i = 0; i < 10000 && hasMore; i++) {
-      const page = await callConvexMutation("resumes:hardResetIngestData", {
+      const page = await callConvexMutation("resumes_mutations:hardResetIngestData", {
         cursor,
         batchSize: 50,
       }) as { cleared: number; hasMore: boolean; cursor?: string };
@@ -175,7 +175,7 @@ app.post("/api/resumes/clear-analyses", requireAdmin, async (c) => {
     if (dryRun) {
       const args = buildClearAnalysesArgs();
 
-      const firstPage = await callConvexMutation("resumes:clearAnalyses", args) as {
+      const firstPage = await callConvexMutation("resumes_mutations:clearAnalyses", args) as {
         cleared: number;
         hasMore: boolean;
         cursor?: string;
@@ -187,7 +187,7 @@ app.post("/api/resumes/clear-analyses", requireAdmin, async (c) => {
 
       for (let i = 0; i < 10000 && hasMore && !isTargeted; i++) {
         const pageArgs = buildClearAnalysesArgs(cursor);
-        const page = await callConvexMutation("resumes:clearAnalyses", pageArgs) as {
+        const page = await callConvexMutation("resumes_mutations:clearAnalyses", pageArgs) as {
           cleared: number;
           hasMore: boolean;
           cursor?: string;
@@ -215,7 +215,7 @@ app.post("/api/resumes/clear-analyses", requireAdmin, async (c) => {
     for (let i = 0; i < 10000 && hasMore; i++) {
       const args = buildClearAnalysesArgs(cursor);
 
-      const page = await callConvexMutation("resumes:clearAnalyses", args) as {
+      const page = await callConvexMutation("resumes_mutations:clearAnalyses", args) as {
         cleared: number;
         hasMore: boolean;
         cursor?: string;
@@ -289,7 +289,7 @@ app.post("/api/resumes/archive", requireAdmin, async (c) => {
 
   try {
     if (action === "archive") {
-      const result = await callConvexMutation("resumes:archiveResumes", { resumeIds }) as {
+      const result = await callConvexMutation("resumes_mutations:archiveResumes", { resumeIds }) as {
         requested: number;
         archived: number;
         alreadyArchived: number;
@@ -297,7 +297,7 @@ app.post("/api/resumes/archive", requireAdmin, async (c) => {
       };
       return c.json({ success: true, ...result }, 200);
     } else {
-      const result = await callConvexMutation("resumes:unarchiveResumes", { resumeIds }) as {
+      const result = await callConvexMutation("resumes_mutations:unarchiveResumes", { resumeIds }) as {
         requested: number;
         unarchived: number;
         notArchived: number;

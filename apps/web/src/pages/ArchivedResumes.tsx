@@ -59,7 +59,7 @@ export default function ArchivedResumes() {
     { initialNumItems: PAGE_SIZE }
   )
 
-  const unarchiveResumesMutation = useMutation(api.resumes.unarchiveResumes)
+  const unarchiveResumesMutation = useMutation(api.resumes_mutations.unarchiveResumes)
 
   const [search, setSearch] = useState('')
   const [selectedResumeIds, setSelectedResumeIds] = useState<Set<string>>(new Set())

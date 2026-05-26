@@ -41,6 +41,7 @@ import type * as resume_helpers from "../resume_helpers.js";
 import type * as resume_tasks from "../resume_tasks.js";
 import type * as resumes from "../resumes.js";
 import type * as resumes_diagnostics from "../resumes_diagnostics.js";
+import type * as resumes_mutations from "../resumes_mutations.js";
 import type * as resumes_search from "../resumes_search.js";
 import type * as search_alerts from "../search_alerts.js";
 import type * as search_profiles from "../search_profiles.js";
@@ -92,6 +93,7 @@ declare const fullApi: ApiFromModules<{
   resume_tasks: typeof resume_tasks;
   resumes: typeof resumes;
   resumes_diagnostics: typeof resumes_diagnostics;
+  resumes_mutations: typeof resumes_mutations;
   resumes_search: typeof resumes_search;
   search_alerts: typeof search_alerts;
   search_profiles: typeof search_profiles;

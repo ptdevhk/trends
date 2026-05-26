@@ -1517,7 +1517,7 @@ describe("resume routes", () => {
       const call = parseConvexCall(input, init, "/api/mutation");
       calls.push(call);
 
-      if (call.pathName !== "resumes:clearAnalyses") {
+      if (call.pathName !== "resumes_mutations:clearAnalyses") {
         throw new Error(`Unexpected convex path: ${call.pathName}`);
       }
 
@@ -1566,7 +1566,7 @@ describe("resume routes", () => {
       const call = parseConvexCall(input, init, "/api/mutation");
       calls.push(call);
 
-      if (call.pathName !== "resumes:clearAnalyses") {
+      if (call.pathName !== "resumes_mutations:clearAnalyses") {
         throw new Error(`Unexpected convex path: ${call.pathName}`);
       }
 
