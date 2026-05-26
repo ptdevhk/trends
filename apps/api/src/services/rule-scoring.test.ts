@@ -965,8 +965,9 @@ describe("RuleScoringService", () => {
         const myResult = service.scoreResume(index, context, brandHits, [], "MY");
 
         expect(cnResult.breakdown.brandRelevance).toBeGreaterThan(0);
-        expect(myResult.breakdown.brandRelevance).toBe(0);
-        expect(myResult.score).toBeLessThan(cnResult.score);
+        // MY market now computes brandRelevance normally — international brands match
+        expect(myResult.breakdown.brandRelevance).toBeGreaterThan(0);
+        expect(myResult.breakdown.brandRelevance).toBe(cnResult.breakdown.brandRelevance);
       } finally {
         cleanupFixtureRoot(root);
       }

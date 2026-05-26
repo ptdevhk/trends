@@ -117,7 +117,7 @@
       "experience": "Experience",
       "skills": "Skills",
       "industryDb": "Industry DB",
-      "industryDbNotAvailable": "Industry DB: Not available for MY market",
+      "industryDbNotAvailable": "Industry DB: Floor 40 (no MY data)",
       "education": "Education",
       "location": "Location"
     },
@@ -497,11 +497,11 @@
         "relatedExp": "Related Exp",
         "skills": "Skills",
         "industryDb": "Industry DB",
-        "industryDbNotAvailable": "Industry DB: Not available for MY market",
+        "industryDbNotAvailable": "Industry DB: Floor 40 (no MY data)",
         "education": "Education",
         "location": "Location",
         "breakdownLabels": {
-          "industryDbNotAvailable": "Industry DB: Not available for MY market"
+          "industryDbNotAvailable": "Industry DB: Floor 40 (no MY data)"
         }
       },
       "error": {

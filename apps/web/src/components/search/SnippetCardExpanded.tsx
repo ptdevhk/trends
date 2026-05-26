@@ -32,11 +32,11 @@ function formatSnakeCaseLabel(value: string): string {
   return value.replace(/_/g, ' ')
 }
 
-function BreakdownBar({ breakdown, isMyMarket }: { breakdown: Record<string, number>; isMyMarket?: boolean }) {
+function BreakdownBar({ breakdown, isMyMarket, hasMyIndustryHits }: { breakdown: Record<string, number>; isMyMarket?: boolean; hasMyIndustryHits?: boolean }) {
   const { t } = useTranslation()
   const relatedExp = breakdown.related_exp ?? 0
   const industryDb = breakdown.industry_db ?? 0
-  if (isMyMarket) {
+  if (isMyMarket && !hasMyIndustryHits) {
     return (
       <div className="space-y-1.5">
         <div className="flex h-3 w-full overflow-hidden rounded-full bg-slate-200">
@@ -330,7 +330,11 @@ export function SnippetCardExpanded({
                     <div className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
                       {analysisBreakdownLabel}
                     </div>
-                    <BreakdownBar breakdown={analysis.breakdown} isMyMarket={item.resume.ingestData?.market === 'MY'} />
+                    <BreakdownBar
+                      breakdown={analysis.breakdown}
+                      isMyMarket={item.resume.ingestData?.market === 'MY'}
+                      hasMyIndustryHits={(item.resume.ingestData?.brandHits?.length ?? 0) + (item.resume.ingestData?.companyHits?.length ?? 0) > 0}
+                    />
                     <div className="grid gap-2 sm:grid-cols-2">
                       {Object.entries(analysis.breakdown).map(([label, value]) => (
                         <div
@@ -504,21 +508,22 @@ export function SnippetCardExpanded({
                     { key: 'location', label: t('resumes.searchPage.card.location', { defaultValue: 'Location' }) },
                   ].map(({ key, label }) => {
                     const isMyMarket = item.resume.ingestData?.market === 'MY'
-                    const isIndustryDbMy = key === 'industry_db' && isMyMarket
-                    const score = isIndustryDbMy ? 0 : ((analysis?.breakdown as Record<string, number> | undefined)?.[key] ?? 0)
+                    const hasMyIndustryHits = isMyMarket && key === 'industry_db' && (item.resume.ingestData?.brandHits?.length ?? 0) + (item.resume.ingestData?.companyHits?.length ?? 0) > 0
+                    const isIndustryDbMyNoHits = key === 'industry_db' && isMyMarket && !hasMyIndustryHits
+                    const score = isIndustryDbMyNoHits ? 0 : ((analysis?.breakdown as Record<string, number> | undefined)?.[key] ?? 0)
                     return (
                       <div key={key} className="space-y-0.5">
                         <div className="flex items-center justify-between text-[11px]">
-                          <span className={isIndustryDbMy ? 'italic text-muted-foreground/60' : 'text-muted-foreground'}>
-                            {isIndustryDbMy
+                          <span className={isIndustryDbMyNoHits ? 'italic text-muted-foreground/60' : 'text-muted-foreground'}>
+                            {isIndustryDbMyNoHits
                               ? t('resumes.searchPage.card.breakdownLabels.industryDbNotAvailable', { defaultValue: 'Industry DB: Not available for MY market' })
                               : label}
                           </span>
-                          {!isIndustryDbMy && (
+                          {!isIndustryDbMyNoHits && (
                             <span className="font-mono text-xs text-muted-foreground">{Math.round(typeof score === 'number' ? score : 0)}</span>
                           )}
                         </div>
-                        {!isIndustryDbMy && (
+                        {!isIndustryDbMyNoHits && (
                           <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
                             <div
                               className="h-full rounded-full bg-primary/60 transition-all"
