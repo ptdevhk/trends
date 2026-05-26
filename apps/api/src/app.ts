@@ -134,9 +134,9 @@ export function createApp() {
   app.route("/", resumesDiagnosticsRoutes);
   app.route("/", resumesImportRoutes);
   app.route("/", resumesPacketsRoutes);
+  app.route("/", resumesSearchRoutes);
   app.route("/", resumesRoutes);
   app.route("/", resumesAdminRoutes);
-  app.route("/", resumesSearchRoutes);
   app.route("/", resumeSubmitRoutes);
   app.route("/", industryRoutes);
   app.route("/", jobDescriptionsRoutes);

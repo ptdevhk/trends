@@ -4,7 +4,7 @@ export default defineConfig({
     test: {
         environment: "node",
         environmentMatchGlobs: [
-            ["packages/convex/convex/__tests__/*-convex-test.test.ts", "edge-runtime"],
+            ["packages/convex/__tests__/*-convex-test.test.ts", "edge-runtime"],
         ],
         include: ["apps/**/*.test.ts", "packages/**/*.test.ts", "scripts/**/*.test.ts"],
         exclude: ["apps/web/**/*.test.ts", "apps/web/**/*.test.tsx", "scripts/test-notifications.test.ts", "**/node_modules/**"],
