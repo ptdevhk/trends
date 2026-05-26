@@ -139,6 +139,36 @@ const MatchRescoreResponseSchema = MatchResponseSchema;
 const TriggerReingestRequestSchema = z.object({
   limit: z.number().int().min(1).max(1000).optional(),
 });
+const TriggerReingestResponseSchema = z.object({
+  success: z.literal(true),
+  processed: z.number().int().optional(),
+  skipped: z.number().int().optional(),
+});
+const ExplanationRequestSchema = z.object({
+  resumeId: z.string().min(1),
+  workspaceSlug: z.string().min(1),
+});
+const ExplanationResponseSchema = z.object({
+  success: z.literal(true),
+  data: z.any().nullable(),
+});
+const AuditLogsRequestSchema = z.object({
+  workspaceSlug: z.string().min(1),
+  decisionType: z.enum(["score", "tag", "rank", "filter", "confirm"]).optional(),
+  outcome: z.enum(["pending", "accepted", "overridden", "appealed"]).optional(),
+});
+const AuditLogsResponseSchema = z.object({
+  success: z.literal(true),
+  data: z.any(),
+});
+const AuditOutcomeRequestSchema = z.object({
+  auditLogId: z.string().min(1),
+  outcome: z.enum(["accepted", "overridden", "appealed"]),
+  setBy: z.string().optional(),
+});
+const AuditOutcomeResponseSchema = z.object({
+  success: z.literal(true),
+});
 const ResumeImportErrorSchema = SimpleErrorSchema;
 
 const ResetCandidateActionsRequestSchema = z.object({
@@ -1089,29 +1119,51 @@ app.openapi(getResumeDetailRoute, async (c) => {
   }
 });
 
-app.post("/api/resumes/trigger-reingest", async (c) => {
-  const body = await c.req.json().catch(() => ({}));
-  const parsed = TriggerReingestRequestSchema.safeParse(body);
-  if (!parsed.success) {
-    return c.json({ success: false, error: "Invalid request payload" }, 400);
-  }
+const triggerReingestRoute = createRoute({
+  method: "post",
+  path: "/api/resumes/trigger-reingest",
+  tags: ["resumes"],
+  summary: "Trigger re-ingest for resumes with stale skills version",
+  request: {
+    body: {
+      content: { "application/json": { schema: TriggerReingestRequestSchema } },
+    },
+  },
+  responses: {
+    200: { content: { "application/json": { schema: TriggerReingestResponseSchema } }, description: "Reingest triggered" },
+    400: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Invalid request" },
+    500: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Internal error" },
+  },
+});
+app.openapi(triggerReingestRoute, async (c) => {
+  const { limit } = c.req.valid("json");
 
   try {
-    const result = await triggerReingestStaleSkillsVersion(parsed.data.limit ?? 200);
-    return c.json({ success: true, ...result }, 200);
+    const result = await triggerReingestStaleSkillsVersion(limit ?? 200);
+    return c.json({ success: true as const, ...result }, 200);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return c.json({ success: false, error: message }, 500);
   }
 });
 
-app.post("/api/resumes/analyze", async (c) => {
-  const body = await c.req.json().catch(() => ({}));
-  const parsed = AnalyzeRequestSchema.safeParse(body);
-  if (!parsed.success) {
-    return c.json({ success: false, error: "Invalid request payload" }, 400);
-  }
-
+const analyzeRoute = createRoute({
+  method: "post",
+  path: "/api/resumes/analyze",
+  tags: ["resumes"],
+  summary: "Analyze resumes matching search criteria",
+  request: {
+    body: {
+      content: { "application/json": { schema: AnalyzeRequestSchema } },
+    },
+  },
+  responses: {
+    200: { content: { "application/json": { schema: AnalyzeResponseSchema } }, description: "Analysis result" },
+    400: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Invalid request" },
+    500: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Internal error" },
+  },
+});
+app.openapi(analyzeRoute, async (c) => {
   const {
     query,
     jobDescriptionId,
@@ -1126,7 +1178,7 @@ app.post("/api/resumes/analyze", async (c) => {
     maxSalary,
     limit,
     dryRun,
-  } = parsed.data;
+  } = c.req.valid("json");
 
   const normalizedQuery = query?.trim() || "";
   const normalizedJobDescriptionId = jobDescriptionId?.trim() || "";
@@ -1249,14 +1301,24 @@ app.post("/api/resumes/analyze", async (c) => {
 });
 
 
-app.post("/api/resumes/explanation", async (c) => {
-  const body = await c.req.json().catch(() => ({}));
-  const resumeId = typeof body.resumeId === "string" ? body.resumeId.trim() : "";
-  const workspaceSlug = typeof body.workspaceSlug === "string" ? body.workspaceSlug.trim() : "";
-
-  if (!resumeId || !workspaceSlug) {
-    return c.json({ success: false, error: "resumeId and workspaceSlug are required" }, 400);
-  }
+const explanationRoute = createRoute({
+  method: "post",
+  path: "/api/resumes/explanation",
+  tags: ["resumes"],
+  summary: "Get AI decision explanation for a candidate (EU AI Act Art. 13)",
+  request: {
+    body: {
+      content: { "application/json": { schema: ExplanationRequestSchema } },
+    },
+  },
+  responses: {
+    200: { content: { "application/json": { schema: ExplanationResponseSchema } }, description: "Explanation retrieved" },
+    400: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Invalid request" },
+    500: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Internal error" },
+  },
+});
+app.openapi(explanationRoute, async (c) => {
+  const { resumeId, workspaceSlug } = c.req.valid("json");
 
   try {
     const explanation = await callConvexQuery("audit:getExplanationForCandidate", {
@@ -1265,10 +1327,10 @@ app.post("/api/resumes/explanation", async (c) => {
     });
 
     if (!explanation) {
-      return c.json({ success: true, data: null }, 200);
+      return c.json({ success: true as const, data: null }, 200);
     }
 
-    return c.json({ success: true, data: explanation }, 200);
+    return c.json({ success: true as const, data: explanation }, 200);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return c.json({ success: false, error: message }, 500);
@@ -1279,25 +1341,24 @@ app.post("/api/resumes/explanation", async (c) => {
 // Audit log endpoints (EU AI Act Art. 14 human oversight)
 // ---------------------------------------------------------------------------
 
-app.post("/api/resumes/audit-logs", async (c) => {
-  const body = await c.req.json().catch(() => ({}));
-  const workspaceSlug = typeof body.workspaceSlug === "string" ? body.workspaceSlug.trim() : "";
-  const decisionType = typeof body.decisionType === "string" ? body.decisionType.trim() : undefined;
-  const outcome = typeof body.outcome === "string" ? body.outcome.trim() : undefined;
-
-  if (!workspaceSlug) {
-    return c.json({ success: false, error: "workspaceSlug is required" }, 400);
-  }
-
-  const validDecisionTypes = ["score", "tag", "rank", "filter", "confirm"];
-  if (decisionType && !validDecisionTypes.includes(decisionType)) {
-    return c.json({ success: false, error: `decisionType must be one of: ${validDecisionTypes.join(", ")}` }, 400);
-  }
-
-  const validOutcomes = ["pending", "accepted", "overridden", "appealed"];
-  if (outcome && !validOutcomes.includes(outcome)) {
-    return c.json({ success: false, error: `outcome must be one of: ${validOutcomes.join(", ")}` }, 400);
-  }
+const auditLogsRoute = createRoute({
+  method: "post",
+  path: "/api/resumes/audit-logs",
+  tags: ["resumes"],
+  summary: "Get audit logs for a workspace (EU AI Act Art. 14)",
+  request: {
+    body: {
+      content: { "application/json": { schema: AuditLogsRequestSchema } },
+    },
+  },
+  responses: {
+    200: { content: { "application/json": { schema: AuditLogsResponseSchema } }, description: "Audit logs retrieved" },
+    400: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Invalid request" },
+    500: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Internal error" },
+  },
+});
+app.openapi(auditLogsRoute, async (c) => {
+  const { workspaceSlug, decisionType, outcome } = c.req.valid("json");
 
   try {
     const logs = await callConvexQuery("audit:getAuditLogByWorkspace", {
@@ -1306,26 +1367,31 @@ app.post("/api/resumes/audit-logs", async (c) => {
       ...(outcome ? { outcome } : {}),
     });
 
-    return c.json({ success: true, data: logs }, 200);
+    return c.json({ success: true as const, data: logs }, 200);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return c.json({ success: false, error: message }, 500);
   }
 });
 
-app.post("/api/resumes/audit-outcome", async (c) => {
-  const body = await c.req.json().catch(() => ({}));
-  const auditLogId = typeof body.auditLogId === "string" ? body.auditLogId.trim() : "";
-  const outcome = typeof body.outcome === "string" ? body.outcome.trim() : "";
-  const setBy = typeof body.setBy === "string" ? body.setBy.trim() : undefined;
-
-  if (!auditLogId || !outcome) {
-    return c.json({ success: false, error: "auditLogId and outcome are required" }, 400);
-  }
-
-  if (outcome !== "accepted" && outcome !== "overridden" && outcome !== "appealed") {
-    return c.json({ success: false, error: "outcome must be 'accepted', 'overridden', or 'appealed'" }, 400);
-  }
+const auditOutcomeRoute = createRoute({
+  method: "post",
+  path: "/api/resumes/audit-outcome",
+  tags: ["resumes"],
+  summary: "Set audit outcome for a decision log (EU AI Act Art. 14)",
+  request: {
+    body: {
+      content: { "application/json": { schema: AuditOutcomeRequestSchema } },
+    },
+  },
+  responses: {
+    200: { content: { "application/json": { schema: AuditOutcomeResponseSchema } }, description: "Outcome set" },
+    400: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Invalid request" },
+    500: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Internal error" },
+  },
+});
+app.openapi(auditOutcomeRoute, async (c) => {
+  const { auditLogId, outcome, setBy } = c.req.valid("json");
 
   try {
     await callConvexMutation("audit:setAuditOutcome", {
@@ -1334,7 +1400,7 @@ app.post("/api/resumes/audit-outcome", async (c) => {
       ...(setBy ? { setBy } : {}),
     });
 
-    return c.json({ success: true }, 200);
+    return c.json({ success: true as const }, 200);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return c.json({ success: false, error: message }, 500);

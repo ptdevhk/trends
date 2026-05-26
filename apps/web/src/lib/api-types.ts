@@ -1896,6 +1896,380 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/resumes/trigger-reingest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Trigger re-ingest for resumes with stale skills version */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        limit?: number;
+                    };
+                };
+            };
+            responses: {
+                /** @description Reingest triggered */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            processed?: number;
+                            skipped?: number;
+                        };
+                    };
+                };
+                /** @description Invalid request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SimpleError"];
+                    };
+                };
+                /** @description Internal error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SimpleError"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/resumes/analyze": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Analyze resumes matching search criteria */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /** @example CNC 销售 */
+                        query?: string;
+                        /** @example lathe-sales */
+                        jobDescriptionId?: string;
+                        /** @example 东莞 */
+                        location?: string;
+                        /** @example 3 */
+                        minExperience?: number;
+                        /** @example 10 */
+                        maxExperience?: number;
+                        /**
+                         * @example [
+                         *       "bachelor",
+                         *       "master"
+                         *     ]
+                         */
+                        education?: string[];
+                        /**
+                         * @example [
+                         *       "CNC",
+                         *       "FANUC"
+                         *     ]
+                         */
+                        skills?: string[];
+                        /**
+                         * @example [
+                         *       "machine tools"
+                         *     ]
+                         */
+                        requiredKeywords?: string[];
+                        /**
+                         * @example [
+                         *       "东莞",
+                         *       "深圳"
+                         *     ]
+                         */
+                        locations?: string[];
+                        /** @example 5000 */
+                        minSalary?: number;
+                        /** @example 15000 */
+                        maxSalary?: number;
+                        /**
+                         * @default 50
+                         * @example 50
+                         */
+                        limit?: number;
+                        /**
+                         * @default false
+                         * @example false
+                         */
+                        dryRun?: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description Analysis result */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AnalyzeResponse"];
+                    };
+                };
+                /** @description Invalid request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SimpleError"];
+                    };
+                };
+                /** @description Internal error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SimpleError"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/resumes/explanation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Get AI decision explanation for a candidate (EU AI Act Art. 13) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        resumeId: string;
+                        workspaceSlug: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Explanation retrieved */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            data?: unknown;
+                        };
+                    };
+                };
+                /** @description Invalid request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SimpleError"];
+                    };
+                };
+                /** @description Internal error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SimpleError"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/resumes/audit-logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Get audit logs for a workspace (EU AI Act Art. 14) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        workspaceSlug: string;
+                        /** @enum {string} */
+                        decisionType?: "score" | "tag" | "rank" | "filter" | "confirm";
+                        /** @enum {string} */
+                        outcome?: "pending" | "accepted" | "overridden" | "appealed";
+                    };
+                };
+            };
+            responses: {
+                /** @description Audit logs retrieved */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            data?: unknown;
+                        };
+                    };
+                };
+                /** @description Invalid request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SimpleError"];
+                    };
+                };
+                /** @description Internal error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SimpleError"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/resumes/audit-outcome": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Set audit outcome for a decision log (EU AI Act Art. 14) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        auditLogId: string;
+                        /** @enum {string} */
+                        outcome: "accepted" | "overridden" | "appealed";
+                        setBy?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Outcome set */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                        };
+                    };
+                };
+                /** @description Invalid request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SimpleError"];
+                    };
+                };
+                /** @description Internal error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SimpleError"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/resumes/verify-token": {
         parameters: {
             query?: never;
@@ -10616,6 +10990,19 @@ export interface components {
             source: "sample" | "convex";
             sample?: components["schemas"]["ResumeSample"];
             data: components["schemas"]["ResumeItem"];
+        };
+        AnalyzeResponse: {
+            /** @enum {boolean} */
+            success: true;
+            dryRun?: boolean;
+            taskId?: string;
+            resumeCount: number;
+            skippedCount?: number;
+            config?: {
+                jobDescriptionId?: string;
+                keywords?: string[];
+                location?: string;
+            };
         };
         ResumeFilters: {
             minExperience?: number;
