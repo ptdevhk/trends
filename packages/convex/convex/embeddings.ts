@@ -269,7 +269,7 @@ export const batchGenerateEmbeddings = internalAction({
         if (dryRun) {
             const emptySearchText = page.resumes.filter((r) => !buildEmbeddingText(r).trim()).length;
             const toEmbed = page.resumes.length - emptySearchText;
-            console.log(`[dryRun] ${toEmbed} resumes would be embedded, ${emptySearchText} skipped (empty searchText), ${page.hasMore ? "more pages available" : "last page"}`);
+            console.debug(`[dryRun] ${toEmbed} resumes would be embedded, ${emptySearchText} skipped (empty searchText), ${page.hasMore ? "more pages available" : "last page"}`);
             return {
                 generated: 0,
                 skipped: page.resumes.length,
@@ -359,7 +359,7 @@ export const scheduledBackfill = internalAction({
         }
 
         if (totalGenerated > 0 || totalApiErrors > 0) {
-            console.log(`Scheduled backfill: ${totalGenerated} generated, ${totalApiErrors} API errors, ${batches} batches`);
+            console.debug(`Scheduled backfill: ${totalGenerated} generated, ${totalApiErrors} API errors, ${batches} batches`);
         }
 
         return { generated: totalGenerated, apiErrors: totalApiErrors, batches };
