@@ -943,10 +943,9 @@ export class RuleScoringService {
       ? this.weights.brandContextWithTarget
       : this.weights.brandContextNoTarget;
 
-    // MY market: brandRelevance is 0 because industry DB data is CN-only
-    const brandRelevance = market === "MY"
-      ? 0
-      : Math.min(
+    // Brand relevance: computed for all markets including MY.
+    // International brands in the CN DB (e.g., Siemens, Caterpillar) may match MY resumes.
+    const brandRelevance = Math.min(
           categoryWeights.brandRelevance,
           matchedBrandHits.reduce((maxScore, hit) => {
             const baseWeight = contextWeights[hit.context] ?? 0;

@@ -398,6 +398,7 @@ function countHistogramSamples(histogram50: number[]): number {
 }
 
 const INDUSTRY_DB_V2_SCORE_CAP = 50
+const MY_INDUSTRY_DB_FLOOR = 40
 const RELATED_EXP_AI_WEIGHT = INDUSTRY_DB_V2_SCORE_CAP / 100
 const INDUSTRY_DB_V2_MIN_NONZERO_SAMPLE_SIZE = 5
 
@@ -533,7 +534,7 @@ export function overrideIndustryDbBreakdown(
   industryDb: number,
   market?: string,
 ): ConvexResumeAnalysis {
-  const effectiveIndustryDb = market === 'MY' ? 0 : industryDb
+  const effectiveIndustryDb = market === 'MY' ? Math.max(MY_INDUSTRY_DB_FLOOR, industryDb) : industryDb
   const normalizedRelatedExp =
     typeof analysis.breakdown?.related_exp === 'number'
       ? Math.round(clamp(analysis.breakdown.related_exp, 0, 100) * RELATED_EXP_AI_WEIGHT)

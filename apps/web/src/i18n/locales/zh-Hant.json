@@ -117,7 +117,7 @@
       "experience": "經驗",
       "skills": "技能",
       "industryDb": "產業庫",
-      "industryDbNotAvailable": "產業庫：MY市場暫不可用",
+      "industryDbNotAvailable": "產業庫：保底40（無MY數據）",
       "education": "學歷",
       "location": "地點"
     },

@@ -474,19 +474,13 @@ export class IngestComputeService {
     const synonymHits = this.computeSynonymHits(evidenceText);
 
     // 3. Compute field-aware brandHits, then derive companyHits for backward compatibility
-    //    For MY market: skip company/brand verification (CN-only data), keep keyword-based tags
+    //    MY market: run lookup against CN industry DB — international brands (Siemens, Caterpillar)
+    //    may match even without a dedicated MY dataset. No matches → empty arrays naturally.
     const latestWorkHistory = getLatestWorkHistory(item.workHistory);
-    const isIndustryDbAvailable = market !== "MY";
-    const verifiedEmployers = isIndustryDbAvailable
-      ? this.collectVerifiedEmployerMatches(latestWorkHistory)
-      : [];
-    const brandHits = isIndustryDbAvailable
-      ? this.computeBrandHits(latestWorkHistory, index.companies, searchText, verifiedEmployers)
-      : [];
+    const verifiedEmployers = this.collectVerifiedEmployerMatches(latestWorkHistory);
+    const brandHits = this.computeBrandHits(latestWorkHistory, index.companies, searchText, verifiedEmployers);
     const companyHits = verifiedEmployers.map((m) => m.key);
-    const { raw: industryDbV2Raw, components: industryDbV2RawComponents } = isIndustryDbAvailable
-      ? computeIndustryDbV2Raw(companyHits, brandHits)
-      : { raw: 0, components: { companyScore: 0, brandScore: 0, weightedBrandUnits: 0, uniqueCompanies: 0, brandUnitCount: 0 } };
+    const { raw: industryDbV2Raw, components: industryDbV2RawComponents } = computeIndustryDbV2Raw(companyHits, brandHits);
     const roleYearsAnchor = resolveRoleYearsAnchor(item);
     const roleSignals = this.computeRoleSignals(latestWorkHistory, roleYearsAnchor);
     const companyPatternAliasTokens = this.buildCompanyAliasTokens(companyHits, brandHits);
