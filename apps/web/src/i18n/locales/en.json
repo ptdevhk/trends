@@ -1384,5 +1384,54 @@
       "outcomeSet": "Audit outcome updated",
       "outcomeFailed": "Failed to update audit outcome"
     }
+  },
+  "explanationPage": {
+    "loading": "Loading your application status...",
+    "missingId": {
+      "title": "Invalid Link",
+      "description": "This explanation link is missing required information. Please contact the employer for a valid link."
+    },
+    "error": {
+      "title": "Unable to Load",
+      "description": "We could not load the explanation for this application. Please try again later."
+    },
+    "noData": {
+      "title": "No Explanation Available",
+      "description": "An explanation for this application decision is not currently available. You have the right to request one from the employer."
+    },
+    "summary": {
+      "status": "Application Status",
+      "title": "Your Application Status",
+      "decidedAt": "Decision made"
+    },
+    "decisionType": {
+      "score": "Scored",
+      "tag": "Tagged",
+      "rank": "Ranked",
+      "filter": "Filtered",
+      "confirm": "Confirmed"
+    },
+    "factors": {
+      "title": "Key Factors",
+      "description": "These are the main factors that influenced this decision.",
+      "factor": "Factor",
+      "value": "Value"
+    },
+    "safeguards": {
+      "title": "AI Safeguards",
+      "description": "This decision was assisted by AI with the following safeguards in place:",
+      "biasAudit": "Weekly bias audit monitoring",
+      "humanOversight": "Human oversight tracking",
+      "anomalyDetection": "Anomaly detection for score drift",
+      "protectedExcluded": "Protected attributes (e.g., age, gender) were excluded from the decision process."
+    },
+    "rights": {
+      "title": "Your Rights",
+      "description": "You have the right to request human review of this decision. A qualified person will re-evaluate your application independently.",
+      "requestReview": "Request Human Review"
+    },
+    "footer": {
+      "compliance": "This explanation is provided in compliance with EU AI Act Article 13."
+    }
   }
 }

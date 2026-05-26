@@ -48,6 +48,11 @@ const LazyAuditCompliancePage = lazy(async () => {
   return { default: module.AuditCompliancePage }
 })
 
+const LazyCandidateExplanationPage = lazy(async () => {
+  const module = await import('@/pages/CandidateExplanationPage')
+  return { default: module.CandidateExplanationPage }
+})
+
 const LazySystemSettingsConfigSourcesPage = lazy(async () => {
   const module = await import('@/pages/system-settings/SystemSettingsConfigSourcesPage')
   return { default: module.SystemSettingsConfigSourcesPage }
@@ -306,6 +311,16 @@ function App() {
               <Route path="data/*" element={<WorkspaceDebugPage />} />
             </Route>
           </Route>
+
+          {/* Public route: candidate explanation (EU AI Act Art. 13) */}
+          <Route
+            path="/explanation/:resumeId"
+            element={
+              <RouteSuspense>
+                <LazyCandidateExplanationPage />
+              </RouteSuspense>
+            }
+          />
 
           <Route path="*" element={<PreserveSearchNavigate pathname="/dev/resumes" />} />
         </Routes>
