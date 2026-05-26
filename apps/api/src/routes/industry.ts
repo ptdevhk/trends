@@ -72,13 +72,15 @@ const VerifyRequestSchema = z.object({
     category: z.string().optional(),
 });
 
+const IndustryEntrySchema = z.union([CompanyEntrySchema, KeywordEntrySchema, BrandEntrySchema]);
+
 const VerifyResponseSchema = z.object({
     success: z.literal(true),
     result: z.object({
         verified: z.boolean(),
         confidence: z.number(),
-        match: z.any().optional(),
-        matches: z.array(z.any()).optional(),
+        match: IndustryEntrySchema.optional(),
+        matches: z.array(IndustryEntrySchema).optional(),
     }),
 });
 

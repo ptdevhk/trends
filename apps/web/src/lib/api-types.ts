@@ -2338,8 +2338,48 @@ export interface paths {
                             result: {
                                 verified: boolean;
                                 confidence: number;
-                                match?: unknown;
-                                matches?: unknown[];
+                                match?: {
+                                    id: number;
+                                    nameCn: string;
+                                    nameEn?: string;
+                                    type: string;
+                                    /** @enum {string} */
+                                    category: "key_company" | "ites_exhibitor" | "agent";
+                                } | {
+                                    id: number;
+                                    keyword: string;
+                                    english?: string;
+                                    /** @enum {string} */
+                                    category: "machining" | "lathe" | "edm" | "measurement" | "smt" | "3d_printing";
+                                } | {
+                                    id: number;
+                                    nameCn: string;
+                                    nameEn?: string;
+                                    type: string;
+                                    /** @enum {string} */
+                                    origin: "international" | "domestic" | "agent";
+                                };
+                                matches?: ({
+                                    id: number;
+                                    nameCn: string;
+                                    nameEn?: string;
+                                    type: string;
+                                    /** @enum {string} */
+                                    category: "key_company" | "ites_exhibitor" | "agent";
+                                } | {
+                                    id: number;
+                                    keyword: string;
+                                    english?: string;
+                                    /** @enum {string} */
+                                    category: "machining" | "lathe" | "edm" | "measurement" | "smt" | "3d_printing";
+                                } | {
+                                    id: number;
+                                    nameCn: string;
+                                    nameEn?: string;
+                                    type: string;
+                                    /** @enum {string} */
+                                    origin: "international" | "domestic" | "agent";
+                                })[];
                             };
                         };
                     };
