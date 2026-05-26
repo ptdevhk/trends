@@ -156,7 +156,7 @@ export default function DebugIngest() {
     status,
     loadMore,
   } = usePaginatedQuery(
-    api.resumes.listIngestDiagnostics,
+    api.resumes_diagnostics.listIngestDiagnostics,
     selectedSourceKeys.length > 0 ? { sourceKeys: selectedSourceKeys } : {},
     { initialNumItems: INGEST_DIAGNOSTICS_PAGE_SIZE }
   )

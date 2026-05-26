@@ -54,7 +54,7 @@ export default function ArchivedResumes() {
     status,
     loadMore,
   } = usePaginatedQuery(
-    api.resumes.listArchivedDiagnostics,
+    api.resumes_diagnostics.listArchivedDiagnostics,
     selectedSourceKeys.length > 0 ? { sourceKeys: selectedSourceKeys } : {},
     { initialNumItems: PAGE_SIZE }
   )
