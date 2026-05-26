@@ -168,4 +168,106 @@ describe("workspace_config (convex-test)", () => {
       expect(removed).toBe(false);
     });
   });
+
+  describe("nested configValue shapes", () => {
+    it("handles custom-keywords shape (record with array of records)", async () => {
+      const t = createTest();
+
+      const customKeywordsValue = {
+        categories: [{ id: "brand", name: "Brand Priority", icon: "factory" }],
+        tags: [
+          { id: "tag-1", keyword: "STAR机床", english: "STAR Machine", category: "brand" },
+        ],
+      };
+      await t.mutation(api.workspace_config.upsert, {
+        workspaceSlug: "ws1",
+        configKey: "custom-keywords",
+        configValue: customKeywordsValue,
+      });
+
+      const config = await t.query(api.workspace_config.get, {
+        workspaceSlug: "ws1",
+        configKey: "custom-keywords",
+      });
+      expect(config!.configValue).toEqual(customKeywordsValue);
+    });
+
+    it("handles agent-overrides shape (deeply nested records)", async () => {
+      const t = createTest();
+
+      const agentOverridesValue = {
+        agents: {
+          defaults: {
+            screener: { passThreshold: 58 },
+            evaluator: { passThreshold: 74 },
+          },
+        },
+      };
+      await t.mutation(api.workspace_config.upsert, {
+        workspaceSlug: "ws1",
+        configKey: "agent-overrides",
+        configValue: agentOverridesValue,
+      });
+
+      const config = await t.query(api.workspace_config.get, {
+        workspaceSlug: "ws1",
+        configKey: "agent-overrides",
+      });
+      expect(config!.configValue).toEqual(agentOverridesValue);
+    });
+
+    it("handles bias_audit_anomaly_alert shape (record with null values)", async () => {
+      const t = createTest();
+
+      const alertValue = {
+        workspaceSlug: "ws1",
+        flags: ["psi_drift"],
+        psiValue: null,
+        disparityRatio: null,
+        alertedAt: Date.now(),
+      };
+      await t.mutation(api.workspace_config.upsert, {
+        workspaceSlug: "ws1",
+        configKey: "bias_audit_anomaly_alert",
+        configValue: alertValue,
+      });
+
+      const config = await t.query(api.workspace_config.get, {
+        workspaceSlug: "ws1",
+        configKey: "bias_audit_anomaly_alert",
+      });
+      expect(config!.configValue).toEqual(alertValue);
+    });
+
+    it("handles filter-presets shape (nested arrays and records)", async () => {
+      const t = createTest();
+
+      const filterPresetsValue = {
+        categories: [{ id: "dev", name: "Dev Presets", icon: "zap" }],
+        presets: [
+          {
+            id: "fast-track",
+            name: "Fast Track",
+            category: "dev",
+            filters: {
+              minExperience: 4,
+              education: ["本科", "硕士"],
+              salaryRange: { min: 12000, max: 28000 },
+            },
+          },
+        ],
+      };
+      await t.mutation(api.workspace_config.upsert, {
+        workspaceSlug: "ws1",
+        configKey: "filter-presets",
+        configValue: filterPresetsValue,
+      });
+
+      const config = await t.query(api.workspace_config.get, {
+        workspaceSlug: "ws1",
+        configKey: "filter-presets",
+      });
+      expect(config!.configValue).toEqual(filterPresetsValue);
+    });
+  });
 });

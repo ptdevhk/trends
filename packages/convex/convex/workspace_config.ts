@@ -17,16 +17,20 @@ export const get = query({
 });
 
 /**
- * Validator for workspace config values. Accepts any JSON-compatible value
- * except null: string, number, boolean, array, or record.
+ * Validator for workspace config values. Eliminates v.any() by using nested
+ * v.record/v.array unions with jsonPrimitive leaves (string | number | boolean | null).
+ * Supports up to 3 levels of nesting — sufficient for all current configKey shapes:
+ *   custom-keywords, filter-presets, agent-overrides, rule-weights,
+ *   learning-log, resume-field-usage-policy, summary-profiles, bias_audit_anomaly_alert.
+ *
+ * BFF layer (workspace-config-service.ts) validates per-key shapes;
+ * this validator enforces structural validity at the Convex layer.
  */
-const configValueValidator = v.union(
-    v.string(),
-    v.number(),
-    v.boolean(),
-    v.array(v.any()),
-    v.record(v.string(), v.any()),
-);
+const jsonPrimitive = v.union(v.string(), v.number(), v.boolean(), v.null());
+const jsonL1 = v.union(jsonPrimitive, v.array(jsonPrimitive), v.record(v.string(), jsonPrimitive));
+const jsonL2 = v.union(jsonPrimitive, v.array(jsonL1), v.record(v.string(), jsonL1));
+const jsonL3 = v.union(jsonPrimitive, v.array(jsonL2), v.record(v.string(), jsonL1));
+const configValueValidator = v.union(jsonPrimitive, v.array(jsonL3), v.record(v.string(), jsonL3));
 
 export const upsert = mutation({
     args: {
