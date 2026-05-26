@@ -11,7 +11,44 @@ vi.mock('@/contexts/WorkspaceContext', () => ({
   useWorkspace: () => ({ slug: 'test-workspace', isAdmin: true }),
 }))
 
-// Mock the audit hooks
+const mockBiasReport = {
+  status: 'ok' as const,
+  workspaceSlug: 'test-workspace',
+  decisionType: 'score',
+  scoreThreshold: 70,
+  totalAuditRecords: 150,
+  groupCount: 3,
+  demographicParity: {
+    disparityRatio: 0.85,
+    maxDifference: 0.08,
+    passing: true,
+    groupRates: [
+      { groupKey: 'group-a', rate: 0.72 },
+      { groupKey: 'group-b', rate: 0.61 },
+      { groupKey: 'group-c', rate: 0.55 },
+    ],
+  },
+  disparateImpact: [
+    { groupKey: 'group-b', ratio: 0.85, referenceGroupKey: 'group-a' },
+    { groupKey: 'group-c', ratio: 0.76, referenceGroupKey: 'group-a' },
+  ],
+  overrideRate: {
+    tprDifference: 0.05,
+    fprDifference: 0.03,
+    passing: true,
+  },
+  scoreDrift: {
+    psi: 0.04,
+    driftDetected: false,
+  },
+  anomalyFlags: {
+    statisticalParityViolation: false,
+    disparateImpactViolation: true,
+    scoreDriftDetected: false,
+  },
+  computedAt: Date.now() - 7200000,
+}
+
 const mockLogs = [
   {
     _id: 'al1',
@@ -67,11 +104,7 @@ vi.mock('@/hooks/useAuditLogs', () => ({
     setOutcome: mockSetOutcome,
   }),
   useBiasReport: () => ({
-    report: {
-      generatedAt: Date.now(),
-      workspaceSlug: 'test-workspace',
-      anomalyDetected: true,
-    },
+    report: mockBiasReport,
     anomalyAlerts: {
       workspaceSlug: 'test-workspace',
       flags: ['statistical_parity_violation', 'disparate_impact_violation'],
@@ -108,8 +141,66 @@ describe('AuditCompliancePage', () => {
   it('renders the bias audit report card', () => {
     renderPage()
     expect(screen.getByText('Bias Audit Report')).toBeInTheDocument()
-    expect(screen.getByText('test-workspace')).toBeInTheDocument()
-    expect(screen.getByText('Yes')).toBeInTheDocument()
+  })
+
+  it('renders KPI cards with values', () => {
+    renderPage()
+    expect(screen.getByTestId('bias-kpi-cards')).toBeInTheDocument()
+    expect(screen.getByText('DIR Ratio')).toBeInTheDocument()
+    expect(screen.getByText('Parity Diff')).toBeInTheDocument()
+    expect(screen.getByText('PSI Drift')).toBeInTheDocument()
+    expect(screen.getByText('Anomalies')).toBeInTheDocument()
+  })
+
+  it('shows PASS/FAIL badges on KPI cards', () => {
+    renderPage()
+    const passBadges = screen.getAllByTestId('kpi-pass')
+    const failBadges = screen.getAllByTestId('kpi-fail')
+    expect(passBadges.length).toBeGreaterThanOrEqual(2)
+    // DIR and parity pass, PSI passes, anomaly count = 1 (IMPACT violation) so anomalies fails
+    expect(failBadges.length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('renders anomaly flags section', () => {
+    renderPage()
+    expect(screen.getByTestId('anomaly-flags-section')).toBeInTheDocument()
+    expect(screen.getByText('Parity Violation')).toBeInTheDocument()
+    expect(screen.getByText('Impact Violation')).toBeInTheDocument()
+    expect(screen.getByText('Score Drift')).toBeInTheDocument()
+  })
+
+  it('shows active/inactive anomaly flags correctly', () => {
+    renderPage()
+    const activeFlags = screen.getAllByTestId('anomaly-active')
+    const inactiveFlags = screen.getAllByTestId('anomaly-inactive')
+    // disparateImpactViolation is true, others are false
+    expect(activeFlags.length).toBe(1)
+    expect(inactiveFlags.length).toBe(2)
+  })
+
+  it('renders metric breakdown table', () => {
+    renderPage()
+    expect(screen.getByTestId('metric-breakdown-table')).toBeInTheDocument()
+    expect(screen.getByText('Metric Breakdown')).toBeInTheDocument()
+  })
+
+  it('renders group rates table', () => {
+    renderPage()
+    expect(screen.getByTestId('group-rates-table')).toBeInTheDocument()
+    expect(screen.getByText('Group Rates')).toBeInTheDocument()
+    expect(screen.getByText('group-a')).toBeInTheDocument()
+    expect(screen.getByText('group-b')).toBeInTheDocument()
+    expect(screen.getByText('group-c')).toBeInTheDocument()
+  })
+
+  it('shows reference badge for reference group in group rates', () => {
+    renderPage()
+    expect(screen.getByText('reference')).toBeInTheDocument()
+  })
+
+  it('renders report metadata footer', () => {
+    renderPage()
+    expect(screen.getByText(/150/)).toBeInTheDocument()
   })
 
   it('renders the audit log table with entries', () => {
