@@ -56,6 +56,43 @@ describe("embeddings (convex-test)", () => {
       expect(embedding?.sourceKey).toBe("seek");
     });
 
+    it("creates embedding with searchTextHash and clears needsEmbedding flag", async () => {
+      const t = convexTest(schema, modules);
+
+      const resumeId = await t.run(async (ctx) => {
+        return ctx.db.insert("resumes", {
+          externalId: "ext-hash-1",
+          content: {},
+          hash: "hash1",
+          tags: [],
+          crawledAt: Date.now(),
+          source: "test",
+          searchText: "Hash test resume",
+          needsEmbedding: true,
+        });
+      });
+
+      const embeddingId = await t.mutation(internal.embeddings.storeEmbedding, {
+        resumeId,
+        embedding: new Array(1536).fill(0.1),
+        model: "text-embedding-3-small",
+        searchTextHash: "abc123def456",
+      });
+
+      // Verify needsEmbedding flag is cleared
+      const resume = await t.run(async (ctx) => {
+        return ctx.db.get(resumeId);
+      });
+      expect(resume?.needsEmbedding).toBe(false);
+      expect(resume?.embeddingId).toBe(embeddingId);
+
+      // Verify hash is stored
+      const embedding = await t.run(async (ctx) => {
+        return ctx.db.get(embeddingId);
+      }) as Doc<"resume_embeddings"> | null;
+      expect(embedding?.searchTextHash).toBe("abc123def456");
+    });
+
     it("replaces existing embedding on upsert", async () => {
       const t = convexTest(schema, modules);
 
@@ -90,6 +127,45 @@ describe("embeddings (convex-test)", () => {
         return ctx.db.get(firstId);
       }) as Doc<"resume_embeddings"> | null;
       expect(embedding?.model).toBe("text-embedding-3-small-v2");
+    });
+
+    it("upsert updates searchTextHash and generatedAt", async () => {
+      const t = convexTest(schema, modules);
+
+      const resumeId = await t.run(async (ctx) => {
+        return ctx.db.insert("resumes", {
+          externalId: "ext-upsert-hash",
+          content: {},
+          hash: "uph1",
+          tags: [],
+          crawledAt: Date.now(),
+          source: "test",
+          searchText: "Upsert hash resume",
+        });
+      });
+
+      await t.mutation(internal.embeddings.storeEmbedding, {
+        resumeId,
+        embedding: new Array(1536).fill(0.2),
+        model: "text-embedding-3-small",
+        searchTextHash: "hash-v1",
+      });
+
+      await t.mutation(internal.embeddings.storeEmbedding, {
+        resumeId,
+        embedding: new Array(1536).fill(0.3),
+        model: "text-embedding-3-small",
+        searchTextHash: "hash-v2",
+      });
+
+      const embedding = await t.run(async (ctx) => {
+        const emb = await ctx.db
+          .query("resume_embeddings")
+          .withIndex("by_resumeId", (q) => q.eq("resumeId", resumeId))
+          .first();
+        return emb;
+      }) as Doc<"resume_embeddings"> | null;
+      expect(embedding?.searchTextHash).toBe("hash-v2");
     });
   });
 
@@ -163,6 +239,72 @@ describe("embeddings (convex-test)", () => {
 
       expect(result.resumes.length).toBeGreaterThanOrEqual(1);
       expect(result.resumes.every((r: any) => r.embeddingId === undefined)).toBe(true);
+    });
+
+    it("excludes resumes with needsEmbedding=false", async () => {
+      const t = convexTest(schema, modules);
+
+      await t.run(async (ctx) => {
+        // Resume that needs embedding
+        await ctx.db.insert("resumes", {
+          externalId: "needs-emb",
+          content: {},
+          hash: "ne1",
+          tags: [],
+          crawledAt: Date.now(),
+          source: "test",
+          searchText: "Needs embedding",
+          needsEmbedding: true,
+        });
+        // Resume that already has embedding
+        await ctx.db.insert("resumes", {
+          externalId: "has-emb",
+          content: {},
+          hash: "he1",
+          tags: [],
+          crawledAt: Date.now(),
+          source: "test",
+          searchText: "Has embedding",
+          needsEmbedding: false,
+        });
+      });
+
+      const result = await t.query(internal.embeddings.getResumesWithoutEmbeddings, {
+        numItems: 10,
+      });
+
+      const ids = result.resumes.map((r: any) => r.externalId);
+      expect(ids).toContain("needs-emb");
+      expect(ids).not.toContain("has-emb");
+    });
+
+    it("reports hasMore correctly when more pages exist", async () => {
+      const t = convexTest(schema, modules);
+
+      // Insert 5 resumes needing embeddings
+      await t.run(async (ctx) => {
+        for (let i = 0; i < 5; i++) {
+          await ctx.db.insert("resumes", {
+            externalId: `page-${i}`,
+            content: {},
+            hash: `pg${i}`,
+            tags: [],
+            crawledAt: Date.now(),
+            source: "test",
+            searchText: `Page resume ${i}`,
+            needsEmbedding: true,
+          });
+        }
+      });
+
+      // Fetch only 2 — should report hasMore
+      const result = await t.query(internal.embeddings.getResumesWithoutEmbeddings, {
+        numItems: 2,
+      });
+
+      expect(result.resumes.length).toBe(2);
+      expect(result.hasMore).toBe(true);
+      expect(result.nextCursor).toBeTruthy();
     });
   });
 
@@ -425,5 +567,38 @@ describe("rrfMerge (unit)", () => {
     expect(result.merged[0].id).toBe("r1");
     // Data comes from BM25 (primary source)
     expect(result.merged[0].data).toEqual({ source: "bm25" });
+  });
+
+  it("handles empty inputs gracefully", () => {
+    const result = rrfMerge({
+      bm25Results: [],
+      vectorResults: [],
+      bm25Weight: 0.5,
+      semanticWeight: 0.5,
+    });
+
+    expect(result.merged).toEqual([]);
+    expect(result.bm25Count).toBe(0);
+    expect(result.vectorCount).toBe(0);
+  });
+
+  it("preserves stable ordering for equal RRF scores", () => {
+    // Two items with same BM25 rank (only in BM25) should maintain insertion order
+    const bm25Results = [
+      { id: "r1", data: {} },
+      { id: "r2", data: {} },
+    ];
+
+    const result = rrfMerge({
+      bm25Results,
+      vectorResults: [],
+      bm25Weight: 1.0,
+      semanticWeight: 0.0,
+    });
+
+    expect(result.merged.length).toBe(2);
+    // r1 has lower rank number (higher BM25 score) so should come first
+    expect(result.merged[0].id).toBe("r1");
+    expect(result.merged[0].score).toBeGreaterThan(result.merged[1].score);
   });
 });
