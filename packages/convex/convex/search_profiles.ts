@@ -4,6 +4,7 @@ import { mutation, query, type MutationCtx } from "./_generated/server";
 import { v } from "convex/values";
 
 import { DEFAULT_WORKSPACE_SLUG } from "./sessions";
+import { jsonRecordValidator } from "./validators.js";
 
 export function normalizeWorkspaceSlug(input: string | undefined): string {
   const normalized = input?.trim();
@@ -207,8 +208,8 @@ export const getById = query({
   },
 });
 
-/** Validator for the profile object passed to create/update. Accepts any plain key-value record. */
-const profileInputValidator = v.record(v.string(), v.any());
+/** Validator for the profile object passed to create/update. Accepts any JSON-safe key-value record. */
+const profileInputValidator = jsonRecordValidator;
 
 export const create = mutation({
   args: {
@@ -228,7 +229,7 @@ export const create = mutation({
       name,
       profileId,
       criteria,
-      profile: profile ?? {},
+      profile: args.profile,
       workspaceSlug,
       createdAt: now,
       updatedAt: now,
@@ -280,7 +281,7 @@ export const update = mutation({
       name,
       profileId,
       criteria,
-      profile: profile ?? {},
+      profile: args.profile,
       updatedAt: now,
     });
 

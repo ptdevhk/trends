@@ -1,5 +1,6 @@
 import { internalAction, internalMutation, internalQuery, query } from "./_generated/server";
 import { internal } from "./_generated/api";
+import type { Doc } from "./_generated/dataModel";
 import { v } from "convex/values";
 import {
     computeDemographicParity,
@@ -351,14 +352,14 @@ export const storeBiasReport = internalMutation({
 
         if (existing) {
             await ctx.db.patch(existing._id, {
-                configValue: args.report,
+                configValue: args.report as Doc<"workspace_config">["configValue"],
                 updatedAt: Date.now(),
             });
         } else {
             await ctx.db.insert("workspace_config", {
                 workspaceSlug: args.workspaceSlug,
                 configKey: "bias_audit_report",
-                configValue: args.report,
+                configValue: args.report as Doc<"workspace_config">["configValue"],
                 updatedAt: Date.now(),
             });
         }
@@ -414,14 +415,14 @@ export const storeAnomalyAlert = internalMutation({
 
         if (existing) {
             await ctx.db.patch(existing._id, {
-                configValue: alertData,
+                configValue: alertData as Doc<"workspace_config">["configValue"],
                 updatedAt: Date.now(),
             });
         } else {
             await ctx.db.insert("workspace_config", {
                 workspaceSlug: args.workspaceSlug,
                 configKey: "bias_audit_anomaly_alert",
-                configValue: alertData,
+                configValue: alertData as Doc<"workspace_config">["configValue"],
                 updatedAt: Date.now(),
             });
         }

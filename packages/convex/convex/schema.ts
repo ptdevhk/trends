@@ -1,6 +1,6 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
-import { ingestDataValidator, collectionTaskResultsValidator, resumeFiltersValidator, analysisResultValidator } from "./validators.js";
+import { ingestDataValidator, collectionTaskResultsValidator, resumeFiltersValidator, analysisResultValidator, jsonRecordValidator, jsonValueValidator } from "./validators.js";
 
 export default defineSchema({
     // Tasks for resume collection
@@ -57,7 +57,7 @@ export default defineSchema({
         externalId: v.string(), // e.g. from job site
         identityKey: v.optional(v.string()),
         age: v.optional(v.number()),
-        content: v.record(v.string(), v.any()), // JSON payload from crawler
+        content: jsonRecordValidator, // JSON payload from crawler
         hash: v.string(), // Content hash for change detection
         tags: v.array(v.string()), // e.g. search profile IDs
         crawledAt: v.number(),
@@ -81,10 +81,7 @@ export default defineSchema({
         // Key: `source:<sourceKey>|analysis:<jobDescriptionId>` when the resume source is known,
         //       otherwise the legacy bare `jobDescriptionId` / `default` key.
         // Value: Analysis object (the payload keeps bare jobDescriptionId for compatibility)
-        analyses: v.optional(v.union(
-            v.any(),  // Bridge: accepts existing unstructured data
-            v.record(v.string(), analysisResultValidator),  // New: typed analysis results
-        )),
+        analyses: v.optional(v.record(v.string(), analysisResultValidator)),
 
         // AI Confirm Score (cost-gated L4 batch confirm pass)
         confirmedScore: v.optional(v.number()),
@@ -132,7 +129,7 @@ export default defineSchema({
             keywords: v.array(v.string()),
             locations: v.array(v.string()),
         }),
-        profile: v.optional(v.record(v.string(), v.any())),
+        profile: v.optional(jsonRecordValidator),
         lastRunAt: v.optional(v.number()),
         createdAt: v.optional(v.number()),
         updatedAt: v.optional(v.number()),
@@ -376,7 +373,7 @@ export default defineSchema({
     workspace_config: defineTable({
         workspaceSlug: v.string(),
         configKey: v.string(),
-        configValue: v.any(),
+        configValue: jsonValueValidator,
         updatedAt: v.number(),
     })
         .index("by_workspace_key", ["workspaceSlug", "configKey"])

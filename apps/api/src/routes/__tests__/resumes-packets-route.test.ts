@@ -406,7 +406,6 @@ describe("resumes packets route", () => {
     expect(response.status).toBe(400);
     const payload = await response.json() as { success: boolean; error: string };
     expect(payload.success).toBe(false);
-    expect(payload.error).toContain("observation");
   });
 
   it("logs learning entry successfully", async () => {

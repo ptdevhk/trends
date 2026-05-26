@@ -1,7 +1,8 @@
 import { mutation, query } from "./_generated/server";
 import { internal } from "./_generated/api";
-import type { Id } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
+import { jsonRecordValidator } from "./validators.js";
 import {
   buildSearchProfileCriteria,
   generateStructuredJobDescriptionContent,
@@ -246,7 +247,7 @@ export const seedResumes = mutation({
     resumes: v.array(
       v.object({
         externalId: v.string(),
-        content: v.record(v.string(), v.any()),
+        content: jsonRecordValidator,
         hash: v.string(),
         source: v.string(),
         tags: v.array(v.string()),
@@ -862,7 +863,7 @@ export const seedWorkspaceDemoData = mutation({
           stableSerialize(item.configValue);
         if (configChanged) {
           await ctx.db.patch(existing._id, {
-            configValue: item.configValue,
+            configValue: item.configValue as unknown as Doc<"workspace_config">["configValue"],
             updatedAt: seededAt,
           });
           result.workspaceConfig.updated += 1;
@@ -873,7 +874,7 @@ export const seedWorkspaceDemoData = mutation({
       await ctx.db.insert("workspace_config", {
         workspaceSlug: item.workspaceSlug,
         configKey: item.configKey,
-        configValue: item.configValue,
+        configValue: item.configValue as unknown as Doc<"workspace_config">["configValue"],
         updatedAt: seededAt,
       });
       result.workspaceConfig.inserted += 1;
