@@ -7,7 +7,7 @@ vi.mock('convex/react', () => ({
 }))
 
 vi.mock('../../../../packages/convex/convex/_generated/api', () => ({
-  api: { resumes: { search: 'search' } },
+  api: { resumes_search: { search: 'resumes_search:search' } },
 }))
 
 import { useSearchPrefetch } from '@/hooks/useSearchPrefetch'
@@ -20,27 +20,27 @@ describe('useSearchPrefetch', () => {
   it('passes query to useQuery when query is provided', () => {
     useQueryMock.mockReturnValue([])
     const { result } = renderHook(() => useSearchPrefetch('React'))
-    expect(useQueryMock).toHaveBeenCalledWith('search', { query: 'React', limit: 10 })
+    expect(useQueryMock).toHaveBeenCalledWith('resumes_search:search', { query: 'React', limit: 10 })
     expect(result.current).toEqual([])
   })
 
   it('skips query when query is empty', () => {
     useQueryMock.mockReturnValue(undefined)
     const { result } = renderHook(() => useSearchPrefetch(''))
-    expect(useQueryMock).toHaveBeenCalledWith('search', 'skip')
+    expect(useQueryMock).toHaveBeenCalledWith('resumes_search:search', 'skip')
     expect(result.current).toBeUndefined()
   })
 
   it('skips query when query is undefined', () => {
     useQueryMock.mockReturnValue(undefined)
     const { result } = renderHook(() => useSearchPrefetch(undefined))
-    expect(useQueryMock).toHaveBeenCalledWith('search', 'skip')
+    expect(useQueryMock).toHaveBeenCalledWith('resumes_search:search', 'skip')
     expect(result.current).toBeUndefined()
   })
 
   it('trims whitespace from query', () => {
     useQueryMock.mockReturnValue([])
     renderHook(() => useSearchPrefetch('  React  '))
-    expect(useQueryMock).toHaveBeenCalledWith('search', { query: 'React', limit: 10 })
+    expect(useQueryMock).toHaveBeenCalledWith('resumes_search:search', { query: 'React', limit: 10 })
   })
 })

@@ -11,8 +11,8 @@ vi.mock('convex/react', () => ({
 
 vi.mock('../../../../packages/convex/convex/_generated/api', () => ({
   api: {
-    resumes: {
-      listDiagnosticsSourceFacets: 'resumes:listDiagnosticsSourceFacets',
+    resumes_diagnostics: {
+      listDiagnosticsSourceFacets: 'resumes_diagnostics:listDiagnosticsSourceFacets',
     },
   },
 }))

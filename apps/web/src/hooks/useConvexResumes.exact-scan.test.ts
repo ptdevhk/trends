@@ -71,9 +71,12 @@ vi.mock('convex/react', () => ({
 vi.mock('../../../../packages/convex/convex/_generated/api', () => ({
   api: {
     analysis_tasks: { list: 'analysis_tasks:list' },
+    resumes_search: {
+      search: 'resumes_search:search',
+      searchWithTagExpansionPaginated: 'resumes_search:searchWithTagExpansionPaginated',
+      searchWithTagExpansionScanPage: 'resumes_search:searchWithTagExpansionScanPage',
+    },
     resumes: {
-      searchWithTagExpansionPaginated: 'resumes:searchWithTagExpansionPaginated',
-      searchWithTagExpansionScanPage: 'resumes:searchWithTagExpansionScanPage',
       listWithIngestDataPaginated: 'resumes:listWithIngestDataPaginated',
       getResumeDetail: 'resumes:getResumeDetail',
     },

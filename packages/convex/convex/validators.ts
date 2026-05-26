@@ -162,6 +162,16 @@ export const resumeFiltersValidator = v.optional(v.object({
     minAge: v.optional(v.number()),
     maxAge: v.optional(v.number()),
     sources: v.optional(v.array(v.string())),
+    status: v.optional(v.array(v.union(
+        v.literal("new"),
+        v.literal("contacted"),
+        v.literal("interviewing"),
+        v.literal("interviewed_pass"),
+        v.literal("interviewed_reject"),
+        v.literal("offer"),
+        v.literal("hired"),
+        v.literal("withdrawn"),
+    ))),
     minMatchScore: v.optional(v.number()),
     recommendation: v.optional(v.array(v.union(
         v.literal("strong_match"),
