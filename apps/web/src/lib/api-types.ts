@@ -4515,7 +4515,106 @@ export interface paths {
                         "application/json": {
                             /** @enum {boolean} */
                             success: true;
-                            report?: unknown;
+                            report: {
+                                generatedAt: string;
+                                periodDays: number;
+                                summary: {
+                                    totalEvents: number;
+                                    searchQueries: number;
+                                    zeroResultQueries: number;
+                                    candidateActions: number;
+                                    labeledActions: number;
+                                    scoredActions: number;
+                                };
+                                queryMetrics: {
+                                    query: string;
+                                    searchCount: number;
+                                    avgResultCount: number;
+                                    actions: number;
+                                    shortlist: number;
+                                    reject: number;
+                                    ndcgAtK: number;
+                                    shortlistAtK: number;
+                                    lastSearchAt?: string;
+                                    lastActionAt?: string;
+                                }[];
+                                rankingMetrics: {
+                                    k: number;
+                                    ndcgAtK: number;
+                                    shortlistAtK: number;
+                                    scoredCount: number;
+                                    shortlistCount: number;
+                                    rejectCount: number;
+                                    topJobDescriptionId?: string;
+                                };
+                                scoreDistribution: {
+                                    overall: {
+                                        count: number;
+                                        mean: number;
+                                        median: number;
+                                        p25: number;
+                                        p75: number;
+                                        min: number;
+                                        max: number;
+                                    };
+                                    shortlist: {
+                                        count: number;
+                                        mean: number;
+                                        median: number;
+                                        p25: number;
+                                        p75: number;
+                                        min: number;
+                                        max: number;
+                                    };
+                                    reject: {
+                                        count: number;
+                                        mean: number;
+                                        median: number;
+                                        p25: number;
+                                        p75: number;
+                                        min: number;
+                                        max: number;
+                                    };
+                                    separation: {
+                                        meanGap: number;
+                                        medianGap: number;
+                                        overlapRate: number;
+                                        shortlistAboveRejectRate: number;
+                                    };
+                                };
+                                learningPatterns: {
+                                    shortlistPatterns: {
+                                        keywords: string[];
+                                        priority: string;
+                                        count: number;
+                                    }[];
+                                    rejectPatterns: {
+                                        keyword: string;
+                                        negativeSignal: string;
+                                        count: number;
+                                    }[];
+                                };
+                                suggestions: {
+                                    weightAdjustments: {
+                                        category: string;
+                                        delta: number;
+                                        confidence: number;
+                                        reason: string;
+                                    }[];
+                                    synonymSuggestions: {
+                                        query: string;
+                                        variant: string;
+                                        canonical: string;
+                                        confidence: number;
+                                        reason: string;
+                                    }[];
+                                    domainExpansionSuggestions: {
+                                        keyword: string;
+                                        count: number;
+                                        queries: string[];
+                                    }[];
+                                };
+                            };
                         };
                     };
                 };
@@ -4559,7 +4658,17 @@ export interface paths {
                         "application/json": {
                             /** @enum {boolean} */
                             success: true;
-                            metrics?: unknown;
+                            metrics: {
+                                jobDescriptionId: string;
+                                periodDays: number;
+                                k: number;
+                                rankedCount: number;
+                                labeledCount: number;
+                                shortlistCount: number;
+                                rejectCount: number;
+                                ndcgAtK: number;
+                                shortlistAtK: number;
+                            };
                         };
                     };
                 };
@@ -4618,7 +4727,24 @@ export interface paths {
                         "application/json": {
                             /** @enum {boolean} */
                             success: true;
-                            validation?: unknown;
+                            validation: {
+                                jobDescriptionId: string;
+                                periodDays: number;
+                                k: number;
+                                sampleSize: number;
+                                current: {
+                                    ndcgAtK: number;
+                                    shortlistAtK: number;
+                                };
+                                projected: {
+                                    ndcgAtK: number;
+                                    shortlistAtK: number;
+                                };
+                                delta: {
+                                    ndcgAtK: number;
+                                    shortlistAtK: number;
+                                };
+                            };
                         };
                     };
                 };
@@ -4683,7 +4809,171 @@ export interface paths {
                         "application/json": {
                             /** @enum {boolean} */
                             success: true;
-                            result?: unknown;
+                            result: {
+                                /** @enum {string} */
+                                status: "applied" | "dry_run" | "cooldown" | "insufficient_data" | "no_job_description" | "no_suggestions" | "no_improvement" | "hr_rating_divergence";
+                                executedAt: string;
+                                reason?: string;
+                                report: {
+                                    generatedAt: string;
+                                    periodDays: number;
+                                    summary: {
+                                        totalEvents: number;
+                                        searchQueries: number;
+                                        zeroResultQueries: number;
+                                        candidateActions: number;
+                                        labeledActions: number;
+                                        scoredActions: number;
+                                    };
+                                    queryMetrics: {
+                                        query: string;
+                                        searchCount: number;
+                                        avgResultCount: number;
+                                        actions: number;
+                                        shortlist: number;
+                                        reject: number;
+                                        ndcgAtK: number;
+                                        shortlistAtK: number;
+                                        lastSearchAt?: string;
+                                        lastActionAt?: string;
+                                    }[];
+                                    rankingMetrics: {
+                                        k: number;
+                                        ndcgAtK: number;
+                                        shortlistAtK: number;
+                                        scoredCount: number;
+                                        shortlistCount: number;
+                                        rejectCount: number;
+                                        topJobDescriptionId?: string;
+                                    };
+                                    scoreDistribution: {
+                                        overall: {
+                                            count: number;
+                                            mean: number;
+                                            median: number;
+                                            p25: number;
+                                            p75: number;
+                                            min: number;
+                                            max: number;
+                                        };
+                                        shortlist: {
+                                            count: number;
+                                            mean: number;
+                                            median: number;
+                                            p25: number;
+                                            p75: number;
+                                            min: number;
+                                            max: number;
+                                        };
+                                        reject: {
+                                            count: number;
+                                            mean: number;
+                                            median: number;
+                                            p25: number;
+                                            p75: number;
+                                            min: number;
+                                            max: number;
+                                        };
+                                        separation: {
+                                            meanGap: number;
+                                            medianGap: number;
+                                            overlapRate: number;
+                                            shortlistAboveRejectRate: number;
+                                        };
+                                    };
+                                    learningPatterns: {
+                                        shortlistPatterns: {
+                                            keywords: string[];
+                                            priority: string;
+                                            count: number;
+                                        }[];
+                                        rejectPatterns: {
+                                            keyword: string;
+                                            negativeSignal: string;
+                                            count: number;
+                                        }[];
+                                    };
+                                    suggestions: {
+                                        weightAdjustments: {
+                                            category: string;
+                                            delta: number;
+                                            confidence: number;
+                                            reason: string;
+                                        }[];
+                                        synonymSuggestions: {
+                                            query: string;
+                                            variant: string;
+                                            canonical: string;
+                                            confidence: number;
+                                            reason: string;
+                                        }[];
+                                        domainExpansionSuggestions: {
+                                            keyword: string;
+                                            count: number;
+                                            queries: string[];
+                                        }[];
+                                    };
+                                };
+                                jobDescriptionId?: string;
+                                proposedCategoryWeights?: {
+                                    skillMatch: number;
+                                    roleMatch: number;
+                                    experienceMatch: number;
+                                    educationMatch: number;
+                                    locationMatch: number;
+                                    industryMatch: number;
+                                    brandRelevance: number;
+                                };
+                                validation?: {
+                                    jobDescriptionId: string;
+                                    periodDays: number;
+                                    k: number;
+                                    sampleSize: number;
+                                    current: {
+                                        ndcgAtK: number;
+                                        shortlistAtK: number;
+                                    };
+                                    projected: {
+                                        ndcgAtK: number;
+                                        shortlistAtK: number;
+                                    };
+                                    delta: {
+                                        ndcgAtK: number;
+                                        shortlistAtK: number;
+                                    };
+                                };
+                                historyEntry?: {
+                                    ts: string;
+                                    reason: string;
+                                    jobDescriptionId?: string;
+                                    before: {
+                                        skillMatch: number;
+                                        roleMatch: number;
+                                        experienceMatch: number;
+                                        educationMatch: number;
+                                        locationMatch: number;
+                                        industryMatch: number;
+                                        brandRelevance: number;
+                                    };
+                                    after: {
+                                        skillMatch: number;
+                                        roleMatch: number;
+                                        experienceMatch: number;
+                                        educationMatch: number;
+                                        locationMatch: number;
+                                        industryMatch: number;
+                                        brandRelevance: number;
+                                    };
+                                    metrics?: {
+                                        currentNdcgAtK?: number;
+                                        projectedNdcgAtK?: number;
+                                        currentShortlistAtK?: number;
+                                        projectedShortlistAtK?: number;
+                                    };
+                                };
+                                synonymsApplied?: number;
+                                reingestTriggered?: boolean;
+                            };
                         };
                     };
                 };
@@ -4736,7 +5026,35 @@ export interface paths {
                         "application/json": {
                             /** @enum {boolean} */
                             success: true;
-                            items: unknown[];
+                            items: {
+                                ts: string;
+                                reason: string;
+                                jobDescriptionId?: string;
+                                before: {
+                                    skillMatch: number;
+                                    roleMatch: number;
+                                    experienceMatch: number;
+                                    educationMatch: number;
+                                    locationMatch: number;
+                                    industryMatch: number;
+                                    brandRelevance: number;
+                                };
+                                after: {
+                                    skillMatch: number;
+                                    roleMatch: number;
+                                    experienceMatch: number;
+                                    educationMatch: number;
+                                    locationMatch: number;
+                                    industryMatch: number;
+                                    brandRelevance: number;
+                                };
+                                metrics?: {
+                                    currentNdcgAtK?: number;
+                                    projectedNdcgAtK?: number;
+                                    currentShortlistAtK?: number;
+                                    projectedShortlistAtK?: number;
+                                };
+                            }[];
                         };
                     };
                 };
@@ -4784,8 +5102,64 @@ export interface paths {
                         "application/json": {
                             /** @enum {boolean} */
                             success: true;
-                            restored?: unknown;
-                            rollbackEntry?: unknown;
+                            restored: {
+                                ts: string;
+                                reason: string;
+                                jobDescriptionId?: string;
+                                before: {
+                                    skillMatch: number;
+                                    roleMatch: number;
+                                    experienceMatch: number;
+                                    educationMatch: number;
+                                    locationMatch: number;
+                                    industryMatch: number;
+                                    brandRelevance: number;
+                                };
+                                after: {
+                                    skillMatch: number;
+                                    roleMatch: number;
+                                    experienceMatch: number;
+                                    educationMatch: number;
+                                    locationMatch: number;
+                                    industryMatch: number;
+                                    brandRelevance: number;
+                                };
+                                metrics?: {
+                                    currentNdcgAtK?: number;
+                                    projectedNdcgAtK?: number;
+                                    currentShortlistAtK?: number;
+                                    projectedShortlistAtK?: number;
+                                };
+                            };
+                            rollbackEntry: {
+                                ts: string;
+                                reason: string;
+                                jobDescriptionId?: string;
+                                before: {
+                                    skillMatch: number;
+                                    roleMatch: number;
+                                    experienceMatch: number;
+                                    educationMatch: number;
+                                    locationMatch: number;
+                                    industryMatch: number;
+                                    brandRelevance: number;
+                                };
+                                after: {
+                                    skillMatch: number;
+                                    roleMatch: number;
+                                    experienceMatch: number;
+                                    educationMatch: number;
+                                    locationMatch: number;
+                                    industryMatch: number;
+                                    brandRelevance: number;
+                                };
+                                metrics?: {
+                                    currentNdcgAtK?: number;
+                                    projectedNdcgAtK?: number;
+                                    currentShortlistAtK?: number;
+                                    projectedShortlistAtK?: number;
+                                };
+                            };
                             currentCategoryWeights: {
                                 skillMatch: number;
                                 roleMatch: number;
