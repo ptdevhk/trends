@@ -1377,7 +1377,12 @@
       "generatedAt": "生成时间",
       "anomalyDetected": "是否检测到异常",
       "activeAlerts": "活跃异常警报",
-      "noReport": "暂无偏差审计报告。"
+      "noReport": "暂无偏差审计报告。",
+      "anomalyFlags": "异常标志",
+      "computedAt": "计算时间",
+      "groupCount": "分组数量",
+      "scoreThreshold": "分数阈值",
+      "totalRecords": "记录总数"
     },
     "auditLog": {
       "title": "决策审计日志",
@@ -1414,6 +1419,36 @@
     "toasts": {
       "outcomeSet": "审计结果已更新",
       "outcomeFailed": "更新审计结果失败"
+    },
+    "flag": {
+      "drift": "分数漂移",
+      "impact": "影响违规",
+      "parity": "平等性违规",
+      "reportAge": "报告时效"
+    },
+    "groupRates": {
+      "dirVsRef": "差异影响比",
+      "group": "分组",
+      "reference": "参考组",
+      "selectionRate": "选择率",
+      "title": "分组比率"
+    },
+    "kpi": {
+      "anomalies": "异常",
+      "dir": "差异影响比",
+      "parity": "平等性差异",
+      "psi": "PSI漂移"
+    },
+    "metric": {
+      "override": "覆盖",
+      "parity": "平等性"
+    },
+    "metricBreakdown": {
+      "metric": "指标",
+      "status": "状态",
+      "threshold": "阈值",
+      "title": "指标明细",
+      "value": "值"
     }
   },
   "explanationPage": {
@@ -1470,6 +1505,9 @@
     },
     "footer": {
       "compliance": "此说明依据 EU AI Act 第13条提供。"
+    },
+    "common": {
+      "retry": "重试"
     }
   }
 }

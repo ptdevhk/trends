@@ -1350,7 +1350,12 @@
       "generatedAt": "Generated At",
       "anomalyDetected": "Anomaly Detected",
       "activeAlerts": "Active Anomaly Alerts",
-      "noReport": "No bias audit report available yet."
+      "noReport": "No bias audit report available yet.",
+      "anomalyFlags": "Anomaly Flags",
+      "computedAt": "Computed At",
+      "groupCount": "Group Count",
+      "scoreThreshold": "Score Threshold",
+      "totalRecords": "Total Records"
     },
     "auditLog": {
       "title": "Decision Audit Log",
@@ -1387,6 +1392,36 @@
     "toasts": {
       "outcomeSet": "Audit outcome updated",
       "outcomeFailed": "Failed to update audit outcome"
+    },
+    "flag": {
+      "drift": "Score Drift",
+      "impact": "Impact Violation",
+      "parity": "Parity Violation",
+      "reportAge": "Report Age"
+    },
+    "groupRates": {
+      "dirVsRef": "DIR vs Ref",
+      "group": "Group",
+      "reference": "reference",
+      "selectionRate": "Selection Rate",
+      "title": "Group Rates"
+    },
+    "kpi": {
+      "anomalies": "Anomalies",
+      "dir": "DIR Ratio",
+      "parity": "Parity Diff",
+      "psi": "PSI Drift"
+    },
+    "metric": {
+      "override": "Override",
+      "parity": "Parity"
+    },
+    "metricBreakdown": {
+      "metric": "Metric",
+      "status": "Status",
+      "threshold": "Threshold",
+      "title": "Metric Breakdown",
+      "value": "Value"
     }
   },
   "explanationPage": {
@@ -1443,6 +1478,9 @@
     },
     "footer": {
       "compliance": "This explanation is provided in compliance with EU AI Act Article 13."
+    },
+    "common": {
+      "retry": "Retry"
     }
   }
 }

@@ -38,6 +38,7 @@ WEB_SOURCE_LOCALE = "zh-Hant"
 WEB_TARGET_LOCALES = ["zh-Hans", "en"]
 WEB_SOURCE_DIR = PROJECT_ROOT / "apps" / "web" / "src"
 TRANSLATION_CALL_PATTERN = re.compile(r"\b(?:i18n\.)?t\s*\(\s*(['\"])([^'\"\n]+)\1\s*(?:,|\))")
+USE_TRANSLATION_PATTERN = re.compile(r"useTranslation\s*\(\s*(['\"])([^'\"\n]+)\1\s*\)")
 
 
 def flatten_keys(data: dict[str, Any], prefix: str = "") -> set[str]:
@@ -152,21 +153,29 @@ def find_static_translation_key_usages() -> tuple[set[str], dict[str, str]]:
       - t('some.key')
       - i18n.t("some.key")
       - t('some.key', { count: 5, defaultValue: '...' })
+    Resolves useTranslation('namespace') prefixes so keys match locale structure.
     """
     used_keys: set[str] = set()
     key_locations: dict[str, str] = {}
 
     for file_path in iter_web_source_files():
         content = file_path.read_text(encoding="utf-8")
+
+        # Detect useTranslation('namespace') to resolve prefixed keys
+        ns_match = USE_TRANSLATION_PATTERN.search(content)
+        namespace = ns_match.group(2).strip() if ns_match else None
+
         for match in TRANSLATION_CALL_PATTERN.finditer(content):
             key = match.group(2).strip()
             if not key:
                 continue
-            used_keys.add(key)
-            if key not in key_locations:
+            # Prefix key with namespace if useTranslation declares one
+            resolved_key = f"{namespace}.{key}" if namespace else key
+            used_keys.add(resolved_key)
+            if resolved_key not in key_locations:
                 line_number = content.count("\n", 0, match.start()) + 1
                 relative = file_path.relative_to(PROJECT_ROOT)
-                key_locations[key] = f"{relative}:{line_number}"
+                key_locations[resolved_key] = f"{relative}:{line_number}"
 
     return used_keys, key_locations
 

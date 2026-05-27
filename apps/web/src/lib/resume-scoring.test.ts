@@ -368,10 +368,16 @@ describe('resume-scoring', () => {
       breakdown: { related_exp: 26, industry_db: 50 },
     }
 
-    it('zeros industry_db for MY market', () => {
+    it('applies industry_db floor of 40 for MY market', () => {
+      const result = overrideIndustryDbBreakdown(cnAnalysis, 0, 'MY')
+      expect(result.breakdown!.industry_db).toBe(40) // MY_INDUSTRY_DB_FLOOR
+      expect(result.score).toBe(53) // related_exp(26)*0.5=13 + floor(40) = 53
+    })
+
+    it('keeps industry_db above floor for MY market with brand hits', () => {
       const result = overrideIndustryDbBreakdown(cnAnalysis, 50, 'MY')
-      expect(result.breakdown!.industry_db).toBe(0)
-      expect(result.score).toBe(13) // related_exp * 0.5 = 13
+      expect(result.breakdown!.industry_db).toBe(50) // Math.max(40, 50) = 50
+      expect(result.score).toBe(63) // 13 + 50
     })
 
     it('keeps industry_db for CN market', () => {
