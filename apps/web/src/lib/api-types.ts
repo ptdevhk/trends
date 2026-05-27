@@ -9249,6 +9249,135 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/config/export-fields": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get export fields configuration */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Export fields config */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            config: {
+                                fields: ("resumeId" | "name" | "jobIntention" | "location" | "experience" | "education" | "age" | "expectedSalary" | "aiScore" | "industryDb" | "relatedExp" | "recommendation" | "ruleScore" | "scoreSource" | "status" | "action" | "industryTags" | "brandHits" | "companyHits" | "profileUrl" | "workHistory" | "selfIntro" | "aiSummary" | "userComment" | "referenceNote" | "externalId" | "source" | "industryDbV2Raw" | "industryDbV2Normalized" | "roleEvidence" | "matchedWorkEntries")[];
+                                includeDebugWhenEnabled?: boolean;
+                            } | null;
+                        };
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        /** Update export fields configuration */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        fields: ("resumeId" | "name" | "jobIntention" | "location" | "experience" | "education" | "age" | "expectedSalary" | "aiScore" | "industryDb" | "relatedExp" | "recommendation" | "ruleScore" | "scoreSource" | "status" | "action" | "industryTags" | "brandHits" | "companyHits" | "profileUrl" | "workHistory" | "selfIntro" | "aiSummary" | "userComment" | "referenceNote" | "externalId" | "source" | "industryDbV2Raw" | "industryDbV2Normalized" | "roleEvidence" | "matchedWorkEntries")[];
+                        includeDebugWhenEnabled?: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description Updated config */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            config: {
+                                fields: ("resumeId" | "name" | "jobIntention" | "location" | "experience" | "education" | "age" | "expectedSalary" | "aiScore" | "industryDb" | "relatedExp" | "recommendation" | "ruleScore" | "scoreSource" | "status" | "action" | "industryTags" | "brandHits" | "companyHits" | "profileUrl" | "workHistory" | "selfIntro" | "aiSummary" | "userComment" | "referenceNote" | "externalId" | "source" | "industryDbV2Raw" | "industryDbV2Normalized" | "roleEvidence" | "matchedWorkEntries")[];
+                                includeDebugWhenEnabled?: boolean;
+                            } | null;
+                        };
+                    };
+                };
+                /** @description Invalid payload */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/notifications/templates": {
         parameters: {
             query?: never;

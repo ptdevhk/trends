@@ -262,9 +262,12 @@ async function resolveExportRequest(
   };
 }
 
-async function buildResumeExportResponse(request: ResumeExportCanonicalRequest) {
+async function buildResumeExportResponse(request: ResumeExportCanonicalRequest, workspaceSlug?: string) {
   const { format, entries, batchMeta, industryDbV2Stats, debug } = await resolveExportRequest(request);
-  const file = await exportService.exportResumes(format, entries, batchMeta, industryDbV2Stats, debug);
+  const fieldConfig = workspaceSlug
+    ? await workspaceConfigService.getExportFieldsConfig(workspaceSlug)
+    : null;
+  const file = await exportService.exportResumes(format, entries, batchMeta, industryDbV2Stats, debug, fieldConfig);
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
   const filename = `resumes-export-${timestamp}.${file.extension}`;
 
@@ -995,7 +998,7 @@ const sendReviewPacketSummaryRoute = createRoute({
 app.openapi(exportResumesRoute, async (c) => {
   try {
     const request = c.req.valid("json");
-    return await buildResumeExportResponse(request);
+    return await buildResumeExportResponse(request, c.var.workspaceSlug);
   } catch (error) {
     return buildResumeExportErrorResponse(c, error);
   }
@@ -1228,7 +1231,7 @@ const exportDownloadRoute = createRoute({
 app.openapi(exportDownloadRoute, async (c) => {
   try {
     const request = await parseResumeExportDownloadRequest(c);
-    return await buildResumeExportResponse(request);
+    return await buildResumeExportResponse(request, c.var.workspaceSlug);
   } catch (error) {
     return buildResumeExportErrorResponse(c, error);
   }

@@ -4,8 +4,11 @@ import JSON5 from "json5";
 import { logger } from "./logger.js";
 import {
   isRecord,
+  EXPORT_FIELD_KEYS,
   parseResumeFieldUsagePolicyOverrides,
   resolveResumeFieldUsagePolicy,
+  type ExportFieldKey,
+  type ExportFieldsConfig,
   type ResumeFieldUsagePolicy,
   type ResumeFieldUsagePolicyOverrides,
   type SummaryChannel,
@@ -557,6 +560,20 @@ export function parseRuleWeightsConfig(value: unknown): RuleWeightsConfigOverrid
   return parseRuleWeightsOverrides(value);
 }
 
+export function parseExportFieldsConfig(value: unknown): ExportFieldsConfig | null {
+  if (!isRecord(value)) return null;
+  const fields = value.fields;
+  if (!Array.isArray(fields)) return null;
+  const validFields = fields.filter(
+    (f): f is ExportFieldKey => typeof f === "string" && (EXPORT_FIELD_KEYS as readonly string[]).includes(f),
+  );
+  if (validFields.length === 0) return null;
+  const includeDebugWhenEnabled = typeof value.includeDebugWhenEnabled === "boolean"
+    ? value.includeDebugWhenEnabled
+    : undefined;
+  return { fields: validFields, includeDebugWhenEnabled };
+}
+
 const CUSTOM_KEYWORDS_KEY = "custom-keywords";
 const AGENT_OVERRIDES_KEY = "agent-overrides";
 const FILTER_PRESETS_KEY = "filter-presets";
@@ -564,6 +581,7 @@ const RULE_WEIGHTS_KEY = "rule-weights";
 const LEARNING_LOG_KEY = "learning-log";
 const RESUME_FIELD_USAGE_POLICY_KEY = "resume-field-usage-policy";
 const SUMMARY_PROFILES_KEY = "summary-profiles";
+const EXPORT_FIELDS_KEY = "export-fields";
 
 export class WorkspaceConfigService {
   readonly projectRoot: string;
@@ -863,6 +881,15 @@ export class WorkspaceConfigService {
   async getResumeFieldUsagePolicy(workspaceSlug: string): Promise<ResumeFieldUsagePolicy> {
     const workspaceConfig = await this.getWorkspaceResumeFieldUsagePolicy(workspaceSlug);
     return resolveResumeFieldUsagePolicy(workspaceConfig);
+  }
+
+  async getExportFieldsConfig(workspaceSlug: string): Promise<ExportFieldsConfig | null> {
+    const entry = await this.getWorkspaceConfigEntry(workspaceSlug, EXPORT_FIELDS_KEY);
+    return parseExportFieldsConfig(entry?.configValue);
+  }
+
+  async setExportFieldsConfig(workspaceSlug: string, config: ExportFieldsConfig): Promise<void> {
+    await this.upsertWorkspaceConfigEntry(workspaceSlug, EXPORT_FIELDS_KEY, config);
   }
 }
 
