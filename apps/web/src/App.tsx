@@ -83,6 +83,11 @@ const LazySystemSettingsTaxonomyPage = lazy(async () => {
   return { default: module.SystemSettingsTaxonomyPage }
 })
 
+const LazySystemSettingsExportFieldsPage = lazy(async () => {
+  const module = await import('@/pages/system-settings/SystemSettingsExportFieldsPage')
+  return { default: module.SystemSettingsExportFieldsPage }
+})
+
 function MainShell() {
   return (
     <div className="min-h-screen bg-background">
@@ -240,6 +245,14 @@ function App() {
                   element={(
                     <RouteSuspense>
                       <LazySystemSettingsLocationsPage />
+                    </RouteSuspense>
+                  )}
+                />
+                <Route
+                  path="export-fields"
+                  element={(
+                    <RouteSuspense>
+                      <LazySystemSettingsExportFieldsPage />
                     </RouteSuspense>
                   )}
                 />
