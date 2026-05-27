@@ -277,7 +277,7 @@ function buildNormalizedResumeContent(
   resume: ResumeImportItem,
   seekContext?: { sourceHost: string; jobId?: string },
 ): Record<string, unknown> {
-  const { sourceHost: _sourceHost, tags: _tags, ...content } = resume;
+  const { sourceHost: _sourceHost, tags: _tags, restoreState: _restoreState, ...content } = resume;
   const locationHierarchy = normalizeResumeLocationHierarchy(resume);
   const rawLocation = typeof content.location === "string" ? content.location.trim() : "";
   const location = rawLocation || (locationHierarchy ? formatLocationHierarchyLabel(locationHierarchy) : "");
