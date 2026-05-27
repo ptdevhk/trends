@@ -2,7 +2,8 @@
 
 > Multi-source data aggregation platform with pluggable domain workflows.
 > Primary direction: resume screening (ingest → search → scoring → notification).
-> Optimised for: **autonomous long-running cycles**, **TDD on critical paths**,
+> Optimised for: **TDD-first pipeline** (plan → red-green-refactor → review → merge),
+> **autonomous long-running cycles**, **CI-gated auto-merge** (4 required checks),
 > **Playwright-CLI against `make dev`** for browser-facing changes,
 > **resume search · collection · AI scoring** as critical paths.
 
@@ -19,29 +20,28 @@ cron_schedule: "7,22,37,52 * * * *"
 ## PRD layer
 
 ```yaml
-prd_layer: superpowers
-prd_pipeline: full              # full pipeline by default; trivial fast-path auto-detected
+prd_layer: tdd
+prd_pipeline: tdd-first         # plan → execute (TDD) → review → merge; no brainstorm/spec step
 ```
 
 ### PRD backends registry
 
 ```yaml
 prd_backends:
-  superpowers:
-    capabilities: [brainstorm, spec, plan, execute, review, subagent_dispatch]
+  tdd:
+    capabilities: [plan, execute, review]
     skills:
-      brainstorm: superpowers:brainstorming
       plan: superpowers:writing-plans
-      execute: superpowers:subagent-driven-development
-      execute_fallback: superpowers:executing-plans
-      review: simplify
+      execute: superpowers:test-driven-development
+      review: superpowers:requesting-code-review
 ```
 
 ### Cross-cutting disciplines
 
-> v1.16.1: `include_paths` is parsed. TDD is mandatory only on critical-path
-> code files; advisory catch-all for everything else. First-match-wins
-> resolution per the schema. systematic-debugging fires reactively on
+> TDD is the primary execution mode (prd_layer: tdd). The discipline entries
+> below add path-scoped enforcement: mandatory on critical paths ensures
+> red-green-refactor discipline even for quick fixes; advisory catch-all
+> reminds for non-critical files. systematic-debugging fires reactively on
 > failure (see `reactive_debugging` block for retry budget).
 > verification-before-completion gates REVIEW for every cycle.
 
@@ -335,7 +335,8 @@ remote_hosts: [ptcloud]
 ```yaml
 ci_configured: true
 ci_discovery: runtime
-# required_checks: not needed — branch protection is the source of truth
+# Branch protection on main requires: test, verify, i18n-check, secret-scan
+# ci-health-worker queries protection API at MERGE time — now resolves (was 404 before 2026-05-27)
 # Existing workflows: checks.yml (secret-scan, i18n-check, verify), tests.yml (test)
 ```
 
@@ -346,7 +347,7 @@ notes:
   stack: Monorepo — React+Vite (web), Hono+OpenAPI (api), FastAPI (worker), Convex (data)
   deploy: production deploys via `make on-prod-deploy` on ptcloud after `make on-prod-deploy-check`
   config_docs: CLAUDE.md is canonical; AGENTS.md is symlink
-  planning: EnterPlanMode gated — use superpowers:brainstorming → superpowers:writing-plans instead
+  planning: EnterPlanMode gated — TDD-first pipeline uses superpowers:writing-plans for plan, then superpowers:test-driven-development for execute
   gotcha: api-types.ts regenerates on make check after API schema edits — always stage it
   gotcha: better-sqlite3 needs npm rebuild after Node version bumps
   gotcha: Convex 16 MiB per-query byte limit — keep paginate batches ≤200 docs (~5.4MB)
