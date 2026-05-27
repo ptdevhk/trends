@@ -7,7 +7,7 @@
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
-import { CheckCircle, XCircle, Download, Users, Star, Ban } from 'lucide-react'
+import { CheckCircle, XCircle, Download, Users, Ban } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
@@ -22,7 +22,8 @@ interface BulkActionBarProps {
     onSelectAll?: () => void
     onSelectHighScore?: () => void
     onClearSelection?: () => void
-    onBulkAction?: (action: 'shortlist' | 'reject' | 'star' | 'block' | 'export', format?: ResumeExportFormat) => void
+    // 'shortlist' and 'reject' also sync Convex candidate_status
+    onBulkAction?: (action: 'shortlist' | 'reject' | 'block' | 'export', format?: ResumeExportFormat) => void
     blockedCount?: number
     blocksSettingsPath?: string
     disabled?: boolean
@@ -45,7 +46,7 @@ export function BulkActionBar({
     const { t } = useTranslation()
     const [loading, setLoading] = useState<string | null>(null)
 
-    const handleAction = useCallback(async (action: 'shortlist' | 'reject' | 'star' | 'block' | 'export') => {
+    const handleAction = useCallback(async (action: 'shortlist' | 'reject' | 'block' | 'export') => {
         setLoading(action)
         try {
             if (action === 'export') {
@@ -142,16 +143,6 @@ export function BulkActionBar({
                 >
                     <CheckCircle className={cn('mr-1 h-4 w-4', loading === 'shortlist' && 'animate-spin')} />
                     {t('bulkActions.shortlist', '批量入围')}
-                </Button>
-                <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleAction('star')}
-                    disabled={disabled || selectedCount === 0 || loading !== null}
-                    className="text-amber-600 border-amber-200 hover:bg-amber-50"
-                >
-                    <Star className={cn('mr-1 h-4 w-4', loading === 'star' && 'animate-spin')} />
-                    {t('bulkActions.star', '批量标星')}
                 </Button>
                 <Button
                     variant="outline"

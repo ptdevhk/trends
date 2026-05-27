@@ -853,6 +853,15 @@ export function useResumeListState(loadSearchHistory = false) {
       })
     }
 
+    const showRejected = filters.showRejected === true
+    if (!showRejected) {
+      result = result.filter((resume: ScoredConvexResume) => {
+        const identityKey = getResumeIdentityKey(resume, String(resume.resumeId))
+        const status = statusByIdentity[identityKey]?.status ?? 'new'
+        return status !== 'rejected'
+      })
+    }
+
     if (filters.status?.length) {
       const activeStatuses = new Set(toStatusFilterList(filters.status))
       result = result.filter((resume: ScoredConvexResume) => {
@@ -1312,7 +1321,7 @@ export function useResumeListState(loadSearchHistory = false) {
       return enrichedResumes
     }
 
-    const sortBy = filters.sortBy ?? 'score'
+    const sortBy = filters.sortBy ?? 'extractedAt'
     const sortOrder = filters.sortOrder ?? 'desc'
     const direction = sortOrder === 'asc' ? 1 : -1
 
@@ -1446,7 +1455,7 @@ export function useResumeListState(loadSearchHistory = false) {
   }, [])
 
   const handleBulkAction = useCallback(
-    async (action: 'shortlist' | 'reject' | 'star' | 'block' | 'export', format?: ResumeExportFormat) => {
+    async (action: 'shortlist' | 'reject' | 'block' | 'export', format?: ResumeExportFormat) => {
       if (selectedIds.size === 0) return
 
       const selectedEntries = displayedResumes.filter((entry) => selectedIds.has(entry.key))
@@ -1514,14 +1523,25 @@ export function useResumeListState(loadSearchHistory = false) {
             saveAction({ resumeId: entry.key, actionType: action })
           )
         )
-        const actionLabels: Record<string, string> = { shortlist: 'shortlisted', reject: 'rejected', star: 'starred' }
+
+        // Sync candidate_status in Convex for shortlist/reject
+        if (action === 'shortlist' || action === 'reject') {
+          const targetStatus = action === 'shortlist' ? 'shortlisted' : 'rejected'
+          await Promise.all(
+            selectedEntries.map((entry) =>
+              updateCandidateStatus(entry.identityKey, targetStatus)
+            )
+          )
+        }
+
+        const actionLabels: Record<string, string> = { shortlist: 'shortlisted', reject: 'rejected' }
         toast.success(t('bulk.actionDone', { count: selectedEntries.length, action: actionLabels[action] || action, defaultValue: `${selectedEntries.length} resumes ${actionLabels[action] || action}` }))
       } catch (error) {
         console.error('Bulk action failed', error)
         toast.error(t('bulk.actionFailed', { defaultValue: 'Bulk action failed. Please try again.' }))
       }
     },
-    [apiBaseUrl, appliedSearchHistory?.industryDbV2Stats, blockCandidates, bulkExportFormat, displayedResumes, mode, saveAction, selectedIds, selectedSample, sendLearningFeedback, t]
+    [apiBaseUrl, appliedSearchHistory?.industryDbV2Stats, blockCandidates, bulkExportFormat, displayedResumes, mode, saveAction, selectedIds, selectedSample, sendLearningFeedback, t, updateCandidateStatus]
   )
 
   const handleOpenReviewPacket = useCallback(async () => {

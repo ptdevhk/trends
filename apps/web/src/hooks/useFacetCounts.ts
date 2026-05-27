@@ -97,6 +97,8 @@ export function useFacetCounts(
 
     const statusLabels = new Map<string, string>([
       ['new', t('resumes.status.options.new')],
+      ['shortlisted', t('resumes.status.options.shortlisted')],
+      ['rejected', t('resumes.status.options.rejected')],
       ['contacted', t('resumes.status.options.contacted')],
       ['interviewing', t('resumes.status.options.interviewing')],
       ['interviewed_pass', t('resumes.status.options.interviewed_pass')],

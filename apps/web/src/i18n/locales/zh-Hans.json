@@ -268,6 +268,7 @@
       "locations": "地区",
       "locationsPlaceholder": "例如：东莞, 深圳",
       "status": "候选人状态",
+      "showRejected": "显示已拒绝候选人",
       "showBlocked": "显示已屏蔽候选人",
       "education": {
         "title": "学历",
@@ -305,6 +306,8 @@
       "notePrompt": "为“{{status}}”添加备注（选填）",
       "options": {
         "new": "新候选人",
+        "shortlisted": "已入围",
+        "rejected": "已拒绝",
         "contacted": "已联系",
         "interviewing": "面试中",
         "interviewed_pass": "面试通过",

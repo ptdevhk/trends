@@ -363,6 +363,8 @@ export const CandidateStatusBackupSchema = z
     identityKey: z.string().openapi({ example: "profileUrl:https://hr.job5156.com/resume/view/123" }),
     status: z.enum([
       "new",
+      "shortlisted",
+      "rejected",
       "contacted",
       "interviewing",
       "interviewed_pass",

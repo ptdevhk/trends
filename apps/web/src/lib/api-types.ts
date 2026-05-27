@@ -4204,8 +4204,9 @@ export interface paths {
                         jobDescriptionId?: string;
                         sampleName?: string;
                         filters?: components["schemas"]["ResumeFilters"] & {
-                            status?: ("new" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "appeal_submitted" | "human_review" | "upheld" | "reversed" | "offer" | "hired" | "withdrawn")[];
+                            status?: ("new" | "shortlisted" | "rejected" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "appeal_submitted" | "human_review" | "upheld" | "reversed" | "offer" | "hired" | "withdrawn")[];
                             showBlocked?: boolean;
+                            showRejected?: boolean;
                         };
                         shareTitle?: string;
                         searchState?: {
@@ -4249,8 +4250,9 @@ export interface paths {
                                 exactUrl?: string;
                             };
                             filters?: components["schemas"]["ResumeFilters"] & {
-                                status?: ("new" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "appeal_submitted" | "human_review" | "upheld" | "reversed" | "offer" | "hired" | "withdrawn")[];
+                                status?: ("new" | "shortlisted" | "rejected" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "appeal_submitted" | "human_review" | "upheld" | "reversed" | "offer" | "hired" | "withdrawn")[];
                                 showBlocked?: boolean;
+                                showRejected?: boolean;
                             };
                             /** @example Priority shortlist for HR sync */
                             referenceNote?: string;
@@ -4280,8 +4282,9 @@ export interface paths {
                                 /** @example sample-initial */
                                 sampleName?: string;
                                 filters?: components["schemas"]["ResumeFilters"] & {
-                                    status?: ("new" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "appeal_submitted" | "human_review" | "upheld" | "reversed" | "offer" | "hired" | "withdrawn")[];
+                                    status?: ("new" | "shortlisted" | "rejected" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "appeal_submitted" | "human_review" | "upheld" | "reversed" | "offer" | "hired" | "withdrawn")[];
                                     showBlocked?: boolean;
+                                    showRejected?: boolean;
                                 };
                                 /** @example Kuala Lumpur · Sales Engineer */
                                 shareTitle?: string;
@@ -4326,8 +4329,9 @@ export interface paths {
                                         exactUrl?: string;
                                     };
                                     filters?: components["schemas"]["ResumeFilters"] & {
-                                        status?: ("new" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "appeal_submitted" | "human_review" | "upheld" | "reversed" | "offer" | "hired" | "withdrawn")[];
+                                        status?: ("new" | "shortlisted" | "rejected" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "appeal_submitted" | "human_review" | "upheld" | "reversed" | "offer" | "hired" | "withdrawn")[];
                                         showBlocked?: boolean;
+                                        showRejected?: boolean;
                                     };
                                     /** @example Priority shortlist for HR sync */
                                     referenceNote?: string;
@@ -4395,8 +4399,9 @@ export interface paths {
                                 /** @example sample-initial */
                                 sampleName?: string;
                                 filters?: components["schemas"]["ResumeFilters"] & {
-                                    status?: ("new" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "appeal_submitted" | "human_review" | "upheld" | "reversed" | "offer" | "hired" | "withdrawn")[];
+                                    status?: ("new" | "shortlisted" | "rejected" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "appeal_submitted" | "human_review" | "upheld" | "reversed" | "offer" | "hired" | "withdrawn")[];
                                     showBlocked?: boolean;
+                                    showRejected?: boolean;
                                 };
                                 /** @example Kuala Lumpur · Sales Engineer */
                                 shareTitle?: string;
@@ -4441,8 +4446,9 @@ export interface paths {
                                         exactUrl?: string;
                                     };
                                     filters?: components["schemas"]["ResumeFilters"] & {
-                                        status?: ("new" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "appeal_submitted" | "human_review" | "upheld" | "reversed" | "offer" | "hired" | "withdrawn")[];
+                                        status?: ("new" | "shortlisted" | "rejected" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "appeal_submitted" | "human_review" | "upheld" | "reversed" | "offer" | "hired" | "withdrawn")[];
                                         showBlocked?: boolean;
+                                        showRejected?: boolean;
                                     };
                                     /** @example Priority shortlist for HR sync */
                                     referenceNote?: string;
@@ -4493,8 +4499,9 @@ export interface paths {
                         jobDescriptionId?: string;
                         sampleName?: string;
                         filters?: components["schemas"]["ResumeFilters"] & {
-                            status?: ("new" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "appeal_submitted" | "human_review" | "upheld" | "reversed" | "offer" | "hired" | "withdrawn")[];
+                            status?: ("new" | "shortlisted" | "rejected" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "appeal_submitted" | "human_review" | "upheld" | "reversed" | "offer" | "hired" | "withdrawn")[];
                             showBlocked?: boolean;
+                            showRejected?: boolean;
                         };
                         shareTitle?: string | null;
                         searchState?: {
@@ -4538,8 +4545,9 @@ export interface paths {
                                 exactUrl?: string;
                             };
                             filters?: components["schemas"]["ResumeFilters"] & {
-                                status?: ("new" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "appeal_submitted" | "human_review" | "upheld" | "reversed" | "offer" | "hired" | "withdrawn")[];
+                                status?: ("new" | "shortlisted" | "rejected" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "appeal_submitted" | "human_review" | "upheld" | "reversed" | "offer" | "hired" | "withdrawn")[];
                                 showBlocked?: boolean;
+                                showRejected?: boolean;
                             };
                             /** @example Priority shortlist for HR sync */
                             referenceNote?: string;
@@ -4572,8 +4580,9 @@ export interface paths {
                                 /** @example sample-initial */
                                 sampleName?: string;
                                 filters?: components["schemas"]["ResumeFilters"] & {
-                                    status?: ("new" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "appeal_submitted" | "human_review" | "upheld" | "reversed" | "offer" | "hired" | "withdrawn")[];
+                                    status?: ("new" | "shortlisted" | "rejected" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "appeal_submitted" | "human_review" | "upheld" | "reversed" | "offer" | "hired" | "withdrawn")[];
                                     showBlocked?: boolean;
+                                    showRejected?: boolean;
                                 };
                                 /** @example Kuala Lumpur · Sales Engineer */
                                 shareTitle?: string;
@@ -4618,8 +4627,9 @@ export interface paths {
                                         exactUrl?: string;
                                     };
                                     filters?: components["schemas"]["ResumeFilters"] & {
-                                        status?: ("new" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "appeal_submitted" | "human_review" | "upheld" | "reversed" | "offer" | "hired" | "withdrawn")[];
+                                        status?: ("new" | "shortlisted" | "rejected" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "appeal_submitted" | "human_review" | "upheld" | "reversed" | "offer" | "hired" | "withdrawn")[];
                                         showBlocked?: boolean;
+                                        showRejected?: boolean;
                                     };
                                     /** @example Priority shortlist for HR sync */
                                     referenceNote?: string;
@@ -4924,7 +4934,7 @@ export interface paths {
                                 identityKey: string;
                                 workspaceSlug: string;
                                 /** @enum {string} */
-                                status: "new" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "appeal_submitted" | "human_review" | "upheld" | "reversed" | "offer" | "hired" | "withdrawn";
+                                status: "new" | "shortlisted" | "rejected" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "appeal_submitted" | "human_review" | "upheld" | "reversed" | "offer" | "hired" | "withdrawn";
                                 notes?: string;
                                 updatedBy?: string;
                                 updatedAt: number;
@@ -4953,7 +4963,7 @@ export interface paths {
                     "application/json": {
                         identityKey: string;
                         /** @enum {string} */
-                        status: "new" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "appeal_submitted" | "human_review" | "upheld" | "reversed" | "offer" | "hired" | "withdrawn";
+                        status: "new" | "shortlisted" | "rejected" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "appeal_submitted" | "human_review" | "upheld" | "reversed" | "offer" | "hired" | "withdrawn";
                         notes?: string;
                         updatedBy?: string;
                     };
@@ -4974,7 +4984,7 @@ export interface paths {
                                 identityKey: string;
                                 workspaceSlug: string;
                                 /** @enum {string} */
-                                status: "new" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "appeal_submitted" | "human_review" | "upheld" | "reversed" | "offer" | "hired" | "withdrawn";
+                                status: "new" | "shortlisted" | "rejected" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "appeal_submitted" | "human_review" | "upheld" | "reversed" | "offer" | "hired" | "withdrawn";
                                 notes?: string;
                                 updatedBy?: string;
                                 updatedAt: number;
@@ -12009,7 +12019,7 @@ export interface components {
              * @example interviewing
              * @enum {string}
              */
-            status: "new" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "appeal_submitted" | "human_review" | "upheld" | "reversed" | "offer" | "hired" | "withdrawn";
+            status: "new" | "shortlisted" | "rejected" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "appeal_submitted" | "human_review" | "upheld" | "reversed" | "offer" | "hired" | "withdrawn";
             /** @example Strong candidate */
             notes?: string;
             /** @example hr.lead */

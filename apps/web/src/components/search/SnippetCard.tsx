@@ -54,6 +54,8 @@ type SnippetCardProps = {
 
 const STATUS_OPTIONS: Array<{ value: CandidateStatus; labelKey: string }> = [
   { value: 'new', labelKey: 'resumes.status.options.new' },
+  { value: 'shortlisted', labelKey: 'resumes.status.options.shortlisted' },
+  { value: 'rejected', labelKey: 'resumes.status.options.rejected' },
   { value: 'contacted', labelKey: 'resumes.status.options.contacted' },
   { value: 'interviewing', labelKey: 'resumes.status.options.interviewing' },
   { value: 'interviewed_pass', labelKey: 'resumes.status.options.interviewed_pass' },
@@ -69,6 +71,8 @@ const STATUS_OPTIONS: Array<{ value: CandidateStatus; labelKey: string }> = [
 
 const STATUS_BADGE_CLASS: Record<CandidateStatus, string> = {
   new: 'border-zinc-200 bg-zinc-50 text-zinc-700',
+  shortlisted: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+  rejected: 'border-red-200 bg-red-50 text-red-700',
   contacted: 'border-blue-200 bg-blue-50 text-blue-700',
   interviewing: 'border-cyan-200 bg-cyan-50 text-cyan-700',
   interviewed_pass: 'border-emerald-200 bg-emerald-50 text-emerald-700',

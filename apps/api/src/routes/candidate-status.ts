@@ -13,6 +13,8 @@ const app = new OpenAPIHono();
 
 const CandidateStatusEnum = z.enum([
   "new",
+  "shortlisted",
+  "rejected",
   "contacted",
   "interviewing",
   "interviewed_pass",

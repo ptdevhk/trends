@@ -164,6 +164,8 @@ export const resumeFiltersValidator = v.optional(v.object({
     sources: v.optional(v.array(v.string())),
     status: v.optional(v.array(v.union(
         v.literal("new"),
+        v.literal("shortlisted"),
+        v.literal("rejected"),
         v.literal("contacted"),
         v.literal("interviewing"),
         v.literal("interviewed_pass"),

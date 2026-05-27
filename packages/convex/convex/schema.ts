@@ -394,6 +394,8 @@ export default defineSchema({
         workspaceSlug: v.string(),
         status: v.union(
             v.literal("new"),
+            v.literal("shortlisted"),
+            v.literal("rejected"),
             v.literal("contacted"),
             v.literal("interviewing"),
             v.literal("interviewed_pass"),

@@ -268,6 +268,7 @@
       "locations": "地點",
       "locationsPlaceholder": "例如：東莞, 深圳",
       "status": "候選人狀態",
+      "showRejected": "顯示已拒絕候選人",
       "showBlocked": "顯示已封鎖候選人",
       "education": {
         "title": "學歷",
@@ -305,6 +306,8 @@
       "notePrompt": "為「{{status}}」新增備註（選填）",
       "options": {
         "new": "新候選人",
+        "shortlisted": "已入圍",
+        "rejected": "已拒絕",
         "contacted": "已聯繫",
         "interviewing": "面試中",
         "interviewed_pass": "面試通過",
