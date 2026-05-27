@@ -180,6 +180,14 @@ function App() {
                   </RouteSuspense>
                 )}
               />
+              <Route
+                path="export-fields"
+                element={(
+                  <RouteSuspense>
+                    <LazySystemSettingsExportFieldsPage />
+                  </RouteSuspense>
+                )}
+              />
             </Route>
 
             <Route
@@ -245,14 +253,6 @@ function App() {
                   element={(
                     <RouteSuspense>
                       <LazySystemSettingsLocationsPage />
-                    </RouteSuspense>
-                  )}
-                />
-                <Route
-                  path="export-fields"
-                  element={(
-                    <RouteSuspense>
-                      <LazySystemSettingsExportFieldsPage />
                     </RouteSuspense>
                   )}
                 />

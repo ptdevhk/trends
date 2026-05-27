@@ -217,7 +217,7 @@ export function SystemSettingsExportFieldsPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-1">
           <h2 className="text-xl font-semibold tracking-tight">
-            {t('debugConfig.settingsNavExportFields', { defaultValue: 'Export Fields' })}
+            {t('settings.exportFields.nav', { defaultValue: 'Export Fields' })}
           </h2>
           <p className="text-sm text-muted-foreground">
             {t('debugConfig.exportFieldsPageDescription', {

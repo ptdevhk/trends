@@ -804,6 +804,9 @@
         "bulkUnblockSuccess": "Unblocked {{count}} candidate(s)",
         "bulkUnblockFailed": "Failed to unblock selected candidates"
       }
+    },
+    "exportFields": {
+      "nav": "Export Fields"
     }
   },
   "debug": {
@@ -914,7 +917,6 @@
     "settingsNavConfigSources": "Config sources",
     "settingsNavKeywords": "Keywords",
     "settingsNavLocations": "Locations",
-    "settingsNavExportFields": "Export Fields",
     "settingsOverviewLabel": "Settings overview",
     "settingsOverviewTitle": "Open each system settings area in its own page.",
     "settingsOverviewPageDescription": "Use the local settings navigation above to move directly to runtime, config, keyword, or location management without scrolling through one giant page.",

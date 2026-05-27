@@ -655,7 +655,6 @@
     "systemLocationLevel": "层级",
     "configSourceLabel": "来源",
     "settingsNavLocations": "地区配置",
-    "settingsNavExportFields": "导出字段",
     "systemLocationKeyword": "地区",
     "configSourceParsedPreview": "解析预览",
     "presetEducation": "学历",
@@ -919,6 +918,9 @@
       "searchPlaceholder": "依候选人识别键或原因搜索...",
       "empty": "目前没有已屏蔽候选人。",
       "nav": "黑名单"
+    },
+    "exportFields": {
+      "nav": "导出字段"
     }
   },
   "searchAnalytics": {

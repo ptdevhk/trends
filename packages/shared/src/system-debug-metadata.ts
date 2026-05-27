@@ -313,6 +313,13 @@ export const SETTINGS_NAV_ITEMS: SurfaceNavDefinition[] = [
     hrefSuffix: "/settings/profiles",
     matchesSuffixes: ["/settings/profiles"],
   },
+  {
+    id: "export-fields",
+    titleKey: "settings.exportFields.nav",
+    defaultTitle: "Export Fields",
+    hrefSuffix: "/settings/export-fields",
+    matchesSuffixes: ["/settings/export-fields"],
+  },
 ];
 
 export const SYSTEM_SETTINGS_NAV_ITEMS: SurfaceNavDefinition[] = [
@@ -364,13 +371,6 @@ export const SYSTEM_SETTINGS_NAV_ITEMS: SurfaceNavDefinition[] = [
     defaultTitle: "Locations",
     hrefSuffix: "/system/settings/locations",
     matchesSuffixes: ["/system/settings/locations"],
-  },
-  {
-    id: "export-fields",
-    titleKey: "debugConfig.settingsNavExportFields",
-    defaultTitle: "Export Fields",
-    hrefSuffix: "/system/settings/export-fields",
-    matchesSuffixes: ["/system/settings/export-fields"],
   },
 ];
 

@@ -137,7 +137,7 @@ export interface BrandKeywordItem {
 }
 
 export type AgentNumericField = 'batchSize' | 'parallelism' | 'timeout' | 'temperature'
-export type SystemSettingsSubpageId = 'overview' | 'operations' | 'runtime' | 'config-sources' | 'keywords' | 'taxonomy' | 'locations' | 'export-fields'
+export type SystemSettingsSubpageId = 'overview' | 'operations' | 'runtime' | 'config-sources' | 'keywords' | 'taxonomy' | 'locations'
 
 export interface SystemSettingsSubpageDefinition {
   id: SystemSettingsSubpageId
@@ -176,10 +176,6 @@ const SYSTEM_SETTINGS_SUBPAGE_COPY: Record<SystemSettingsSubpageId, Pick<SystemS
   locations: {
     descriptionKey: 'debugConfig.locationsPageDescription',
     defaultDescription: 'Control which system location chips are visible in the UI.',
-  },
-  'export-fields': {
-    descriptionKey: 'debugConfig.exportFieldsPageDescription',
-    defaultDescription: 'Configure which columns appear in resume CSV/XLSX exports.',
   },
 }
 
