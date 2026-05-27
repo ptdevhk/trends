@@ -57,7 +57,6 @@ import type { ExperienceLevelFilter } from '@/hooks/useUrlSearchState'
 import { rawApiClient } from '@/lib/api-helpers'
 import {
   getCurrentResumeAiPromptVersion,
-  resolveAnalysisTopN,
 } from '@/lib/analysis-utils'
 import { submitResumeExportDownload, type ResumeExportRequestBody } from '@/lib/resume-export'
 import { getResumeAge, parseExperienceYears } from '@/lib/resume-filtering'
@@ -1066,7 +1065,6 @@ export function useResumeListState(loadSearchHistory = false) {
             sourceKey: resolveAnalysisSourceKeyForResume(resume, sessionCollectionSource),
           })
         )
-        .slice(0, resolveAnalysisTopN(import.meta.env.VITE_ANALYSIS_TOP_N))
 
       if (candidatesToAnalyze.length === 0) {
         toast.info(t('aiTasks.noNewCandidates', 'No new candidates to analyze among top matches.'))
