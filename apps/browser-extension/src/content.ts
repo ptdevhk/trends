@@ -81,6 +81,8 @@ import {
   JOB5156_DETAIL_FETCH_CONCURRENCY,
   JOB51_DETAIL_FETCH_TIMEOUT_MS,
   JOB51_DETAIL_FETCH_CONCURRENCY,
+  SEEK_DETAIL_FETCH_CONCURRENCY,
+  SEEK_DETAIL_FETCH_DELAY_MS,
   DEFAULT_SEEK_PAGE_SIZE,
   LATEST_AUTO_SYNC_SUMMARIES_STORAGE_KEY,
 } from "./lib/content-constants";
@@ -285,6 +287,9 @@ const _seekExtractor = createSeekExtractor({
   isDisabledPaginationControl: ((el: unknown) => isDisabledPaginationControl(el)) as (el: unknown) => boolean,
   // Detail enrichment deps
   waitForSeekProfileSnapshot: ((matchId: string, options: { timeoutMs: number }) => waitForSeekProfileSnapshot(matchId, options)) as unknown as (matchId: string, options: { timeoutMs: number }) => Promise<void>,
+  SEEK_DETAIL_FETCH_CONCURRENCY,
+  SEEK_DETAIL_FETCH_DELAY_MS,
+  delay: ((ms: number) => delay(ms)) as (ms: number) => Promise<void>,
   SELECTORS,
 });
 const {
