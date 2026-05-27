@@ -152,8 +152,28 @@ const SendResponseSchema = z.object({
     messageId: z.string().optional(),
     preview: z.string().optional(),
 });
-// send-template has 3 different response shapes (email/wechat/feishu) with spread operators — z.any() is the pragmatic choice
-const SendTemplateResponseSchema = z.any();
+const SendTemplateEmailResponseSchema = z.object({
+    success: z.literal(true),
+    channel: z.literal("email"),
+    messageId: z.string().optional(),
+});
+const SendTemplateWechatResponseSchema = z.object({
+    success: z.literal(true),
+    channel: z.literal("wechat_work"),
+    errcode: z.number(),
+    errmsg: z.string(),
+});
+const SendTemplateFeishuResponseSchema = z.object({
+    success: z.literal(true),
+    channel: z.literal("feishu"),
+    code: z.number(),
+    msg: z.string(),
+});
+const SendTemplateResponseSchema = z.union([
+    SendTemplateEmailResponseSchema,
+    SendTemplateWechatResponseSchema,
+    SendTemplateFeishuResponseSchema,
+]);
 
 // GET /api/notifications/templates
 const templatesRoute = createRoute({

@@ -9703,7 +9703,27 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": unknown;
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            /** @enum {string} */
+                            channel: "email";
+                            messageId?: string;
+                        } | {
+                            /** @enum {boolean} */
+                            success: true;
+                            /** @enum {string} */
+                            channel: "wechat_work";
+                            errcode: number;
+                            errmsg: string;
+                        } | {
+                            /** @enum {boolean} */
+                            success: true;
+                            /** @enum {string} */
+                            channel: "feishu";
+                            code: number;
+                            msg: string;
+                        };
                     };
                 };
                 /** @description Send failed */

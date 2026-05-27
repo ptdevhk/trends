@@ -180,13 +180,13 @@ export class NotificationService {
 
         const data = parsed.data;
         const code = "code" in data ? data.code : data.StatusCode;
-        const message = "msg" in data ? data.msg : data.StatusMessage;
+        const message = String("msg" in data ? data.msg : data.StatusMessage);
 
         if (!response.ok || code !== 0) {
             throw new Error(`Feishu webhook error: ${message} (code=${code}, HTTP ${response.status})`);
         }
 
-        return data;
+        return { code, msg: message };
     }
 }
 
