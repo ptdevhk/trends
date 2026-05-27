@@ -420,8 +420,8 @@ describe('SnippetCardExpanded', () => {
     })
   })
 
-  describe('MY market industry DB placeholder', () => {
-    it('shows "Not available for MY market" in breakdown bar for MY resumes', () => {
+  describe('MY market industry DB floor scoring', () => {
+    it('shows breakdown bar with floor value for MY resumes without brand hits', () => {
       render(
         <SnippetCardExpanded
           item={createResult(1, {
@@ -433,7 +433,7 @@ describe('SnippetCardExpanded', () => {
               recommendation: 'match',
               breakdown: {
                 related_exp: 40,
-                industry_db: 0,
+                industry_db: 40,
               },
             },
             resume: createResume(1, {
@@ -454,10 +454,12 @@ describe('SnippetCardExpanded', () => {
         />
       )
 
-      expect(screen.getByText(/Not available for MY market/i)).toBeInTheDocument()
+      // With the floor of 40, no "Not available" placeholder — normal breakdown renders
+      expect(screen.queryByText(/Not available for MY market/i)).not.toBeInTheDocument()
+      expect(screen.getAllByText(/industry db/i).length).toBeGreaterThanOrEqual(1)
     })
 
-    it('shows MY placeholder in debug score dimensions for MY resumes', async () => {
+    it('shows industry_db value in debug score dimensions for MY resumes', async () => {
       const user = userEvent.setup()
       render(
         <SnippetCardExpanded
@@ -468,7 +470,7 @@ describe('SnippetCardExpanded', () => {
               highlights: [],
               concerns: [],
               recommendation: 'match',
-              breakdown: { related_exp: 36, skills: 82, industry_db: 0, education: 70, location: 55 },
+              breakdown: { related_exp: 36, skills: 82, industry_db: 40, education: 70, location: 55 },
             },
             resume: createResume(1, {
               source: 'seek',
@@ -490,9 +492,9 @@ describe('SnippetCardExpanded', () => {
 
       await user.click(screen.getByRole('button', { name: /debug/i }))
 
-      // Debug section should show MY placeholder instead of industry_db bar
-      const myPlaceholders = screen.getAllByText(/Not available for MY market/i)
-      expect(myPlaceholders.length).toBeGreaterThanOrEqual(1)
+      // Debug section should show Industry DB with floor value, not placeholder
+      expect(screen.queryByText(/Not available for MY market/i)).not.toBeInTheDocument()
+      expect(screen.getByText('Industry DB')).toBeInTheDocument()
     })
 
     it('does not show MY placeholder for CN market resumes', () => {
