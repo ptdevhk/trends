@@ -919,7 +919,7 @@ describe('useResumeSearchState', () => {
       promptVersion: CURRENT_PROMPT_VERSION,
       resumeIds: ['resume-2'],
     })
-    expect(toastSuccessMock).toHaveBeenCalledWith('Analyzing loaded 1 resumes...')
+    expect(toastSuccessMock).toHaveBeenCalledWith('Analyzing 1 resumes...')
   })
 
   it('normalizes a recent search and syncs it back to canonical url state when applied', async () => {
@@ -1291,7 +1291,7 @@ describe('useResumeSearchState', () => {
       resumeIds: Array.from({ length: 10 }, (_, index) => `resume-${index + 1}`),
     })
     expect(toastSuccessMock).toHaveBeenCalledWith(
-      'Analyzing loaded 10 resumes...',
+      'Analyzing batch of 10 resumes (2 more pending)...',
     )
   })
 
@@ -1335,7 +1335,7 @@ describe('useResumeSearchState', () => {
       resumeIds: Array.from({ length: 10 }, (_, index) => `resume-${index + 1}`),
     })
     expect(toastSuccessMock).toHaveBeenCalledWith(
-      'Analyzing loaded 10 resumes...',
+      'Analyzing batch of 10 resumes (2 more pending)...',
     )
   })
 
