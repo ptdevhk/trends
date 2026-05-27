@@ -8,6 +8,7 @@ import {
   DEBUG_AI_BREAKDOWN_LABELS,
   DEBUG_AI_KEYWORD_PROMPT_VARIANT,
   DEBUG_PAGE_SECTION_DEFINITIONS,
+  EXPORT_FIELD_KEYS,
   INGEST_BRAND_CONTEXT_LABELS,
   INGEST_BRAND_ROLE_LABELS,
   INGEST_BRAND_SOURCE_LABELS,
@@ -244,6 +245,16 @@ const LearningLogResponseSchema = z.object({
 const LearningLogAppendResponseSchema = z.object({
   success: z.literal(true),
   entry: LearningLogEntrySchema,
+});
+
+const ExportFieldsConfigSchema = z.object({
+  fields: z.array(z.enum(EXPORT_FIELD_KEYS)),
+  includeDebugWhenEnabled: z.boolean().optional(),
+});
+
+const ExportFieldsConfigResponseSchema = z.object({
+  success: z.literal(true),
+  config: ExportFieldsConfigSchema.nullable(),
 });
 
 const SystemMetadataResponseSchema = z.object({
@@ -1205,6 +1216,60 @@ app.openapi(getSourceByKeyRoute, async (c) => {
     }
     logger.error("Failed to load config source", error, { route: "config" });
     return c.json({ success: false as const, error: "Failed to load config source" }, 500);
+  }
+});
+
+// --- Export fields config ---
+
+const getExportFieldsRoute = createRoute({
+  method: "get",
+  path: "/export-fields",
+  tags: ["config"],
+  summary: "Get export fields configuration",
+  responses: {
+    200: { description: "Export fields config", content: { "application/json": { schema: ExportFieldsConfigResponseSchema } } },
+    500: { description: "Server error", content: { "application/json": { schema: ErrorResponseSchema } } },
+  },
+});
+
+app.openapi(getExportFieldsRoute, async (c) => {
+  try {
+    const config = await workspaceConfigService.getExportFieldsConfig(c.var.workspaceSlug);
+    return c.json({ success: true as const, config }, 200);
+  } catch (error) {
+    logger.error("Failed to load export fields config", error, { route: "config" });
+    return c.json({ success: false as const, error: "Failed to load export fields config" }, 500);
+  }
+});
+
+const putExportFieldsRoute = createRoute({
+  method: "put",
+  path: "/export-fields",
+  tags: ["config"],
+  summary: "Update export fields configuration",
+  request: {
+    body: { content: { "application/json": { schema: ExportFieldsConfigSchema } } },
+  },
+  responses: {
+    200: { description: "Updated config", content: { "application/json": { schema: ExportFieldsConfigResponseSchema } } },
+    400: { description: "Invalid payload", content: { "application/json": { schema: ErrorResponseSchema } } },
+    403: { description: "Forbidden", content: { "application/json": { schema: ErrorResponseSchema } } },
+    500: { description: "Server error", content: { "application/json": { schema: ErrorResponseSchema } } },
+  },
+});
+
+app.openapi(putExportFieldsRoute, async (c) => {
+  if (denyIfNotAdmin(c.var.accessLevel)) {
+    return c.json({ success: false as const, error: "Admin access required" }, 403);
+  }
+  try {
+    const data = c.req.valid("json");
+    await workspaceConfigService.setExportFieldsConfig(c.var.workspaceSlug, data);
+    const config = await workspaceConfigService.getExportFieldsConfig(c.var.workspaceSlug);
+    return c.json({ success: true as const, config }, 200);
+  } catch (error) {
+    logger.error("Failed to update export fields config", error, { route: "config" });
+    return c.json({ success: false as const, error: "Failed to update export fields config" }, 500);
   }
 });
 

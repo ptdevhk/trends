@@ -243,6 +243,9 @@ describe("resume export route", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const call = parseConvexCall(input, init);
       calls.push(call);
+      if (call.pathName === "workspace_config:get") {
+        return convexSuccess(null);
+      }
       if (call.pathName === "resumes:getByIdsForExport") {
         return convexSuccess([
           {
@@ -356,8 +359,8 @@ describe("resume export route", () => {
 
     expect(response.status).toBe(200);
     expectAttachmentHeaders(response, "xlsx");
-    expect(calls).toHaveLength(1);
-    expect(calls[0]).toMatchObject({
+    const exportCall = calls.find((c) => c.pathName === "resumes:getByIdsForExport");
+    expect(exportCall).toMatchObject({
       pathName: "resumes:getByIdsForExport",
       args: {
         resumeIds: ["convex-b", "convex-a"],

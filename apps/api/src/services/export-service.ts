@@ -4,6 +4,7 @@ import {
   buildWorkHistoryEntryText,
   inferSeekMarket,
   normalizeProfileUrlForDisplay,
+  type ExportFieldsConfig,
   type ResumeWorkHistoryItem as SharedResumeWorkHistoryItem,
 } from "@trends/shared";
 import type { BrandDisplayResolver } from "./brand-display-resolver.js";
@@ -357,17 +358,44 @@ const STANDARD_EXCEL_COLUMNS_TAIL: ExcelColumn[] = [
   { header: "Reference Note", key: "referenceNote", width: 36 },
 ];
 
-function getExcelColumns(debug: boolean): ExcelColumn[] {
-  return debug
-    ? [...STANDARD_EXCEL_COLUMNS_HEAD, ...DEBUG_EXCEL_COLUMNS, ...STANDARD_EXCEL_COLUMNS_TAIL]
-    : [...STANDARD_EXCEL_COLUMNS_HEAD, ...STANDARD_EXCEL_COLUMNS_TAIL];
+const ALL_EXCEL_COLUMNS: ExcelColumn[] = [
+  ...STANDARD_EXCEL_COLUMNS_HEAD,
+  ...DEBUG_EXCEL_COLUMNS,
+  ...STANDARD_EXCEL_COLUMNS_TAIL,
+];
+
+const EXCEL_COLUMN_BY_KEY = new Map<string, ExcelColumn>(
+  ALL_EXCEL_COLUMNS.map((col) => [col.key, col]),
+);
+
+const DEBUG_FIELD_KEYS = new Set(DEBUG_EXCEL_COLUMNS.map((col) => col.key));
+
+function getExcelColumns(debug: boolean, fieldConfig?: ExportFieldsConfig | null): ExcelColumn[] {
+  if (!fieldConfig || fieldConfig.fields.length === 0) {
+    // Default behavior: backwards-compatible
+    return debug
+      ? [...STANDARD_EXCEL_COLUMNS_HEAD, ...DEBUG_EXCEL_COLUMNS, ...STANDARD_EXCEL_COLUMNS_TAIL]
+      : [...STANDARD_EXCEL_COLUMNS_HEAD, ...STANDARD_EXCEL_COLUMNS_TAIL];
+  }
+
+  // Build columns from configured field list, preserving config order
+  const columns: ExcelColumn[] = [];
+  for (const key of fieldConfig.fields) {
+    const col = EXCEL_COLUMN_BY_KEY.get(key);
+    if (col) columns.push(col);
+  }
+
+  // Optionally append debug columns not already in the list
+  if (debug && fieldConfig.includeDebugWhenEnabled) {
+    const presentKeys = new Set(columns.map((c) => c.key));
+    for (const col of DEBUG_EXCEL_COLUMNS) {
+      if (!presentKeys.has(col.key)) columns.push(col);
+    }
+  }
+
+  return columns;
 }
 
-function toOutputRow(row: ExportRow, debug: boolean): Omit<ExportRow, "externalId" | "source" | "industryDbV2Raw" | "industryDbV2Normalized" | "ruleScore" | "roleEvidence" | "matchedWorkEntries"> | ExportRow {
-  if (debug) return row;
-  const { externalId: _e, source: _s, industryDbV2Raw: _r, industryDbV2Normalized: _n, ruleScore: _rs, roleEvidence: _re, matchedWorkEntries: _mw, ...standard } = row;
-  return standard;
-}
 
 export type ExportBatchMeta = {
   userComment?: string;
@@ -490,7 +518,8 @@ export class ExportService {
     entries: ResumeExportEntry[],
     batchMeta?: ExportBatchMeta,
     industryDbV2Stats?: IndustryDbV2BatchStats,
-    debug = false
+    debug = false,
+    fieldConfig?: ExportFieldsConfig | null,
   ): Promise<ExportFile> {
     const batchNormalizer = createBatchNormalizer(industryDbV2Stats);
     const rows = entries.map((entry) =>
@@ -505,7 +534,7 @@ export class ExportService {
       )
     );
     if (format === "xlsx") {
-      const content = await this.toXlsx(rows, debug);
+      const content = await this.toXlsx(rows, debug, fieldConfig);
       return {
         extension: "xlsx",
         contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -513,7 +542,14 @@ export class ExportService {
       };
     }
 
-    const outputRows = rows.map((row) => toOutputRow(row, debug));
+    const columns = getExcelColumns(debug, fieldConfig);
+    const outputRows = rows.map((row) => {
+      const filtered: Record<string, string | number | ""> = {};
+      for (const col of columns) {
+        filtered[col.key] = row[col.key];
+      }
+      return filtered;
+    });
     const csv = Papa.unparse(outputRows, { header: true, newline: "\n" });
     return {
       extension: "csv",
@@ -567,11 +603,11 @@ export class ExportService {
     };
   }
 
-  private async toXlsx(rows: ExportRow[], debug: boolean): Promise<Buffer> {
+  private async toXlsx(rows: ExportRow[], debug: boolean, fieldConfig?: ExportFieldsConfig | null): Promise<Buffer> {
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet("Resumes");
 
-    sheet.columns = getExcelColumns(debug);
+    sheet.columns = getExcelColumns(debug, fieldConfig);
     rows.forEach((row) => sheet.addRow(row));
     sheet.getRow(1).font = { bold: true };
 
