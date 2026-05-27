@@ -365,6 +365,13 @@ export const SYSTEM_SETTINGS_NAV_ITEMS: SurfaceNavDefinition[] = [
     hrefSuffix: "/system/settings/locations",
     matchesSuffixes: ["/system/settings/locations"],
   },
+  {
+    id: "export-fields",
+    titleKey: "debugConfig.settingsNavExportFields",
+    defaultTitle: "Export Fields",
+    hrefSuffix: "/system/settings/export-fields",
+    matchesSuffixes: ["/system/settings/export-fields"],
+  },
 ];
 
 export const DEBUG_PAGE_SECTION_DEFINITIONS: Array<{
