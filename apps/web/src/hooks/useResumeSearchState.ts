@@ -1710,14 +1710,18 @@ export function useResumeSearchState() {
           ),
         )
 
-        // Sync candidate_status in Convex for shortlist/reject
+        // Sync candidate_status in Convex for shortlist/reject (chunked to avoid 429)
         if (action === 'shortlist' || action === 'reject') {
           const targetStatus = action === 'shortlist' ? 'shortlisted' : 'rejected'
-          await Promise.all(
-            selectedItems.map((item) =>
-              updateCandidateStatus(item.identityKey, targetStatus)
+          const CHUNK_SIZE = 20
+          for (let i = 0; i < selectedItems.length; i += CHUNK_SIZE) {
+            const chunk = selectedItems.slice(i, i + CHUNK_SIZE)
+            await Promise.all(
+              chunk.map((item) =>
+                updateCandidateStatus(item.identityKey, targetStatus)
+              )
             )
-          )
+          }
         }
       }
 
