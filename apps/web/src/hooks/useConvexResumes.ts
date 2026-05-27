@@ -617,6 +617,7 @@ export function parseIngestData(value: unknown): ConvexIngestData | undefined {
     experienceLevel: toStringValue(value.experienceLevel) || 'unknown',
     computedAt,
     skillsVersion,
+    market: toStringValue(value.market) || undefined,
   }
 }
 
