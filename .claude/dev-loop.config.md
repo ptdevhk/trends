@@ -59,7 +59,7 @@ prd_disciplines:
       - apps/api/src/services/scoring-auto-tuner.ts
       - apps/api/src/services/rule-scoring.ts
       - apps/api/src/services/bff-filter-utils.ts
-      - apps/web/src/lib/useConvexResumes.ts
+      - apps/web/src/hooks/useConvexResumes.ts
   - skill: superpowers:test-driven-development
     when: execute
     mode: advisory                       # catch-all for non-critical files
@@ -84,7 +84,7 @@ critical_paths:
       - packages/convex/convex/search_profiles.ts
       - apps/api/src/routes/resumes.ts
       - apps/api/src/services/bff-filter-utils.ts
-      - apps/web/src/lib/useConvexResumes.ts
+      - apps/web/src/hooks/useConvexResumes.ts
     vault:
       - concepts/resume-search-architecture
       - concepts/search-filter-semantic-mapping
@@ -115,15 +115,18 @@ critical_paths:
       - apps/api/src/services/scoring-metrics.ts
       - apps/api/src/services/scoring-auto-tuner.ts
       - apps/api/src/services/rule-scoring.ts
+      - apps/web/src/lib/resume-scoring.ts
     vault:
       - concepts/resume-scoring-pipeline
       - concepts/self-tuning-scoring
       - concepts/llm-cost-gating
+      - concepts/scoring-verification-flow
       - queries/ai-resume-screening-quality-measurement-2026
     history_pins:
       - "LLM-primary scoring switch (PR #674)"
       - "scoring threshold mismatch fix (2026-05-21)"
       - "industry_db score normalization review (2026-03-12)"
+      - "parseIngestData drops market field (PR #1116, 2026-05-27)"
 ```
 
 ## Fact-check tier
@@ -216,6 +219,7 @@ browser_verification:
     - /resumes
     - /search-profiles
     - /scoring
+    - /dev/resumes?location=Malaysia&q=CNC+Sales  # MY industry_db floor verification
   reviser_workflow:
     - take_snapshot
     - list_console_messages
