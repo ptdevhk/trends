@@ -916,19 +916,21 @@ export function useResumeSearchState() {
         .sort((left, right) => (right.score ?? -1) - (left.score ?? -1)),
     [filteredResults],
   )
+  const analysisTopN = resolveAnalysisTopN(import.meta.env.VITE_ANALYSIS_TOP_N)
   const analysisCandidateResumeIds = useMemo(
-    () =>
-      analysisCandidates
-        .slice(0, resolveAnalysisTopN(import.meta.env.VITE_ANALYSIS_TOP_N))
-        .map((item) => item.resume.resumeId),
+    () => analysisCandidates.map((item) => item.resume.resumeId),
     [analysisCandidates],
+  )
+  const analysisDispatchBatchIds = useMemo(
+    () => analysisCandidateResumeIds.slice(0, analysisTopN),
+    [analysisCandidateResumeIds, analysisTopN],
   )
   const analysisCandidateSignature = useMemo(
     () =>
-      [...analysisCandidateResumeIds]
+      [...analysisDispatchBatchIds]
         .sort((left, right) => left.localeCompare(right))
         .join('|'),
-    [analysisCandidateResumeIds],
+    [analysisDispatchBatchIds],
   )
   const autoAnalyzeSignature = useMemo(() => {
     if (autoAnalyzeSearchNonce === 0 || analysisCandidateSignature.length === 0) {
@@ -1489,7 +1491,7 @@ export function useResumeSearchState() {
   }, [apiBaseUrl, exportFormat, filteredResults]) // selectedIds excluded on purpose — export uses snapshot at call time
 
   const analyzeResults = useCallback(async () => {
-    if (analysisCandidateResumeIds.length === 0) {
+    if (analysisDispatchBatchIds.length === 0) {
       toast.info('No new candidates to analyze among loaded results.')
       return
     }
@@ -1530,11 +1532,14 @@ export function useResumeSearchState() {
         ...(keywords ? { keywords } : {}),
         ...(normalizedLocation ? { location: normalizedLocation } : {}),
         promptVersion: currentPromptVersion,
-        resumeIds: analysisCandidateResumeIds,
+        resumeIds: analysisDispatchBatchIds,
       })
 
+      const remaining = analysisCandidateResumeIds.length - analysisDispatchBatchIds.length
       toast.success(
-        `Analyzing loaded ${analysisCandidateResumeIds.length} resumes...`,
+        remaining > 0
+          ? `Analyzing batch of ${analysisDispatchBatchIds.length} resumes (${remaining} more pending)...`
+          : `Analyzing ${analysisDispatchBatchIds.length} resumes...`,
       )
     } catch (error) {
       console.error('Failed to dispatch search analysis task', error)
@@ -1544,6 +1549,7 @@ export function useResumeSearchState() {
     }
   }, [
     analysisCandidateResumeIds,
+    analysisDispatchBatchIds,
     analysisKeywords,
     currentPromptVersion,
     dispatchAnalysis,
