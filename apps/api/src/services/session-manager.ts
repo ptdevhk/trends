@@ -19,6 +19,7 @@ export type ResumeFilters = {
   locations?: string[];
   status?: CandidateStatus[];
   showBlocked?: boolean;
+  showRejected?: boolean;
   minSalary?: number;
   maxSalary?: number;
   minMatchScore?: number;
@@ -30,6 +31,8 @@ export type ResumeFilters = {
 export type SearchSessionStatus = "active" | "completed" | "archived";
 export type CandidateStatus =
   | "new"
+  | "shortlisted"
+  | "rejected"
   | "contacted"
   | "interviewing"
   | "interviewed_pass"

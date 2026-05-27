@@ -269,6 +269,7 @@
       "locations": "Locations",
       "locationsPlaceholder": "e.g. Dongguan, Shenzhen",
       "status": "Candidate status",
+      "showRejected": "Show rejected candidates",
       "showBlocked": "Show blocked candidates",
       "education": {
         "title": "Education",
@@ -306,6 +307,8 @@
       "notePrompt": "Add notes for \"{{status}}\" (optional)",
       "options": {
         "new": "New candidate",
+        "shortlisted": "Shortlisted",
+        "rejected": "Rejected",
         "contacted": "Contacted",
         "interviewing": "Interviewing",
         "interviewed_pass": "Interview passed",

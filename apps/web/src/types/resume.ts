@@ -10,6 +10,7 @@ export type ResumeFilters = {
   locations?: string[]
   status?: CandidateStatus[]
   showBlocked?: boolean
+  showRejected?: boolean
   showArchived?: boolean
   minSalary?: number
   maxSalary?: number
@@ -60,6 +61,8 @@ export type ScoreSource = 'rule' | 'ai'
 export type ResumeExportFormat = 'csv' | 'xlsx'
 export type CandidateStatus =
   | 'new'
+  | 'shortlisted'
+  | 'rejected'
   | 'contacted'
   | 'interviewing'
   | 'interviewed_pass'

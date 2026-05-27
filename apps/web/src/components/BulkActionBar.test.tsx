@@ -1,14 +1,8 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { MemoryRouter } from 'react-router-dom'
 import { BulkActionBar } from './BulkActionBar'
-
-// Mock useTranslation
-vi.mock('react-i18next', () => ({
-    useTranslation: () => ({
-        t: (_key: string, fallback: string) => fallback,
-    }),
-}))
 
 describe('BulkActionBar', () => {
     const onSelectAll = vi.fn()
@@ -31,7 +25,7 @@ describe('BulkActionBar', () => {
     })
 
     it('renders selection and high score counts', () => {
-        render(<BulkActionBar {...defaultProps} />)
+        render(<MemoryRouter><BulkActionBar {...defaultProps} /></MemoryRouter>)
         expect(screen.getByText('5 / 100')).toBeInTheDocument()
         // Use regex to find text that might be split by elements/newlines in DOM
         expect(screen.getByText(/\(10\)/)).toBeInTheDocument()
@@ -39,7 +33,7 @@ describe('BulkActionBar', () => {
 
     it('triggers selection callbacks', async () => {
         const user = userEvent.setup()
-        render(<BulkActionBar {...defaultProps} />)
+        render(<MemoryRouter><BulkActionBar {...defaultProps} /></MemoryRouter>)
 
         await user.click(screen.getByText('全选'))
         expect(onSelectAll).toHaveBeenCalledTimes(1)
@@ -51,19 +45,19 @@ describe('BulkActionBar', () => {
     it('triggers bulk actions sequentially', async () => {
         const user = userEvent.setup()
         onBulkAction.mockResolvedValue(undefined)
-        render(<BulkActionBar {...defaultProps} />)
+        render(<MemoryRouter><BulkActionBar {...defaultProps} /></MemoryRouter>)
 
         await user.click(screen.getByText('批量入围'))
         expect(onBulkAction).toHaveBeenCalledWith('shortlist')
 
-        await user.click(screen.getByText('批量标星'))
-        expect(onBulkAction).toHaveBeenCalledWith('star')
+        await user.click(screen.getByText('批量拒绝'))
+        expect(onBulkAction).toHaveBeenCalledWith('reject')
     })
 
     it('disables bulk action buttons when nothing is selected', () => {
-        render(<BulkActionBar {...defaultProps} selectedCount={0} />)
+        render(<MemoryRouter><BulkActionBar {...defaultProps} selectedCount={0} /></MemoryRouter>)
         expect(screen.getByText('批量入围').closest('button')).toBeDisabled()
-        expect(screen.getByText('批量标星').closest('button')).toBeDisabled()
+        expect(screen.getByText('批量拒绝').closest('button')).toBeDisabled()
         expect(screen.queryByText('取消选择')).not.toBeInTheDocument()
     })
 })

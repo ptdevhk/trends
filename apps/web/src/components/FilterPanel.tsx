@@ -27,6 +27,8 @@ const EDUCATION_LEVELS = [
 
 const STATUS_OPTIONS: Array<{ value: CandidateStatus; labelKey: string }> = [
   { value: 'new', labelKey: 'resumes.status.options.new' },
+  { value: 'shortlisted', labelKey: 'resumes.status.options.shortlisted' },
+  { value: 'rejected', labelKey: 'resumes.status.options.rejected' },
   { value: 'contacted', labelKey: 'resumes.status.options.contacted' },
   { value: 'interviewing', labelKey: 'resumes.status.options.interviewing' },
   { value: 'interviewed_pass', labelKey: 'resumes.status.options.interviewed_pass' },
@@ -57,6 +59,7 @@ export function FilterPanel({
   const [education, setEducation] = useState<string[]>([])
   const [status, setStatus] = useState<CandidateStatus[]>([])
   const [showBlocked, setShowBlocked] = useState(false)
+  const [showRejected, setShowRejected] = useState(false)
   const [clearing, setClearing] = useState(false)
 
   useEffect(() => {
@@ -70,6 +73,7 @@ export function FilterPanel({
     setEducation(filters.education ?? [])
     setStatus(filters.status ?? [])
     setShowBlocked(filters.showBlocked === true)
+    setShowRejected(filters.showRejected === true)
   }, [filters])
 
   const activeFilterBadges = useMemo(() => {
@@ -101,6 +105,7 @@ export function FilterPanel({
     }
 
     if (filters.showBlocked) items.push(t('resumes.filters.showBlocked'))
+    if (filters.showRejected) items.push(t('resumes.filters.showRejected'))
 
     return items
   }, [filters, t])
@@ -150,6 +155,7 @@ export function FilterPanel({
       education: education.length ? education : undefined,
       status: status.length ? status : undefined,
       showBlocked,
+      showRejected,
     })
   }
 
@@ -165,6 +171,7 @@ export function FilterPanel({
     setEducation([])
     setStatus([])
     setShowBlocked(false)
+    setShowRejected(false)
     onFiltersChange({})
     window.setTimeout(() => setClearing(false), 200)
   }
@@ -327,13 +334,22 @@ export function FilterPanel({
                 ))}
               </div>
 
-              <label className="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-border/70 bg-background px-3 py-2.5 text-sm text-foreground/80 hover:text-foreground">
-                <Checkbox
-                  checked={showBlocked}
-                  onCheckedChange={(checked: boolean | 'indeterminate') => setShowBlocked(checked === true)}
-                />
-                {t('resumes.filters.showBlocked')}
-              </label>
+              <div className="flex flex-col gap-2 sm:flex-row sm:gap-4">
+                <label className="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-border/70 bg-background px-3 py-2.5 text-sm text-foreground/80 hover:text-foreground">
+                  <Checkbox
+                    checked={showRejected}
+                    onCheckedChange={(checked: boolean | 'indeterminate') => setShowRejected(checked === true)}
+                  />
+                  {t('resumes.filters.showRejected')}
+                </label>
+                <label className="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-border/70 bg-background px-3 py-2.5 text-sm text-foreground/80 hover:text-foreground">
+                  <Checkbox
+                    checked={showBlocked}
+                    onCheckedChange={(checked: boolean | 'indeterminate') => setShowBlocked(checked === true)}
+                  />
+                  {t('resumes.filters.showBlocked')}
+                </label>
+              </div>
             </div>
           </div>
         </div>

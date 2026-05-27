@@ -10,6 +10,8 @@ const sessionManager = new SessionManager(config.projectRoot);
 const SessionStatusSchema = z.enum(["active", "completed", "archived"]);
 const CandidateStatusSchema = z.enum([
   "new",
+  "shortlisted",
+  "rejected",
   "contacted",
   "interviewing",
   "interviewed_pass",
@@ -29,6 +31,7 @@ const SessionFiltersSchema = ResumeFiltersSchema.extend({
   maxAge: z.number().min(0).optional(),
   status: z.array(CandidateStatusSchema).optional(),
   showBlocked: z.boolean().optional(),
+  showRejected: z.boolean().optional(),
 });
 const SearchSessionCollectionSourceSchema = z.object({
   type: z.enum(["job5156", "51job", "seek"]),
