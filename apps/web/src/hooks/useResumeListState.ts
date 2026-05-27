@@ -349,7 +349,7 @@ export function useResumeListState(loadSearchHistory = false) {
     auxiliaryResumeDataEnabled,
   )
   const { blocksByIdentity, blockCandidates, unblockCandidate } = useCandidateBlocks(auxiliaryResumeDataEnabled)
-  const { statusByIdentity, updateStatus: updateCandidateStatus } = useCandidateStatus(auxiliaryResumeDataEnabled)
+  const { statusByIdentity, updateStatus: updateCandidateStatus, bulkUpdateStatus } = useCandidateStatus(auxiliaryResumeDataEnabled)
   const analysisTasks = useQuery(api.analysis_tasks.list)
   const dispatchAnalysis = useMutation(api.analysis_tasks.dispatch)
   const [analyzing, setAnalyzing] = useState(false)
@@ -1524,18 +1524,12 @@ export function useResumeListState(loadSearchHistory = false) {
           )
         )
 
-        // Sync candidate_status in Convex for shortlist/reject (chunked to avoid 429)
+        // Sync candidate_status in Convex for shortlist/reject
         if (action === 'shortlist' || action === 'reject') {
           const targetStatus = action === 'shortlist' ? 'shortlisted' : 'rejected'
-          const CHUNK_SIZE = 20
-          for (let i = 0; i < selectedEntries.length; i += CHUNK_SIZE) {
-            const chunk = selectedEntries.slice(i, i + CHUNK_SIZE)
-            await Promise.all(
-              chunk.map((entry) =>
-                updateCandidateStatus(entry.identityKey, targetStatus)
-              )
-            )
-          }
+          await bulkUpdateStatus(
+            selectedEntries.map((entry) => ({ identityKey: entry.identityKey, status: targetStatus }))
+          )
         }
 
         const actionLabels: Record<string, string> = { shortlist: 'shortlisted', reject: 'rejected' }
@@ -1545,7 +1539,7 @@ export function useResumeListState(loadSearchHistory = false) {
         toast.error(t('bulk.actionFailed', { defaultValue: 'Bulk action failed. Please try again.' }))
       }
     },
-    [apiBaseUrl, appliedSearchHistory?.industryDbV2Stats, blockCandidates, bulkExportFormat, displayedResumes, mode, saveAction, selectedIds, selectedSample, sendLearningFeedback, t, updateCandidateStatus]
+    [apiBaseUrl, appliedSearchHistory?.industryDbV2Stats, blockCandidates, bulkExportFormat, bulkUpdateStatus, displayedResumes, mode, saveAction, selectedIds, selectedSample, sendLearningFeedback, t]
   )
 
   const handleOpenReviewPacket = useCallback(async () => {

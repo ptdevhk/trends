@@ -661,7 +661,7 @@ export function useResumeSearchState() {
     workspaceSlug: slug,
     status: 'active',
   })
-  const { statusByIdentity, updateStatus: updateCandidateStatus } = useCandidateStatus(true)
+  const { statusByIdentity, updateStatus: updateCandidateStatus, bulkUpdateStatus } = useCandidateStatus(true)
   const { blocksByIdentity, blockCandidates, unblockCandidate } = useCandidateBlocks(true)
   const { actions: actionsByResume, ratingsByResume, saveAction, getAiFeedback } = useCandidateActions(sessionKey, parsedState.jobDescriptionId)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -1710,24 +1710,18 @@ export function useResumeSearchState() {
           ),
         )
 
-        // Sync candidate_status in Convex for shortlist/reject (chunked to avoid 429)
+        // Sync candidate_status in Convex for shortlist/reject
         if (action === 'shortlist' || action === 'reject') {
           const targetStatus = action === 'shortlist' ? 'shortlisted' : 'rejected'
-          const CHUNK_SIZE = 20
-          for (let i = 0; i < selectedItems.length; i += CHUNK_SIZE) {
-            const chunk = selectedItems.slice(i, i + CHUNK_SIZE)
-            await Promise.all(
-              chunk.map((item) =>
-                updateCandidateStatus(item.identityKey, targetStatus)
-              )
-            )
-          }
+          await bulkUpdateStatus(
+            selectedItems.map((item) => ({ identityKey: item.identityKey, status: targetStatus }))
+          )
         }
       }
 
       clearSelection()
     },
-    [blockCandidates, clearSelection, exportResults, filteredResults, saveAction, selectedIds, updateCandidateStatus],
+    [blockCandidates, bulkUpdateStatus, clearSelection, exportResults, filteredResults, saveAction, selectedIds],
   )
 
   return {

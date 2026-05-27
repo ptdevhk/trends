@@ -104,8 +104,8 @@ export function createApp() {
   app.use("*", prettyJSON());
   app.use("*", workspaceMiddleware);
 
-  // Rate limiting on API routes (100 req/min per IP)
-  app.use("/api/*", rateLimit({ limit: 100, windowMs: 60_000 }));
+  // Rate limiting on API routes (500 req/min per IP — accommodates bulk operations on 200+ resumes)
+  app.use("/api/*", rateLimit({ limit: 500, windowMs: 60_000 }));
 
   // Body size limit on API routes (10 MiB default — manual-import has its own larger limit)
   app.use(

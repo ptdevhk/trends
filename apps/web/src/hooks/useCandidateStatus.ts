@@ -76,6 +76,34 @@ export function useCandidateStatus(enabled: boolean = true) {
     [load]
   )
 
+  const bulkUpdateStatus = useCallback(
+    async (entries: Array<{ identityKey: string; status: CandidateStatus }>) => {
+      const CHUNK_SIZE = 10
+      const CHUNK_DELAY_MS = 100
+      let failures = 0
+      for (let i = 0; i < entries.length; i += CHUNK_SIZE) {
+        if (i > 0) await new Promise((r) => setTimeout(r, CHUNK_DELAY_MS))
+        const chunk = entries.slice(i, i + CHUNK_SIZE)
+        const results = await Promise.all(
+          chunk.map(({ identityKey, status }) => {
+            const normalized = identityKey.trim()
+            if (!normalized) return Promise.resolve(false)
+            return rawApiClient.POST<StatusUpdateResponse>('/api/candidate-status', {
+              body: { identityKey: normalized, status },
+            }).then(({ data, error: apiError }) => {
+              if (apiError || !data?.success) { failures++; return false }
+              return true
+            })
+          })
+        )
+        if (results.every((r) => r === false)) break
+      }
+      await load()
+      return failures === 0
+    },
+    [load]
+  )
+
   useEffect(() => {
     if (!enabled) {
       setItems([])
@@ -99,5 +127,6 @@ export function useCandidateStatus(enabled: boolean = true) {
     error,
     reload: load,
     updateStatus,
+    bulkUpdateStatus,
   }
 }
