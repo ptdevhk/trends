@@ -259,6 +259,35 @@ describe('parseIngestData', () => {
     expect(result!.experienceLevel).toBe('senior')
   })
 
+  it('parses market field for MY resumes', () => {
+    const input = {
+      industryTags: [],
+      synonymHits: [],
+      brandHits: [],
+      companyHits: [],
+      ruleScores: {},
+      experienceLevel: 'unknown',
+      market: 'MY',
+    }
+    const result = parseIngestData(input)
+    expect(result).toBeDefined()
+    expect(result!.market).toBe('MY')
+  })
+
+  it('returns undefined market when not present', () => {
+    const input = {
+      industryTags: [],
+      synonymHits: [],
+      brandHits: [],
+      companyHits: [],
+      ruleScores: {},
+      experienceLevel: 'unknown',
+    }
+    const result = parseIngestData(input)
+    expect(result).toBeDefined()
+    expect(result!.market).toBeUndefined()
+  })
+
   it('returns undefined for non-record', () => {
     expect(parseIngestData(null)).toBeUndefined()
     expect(parseIngestData('string')).toBeUndefined()
