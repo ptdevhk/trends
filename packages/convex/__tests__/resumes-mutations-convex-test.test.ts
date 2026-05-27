@@ -259,3 +259,266 @@ describe("resumes: getResume / getResumeDetail", () => {
         expect(result).toBeNull();
     });
 });
+
+// ---------------------------------------------------------------------------
+// updateIngestDataBatch
+// ---------------------------------------------------------------------------
+
+describe("resumes: updateIngestDataBatch", () => {
+    it("updates ingestData and searchText for batch of resumes", async () => {
+        const t = convexTest(schema, modules);
+        const resumeId = await seedResume(t, { content: { name: "Alice" } });
+
+        await t.mutation(internal.resumes.updateIngestDataBatch, {
+            updates: [{
+                resumeId,
+                ingestData: {
+                    industryTags: ["machinery"],
+                    synonymHits: ["CNC"],
+                    brandHits: [],
+                    companyHits: [],
+                    ruleScores: { jd1: 80 },
+                    experienceLevel: "senior",
+                    computedAt: Date.now(),
+                    skillsVersion: 1,
+                },
+                primaryRuleScore: 80,
+            }],
+        });
+
+        const resume = await t.run(async (ctx) => ctx.db.get(resumeId));
+        expect(resume?.ingestData?.industryTags).toEqual(["machinery"]);
+        expect(resume?.primaryRuleScore).toBe(80);
+        expect(resume?.searchText).toBeDefined();
+    });
+
+    it("skips non-existent resume IDs gracefully", async () => {
+        const t = convexTest(schema, modules);
+        // Create then delete to get a valid but non-existent ID
+        const doomedId = await seedResume(t, { externalId: "doomed" });
+        await t.run(async (ctx) => { await ctx.db.delete(doomedId); });
+
+        // Should not throw
+        await t.mutation(internal.resumes.updateIngestDataBatch, {
+            updates: [{
+                resumeId: doomedId,
+                ingestData: {
+                    industryTags: [],
+                    synonymHits: [],
+                    brandHits: [],
+                    companyHits: [],
+                    ruleScores: {},
+                    experienceLevel: "junior",
+                    computedAt: Date.now(),
+                    skillsVersion: 1,
+                },
+            }],
+        });
+    });
+});
+
+// ---------------------------------------------------------------------------
+// listResumeScanBatch
+// ---------------------------------------------------------------------------
+
+describe("resumes: listResumeScanBatch", () => {
+    it("returns paginated resume rows with content and ingestData", async () => {
+        const t = convexTest(schema, modules);
+        await seedResume(t, { content: { name: "Bob" } });
+
+        const result = await t.query(internal.resumes.listResumeScanBatch, { limit: 10 });
+
+        expect(result.page.length).toBeGreaterThanOrEqual(1);
+        expect(result.page[0]).toHaveProperty("_id");
+        expect(result.page[0]).toHaveProperty("content");
+        expect(result.isDone).toBe(true);
+    });
+
+    it("returns empty page when no resumes exist", async () => {
+        const t = convexTest(schema, modules);
+
+        const result = await t.query(internal.resumes.listResumeScanBatch, { limit: 10 });
+
+        expect(result.page).toHaveLength(0);
+        expect(result.isDone).toBe(true);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// listResumeUsageBatch
+// ---------------------------------------------------------------------------
+
+describe("resumes: listResumeUsageBatch", () => {
+    it("returns analysis and analyses fields for each resume", async () => {
+        const t = convexTest(schema, modules);
+        await seedResume(t, {
+            analysis: { score: 70, summary: "ok", highlights: [], recommendation: "proceed" },
+            analyses: { "jd:test": { score: 70 } },
+        });
+
+        const result = await t.query(internal.resumes.listResumeUsageBatch, { limit: 10 });
+
+        expect(result.page.length).toBeGreaterThanOrEqual(1);
+        expect(result.page[0]).toHaveProperty("analysis");
+        expect(result.page[0]).toHaveProperty("analyses");
+    });
+
+    it("returns empty page when no resumes exist", async () => {
+        const t = convexTest(schema, modules);
+
+        const result = await t.query(internal.resumes.listResumeUsageBatch, { limit: 10 });
+
+        expect(result.page).toHaveLength(0);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// clearAnalyses
+// ---------------------------------------------------------------------------
+
+describe("resumes: clearAnalyses", () => {
+    it("clears all analysis data for specified resume IDs", async () => {
+        const t = convexTest(schema, modules);
+        const resumeId = await seedResume(t, {
+            analysis: { score: 80, summary: "good", highlights: [], recommendation: "proceed" },
+            analyses: { "jd:1": { score: 80 } },
+        });
+
+        const result = await t.mutation(api.resumes.clearAnalyses, {
+            resumeIds: [String(resumeId)],
+        });
+
+        expect(result.cleared).toBe(1);
+        expect(result.hasMore).toBe(false);
+
+        const resume = await t.run(async (ctx) => ctx.db.get(resumeId));
+        expect(resume?.analysis).toBeUndefined();
+        expect(resume?.analyses).toBeUndefined();
+    });
+
+    it("skips resumes without analysis data", async () => {
+        const t = convexTest(schema, modules);
+        await seedResume(t); // no analysis
+
+        const result = await t.mutation(api.resumes.clearAnalyses, {
+            resumeIds: [String(await t.run(async (ctx) => {
+                const resumes = await ctx.db.query("resumes").collect();
+                return resumes[0]._id;
+            }))],
+        });
+
+        expect(result.cleared).toBe(0);
+    });
+
+    it("returns pagination info when clearing all resumes", async () => {
+        const t = convexTest(schema, modules);
+        await seedResume(t, {
+            analysis: { score: 50, summary: "", highlights: [], recommendation: "skip" },
+        });
+
+        const result = await t.mutation(api.resumes.clearAnalyses, {});
+
+        expect(result.cleared).toBeGreaterThanOrEqual(1);
+        expect(typeof result.hasMore).toBe("boolean");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// deleteResumes
+// ---------------------------------------------------------------------------
+
+describe("resumes: deleteResumes", () => {
+    it("deletes specified resumes and returns counts", async () => {
+        const t = convexTest(schema, modules);
+        const resumeId = await seedResume(t);
+
+        const result = await t.mutation(api.resumes.deleteResumes, {
+            resumeIds: [String(resumeId)],
+        });
+
+        expect(result.requested).toBe(1);
+        expect(result.deleted).toBe(1);
+        expect(result.missingResumeIds).toHaveLength(0);
+
+        const resume = await t.run(async (ctx) => ctx.db.get(resumeId));
+        expect(resume).toBeNull();
+    });
+
+    it("reports missing resume IDs for invalid IDs", async () => {
+        const t = convexTest(schema, modules);
+
+        const result = await t.mutation(api.resumes.deleteResumes, {
+            resumeIds: ["junk-id-that-does-not-exist"],
+        });
+
+        expect(result.requested).toBe(1);
+        expect(result.deleted).toBe(0);
+        expect(result.missingResumeIds.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it("returns zero counts for empty input", async () => {
+        const t = convexTest(schema, modules);
+
+        const result = await t.mutation(api.resumes.deleteResumes, {
+            resumeIds: [],
+        });
+
+        expect(result.requested).toBe(0);
+        expect(result.deleted).toBe(0);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// hardResetIngestData
+// ---------------------------------------------------------------------------
+
+describe("resumes: hardResetIngestData", () => {
+    it("clears all computed fields from resumes", async () => {
+        const t = convexTest(schema, modules);
+        const resumeId = await seedResume(t, {
+            ingestData: {
+                industryTags: ["tech"],
+                synonymHits: [],
+                brandHits: [],
+                companyHits: [],
+                ruleScores: {},
+                experienceLevel: "senior",
+                computedAt: Date.now(),
+                skillsVersion: 1,
+            },
+            primaryRuleScore: 75,
+            searchText: "some search text",
+            analysis: { score: 80, summary: "", highlights: [], recommendation: "proceed" },
+        });
+
+        const result = await t.mutation(api.resumes.hardResetIngestData, {});
+
+        expect(result.cleared).toBeGreaterThanOrEqual(1);
+
+        const resume = await t.run(async (ctx) => ctx.db.get(resumeId));
+        expect(resume?.ingestData).toBeUndefined();
+        expect(resume?.primaryRuleScore).toBeUndefined();
+        expect(resume?.searchText).toBeUndefined();
+        expect(resume?.analysis).toBeUndefined();
+        expect(resume?.analyses).toBeUndefined();
+    });
+
+    it("skips resumes with no computed fields", async () => {
+        const t = convexTest(schema, modules);
+        await seedResume(t); // minimal — no computed fields
+
+        const result = await t.mutation(api.resumes.hardResetIngestData, {});
+
+        expect(result.cleared).toBe(0);
+    });
+
+    it("returns hasMore: false when all resumes fit in one batch", async () => {
+        const t = convexTest(schema, modules);
+        await seedResume(t, { searchText: "stale" });
+
+        const result = await t.mutation(api.resumes.hardResetIngestData, { batchSize: 100 });
+
+        expect(result.hasMore).toBe(false);
+        expect(result.cursor).toBeNull();
+    });
+});
