@@ -895,6 +895,17 @@ describe("migration: backfillWorkspaceSlugs", () => {
 
     expect(result.patchedJobDescriptions).toBe(0);
   });
+
+  it("returns zero patched when all tables are empty", async () => {
+    const t = createTest();
+
+    const result = await t.mutation(api.migrations.backfillWorkspaceSlugs, {});
+
+    expect(result.patchedJobDescriptions).toBe(0);
+    expect(result.patchedSearchProfiles).toBe(0);
+    expect(result.patchedScreeningSessions).toBe(0);
+    expect(result.patchedSearchHistory).toBe(0);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -989,6 +1000,16 @@ describe("migration: backfillPrimaryRuleScore", () => {
     const resumes = await t.run(async (ctx) => ctx.db.query("resumes").collect());
     expect(resumes[0].primaryRuleScore).toBe(0);
   });
+
+  it("returns zero when no resumes exist", async () => {
+    const t = createTest();
+
+    const result = await t.mutation(api.migrations.backfillPrimaryRuleScore, {});
+
+    expect(result.scannedResumes).toBe(0);
+    expect(result.updatedResumes).toBe(0);
+    expect(result.hasMore).toBe(false);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -996,6 +1017,33 @@ describe("migration: backfillPrimaryRuleScore", () => {
 // ---------------------------------------------------------------------------
 
 describe("migration: backfillSearchProfileTemplateHash", () => {
+  it("patches seeded profiles with matching template hash", async () => {
+    const t = createTest();
+
+    await t.run(async (ctx) => {
+      await ctx.db.insert("search_profiles", {
+        name: "China Job5156 CNC Sales",
+        profileId: "job5156-cn-cnc-sales",
+        criteria: { keywords: ["CNC", "销售"], locations: ["China"] },
+        profile: {
+          id: "job5156-cn-cnc-sales",
+          seedSource: "config/search-profiles",
+        },
+      });
+    });
+
+    const result = await t.mutation(api.migrations.backfillSearchProfileTemplateHash, {});
+
+    expect(result.scanned).toBeGreaterThanOrEqual(1);
+    expect(result.updated).toBe(1);
+
+    const profiles = await t.run(async (ctx) =>
+      ctx.db.query("search_profiles").collect(),
+    );
+    const profileData = profiles[0].profile as Record<string, unknown>;
+    expect(typeof profileData.templateHash).toBe("string");
+    expect((profileData.templateHash as string).length).toBeGreaterThan(0);
+  });
   it("skips profiles that already have a templateHash", async () => {
     const t = createTest();
 
@@ -1044,6 +1092,25 @@ describe("migration: backfillSearchProfileTemplateHash", () => {
     const result = await t.mutation(api.migrations.backfillSearchProfileTemplateHash, {});
 
     expect(result.scanned).toBeGreaterThanOrEqual(1);
+    expect(result.updated).toBe(0);
+  });
+
+  it("skips profiles with unknown profileId", async () => {
+    const t = createTest();
+
+    await t.run(async (ctx) => {
+      await ctx.db.insert("search_profiles", {
+        name: "Unknown template",
+        criteria: { keywords: [], locations: [] },
+        profile: {
+          id: "nonexistent-template-id",
+          seedSource: "config/search-profiles",
+        },
+      });
+    });
+
+    const result = await t.mutation(api.migrations.backfillSearchProfileTemplateHash, {});
+
     expect(result.updated).toBe(0);
   });
 });
