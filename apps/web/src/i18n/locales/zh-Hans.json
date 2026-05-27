@@ -117,7 +117,6 @@
       "experience": "经验",
       "skills": "技能",
       "industryDb": "行业库",
-      "industryDbNotAvailable": "行业库：保底40（无MY数据）",
       "education": "学历",
       "location": "地区"
     },
@@ -503,12 +502,8 @@
         "relatedExp": "相关经验",
         "skills": "技能",
         "industryDb": "行业库",
-        "industryDbNotAvailable": "行业库：保底40（无MY数据）",
         "education": "学历",
-        "location": "地点",
-        "breakdownLabels": {
-          "industryDbNotAvailable": "行业库：保底40（无MY数据）"
-        }
+        "location": "地点"
       },
       "error": {
         "searchBar": "搜索栏加载失败",

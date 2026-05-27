@@ -1,9 +1,9 @@
 import { expect, test, type Page } from '@playwright/test'
 
 /**
- * E2E test for MY market industry DB graceful degradation.
- * Verifies that Malaysian resumes show a "Not available for MY market"
- * placeholder instead of an empty industry DB breakdown bar.
+ * E2E test for MY market industry DB floor scoring.
+ * Verifies that Malaysian resumes use the industry_db floor (40)
+ * and render the normal breakdown bar (no placeholder).
  */
 
 const MY_RESUME_MOCK = {
@@ -104,14 +104,14 @@ async function mockResumePageApis(page: Page, resumes: unknown[]) {
   })
 }
 
-test.describe('MY market industry DB placeholder', () => {
-  test('shows "Not available for MY market" placeholder for Malaysian resumes', async ({ page }) => {
+test.describe('MY market industry DB floor scoring', () => {
+  test('does not show "Not available" placeholder for MY resumes — floor applies', async ({ page }) => {
     await mockResumePageApis(page, [MY_RESUME_MOCK])
     await page.goto('/dev/resumes?q=CNC%20Sales')
 
-    // The MY market placeholder should be visible in the expanded card
+    // With industry_db floor of 40, the placeholder should not appear
     const placeholder = page.getByText(/Not available for MY market/i)
-    await expect(placeholder).toBeVisible({ timeout: 15000 })
+    await expect(placeholder).not.toBeVisible({ timeout: 15000 })
   })
 
   test('does not show MY placeholder for CN market resumes', async ({ page }) => {

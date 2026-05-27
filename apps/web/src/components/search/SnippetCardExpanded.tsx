@@ -32,32 +32,9 @@ function formatSnakeCaseLabel(value: string): string {
   return value.replace(/_/g, ' ')
 }
 
-function BreakdownBar({ breakdown, isMyMarket, hasMyIndustryHits }: { breakdown: Record<string, number>; isMyMarket?: boolean; hasMyIndustryHits?: boolean }) {
-  const { t } = useTranslation()
+function BreakdownBar({ breakdown }: { breakdown: Record<string, number> }) {
   const relatedExp = breakdown.related_exp ?? 0
   const industryDb = breakdown.industry_db ?? 0
-  if (isMyMarket && !hasMyIndustryHits) {
-    return (
-      <div className="space-y-1.5">
-        <div className="flex h-3 w-full overflow-hidden rounded-full bg-slate-200">
-          <div
-            className="h-full bg-blue-500 transition-all"
-            style={{ width: '100%' }}
-            title={`${formatSnakeCaseLabel('related_exp')}: ${relatedExp}`}
-          />
-        </div>
-        <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
-          <span className="flex items-center gap-1">
-            <span className="inline-block h-2 w-2 rounded-full bg-blue-500" />
-            {formatSnakeCaseLabel('related_exp')}
-          </span>
-          <span className="italic text-muted-foreground/60">
-            {t('resumes.searchPage.card.breakdownLabels.industryDbNotAvailable', { defaultValue: 'Industry DB: Not available for MY market' })}
-          </span>
-        </div>
-      </div>
-    )
-  }
   const total = relatedExp + industryDb
   if (total <= 0) return null
   const relatedPct = Math.round((relatedExp / total) * 100)
@@ -332,8 +309,6 @@ export function SnippetCardExpanded({
                     </div>
                     <BreakdownBar
                       breakdown={analysis.breakdown}
-                      isMyMarket={item.resume.ingestData?.market === 'MY'}
-                      hasMyIndustryHits={(item.resume.ingestData?.brandHits?.length ?? 0) + (item.resume.ingestData?.companyHits?.length ?? 0) > 0}
                     />
                     <div className="grid gap-2 sm:grid-cols-2">
                       {Object.entries(analysis.breakdown).map(([label, value]) => (
@@ -507,30 +482,21 @@ export function SnippetCardExpanded({
                     { key: 'education', label: t('resumes.searchPage.card.education', { defaultValue: 'Education' }) },
                     { key: 'location', label: t('resumes.searchPage.card.location', { defaultValue: 'Location' }) },
                   ].map(({ key, label }) => {
-                    const isMyMarket = item.resume.ingestData?.market === 'MY'
-                    const hasMyIndustryHits = isMyMarket && key === 'industry_db' && (item.resume.ingestData?.brandHits?.length ?? 0) + (item.resume.ingestData?.companyHits?.length ?? 0) > 0
-                    const isIndustryDbMyNoHits = key === 'industry_db' && isMyMarket && !hasMyIndustryHits
-                    const score = isIndustryDbMyNoHits ? 0 : ((analysis?.breakdown as Record<string, number> | undefined)?.[key] ?? 0)
+                    const score = (analysis?.breakdown as Record<string, number> | undefined)?.[key] ?? 0
                     return (
                       <div key={key} className="space-y-0.5">
                         <div className="flex items-center justify-between text-[11px]">
-                          <span className={isIndustryDbMyNoHits ? 'italic text-muted-foreground/60' : 'text-muted-foreground'}>
-                            {isIndustryDbMyNoHits
-                              ? t('resumes.searchPage.card.breakdownLabels.industryDbNotAvailable', { defaultValue: 'Industry DB: Not available for MY market' })
-                              : label}
+                          <span className="text-muted-foreground">
+                            {label}
                           </span>
-                          {!isIndustryDbMyNoHits && (
-                            <span className="font-mono text-xs text-muted-foreground">{Math.round(typeof score === 'number' ? score : 0)}</span>
-                          )}
+                          <span className="font-mono text-xs text-muted-foreground">{Math.round(typeof score === 'number' ? score : 0)}</span>
                         </div>
-                        {!isIndustryDbMyNoHits && (
-                          <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                            <div
-                              className="h-full rounded-full bg-primary/60 transition-all"
-                              style={{ width: `${Math.min(100, typeof score === 'number' ? score : 0)}%` }}
-                            />
-                          </div>
-                        )}
+                        <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                          <div
+                            className="h-full rounded-full bg-primary/60 transition-all"
+                            style={{ width: `${Math.min(100, typeof score === 'number' ? score : 0)}%` }}
+                          />
+                        </div>
                       </div>
                     )
                   })}

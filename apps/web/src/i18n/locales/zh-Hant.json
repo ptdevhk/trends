@@ -117,7 +117,6 @@
       "experience": "經驗",
       "skills": "技能",
       "industryDb": "產業庫",
-      "industryDbNotAvailable": "產業庫：保底40（無MY數據）",
       "education": "學歷",
       "location": "地點"
     },
@@ -503,12 +502,8 @@
         "relatedExp": "相關經驗",
         "skills": "技能",
         "industryDb": "行業庫",
-        "industryDbNotAvailable": "行業庫：MY市場暫不可用",
         "education": "學歷",
-        "location": "地點",
-        "breakdownLabels": {
-          "industryDbNotAvailable": "行業庫：MY市場暫不可用"
-        }
+        "location": "地點"
       },
       "error": {
         "searchBar": "搜尋列加載失敗",
