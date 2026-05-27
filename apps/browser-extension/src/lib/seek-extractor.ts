@@ -16,6 +16,9 @@ export interface SeekExtractorDeps extends Record<string, unknown> {
   asHTMLElement: (el: unknown) => HTMLElement | null;
   isDisabledPaginationControl: (el: unknown) => boolean;
   waitForSeekProfileSnapshot: (matchId: string, options: { timeoutMs: number }) => Promise<void>;
+  SEEK_DETAIL_FETCH_CONCURRENCY: number;
+  SEEK_DETAIL_FETCH_DELAY_MS: number;
+  delay: (ms: number) => Promise<void>;
   SELECTORS: Record<string, string>;
 }
 
@@ -36,6 +39,9 @@ export function createSeekExtractor(deps: SeekExtractorDeps) {
     isDisabledPaginationControl,
     // Detail enrichment deps
     waitForSeekProfileSnapshot,
+    SEEK_DETAIL_FETCH_CONCURRENCY,
+    SEEK_DETAIL_FETCH_DELAY_MS,
+    delay,
     // Pagination selectors
     SELECTORS,
   } = deps;
@@ -876,8 +882,15 @@ export function createSeekExtractor(deps: SeekExtractorDeps) {
       : null;
 
     const enriched = [];
-    for (const resume of resumes) {
-      enriched.push(await enrichSingleSeekResumeWithDetail(resume, cachedHeadings));
+    for (let start = 0; start < resumes.length; start += SEEK_DETAIL_FETCH_CONCURRENCY) {
+      const batch = resumes.slice(start, start + SEEK_DETAIL_FETCH_CONCURRENCY);
+      const batchResults = await Promise.all(
+        batch.map((resume) => enrichSingleSeekResumeWithDetail(resume, cachedHeadings)),
+      );
+      enriched.push(...batchResults);
+      if (start + SEEK_DETAIL_FETCH_CONCURRENCY < resumes.length) {
+        await delay(SEEK_DETAIL_FETCH_DELAY_MS);
+      }
     }
     return enriched;
   }
