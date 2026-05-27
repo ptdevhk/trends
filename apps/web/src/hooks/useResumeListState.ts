@@ -853,21 +853,20 @@ export function useResumeListState(loadSearchHistory = false) {
       })
     }
 
-    const showRejected = filters.showRejected === true
-    if (!showRejected) {
-      result = result.filter((resume: ScoredConvexResume) => {
-        const identityKey = getResumeIdentityKey(resume, String(resume.resumeId))
-        const status = statusByIdentity[identityKey]?.status ?? 'new'
-        return status !== 'rejected'
-      })
-    }
-
     if (filters.status?.length) {
+      // Explicit status filter from URL (&status=shortlisted) — show only those
       const activeStatuses = new Set(toStatusFilterList(filters.status))
       result = result.filter((resume: ScoredConvexResume) => {
         const identityKey = getResumeIdentityKey(resume, String(resume.resumeId))
         const status = statusByIdentity[identityKey]?.status ?? 'new'
         return activeStatuses.has(status)
+      })
+    } else {
+      // No status filter — default to showing only 'new' (unreviewed) resumes
+      result = result.filter((resume: ScoredConvexResume) => {
+        const identityKey = getResumeIdentityKey(resume, String(resume.resumeId))
+        const status = statusByIdentity[identityKey]?.status ?? 'new'
+        return status === 'new'
       })
     }
 

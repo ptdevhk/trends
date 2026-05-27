@@ -539,11 +539,16 @@ function matchesLocalFilters(
     return false
   }
 
-  if (
-    normalizedStatuses.length > 0 &&
-    !normalizedStatuses.includes(item.status)
-  ) {
-    return false
+  if (normalizedStatuses.length > 0) {
+    // Explicit status filter — show only those
+    if (!normalizedStatuses.includes(item.status)) {
+      return false
+    }
+  } else {
+    // No status filter — default to showing only 'new' (unreviewed) resumes
+    if (item.status !== 'new') {
+      return false
+    }
   }
 
   if (typeof minScore === 'number' && (item.score ?? 0) < minScore) {
