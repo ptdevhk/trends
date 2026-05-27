@@ -1688,7 +1688,7 @@ export function useResumeSearchState() {
   )
 
   const handleBulkAction = useCallback(
-    async (action: 'shortlist' | 'reject' | 'star' | 'block' | 'export') => {
+    async (action: 'shortlist' | 'reject' | 'block' | 'export') => {
       if (action === 'export') {
         await exportResults(selectedIds)
         return
@@ -1709,11 +1709,21 @@ export function useResumeSearchState() {
             saveAction({ resumeId: item.resume.resumeId, actionType }),
           ),
         )
+
+        // Sync candidate_status in Convex for shortlist/reject
+        if (action === 'shortlist' || action === 'reject') {
+          const targetStatus = action === 'shortlist' ? 'shortlisted' : 'rejected'
+          await Promise.all(
+            selectedItems.map((item) =>
+              updateCandidateStatus(item.identityKey, targetStatus)
+            )
+          )
+        }
       }
 
       clearSelection()
     },
-    [blockCandidates, clearSelection, exportResults, filteredResults, saveAction, selectedIds],
+    [blockCandidates, clearSelection, exportResults, filteredResults, saveAction, selectedIds, updateCandidateStatus],
   )
 
   return {
