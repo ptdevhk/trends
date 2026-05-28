@@ -22,6 +22,8 @@ export type SharedSearchProfileTemplate = {
     filters?: {
       minExperience?: number;
       maxExperience?: number | null;
+      minRoleYears?: number;
+      roleFilterType?: string;
       minAge?: number;
       maxAge?: number;
       education?: string[];
@@ -85,8 +87,8 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
       ],
       "jobDescription": "lathe-sales",
       "filters": {
-        "minExperience": 1,
-        "maxExperience": null,
+        "minRoleYears": 1,
+        "roleFilterType": "sales",
         "minAge": 25,
         "maxAge": 40,
         "locations": [
@@ -141,8 +143,8 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
       ],
       "jobDescription": "lathe-sales",
       "filters": {
-        "minExperience": 1,
-        "maxExperience": null,
+        "minRoleYears": 1,
+        "roleFilterType": "sales",
         "minAge": 25,
         "maxAge": 40,
         "locations": [
@@ -196,8 +198,8 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
         "销售"
       ],
       "filters": {
-        "minExperience": 1,
-        "maxExperience": null,
+        "minRoleYears": 1,
+        "roleFilterType": "sales",
         "minAge": 25,
         "maxAge": 40,
         "locations": [
@@ -249,8 +251,8 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
         "销售"
       ],
       "filters": {
-        "minExperience": 1,
-        "maxExperience": null,
+        "minRoleYears": 1,
+        "roleFilterType": "sales",
         "minAge": 25,
         "maxAge": 40,
         "locations": [

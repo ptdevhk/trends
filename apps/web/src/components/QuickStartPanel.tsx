@@ -119,6 +119,12 @@ function mapProfileFiltersToResumeFilters(filters: SearchProfileFilters | undefi
   if (typeof filters.maxExperience === 'number') {
     mapped.maxExperience = filters.maxExperience
   }
+  if (typeof filters.minRoleYears === 'number') {
+    mapped.minRoleYears = filters.minRoleYears
+  }
+  if (filters.roleFilterType && filters.roleFilterType.trim().length > 0) {
+    mapped.roleFilterType = filters.roleFilterType.trim()
+  }
   if (typeof filters.minAge === 'number') {
     mapped.minAge = filters.minAge
   }
@@ -263,9 +269,16 @@ function getProfileQuickConstraints(profile: SearchProfileDetails): {
   maxAge?: number
 } {
   const keywords = normalizeProfileKeywords(profile)
-  const roleFilterType = isSalesRequiredContext(...keywords) ? 'sales' : undefined
+  const heuristicRoleFilterType = isSalesRequiredContext(...keywords) ? 'sales' : undefined
+  const storedRoleFilterType = typeof profile.filters?.roleFilterType === 'string'
+    ? profile.filters.roleFilterType.trim()
+    : undefined
+  const roleFilterType = heuristicRoleFilterType || storedRoleFilterType
+  const minRoleYears = typeof profile.filters?.minRoleYears === 'number'
+    ? profile.filters.minRoleYears
+    : undefined
   return {
-    minRoleYears: undefined,
+    minRoleYears,
     roleFilterType,
     maxAge: typeof profile.filters?.maxAge === 'number' ? profile.filters.maxAge : undefined,
   }
@@ -479,12 +492,6 @@ export function QuickStartPanel({
       const shouldPreserveExternalShellState =
         skipNextJobDescriptionAutofillRef.current === currentExternalShellStateSignature
 
-      setActiveRoleType(undefined)
-      setJdMinRoleYears(
-        typeof selectedConvexJobDescriptionDetail?.minExperience === 'number'
-          ? selectedConvexJobDescriptionDetail.minExperience
-          : 1
-      )
       setJdMaxAge(
         typeof selectedConvexJobDescriptionDetail?.maxAge === 'number'
           ? selectedConvexJobDescriptionDetail.maxAge
@@ -504,7 +511,7 @@ export function QuickStartPanel({
         setCustomKeyword(formatKeywordInput(selectedConvexJobDescriptionDetail.customKeywords))
       }
 
-      return
+      // Fall through to API fetch for roleType/minRoleYears (Convex JD lacks requiredRoles)
     }
 
     let cancelled = false
@@ -521,7 +528,6 @@ export function QuickStartPanel({
         const roleType = requiredRole?.type?.trim()
         setActiveRoleType(roleType && roleType.length > 0 ? roleType : undefined)
         setJdMinRoleYears(requiredRole?.min_years)
-        setJdMaxAge(undefined)
 
         const shouldPreserveExternalShellState =
           skipNextJobDescriptionAutofillRef.current === currentExternalShellStateSignature
@@ -547,7 +553,9 @@ export function QuickStartPanel({
         if (!cancelled) {
           setActiveRoleType(undefined)
           setJdMinRoleYears(undefined)
-          setJdMaxAge(undefined)
+          if (!selectedConvexJobDescriptionDetail) {
+            setJdMaxAge(undefined)
+          }
         }
       }
     }

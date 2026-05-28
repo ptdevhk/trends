@@ -70,6 +70,8 @@ const {
   recentSearchHistoryRecordsMock,
   analysisTasksMock,
   statusByIdentityMock,
+  updateStatusMock,
+  saveActionMock,
   syncToUrlMock,
   taxonomyClusterRecordsMock,
   useFacetCountsMock,
@@ -96,6 +98,8 @@ const {
   recentSearchHistoryRecordsMock: [] as Array<Record<string, unknown>>,
   analysisTasksMock: [] as Array<Record<string, unknown>>,
   statusByIdentityMock: {} as Record<string, CandidateStatusRecord>,
+  updateStatusMock: vi.fn(async () => true),
+  saveActionMock: vi.fn(async () => ({ success: true })),
   syncToUrlMock: vi.fn(),
   taxonomyClusterRecordsMock: [] as Array<Record<string, unknown>>,
   useFacetCountsMock: vi.fn(),
@@ -124,12 +128,27 @@ vi.mock('@/hooks/useUrlSearchState', () => ({
 vi.mock('@/hooks/useCandidateStatus', () => ({
   useCandidateStatus: () => ({
     statusByIdentity: statusByIdentityMock,
+    updateStatus: updateStatusMock,
   }),
 }))
 
 vi.mock('@/hooks/useCandidateBlocks', () => ({
   useCandidateBlocks: () => ({
     blocksByIdentity: blocksByIdentityMock,
+  }),
+}))
+
+vi.mock('@/hooks/useCandidateActions', () => ({
+  useCandidateActions: () => ({
+    actions: {},
+    actionsByResume: {},
+    aiFeedbackByResume: {},
+    ratingsByResume: {},
+    loading: false,
+    error: null,
+    reload: vi.fn(),
+    saveAction: saveActionMock,
+    getAiFeedback: vi.fn(),
   }),
 }))
 
@@ -1587,12 +1606,17 @@ describe('useResumeSearchState', () => {
       selectedBrands: [],
       selectedExperienceLevel: undefined,
       filters: {
-        minExperience: 5,
-        maxExperience: 12,
+        minExperience: undefined,
+        maxExperience: undefined,
         locations: ['Malaysia'],
         education: undefined,
         status: undefined,
         minMatchScore: undefined,
+        minRoleYears: undefined,
+        minAge: undefined,
+        maxAge: undefined,
+        minSalary: undefined,
+        maxSalary: undefined,
       },
     })
   })
@@ -1902,5 +1926,103 @@ describe('useResumeSearchState', () => {
     })
 
     expect(lastResumeLimitCall()).toBe(400)
+  })
+
+  describe('handleCandidateAction — Convex status sync + toggle', () => {
+    beforeEach(() => {
+      Object.assign(parsedStateMock, createParsedState({
+        query: 'CNC 销售',
+        keywords: ['CNC', '销售'],
+      }))
+      resumesMock.push(createResume(1, { primaryRuleScore: 95 }))
+    })
+
+    it('syncs Convex status to shortlisted on individual shortlist action', async () => {
+      const { result } = renderHook(() => useResumeSearchState())
+
+      await act(async () => {
+        await result.current.handleCandidateAction('resume-1', 'shortlist')
+      })
+
+      expect(updateStatusMock).toHaveBeenCalledWith('identity-1', 'shortlisted')
+    })
+
+    it('syncs Convex status to rejected on individual reject action', async () => {
+      const { result } = renderHook(() => useResumeSearchState())
+
+      await act(async () => {
+        await result.current.handleCandidateAction('resume-1', 'reject')
+      })
+
+      expect(updateStatusMock).toHaveBeenCalledWith('identity-1', 'rejected')
+    })
+
+    it('toggles shortlisted candidate back to new when shortlist is clicked again', async () => {
+      Object.assign(parsedStateMock, createParsedState({
+        query: 'CNC 销售',
+        keywords: ['CNC', '销售'],
+        filters: { status: ['shortlisted'] },
+      }))
+      statusByIdentityMock['identity-1'] = createStatusRecord('identity-1', 'shortlisted')
+
+      const { result } = renderHook(() => useResumeSearchState())
+
+      await act(async () => {
+        await result.current.handleCandidateAction('resume-1', 'shortlist')
+      })
+
+      expect(updateStatusMock).toHaveBeenCalledWith('identity-1', 'new')
+    })
+
+    it('toggles rejected candidate back to new when reject is clicked again', async () => {
+      Object.assign(parsedStateMock, createParsedState({
+        query: 'CNC 销售',
+        keywords: ['CNC', '销售'],
+        filters: { status: ['rejected'] },
+      }))
+      statusByIdentityMock['identity-1'] = createStatusRecord('identity-1', 'rejected')
+
+      const { result } = renderHook(() => useResumeSearchState())
+
+      await act(async () => {
+        await result.current.handleCandidateAction('resume-1', 'reject')
+      })
+
+      expect(updateStatusMock).toHaveBeenCalledWith('identity-1', 'new')
+    })
+
+    it('applies normal status when current status differs from action', async () => {
+      Object.assign(parsedStateMock, createParsedState({
+        query: 'CNC 销售',
+        keywords: ['CNC', '销售'],
+        filters: { status: ['rejected'] },
+      }))
+      statusByIdentityMock['identity-1'] = createStatusRecord('identity-1', 'rejected')
+
+      const { result } = renderHook(() => useResumeSearchState())
+
+      await act(async () => {
+        await result.current.handleCandidateAction('resume-1', 'shortlist')
+      })
+
+      expect(updateStatusMock).toHaveBeenCalledWith('identity-1', 'shortlisted')
+    })
+
+    it('always sets star action to new status regardless of current status', async () => {
+      Object.assign(parsedStateMock, createParsedState({
+        query: 'CNC 销售',
+        keywords: ['CNC', '销售'],
+        filters: { status: ['shortlisted'] },
+      }))
+      statusByIdentityMock['identity-1'] = createStatusRecord('identity-1', 'shortlisted')
+
+      const { result } = renderHook(() => useResumeSearchState())
+
+      await act(async () => {
+        await result.current.handleCandidateAction('resume-1', 'star')
+      })
+
+      expect(updateStatusMock).toHaveBeenCalledWith('identity-1', 'new')
+    })
   })
 })

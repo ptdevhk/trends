@@ -440,6 +440,12 @@ function getRoleYears(
 
 const DEFAULT_STATUS_WHEN_EMPTY: CandidateStatus = 'new'
 
+const ACTION_TO_STATUS: Partial<Record<CandidateActionType, CandidateStatus>> = {
+  shortlist: 'shortlisted',
+  reject: 'rejected',
+  star: 'new',
+}
+
 function matchesLocalFilters(
   item: ResumeSearchResultItem,
   state: UrlSearchState,
@@ -1664,8 +1670,18 @@ export function useResumeSearchState() {
   const handleCandidateAction = useCallback(
     async (resumeId: string, actionType: CandidateActionType) => {
       await saveAction({ resumeId, actionType })
+
+      const targetItem = filteredResults.find((item) => item.resume.resumeId === resumeId)
+      const nextStatus = ACTION_TO_STATUS[actionType]
+
+      if (targetItem && nextStatus) {
+        const currentStatus = statusByIdentity[targetItem.identityKey]?.status
+        const isToggleBack = currentStatus === nextStatus
+        const finalStatus: CandidateStatus = isToggleBack ? 'new' : nextStatus
+        await updateCandidateStatus(targetItem.identityKey, finalStatus)
+      }
     },
-    [saveAction],
+    [filteredResults, saveAction, statusByIdentity, updateCandidateStatus],
   )
 
   const handleRating = useCallback(
@@ -1717,11 +1733,7 @@ export function useResumeSearchState() {
         )
 
         // Sync Convex candidate_status for shortlist/reject
-        const statusMap: Record<string, CandidateStatus> = {
-          shortlist: 'shortlisted',
-          reject: 'rejected',
-        }
-        const convexStatus = statusMap[action]
+        const convexStatus = ACTION_TO_STATUS[action]
         if (convexStatus) {
           await Promise.all(
             selectedItems.map((item) =>

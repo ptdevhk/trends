@@ -15,8 +15,8 @@ keywords:
 jobDescription: lathe-sales
 
 filters:
-  minExperience: 1
-  maxExperience: null
+  minRoleYears: 1
+  roleFilterType: sales
   minAge: 25
   maxAge: 40
   locations:

@@ -5620,6 +5620,8 @@ export interface paths {
                                     maxAge?: number;
                                     minExperience?: number;
                                     maxExperience?: number;
+                                    minRoleYears?: number;
+                                    roleFilterType?: string;
                                 };
                             }[];
                         };

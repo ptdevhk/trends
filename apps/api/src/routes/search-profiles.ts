@@ -55,6 +55,8 @@ const ProfileSummarySchema = z.object({
         maxAge: z.number().optional(),
         minExperience: z.number().optional(),
         maxExperience: z.number().optional(),
+        minRoleYears: z.number().optional(),
+        roleFilterType: z.string().optional(),
     }).optional(),
 });
 
@@ -839,6 +841,8 @@ app.openapi(listRoute, async (c) => {
                 maxAge: readNumber(profile.filters.maxAge) ?? undefined,
                 minExperience: readNumber(profile.filters.minExperience) ?? undefined,
                 maxExperience: readNumber(profile.filters.maxExperience) ?? undefined,
+                minRoleYears: readNumber(profile.filters.minRoleYears) ?? undefined,
+                roleFilterType: readString(profile.filters.roleFilterType) ?? undefined,
             }
             : undefined,
     }));
