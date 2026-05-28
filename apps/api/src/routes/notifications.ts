@@ -318,7 +318,7 @@ app.openapi(sendTemplateRoute, async (c) => {
                 html: renderMarkdownAsHtml(rendered.markdown),
             });
             const messageId = getMessageId(info);
-            return c.json({ success: true as const, channel: payload.channel, messageId }, 200);
+            return c.json({ success: true as const, channel: "email" as const, messageId } as z.infer<typeof SendTemplateResponseSchema>, 200);
         }
 
         if (payload.channel === "wechat_work") {
@@ -326,14 +326,14 @@ app.openapi(sendTemplateRoute, async (c) => {
                 webhookUrl: payload.webhookUrl,
                 content: rendered.markdown,
             });
-            return c.json({ success: true as const, channel: payload.channel, ...result }, 200);
+            return c.json({ success: true as const, channel: "wechat_work" as const, ...result } as z.infer<typeof SendTemplateResponseSchema>, 200);
         }
 
         const result = await notificationService.sendFeishuText({
             webhookUrl: payload.webhookUrl,
             content: rendered.markdown,
         });
-        return c.json({ success: true as const, channel: payload.channel, ...result }, 200);
+        return c.json({ success: true as const, channel: "feishu" as const, ...result } as z.infer<typeof SendTemplateResponseSchema>, 200);
     } catch (e: unknown) {
         return c.json({ error: getErrorMessage(e) }, 500);
     }

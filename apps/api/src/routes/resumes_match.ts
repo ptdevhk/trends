@@ -568,12 +568,42 @@ app.openapi(matchResumesRoute, async (c) => {
   }
 });
 
-app.post("/api/resumes/match-stream", async (c) => {
-  const parsed = MatchRequestSchema.safeParse(await c.req.json().catch(() => ({})));
-  if (!parsed.success) {
-    return c.json({ success: false, error: "Invalid request body" }, 400);
-  }
+const matchStreamRoute = createRoute({
+  method: "post",
+  path: "/api/resumes/match-stream",
+  tags: ["resumes"],
+  summary: "Stream resume matching results via SSE",
+  description: "Runs rule/AI matching and streams progress events via Server-Sent Events. Returns text/event-stream.",
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: MatchRequestSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        "text/event-stream": {
+          schema: z.string().openapi({ description: "Server-Sent Events stream" }),
+        },
+      },
+      description: "SSE stream of matching progress and results",
+    },
+    400: {
+      content: { "application/json": { schema: SimpleErrorSchema } },
+      description: "Invalid request",
+    },
+    404: {
+      content: { "application/json": { schema: SimpleErrorSchema } },
+      description: "Session or job description not found",
+    },
+  },
+});
 
+app.openapi(matchStreamRoute, async (c) => {
   const {
     sessionId,
     jobDescriptionId,
@@ -586,7 +616,7 @@ app.post("/api/resumes/match-stream", async (c) => {
     limit,
     topN,
     mode: modeInput,
-  } = parsed.data;
+  } = c.req.valid("json");
 
   const normalizedJobDescriptionId = jobDescriptionId?.trim();
   const normalizedKeywords = normalizeKeywords(keywords);
