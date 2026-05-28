@@ -1794,6 +1794,50 @@ describe('useResumeSearchState', () => {
     })
   })
 
+  it('excludes rejected resumes by default when no status filter is set', () => {
+    Object.assign(parsedStateMock, createParsedState({
+      query: 'CNC 销售',
+      keywords: ['CNC', '销售'],
+    }))
+
+    resumesMock.push(
+      createResume(1, { primaryRuleScore: 95 }),
+      createResume(2, { primaryRuleScore: 90 }),
+      createResume(3, { primaryRuleScore: 85 }),
+    )
+    statusByIdentityMock['identity-1'] = createStatusRecord('identity-1', 'new')
+    statusByIdentityMock['identity-2'] = createStatusRecord('identity-2', 'rejected')
+    statusByIdentityMock['identity-3'] = createStatusRecord('identity-3', 'shortlisted')
+
+    const { result } = renderHook(() => useResumeSearchState())
+
+    // rejected is excluded by default; shortlisted and new are kept
+    expect(result.current.filteredResults.map((item) => item.key)).toEqual(['resume-1', 'resume-3'])
+  })
+
+  it('includes rejected resumes when explicitly filtered for', () => {
+    Object.assign(parsedStateMock, createParsedState({
+      query: 'CNC 销售',
+      keywords: ['CNC', '销售'],
+      filters: {
+        status: ['rejected'],
+      },
+    }))
+
+    resumesMock.push(
+      createResume(1, { primaryRuleScore: 95 }),
+      createResume(2, { primaryRuleScore: 90 }),
+      createResume(3, { primaryRuleScore: 85 }),
+    )
+    statusByIdentityMock['identity-1'] = createStatusRecord('identity-1', 'new')
+    statusByIdentityMock['identity-2'] = createStatusRecord('identity-2', 'rejected')
+    statusByIdentityMock['identity-3'] = createStatusRecord('identity-3', 'shortlisted')
+
+    const { result } = renderHook(() => useResumeSearchState())
+
+    expect(result.current.filteredResults.map((item) => item.key)).toEqual(['resume-2'])
+  })
+
   it('only grows the resume window when more results are available and not already loading more', () => {
     Object.assign(parsedStateMock, createParsedState({
       query: 'machine tools',

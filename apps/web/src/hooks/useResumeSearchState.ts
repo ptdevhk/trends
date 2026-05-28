@@ -438,6 +438,8 @@ function getRoleYears(
   }, 0)
 }
 
+const DEFAULT_EXCLUDED_STATUSES: readonly CandidateStatus[] = ['rejected'] as const
+
 function matchesLocalFilters(
   item: ResumeSearchResultItem,
   state: UrlSearchState,
@@ -539,10 +541,12 @@ function matchesLocalFilters(
     return false
   }
 
-  if (
-    normalizedStatuses.length > 0 &&
-    !normalizedStatuses.includes(item.status)
-  ) {
+  // Default exclusion: hide rejected resumes unless user explicitly filters for them
+  if (normalizedStatuses.length > 0) {
+    if (!normalizedStatuses.includes(item.status)) {
+      return false
+    }
+  } else if (DEFAULT_EXCLUDED_STATUSES.includes(item.status)) {
     return false
   }
 
