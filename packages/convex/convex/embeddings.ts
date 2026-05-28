@@ -27,6 +27,18 @@ const EMBEDDING_DIMENSIONS = 1536;
 const BATCH_SIZE = 100;
 
 // ---------------------------------------------------------------------------
+// Feature flag — EMBEDDING_ENABLED
+// Default: OFF. Embeddings require an API that supports /embeddings endpoint.
+// Poe API (current provider) does not support this, so embedding is disabled
+// until a compatible service is configured.
+// ---------------------------------------------------------------------------
+
+export function isEmbeddingEnabled(): boolean {
+    const value = (process.env.EMBEDDING_ENABLED ?? "").toLowerCase().trim();
+    return value === "true" || value === "1";
+}
+
+// ---------------------------------------------------------------------------
 // RRF (Reciprocal Rank Fusion) merge — exported for testing
 // ---------------------------------------------------------------------------
 
@@ -255,6 +267,10 @@ export const batchGenerateEmbeddings = internalAction({
         delayMs: v.optional(v.number()),
     },
     handler: async (ctx, args): Promise<BatchResult> => {
+        if (!isEmbeddingEnabled()) {
+            return { generated: 0, skipped: 0, apiErrors: 0, wouldGenerate: 0, hasMore: false, cursor: null };
+        }
+
         const limit = Math.min(args.limit ?? BATCH_SIZE, BATCH_SIZE);
         const dryRun = args.dryRun ?? false;
         const delayMs = Math.max(args.delayMs ?? 0, 0);
@@ -332,6 +348,10 @@ export const batchGenerateEmbeddings = internalAction({
 export const scheduledBackfill = internalAction({
     args: {},
     handler: async (ctx): Promise<{ generated: number; apiErrors: number; batches: number }> => {
+        if (!isEmbeddingEnabled()) {
+            return { generated: 0, apiErrors: 0, batches: 0 };
+        }
+
         let totalGenerated = 0;
         let totalApiErrors = 0;
         let batches = 0;
@@ -446,7 +466,8 @@ export const hybridSearchResumes = action({
         enableSemantic: v.optional(v.boolean()), // toggle, default true
     },
     handler: async (ctx, args): Promise<HybridSearchResult> => {
-        const enableSemantic = args.enableSemantic ?? true;
+        // System-level gate: embedding disabled means semantic search is off regardless of client request
+        const enableSemantic = isEmbeddingEnabled() && (args.enableSemantic ?? true);
         const semanticWeight = args.semanticWeight ?? 0.5;
         const semanticLimit = Math.min(args.semanticLimit ?? 50, 256);
         const bm25Weight = 1 - semanticWeight;

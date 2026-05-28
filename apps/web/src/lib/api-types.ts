@@ -9769,7 +9769,7 @@ export interface paths {
                             success: true;
                             /** @enum {string} */
                             channel: "email";
-                            messageId: string;
+                            messageId?: string;
                         } | {
                             /** @enum {boolean} */
                             success: true;
@@ -9777,16 +9777,14 @@ export interface paths {
                             channel: "wechat_work";
                             errcode: number;
                             errmsg: string;
-                        } | ({
+                        } | {
                             /** @enum {boolean} */
                             success: true;
                             /** @enum {string} */
                             channel: "feishu";
                             code: number;
                             msg: string;
-                        } & {
-                            [key: string]: unknown;
-                        });
+                        };
                     };
                 };
                 /** @description Send failed */
