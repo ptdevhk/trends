@@ -408,6 +408,30 @@ function pickBestNode(nodeIds: string[], normalizedInput: string): InternalLocat
   return bestNode;
 }
 
+/**
+ * Short Latin aliases (<=3 chars, e.g. "CN", "MY", "HK") must match at
+ * word boundaries to prevent false positives like "CNC" matching "CN".
+ * CJK aliases are exempt — they don't use word boundaries and are
+ * specific enough at 2 chars (e.g. "东莞", "深圳" are unambiguous).
+ */
+const SHORT_LATIN_ALIAS_THRESHOLD = 3;
+
+function isLatinOnly(str: string): boolean {
+  return /^[A-Za-z0-9]+$/.test(str);
+}
+
+function isValidAliasMatch(input: string, alias: string): boolean {
+  if (!input.includes(alias)) {
+    return false;
+  }
+  // Only apply word-boundary restriction to short Latin aliases
+  if (alias.length <= SHORT_LATIN_ALIAS_THRESHOLD && isLatinOnly(alias)) {
+    const pattern = new RegExp(`(?<![A-Za-z0-9])${alias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![A-Za-z0-9])`);
+    return pattern.test(input);
+  }
+  return true;
+}
+
 function findLocationNode(name: string): InternalLocationNode | undefined {
   const normalizedInput = normalizeLocationName(name);
   if (!normalizedInput) {
@@ -422,7 +446,7 @@ function findLocationNode(name: string): InternalLocationNode | undefined {
   const candidateNodeIds: string[] = [];
   const seenNodeIds = new Set<string>();
   for (const entry of sortedAliasEntries) {
-    if (!normalizedInput.includes(entry.alias)) {
+    if (!isValidAliasMatch(normalizedInput, entry.alias)) {
       continue;
     }
     if (seenNodeIds.has(entry.nodeId)) {
@@ -448,7 +472,7 @@ function extractLocationNodeIds(value: string): string[] {
   }
 
   for (const entry of sortedAliasEntries) {
-    if (normalizedInput.includes(entry.alias)) {
+    if (isValidAliasMatch(normalizedInput, entry.alias)) {
       matchedNodeIds.add(entry.nodeId);
     }
   }
@@ -678,7 +702,7 @@ export function isLocationMatch(resumeLocation: string, filterName: string): boo
 
   const resumeNodeIds = extractLocationNodeIds(resumeLocation);
   if (resumeNodeIds.length === 0) {
-    return filterNode.aliases.some((alias) => normalizedResume.includes(alias));
+    return filterNode.aliases.some((alias) => isValidAliasMatch(normalizedResume, alias));
   }
 
   return resumeNodeIds.some((nodeId) => isSameOrDescendant(nodeId, filterNode.id));
