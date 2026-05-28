@@ -1579,6 +1579,8 @@ describe('useResumeSearchState', () => {
       filters: {
         minExperience: 5,
         maxExperience: 12,
+        minRoleYears: 1,
+        roleFilterType: 'sales',
         locations: ['Malaysia'],
         education: ['Bachelor'],
         status: ['contacted'],
@@ -1608,11 +1610,12 @@ describe('useResumeSearchState', () => {
       filters: {
         minExperience: undefined,
         maxExperience: undefined,
+        minRoleYears: undefined,
+        roleFilterType: undefined,
         locations: ['Malaysia'],
         education: undefined,
         status: undefined,
         minMatchScore: undefined,
-        minRoleYears: undefined,
         minAge: undefined,
         maxAge: undefined,
         minSalary: undefined,
