@@ -11,15 +11,12 @@ import { getResumeContentLocale, getExperienceBadge, isSafeProfileUrl, summarize
 import { useBrandDisplayMap } from '@/hooks/useBrandDisplayMap'
 import type { ResumeSearchResultItem } from '@/components/search/search-types'
 
-import type { CandidateActionType, CandidateStatus } from '@/types/resume'
+import type { CandidateStatus } from '@/types/resume'
 
 type SnippetCardExpandedProps = {
   item: ResumeSearchResultItem
   showAiScore?: boolean
   onViewDetails?: () => void
-  // actions
-  actionType?: CandidateActionType
-  onAction?: (resumeId: string, actionType: CandidateActionType) => void
   candidateStatus?: CandidateStatus
   onCandidateStatusChange?: (identityKey: string, status: CandidateStatus, notes?: string) => void
   statusOptions?: Array<{ value: CandidateStatus; labelKey: string }>
@@ -96,8 +93,6 @@ export function SnippetCardExpanded({
   item,
   showAiScore = false,
   onViewDetails,
-  actionType,
-  onAction,
   candidateStatus,
   onCandidateStatusChange,
   statusOptions,
@@ -401,56 +396,54 @@ export function SnippetCardExpanded({
                 </div>
               ) : null}
 
-              {/* Action Buttons Grid */}
-              <div className="mt-2 grid grid-cols-2 gap-2">
-                {onAction ? (
-                  <>
-                    <Button
-                      variant={actionType === 'shortlist' ? 'default' : 'outline'}
-                      size="sm"
-                      className="w-full justify-start gap-2"
-                      onClick={() => onAction(item.resume.resumeId, 'shortlist')}
-                    >
-                      <BriefcaseBusiness className="h-3.5 w-3.5" />
-                      {t('resumes.actions.shortlist', { defaultValue: '入选' })}
-                    </Button>
-                    <Button
-                      variant={actionType === 'reject' ? 'destructive' : 'outline'}
-                      size="sm"
-                      className="w-full justify-start gap-2"
-                      onClick={() => onAction(item.resume.resumeId, 'reject')}
-                    >
-                      <Sparkles className="h-3.5 w-3.5" />
-                      {t('resumes.actions.reject', { defaultValue: '淘汰' })}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full justify-start gap-2"
-                      onClick={() => onAction(item.resume.resumeId, 'contact')}
-                    >
-                      <ExternalLink className="h-3.5 w-3.5" />
-                      {t('resumes.actions.contact', { defaultValue: '联系' })}
-                    </Button>
-                  </>
-                ) : null}
-
-                {onNoteTrigger ? (
-                  <Button variant="outline" size="sm" className="w-full justify-start gap-2" onClick={onNoteTrigger}>
-                    <School className="h-3.5 w-3.5" />
-                    {t('resumes.status.notes', { defaultValue: '备注' })}
+              {/* Action Buttons */}
+              {onCandidateStatusChange ? (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <Button
+                    variant={candidateStatus === 'shortlisted' ? 'default' : 'outline'}
+                    size="sm"
+                    className="justify-start gap-2"
+                    onClick={() => onCandidateStatusChange(item.identityKey, 'shortlisted')}
+                  >
+                    <BriefcaseBusiness className="h-3.5 w-3.5" />
+                    {t('resumes.actions.shortlist', { defaultValue: '入选' })}
                   </Button>
-                ) : null}
-
-                {onBlockTrigger ? (
-                  <Button variant={item.blocked ? 'destructive' : 'outline'} size="sm" className="w-full justify-start gap-2 col-span-2" onClick={onBlockTrigger}>
-                    <MapPin className="h-3.5 w-3.5" />
-                    {item.blocked
-                      ? t('resumes.card.unblock', { defaultValue: '解除屏蔽' })
-                      : t('resumes.card.block', { defaultValue: '屏蔽' })}
+                  <Button
+                    variant={candidateStatus === 'rejected' ? 'destructive' : 'outline'}
+                    size="sm"
+                    className="justify-start gap-2"
+                    onClick={() => onCandidateStatusChange(item.identityKey, 'rejected')}
+                  >
+                    <Sparkles className="h-3.5 w-3.5" />
+                    {t('resumes.actions.reject', { defaultValue: '淘汰' })}
                   </Button>
-                ) : null}
-              </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="justify-start gap-2"
+                    onClick={() => onCandidateStatusChange(item.identityKey, 'contacted')}
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    {t('resumes.actions.contact', { defaultValue: '联系' })}
+                  </Button>
+                </div>
+              ) : null}
+
+              {onNoteTrigger ? (
+                <Button variant="outline" size="sm" className="w-full justify-start gap-2" onClick={onNoteTrigger}>
+                  <School className="h-3.5 w-3.5" />
+                  {t('resumes.status.notes', { defaultValue: '备注' })}
+                </Button>
+              ) : null}
+
+              {onBlockTrigger ? (
+                <Button variant={item.blocked ? 'destructive' : 'outline'} size="sm" className="w-full justify-start gap-2" onClick={onBlockTrigger}>
+                  <MapPin className="h-3.5 w-3.5" />
+                  {item.blocked
+                    ? t('resumes.card.unblock', { defaultValue: '解除屏蔽' })
+                    : t('resumes.card.block', { defaultValue: '屏蔽' })}
+                </Button>
+              ) : null}
             </div>
           </div>
 

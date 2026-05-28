@@ -438,7 +438,7 @@ function getRoleYears(
   }, 0)
 }
 
-const DEFAULT_EXCLUDED_STATUSES: readonly CandidateStatus[] = ['rejected'] as const
+const DEFAULT_STATUS_WHEN_EMPTY: CandidateStatus = 'new'
 
 function matchesLocalFilters(
   item: ResumeSearchResultItem,
@@ -541,12 +541,12 @@ function matchesLocalFilters(
     return false
   }
 
-  // Default exclusion: hide rejected resumes unless user explicitly filters for them
+  // Default: show only new (untriaged) resumes unless user explicitly filters for a status
   if (normalizedStatuses.length > 0) {
     if (!normalizedStatuses.includes(item.status)) {
       return false
     }
-  } else if (DEFAULT_EXCLUDED_STATUSES.includes(item.status)) {
+  } else if (item.status !== DEFAULT_STATUS_WHEN_EMPTY) {
     return false
   }
 

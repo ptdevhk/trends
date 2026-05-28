@@ -104,8 +104,11 @@ export function createApp() {
   app.use("*", prettyJSON());
   app.use("*", workspaceMiddleware);
 
-  // Rate limiting on API routes (100 req/min per IP)
-  app.use("/api/*", rateLimit({ limit: 100, windowMs: 60_000 }));
+  // Rate limiting on API routes (100 req/min per IP in production).
+  // In development, localhost requests share key "unknown" and exhaust the budget quickly.
+  if (process.env.NODE_ENV !== "development") {
+    app.use("/api/*", rateLimit({ limit: 100, windowMs: 60_000 }));
+  }
 
   // Body size limit on API routes (10 MiB default — manual-import has its own larger limit)
   app.use(

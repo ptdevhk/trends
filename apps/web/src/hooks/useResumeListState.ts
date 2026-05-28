@@ -853,21 +853,25 @@ export function useResumeListState(loadSearchHistory = false) {
       })
     }
 
+    const statusFilterActive = filters.status?.length
     const showRejected = filters.showRejected === true
-    if (!showRejected) {
-      result = result.filter((resume: ScoredConvexResume) => {
-        const identityKey = getResumeIdentityKey(resume, String(resume.resumeId))
-        const status = statusByIdentity[identityKey]?.status ?? 'new'
-        return status !== 'rejected'
-      })
-    }
 
-    if (filters.status?.length) {
+    if (statusFilterActive) {
       const activeStatuses = new Set(toStatusFilterList(filters.status))
       result = result.filter((resume: ScoredConvexResume) => {
         const identityKey = getResumeIdentityKey(resume, String(resume.resumeId))
         const status = statusByIdentity[identityKey]?.status ?? 'new'
         return activeStatuses.has(status)
+      })
+    } else {
+      // Default: show only new (untriaged) resumes.
+      // The "Show rejected candidates" toggle adds rejected on top.
+      result = result.filter((resume: ScoredConvexResume) => {
+        const identityKey = getResumeIdentityKey(resume, String(resume.resumeId))
+        const status = statusByIdentity[identityKey]?.status ?? 'new'
+        if (status === 'new') return true
+        if (showRejected && status === 'rejected') return true
+        return false
       })
     }
 

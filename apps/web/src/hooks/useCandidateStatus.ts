@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { rawApiClient } from '@/lib/api-helpers'
+import { useCallback, useMemo } from 'react'
+import { useMutation, useQuery } from 'convex/react'
+import { api } from '../../../../packages/convex/convex/_generated/api'
+import { useWorkspace } from '@/contexts/WorkspaceContext'
 import type { CandidateStatus } from '@/types/resume'
 
 export type CandidateStatusRecord = {
@@ -17,38 +19,29 @@ export type CandidateStatusRecord = {
   }>
 }
 
-type StatusListResponse = {
-  success: boolean
-  items?: CandidateStatusRecord[]
-}
-
-type StatusUpdateResponse = {
-  success: boolean
-  item?: CandidateStatusRecord
-}
-
 export function useCandidateStatus(enabled: boolean = true) {
-  const [items, setItems] = useState<CandidateStatusRecord[]>([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const { slug: workspaceSlug } = useWorkspace()
 
-  const load = useCallback(async () => {
-    if (!enabled) {
-      setLoading(false)
-      setError(null)
-      return
-    }
-    setLoading(true)
-    setError(null)
-    const { data, error: apiError } = await rawApiClient.GET<StatusListResponse>('/api/candidate-status')
-    if (apiError || !data?.success) {
-      setError('Failed to load candidate status')
-      setLoading(false)
-      return
-    }
-    setItems(Array.isArray(data.items) ? data.items : [])
-    setLoading(false)
-  }, [enabled])
+  const rawItems = useQuery(
+    api.candidate_status.list,
+    enabled ? { workspaceSlug } : 'skip',
+  )
+
+  const items: CandidateStatusRecord[] = useMemo(() => {
+    if (!rawItems) return []
+    return rawItems.map((item) => ({
+      _id: item._id,
+      identityKey: item.identityKey,
+      workspaceSlug: item.workspaceSlug,
+      status: item.status as CandidateStatus,
+      notes: item.notes,
+      updatedBy: item.updatedBy,
+      updatedAt: item.updatedAt,
+      history: item.history,
+    }))
+  }, [rawItems])
+
+  const upsert = useMutation(api.candidate_status.upsert)
 
   const updateStatus = useCallback(
     async (identityKey: string, status: CandidateStatus, notes?: string) => {
@@ -57,32 +50,15 @@ export function useCandidateStatus(enabled: boolean = true) {
         return false
       }
 
-      const { data, error: apiError } = await rawApiClient.POST<StatusUpdateResponse>('/api/candidate-status', {
-        body: {
-          identityKey: normalized,
-          status,
-          notes,
-        },
-      })
-
-      if (apiError || !data?.success) {
-        setError('Failed to update candidate status')
+      try {
+        await upsert({ identityKey: normalized, status, workspaceSlug, notes })
+        return true
+      } catch {
         return false
       }
-
-      await load()
-      return true
     },
-    [load]
+    [upsert, workspaceSlug],
   )
-
-  useEffect(() => {
-    if (!enabled) {
-      setItems([])
-      return
-    }
-    void load()
-  }, [enabled, load])
 
   const statusByIdentity = useMemo(() => {
     const map: Record<string, CandidateStatusRecord> = {}
@@ -95,9 +71,9 @@ export function useCandidateStatus(enabled: boolean = true) {
   return {
     items,
     statusByIdentity,
-    loading,
-    error,
-    reload: load,
+    loading: rawItems === undefined,
+    error: null,
+    reload: () => {}, // no-op: Convex subscription is reactive
     updateStatus,
   }
 }
