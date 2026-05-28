@@ -692,6 +692,14 @@ export function createSeekExtractor(deps: SeekExtractorDeps) {
           typeof node?.currentLocation === "string"
             ? node.currentLocation.trim()
             : "";
+        // Fallback to structured country/state/suburb when currentLocation is empty
+        const resolvedLocation = currentLocation
+          || [
+              typeof node?.suburb === "string" ? node.suburb.trim() : "",
+              typeof node?.state === "string" ? node.state.trim() : "",
+              typeof node?.country === "string" ? node.country.trim() : "",
+            ].filter(Boolean).join(", ")
+          || "";
         const lastModifiedDurationLabel =
           typeof node?.lastModifiedDurationLabel === "string"
             ? node.lastModifiedDurationLabel
@@ -719,7 +727,7 @@ export function createSeekExtractor(deps: SeekExtractorDeps) {
           age: "",
           experience: "",
           education: "",
-          location: currentLocation,
+          location: resolvedLocation,
           jobIntention: currentJobTitle,
           expectedSalary: "",
           selfIntro: "",
