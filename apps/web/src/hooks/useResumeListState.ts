@@ -87,6 +87,11 @@ import {
 import type { CollectionSource } from '@/lib/search-profile-sources'
 import { isReviewPacketsEnabled } from '@/lib/feature-flags'
 
+const CARD_ACTION_TO_STATUS: Partial<Record<CandidateActionType, 'shortlisted' | 'rejected'>> = {
+  shortlist: 'shortlisted',
+  reject: 'rejected',
+}
+
 type JobDescriptionApiResponse = {
   success: boolean
   item?: {
@@ -1623,21 +1628,27 @@ export function useResumeListState(loadSearchHistory = false) {
         sendLearningFeedback(action, resumeId, displayedResumeMap.get(resumeId))
       }
 
-      void saveAction({ resumeId, actionType: action })
-        .then((result) => {
-          if (result) {
-            toast.success(`${actionLabel} 已保存`)
-            return
-          }
+      const nextStatus = CARD_ACTION_TO_STATUS[action]
+      const targetEntry = displayedResumes.find((entry) => entry.key === resumeId)
+      const identityKey = targetEntry?.identityKey ?? resumeId
 
-          toast.error('Action failed. Please try again.')
-        })
-        .catch((error: unknown) => {
+      void (async () => {
+        try {
+          await saveAction({ resumeId, actionType: action })
+          toast.success(`${actionLabel} 已保存`)
+
+          if (nextStatus) {
+            const currentStatus = statusByIdentity[identityKey]?.status
+            const finalStatus = currentStatus === nextStatus ? ('new' as const) : nextStatus
+            await updateCandidateStatus(identityKey, finalStatus)
+          }
+        } catch (error: unknown) {
           console.error('Individual action failed', error)
           toast.error('Action failed. Please try again.')
-        })
+        }
+      })()
     },
-    [actionFeedbackLabels, displayedResumeMap, saveAction, sendLearningFeedback]
+    [actionFeedbackLabels, displayedResumes, saveAction, sendLearningFeedback, statusByIdentity, updateCandidateStatus]
   )
 
   const handleAiFeedback = useCallback(
