@@ -462,3 +462,94 @@ it('clears explicit sort params when syncing back to default relevance ordering'
     expect(updatedParams.get('order')).toBeNull()
   })
 })
+
+describe('minExperience URL param round-trip', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('parses minExp URL param into filters.minExperience', () => {
+    const state = parseUrlSearchState(new URLSearchParams('q=CNC&minExp=3'))
+
+    expect(state.filters.minExperience).toBe(3)
+  })
+
+  it('ignores non-numeric minExp values', () => {
+    const state = parseUrlSearchState(new URLSearchParams('q=CNC&minExp=abc'))
+
+    expect(state.filters.minExperience).toBeUndefined()
+  })
+
+  it('serializes filters.minExperience into minExp param', () => {
+    const currentParams = new URLSearchParams()
+    useSearchParamsMock.mockReturnValue([currentParams, setSearchParamsMock])
+
+    const { result } = renderHook(() => useUrlSearchState())
+
+    result.current.syncToUrl({
+      query: 'CNC',
+      location: undefined,
+      keywords: ['CNC'],
+      requiredKeywords: [],
+      jobDescriptionId: undefined,
+      selectedTags: [],
+      selectedCompanies: [],
+      selectedSources: [],
+      selectedBrands: [],
+      selectedExperienceLevel: undefined,
+      filters: {
+        minExperience: 2,
+      },
+    })
+
+    const [updater] = setSearchParamsMock.mock.calls[0] ?? []
+    const updatedParams = updater(currentParams) as URLSearchParams
+
+    expect(updatedParams.get('minExp')).toBe('2')
+  })
+
+  it('omits minExp when minExperience is not set', () => {
+    const currentParams = new URLSearchParams('minExp=2')
+    useSearchParamsMock.mockReturnValue([currentParams, setSearchParamsMock])
+
+    const { result } = renderHook(() => useUrlSearchState())
+
+    result.current.syncToUrl({
+      query: 'CNC',
+      location: undefined,
+      keywords: ['CNC'],
+      requiredKeywords: [],
+      jobDescriptionId: undefined,
+      selectedTags: [],
+      selectedCompanies: [],
+      selectedSources: [],
+      selectedBrands: [],
+      selectedExperienceLevel: undefined,
+      filters: {},
+    })
+
+    const [updater] = setSearchParamsMock.mock.calls[0] ?? []
+    const updatedParams = updater(currentParams) as URLSearchParams
+
+    expect(updatedParams.get('minExp')).toBeNull()
+  })
+
+  it('round-trips minExperience through URL params', () => {
+    const parsed = parseUrlSearchState(new URLSearchParams('q=CNC&minExp=1'))
+
+    expect(parsed.filters.minExperience).toBe(1)
+
+    const currentParams = new URLSearchParams()
+    useSearchParamsMock.mockReturnValue([currentParams, setSearchParamsMock])
+
+    const { result } = renderHook(() => useUrlSearchState())
+    result.current.syncToUrl({
+      ...parsed,
+    })
+
+    const [updater] = setSearchParamsMock.mock.calls[0] ?? []
+    const updatedParams = updater(currentParams) as URLSearchParams
+
+    expect(updatedParams.get('minExp')).toBe('1')
+  })
+})

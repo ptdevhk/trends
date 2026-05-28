@@ -1446,6 +1446,8 @@ export function useResumeSearchState() {
           education: undefined,
           minMatchScore: undefined,
           minRoleYears: undefined,
+          minExperience: undefined,
+          maxExperience: undefined,
           minAge: undefined,
           maxAge: undefined,
           minSalary: undefined,
@@ -1637,18 +1639,18 @@ export function useResumeSearchState() {
   }, [])
 
   const selectAll = useCallback(() => {
-    setSelectedIds(new Set(filteredResults.map((item) => item.key)))
-  }, [filteredResults])
+    setSelectedIds(new Set(deferredFilteredResults.map((item) => item.key)))
+  }, [deferredFilteredResults])
 
   const selectHighScore = useCallback((minScore = 80) => {
     setSelectedIds(
       new Set(
-        filteredResults
+        deferredFilteredResults
           .filter((item) => typeof item.score === 'number' && item.score >= minScore)
           .map((item) => item.key),
       ),
     )
-  }, [filteredResults])
+  }, [deferredFilteredResults])
 
   const clearSelection = useCallback(() => {
     setSelectedIds(new Set())
@@ -1713,11 +1715,25 @@ export function useResumeSearchState() {
             saveAction({ resumeId: item.resume.resumeId, actionType }),
           ),
         )
+
+        // Sync Convex candidate_status for shortlist/reject
+        const statusMap: Record<string, CandidateStatus> = {
+          shortlist: 'shortlisted',
+          reject: 'rejected',
+        }
+        const convexStatus = statusMap[action]
+        if (convexStatus) {
+          await Promise.all(
+            selectedItems.map((item) =>
+              updateCandidateStatus(item.identityKey, convexStatus),
+            ),
+          )
+        }
       }
 
       clearSelection()
     },
-    [blockCandidates, clearSelection, exportResults, filteredResults, saveAction, selectedIds],
+    [blockCandidates, clearSelection, exportResults, filteredResults, saveAction, selectedIds, updateCandidateStatus],
   )
 
   return {

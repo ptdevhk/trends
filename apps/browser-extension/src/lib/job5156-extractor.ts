@@ -907,21 +907,26 @@ export function createJob5156Extractor(deps: Job5156ExtractorDeps) {
     let experience = "";
     let education = "";
     let location = "";
-    if (basicInfo.length >= 4) {
-      [age, experience, education, location] = basicInfo;
-    } else {
-      basicInfo.forEach((item) => {
-        if (!age && item.includes("岁")) age = item;
-        else if (!experience && item.includes("年") && !item.includes("元"))
-          experience = item;
-        else if (
-          !education &&
-          /(中专|高中|大专|本科|硕|博|研究生|MBA|EMBA)/.test(item)
-        )
-          education = item;
-        else if (!location && !item.includes("元")) location = item;
-      });
-    }
+
+    // Always use heuristic matching — positional indexing is fragile for
+    // CN resumes that include gender / political / marital fields
+    basicInfo.forEach((item) => {
+      if (!age && item.includes("岁")) age = item;
+      else if (!experience && item.includes("年") && !item.includes("元"))
+        experience = item;
+      else if (
+        !education &&
+        /(中专|高中|大专|本科|硕|博|研究生|MBA|EMBA)/.test(item)
+      )
+        education = item;
+      // Exclude known non-location biographical fields (gender, political, marital)
+      else if (
+        !location &&
+        !item.includes("元") &&
+        !/^(男|女|已婚|未婚|群众|党员|团员|中共党员)$/.test(item)
+      )
+        location = item;
+    });
 
     if (locationOverride) {
       location = normalizeResumeText(locationOverride);

@@ -2333,18 +2333,15 @@
       let experience = "";
       let education = "";
       let location = "";
-      if (basicInfo.length >= 4) {
-        [age, experience, education, location] = basicInfo;
-      } else {
-        basicInfo.forEach((item) => {
-          if (!age && item.includes("\u5C81")) age = item;
-          else if (!experience && item.includes("\u5E74") && !item.includes("\u5143"))
-            experience = item;
-          else if (!education && /(中专|高中|大专|本科|硕|博|研究生|MBA|EMBA)/.test(item))
-            education = item;
-          else if (!location && !item.includes("\u5143")) location = item;
-        });
-      }
+      basicInfo.forEach((item) => {
+        if (!age && item.includes("\u5C81")) age = item;
+        else if (!experience && item.includes("\u5E74") && !item.includes("\u5143"))
+          experience = item;
+        else if (!education && /(中专|高中|大专|本科|硕|博|研究生|MBA|EMBA)/.test(item))
+          education = item;
+        else if (!location && !item.includes("\u5143") && !/^(男|女|已婚|未婚|群众|党员|团员|中共党员)$/.test(item))
+          location = item;
+      });
       if (locationOverride) {
         location = normalizeResumeText2(locationOverride);
       }

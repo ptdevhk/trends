@@ -413,6 +413,9 @@ export function ResumeSearchPage() {
                 onSelectHighScore={() => selectHighScore()}
                 onClearSelection={clearSelection}
                 onBulkAction={handleBulkAction}
+                statusFilter={parsedState.filters.status}
+                onStatusToggle={toggleStatus}
+                statusFacetCounts={facetCounts?.statuses?.reduce((acc, { value, count }) => ({ ...acc, [value]: count }), {} as Record<string, number>)}
               />
 
               <ErrorBoundary fallback={<InlineErrorFallback message={errorResultsLabel} retryLabel={reloadPageLabel} onRetry={() => window.location.reload()} />}>

@@ -13,6 +13,7 @@ const KNOWN_PARAM_KEYS = [
   'brands',
   'rkw',
   'exp',
+  'minExp',
   'minRoleYears',
   'maxRoleYears',
   'roleType',
@@ -208,6 +209,11 @@ export function parseUrlSearchState(searchParams: URLSearchParams): UrlSearchSta
     filters.maxExperience = maxExperience
   }
 
+  const minExperience = parseNumberParam(searchParams.get('minExp'))
+  if (typeof minExperience === 'number') {
+    filters.minExperience = minExperience
+  }
+
   const education = normalizeUniqueValues(parseCsvParam(searchParams.get('edu')))
   if (education.length > 0) {
     filters.education = education
@@ -341,6 +347,10 @@ export function useUrlSearchState() {
 
         if (typeof state.filters.maxExperience === 'number' && Number.isFinite(state.filters.maxExperience)) {
           setParam(nextParams, 'maxRoleYears', String(state.filters.maxExperience))
+        }
+
+        if (typeof state.filters.minExperience === 'number' && Number.isFinite(state.filters.minExperience)) {
+          setParam(nextParams, 'minExp', String(state.filters.minExperience))
         }
 
         if (typeof state.filters.minRoleYears === 'number' && Number.isFinite(state.filters.minRoleYears)) {
