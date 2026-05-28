@@ -533,4 +533,94 @@ describe('SnippetCardExpanded', () => {
       expect(screen.queryByText(/Not available for MY market/i)).not.toBeInTheDocument()
     })
   })
+
+  describe('action buttons (shortlist / reject / contact)', () => {
+    it('does not render action buttons when onCandidateStatusChange is not provided', () => {
+      render(
+        <SnippetCardExpanded
+          item={createResult(1, { identityKey: 'identity-1', status: 'new' })}
+          candidateStatus="new"
+        />,
+      )
+
+      expect(screen.queryByRole('button', { name: /入选/i })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /淘汰/i })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /联系/i })).not.toBeInTheDocument()
+    })
+
+    it('calls onCandidateStatusChange(identityKey, shortlisted) when shortlist button clicked', () => {
+      const onCandidateStatusChange = vi.fn()
+      render(
+        <SnippetCardExpanded
+          item={createResult(1, { identityKey: 'identity-1', status: 'new' })}
+          candidateStatus="new"
+          onCandidateStatusChange={onCandidateStatusChange}
+        />,
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: /入选/i }))
+
+      expect(onCandidateStatusChange).toHaveBeenCalledTimes(1)
+      expect(onCandidateStatusChange).toHaveBeenCalledWith('identity-1', 'shortlisted')
+    })
+
+    it('calls onCandidateStatusChange(identityKey, rejected) when reject button clicked', () => {
+      const onCandidateStatusChange = vi.fn()
+      render(
+        <SnippetCardExpanded
+          item={createResult(1, { identityKey: 'identity-1', status: 'new' })}
+          candidateStatus="new"
+          onCandidateStatusChange={onCandidateStatusChange}
+        />,
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: /淘汰/i }))
+
+      expect(onCandidateStatusChange).toHaveBeenCalledTimes(1)
+      expect(onCandidateStatusChange).toHaveBeenCalledWith('identity-1', 'rejected')
+    })
+
+    it('calls onCandidateStatusChange(identityKey, contacted) when contact button clicked', () => {
+      const onCandidateStatusChange = vi.fn()
+      render(
+        <SnippetCardExpanded
+          item={createResult(1, { identityKey: 'identity-1', status: 'new' })}
+          candidateStatus="new"
+          onCandidateStatusChange={onCandidateStatusChange}
+        />,
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: /联系/i }))
+
+      expect(onCandidateStatusChange).toHaveBeenCalledTimes(1)
+      expect(onCandidateStatusChange).toHaveBeenCalledWith('identity-1', 'contacted')
+    })
+
+    it('shortlist button uses default variant when candidateStatus is shortlisted', () => {
+      render(
+        <SnippetCardExpanded
+          item={createResult(1, { identityKey: 'identity-1', status: 'shortlisted' })}
+          candidateStatus="shortlisted"
+          onCandidateStatusChange={vi.fn()}
+        />,
+      )
+
+      const shortlistBtn = screen.getByRole('button', { name: /入选/i })
+      // default variant has bg-primary class; outline variant does not
+      expect(shortlistBtn.className).toMatch(/bg-primary/)
+    })
+
+    it('reject button uses destructive variant when candidateStatus is rejected', () => {
+      render(
+        <SnippetCardExpanded
+          item={createResult(1, { identityKey: 'identity-1', status: 'rejected' })}
+          candidateStatus="rejected"
+          onCandidateStatusChange={vi.fn()}
+        />,
+      )
+
+      const rejectBtn = screen.getByRole('button', { name: /淘汰/i })
+      expect(rejectBtn.className).toMatch(/bg-destructive|destructive/)
+    })
+  })
 })

@@ -1118,6 +1118,7 @@ describe('useResumeListState role filter regression', () => {
   })
 
   it('exports candidate status notes into the userComment field', async () => {
+    mockState.filters = { status: ['contacted'] }
     mockState.statusByIdentity = {
       'resume-ideal-cnc-sales': {
         ...buildCandidateStatusRecord('resume-ideal-cnc-sales', 'contacted'),

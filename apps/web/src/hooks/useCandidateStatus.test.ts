@@ -3,20 +3,31 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 import type { CandidateStatusRecord } from './useCandidateStatus'
 import { useCandidateStatus } from './useCandidateStatus'
 
-type ApiListResponse = { data: { success: boolean; items?: CandidateStatusRecord[] } }
-type ApiPostResponse = { data: { success: boolean; item?: CandidateStatusRecord } }
+const upsertMock = vi.fn(async () => 'doc-id')
+let useQueryArg: unknown = undefined
 
-const mockApiClient = vi.hoisted(() => ({
-  GET: vi.fn(async (): Promise<ApiListResponse> => ({
-    data: { success: true, items: [] },
-  })),
-  POST: vi.fn(async (): Promise<ApiPostResponse> => ({
-    data: { success: true },
-  })),
+const mockQueryItems = vi.hoisted(() => ({ value: [] as CandidateStatusRecord[] | undefined }))
+
+vi.mock('convex/react', () => ({
+  useQuery: (_api: unknown, args: unknown) => {
+    useQueryArg = args
+    if (args === 'skip') return undefined
+    return mockQueryItems.value
+  },
+  useMutation: () => upsertMock,
 }))
 
-vi.mock('@/lib/api-helpers', () => ({
-  rawApiClient: mockApiClient,
+vi.mock('@/contexts/WorkspaceContext', () => ({
+  useWorkspace: () => ({ slug: 'dev' }),
+}))
+
+vi.mock('../../../../packages/convex/convex/_generated/api', () => ({
+  api: {
+    candidate_status: {
+      list: 'candidate_status:list',
+      upsert: 'candidate_status:upsert',
+    },
+  },
 }))
 
 const mockItem: CandidateStatusRecord = {
@@ -30,81 +41,59 @@ const mockItem: CandidateStatusRecord = {
 describe('useCandidateStatus', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockQueryItems.value = []
+    useQueryArg = undefined
   })
 
-  it('loads items on mount when enabled', async () => {
-    mockApiClient.GET.mockResolvedValueOnce({
-      data: { success: true, items: [mockItem] },
-    })
+  it('returns items from Convex query', () => {
+    mockQueryItems.value = [mockItem]
 
     const { result } = renderHook(() => useCandidateStatus(true))
-    await act(async () => {})
 
     expect(result.current.items).toEqual([mockItem])
     expect(result.current.loading).toBe(false)
     expect(result.current.error).toBeNull()
   })
 
-  it('does not load when disabled', async () => {
+  it('passes skip to useQuery when disabled', () => {
+    renderHook(() => useCandidateStatus(false))
+
+    expect(useQueryArg).toBe('skip')
+  })
+
+  it('returns empty items when disabled', () => {
     const { result } = renderHook(() => useCandidateStatus(false))
 
     expect(result.current.items).toEqual([])
-    expect(result.current.loading).toBe(false)
-    expect(mockApiClient.GET).not.toHaveBeenCalled()
   })
 
-  it('sets error on API failure', async () => {
-    mockApiClient.GET.mockResolvedValueOnce({
-      data: { success: false },
-    })
+  it('shows loading=true when Convex query is still loading (undefined)', () => {
+    mockQueryItems.value = undefined
 
     const { result } = renderHook(() => useCandidateStatus(true))
-    await act(async () => {})
 
-    expect(result.current.error).toBe('Failed to load candidate status')
+    expect(result.current.loading).toBe(true)
     expect(result.current.items).toEqual([])
   })
 
-  it('sets error on network error', async () => {
-    mockApiClient.GET.mockResolvedValueOnce({
-      data: undefined,
-      error: 'network',
-    } as unknown as { data: ApiListResponse['data'] })
-
-    const { result } = renderHook(() => useCandidateStatus(true))
-    await act(async () => {})
-
-    expect(result.current.error).toBe('Failed to load candidate status')
-  })
-
-  it('builds statusByIdentity map', async () => {
+  it('builds statusByIdentity map from items', () => {
     const item2: CandidateStatusRecord = {
       ...mockItem,
       _id: 'id-2',
       identityKey: 'key-2',
       status: 'contacted',
     }
-    mockApiClient.GET.mockResolvedValueOnce({
-      data: { success: true, items: [mockItem, item2] },
-    })
+    mockQueryItems.value = [mockItem, item2]
 
     const { result } = renderHook(() => useCandidateStatus(true))
-    await act(async () => {})
 
     expect(result.current.statusByIdentity['key-1']).toEqual(mockItem)
     expect(result.current.statusByIdentity['key-2']).toEqual(item2)
   })
 
-  it('updateStatus calls POST and reloads', async () => {
-    mockApiClient.GET.mockResolvedValue({
-      data: { success: true, items: [mockItem] },
-    })
-    mockApiClient.POST.mockResolvedValueOnce({
-      data: { success: true, item: { ...mockItem, status: 'interviewing' as const } },
-    })
-
+  it('updateStatus calls Convex upsert with correct args', async () => {
+    mockQueryItems.value = [mockItem]
     const { result } = renderHook(() => useCandidateStatus(true))
-    await act(async () => {})
 
     let success = false
     await act(async () => {
@@ -112,14 +101,16 @@ describe('useCandidateStatus', () => {
     })
 
     expect(success).toBe(true)
-    expect(mockApiClient.POST).toHaveBeenCalledWith('/api/candidate-status', {
-      body: { identityKey: 'key-1', status: 'interviewing', notes: 'good fit' },
+    expect(upsertMock).toHaveBeenCalledWith({
+      identityKey: 'key-1',
+      status: 'interviewing',
+      workspaceSlug: 'dev',
+      notes: 'good fit',
     })
   })
 
   it('updateStatus returns false for empty identityKey', async () => {
     const { result } = renderHook(() => useCandidateStatus(true))
-    await act(async () => {})
 
     let success = true
     await act(async () => {
@@ -127,57 +118,31 @@ describe('useCandidateStatus', () => {
     })
 
     expect(success).toBe(false)
-    expect(mockApiClient.POST).not.toHaveBeenCalled()
+    expect(upsertMock).not.toHaveBeenCalled()
   })
 
-  it('updateStatus returns false on API failure', async () => {
-    mockApiClient.GET.mockResolvedValue({
-      data: { success: true, items: [] },
-    })
-    mockApiClient.POST.mockResolvedValueOnce({
-      data: { success: false },
-    })
-
+  it('updateStatus returns false when Convex mutation throws', async () => {
+    upsertMock.mockRejectedValueOnce(new Error('Convex error'))
     const { result } = renderHook(() => useCandidateStatus(true))
-    await act(async () => {})
 
     let success = true
     await act(async () => {
-      success = await result.current.updateStatus('key-1', 'interviewing')
+      success = await result.current.updateStatus('key-1', 'shortlisted')
     })
 
     expect(success).toBe(false)
-    expect(result.current.error).toBe('Failed to update candidate status')
   })
 
-  it('reload fetches fresh data', async () => {
-    mockApiClient.GET.mockResolvedValueOnce({
-      data: { success: true, items: [mockItem] },
-    })
-
+  it('reload is a no-op (Convex is reactive)', () => {
     const { result } = renderHook(() => useCandidateStatus(true))
-    await act(async () => {})
 
-    const updatedItem = { ...mockItem, status: 'hired' as const }
-    mockApiClient.GET.mockResolvedValueOnce({
-      data: { success: true, items: [updatedItem] },
-    })
-
-    await act(async () => {
-      await result.current.reload()
-    })
-
-    expect(result.current.items).toEqual([updatedItem])
+    expect(() => result.current.reload()).not.toThrow()
   })
 
-  it('defaults to enabled when no argument given', async () => {
-    mockApiClient.GET.mockResolvedValueOnce({
-      data: { success: true, items: [] },
-    })
+  it('defaults to enabled when no argument given', () => {
+    mockQueryItems.value = [mockItem]
+    const { result } = renderHook(() => useCandidateStatus())
 
-    renderHook(() => useCandidateStatus())
-    await act(async () => {})
-
-    expect(mockApiClient.GET).toHaveBeenCalled()
+    expect(result.current.items).toEqual([mockItem])
   })
 })

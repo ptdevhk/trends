@@ -414,8 +414,6 @@ export const SnippetCard = memo(function SnippetCard({
           item={item}
           showAiScore={showAiScore}
           onViewDetails={onViewDetails ? () => onViewDetails(item) : undefined}
-          actionType={actionType}
-          onAction={onAction}
           candidateStatus={candidateStatus}
           onCandidateStatusChange={(identityKey, nextStatus) => {
             if (nextStatus === 'interviewed_reject' || nextStatus === 'withdrawn') {

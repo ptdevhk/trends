@@ -1182,6 +1182,7 @@ describe('useResumeSearchState', () => {
     Object.assign(parsedStateMock, createParsedState({
       query: 'machine tools',
       keywords: ['machine tools'],
+      filters: { status: ['contacted', 'new'] },
     }))
 
     resumesMock.push(
@@ -1794,7 +1795,7 @@ describe('useResumeSearchState', () => {
     })
   })
 
-  it('excludes rejected resumes by default when no status filter is set', () => {
+  it('shows only new resumes by default when no status filter is set', () => {
     Object.assign(parsedStateMock, createParsedState({
       query: 'CNC 销售',
       keywords: ['CNC', '销售'],
@@ -1811,8 +1812,8 @@ describe('useResumeSearchState', () => {
 
     const { result } = renderHook(() => useResumeSearchState())
 
-    // rejected is excluded by default; shortlisted and new are kept
-    expect(result.current.filteredResults.map((item) => item.key)).toEqual(['resume-1', 'resume-3'])
+    // only new is kept by default; shortlisted and rejected are excluded
+    expect(result.current.filteredResults.map((item) => item.key)).toEqual(['resume-1'])
   })
 
   it('includes rejected resumes when explicitly filtered for', () => {
@@ -1836,6 +1837,34 @@ describe('useResumeSearchState', () => {
     const { result } = renderHook(() => useResumeSearchState())
 
     expect(result.current.filteredResults.map((item) => item.key)).toEqual(['resume-2'])
+  })
+
+  it('excludes resume from filteredResults when status is shortlisted', () => {
+    Object.assign(parsedStateMock, createParsedState({
+      query: 'CNC 销售',
+      keywords: ['CNC', '销售'],
+    }))
+    resumesMock.push(createResume(1, { primaryRuleScore: 95 }))
+    // Shortlisted status is pre-set (mirrors Convex delivering the updated status)
+    statusByIdentityMock['identity-1'] = createStatusRecord('identity-1', 'shortlisted')
+
+    const { result } = renderHook(() => useResumeSearchState())
+
+    expect(result.current.filteredResults.map((item) => item.key)).toEqual([])
+  })
+
+  it('excludes resume from filteredResults when status is rejected', () => {
+    Object.assign(parsedStateMock, createParsedState({
+      query: 'CNC 销售',
+      keywords: ['CNC', '销售'],
+    }))
+    resumesMock.push(createResume(1, { primaryRuleScore: 95 }))
+    // Rejected status is pre-set (mirrors Convex delivering the updated status)
+    statusByIdentityMock['identity-1'] = createStatusRecord('identity-1', 'rejected')
+
+    const { result } = renderHook(() => useResumeSearchState())
+
+    expect(result.current.filteredResults.map((item) => item.key)).toEqual([])
   })
 
   it('only grows the resume window when more results are available and not already loading more', () => {

@@ -186,6 +186,21 @@ describe("job5156-extractor", () => {
       expect(result.age).toBe("");
       expect(result.experience).toBe("");
     });
+
+    it("correctly parses 5-item basicInfo with gender prefix", () => {
+      const extractor = createJob5156Extractor(createMockDeps());
+      const result = extractor.parseJob5156BasicInfoItems([
+        "男",
+        "30岁",
+        "5年工作经验",
+        "本科",
+        "上海",
+      ]);
+      expect(result.age).toBe("30岁");
+      expect(result.experience).toBe("5年工作经验");
+      expect(result.education).toBe("本科");
+      expect(result.location).toBe("上海");
+    });
   });
 
   describe("isJob5156DetailPage", () => {

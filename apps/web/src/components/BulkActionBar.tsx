@@ -8,6 +8,7 @@ import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { CheckCircle, XCircle, Download, Users, Ban } from 'lucide-react'
+import type { CandidateStatus } from '@/types/resume'
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
@@ -27,6 +28,12 @@ interface BulkActionBarProps {
     blockedCount?: number
     blocksSettingsPath?: string
     disabled?: boolean
+    /** Current active status filter (empty/undefined = default "new only") */
+    statusFilter?: CandidateStatus[]
+    /** Toggle a status in the filter */
+    onStatusToggle?: (status: CandidateStatus) => void
+    /** Facet counts by status for chip labels */
+    statusFacetCounts?: Record<string, number>
 }
 
 export function BulkActionBar({
@@ -42,6 +49,9 @@ export function BulkActionBar({
     blockedCount = 0,
     blocksSettingsPath,
     disabled = false,
+    statusFilter,
+    onStatusToggle,
+    statusFacetCounts,
 }: BulkActionBarProps) {
     const { t } = useTranslation()
     const [loading, setLoading] = useState<string | null>(null)
@@ -91,6 +101,39 @@ export function BulkActionBar({
                         )}
                     </div>
                 </>
+            )}
+
+            {/* Divider */}
+            <div className="h-6 w-px bg-border" />
+
+            {/* Status Filter Chips */}
+            {onStatusToggle && (
+                <div className="flex items-center gap-1">
+                    {(['new', 'shortlisted', 'rejected'] as CandidateStatus[]).map((status) => {
+                        const isActive = statusFilter && statusFilter.length > 0
+                            ? statusFilter.includes(status)
+                            : status === 'new'
+                        const count = statusFacetCounts?.[status]
+                        return (
+                            <button
+                                key={status}
+                                type="button"
+                                onClick={() => onStatusToggle(status)}
+                                className={cn(
+                                    'px-2 py-0.5 rounded-full text-xs border transition-colors',
+                                    isActive
+                                        ? 'bg-primary/10 border-primary text-primary font-medium'
+                                        : 'border-border text-muted-foreground hover:bg-muted',
+                                )}
+                            >
+                                {t(`status.${status}`, status)}
+                                {typeof count === 'number' && count > 0 && (
+                                    <span className="ml-1 opacity-70">{count}</span>
+                                )}
+                            </button>
+                        )
+                    })}
+                </div>
             )}
 
             {/* Divider */}
