@@ -1452,6 +1452,7 @@ export function useResumeSearchState() {
           education: undefined,
           minMatchScore: undefined,
           minRoleYears: undefined,
+          roleFilterType: undefined,
           minExperience: undefined,
           maxExperience: undefined,
           minAge: undefined,
