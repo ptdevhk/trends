@@ -1098,6 +1098,11 @@
       const lastName = typeof profile.lastName === "string" ? profile.lastName.trim() : "";
       const currentJobTitle = typeof profile.currentJobTitle === "string" ? profile.currentJobTitle.trim() : "";
       const currentLocation = typeof profile.currentLocation === "string" ? profile.currentLocation.trim() : "";
+      const resolvedLocation = currentLocation || [
+        typeof profile.suburb === "string" ? profile.suburb.trim() : "",
+        typeof profile.state === "string" ? profile.state.trim() : "",
+        typeof profile.country === "string" ? profile.country.trim() : ""
+      ].filter(Boolean).join(", ") || "";
       const lastModifiedDate = typeof profile.lastModifiedDate === "string" ? profile.lastModifiedDate : "";
       const workHistory = Array.isArray(profile.workHistories) ? profile.workHistories.map((item) => buildSeekWorkHistoryItem(item)).filter(Boolean) : [];
       const profileEducation = Array.isArray(profile.profileEducation) ? profile.profileEducation.map((item) => buildSeekProfileEducationItem(item)).filter(Boolean) : [];
@@ -1130,7 +1135,7 @@
           age: "",
           experience: "",
           education,
-          location: currentLocation,
+          location: resolvedLocation,
           jobIntention: currentJobTitle,
           expectedSalary: formatSeekExpectedSalary(profile.salary?.expected),
           selfIntro: resumeSnippet,
@@ -1249,6 +1254,11 @@
         const lastName = typeof candidate?.lastName === "string" ? candidate.lastName.trim() : "";
         const currentJobTitle = typeof candidate?.currentJobTitle === "string" ? candidate.currentJobTitle.trim() : "";
         const currentLocation = typeof candidate?.currentLocation === "string" ? candidate.currentLocation.trim() : "";
+        const resolvedLocation = currentLocation || [
+          typeof candidate?.suburb === "string" ? candidate.suburb.trim() : "",
+          typeof candidate?.state === "string" ? candidate.state.trim() : "",
+          typeof candidate?.country === "string" ? candidate.country.trim() : ""
+        ].filter(Boolean).join(", ") || "";
         const lastModifiedDate = typeof candidate?.lastModifiedDate === "string" ? candidate.lastModifiedDate : "";
         const salary = candidate?.salary;
         const salaryParts = [salary?.minLabel, salary?.maxLabel].filter(
@@ -1265,7 +1275,7 @@
           age: "",
           experience: "",
           education: "",
-          location: currentLocation,
+          location: resolvedLocation,
           jobIntention: currentJobTitle,
           expectedSalary: salaryParts.join(" - "),
           selfIntro: "",
