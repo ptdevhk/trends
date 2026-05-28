@@ -346,6 +346,14 @@ export function createSeekExtractor(deps: SeekExtractorDeps) {
       typeof profile.currentLocation === "string"
         ? profile.currentLocation.trim()
         : "";
+    // Fallback to structured country/state/suburb when currentLocation is empty
+    const resolvedLocation = currentLocation
+      || [
+          typeof profile.suburb === "string" ? profile.suburb.trim() : "",
+          typeof profile.state === "string" ? profile.state.trim() : "",
+          typeof profile.country === "string" ? profile.country.trim() : "",
+        ].filter(Boolean).join(", ")
+      || "";
     const lastModifiedDate =
       typeof profile.lastModifiedDate === "string"
         ? profile.lastModifiedDate
@@ -417,7 +425,7 @@ export function createSeekExtractor(deps: SeekExtractorDeps) {
         age: "",
         experience: "",
         education,
-        location: currentLocation,
+        location: resolvedLocation,
         jobIntention: currentJobTitle,
         expectedSalary: formatSeekExpectedSalary((profile.salary as Record<string, unknown> | undefined)?.expected),
         selfIntro: resumeSnippet,
@@ -608,6 +616,14 @@ export function createSeekExtractor(deps: SeekExtractorDeps) {
         typeof candidate?.currentLocation === "string"
           ? candidate.currentLocation.trim()
           : "";
+      // Fallback to structured country/state/suburb when currentLocation is empty
+      const resolvedLocation = currentLocation
+        || [
+            typeof candidate?.suburb === "string" ? candidate.suburb.trim() : "",
+            typeof candidate?.state === "string" ? candidate.state.trim() : "",
+            typeof candidate?.country === "string" ? candidate.country.trim() : "",
+          ].filter(Boolean).join(", ")
+        || "";
       const lastModifiedDate =
         typeof candidate?.lastModifiedDate === "string"
           ? candidate.lastModifiedDate
@@ -634,7 +650,7 @@ export function createSeekExtractor(deps: SeekExtractorDeps) {
         age: "",
         experience: "",
         education: "",
-        location: currentLocation,
+        location: resolvedLocation,
         jobIntention: currentJobTitle,
         expectedSalary: salaryParts.join(" - "),
         selfIntro: "",
