@@ -582,3 +582,31 @@ describe('formatRoleYears', () => {
     expect(formatRoleYears(0, 'en')).toBe('0 years')
   })
 })
+
+describe('overrideIndustryDbBreakdown — score/recommendation coherence', () => {
+  it('candidate with LLM no_match recommendation must not produce score >= 85', () => {
+    const analysis = {
+      score: 95,
+      recommendation: 'no_match' as const,
+      breakdown: { related_exp: 100 },
+      summary: '无机床销售经验',
+      highlights: [],
+      concerns: [],
+    }
+    const result = overrideIndustryDbBreakdown(analysis, 50)
+    expect(result.score).toBeLessThan(85)
+  })
+
+  it('verified strong match candidate retains score >= 85', () => {
+    const analysis = {
+      score: 91,
+      recommendation: 'strong_match' as const,
+      breakdown: { related_exp: 82 },
+      summary: '负责重庆地区山崎马扎克的销售',
+      highlights: [],
+      concerns: [],
+    }
+    const result = overrideIndustryDbBreakdown(analysis, 50)
+    expect(result.score).toBeGreaterThanOrEqual(85)
+  })
+})

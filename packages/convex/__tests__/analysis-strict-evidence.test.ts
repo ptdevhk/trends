@@ -210,7 +210,7 @@ describe("normalizeResume strict evidence", () => {
     const normalized = normalizeAnalysisResult(
       {
         score: 40,
-        recommendation: "potential",
+        recommendation: "strong_match",
         summary: "summary",
         highlights: [],
         breakdown: {
@@ -370,7 +370,7 @@ describe("normalizeResume strict evidence", () => {
     const normalized = normalizeAnalysisResult(
       {
         score: 58,
-        recommendation: "potential",
+        recommendation: "strong_match",
         summary: "行业数据库验证方面信息有限，综合 score 58，属于具备潜在匹配的候选人。",
         highlights: [],
         breakdown: {
@@ -1092,7 +1092,7 @@ describe("normalizeResume strict evidence", () => {
       const normalized = normalizeAnalysisResult(
         {
           score: 58,
-          recommendation: "potential",
+          recommendation: "strong_match",
           summary: "行业数据库验证方面信息有限，综合 score 58，属于具备潜在匹配的候选人。",
           highlights: [],
           breakdown: { related_exp: 80, industry_db: 0 },
@@ -1110,7 +1110,7 @@ describe("normalizeResume strict evidence", () => {
     it("returns strong_match at exactly 85", () => {
       // round(70*0.5)=35, industry_db=50 → score=85
       const normalized = normalizeAnalysisResult(
-        { score: 0, recommendation: "no_match", summary: "ok", highlights: [], breakdown: { related_exp: 70, industry_db: 0 } },
+        { score: 0, recommendation: "strong_match", summary: "ok", highlights: [], breakdown: { related_exp: 70, industry_db: 0 } },
         { ingestData: { industryDbV2Raw: 0, companyHits: ["some-company"], brandHits: [], roleSignals: [] } } as unknown,
       );
       expect(normalized.score).toBe(85);
@@ -1120,7 +1120,7 @@ describe("normalizeResume strict evidence", () => {
     it("returns match at 84 (just below strong_match)", () => {
       // round(68*0.5)=34, industry_db=50 → score=84
       const normalized = normalizeAnalysisResult(
-        { score: 0, recommendation: "no_match", summary: "ok", highlights: [], breakdown: { related_exp: 68, industry_db: 0 } },
+        { score: 0, recommendation: "match", summary: "ok", highlights: [], breakdown: { related_exp: 68, industry_db: 0 } },
         { ingestData: { industryDbV2Raw: 0, companyHits: ["some-company"], brandHits: [], roleSignals: [] } } as unknown,
       );
       expect(normalized.score).toBe(84);
@@ -1130,7 +1130,7 @@ describe("normalizeResume strict evidence", () => {
     it("returns match at exactly 70", () => {
       // round(80*0.5)=40, industry_db=30 → score=70
       const normalized = normalizeAnalysisResult(
-        { score: 0, recommendation: "no_match", summary: "ok", highlights: [], breakdown: { related_exp: 80, industry_db: 0 } },
+        { score: 0, recommendation: "match", summary: "ok", highlights: [], breakdown: { related_exp: 80, industry_db: 0 } },
         { ingestData: { industryDbV2Raw: 30, companyHits: [], brandHits: [], roleSignals: [] } } as unknown,
       );
       expect(normalized.score).toBe(70);
@@ -1140,7 +1140,7 @@ describe("normalizeResume strict evidence", () => {
     it("returns potential at 69 (just below match)", () => {
       // round(78*0.5)=39, industry_db=30 → score=69
       const normalized = normalizeAnalysisResult(
-        { score: 0, recommendation: "no_match", summary: "ok", highlights: [], breakdown: { related_exp: 78, industry_db: 0 } },
+        { score: 0, recommendation: "match", summary: "ok", highlights: [], breakdown: { related_exp: 78, industry_db: 0 } },
         { ingestData: { industryDbV2Raw: 30, companyHits: [], brandHits: [], roleSignals: [] } } as unknown,
       );
       expect(normalized.score).toBe(69);
@@ -1150,7 +1150,7 @@ describe("normalizeResume strict evidence", () => {
     it("returns potential at exactly 40", () => {
       // round(80*0.5)=40, industry_db=0 → score=40
       const normalized = normalizeAnalysisResult(
-        { score: 0, recommendation: "no_match", summary: "ok", highlights: [], breakdown: { related_exp: 80, industry_db: 0 } },
+        { score: 0, recommendation: "match", summary: "ok", highlights: [], breakdown: { related_exp: 80, industry_db: 0 } },
         { ingestData: { industryDbV2Raw: 0, companyHits: [], brandHits: [], roleSignals: [] } } as unknown,
       );
       expect(normalized.score).toBe(40);
@@ -1160,7 +1160,7 @@ describe("normalizeResume strict evidence", () => {
     it("returns no_match at 39 (just below potential)", () => {
       // round(78*0.5)=39, industry_db=0 → score=39
       const normalized = normalizeAnalysisResult(
-        { score: 0, recommendation: "no_match", summary: "ok", highlights: [], breakdown: { related_exp: 78, industry_db: 0 } },
+        { score: 0, recommendation: "match", summary: "ok", highlights: [], breakdown: { related_exp: 78, industry_db: 0 } },
         { ingestData: { industryDbV2Raw: 0, companyHits: [], brandHits: [], roleSignals: [] } } as unknown,
       );
       expect(normalized.score).toBe(39);
@@ -1190,7 +1190,7 @@ describe("normalizeResume strict evidence", () => {
 
     it("clamps over-100 related_exp to 100", () => {
       const normalized = normalizeAnalysisResult(
-        { score: 0, recommendation: "no_match", summary: "ok", highlights: [], breakdown: { related_exp: 999, industry_db: 0 } },
+        { score: 0, recommendation: "match", summary: "ok", highlights: [], breakdown: { related_exp: 999, industry_db: 0 } },
         { ingestData: { industryDbV2Raw: 0, companyHits: [], brandHits: [], roleSignals: [] } } as unknown,
       );
       expect(normalized.breakdown?.related_exp).toBe(100);
