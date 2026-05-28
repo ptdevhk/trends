@@ -176,6 +176,8 @@ TARGET=all make sync-agent-governance  # Optional: run policy sync + governance 
 - When changing any search filter, update all 3 paths simultaneously: (1) Convex `matchesResumeListFilters`, (2) BFF AND-mode `bffMatchesResumeFilters`, (3) BFF OR-mode `ResumeService.filterResumes`. The Convex filter is the source of truth.
 - Convex test mock query builders must support `.take()`, `.order()`, `.paginate()` (with `maximumBytesRead`/`maximumRowsRead` params) — missing these causes false-positive test failures that `make check` won't catch (it only runs typecheck + lint, not `npm test`).
 - Module-level `vi.stubGlobal()` in vitest must be paired with `afterAll(() => vi.unstubAllGlobals())` — without it, stubbed globals leak to subsequent test files.
+- When adding status/filter logic to `useResumeListState`, use `displayedResumes.find(e => e.key === id)?.identityKey` — not `displayedResumeMap` which maps resumeKey→ConvexResumeItem. The entry's `identityKey` is pre-computed via `getResumeIdentityKey`; in non-AI fallback mode `entry.identityKey` may differ from `resume.identityKey`.
+- When adding new fields to SearchProfile filters, update all 6 locations: (1) `config/search-profiles/*.yaml`, (2) `search-profile-service.ts` `SearchProfile.filters` type + `parseFilters`, (3) `search-profiles.ts` Zod schema + output mapping, (4) `sync-search-profile-templates.ts` `ProfileFilters` type + `parseFilters`, (5) run `make sync-search-profile-templates` to regenerate the artifact, (6) run `npm --workspace @trends/web run gen:api` to regenerate `api-types.ts`.
 
 ## Browser Testing & Debugging
 
