@@ -1859,6 +1859,67 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/resumes/match-stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Stream resume matching results via SSE
+         * @description Runs rule/AI matching and streams progress events via Server-Sent Events. Returns text/event-stream.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["MatchRequest"];
+                };
+            };
+            responses: {
+                /** @description SSE stream of matching progress and results */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/event-stream": string;
+                    };
+                };
+                /** @description Invalid request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SimpleError"];
+                    };
+                };
+                /** @description Session or job description not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SimpleError"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/resumes/matches": {
         parameters: {
             query?: never;
@@ -9708,7 +9769,7 @@ export interface paths {
                             success: true;
                             /** @enum {string} */
                             channel: "email";
-                            messageId?: string;
+                            messageId: string;
                         } | {
                             /** @enum {boolean} */
                             success: true;
@@ -9716,14 +9777,16 @@ export interface paths {
                             channel: "wechat_work";
                             errcode: number;
                             errmsg: string;
-                        } | {
+                        } | ({
                             /** @enum {boolean} */
                             success: true;
                             /** @enum {string} */
                             channel: "feishu";
                             code: number;
                             msg: string;
-                        };
+                        } & {
+                            [key: string]: unknown;
+                        });
                     };
                 };
                 /** @description Send failed */
