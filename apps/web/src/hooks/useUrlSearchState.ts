@@ -181,7 +181,7 @@ export function parseUrlSearchState(searchParams: URLSearchParams): UrlSearchSta
   const shareSessionId = shareSessionIdRaw?.trim() || undefined
   const queryRaw = searchParams.get('q')
   const query = queryRaw?.trim() || undefined
-  const locationRaw = searchParams.get('location')
+  const locationRaw = searchParams.get('locations') ?? searchParams.get('location')
   const normalizedLocation = locationRaw?.trim() || ''
   const effectiveLocations = normalizeUniqueValues(parseLocationParam(normalizedLocation))
   const location = normalizedLocation || (effectiveLocations.length > 0 ? effectiveLocations.join(',') : undefined)

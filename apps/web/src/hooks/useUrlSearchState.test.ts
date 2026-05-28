@@ -47,6 +47,20 @@ describe('useUrlSearchState location parsing', () => {
     expect(state.filters.locations).toEqual(['Kuala Lumpur MY'])
   })
 
+  it('accepts locations (plural) URL param to match API schema', () => {
+    const state = parseUrlSearchState(new URLSearchParams('locations=China'))
+
+    expect(state.location).toBe('China')
+    expect(state.filters.locations).toEqual(['China'])
+  })
+
+  it('prefers locations (plural) over location (singular) when both present', () => {
+    const state = parseUrlSearchState(new URLSearchParams('location=Malaysia&locations=China'))
+
+    expect(state.location).toBe('China')
+    expect(state.filters.locations).toEqual(['China'])
+  })
+
   it('parses canonical quoted OR phrase queries without flattening phrases', () => {
     const state = parseUrlSearchState(
       new URLSearchParams('location=Kuala+Lumpur+MY&q=%22Sales+Engineer%22+OR+%22Sales+Manager%22')
