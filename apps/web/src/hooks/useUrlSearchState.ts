@@ -136,10 +136,16 @@ function parseStatusList(value: string | null): CandidateStatus[] {
     .map((item) => item.trim())
     .filter((item): item is CandidateStatus =>
       item === 'new'
+      || item === 'shortlisted'
+      || item === 'rejected'
       || item === 'contacted'
       || item === 'interviewing'
       || item === 'interviewed_pass'
       || item === 'interviewed_reject'
+      || item === 'appeal_submitted'
+      || item === 'human_review'
+      || item === 'upheld'
+      || item === 'reversed'
       || item === 'offer'
       || item === 'hired'
       || item === 'withdrawn'
