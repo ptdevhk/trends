@@ -76,7 +76,7 @@ English-first guidance; Chinese notes are short clarifications.
 
 1. Run `make check` — fix failures before handoff
 2. If code changes remain, run `/simplify` (or `--quick` / `--staged-only` variants)
-3. For full dev-loop pipeline (PRD → spec → plan → implement → verify), use `/dev-loop` skill
+3. For full dev-loop pipeline (plan → TDD execute → review → merge), use `/dev-loop` skill
 
 **Core commands:**
 
@@ -164,6 +164,7 @@ TARGET=all make sync-agent-governance  # Optional: run policy sync + governance 
 - Keep changes minimal, testable, and scoped to user request.
 
 ### Known Gotchas
+- `EMBEDDING_ENABLED` env var gates all embedding/vector operations (default: OFF). Do not build features that depend on embeddings until a compatible API is configured. `hybridSearchResumes` falls back to BM25-only when disabled.
 - After editing `apps/api/src/schemas/*.ts`, stage `apps/web/src/lib/api-types.ts` too — `make check` regenerates it and fails `git diff --exit-code` otherwise.
 - `make clear-resumes` may raise `OptimisticConcurrencyControlFailure` when scheduled Convex jobs overlap; just re-run until `partial:false`.
 - Local Convex dev backend rate-limits at ~4 MiB writes/sec; large restores (2k+ resumes) can hit `TooManyWrites 429` — wait ~30-60s between retry attempts.
@@ -192,6 +193,8 @@ Prerequisite: `make chrome-debug` starts a headed Chrome with CDP on port 9222 a
 - Tagging/scoring pipelines and role-aware filtering are active focus areas.
 - Workspace-aware isolation is part of current architecture direction.
 - Notifications (Feishu/WeChat Work/Email etc.) are integrated extension points.
+- Dev flow: TDD-first pipeline (plan → red-green-refactor → review → merge); no PRD/brainstorm step for implementation.
+- Embedding/RAG search is disabled (EMBEDDING_ENABLED=false) — Poe API lacks /embeddings support. Complete all features using BM25 text search + tag expansion only; do not design around semantic search availability.
 
 ## Migrations & Environment Policy
 - Do not keep temporary migration checklists in this file.
