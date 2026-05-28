@@ -32,6 +32,8 @@ export interface SearchProfile {
     filters?: {
         minExperience?: number;
         maxExperience?: number | null;
+        minRoleYears?: number;
+        roleFilterType?: string;
         minAge?: number;
         maxAge?: number;
         education?: string[];
@@ -279,6 +281,8 @@ function parseFilters(value: unknown): SearchProfile["filters"] | undefined {
     const minExperience = readNumber(value.minExperience);
     const maxExperienceRaw = value.maxExperience;
     const maxExperience = maxExperienceRaw === null ? null : readNumber(maxExperienceRaw);
+    const minRoleYears = readNumber(value.minRoleYears);
+    const roleFilterType = readString(value.roleFilterType) || undefined;
     const minAge = readNumber(value.minAge);
     const maxAge = readNumber(value.maxAge);
     const education = readStringArray(value.education);
@@ -305,6 +309,8 @@ function parseFilters(value: unknown): SearchProfile["filters"] | undefined {
         minExperience === undefined
         && maxExperience === undefined
         && maxExperienceRaw !== null
+        && minRoleYears === undefined
+        && !roleFilterType
         && minAge === undefined
         && maxAge === undefined
         && !education
@@ -317,6 +323,8 @@ function parseFilters(value: unknown): SearchProfile["filters"] | undefined {
     return {
         minExperience,
         maxExperience,
+        minRoleYears,
+        roleFilterType,
         minAge,
         maxAge,
         education,

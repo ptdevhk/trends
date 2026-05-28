@@ -492,12 +492,6 @@ export function QuickStartPanel({
       const shouldPreserveExternalShellState =
         skipNextJobDescriptionAutofillRef.current === currentExternalShellStateSignature
 
-      setActiveRoleType(undefined)
-      setJdMinRoleYears(
-        typeof selectedConvexJobDescriptionDetail?.minExperience === 'number'
-          ? selectedConvexJobDescriptionDetail.minExperience
-          : 1
-      )
       setJdMaxAge(
         typeof selectedConvexJobDescriptionDetail?.maxAge === 'number'
           ? selectedConvexJobDescriptionDetail.maxAge
@@ -517,7 +511,7 @@ export function QuickStartPanel({
         setCustomKeyword(formatKeywordInput(selectedConvexJobDescriptionDetail.customKeywords))
       }
 
-      return
+      // Fall through to API fetch for roleType/minRoleYears (Convex JD lacks requiredRoles)
     }
 
     let cancelled = false
@@ -534,7 +528,6 @@ export function QuickStartPanel({
         const roleType = requiredRole?.type?.trim()
         setActiveRoleType(roleType && roleType.length > 0 ? roleType : undefined)
         setJdMinRoleYears(requiredRole?.min_years)
-        setJdMaxAge(undefined)
 
         const shouldPreserveExternalShellState =
           skipNextJobDescriptionAutofillRef.current === currentExternalShellStateSignature
@@ -560,7 +553,9 @@ export function QuickStartPanel({
         if (!cancelled) {
           setActiveRoleType(undefined)
           setJdMinRoleYears(undefined)
-          setJdMaxAge(undefined)
+          if (!selectedConvexJobDescriptionDetail) {
+            setJdMaxAge(undefined)
+          }
         }
       }
     }
