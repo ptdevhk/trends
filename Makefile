@@ -1136,6 +1136,12 @@ check-node:
 		echo "apps/web/src/lib/api-types.ts is out of date. Run 'npm --workspace @trends/web run gen:api' and commit changes."; \
 		exit 1; \
 	)
+	@echo "Checking browser extension content.js is in sync..."
+	@cd apps/browser-extension && npm run build
+	@git diff --exit-code apps/browser-extension/content.js >/dev/null || ( \
+		echo "apps/browser-extension/content.js is out of date. Run 'cd apps/browser-extension && npm run build' and commit changes."; \
+		exit 1; \
+	)
 	@if [ "$$CI" = "true" ] || [ "$$CI" = "1" ]; then \
 		npm run --workspaces --if-present typecheck; \
 		npm run --workspace @trends/web lint; \
