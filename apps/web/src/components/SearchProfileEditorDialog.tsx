@@ -27,6 +27,8 @@ import { api } from '../../../../packages/convex/convex/_generated/api'
 export type SearchProfileFilters = {
     minExperience?: number
     maxExperience?: number | null
+    minRoleYears?: number
+    roleFilterType?: string
     minAge?: number
     maxAge?: number
     education?: string[]
