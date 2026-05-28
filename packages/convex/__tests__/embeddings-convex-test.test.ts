@@ -5,11 +5,11 @@
  * Internal functions (internalQuery/internalMutation) are accessed via internal API reference.
  */
 import { createTest } from "./test-helpers.js";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { api } from "../convex/_generated/api.js";
 import { internal } from "../convex/_generated/api.js";
 import type { Doc, Id } from "../convex/_generated/dataModel.js";
-import { rrfMerge } from "../convex/embeddings.js";
+import { rrfMerge, isEmbeddingEnabled } from "../convex/embeddings.js";
 
 
 describe("embeddings (convex-test)", () => {
@@ -371,6 +371,7 @@ describe("embeddings (convex-test)", () => {
   describe("batchGenerateEmbeddings (internal) — dryRun", () => {
     it("dryRun reports scope without generating embeddings", async () => {
       const t = createTest();
+      vi.stubEnv("EMBEDDING_ENABLED", "true");
 
       // Insert resumes without embeddings
       await t.run(async (ctx) => {
@@ -407,6 +408,8 @@ describe("embeddings (convex-test)", () => {
       expect(result.wouldGenerate).toBe(1);
       // All resumes counted as skipped in dryRun
       expect(result.skipped).toBe(2);
+
+      vi.unstubAllEnvs();
     });
   });
 
@@ -446,6 +449,91 @@ describe("embeddings (convex-test)", () => {
       expect(stats.latestModel).toBe("text-embedding-3-small");
       expect(stats.latestGeneratedAt).toBeGreaterThan(0);
     });
+  });
+
+  describe("scheduledBackfill — EMBEDDING_ENABLED gate", () => {
+    it("returns early with zeros when EMBEDDING_ENABLED is not set (default off)", async () => {
+      const t = createTest();
+      vi.stubEnv("EMBEDDING_ENABLED", "");
+
+      const result = await t.action(internal.embeddings.scheduledBackfill, {});
+      expect(result.generated).toBe(0);
+      expect(result.apiErrors).toBe(0);
+      expect(result.batches).toBe(0);
+
+      vi.unstubAllEnvs();
+    });
+
+    it("returns early with zeros when EMBEDDING_ENABLED is false", async () => {
+      const t = createTest();
+      vi.stubEnv("EMBEDDING_ENABLED", "false");
+
+      const result = await t.action(internal.embeddings.scheduledBackfill, {});
+      expect(result.generated).toBe(0);
+      expect(result.apiErrors).toBe(0);
+      expect(result.batches).toBe(0);
+
+      vi.unstubAllEnvs();
+    });
+  });
+
+  describe("batchGenerateEmbeddings — EMBEDDING_ENABLED gate", () => {
+    it("returns early with zeros when EMBEDDING_ENABLED is not set", async () => {
+      const t = createTest();
+      vi.stubEnv("EMBEDDING_ENABLED", "");
+
+      // Insert a resume that would normally be processed
+      await t.run(async (ctx) => {
+        await ctx.db.insert("resumes", {
+          externalId: "gate-1",
+          content: {},
+          hash: "gate1",
+          tags: [],
+          crawledAt: Date.now(),
+          source: "test",
+          searchText: "Gate test resume",
+          needsEmbedding: true,
+        });
+      });
+
+      const result = await t.action(internal.embeddings.batchGenerateEmbeddings, { limit: 10 });
+      expect(result.generated).toBe(0);
+      expect(result.skipped).toBe(0);
+      expect(result.hasMore).toBe(false);
+
+      vi.unstubAllEnvs();
+    });
+  });
+});
+
+describe("isEmbeddingEnabled (unit)", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("returns false when EMBEDDING_ENABLED is not set", () => {
+    vi.stubEnv("EMBEDDING_ENABLED", "");
+    expect(isEmbeddingEnabled()).toBe(false);
+  });
+
+  it("returns false when EMBEDDING_ENABLED is 'false'", () => {
+    vi.stubEnv("EMBEDDING_ENABLED", "false");
+    expect(isEmbeddingEnabled()).toBe(false);
+  });
+
+  it("returns true when EMBEDDING_ENABLED is 'true'", () => {
+    vi.stubEnv("EMBEDDING_ENABLED", "true");
+    expect(isEmbeddingEnabled()).toBe(true);
+  });
+
+  it("returns true when EMBEDDING_ENABLED is '1'", () => {
+    vi.stubEnv("EMBEDDING_ENABLED", "1");
+    expect(isEmbeddingEnabled()).toBe(true);
+  });
+
+  it("returns false when EMBEDDING_ENABLED is '0'", () => {
+    vi.stubEnv("EMBEDDING_ENABLED", "0");
+    expect(isEmbeddingEnabled()).toBe(false);
   });
 });
 
