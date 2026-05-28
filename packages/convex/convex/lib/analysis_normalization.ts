@@ -49,6 +49,22 @@ export type NormalizedRoleSignal = {
 export const INDUSTRY_DB_SCORE_CAP = 50;
 export const RELATED_EXP_WEIGHT = INDUSTRY_DB_SCORE_CAP / 100;
 
+export const RELATED_EXP_CEILING_BY_RECOMMENDATION: Record<AnalysisRecommendation, number> = {
+    strong_match: 100,
+    match: 100,
+    potential: 60,
+    no_match: 30,
+} as const;
+
+const VALID_LLM_RECOMMENDATIONS = new Set<string>(["strong_match", "match", "potential", "no_match"]);
+
+function toLLMRecommendation(value: unknown): AnalysisRecommendation | undefined {
+    if (typeof value === "string" && VALID_LLM_RECOMMENDATIONS.has(value)) {
+        return value as AnalysisRecommendation;
+    }
+    return undefined;
+}
+
 // ---------------------------------------------------------------------------
 // Primitive helpers
 // ---------------------------------------------------------------------------
@@ -324,7 +340,10 @@ export function normalizeAnalysisResult(
     }
 
     const relatedExpRaw = clamp(llmRelatedExp ?? 0, 0, 100);
-    const score = clamp(Math.round(relatedExpRaw * RELATED_EXP_WEIGHT) + industryDb, 0, 100);
+    const llmRecommendation = toLLMRecommendation(result.recommendation);
+    const relatedExpCeiling = RELATED_EXP_CEILING_BY_RECOMMENDATION[llmRecommendation ?? "match"];
+    const cappedRelatedExp = clamp(relatedExpRaw, 0, relatedExpCeiling);
+    const score = clamp(Math.round(cappedRelatedExp * RELATED_EXP_WEIGHT) + industryDb, 0, 100);
 
     const recommendation = recommendationFromScore(score);
     const rawSummary = typeof result.summary === "string" && result.summary.trim().length > 0

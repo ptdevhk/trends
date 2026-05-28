@@ -400,6 +400,13 @@ function countHistogramSamples(histogram50: number[]): number {
 const INDUSTRY_DB_V2_SCORE_CAP = 50
 const MY_INDUSTRY_DB_FLOOR = 40
 const RELATED_EXP_AI_WEIGHT = INDUSTRY_DB_V2_SCORE_CAP / 100
+
+const RELATED_EXP_CEILING_BY_RECOMMENDATION: Record<string, number> = {
+  strong_match: 100,
+  match: 100,
+  potential: 60,
+  no_match: 30,
+}
 const INDUSTRY_DB_V2_MIN_NONZERO_SAMPLE_SIZE = 5
 
 export function computeDirectIndustryDb(
@@ -535,10 +542,10 @@ export function overrideIndustryDbBreakdown(
   market?: string,
 ): ConvexResumeAnalysis {
   const effectiveIndustryDb = market === 'MY' ? Math.max(MY_INDUSTRY_DB_FLOOR, industryDb) : industryDb
-  const normalizedRelatedExp =
-    typeof analysis.breakdown?.related_exp === 'number'
-      ? Math.round(clamp(analysis.breakdown.related_exp, 0, 100) * RELATED_EXP_AI_WEIGHT)
-      : 0
+  const recommendationCeiling = RELATED_EXP_CEILING_BY_RECOMMENDATION[analysis.recommendation ?? ''] ?? 100
+  const rawRelatedExp = typeof analysis.breakdown?.related_exp === 'number' ? analysis.breakdown.related_exp : 0
+  const cappedRelatedExp = Math.min(rawRelatedExp, recommendationCeiling)
+  const normalizedRelatedExp = Math.round(clamp(cappedRelatedExp, 0, 100) * RELATED_EXP_AI_WEIGHT)
   const nextBreakdown: MatchBreakdown = {
     ...(analysis.breakdown ?? {}),
     related_exp: normalizedRelatedExp,

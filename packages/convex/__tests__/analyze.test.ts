@@ -572,6 +572,63 @@ describe("normalizeAnalysisResult", () => {
     );
     expect(result.keyFactors).toEqual([]);
   });
+
+  // --- HR golden ordering invariant (P2 scoring regression) ---
+
+  function mockResumeWithIndustryDb(industryDbRaw: number) {
+    return { ingestData: { industryDbV2Raw: industryDbRaw, brandHits: [], companyHits: [] } };
+  }
+
+  it("inflated-related_exp candidate: score <= 75 when LLM recommendation is no_match", () => {
+    const result = normalizeAnalysisResult(
+      {
+        score: 95,
+        recommendation: "no_match",
+        related_exp: 100,
+        summary: "无机床销售经验，部分匹配",
+        breakdown: { related_exp: 100 },
+      },
+      mockResumeWithIndustryDb(50),
+    );
+    expect(result.score).toBeLessThanOrEqual(75);
+    expect(result.recommendation).not.toBe("strong_match");
+  });
+
+  it("strong-match candidate: score >= 85 when LLM recommendation is strong_match", () => {
+    const result = normalizeAnalysisResult(
+      {
+        score: 93,
+        recommendation: "strong_match",
+        related_exp: 90,
+        summary: "有斗山机床销售经验",
+        breakdown: { related_exp: 90 },
+      },
+      mockResumeWithIndustryDb(50),
+    );
+    expect(result.score).toBeGreaterThanOrEqual(85);
+    expect(result.recommendation).toBe("strong_match");
+  });
+
+  it("no_match candidate must score lower than strong_match candidate with same industryDb", () => {
+    const strongMatch = normalizeAnalysisResult(
+      { recommendation: "strong_match", related_exp: 90, breakdown: { related_exp: 90 } },
+      mockResumeWithIndustryDb(50),
+    );
+    const noMatch = normalizeAnalysisResult(
+      { recommendation: "no_match", related_exp: 100, breakdown: { related_exp: 100 } },
+      mockResumeWithIndustryDb(50),
+    );
+    expect(noMatch.score).toBeLessThan(strongMatch.score);
+  });
+
+  it("potential candidate: score between 40-80 when LLM recommendation is potential", () => {
+    const result = normalizeAnalysisResult(
+      { recommendation: "potential", related_exp: 80, breakdown: { related_exp: 80 } },
+      mockResumeWithIndustryDb(35),
+    );
+    expect(result.score).toBeGreaterThanOrEqual(40);
+    expect(result.score).toBeLessThanOrEqual(80);
+  });
 });
 
 // --- parseKeyFactors ---
