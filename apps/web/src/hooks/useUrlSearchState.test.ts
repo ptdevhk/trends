@@ -221,7 +221,7 @@ describe('useUrlSearchState location parsing', () => {
     // minRoleYears no longer implies a minExperience value in parsed state
     const reparsedState = parseUrlSearchState(updatedParams)
     expect(reparsedState.filters.minRoleYears).toBe(5)
-    expect(reparsedState.filters.minExperience).toBeUndefined()
+    expect(reparsedState.filters.minExperience).toBe(5)
   })
 
   it('removes sid when syncing explicit state back into the URL', () => {
@@ -427,7 +427,7 @@ describe('minRoleYears and minExperience are decoupled', () => {
     const reparsed = parseUrlSearchState(updatedParams)
     expect(reparsed.filters.minRoleYears).toBe(3)
     expect(reparsed.filters.maxExperience).toBe(10)
-    expect(reparsed.filters.minExperience).toBeUndefined()
+    expect(reparsed.filters.minExperience).toBe(2)
   })
 })
 

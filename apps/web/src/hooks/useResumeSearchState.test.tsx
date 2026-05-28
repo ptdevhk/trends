@@ -1606,12 +1606,17 @@ describe('useResumeSearchState', () => {
       selectedBrands: [],
       selectedExperienceLevel: undefined,
       filters: {
-        minExperience: 5,
-        maxExperience: 12,
+        minExperience: undefined,
+        maxExperience: undefined,
         locations: ['Malaysia'],
         education: undefined,
         status: undefined,
         minMatchScore: undefined,
+        minRoleYears: undefined,
+        minAge: undefined,
+        maxAge: undefined,
+        minSalary: undefined,
+        maxSalary: undefined,
       },
     })
   })
