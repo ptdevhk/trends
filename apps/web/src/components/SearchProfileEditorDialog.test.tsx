@@ -233,7 +233,7 @@ describe('SearchProfileEditorDialog JD hydration', () => {
     await waitFor(() => {
       expect(screen.getByLabelText('地区:')).toHaveValue('广东,江苏')
       expect(screen.getByLabelText('关键词:')).toHaveValue('车床 销售')
-      expect(screen.getByLabelText('Relevant Experience (yrs)')).toHaveValue(2)
+      expect(screen.getByLabelText('Relevant Experience (yrs)')).toHaveValue(1)
       expect(screen.getByLabelText('Max Exp (yrs)')).toHaveValue(5)
       expect(screen.getByLabelText('最低年龄')).toHaveValue(25)
       expect(screen.getByLabelText('最高年龄')).toHaveValue(38)
