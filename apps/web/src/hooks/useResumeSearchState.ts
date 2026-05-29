@@ -589,6 +589,15 @@ function matchesLocalFilters(
     return false
   }
 
+  const idOrNameNeedle = state.filters.idOrNameSearch?.trim().toLowerCase()
+  if (idOrNameNeedle) {
+    const resumeIdStr = String(item.resume.resumeId).toLowerCase()
+    const nameStr = (item.resume.name ?? '').toLowerCase()
+    if (!resumeIdStr.includes(idOrNameNeedle) && !nameStr.includes(idOrNameNeedle)) {
+      return false
+    }
+  }
+
   return true
 }
 
@@ -1421,6 +1430,20 @@ export function useResumeSearchState() {
     [parsedState, syncToUrl],
   )
 
+  const setIdOrNameSearchFilter = useCallback(
+    (idOrNameSearch: string | undefined) => {
+      syncToUrl(
+        buildUrlState(parsedState, {
+          filters: {
+            ...parsedState.filters,
+            idOrNameSearch: idOrNameSearch?.trim() || undefined,
+          },
+        }),
+      )
+    },
+    [parsedState, syncToUrl],
+  )
+
   const setSort = useCallback(
     (sortValue: SearchSortValue) => {
       const nextFilters: Partial<ResumeFilters> = {
@@ -1460,6 +1483,7 @@ export function useResumeSearchState() {
           minSalary: undefined,
           maxSalary: undefined,
           status: undefined,
+          idOrNameSearch: undefined,
         },
       }),
     )
@@ -1783,6 +1807,7 @@ export function useResumeSearchState() {
     setAgeRangeFilter,
     setSalaryRangeFilter,
     setMinScoreFilter,
+    setIdOrNameSearchFilter,
     setAiModeEnabled,
     setExportFormat,
     setQueryInput,
