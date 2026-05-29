@@ -305,8 +305,8 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
       ],
       "jobDescription": "seek-malaysia-sales",
       "filters": {
-        "minExperience": 1,
-        "maxExperience": null,
+        "minRoleYears": 1,
+        "roleFilterType": "sales",
         "locations": [
           "Malaysia"
         ]
@@ -373,8 +373,8 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
       ],
       "jobDescription": "seek-malaysia-sales",
       "filters": {
-        "minExperience": 1,
-        "maxExperience": null,
+        "minRoleYears": 1,
+        "roleFilterType": "sales",
         "locations": [
           "Malaysia"
         ]
