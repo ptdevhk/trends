@@ -924,6 +924,7 @@ export function useResumeSearchState() {
   const hasMore = resumeQuery.hasMore
   const loading = !isLanding && resumeQuery.loading
   const loadingMore = resumeQuery.loadingMore
+  const isFiltering = isFilterPending || (loading && results.length > 0)
 
   // Log search analytics (fire-and-forget, debounced by query change)
   const lastLoggedQueryRef = useRef<string | null>(null)
@@ -1820,6 +1821,7 @@ export function useResumeSearchState() {
     isLanding,
     loading,
     loadingMore,
+    isFiltering,
     parsedState,
     queryInput,
     recentSearches,
