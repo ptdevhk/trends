@@ -483,8 +483,11 @@ describe('useResumeSearchState', () => {
 
     const { result } = renderHook(() => useResumeSearchState())
 
+    // After server-side dedup: minAge/maxAge are Convex-only. All 4 pass.
     expect(result.current.filteredResults.map((item) => item.key)).toEqual([
       'resume-1',
+      'resume-2',
+      'resume-3',
       'resume-4',
     ])
   })
@@ -598,7 +601,9 @@ describe('useResumeSearchState', () => {
         }),
       }),
     )
-    expect(result.current.filteredResults.map((item) => item.key)).toEqual(['resume-1'])
+    // After server-side dedup: roleFilterType/minRoleYears are Convex-only.
+    // Both resumes pass client-side filtering.
+    expect(result.current.filteredResults.map((item) => item.key)).toEqual(['resume-1', 'resume-2'])
   })
 
   it('infers sales role filtering from sales keyword searches when minRoleYears is set', () => {
@@ -695,7 +700,8 @@ describe('useResumeSearchState', () => {
         }),
       }),
     )
-    expect(result.current.filteredResults.map((item) => item.key)).toEqual(['resume-2'])
+    // After server-side dedup: roleFilterType/minRoleYears are Convex-only.
+    expect(result.current.filteredResults.map((item) => item.key)).toEqual(['resume-1', 'resume-2'])
   })
 
   it('infers sales role filtering from business-development query terms when minRoleYears is set', () => {
@@ -792,7 +798,9 @@ describe('useResumeSearchState', () => {
         }),
       }),
     )
-    expect(result.current.filteredResults.map((item) => item.key)).toEqual(['resume-2'])
+    // After server-side filter dedup, minRoleYears/roleFilterType are Convex-only.
+    // Client-side matchesLocalFilters no longer drops mismatches — both pass through.
+    expect(result.current.filteredResults.map((item) => item.key)).toEqual(['resume-1', 'resume-2'])
   })
 
   it('keeps an explicit role type over inferred sales intent', () => {
@@ -855,6 +863,8 @@ describe('useResumeSearchState', () => {
         }),
       }),
     )
+    // After server-side dedup: roleFilterType/minRoleYears are Convex-only.
+    // Only resume-1 exists in this test fixture.
     expect(result.current.filteredResults.map((item) => item.key)).toEqual(['resume-1'])
   })
 
@@ -931,8 +941,9 @@ describe('useResumeSearchState', () => {
 
     const { result } = renderHook(() => useResumeSearchState())
 
-    expect(result.current.filteredResults.map((item) => item.key)).toEqual(['resume-2'])
-    expect(result.current.analysisCandidateCount).toBe(1)
+    // After server-side filter dedup, both pass client-side filtering
+    expect(result.current.filteredResults.map((item) => item.key)).toEqual(['resume-1', 'resume-2'])
+    expect(result.current.analysisCandidateCount).toBe(2)
 
     await act(async () => {
       await result.current.analyzeResults()
@@ -941,9 +952,9 @@ describe('useResumeSearchState', () => {
     expect(dispatchAnalysisMutationMock).toHaveBeenCalledWith({
       keywords: ['CNC', '销售'],
       promptVersion: CURRENT_PROMPT_VERSION,
-      resumeIds: ['resume-2'],
+      resumeIds: ['resume-1', 'resume-2'],
     })
-    expect(toastSuccessMock).toHaveBeenCalledWith('Analyzing 1 resumes...')
+    expect(toastSuccessMock).toHaveBeenCalledWith('Analyzing 2 resumes...')
   })
 
   it('normalizes a recent search and syncs it back to canonical url state when applied', async () => {

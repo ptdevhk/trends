@@ -1,5 +1,5 @@
-import { formatKeywordQuery, getVerifiedRoleSignalYears, isSalesRequiredContext, parseKeywordQuery } from '@trends/shared'
-import { hasMatchingRoleSignal, matchesSalaryFilter } from '@/hooks/resume-filter-helpers'
+import { formatKeywordQuery, isSalesRequiredContext, parseKeywordQuery } from '@trends/shared'
+import { matchesSalaryFilter } from '@/hooks/resume-filter-helpers'
 import { useMutation } from 'convex/react'
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { toast } from 'sonner'
@@ -47,7 +47,7 @@ import {
   resolveAnalysisTopN,
   resolveResumeAnalysisSourceKey,
 } from '@/lib/analysis-utils'
-import { getResumeAge, parseExperienceYears } from '@/lib/resume-filtering'
+import { parseExperienceYears } from '@/lib/resume-filtering'
 import { resolveCollectionSource, getSourceLabelFromHostname } from '@/lib/search-profile-sources'
 import type { SearchHistoryItem } from '@/hooks/useSession'
 import type {
@@ -406,38 +406,6 @@ function buildSearchExportEntry(
   }
 }
 
-function getRoleYears(
-  resume: ConvexResumeItem,
-  roleType: string | undefined,
-): number {
-  const roleSignals = resume.ingestData?.roleSignals
-  if (!Array.isArray(roleSignals) || roleSignals.length === 0) {
-    return 0
-  }
-
-  const normalizedRoleType = normalizeOptionalString(roleType)?.toLowerCase() ?? ''
-  if (normalizedRoleType) {
-    const stored = resume.ingestData?.verifiedRoleYears?.[normalizedRoleType]
-    if (typeof stored === 'number' && Number.isFinite(stored)) {
-      return stored
-    }
-    return getVerifiedRoleSignalYears(roleSignals, normalizedRoleType)
-  }
-
-  return roleSignals.reduce((maxYears, signal) => {
-    const key = (signal.type ?? '').trim().toLowerCase()
-    if (!key) {
-      return maxYears
-    }
-    const stored = resume.ingestData?.verifiedRoleYears?.[key]
-    if (typeof stored === 'number' && Number.isFinite(stored) && stored > maxYears) {
-      return stored
-    }
-    const verified = getVerifiedRoleSignalYears(roleSignals, key)
-    return Math.max(maxYears, verified)
-  }, 0)
-}
-
 const DEFAULT_STATUS_WHEN_EMPTY: CandidateStatus = 'new'
 
 const ACTION_TO_STATUS: Partial<Record<CandidateActionType, CandidateStatus>> = {
@@ -486,10 +454,6 @@ function matchesLocalFilters(
   const education = item.resume.education?.trim().toLowerCase() ?? ''
   const experienceLevel = normalizeExperienceLevel(item.resume.ingestData?.experienceLevel)
   const minScore = state.filters.minMatchScore
-  const resumeAge =
-    typeof state.filters.minAge === 'number' || typeof state.filters.maxAge === 'number'
-      ? getResumeAge(item.resume)
-      : null
 
   if (
     normalizedSelectedTags.length > 0 &&
@@ -560,30 +524,9 @@ function matchesLocalFilters(
     return false
   }
 
-  if (state.filters.roleFilterType) {
-    if (!hasMatchingRoleSignal(item.resume, state.filters.roleFilterType)) {
-      return false
-    }
-  }
-
-  if (typeof state.filters.minRoleYears === 'number') {
-    const roleYears = getRoleYears(item.resume, state.filters.roleFilterType)
-    if (roleYears < state.filters.minRoleYears) {
-      return false
-    }
-  }
-
-  if (typeof state.filters.minAge === 'number') {
-    if (resumeAge !== null && resumeAge < state.filters.minAge) {
-      return false
-    }
-  }
-
-  if (typeof state.filters.maxAge === 'number') {
-    if (resumeAge !== null && resumeAge > state.filters.maxAge) {
-      return false
-    }
-  }
+  // NOTE: roleFilterType, minRoleYears, minAge, maxAge, and salary range
+  // are already filtered server-side by Convex/BFF. Only client-only filters
+  // (status, idOrNameSearch, tags, brands, education, minScore) remain here.
 
   if (!matchesSalaryFilter(item.resume.expectedSalary, state.filters.minSalary, state.filters.maxSalary)) {
     return false
