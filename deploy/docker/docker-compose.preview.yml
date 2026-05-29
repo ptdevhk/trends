@@ -39,9 +39,12 @@ services:
     image: node:25-slim
     container_name: trends-preview-convex
     restart: unless-stopped
-    # 4GB needed when importing full production export (~5500 resumes).
-    # 2GB is enough for empty/small datasets but Convex import OOMs on large bulk.
-    mem_limit: 4g
+    # 8GB required when serving prod-restored data (~5500 resumes).
+    # History: 2g → OOM on import; 4g → OOM under steady query load (RSS hits 4.0 GiB
+    # exactly, see dmesg + queries/2026-05-29-convex-local-backend-memory-oom.md).
+    # 8g gives 2x margin above observed RSS ceiling and matches community sizing for
+    # self-hosted backends with active export/import cycles.
+    mem_limit: 8g
     ports:
       - "127.0.0.1:4210:3210"
       - "127.0.0.1:4211:3211"
@@ -58,6 +61,13 @@ services:
       # tmp on same fs as project to avoid cross-filesystem Convex binary move errors
       - CONVEX_TMPDIR=/root/.cache/tmp
       - CONVEX_LOCAL_BACKEND_STARTUP_TIMEOUT_SECS=120
+      # Memory tuning — defaults from get-convex/convex-backend/crates/common/src/knobs.rs.
+      # Reclaims ~950 MiB at steady state vs. the 1 GiB shared UDF cache default.
+      # Safe at our scale (≤10k docs, low UDF count); revisit if query latency regresses.
+      - SHARED_UDF_CACHE_MAX_SIZE=100000000
+      - UDF_CACHE_MAX_SIZE=50000000
+      # Match self-hosted/docker/docker-compose.yml override (2 days vs 14 day default).
+      - DOCUMENT_RETENTION_DELAY=172800
     command: ["sh", "/app/start-convex.sh"]
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:3210/version', r => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
