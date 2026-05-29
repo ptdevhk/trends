@@ -17,6 +17,34 @@ sudo -u trends bash -c "cd /opt/trends/packages/convex && \
 ls -lh "$EXPORT_PATH"
 
 echo ""
+echo "=== Step 1b: Strip schema-incompatible fields from export ==="
+# v0.3.0 dropped screening_sessions.config.filters.showBlocked
+# Production data still has it → import aborts. Strip before import.
+FIX_DIR=$(mktemp -d)
+cd "$FIX_DIR"
+unzip -q "$EXPORT_PATH"
+python3 <<'PYEOF'
+import json, os
+path = 'screening_sessions/documents.jsonl'
+if os.path.exists(path):
+    docs = [json.loads(line) for line in open(path) if line.strip()]
+    changed = 0
+    for d in docs:
+        if isinstance(d.get('config'), dict) and isinstance(d['config'].get('filters'), dict):
+            if d['config']['filters'].pop('showBlocked', None) is not None:
+                changed += 1
+    with open(path, 'w') as f:
+        f.write('\n'.join(json.dumps(d, ensure_ascii=False) for d in docs) + '\n')
+    print(f"Stripped showBlocked from {changed}/{len(docs)} screening_sessions documents")
+PYEOF
+EXPORT_PATH=/tmp/prod-convex-export-fixed.zip
+rm -f "$EXPORT_PATH"
+zip -rq "$EXPORT_PATH" *
+cd /
+rm -rf "$FIX_DIR"
+ls -lh "$EXPORT_PATH"
+
+echo ""
 echo "=== Step 2: Copy export into preview workspace (Docker bind mount) ==="
 cp "$EXPORT_PATH" "$PREVIEW_DIR/prod-convex-export.zip"
 chown ubuntu:ubuntu "$PREVIEW_DIR/prod-convex-export.zip"

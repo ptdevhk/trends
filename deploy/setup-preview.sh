@@ -1,65 +1,80 @@
 #!/bin/bash
-# Sets up the preview environment at /home/ubuntu/trends-preview/
-# Run from the production host (ptcloud) as root.
-# Usage: bash deploy/setup-preview.sh
+# Sets up the preview environment at /home/ubuntu/trends-preview/ from origin/main.
+# Run on ptcloud as root.  Usage: bash deploy/setup-preview.sh
+#
+# IMPORTANT: This pulls from origin/main, NOT /opt/trends. Production might be
+# weeks behind main. Preview should always reflect the bleeding-edge code.
 set -e
 
-SRC=/opt/trends
+REPO_HEAD=/home/ubuntu/trends                # mirror of origin/main, fetched fresh each run
 DST=/home/ubuntu/trends-preview
+TS=$(date +%Y%m%d-%H%M%S)
 
 echo "=== Trends Preview Setup ==="
-echo "Source: $SRC"
+echo "Source: $REPO_HEAD (will be reset to origin/main)"
 echo "Destination: $DST"
 
-# Create destination directory
-mkdir -p "$DST"
+# 1. Update mirror to latest origin/main
+if [ ! -d "$REPO_HEAD/.git" ]; then
+    echo "[1/7] Cloning trends repo to $REPO_HEAD"
+    sudo -u ubuntu git clone https://github.com/ptdevhk/trends.git "$REPO_HEAD"
+else
+    echo "[1/7] Resetting $REPO_HEAD to origin/main"
+    sudo -u ubuntu git -C "$REPO_HEAD" fetch origin main
+    sudo -u ubuntu git -C "$REPO_HEAD" reset --hard origin/main
+fi
+sudo -u ubuntu git -C "$REPO_HEAD" log -1 --oneline
 
-# 1. Sync code from production (excludes heavy/runtime dirs)
-echo "[1/6] Syncing code from production..."
-rsync -a --delete \
-    --exclude '.git' \
-    --exclude 'node_modules' \
-    --exclude '.venv' \
-    --exclude '.cache' \
-    --exclude 'output/*.db' \
-    --exclude 'output/resume-backups' \
-    --exclude 'output/resume-samples' \
-    --exclude 'logs' \
-    --exclude '.npm' \
-    "$SRC/" "$DST/"
+# 2. Backup any existing preview env (do not lose secrets)
+if [ -f "$DST/.env.preview" ]; then
+    echo "[2/7] Backing up existing .env.preview to /tmp/preview-env-$TS.env"
+    cp "$DST/.env.preview" "/tmp/preview-env-$TS.env"
+fi
+if [ -d "$DST" ]; then
+    echo "[2/7] Moving existing $DST to $DST.bak.$TS"
+    mv "$DST" "$DST.bak.$TS"
+fi
 
-# Keep our config files (not overwritten by rsync since they don't exist in src)
-mkdir -p "$DST/output"
+# 3. Sync code (excluding heavy/runtime dirs)
+echo "[3/7] Syncing fresh code from $REPO_HEAD..."
+sudo -u ubuntu mkdir -p "$DST"
+sudo -u ubuntu rsync -a --delete \
+    --exclude '.git' --exclude 'node_modules' --exclude '.venv' \
+    --exclude '.cache' --exclude 'output/*.db' --exclude 'logs' \
+    "$REPO_HEAD/" "$DST/"
 
-# 2. Fix ownership
-echo "[2/6] Setting ownership..."
-chown -R ubuntu:ubuntu "$DST"
+# 4. Place compose + start script at the project root for convenience
+echo "[4/7] Copying compose + start script to project root..."
+sudo -u ubuntu cp "$DST/deploy/docker/docker-compose.preview.yml" "$DST/"
+sudo -u ubuntu cp "$DST/deploy/docker/start-convex.sh" "$DST/"
+sudo -u ubuntu chmod +x "$DST/start-convex.sh"
 
-# 3. Install npm dependencies
-echo "[3/6] Installing npm dependencies..."
-cd "$DST"
-sudo -u ubuntu npm install --no-audit --no-fund 2>&1 | tail -5
+# 5. Restore .env.preview (or create from template)
+if [ -f "/tmp/preview-env-$TS.env" ]; then
+    cp "/tmp/preview-env-$TS.env" "$DST/.env.preview"
+elif [ -f "$REPO_HEAD/deploy/env.preview" ]; then
+    echo "[5/7] No existing .env.preview — copying from template (EDIT IT)"
+    sudo -u ubuntu cp "$REPO_HEAD/deploy/env.preview" "$DST/.env.preview"
+fi
+sudo -u ubuntu chown ubuntu:ubuntu "$DST/.env.preview"
 
-# 4. Rebuild native modules for the host Node.js version
-echo "[4/6] Rebuilding native modules..."
-sudo -u ubuntu npm rebuild better-sqlite3 2>&1 | tail -3
+# 6. Install dependencies + rebuild native modules for the host Node
+echo "[6/7] Installing npm dependencies..."
+sudo -u ubuntu bash -c "cd '$DST' && npm install --no-audit --no-fund 2>&1 | tail -3"
+echo "[6/7] Rebuilding better-sqlite3 for host Node version..."
+sudo -u ubuntu bash -c "cd '$DST' && npm rebuild better-sqlite3 2>&1 | tail -3"
 
-# 5. Build API
-echo "[5/6] Building API..."
-sudo -u ubuntu npm --workspace @trends/api run build 2>&1 | tail -5
-
-# 6. Build Web
-echo "[6/6] Building Web frontend..."
-sudo -u ubuntu npm --workspace @trends/web run build 2>&1 | tail -5
+# 7. Build (web only — API runs via tsx, see deploy/systemd/trends-preview-api.service)
+echo "[7/7] Building shared + web..."
+sudo -u ubuntu bash -c "cd '$DST' && npm --workspace @trends/shared run build 2>&1 | tail -2"
+sudo -u ubuntu bash -c "cd '$DST' && npm --workspace @trends/web run build 2>&1 | tail -3"
 
 echo ""
 echo "=== Setup complete ==="
 echo "Next steps:"
-echo "  1. Copy .env.preview: cp deploy/env.preview $DST/.env.preview && vi $DST/.env.preview"
+echo "  1. Verify .env.preview has secrets: vi $DST/.env.preview"
 echo "  2. Start Docker services: cd $DST && docker compose -f docker-compose.preview.yml up -d"
-echo "  3. Install API systemd service:"
-echo "     cp deploy/systemd/trends-preview-api.service /etc/systemd/system/"
-echo "     systemctl daemon-reload && systemctl enable --now trends-preview-api"
-echo "  4. Reload Caddy (already configured): systemctl reload caddy"
+echo "  3. Restart preview API systemd: systemctl restart trends-preview-api"
+echo "  4. (Optional) Restore prod data: bash deploy/restore-preview-from-prod.sh"
 echo ""
-echo "  To update with prod DB: cp /opt/trends/output/resume_screening.db $DST/output/"
+echo "  Smoke check: curl https://preview.pt-mes.com/api/blocks → 200"

@@ -68,7 +68,9 @@ services:
 
   mcp:
     build:
-      context: ../..
+      # When the compose file is copied to the project root (typical preview deploy
+      # pattern), use `context: .`. Keep this comment to remind operators.
+      context: .
       dockerfile: deploy/docker/Dockerfile.mcp
     container_name: trends-preview-mcp
     restart: unless-stopped

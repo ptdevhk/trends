@@ -7,14 +7,19 @@ Wants=network-online.target
 Type=simple
 User=ubuntu
 Group=ubuntu
-WorkingDirectory=/home/ubuntu/trends-preview
+# Run from apps/api so tsx finds tsconfig.json and src/ directly
+WorkingDirectory=/home/ubuntu/trends-preview/apps/api
 EnvironmentFile=-/home/ubuntu/trends-preview/.env.preview
 Environment=NODE_ENV=production
 Environment=PORT=3002
 # API runs on host (not in Docker), so it must use the host-mapped Convex port.
 # Do NOT use http://convex:3210 — that hostname only resolves inside Docker network.
 Environment=CONVEX_URL=http://127.0.0.1:4210
-ExecStart=/usr/bin/node apps/api/dist/index.js
+# Use tsx instead of `node dist/index.js` to avoid TypeScript's missing-.js-extension issue
+# in v0.3.0+ ESM-mode builds (e.g. timezone.ts imports "./logger" without .js suffix).
+# When the build produces extension-correct output (or when the codebase moves to a bundler),
+# switch back to: ExecStart=/usr/bin/node /home/ubuntu/trends-preview/apps/api/dist/index.js
+ExecStart=/usr/bin/npx tsx src/index.ts
 Restart=on-failure
 RestartSec=5
 StandardOutput=journal
