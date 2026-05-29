@@ -108,6 +108,7 @@ function buildProps(overrides: Partial<ComponentProps<typeof MobileFilterSheet>>
     selectedSources: [],
     onToggleBrand: vi.fn(),
     onToggleSource: vi.fn(),
+    onSetIdOrNameSearch: vi.fn(),
     ...overrides,
   }
 }

@@ -26,6 +26,7 @@ const KNOWN_PARAM_KEYS = [
   'status',
   'sort',
   'order',
+  'idn',
 ] as const
 
 export type ExperienceLevelFilter = 'senior' | 'mid' | 'junior'
@@ -273,6 +274,12 @@ export function parseUrlSearchState(searchParams: URLSearchParams): UrlSearchSta
     filters.sortOrder = sortOrder
   }
 
+  const idOrNameSearchRaw = searchParams.get('idn')
+  const idOrNameSearch = idOrNameSearchRaw?.trim() || undefined
+  if (idOrNameSearch) {
+    filters.idOrNameSearch = idOrNameSearch
+  }
+
   return {
     shareSessionId,
     query,
@@ -395,6 +402,12 @@ export function useUrlSearchState() {
 
         if (state.filters.sortOrder) {
           setParam(nextParams, 'order', state.filters.sortOrder)
+        }
+
+        if (state.filters.idOrNameSearch && state.filters.idOrNameSearch.trim().length > 0) {
+          setParam(nextParams, 'idn', state.filters.idOrNameSearch.trim())
+        } else {
+          nextParams.delete('idn')
         }
 
         if (nextParams.toString() === prevParams.toString()) {

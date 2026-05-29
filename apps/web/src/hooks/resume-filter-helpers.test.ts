@@ -830,3 +830,37 @@ describe('getResumeIdentityKey', () => {
     expect(getResumeIdentityKey({} as ConvexResumeItem, 'fallback')).toBe('fallback')
   })
 })
+
+describe('idOrNameSearch filter logic', () => {
+  function matchesIdOrName(
+    resumeId: string,
+    name: string,
+    needle: string | undefined,
+  ): boolean {
+    if (!needle || needle.trim() === '') return true
+    const n = needle.trim().toLowerCase()
+    return (
+      resumeId.toLowerCase().includes(n) ||
+      (name ?? '').toLowerCase().includes(n)
+    )
+  }
+
+  it('returns true when needle is absent', () => {
+    expect(matchesIdOrName('id-abc', '张三', undefined)).toBe(true)
+  })
+
+  it('matches partial resumeId (case-insensitive)', () => {
+    expect(matchesIdOrName('ResID-abc123', '张三', 'abc')).toBe(true)
+    expect(matchesIdOrName('ResID-abc123', '张三', 'xyz')).toBe(false)
+  })
+
+  it('matches partial candidate name (case-insensitive)', () => {
+    expect(matchesIdOrName('id-1', 'John Smith', 'smith')).toBe(true)
+    expect(matchesIdOrName('id-1', '王小明', '小明')).toBe(true)
+    expect(matchesIdOrName('id-1', 'John Smith', 'jones')).toBe(false)
+  })
+
+  it('returns true when needle is blank string', () => {
+    expect(matchesIdOrName('id-1', 'John', '  ')).toBe(true)
+  })
+})

@@ -41,6 +41,8 @@ export type FacetSidebarProps = {
   onToggleSource: (value: string) => void
   onToggleStatus: (value: CandidateStatus) => void
   onToggleTag: (value: string) => void
+  idOrNameSearch?: string
+  onSetIdOrNameSearch: (value: string | undefined) => void
 }
 
 function PillGroup<T extends string | number>({
@@ -400,6 +402,8 @@ export function FacetSidebar({
   onToggleSource,
   onToggleStatus,
   onToggleTag,
+  idOrNameSearch,
+  onSetIdOrNameSearch,
 }: FacetSidebarProps) {
   const { t } = useTranslation()
   const content = (
@@ -412,6 +416,27 @@ export function FacetSidebar({
         <button type="button" className="text-sm text-muted-foreground hover:text-foreground" onClick={onClearAll}>
           {t('common.reset', { defaultValue: '重置' })}
         </button>
+      </div>
+
+      {/* Id / name search */}
+      <div className="relative">
+        <Input
+          type="text"
+          placeholder="ID · 候选人姓名"
+          value={idOrNameSearch ?? ''}
+          onChange={(e) => onSetIdOrNameSearch(e.target.value || undefined)}
+          className="pr-7 text-sm"
+        />
+        {idOrNameSearch && (
+          <button
+            type="button"
+            aria-label="clear"
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            onClick={() => onSetIdOrNameSearch(undefined)}
+          >
+            ×
+          </button>
+        )}
       </div>
 
       <FacetGroup
