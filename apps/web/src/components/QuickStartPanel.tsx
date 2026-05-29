@@ -1,4 +1,4 @@
-import { formatKeywordInput, isSalesRequiredContext, normalizeKeywordPhrases, parseKeywordQuery } from '@trends/shared'
+import { formatKeywordInput, isSalesRequiredContext, normalizeKeywordPhrases, parseKeywordQuery, SEARCH_PROFILE_TEMPLATES } from '@trends/shared'
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from 'react'
 import { MessageSquareMore, Pencil, RotateCcw } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
@@ -361,19 +361,17 @@ export function QuickStartPanel({
   const [showJdEditor, setShowJdEditor] = useState(false)
   const [assistantOpen, setAssistantOpen] = useState(false)
   const [workflowSeeds, setWorkflowSeeds] = useState<QuickStartWorkflow[]>([])
-  const convexProfiles = useQuery(api.search_profiles.list, { workspaceSlug: slug })
   const profileFiltersById = useMemo(() => {
-    if (!convexProfiles) return new Map<string, SearchProfileFilters>()
     const map = new Map<string, SearchProfileFilters>()
-    for (const doc of convexProfiles) {
-      const profileId = typeof doc?.profile?.id === 'string' ? doc.profile.id : undefined
-      const filters = (doc?.profile?.filters && typeof doc.profile.filters === 'object' && !Array.isArray(doc.profile.filters)) ? doc.profile.filters as SearchProfileFilters : undefined
-      if (profileId && filters) {
-        map.set(profileId, filters)
+    for (const template of SEARCH_PROFILE_TEMPLATES) {
+      const profileId = template.profile.id
+      const filters = template.profile.filters
+      if (profileId && filters && typeof filters === 'object' && !Array.isArray(filters)) {
+        map.set(profileId, filters as SearchProfileFilters)
       }
     }
     return map
-  }, [convexProfiles])
+  }, [])
   const normalizedJobDescriptionId = jobDescriptionId.trim()
   const normalizedDefaultLocation = defaultLocation.trim()
   const normalizedDefaultKeywordsSignature = normalizeKeywordPhrases(defaultKeywords).join('\u0000')
