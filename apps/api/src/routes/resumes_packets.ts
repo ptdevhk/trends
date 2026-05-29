@@ -21,6 +21,7 @@ import {
   SimpleErrorSchema,
 } from "../schemas/index.js";
 import { logger } from "../services/logger.js";
+import { requireAdmin } from "../middleware/workspace.js";
 import { config } from "../services/config.js";
 import { ResumeService } from "../services/resume-service.js";
 import { DataNotFoundError } from "../services/errors.js";
@@ -65,6 +66,11 @@ import {
 } from "./resumes-packets-helpers.js";
 
 const app = new OpenAPIHono();
+app.use("/api/resumes/export", requireAdmin);
+app.use("/api/resumes/export/*", requireAdmin);
+app.use("/api/resumes/review-packets", requireAdmin);
+app.use("/api/resumes/review-packets/*", requireAdmin);
+app.use("/api/resumes/learning-feedback", requireAdmin);
 const skillsKnowledgeService = new SkillsKnowledgeService(config.projectRoot);
 const companyPatterns = skillsKnowledgeService.getCompanyPatterns();
 const exportService = new ExportService(
