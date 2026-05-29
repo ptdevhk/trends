@@ -65,6 +65,14 @@ echo "[6/7] Rebuilding better-sqlite3 for host Node version..."
 sudo -u ubuntu bash -c "cd '$DST' && npm rebuild better-sqlite3 2>&1 | tail -3"
 
 # 7. Build (web only — API runs via tsx, see deploy/systemd/trends-preview-api.service)
+# Vite bakes import.meta.env.VITE_* values into the bundle at BUILD time, not runtime.
+# Without this file, the web bundle prints "Warning: VITE_CONVEX_URL not set in .env"
+# and Convex queries via useMutation/useQuery fail with "Could not find Convex client!".
+echo "[7/7] Setting apps/web/.env.local for preview build..."
+sudo -u ubuntu tee "$DST/apps/web/.env.local" >/dev/null <<EOF
+VITE_CONVEX_URL=https://preview.pt-mes.com/convex
+EOF
+
 echo "[7/7] Building shared + web..."
 sudo -u ubuntu bash -c "cd '$DST' && npm --workspace @trends/shared run build 2>&1 | tail -2"
 sudo -u ubuntu bash -c "cd '$DST' && npm --workspace @trends/web run build 2>&1 | tail -3"
