@@ -23,11 +23,14 @@ import {
     type SearchProfile,
 } from "../services/search-profile-service.js";
 import { logger } from "../services/logger.js";
+import { requireAdmin } from "../middleware/workspace.js";
 import { callConvexQuery, callConvexMutation } from "../services/convex-utils.js";
 import { resolveConvexUrl } from "../services/resume-import-service.js";
 import { readString, readNumber } from "../services/workspace-config-service.js";
 
 const app = new OpenAPIHono();
+app.use("/api/search-profiles", requireAdmin);
+app.use("/api/search-profiles/*", requireAdmin);
 
 // Schemas
 const ProfileSummarySchema = z.object({

@@ -1228,11 +1228,15 @@ const getExportFieldsRoute = createRoute({
   summary: "Get export fields configuration",
   responses: {
     200: { description: "Export fields config", content: { "application/json": { schema: ExportFieldsConfigResponseSchema } } },
+    403: { description: "Admin access required", content: { "application/json": { schema: ErrorResponseSchema } } },
     500: { description: "Server error", content: { "application/json": { schema: ErrorResponseSchema } } },
   },
 });
 
 app.openapi(getExportFieldsRoute, async (c) => {
+  if (denyIfNotAdmin(c.var.accessLevel)) {
+    return c.json({ success: false as const, error: "Admin access required" }, 403);
+  }
   try {
     const config = await workspaceConfigService.getExportFieldsConfig(c.var.workspaceSlug);
     return c.json({ success: true as const, config }, 200);

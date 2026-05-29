@@ -119,7 +119,7 @@ describe("resumes packets route", () => {
     const app = createApp();
 
     const response = await app.request("/api/resumes/review-packets", {
-      headers: { "X-Workspace-Slug": "hr" },
+      headers: { "X-Workspace-Slug": "dev" },
     });
 
     expect(response.status).toBe(200);
@@ -135,7 +135,7 @@ describe("resumes packets route", () => {
     const storage = new ReviewPacketStorage(root);
     storage.createRun({
       id: "run-1",
-      workspaceSlug: "hr",
+      workspaceSlug: "dev",
       source: "convex",
       format: "csv",
       totalCount: 2,
@@ -143,7 +143,7 @@ describe("resumes packets route", () => {
     });
     storage.createRun({
       id: "run-2",
-      workspaceSlug: "hr",
+      workspaceSlug: "dev",
       source: "convex",
       format: "xlsx",
       totalCount: 1,
@@ -152,7 +152,7 @@ describe("resumes packets route", () => {
 
     const app = createApp();
     const response = await app.request("/api/resumes/review-packets", {
-      headers: { "X-Workspace-Slug": "hr" },
+      headers: { "X-Workspace-Slug": "dev" },
     });
 
     expect(response.status).toBe(200);
@@ -169,13 +169,13 @@ describe("resumes packets route", () => {
     const { createApp, ReviewPacketStorage } = await loadModules(root);
 
     const storage = new ReviewPacketStorage(root);
-    storage.createRun({ id: "run-lim-1", workspaceSlug: "hr", source: "convex", format: "csv", totalCount: 1, items: [] });
-    storage.createRun({ id: "run-lim-2", workspaceSlug: "hr", source: "convex", format: "csv", totalCount: 1, items: [] });
-    storage.createRun({ id: "run-lim-3", workspaceSlug: "hr", source: "convex", format: "csv", totalCount: 1, items: [] });
+    storage.createRun({ id: "run-lim-1", workspaceSlug: "dev", source: "convex", format: "csv", totalCount: 1, items: [] });
+    storage.createRun({ id: "run-lim-2", workspaceSlug: "dev", source: "convex", format: "csv", totalCount: 1, items: [] });
+    storage.createRun({ id: "run-lim-3", workspaceSlug: "dev", source: "convex", format: "csv", totalCount: 1, items: [] });
 
     const app = createApp();
     const response = await app.request("/api/resumes/review-packets?limit=2", {
-      headers: { "X-Workspace-Slug": "hr" },
+      headers: { "X-Workspace-Slug": "dev" },
     });
 
     expect(response.status).toBe(200);
@@ -195,7 +195,7 @@ describe("resumes packets route", () => {
     const storage = new ReviewPacketStorage(root);
     storage.createRun({
       id: "my-run",
-      workspaceSlug: "hr",
+      workspaceSlug: "dev",
       source: "convex",
       format: "xlsx",
       totalCount: 3,
@@ -205,7 +205,7 @@ describe("resumes packets route", () => {
 
     const app = createApp();
     const response = await app.request("/api/resumes/review-packets/my-run", {
-      headers: { "X-Workspace-Slug": "hr" },
+      headers: { "X-Workspace-Slug": "dev" },
     });
 
     expect(response.status).toBe(200);
@@ -222,7 +222,7 @@ describe("resumes packets route", () => {
     const app = createApp();
 
     const response = await app.request("/api/resumes/review-packets/nonexistent", {
-      headers: { "X-Workspace-Slug": "hr" },
+      headers: { "X-Workspace-Slug": "dev" },
     });
 
     expect(response.status).toBe(404);
@@ -242,7 +242,7 @@ describe("resumes packets route", () => {
     const storage = new ReviewPacketStorage(root);
     storage.createRun({
       id: "csv-run",
-      workspaceSlug: "hr",
+      workspaceSlug: "dev",
       source: "convex",
       format: "csv",
       totalCount: 1,
@@ -255,7 +255,7 @@ describe("resumes packets route", () => {
     fs.writeFileSync(path.join(packetDir, "review-packet-csv-run.csv"), "Resume ID,Name\nr1,Alice\n", "utf8");
 
     const app = createApp();
-    const response = await app.request("/api/resumes/review-packets/csv-run/download?workspaceSlug=hr");
+    const response = await app.request("/api/resumes/review-packets/csv-run/download?workspaceSlug=dev");
 
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("text/csv; charset=utf-8");
@@ -275,7 +275,7 @@ describe("resumes packets route", () => {
     const storage = new ReviewPacketStorage(root);
     storage.createRun({
       id: "xlsx-run",
-      workspaceSlug: "hr",
+      workspaceSlug: "dev",
       source: "convex",
       format: "xlsx",
       totalCount: 1,
@@ -288,7 +288,7 @@ describe("resumes packets route", () => {
     fs.writeFileSync(path.join(packetDir, "review-packet-xlsx-run.xlsx"), "fake-xlsx-content");
 
     const app = createApp();
-    const response = await app.request("/api/resumes/review-packets/xlsx-run/download?workspaceSlug=hr");
+    const response = await app.request("/api/resumes/review-packets/xlsx-run/download?workspaceSlug=dev");
 
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe(
@@ -304,7 +304,7 @@ describe("resumes packets route", () => {
     const { createApp } = await loadModules(root);
     const app = createApp();
 
-    const response = await app.request("/api/resumes/review-packets/nonexistent/download?workspaceSlug=hr");
+    const response = await app.request("/api/resumes/review-packets/nonexistent/download?workspaceSlug=dev");
 
     expect(response.status).toBe(404);
     const payload = await response.json() as { success: boolean; error: string };
@@ -319,7 +319,7 @@ describe("resumes packets route", () => {
     const storage = new ReviewPacketStorage(root);
     storage.createRun({
       id: "missing-file",
-      workspaceSlug: "hr",
+      workspaceSlug: "dev",
       source: "convex",
       format: "csv",
       totalCount: 1,
@@ -327,7 +327,7 @@ describe("resumes packets route", () => {
     });
 
     const app = createApp();
-    const response = await app.request("/api/resumes/review-packets/missing-file/download?workspaceSlug=hr");
+    const response = await app.request("/api/resumes/review-packets/missing-file/download?workspaceSlug=dev");
 
     expect(response.status).toBe(404);
     const payload = await response.json() as { success: boolean; error: string };
@@ -346,7 +346,7 @@ describe("resumes packets route", () => {
     const storage = new ReviewPacketStorage(root);
     storage.createRun({
       id: "fb-no-file",
-      workspaceSlug: "hr",
+      workspaceSlug: "dev",
       source: "convex",
       format: "csv",
       totalCount: 1,
@@ -358,7 +358,7 @@ describe("resumes packets route", () => {
     const app = createApp();
     const response = await app.request("/api/resumes/review-packets/fb-no-file/feedback-import", {
       method: "POST",
-      headers: { "X-Workspace-Slug": "hr" },
+      headers: { "X-Workspace-Slug": "dev" },
       body: formData,
     });
 
@@ -375,7 +375,7 @@ describe("resumes packets route", () => {
     const app = createApp();
     const response = await app.request("/api/resumes/review-packets/nonexistent-fb/feedback-import", {
       method: "POST",
-      headers: { "X-Workspace-Slug": "hr" },
+      headers: { "X-Workspace-Slug": "dev" },
       body: formData,
     });
 
@@ -398,7 +398,7 @@ describe("resumes packets route", () => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-Workspace-Slug": "hr",
+        "X-Workspace-Slug": "dev",
       },
       body: JSON.stringify({}),
     });
@@ -422,7 +422,7 @@ describe("resumes packets route", () => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-Workspace-Slug": "hr",
+        "X-Workspace-Slug": "dev",
       },
       body: JSON.stringify({ observation: "Test observation" }),
     });
@@ -456,7 +456,7 @@ describe("resumes packets route", () => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-Workspace-Slug": "hr",
+        "X-Workspace-Slug": "dev",
       },
       body: JSON.stringify({ observation: "synonym_suggestion: fenc -> fanuc" }),
     });
@@ -516,7 +516,7 @@ describe("resumes packets route", () => {
     const app = createApp();
     const response = await app.request("/api/resumes/export/download", {
       method: "POST",
-      headers: { "X-Workspace-Slug": "hr" },
+      headers: { "X-Workspace-Slug": "dev" },
       body: formData,
     });
 

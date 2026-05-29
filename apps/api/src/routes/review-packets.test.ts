@@ -122,7 +122,7 @@ describe("review packet routes", () => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-Workspace-Slug": "hr",
+        "X-Workspace-Slug": "dev",
       },
       body: JSON.stringify({
         format: "csv",
@@ -147,10 +147,10 @@ describe("review packet routes", () => {
     expect(payload.run.jobDescriptionId).toBe("lathe-sales");
 
     const storage = new ReviewPacketStorage(root);
-    const stored = storage.getRun(payload.run.id, "hr");
+    const stored = storage.getRun(payload.run.id, "dev");
     expect(stored?.items.map((item) => item.resumeId)).toEqual(["resume-b", "resume-a"]);
 
-    const download = await app.request(`${payload.downloadPath}?workspaceSlug=hr`);
+    const download = await app.request(`${payload.downloadPath}?workspaceSlug=dev`);
     expect(download.status).toBe(200);
     const parsed = Papa.parse<Record<string, string>>(await download.text(), { header: true });
     expect(parsed.meta.fields).toContain("Resume ID");
@@ -168,7 +168,7 @@ describe("review packet routes", () => {
     const storage = new ReviewPacketStorage(root);
     storage.createRun({
       id: "packet-import",
-      workspaceSlug: "hr",
+      workspaceSlug: "dev",
       source: "convex",
       format: "xlsx",
       totalCount: 1,
@@ -210,7 +210,7 @@ describe("review packet routes", () => {
     const response = await app.request("/api/resumes/review-packets/packet-import/feedback-import", {
       method: "POST",
       headers: {
-        "X-Workspace-Slug": "hr",
+        "X-Workspace-Slug": "dev",
       },
       body: formData,
     });
@@ -230,7 +230,7 @@ describe("review packet routes", () => {
     expect(calls[0]).toMatchObject({
       pathName: "candidate_status:upsert",
       args: {
-        workspaceSlug: "hr",
+        workspaceSlug: "dev",
         identityKey: "profileUrl:my.employer.seek.com/candidates/503033454",
         status: "interviewed_pass",
         notes: "Strong manager fit",
@@ -256,7 +256,7 @@ describe("review packet routes", () => {
     const storage = new ReviewPacketStorage(root);
     storage.createRun({
       id: "packet-summary",
-      workspaceSlug: "hr",
+      workspaceSlug: "dev",
       source: "convex",
       format: "xlsx",
       totalCount: 2,
@@ -324,7 +324,7 @@ describe("review packet routes", () => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-Workspace-Slug": "hr",
+        "X-Workspace-Slug": "dev",
       },
       body: JSON.stringify({}),
     });
@@ -345,7 +345,7 @@ describe("review packet routes", () => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-Workspace-Slug": "hr",
+        "X-Workspace-Slug": "dev",
       },
       body: JSON.stringify({}),
     });
