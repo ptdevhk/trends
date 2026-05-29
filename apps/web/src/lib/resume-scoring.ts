@@ -542,7 +542,7 @@ export function overrideIndustryDbBreakdown(
   market?: string,
 ): ConvexResumeAnalysis {
   const effectiveIndustryDb = market === 'MY' ? Math.max(MY_INDUSTRY_DB_FLOOR, industryDb) : industryDb
-  const recommendationCeiling = RELATED_EXP_CEILING_BY_RECOMMENDATION[analysis.recommendation ?? ''] ?? 100
+  const recommendationCeiling = RELATED_EXP_CEILING_BY_RECOMMENDATION[analysis.recommendation ?? ''] ?? 30
   const rawRelatedExp = typeof analysis.breakdown?.related_exp === 'number' ? analysis.breakdown.related_exp : 0
   const cappedRelatedExp = Math.min(rawRelatedExp, recommendationCeiling)
   const normalizedRelatedExp = Math.round(clamp(cappedRelatedExp, 0, 100) * RELATED_EXP_AI_WEIGHT)

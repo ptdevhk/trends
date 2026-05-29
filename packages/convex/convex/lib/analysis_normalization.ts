@@ -341,7 +341,10 @@ export function normalizeAnalysisResult(
 
     const relatedExpRaw = clamp(llmRelatedExp ?? 0, 0, 100);
     const llmRecommendation = toLLMRecommendation(result.recommendation);
-    const relatedExpCeiling = RELATED_EXP_CEILING_BY_RECOMMENDATION[llmRecommendation ?? "match"];
+    if (llmRecommendation === undefined && result.recommendation !== undefined) {
+        console.warn("unknown LLM recommendation; defaulting to no_match ceiling", { recommendation: result.recommendation });
+    }
+    const relatedExpCeiling = RELATED_EXP_CEILING_BY_RECOMMENDATION[llmRecommendation ?? "no_match"];
     const cappedRelatedExp = clamp(relatedExpRaw, 0, relatedExpCeiling);
     const score = clamp(Math.round(cappedRelatedExp * RELATED_EXP_WEIGHT) + industryDb, 0, 100);
 
