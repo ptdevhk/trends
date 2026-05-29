@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { isRecord, normalizeProfileUrlForDisplay, normalizeSharedResumeFields, parseKeywordQuery, inferSeekMarket } from '@trends/shared'
-import { usePaginatedQuery, useQuery } from 'convex/react'
+import { useQuery } from 'convex/react'
+import { useStablePaginatedQuery } from '@/hooks/useStablePaginatedQuery'
 import { api } from '../../../../packages/convex/convex/_generated/api'
 import type { Doc } from '../../../../packages/convex/convex/_generated/dataModel'
 import { withRetry } from '@/lib/retry'
@@ -1067,7 +1068,7 @@ export function useConvexResumes(
     bffRefetchTrigger,
   )
 
-  const paginatedSearchResults = usePaginatedQuery(
+  const paginatedSearchResults = useStablePaginatedQuery(
     api.resumes_search.searchWithTagExpansionPaginated,
     mockPayload
       ? 'skip'
@@ -1093,7 +1094,7 @@ export function useConvexResumes(
     }
   )
 
-  const paginatedKeywordScanResults = usePaginatedQuery(
+  const paginatedKeywordScanResults = useStablePaginatedQuery(
     api.resumes_search.searchWithTagExpansionScanPage,
     mockPayload
       ? 'skip'
@@ -1114,7 +1115,7 @@ export function useConvexResumes(
     }
   )
 
-  const paginatedListResults = usePaginatedQuery(
+  const paginatedListResults = useStablePaginatedQuery(
     api.resumes.listWithIngestDataPaginated,
     mockPayload
       ? 'skip'
