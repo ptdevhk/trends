@@ -43,6 +43,7 @@ export type FacetSidebarProps = {
   onToggleTag: (value: string) => void
   idOrNameSearch?: string
   onSetIdOrNameSearch: (value: string | undefined) => void
+  isFilterTransitionPending?: boolean
 }
 
 function PillGroup<T extends string | number>({
@@ -87,7 +88,8 @@ const PRESET_ROLE_YEARS = [1, 2, 5] as const
 function MinRoleYearsGroup({
   minRoleYears,
   onSetMinRoleYears,
-}: Pick<FacetSidebarProps, 'minRoleYears' | 'onSetMinRoleYears'>) {
+  isFilterTransitionPending = false,
+}: Pick<FacetSidebarProps, 'minRoleYears' | 'onSetMinRoleYears' | 'isFilterTransitionPending'>) {
   const { t } = useTranslation()
   const isPreset = typeof minRoleYears === 'number' && (PRESET_ROLE_YEARS as readonly number[]).includes(minRoleYears)
   const [customOpen, setCustomOpen] = useState(typeof minRoleYears === 'number' && !isPreset)
@@ -128,6 +130,7 @@ function MinRoleYearsGroup({
             <button
               key={value}
               type="button"
+              disabled={isFilterTransitionPending}
               className={active
                 ? 'rounded-full border border-slate-900 bg-slate-900 px-3 py-1.5 text-sm text-white'
                 : 'rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700'}
@@ -404,6 +407,7 @@ export function FacetSidebar({
   onToggleTag,
   idOrNameSearch,
   onSetIdOrNameSearch,
+  isFilterTransitionPending,
 }: FacetSidebarProps) {
   const { t } = useTranslation()
   const content = (
@@ -468,7 +472,7 @@ export function FacetSidebar({
         selectedValue={selectedExperienceLevel}
         onSelect={onSetExperienceLevel}
       />
-      <MinRoleYearsGroup minRoleYears={minRoleYears} onSetMinRoleYears={onSetMinRoleYears} />
+      <MinRoleYearsGroup minRoleYears={minRoleYears} onSetMinRoleYears={onSetMinRoleYears} isFilterTransitionPending={isFilterTransitionPending} />
       <RangeFilterGroup
         presets={PRESET_AGE_RANGES}
         label={t('resumes.searchPage.facets.ageRange', { defaultValue: '年龄范围' })}

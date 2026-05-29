@@ -1,7 +1,7 @@
 import { formatKeywordQuery, getVerifiedRoleSignalYears, isSalesRequiredContext, parseKeywordQuery } from '@trends/shared'
 import { hasMatchingRoleSignal, matchesSalaryFilter } from '@/hooks/resume-filter-helpers'
 import { useMutation } from 'convex/react'
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { toast } from 'sonner'
 import { logSearchEvent } from '@/lib/search-analytics'
 import { api } from '../../../../packages/convex/convex/_generated/api'
@@ -663,6 +663,15 @@ export function useResumeSearchState() {
   const [exportingResults, setExportingResults] = useState(false)
   const [analyzingResults, setAnalyzingResults] = useState(false)
   const [autoAnalyzeSearchNonce, setAutoAnalyzeSearchNonce] = useState(0)
+  const [isFilterPending, startFilterTransition] = useTransition()
+  const [committedMinRoleYears, setCommittedMinRoleYears] = useState(parsedState.filters.minRoleYears)
+
+  // Sync committed filter values when transition completes
+  useEffect(() => {
+    if (!isFilterPending) {
+      setCommittedMinRoleYears(parsedState.filters.minRoleYears)
+    }
+  }, [isFilterPending, parsedState.filters.minRoleYears])
   const [pendingAutoAnalyzeContextSignature, setPendingAutoAnalyzeContextSignature] = useState('')
   const [resumeLimit, setResumeLimit] = useState(INITIAL_RESUME_LIMIT)
   const saveSearchHistory = useMutation(api.sessions.saveSearchHistory)
@@ -1313,58 +1322,67 @@ export function useResumeSearchState() {
 
   const setMinRoleYearsFilter = useCallback(
     (minRoleYears: number | undefined) => {
-      syncToUrl(
-        buildUrlState(parsedState, {
-          filters: {
-            ...parsedState.filters,
-            minRoleYears,
-          },
-        }),
-      )
+      setCommittedMinRoleYears(minRoleYears)
+      startFilterTransition(() => {
+        syncToUrl(
+          buildUrlState(parsedState, {
+            filters: {
+              ...parsedState.filters,
+              minRoleYears,
+            },
+          }),
+        )
+      })
     },
     [parsedState, syncToUrl],
   )
 
   const setAgeRangeFilter = useCallback(
     (minAge: number | undefined, maxAge: number | undefined) => {
-      syncToUrl(
-        buildUrlState(parsedState, {
-          filters: {
-            ...parsedState.filters,
-            minAge,
-            maxAge,
-          },
-        }),
-      )
+      startFilterTransition(() => {
+        syncToUrl(
+          buildUrlState(parsedState, {
+            filters: {
+              ...parsedState.filters,
+              minAge,
+              maxAge,
+            },
+          }),
+        )
+      })
     },
     [parsedState, syncToUrl],
   )
 
   const setSalaryRangeFilter = useCallback(
     (minSalary: number | undefined, maxSalary: number | undefined) => {
-      syncToUrl(
-        buildUrlState(parsedState, {
-          filters: {
-            ...parsedState.filters,
-            minSalary,
-            maxSalary,
-          },
-        }),
-      )
+      startFilterTransition(() => {
+        syncToUrl(
+          buildUrlState(parsedState, {
+            filters: {
+              ...parsedState.filters,
+              minSalary,
+              maxSalary,
+            },
+          }),
+        )
+      })
     },
     [parsedState, syncToUrl],
   )
 
   const setEducationFilters = useCallback(
     (education: string[]) => {
-      syncToUrl(
-        buildUrlState(parsedState, {
-          filters: {
-            ...parsedState.filters,
-            education,
-          },
-        }),
-      )
+      startFilterTransition(() => {
+        syncToUrl(
+          buildUrlState(parsedState, {
+            filters: {
+              ...parsedState.filters,
+              education,
+            },
+          }),
+        )
+      })
     },
     [parsedState, syncToUrl],
   )
@@ -1392,14 +1410,16 @@ export function useResumeSearchState() {
 
   const setStatusFilters = useCallback(
     (status: CandidateStatus[]) => {
-      syncToUrl(
-        buildUrlState(parsedState, {
-          filters: {
-            ...parsedState.filters,
-            status,
-          },
-        }),
-      )
+      startFilterTransition(() => {
+        syncToUrl(
+          buildUrlState(parsedState, {
+            filters: {
+              ...parsedState.filters,
+              status,
+            },
+          }),
+        )
+      })
     },
     [parsedState, syncToUrl],
   )
@@ -1418,28 +1438,32 @@ export function useResumeSearchState() {
 
   const setMinScoreFilter = useCallback(
     (minMatchScore: number | undefined) => {
-      syncToUrl(
-        buildUrlState(parsedState, {
-          filters: {
-            ...parsedState.filters,
-            minMatchScore,
-          },
-        }),
-      )
+      startFilterTransition(() => {
+        syncToUrl(
+          buildUrlState(parsedState, {
+            filters: {
+              ...parsedState.filters,
+              minMatchScore,
+            },
+          }),
+        )
+      })
     },
     [parsedState, syncToUrl],
   )
 
   const setIdOrNameSearchFilter = useCallback(
     (idOrNameSearch: string | undefined) => {
-      syncToUrl(
-        buildUrlState(parsedState, {
-          filters: {
-            ...parsedState.filters,
-            idOrNameSearch: idOrNameSearch?.trim() || undefined,
-          },
-        }),
-      )
+      startFilterTransition(() => {
+        syncToUrl(
+          buildUrlState(parsedState, {
+            filters: {
+              ...parsedState.filters,
+              idOrNameSearch: idOrNameSearch?.trim() || undefined,
+            },
+          }),
+        )
+      })
     },
     [parsedState, syncToUrl],
   )
@@ -1803,6 +1827,8 @@ export function useResumeSearchState() {
     selectedClusterTags,
     selectedRawTags,
     searchHistoryLoading: recentSearchHistoryRecords === undefined,
+    isFilterPending,
+    committedMinRoleYears,
     setMinRoleYearsFilter,
     setAgeRangeFilter,
     setSalaryRangeFilter,
