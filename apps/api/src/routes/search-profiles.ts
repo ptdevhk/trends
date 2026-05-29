@@ -535,6 +535,45 @@ async function ensureWorkspaceSeedProfiles(workspaceSlug: string): Promise<void>
             continue;
         }
 
+        // Legacy adoption: profile exists by profileId but was seeded before the
+        // stamping mechanism was added — no seedSource or templateHash. Treat it
+        // the same as a drifted seeded profile when the operator opts in via
+        // SEARCH_PROFILES_RESEED_ON_DRIFT. Without the flag, log and skip.
+        const isLegacyUnstamped = !existing.seededFromConfig
+            && !existing.templateHash
+            && existing.logicalId === logicalId;
+
+        if (isLegacyUnstamped) {
+            if (!reseedOnDrift) {
+                logger.warn(
+                    `legacy unstamped profile "${logicalId}" (workspace=${workspaceSlug}) detected; ` +
+                    `set SEARCH_PROFILES_RESEED_ON_DRIFT=true to adopt and stamp from YAML automatically.`,
+                    { route: "search-profiles" },
+                );
+                continue;
+            }
+
+            const refreshedProfile = searchProfileService.normalizeProfileInput(
+                { ...profile, id: existing.profile.id },
+                existing.profile,
+            );
+            refreshedProfile.id = existing.profile.id;
+            await updateCustomProfile(
+                existing.storageId,
+                toStoredProfilePayload(refreshedProfile, {
+                    seededFromConfig: true,
+                    templateHash: currentHash,
+                }),
+                workspaceSlug,
+            );
+            logger.warn(
+                `adopted legacy profile "${logicalId}" (workspace=${workspaceSlug}): ` +
+                `stamped seedSource + templateHash, refreshed filters from YAML.`,
+                { route: "search-profiles" },
+            );
+            continue;
+        }
+
         // Drift detection: seeded profile whose YAML template has changed since
         // it was inserted. Only refresh when the operator opts in via
         // SEARCH_PROFILES_RESEED_ON_DRIFT — refresh clobbers any user edits to
