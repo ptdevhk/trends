@@ -15,6 +15,7 @@ export type ResumeFilters = {
   minSalary?: number
   maxSalary?: number
   minMatchScore?: number
+  idOrNameSearch?: string
   recommendation?: Recommendation[]
   sortBy?: 'score' | 'name' | 'experience' | 'extractedAt'
   sortOrder?: 'asc' | 'desc'

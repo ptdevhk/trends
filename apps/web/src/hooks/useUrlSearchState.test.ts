@@ -553,3 +553,15 @@ describe('minExperience URL param round-trip', () => {
     expect(updatedParams.get('minExp')).toBe('1')
   })
 })
+
+describe('idOrNameSearch (idn) URL param', () => {
+  it('parses idn param into filters.idOrNameSearch', () => {
+    const state = parseUrlSearchState(new URLSearchParams('idn=abc123'))
+    expect(state.filters.idOrNameSearch).toBe('abc123')
+  })
+
+  it('returns undefined for idOrNameSearch when idn param absent', () => {
+    const state = parseUrlSearchState(new URLSearchParams('q=sales'))
+    expect(state.filters.idOrNameSearch).toBeUndefined()
+  })
+})
