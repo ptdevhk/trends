@@ -25,7 +25,6 @@ import {
 import { api } from '../../../../packages/convex/convex/_generated/api'
 
 export type SearchProfileFilters = {
-    minExperience?: number
     maxExperience?: number | null
     minRoleYears?: number
     roleFilterType?: string
@@ -89,7 +88,8 @@ type ProfileFormState = {
     location: string
     keywordsText: string
     jobDescription: string
-    minExperience: string
+    minRoleYears: string
+    roleFilterType: string
     maxExperience: string
     minAge: string
     maxAge: string
@@ -125,7 +125,8 @@ const DEFAULT_FORM: ProfileFormState = {
     location: '东莞',
     keywordsText: '',
     jobDescription: '',
-    minExperience: '1',
+    minRoleYears: '1',
+    roleFilterType: '',
     maxExperience: '',
     minAge: '',
     maxAge: '',
@@ -353,7 +354,8 @@ function toFormState(profile: SearchProfileDetails): ProfileFormState {
         location: profile.location,
         keywordsText: formatKeywordInput(profile.keywords),
         jobDescription: profile.jobDescription || '',
-        minExperience: typeof profile.filters?.minExperience === 'number' ? String(profile.filters.minExperience) : '1',
+        minRoleYears: typeof profile.filters?.minRoleYears === 'number' ? String(profile.filters.minRoleYears) : '1',
+        roleFilterType: profile.filters?.roleFilterType || '',
         maxExperience: typeof profile.filters?.maxExperience === 'number' ? String(profile.filters.maxExperience) : '',
         minAge: typeof profile.filters?.minAge === 'number' ? String(profile.filters.minAge) : '',
         maxAge: typeof profile.filters?.maxAge === 'number' ? String(profile.filters.maxAge) : '',
@@ -509,7 +511,7 @@ export function SearchProfileEditorDialog({
                 ...previous,
                 location: location ?? previous.location,
                 keywordsText,
-                minExperience: typeof minExperience === 'number' ? String(minExperience) : DEFAULT_FORM.minExperience,
+                minRoleYears: typeof minExperience === 'number' ? String(minExperience) : DEFAULT_FORM.minRoleYears,
                 maxExperience: toNumericText(selectedConvexJobDescriptionDetail?.maxExperience),
                 minAge: toNumericText(selectedConvexJobDescriptionDetail?.minAge),
                 maxAge: toNumericText(selectedConvexJobDescriptionDetail?.maxAge),
@@ -537,7 +539,7 @@ export function SearchProfileEditorDialog({
                 const suggestedFilters = item.suggestedFilters
                 const keywordsText = toKeywordsText(item.autoMatch?.keywords, item.title)
                 const location = toLocationText(undefined, item.location)
-                const minExperience = typeof item.requiredRoles?.[0]?.min_years === 'number'
+                const minRoleYears = typeof item.requiredRoles?.[0]?.min_years === 'number'
                     ? item.requiredRoles[0].min_years
                     : suggestedFilters?.minExperience
 
@@ -545,7 +547,7 @@ export function SearchProfileEditorDialog({
                     ...previous,
                     location: location ?? previous.location,
                     keywordsText,
-                    minExperience: typeof minExperience === 'number' ? String(minExperience) : DEFAULT_FORM.minExperience,
+                    minRoleYears: typeof minRoleYears === 'number' ? String(minRoleYears) : DEFAULT_FORM.minRoleYears,
                     maxExperience: toNumericText(suggestedFilters?.maxExperience),
                     minAge: toNumericText(suggestedFilters?.minAge),
                     maxAge: toNumericText(suggestedFilters?.maxAge),
@@ -599,7 +601,8 @@ export function SearchProfileEditorDialog({
             return
         }
 
-        const parsedMinExp = parseOptionalNumber(form.minExperience)
+        const parsedMinRoleYears = parseOptionalNumber(form.minRoleYears)
+        const parsedRoleFilterType = form.roleFilterType.trim() || undefined
         const parsedMaxExp = parseOptionalNumber(form.maxExperience)
         const parsedMinAge = parseOptionalNumber(form.minAge)
         const parsedMaxAge = parseOptionalNumber(form.maxAge)
@@ -607,7 +610,7 @@ export function SearchProfileEditorDialog({
         const parsedMaxSalary = parseOptionalNumber(form.maxSalary)
 
         const hasSalaryRange = parsedMinSalary !== undefined || parsedMaxSalary !== undefined
-        const hasFilters = parsedMinExp !== undefined || parsedMaxExp !== undefined || parsedMinAge !== undefined || parsedMaxAge !== undefined || hasSalaryRange
+        const hasFilters = parsedMinRoleYears !== undefined || parsedRoleFilterType !== undefined || parsedMaxExp !== undefined || parsedMinAge !== undefined || parsedMaxAge !== undefined || hasSalaryRange
         const sources = buildSourcesPayload({
             ...sourceForm,
             seekJobUrl: normalizedSeekJobUrl ?? sourceForm.seekJobUrl,
@@ -620,7 +623,8 @@ export function SearchProfileEditorDialog({
             status: form.enabled ? 'active' : 'paused',
             jobDescription: isSeededProfileWithoutJd ? null : (form.jobDescription.trim() || null),
             filters: hasFilters ? {
-                minExperience: parsedMinExp,
+                minRoleYears: parsedMinRoleYears,
+                roleFilterType: parsedRoleFilterType,
                 maxExperience: parsedMaxExp,
                 minAge: parsedMinAge,
                 maxAge: parsedMaxAge,
@@ -720,19 +724,29 @@ export function SearchProfileEditorDialog({
                     )}
 
                     <div className="grid gap-2">
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-3 gap-3">
                             <div className="grid gap-2">
-                                <Label htmlFor="profile-minExperience">{t('jdEditor.minRelatedExp', { defaultValue: '最低相关经验(年)' })}</Label>
+                                <Label htmlFor="profile-minRoleYears">{t('searchProfiles.minRoleYears', { defaultValue: 'Relevant Experience (yrs)' })}</Label>
                                 <Input
-                                    id="profile-minExperience"
+                                    id="profile-minRoleYears"
                                     type="number"
                                     min={0}
-                                    value={form.minExperience}
-                                    onChange={(event) => setForm((previous) => ({ ...previous, minExperience: event.target.value }))}
+                                    value={form.minRoleYears}
+                                    onChange={(event) => setForm((previous) => ({ ...previous, minRoleYears: event.target.value }))}
                                 />
                             </div>
                             <div className="grid gap-2">
-                                <Label htmlFor="profile-maxExperience">{t('jdEditor.maxRelatedExp', { defaultValue: '最高相关经验(年)' })}</Label>
+                                <Label htmlFor="profile-roleFilterType">{t('searchProfiles.roleFilterType', { defaultValue: 'Role Type' })}</Label>
+                                <Input
+                                    id="profile-roleFilterType"
+                                    type="text"
+                                    placeholder="e.g. sales"
+                                    value={form.roleFilterType}
+                                    onChange={(event) => setForm((previous) => ({ ...previous, roleFilterType: event.target.value }))}
+                                />
+                            </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="profile-maxExperience">{t('jdEditor.maxRelatedExp', { defaultValue: 'Max Exp (yrs)' })}</Label>
                                 <Input
                                     id="profile-maxExperience"
                                     type="number"
@@ -742,7 +756,7 @@ export function SearchProfileEditorDialog({
                                 />
                             </div>
                         </div>
-                        <span className="text-xs text-muted-foreground">{t('jdEditor.defaultExp', { defaultValue: 'Default: min 1 year' })}</span>
+                        <span className="text-xs text-muted-foreground">{t('searchProfiles.experienceHint', { defaultValue: 'Role-specific years; leave blank for no limit' })}</span>
                     </div>
 
                     <div className="grid gap-2">

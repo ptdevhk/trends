@@ -233,8 +233,8 @@ describe('SearchProfileEditorDialog JD hydration', () => {
     await waitFor(() => {
       expect(screen.getByLabelText('地区:')).toHaveValue('广东,江苏')
       expect(screen.getByLabelText('关键词:')).toHaveValue('车床 销售')
-      expect(screen.getByLabelText('最低相关经验(年)')).toHaveValue(2)
-      expect(screen.getByLabelText('最高相关经验(年)')).toHaveValue(5)
+      expect(screen.getByLabelText('Relevant Experience (yrs)')).toHaveValue(2)
+      expect(screen.getByLabelText('Max Exp (yrs)')).toHaveValue(5)
       expect(screen.getByLabelText('最低年龄')).toHaveValue(25)
       expect(screen.getByLabelText('最高年龄')).toHaveValue(38)
     })
@@ -257,8 +257,8 @@ describe('SearchProfileEditorDialog JD hydration', () => {
       expect(getMock).toHaveBeenCalledWith('/api/job-descriptions/lathe-sales')
       expect(screen.getByLabelText('地区:')).toHaveValue('东莞')
       expect(screen.getByLabelText('关键词:')).toHaveValue('车床 销售')
-      expect(screen.getByLabelText('最低相关经验(年)')).toHaveValue(4)
-      expect(screen.getByLabelText('最高相关经验(年)')).toHaveValue(6)
+      expect(screen.getByLabelText('Relevant Experience (yrs)')).toHaveValue(4)
+      expect(screen.getByLabelText('Max Exp (yrs)')).toHaveValue(6)
       expect(screen.getByLabelText('最低年龄')).toHaveValue(24)
       expect(screen.getByLabelText('最高年龄')).toHaveValue(40)
     })
@@ -473,7 +473,8 @@ describe('SearchProfileEditorDialog JD hydration', () => {
           keywords: ['CNC', '销售'],
           jobDescription: 'lathe-sales',
           filters: {
-            minExperience: 2,
+            minRoleYears: 1,
+            roleFilterType: 'sales',
           },
           schedule: {
             enabled: true,
@@ -513,7 +514,7 @@ describe('SearchProfileEditorDialog JD hydration', () => {
           keywords: ['销售', 'CNC'],
           jobDescription: 'custom-jd-id',
           filters: {
-            minExperience: 1,
+            minRoleYears: 1,
             maxAge: 40,
           },
           schedule: {
@@ -526,7 +527,7 @@ describe('SearchProfileEditorDialog JD hydration', () => {
     )
 
     fireEvent.change(screen.getByTestId('job-description-select'), { target: { value: '' } })
-    await user.clear(screen.getByLabelText('最低相关经验(年)'))
+    await user.clear(screen.getByLabelText('Relevant Experience (yrs)'))
     await user.clear(screen.getByLabelText('最高年龄'))
     await user.click(screen.getByRole('button', { name: 'Save' }))
 
