@@ -144,11 +144,11 @@ describe('useSession', () => {
 
     act(() => {
       result.current.applyExternalState({
-        filters: { minExperience: 3, education: ['bachelor'] },
+        filters: { education: ['bachelor'] },
       })
     })
 
-    expect(result.current.filters).toEqual({ minExperience: 3, education: ['bachelor'] })
+    expect(result.current.filters).toEqual({ education: ['bachelor'] })
   })
 
   it('applyExternalState clears jobDescriptionId when empty string', () => {

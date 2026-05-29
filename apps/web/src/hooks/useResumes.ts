@@ -77,7 +77,6 @@ export function useResumes(options: UseResumesOptions = {}): UseResumesReturn {
       limit,
       sessionId,
       jobDescriptionId,
-      minExperience: filters.minExperience,
       maxExperience: filters.maxExperience,
       minSalary: filters.minSalary,
       maxSalary: filters.maxSalary,

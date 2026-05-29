@@ -306,7 +306,6 @@ export function useResumeListState(loadSearchHistory = false) {
   )
   const convexSourceFilters = useMemo<ConvexResumeFilters | undefined>(() => {
     const normalized: ConvexResumeFilters = {
-      ...(typeof filters.minExperience === 'number' && filters.minExperience > 0 ? { minExperience: filters.minExperience } : {}),
       ...(typeof filters.maxExperience === 'number' ? { maxExperience: filters.maxExperience } : {}),
       ...(typeof filters.minRoleYears === 'number' && filters.minRoleYears > 0 ? { minRoleYears: filters.minRoleYears } : {}),
       ...(filters.roleFilterType ? { roleFilterType: filters.roleFilterType } : {}),
@@ -320,7 +319,7 @@ export function useResumeListState(loadSearchHistory = false) {
       ...(typeof filters.maxSalary === 'number' ? { maxSalary: filters.maxSalary } : {}),
     }
     return Object.keys(normalized).length > 0 ? normalized : undefined
-  }, [filters.education, filters.locations, filters.maxAge, filters.maxExperience, filters.maxSalary, filters.minAge, filters.minExperience, filters.minRoleYears, filters.minSalary, filters.roleFilterType, filters.skills, requiredKeywords])
+  }, [filters.education, filters.locations, filters.maxAge, filters.maxExperience, filters.maxSalary, filters.minAge, filters.minRoleYears, filters.minSalary, filters.roleFilterType, filters.skills, requiredKeywords])
   const convexQueryScopeKey = useMemo(
     () => JSON.stringify({
       jobDescriptionId: jobDescriptionId?.trim() ?? '',
@@ -885,19 +884,6 @@ export function useResumeListState(loadSearchHistory = false) {
       result = result.filter((resume: ScoredConvexResume) =>
         locations.some((location) => isLocationMatch(getResumeLocationText(resume), location))
       )
-    }
-
-    const minExperience = filters.minExperience
-    if (typeof minExperience === 'number' && minExperience > 0) {
-      result = result.filter((resume: ScoredConvexResume) => {
-        const expYears = parseExperienceYears(resume.experience)
-        // Unknown experience (0 from empty/unparseable) — skip filter instead
-        // of excluding. Seek resumes have empty experience fields; excluding
-        // them when minExperience is set drops all results. Matches BFF and
-        // Convex graceful degradation.
-        if (expYears === 0 && !resume.experience) return true
-        return expYears >= minExperience
-      })
     }
 
     const maxExperience = filters.maxExperience

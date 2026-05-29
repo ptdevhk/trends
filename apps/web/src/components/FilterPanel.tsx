@@ -49,7 +49,6 @@ export function FilterPanel({
   const { t } = useTranslation()
   const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed)
 
-  const [minExperience, setMinExperience] = useState('')
   const [maxExperience, setMaxExperience] = useState('')
   const [minAge, setMinAge] = useState('')
   const [maxAge, setMaxAge] = useState('')
@@ -63,7 +62,6 @@ export function FilterPanel({
   const [clearing, setClearing] = useState(false)
 
   useEffect(() => {
-    setMinExperience(filters.minExperience?.toString() ?? '')
     setMaxExperience(filters.maxExperience?.toString() ?? '')
     setMinAge(filters.minAge?.toString() ?? '')
     setMaxAge(filters.maxAge?.toString() ?? '')
@@ -79,10 +77,8 @@ export function FilterPanel({
   const activeFilterBadges = useMemo(() => {
     const items: string[] = []
 
-    if (filters.minExperience || filters.maxExperience) {
-      if (filters.minExperience && filters.maxExperience) items.push(`${filters.minExperience}-${filters.maxExperience}年`)
-      else if (filters.minExperience) items.push(`≥${filters.minExperience}年`)
-      else items.push(`≤${filters.maxExperience}年`)
+    if (filters.maxExperience) {
+      items.push(`≤${filters.maxExperience}年`)
     }
 
     if (filters.minAge || filters.maxAge) {
@@ -135,7 +131,6 @@ export function FilterPanel({
     if (clearing) return
     onFiltersChange({
       ...filters,
-      minExperience: minExperience ? Number(minExperience) : undefined,
       maxExperience: maxExperience ? Number(maxExperience) : undefined,
       minAge: minAge ? Number(minAge) : undefined,
       maxAge: maxAge ? Number(maxAge) : undefined,
@@ -161,7 +156,6 @@ export function FilterPanel({
 
   const handleClear = () => {
     setClearing(true)
-    setMinExperience('')
     setMaxExperience('')
     setMinAge('')
     setMaxAge('')
@@ -226,25 +220,14 @@ export function FilterPanel({
 
             {/* Row 1: Numeric Filters */}
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">{t('resumes.filters.minExperience')}</label>
-                  <Input
-                    type="number"
-                    value={minExperience}
-                    onChange={(event) => setMinExperience(event.target.value)}
-                    className="bg-background"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">{t('resumes.filters.maxExperience')}</label>
-                  <Input
-                    type="number"
-                    value={maxExperience}
-                    onChange={(event) => setMaxExperience(event.target.value)}
-                    className="bg-background"
-                  />
-                </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">{t('resumes.filters.maxExperience')}</label>
+                <Input
+                  type="number"
+                  value={maxExperience}
+                  onChange={(event) => setMaxExperience(event.target.value)}
+                  className="bg-background"
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-3">

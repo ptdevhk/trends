@@ -460,10 +460,6 @@ export function parseFilterPreset(value: unknown): FilterPreset | null {
   }
 
   const filters: FilterPreset["filters"] = {};
-  const minExperience = readNumber(value.filters.minExperience);
-  if (minExperience !== null) {
-    filters.minExperience = minExperience;
-  }
   const maxExperienceRaw = value.filters.maxExperience;
   if (maxExperienceRaw === null) {
     filters.maxExperience = null;

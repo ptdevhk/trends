@@ -431,7 +431,6 @@ describe('useResumeListState role filter regression', () => {
 
   it('pushes safe base filters into the Convex hook for AI mode', () => {
     mockState.filters = {
-      minExperience: 3,
       maxExperience: 8,
       education: ['bachelor'],
       skills: ['fanuc'],
@@ -446,7 +445,6 @@ describe('useResumeListState role filter regression', () => {
       limit: 200,
       options: {
         filters: {
-          minExperience: 3,
           maxExperience: 8,
           education: ['bachelor'],
           skills: ['fanuc'],
@@ -490,9 +488,8 @@ describe('useResumeListState role filter regression', () => {
     expect(getDisplayedResumeNames()).toEqual(['High Salary Match'])
   })
 
-  it('handleQuickConstraintApply sets minRoleYears without touching minExperience', () => {
-    // Set an initial state that has minExperience so we can verify it isn't cleared
-    mockState.filters = { minExperience: 5, maxExperience: 10 }
+  it('handleQuickConstraintApply sets minRoleYears without touching other filters', () => {
+    mockState.filters = { maxExperience: 10 }
 
     const { result } = renderHook(() => useResumeListState())
 
@@ -502,11 +499,10 @@ describe('useResumeListState role filter regression', () => {
 
     // Verify the setFilters callback produces the right state
     const setFiltersCall = mockState.setFilters.mock.calls[0]!
-    const currentState = { minExperience: 5, maxExperience: 10 }
+    const currentState = { maxExperience: 10 }
     const nextState = setFiltersCall[0](currentState)
 
     expect(nextState).toEqual({
-      minExperience: 5, // must NOT be cleared by handleQuickConstraintApply
       maxExperience: 10,
       minRoleYears: 3,
       roleFilterType: 'sales',
@@ -1845,9 +1841,7 @@ describe('useResumeListState role filter regression', () => {
       result.current.handleQuickStartApply({
         location: '江苏',
         keywords: ['CNC', '销售'],
-        filters: {
-          minExperience: 1,
-        },
+        filters: {},
       }, true)
     })
 

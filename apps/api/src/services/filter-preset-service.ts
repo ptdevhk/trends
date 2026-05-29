@@ -15,7 +15,6 @@ export interface FilterPreset {
     name: string;
     category: string;
     filters: {
-        minExperience?: number;
         maxExperience?: number | null;
         education?: string[];
         salaryRange?: { min?: number; max?: number };

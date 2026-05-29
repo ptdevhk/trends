@@ -14,7 +14,6 @@ const PresetSchema = z.object({
     name: z.string(),
     category: z.string(),
     filters: z.object({
-        minExperience: z.number().optional(),
         maxExperience: z.number().nullable().optional(),
         education: z.array(z.string()).optional(),
         salaryRange: z.object({

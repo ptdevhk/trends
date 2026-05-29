@@ -89,7 +89,6 @@ describe('useSession', () => {
             exactUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1',
           },
           filters: {
-            minExperience: 1,
             minAge: 25,
             maxAge: 35,
           },
@@ -262,7 +261,7 @@ describe('useSession', () => {
 
     act(() => {
       result.current.setJobDescriptionId('lathe-sales')
-      result.current.setFilters({ minExperience: 3 })
+      result.current.setFilters({ education: ['bachelor'] })
     })
 
     let ensuredSessionId: string | undefined
@@ -275,7 +274,7 @@ describe('useSession', () => {
     expect(rawApiPostMock).toHaveBeenCalledWith('/api/sessions', {
       body: {
         jobDescriptionId: 'lathe-sales',
-        filters: { minExperience: 3 },
+        filters: { education: ['bachelor'] },
         shareTitle: undefined,
         searchState: undefined,
       },
@@ -357,7 +356,7 @@ describe('useSession', () => {
     })
 
     act(() => {
-      result.current.setFilters({ minExperience: 5 })
+      result.current.setFilters({ education: ['master'] })
     })
 
     let ensuredSessionId: string | undefined
@@ -369,7 +368,7 @@ describe('useSession', () => {
     expect(rawApiPatchMock).toHaveBeenCalledWith('/api/sessions/api-session-existing', {
       body: {
         jobDescriptionId: undefined,
-        filters: { minExperience: 5 },
+        filters: { education: ['master'] },
         shareTitle: undefined,
         searchState: undefined,
       },
@@ -386,7 +385,7 @@ describe('useSession', () => {
 
     act(() => {
       result.current.rememberApiSessionId('shared-session-id')
-      result.current.setFilters({ minExperience: 6 })
+      result.current.setFilters({ education: ['phd'] })
     })
 
     expect(result.current.apiSessionId).toBe('shared-session-id')
@@ -398,7 +397,7 @@ describe('useSession', () => {
     expect(rawApiPatchMock).toHaveBeenCalledWith('/api/sessions/shared-session-id', {
       body: {
         jobDescriptionId: undefined,
-        filters: { minExperience: 6 },
+        filters: { education: ['phd'] },
         shareTitle: undefined,
         searchState: undefined,
       },

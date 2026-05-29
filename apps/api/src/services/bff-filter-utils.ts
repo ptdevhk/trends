@@ -39,7 +39,6 @@ export function parseAgeFromContentField(content: Record<string, unknown>): numb
 // ---------------------------------------------------------------------------
 
 export type BffResumeFilters = {
-  minExperience?: number;
   maxExperience?: number;
   education?: string[];
   skills?: string[];
@@ -70,16 +69,14 @@ export function bffMatchesResumeFilters(
   const content = isRecord(doc.content) ? doc.content : {};
   const ingestData = isRecord(doc.ingestData) ? doc.ingestData : {};
 
-  if (typeof filters.minExperience === "number" || typeof filters.maxExperience === "number") {
+  if (typeof filters.maxExperience === "number") {
     const expStr = toStringValue(content.experience) ?? "";
     const expYears = resolveExperienceYears(expStr, content.workHistory);
     if (expYears === null) {
-      // Unknown experience — exclude if maxExperience is set (cannot guarantee cap),
-      // but skip minExperience (resume might meet the minimum).
-      if (typeof filters.maxExperience === "number") return false;
+      // Unknown experience — exclude if maxExperience is set (cannot guarantee cap)
+      return false;
     } else {
-      if (typeof filters.minExperience === "number" && expYears < filters.minExperience) return false;
-      if (typeof filters.maxExperience === "number" && expYears > filters.maxExperience) return false;
+      if (expYears > filters.maxExperience) return false;
     }
   }
 

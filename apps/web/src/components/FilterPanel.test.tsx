@@ -17,7 +17,6 @@ describe('FilterPanel', () => {
     render(
       <FilterPanel
         filters={{
-          minExperience: 1,
           minAge: 25,
           maxAge: 35,
           locations: ['广东', '江苏'],
@@ -34,7 +33,6 @@ describe('FilterPanel', () => {
 
     expect(toggle).toHaveAttribute('aria-expanded', 'false')
     expect(toggle.className).toContain('min-h-10')
-    expect(screen.getByText('≥1年')).toBeInTheDocument()
     expect(screen.getByText('25-35岁')).toBeInTheDocument()
     expect(screen.getByText('广东, 江苏')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '分享' })).toBeInTheDocument()
@@ -49,7 +47,6 @@ describe('FilterPanel', () => {
     expect(screen.getByRole('button', { name: '分享' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'resumes.filters.clear' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'resumes.filters.apply' })).toBeInTheDocument()
-    expect(screen.getByText('≥1年')).toBeInTheDocument()
     expect(screen.getByText('25-35岁')).toBeInTheDocument()
     expect(screen.getByText('广东, 江苏')).toBeInTheDocument()
   })

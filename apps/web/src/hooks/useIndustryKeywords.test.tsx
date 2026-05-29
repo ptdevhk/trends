@@ -97,7 +97,6 @@ describe('useIndustryKeywords', () => {
                 filters: {
                   minAge: 25,
                   maxAge: 40,
-                  minExperience: 2,
                 },
               },
             ],

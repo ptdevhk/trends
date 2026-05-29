@@ -123,12 +123,12 @@ describe("bff-filter-utils", () => {
     describe("experience filter", () => {
       const docNoExp = { ...baseDoc, content: { ...baseDoc.content, experience: "" } };
 
-      it("excludes doc below minExperience", () => {
-        expect(bffMatchesResumeFilters(baseDoc, loweredSearchText, { minExperience: 7 })).toBe(false);
+      it("excludes doc above maxExperience", () => {
+        expect(bffMatchesResumeFilters(baseDoc, loweredSearchText, { maxExperience: 1 })).toBe(false);
       });
 
-      it("includes doc meeting minExperience", () => {
-        expect(bffMatchesResumeFilters(baseDoc, loweredSearchText, { minExperience: 3 })).toBe(true);
+      it("includes doc within maxExperience", () => {
+        expect(bffMatchesResumeFilters(baseDoc, loweredSearchText, { maxExperience: 10 })).toBe(true);
       });
 
       it("excludes doc above maxExperience", () => {

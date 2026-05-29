@@ -450,13 +450,13 @@ describe("parseFilterPreset", () => {
       id: "junior-cnc",
       name: "Junior CNC",
       category: "role",
-      filters: { minExperience: 1 },
+      filters: { maxExperience: 5 },
     });
     expect(result).toEqual({
       id: "junior-cnc",
       name: "Junior CNC",
       category: "role",
-      filters: { minExperience: 1 },
+      filters: { maxExperience: 5 },
     });
   });
   it("parses preset with maxExperience null", () => {

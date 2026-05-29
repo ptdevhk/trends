@@ -40,14 +40,14 @@ describe("bffMatchesResumeFilters", () => {
       expect(bffMatchesResumeFilters(doc, "", { maxExperience: 5 })).toBe(false);
     });
 
-    it("resumes with known low experience are excluded by minExperience", () => {
-      const doc = makeDoc({ content: { experience: "应届" } });
-      expect(bffMatchesResumeFilters(doc, "", { minExperience: 1 })).toBe(false);
+    it("resumes with known high experience are excluded by maxExperience", () => {
+      const doc = makeDoc({ content: { experience: "5年" } });
+      expect(bffMatchesResumeFilters(doc, "", { maxExperience: 3 })).toBe(false);
     });
 
-    it("resumes with known high experience pass minExperience", () => {
-      const doc = makeDoc({ content: { experience: "5" } });
-      expect(bffMatchesResumeFilters(doc, "", { minExperience: 1 })).toBe(true);
+    it("resumes with known low experience pass maxExperience", () => {
+      const doc = makeDoc({ content: { experience: "应届" } });
+      expect(bffMatchesResumeFilters(doc, "", { maxExperience: 5 })).toBe(true);
     });
   });
 
@@ -128,7 +128,7 @@ describe("bffMatchesResumeFilters", () => {
     it("applies multiple filters simultaneously", () => {
       const doc = makeDoc({ content: { experience: "5年", education: "本科", expectedSalary: "15-25万/年" } });
       expect(bffMatchesResumeFilters(doc, "cnc sales", {
-        minExperience: 3,
+        maxExperience: 10,
         education: ["bachelor"],
         skills: ["cnc"],
         minSalary: 100,
@@ -138,7 +138,7 @@ describe("bffMatchesResumeFilters", () => {
     it("fails if any single filter fails", () => {
       const doc = makeDoc({ content: { experience: "1年", education: "本科", expectedSalary: "15-25万/年" } });
       expect(bffMatchesResumeFilters(doc, "cnc sales", {
-        minExperience: 3,
+        maxExperience: 0,
         education: ["bachelor"],
         skills: ["cnc"],
         minSalary: 100,

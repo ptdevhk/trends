@@ -266,7 +266,6 @@ export function appendKeywordToken(current: string[], token: string): string[] {
 
 export function normalizeUrlFilters(filters: Partial<ResumeFilters>): Partial<ResumeFilters> {
   return {
-    minExperience: normalizeOptionalNumber(filters.minExperience),
     maxExperience: normalizeOptionalNumber(filters.maxExperience),
     minRoleYears: normalizeOptionalNumber(filters.minRoleYears),
     roleFilterType: normalizeOptionalString(filters.roleFilterType),

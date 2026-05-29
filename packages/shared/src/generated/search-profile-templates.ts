@@ -20,7 +20,6 @@ export type SharedSearchProfileTemplate = {
     jobDescription?: string;
     filterPreset?: string;
     filters?: {
-      minExperience?: number;
       maxExperience?: number | null;
       minRoleYears?: number;
       roleFilterType?: string;
@@ -441,8 +440,8 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
       ],
       "jobDescription": "seek-malaysia-sales",
       "filters": {
-        "minExperience": 1,
         "maxExperience": null,
+        "minRoleYears": 1,
         "locations": [
           "Malaysia"
         ]
@@ -495,8 +494,8 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
       ],
       "jobDescription": "seek-malaysia-sales",
       "filters": {
-        "minExperience": 1,
         "maxExperience": null,
+        "minRoleYears": 1,
         "locations": [
           "Malaysia"
         ]

@@ -44,7 +44,6 @@ import type {
 import type { ResumeIndex } from "./resume-index.js";
 
 export type ResumeFilters = {
-  minExperience?: number;
   maxExperience?: number;
   education?: string[];
   skills?: string[];
@@ -584,18 +583,14 @@ export class ResumeService {
 
   filterResumes<T extends ResumeItem>(items: T[], filters?: ResumeFilters): T[] {
     if (!filters) return items;
-    const effectiveMinExperience = (filters.minExperience ?? 0) > 0 ? filters.minExperience : undefined;
-
     return items.filter((item) => {
-      if (effectiveMinExperience !== undefined || filters.maxExperience !== undefined) {
+      if (filters.maxExperience !== undefined) {
         const experience = parseExperienceYears(item.experience);
         if (experience === null) {
-          // Unknown experience — exclude if maxExperience is set (cannot guarantee cap),
-          // but skip minExperience (resume might meet the minimum).
-          if (filters.maxExperience !== undefined) return false;
+          // Unknown experience — exclude if maxExperience is set (cannot guarantee cap)
+          return false;
         } else {
-          if (effectiveMinExperience !== undefined && experience < effectiveMinExperience) return false;
-          if (filters.maxExperience !== undefined && experience > filters.maxExperience) return false;
+          if (experience > filters.maxExperience) return false;
         }
       }
 
