@@ -157,7 +157,7 @@ describe("candidate-status route", () => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-Workspace-Slug": "hr",
+        "X-Workspace-Slug": "dev",
       },
       body: JSON.stringify({
         identityKey: "resume-2",
@@ -174,12 +174,12 @@ describe("candidate-status route", () => {
     });
     expect(appendSpy).toHaveBeenCalledTimes(1);
     expect(appendSpy).toHaveBeenCalledWith(
-      "hr",
+      "dev",
       "reject_pattern: 经验不匹配 -> interviewed_reject"
     );
   });
 
-  it("respects workspace isolation via X-Workspace-Slug", async () => {
+  it("rejects non-admin workspace access with 403", async () => {
     const calls: ConvexCall[] = [];
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const call = parseConvexCall(input, init);
@@ -198,11 +198,10 @@ describe("candidate-status route", () => {
     });
     const devResponse = await app.request("/api/candidate-status");
 
-    expect(hrResponse.status).toBe(200);
+    expect(hrResponse.status).toBe(403);
     expect(devResponse.status).toBe(200);
-    expect(calls).toHaveLength(2);
-    expect(calls[0]?.args.workspaceSlug).toBe("hr");
-    expect(calls[1]?.args.workspaceSlug).toBe("dev");
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.args.workspaceSlug).toBe("dev");
   });
 
   describe("POST /api/candidate-appeal", () => {
