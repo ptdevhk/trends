@@ -39,7 +39,9 @@ services:
     image: node:25-slim
     container_name: trends-preview-convex
     restart: unless-stopped
-    mem_limit: 2g
+    # 4GB needed when importing full production export (~5500 resumes).
+    # 2GB is enough for empty/small datasets but Convex import OOMs on large bulk.
+    mem_limit: 4g
     ports:
       - "127.0.0.1:4210:3210"
       - "127.0.0.1:4211:3211"
