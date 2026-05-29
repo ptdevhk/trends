@@ -5814,6 +5814,7 @@ export interface paths {
                         analysisTopN?: number;
                         minAge?: number;
                         maxAge?: number;
+                        maxSalary?: number;
                     };
                 };
             };
@@ -5836,6 +5837,7 @@ export interface paths {
                                 maxPages: number;
                                 minAge?: number;
                                 maxAge?: number;
+                                maxSalary?: number;
                                 autoAnalyze: boolean;
                                 analysisTopN: number;
                                 convexUrl: string;

@@ -165,9 +165,13 @@ def run_resume_crawl_task(profile: Dict[str, Any]) -> bool:
     filters = profile.get("filters")
     min_age = None
     max_age = None
+    max_salary = None
     if isinstance(filters, dict):
         min_age = _to_optional_positive_int(filters.get("minAge"))
         max_age = _to_optional_positive_int(filters.get("maxAge"))
+        salary_range = filters.get("salaryRange")
+        if isinstance(salary_range, dict):
+            max_salary = _to_optional_positive_int(salary_range.get("max"))
 
     if min_age is not None and max_age is not None and min_age > max_age:
         logger.error(
@@ -213,6 +217,8 @@ def run_resume_crawl_task(profile: Dict[str, Any]) -> bool:
             mutation_args["minAge"] = min_age
         if max_age is not None:
             mutation_args["maxAge"] = max_age
+        if max_salary is not None:
+            mutation_args["maxSalary"] = max_salary
 
         task_id = _convex_mutation(
             convex_url,

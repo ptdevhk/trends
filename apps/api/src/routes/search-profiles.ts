@@ -103,6 +103,7 @@ const RunProfileRequestSchema = z.object({
     analysisTopN: z.number().int().min(1).max(100).optional(),
     minAge: z.number().int().min(1).max(120).optional(),
     maxAge: z.number().int().min(1).max(120).optional(),
+    maxSalary: z.number().int().min(1).optional(),
 });
 
 const RunProfileResponseSchema = z.object({
@@ -116,6 +117,7 @@ const RunProfileResponseSchema = z.object({
         maxPages: z.number(),
         minAge: z.number().optional(),
         maxAge: z.number().optional(),
+        maxSalary: z.number().optional(),
         autoAnalyze: z.boolean(),
         analysisTopN: z.number(),
         convexUrl: z.string(),
@@ -209,6 +211,7 @@ async function dispatchCollectionTask(args: {
     maxPages: number;
     minAge?: number;
     maxAge?: number;
+    maxSalary?: number;
     autoAnalyze: boolean;
     analysisTopN: number;
 }): Promise<{ taskId: string; convexUrl: string }> {
@@ -1115,6 +1118,7 @@ app.openapi(runProfileRoute, async (c) => {
     const analysisTopN = parsed.data.analysisTopN ?? 10;
     const minAge = normalizePositiveInt(parsed.data.minAge ?? profile.filters?.minAge);
     const maxAge = normalizePositiveInt(parsed.data.maxAge ?? profile.filters?.maxAge);
+    const maxSalary = normalizePositiveInt(parsed.data.maxSalary ?? profile.filters?.salaryRange?.max);
 
     if (typeof minAge === "number" && typeof maxAge === "number" && minAge > maxAge) {
         return c.json({ success: false as const, error: "minAge cannot be greater than maxAge" }, 400);
@@ -1132,6 +1136,7 @@ app.openapi(runProfileRoute, async (c) => {
             maxPages,
             minAge,
             maxAge,
+            maxSalary,
             autoAnalyze,
             analysisTopN,
         });
@@ -1155,6 +1160,7 @@ app.openapi(runProfileRoute, async (c) => {
                 maxPages,
                 minAge,
                 maxAge,
+                maxSalary,
                 autoAnalyze,
                 analysisTopN,
                 convexUrl,
