@@ -1,0 +1,55 @@
+FROM node:25-slim AS builder
+
+# Install build tools for native modules (better-sqlite3)
+RUN apt-get update -qq && \
+    apt-get install -y --no-install-recommends python3 make g++ && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy workspace manifest files for better layer caching
+COPY package.json package-lock.json ./
+COPY apps/api/package.json ./apps/api/
+COPY packages/shared/package.json ./packages/shared/
+COPY packages/convex/package.json ./packages/convex/
+
+# Install all dependencies (including workspaces)
+RUN npm ci
+
+# Copy and build shared package first (API depends on it)
+COPY packages/shared/ ./packages/shared/
+RUN npm --workspace @trends/shared run build
+
+# Copy and build API
+COPY apps/api/ ./apps/api/
+RUN npm --workspace @trends/api run build
+
+# --- Runtime stage ---
+FROM node:25-slim
+
+RUN apt-get update -qq && \
+    apt-get install -y --no-install-recommends python3 make g++ && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy minimal package manifests
+COPY package.json package-lock.json ./
+COPY apps/api/package.json ./apps/api/
+COPY packages/shared/package.json ./packages/shared/
+COPY packages/convex/package.json ./packages/convex/
+
+# Install production deps only (rebuilds better-sqlite3 for this Node version)
+RUN npm ci --omit=dev
+
+# Copy built artifacts from builder stage
+COPY --from=builder /app/apps/api/dist ./apps/api/dist
+COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
+
+# Runtime config
+ENV PORT=3000
+ENV NODE_ENV=production
+
+EXPOSE 3000
+
+CMD ["node", "apps/api/dist/index.js"]

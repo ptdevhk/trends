@@ -1,0 +1,85 @@
+# Preview stack for preview.pt-mes.com
+#
+# Architecture:
+#   - Convex (Docker, isolated state vol)  → 127.0.0.1:4210 / 4211
+#   - API (systemd on host, port 3002)     → 127.0.0.1:3002
+#   - MCP (Docker)                         → 127.0.0.1:3334
+#   - Web: static files served by Caddy   → /home/ubuntu/trends-preview/apps/web/dist
+#
+# Note: API runs as a systemd service (trends-preview-api.service) rather than Docker
+# to avoid better-sqlite3 native module cross-platform issues between build host
+# (Ubuntu 24.04) and container OS (Debian slim). See deploy/systemd/ for service files.
+#
+# Ports (no conflict with production 3000/3210/3211/3333):
+#   trends.pt-mes.com  uses 3000, 3210, 3211, 3333
+#   preview.pt-mes.com uses 3002, 4210, 4211, 3334
+#
+# Caddy config (already applied to /etc/caddy/Caddyfile):
+#   preview.pt-mes.com {
+#       tls leotse@datadigitalisation.com
+#       encode gzip
+#       handle_path /convex/* { reverse_proxy 127.0.0.1:4210 }
+#       handle /api/*         { reverse_proxy 127.0.0.1:3002 }
+#       handle /mcp/*         { reverse_proxy 127.0.0.1:3334 }
+#       handle {
+#           root * /home/ubuntu/trends-preview/apps/web/dist
+#           try_files {path} /index.html
+#           file_server
+#       }
+#   }
+#
+# Deploy steps:
+#   1. Run setup-preview.sh (copies code from /opt/trends, installs deps, builds API+Web)
+#   2. docker compose -f docker-compose.preview.yml up -d
+#   3. systemctl start trends-preview-api   (API runs natively)
+#   4. systemctl reload caddy
+
+services:
+  convex:
+    image: node:25-slim
+    container_name: trends-preview-convex
+    restart: unless-stopped
+    mem_limit: 2g
+    ports:
+      - "127.0.0.1:4210:3210"
+      - "127.0.0.1:4211:3211"
+    volumes:
+      - .:/app:rw
+      # Isolated node_modules so the container re-installs its own copy
+      - convex-node-modules:/app/node_modules
+      # Isolated Convex state dir — prevents export lock pollution from production
+      - convex-state:/app/packages/convex/.convex
+      - convex-cache:/root/.cache
+    working_dir: /app
+    environment:
+      - HOME=/root
+      # tmp on same fs as project to avoid cross-filesystem Convex binary move errors
+      - CONVEX_TMPDIR=/root/.cache/tmp
+      - CONVEX_LOCAL_BACKEND_STARTUP_TIMEOUT_SECS=120
+    command: ["sh", "/app/start-convex.sh"]
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3210/version', r => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 10s
+      timeout: 5s
+      retries: 90
+      start_period: 180s
+
+  mcp:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.mcp
+    container_name: trends-preview-mcp
+    restart: unless-stopped
+    mem_limit: 512m
+    ports:
+      - "127.0.0.1:3334:3333"
+    volumes:
+      - ./output:/app/output
+      - ./config:/app/config:ro
+    env_file:
+      - .env.preview
+
+volumes:
+  convex-cache:
+  convex-state:
+  convex-node-modules:
