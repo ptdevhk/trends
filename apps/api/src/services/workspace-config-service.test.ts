@@ -343,7 +343,6 @@ describe("parseFilterPreset", () => {
     });
     expect(result).not.toBeNull();
     expect(result!.id).toBe("p1");
-    expect(result!.filters.minExperience).toBe(5);
     expect(result!.filters.maxExperience).toBeNull();
   });
 

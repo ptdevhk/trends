@@ -27,7 +27,6 @@ const SAMPLE_CONFIG = `{
       name: "Sales Entry",
       category: "sales",
       filters: {
-        minExperience: 0,
         maxExperience: 3,
         education: ["bachelor"],
         salaryRange: { min: 5000, max: 10000 }
@@ -38,7 +37,6 @@ const SAMPLE_CONFIG = `{
       name: "Sales Senior",
       category: "sales",
       filters: {
-        minExperience: 5,
         maxExperience: null,
         education: ["bachelor", "master"],
         salaryRange: { min: 15000, max: 35000 }
@@ -49,7 +47,6 @@ const SAMPLE_CONFIG = `{
       name: "Engineer Entry",
       category: "engineering",
       filters: {
-        minExperience: 0,
         maxExperience: 3
       }
     }
@@ -108,7 +105,6 @@ describe("FilterPresetService", () => {
 
     const preset = service.getPreset("sales-senior");
     expect(preset?.name).toBe("Sales Senior");
-    expect(preset?.filters.minExperience).toBe(5);
     expect(preset?.filters.maxExperience).toBeNull();
   });
 
@@ -185,7 +181,6 @@ describe("FilterPresetService", () => {
     const service = new FilterPresetService(FIXTURE_DIR);
 
     const preset = service.getPreset("engineer-entry");
-    expect(preset?.filters.minExperience).toBe(0);
     expect(preset?.filters.maxExperience).toBe(3);
     expect(preset?.filters.education).toBeUndefined();
     expect(preset?.filters.salaryRange).toBeUndefined();

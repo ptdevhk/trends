@@ -289,10 +289,6 @@ describe("resume-candidate-prep", () => {
       expect(hasResumeListFilters({})).toBe(false);
     });
 
-    it("detects minExperience", () => {
-      expect(hasResumeListFilters({ minExperience: 5 })).toBe(true);
-    });
-
     it("detects maxExperience", () => {
       expect(hasResumeListFilters({ maxExperience: 10 })).toBe(true);
     });
@@ -346,7 +342,7 @@ describe("resume-candidate-prep", () => {
     });
 
     it("returns false for zero numeric values", () => {
-      expect(hasResumeListFilters({ minExperience: 0 })).toBe(true);
+      expect(hasResumeListFilters({ minRoleYears: 0 })).toBe(true);
     });
   });
 

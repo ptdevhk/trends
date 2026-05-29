@@ -1755,7 +1755,6 @@ export interface paths {
                     minMatchScore?: string;
                     sortBy?: "score" | "name" | "experience" | "extractedAt";
                     sortOrder?: "asc" | "desc";
-                    minExperience?: string;
                     maxExperience?: string;
                     education?: string | string[];
                     skills?: string | string[];
@@ -2317,8 +2316,6 @@ export interface paths {
                         jobDescriptionId?: string;
                         /** @example 东莞 */
                         location?: string;
-                        /** @example 3 */
-                        minExperience?: number;
                         /** @example 10 */
                         maxExperience?: number;
                         /**
@@ -5618,7 +5615,6 @@ export interface paths {
                                 filters?: {
                                     minAge?: number;
                                     maxAge?: number;
-                                    minExperience?: number;
                                     maxExperience?: number;
                                     minRoleYears?: number;
                                     roleFilterType?: string;
@@ -7122,7 +7118,6 @@ export interface paths {
                                 name: string;
                                 category: string;
                                 filters: {
-                                    minExperience?: number;
                                     maxExperience?: number | null;
                                     education?: string[];
                                     salaryRange?: {
@@ -7152,7 +7147,6 @@ export interface paths {
                         name: string;
                         category: string;
                         filters: {
-                            minExperience?: number;
                             maxExperience?: number | null;
                             education?: string[];
                             salaryRange?: {
@@ -7178,7 +7172,6 @@ export interface paths {
                                 name: string;
                                 category: string;
                                 filters: {
-                                    minExperience?: number;
                                     maxExperience?: number | null;
                                     education?: string[];
                                     salaryRange?: {
@@ -7334,7 +7327,6 @@ export interface paths {
                                 name: string;
                                 category: string;
                                 filters: {
-                                    minExperience?: number;
                                     maxExperience?: number | null;
                                     education?: string[];
                                     salaryRange?: {
@@ -7371,7 +7363,6 @@ export interface paths {
                         name?: string;
                         category?: string;
                         filters?: {
-                            minExperience?: number;
                             maxExperience?: number | null;
                             education?: string[];
                             salaryRange?: {
@@ -7397,7 +7388,6 @@ export interface paths {
                                 name: string;
                                 category: string;
                                 filters: {
-                                    minExperience?: number;
                                     maxExperience?: number | null;
                                     education?: string[];
                                     salaryRange?: {
@@ -12981,7 +12971,6 @@ export interface components {
             };
         };
         ResumeFilters: {
-            minExperience?: number;
             maxExperience?: number;
             education?: string[];
             skills?: string[];

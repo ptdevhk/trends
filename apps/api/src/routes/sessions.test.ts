@@ -196,7 +196,7 @@ describe("session routes", () => {
         shareTitle: null,
         searchState: null,
         filters: {
-          minExperience: 5,
+          maxExperience: 10,
           minAge: 30,
         },
       }),
@@ -209,7 +209,7 @@ describe("session routes", () => {
         shareTitle?: string;
         searchState?: unknown;
         filters?: {
-          minExperience?: number;
+          maxExperience?: number;
           minAge?: number;
         };
       };
@@ -219,7 +219,7 @@ describe("session routes", () => {
     expect(updatePayload.session.shareTitle).toBeUndefined();
     expect(updatePayload.session.searchState).toBeUndefined();
     expect(updatePayload.session.filters).toMatchObject({
-      minExperience: 5,
+      maxExperience: 10,
       minAge: 30,
     });
 

@@ -249,7 +249,6 @@ function hasExplicitSearchContext(state: UrlSearchState): boolean {
     (state.filters.education?.length ?? 0) > 0 ||
     (state.filters.status?.length ?? 0) > 0 ||
     typeof state.filters.minMatchScore === 'number' ||
-    typeof state.filters.minExperience === 'number' ||
     typeof state.filters.maxExperience === 'number' ||
     typeof state.filters.minRoleYears === 'number' ||
     typeof state.filters.minSalary === 'number' ||
@@ -327,7 +326,6 @@ function buildSearchContextSignature(state: UrlSearchState): string {
       maxAge: state.filters.maxAge,
       maxExperience: state.filters.maxExperience,
       minAge: state.filters.minAge,
-      minExperience: state.filters.minExperience,
       minMatchScore: state.filters.minMatchScore,
       minRoleYears: state.filters.minRoleYears,
       roleFilterType: normalizeOptionalString(state.filters.roleFilterType),
@@ -655,7 +653,6 @@ export function useResumeSearchState() {
     parsedState.filters.education,
     parsedState.filters.locations,
     parsedState.filters.maxExperience,
-    parsedState.filters.minExperience,
     parsedState.filters.minMatchScore,
     parsedState.filters.minRoleYears,
     parsedState.filters.roleFilterType,
@@ -694,7 +691,6 @@ export function useResumeSearchState() {
   )
   const backendFilters = useMemo<ConvexResumeFilters>(
     () => ({
-      minExperience: parsedState.filters.minExperience,
       maxExperience: parsedState.filters.maxExperience,
       minRoleYears: parsedState.filters.minRoleYears,
       roleFilterType: effectiveRoleFilterType,
@@ -713,7 +709,6 @@ export function useResumeSearchState() {
       parsedState.filters.maxExperience,
       parsedState.filters.maxSalary,
       parsedState.filters.minAge,
-      parsedState.filters.minExperience,
       parsedState.filters.minRoleYears,
       parsedState.filters.minSalary,
       parsedState.requiredKeywords,
@@ -1444,7 +1439,6 @@ export function useResumeSearchState() {
           minMatchScore: undefined,
           minRoleYears: undefined,
           roleFilterType: undefined,
-          minExperience: undefined,
           maxExperience: undefined,
           minAge: undefined,
           maxAge: undefined,

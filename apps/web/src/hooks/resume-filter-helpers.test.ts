@@ -543,7 +543,6 @@ describe('appendKeywordToken', () => {
 describe('normalizeUrlFilters', () => {
   it('normalizes all fields to their default values for empty input', () => {
     const result = normalizeUrlFilters({})
-    expect(result.minExperience).toBeUndefined()
     expect(result.maxExperience).toBeUndefined()
     expect(result.minRoleYears).toBeUndefined()
     expect(result.roleFilterType).toBeUndefined()
@@ -559,14 +558,12 @@ describe('normalizeUrlFilters', () => {
 
   it('normalizes all number fields', () => {
     const result = normalizeUrlFilters({
-      minExperience: 5,
       maxExperience: NaN,
       minRoleYears: 3,
       minAge: 0,
       maxAge: Infinity,
       minMatchScore: undefined,
     })
-    expect(result.minExperience).toBe(5)
     expect(result.maxExperience).toBeUndefined()
     expect(result.minRoleYears).toBe(3)
     expect(result.minAge).toBe(0)
@@ -625,7 +622,7 @@ describe('normalizeUrlSearchStateValue', () => {
       selectedCompanies: ['co1'],
       selectedSources: ['job5156'],
       selectedExperienceLevel: 'senior',
-      filters: { minExperience: 5 },
+      filters: {},
     })
     expect(result.shareSessionId).toBe('abc')
     expect(result.query).toBe('CNC')
@@ -634,7 +631,7 @@ describe('normalizeUrlSearchStateValue', () => {
     expect(result.requiredKeywords).toEqual(['5轴'])
     expect(result.jobDescriptionId).toBe('jd-1')
     expect(result.selectedExperienceLevel).toBe('senior')
-    expect(result.filters).toEqual({ minExperience: 5 })
+    expect(result.filters).toEqual({})
   })
 
   it('replaces non-array keywords with empty array', () => {
@@ -656,14 +653,14 @@ describe('areUrlFiltersEqual', () => {
   })
 
   it('returns true for semantically equal filters ignoring order', () => {
-    const left: Partial<ResumeFilters> = { education: ['Bachelor', 'Master'], minExperience: 5 }
-    const right: Partial<ResumeFilters> = { education: ['Master', 'Bachelor'], minExperience: 5 }
+    const left: Partial<ResumeFilters> = { education: ['Bachelor', 'Master'], maxExperience: 5 }
+    const right: Partial<ResumeFilters> = { education: ['Master', 'Bachelor'], maxExperience: 5 }
     expect(areUrlFiltersEqual(left, right)).toBe(true)
   })
 
   it('returns false for different filters', () => {
-    const left: Partial<ResumeFilters> = { minExperience: 5 }
-    const right: Partial<ResumeFilters> = { minExperience: 10 }
+    const left: Partial<ResumeFilters> = { maxExperience: 5 }
+    const right: Partial<ResumeFilters> = { maxExperience: 10 }
     expect(areUrlFiltersEqual(left, right)).toBe(false)
   })
 

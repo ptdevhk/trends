@@ -113,9 +113,6 @@ function mapProfileFiltersToResumeFilters(filters: SearchProfileFilters | undefi
   }
 
   const mapped: Partial<ResumeFilters> = {}
-  if (typeof filters.minExperience === 'number') {
-    mapped.minExperience = filters.minExperience
-  }
   if (typeof filters.maxExperience === 'number') {
     mapped.maxExperience = filters.maxExperience
   }
@@ -155,12 +152,6 @@ function formatExperienceSummary(filters: SearchProfileFilters | undefined, year
   const suffix = yearsLabel
     ? `${yearsLabel.length > 1 ? ' ' : ''}${yearsLabel}`
     : ''
-  if (typeof filters.minExperience === 'number' && typeof filters.maxExperience === 'number') {
-    return `${filters.minExperience}-${filters.maxExperience}${suffix}`
-  }
-  if (typeof filters.minExperience === 'number') {
-    return `${filters.minExperience}+${suffix}`
-  }
   if (typeof filters.maxExperience === 'number') {
     return `<=${filters.maxExperience}${suffix}`
   }

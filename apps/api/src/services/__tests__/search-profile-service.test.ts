@@ -120,7 +120,7 @@ describe("SearchProfileService", () => {
       };
       const result = service.normalizeProfileInput(input);
       expect(result.filters).toBeDefined();
-      expect(result.filters!.minExperience).toBe(3);
+      expect(result.filters!.maxExperience).toBe(10);
       expect(result.filters!.education).toEqual(["本科"]);
     });
 
@@ -265,7 +265,6 @@ describe("SearchProfileService", () => {
         filters: { minExperience: "5", maxExperience: "10" },
       };
       const result = service.normalizeProfileInput(input);
-      expect(result.filters!.minExperience).toBe(5);
       expect(result.filters!.maxExperience).toBe(10);
     });
 

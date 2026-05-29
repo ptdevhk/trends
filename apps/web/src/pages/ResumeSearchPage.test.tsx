@@ -97,7 +97,6 @@ vi.mock('@/components/search/SearchHero', () => ({
       location: string
       minRoleYears?: number
       roleFilterType?: string
-      minExperience?: number
       minAge?: number
       maxAge?: number
     }) => void
@@ -140,7 +139,6 @@ vi.mock('@/components/search/SearchHero', () => ({
             location: 'Kuala Lumpur MY',
             minRoleYears: 3,
             roleFilterType: 'sales',
-            minExperience: 5,
             minAge: 25,
             maxAge: 40,
           })
@@ -647,7 +645,6 @@ describe('ResumeSearchPage', () => {
         roleFilterType: 'sales',
         minAge: 25,
         maxAge: 40,
-        minExperience: 5,
       },
     )
   })

@@ -15,7 +15,6 @@ export const MAX_CONVEX_RESUME_LIMIT = 2000
 export type ConvexResumeSortBy = 'experience' | 'extractedAt'
 
 export type ConvexResumeFilters = {
-  minExperience?: number
   maxExperience?: number
   minRoleYears?: number
   roleFilterType?: string
@@ -840,7 +839,6 @@ function useBffAndModeSearch(
       q: normalizedQuery,
       source: 'convex',
       paged: 'true',
-      ...(filters?.minExperience != null ? { minExperience: filters.minExperience } : {}),
       ...(filters?.maxExperience != null ? { maxExperience: filters.maxExperience } : {}),
       ...(filters?.minRoleYears != null ? { minRoleYears: filters.minRoleYears } : {}),
       ...(filters?.roleFilterType ? { roleFilterType: filters.roleFilterType } : {}),

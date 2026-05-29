@@ -586,7 +586,6 @@ export const ResumesQuerySchema = z.object({
       param: { name: "sortOrder", in: "query" },
       example: "desc",
     }),
-  minExperience: OptionalIntParam({ name: "minExperience", example: "3" }),
   maxExperience: OptionalIntParam({ name: "maxExperience", example: "10" }),
   education: CsvStringArraySchema.openapi({
     param: { name: "education", in: "query" },
@@ -793,7 +792,6 @@ export const ResumeSamplesResponseSchema = z
 
 export const ResumeFiltersSchema = z
   .object({
-    minExperience: z.number().min(0).optional(),
     maxExperience: z.number().min(0).optional(),
     education: z.array(z.string()).optional(),
     skills: z.array(z.string()).optional(),
@@ -1373,7 +1371,6 @@ export const AnalyzeRequestSchema = z.object({
   query: z.string().optional().openapi({ example: "CNC 销售" }),
   jobDescriptionId: z.string().optional().openapi({ example: "lathe-sales" }),
   location: z.string().optional().openapi({ example: "东莞" }),
-  minExperience: z.number().min(0).optional().openapi({ example: 3 }),
   maxExperience: z.number().min(0).optional().openapi({ example: 10 }),
   education: z.array(z.string()).optional().openapi({ example: ["bachelor", "master"] }),
   skills: z.array(z.string()).optional().openapi({ example: ["CNC", "FANUC"] }),

@@ -88,7 +88,6 @@ export type ResumeListProjectedDoc = {
 };
 
 export type ResumeListFilterArgs = {
-    minExperience?: number;
     maxExperience?: number;
     minRoleYears?: number;
     roleFilterType?: string;
@@ -362,7 +361,6 @@ export function normalizeResumeListFilters(filters: ResumeListFilterArgs | undef
         : undefined;
 
     const normalized: ResumeListFilterArgs = {
-        ...((filters.minExperience ?? 0) > 0 ? { minExperience: filters.minExperience } : {}),
         ...(filters.maxExperience === undefined ? {} : { maxExperience: filters.maxExperience }),
         ...((filters.minRoleYears ?? 0) > 0 ? { minRoleYears: filters.minRoleYears } : {}),
         ...(roleFilterType ? { roleFilterType } : {}),
@@ -496,22 +494,13 @@ export function matchesResumeListFilters(resume: Doc<"resumes">, filters: Resume
 
     const content = isRecord(resume.content) ? resume.content : {};
 
-    const effectiveMinExperience = (filters.minExperience ?? 0) > 0 ? filters.minExperience : undefined;
-    if (effectiveMinExperience !== undefined || filters.maxExperience !== undefined) {
+    if (filters.maxExperience !== undefined) {
         const experience = resolveExperienceYears(toStringValue(content.experience), content.workHistory);
         if (experience === null) {
-            // Unknown experience — skip filter instead of excluding.
-            // Seek talentsearch resumes have empty experience fields;
-            // excluding them when minExperience is set drops all results.
-            // Only apply maxExperience if known.
-            if (filters.maxExperience !== undefined) {
-                return false;
-            }
+            // Unknown experience — exclude if maxExperience is set (cannot guarantee cap)
+            return false;
         } else {
-            if (effectiveMinExperience !== undefined && experience < effectiveMinExperience) {
-                return false;
-            }
-            if (filters.maxExperience !== undefined && experience > filters.maxExperience) {
+            if (experience > filters.maxExperience) {
                 return false;
             }
         }

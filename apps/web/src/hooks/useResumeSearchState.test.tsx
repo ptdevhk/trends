@@ -498,7 +498,6 @@ describe('useResumeSearchState', () => {
       keywords: ['CNC'],
       filters: {
         minRoleYears: 3,
-        minExperience: 5,
         maxExperience: 12,
       },
     }))
@@ -513,7 +512,6 @@ describe('useResumeSearchState', () => {
       undefined,
       expect.objectContaining({
         filters: expect.objectContaining({
-          minExperience: 5,
           maxExperience: 12,
           minRoleYears: 3,
         }),
@@ -528,7 +526,6 @@ describe('useResumeSearchState', () => {
       filters: {
         minRoleYears: 3,
         roleFilterType: 'sales',
-        minExperience: 5,
         maxExperience: 12,
       },
     }))
@@ -594,7 +591,6 @@ describe('useResumeSearchState', () => {
       undefined,
       expect.objectContaining({
         filters: expect.objectContaining({
-          minExperience: 5,
           maxExperience: 12,
           minRoleYears: 3,
           roleFilterType: 'sales',
@@ -1588,7 +1584,6 @@ describe('useResumeSearchState', () => {
       selectedCompanies: ['FANUC'],
       selectedExperienceLevel: 'senior',
       filters: {
-        minExperience: 5,
         maxExperience: 12,
         minRoleYears: 1,
         roleFilterType: 'sales',
@@ -1619,7 +1614,6 @@ describe('useResumeSearchState', () => {
       selectedBrands: [],
       selectedExperienceLevel: undefined,
       filters: {
-        minExperience: undefined,
         maxExperience: undefined,
         minRoleYears: undefined,
         roleFilterType: undefined,
@@ -1646,7 +1640,6 @@ describe('useResumeSearchState', () => {
       selectedCompanies: ['FANUC'],
       selectedExperienceLevel: 'senior',
       filters: {
-        minExperience: 5,
         education: ['Bachelor'],
         status: ['contacted'],
         minMatchScore: 80,
@@ -1665,7 +1658,6 @@ describe('useResumeSearchState', () => {
       selectedBrands: [],
       selectedExperienceLevel: 'senior',
       filters: {
-        minExperience: 5,
         education: ['Bachelor'],
         status: ['contacted'],
         minMatchScore: 80,
@@ -1719,7 +1711,6 @@ describe('useResumeSearchState', () => {
       selectedCompanies: ['FANUC'],
       selectedExperienceLevel: 'senior',
       filters: {
-        minExperience: 5,
         maxExperience: 12,
         locations: ['Malaysia'],
         education: ['Bachelor'],
@@ -1741,7 +1732,6 @@ describe('useResumeSearchState', () => {
       selectedSources: [],
       selectedBrands: [],
       filters: {
-        minExperience: 5,
         maxExperience: 12,
         locations: ['Malaysia'],
         education: ['Bachelor'],
@@ -1784,7 +1774,6 @@ describe('useResumeSearchState', () => {
       selectedCompanies: ['FANUC'],
       selectedExperienceLevel: 'senior',
       filters: {
-        minExperience: 5,
         education: ['Bachelor'],
         status: ['contacted'],
         minMatchScore: 80,
@@ -1805,7 +1794,6 @@ describe('useResumeSearchState', () => {
       selectedBrands: [],
       selectedExperienceLevel: 'senior',
       filters: {
-        minExperience: 5,
         education: ['Bachelor'],
         minMatchScore: 80,
       },

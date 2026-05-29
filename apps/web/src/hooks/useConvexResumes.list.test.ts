@@ -214,7 +214,6 @@ describe('useConvexResumes list path', () => {
   it('forwards safe base filters to the paginated list query', () => {
     renderHook(() => useConvexResumes(200, undefined, 'jd-1', {
       filters: {
-        minExperience: 3,
         maxExperience: 8,
         education: ['bachelor'],
         skills: ['fanuc'],
@@ -229,7 +228,6 @@ describe('useConvexResumes list path', () => {
 
     expect(listCall?.[1]).toMatchObject({
       jobDescriptionId: 'jd-1',
-      minExperience: 3,
       maxExperience: 8,
       education: ['bachelor'],
       skills: ['fanuc'],

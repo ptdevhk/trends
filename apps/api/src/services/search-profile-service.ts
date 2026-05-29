@@ -30,7 +30,6 @@ export interface SearchProfile {
 
     // Custom filters (override preset)
     filters?: {
-        minExperience?: number;
         maxExperience?: number | null;
         minRoleYears?: number;
         roleFilterType?: string;
@@ -278,7 +277,6 @@ function normalizeProfileId(rawId: string): string {
 function parseFilters(value: unknown): SearchProfile["filters"] | undefined {
     if (!isRecord(value)) return undefined;
 
-    const minExperience = readNumber(value.minExperience);
     const maxExperienceRaw = value.maxExperience;
     const maxExperience = maxExperienceRaw === null ? null : readNumber(maxExperienceRaw);
     const minRoleYears = readNumber(value.minRoleYears);
@@ -306,8 +304,7 @@ function parseFilters(value: unknown): SearchProfile["filters"] | undefined {
     }
 
     if (
-        minExperience === undefined
-        && maxExperience === undefined
+        maxExperience === undefined
         && maxExperienceRaw !== null
         && minRoleYears === undefined
         && !roleFilterType
@@ -321,7 +318,6 @@ function parseFilters(value: unknown): SearchProfile["filters"] | undefined {
     }
 
     return {
-        minExperience,
         maxExperience,
         minRoleYears,
         roleFilterType,

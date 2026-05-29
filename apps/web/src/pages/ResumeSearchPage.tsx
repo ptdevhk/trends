@@ -132,7 +132,6 @@ export function ResumeSearchPage() {
     roleFilterType?: string
     minAge?: number
     maxAge?: number
-    minExperience?: number
   }) => {
     collapseExpandedCards()
     const query = formatKeywordQuery(seed.keywords)
@@ -143,7 +142,6 @@ export function ResumeSearchPage() {
       roleFilterType: seed.roleFilterType,
       minAge: seed.minAge,
       maxAge: seed.maxAge,
-      minExperience: seed.minExperience,
     })
   }
 

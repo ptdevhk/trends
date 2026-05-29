@@ -44,14 +44,13 @@ describe('SearchProfileService.normalizeProfileIdentifier', () => {
 // ---------------------------------------------------------------------------
 
 describe('SearchProfileService normalizeProfileInput — filters', () => {
-  it('parses minExperience and maxExperience', () => {
+  it('parses maxExperience', () => {
     const result = svc.normalizeProfileInput({
       id: 'test',
       name: 'Test',
       keywords: ['test'],
-      filters: { minExperience: 3, maxExperience: 10 },
+      filters: { maxExperience: 10 },
     })
-    expect(result.filters?.minExperience).toBe(3)
     expect(result.filters?.maxExperience).toBe(10)
   })
 
@@ -405,7 +404,7 @@ describe('SearchProfileService normalizeProfileInput — fallback', () => {
       keywords: ['CNC'],
       jobDescription: 'jd-123',
       filterPreset: 'cnc-sales',
-      filters: { minExperience: 3 },
+      filters: { maxExperience: 10 },
       schedule: { enabled: true, cron: '0 9 * * 1-5' },
     }
     const result = svc.normalizeProfileInput({ name: 'Updated' }, existing)
@@ -414,7 +413,7 @@ describe('SearchProfileService normalizeProfileInput — fallback', () => {
     expect(result.keywords).toEqual(['CNC'])
     expect(result.jobDescription).toBe('jd-123')
     expect(result.filterPreset).toBe('cnc-sales')
-    expect(result.filters?.minExperience).toBe(3)
+    expect(result.filters?.maxExperience).toBe(10)
     expect(result.schedule?.cron).toBe('0 9 * * 1-5')
   })
 
@@ -677,7 +676,6 @@ describe('SearchProfileService explicit clear semantics', () => {
       jobDescription: 'js7bbr2wheavb7krrycbz2gvn182d88y',
       filterPreset: 'machinery-sales',
       filters: {
-        minExperience: 1,
         maxAge: 40,
       },
       schedule: {

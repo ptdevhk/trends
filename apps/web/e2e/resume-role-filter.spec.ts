@@ -767,7 +767,6 @@ test.describe('Resume quick role filter', () => {
             keywords: ['Sales Engineer', 'Sales Manager'],
             jobDescription: 'seek-malaysia-sales',
             filters: {
-              minExperience: 2,
               maxAge: 45,
               locations: ['Kuala Lumpur MY'],
             },
@@ -830,7 +829,6 @@ test.describe('Resume quick role filter', () => {
             keywords: ['Sales Engineer', 'Sales Manager'],
             jobDescription: 'seek-malaysia-sales',
             filters: {
-              minExperience: 2,
               maxAge: 45,
               locations: ['Kuala Lumpur MY'],
             },

@@ -17,7 +17,6 @@ describe('FilterPanel', () => {
     render(
       <FilterPanel
         filters={{
-          minExperience: 1,
           minAge: 25,
           maxAge: 35,
           locations: ['广东', '江苏'],

@@ -20,7 +20,6 @@ type ProfileSource = {
 };
 
 type ProfileFilters = {
-  minExperience?: number;
   maxExperience?: number | null;
   minRoleYears?: number;
   roleFilterType?: string;
@@ -138,8 +137,6 @@ function parseSource(raw: unknown): ProfileSource | null {
 function parseFilters(raw: unknown): ProfileFilters | undefined {
   if (!isRecord(raw)) return undefined;
   const filters: ProfileFilters = {};
-  const minExp = readNumber(raw.minExperience);
-  if (minExp !== undefined) filters.minExperience = minExp;
   if (raw.maxExperience === null) filters.maxExperience = null;
   else {
     const maxExp = readNumber(raw.maxExperience);
@@ -297,7 +294,6 @@ export type SharedSearchProfileTemplate = {
     jobDescription?: string;
     filterPreset?: string;
     filters?: {
-      minExperience?: number;
       maxExperience?: number | null;
       minRoleYears?: number;
       roleFilterType?: string;

@@ -525,8 +525,7 @@ export class RuleScoringService {
     const preset = presetId ? this.filterPresetService.getPreset(presetId) : undefined;
 
     const minExperience = jd.suggestedFilters?.minExperience
-      ?? requiredRoles.map((role) => role.minYears).find((value): value is number => typeof value === "number")
-      ?? preset?.filters.minExperience;
+      ?? requiredRoles.map((role) => role.minYears).find((value): value is number => typeof value === "number");
     const educationRequirements = [
       ...(jd.suggestedFilters?.education ?? []),
       ...(preset?.filters.education ?? []),
