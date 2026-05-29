@@ -44,6 +44,7 @@ export type FacetSidebarProps = {
   idOrNameSearch?: string
   onSetIdOrNameSearch: (value: string | undefined) => void
   isFilterTransitionPending?: boolean
+  loadedCount?: number
 }
 
 function PillGroup<T extends string | number>({
@@ -408,10 +409,16 @@ export function FacetSidebar({
   idOrNameSearch,
   onSetIdOrNameSearch,
   isFilterTransitionPending,
+  loadedCount,
 }: FacetSidebarProps) {
   const { t } = useTranslation()
   const content = (
     <div className="space-y-6">
+      {loadedCount !== undefined && loadedCount > 0 && (
+        <div className="text-xs text-muted-foreground">
+          {t('resumes.searchPage.facets.loadedCount', { defaultValue: `显示前 ${loadedCount} 条结果中的筛选统计` })}
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <div>
           <div className="text-sm font-semibold text-slate-900">{t('resumes.searchPage.facets.filtersTitle', { defaultValue: '筛选条件' })}</div>
