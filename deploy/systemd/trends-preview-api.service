@@ -11,6 +11,8 @@ WorkingDirectory=/home/ubuntu/trends-preview
 EnvironmentFile=-/home/ubuntu/trends-preview/.env.preview
 Environment=NODE_ENV=production
 Environment=PORT=3002
+# API runs on host (not in Docker), so it must use the host-mapped Convex port.
+# Do NOT use http://convex:3210 — that hostname only resolves inside Docker network.
 Environment=CONVEX_URL=http://127.0.0.1:4210
 ExecStart=/usr/bin/node apps/api/dist/index.js
 Restart=on-failure
