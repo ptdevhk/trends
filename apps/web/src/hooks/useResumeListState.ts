@@ -1648,7 +1648,7 @@ export function useResumeListState(loadSearchHistory = false) {
         }
       })()
     },
-    [actionFeedbackLabels, displayedResumes, saveAction, sendLearningFeedback, statusByIdentity, updateCandidateStatus]
+    [actionFeedbackLabels, displayedResumeMap, displayedResumes, saveAction, sendLearningFeedback, statusByIdentity, updateCandidateStatus]
   )
 
   const handleAiFeedback = useCallback(
