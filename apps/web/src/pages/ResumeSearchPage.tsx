@@ -209,6 +209,7 @@ export function ResumeSearchPage() {
       minScore: parsedState.filters.minMatchScore,
       minRoleYears: committedMinRoleYears,
       isFilterTransitionPending: isFilterPending,
+      loadedCount: filteredResults.length,
       minAge: parsedState.filters.minAge,
       maxAge: parsedState.filters.maxAge,
       minSalary: parsedState.filters.minSalary,
