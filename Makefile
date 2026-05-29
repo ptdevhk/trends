@@ -9,6 +9,7 @@
 		build-static build-static-fresh build-extension-zip serve-static \
 		i18n-check i18n-sync i18n-convert i18n-translate i18n-build \
 		refresh-sample refresh-sample-manual prefetch-convex chrome-debug \
+		backfill-candidate-status backfill-candidate-status-live \
 		debug-51job-detail \
 		install-hooks \
 		seed seed-full seed-force seed-clear seed-clear-workspace seed-clear-dev \
@@ -900,6 +901,14 @@ e2e:
 backfill-derived-fields:
 	@echo "→ force-validating data consistency (reindex + backfill + search index refresh)"
 	@./bin/trends migrate validate-consistency --force
+
+# Backfill candidate_status from SQLite candidate_actions to Convex (dry-run by default)
+backfill-candidate-status:
+	@npx tsx scripts/backfill-candidate-status.ts --dry-run $(ARGS)
+
+# Backfill candidate_status (live — writes to Convex)
+backfill-candidate-status-live:
+	@npx tsx scripts/backfill-candidate-status.ts $(ARGS)
 
 # Check derived field coverage via BFF API
 check-derived-fields:
