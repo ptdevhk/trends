@@ -375,6 +375,7 @@
         "filtersTitle": "筛选条件",
         "filtersDescription": "在当前搜索结果中进一步精确筛选。",
         "filtersDescriptionMobile": "在当前搜索结果中进一步精确筛选。",
+        "loadedCount": "显示前 {{count}} 条结果中的筛选统计",
         "emptyLabel": "暂无可用选项",
         "showLess": "收起",
         "showMore": "展开剩余 {{count}} 项",

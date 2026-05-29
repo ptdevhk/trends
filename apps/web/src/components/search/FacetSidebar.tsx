@@ -416,7 +416,7 @@ export function FacetSidebar({
     <div className="space-y-6">
       {loadedCount !== undefined && loadedCount > 0 && (
         <div className="text-xs text-muted-foreground">
-          {t('resumes.searchPage.facets.loadedCount', { defaultValue: `显示前 ${loadedCount} 条结果中的筛选统计` })}
+          {t('resumes.searchPage.facets.loadedCount', { count: loadedCount, defaultValue: `显示前 ${loadedCount} 条结果中的筛选统计` })}
         </div>
       )}
       <div className="flex items-center justify-between">

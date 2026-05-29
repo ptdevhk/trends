@@ -376,6 +376,7 @@
         "filtersTitle": "Filters",
         "filtersDescription": "Refine your search results.",
         "filtersDescriptionMobile": "Refine your search results.",
+        "loadedCount": "Showing counts for the first {{count}} results",
         "emptyLabel": "No options available",
         "showLess": "Show less",
         "showMore": "Show {{count}} more",
