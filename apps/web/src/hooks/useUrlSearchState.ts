@@ -27,6 +27,7 @@ const KNOWN_PARAM_KEYS = [
   'sort',
   'order',
   'idn',
+  'skills',
 ] as const
 
 export type ExperienceLevelFilter = 'senior' | 'mid' | 'junior'
@@ -280,6 +281,11 @@ export function parseUrlSearchState(searchParams: URLSearchParams): UrlSearchSta
     filters.idOrNameSearch = idOrNameSearch
   }
 
+  const skills = normalizeUniqueValues(parseCsvParam(searchParams.get('skills')))
+  if (skills.length > 0) {
+    filters.skills = skills
+  }
+
   return {
     shareSessionId,
     query,
@@ -408,6 +414,10 @@ export function useUrlSearchState() {
           setParam(nextParams, 'idn', state.filters.idOrNameSearch.trim())
         } else {
           nextParams.delete('idn')
+        }
+
+        if (Array.isArray(state.filters.skills) && state.filters.skills.length > 0) {
+          setParam(nextParams, 'skills', normalizeUniqueValues(state.filters.skills).join(','))
         }
 
         if (nextParams.toString() === prevParams.toString()) {

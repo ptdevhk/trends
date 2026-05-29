@@ -565,3 +565,34 @@ describe('idOrNameSearch (idn) URL param', () => {
     expect(state.filters.idOrNameSearch).toBeUndefined()
   })
 })
+
+describe('skills URL param', () => {
+  it('parses skills CSV param into filters.skills', () => {
+    const state = parseUrlSearchState(new URLSearchParams('skills=CNC,FANUC'))
+    expect(state.filters.skills).toEqual(['CNC', 'FANUC'])
+  })
+
+  it('returns empty array for skills when param absent', () => {
+    const state = parseUrlSearchState(new URLSearchParams('q=sales'))
+    expect(state.filters.skills).toBeUndefined()
+  })
+
+  it('parses skills CSV param into filters.skills', () => {
+    const state = parseUrlSearchState(new URLSearchParams('skills=CNC,FANUC'))
+    expect(state.filters.skills).toEqual(['CNC', 'FANUC'])
+  })
+
+  it('returns undefined for skills when param absent', () => {
+    const state = parseUrlSearchState(new URLSearchParams('q=sales'))
+    expect(state.filters.skills).toBeUndefined()
+  })
+
+  it('round-trips skills filter through syncToUrl and parse', () => {
+    const currentParams = new URLSearchParams('skills=CNC,FANUC')
+    useSearchParamsMock.mockReturnValue([currentParams, setSearchParamsMock])
+
+    const { result } = renderHook(() => useUrlSearchState())
+
+    expect(result.current.parsedState.filters.skills).toEqual(['CNC', 'FANUC'])
+  })
+})
