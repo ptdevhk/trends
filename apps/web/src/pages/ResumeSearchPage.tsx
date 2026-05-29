@@ -56,6 +56,7 @@ export function ResumeSearchPage() {
     selectedRawTags,
     setAiModeEnabled,
     setExportFormat,
+    setIdOrNameSearchFilter,
     setMinRoleYearsFilter,
     setAgeRangeFilter,
     setSalaryRangeFilter,
@@ -192,6 +193,14 @@ export function ResumeSearchPage() {
     setQueryInput(nextQuery)
   }
 
+  const handleBulkActionWithScroll = useCallback(
+    (...args: Parameters<typeof handleBulkAction>) => {
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+      return handleBulkAction(...args)
+    },
+    [handleBulkAction],
+  )
+
   const mobileFilterProps = useMemo(
     () => ({
       facetCounts,
@@ -222,10 +231,14 @@ export function ResumeSearchPage() {
       onToggleStatus: toggleStatus,
       onSetMinScore: setMinScoreFilter,
       onClearAll: clearFacetFilters,
+      idOrNameSearch: parsedState.filters.idOrNameSearch,
+      onSetIdOrNameSearch: setIdOrNameSearchFilter,
     }),
     [
       clearFacetFilters,
       facetCounts,
+      parsedState.filters.idOrNameSearch,
+      setIdOrNameSearchFilter,
       parsedState.filters.education,
       parsedState.filters.minMatchScore,
       parsedState.filters.minRoleYears,
@@ -403,20 +416,22 @@ export function ResumeSearchPage() {
                 </ErrorBoundary>
               )}
 
-              <BulkActionBar
-                totalCount={filteredResults.length}
-                selectedCount={selectedIds.size}
-                highScoreCount={highScoreCount}
-                exportFormat={exportFormat}
-                onExportFormatChange={setExportFormat}
-                onSelectAll={selectAll}
-                onSelectHighScore={() => selectHighScore()}
-                onClearSelection={clearSelection}
-                onBulkAction={handleBulkAction}
-                statusFilter={parsedState.filters.status}
-                onStatusToggle={toggleStatus}
-                statusFacetCounts={facetCounts?.statuses?.reduce((acc, { value, count }) => ({ ...acc, [value]: count }), {} as Record<string, number>)}
-              />
+              <div className="sticky top-0 z-20 -mx-1 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-1 py-1">
+                <BulkActionBar
+                  totalCount={filteredResults.length}
+                  selectedCount={selectedIds.size}
+                  highScoreCount={highScoreCount}
+                  exportFormat={exportFormat}
+                  onExportFormatChange={setExportFormat}
+                  onSelectAll={selectAll}
+                  onSelectHighScore={() => selectHighScore()}
+                  onClearSelection={clearSelection}
+                  onBulkAction={handleBulkActionWithScroll}
+                  statusFilter={parsedState.filters.status}
+                  onStatusToggle={toggleStatus}
+                  statusFacetCounts={facetCounts?.statuses?.reduce((acc, { value, count }) => ({ ...acc, [value]: count }), {} as Record<string, number>)}
+                />
+              </div>
 
               <ErrorBoundary fallback={<InlineErrorFallback message={errorResultsLabel} retryLabel={reloadPageLabel} onRetry={() => window.location.reload()} />}>
                 <SearchResultsList

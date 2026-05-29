@@ -95,6 +95,7 @@ describe('FacetSidebar', () => {
         onToggleTag={vi.fn()}
         selectedSources={[]}
         onToggleSource={vi.fn()}
+        onSetIdOrNameSearch={vi.fn()}
       />
     )
 
@@ -139,6 +140,7 @@ describe('FacetSidebar', () => {
         onToggleTag={onToggleTag}
         selectedSources={[]}
         onToggleSource={vi.fn()}
+        onSetIdOrNameSearch={vi.fn()}
       />
     )
 
@@ -190,6 +192,7 @@ describe('FacetSidebar', () => {
         onToggleTag={vi.fn()}
         selectedSources={[]}
         onToggleSource={vi.fn()}
+        onSetIdOrNameSearch={vi.fn()}
       />
     )
 
@@ -232,6 +235,7 @@ describe('FacetSidebar', () => {
         onToggleTag={vi.fn()}
         selectedSources={[]}
         onToggleSource={vi.fn()}
+        onSetIdOrNameSearch={vi.fn()}
       />
     )
 
@@ -271,6 +275,7 @@ describe('FacetSidebar', () => {
         onToggleTag={vi.fn()}
         selectedSources={[]}
         onToggleSource={vi.fn()}
+        onSetIdOrNameSearch={vi.fn()}
       />
     )
 
@@ -315,6 +320,7 @@ describe('FacetSidebar', () => {
         onToggleTag={vi.fn()}
         selectedSources={[]}
         onToggleSource={vi.fn()}
+        onSetIdOrNameSearch={vi.fn()}
       />
     )
 
@@ -362,6 +368,7 @@ describe('FacetSidebar', () => {
         onToggleTag={vi.fn()}
         selectedSources={[]}
         onToggleSource={vi.fn()}
+        onSetIdOrNameSearch={vi.fn()}
       />
     )
 
