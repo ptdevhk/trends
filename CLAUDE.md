@@ -137,6 +137,20 @@ make on-prod-install             # first-time systemd install (alias: prod-insta
 make on-prod-refresh-env         # refresh env + rebuild web bundle (alias: refresh-env)
 ```
 
+### Preview deployment (preview.pt-mes.com on ptcloud)
+Preview runs in parallel with production on different ports — Convex `4210/4211`, API `3002`, MCP `3334`, web at `/home/ubuntu/trends-preview/apps/web/dist`. See `deploy/restore-preview-from-prod.sh` and the compound entry `projects/trends/compound/2026-05-29-preview-deployment-lessons.md` for the full postmortem.
+
+```bash
+# On ptcloud as root
+bash /opt/trends/deploy/setup-preview.sh           # rsync code, build API+web (~6m)
+cd /home/ubuntu/trends-preview && \
+  docker compose -f docker-compose.preview.yml up -d   # Convex + MCP
+systemctl enable --now trends-preview-api          # API runs as systemd, not Docker
+bash /opt/trends/deploy/restore-preview-from-prod.sh  # Convex export → import (~1m)
+```
+
+Do NOT raw-copy `convex_local_backend.sqlite3` between deployments — schema push fails with 500. Use the `convex export`/`import` API (the restore script handles this).
+
 ### Governance Sync (only when policy block changes)
 ```bash
 make sync-agent-policy
@@ -180,6 +194,7 @@ TARGET=all make sync-agent-governance  # Optional: run policy sync + governance 
 - When adding status/filter logic to `useResumeListState`, use `displayedResumes.find(e => e.key === id)?.identityKey` — not `displayedResumeMap` which maps resumeKey→ConvexResumeItem. The entry's `identityKey` is pre-computed via `getResumeIdentityKey`; in non-AI fallback mode `entry.identityKey` may differ from `resume.identityKey`.
 - After `make local-restore-from-prod` or `restore-preview-from-prod.sh`, legacy search profiles (seeded before stamping) lack `seedSource`/`templateHash` and are invisible to drift detection. Set `SEARCH_PROFILES_RESEED_ON_DRIFT=true` in `.env`, restart the API once, hit `/api/search-profiles/stats` to trigger adoption, then remove the flag and restart again. Without this, quick-start chips generate stale URLs (e.g. `minExp=1` instead of `minRoleYears=1&roleType=sales`).
 - When adding new fields to SearchProfile filters, update all 6 locations: (1) `config/search-profiles/*.yaml`, (2) `search-profile-service.ts` `SearchProfile.filters` type + `parseFilters`, (3) `search-profiles.ts` Zod schema + output mapping, (4) `sync-search-profile-templates.ts` `ProfileFilters` type + `parseFilters`, (5) run `make sync-search-profile-templates` to regenerate the artifact, (6) run `npm --workspace @trends/web run gen:api` to regenerate `api-types.ts`.
+- When `config/search-profiles/*.yaml` templates change (new fields, renamed fields, new defaults), the local DB profile won't update automatically unless `SEARCH_PROFILES_RESEED_ON_DRIFT=true` is set — the API logs a "template drift detected" warning but skips the update otherwise. `.env.example` sets this flag for local dev. For production, enable it temporarily in `.env.production` when deploying a profile-template upgrade, then remove it.
 
 ## Browser Testing & Debugging
 
