@@ -17,6 +17,7 @@
 		clear-resumes \
 		cli-build cli-install cli-test \
 		sync-agent-policy check-agent-policy sync-project-skills check-project-skills install-global-skills install-agent-skill check-agent-skill sync-agent-governance \
+		check-route-auth \
 		install-skill validate-skill check-skill-install install-test-plan-skill check-test-plan-skill \
 		install-browser-ext-skill check-browser-ext-skill \
 		sync-resume-ai-prompts check-resume-ai-prompts \
@@ -1102,6 +1103,10 @@ fresh-env: clean clean-db
 # Run all validation checks (Python + Node.js + project skill sync + governance skill validation; honors TARGET=all)
 check: check-python check-node check-project-skills check-agent-policy check-agent-skill check-concept-drift
 	@echo "All checks passed"
+
+# Auth gating lint — verify API route files have auth middleware
+check-route-auth:
+	@bash scripts/check-route-auth.sh
 
 # Concept drift check — flags vault concept pages that may need review after code changes
 check-concept-drift:
