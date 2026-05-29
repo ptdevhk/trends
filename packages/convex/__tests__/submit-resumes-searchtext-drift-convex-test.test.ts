@@ -3,14 +3,14 @@
  *
  * Regression tests for the searchtext-rejected-count-drift investigation (2026-05-29):
  * When a hash-changed resume gets a new searchText, the sync_event must record
- * searchTextRefreshed > 0 so operators can correlate with candidate_status in SQLite.
+ * hashChangedUpdates > 0 so operators can correlate with candidate_status in SQLite.
  */
 import { createTest } from "./test-helpers.js";
 import { describe, expect, it } from "vitest";
 import { api } from "../convex/_generated/api.js";
 
-describe("resume_tasks: submitResumes — searchTextRefreshed tracking", () => {
-    it("records searchTextRefreshed=0 when no resumes are hash-changed", async () => {
+describe("resume_tasks: submitResumes — hashChangedUpdates tracking", () => {
+    it("records hashChangedUpdates=0 when no resumes are hash-changed", async () => {
         const t = createTest();
 
         // First submission — all inserts, no hash changes
@@ -37,10 +37,10 @@ describe("resume_tasks: submitResumes — searchTextRefreshed tracking", () => {
         expect(event).toBeDefined();
         expect(event!.inserted).toBe(1);
         expect(event!.updated).toBe(0);
-        expect(event!.searchTextRefreshed).toBe(0);
+        expect(event!.hashChangedUpdates).toBe(0);
     });
 
-    it("records searchTextRefreshed=1 when a hash-changed resume gets a new searchText", async () => {
+    it("records hashChangedUpdates=1 when a hash-changed resume gets a new searchText", async () => {
         const t = createTest();
 
         // Seed an existing resume without searchText
@@ -80,10 +80,10 @@ describe("resume_tasks: submitResumes — searchTextRefreshed tracking", () => {
 
         expect(event).toBeDefined();
         expect(event!.updated).toBe(1);
-        expect(event!.searchTextRefreshed).toBe(1);
+        expect(event!.hashChangedUpdates).toBe(1);
     });
 
-    it("records correct searchTextRefreshed count across a mixed batch", async () => {
+    it("records correct hashChangedUpdates count across a mixed batch", async () => {
         const t = createTest();
 
         // Seed 2 existing resumes
@@ -148,6 +148,6 @@ describe("resume_tasks: submitResumes — searchTextRefreshed tracking", () => {
         expect(event!.inserted).toBe(1);
         expect(event!.updated).toBe(2);
         // Both ext-a and ext-b were hash-changed and got new searchText
-        expect(event!.searchTextRefreshed).toBe(2);
+        expect(event!.hashChangedUpdates).toBe(2);
     });
 });

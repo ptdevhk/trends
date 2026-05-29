@@ -360,7 +360,7 @@ export const submitResumes = mutation({
         let inserted = 0;
         let updated = 0;
         let unchanged = 0;
-        let searchTextRefreshed = 0;
+        let hashChangedUpdates = 0;
         let nextIndex = 0;
         const parallelism = resolveSubmitResumeParallelism(resumes.length);
         const ingestProcessIds: Id<"resumes">[] = [];
@@ -427,7 +427,7 @@ export const submitResumes = mutation({
                         applyParsedAgePatch(patch, parsedAge, existing.age);
                         await ctx.db.patch(existing._id, patch);
                         updated += 1;
-                        searchTextRefreshed += 1;
+                        hashChangedUpdates += 1;
                         if (shouldScheduleIngest(restoreState)) {
                             ingestProcessIds.push(existing._id);
                         }
@@ -528,7 +528,7 @@ export const submitResumes = mutation({
             inserted,
             updated,
             unchanged,
-            searchTextRefreshed,
+            hashChangedUpdates,
             timestamp: now,
         });
 

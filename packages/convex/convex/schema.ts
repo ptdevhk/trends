@@ -428,7 +428,7 @@ export default defineSchema({
         inserted: v.number(),
         updated: v.number(),
         unchanged: v.number(),
-        searchTextRefreshed: v.optional(v.number()),
+        hashChangedUpdates: v.optional(v.number()),
         error: v.optional(v.string()),
         timestamp: v.number(),
     }).index("by_timestamp", ["timestamp"]),
