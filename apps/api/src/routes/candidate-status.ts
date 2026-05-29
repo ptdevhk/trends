@@ -7,8 +7,10 @@ import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { callConvexQuery, callConvexMutation } from "../services/convex-utils.js";
 import { workspaceConfigService } from "../services/workspace-config-service.js";
 import { logger } from "../services/logger.js";
+import { requireAdmin } from "../middleware/workspace.js";
 
 const app = new OpenAPIHono();
+app.use("/api/candidate-status", requireAdmin);
 
 
 const CandidateStatusEnum = z.enum([
