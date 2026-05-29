@@ -73,6 +73,8 @@ export function ResumeSearchPage() {
     toggleBrand,
     toggleStatus,
     toggleTag,
+    isFilterPending,
+    committedMinRoleYears,
     // Candidate management
     actionsByResume,
     ratingsByResume,
@@ -205,7 +207,8 @@ export function ResumeSearchPage() {
     () => ({
       facetCounts,
       minScore: parsedState.filters.minMatchScore,
-      minRoleYears: parsedState.filters.minRoleYears,
+      minRoleYears: committedMinRoleYears,
+      isFilterTransitionPending: isFilterPending,
       minAge: parsedState.filters.minAge,
       maxAge: parsedState.filters.maxAge,
       minSalary: parsedState.filters.minSalary,
