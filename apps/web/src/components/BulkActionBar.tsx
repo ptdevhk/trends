@@ -126,7 +126,7 @@ export function BulkActionBar({
                                         : 'border-border text-muted-foreground hover:bg-muted',
                                 )}
                             >
-                                {t(`status.${status}`, status)}
+                                {t(`resumes.status.options.${status}`, status)}
                                 {typeof count === 'number' && count > 0 && (
                                     <span className="ml-1 opacity-70">{count}</span>
                                 )}
