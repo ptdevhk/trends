@@ -12,6 +12,7 @@ export default defineSchema({
             maxPages: v.optional(v.number()),
             minAge: v.optional(v.number()),
             maxAge: v.optional(v.number()),
+            maxSalary: v.optional(v.number()),
             autoAnalyze: v.optional(v.boolean()),
             analysisTopN: v.optional(v.number()),
         }),

@@ -921,6 +921,152 @@ describe('search-profiles run route', () => {
     expect(dispatchCall.args.minAge).toBe(25)
     expect(dispatchCall.args.maxAge).toBe(40)
   })
+
+  it('dispatches maxSalary from profile salaryRange when not overridden by request', async () => {
+    const calls: ConvexCall[] = []
+    let materialized = false
+
+    const profileWithSalary = {
+      ...seededJob51Profile,
+      filters: {
+        ...seededJob51Profile.filters,
+        salaryRange: { max: 25000, currency: 'CNY', period: 'monthly' },
+      },
+    }
+
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init)
+      calls.push(call)
+
+      if (call.pathName === 'search_profiles:getById') {
+        if (!materialized) {
+          return convexSuccess(null)
+        }
+
+        return convexSuccess({
+          _id: 'search_profiles-seeded-1',
+          profileId: '51job-cn-cnc-sales',
+          name: 'China 51job CNC Sales',
+          profile: profileWithSalary,
+          criteria: { keywords: ['CNC', '销售'], locations: ['China'] },
+          workspaceSlug: 'dev',
+        })
+      }
+      if (call.pathName === 'search_profiles:create') {
+        materialized = true
+        return convexSuccess({
+          _id: 'search_profiles-seeded-1',
+          profileId: '51job-cn-cnc-sales',
+          name: 'China 51job CNC Sales',
+          profile: call.args.profile,
+          criteria: { keywords: ['CNC', '销售'], locations: ['China'] },
+          workspaceSlug: 'dev',
+        })
+      }
+      if (call.pathName === 'resume_tasks:dispatch') {
+        return convexSuccess('task-salary-default')
+      }
+
+      throw new Error(`Unexpected convex path: ${call.pathName}`)
+    })
+
+    const app = createApp()
+    const response = await app.request('/api/search-profiles/51job-cn-cnc-sales/run', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Workspace-Slug': 'dev',
+      },
+      body: JSON.stringify({}),
+    })
+
+    expect(response.status).toBe(200)
+
+    const payload = await response.json()
+    expect(payload).toMatchObject({
+      success: true,
+      taskId: 'task-salary-default',
+      dispatch: {
+        maxSalary: 25000,
+      },
+    })
+
+    const dispatchCall = getDispatchCall(calls)
+    expect(dispatchCall.args.maxSalary).toBe(25000)
+  })
+
+  it('request-level maxSalary overrides profile salaryRange.max', async () => {
+    const calls: ConvexCall[] = []
+    let materialized = false
+
+    const profileWithSalary = {
+      ...seededJob51Profile,
+      filters: {
+        ...seededJob51Profile.filters,
+        salaryRange: { max: 25000, currency: 'CNY', period: 'monthly' },
+      },
+    }
+
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init)
+      calls.push(call)
+
+      if (call.pathName === 'search_profiles:getById') {
+        if (!materialized) {
+          return convexSuccess(null)
+        }
+
+        return convexSuccess({
+          _id: 'search_profiles-seeded-1',
+          profileId: '51job-cn-cnc-sales',
+          name: 'China 51job CNC Sales',
+          profile: profileWithSalary,
+          criteria: { keywords: ['CNC', '销售'], locations: ['China'] },
+          workspaceSlug: 'dev',
+        })
+      }
+      if (call.pathName === 'search_profiles:create') {
+        materialized = true
+        return convexSuccess({
+          _id: 'search_profiles-seeded-1',
+          profileId: '51job-cn-cnc-sales',
+          name: 'China 51job CNC Sales',
+          profile: call.args.profile,
+          criteria: { keywords: ['CNC', '销售'], locations: ['China'] },
+          workspaceSlug: 'dev',
+        })
+      }
+      if (call.pathName === 'resume_tasks:dispatch') {
+        return convexSuccess('task-salary-override')
+      }
+
+      throw new Error(`Unexpected convex path: ${call.pathName}`)
+    })
+
+    const app = createApp()
+    const response = await app.request('/api/search-profiles/51job-cn-cnc-sales/run', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Workspace-Slug': 'dev',
+      },
+      body: JSON.stringify({ maxSalary: 20000 }),
+    })
+
+    expect(response.status).toBe(200)
+
+    const payload = await response.json()
+    expect(payload).toMatchObject({
+      success: true,
+      taskId: 'task-salary-override',
+      dispatch: {
+        maxSalary: 20000,
+      },
+    })
+
+    const dispatchCall = getDispatchCall(calls)
+    expect(dispatchCall.args.maxSalary).toBe(20000)
+  })
 })
 
 describe('search-profiles status route', () => {
