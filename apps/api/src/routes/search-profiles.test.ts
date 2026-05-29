@@ -143,7 +143,7 @@ describe("search-profiles legacy adoption", () => {
         expect((profilePayload.templateHash as string).length).toBeGreaterThan(0);
     });
 
-    it("skips legacy unstamped profiles when SEARCH_PROFILES_RESEED_ON_DRIFT is not set", async () => {
+    it("adopts legacy unstamped profiles unconditionally (no flag required)", async () => {
         delete process.env.SEARCH_PROFILES_RESEED_ON_DRIFT;
 
         const legacyConvexRecord = {
@@ -181,6 +181,20 @@ describe("search-profiles legacy adoption", () => {
             if (call.pathName === "search_profiles:list") {
                 return convexSuccess([legacyConvexRecord]);
             }
+            if (call.pathName === "search_profiles:update") {
+                // Return a valid record that toSearchProfile can parse
+                return convexSuccess({
+                    _id: "storage-id-1",
+                    profileId: "test-legacy-profile",
+                    name: "Test Legacy Profile",
+                    profile: {
+                        id: "test-legacy-profile",
+                        seedSource: "config/search-profiles",
+                        filters: { minRoleYears: 1, roleFilterType: "sales" },
+                    },
+                    criteria: { keywords: ["CNC", "Sales"], locations: ["China"] },
+                });
+            }
             throw new Error(`Unexpected convex path: ${call.pathName}`);
         });
 
@@ -191,9 +205,12 @@ describe("search-profiles legacy adoption", () => {
 
         expect(response.status).toBe(200);
 
-        // No update mutation should be called
+        // Legacy profiles are always adopted — no flag required
         const updateCalls = calls.filter((c) => c.pathName === "search_profiles:update");
-        expect(updateCalls).toHaveLength(0);
+        expect(updateCalls).toHaveLength(1);
+        const profilePayload = updateCalls[0]!.args.profile as Record<string, unknown>;
+        expect(profilePayload.seedSource).toBe("config/search-profiles");
+        expect(typeof profilePayload.templateHash).toBe("string");
     });
 
     it("does not adopt already-stamped profiles (normal drift path)", async () => {

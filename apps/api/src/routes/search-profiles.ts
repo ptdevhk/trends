@@ -544,15 +544,9 @@ async function ensureWorkspaceSeedProfiles(workspaceSlug: string): Promise<void>
             && existing.logicalId === logicalId;
 
         if (isLegacyUnstamped) {
-            if (!reseedOnDrift) {
-                logger.warn(
-                    `legacy unstamped profile "${logicalId}" (workspace=${workspaceSlug}) detected; ` +
-                    `set SEARCH_PROFILES_RESEED_ON_DRIFT=true to adopt and stamp from YAML automatically.`,
-                    { route: "search-profiles" },
-                );
-                continue;
-            }
-
+            // Always adopt — legacy unstamped profiles were auto-seeded from config
+            // before the stamping mechanism was added. They have no user edits to
+            // protect, so it's safe to refresh from YAML unconditionally.
             const refreshedProfile = searchProfileService.normalizeProfileInput(
                 { ...profile, id: existing.profile.id },
                 existing.profile,
@@ -569,6 +563,29 @@ async function ensureWorkspaceSeedProfiles(workspaceSlug: string): Promise<void>
             logger.warn(
                 `adopted legacy profile "${logicalId}" (workspace=${workspaceSlug}): ` +
                 `stamped seedSource + templateHash, refreshed filters from YAML.`,
+                { route: "search-profiles" },
+            );
+            continue;
+        }
+
+        // Half-stamped fix: seeded profile with seedSource but no templateHash.
+        // This happens when a profile was PUT via the API editor (which stamps
+        // seedSource) before the templateHash field was added to the PUT path.
+        // Always safe to stamp — no user edits are clobbered.
+        const isHalfStamped = existing.seededFromConfig
+            && !existing.templateHash;
+
+        if (isHalfStamped) {
+            await updateCustomProfile(
+                existing.storageId,
+                toStoredProfilePayload(existing.profile, {
+                    seededFromConfig: true,
+                    templateHash: currentHash,
+                }),
+                workspaceSlug,
+            );
+            logger.warn(
+                `stamped missing templateHash on half-stamped profile "${logicalId}" (workspace=${workspaceSlug}).`,
                 { route: "search-profiles" },
             );
             continue;
