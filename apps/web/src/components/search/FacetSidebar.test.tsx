@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { FacetSidebar } from '@/components/search/FacetSidebar'
 import type { FacetCounts } from '@/components/search/search-types'
+import type { CandidateStatus } from '@/types/resume'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -370,5 +371,71 @@ describe('FacetSidebar', () => {
     // Re-click deselects
     await user.click(screen.getByRole('button', { name: '25-40' }))
     expect(onSetAgeRange).toHaveBeenCalledWith(undefined, undefined)
+  })
+})
+
+describe('idOrNameSearch filter input', () => {
+  function buildProps() {
+    return {
+      facetCounts: buildFacetCounts(),
+      selectedBrands: [],
+      selectedClusters: [],
+      selectedCompanies: [],
+      selectedEducation: [],
+      selectedExperienceLevel: undefined as undefined,
+      selectedSources: [],
+      selectedStatuses: [] as CandidateStatus[],
+      selectedTags: [],
+      onClearAll: vi.fn(),
+      onSetAgeRange: vi.fn(),
+      onSetExperienceLevel: vi.fn(),
+      onSetMinRoleYears: vi.fn(),
+      onSetMinScore: vi.fn(),
+      onSetSalaryRange: vi.fn(),
+      onToggleBrand: vi.fn(),
+      onToggleCluster: vi.fn(),
+      onToggleCompany: vi.fn(),
+      onToggleEducation: vi.fn(),
+      onToggleSource: vi.fn(),
+      onToggleStatus: vi.fn(),
+      onToggleTag: vi.fn(),
+      idOrNameSearch: undefined as string | undefined,
+      onSetIdOrNameSearch: vi.fn(),
+    }
+  }
+
+  it('renders the id/name search input placeholder', () => {
+    render(<FacetSidebar {...buildProps()} embedded />)
+    expect(screen.getByPlaceholderText('ID · 候选人姓名')).toBeInTheDocument()
+  })
+
+  it('shows current idOrNameSearch value', () => {
+    render(<FacetSidebar {...buildProps()} embedded idOrNameSearch="abc123" />)
+    expect(screen.getByDisplayValue('abc123')).toBeInTheDocument()
+  })
+
+  it('calls onSetIdOrNameSearch when typing', async () => {
+    const user = userEvent.setup()
+    const onSetIdOrNameSearch = vi.fn()
+    render(<FacetSidebar {...buildProps()} embedded onSetIdOrNameSearch={onSetIdOrNameSearch} />)
+    const input = screen.getByPlaceholderText('ID · 候选人姓名')
+    await user.type(input, 'x')
+    expect(onSetIdOrNameSearch).toHaveBeenCalledWith('x')
+  })
+
+  it('shows clear button only when value present', () => {
+    const { rerender } = render(<FacetSidebar {...buildProps()} embedded idOrNameSearch={undefined} />)
+    expect(screen.queryByRole('button', { name: /clear/i })).not.toBeInTheDocument()
+
+    rerender(<FacetSidebar {...buildProps()} embedded idOrNameSearch="abc" />)
+    expect(screen.getByRole('button', { name: /clear/i })).toBeInTheDocument()
+  })
+
+  it('calls onSetIdOrNameSearch with undefined when clear button clicked', async () => {
+    const user = userEvent.setup()
+    const onSetIdOrNameSearch = vi.fn()
+    render(<FacetSidebar {...buildProps()} embedded idOrNameSearch="abc" onSetIdOrNameSearch={onSetIdOrNameSearch} />)
+    await user.click(screen.getByRole('button', { name: /clear/i }))
+    expect(onSetIdOrNameSearch).toHaveBeenCalledWith(undefined)
   })
 })
