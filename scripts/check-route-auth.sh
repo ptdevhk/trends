@@ -26,9 +26,8 @@ SKIP_FILES=(
   "sessions.ts"
   "actions.ts"
   "web-vitals.ts"
-  # Resume search/match/diagnostics (workspace-scoped read paths)
+  # Resume search/match (workspace-scoped read paths)
   "resumes_search.ts"
-  "resumes_diagnostics.ts"
   "resumes_match.ts"
   # Public submission endpoints (browser extension, candidate-facing)
   "resume-submit.ts"
@@ -39,8 +38,6 @@ SKIP_FILES=(
   # Internal worker endpoints (own auth via WORKER_SECRET)
   "worker.ts"
   "blocks.ts"
-  # TODO: remove after PR #1152 merges (adds requireAdmin to list + update routes)
-  "candidate-status.ts"
 )
 
 is_skipped() {

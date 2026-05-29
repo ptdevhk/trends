@@ -9,8 +9,13 @@ import {
   ResumeDiagnosticsQuerySchema,
   ResumeDiagnosticsResponseSchema,
 } from "../schemas/index.js";
+import { requireAdmin } from "../middleware/workspace.js";
 
 const app = new OpenAPIHono();
+app.use("/api/resumes/analysis-tasks", requireAdmin);
+app.use("/api/resumes/skills-version", requireAdmin);
+app.use("/api/resumes/field-coverage", requireAdmin);
+app.use("/api/resumes/diagnostics", requireAdmin);
 const skillsKnowledgeService = new SkillsKnowledgeService(config.projectRoot);
 
 const SimpleErrorSchema = z.object({ success: z.literal(false), error: z.string() });

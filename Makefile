@@ -1101,7 +1101,7 @@ fresh-env: clean clean-db
 	@echo "Fresh environment ready."
 
 # Run all validation checks (Python + Node.js + project skill sync + governance skill validation; honors TARGET=all)
-check: check-python check-node check-project-skills check-agent-policy check-agent-skill check-concept-drift
+check: check-python check-node check-project-skills check-agent-policy check-agent-skill check-concept-drift check-route-auth
 	@echo "All checks passed"
 
 # Auth gating lint — verify API route files have auth middleware
