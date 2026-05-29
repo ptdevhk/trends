@@ -106,7 +106,7 @@ export function createApp() {
 
   // Rate limiting on API routes (100 req/min per IP in production).
   // In development, localhost requests share key "unknown" and exhaust the budget quickly.
-  if (process.env.NODE_ENV !== "development") {
+  if (process.env.NODE_ENV === "production") {
     app.use("/api/*", rateLimit({ limit: 100, windowMs: 60_000 }));
   }
 
