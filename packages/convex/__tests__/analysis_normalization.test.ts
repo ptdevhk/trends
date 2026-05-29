@@ -392,7 +392,7 @@ describe("normalizeSummaryConsistency", () => {
 describe("normalizeAnalysisResult", () => {
     it("computes score from related_exp * weight + industry_db", () => {
         const result = normalizeAnalysisResult(
-            { score: 80, summary: "Test", breakdown: { related_exp: 60 } },
+            { score: 80, summary: "Test", recommendation: "match", breakdown: { related_exp: 60 } },
             { ingestData: { industryDbV2Raw: 30 } },
         );
         expect(result.score).toBe(Math.round(60 * RELATED_EXP_WEIGHT) + 30);
@@ -411,7 +411,7 @@ describe("normalizeAnalysisResult", () => {
 
     it("clamps related_exp to 0-100 before weighting", () => {
         const result = normalizeAnalysisResult(
-            { breakdown: { related_exp: 200 } },
+            { recommendation: "match", breakdown: { related_exp: 200 } },
             {},
         );
         // related_exp clamped to 100, then score = round(100 * 0.5) + 0 = 50
@@ -421,7 +421,7 @@ describe("normalizeAnalysisResult", () => {
 
     it("derives recommendation from score", () => {
         const result = normalizeAnalysisResult(
-            { breakdown: { related_exp: 100 } },
+            { recommendation: "match", breakdown: { related_exp: 100 } },
             { ingestData: { industryDbV2Raw: 35 } },
         );
         // score = round(100 * 0.5) + 35 = 85 → strong_match
@@ -453,6 +453,65 @@ describe("normalizeAnalysisResult", () => {
         );
         expect(result.keyFactors).toHaveLength(1);
         expect(result.keyFactors[0].factor).toBe("exp");
+    });
+
+    describe("recommendation ceiling — fail-closed defaults", () => {
+        it("unknown recommendation string clamps related_exp to no_match ceiling (30)", () => {
+            const result = normalizeAnalysisResult(
+                { recommendation: "weak_potential", breakdown: { related_exp: 100 } },
+                {},
+            );
+            // related_exp clamped to 30 → score = round(30 * 0.5) + 0 = 15
+            expect(result.score).toBeLessThanOrEqual(15);
+        });
+
+        it("null recommendation clamps to no_match ceiling", () => {
+            const result = normalizeAnalysisResult(
+                { recommendation: null as unknown as string, breakdown: { related_exp: 100 } },
+                {},
+            );
+            expect(result.score).toBeLessThanOrEqual(15);
+        });
+
+        it("undefined recommendation clamps to no_match ceiling", () => {
+            const result = normalizeAnalysisResult(
+                { breakdown: { related_exp: 100 } },
+                {},
+            );
+            expect(result.score).toBeLessThanOrEqual(15);
+        });
+
+        it("empty-string recommendation clamps to no_match ceiling", () => {
+            const result = normalizeAnalysisResult(
+                { recommendation: "", breakdown: { related_exp: 100 } },
+                {},
+            );
+            expect(result.score).toBeLessThanOrEqual(15);
+        });
+
+        it("numeric recommendation clamps to no_match ceiling", () => {
+            const result = normalizeAnalysisResult(
+                { recommendation: 42 as unknown as string, breakdown: { related_exp: 100 } },
+                {},
+            );
+            expect(result.score).toBeLessThanOrEqual(15);
+        });
+
+        it("valid recommendation values use their ceiling, not the fallback", () => {
+            const cases: Array<[string, number]> = [
+                ["strong_match", 100],
+                ["match", 100],
+                ["potential", 60],
+                ["no_match", 30],
+            ];
+            for (const [rec, ceiling] of cases) {
+                const result = normalizeAnalysisResult(
+                    { recommendation: rec, breakdown: { related_exp: 100 } },
+                    {},
+                );
+                expect(result.score).toBe(Math.round(ceiling * RELATED_EXP_WEIGHT));
+            }
+        });
     });
 });
 

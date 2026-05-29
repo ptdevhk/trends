@@ -609,4 +609,18 @@ describe('overrideIndustryDbBreakdown — score/recommendation coherence', () =>
     const result = overrideIndustryDbBreakdown(analysis, 50)
     expect(result.score).toBeGreaterThanOrEqual(85)
   })
+
+  it('clamps unknown recommendation to no_match ceiling (30)', () => {
+    const analysis = {
+      score: 95,
+      recommendation: 'mystery_value' as unknown as 'match',
+      breakdown: { related_exp: 100 },
+      summary: 'Unknown recommendation drift',
+      highlights: [],
+      concerns: [],
+    }
+    const result = overrideIndustryDbBreakdown(analysis, 0)
+    // related_exp clamped to 30 (no_match ceiling) → score = round(30 * 0.5) + 0 = 15
+    expect(result.score).toBeLessThanOrEqual(15)
+  })
 })
