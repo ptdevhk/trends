@@ -505,13 +505,10 @@ export function SearchProfileEditorDialog({
                 selectedConvexJobDescription.title
             )
             const location = toLocationText(undefined, selectedConvexJobDescriptionDetail?.location)
-            const minExperience = selectedConvexJobDescriptionDetail?.minExperience
-
             setForm((previous) => ({
                 ...previous,
                 location: location ?? previous.location,
                 keywordsText,
-                minRoleYears: typeof minExperience === 'number' ? String(minExperience) : DEFAULT_FORM.minRoleYears,
                 maxExperience: toNumericText(selectedConvexJobDescriptionDetail?.maxExperience),
                 minAge: toNumericText(selectedConvexJobDescriptionDetail?.minAge),
                 maxAge: toNumericText(selectedConvexJobDescriptionDetail?.maxAge),
@@ -541,7 +538,7 @@ export function SearchProfileEditorDialog({
                 const location = toLocationText(undefined, item.location)
                 const minRoleYears = typeof item.requiredRoles?.[0]?.min_years === 'number'
                     ? item.requiredRoles[0].min_years
-                    : suggestedFilters?.minExperience
+                    : undefined
 
                 setForm((previous) => ({
                     ...previous,
