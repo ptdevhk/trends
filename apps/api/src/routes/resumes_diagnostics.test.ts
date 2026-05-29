@@ -195,4 +195,15 @@ describe("resumes_diagnostics", () => {
       expect(calls[0].path).toBe("resumes_diagnostics:listArchivedDiagnostics");
     });
   });
+
+  describe("workspace access control", () => {
+    it("rejects non-admin workspace with 403", async () => {
+      const app = createTestApp();
+      const response = await app.request("/api/resumes/analysis-tasks", {
+        headers: { "X-Workspace-Slug": "hr" },
+      });
+
+      expect(response.status).toBe(403);
+    });
+  });
 });
