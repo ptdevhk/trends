@@ -206,12 +206,14 @@ const jsonL3 = v.union(jsonPrimitive, v.array(jsonL2), v.record(v.string(), json
 const jsonL4 = v.union(jsonPrimitive, v.array(jsonL3), v.record(v.string(), jsonL3));
 const jsonL5 = v.union(jsonPrimitive, v.array(jsonL4), v.record(v.string(), jsonL4));
 const jsonL6 = v.union(jsonPrimitive, v.array(jsonL5), v.record(v.string(), jsonL5));
+const jsonL7 = v.union(jsonPrimitive, v.array(jsonL6), v.record(v.string(), jsonL6));
+const jsonL8 = v.union(jsonPrimitive, v.array(jsonL7), v.record(v.string(), jsonL7));
 
-/** Accepts any JSON-safe value up to 6 levels of nesting (string|number|boolean|null leaves). */
-export const jsonValueValidator = v.union(jsonPrimitive, v.array(jsonL6), v.record(v.string(), jsonL6));
+/** Accepts any JSON-safe value up to 8 levels of nesting (string|number|boolean|null leaves). */
+export const jsonValueValidator = v.union(jsonPrimitive, v.array(jsonL8), v.record(v.string(), jsonL8));
 
 /** Accepts a record<string, JSON> — for content, profile, and similar semi-structured fields. */
-export const jsonRecordValidator = v.record(v.string(), jsonL6);
+export const jsonRecordValidator = v.record(v.string(), jsonL8);
 
 // --- Matching rules (analyze args) ---
 
