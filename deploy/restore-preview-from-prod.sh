@@ -7,6 +7,8 @@
 set -e
 
 EXPORT_PATH=/tmp/prod-convex-export.zip
+# Clean up stale exports from previous runs
+rm -f "$EXPORT_PATH" /tmp/prod-convex-export-fixed.zip
 PREVIEW_DIR=/home/ubuntu/trends-preview
 
 echo "=== Step 1: Export production Convex data ==="
@@ -51,6 +53,14 @@ chown ubuntu:ubuntu "$PREVIEW_DIR/prod-convex-export.zip"
 
 echo ""
 echo "=== Step 3: Import into preview Convex ==="
+# Restart the Convex container so it sees the freshly copied export file
+# (bind mounts can go stale on long-running containers)
+echo "Restarting preview Convex to ensure bind mount is fresh..."
+cd /home/ubuntu/trends-preview && docker compose -f docker-compose.preview.yml restart convex
+# Wait for health
+echo "Waiting for Convex to become healthy..."
+timeout 180 bash -c 'while [ "$(docker inspect --format="{{.State.Health.Status}}" trends-preview-convex 2>/dev/null)" != "healthy" ]; do sleep 10; done'
+
 # The preview Convex container needs the .env.local pointing at its own deployment.
 # The deployment name comes from /app/packages/convex/.convex/local/default/config.json
 DEPLOY_NAME=$(docker exec trends-preview-convex sh -c \
