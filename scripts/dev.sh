@@ -506,7 +506,7 @@ _is_known_dev_cmd() {
         *"uv run python scripts/worker.py"*)                    return 0 ;;
         *"tsx/dist/preflight"*|*"tsx/dist/loader"*)             return 0 ;;
         *"$PROJECT_ROOT/node_modules/.bin/vite"*|*"vite --port"*) return 0 ;;
-        *"uvicorn api:app"*)                                     return 0 ;;
+        *"uvicorn"*"api:app"*)                                    return 0 ;;
         *)                                                       return 1 ;;
     esac
 }
@@ -1169,9 +1169,9 @@ start_worker() {
         fi
 
         log "WORKER" "$CYAN" "Starting FastAPI worker on http://localhost:$port"
-        cd "$PROJECT_ROOT/apps/worker"
-        
-        local cmd="uv run uvicorn api:app --reload --port $port"
+        cd "$PROJECT_ROOT"
+
+        local cmd="uv run uvicorn apps.worker.api:app --reload --reload-dir apps/worker --port $port"
 
         eval "$cmd" > >(tee "$(service_log_path "worker")" | stream_service_logs "worker" "$CYAN") 2>&1 &
         SERVICE_PIDS["worker"]=$!

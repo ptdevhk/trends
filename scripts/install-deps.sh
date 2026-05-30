@@ -324,6 +324,12 @@ fi
 echo "Installing Python dependencies..."
 uv sync
 
+# Verify critical Python imports; reinstall if corrupted (e.g. fastmcp-slim missing modules)
+if ! "$PROJECT_ROOT/.venv/bin/python" -c "from fastmcp import FastMCP; from litellm import completion" 2>/dev/null; then
+    echo "Python environment corrupted — reinstalling..."
+    uv sync --reinstall-package fastmcp --reinstall-package litellm
+fi
+
 echo "Installing Node.js dependencies..."
 if is_ci_env; then
     npm install
