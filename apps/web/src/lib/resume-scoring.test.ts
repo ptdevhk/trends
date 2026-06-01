@@ -303,7 +303,7 @@ describe('resume-scoring', () => {
     expect(computeDirectIndustryDb(raw, hasBrandHits, hasCompanyHits)).toBe(expected)
   })
 
-  it('overrides AI breakdown and recomputes total score', () => {
+  it('overrides AI breakdown so score = related_exp (industry_db kept for display)', () => {
     expect(overrideIndustryDbBreakdown({
       score: 45,
       summary: 'Good match',
@@ -314,15 +314,15 @@ describe('resume-scoring', () => {
         industry_db: 15,
       },
     }, 40)).toEqual(expect.objectContaining({
-      score: 55,
+      score: 30,
       breakdown: {
-        related_exp: 15,
+        related_exp: 30,
         industry_db: 40,
       },
     }))
   })
 
-  it('weights related_exp into its 50 point contribution slot', () => {
+  it('passes related_exp through as the score, keeping industry_db for display', () => {
     expect(overrideIndustryDbBreakdown({
       score: 88,
       summary: '',
@@ -333,19 +333,19 @@ describe('resume-scoring', () => {
         industry_db: 15,
       },
     }, 50)).toEqual(expect.objectContaining({
-      score: 95,
+      score: 90,
       breakdown: {
-        related_exp: 45,
+        related_exp: 90,
         industry_db: 50,
       },
     }))
   })
 
   it.each([
-    { label: 'rounds to nearest integer', input: 35 as number | undefined, expected: 18 },
+    { label: 'passes related_exp through as the score', input: 35 as number | undefined, expected: 35 },
     { label: 'keeps at 0 when AI returns 0', input: 0 as number | undefined, expected: 0 },
     { label: 'defaults to 0 when missing', input: undefined, expected: 0 },
-  ])('$label for related_exp weight', ({ input, expected }) => {
+  ])('$label for related_exp score', ({ input, expected }) => {
     expect(overrideIndustryDbBreakdown({
       score: 40,
       summary: '',
@@ -373,13 +373,13 @@ describe('resume-scoring', () => {
     it('applies industry_db floor of 40 for MY market', () => {
       const result = overrideIndustryDbBreakdown(cnAnalysis, 0, 'MY')
       expect(result.breakdown!.industry_db).toBe(40) // MY_INDUSTRY_DB_FLOOR
-      expect(result.score).toBe(53) // related_exp(26)*0.5=13 + floor(40) = 53
+      expect(result.score).toBe(26) // score = related_exp(26); industry_db is display-only
     })
 
     it('keeps industry_db above floor for MY market with brand hits', () => {
       const result = overrideIndustryDbBreakdown(cnAnalysis, 50, 'MY')
       expect(result.breakdown!.industry_db).toBe(50) // Math.max(40, 50) = 50
-      expect(result.score).toBe(63) // 13 + 50
+      expect(result.score).toBe(26) // score = related_exp(26), unaffected by industry_db
     })
 
     it('keeps industry_db for CN market', () => {
@@ -603,12 +603,13 @@ describe('overrideIndustryDbBreakdown — score/recommendation coherence', () =>
     const analysis = {
       score: 91,
       recommendation: 'strong_match' as const,
-      breakdown: { related_exp: 82 },
+      breakdown: { related_exp: 90 },
       summary: '负责重庆地区山崎马扎克的销售',
       highlights: [],
       concerns: [],
     }
     const result = overrideIndustryDbBreakdown(analysis, 50)
+    // score = related_exp (90); a genuinely strong candidate stays >= 85.
     expect(result.score).toBeGreaterThanOrEqual(85)
   })
 
@@ -622,7 +623,7 @@ describe('overrideIndustryDbBreakdown — score/recommendation coherence', () =>
       concerns: [],
     }
     const result = overrideIndustryDbBreakdown(analysis, 0)
-    // related_exp clamped to 30 (no_match ceiling) → score = round(30 * 0.5) + 0 = 15
-    expect(result.score).toBeLessThanOrEqual(15)
+    // related_exp clamped to 30 (no_match ceiling); score = related_exp = 30
+    expect(result.score).toBe(30)
   })
 })

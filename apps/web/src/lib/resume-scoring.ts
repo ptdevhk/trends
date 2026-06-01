@@ -399,7 +399,6 @@ function countHistogramSamples(histogram50: number[]): number {
 
 const INDUSTRY_DB_V2_SCORE_CAP = 50
 const MY_INDUSTRY_DB_FLOOR = 40
-const RELATED_EXP_AI_WEIGHT = INDUSTRY_DB_V2_SCORE_CAP / 100
 
 const RELATED_EXP_CEILING_BY_RECOMMENDATION: Record<string, number> = {
   strong_match: 100,
@@ -547,17 +546,18 @@ export function overrideIndustryDbBreakdown(
   const effectiveIndustryDb = market === 'MY' ? Math.max(MY_INDUSTRY_DB_FLOOR, industryDb) : industryDb
   const recommendationCeiling = RELATED_EXP_CEILING_BY_RECOMMENDATION[analysis.recommendation ?? ''] ?? 30
   const rawRelatedExp = typeof analysis.breakdown?.related_exp === 'number' ? analysis.breakdown.related_exp : 0
-  const cappedRelatedExp = Math.min(rawRelatedExp, recommendationCeiling)
-  const normalizedRelatedExp = Math.round(clamp(cappedRelatedExp, 0, 100) * RELATED_EXP_AI_WEIGHT)
+  // score = the related_exp factor (after the recommendation ceiling). industry_db is NOT
+  // added to the score — it stays in the breakdown as a display/sort signal only.
+  const cappedRelatedExp = clamp(Math.min(rawRelatedExp, recommendationCeiling), 0, 100)
   const nextBreakdown: MatchBreakdown = {
     ...(analysis.breakdown ?? {}),
-    related_exp: normalizedRelatedExp,
+    related_exp: cappedRelatedExp,
     industry_db: effectiveIndustryDb,
   }
 
   return {
     ...analysis,
-    score: Math.min(100, normalizedRelatedExp + effectiveIndustryDb),
+    score: cappedRelatedExp,
     breakdown: nextBreakdown,
   }
 }

@@ -1600,8 +1600,8 @@ describe('useResumeListState role filter regression', () => {
     })
 
     expect(result.current.displayedResumes[0]?.match?.breakdown?.industry_db).toBe(20)
-    expect(result.current.displayedResumes[0]?.match?.breakdown?.related_exp).toBe(15)
-    expect(result.current.displayedResumes[0]?.match?.score).toBe(35)
+    expect(result.current.displayedResumes[0]?.match?.breakdown?.related_exp).toBe(30)
+    expect(result.current.displayedResumes[0]?.match?.score).toBe(30)
   })
 
   it('bumps industry_db to brand section max when resume has brand hits', async () => {
@@ -1655,8 +1655,8 @@ describe('useResumeListState role filter regression', () => {
 
     // has brand hits (non-employer) -> additive weight: brand-only = 30 (not flat 50)
     expect(result.current.displayedResumes[0]?.match?.breakdown?.industry_db).toBe(30)
-    expect(result.current.displayedResumes[0]?.match?.breakdown?.related_exp).toBe(15)
-    expect(result.current.displayedResumes[0]?.match?.score).toBe(45)
+    expect(result.current.displayedResumes[0]?.match?.breakdown?.related_exp).toBe(30)
+    expect(result.current.displayedResumes[0]?.match?.score).toBe(30)
   })
 
   it('ignores employer-context brand hits when computing direct industry_db score', async () => {
@@ -1709,11 +1709,11 @@ describe('useResumeListState role filter regression', () => {
     })
 
     expect(result.current.displayedResumes[0]?.match?.breakdown?.industry_db).toBe(5)
-    expect(result.current.displayedResumes[0]?.match?.breakdown?.related_exp).toBe(15)
-    expect(result.current.displayedResumes[0]?.match?.score).toBe(20)
+    expect(result.current.displayedResumes[0]?.match?.breakdown?.related_exp).toBe(30)
+    expect(result.current.displayedResumes[0]?.match?.score).toBe(30)
   })
 
-  it('recomputes recommendation from the normalized AI score when weighting lowers the score band', async () => {
+  it('recomputes recommendation from the related_exp score below the potential band', async () => {
     mockState.convexResumes = [
       buildResume({
         id: 'resume-rec-low-1',
@@ -1761,11 +1761,11 @@ describe('useResumeListState role filter regression', () => {
       await result.current.handleApplySearchHistory(mockState.searchHistory[0] as never)
     })
 
-    expect(result.current.displayedResumes[0]?.match?.score).toBe(23)
+    expect(result.current.displayedResumes[0]?.match?.score).toBe(45)
     expect(result.current.displayedResumes[0]?.match?.recommendation).toBe('no_match')
   })
 
-  it('recomputes recommendation from the normalized AI score when industry_db bumps the score band', async () => {
+  it('does not bump the score band from industry_db hits (score = related_exp)', async () => {
     mockState.convexResumes = [
       buildResume({
         id: 'resume-rec-high-1',
@@ -1815,8 +1815,8 @@ describe('useResumeListState role filter regression', () => {
       await result.current.handleApplySearchHistory(mockState.searchHistory[0] as never)
     })
 
-    expect(result.current.displayedResumes[0]?.match?.score).toBe(70)
-    expect(result.current.displayedResumes[0]?.match?.recommendation).toBe('match')
+    expect(result.current.displayedResumes[0]?.match?.score).toBe(40)
+    expect(result.current.displayedResumes[0]?.match?.recommendation).toBe('no_match')
   })
 
   it('allows manual profile apply to bypass the URL hydration guard', () => {

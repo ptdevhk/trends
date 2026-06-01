@@ -348,8 +348,8 @@ describe('useResumeSearchState', () => {
     resumesMock.push(
       createResume(1, {
         primaryRuleScore: 72,
-        // Give both brand + company hits so industry_db = 50 (additive model)
-        // → overrideIndustryDbBreakdown: round(90 * 0.5) + 50 = 95, beats rule scores 91 and 84
+        // Brand + company hits → industry_db = 50 (display only, not added to score).
+        // score = related_exp (95), which beats rule scores 91 and 84.
         ingestData: {
           industryTags: ['Machine Tools', 'Automation'],
           synonymHits: [],
@@ -367,7 +367,7 @@ describe('useResumeSearchState', () => {
           recommendation: 'strong_match',
           promptVersion: CURRENT_PROMPT_VERSION,
           breakdown: {
-            related_exp: 90,
+            related_exp: 95,
             industry_db: 10,
           },
         },
@@ -1227,7 +1227,7 @@ describe('useResumeSearchState', () => {
       createResume(1, {
         primaryRuleScore: 88,
         // Both brand + company hits → industry_db = 50 (additive model full cap)
-        // Score: round(90 * 0.5) + 50 = 95
+        // score = related_exp (90); industry_db = 50 is display only
         ingestData: {
           industryTags: ['Machine Tools', 'Automation'],
           synonymHits: [],
@@ -1274,12 +1274,12 @@ describe('useResumeSearchState', () => {
             resumeId: 'resume-1',
             status: 'contacted',
             match: {
-              score: 95,
+              score: 90,
               recommendation: 'strong_match',
               scoreSource: 'ai',
               summary: 'Strong fit',
               breakdown: {
-                related_exp: 45,
+                related_exp: 90,
                 industry_db: 50,
               },
             },
