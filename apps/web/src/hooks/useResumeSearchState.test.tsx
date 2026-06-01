@@ -348,6 +348,18 @@ describe('useResumeSearchState', () => {
     resumesMock.push(
       createResume(1, {
         primaryRuleScore: 72,
+        // Give both brand + company hits so industry_db = 50 (additive model)
+        // → overrideIndustryDbBreakdown: round(90 * 0.5) + 50 = 95, beats rule scores 91 and 84
+        ingestData: {
+          industryTags: ['Machine Tools', 'Automation'],
+          synonymHits: [],
+          brandHits: [{ brand: 'dmg', role: 'distributor', source: 'job5156', context: 'DMG distributor' }],
+          companyHits: ['FANUC'],
+          ruleScores: {},
+          experienceLevel: 'senior',
+          computedAt: Date.now(),
+          skillsVersion: 1,
+        },
         analysis: {
           score: 95,
           summary: 'Best AI match',
@@ -1214,6 +1226,18 @@ describe('useResumeSearchState', () => {
     resumesMock.push(
       createResume(1, {
         primaryRuleScore: 88,
+        // Both brand + company hits → industry_db = 50 (additive model full cap)
+        // Score: round(90 * 0.5) + 50 = 95
+        ingestData: {
+          industryTags: ['Machine Tools', 'Automation'],
+          synonymHits: [],
+          brandHits: [{ brand: 'dmg', role: 'distributor', source: 'job5156', context: 'DMG distributor' }],
+          companyHits: ['FANUC'],
+          ruleScores: {},
+          experienceLevel: 'senior',
+          computedAt: Date.now(),
+          skillsVersion: 1,
+        },
         analysis: {
           score: 95,
           summary: 'Strong fit',

@@ -1653,10 +1653,10 @@ describe('useResumeListState role filter regression', () => {
       await result.current.handleApplySearchHistory(mockState.searchHistory[0] as never)
     })
 
-    // has brand hits -> full slot (50)
-    expect(result.current.displayedResumes[0]?.match?.breakdown?.industry_db).toBe(50)
+    // has brand hits (non-employer) -> additive weight: brand-only = 30 (not flat 50)
+    expect(result.current.displayedResumes[0]?.match?.breakdown?.industry_db).toBe(30)
     expect(result.current.displayedResumes[0]?.match?.breakdown?.related_exp).toBe(15)
-    expect(result.current.displayedResumes[0]?.match?.score).toBe(65)
+    expect(result.current.displayedResumes[0]?.match?.score).toBe(45)
   })
 
   it('ignores employer-context brand hits when computing direct industry_db score', async () => {

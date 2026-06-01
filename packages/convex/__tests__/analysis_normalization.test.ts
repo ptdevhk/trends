@@ -315,16 +315,16 @@ describe("getResumeIngestData", () => {
 // computeDirectIndustryDbScoreFromResume
 // ---------------------------------------------------------------------------
 describe("computeDirectIndustryDbScoreFromResume", () => {
-    it("returns cap when brand hits exist", () => {
+    it("returns 30 when brand hits exist (additive weight, not flat cap)", () => {
         expect(computeDirectIndustryDbScoreFromResume({
             ingestData: { brandHits: [{ context: "client" }] },
-        })).toBe(INDUSTRY_DB_SCORE_CAP);
+        })).toBe(30);
     });
 
-    it("returns cap when company hits exist", () => {
+    it("returns 20 when company hits exist (additive weight, not flat cap)", () => {
         expect(computeDirectIndustryDbScoreFromResume({
             ingestData: { companyHits: ["Acme"] },
-        })).toBe(INDUSTRY_DB_SCORE_CAP);
+        })).toBe(20);
     });
 
     it("returns clamped industryDbV2Raw", () => {
@@ -341,6 +341,39 @@ describe("computeDirectIndustryDbScoreFromResume", () => {
 
     it("returns 0 when no data", () => {
         expect(computeDirectIndustryDbScoreFromResume({})).toBe(0);
+    });
+
+    // Phase 1: additive weight model — brand-only = 30, company-only = 20, both = 50
+    it("brand hit only → exactly 30 (additive weight)", () => {
+        expect(computeDirectIndustryDbScoreFromResume({
+            ingestData: { brandHits: [{ context: "client" }], companyHits: [], industryDbV2Raw: 0 },
+        })).toBe(30);
+    });
+
+    it("company hit only → exactly 20 (additive weight)", () => {
+        expect(computeDirectIndustryDbScoreFromResume({
+            ingestData: { companyHits: ["Acme"], brandHits: [], industryDbV2Raw: 0 },
+        })).toBe(20);
+    });
+
+    it("both brand and company hits → exactly 50 (full cap)", () => {
+        expect(computeDirectIndustryDbScoreFromResume({
+            ingestData: { brandHits: [{ context: "client" }], companyHits: ["Acme"], industryDbV2Raw: 0 },
+        })).toBe(50);
+    });
+
+    it("high raw industryDbV2Raw wins over additive when raw > additive total", () => {
+        // brand-only additive = 30, but raw = 45 > 30; raw wins, clamped to cap
+        expect(computeDirectIndustryDbScoreFromResume({
+            ingestData: { brandHits: [{ context: "client" }], companyHits: [], industryDbV2Raw: 45 },
+        })).toBe(45);
+    });
+
+    it("low raw is superseded by additive total (Math.max semantics)", () => {
+        // raw = 10, additive (brand+company) = 50; additive wins
+        expect(computeDirectIndustryDbScoreFromResume({
+            ingestData: { brandHits: [{ context: "client" }], companyHits: ["Acme"], industryDbV2Raw: 10 },
+        })).toBe(50);
     });
 });
 
@@ -511,6 +544,45 @@ describe("normalizeAnalysisResult", () => {
                 );
                 expect(result.score).toBe(Math.round(ceiling * RELATED_EXP_WEIGHT));
             }
+        });
+    });
+
+    // Phase 2: no_match gate — LLM no_match must not be overridden by industryDb
+    describe("no_match gate — LLM rejection is preserved", () => {
+        it("LLM no_match + high industryDb still produces score ≤ 39 and no_match recommendation", () => {
+            // Simulate: brand+company hit → industryDb=50, LLM no_match related_exp=20
+            const result = normalizeAnalysisResult(
+                { recommendation: "no_match", breakdown: { related_exp: 20 } },
+                { ingestData: { brandHits: [{ context: "client" }], companyHits: ["Acme"], industryDbV2Raw: 0 } },
+            );
+            expect(result.score).toBeLessThanOrEqual(39);
+            expect(result.recommendation).toBe("no_match");
+        });
+
+        it("LLM no_match with related_exp=0 and max industryDb produces score ≤ 39", () => {
+            const result = normalizeAnalysisResult(
+                { recommendation: "no_match", breakdown: { related_exp: 0 } },
+                { ingestData: { brandHits: [{ context: "client" }], companyHits: ["Acme"], industryDbV2Raw: 0 } },
+            );
+            expect(result.score).toBeLessThanOrEqual(39);
+            expect(result.recommendation).toBe("no_match");
+        });
+
+        it("LLM match recommendation is not affected by the no_match gate", () => {
+            const result = normalizeAnalysisResult(
+                { recommendation: "match", breakdown: { related_exp: 60 } },
+                { ingestData: { industryDbV2Raw: 20 } },
+            );
+            expect(result.score).toBeGreaterThanOrEqual(40);
+            expect(result.recommendation).not.toBe("no_match");
+        });
+
+        it("LLM strong_match is not affected by the no_match gate", () => {
+            const result = normalizeAnalysisResult(
+                { recommendation: "strong_match", breakdown: { related_exp: 90 } },
+                { ingestData: { industryDbV2Raw: 20 } },
+            );
+            expect(result.score).toBeGreaterThanOrEqual(60);
         });
     });
 });

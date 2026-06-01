@@ -291,9 +291,11 @@ describe('resume-scoring', () => {
   })
 
   it.each([
-    { label: 'returns full slot for brand hits', raw: 10, hasBrandHits: true, hasCompanyHits: false, expected: 50 },
-    { label: 'returns full slot for company hits', raw: 10, hasBrandHits: false, hasCompanyHits: true, expected: 50 },
-    { label: 'returns full slot for brand and company hits', raw: 10, hasBrandHits: true, hasCompanyHits: true, expected: 50 },
+    { label: 'returns 30 for brand-only hit (additive weight)', raw: 0, hasBrandHits: true, hasCompanyHits: false, expected: 30 },
+    { label: 'returns 20 for company-only hit (additive weight)', raw: 0, hasBrandHits: false, hasCompanyHits: true, expected: 20 },
+    { label: 'returns 50 for brand and company hits (full cap)', raw: 0, hasBrandHits: true, hasCompanyHits: true, expected: 50 },
+    { label: 'raw wins when raw > additive (brand-only: raw 45 > 30)', raw: 45, hasBrandHits: true, hasCompanyHits: false, expected: 45 },
+    { label: 'additive wins when raw < additive total', raw: 10, hasBrandHits: true, hasCompanyHits: true, expected: 50 },
     { label: 'keeps raw score with no hits', raw: 20, hasBrandHits: false, hasCompanyHits: false, expected: 20 },
     { label: 'clamps raw score above cap with no hits', raw: 60, hasBrandHits: false, hasCompanyHits: false, expected: 50 },
     { label: 'defaults missing raw to 0 with no hits', raw: undefined, hasBrandHits: false, hasCompanyHits: false, expected: 0 },

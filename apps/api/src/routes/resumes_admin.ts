@@ -185,19 +185,17 @@ app.openapi(hardResetReingestRoute, async (c) => {
   try {
     if (dryRun) {
       const firstPage = await callConvexMutation("resumes_mutations:hardResetIngestData", {
-        cursor: null,
         batchSize: 50,
       }) as { cleared: number; hasMore: boolean; cursor?: string };
 
       let wouldClear = firstPage.cleared;
-      let cursor: string | undefined | null = firstPage.cursor;
+      let cursor: string | undefined = firstPage.cursor;
       let hasMore = firstPage.hasMore;
 
       for (let i = 0; i < 10000 && hasMore; i++) {
-        const page = await callConvexMutation("resumes_mutations:hardResetIngestData", {
-          cursor,
-          batchSize: 50,
-        }) as { cleared: number; hasMore: boolean; cursor?: string };
+        const pageArgs: { batchSize: number; cursor?: string } = { batchSize: 50 };
+        if (cursor) pageArgs.cursor = cursor;
+        const page = await callConvexMutation("resumes_mutations:hardResetIngestData", pageArgs) as { cleared: number; hasMore: boolean; cursor?: string };
         wouldClear += page.cleared;
         hasMore = page.hasMore;
         cursor = page.cursor;
@@ -212,17 +210,16 @@ app.openapi(hardResetReingestRoute, async (c) => {
     }
 
     let totalCleared = 0;
-    let cursor: string | null | undefined = null;
+    let cursor: string | undefined;
     let hasMore = true;
 
     for (let i = 0; i < 10000 && hasMore; i++) {
-      const page = await callConvexMutation("resumes_mutations:hardResetIngestData", {
-        cursor,
-        batchSize: 50,
-      }) as { cleared: number; hasMore: boolean; cursor?: string };
+      const pageArgs: { batchSize: number; cursor?: string } = { batchSize: 50 };
+      if (cursor) pageArgs.cursor = cursor;
+      const page = await callConvexMutation("resumes_mutations:hardResetIngestData", pageArgs) as { cleared: number; hasMore: boolean; cursor?: string };
       totalCleared += page.cleared;
       hasMore = page.hasMore;
-      cursor = page.cursor ?? null;
+      cursor = page.cursor;
     }
 
     try {
