@@ -1,6 +1,6 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
-import { ingestDataValidator, collectionTaskResultsValidator, resumeFiltersValidator, analysisResultValidator, jsonRecordValidator, jsonValueValidator } from "./validators.js";
+import { ingestDataValidator, collectionTaskResultsValidator, resumeFiltersValidator, analysisResultValidator, jsonRecordValidator, jsonValueValidator, relatedExpContextValidator } from "./validators.js";
 
 export default defineSchema({
     // Tasks for resume collection
@@ -173,6 +173,8 @@ export default defineSchema({
             promptVersion: v.optional(v.number()),
             sample: v.optional(v.string()),
             resumeCount: v.number(),
+            /** P1: context for evidence ceiling evaluator — optional, omitted on legacy tasks */
+            relatedExpContext: v.optional(relatedExpContextValidator),
         }),
         status: v.union(
             v.literal("pending"),

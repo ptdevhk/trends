@@ -113,6 +113,64 @@ describe("analysis_tasks: dispatch", () => {
       }),
     ).rejects.toThrow("Either jobDescriptionContent or keywords is required");
   });
+
+  // P1 context plumbing tests — RED: these test new fields not yet accepted
+  it("accepts relatedExpContext and stores it in task.config", async () => {
+    const t = createTest();
+    const resumeId = await insertResume(t);
+
+    const taskId = await t.mutation(api.analysis_tasks.dispatch, {
+      keywords: ["cnc", "sales"],
+      resumeIds: [resumeId],
+      relatedExpContext: {
+        roleFilterType: "sales",
+        minRoleYears: 1,
+        market: "CN",
+        locale: "zh",
+      },
+    });
+
+    expect(taskId).toBeDefined();
+    const tasks = await t.query(api.analysis_tasks.list, {});
+    expect(tasks[0].config.relatedExpContext).toBeDefined();
+    expect(tasks[0].config.relatedExpContext?.roleFilterType).toBe("sales");
+    expect(tasks[0].config.relatedExpContext?.minRoleYears).toBe(1);
+    expect(tasks[0].config.relatedExpContext?.market).toBe("CN");
+    expect(tasks[0].config.relatedExpContext?.locale).toBe("zh");
+  });
+
+  it("dispatch without relatedExpContext is backward-compatible", async () => {
+    const t = createTest();
+    const resumeId = await insertResume(t);
+
+    const taskId = await t.mutation(api.analysis_tasks.dispatch, {
+      keywords: ["python"],
+      resumeIds: [resumeId],
+    });
+
+    expect(taskId).toBeDefined();
+    const tasks = await t.query(api.analysis_tasks.list, {});
+    // relatedExpContext is optional — absent when not provided
+    expect(tasks[0].config.relatedExpContext).toBeUndefined();
+  });
+
+  it("relatedExpContext with partial fields is accepted", async () => {
+    const t = createTest();
+    const resumeId = await insertResume(t);
+
+    const taskId = await t.mutation(api.analysis_tasks.dispatch, {
+      keywords: ["sales"],
+      resumeIds: [resumeId],
+      relatedExpContext: {
+        roleFilterType: "any",
+      },
+    });
+
+    expect(taskId).toBeDefined();
+    const tasks = await t.query(api.analysis_tasks.list, {});
+    expect(tasks[0].config.relatedExpContext?.roleFilterType).toBe("any");
+    expect(tasks[0].config.relatedExpContext?.minRoleYears).toBeUndefined();
+  });
 });
 
 // ---------------------------------------------------------------------------

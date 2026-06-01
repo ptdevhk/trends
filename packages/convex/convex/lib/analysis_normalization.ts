@@ -6,7 +6,14 @@
  */
 import {
     isRecord,
+    evaluateRelatedExpEvidence,
+    type RelatedExpContextInput,
+    type RelatedExpIngestEvidence,
+    type RelatedExpEvidenceResult,
 } from "@trends/shared";
+
+// Re-export for callers that need the P1 context types
+export type { RelatedExpContextInput, RelatedExpIngestEvidence, RelatedExpEvidenceResult };
 
 // ---------------------------------------------------------------------------
 // Types
@@ -334,6 +341,10 @@ export function normalizeAnalysisResult(
         keyFactors?: unknown;
     },
     resume: unknown,
+    relatedExpCtx?: {
+        context: RelatedExpContextInput;
+        ingestEvidence: RelatedExpIngestEvidence;
+    },
 ): {
     score: number;
     recommendation: AnalysisRecommendation;
@@ -342,6 +353,7 @@ export function normalizeAnalysisResult(
     concerns: string[];
     breakdown: Record<string, number>;
     keyFactors: KeyFactor[];
+    relatedExpEvidence?: RelatedExpEvidenceResult;
 } {
     const breakdown = parseNumericBreakdown(result.breakdown);
     const llmRelatedExp = toNumber(breakdown?.related_exp);
@@ -358,9 +370,25 @@ export function normalizeAnalysisResult(
     }
     const relatedExpCeiling = RELATED_EXP_CEILING_BY_RECOMMENDATION[llmRecommendation ?? "no_match"];
     const cappedRelatedExp = clamp(relatedExpRaw, 0, relatedExpCeiling);
-    // score = the related_exp factor (after the recommendation ceiling). industry_db is
-    // NOT added to the composite — it is a display/sort signal only (see breakdown below).
-    let score = clamp(cappedRelatedExp, 0, 100);
+
+    // P1: apply evidence ceiling when context is provided
+    let relatedExpEvidence: RelatedExpEvidenceResult | undefined;
+    let effectiveRelatedExp = cappedRelatedExp;
+
+    if (relatedExpCtx) {
+        relatedExpEvidence = evaluateRelatedExpEvidence({
+            context: relatedExpCtx.context,
+            llmRaw: relatedExpRaw,
+            llmRecommendation: llmRecommendation ?? "no_match",
+            ingestEvidence: relatedExpCtx.ingestEvidence,
+        });
+        // Lower-only: effectiveRaw already respects recommendationMax ceiling
+        effectiveRelatedExp = relatedExpEvidence.effectiveRaw;
+    }
+
+    // score = the related_exp factor (after the recommendation ceiling and optional evidence
+    // ceiling). industry_db is NOT added to the composite — it is a display/sort signal only.
+    let score = clamp(effectiveRelatedExp, 0, 100);
 
     // Gate: preserve LLM no_match — prevent industryDb from overriding a semantic rejection.
     // A candidate explicitly rejected by the LLM must not be elevated to potential/match
@@ -389,9 +417,10 @@ export function normalizeAnalysisResult(
             : [],
         breakdown: {
             ...(breakdown ?? {}),
-            related_exp: relatedExpRaw,
+            related_exp: relatedExpCtx ? effectiveRelatedExp : relatedExpRaw,
             industry_db: industryDb,
         },
         keyFactors: parseKeyFactors(result.keyFactors),
+        ...(relatedExpEvidence ? { relatedExpEvidence } : {}),
     };
 }
