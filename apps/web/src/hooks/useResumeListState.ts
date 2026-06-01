@@ -1246,13 +1246,6 @@ export function useResumeListState(loadSearchHistory = false) {
                 hasCompanyHits,
               ),
               ingestData?.market,
-              {
-                target: {
-                  keywords: sessionKeywords,
-                  jobDescription: jobDescriptionId,
-                },
-                resume,
-              },
             )
           : undefined
 

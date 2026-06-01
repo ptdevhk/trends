@@ -6,8 +6,6 @@
  */
 import {
     isRecord,
-    resolveRelatedExpEvidenceGate,
-    type RelatedExpTargetContext,
 } from "@trends/shared";
 
 // ---------------------------------------------------------------------------
@@ -324,9 +322,6 @@ export function normalizeAnalysisResult(
         keyFactors?: unknown;
     },
     resume: unknown,
-    options?: {
-        target?: RelatedExpTargetContext;
-    },
 ): {
     score: number;
     recommendation: AnalysisRecommendation;
@@ -349,20 +344,8 @@ export function normalizeAnalysisResult(
     if (llmRecommendation === undefined && result.recommendation !== undefined) {
         console.warn("unknown LLM recommendation; defaulting to no_match ceiling", { recommendation: result.recommendation });
     }
-    const recommendationCeiling = RELATED_EXP_CEILING_BY_RECOMMENDATION[llmRecommendation ?? "no_match"];
-    const evidenceGate = resolveRelatedExpEvidenceGate({
-        target: options?.target,
-        resume,
-    });
-    const evidenceCeiling = evidenceGate.applies ? evidenceGate.ceiling : undefined;
-    const relatedExpCeiling = Math.min(recommendationCeiling, evidenceCeiling ?? 100);
+    const relatedExpCeiling = RELATED_EXP_CEILING_BY_RECOMMENDATION[llmRecommendation ?? "no_match"];
     const cappedRelatedExp = clamp(relatedExpRaw, 0, relatedExpCeiling);
-    const evidenceCapControls = evidenceCeiling !== undefined
-        && evidenceCeiling < recommendationCeiling
-        && evidenceCeiling < relatedExpRaw;
-    const storedRelatedExp = evidenceCapControls
-        ? clamp(relatedExpRaw, 0, evidenceCeiling)
-        : relatedExpRaw;
     const score = clamp(Math.round(cappedRelatedExp * RELATED_EXP_WEIGHT) + industryDb, 0, 100);
 
     const recommendation = recommendationFromScore(score);
@@ -385,13 +368,7 @@ export function normalizeAnalysisResult(
             : [],
         breakdown: {
             ...(breakdown ?? {}),
-            related_exp: storedRelatedExp,
-            ...(evidenceCapControls
-                ? {
-                    related_exp_llm: relatedExpRaw,
-                    related_exp_evidence_ceiling: evidenceCeiling,
-                }
-                : {}),
+            related_exp: relatedExpRaw,
             industry_db: industryDb,
         },
         keyFactors: parseKeyFactors(result.keyFactors),
