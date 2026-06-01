@@ -277,13 +277,6 @@ export const analyzeResume = action({
         const result = normalizeAnalysisResult(
             isRecord(rawResult) ? rawResult : {},
             resume,
-            {
-                target: {
-                    keywords: args.keywords,
-                    jobTitle: jd.title,
-                    jobDescription: jd.requirements,
-                },
-            },
         );
 
         // 4. Update Resume with result
@@ -524,11 +517,6 @@ export const confirmSearchResults = action({
                 const analysis = normalizeAnalysisResult(
                     isRecord(rawResult) ? rawResult : {},
                     resume,
-                    {
-                        target: {
-                            keywords: [args.query],
-                        },
-                    },
                 );
 
                 // Store confirm result in analyses map without overwriting primary analysis

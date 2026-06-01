@@ -791,13 +791,6 @@ export function useResumeSearchState() {
             hasCompanyHits,
           ),
           resume.ingestData?.market,
-          {
-            target: {
-              keywords: analysisKeywords,
-              jobDescription: parsedState.jobDescriptionId,
-            },
-            resume,
-          },
         )
         : undefined
       const score = resolveScore(
