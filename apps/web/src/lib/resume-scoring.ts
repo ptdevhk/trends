@@ -414,9 +414,12 @@ export function computeDirectIndustryDb(
   hasBrandHits: boolean,
   hasCompanyHits: boolean,
 ): number {
-  if (hasBrandHits || hasCompanyHits) return INDUSTRY_DB_V2_SCORE_CAP
+  // Additive weights matching Convex analysis_normalization.ts:
+  //   brand hit → 30, company hit → 20, both → 50.
+  // Math.max(raw, additive) so a high raw value is never suppressed.
+  const additiveScore = (hasBrandHits ? 30 : 0) + (hasCompanyHits ? 20 : 0)
   const safeRaw = typeof raw === 'number' && Number.isFinite(raw) ? raw : 0
-  return clamp(safeRaw, 0, INDUSTRY_DB_V2_SCORE_CAP)
+  return clamp(Math.max(safeRaw, additiveScore), 0, INDUSTRY_DB_V2_SCORE_CAP)
 }
 
 function nonZeroP80FromHistogram(histogram50: number[]): { p80: number; count: number } {

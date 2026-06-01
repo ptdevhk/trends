@@ -52,6 +52,29 @@ describe("resumes_admin", () => {
   });
 
   describe("POST /api/resumes/hard-reset-reingest", () => {
+    it("first Convex call omits cursor key entirely (never sends cursor: null)", async () => {
+      const capturedBodies: unknown[] = [];
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (_, init) => {
+        const body = JSON.parse(init?.body as string ?? "{}");
+        capturedBodies.push(body);
+        return convexSuccess({ cleared: 0, hasMore: false });
+      });
+
+      const app = createTestApp();
+      await app.request("/api/resumes/hard-reset-reingest", {
+        method: "POST",
+        headers: jsonHeaders(),
+        body: JSON.stringify({ dryRun: false }),
+      });
+
+      // The first Convex mutation call must NOT contain a cursor key at all
+      expect(capturedBodies.length).toBeGreaterThan(0);
+      const firstCallBody = capturedBodies[0] as Record<string, unknown>;
+      // The body is the Convex action payload; the args should not have cursor: null
+      const firstCallArgs = (firstCallBody.args ?? firstCallBody) as Record<string, unknown>;
+      expect("cursor" in firstCallArgs).toBe(false);
+    });
+
     it("dry-run returns wouldClear count", async () => {
       vi.spyOn(globalThis, "fetch").mockResolvedValue(
         convexSuccess({ cleared: 42, hasMore: false, cursor: null }),

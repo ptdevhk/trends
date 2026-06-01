@@ -49,6 +49,13 @@ export type NormalizedRoleSignal = {
 export const INDUSTRY_DB_SCORE_CAP = 50;
 export const RELATED_EXP_WEIGHT = INDUSTRY_DB_SCORE_CAP / 100;
 
+// Additive weights for brand/company hits — must stay in sync with
+// INDUSTRY_DB_V2_BRAND_SECTION_SCORE / INDUSTRY_DB_V2_COMPANY_SECTION_SCORE
+// in apps/api/src/services/industry-db-batch-stats.ts and
+// computeDirectIndustryDb() in apps/web/src/lib/resume-scoring.ts.
+const INDUSTRY_DB_BRAND_HIT_SCORE = 30;
+const INDUSTRY_DB_COMPANY_HIT_SCORE = 20;
+
 export const RELATED_EXP_CEILING_BY_RECOMMENDATION: Record<AnalysisRecommendation, number> = {
     strong_match: 100,
     match: 100,
@@ -244,12 +251,12 @@ export function computeDirectIndustryDbScoreFromResume(resume: unknown): number 
     const ingestData = getResumeIngestData(resume);
     const brandHits = hasNonEmployerBrandHits(ingestData.brandHits);
     const companyHits = hasCompanyHits(ingestData.companyHits);
-    if (brandHits || companyHits) {
-        return INDUSTRY_DB_SCORE_CAP;
-    }
+    // Additive weights: brand hit → 30, company hit → 20, both → 50.
+    // This aligns Convex with the API-layer model in industry-db-batch-stats.ts.
+    const additiveScore = (brandHits ? INDUSTRY_DB_BRAND_HIT_SCORE : 0) + (companyHits ? INDUSTRY_DB_COMPANY_HIT_SCORE : 0);
 
     const raw = toNumber(ingestData.industryDbV2Raw) ?? 0;
-    return clamp(raw, 0, INDUSTRY_DB_SCORE_CAP);
+    return clamp(Math.max(raw, additiveScore), 0, INDUSTRY_DB_SCORE_CAP);
 }
 
 // ---------------------------------------------------------------------------
@@ -346,7 +353,14 @@ export function normalizeAnalysisResult(
     }
     const relatedExpCeiling = RELATED_EXP_CEILING_BY_RECOMMENDATION[llmRecommendation ?? "no_match"];
     const cappedRelatedExp = clamp(relatedExpRaw, 0, relatedExpCeiling);
-    const score = clamp(Math.round(cappedRelatedExp * RELATED_EXP_WEIGHT) + industryDb, 0, 100);
+    let score = clamp(Math.round(cappedRelatedExp * RELATED_EXP_WEIGHT) + industryDb, 0, 100);
+
+    // Gate: preserve LLM no_match — prevent industryDb from overriding a semantic rejection.
+    // A candidate explicitly rejected by the LLM must not be elevated to potential/match
+    // even when they have recognized employer brand hits.
+    if (llmRecommendation === "no_match") {
+        score = Math.min(score, 39);
+    }
 
     const recommendation = recommendationFromScore(score);
     const rawSummary = typeof result.summary === "string" && result.summary.trim().length > 0
