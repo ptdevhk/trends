@@ -3,7 +3,10 @@ import {
   getCurrentResumeAiPromptVersion,
   isRecord,
   normalizeOptionalString,
+  resolveRelatedExpEvidenceGate,
   resolveResumeId,
+  type RelatedExpResumeEvidence,
+  type RelatedExpTargetContext,
 } from '@trends/shared'
 import type { ResumeItem } from '@/hooks/useResumes'
 import type { ConvexResumeAnalysis } from '@/hooks/useConvexResumes'
@@ -99,6 +102,7 @@ export type ResumeMatchedWorkEntry = {
   years: number
   industryVerified: boolean
   matchedSignals: string[]
+  directRoleMatch?: boolean
 }
 
 export type ResumeRoleSignalLike = {
@@ -540,11 +544,20 @@ export function overrideIndustryDbBreakdown(
   analysis: ConvexResumeAnalysis,
   industryDb: number,
   market?: string,
+  options?: {
+    target?: RelatedExpTargetContext
+    resume?: RelatedExpResumeEvidence
+  },
 ): ConvexResumeAnalysis {
   const effectiveIndustryDb = market === 'MY' ? Math.max(MY_INDUSTRY_DB_FLOOR, industryDb) : industryDb
   const recommendationCeiling = RELATED_EXP_CEILING_BY_RECOMMENDATION[analysis.recommendation ?? ''] ?? 30
   const rawRelatedExp = typeof analysis.breakdown?.related_exp === 'number' ? analysis.breakdown.related_exp : 0
-  const cappedRelatedExp = Math.min(rawRelatedExp, recommendationCeiling)
+  const evidenceGate = resolveRelatedExpEvidenceGate({
+    target: options?.target,
+    resume: options?.resume,
+  })
+  const evidenceCeiling = evidenceGate.applies ? evidenceGate.ceiling : undefined
+  const cappedRelatedExp = Math.min(rawRelatedExp, recommendationCeiling, evidenceCeiling ?? 100)
   const normalizedRelatedExp = Math.round(clamp(cappedRelatedExp, 0, 100) * RELATED_EXP_AI_WEIGHT)
   const nextBreakdown: MatchBreakdown = {
     ...(analysis.breakdown ?? {}),

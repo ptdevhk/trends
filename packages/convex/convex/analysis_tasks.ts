@@ -129,7 +129,13 @@ async function analyzeOneResume(
         try {
             const rawResult = await callLLM(messages, apiKey);
             const parsedResult = parseLlmResult(rawResult);
-            const normalizedResult = normalizeAnalysisResult(parsedResult, resume);
+            const normalizedResult = normalizeAnalysisResult(parsedResult, resume, {
+                target: {
+                    keywords: normalizedKeywords,
+                    jobTitle,
+                    jobDescription: requirements,
+                },
+            });
             return {
                 ...normalizedResult,
                 locale,

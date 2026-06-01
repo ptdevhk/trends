@@ -339,6 +339,45 @@ describe('resume-scoring', () => {
     }))
   })
 
+  it('caps generic industrial sales for CNC sales display recompute', () => {
+    const result = overrideIndustryDbBreakdown(
+      {
+        score: 95,
+        recommendation: 'match',
+        breakdown: { related_exp: 95 },
+        summary: 'Keyence sales',
+        highlights: [],
+        concerns: [],
+      },
+      50,
+      'CN',
+      {
+        target: { keywords: ['CNC', '销售'] },
+        resume: {
+          ingestData: {
+            evidenceText: '2019-2026 基恩士中国有限公司 大客户销售 负责传感器和检测设备销售',
+            roleSignals: [{
+              type: 'sales',
+              verifyIn: 'workHistory',
+              matchedSignals: ['销售', '大客户'],
+              matchedWorkEntries: [{
+                companyName: '基恩士中国有限公司',
+                jobTitle: '大客户销售',
+                years: 6.75,
+                industryVerified: true,
+                directRoleMatch: true,
+                matchedSignals: ['销售', '大客户'],
+              }],
+            }],
+          },
+        },
+      },
+    )
+
+    expect(result.breakdown!.related_exp).toBe(15)
+    expect(result.score).toBe(65)
+  })
+
   it.each([
     { label: 'rounds to nearest integer', input: 35 as number | undefined, expected: 18 },
     { label: 'keeps at 0 when AI returns 0', input: 0 as number | undefined, expected: 0 },
