@@ -243,16 +243,16 @@ describe("getResumeIngestData", () => {
 describe("computeDirectIndustryDbScoreFromResume", () => {
   const CAP = 50;
 
-  it("returns CAP when brandHits has non-employer context", () => {
+  it("returns the additive brand weight (30) for non-employer brand context", () => {
     expect(computeDirectIndustryDbScoreFromResume({
       ingestData: { brandHits: [{ context: "industry" }] },
-    })).toBe(CAP);
+    })).toBe(30);
   });
 
-  it("returns CAP when companyHits has entries", () => {
+  it("returns the additive company weight (20) when companyHits has entries", () => {
     expect(computeDirectIndustryDbScoreFromResume({
       ingestData: { companyHits: ["Acme Corp"] },
-    })).toBe(CAP);
+    })).toBe(20);
   });
 
   it("clamps industryDbV2Raw to 0..CAP", () => {
@@ -479,14 +479,14 @@ describe("parseRoleSignals", () => {
 
 describe("normalizeAnalysisResult", () => {
   it("normalizes a complete analysis result", () => {
-    // Score = clamp(related_exp * 0.5, 0, 100) + industry_db
-    // With related_exp=80: 80 * 0.5 = 40, + 0 industry_db = 40 → "potential"
+    // score = the related_exp factor (match ceiling 100); industry_db is excluded from the score.
+    // With related_exp=80 → score=80 → "match".
     const result = normalizeAnalysisResult(
       { score: 80, recommendation: "match", summary: "Good candidate", breakdown: { related_exp: 80 } },
       {},
     );
-    expect(result.score).toBe(40);
-    expect(result.recommendation).toBe("potential");
+    expect(result.score).toBe(80);
+    expect(result.recommendation).toBe("match");
     expect(result.summary).toBe("Good candidate");
     expect(result.highlights).toEqual([]);
     expect(result.concerns).toEqual([]);
@@ -537,16 +537,18 @@ describe("normalizeAnalysisResult", () => {
     expect(result.breakdown.related_exp).toBe(0);
   });
 
-  it("boosts score with brand/company hits", () => {
+  it("keeps brand/company hits in the breakdown without inflating the score", () => {
     const withoutHits = normalizeAnalysisResult(
-      { breakdown: { related_exp: 60 } },
+      { recommendation: "match", breakdown: { related_exp: 60 } },
       {},
     );
     const withHits = normalizeAnalysisResult(
-      { breakdown: { related_exp: 60 } },
+      { recommendation: "match", breakdown: { related_exp: 60 } },
       { ingestData: { companyHits: ["Acme"] } },
     );
-    expect(withHits.score).toBeGreaterThan(withoutHits.score);
+    // industry_db is a display/sort signal only — it must NOT change the score (score = related_exp).
+    expect(withHits.score).toBe(withoutHits.score);
+    expect(withHits.breakdown.industry_db).toBeGreaterThan(withoutHits.breakdown.industry_db);
   });
 
   it("extracts keyFactors from LLM response", () => {

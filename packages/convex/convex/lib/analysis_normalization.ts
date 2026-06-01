@@ -47,6 +47,11 @@ export type NormalizedRoleSignal = {
 // ---------------------------------------------------------------------------
 
 export const INDUSTRY_DB_SCORE_CAP = 50;
+/**
+ * @deprecated No longer part of the score formula. `score = related_exp` (the factor)
+ * as of the P0.5 refactor; industry_db is a display/sort signal only. Kept for legacy
+ * display compatibility and downstream consumers.
+ */
 export const RELATED_EXP_WEIGHT = INDUSTRY_DB_SCORE_CAP / 100;
 
 // Additive weights for brand/company hits — must stay in sync with
@@ -353,7 +358,9 @@ export function normalizeAnalysisResult(
     }
     const relatedExpCeiling = RELATED_EXP_CEILING_BY_RECOMMENDATION[llmRecommendation ?? "no_match"];
     const cappedRelatedExp = clamp(relatedExpRaw, 0, relatedExpCeiling);
-    let score = clamp(Math.round(cappedRelatedExp * RELATED_EXP_WEIGHT) + industryDb, 0, 100);
+    // score = the related_exp factor (after the recommendation ceiling). industry_db is
+    // NOT added to the composite — it is a display/sort signal only (see breakdown below).
+    let score = clamp(cappedRelatedExp, 0, 100);
 
     // Gate: preserve LLM no_match — prevent industryDb from overriding a semantic rejection.
     // A candidate explicitly rejected by the LLM must not be elevated to potential/match
