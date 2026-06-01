@@ -1,0 +1,3 @@
+display_name: Resume AI Scoring Audit
+short_description: Reproduce Trends resume AI scoring runs and extract HR feedback cohort audit CSV/JSON artifacts.
+default_prompt: Use the resume-ai-scoring-audit workflow. Prefer Trends CLI commands from repo root for restore, hard-reset reingest, AI analysis dispatch, task polling, and export. Join HR cohorts by stable profile resume ID, not Convex resume ID, and report missing resumes, missing AI scores, high-score counts, output paths, and exact commands.

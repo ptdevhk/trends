@@ -51,12 +51,14 @@ sudo -u ubuntu chmod +x "$DST/start-convex.sh"
 
 # 5. Restore .env.preview (or create from template)
 if [ -f "/tmp/preview-env-$TS.env" ]; then
+    echo "[5/7] Restoring backed-up .env.preview"
     cp "/tmp/preview-env-$TS.env" "$DST/.env.preview"
 elif [ -f "$REPO_HEAD/deploy/env.preview" ]; then
     echo "[5/7] No existing .env.preview — copying from template (EDIT IT)"
-    sudo -u ubuntu cp "$REPO_HEAD/deploy/env.preview" "$DST/.env.preview"
+    cp "$REPO_HEAD/deploy/env.preview" "$DST/.env.preview"
 fi
-sudo -u ubuntu chown ubuntu:ubuntu "$DST/.env.preview"
+# Must run as root (not sudo -u ubuntu) because the file may be root-owned from cp above
+chown ubuntu:ubuntu "$DST/.env.preview"
 
 # 6. Install dependencies + rebuild native modules for the host Node
 echo "[6/7] Installing npm dependencies..."

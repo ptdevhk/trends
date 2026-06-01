@@ -438,6 +438,32 @@ local-restore-from-prod:
 
 restore-from-prod: local-restore-from-prod
 
+# --- Preview deployment (preview.pt-mes.com on ptcloud) ---
+
+# Full preview deploy: sync code from origin/main, install, build, restart services.
+# Requires SSH access to ptcloud.
+preview-deploy:
+	@SSH_HOST="$${SSH_HOST:-ptcloud}"; \
+	echo "→ deploying preview to $$SSH_HOST"; \
+	ssh "$$SSH_HOST" "sudo bash /home/ubuntu/trends/deploy/setup-preview.sh"; \
+	echo "→ restarting API"; \
+	ssh "$$SSH_HOST" "sudo systemctl restart trends-preview-api"; \
+	echo "→ verifying endpoints"; \
+	ssh "$$SSH_HOST" "curl -s -o /dev/null -w 'Web: %{http_code}\n' https://preview.pt-mes.com/ && \
+		curl -s -o /dev/null -w 'API: %{http_code}\n' http://127.0.0.1:3002/api/blocks"
+
+# Restore production Convex data into preview. Requires SSH access to ptcloud.
+preview-restore-data:
+	@SSH_HOST="$${SSH_HOST:-ptcloud}"; \
+	echo "→ restoring prod data into preview on $$SSH_HOST"; \
+	ssh "$$SSH_HOST" "sudo bash /home/ubuntu/trends/deploy/restore-preview-from-prod.sh"
+
+# Quick smoke check for preview endpoints
+preview-smoke:
+	@echo -n "Web: "; curl -s -o /dev/null -w '%{http_code}' https://preview.pt-mes.com/; echo
+	@echo -n "API: "; curl -s -o /dev/null -w '%{http_code}' https://preview.pt-mes.com/api/blocks; echo
+	@echo -n "Convex: "; curl -s -o /dev/null -w '%{http_code}' https://preview.pt-mes.com/convex/version; echo
+
 # Dual-target: follows $API_URL. Defaults to http://localhost:3000 (local).
 # Restore resume records, then restart local Convex to release retained restore RSS
 restore-resumes-restart:

@@ -186,10 +186,28 @@ PREWARM_LOG="${CONVEX_PREWARM_LOG:-$STATE_DIR/.prewarm.log}"
 # shellcheck disable=SC2164
 cd "$STATE_DIR"
 
+# Resolve instance name and secret to support newer backend versions
+DEPLOYMENT_VAL="${CONVEX_DEPLOYMENT:-}"
+if [ -z "$DEPLOYMENT_VAL" ]; then
+    DEPLOYMENT_VAL="$(read_deployment_from_env_file "$PROJECT_ROOT/packages/convex/.env.local" 2>/dev/null || true)"
+fi
+if [ -z "$DEPLOYMENT_VAL" ]; then
+    DEPLOYMENT_VAL="$(read_deployment_from_env_file "$PROJECT_ROOT/.env.local" 2>/dev/null || true)"
+fi
+INST_NAME="anonymous-trends"
+if [ -n "$DEPLOYMENT_VAL" ]; then
+    INST_NAME="${DEPLOYMENT_VAL#anonymous:}"
+fi
+
+INST_SECRET="0000000000000000000000000000000000000000000000000000000000000000"
+if command -v openssl >/dev/null 2>&1; then
+    INST_SECRET="$(openssl rand -hex 32 2>/dev/null || echo "$INST_SECRET")"
+fi
+
 if [ -n "${TZ:-}" ]; then
-    env -u TZ "$BINARY" > "$PREWARM_LOG" 2>&1 &
+    env -u TZ "$BINARY" --instance-name "$INST_NAME" --instance-secret "$INST_SECRET" --port "$PORT" --site-proxy-port "$((PORT + 1))" > "$PREWARM_LOG" 2>&1 &
 else
-    "$BINARY" > "$PREWARM_LOG" 2>&1 &
+    "$BINARY" --instance-name "$INST_NAME" --instance-secret "$INST_SECRET" --port "$PORT" --site-proxy-port "$((PORT + 1))" > "$PREWARM_LOG" 2>&1 &
 fi
 PREWARM_PID=$!
 log "Backend started (pid=$PREWARM_PID)."
