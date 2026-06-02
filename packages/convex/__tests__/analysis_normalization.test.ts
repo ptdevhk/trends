@@ -423,14 +423,15 @@ describe("normalizeSummaryConsistency", () => {
 // normalizeAnalysisResult
 // ---------------------------------------------------------------------------
 describe("normalizeAnalysisResult", () => {
-    it("computes composite score (related_exp*0.5 + industryDb)", () => {
+    it("computes score from the related_exp factor alone (industry_db excluded from score)", () => {
         const result = normalizeAnalysisResult(
             { score: 80, summary: "Test", recommendation: "match", breakdown: { related_exp: 60 } },
             { ingestData: { industryDbV2Raw: 30 } },
         );
-        // score = round(60 * 0.5) + 30 = 60
+        // score = cappedRelatedExp (match ceiling 100); industry_db is NOT added.
         expect(result.score).toBe(60);
         expect(result.breakdown.related_exp).toBe(60);
+        // industry_db remains in the breakdown for display only.
         expect(result.breakdown.industry_db).toBe(30);
     });
 
@@ -448,7 +449,7 @@ describe("normalizeAnalysisResult", () => {
             { recommendation: "match", breakdown: { related_exp: 200 } },
             {},
         );
-        // related_exp clamped to 100, match ceiling 100 → score = 100 (score = related_exp)
+        // related_exp clamped to 100, match ceiling 100 → score = 100
         expect(result.score).toBe(100);
         expect(result.breakdown.related_exp).toBe(100);
     });
@@ -495,7 +496,7 @@ describe("normalizeAnalysisResult", () => {
                 { recommendation: "weak_potential", breakdown: { related_exp: 100 } },
                 {},
             );
-            // related_exp clamped to 30 (no_match ceiling); score = 30 (score = related_exp)
+            // related_exp clamped to 30 (no_match ceiling); score = 30 (industry_db excluded)
             expect(result.score).toBe(30);
         });
 
@@ -635,7 +636,6 @@ describe("normalizeAnalysisResult with relatedExpContext (P1)", () => {
             },
         );
         // effectiveRaw = min(84, 100 [match ceiling], 30 [evidenceBandMax]) = 30
-        // score = effectiveRaw = 30 (score = related_exp, no industry_db addition)
         expect(result.breakdown.related_exp).toBe(30);
         expect(result.score).toBe(30);
     });
@@ -650,7 +650,6 @@ describe("normalizeAnalysisResult with relatedExpContext (P1)", () => {
             },
         );
         // full coverage → evidenceBandMax=100; effectiveRaw = min(75, 100, 100) = 75
-        // score = effectiveRaw = 75 (score = related_exp, no industry_db addition)
         expect(result.breakdown.related_exp).toBe(75);
         expect(result.score).toBe(75);
         expect(result.relatedExpEvidence?.coverage).toBe("full");

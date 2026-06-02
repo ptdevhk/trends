@@ -32,53 +32,6 @@ import {
     buildAnalysisDispatchIdempotencyKey,
 } from "./lib/analysis_task_helpers.js";
 import { relatedExpContextValidator } from "./validators.js";
-import type { RelatedExpContextInput, RelatedExpIngestEvidence } from "./lib/analysis_normalization.js";
-
-// ---------------------------------------------------------------------------
-// P1 helpers: extract ingest evidence for evidence ceiling evaluator
-// ---------------------------------------------------------------------------
-
-/**
- * Extract ingest evidence from resume.ingestData.roleSignals for the
- * evidence ceiling evaluator. Returns the best (highest years) role signal
- * that has directRoleMatch=true, or the best signal overall for domain years.
- */
-function buildRelatedExpCtxArg(
-    resume: Doc<"resumes">,
-    context: { roleFilterType?: string; minRoleYears?: number; market?: string; locale?: string },
-): { context: RelatedExpContextInput; ingestEvidence: RelatedExpIngestEvidence } {
-    const ingestData = (resume as Record<string, unknown>).ingestData;
-    const roleSignals = Array.isArray((ingestData as Record<string, unknown> | undefined)?.roleSignals)
-        ? ((ingestData as Record<string, unknown>).roleSignals as Array<Record<string, unknown>>)
-        : [];
-
-    let directRoleMatch = false;
-    let industryVerifiedRelevantYears = 0;
-
-    for (const signal of roleSignals) {
-        const entries = Array.isArray(signal.matchedWorkEntries)
-            ? (signal.matchedWorkEntries as Array<Record<string, unknown>>)
-            : [];
-        for (const entry of entries) {
-            if (entry.directRoleMatch === true) {
-                directRoleMatch = true;
-            }
-        }
-        const ivry = typeof signal.industryVerifiedRelevantYears === "number"
-            ? signal.industryVerifiedRelevantYears
-            : typeof signal.industryVerifiedYears === "number"
-                ? signal.industryVerifiedYears
-                : 0;
-        if (ivry > industryVerifiedRelevantYears) {
-            industryVerifiedRelevantYears = ivry;
-        }
-    }
-
-    return {
-        context,
-        ingestEvidence: { directRoleMatch, industryVerifiedRelevantYears },
-    };
-}
 
 // Backward-compatible re-exports
 export type { AnalysisResult, AnalysisDispatchKeyInput } from "./lib/analysis_task_helpers.js";
@@ -138,12 +91,6 @@ async function analyzeOneResume(
         jobDescriptionContent?: string;
         keywords?: string[];
         location?: string;
-        relatedExpContext?: {
-            roleFilterType?: string;
-            minRoleYears?: number;
-            market?: string;
-            locale?: string;
-        };
     },
     apiKey: string
 ): Promise<AnalysisResult> {
@@ -177,18 +124,13 @@ async function analyzeOneResume(
         { role: "user", content: prompt },
     ];
 
-    // P1: extract ingest evidence from resume for evidence ceiling evaluator
-    const relatedExpCtxArg = config.relatedExpContext
-        ? buildRelatedExpCtxArg(resume, config.relatedExpContext)
-        : undefined;
-
     const maxAttempts = 2;
     let lastError: unknown;
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
             const rawResult = await callLLM(messages, apiKey);
             const parsedResult = parseLlmResult(rawResult);
-            const normalizedResult = normalizeAnalysisResult(parsedResult, resume, relatedExpCtxArg);
+            const normalizedResult = normalizeAnalysisResult(parsedResult, resume);
             return {
                 ...normalizedResult,
                 locale,
@@ -641,7 +583,6 @@ export const processAnalysisTask = internalAction({
                                     jobDescriptionContent: task.config.jobDescriptionContent,
                                     keywords: task.config.keywords,
                                     location: normalizedLocation,
-                                    relatedExpContext: task.config.relatedExpContext,
                                 },
                                 apiKey
                             );
@@ -659,7 +600,6 @@ export const processAnalysisTask = internalAction({
                                     locale: result.locale,
                                     ...(normalizedLocation ? { queryLocation: normalizedLocation } : {}),
                                     analyzedAt: Date.now(),
-                                    ...(result.relatedExpEvidence ? { relatedExpEvidence: result.relatedExpEvidence } : {}),
                                 },
                             });
 
