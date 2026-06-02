@@ -315,6 +315,9 @@ func mcpTools() []map[string]any {
 					"maxSalary":         map[string]any{"type": "integer", "minimum": 0},
 					"limit":             map[string]any{"type": "integer", "minimum": 1, "maximum": 500},
 					"dryRun":            map[string]any{"type": "boolean"},
+					"roleFilterType":    map[string]any{"type": "string"},
+					"minRoleYears":      map[string]any{"type": "integer", "minimum": 0},
+					"market":            map[string]any{"type": "string"},
 				},
 			},
 		},
@@ -452,6 +455,9 @@ func runMCPTool(ctx context.Context, name string, args map[string]interface{}) (
 			MaxSalary:        intArg(args, "maxSalary", 0),
 			Limit:            intArg(args, "limit", 50),
 			DryRun:           boolArg(args, "dryRun", false),
+			RoleFilterType:   stringArg(args, "roleFilterType", ""),
+			MinRoleYears:     intArg(args, "minRoleYears", 0),
+			Market:           stringArg(args, "market", ""),
 		})
 		if err != nil {
 			return "", err

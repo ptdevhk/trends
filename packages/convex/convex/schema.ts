@@ -1,6 +1,15 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
-import { ingestDataValidator, collectionTaskResultsValidator, resumeFiltersValidator, analysisResultValidator, jsonRecordValidator, jsonValueValidator, relatedExpContextValidator } from "./validators.js";
+import {
+    ingestDataValidator,
+    collectionTaskResultsValidator,
+    resumeFiltersValidator,
+    analysisResultValidator,
+    resumeAnalysisValidator,
+    jsonRecordValidator,
+    jsonValueValidator,
+    relatedExpContextValidator,
+} from "./validators.js";
 
 export default defineSchema({
     // Tasks for resume collection
@@ -65,18 +74,7 @@ export default defineSchema({
         source: v.string(), // e.g. "hr.job5156.com"
 
         // AI Analysis
-        analysis: v.optional(v.object({
-            score: v.number(),
-            summary: v.string(),
-            highlights: v.array(v.string()),
-            recommendation: v.string(),
-            breakdown: v.optional(v.record(v.string(), v.number())),
-            jobDescriptionId: v.optional(v.string()), // Tracks which JD was used for analysis
-            promptVersion: v.optional(v.number()),
-            locale: v.optional(v.string()),
-            queryLocation: v.optional(v.string()),
-            analyzedAt: v.optional(v.number()),
-        })),
+        analysis: v.optional(resumeAnalysisValidator),
 
         // AI Analysis Cache (Multi-JD + source-aware support)
         // Key: `source:<sourceKey>|analysis:<jobDescriptionId>` when the resume source is known,

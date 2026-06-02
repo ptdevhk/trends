@@ -250,6 +250,19 @@ func TestResumeAnalyzeCommandDryRunWritesJSON(t *testing.T) {
 		if r.Method != http.MethodPost {
 			t.Fatalf("unexpected method: %s", r.Method)
 		}
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("failed to decode body: %v", err)
+		}
+		if body["roleFilterType"] != "sales" {
+			t.Fatalf("expected roleFilterType=sales, got %v", body["roleFilterType"])
+		}
+		if body["minRoleYears"] != float64(1) {
+			t.Fatalf("expected minRoleYears=1, got %v", body["minRoleYears"])
+		}
+		if body["market"] != "CN" {
+			t.Fatalf("expected market=CN, got %v", body["market"])
+		}
 		_ = json.NewEncoder(w).Encode(client.AnalyzeResponse{
 			Success:      true,
 			DryRun:        true,
@@ -270,7 +283,14 @@ func TestResumeAnalyzeCommandDryRunWritesJSON(t *testing.T) {
 	var output bytes.Buffer
 	cmd.SetOut(&output)
 	cmd.SetErr(&output)
-	cmd.SetArgs([]string{"--query", "CNC 销售", "--location", "Dongguan", "--dry-run"})
+	cmd.SetArgs([]string{
+		"--query", "CNC 销售",
+		"--location", "Dongguan",
+		"--role-type", "sales",
+		"--min-role-years", "1",
+		"--market", "CN",
+		"--dry-run",
+	})
 
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("resume analyze command failed: %v", err)

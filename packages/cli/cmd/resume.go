@@ -258,6 +258,9 @@ func newResumeAnalyzeCmd() *cobra.Command {
 		maxSalary        int
 		limit            int
 		dryRun           bool
+		roleType         string
+		minRoleYears     int
+		market           string
 	)
 
 	cmd := &cobra.Command{
@@ -300,6 +303,9 @@ func newResumeAnalyzeCmd() *cobra.Command {
 				MaxSalary:        maxSalary,
 				Limit:            limit,
 				DryRun:           dryRun,
+				RoleFilterType:   strings.TrimSpace(roleType),
+				MinRoleYears:     minRoleYears,
+				Market:           strings.TrimSpace(market),
 			}
 
 			response, err := newAPIClient().AnalyzeResumes(context.Background(), request)
@@ -328,6 +334,9 @@ func newResumeAnalyzeCmd() *cobra.Command {
 	cmd.Flags().IntVar(&maxSalary, "max-salary", 0, "Max salary")
 	cmd.Flags().IntVar(&limit, "limit", 50, "Max candidates to analyze (1-500)")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview candidate count without dispatching")
+	cmd.Flags().StringVar(&roleType, "role-type", "", "Role filter type for related experience evidence (e.g. sales)")
+	cmd.Flags().IntVar(&minRoleYears, "min-role-years", 0, "Minimum role years for related experience evidence")
+	cmd.Flags().StringVar(&market, "market", "", "Market context for related experience evidence (e.g. CN, MY)")
 
 	return cmd
 }

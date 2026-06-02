@@ -3,7 +3,11 @@ import type { Doc } from "./_generated/dataModel";
 import { internalAction, internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { api } from "./_generated/api";
-import { getCurrentResumeAiPromptVersion } from "@trends/shared";
+import {
+    getCurrentResumeAiPromptVersion,
+    type RelatedExpContextInput,
+    type RelatedExpIngestEvidence,
+} from "@trends/shared";
 import {
     buildKeywordMatchingRules,
     buildKeywordRequirements,
@@ -24,6 +28,7 @@ import { resolveAnalysisParallelism } from "./lib/parallelism";
 import { computeProtectedAttributeHashes } from "./audit.js";
 import {
     type AnalysisResult,
+    isObject,
     parseLlmResult,
     extractKeywords,
     normalizeKeywords,
@@ -50,6 +55,106 @@ export {
 } from "./lib/analysis_task_helpers.js";
 
 type AnalysisTaskStatus = "pending" | "processing" | "completed" | "failed" | "cancelled";
+
+export type RelatedExpNormalizeContextArg = {
+    context: RelatedExpContextInput;
+    ingestEvidence: RelatedExpIngestEvidence;
+};
+
+function hasRelatedExpContext(context: RelatedExpContextInput | undefined): context is RelatedExpContextInput {
+    if (!context) {
+        return false;
+    }
+    return (
+        (typeof context.roleFilterType === "string" && context.roleFilterType.trim().length > 0)
+        || (typeof context.minRoleYears === "number" && Number.isFinite(context.minRoleYears))
+        || (typeof context.market === "string" && context.market.trim().length > 0)
+        || (typeof context.locale === "string" && context.locale.trim().length > 0)
+    );
+}
+
+function roleTypeMatches(signalType: unknown, roleFilterType: string | undefined): boolean {
+    if (!roleFilterType || roleFilterType.trim().length === 0 || roleFilterType.trim().toLowerCase() === "any") {
+        return true;
+    }
+    return typeof signalType === "string" && signalType.trim().toLowerCase() === roleFilterType.trim().toLowerCase();
+}
+
+function readFiniteNumber(value: unknown): number | undefined {
+    return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function formatMatchedWorkEntry(entry: Record<string, unknown>): string | undefined {
+    const jobTitle = typeof entry.jobTitle === "string" && entry.jobTitle.trim().length > 0
+        ? entry.jobTitle.trim()
+        : undefined;
+    const companyName = typeof entry.companyName === "string" && entry.companyName.trim().length > 0
+        ? entry.companyName.trim()
+        : undefined;
+    const years = readFiniteNumber(entry.years);
+
+    if (!jobTitle && !companyName && years === undefined) {
+        return undefined;
+    }
+
+    const titlePart = jobTitle ?? "role";
+    const companyPart = companyName ? ` @ ${companyName}` : "";
+    const yearsPart = years === undefined ? "" : ` (${years}y)`;
+    return `${titlePart}${companyPart}${yearsPart}`;
+}
+
+export function buildRelatedExpCtxArg(
+    resume: unknown,
+    relatedExpContext: RelatedExpContextInput | undefined,
+): RelatedExpNormalizeContextArg | undefined {
+    if (!hasRelatedExpContext(relatedExpContext)) {
+        return undefined;
+    }
+
+    const roleSignals = isObject(resume)
+        && isObject(resume.ingestData)
+        && Array.isArray(resume.ingestData.roleSignals)
+        ? resume.ingestData.roleSignals
+        : [];
+    const matchingSignals = roleSignals
+        .filter(isObject)
+        .filter((signal) => roleTypeMatches(signal.type, relatedExpContext.roleFilterType));
+
+    let directRoleMatch = false;
+    let industryVerifiedRelevantYears = 0;
+    const matchedWorkEntries: string[] = [];
+
+    for (const signal of matchingSignals) {
+        const signalYears = readFiniteNumber(signal.industryVerifiedRelevantYears);
+        if (signalYears !== undefined) {
+            industryVerifiedRelevantYears = Math.max(industryVerifiedRelevantYears, Math.max(0, signalYears));
+        }
+
+        if (!Array.isArray(signal.matchedWorkEntries)) {
+            continue;
+        }
+
+        for (const rawEntry of signal.matchedWorkEntries) {
+            if (!isObject(rawEntry)) {
+                continue;
+            }
+            directRoleMatch = directRoleMatch || rawEntry.directRoleMatch === true;
+            const formatted = formatMatchedWorkEntry(rawEntry);
+            if (formatted) {
+                matchedWorkEntries.push(formatted);
+            }
+        }
+    }
+
+    return {
+        context: relatedExpContext,
+        ingestEvidence: {
+            directRoleMatch,
+            industryVerifiedRelevantYears,
+            matchedWorkEntries,
+        },
+    };
+}
 
 function classifyResumes(
     resumes: Doc<"resumes">[],
@@ -91,6 +196,7 @@ async function analyzeOneResume(
         jobDescriptionContent?: string;
         keywords?: string[];
         location?: string;
+        relatedExpContext?: RelatedExpContextInput;
     },
     apiKey: string
 ): Promise<AnalysisResult> {
@@ -111,6 +217,12 @@ async function analyzeOneResume(
         ? buildKeywordMatchingRules(normalizedKeywords, locale)
         : (isEnglishLocale ? "Use the default scoring rules." : "使用默认评分标准");
     const normalizedResume = normalizeResume(resume, { locale });
+    const relatedExpContext = hasRelatedExpContext(config.relatedExpContext)
+        ? {
+            ...config.relatedExpContext,
+            locale: config.relatedExpContext.locale ?? locale,
+        }
+        : undefined;
 
     const prompt = hydrateUserPrompt(
         getUserPromptTemplate(locale),
@@ -130,7 +242,11 @@ async function analyzeOneResume(
         try {
             const rawResult = await callLLM(messages, apiKey);
             const parsedResult = parseLlmResult(rawResult);
-            const normalizedResult = normalizeAnalysisResult(parsedResult, resume);
+            const normalizedResult = normalizeAnalysisResult(
+                parsedResult,
+                resume,
+                buildRelatedExpCtxArg(resume, relatedExpContext),
+            );
             return {
                 ...normalizedResult,
                 locale,
@@ -215,6 +331,7 @@ export const dispatch = mutation({
             keywords: normalizedKeywords,
             location: normalizedLocation,
             promptVersion,
+            relatedExpContext: args.relatedExpContext,
             resumeIds: uniqueResumeIds.map((resumeId) => String(resumeId)),
         });
         const idempotencyKey = buildAnalysisDispatchIdempotencyKey({
@@ -224,6 +341,7 @@ export const dispatch = mutation({
             keywords: normalizedKeywords,
             location: normalizedLocation,
             promptVersion,
+            relatedExpContext: args.relatedExpContext,
             resumeIds: uniqueResumeIds.map((resumeId) => String(resumeId)),
         });
 
@@ -583,6 +701,7 @@ export const processAnalysisTask = internalAction({
                                     jobDescriptionContent: task.config.jobDescriptionContent,
                                     keywords: task.config.keywords,
                                     location: normalizedLocation,
+                                    relatedExpContext: task.config.relatedExpContext,
                                 },
                                 apiKey
                             );
@@ -600,6 +719,7 @@ export const processAnalysisTask = internalAction({
                                     locale: result.locale,
                                     ...(normalizedLocation ? { queryLocation: normalizedLocation } : {}),
                                     analyzedAt: Date.now(),
+                                    ...(result.relatedExpEvidence ? { relatedExpEvidence: result.relatedExpEvidence } : {}),
                                 },
                             });
 

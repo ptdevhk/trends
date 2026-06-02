@@ -487,6 +487,15 @@ func TestRunMCPToolResumeAnalyze(t *testing.T) {
 		if body["dryRun"] != true {
 			t.Fatalf("expected dryRun=true, got %v", body["dryRun"])
 		}
+		if body["roleFilterType"] != "sales" {
+			t.Fatalf("expected roleFilterType=sales, got %v", body["roleFilterType"])
+		}
+		if body["minRoleYears"] != float64(1) {
+			t.Fatalf("expected minRoleYears=1, got %v", body["minRoleYears"])
+		}
+		if body["market"] != "CN" {
+			t.Fatalf("expected market=CN, got %v", body["market"])
+		}
 		_ = json.NewEncoder(w).Encode(client.AnalyzeResponse{
 			Success:      true,
 			DryRun:        true,
@@ -502,8 +511,11 @@ func TestRunMCPToolResumeAnalyze(t *testing.T) {
 	setResumeCLIConfig(t, server.URL, "dev")
 
 	text, err := runMCPTool(context.Background(), "resume_analyze", map[string]interface{}{
-		"query":  "CNC 销售",
-		"dryRun": true,
+		"query":          "CNC 销售",
+		"roleFilterType": "sales",
+		"minRoleYears":   1,
+		"market":         "CN",
+		"dryRun":         true,
 	})
 	if err != nil {
 		t.Fatalf("runMCPTool returned error: %v", err)

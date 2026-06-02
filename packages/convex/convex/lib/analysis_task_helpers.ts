@@ -7,6 +7,7 @@
 import {
     buildKeywordAnalysisId as buildSharedKeywordAnalysisId,
     getCurrentResumeAiPromptVersion,
+    type RelatedExpContextInput,
 } from "@trends/shared";
 
 // ---------------------------------------------------------------------------
@@ -39,6 +40,7 @@ export type AnalysisDispatchKeyInput = {
     keywords?: string[];
     location?: string;
     promptVersion?: number;
+    relatedExpContext?: RelatedExpContextInput;
     resumeIds: readonly string[];
 };
 
@@ -195,10 +197,40 @@ export function buildKeywordAnalysisId(
     return buildSharedKeywordAnalysisId(keywords, options);
 }
 
+function normalizeContextString(value: string | undefined, options?: { uppercase?: boolean }): string | undefined {
+    const trimmed = value?.trim();
+    if (!trimmed) {
+        return undefined;
+    }
+    return options?.uppercase ? trimmed.toUpperCase() : trimmed.toLowerCase();
+}
+
+function buildRelatedExpContextKey(context: RelatedExpContextInput | undefined): string {
+    if (!context) {
+        return "";
+    }
+
+    const roleFilterType = normalizeContextString(context.roleFilterType);
+    const minRoleYears = typeof context.minRoleYears === "number" && Number.isFinite(context.minRoleYears)
+        ? String(context.minRoleYears)
+        : undefined;
+    const market = normalizeContextString(context.market, { uppercase: true });
+    const locale = normalizeContextString(context.locale);
+    const parts = [
+        roleFilterType ? `roleFilterType:${roleFilterType}` : undefined,
+        minRoleYears ? `minRoleYears:${minRoleYears}` : undefined,
+        market ? `market:${market}` : undefined,
+        locale ? `locale:${locale}` : undefined,
+    ].filter((part): part is string => part !== undefined);
+
+    return parts.length > 0 ? `:related-exp:${stableHash(parts.join("|"))}` : "";
+}
+
 export function buildAnalysisDispatchJobKey(input: AnalysisDispatchKeyInput): string {
     const promptVersion = input.promptVersion ?? getCurrentResumeAiPromptVersion();
+    const relatedExpContextKey = buildRelatedExpContextKey(input.relatedExpContext);
     if (input.derivedJobDescriptionId && input.derivedJobDescriptionId.trim()) {
-        return `job:${input.derivedJobDescriptionId.trim().toLowerCase()}:prompt:${promptVersion}`;
+        return `job:${input.derivedJobDescriptionId.trim().toLowerCase()}:prompt:${promptVersion}${relatedExpContextKey}`;
     }
 
     const normalizedKeywords = normalizeKeywords(input.keywords ?? []);
@@ -206,15 +238,15 @@ export function buildAnalysisDispatchJobKey(input: AnalysisDispatchKeyInput): st
         return `keywords:${buildKeywordAnalysisId(normalizedKeywords, {
             location: input.location,
             promptVersion,
-        })}`;
+        })}${relatedExpContextKey}`;
     }
 
     const title = input.jobDescriptionTitle?.trim().toLowerCase() ?? "";
     const content = input.jobDescriptionContent?.trim().toLowerCase() ?? "";
     if (!title && !content) {
-        return `job:default:prompt:${promptVersion}`;
+        return `job:default:prompt:${promptVersion}${relatedExpContextKey}`;
     }
-    return `job-content:prompt:${promptVersion}:${stableHash(`${title}|${content}`)}`;
+    return `job-content:prompt:${promptVersion}:${stableHash(`${title}|${content}`)}${relatedExpContextKey}`;
 }
 
 export function buildAnalysisDispatchIdempotencyKey(input: AnalysisDispatchKeyInput): string {
