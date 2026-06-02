@@ -3,6 +3,8 @@ import { constants } from "node:fs";
 import { access, mkdir, readFile, unlink } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+
+import { COLLECTION_GUARDS, applyCollectionGuards } from "@trends/shared";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
@@ -49,6 +51,7 @@ const SOURCE_HOSTS: Record<OptionalSourceAlias, string> = {
   "51job": "ehire.51job.com",
   [MANUAL_SOURCE]: MANUAL_SOURCE,
 };
+
 
 type SnapshotCliArgs = {
   apiUrl: string;
@@ -461,13 +464,19 @@ function normalizeCollectedImportPayload(
   }
 
   const sourceHost = sourceHostOverride || SOURCE_HOSTS[alias];
-  const resumes = readResumeRecords(payload).map((resume) => ({
-    ...resume,
-    sourceHost,
-    ...(Array.isArray(resume.workHistory) && resume.workHistory.length > 0
-      ? { workHistory: selectLatestWorkHistory(resume.workHistory) }
-      : {}),
-  }));
+  const guardFields = COLLECTION_GUARDS[alias] || [];
+  const resumes = readResumeRecords(payload).map((resume) =>
+    applyCollectionGuards(
+      {
+        ...resume,
+        sourceHost,
+        ...(Array.isArray(resume.workHistory) && resume.workHistory.length > 0
+          ? { workHistory: selectLatestWorkHistory(resume.workHistory) }
+          : {}),
+      },
+      guardFields,
+    ),
+  );
   if (resumes.length === 0) {
     throw new Error(`[${alias}] collector returned zero resumes`);
   }

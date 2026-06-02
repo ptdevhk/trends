@@ -56,6 +56,31 @@ async function execGit(args: string[], cwd: string): Promise<string> {
   return stdout.trim();
 }
 
+async function getGhToken(): Promise<string | null> {
+  try {
+    const { stdout } = await execFileAsync("gh", ["auth", "token"]);
+    return stdout.trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+async function cloneSampleRepo(sampleRepo: string, tempDir: string): Promise<void> {
+  const token = await getGhToken();
+  const cloneUrl = token
+    ? `https://oauth2:${token}@github.com/${sampleRepo}.git`
+    : `https://github.com/${sampleRepo}.git`;
+
+  try {
+    await execFileAsync("git", ["clone", "--depth=1", cloneUrl, tempDir]);
+  } catch (e) {
+    if (token) {
+      throw Object.assign(new Error(`git clone failed for ${sampleRepo} — check gh auth status`), { cause: e });
+    }
+    throw e;
+  }
+}
+
 interface SnapshotFile {
   name: string;
   resumeCount: number;
@@ -138,12 +163,7 @@ async function main(): Promise<void> {
   const tempDir = await mkdtemp("trends-push-samples-");
   try {
     console.log(`Cloning ${sampleRepo}...`);
-    try {
-      await execFileAsync("git", ["clone", "--depth=1", `https://github.com/${sampleRepo}.git`, tempDir]);
-    } catch {
-      console.log("git clone failed — trying gh repo clone for authenticated access...");
-      await execFileAsync("gh", ["repo", "clone", sampleRepo, tempDir, "--", "--depth=1"]);
-    }
+    await cloneSampleRepo(sampleRepo, tempDir);
 
     const snapshotsDir = path.join(tempDir, "snapshots");
     await mkdir(snapshotsDir, { recursive: true });

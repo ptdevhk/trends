@@ -3,6 +3,7 @@
  * URL building, and auto-sync helpers. All dependencies injected from content.ts.
  */
 
+
 export interface SeekExtractorDeps extends Record<string, unknown> {
   getCurrentSourceKey: () => string;
   SOURCE_KEYS: Record<string, string>;

@@ -118,13 +118,12 @@ Push the latest snapshot directory to the GitHub sample repo.
 2. Clones `ptdevhk/trends-resume-samples`, replaces snapshot files, regenerates README
 3. Commits and pushes to `main`
 
-### Auth gotcha
+### Auth
 
-The push script tries `git clone` first, then falls back to `gh repo clone`. If `gh` is authenticated as the wrong GitHub user, it fails with `HTTP 401`. Fix:
+The push script auto-detects `gh auth token` and uses authenticated HTTPS clone. Works for both public and private repos. Ensure `gh` is logged in:
 
 ```bash
-gh auth switch --user <correct-user>
-make push-sample-snapshots
+gh auth status
 ```
 
 ### Note
