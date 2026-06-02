@@ -12,12 +12,15 @@ mkdir -p /root/.cache/tmp
 cd /app/packages/convex
 npm install --no-save --no-audit --no-fund 2>&1 | tail -3
 
+# Newer Convex CLI deprecates --local; select the local deployment first.
+npx convex deployment select local 2>/dev/null || true
+
 MAX=5
 n=0
 while [ "$n" -lt "$MAX" ]; do
   n=$((n + 1))
   echo "Convex dev attempt $n/$MAX..."
-  npx convex dev --local && break || {
+  npx convex dev && break || {
     echo "Attempt $n failed, retrying in 10s..."
     sleep 10
   }
