@@ -55,9 +55,9 @@ export type NormalizedRoleSignal = {
 
 export const INDUSTRY_DB_SCORE_CAP = 50;
 /**
- * Weight applied to the related_exp factor in the composite score formula.
- * score = round(effectiveRelatedExp * RELATED_EXP_WEIGHT) + industryDb
- * Both factors contribute 50% of their maximum (50 pts each = 100 total).
+ * @deprecated No longer part of the score formula. `score = related_exp` (the factor)
+ * as of the P0.5 refactor; industry_db is a display/sort signal only. Kept for legacy
+ * display compatibility and downstream consumers.
  */
 export const RELATED_EXP_WEIGHT = INDUSTRY_DB_SCORE_CAP / 100;
 
