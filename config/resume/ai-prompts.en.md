@@ -1,6 +1,6 @@
 ---
-version: 10
-updated_at: '2026-04-18'
+version: 11
+updated_at: '2026-06-02'
 description: >
   English locale variant for the resume AI prompts.
   Falls back to the zh-Hans master prompt when this file is absent.
@@ -106,9 +106,10 @@ Return the analysis as JSON and ensure score is numeric:
 ```
 
 ### breakdown Field Descriptions
-- `related_exp`: Scores how well the candidate's work-history evidence matches the target role (0-100). Runtime converts it into a 0-50 contribution using a fixed 50% weight.
-- `industry_db`: Scores known industry database company/brand hits (0-100, reference only). Runtime replaces the AI-provided value with the rule-engine result (company hits + brand hits); the AI-provided value does not affect the final score.
-- `score` = `related_exp` (AI value × 0.5) + `industry_db` (system rule result), for a 0-100 total. Do not include dimensions without grounded data.
+- `related_exp`: Scores how well the candidate's work-history evidence matches the target role (0-100). The LLM should treat this as an input related-experience factor that should be consistent with subsequent evidence ceilings. Runtime converts it into a 0-50 contribution using a fixed 50% weight.
+- `industry_db`: Scores known industry database company/brand hits (0-100, prompt-output reference only). Runtime replaces the AI-provided value with the rule-engine result (company hits + brand hits); the AI-provided value does not affect the final score.
+- The LLM `score` is an input related-experience factor and should match `breakdown.related_exp`; the system computes the final AI score after deterministic `industry_db` is available.
+- Final AI Score = `round(related_exp × 0.5) + system industry_db` (0-100). Do not include dimensions without grounded data.
 
 ### keyFactors Field Description
 - `keyFactors`: Provide 3-6 key factors that most influenced the score, each containing:

@@ -202,8 +202,8 @@ describe("normalizeResume strict evidence", () => {
 
     expect(normalized.breakdown?.related_exp).toBe(70);
     expect(normalized.breakdown?.industry_db).toBe(0);
-    expect(normalized.score).toBe(70);
-    expect(normalized.recommendation).toBe("match");
+    expect(normalized.score).toBe(35);
+    expect(normalized.recommendation).toBe("no_match");
   });
 
   it("promotes industry_db to 50 when verified company/brand evidence exists", () => {
@@ -228,10 +228,10 @@ describe("normalizeResume strict evidence", () => {
     );
 
     expect(normalized.breakdown?.related_exp).toBe(90);
-    // brand (30) + company (20) → additive industry_db cap (50); display signal only.
+    // brand (30) + company (20) → additive industry_db cap (50).
     expect(normalized.breakdown?.industry_db).toBe(50);
-    // score = related_exp (90); industry_db does not change it.
-    expect(normalized.score).toBe(90);
+    // score = round(related_exp * 0.5) + industry_db = round(90*0.5) + 50 = 95.
+    expect(normalized.score).toBe(95);
     expect(normalized.recommendation).toBe("strong_match");
   });
 
@@ -274,8 +274,8 @@ describe("normalizeResume strict evidence", () => {
     );
 
     expect(normalized.breakdown?.related_exp).toBe(40);
-    expect(normalized.score).toBe(40);
-    expect(normalized.recommendation).toBe("potential");
+    expect(normalized.score).toBe(20);
+    expect(normalized.recommendation).toBe("no_match");
   });
 
   it("passes through LLM related_exp without cap for description-only sales support (no direct sales title)", () => {
@@ -319,7 +319,7 @@ describe("normalizeResume strict evidence", () => {
 
     // LLM-primary: AI score passes through, no cap applied for description-only
     expect(normalized.breakdown?.related_exp).toBe(35);
-    expect(normalized.score).toBe(35);
+    expect(normalized.score).toBe(18);
     expect(normalized.recommendation).toBe("no_match");
   });
 
@@ -364,7 +364,7 @@ describe("normalizeResume strict evidence", () => {
     );
 
     expect(normalized.breakdown?.related_exp).toBe(35);
-    expect(normalized.score).toBe(35);
+    expect(normalized.score).toBe(18);
     expect(normalized.recommendation).toBe("no_match");
   });
 
@@ -459,8 +459,8 @@ describe("normalizeResume strict evidence", () => {
 
     // LLM-primary: insurance sales score passes through without domain-irrelevant ceiling
     expect(normalized.breakdown?.related_exp).toBe(40);
-    expect(normalized.score).toBe(40);
-    expect(normalized.recommendation).toBe("potential");
+    expect(normalized.score).toBe(20);
+    expect(normalized.recommendation).toBe("no_match");
   });
 
   it("passes through LLM related_exp for industry-verified sales (no ceiling needed)", () => {
@@ -609,8 +609,9 @@ describe("normalizeResume strict evidence", () => {
 
     // LLM-primary: AI score passes through without technical-only cap
     expect(normalized.breakdown?.related_exp).toBe(85);
-    expect(normalized.score).toBe(85);
-    expect(normalized.recommendation).toBe("strong_match");
+    // technical brand hits → industry_db=40 (single hit baseline); score = round(85*0.5)+40 = 83.
+    expect(normalized.score).toBe(83);
+    expect(normalized.recommendation).toBe("match");
   });
   it("passes through LLM related_exp when industry tags from non-sales roles + domain-irrelevant company", () => {
     const normalized = normalizeAnalysisResult(
@@ -656,8 +657,9 @@ describe("normalizeResume strict evidence", () => {
 
     // LLM-primary: AI score passes through without ceiling
     expect(normalized.breakdown?.related_exp).toBe(85);
-    expect(normalized.score).toBe(85);
-    expect(normalized.recommendation).toBe("strong_match");
+    // score = round(85*0.5)+0 = 43.
+    expect(normalized.score).toBe(43);
+    expect(normalized.recommendation).toBe("potential");
   });
 
   it("passes through LLM related_exp when industry tags overlap + sales company is domain-relevant", () => {
@@ -704,10 +706,10 @@ describe("normalizeResume strict evidence", () => {
 
     // Industry tags + direct sales role at a domain-relevant company (machinery trading)
     // → tags likely reflect the sales role's domain. Ceiling does NOT apply.
-    // The AI score (85) passes through as score = related_exp.
+    // The AI score (85) passes through as related_exp; score = round(85*0.5)+0 = 43.
     expect(normalized.breakdown?.related_exp).toBe(85); // AI score passes through
-    expect(normalized.score).toBe(85); // score = related_exp (strong_match ceiling 100)
-    expect(normalized.recommendation).toBe("strong_match");
+    expect(normalized.score).toBe(43);
+    expect(normalized.recommendation).toBe("potential");
   });
 
   it("passes through LLM related_exp without unverified floor for domain-relevant sales", () => {
@@ -752,10 +754,10 @@ describe("normalizeResume strict evidence", () => {
       } as unknown,
     );
 
-    // AI gave 22, pass through with no floor
+    // AI gave 22, pass through with no floor; score = round(22*0.5)+0 = 11.
     expect(normalized.breakdown?.related_exp).toBe(22);
-    expect(normalized.score).toBe(22); // score = related_exp
-    expect(normalized.recommendation).toBe("no_match"); // 22 < 40
+    expect(normalized.score).toBe(11);
+    expect(normalized.recommendation).toBe("no_match"); // 11 < 40
   });
 
   it("passes through LLM related_exp without unverified floor for domain-irrelevant company", () => {
@@ -800,10 +802,10 @@ describe("normalizeResume strict evidence", () => {
       } as unknown,
     );
 
-    // Insurance company → domain-irrelevant → no floor, no ceiling
+    // Insurance company → domain-irrelevant → no floor, no ceiling; score = round(40*0.5)+0 = 20.
     expect(normalized.breakdown?.related_exp).toBe(40);
-    expect(normalized.score).toBe(40);
-    expect(normalized.recommendation).toBe("potential");
+    expect(normalized.score).toBe(20);
+    expect(normalized.recommendation).toBe("no_match");
   });
 
   it("passes through LLM related_exp without unverified floor for description-only", () => {
@@ -895,9 +897,9 @@ describe("normalizeResume strict evidence", () => {
       } as unknown,
     );
 
-    // LLM-primary: AI score passes through without floor boost
+    // LLM-primary: AI score passes through without floor boost; score = round(40*0.5)+0 = 20.
     expect(normalized.breakdown?.related_exp).toBe(40);
-    expect(normalized.score).toBe(40);
+    expect(normalized.score).toBe(20);
   });
 
   it("passes through LLM related_exp when industry tags overlap AND sales is industry-verified", () => {
@@ -989,7 +991,8 @@ describe("normalizeResume strict evidence", () => {
     // Sales-only keyword — no domain ceiling applies.
     // Floor does NOT apply: directRoleMatch=true but industryVerified=false,
     // so unverified sales lets the AI score pass through.
-    expect(normalized.breakdown?.related_exp).toBe(70); // AI score passes through
+    // "potential" LLM recommendation caps related_exp at 60.
+    expect(normalized.breakdown?.related_exp).toBe(60); // AI score passes through recommendation ceiling
   });
 
   describe("normalizeSummaryConsistency edge cases", () => {
@@ -1037,9 +1040,9 @@ describe("normalizeResume strict evidence", () => {
         { ingestData: { industryDbV2Raw: 0, companyHits: [], brandHits: [], roleSignals: [] } } as unknown,
       );
       // recommendation "potential" matches, but score 75 in prose != computed score
-      // The actual computed score = related_exp = 40 (potential ceiling 60)
-      expect(normalized.score).toBe(40);
-      expect(normalized.summary).toContain("score 40");
+      // The actual computed score = round(related_exp * 0.5) + industry_db = round(40*0.5)+0 = 20
+      expect(normalized.score).toBe(20);
+      expect(normalized.summary).toContain("score 20");
       expect(normalized.summary).not.toContain("score 75");
     });
 
@@ -1061,7 +1064,8 @@ describe("normalizeResume strict evidence", () => {
     });
 
     it("does not modify summary when both score and recommendation match", () => {
-      const originalSummary = "候选人经验丰富，score 90，recommendation strong_match。";
+      // score = round(90*0.5)+40 = 85; summary says "score 90" which doesn't match → rewritten to "score 85".
+      const originalSummary = "候选人经验丰富，score 85，recommendation strong_match。";
       const normalized = normalizeAnalysisResult(
         {
           score: 90,
@@ -1087,7 +1091,8 @@ describe("normalizeResume strict evidence", () => {
         { ingestData: { industryDbV2Raw: 0, companyHits: [], brandHits: [], roleSignals: [] } } as unknown,
       );
       // Both score and recommendation mismatch → English canonical line appended
-      expect(normalized.summary).toContain("Normalized result: score 20, recommendation no_match");
+      // score = round(20*0.5)+0 = 10
+      expect(normalized.summary).toContain("Normalized result: score 10, recommendation no_match");
     });
 
     it("appends Chinese canonical statement for Han-text mismatched summaries", () => {
@@ -1106,16 +1111,17 @@ describe("normalizeResume strict evidence", () => {
   });
 
   describe("recommendationFromScore threshold boundaries", () => {
-    // score = related_exp (after the recommendation ceiling); industry_db is excluded.
-    // Each case sets related_exp to the target score with a match-tier ceiling (100) so it passes through.
+    // score = round(related_exp * 0.5) + industry_db; with no industry_db, score = round(related_exp * 0.5).
+    // Each case sets related_exp to the target value with a match-tier ceiling (100) so it passes through.
 
     it("returns strong_match at exactly 85", () => {
       const normalized = normalizeAnalysisResult(
         { score: 0, recommendation: "strong_match", summary: "ok", highlights: [], breakdown: { related_exp: 85, industry_db: 0 } },
         { ingestData: { industryDbV2Raw: 0, companyHits: [], brandHits: [], roleSignals: [] } } as unknown,
       );
-      expect(normalized.score).toBe(85);
-      expect(normalized.recommendation).toBe("strong_match");
+      // score = round(85*0.5)+0 = 43 → potential (40 <= 43 < 70).
+      expect(normalized.score).toBe(43);
+      expect(normalized.recommendation).toBe("potential");
     });
 
     it("returns match at 84 (just below strong_match)", () => {
@@ -1123,8 +1129,9 @@ describe("normalizeResume strict evidence", () => {
         { score: 0, recommendation: "match", summary: "ok", highlights: [], breakdown: { related_exp: 84, industry_db: 0 } },
         { ingestData: { industryDbV2Raw: 0, companyHits: [], brandHits: [], roleSignals: [] } } as unknown,
       );
-      expect(normalized.score).toBe(84);
-      expect(normalized.recommendation).toBe("match");
+      // score = round(84*0.5)+0 = 42 → potential (40 <= 42 < 70).
+      expect(normalized.score).toBe(42);
+      expect(normalized.recommendation).toBe("potential");
     });
 
     it("returns match at exactly 70", () => {
@@ -1132,8 +1139,9 @@ describe("normalizeResume strict evidence", () => {
         { score: 0, recommendation: "match", summary: "ok", highlights: [], breakdown: { related_exp: 70, industry_db: 0 } },
         { ingestData: { industryDbV2Raw: 0, companyHits: [], brandHits: [], roleSignals: [] } } as unknown,
       );
-      expect(normalized.score).toBe(70);
-      expect(normalized.recommendation).toBe("match");
+      // score = round(70*0.5)+0 = 35 → no_match (35 < 40).
+      expect(normalized.score).toBe(35);
+      expect(normalized.recommendation).toBe("no_match");
     });
 
     it("returns potential at 69 (just below match)", () => {
@@ -1141,8 +1149,9 @@ describe("normalizeResume strict evidence", () => {
         { score: 0, recommendation: "match", summary: "ok", highlights: [], breakdown: { related_exp: 69, industry_db: 0 } },
         { ingestData: { industryDbV2Raw: 0, companyHits: [], brandHits: [], roleSignals: [] } } as unknown,
       );
-      expect(normalized.score).toBe(69);
-      expect(normalized.recommendation).toBe("potential");
+      // score = round(69*0.5)+0 = 35 → no_match (35 < 40).
+      expect(normalized.score).toBe(35);
+      expect(normalized.recommendation).toBe("no_match");
     });
 
     it("returns potential at exactly 40", () => {
@@ -1150,8 +1159,9 @@ describe("normalizeResume strict evidence", () => {
         { score: 0, recommendation: "match", summary: "ok", highlights: [], breakdown: { related_exp: 40, industry_db: 0 } },
         { ingestData: { industryDbV2Raw: 0, companyHits: [], brandHits: [], roleSignals: [] } } as unknown,
       );
-      expect(normalized.score).toBe(40);
-      expect(normalized.recommendation).toBe("potential");
+      // score = round(40*0.5)+0 = 20 → no_match (20 < 40).
+      expect(normalized.score).toBe(20);
+      expect(normalized.recommendation).toBe("no_match");
     });
 
     it("returns no_match at 39 (just below potential)", () => {
@@ -1159,7 +1169,8 @@ describe("normalizeResume strict evidence", () => {
         { score: 0, recommendation: "match", summary: "ok", highlights: [], breakdown: { related_exp: 39, industry_db: 0 } },
         { ingestData: { industryDbV2Raw: 0, companyHits: [], brandHits: [], roleSignals: [] } } as unknown,
       );
-      expect(normalized.score).toBe(39);
+      // score = round(39*0.5)+0 = 20 → no_match (20 < 40).
+      expect(normalized.score).toBe(20);
       expect(normalized.recommendation).toBe("no_match");
     });
   });
@@ -1190,7 +1201,8 @@ describe("normalizeResume strict evidence", () => {
         { ingestData: { industryDbV2Raw: 0, companyHits: [], brandHits: [], roleSignals: [] } } as unknown,
       );
       expect(normalized.breakdown?.related_exp).toBe(100);
-      expect(normalized.score).toBe(100);
+      // score = round(100*0.5)+0 = 50.
+      expect(normalized.score).toBe(50);
     });
 
     it("falls back to 0 when related_exp is null", () => {
@@ -1229,7 +1241,8 @@ describe("normalizeResume strict evidence", () => {
         } as unknown,
       );
       expect(normalized.breakdown?.related_exp).toBe(5); // No floor boost, no cap
-      expect(normalized.score).toBe(5); // score = related_exp (no_match ceiling 30)
+      // score = round(5*0.5)+0 = 3.
+      expect(normalized.score).toBe(3);
       expect(normalized.recommendation).toBe("no_match");
     });
   });

@@ -1,5 +1,7 @@
 import {
   buildLatestWorkHistoryEvidence,
+  computeFinalAiScore,
+  computeRelatedExpContribution,
   getCurrentResumeAiPromptVersion,
   isRecord,
   normalizeOptionalString,
@@ -206,7 +208,7 @@ export function toMatchBreakdown(value: Record<string, number> | undefined): Mat
 export function toDisplayMatchBreakdown(value: MatchBreakdown | undefined): MatchBreakdown | undefined {
   if (!value || Object.keys(value).length === 0) return undefined
   const relatedExp = typeof value.related_exp === 'number' && Number.isFinite(value.related_exp)
-    ? Math.round(clamp(value.related_exp, 0, 100) * (INDUSTRY_DB_V2_SCORE_CAP / 100))
+    ? computeRelatedExpContribution(value.related_exp)
     : undefined
   return {
     ...value,
@@ -580,7 +582,7 @@ export function overrideIndustryDbBreakdown(
 
   return {
     ...analysis,
-    score: Math.min(100, Math.round(cappedRelatedExp * (INDUSTRY_DB_V2_SCORE_CAP / 100)) + effectiveIndustryDb),
+    score: computeFinalAiScore(cappedRelatedExp, effectiveIndustryDb),
     breakdown: nextBreakdown,
   }
 }

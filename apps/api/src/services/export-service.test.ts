@@ -473,3 +473,103 @@ describe("ExportService", () => {
     expect(xlsxHeaders).toEqual(normalizedCsvHeaders);
   });
 });
+
+// ---------------------------------------------------------------------------
+// RED TESTS: Full-score audit integration — export fields
+// ---------------------------------------------------------------------------
+// These tests define the contract BEFORE implementation:
+// - Export includes explicit finalAiScore, relatedExpAuditFactor,
+//   relatedExpContribution, and industryDb
+// - aiScore remains backward-compatible as final AI score
+// - CSV headers expose the explicit fields
+
+describe("full-score audit integration — export fields (RED)", () => {
+  it("exports explicit finalAiScore, relatedExpAuditFactor, relatedExpContribution, and industryDb", async () => {
+    const service = new ExportService();
+    const entry: ResumeExportEntry = {
+      ...buildEntry("25"),
+      match: {
+        ...buildEntry("25").match!,
+        score: 79,
+        breakdown: {
+          related_exp: 78,
+          industry_db: 40,
+        },
+      },
+    };
+
+    const file = await service.exportResumes("csv", [entry]);
+    const csv = file.content.toString("utf8");
+    const parsed = Papa.parse<Record<string, string>>(csv, { header: true });
+
+    // RED: these fields don't exist yet
+    expect(parsed.meta.fields).toContain("finalAiScore");
+    expect(parsed.meta.fields).toContain("relatedExpAuditFactor");
+    expect(parsed.meta.fields).toContain("relatedExpContribution");
+    expect(parsed.meta.fields).toContain("industryDb");
+  });
+
+  it("relatedExp=78, industryDb=40 → finalAiScore=79, auditFactor=78, contribution=39", async () => {
+    const service = new ExportService();
+    const entry: ResumeExportEntry = {
+      ...buildEntry("25"),
+      match: {
+        ...buildEntry("25").match!,
+        score: 79,
+        breakdown: {
+          related_exp: 78,
+          industry_db: 40,
+        },
+      },
+    };
+
+    const file = await service.exportResumes("csv", [entry]);
+    const csv = file.content.toString("utf8");
+    const parsed = Papa.parse<Record<string, string>>(csv, { header: true });
+
+    expect(parsed.data[0]?.finalAiScore).toBe("79");
+    expect(parsed.data[0]?.relatedExpAuditFactor).toBe("78");
+    expect(parsed.data[0]?.relatedExpContribution).toBe("39");
+    expect(parsed.data[0]?.industryDb).toBe("40");
+  });
+
+  it("aiScore remains backward-compatible as final AI score", async () => {
+    const service = new ExportService();
+    const entry: ResumeExportEntry = {
+      ...buildEntry("25"),
+      match: {
+        ...buildEntry("25").match!,
+        score: 79,
+        breakdown: {
+          related_exp: 78,
+          industry_db: 40,
+        },
+      },
+    };
+
+    const file = await service.exportResumes("csv", [entry]);
+    const csv = file.content.toString("utf8");
+    const parsed = Papa.parse<Record<string, string>>(csv, { header: true });
+
+    expect(parsed.data[0]?.aiScore).toBe("79");
+    expect(parsed.meta.fields).toContain("aiScore");
+  });
+
+  it("missing match → finalAiScore and relatedExpAuditFactor are empty", async () => {
+    const service = new ExportService();
+    const entry: ResumeExportEntry = {
+      ...buildEntry("26"),
+      key: "resume-no-match",
+      match: undefined,
+    };
+
+    const file = await service.exportResumes("csv", [entry]);
+    const csv = file.content.toString("utf8");
+    const parsed = Papa.parse<Record<string, string>>(csv, { header: true });
+
+    expect(parsed.data[0]?.finalAiScore).toBe("");
+    expect(parsed.data[0]?.relatedExpAuditFactor).toBe("");
+    expect(parsed.data[0]?.relatedExpContribution).toBe("");
+    expect(parsed.data[0]?.aiScore).toBe("");
+  });
+});

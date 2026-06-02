@@ -2,8 +2,11 @@ import ExcelJS from "exceljs";
 import Papa from "papaparse";
 import {
   buildWorkHistoryEntryText,
+  computeFinalAiScore,
+  computeRelatedExpContribution,
   inferSeekMarket,
   normalizeProfileUrlForDisplay,
+  recommendationFromFinalAiScore,
   type ExportFieldsConfig,
   type ResumeWorkHistoryItem as SharedResumeWorkHistoryItem,
 } from "@trends/shared";
@@ -74,6 +77,9 @@ type ExportRow = {
   age: number | "";
   expectedSalary: string;
   aiScore: number | "";
+  finalAiScore: number | "";
+  relatedExpAuditFactor: number | "";
+  relatedExpContribution: number | "";
   industryDb: number;
   relatedExp: number | "";
   industryDbV2Raw: number;
@@ -265,6 +271,11 @@ function toRow(
   const aiScore: number | "" = typeof entry.match?.score === "number"
     ? entry.match.score
     : "";
+  const relatedExpAuditFactor = relatedExp;
+  const relatedExpContribution = relatedExp !== undefined
+    ? computeRelatedExpContribution(relatedExp)
+    : "";
+  const finalAiScore = aiScore;
 
   return {
     resumeId: entry.key,
@@ -278,6 +289,9 @@ function toRow(
     age: parseAgeNumber(entry.resume.age) ?? "",
     expectedSalary: normalizeString(entry.resume.expectedSalary),
     aiScore,
+    finalAiScore,
+    relatedExpAuditFactor: relatedExpAuditFactor !== undefined ? relatedExpAuditFactor : "",
+    relatedExpContribution,
     industryDb,
     relatedExp: relatedExp ?? "",
     industryDbV2Raw,
@@ -328,6 +342,9 @@ const STANDARD_EXCEL_COLUMNS_HEAD: ExcelColumn[] = [
   { header: "Age", key: "age", width: 10 },
   { header: "Expected Salary", key: "expectedSalary", width: 16 },
   { header: "AI Score", key: "aiScore", width: 10 },
+  { header: "Final AI Score", key: "finalAiScore", width: 16 },
+  { header: "Related Exp Audit Factor", key: "relatedExpAuditFactor", width: 24 },
+  { header: "Related Exp Contribution", key: "relatedExpContribution", width: 24 },
   { header: "Industry DB", key: "industryDb", width: 14 },
   { header: "Related Exp", key: "relatedExp", width: 14 },
 ];
@@ -434,6 +451,9 @@ const REVIEW_PACKET_EXCEL_COLUMNS_HEAD: ReviewPacketExcelColumn[] = [
   { header: "Age", key: "age", width: 10 },
   { header: "Expected Salary", key: "expectedSalary", width: 16 },
   { header: "AI Score", key: "aiScore", width: 10 },
+  { header: "Final AI Score", key: "finalAiScore", width: 16 },
+  { header: "Related Exp Audit Factor", key: "relatedExpAuditFactor", width: 24 },
+  { header: "Related Exp Contribution", key: "relatedExpContribution", width: 24 },
   { header: "Industry DB", key: "industryDb", width: 14 },
   { header: "Related Exp", key: "relatedExp", width: 14 },
 ];

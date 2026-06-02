@@ -9356,7 +9356,7 @@ export interface paths {
                             /** @enum {boolean} */
                             success: true;
                             config: {
-                                fields: ("resumeId" | "name" | "jobIntention" | "location" | "experience" | "education" | "age" | "expectedSalary" | "aiScore" | "industryDb" | "relatedExp" | "recommendation" | "ruleScore" | "scoreSource" | "status" | "action" | "industryTags" | "brandHits" | "companyHits" | "profileUrl" | "workHistory" | "selfIntro" | "aiSummary" | "userComment" | "referenceNote" | "externalId" | "source" | "industryDbV2Raw" | "industryDbV2Normalized" | "roleEvidence" | "matchedWorkEntries")[];
+                                fields: ("resumeId" | "name" | "jobIntention" | "location" | "experience" | "education" | "age" | "expectedSalary" | "aiScore" | "finalAiScore" | "relatedExpAuditFactor" | "relatedExpContribution" | "industryDb" | "relatedExp" | "recommendation" | "ruleScore" | "scoreSource" | "status" | "action" | "industryTags" | "brandHits" | "companyHits" | "profileUrl" | "workHistory" | "selfIntro" | "aiSummary" | "userComment" | "referenceNote" | "externalId" | "source" | "industryDbV2Raw" | "industryDbV2Normalized" | "roleEvidence" | "matchedWorkEntries")[];
                                 includeDebugWhenEnabled?: boolean;
                             } | null;
                         };
@@ -9401,7 +9401,7 @@ export interface paths {
             requestBody?: {
                 content: {
                     "application/json": {
-                        fields: ("resumeId" | "name" | "jobIntention" | "location" | "experience" | "education" | "age" | "expectedSalary" | "aiScore" | "industryDb" | "relatedExp" | "recommendation" | "ruleScore" | "scoreSource" | "status" | "action" | "industryTags" | "brandHits" | "companyHits" | "profileUrl" | "workHistory" | "selfIntro" | "aiSummary" | "userComment" | "referenceNote" | "externalId" | "source" | "industryDbV2Raw" | "industryDbV2Normalized" | "roleEvidence" | "matchedWorkEntries")[];
+                        fields: ("resumeId" | "name" | "jobIntention" | "location" | "experience" | "education" | "age" | "expectedSalary" | "aiScore" | "finalAiScore" | "relatedExpAuditFactor" | "relatedExpContribution" | "industryDb" | "relatedExp" | "recommendation" | "ruleScore" | "scoreSource" | "status" | "action" | "industryTags" | "brandHits" | "companyHits" | "profileUrl" | "workHistory" | "selfIntro" | "aiSummary" | "userComment" | "referenceNote" | "externalId" | "source" | "industryDbV2Raw" | "industryDbV2Normalized" | "roleEvidence" | "matchedWorkEntries")[];
                         includeDebugWhenEnabled?: boolean;
                     };
                 };
@@ -9417,7 +9417,7 @@ export interface paths {
                             /** @enum {boolean} */
                             success: true;
                             config: {
-                                fields: ("resumeId" | "name" | "jobIntention" | "location" | "experience" | "education" | "age" | "expectedSalary" | "aiScore" | "industryDb" | "relatedExp" | "recommendation" | "ruleScore" | "scoreSource" | "status" | "action" | "industryTags" | "brandHits" | "companyHits" | "profileUrl" | "workHistory" | "selfIntro" | "aiSummary" | "userComment" | "referenceNote" | "externalId" | "source" | "industryDbV2Raw" | "industryDbV2Normalized" | "roleEvidence" | "matchedWorkEntries")[];
+                                fields: ("resumeId" | "name" | "jobIntention" | "location" | "experience" | "education" | "age" | "expectedSalary" | "aiScore" | "finalAiScore" | "relatedExpAuditFactor" | "relatedExpContribution" | "industryDb" | "relatedExp" | "recommendation" | "ruleScore" | "scoreSource" | "status" | "action" | "industryTags" | "brandHits" | "companyHits" | "profileUrl" | "workHistory" | "selfIntro" | "aiSummary" | "userComment" | "referenceNote" | "externalId" | "source" | "industryDbV2Raw" | "industryDbV2Normalized" | "roleEvidence" | "matchedWorkEntries")[];
                                 includeDebugWhenEnabled?: boolean;
                             } | null;
                         };
