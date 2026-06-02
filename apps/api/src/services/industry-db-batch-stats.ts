@@ -20,8 +20,8 @@ const INDUSTRY_DB_V2_SCORE_CAP = 50;
 const INDUSTRY_DB_V2_HISTOGRAM_SIZE = 51;
 const INDUSTRY_DB_V2_MIN_NORMALIZATION_SAMPLE_SIZE = 30;
 const INDUSTRY_DB_V2_MIN_NONZERO_SAMPLE_SIZE = 5;
-const INDUSTRY_DB_V2_BRAND_SECTION_SCORE = 30;
-const INDUSTRY_DB_V2_COMPANY_SECTION_SCORE = 20;
+const INDUSTRY_DB_V2_SINGLE_HIT_SCORE = 40;
+const INDUSTRY_DB_V2_BOTH_HIT_BOOST = 10;
 
 function roundTo2(value: number): number {
   return Number(value.toFixed(2));
@@ -68,15 +68,23 @@ function countHistogramSamples(histogram50: number[]): number {
   return histogram50.reduce((total, count) => total + count, 0);
 }
 
+function computeIndustryDbDirectHitScore(
+  hasBrandHits: boolean,
+  hasCompanyHits: boolean
+): number {
+  const hasAnyHit = hasBrandHits || hasCompanyHits;
+  const hasBoth = hasBrandHits && hasCompanyHits;
+  return (hasAnyHit ? INDUSTRY_DB_V2_SINGLE_HIT_SCORE : 0)
+    + (hasBoth ? INDUSTRY_DB_V2_BOTH_HIT_BOOST : 0);
+}
+
 export function bumpIndustryDbV2Raw(
   raw: number | undefined,
   hasBrandHits: boolean,
   hasCompanyHits: boolean
 ): number {
-  const sectionBump =
-    (hasBrandHits ? INDUSTRY_DB_V2_BRAND_SECTION_SCORE : 0) +
-    (hasCompanyHits ? INDUSTRY_DB_V2_COMPANY_SECTION_SCORE : 0);
-  return Math.max(clampIndustryDbV2RawScore(raw), sectionBump);
+  const directHitScore = computeIndustryDbDirectHitScore(hasBrandHits, hasCompanyHits);
+  return Math.max(clampIndustryDbV2RawScore(raw), directHitScore);
 }
 
 function hasNonEmployerBrandHit(brandHits: unknown[] | undefined): boolean {
@@ -102,10 +110,7 @@ export function computeDirectIndustryDbScore(ingestData: {
   companyHits?: unknown[];
   industryDbV2Raw?: number;
 } | null | undefined): number {
-  if (hasNonEmployerBrandHit(ingestData?.brandHits) || (ingestData?.companyHits?.length ?? 0) > 0) {
-    return INDUSTRY_DB_V2_SCORE_CAP;
-  }
-  return clampIndustryDbV2RawScore(ingestData?.industryDbV2Raw);
+  return computeEffectiveIndustryDbV2Raw(ingestData);
 }
 
 function nonZeroP80FromHistogram(histogram50: number[]): { p80: number; count: number } {

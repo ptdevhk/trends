@@ -291,14 +291,13 @@ describe('resume-scoring', () => {
   })
 
   it.each([
-    { label: 'returns 30 for brand-only hit (additive weight)', raw: 0, hasBrandHits: true, hasCompanyHits: false, expected: 30 },
-    { label: 'returns 20 for company-only hit (additive weight)', raw: 0, hasBrandHits: false, hasCompanyHits: true, expected: 20 },
-    { label: 'returns 50 for brand and company hits (full cap)', raw: 0, hasBrandHits: true, hasCompanyHits: true, expected: 50 },
-    { label: 'raw wins when raw > additive (brand-only: raw 45 > 30)', raw: 45, hasBrandHits: true, hasCompanyHits: false, expected: 45 },
-    { label: 'additive wins when raw < additive total', raw: 10, hasBrandHits: true, hasCompanyHits: true, expected: 50 },
-    { label: 'keeps raw score with no hits', raw: 20, hasBrandHits: false, hasCompanyHits: false, expected: 20 },
-    { label: 'clamps raw score above cap with no hits', raw: 60, hasBrandHits: false, hasCompanyHits: false, expected: 50 },
-    { label: 'defaults missing raw to 0 with no hits', raw: undefined, hasBrandHits: false, hasCompanyHits: false, expected: 0 },
+    { label: 'brand-only hit uses 40-point single-hit baseline', raw: 0, hasBrandHits: true, hasCompanyHits: false, expected: 40 },
+    { label: 'company-only hit uses 40-point single-hit baseline', raw: 0, hasBrandHits: false, hasCompanyHits: true, expected: 40 },
+    { label: 'both brand and company hits use 50-point cap', raw: 0, hasBrandHits: true, hasCompanyHits: true, expected: 50 },
+    { label: 'no hits keeps raw score', raw: 20, hasBrandHits: false, hasCompanyHits: false, expected: 20 },
+    { label: 'no hits defaults missing raw to zero', raw: undefined, hasBrandHits: false, hasCompanyHits: false, expected: 0 },
+    { label: 'raw wins over single-hit baseline when raw is higher', raw: 45, hasBrandHits: true, hasCompanyHits: false, expected: 45 },
+    { label: 'raw is clamped to cap with no hits', raw: 60, hasBrandHits: false, hasCompanyHits: false, expected: 50 },
   ])('$label', ({ raw, hasBrandHits, hasCompanyHits, expected }) => {
     expect(computeDirectIndustryDb(raw, hasBrandHits, hasCompanyHits)).toBe(expected)
   })

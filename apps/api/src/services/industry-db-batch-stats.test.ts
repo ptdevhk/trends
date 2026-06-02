@@ -91,18 +91,18 @@ describe("industry-db-batch-stats", () => {
     expect(thirty.normalized - six.normalized).toBeGreaterThan(20);
   });
 
-  it("bumps raw score to section max when brand or company hits are present", () => {
-    expect(bumpIndustryDbV2Raw(5, true, false)).toBe(30);
-    expect(bumpIndustryDbV2Raw(5, false, true)).toBe(20);
+  it("bumps raw score with the default 40/50 direct-hit rule", () => {
+    expect(bumpIndustryDbV2Raw(5, true, false)).toBe(40);
+    expect(bumpIndustryDbV2Raw(5, false, true)).toBe(40);
     expect(bumpIndustryDbV2Raw(5, true, true)).toBe(50);
-    expect(bumpIndustryDbV2Raw(40, true, false)).toBe(40);
+    expect(bumpIndustryDbV2Raw(45, true, false)).toBe(45);
     expect(bumpIndustryDbV2Raw(undefined, true, true)).toBe(50);
     expect(bumpIndustryDbV2Raw(0, false, false)).toBe(0);
   });
 
-  it("derives effective raw from ingest data shape", () => {
-    expect(computeEffectiveIndustryDbV2Raw({ brandHits: [{}], companyHits: [], industryDbV2Raw: 5 })).toBe(30);
-    expect(computeEffectiveIndustryDbV2Raw({ brandHits: [], companyHits: ['star'], industryDbV2Raw: 5 })).toBe(20);
+  it("derives effective raw from ingest data using the default direct-hit rule", () => {
+    expect(computeEffectiveIndustryDbV2Raw({ brandHits: [{}], companyHits: [], industryDbV2Raw: 5 })).toBe(40);
+    expect(computeEffectiveIndustryDbV2Raw({ brandHits: [], companyHits: ['star'], industryDbV2Raw: 5 })).toBe(40);
     expect(computeEffectiveIndustryDbV2Raw({ brandHits: [{}], companyHits: ['star'], industryDbV2Raw: 5 })).toBe(50);
     expect(computeEffectiveIndustryDbV2Raw({ brandHits: [], companyHits: [], industryDbV2Raw: 25 })).toBe(25);
     expect(computeEffectiveIndustryDbV2Raw(undefined)).toBe(0);
@@ -115,7 +115,7 @@ describe("industry-db-batch-stats", () => {
       brandHits: [{ brand: "fanuc", role: "employer", source: "workHistory", context: "employer" }],
       companyHits: ["fanuc"],
       industryDbV2Raw: 5,
-    })).toBe(20);
+    })).toBe(40);
     // employer brandHit + no companyHits → no bump
     expect(computeEffectiveIndustryDbV2Raw({
       brandHits: [{ brand: "fanuc", role: "employer", source: "workHistory", context: "employer" }],
@@ -133,9 +133,9 @@ describe("industry-db-batch-stats", () => {
     })).toBe(50);
   });
 
-  it("computes direct industry_db score without cohort normalization", () => {
-    expect(computeDirectIndustryDbScore({ brandHits: [{}], companyHits: [], industryDbV2Raw: 5 })).toBe(50);
-    expect(computeDirectIndustryDbScore({ brandHits: [], companyHits: ["star"], industryDbV2Raw: 5 })).toBe(50);
+  it("keeps direct export fallback aligned with effective raw scoring", () => {
+    expect(computeDirectIndustryDbScore({ brandHits: [{}], companyHits: [], industryDbV2Raw: 5 })).toBe(40);
+    expect(computeDirectIndustryDbScore({ brandHits: [], companyHits: ["star"], industryDbV2Raw: 5 })).toBe(40);
     expect(computeDirectIndustryDbScore({ brandHits: [{}], companyHits: ["star"], industryDbV2Raw: 5 })).toBe(50);
     expect(computeDirectIndustryDbScore({ brandHits: [], companyHits: [], industryDbV2Raw: 25 })).toBe(25);
     expect(computeDirectIndustryDbScore({ brandHits: [], companyHits: [], industryDbV2Raw: 60 })).toBe(50);
@@ -152,7 +152,7 @@ describe("industry-db-batch-stats", () => {
       brandHits: [{ brand: "fanuc", role: "employer", source: "workHistory", context: "employer" }],
       companyHits: ["fanuc"],
       industryDbV2Raw: 5,
-    })).toBe(50);
+    })).toBe(40);
   });
 
   it("coerces invalid raw inputs to the supported score range", () => {

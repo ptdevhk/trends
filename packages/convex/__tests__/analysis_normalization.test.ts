@@ -315,16 +315,16 @@ describe("getResumeIngestData", () => {
 // computeDirectIndustryDbScoreFromResume
 // ---------------------------------------------------------------------------
 describe("computeDirectIndustryDbScoreFromResume", () => {
-    it("returns 30 when brand hits exist (additive weight, not flat cap)", () => {
+    it("returns 40 when brand hits exist", () => {
         expect(computeDirectIndustryDbScoreFromResume({
             ingestData: { brandHits: [{ context: "client" }] },
-        })).toBe(30);
+        })).toBe(40);
     });
 
-    it("returns 20 when company hits exist (additive weight, not flat cap)", () => {
+    it("returns 40 when company hits exist", () => {
         expect(computeDirectIndustryDbScoreFromResume({
             ingestData: { companyHits: ["Acme"] },
-        })).toBe(20);
+        })).toBe(40);
     });
 
     it("returns clamped industryDbV2Raw", () => {
@@ -343,17 +343,17 @@ describe("computeDirectIndustryDbScoreFromResume", () => {
         expect(computeDirectIndustryDbScoreFromResume({})).toBe(0);
     });
 
-    // Phase 1: additive weight model — brand-only = 30, company-only = 20, both = 50
-    it("brand hit only → exactly 30 (additive weight)", () => {
+    // Phase 1: default direct-hit rule — brand-only = 40, company-only = 40, both = 50
+    it("brand hit only → exactly 40 (single-hit baseline)", () => {
         expect(computeDirectIndustryDbScoreFromResume({
             ingestData: { brandHits: [{ context: "client" }], companyHits: [], industryDbV2Raw: 0 },
-        })).toBe(30);
+        })).toBe(40);
     });
 
-    it("company hit only → exactly 20 (additive weight)", () => {
+    it("company hit only → exactly 40 (single-hit baseline)", () => {
         expect(computeDirectIndustryDbScoreFromResume({
             ingestData: { companyHits: ["Acme"], brandHits: [], industryDbV2Raw: 0 },
-        })).toBe(20);
+        })).toBe(40);
     });
 
     it("both brand and company hits → exactly 50 (full cap)", () => {
@@ -362,15 +362,15 @@ describe("computeDirectIndustryDbScoreFromResume", () => {
         })).toBe(50);
     });
 
-    it("high raw industryDbV2Raw wins over additive when raw > additive total", () => {
-        // brand-only additive = 30, but raw = 45 > 30; raw wins, clamped to cap
+    it("high raw industryDbV2Raw wins over direct-hit baseline when raw > baseline", () => {
+        // brand-only baseline = 40, but raw = 45 > 40; raw wins, clamped to cap
         expect(computeDirectIndustryDbScoreFromResume({
             ingestData: { brandHits: [{ context: "client" }], companyHits: [], industryDbV2Raw: 45 },
         })).toBe(45);
     });
 
-    it("low raw is superseded by additive total (Math.max semantics)", () => {
-        // raw = 10, additive (brand+company) = 50; additive wins
+    it("low raw is superseded by both-hit baseline (Math.max semantics)", () => {
+        // raw = 10, both-hit = 50; baseline wins
         expect(computeDirectIndustryDbScoreFromResume({
             ingestData: { brandHits: [{ context: "client" }], companyHits: ["Acme"], industryDbV2Raw: 10 },
         })).toBe(50);
