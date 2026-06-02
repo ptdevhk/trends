@@ -217,7 +217,7 @@ describe("ExportService", () => {
     const csv = file.content.toString("utf8");
     const parsed = Papa.parse<Record<string, string>>(csv, { header: true });
 
-    expect(parsed.data[0]?.industryDb).toBe("50");
+    expect(parsed.data[0]?.industryDb).toBe("40");
     expect(parsed.data[1]?.industryDb).toBe("15");
   });
 

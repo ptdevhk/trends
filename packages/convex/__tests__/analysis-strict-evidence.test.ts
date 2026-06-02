@@ -1590,21 +1590,23 @@ describe("normalizeResume strict evidence", () => {
       const ingestData = getResumeIngestData(resume);
       const brandHits = hasNonEmployerBrandHitsFn(ingestData.brandHits);
       const companyHits = hasCompanyHitsFn(ingestData.companyHits);
-      if (brandHits || companyHits) return INDUSTRY_DB_SCORE_CAP;
+      const hasAnyHit = brandHits || companyHits;
+      const hasBoth = brandHits && companyHits;
+      const directHitScore = (hasAnyHit ? 40 : 0) + (hasBoth ? 10 : 0);
       const raw = toNumber(ingestData.industryDbV2Raw) ?? 0;
-      return clamp(raw, 0, INDUSTRY_DB_SCORE_CAP);
+      return clamp(Math.max(raw, directHitScore), 0, INDUSTRY_DB_SCORE_CAP);
     }
 
-    it("returns cap (50) when non-employer brand hits exist", () => {
+    it("returns 40 when non-employer brand hits exist", () => {
       expect(computeDirectIndustryDbScoreFromResume({
         ingestData: { brandHits: [{ context: "sales" }], companyHits: [] },
-      })).toBe(50);
+      })).toBe(40);
     });
 
-    it("returns cap (50) when company hits exist", () => {
+    it("returns 40 when company hits exist", () => {
       expect(computeDirectIndustryDbScoreFromResume({
         ingestData: { brandHits: [], companyHits: ["北京精雕科技"] },
-      })).toBe(50);
+      })).toBe(40);
     });
 
     it("returns cap when both brand and company hits exist", () => {
@@ -1640,14 +1642,14 @@ describe("normalizeResume strict evidence", () => {
     it("reads ingestData from content.ingestData fallback path", () => {
       expect(computeDirectIndustryDbScoreFromResume({
         content: { ingestData: { brandHits: [], companyHits: ["某公司"] } },
-      })).toBe(50);
+      })).toBe(40);
     });
 
     it("reads ingestData from root.ingestData preferentially", () => {
       expect(computeDirectIndustryDbScoreFromResume({
         ingestData: { brandHits: [], companyHits: ["根路径公司"] },
         content: { ingestData: { brandHits: [], companyHits: [], industryDbV2Raw: 20 } },
-      })).toBe(50);
+      })).toBe(40);
     });
 
     it("returns 0 when no ingestData at all", () => {

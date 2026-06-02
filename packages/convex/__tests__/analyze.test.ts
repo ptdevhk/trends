@@ -243,16 +243,16 @@ describe("getResumeIngestData", () => {
 describe("computeDirectIndustryDbScoreFromResume", () => {
   const CAP = 50;
 
-  it("returns the additive brand weight (30) for non-employer brand context", () => {
+  it("returns the single-hit baseline (40) for non-employer brand context", () => {
     expect(computeDirectIndustryDbScoreFromResume({
       ingestData: { brandHits: [{ context: "industry" }] },
-    })).toBe(30);
+    })).toBe(40);
   });
 
-  it("returns the additive company weight (20) when companyHits has entries", () => {
+  it("returns the single-hit baseline (40) when companyHits has entries", () => {
     expect(computeDirectIndustryDbScoreFromResume({
       ingestData: { companyHits: ["Acme Corp"] },
-    })).toBe(20);
+    })).toBe(40);
   });
 
   it("clamps industryDbV2Raw to 0..CAP", () => {

@@ -61,12 +61,12 @@ export const INDUSTRY_DB_SCORE_CAP = 50;
  */
 export const RELATED_EXP_WEIGHT = INDUSTRY_DB_SCORE_CAP / 100;
 
-// Additive weights for brand/company hits — must stay in sync with
-// INDUSTRY_DB_V2_BRAND_SECTION_SCORE / INDUSTRY_DB_V2_COMPANY_SECTION_SCORE
+// Direct-hit baseline for brand/company hits — must stay in sync with
+// INDUSTRY_DB_V2_SINGLE_HIT_SCORE / INDUSTRY_DB_V2_BOTH_HIT_BOOST
 // in apps/api/src/services/industry-db-batch-stats.ts and
 // computeDirectIndustryDb() in apps/web/src/lib/resume-scoring.ts.
-const INDUSTRY_DB_BRAND_HIT_SCORE = 30;
-const INDUSTRY_DB_COMPANY_HIT_SCORE = 20;
+const INDUSTRY_DB_SINGLE_HIT_SCORE = 40;
+const INDUSTRY_DB_BOTH_HIT_BOOST = 10;
 
 export const RELATED_EXP_CEILING_BY_RECOMMENDATION: Record<AnalysisRecommendation, number> = {
     strong_match: 100,
@@ -259,16 +259,21 @@ export function getResumeIngestData(resume: unknown): Record<string, unknown> {
     return {};
 }
 
+function computeIndustryDbDirectHitScore(brandHits: boolean, companyHits: boolean): number {
+    const hasAnyHit = brandHits || companyHits;
+    const hasBoth = brandHits && companyHits;
+    return (hasAnyHit ? INDUSTRY_DB_SINGLE_HIT_SCORE : 0)
+        + (hasBoth ? INDUSTRY_DB_BOTH_HIT_BOOST : 0);
+}
+
 export function computeDirectIndustryDbScoreFromResume(resume: unknown): number {
     const ingestData = getResumeIngestData(resume);
     const brandHits = hasNonEmployerBrandHits(ingestData.brandHits);
     const companyHits = hasCompanyHits(ingestData.companyHits);
-    // Additive weights: brand hit → 30, company hit → 20, both → 50.
-    // This aligns Convex with the API-layer model in industry-db-batch-stats.ts.
-    const additiveScore = (brandHits ? INDUSTRY_DB_BRAND_HIT_SCORE : 0) + (companyHits ? INDUSTRY_DB_COMPANY_HIT_SCORE : 0);
+    const directHitScore = computeIndustryDbDirectHitScore(brandHits, companyHits);
 
     const raw = toNumber(ingestData.industryDbV2Raw) ?? 0;
-    return clamp(Math.max(raw, additiveScore), 0, INDUSTRY_DB_SCORE_CAP);
+    return clamp(Math.max(raw, directHitScore), 0, INDUSTRY_DB_SCORE_CAP);
 }
 
 // ---------------------------------------------------------------------------

@@ -1653,11 +1653,11 @@ describe('useResumeListState role filter regression', () => {
       await result.current.handleApplySearchHistory(mockState.searchHistory[0] as never)
     })
 
-    // has brand hits (non-employer) -> additive weight: brand-only = 30
-    // score = round(30*0.5)+30 = 45 (composite formula)
-    expect(result.current.displayedResumes[0]?.match?.breakdown?.industry_db).toBe(30)
+    // has brand hits (non-employer) -> single-hit baseline: brand-only = 40
+    // score = round(30*0.5)+40 = 55 (composite formula)
+    expect(result.current.displayedResumes[0]?.match?.breakdown?.industry_db).toBe(40)
     expect(result.current.displayedResumes[0]?.match?.breakdown?.related_exp).toBe(30)
-    expect(result.current.displayedResumes[0]?.match?.score).toBe(45)
+    expect(result.current.displayedResumes[0]?.match?.score).toBe(55)
   })
 
   it('ignores employer-context brand hits when computing direct industry_db score', async () => {

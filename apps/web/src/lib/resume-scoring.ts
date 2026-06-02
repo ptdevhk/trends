@@ -408,17 +408,27 @@ const RELATED_EXP_CEILING_BY_RECOMMENDATION: Record<string, number> = {
 }
 const INDUSTRY_DB_V2_MIN_NONZERO_SAMPLE_SIZE = 5
 
+const INDUSTRY_DB_V2_SINGLE_HIT_SCORE = 40
+const INDUSTRY_DB_V2_BOTH_HIT_BOOST = 10
+
+function computeIndustryDbDirectHitScore(
+  hasBrandHits: boolean,
+  hasCompanyHits: boolean,
+): number {
+  const hasAnyHit = hasBrandHits || hasCompanyHits
+  const hasBoth = hasBrandHits && hasCompanyHits
+  return (hasAnyHit ? INDUSTRY_DB_V2_SINGLE_HIT_SCORE : 0)
+    + (hasBoth ? INDUSTRY_DB_V2_BOTH_HIT_BOOST : 0)
+}
+
 export function computeDirectIndustryDb(
   raw: number | undefined,
   hasBrandHits: boolean,
   hasCompanyHits: boolean,
 ): number {
-  // Additive weights matching Convex analysis_normalization.ts:
-  //   brand hit → 30, company hit → 20, both → 50.
-  // Math.max(raw, additive) so a high raw value is never suppressed.
-  const additiveScore = (hasBrandHits ? 30 : 0) + (hasCompanyHits ? 20 : 0)
+  const directHitScore = computeIndustryDbDirectHitScore(hasBrandHits, hasCompanyHits)
   const safeRaw = typeof raw === 'number' && Number.isFinite(raw) ? raw : 0
-  return clamp(Math.max(safeRaw, additiveScore), 0, INDUSTRY_DB_V2_SCORE_CAP)
+  return clamp(Math.max(safeRaw, directHitScore), 0, INDUSTRY_DB_V2_SCORE_CAP)
 }
 
 function nonZeroP80FromHistogram(histogram50: number[]): { p80: number; count: number } {
