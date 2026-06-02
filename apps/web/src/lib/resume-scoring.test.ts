@@ -303,7 +303,7 @@ describe('resume-scoring', () => {
     expect(computeDirectIndustryDb(raw, hasBrandHits, hasCompanyHits)).toBe(expected)
   })
 
-  it('overrides AI breakdown so score = related_exp (industry_db kept for display)', () => {
+  it('overrides AI breakdown: score = round(related_exp*0.5) + industryDb', () => {
     expect(overrideIndustryDbBreakdown({
       score: 45,
       summary: 'Good match',
@@ -314,7 +314,7 @@ describe('resume-scoring', () => {
         industry_db: 15,
       },
     }, 40)).toEqual(expect.objectContaining({
-      score: 30,
+      score: 55,  // round(30*0.5)+40 = 55
       breakdown: {
         related_exp: 30,
         industry_db: 40,
@@ -322,7 +322,7 @@ describe('resume-scoring', () => {
     }))
   })
 
-  it('passes related_exp through as the score, keeping industry_db for display', () => {
+  it('composite score: round(related_exp*0.5) + industryDb, keeping industry_db for display', () => {
     expect(overrideIndustryDbBreakdown({
       score: 88,
       summary: '',
@@ -333,7 +333,7 @@ describe('resume-scoring', () => {
         industry_db: 15,
       },
     }, 50)).toEqual(expect.objectContaining({
-      score: 90,
+      score: 95,  // round(90*0.5)+50 = 95
       breakdown: {
         related_exp: 90,
         industry_db: 50,
@@ -342,10 +342,10 @@ describe('resume-scoring', () => {
   })
 
   it.each([
-    { label: 'passes related_exp through as the score', input: 35 as number | undefined, expected: 35 },
+    { label: 'composites related_exp*0.5 + industryDb=0', input: 35 as number | undefined, expected: 18 },  // round(35*0.5)+0
     { label: 'keeps at 0 when AI returns 0', input: 0 as number | undefined, expected: 0 },
     { label: 'defaults to 0 when missing', input: undefined, expected: 0 },
-  ])('$label for related_exp score', ({ input, expected }) => {
+  ])('$label for composite score', ({ input, expected }) => {
     expect(overrideIndustryDbBreakdown({
       score: 40,
       summary: '',
@@ -355,7 +355,7 @@ describe('resume-scoring', () => {
     }, 0)).toEqual(expect.objectContaining({
       score: expected,
       breakdown: {
-        related_exp: expected,
+        related_exp: input ?? 0,
         industry_db: 0,
       },
     }))
@@ -373,13 +373,13 @@ describe('resume-scoring', () => {
     it('applies industry_db floor of 40 for MY market', () => {
       const result = overrideIndustryDbBreakdown(cnAnalysis, 0, 'MY')
       expect(result.breakdown!.industry_db).toBe(40) // MY_INDUSTRY_DB_FLOOR
-      expect(result.score).toBe(26) // score = related_exp(26); industry_db is display-only
+      expect(result.score).toBe(53) // score = round(26*0.5)+40 (MY floor) = 53
     })
 
     it('keeps industry_db above floor for MY market with brand hits', () => {
       const result = overrideIndustryDbBreakdown(cnAnalysis, 50, 'MY')
       expect(result.breakdown!.industry_db).toBe(50) // Math.max(40, 50) = 50
-      expect(result.score).toBe(26) // score = related_exp(26), unaffected by industry_db
+      expect(result.score).toBe(63) // score = round(26*0.5)+50 = 63
     })
 
     it('keeps industry_db for CN market', () => {
@@ -609,7 +609,7 @@ describe('overrideIndustryDbBreakdown — score/recommendation coherence', () =>
       concerns: [],
     }
     const result = overrideIndustryDbBreakdown(analysis, 50)
-    // score = related_exp (90); a genuinely strong candidate stays >= 85.
+    // score = round(90*0.5)+50 = 95; a genuinely strong candidate stays >= 85.
     expect(result.score).toBeGreaterThanOrEqual(85)
   })
 
@@ -623,7 +623,7 @@ describe('overrideIndustryDbBreakdown — score/recommendation coherence', () =>
       concerns: [],
     }
     const result = overrideIndustryDbBreakdown(analysis, 0)
-    // related_exp clamped to 30 (no_match ceiling); score = related_exp = 30
-    expect(result.score).toBe(30)
+    // related_exp clamped to 30 (no_match ceiling); score = round(30*0.5)+0 = 15
+    expect(result.score).toBe(15)
   })
 })

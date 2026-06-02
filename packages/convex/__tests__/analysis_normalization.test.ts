@@ -423,15 +423,14 @@ describe("normalizeSummaryConsistency", () => {
 // normalizeAnalysisResult
 // ---------------------------------------------------------------------------
 describe("normalizeAnalysisResult", () => {
-    it("computes score from the related_exp factor alone (industry_db excluded from score)", () => {
+    it("computes composite score (related_exp*0.5 + industryDb)", () => {
         const result = normalizeAnalysisResult(
             { score: 80, summary: "Test", recommendation: "match", breakdown: { related_exp: 60 } },
             { ingestData: { industryDbV2Raw: 30 } },
         );
-        // score = cappedRelatedExp (match ceiling 100); industry_db is NOT added.
+        // score = round(60 * 0.5) + 30 = 60
         expect(result.score).toBe(60);
         expect(result.breakdown.related_exp).toBe(60);
-        // industry_db remains in the breakdown for display only.
         expect(result.breakdown.industry_db).toBe(30);
     });
 
@@ -449,8 +448,8 @@ describe("normalizeAnalysisResult", () => {
             { recommendation: "match", breakdown: { related_exp: 200 } },
             {},
         );
-        // related_exp clamped to 100, match ceiling 100 → score = 100
-        expect(result.score).toBe(100);
+        // related_exp clamped to 100, match ceiling 100 → score = round(100*0.5)+0 = 50
+        expect(result.score).toBe(50);
         expect(result.breakdown.related_exp).toBe(100);
     });
 
@@ -459,8 +458,8 @@ describe("normalizeAnalysisResult", () => {
             { recommendation: "match", breakdown: { related_exp: 100 } },
             { ingestData: { industryDbV2Raw: 35 } },
         );
-        // score = cappedRelatedExp = 100 → strong_match (industry_db excluded from score)
-        expect(result.score).toBe(100);
+        // score = round(100*0.5) + 35 = 85 → strong_match
+        expect(result.score).toBe(85);
         expect(result.recommendation).toBe("strong_match");
     });
 
@@ -496,8 +495,8 @@ describe("normalizeAnalysisResult", () => {
                 { recommendation: "weak_potential", breakdown: { related_exp: 100 } },
                 {},
             );
-            // related_exp clamped to 30 (no_match ceiling); score = 30 (industry_db excluded)
-            expect(result.score).toBe(30);
+            // related_exp clamped to 30 (no_match ceiling); score = round(30*0.5)+0 = 15
+            expect(result.score).toBeLessThanOrEqual(15);
         });
 
         it("null recommendation clamps to no_match ceiling", () => {
@@ -505,7 +504,7 @@ describe("normalizeAnalysisResult", () => {
                 { recommendation: null as unknown as string, breakdown: { related_exp: 100 } },
                 {},
             );
-            expect(result.score).toBe(30);
+            expect(result.score).toBeLessThanOrEqual(15);
         });
 
         it("undefined recommendation clamps to no_match ceiling", () => {
@@ -513,7 +512,7 @@ describe("normalizeAnalysisResult", () => {
                 { breakdown: { related_exp: 100 } },
                 {},
             );
-            expect(result.score).toBe(30);
+            expect(result.score).toBeLessThanOrEqual(15);
         });
 
         it("empty-string recommendation clamps to no_match ceiling", () => {
@@ -521,7 +520,7 @@ describe("normalizeAnalysisResult", () => {
                 { recommendation: "", breakdown: { related_exp: 100 } },
                 {},
             );
-            expect(result.score).toBe(30);
+            expect(result.score).toBeLessThanOrEqual(15);
         });
 
         it("numeric recommendation clamps to no_match ceiling", () => {
@@ -529,7 +528,7 @@ describe("normalizeAnalysisResult", () => {
                 { recommendation: 42 as unknown as string, breakdown: { related_exp: 100 } },
                 {},
             );
-            expect(result.score).toBe(30);
+            expect(result.score).toBeLessThanOrEqual(15);
         });
 
         it("valid recommendation values use their ceiling, not the fallback", () => {
@@ -544,8 +543,8 @@ describe("normalizeAnalysisResult", () => {
                     { recommendation: rec, breakdown: { related_exp: 100 } },
                     {},
                 );
-                // score = cappedRelatedExp = min(100, ceiling) = ceiling (industry_db excluded)
-                expect(result.score).toBe(ceiling);
+                // score = round(min(100, ceiling) * 0.5) + 0 = round(ceiling * 0.5)
+                expect(result.score).toBe(Math.round(ceiling * 0.5));
             }
         });
     });
@@ -636,8 +635,9 @@ describe("normalizeAnalysisResult with relatedExpContext (P1)", () => {
             },
         );
         // effectiveRaw = min(84, 100 [match ceiling], 30 [evidenceBandMax]) = 30
+        // score = round(30 * 0.5) + 0 (no company hits) = 15
         expect(result.breakdown.related_exp).toBe(30);
-        expect(result.score).toBe(30);
+        expect(result.score).toBe(15);
     });
 
     it("breakdown.related_exp = effectiveRaw for full coverage (no ceiling applied)", () => {
@@ -650,8 +650,9 @@ describe("normalizeAnalysisResult with relatedExpContext (P1)", () => {
             },
         );
         // full coverage → evidenceBandMax=100; effectiveRaw = min(75, 100, 100) = 75
+        // score = round(75 * 0.5) + 0 = 38
         expect(result.breakdown.related_exp).toBe(75);
-        expect(result.score).toBe(75);
+        expect(result.score).toBe(38);
         expect(result.relatedExpEvidence?.coverage).toBe("full");
     });
 

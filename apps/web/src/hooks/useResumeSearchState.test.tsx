@@ -1227,7 +1227,7 @@ describe('useResumeSearchState', () => {
       createResume(1, {
         primaryRuleScore: 88,
         // Both brand + company hits → industry_db = 50 (additive model full cap)
-        // score = related_exp (90); industry_db = 50 is display only
+        // score = round(90*0.5) + 50 = 95; related_exp=90 stored in breakdown for audit
         ingestData: {
           industryTags: ['Machine Tools', 'Automation'],
           synonymHits: [],
@@ -1274,7 +1274,7 @@ describe('useResumeSearchState', () => {
             resumeId: 'resume-1',
             status: 'contacted',
             match: {
-              score: 90,
+              score: 95,  // round(90*0.5)+50 = 95
               recommendation: 'strong_match',
               scoreSource: 'ai',
               summary: 'Strong fit',
