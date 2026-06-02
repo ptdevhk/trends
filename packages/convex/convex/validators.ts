@@ -112,6 +112,39 @@ export const collectionTaskResultsValidator = v.object({
     autoAnalysisTaskId: v.optional(v.string()),
 });
 
+// --- RelatedExpContext (P1: context-derived evidence ceiling) ---
+// Carries search/JD context from the dispatch call site to normalizeAnalysisResult
+// so the evidence ceiling evaluator can compute evidenceBandMax without domain
+// knowledge being hardcoded in the scoring layer.
+
+export const relatedExpContextValidator = v.object({
+    /** "sales" | "technical" | "any" — role type required by the JD/search profile */
+    roleFilterType: v.optional(v.string()),
+    /** Minimum domain-role years required (from search profile or JD) */
+    minRoleYears: v.optional(v.number()),
+    /** "CN" | "MY" — market context for market-specific scoring floors */
+    market: v.optional(v.string()),
+    /** Output locale for AI prompts — "zh" | "en" */
+    locale: v.optional(v.string()),
+});
+
+// --- RelatedExpEvidence (P1: stored result of the evidence ceiling evaluation) ---
+
+export const relatedExpEvidenceValidator = v.object({
+    /** 100 | 65 | 45 | 30 */
+    evidenceBandMax: v.number(),
+    /** "full" | "partial" | "weak" | "none" */
+    coverage: v.string(),
+    /** Reasons the ceiling was applied (empty when full coverage) */
+    missingReasons: v.array(v.string()),
+    /** min(llmRaw, recommendationMax, evidenceBandMax) */
+    effectiveRaw: v.number(),
+    llmRaw: v.number(),
+    recommendationMax: v.number(),
+    contextHash: v.string(),
+    rubricVersion: v.string(),
+});
+
 // --- Analysis result (resumes.analyses values) ---
 
 export const analysisResultValidator = v.object({
@@ -130,6 +163,8 @@ export const analysisResultValidator = v.object({
     locale: v.optional(v.string()),
     queryLocation: v.optional(v.string()),
     analyzedAt: v.optional(v.number()),
+    /** P1: stored evidence ceiling result for audit/display */
+    relatedExpEvidence: v.optional(relatedExpEvidenceValidator),
 });
 
 // --- Resume analysis (resumes.analysis — summary/highlights required) ---
@@ -145,6 +180,8 @@ export const resumeAnalysisValidator = v.object({
     locale: v.optional(v.string()),
     queryLocation: v.optional(v.string()),
     analyzedAt: v.optional(v.number()),
+    /** P1: stored evidence ceiling result for audit/display */
+    relatedExpEvidence: v.optional(relatedExpEvidenceValidator),
 });
 
 // --- ResumeFilters (screening_sessions.config.filters, search_history.filters) ---
@@ -219,36 +256,3 @@ export const jsonRecordValidator = v.record(v.string(), jsonL8);
 
 const primitiveValueValidator = v.union(v.string(), v.number(), v.boolean());
 export const matchingRulesValidator = v.optional(v.union(v.string(), v.record(v.string(), primitiveValueValidator), v.array(primitiveValueValidator)));
-
-// --- RelatedExpContext (P1: context-derived evidence ceiling) ---
-// Carries search/JD context from the dispatch call site to normalizeAnalysisResult
-// so the evidence ceiling evaluator can compute evidenceBandMax without domain
-// knowledge being hardcoded in the scoring layer.
-
-export const relatedExpContextValidator = v.object({
-    /** "sales" | "technical" | "any" — role type required by the JD/search profile */
-    roleFilterType: v.optional(v.string()),
-    /** Minimum domain-role years required (from search profile or JD) */
-    minRoleYears: v.optional(v.number()),
-    /** "CN" | "MY" — market context for market-specific scoring floors */
-    market: v.optional(v.string()),
-    /** Output locale for AI prompts — "zh" | "en" */
-    locale: v.optional(v.string()),
-});
-
-// --- RelatedExpEvidence (P1: stored result of the evidence ceiling evaluation) ---
-
-export const relatedExpEvidenceValidator = v.object({
-    /** 100 | 65 | 45 | 30 */
-    evidenceBandMax: v.number(),
-    /** "full" | "partial" | "weak" | "none" */
-    coverage: v.string(),
-    /** Reasons the ceiling was applied (empty when full coverage) */
-    missingReasons: v.array(v.string()),
-    /** min(llmRaw, recommendationMax, evidenceBandMax) */
-    effectiveRaw: v.number(),
-    llmRaw: v.number(),
-    recommendationMax: v.number(),
-    contextHash: v.string(),
-    rubricVersion: v.string(),
-});

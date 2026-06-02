@@ -1,6 +1,6 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
-import { ingestDataValidator, collectionTaskResultsValidator, resumeFiltersValidator, analysisResultValidator, jsonRecordValidator, jsonValueValidator, relatedExpContextValidator } from "./validators.js";
+import { ingestDataValidator, collectionTaskResultsValidator, resumeFiltersValidator, analysisResultValidator, jsonRecordValidator, jsonValueValidator, relatedExpContextValidator, relatedExpEvidenceValidator } from "./validators.js";
 
 export default defineSchema({
     // Tasks for resume collection
@@ -76,6 +76,8 @@ export default defineSchema({
             locale: v.optional(v.string()),
             queryLocation: v.optional(v.string()),
             analyzedAt: v.optional(v.number()),
+            /** P1: stored evidence ceiling result for audit/display */
+            relatedExpEvidence: v.optional(relatedExpEvidenceValidator),
         })),
 
         // AI Analysis Cache (Multi-JD + source-aware support)

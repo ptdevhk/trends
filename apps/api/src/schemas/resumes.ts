@@ -1380,6 +1380,10 @@ export const AnalyzeRequestSchema = z.object({
   maxSalary: z.number().min(0).optional().openapi({ example: 15000 }),
   limit: z.number().min(1).max(500).default(50).openapi({ example: 50 }),
   dryRun: z.boolean().default(false).openapi({ example: false }),
+  // P1: evidence ceiling context — threads through to normalizeAnalysisResult
+  roleFilterType: z.string().optional().openapi({ example: "sales", description: "Role type required: sales | technical | any" }),
+  minRoleYears: z.number().min(0).optional().openapi({ example: 1, description: "Minimum domain-role years required" }),
+  market: z.string().optional().openapi({ example: "CN", description: "Market context: CN | MY" }),
 });
 
 export const AnalyzeResponseSchema = z
