@@ -7,6 +7,8 @@
 import {
     isRecord,
     evaluateRelatedExpEvidence,
+    computeFinalAiScore,
+    recommendationFromFinalAiScore,
     type RelatedExpContextInput,
     type RelatedExpIngestEvidence,
     type RelatedExpEvidenceResult,
@@ -391,9 +393,13 @@ export function normalizeAnalysisResult(
         effectiveRelatedExp = relatedExpEvidence.effectiveRaw;
     }
 
-    // score = the related_exp factor (after the recommendation ceiling and optional evidence
-    // ceiling). industry_db is NOT added to the composite — it is a display/sort signal only.
-    let score = clamp(effectiveRelatedExp, 0, 100);
+    // relatedExpAuditFactor = the effective related-exp factor (0-100) after
+    // recommendation ceiling and optional evidence ceiling. This is the audit/debug
+    // factor, NOT the final product AI score.
+    const relatedExpAuditFactor = clamp(effectiveRelatedExp, 0, 100);
+
+    // Final AI Score = round(relatedExp * 0.5) + industryDb
+    let score = computeFinalAiScore(relatedExpAuditFactor, industryDb);
 
     // Gate: preserve LLM no_match — prevent industryDb from overriding a semantic rejection.
     // A candidate explicitly rejected by the LLM must not be elevated to potential/match
@@ -402,7 +408,7 @@ export function normalizeAnalysisResult(
         score = Math.min(score, 39);
     }
 
-    const recommendation = recommendationFromScore(score);
+    const recommendation = recommendationFromFinalAiScore(score);
     const rawSummary = typeof result.summary === "string" && result.summary.trim().length > 0
         ? result.summary
         : "No summary provided.";
@@ -422,7 +428,7 @@ export function normalizeAnalysisResult(
             : [],
         breakdown: {
             ...(breakdown ?? {}),
-            related_exp: relatedExpCtx ? effectiveRelatedExp : relatedExpRaw,
+            related_exp: relatedExpAuditFactor,
             industry_db: industryDb,
         },
         keyFactors: parseKeyFactors(result.keyFactors),

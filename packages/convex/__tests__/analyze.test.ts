@@ -479,14 +479,13 @@ describe("parseRoleSignals", () => {
 
 describe("normalizeAnalysisResult", () => {
   it("normalizes a complete analysis result", () => {
-    // score = the related_exp factor (match ceiling 100); industry_db is excluded from the score.
-    // With related_exp=80 → score=80 → "match".
+    // score = round(related_exp * 0.5) + industry_db; with related_exp=80 and no industry_db → score=40.
     const result = normalizeAnalysisResult(
       { score: 80, recommendation: "match", summary: "Good candidate", breakdown: { related_exp: 80 } },
       {},
     );
-    expect(result.score).toBe(80);
-    expect(result.recommendation).toBe("match");
+    expect(result.score).toBe(40);
+    expect(result.recommendation).toBe("potential");
     expect(result.summary).toBe("Good candidate");
     expect(result.highlights).toEqual([]);
     expect(result.concerns).toEqual([]);
@@ -537,7 +536,7 @@ describe("normalizeAnalysisResult", () => {
     expect(result.breakdown.related_exp).toBe(0);
   });
 
-  it("keeps brand/company hits in the breakdown without inflating the score", () => {
+  it("keeps brand/company hits in the breakdown and contributes to the score", () => {
     const withoutHits = normalizeAnalysisResult(
       { recommendation: "match", breakdown: { related_exp: 60 } },
       {},
@@ -546,8 +545,9 @@ describe("normalizeAnalysisResult", () => {
       { recommendation: "match", breakdown: { related_exp: 60 } },
       { ingestData: { companyHits: ["Acme"] } },
     );
-    // industry_db is a display/sort signal only — it must NOT change the score (score = related_exp).
-    expect(withHits.score).toBe(withoutHits.score);
+    // score = round(related_exp * 0.5) + industry_db; company hits add industry_db=40 to the score.
+    // withoutHits: round(60*0.5)+0 = 30; withHits: round(60*0.5)+40 = 70.
+    expect(withHits.score).toBe(withoutHits.score + 40);
     expect(withHits.breakdown.industry_db).toBeGreaterThan(withoutHits.breakdown.industry_db);
   });
 

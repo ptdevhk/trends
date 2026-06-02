@@ -92,19 +92,51 @@ def format_number(value: float | None) -> str:
     return f"{value:.2f}".rstrip("0").rstrip(".")
 
 
-def current_score(row: dict[str, str]) -> float | None:
+def current_final_ai_score(row: dict[str, str]) -> float | None:
+    """Read the final product AI score from the current export row.
+
+    Read order: explicit Final AI Score → finalAiScore → AI Score → aiScore → legacy fallback.
+    """
     return parse_float(
         first_value(
             row,
             [
-                "Current AI Score",
+                "Final AI Score",
+                "finalAiScore",
                 "AI Score",
                 "aiScore",
-                "Gate AI Score",
-                "Stored AI Score",
+                "Current Final AI Score",
+                "Current AI Score",
             ],
         )
     )
+
+
+def current_related_exp_audit_factor(row: dict[str, str]) -> float | None:
+    """Read the related-exp audit factor from the current export row.
+
+    This is the raw/effective 0-100 factor from breakdown.related_exp,
+    NOT the final AI score. Read order: explicit audit-factor columns →
+    Related Exp → relatedExp → legacy Current AI Score fallback.
+    """
+    return parse_float(
+        first_value(
+            row,
+            [
+                "Related Exp Audit Factor",
+                "relatedExpAuditFactor",
+                "Related Exp",
+                "relatedExp",
+                "Current Related Exp",
+                "Current AI Score",
+            ],
+        )
+    )
+
+
+def current_score(row: dict[str, str]) -> float | None:
+    """Backward-compatible alias for current_final_ai_score."""
+    return current_final_ai_score(row)
 
 
 def old_score(row: dict[str, str]) -> float | None:
@@ -147,10 +179,17 @@ def output_row(reference: dict[str, str], current: dict[str, str] | None, thresh
     current_row = current or {}
     alignment = "missing_current_resume" if current is None else classify_alignment(category, score, threshold)
 
-    # P1: factor and display signal — related_exp IS the score (post P0.5);
-    # industry_db is a display-only signal NOT included in the gate check.
-    related_exp_raw = first_value(current_row, ["Related Exp", "relatedExp", "Display Related Exp"])
+    # Full-score audit integration: separate final AI score from related-exp audit factor.
+    # - Related Exp Audit Factor = breakdown.related_exp (raw/effective 0-100 factor)
+    # - Final AI Score = round(related_exp * 0.5) + industry_db
+    # - Related Exp Contribution = round(related_exp * 0.5)
+    related_exp_audit_factor_raw = current_related_exp_audit_factor(current_row)
+    related_exp_audit_factor = format_number(related_exp_audit_factor_raw)
+    final_ai_score_raw = current_final_ai_score(current_row)
+    final_ai_score = format_number(final_ai_score_raw)
+    related_exp_contribution_raw = first_value(current_row, ["Related Exp Contribution", "relatedExpContribution"])
     industry_db_raw = first_value(current_row, ["Industry DB", "industryDb"])
+    recommendation = first_value(current_row, ["Current Recommendation", "Recommendation", "recommendation"])
 
     # P1 evidence ceiling fields — present in exports after evidence ceiling is active;
     # absent in older exports (empty string fallback is safe for audit comparison).
@@ -176,16 +215,19 @@ def output_row(reference: dict[str, str], current: dict[str, str] | None, thresh
         "Old AI Score": format_number(old),
         "Current AI Score": format_number(score),
         "Score Delta": format_number(delta),
-        "Current Recommendation": first_value(current_row, ["Current Recommendation", "Recommendation", "recommendation"]),
+        # Full-score audit fields
+        "Current Final AI Score": final_ai_score,
+        "Related Exp Audit Factor": related_exp_audit_factor,
+        "Related Exp Contribution": related_exp_contribution_raw,
+        "Industry DB": industry_db_raw,
+        "Current Recommendation": recommendation,
         "Current Alignment": alignment,
         "Current Analysis Key": first_value(current_row, ["Current Analysis Key"]),
         "Current Job Description ID": first_value(current_row, ["Current Job Description ID"]),
         "Current Prompt Version": first_value(current_row, ["Current Prompt Version"]),
         "Current Analyzed At": first_value(current_row, ["Current Analyzed At"]),
-        # Factor (score = related_exp post-P0.5 — this is the gate metric)
-        "Related Exp": related_exp_raw,
-        # Display signal (shown for HR context — NOT the gate metric)
-        "Industry DB": industry_db_raw,
+        # Legacy column — kept for backward compatibility
+        "Related Exp": related_exp_audit_factor,
         # P1 evidence ceiling fields
         "Evidence Band Max": evidence_band_max,
         "Effective Related Exp": effective_related_exp,
@@ -213,15 +255,19 @@ def summarize(rows: list[dict[str, str]], duplicates: dict[str, int], args: argp
 
     categories: dict[str, Any] = {}
     for category, category_rows in sorted(by_category.items()):
-        # Gate metric: score = related_exp (post P0.5 — industry_db excluded from score)
-        scores = [parse_float(row["Current AI Score"]) for row in category_rows]
-        numeric_scores = [score for score in scores if score is not None]
+        # Final AI scores
+        final_scores = [parse_float(row.get("Current Final AI Score", row.get("Current AI Score", ""))) for row in category_rows]
+        numeric_final_scores = [s for s in final_scores if s is not None]
 
-        # Display signal: industry_db (for HR context, NOT the gate)
+        # Related-exp audit factors (0-100 raw/effective factor)
+        audit_factors = [parse_float(row.get("Related Exp Audit Factor", row.get("Related Exp", ""))) for row in category_rows]
+        numeric_audit_factors = [f for f in audit_factors if f is not None]
+
+        # Industry DB values
         industry_db_values = [parse_float(row.get("Industry DB", "")) for row in category_rows]
         numeric_industry_db = [v for v in industry_db_values if v is not None]
 
-        # P1 evidence ceiling stats (available after evidence ceiling is active)
+        # P1 evidence ceiling stats
         evidence_band_max_values = [parse_float(row.get("Evidence Band Max", "")) for row in category_rows]
         numeric_evidence_band = [v for v in evidence_band_max_values if v is not None]
 
@@ -229,14 +275,26 @@ def summarize(rows: list[dict[str, str]], duplicates: dict[str, int], args: argp
             "count": len(category_rows),
             "matchedCurrent": sum(1 for row in category_rows if row["Current Alignment"] != "missing_current_resume"),
             "missingCurrent": sum(1 for row in category_rows if row["Current Alignment"] == "missing_current_resume"),
-            "missingAiScore": sum(1 for row in category_rows if row["Current Alignment"] == "missing_ai_score"),
-            # Gate: relatedExp (= score) — this is the acceptance gate metric
-            "highScoreCount": sum(1 for score in numeric_scores if score >= args.score_threshold),
-            "scoreMin": min(numeric_scores) if numeric_scores else None,
-            "scoreMedian": statistics.median(numeric_scores) if numeric_scores else None,
-            "scoreMax": max(numeric_scores) if numeric_scores else None,
+            # Final AI score stats
+            "missingFinalAiScore": sum(1 for s in final_scores if s is None),
+            "finalHighScoreCount": sum(1 for s in numeric_final_scores if s >= args.score_threshold),
+            "finalScoreMin": min(numeric_final_scores) if numeric_final_scores else None,
+            "finalScoreMedian": statistics.median(numeric_final_scores) if numeric_final_scores else None,
+            "finalScoreMax": max(numeric_final_scores) if numeric_final_scores else None,
+            # Related-exp audit-factor stats (gate metric)
+            "missingRelatedExpAuditFactor": sum(1 for f in audit_factors if f is None),
+            "relatedExpHighFactorCount": sum(1 for f in numeric_audit_factors if f >= args.score_threshold),
+            "relatedExpFactorMin": min(numeric_audit_factors) if numeric_audit_factors else None,
+            "relatedExpFactorMedian": statistics.median(numeric_audit_factors) if numeric_audit_factors else None,
+            "relatedExpFactorMax": max(numeric_audit_factors) if numeric_audit_factors else None,
+            # Backward-compat aliases
+            "missingAiScore": sum(1 for s in final_scores if s is None),
+            "highScoreCount": sum(1 for f in numeric_audit_factors if f >= args.score_threshold),
+            "scoreMin": min(numeric_audit_factors) if numeric_audit_factors else None,
+            "scoreMedian": statistics.median(numeric_audit_factors) if numeric_audit_factors else None,
+            "scoreMax": max(numeric_audit_factors) if numeric_audit_factors else None,
             "alignmentCounts": dict(Counter(row["Current Alignment"] for row in category_rows)),
-            # Display signal — separate from gate (industry_db is NOT part of score)
+            # Industry DB
             "industryDbMin": min(numeric_industry_db) if numeric_industry_db else None,
             "industryDbMedian": statistics.median(numeric_industry_db) if numeric_industry_db else None,
             "industryDbMax": max(numeric_industry_db) if numeric_industry_db else None,
@@ -256,9 +314,10 @@ def summarize(rows: list[dict[str, str]], duplicates: dict[str, int], args: argp
         "actualCount": len(rows),
         "countMatchesExpected": args.expected_count is None or len(rows) == args.expected_count,
         "duplicateCurrentProfileIds": duplicates,
-        # P1 note: score = relatedExp (post P0.5); industry_db is display-only
-        "scoringModel": "score=related_exp (P0.5+); industry_db=display_only",
-        "gateMetric": "relatedExp (= Current AI Score) — NOT a composite including industry_db",
+        # Full-score audit integration: explicit scoring model declaration
+        "scoringModel": "final=round(related_exp*0.5)+industry_db; auditFactor=related_exp",
+        "finalScoreMetric": "Final AI Score",
+        "auditFactorMetric": "Related Exp Audit Factor",
         "categories": categories,
     }
 

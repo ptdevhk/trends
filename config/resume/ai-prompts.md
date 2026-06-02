@@ -1,6 +1,6 @@
 ---
-version: 10
-updated_at: '2026-04-18'
+version: 11
+updated_at: '2026-06-02'
 description: >
   Canonical zh-Hans resume AI prompts for summary and screening analysis.
   This markdown file is the authoring source for the generated shared prompt runtime.
@@ -106,9 +106,10 @@ description: >
 ```
 
 ### breakdown 字段说明
-- `related_exp`: 基于"工作经历证据"评估候选人与目标岗位的相关经验匹配度（0-100）。运行时按 50% 权重换算为 0-50 贡献。
-- `industry_db`: 基于已知行业数据库公司/品牌命中情况评估（0-100，参考用途）。运行时将以规则引擎计算值（公司命中 + 品牌命中）替换 AI 提供的值；AI 提供值不影响最终得分，仅供参考。
-- `score` = `related_exp`（AI 值 × 0.5）+ `industry_db`（系统规则计算值），合计 0-100，不得包含其他未提供数据支撑的维度。
+- `related_exp`: 基于"工作经历证据"评估候选人与目标岗位的相关经验匹配度（0-100）。LLM 应将其视为输入相关经验因子，应与后续证据天花板一致。运行时按 50% 权重换算为 0-50 贡献。
+- `industry_db`: 基于已知行业数据库公司/品牌命中情况评估（0-100，仅提示输出参考）。运行时将以规则引擎计算值（公司命中 + 品牌命中）替换 AI 提供的值；AI 提供值不影响最终得分，仅供参考。
+- LLM `score` 为输入相关经验因子，应与 `breakdown.related_exp` 一致；系统在获得确定性 `industry_db` 后计算最终 AI 得分。
+- 最终 AI 得分 = `round(related_exp × 0.5) + 系统 industry_db`（0-100）。不得包含其他未提供数据支撑的维度。
 
 ### keyFactors 字段说明
 - `keyFactors`: 提供3-6个影响评分的关键因素，每个因素包含：
