@@ -273,6 +273,71 @@ describe("snapshot-source-backups", () => {
     expect(written.resumes[0]?.sourceHost).toBe(collectorSourceHost);
   });
 
+  it("strips collection guard fields from snapshot backup output", async () => {
+    const repoRoot = await createTestRepoRoot();
+    repoRoots.push(repoRoot);
+    const exec = vi.fn(async (_command: string, args: string[]) => {
+      if (args.includes("--check-only")) {
+        return {
+          stdout: JSON.stringify({
+            mode: "check",
+            source: "seek",
+            sourceHost: "hk.employer.seek.com",
+            url: "https://hk.employer.seek.com/candidates/recommended?jobId=92216704",
+            status: { sourceKey: "seek" },
+          }),
+          stderr: "",
+        };
+      }
+      return {
+        stdout: JSON.stringify({
+          mode: "collect",
+          source: "seek",
+          sourceHost: "hk.employer.seek.com",
+          url: "https://hk.employer.seek.com/candidates/recommended?jobId=92216704",
+          status: { sourceKey: "seek" },
+          payload: {
+            metadata: {
+              sourceUrl: "https://hk.employer.seek.com/candidates/recommended?jobId=92216704",
+              generatedBy: "test-collector",
+            },
+            resumes: [
+              {
+                name: "Test Candidate",
+                profileId: "test-1",
+                jobIntention: "Sales Manager",
+                experience: "5 years CNC sales",
+                selfIntro: "Experienced professional",
+                workHistory: [{ raw: "Sales at Acme" }],
+              },
+            ],
+          },
+        }),
+        stderr: "",
+      };
+    });
+
+    const result = await runSnapshotSourceBackups(
+      { ...baseOptions(repoRoot, "seek"), count: 1 },
+      {
+        now: fixedNow,
+        exec,
+        log: () => undefined,
+        resolveUserHomeDirectory: async () => "/Users/tester",
+      },
+    );
+
+    const written = JSON.parse(
+      await readPortableBackupFile(buildExpectedFilePath(repoRoot, "seek", 1)),
+    ) as { resumes: Array<Record<string, unknown>> };
+
+    expect(result.sources[0].count).toBe(1);
+    expect(written.resumes[0].jobIntention).toBe("");
+    expect(written.resumes[0].experience).toBe("");
+    expect(written.resumes[0].selfIntro).toBe("");
+    expect(written.resumes[0].name).toBe("Test Candidate");
+  });
+
   it("adds the unsafe limit override to 200+ live 51job launches", async () => {
     const repoRoot = await createTestRepoRoot();
     repoRoots.push(repoRoot);

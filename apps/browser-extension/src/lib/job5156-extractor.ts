@@ -15,12 +15,6 @@ export interface Job5156ExtractorDeps extends Record<string, unknown> {
   JOB5156_PROFILE_URL_PREFIX: string;
   JOB5156_DETAIL_FETCH_TIMEOUT_MS: number;
   JOB5156_DETAIL_FETCH_CONCURRENCY: number;
-  DEFAULT_COLLECTION_GUARDS: unknown;
-  GUARD_FIELD_NAMES: string[];
-  GUARD_ARRAY_FIELD_NAMES: string[];
-  loadCollectionGuards: () => Promise<unknown>;
-  parseGuardFieldNames: (guards: unknown) => string[];
-  applyCollectionGuards: (resume: unknown, fields: string[]) => unknown;
   isMeaningfulJob5156WorkHistoryEntry: (entry: unknown) => boolean;
   collectJob5156SectionItemsByHeading: (
     root: unknown,
@@ -43,12 +37,6 @@ export function createJob5156Extractor(deps: Job5156ExtractorDeps) {
     JOB5156_PROFILE_URL_PREFIX,
     JOB5156_DETAIL_FETCH_TIMEOUT_MS,
     JOB5156_DETAIL_FETCH_CONCURRENCY,
-    DEFAULT_COLLECTION_GUARDS,
-    GUARD_FIELD_NAMES,
-    GUARD_ARRAY_FIELD_NAMES,
-    loadCollectionGuards,
-    parseGuardFieldNames,
-    applyCollectionGuards,
     isMeaningfulJob5156WorkHistoryEntry,
     collectJob5156SectionItemsByHeading,
   } = deps;
@@ -869,8 +857,6 @@ export function createJob5156Extractor(deps: Job5156ExtractorDeps) {
     if (!Array.isArray(resumes) || resumes.length === 0) return [];
 
     const extractedAt = new Date().toISOString();
-    const collectionGuards = await loadCollectionGuards();
-    const guardFields = parseGuardFieldNames((collectionGuards as Record<string, unknown>)?.job5156);
     const enriched = [];
 
     for (
@@ -889,9 +875,7 @@ export function createJob5156Extractor(deps: Job5156ExtractorDeps) {
       );
 
       enriched.push(
-        ...batchResults
-          .filter(Boolean)
-          .map((resume) => applyCollectionGuards(resume, guardFields)),
+        ...batchResults.filter(Boolean),
       );
     }
 

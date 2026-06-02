@@ -457,12 +457,6 @@ const _job5156Extractor = createJob5156Extractor({
   JOB5156_PROFILE_URL_PREFIX,
   JOB5156_DETAIL_FETCH_TIMEOUT_MS,
   JOB5156_DETAIL_FETCH_CONCURRENCY,
-  DEFAULT_COLLECTION_GUARDS,
-  GUARD_FIELD_NAMES: GUARD_FIELD_NAMES as unknown as string[],
-  GUARD_ARRAY_FIELD_NAMES: GUARD_ARRAY_FIELD_NAMES as unknown as string[],
-  loadCollectionGuards,
-  parseGuardFieldNames: parseGuardFieldNames as (guards: unknown) => string[],
-  applyCollectionGuards,
   isMeaningfulJob5156WorkHistoryEntry,
   collectJob5156SectionItemsByHeading,
 });

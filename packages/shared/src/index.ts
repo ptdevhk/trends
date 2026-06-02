@@ -15,6 +15,7 @@ export * from "./salary.js";
 export * from "./market.js";
 export * from "./resume-filter-helpers.js";
 export * from "./generated/search-profile-templates.js";
+export * from "./collection-guards.js";
 export * from "./export-fields-config.js";
 export * from "./scoring/related-exp-evaluator.js";
 export * from "./scoring/resume-score-semantics.js";

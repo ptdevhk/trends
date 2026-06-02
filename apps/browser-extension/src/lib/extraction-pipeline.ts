@@ -112,6 +112,25 @@ export function createExtractionPipeline(deps: ExtractionPipelineDeps) {
     "licences",
   ]);
 
+  function getDefaultGuardFields(sourceKey: string): string[] {
+    const guards =
+      (DEFAULT_COLLECTION_GUARDS as Record<string, unknown>)?.[sourceKey];
+    return parseGuardFieldNames(
+      typeof guards === "string" ? guards : "",
+    );
+  }
+
+  function applyDefaultGuards(resumes: unknown[], sourceKey: string): unknown[] {
+    if (sourceKey !== SOURCE_KEYS.JOB51 &&
+        sourceKey !== SOURCE_KEYS.JOB5156 &&
+        sourceKey !== SOURCE_KEYS.SEEK) {
+      return resumes;
+    }
+    const guardFields = getDefaultGuardFields(sourceKey);
+    if (guardFields.length === 0) return resumes;
+    return resumes.map((r) => applyCollectionGuards(r, guardFields));
+  }
+
   async function loadCollectionGuards() {
     return new Promise((resolve) => {
       chrome.storage.local.get(
@@ -338,52 +357,45 @@ export function createExtractionPipeline(deps: ExtractionPipelineDeps) {
   // --- Resume extraction orchestration ---
 
   function extractResumes() {
+    const sourceKey = getCurrentSourceKey();
+    let resumes: unknown[] = [];
+
     if (isJob51DetailPage()) {
-      return filterCurrentResumesByAgeRange(extractJob51DetailResume());
-    }
-    if (getCurrentSourceKey() === SOURCE_KEYS.JOB51) {
-      return filterCurrentResumesByAgeRange(extract51JobResumes());
-    }
-    if (getCurrentSourceKey() === SOURCE_KEYS.SEEK) {
+      resumes = filterCurrentResumesByAgeRange(extractJob51DetailResume());
+    } else if (sourceKey === SOURCE_KEYS.JOB51) {
+      resumes = filterCurrentResumesByAgeRange(extract51JobResumes());
+    } else if (sourceKey === SOURCE_KEYS.SEEK) {
       if (isSeekProfileMode()) {
         if (hasSeekProfileSnapshot()) {
-          return extractSeekProfileResume();
+          resumes = extractSeekProfileResume();
         }
-        return [];
+      } else if (hasSeekTalentSearchSnapshot()) {
+        resumes = extractSeekTalentSearchResumes();
+      } else {
+        resumes = extractSeekResumes();
       }
-      if (hasSeekTalentSearchSnapshot()) {
-        return extractSeekTalentSearchResumes();
-      }
-      if (hasSeekListSnapshot()) {
-        return extractSeekResumes();
-      }
-      const fallbackResumes = extractSeekResumes();
-      return fallbackResumes.length > 0 ? fallbackResumes : [];
+    } else if (isJob5156DetailPage()) {
+      resumes = filterCurrentResumesByAgeRange(extractJob5156DetailResume());
+    } else {
+      const cards = doc.querySelectorAll(SELECTORS.resumeCard);
+      cards.forEach((card, index) => {
+        try {
+          const apiRow = getApiRowForIndex(index) as Record<string, unknown> | null;
+          const resume = extractSingleResume(card, apiRow);
+          resume.pageIndex = index + 1;
+          if (apiRow) {
+            resume.resumeId = apiRow.resumeId ?? "";
+            resume.perUserId = apiRow.perUserId ?? "";
+          }
+          resumes.push(resume);
+        } catch (error) {
+          console.error(`Error extracting resume ${index}:`, error);
+        }
+      });
+      resumes = filterCurrentResumesByAgeRange(resumes);
     }
 
-    if (isJob5156DetailPage()) {
-      return filterCurrentResumesByAgeRange(extractJob5156DetailResume());
-    }
-
-    const cards = doc.querySelectorAll(SELECTORS.resumeCard);
-    const resumes = [];
-
-    cards.forEach((card, index) => {
-      try {
-        const apiRow = getApiRowForIndex(index) as Record<string, unknown> | null;
-        const resume = extractSingleResume(card, apiRow);
-        resume.pageIndex = index + 1;
-        if (apiRow) {
-          resume.resumeId = apiRow.resumeId ?? "";
-          resume.perUserId = apiRow.perUserId ?? "";
-        }
-        resumes.push(resume);
-      } catch (error) {
-        console.error(`Error extracting resume ${index}:`, error);
-      }
-    });
-
-    return filterCurrentResumesByAgeRange(resumes);
+    return applyDefaultGuards(resumes, sourceKey) as unknown[];
   }
 
   /**
@@ -600,10 +612,6 @@ export function createExtractionPipeline(deps: ExtractionPipelineDeps) {
       Number.isFinite(options.interBatchDelayMs)
         ? options.interBatchDelayMs
         : resolveCurrentJob51DetailFetchDelayMs();
-    const collectionGuards = await loadCollectionGuards();
-    const guardFields = parseGuardFieldNames(
-      collectionGuards?.[SOURCE_KEYS.JOB51],
-    );
     const shouldContinue =
       typeof options.shouldContinue === "function"
         ? options.shouldContinue
@@ -634,7 +642,7 @@ export function createExtractionPipeline(deps: ExtractionPipelineDeps) {
 
       for (const result of batchResults) {
         if (result?.resume) {
-          enriched.push(applyCollectionGuards(result.resume, guardFields));
+          enriched.push(result.resume);
         }
         if (result?.enriched) {
           enrichedCount += 1;

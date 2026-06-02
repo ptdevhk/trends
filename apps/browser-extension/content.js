@@ -1742,12 +1742,6 @@
       JOB5156_PROFILE_URL_PREFIX: JOB5156_PROFILE_URL_PREFIX2,
       JOB5156_DETAIL_FETCH_TIMEOUT_MS: JOB5156_DETAIL_FETCH_TIMEOUT_MS2,
       JOB5156_DETAIL_FETCH_CONCURRENCY: JOB5156_DETAIL_FETCH_CONCURRENCY2,
-      DEFAULT_COLLECTION_GUARDS: DEFAULT_COLLECTION_GUARDS2,
-      GUARD_FIELD_NAMES: GUARD_FIELD_NAMES2,
-      GUARD_ARRAY_FIELD_NAMES: GUARD_ARRAY_FIELD_NAMES2,
-      loadCollectionGuards: loadCollectionGuards2,
-      parseGuardFieldNames: parseGuardFieldNames2,
-      applyCollectionGuards: applyCollectionGuards2,
       isMeaningfulJob5156WorkHistoryEntry: isMeaningfulJob5156WorkHistoryEntry2,
       collectJob5156SectionItemsByHeading: collectJob5156SectionItemsByHeading2
     } = deps;
@@ -2417,8 +2411,6 @@
     async function enrichJob5156SearchResumesWithDetail2(resumes) {
       if (!Array.isArray(resumes) || resumes.length === 0) return [];
       const extractedAt = (/* @__PURE__ */ new Date()).toISOString();
-      const collectionGuards = await loadCollectionGuards2();
-      const guardFields = parseGuardFieldNames2(collectionGuards?.job5156);
       const enriched = [];
       for (let start = 0; start < resumes.length; start += JOB5156_DETAIL_FETCH_CONCURRENCY2) {
         const batch = resumes.slice(
@@ -2431,7 +2423,7 @@
           )
         );
         enriched.push(
-          ...batchResults.filter(Boolean).map((resume) => applyCollectionGuards2(resume, guardFields))
+          ...batchResults.filter(Boolean)
         );
       }
       return enriched;
@@ -3259,13 +3251,29 @@
       getPaginationInfo: getPaginationInfo2,
       asHTMLElement: asHTMLElement2
     } = deps;
-    const GUARD_ARRAY_FIELD_NAMES2 = /* @__PURE__ */ new Set([
+    const GUARD_ARRAY_FIELD_NAMES3 = /* @__PURE__ */ new Set([
       "workHistory",
       "profileEducation",
       "projectExperience",
       "skills",
       "licences"
     ]);
+    function getDefaultGuardFields(sourceKey) {
+      const guards = DEFAULT_COLLECTION_GUARDS2?.[sourceKey];
+      return parseGuardFieldNames2(
+        typeof guards === "string" ? guards : ""
+      );
+    }
+    __name(getDefaultGuardFields, "getDefaultGuardFields");
+    function applyDefaultGuards(resumes, sourceKey) {
+      if (sourceKey !== SOURCE_KEYS2.JOB51 && sourceKey !== SOURCE_KEYS2.JOB5156 && sourceKey !== SOURCE_KEYS2.SEEK) {
+        return resumes;
+      }
+      const guardFields = getDefaultGuardFields(sourceKey);
+      if (guardFields.length === 0) return resumes;
+      return resumes.map((r) => applyCollectionGuards2(r, guardFields));
+    }
+    __name(applyDefaultGuards, "applyDefaultGuards");
     async function loadCollectionGuards2() {
       return new Promise((resolve) => {
         chrome2.storage.local.get(
@@ -3279,7 +3287,7 @@
       if (!csv || typeof csv !== "string") return [];
       return Array.from(
         new Set(
-          csv.split(",").map((field) => field.trim()).filter((field) => GUARD_ARRAY_FIELD_NAMES2.has(field))
+          csv.split(",").map((field) => field.trim()).filter((field) => GUARD_ARRAY_FIELD_NAMES3.has(field))
         )
       );
     }
@@ -3290,7 +3298,7 @@
       }
       const guarded = { ...resume };
       for (const field of guardFieldNames) {
-        guarded[field] = GUARD_ARRAY_FIELD_NAMES2.has(field) ? [] : "";
+        guarded[field] = GUARD_ARRAY_FIELD_NAMES3.has(field) ? [] : "";
       }
       return guarded;
     }
@@ -3437,48 +3445,43 @@
     }
     __name(isElementVisible2, "isElementVisible");
     function extractResumes2() {
+      const sourceKey = getCurrentSourceKey2();
+      let resumes = [];
       if (isJob51DetailPage2()) {
-        return filterCurrentResumesByAgeRange2(extractJob51DetailResume2());
-      }
-      if (getCurrentSourceKey2() === SOURCE_KEYS2.JOB51) {
-        return filterCurrentResumesByAgeRange2(extract51JobResumes2());
-      }
-      if (getCurrentSourceKey2() === SOURCE_KEYS2.SEEK) {
+        resumes = filterCurrentResumesByAgeRange2(extractJob51DetailResume2());
+      } else if (sourceKey === SOURCE_KEYS2.JOB51) {
+        resumes = filterCurrentResumesByAgeRange2(extract51JobResumes2());
+      } else if (sourceKey === SOURCE_KEYS2.SEEK) {
         if (isSeekProfileMode2()) {
           if (hasSeekProfileSnapshot2()) {
-            return extractSeekProfileResume2();
+            resumes = extractSeekProfileResume2();
           }
-          return [];
+        } else if (hasSeekTalentSearchSnapshot2()) {
+          resumes = extractSeekTalentSearchResumes2();
+        } else {
+          resumes = extractSeekResumes2();
         }
-        if (hasSeekTalentSearchSnapshot2()) {
-          return extractSeekTalentSearchResumes2();
-        }
-        if (hasSeekListSnapshot2()) {
-          return extractSeekResumes2();
-        }
-        const fallbackResumes = extractSeekResumes2();
-        return fallbackResumes.length > 0 ? fallbackResumes : [];
-      }
-      if (isJob5156DetailPage2()) {
-        return filterCurrentResumesByAgeRange2(extractJob5156DetailResume2());
-      }
-      const cards = doc.querySelectorAll(SELECTORS2.resumeCard);
-      const resumes = [];
-      cards.forEach((card, index) => {
-        try {
-          const apiRow = getApiRowForIndex2(index);
-          const resume = extractSingleResume2(card, apiRow);
-          resume.pageIndex = index + 1;
-          if (apiRow) {
-            resume.resumeId = apiRow.resumeId ?? "";
-            resume.perUserId = apiRow.perUserId ?? "";
+      } else if (isJob5156DetailPage2()) {
+        resumes = filterCurrentResumesByAgeRange2(extractJob5156DetailResume2());
+      } else {
+        const cards = doc.querySelectorAll(SELECTORS2.resumeCard);
+        cards.forEach((card, index) => {
+          try {
+            const apiRow = getApiRowForIndex2(index);
+            const resume = extractSingleResume2(card, apiRow);
+            resume.pageIndex = index + 1;
+            if (apiRow) {
+              resume.resumeId = apiRow.resumeId ?? "";
+              resume.perUserId = apiRow.perUserId ?? "";
+            }
+            resumes.push(resume);
+          } catch (error) {
+            console.error(`Error extracting resume ${index}:`, error);
           }
-          resumes.push(resume);
-        } catch (error) {
-          console.error(`Error extracting resume ${index}:`, error);
-        }
-      });
-      return filterCurrentResumesByAgeRange2(resumes);
+        });
+        resumes = filterCurrentResumesByAgeRange2(resumes);
+      }
+      return applyDefaultGuards(resumes, sourceKey);
     }
     __name(extractResumes2, "extractResumes");
     function extractResumesRaw2(options = {}) {
@@ -3630,10 +3633,6 @@
       if (!Array.isArray(resumes) || resumes.length === 0) return [];
       const extractedAt = (/* @__PURE__ */ new Date()).toISOString();
       const interBatchDelayMs = typeof options.interBatchDelayMs === "number" && Number.isFinite(options.interBatchDelayMs) ? options.interBatchDelayMs : resolveCurrentJob51DetailFetchDelayMs2();
-      const collectionGuards = await loadCollectionGuards2();
-      const guardFields = parseGuardFieldNames2(
-        collectionGuards?.[SOURCE_KEYS2.JOB51]
-      );
       const shouldContinue = typeof options.shouldContinue === "function" ? options.shouldContinue : () => true;
       const enriched = [];
       let enrichedCount = 0;
@@ -3653,7 +3652,7 @@
         );
         for (const result of batchResults) {
           if (result?.resume) {
-            enriched.push(applyCollectionGuards2(result.resume, guardFields));
+            enriched.push(result.resume);
           }
           if (result?.enriched) {
             enrichedCount += 1;
@@ -7384,12 +7383,6 @@
     JOB5156_PROFILE_URL_PREFIX,
     JOB5156_DETAIL_FETCH_TIMEOUT_MS,
     JOB5156_DETAIL_FETCH_CONCURRENCY,
-    DEFAULT_COLLECTION_GUARDS,
-    GUARD_FIELD_NAMES,
-    GUARD_ARRAY_FIELD_NAMES,
-    loadCollectionGuards,
-    parseGuardFieldNames,
-    applyCollectionGuards,
     isMeaningfulJob5156WorkHistoryEntry,
     collectJob5156SectionItemsByHeading
   });
