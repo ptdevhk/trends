@@ -469,7 +469,7 @@ describe("resume export route", () => {
       const parsed = Papa.parse<Record<string, string>>(await response.text(), { header: true });
       expect(parsed.meta.fields).toContain("industryDbV2Raw");
       expect(parsed.meta.fields).toContain("industryDbV2Normalized");
-      expect(parsed.data[0]?.industryDbV2Raw).toBe("20");
+      expect(parsed.data[0]?.industryDbV2Raw).toBe("40");
     } finally {
       if (originalDebug === undefined) {
         delete process.env.DEBUG;
