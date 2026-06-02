@@ -203,6 +203,17 @@ export function toMatchBreakdown(value: Record<string, number> | undefined): Mat
   return value
 }
 
+export function toDisplayMatchBreakdown(value: MatchBreakdown | undefined): MatchBreakdown | undefined {
+  if (!value || Object.keys(value).length === 0) return undefined
+  const relatedExp = typeof value.related_exp === 'number' && Number.isFinite(value.related_exp)
+    ? Math.round(clamp(value.related_exp, 0, 100) * (INDUSTRY_DB_V2_SCORE_CAP / 100))
+    : undefined
+  return {
+    ...value,
+    ...(relatedExp === undefined ? {} : { related_exp: relatedExp }),
+  }
+}
+
 export function getAnalysisForJob(
   resume: {
     analyses?: Record<string, ConvexResumeAnalysis>
