@@ -15,7 +15,7 @@ import { AiFeedbackButtons } from '@/components/AiFeedbackButtons'
 import { StarRating } from '@/components/StarRating'
 import type { ResumeItem } from '@/hooks/useResumes'
 import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
-import { formatRoleYears, getExperienceBadge, getResumeContentLocale, getResumeSourceLabel, getRoleLabel, hasIngestData, isSafeProfileUrl, summarizeBrandHits } from '@/lib/resume-scoring'
+import { formatRoleYears, getExperienceBadge, getResumeContentLocale, getResumeSourceLabel, getRoleLabel, hasIngestData, isSafeProfileUrl, summarizeBrandHits, toDisplayMatchBreakdown } from '@/lib/resume-scoring'
 import { getScoreClassName } from '@/lib/score-classes'
 import { cn } from '@/lib/utils'
 import { useBrandDisplayMap } from '@/hooks/useBrandDisplayMap'
@@ -178,6 +178,7 @@ export function ResumeDetail({
         defaultValue: matchResult.recommendation.replace(/_/g, ' '),
       })
     : ''
+  const displayBreakdown = toDisplayMatchBreakdown(matchResult?.breakdown)
 
   if (!resume || !presentationResume) {
     return null
@@ -418,14 +419,14 @@ export function ResumeDetail({
                 )}
               </div>
 
-              {matchResult.breakdown && (
+              {displayBreakdown && (
                 <div className="bg-background rounded p-2 border">
                   <h4 className="text-xs font-semibold mb-2">{t('resumes.detail.detailedBreakdown', { defaultValue: 'Detailed Breakdown' })}</h4>
                   <div
                     data-testid="resume-detail-breakdown-grid"
                     className="grid grid-cols-2 gap-2 text-center md:grid-cols-3 xl:grid-cols-5"
                   >
-                    {Object.entries(matchResult.breakdown).map(([k, v]) => (
+                    {Object.entries(displayBreakdown).map(([k, v]) => (
                       <div key={k} className="flex flex-col">
                         <span className="text-[10px] text-muted-foreground uppercase truncate" title={k}>{k.replace('_', ' ')}</span>
                         <span className="text-sm font-mono font-bold">{v}</span>

@@ -7,7 +7,7 @@ import { Button, buttonVariants } from '@/components/ui/button'
 import { toast } from 'sonner'
 import { useResumeFieldUsagePolicy } from '@/contexts/ResumeFieldUsagePolicyContext'
 import { cn } from '@/lib/utils'
-import { getResumeContentLocale, getExperienceBadge, isSafeProfileUrl, summarizeBrandHits } from '@/lib/resume-scoring'
+import { getResumeContentLocale, getExperienceBadge, isSafeProfileUrl, summarizeBrandHits, toDisplayMatchBreakdown } from '@/lib/resume-scoring'
 import { useBrandDisplayMap } from '@/hooks/useBrandDisplayMap'
 import type { ResumeSearchResultItem } from '@/components/search/search-types'
 
@@ -105,6 +105,7 @@ export function SnippetCardExpanded({
   const contentLocale = getResumeContentLocale(item.resume)
   const [showDebug, setShowDebug] = useState(false)
   const analysis = item.analysis ?? item.resume.analysis
+  const displayBreakdown = toDisplayMatchBreakdown(analysis?.breakdown)
   const hasAiAnalysis = item.scoreSource === 'ai' && Boolean(analysis)
   const pendingAiAnalysis = showAiScore && !hasAiAnalysis
   const scoreSourceLabel = hasAiAnalysis
@@ -297,16 +298,16 @@ export function SnippetCardExpanded({
                   </div>
                 ) : null}
 
-                {analysis.breakdown && Object.keys(analysis.breakdown).length > 0 ? (
+                {displayBreakdown ? (
                   <div className="space-y-2">
                     <div className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
                       {analysisBreakdownLabel}
                     </div>
                     <BreakdownBar
-                      breakdown={analysis.breakdown}
+                      breakdown={displayBreakdown}
                     />
                     <div className="grid gap-2 sm:grid-cols-2">
-                      {Object.entries(analysis.breakdown).map(([label, value]) => (
+                      {Object.entries(displayBreakdown).map(([label, value]) => (
                         <div
                           key={label}
                           className="flex min-w-0 items-center justify-between gap-3 rounded-2xl border bg-slate-50 px-3 py-2"

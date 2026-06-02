@@ -26,6 +26,7 @@ import {
   summarizeBrandHits,
   getExperienceBadge,
   normalizeExperienceLevel,
+  toDisplayMatchBreakdown,
 } from '@/lib/resume-scoring'
 import {
   Tooltip,
@@ -228,6 +229,7 @@ export const ResumeCard = memo(function ResumeCard({
   const score = matchResult?.score
   const recommendation = matchResult?.recommendation
   const scoreSource = matchResult?.scoreSource
+  const displayBreakdown = toDisplayMatchBreakdown(matchResult?.breakdown)
   const scoreLabel = recommendation ? t(`resumes.matching.recommendations.${recommendation}`) : ''
   const statusOption = STATUS_OPTIONS.find((item) => item.value === candidateStatus) ?? STATUS_OPTIONS[0]
   const statusLabel = t(statusOption.labelKey)
@@ -271,9 +273,9 @@ export const ResumeCard = memo(function ResumeCard({
                 defaultValue: 'Analysis Breakdown',
               })}
             </p>
-            {matchResult?.breakdown ? (
+            {displayBreakdown ? (
               <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                {Object.entries(matchResult.breakdown).map(([key, value]) => (
+                {Object.entries(displayBreakdown).map(([key, value]) => (
                   <div key={key} className="flex justify-between">
                     <span className="capitalize opacity-80">{key.replace('_', ' ')}:</span>
                     <span className="font-mono font-bold">{value}</span>

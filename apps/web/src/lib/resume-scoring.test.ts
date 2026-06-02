@@ -15,6 +15,7 @@ import {
   isAutoFilteredAnalysis,
   overrideIndustryDbBreakdown,
   recommendationFromScore,
+  toDisplayMatchBreakdown,
   toIndustryDbV2Stats,
   toMatchBreakdown,
   toRecommendation,
@@ -129,6 +130,20 @@ describe('resume-scoring', () => {
   it('returns undefined for empty breakdown', () => {
     expect(toMatchBreakdown({})).toBeUndefined()
     expect(toMatchBreakdown(undefined)).toBeUndefined()
+  })
+
+  it('converts raw related_exp into the weighted display contribution', () => {
+    expect(toDisplayMatchBreakdown({ related_exp: 78, industry_db: 40 })).toEqual({
+      related_exp: 39,
+      industry_db: 40,
+    })
+  })
+
+  it('does not mutate the raw breakdown object when creating display values', () => {
+    const rawBreakdown = { related_exp: 78, industry_db: 40 }
+
+    expect(toDisplayMatchBreakdown(rawBreakdown)).not.toBe(rawBreakdown)
+    expect(rawBreakdown).toEqual({ related_exp: 78, industry_db: 40 })
   })
 
   it('matches the API resume id fallback order for resume keys', () => {

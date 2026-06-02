@@ -123,7 +123,7 @@ describe('SnippetCardExpanded', () => {
     expect(screen.getAllByText('industry db')).toHaveLength(2)
     expect(screen.getByText('48')).toBeInTheDocument()
     expect(screen.getAllByText('related exp')).toHaveLength(2)
-    expect(screen.getByText('24')).toBeInTheDocument()
+    expect(screen.getByText('12')).toBeInTheDocument()
     expect(screen.getByText('最近工作')).toBeInTheDocument()
     expect(screen.getByText('FANUC · Sales Engineer')).toBeInTheDocument()
     expect(screen.getByText('DMG MORI · Account Manager')).toBeInTheDocument()
@@ -320,6 +320,32 @@ describe('SnippetCardExpanded', () => {
       // Values appear in both main and debug sections, so use getAllByText
       expect(screen.getAllByText('36').length).toBeGreaterThanOrEqual(1)
       expect(screen.getAllByText('82').length).toBeGreaterThanOrEqual(1)
+    })
+
+    it('shows weighted related_exp in normal breakdown while keeping raw related_exp in debug', async () => {
+      const user = userEvent.setup()
+      render(
+        <SnippetCardExpanded
+          item={createResult(1, {
+            analysis: {
+              score: 79,
+              summary: 'Weighted scoring display candidate',
+              highlights: [],
+              concerns: [],
+              recommendation: 'match',
+              breakdown: { related_exp: 78, industry_db: 40 },
+            },
+          })}
+        />
+      )
+
+      expect(screen.getByText('39')).toBeInTheDocument()
+      expect(screen.getByText('40')).toBeInTheDocument()
+      expect(screen.queryByText('78')).not.toBeInTheDocument()
+
+      await user.click(screen.getByRole('button', { name: /debug/i }))
+
+      expect(screen.getByText('78')).toBeInTheDocument()
     })
 
     it('shows score comparison grid with AI, confirmed, and user rating', async () => {

@@ -22,7 +22,7 @@ import {
 import type { ResumeSearchResultItem } from '@/components/search/search-types'
 import { SnippetCardExpanded } from '@/components/search/SnippetCardExpanded'
 import { StarRating } from '@/components/StarRating'
-import { getResumeContentLocale, getResumeSourceLabel, getExperienceBadge, isSafeProfileUrl, summarizeBrandHits } from '@/lib/resume-scoring'
+import { getResumeContentLocale, getResumeSourceLabel, getExperienceBadge, isSafeProfileUrl, summarizeBrandHits, toDisplayMatchBreakdown } from '@/lib/resume-scoring'
 import { highlightTerms } from '@/lib/highlight'
 import { useBrandDisplayMap } from '@/hooks/useBrandDisplayMap'
 import { getScoreClassName } from '@/lib/score-classes'
@@ -116,6 +116,7 @@ export const SnippetCard = memo(function SnippetCard({
   const contentLocale = getResumeContentLocale(item.resume)
   const resumeSourceLabel = getResumeSourceLabel(item.resume)
   const analysis = item.analysis ?? item.resume.analysis
+  const displayBreakdown = toDisplayMatchBreakdown(analysis?.breakdown)
   const searchTerms = useMemo(
     () => (searchQuery ? searchQuery.split(/\s+/).filter(Boolean) : []),
     [searchQuery],
@@ -228,9 +229,9 @@ export const SnippetCard = memo(function SnippetCard({
                     <p className="font-semibold mb-2 text-sm border-b pb-1 border-white/20">
                       {t('resumes.searchPage.card.analysisBreakdown', { defaultValue: '分析细节' })}
                     </p>
-                    {analysis?.breakdown ? (
+                    {displayBreakdown ? (
                       <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                        {Object.entries(analysis.breakdown).map(([key, value]) => (
+                        {Object.entries(displayBreakdown).map(([key, value]) => (
                           <div key={key} className="flex justify-between">
                             <span className="capitalize opacity-80">{key.replace('_', ' ')}:</span>
                             <span className="font-mono font-bold">{value}</span>
