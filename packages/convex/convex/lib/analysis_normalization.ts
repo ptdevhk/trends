@@ -386,11 +386,9 @@ export function normalizeAnalysisResult(
         effectiveRelatedExp = relatedExpEvidence.effectiveRaw;
     }
 
-    // Production composite: score = round(effectiveRelatedExp * 0.5) + industryDb
-    // Both factors contribute 50% of their maximum (50 pts each).
-    // breakdown.related_exp = effectiveRelatedExp (the LLM factor, for audit/display).
-    // breakdown.industry_db = industryDb (the database signal, for display/sort).
-    let score = clamp(Math.round(effectiveRelatedExp * RELATED_EXP_WEIGHT) + industryDb, 0, 100);
+    // score = the related_exp factor (after the recommendation ceiling and optional evidence
+    // ceiling). industry_db is NOT added to the composite — it is a display/sort signal only.
+    let score = clamp(effectiveRelatedExp, 0, 100);
 
     // Gate: preserve LLM no_match — prevent industryDb from overriding a semantic rejection.
     // A candidate explicitly rejected by the LLM must not be elevated to potential/match
