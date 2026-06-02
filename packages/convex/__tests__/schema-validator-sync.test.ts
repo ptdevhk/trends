@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { normalizeEducationLevel, parseExperienceYears } from "@trends/shared";
-import { ingestDataValidator, collectionTaskResultsValidator } from "../convex/validators";
+import { ingestDataValidator, collectionTaskResultsValidator, resumeAnalysisValidator } from "../convex/validators";
 import { storeConfirmResult } from "../convex/analyze";
+import schema from "../convex/schema";
 import * as resumesModule from "../convex/resumes";
 
 /**
@@ -101,7 +102,21 @@ describe("analysis validator sync (with intentional overrides)", () => {
      * containing all schema-defined fields without error.
      */
 
-    const ALL_SCHEMA_ANALYSIS_FIELDS = [
+    const PRIMARY_RESUME_ANALYSIS_FIELDS = [
+        "score",
+        "summary",
+        "highlights",
+        "recommendation",
+        "breakdown",
+        "jobDescriptionId",
+        "promptVersion",
+        "locale",
+        "queryLocation",
+        "analyzedAt",
+        "relatedExpEvidence",
+    ].sort();
+
+    const CONFIRM_RESULT_ANALYSIS_FIELDS = [
         "score",
         "summary",
         "highlights",
@@ -114,7 +129,15 @@ describe("analysis validator sync (with intentional overrides)", () => {
         "analyzedAt",
     ] as const;
 
-    it("storeConfirmResult accepts all schema analysis fields", async () => {
+    it("resumes.analysis schema stays in sync with the shared primary analysis validator", () => {
+        const resumeFields = schema.tables.resumes.validator.fields;
+        const analysisValidator = resumeFields.analysis as { fields: Record<string, unknown> };
+
+        expect(getFieldNames(analysisValidator)).toEqual(PRIMARY_RESUME_ANALYSIS_FIELDS);
+        expect(getFieldNames(resumeAnalysisValidator)).toEqual(PRIMARY_RESUME_ANALYSIS_FIELDS);
+    });
+
+    it("storeConfirmResult accepts all confirm analysis fields", async () => {
         const patch = vi.fn(async () => undefined);
 
         const ctx = {
@@ -131,7 +154,7 @@ describe("analysis validator sync (with intentional overrides)", () => {
             _handler: (ctx: unknown, args: unknown) => Promise<unknown>;
         })._handler;
 
-        // Provide ALL schema fields — this should succeed without
+        // Provide all confirm-result fields — this should succeed without
         // ArgumentValidationError if the validator includes them
         const fullAnalysisPayload = {
             resumeId: "resume-1",
@@ -156,13 +179,10 @@ describe("analysis validator sync (with intentional overrides)", () => {
         expect(patch).toHaveBeenCalledTimes(1);
     });
 
-    it("all schema analysis fields are tested", () => {
-        // Meta-test: ensure ALL_SCHEMA_ANALYSIS_FIELDS stays in sync with
-        // the schema definition in schema.ts
+    it("all confirm analysis fields are tested", () => {
         const expectedCount = 10; // score, summary, highlights, recommendation,
-                                  // breakdown, jobDescriptionId, promptVersion,
-                                  // locale, queryLocation, analyzedAt
-        expect(ALL_SCHEMA_ANALYSIS_FIELDS).toHaveLength(expectedCount);
+        // breakdown, jobDescriptionId, promptVersion, locale, queryLocation, analyzedAt
+        expect(CONFIRM_RESULT_ANALYSIS_FIELDS).toHaveLength(expectedCount);
     });
 });
 

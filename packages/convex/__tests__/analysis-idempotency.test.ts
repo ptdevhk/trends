@@ -70,4 +70,55 @@ describe("buildAnalysisDispatchIdempotencyKey", () => {
         expect(base).not.toBe(differentLocation);
         expect(base).not.toBe(differentVersion);
     });
+
+    it("changes when related experience context is added or changed", () => {
+        const base = buildAnalysisDispatchIdempotencyKey({
+            keywords: ["cnc", "sales"],
+            resumeIds: ["resume:1"],
+        });
+        const salesContext = buildAnalysisDispatchIdempotencyKey({
+            keywords: ["cnc", "sales"],
+            relatedExpContext: {
+                roleFilterType: "sales",
+                minRoleYears: 1,
+                market: "CN",
+            },
+            resumeIds: ["resume:1"],
+        });
+        const technicalContext = buildAnalysisDispatchIdempotencyKey({
+            keywords: ["cnc", "sales"],
+            relatedExpContext: {
+                roleFilterType: "technical",
+                minRoleYears: 1,
+                market: "CN",
+            },
+            resumeIds: ["resume:1"],
+        });
+
+        expect(base).not.toBe(salesContext);
+        expect(salesContext).not.toBe(technicalContext);
+    });
+
+    it("normalizes related experience context formatting in keys", () => {
+        const keyA = buildAnalysisDispatchIdempotencyKey({
+            keywords: ["cnc", "sales"],
+            relatedExpContext: {
+                roleFilterType: " Sales ",
+                minRoleYears: 1,
+                market: "cn",
+            },
+            resumeIds: ["resume:1"],
+        });
+        const keyB = buildAnalysisDispatchIdempotencyKey({
+            keywords: ["cnc", "sales"],
+            relatedExpContext: {
+                roleFilterType: "sales",
+                minRoleYears: 1,
+                market: "CN",
+            },
+            resumeIds: ["resume:1"],
+        });
+
+        expect(keyA).toBe(keyB);
+    });
 });

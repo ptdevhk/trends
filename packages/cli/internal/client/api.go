@@ -629,6 +629,9 @@ type AnalyzeRequest struct {
 	MaxSalary        int      `json:"maxSalary,omitempty"`
 	Limit            int      `json:"limit,omitempty"`
 	DryRun           bool     `json:"dryRun,omitempty"`
+	RoleFilterType   string   `json:"roleFilterType,omitempty"`
+	MinRoleYears     int      `json:"minRoleYears,omitempty"`
+	Market           string   `json:"market,omitempty"`
 }
 
 type AnalyzeConfig struct {

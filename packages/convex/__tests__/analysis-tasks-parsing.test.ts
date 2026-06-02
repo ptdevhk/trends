@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 // For now, test the exported normalizeKeywords and extractKeywords
 // by verifying their behavior through the idempotency key construction.
 
-import { buildAnalysisDispatchIdempotencyKey } from "../convex/analysis_tasks";
+import { buildAnalysisDispatchIdempotencyKey, buildRelatedExpCtxArg } from "../convex/analysis_tasks";
 
 // We'll also directly test normalizeKeywords and extractKeywords
 // by duplicating their logic in tests (since they're simple pure functions)
@@ -59,6 +59,110 @@ describe("normalizeKeywords behavior (via idempotency key)", () => {
       resumeIds: ["resume:1"],
     });
     expect(keyA).toBe(keyB);
+  });
+});
+
+describe("buildRelatedExpCtxArg", () => {
+  it("returns undefined when a task has no related_exp context", () => {
+    const result = buildRelatedExpCtxArg(
+      { ingestData: { roleSignals: [] } },
+      {},
+    );
+
+    expect(result).toBeUndefined();
+  });
+
+  it("extracts direct role match and industry-verified years from matching role signals", () => {
+    const result = buildRelatedExpCtxArg(
+      {
+        ingestData: {
+          roleSignals: [
+            {
+              type: "technical",
+              matchedSignals: ["engineer"],
+              signalCount: 1,
+              occurrences: 1,
+              years: 4,
+              industryVerifiedRelevantYears: 4,
+              matchedWorkEntries: [
+                {
+                  companyName: "CNC Automation Ltd",
+                  jobTitle: "Service Engineer",
+                  years: 4,
+                  industryVerified: true,
+                  matchedSignals: ["engineer"],
+                  directRoleMatch: true,
+                },
+              ],
+              verifyIn: "workHistory",
+            },
+            {
+              type: "sales",
+              matchedSignals: ["sales"],
+              signalCount: 1,
+              occurrences: 1,
+              years: 2,
+              industryVerifiedRelevantYears: 1.5,
+              matchedWorkEntries: [
+                {
+                  companyName: "CNC Machines Co",
+                  jobTitle: "Sales Manager",
+                  years: 1.5,
+                  industryVerified: true,
+                  matchedSignals: ["sales"],
+                  directRoleMatch: true,
+                },
+              ],
+              verifyIn: "workHistory",
+            },
+          ],
+        },
+      },
+      {
+        roleFilterType: "sales",
+        minRoleYears: 1,
+        market: "CN",
+        locale: "zh",
+      },
+    );
+
+    expect(result).toEqual({
+      context: {
+        roleFilterType: "sales",
+        minRoleYears: 1,
+        market: "CN",
+        locale: "zh",
+      },
+      ingestEvidence: {
+        directRoleMatch: true,
+        industryVerifiedRelevantYears: 1.5,
+        matchedWorkEntries: ["Sales Manager @ CNC Machines Co (1.5y)"],
+      },
+    });
+  });
+
+  it("still returns empty evidence when context is present but ingest role signals are missing", () => {
+    const result = buildRelatedExpCtxArg(
+      { ingestData: {} },
+      {
+        roleFilterType: "sales",
+        minRoleYears: 1,
+        market: "CN",
+      },
+    );
+
+    expect(result).toEqual({
+      context: {
+        roleFilterType: "sales",
+        minRoleYears: 1,
+        market: "CN",
+      },
+      ingestEvidence: {
+        directRoleMatch: false,
+        industryVerifiedRelevantYears: 0,
+        matchedWorkEntries: [],
+      },
+    });
   });
 });
 

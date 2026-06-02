@@ -1510,6 +1510,72 @@ describe("resume routes", () => {
     }));
   });
 
+  it("sends related experience context to convex analysis dispatch", async () => {
+    const calls: ConvexCall[] = [];
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+
+      if (call.pathName === "resumes_search:searchWithTagExpansionPaginated") {
+        return convexSuccess({
+          page: [
+            {
+              resume: buildConvexResumeRecord("resume-live-1", {
+                name: "Alice",
+                location: "China",
+              }),
+              provenance: [{ term: "销售", source: "searchText" }],
+            },
+          ],
+          continuationCursor: null,
+        });
+      }
+
+      if (call.pathName === "analysis_tasks:dispatch") {
+        expect(call.args).toEqual(expect.objectContaining({
+          keywords: ["cnc", "销售"],
+          resumeIds: ["resume-live-1"],
+          relatedExpContext: {
+            roleFilterType: "sales",
+            minRoleYears: 1,
+            market: "CN",
+          },
+        }));
+        return convexSuccess("task-related-exp");
+      }
+
+      throw new Error(`Unexpected convex path: ${call.pathName}`);
+    });
+
+    const app = createApp();
+    const response = await app.request("/api/resumes/analyze", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        query: "CNC 销售",
+        limit: 500,
+        roleFilterType: "sales",
+        minRoleYears: 1,
+        market: "CN",
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(payload).toEqual(expect.objectContaining({
+      success: true,
+      taskId: "task-related-exp",
+      resumeCount: 1,
+    }));
+    expect(calls.map((call) => call.pathName)).toEqual([
+      "resumes_search:searchWithTagExpansionPaginated",
+      "analysis_tasks:dispatch",
+    ]);
+  });
+
   it("omits a null cursor on the first dry-run clear-analyses mutation call", async () => {
     const calls: ConvexCall[] = [];
 
