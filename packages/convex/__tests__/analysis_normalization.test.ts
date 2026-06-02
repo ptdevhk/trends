@@ -602,3 +602,79 @@ describe("constants", () => {
         expect(RELATED_EXP_WEIGHT).toBe(INDUSTRY_DB_SCORE_CAP / 100);
     });
 });
+
+// ---------------------------------------------------------------------------
+// P1: relatedExpEvidence storage in normalizeAnalysisResult
+// ---------------------------------------------------------------------------
+
+describe("normalizeAnalysisResult with relatedExpContext (P1)", () => {
+    it("returns relatedExpEvidence when context is provided", () => {
+        const result = normalizeAnalysisResult(
+            { recommendation: "match", breakdown: { related_exp: 84 } },
+            { ingestData: { companyHits: [] } },
+            {
+                context: { roleFilterType: "sales", minRoleYears: 1, market: "CN" },
+                ingestEvidence: { directRoleMatch: false, industryVerifiedRelevantYears: 0 },
+            },
+        );
+        expect(result.relatedExpEvidence).toBeDefined();
+        expect(result.relatedExpEvidence?.coverage).toBe("none");
+        expect(result.relatedExpEvidence?.evidenceBandMax).toBe(30);
+        expect(result.relatedExpEvidence?.llmRaw).toBe(84);
+        expect(typeof result.relatedExpEvidence?.contextHash).toBe("string");
+        expect(typeof result.relatedExpEvidence?.rubricVersion).toBe("string");
+    });
+
+    it("breakdown.related_exp = effectiveRaw when context is provided", () => {
+        const result = normalizeAnalysisResult(
+            { recommendation: "match", breakdown: { related_exp: 84 } },
+            { ingestData: { companyHits: [] } },
+            {
+                context: { roleFilterType: "sales", minRoleYears: 1, market: "CN" },
+                // no directRoleMatch, no domain years → none coverage → evidenceBandMax=30
+                ingestEvidence: { directRoleMatch: false, industryVerifiedRelevantYears: 0 },
+            },
+        );
+        // effectiveRaw = min(84, 100 [match ceiling], 30 [evidenceBandMax]) = 30
+        expect(result.breakdown.related_exp).toBe(30);
+        expect(result.score).toBe(30);
+    });
+
+    it("breakdown.related_exp = effectiveRaw for full coverage (no ceiling applied)", () => {
+        const result = normalizeAnalysisResult(
+            { recommendation: "match", breakdown: { related_exp: 75 } },
+            { ingestData: { companyHits: [] } },
+            {
+                context: { roleFilterType: "sales", minRoleYears: 1, market: "CN" },
+                ingestEvidence: { directRoleMatch: true, industryVerifiedRelevantYears: 3 },
+            },
+        );
+        // full coverage → evidenceBandMax=100; effectiveRaw = min(75, 100, 100) = 75
+        expect(result.breakdown.related_exp).toBe(75);
+        expect(result.score).toBe(75);
+        expect(result.relatedExpEvidence?.coverage).toBe("full");
+    });
+
+    it("legacy path: no relatedExpContext → no relatedExpEvidence (backward compat)", () => {
+        const result = normalizeAnalysisResult(
+            { recommendation: "match", breakdown: { related_exp: 60 } },
+            { ingestData: { industryDbV2Raw: 30 } },
+        );
+        // relatedExpEvidence is absent — no third argument
+        expect((result as Record<string, unknown>).relatedExpEvidence).toBeUndefined();
+        expect(result.score).toBe(60);
+        expect(result.breakdown.related_exp).toBe(60);
+    });
+
+    it("relatedExpEvidence missingReasons is populated for partial/weak/none coverage", () => {
+        const result = normalizeAnalysisResult(
+            { recommendation: "match", breakdown: { related_exp: 84 } },
+            {},
+            {
+                context: { roleFilterType: "sales", minRoleYears: 2 },
+                ingestEvidence: { directRoleMatch: false, industryVerifiedRelevantYears: 0 },
+            },
+        );
+        expect(result.relatedExpEvidence?.missingReasons.length).toBeGreaterThan(0);
+    });
+});

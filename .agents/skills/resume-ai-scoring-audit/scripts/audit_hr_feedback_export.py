@@ -146,6 +146,18 @@ def output_row(reference: dict[str, str], current: dict[str, str] | None, thresh
     category = first_value(reference, ["HR Category", "hrCategory"])
     current_row = current or {}
     alignment = "missing_current_resume" if current is None else classify_alignment(category, score, threshold)
+
+    # P1: factor and display signal — related_exp IS the score (post P0.5);
+    # industry_db is a display-only signal NOT included in the gate check.
+    related_exp_raw = first_value(current_row, ["Related Exp", "relatedExp", "Display Related Exp"])
+    industry_db_raw = first_value(current_row, ["Industry DB", "industryDb"])
+
+    # P1 evidence ceiling fields — present in exports after evidence ceiling is active;
+    # absent in older exports (empty string fallback is safe for audit comparison).
+    evidence_band_max = first_value(current_row, ["Evidence Band Max", "evidenceBandMax"])
+    effective_related_exp = first_value(current_row, ["Effective Related Exp", "effectiveRelatedExp"])
+    missing_reasons = first_value(current_row, ["Missing Reasons", "missingReasons"])
+
     return {
         "Old CSV Row": first_value(reference, ["Old CSV Row"]),
         "Old Resume ID": first_value(reference, ["Old Resume ID", "Resume ID", "resumeId"]),
@@ -170,8 +182,14 @@ def output_row(reference: dict[str, str], current: dict[str, str] | None, thresh
         "Current Job Description ID": first_value(current_row, ["Current Job Description ID"]),
         "Current Prompt Version": first_value(current_row, ["Current Prompt Version"]),
         "Current Analyzed At": first_value(current_row, ["Current Analyzed At"]),
-        "Industry DB": first_value(current_row, ["Industry DB", "industryDb"]),
-        "Related Exp": first_value(current_row, ["Related Exp", "relatedExp", "Display Related Exp"]),
+        # Factor (score = related_exp post-P0.5 — this is the gate metric)
+        "Related Exp": related_exp_raw,
+        # Display signal (shown for HR context — NOT the gate metric)
+        "Industry DB": industry_db_raw,
+        # P1 evidence ceiling fields
+        "Evidence Band Max": evidence_band_max,
+        "Effective Related Exp": effective_related_exp,
+        "Missing Reasons": missing_reasons,
         "Score Source": first_value(current_row, ["Score Source", "scoreSource"]),
         "Status": first_value(current_row, ["Status", "status"]),
         "Action": first_value(current_row, ["Action", "action"]),
@@ -195,18 +213,38 @@ def summarize(rows: list[dict[str, str]], duplicates: dict[str, int], args: argp
 
     categories: dict[str, Any] = {}
     for category, category_rows in sorted(by_category.items()):
+        # Gate metric: score = related_exp (post P0.5 — industry_db excluded from score)
         scores = [parse_float(row["Current AI Score"]) for row in category_rows]
         numeric_scores = [score for score in scores if score is not None]
+
+        # Display signal: industry_db (for HR context, NOT the gate)
+        industry_db_values = [parse_float(row.get("Industry DB", "")) for row in category_rows]
+        numeric_industry_db = [v for v in industry_db_values if v is not None]
+
+        # P1 evidence ceiling stats (available after evidence ceiling is active)
+        evidence_band_max_values = [parse_float(row.get("Evidence Band Max", "")) for row in category_rows]
+        numeric_evidence_band = [v for v in evidence_band_max_values if v is not None]
+
         categories[category] = {
             "count": len(category_rows),
             "matchedCurrent": sum(1 for row in category_rows if row["Current Alignment"] != "missing_current_resume"),
             "missingCurrent": sum(1 for row in category_rows if row["Current Alignment"] == "missing_current_resume"),
             "missingAiScore": sum(1 for row in category_rows if row["Current Alignment"] == "missing_ai_score"),
+            # Gate: relatedExp (= score) — this is the acceptance gate metric
             "highScoreCount": sum(1 for score in numeric_scores if score >= args.score_threshold),
             "scoreMin": min(numeric_scores) if numeric_scores else None,
             "scoreMedian": statistics.median(numeric_scores) if numeric_scores else None,
             "scoreMax": max(numeric_scores) if numeric_scores else None,
             "alignmentCounts": dict(Counter(row["Current Alignment"] for row in category_rows)),
+            # Display signal — separate from gate (industry_db is NOT part of score)
+            "industryDbMin": min(numeric_industry_db) if numeric_industry_db else None,
+            "industryDbMedian": statistics.median(numeric_industry_db) if numeric_industry_db else None,
+            "industryDbMax": max(numeric_industry_db) if numeric_industry_db else None,
+            # P1 evidence ceiling stats (empty when evidence ceiling not yet active)
+            **({"evidenceBandStats": {
+                "count": len(numeric_evidence_band),
+                "bands": dict(Counter(str(int(v)) if v is not None else "missing" for v in evidence_band_max_values)),
+            }} if numeric_evidence_band else {}),
         }
 
     return {
@@ -218,6 +256,9 @@ def summarize(rows: list[dict[str, str]], duplicates: dict[str, int], args: argp
         "actualCount": len(rows),
         "countMatchesExpected": args.expected_count is None or len(rows) == args.expected_count,
         "duplicateCurrentProfileIds": duplicates,
+        # P1 note: score = relatedExp (post P0.5); industry_db is display-only
+        "scoringModel": "score=related_exp (P0.5+); industry_db=display_only",
+        "gateMetric": "relatedExp (= Current AI Score) — NOT a composite including industry_db",
         "categories": categories,
     }
 

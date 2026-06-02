@@ -31,6 +31,7 @@ import {
     buildAnalysisDispatchJobKey,
     buildAnalysisDispatchIdempotencyKey,
 } from "./lib/analysis_task_helpers.js";
+import { relatedExpContextValidator } from "./validators.js";
 
 // Backward-compatible re-exports
 export type { AnalysisResult, AnalysisDispatchKeyInput } from "./lib/analysis_task_helpers.js";
@@ -185,6 +186,8 @@ export const dispatch = mutation({
         promptVersion: v.optional(v.number()),
         sample: v.optional(v.string()),
         resumeIds: v.array(v.id("resumes")),
+        /** P1: context for evidence ceiling evaluator — optional for backward compat */
+        relatedExpContext: v.optional(relatedExpContextValidator),
     },
     handler: async (ctx, args) => {
         const normalizedKeywords = normalizeKeywords(args.keywords ?? []);
@@ -276,6 +279,7 @@ export const dispatch = mutation({
                 promptVersion,
                 sample: args.sample,
                 resumeCount: uniqueResumeIds.length,
+                ...(args.relatedExpContext ? { relatedExpContext: args.relatedExpContext } : {}),
             },
             status: "pending",
             progress: {
