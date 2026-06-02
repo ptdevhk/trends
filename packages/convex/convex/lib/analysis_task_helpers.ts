@@ -20,6 +20,16 @@ export type AnalysisResult = {
     recommendation: string;
     breakdown?: Record<string, number>;
     locale?: string;
+    relatedExpEvidence?: {
+        evidenceBandMax: number;
+        coverage: string;
+        missingReasons: string[];
+        effectiveRaw: number;
+        llmRaw: number;
+        recommendationMax: number;
+        contextHash: string;
+        rubricVersion: string;
+    };
 };
 
 export type AnalysisDispatchKeyInput = {

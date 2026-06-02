@@ -1206,6 +1206,9 @@ app.openapi(analyzeRoute, async (c) => {
     maxSalary,
     limit,
     dryRun,
+    roleFilterType,
+    minRoleYears,
+    market,
   } = c.req.valid("json");
 
   const normalizedQuery = query?.trim() || "";
@@ -1309,6 +1312,14 @@ app.openapi(analyzeRoute, async (c) => {
       ...(keywords && keywords.length > 0 ? { keywords } : {}),
       ...(location ? { location } : {}),
       resumeIds,
+      // P1: thread context for evidence ceiling evaluator
+      ...((roleFilterType || minRoleYears !== undefined || market) ? {
+        relatedExpContext: {
+          ...(roleFilterType ? { roleFilterType } : {}),
+          ...(minRoleYears !== undefined ? { minRoleYears } : {}),
+          ...(market ? { market } : {}),
+        },
+      } : {}),
     })) as string;
 
     return c.json(

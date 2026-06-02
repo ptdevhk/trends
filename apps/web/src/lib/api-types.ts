@@ -2359,6 +2359,21 @@ export interface paths {
                          * @example false
                          */
                         dryRun?: boolean;
+                        /**
+                         * @description Role type required: sales | technical | any
+                         * @example sales
+                         */
+                        roleFilterType?: string;
+                        /**
+                         * @description Minimum domain-role years required
+                         * @example 1
+                         */
+                        minRoleYears?: number;
+                        /**
+                         * @description Market context: CN | MY
+                         * @example CN
+                         */
+                        market?: string;
                     };
                 };
             };

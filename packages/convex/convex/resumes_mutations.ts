@@ -1,7 +1,7 @@
 import { internalMutation, internalQuery, mutation } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
-import { ingestDataValidator } from "./validators.js";
+import { ingestDataValidator, relatedExpEvidenceValidator } from "./validators.js";
 
 import {
     buildResumeAnalysisStorageKey,
@@ -78,6 +78,8 @@ export const updateAnalysis = internalMutation({
             locale: v.optional(v.string()),
             queryLocation: v.optional(v.string()),
             analyzedAt: v.optional(v.number()),
+            /** P1: evidence ceiling result — stored for audit/display */
+            relatedExpEvidence: v.optional(relatedExpEvidenceValidator),
         }),
     },
     handler: async (ctx, args) => {

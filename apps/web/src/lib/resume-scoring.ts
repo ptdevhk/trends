@@ -546,9 +546,11 @@ export function overrideIndustryDbBreakdown(
   const effectiveIndustryDb = market === 'MY' ? Math.max(MY_INDUSTRY_DB_FLOOR, industryDb) : industryDb
   const recommendationCeiling = RELATED_EXP_CEILING_BY_RECOMMENDATION[analysis.recommendation ?? ''] ?? 30
   const rawRelatedExp = typeof analysis.breakdown?.related_exp === 'number' ? analysis.breakdown.related_exp : 0
-  // score = the related_exp factor (after the recommendation ceiling). industry_db is NOT
-  // added to the score — it stays in the breakdown as a display/sort signal only.
+  // effectiveRelatedExp = factor after recommendation ceiling (and evidence ceiling if stored)
   const cappedRelatedExp = clamp(Math.min(rawRelatedExp, recommendationCeiling), 0, 100)
+  // Production composite: score = round(effectiveRelatedExp * 0.5) + industryDb
+  // breakdown.related_exp = cappedRelatedExp (factor, for audit/display)
+  // breakdown.industry_db = effectiveIndustryDb (database signal, for display/sort)
   const nextBreakdown: MatchBreakdown = {
     ...(analysis.breakdown ?? {}),
     related_exp: cappedRelatedExp,
@@ -557,7 +559,7 @@ export function overrideIndustryDbBreakdown(
 
   return {
     ...analysis,
-    score: cappedRelatedExp,
+    score: Math.min(100, Math.round(cappedRelatedExp * (INDUSTRY_DB_V2_SCORE_CAP / 100)) + effectiveIndustryDb),
     breakdown: nextBreakdown,
   }
 }
