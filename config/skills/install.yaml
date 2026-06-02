@@ -10,6 +10,7 @@ project:
     - resume-ai-scoring-audit
     - trends-agent-governance
     - trends-cli
+    - refresh-sample-snapshots
 
 global:
   - source: https://github.com/karlorz/agent-skills/tree/main/skills/simplify

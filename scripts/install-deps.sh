@@ -365,23 +365,22 @@ if [ -d "packages/convex" ]; then
         EFFECTIVE_CONVEX_MIRROR_MODE="$(resolve_convex_mirror_mode)"
     fi
     echo "Prefetching Convex local backend and dashboard assets (mirror mode: ${EFFECTIVE_CONVEX_MIRROR_MODE})..."
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    "$SCRIPT_DIR/prefetch-convex-backend.sh" || echo "Warning: Convex prefetch failed (non-fatal)"
+    SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    "$SCRIPTS_DIR/prefetch-convex-backend.sh" || echo "Warning: Convex prefetch failed (non-fatal)"
 fi
 
-# Sync agent governance artifacts and local skill bootstrap
+# Skill bootstrap (non-CI only)
+#   1. Agent governance policy sync
+#   2. Project skills — rsync repo skills into .agents/skills + .claude/skills (repo-local only, never global)
+#   3. External global skills — install from config/skills/install.yaml global: section via npx skills add -g
 if ! is_ci_env; then
-    echo "Syncing agent governance artifacts and skill bootstrap..."
-    _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    run_tsx "$_SCRIPT_DIR/agent-governance/sync-policy.ts" || echo "Warning: Agent policy sync failed (non-fatal)"
-    if [ -x "$_SCRIPT_DIR/skills/sync-project-skills.sh" ]; then
-        "$_SCRIPT_DIR/skills/sync-project-skills.sh" || echo "Warning: Project skill sync failed (non-fatal)"
-    else
-        echo "Warning: Project skill sync script not found (non-fatal)"
-    fi
-    run_tsx "$_SCRIPT_DIR/skills/install-global-skills.ts" || echo "Warning: Global skill install failed (non-fatal)"
+	echo "Bootstrapping skills..."
+	SKILL_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+	run_tsx "$SKILL_SCRIPT_DIR/agent-governance/sync-policy.ts" || echo "Warning: Agent policy sync failed (non-fatal)"
+	"$SKILL_SCRIPT_DIR/skills/sync-project-skills.sh" || echo "Warning: Project skill sync failed (non-fatal)"
+	run_tsx "$SKILL_SCRIPT_DIR/skills/install-global-skills.ts" || echo "Warning: Global skill install failed (non-fatal)"
 else
-    echo "Skipping agent governance sync and skill bootstrap in CI"
+	echo "Skipping skill bootstrap in CI"
 fi
 
 echo "Done!"

@@ -30,7 +30,7 @@ DEFAULT_MAX_PAGES = 10
 SOURCE_URLS = {
     "job5156": "https://hr.job5156.com/search?keyword=CNC+%E9%94%80%E5%94%AE&tr_min_age=25&tr_max_age=40",
     "51job": "https://ehire.51job.com/Revision/talent/search?keyword=CNC+%E9%94%80%E5%94%AE&tr_min_age=25&tr_max_age=40",
-    "seek": "https://hk.employer.seek.com/candidates/recommended?jobId=90842915",
+    "seek": "https://hk.employer.seek.com/candidates/recommended?jobId=92216704",
 }
 
 SOURCE_HOSTS = {
@@ -38,6 +38,14 @@ SOURCE_HOSTS = {
     "51job": "ehire.51job.com",
     "seek": "hk.employer.seek.com",
 }
+
+
+def resolve_source_host(source: str, url: str) -> str:
+	if source == "seek":
+		hostname = (urlparse(url).hostname or "").lower()
+		if hostname:
+			return hostname
+	return SOURCE_HOSTS.get(source, "unknown")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -85,7 +93,7 @@ def is_supported_source_page(source: str, page_url: str) -> bool:
         return hostname == "ehire.51job.com" and "/talent/search" in pathname
 
     if source == "seek":
-        return hostname.endswith(".employer.seek.com") and pathname == "/candidates/recommended"
+        return hostname.endswith(".employer.seek.com") and (pathname == "/candidates/recommended" or pathname == "/talentsearch")
 
     return False
 
@@ -112,8 +120,8 @@ def describe_unsupported_source_page(source: str, page_url: str, page_title: str
     if source == "seek" and hostname.endswith(".employer.seek.com") and pathname == "/jobs":
         detail = f" (title: {page_title})" if page_title else ""
         return (
-            "SEEK redirected to the jobs list instead of the recommended candidates page. "
-            "Open the Talent Search recommended candidates page in the same logged-in employer account, then rerun. "
+            "SEEK redirected to the jobs list instead of the candidates page. "
+            "Open the Talent Search or recommended candidates page in the same logged-in employer account, then rerun. "
             f"Requested page: {search_url}. Current page: {page_url}{detail}"
         )
 
@@ -245,7 +253,7 @@ async def run() -> int:
                 "mode": "check",
                 "endpoint": normalized_endpoint,
                 "source": args.source,
-                "sourceHost": SOURCE_HOSTS[args.source],
+                "sourceHost": resolve_source_host(args.source, search_url),
                 "url": search_url,
                 "status": status,
             }, ensure_ascii=False))
@@ -258,7 +266,7 @@ async def run() -> int:
             "mode": "collect",
             "endpoint": normalized_endpoint,
             "source": args.source,
-            "sourceHost": SOURCE_HOSTS[args.source],
+            "sourceHost": resolve_source_host(args.source, search_url),
             "url": search_url,
             "status": status,
             "payload": payload,

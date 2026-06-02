@@ -28,7 +28,7 @@ const DEFAULT_JOB5156_URL =
 const DEFAULT_51JOB_URL =
   "https://ehire.51job.com/Revision/talent/search?keyword=CNC+%E9%94%80%E5%94%AE&tr_min_age=25&tr_max_age=40";
 const DEFAULT_SEEK_URL =
-  "https://hk.employer.seek.com/candidates/recommended?jobId=90842915";
+  "https://hk.employer.seek.com/candidates/recommended?jobId=92216704";
 
 // Default sources — these run when no --source flags are given.
 // 51job-manual is excluded; it must be requested explicitly.
@@ -454,12 +454,13 @@ function normalizeCollectedImportPayload(
   alias: BrowserSourceAlias,
   payload: ResumeBackupEnvelope | undefined,
   runtime: SnapshotRuntime,
+  sourceHostOverride?: string,
 ): ResumeImportPayload {
   if (!payload) {
     throw new Error(`[${alias}] collector did not return a payload`);
   }
 
-  const sourceHost = SOURCE_HOSTS[alias];
+  const sourceHost = sourceHostOverride || SOURCE_HOSTS[alias];
   const resumes = readResumeRecords(payload).map((resume) => ({
     ...resume,
     sourceHost,
@@ -665,7 +666,7 @@ export async function runSnapshotSourceBackups(
   const skipped: SnapshotSkippedSource[] = [];
 
   for (const alias of options.sources) {
-    const sourceHost = SOURCE_HOSTS[alias];
+    let sourceHost = SOURCE_HOSTS[alias];
     let launchUrl: string | undefined;
     let manualImportSummary: ManualImportSummary | undefined;
     let snapshotPayload: ResumeBackupEnvelope;
@@ -696,7 +697,12 @@ export async function runSnapshotSourceBackups(
         alias,
         collected.payload,
         runtime,
+        collected.sourceHost,
       );
+      const normalizedSourceHost = normalizedPayload.metadata.sourceHost;
+      if (typeof normalizedSourceHost === "string" && normalizedSourceHost.trim()) {
+        sourceHost = normalizedSourceHost;
+      }
       runtime.log(
         `[${alias}] collected ${normalizedPayload.resumes.length} resumes`,
       );

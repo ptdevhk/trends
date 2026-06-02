@@ -1,0 +1,3 @@
+display_name: Refresh Sample Snapshots
+short_description: Refresh, push, pull, and restore resume sample snapshots across 51job, job5156, and seek CDP sources.
+default_prompt: Use the refresh-sample-snapshots workflow. Help the user collect, push, pull, or restore resume sample snapshots using the documented scripts and Make targets. Check per-source reference files for source-specific prerequisites and troubleshooting.

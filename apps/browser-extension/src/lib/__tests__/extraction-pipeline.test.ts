@@ -48,6 +48,7 @@ function createMockDeps(overrides: Record<string, any> = {}): ExtractionPipeline
     getSeekProfileRequest: vi.fn(() => null),
     getSeekTalentSearchRequest: vi.fn(() => null),
     getSeekRecommendedRequest: vi.fn(() => null),
+    getSeekCurrentCandidateCount: vi.fn(() => 0),
     SEEK_PROFILE_TYPE: "seek",
     getJob5156DetailRoot: vi.fn(() => null),
     getSeekNextPageLinkForMode: vi.fn(() => null),
@@ -167,6 +168,39 @@ describe("extraction-pipeline", () => {
       const pipeline = createExtractionPipeline(createMockDeps());
       const el = document.createElement("button");
       expect(pipeline.isDisabledPaginationControl(el)).toBe(false);
+    });
+  });
+
+  describe("extractResumes", () => {
+    it("uses Seek recommended fallback resumes when API list snapshots are absent", () => {
+      const fallbackResumes = [{ name: "Candidate One", source: "seek" }];
+      const deps = createMockDeps({
+        getCurrentSourceKey: vi.fn(() => SOURCE_KEYS.SEEK),
+        isSeekProfileMode: vi.fn(() => false),
+        hasSeekProfileSnapshot: vi.fn(() => false),
+        hasSeekTalentSearchSnapshot: vi.fn(() => false),
+        hasSeekListSnapshot: vi.fn(() => false),
+        extractSeekResumes: vi.fn(() => fallbackResumes),
+      });
+      const pipeline = createExtractionPipeline(deps);
+
+      expect(pipeline.extractResumes()).toEqual(fallbackResumes);
+      expect(deps.extractSeekResumes).toHaveBeenCalled();
+    });
+  });
+
+  describe("waitForExtractionData", () => {
+    it("uses Seek DOM candidate count when API rows are absent", async () => {
+      const deps = createMockDeps({
+        getCurrentSourceKey: vi.fn(() => SOURCE_KEYS.SEEK),
+        getApiSnapshotCount: vi.fn(() => 0),
+        getSeekCurrentCandidateCount: vi.fn(() => 2),
+      });
+      const pipeline = createExtractionPipeline(deps);
+
+      await expect(
+        pipeline.waitForExtractionData({ timeoutMs: 1, minCount: 1 }),
+      ).resolves.toBe(2);
     });
   });
 });
