@@ -76,6 +76,32 @@ def create_target(endpoint: int | str | None, url: str):
     return None
 
 
+def normalize_target_match_url(value: str) -> str:
+    parsed = urllib.parse.urlparse(value)
+    return urllib.parse.urlunparse(parsed._replace(fragment=""))
+
+
+def select_cdp_target(pages: list[dict[str, Any]], search_url: str | None = None):
+    if search_url:
+        target_url = normalize_target_match_url(search_url)
+        for page in pages:
+            page_url = normalize_target_match_url(str(page.get("url") or ""))
+            if page_url == target_url:
+                return page
+
+        target_domain = urllib.parse.urlparse(search_url).netloc
+        for page in pages:
+            if target_domain in (page.get("url") or ""):
+                return page
+
+    for page in pages:
+        page_url = str(page.get("url") or "")
+        if "hr.job5156.com" in page_url or ".employer.seek.com" in page_url or "ehire.51job.com" in page_url:
+            return page
+
+    return pages[0] if pages else None
+
+
 def _describe_missing_accessor(search_url: str | None, current_url: str, current_title: str) -> str:
     context = []
     if search_url:
@@ -268,26 +294,10 @@ async def open_cdp_session(endpoint: int | str | None = None, search_url: str | 
         if target.get("type") == "page" and target.get("webSocketDebuggerUrl")
     ]
 
-    target = None
-    if search_url:
-        target_domain = urllib.parse.urlparse(search_url).netloc
-        for page in pages:
-            if target_domain in (page.get("url") or ""):
-                target = page
-                break
-
-    if not target:
-        for page in pages:
-            page_url = str(page.get("url") or "")
-            if "hr.job5156.com" in page_url or ".employer.seek.com" in page_url or "ehire.51job.com" in page_url:
-                target = page
-                break
+    target = select_cdp_target(pages, search_url)
 
     if not target and search_url:
         target = create_target(endpoint, search_url)
-
-    if not target and pages:
-        target = pages[0]
 
     if not target:
         raise CDPError("No debuggable Chrome pages found.")

@@ -159,6 +159,44 @@ describe("seek-extractor", () => {
     });
   });
 
+  describe("getSeekCardCount", () => {
+    it("counts recommended candidate cards rendered as heading rows", () => {
+      window.history.pushState(
+        {},
+        "",
+        "/candidates/recommended?jobId=92216704",
+      );
+      document.body.innerHTML = `
+        <div>
+          <span data-role="heading">Candidate One</span>
+          <span data-testid="work-history">Sales Engineer at Company A</span>
+        </div>
+        <div>
+          <span data-role="heading">Candidate Two</span>
+          <span data-testid="work-history">Service Engineer at Company B</span>
+        </div>
+      `;
+
+      try {
+        const extractor = createSeekExtractor(
+          createMockDeps({
+            doc: {
+              querySelector: (selector: string) =>
+                document.querySelector(selector),
+              querySelectorAll: (selector: string) =>
+                document.querySelectorAll(selector),
+            },
+          }),
+        );
+
+        expect(extractor.getSeekCardCount()).toBe(2);
+      } finally {
+        document.body.innerHTML = "";
+        window.history.pushState({}, "", "/");
+      }
+    });
+  });
+
   describe("resolveSeekAutoSyncPageWindow", () => {
     it("returns start page 1 by default", () => {
       const extractor = createSeekExtractor(createMockDeps());
@@ -412,6 +450,74 @@ describe("seek-extractor", () => {
       expect(result).toHaveLength(2);
       expect(result[0].name).toBe("Alice Smith");
       expect(result[1].name).toBe("Bob Jones");
+    });
+
+    it("falls back to rendered recommended cards when API candidates are absent", () => {
+      window.history.pushState(
+        {},
+        "",
+        "/candidates/recommended?jobId=92216704",
+      );
+      document.body.innerHTML = `
+        <div>
+          <span data-role="heading">Candidate One</span>
+          <span data-testid="work-history">Sales Engineer at Company A</span>
+          <span data-testid="work-history">Service Manager at Company B</span>
+        </div>
+        <div>
+          <span data-role="heading">Candidate Two</span>
+          <span data-testid="work-history">Application Engineer at Company C</span>
+        </div>
+      `;
+
+      try {
+        const extractor = createSeekExtractor(
+          createMockDeps({
+            apiSnapshot: {
+              seekRecommendedCandidates: [],
+              seekRecommendedRequest: null,
+            },
+            doc: {
+              querySelector: (selector: string) =>
+                document.querySelector(selector),
+              querySelectorAll: (selector: string) =>
+                document.querySelectorAll(selector),
+            },
+            win: {
+              location: {
+                pathname: "/candidates/recommended",
+                href: "https://hk.employer.seek.com/candidates/recommended?jobId=92216704",
+                hostname: "hk.employer.seek.com",
+                search: "?jobId=92216704",
+              },
+            },
+          }),
+        );
+
+        expect(extractor.getSeekCurrentCandidateCount()).toBe(2);
+        const result = extractor.extractSeekResumes();
+
+        expect(result).toHaveLength(2);
+        expect(result[0]).toMatchObject({
+          profileId: "dom-92216704-1-1",
+          name: "Candidate One",
+          jobIntention: "Sales Engineer",
+          source: "hk.employer.seek.com",
+          pageNumber: 1,
+        });
+        expect(result[0].workHistory).toEqual([
+          { raw: "Sales Engineer at Company A" },
+          { raw: "Service Manager at Company B" },
+        ]);
+        expect(result[1]).toMatchObject({
+          profileId: "dom-92216704-1-2",
+          name: "Candidate Two",
+          jobIntention: "Application Engineer",
+        });
+      } finally {
+        document.body.innerHTML = "";
+        window.history.pushState({}, "", "/");
+      }
     });
   });
 

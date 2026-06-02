@@ -207,6 +207,72 @@ describe("snapshot-source-backups", () => {
     expect(written.resumes[0]?.sourceHost).toBe(SOURCE_HOSTS.seek);
   });
 
+  it("uses the SEEK collector sourceHost override in the run summary and snapshot file", async () => {
+    const repoRoot = await createTestRepoRoot();
+    repoRoots.push(repoRoot);
+    const talentSearchUrl =
+      "https://my.employer.seek.com/talentsearch?searchQuery=CNC+Sales&market=MY";
+    const collectorSourceHost = "my.employer.seek.com";
+    const exec = vi.fn(async (_command: string, args: string[]) => {
+      if (args.includes("--check-only")) {
+        return {
+          stdout: JSON.stringify({
+            mode: "check",
+            source: "seek",
+            sourceHost: collectorSourceHost,
+            url: talentSearchUrl,
+            status: { sourceKey: "seek" },
+          }),
+          stderr: "",
+        };
+      }
+
+      return {
+        stdout: JSON.stringify({
+          mode: "collect",
+          source: "seek",
+          sourceHost: collectorSourceHost,
+          url: talentSearchUrl,
+          status: { sourceKey: "seek" },
+          payload: {
+            ...createCollectedPayload("seek", 20),
+            metadata: {
+              sourceUrl: talentSearchUrl,
+              generatedBy: "test-collector",
+            },
+          },
+        }),
+        stderr: "",
+      };
+    });
+
+    const result = await runSnapshotSourceBackups(
+      { ...baseOptions(repoRoot, "seek"), seekUrl: talentSearchUrl },
+      {
+        now: fixedNow,
+        exec,
+        log: () => undefined,
+        resolveUserHomeDirectory: async () => "/Users/tester",
+      },
+    );
+
+    const written = JSON.parse(
+      await readPortableBackupFile(buildExpectedFilePath(repoRoot, "seek")),
+    ) as {
+      metadata: Record<string, unknown>;
+      resumes: Array<Record<string, unknown>>;
+    };
+
+    expect(result.sources[0]).toMatchObject({
+      alias: "seek",
+      sourceHost: collectorSourceHost,
+      launchUrl: talentSearchUrl,
+    });
+    expect(written.metadata.sourceHost).toBe(collectorSourceHost);
+    expect(written.metadata.sourceUrl).toBe(talentSearchUrl);
+    expect(written.resumes[0]?.sourceHost).toBe(collectorSourceHost);
+  });
+
   it("adds the unsafe limit override to 200+ live 51job launches", async () => {
     const repoRoot = await createTestRepoRoot();
     repoRoots.push(repoRoot);

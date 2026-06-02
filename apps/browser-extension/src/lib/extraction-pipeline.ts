@@ -9,6 +9,7 @@ export interface ExtractionPipelineDeps extends Record<string, unknown> {
   apiSnapshot: Record<string, unknown>;
   SELECTORS: Record<string, string>;
   getApiSnapshotCount: () => number;
+  getSeekCurrentCandidateCount: () => number;
   isExtractionReady: () => boolean;
   isJob51RateLimitedPage: () => boolean;
   JOB51_RATE_LIMIT_ERROR_MESSAGE: string;
@@ -58,6 +59,7 @@ export function createExtractionPipeline(deps: ExtractionPipelineDeps) {
     apiSnapshot,
     SELECTORS,
     getApiSnapshotCount,
+    getSeekCurrentCandidateCount,
     isExtractionReady,
     isJob51RateLimitedPage,
     JOB51_RATE_LIMIT_ERROR_MESSAGE,
@@ -215,13 +217,18 @@ export function createExtractionPipeline(deps: ExtractionPipelineDeps) {
           return;
         }
         const count = getApiSnapshotCount();
+        const seekCandidateCount =
+          getCurrentSourceKey() === SOURCE_KEYS.SEEK
+            ? getSeekCurrentCandidateCount()
+            : 0;
         if (
           count >= minCount ||
+          seekCandidateCount >= minCount ||
           (getCurrentSourceKey() === SOURCE_KEYS.JOB51 && isExtractionReady())
         ) {
           done = true;
           cleanup();
-          resolve(count);
+          resolve(Math.max(count, seekCandidateCount));
         } else if (Date.now() > deadline) {
           done = true;
           cleanup();
@@ -350,6 +357,8 @@ export function createExtractionPipeline(deps: ExtractionPipelineDeps) {
       if (hasSeekListSnapshot()) {
         return extractSeekResumes();
       }
+      const fallbackResumes = extractSeekResumes();
+      return fallbackResumes.length > 0 ? fallbackResumes : [];
     }
 
     if (isJob5156DetailPage()) {

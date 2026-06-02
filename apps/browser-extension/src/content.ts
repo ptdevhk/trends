@@ -590,6 +590,7 @@ const _extractionPipeline = createExtractionPipeline({
   apiSnapshot,
   SELECTORS,
   getApiSnapshotCount: () => getApiSnapshotCount(),
+  getSeekCurrentCandidateCount,
   isExtractionReady,
   isJob51RateLimitedPage,
   JOB51_RATE_LIMIT_ERROR_MESSAGE,

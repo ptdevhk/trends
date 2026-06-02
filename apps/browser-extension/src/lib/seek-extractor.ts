@@ -257,7 +257,10 @@ export function createSeekExtractor(deps: SeekExtractorDeps) {
     if (getCurrentSeekMode() === "talentsearch") {
       return Array.isArray(apiSnapshot.seekTalentSearch) ? (apiSnapshot.seekTalentSearch as unknown[]).length : 0;
     }
-    return Array.isArray(apiSnapshot.seekRecommendedCandidates) ? (apiSnapshot.seekRecommendedCandidates as unknown[]).length : 0;
+    const recommendedCount = Array.isArray(apiSnapshot.seekRecommendedCandidates)
+      ? (apiSnapshot.seekRecommendedCandidates as unknown[]).length
+      : 0;
+    return recommendedCount || getSeekRecommendedDomCardCount();
   }
 
   function setSeekAutoSyncWindowAttributes(pageWindow: Record<string, unknown> | null) {
@@ -581,6 +584,9 @@ export function createSeekExtractor(deps: SeekExtractorDeps) {
     const candidates = Array.isArray(apiSnapshot.seekRecommendedCandidates)
       ? (apiSnapshot.seekRecommendedCandidates as Record<string, unknown>[])
       : [];
+    if (candidates.length === 0 && getCurrentSeekMode() === "recommended") {
+      return extractSeekRecommendedDomResumes();
+    }
     const request = getSeekRecommendedRequest();
     const variables = request?.variables as Record<string, unknown> | undefined;
     const requestInput = variables?.input as Record<string, unknown> | undefined;
@@ -764,9 +770,122 @@ export function createSeekExtractor(deps: SeekExtractorDeps) {
   // ============================================================================
 
   function getSeekCardCount() {
+    if (getCurrentSeekMode() === "recommended") {
+      return getSeekRecommendedDomCardCount();
+    }
+
     return doc.querySelectorAll(
       'a[href*="/talentsearch/profile/"][href*="profilePosition="]',
     ).length;
+  }
+
+  function findSeekRecommendedDomCard(heading: Element) {
+    let current = heading.parentElement;
+    while (current) {
+      if (current.querySelector('[data-testid="work-history"]')) {
+        return current;
+      }
+      current = current.parentElement;
+    }
+    return null;
+  }
+
+  function getSeekRecommendedDomCardCount() {
+    if (getCurrentSeekMode() !== "recommended") return 0;
+
+    const seenCards = new Set<Element>();
+    for (const heading of doc.querySelectorAll('[data-role="heading"]')) {
+      const name = (heading.textContent || "").trim();
+      const card = name ? findSeekRecommendedDomCard(heading) : null;
+      if (card && !seenCards.has(card)) {
+        seenCards.add(card);
+      }
+    }
+    return seenCards.size;
+  }
+
+  function getSeekRecommendedDomCards() {
+    if (getCurrentSeekMode() !== "recommended") return [];
+
+    const seenCards = new Set<Element>();
+    return Array.from(doc.querySelectorAll('[data-role="heading"]'))
+      .map((heading) => {
+        const name = (heading.textContent || "").trim();
+        const card = name ? findSeekRecommendedDomCard(heading) : null;
+        if (!card || seenCards.has(card)) return null;
+
+        const workHistory = Array.from(
+          card.querySelectorAll('[data-testid="work-history"]'),
+        )
+          .map((item) => (item.textContent || "").trim())
+          .filter(Boolean);
+        if (workHistory.length === 0) return null;
+
+        seenCards.add(card);
+        return { name, workHistory };
+      })
+      .filter((card): card is { name: string; workHistory: string[] } =>
+        Boolean(card),
+      );
+  }
+
+  function getJobTitleFromWorkHistory(raw: string) {
+    return raw.split(/\s+at\s+/iu)[0]?.trim() || "";
+  }
+
+  function extractSeekRecommendedDomResumes() {
+    const url = new URL(win.location.href);
+    const jobId =
+      normalizeOptionalPositiveInt(url.searchParams.get("jobId")) ||
+      "recommended";
+    const currentPage =
+      normalizeOptionalPositiveInt(url.searchParams.get("pageNumber")) || 1;
+    const sourceHost = win.location.hostname.toLowerCase();
+
+    const resumes: Record<string, unknown>[] = [];
+    let pageIndex = 0;
+    const seenCards = new Set<Element>();
+
+    for (const heading of doc.querySelectorAll('[data-role="heading"]')) {
+      const name = (heading.textContent || "").trim();
+      const card = name ? findSeekRecommendedDomCard(heading) : null;
+      if (!card || seenCards.has(card)) continue;
+
+      const workHistory: string[] = [];
+      for (const item of card.querySelectorAll('[data-testid="work-history"]')) {
+        const text = (item.textContent || "").trim();
+        if (text) workHistory.push(text);
+      }
+      if (workHistory.length === 0) continue;
+
+      seenCards.add(card);
+      pageIndex++;
+      const profileId = `dom-${jobId}-${currentPage}-${pageIndex}`;
+      resumes.push({
+        profileId,
+        profileType: SEEK_PROFILE_TYPE,
+        externalId: `${sourceHost}:recommended:${profileId}`,
+        name,
+        profileUrl: win.location.href,
+        activityStatus: "",
+        age: "",
+        experience: "",
+        education: "",
+        location: "",
+        jobIntention: getJobTitleFromWorkHistory(workHistory[0] || ""),
+        expectedSalary: "",
+        selfIntro: "",
+        workHistory: workHistory.map((raw) => ({ raw })),
+        extractedAt: new Date().toISOString(),
+        pageIndex,
+        source: sourceHost,
+        searchProfileId: "",
+        language: "",
+        pageNumber: currentPage,
+      });
+    }
+
+    return resumes;
   }
 
   function getSeekPaginationInfo() {
