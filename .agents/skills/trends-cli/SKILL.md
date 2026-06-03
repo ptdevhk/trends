@@ -31,7 +31,7 @@ Use this skill when the user asks to operate backend services from terminal comm
 
 - `./bin/trends resume list --limit 50`
 - `./bin/trends resume search "CNC 东莞" --limit 50`
-- `./bin/trends resume snapshot --source job5156 --count 20`
+- `./bin/trends resume snapshot --source job5156 --count 50`
 - `./bin/trends resume import-51job ~/Downloads/51job.rar --keyword "CNC 销售"`
 - `./bin/trends resume restore output/resume-backups/<run-stamp> --mode replace --yes`
 - `./bin/trends resume match --query "CNC 销售" --source convex --mode rules_only`

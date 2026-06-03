@@ -9,6 +9,7 @@ import {
   DEFAULT_51JOB_URL,
   DEFAULT_JOB5156_URL,
   DEFAULT_SEEK_URL,
+  parseCliArgs,
   SOURCE_HOSTS,
   resolveRequestedSources,
   resolveUserFacingPath,
@@ -47,6 +48,7 @@ function baseOptions(
     apiUrl: "http://localhost:3000",
     workspace: "dev",
     count: 20,
+    seekCount: 20,
     maxPages: 10,
     outDir: path.join(repoRoot, "output", "resume-backups"),
     sources: [source],
@@ -104,6 +106,67 @@ describe("snapshot-source-backups", () => {
       "seek",
       "51job",
     ]);
+  });
+
+  it("defaults snapshot collection to 50 resumes per source and keeps Seek at 20", () => {
+    const args = parseCliArgs([]);
+    expect(args.count).toBe(50);
+    expect(args.seekCount).toBe(20);
+  });
+
+  it("caps Seek snapshot collection at 20 resumes even when the global count is 50", async () => {
+    const repoRoot = await createTestRepoRoot();
+    repoRoots.push(repoRoot);
+    const exec = vi.fn(async (_command: string, args: string[]) => {
+      if (args.includes("--check-only")) {
+        return {
+          stdout: JSON.stringify({
+            mode: "check",
+            source: "seek",
+            sourceHost: SOURCE_HOSTS.seek,
+            url: DEFAULT_SEEK_URL,
+            status: { sourceKey: "seek" },
+          }),
+          stderr: "",
+        };
+      }
+
+      return {
+        stdout: JSON.stringify({
+          mode: "collect",
+          source: "seek",
+          sourceHost: SOURCE_HOSTS.seek,
+          url: DEFAULT_SEEK_URL,
+          status: { sourceKey: "seek" },
+          payload: createCollectedPayload("seek", 20),
+        }),
+        stderr: "",
+      };
+    });
+
+    const result = await runSnapshotSourceBackups(
+      { ...baseOptions(repoRoot, "seek"), count: 50 },
+      {
+        now: fixedNow,
+        exec,
+        log: () => undefined,
+        resolveUserHomeDirectory: async () => "/Users/tester",
+      },
+    );
+
+    expect(exec).toHaveBeenCalledTimes(2);
+    const collectArgs = exec.mock.calls[1]?.[1] ?? [];
+    expect(collectArgs).toContain("--limit");
+    const limitIndex = collectArgs.indexOf("--limit");
+    expect(limitIndex).toBeGreaterThanOrEqual(0);
+    expect(collectArgs[limitIndex + 1]).toBe("20");
+    expect(result.sources[0]).toMatchObject({
+      alias: "seek",
+      sourceHost: SOURCE_HOSTS.seek,
+      count: 20,
+      observedCount: 20,
+    });
+    await access(buildExpectedFilePath(repoRoot, "seek"));
   });
 
   it("resolves ~/ paths against the invoking sudo user home directory", async () => {

@@ -56,7 +56,7 @@ https://hk.employer.seek.com/talentsearch?searchQuery=CNC+Sales&market=MY&pageNu
 
 ```bash
 bun run scripts/resume/snapshot-source-backups.ts \
-  --source seek --count 20 \
+  --source seek --seek-count 20 \
   --seek-url "https://hk.employer.seek.com/talentsearch?searchQuery=CNC+Sales&market=MY&pageNumber=1&roleTitles=Sales&salaryType=MONTHLY&minSalary=0&salaryUnspecified=true&keywords=CNC&matchAll=false&sortBy=RELEVANCE"
 ```
 

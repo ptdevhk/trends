@@ -50,14 +50,20 @@ Collect fresh resume samples from browser sources via CDP.
 ### Single source
 
 ```bash
-bun run scripts/resume/snapshot-source-backups.ts --source 51job --count 20
+bun run scripts/resume/snapshot-source-backups.ts --source 51job --count 50
+```
+
+Seek keeps a separate 20-resume ceiling by default, so the same script can still collect the smaller browser-backed samples:
+
+```bash
+bun run scripts/resume/snapshot-source-backups.ts --source seek --seek-count 20
 ```
 
 ### Multiple sources in one run
 
 ```bash
 bun run scripts/resume/snapshot-source-backups.ts \
-  --source 51job --source job5156 --source seek --count 20
+  --source 51job --source job5156 --source seek --count 50
 ```
 
 ### Custom URL override
@@ -67,12 +73,12 @@ Override the default search URL for a source:
 ```bash
 # Seek talent search (MY market) — uses keyword-based collection
 bun run scripts/resume/snapshot-source-backups.ts \
-  --source seek --count 20 \
+  --source seek --seek-count 20 \
   --seek-url "https://hk.employer.seek.com/talentsearch?searchQuery=CNC+Sales&market=MY&pageNumber=1&roleTitles=Sales&salaryType=MONTHLY&minSalary=0&salaryUnspecified=true&keywords=CNC&matchAll=false&sortBy=RELEVANCE"
 
 # Custom 51job keyword/location
 bun run scripts/resume/snapshot-source-backups.ts \
-  --source 51job --count 20 \
+  --source 51job --count 50 \
   --51job-url "https://ehire.51job.com/Revision/talent/search?keyword=工程师&tr_min_age=25&tr_max_age=40"
 ```
 
@@ -81,7 +87,8 @@ bun run scripts/resume/snapshot-source-backups.ts \
 | Option | Default | Description |
 |---|---|---|
 | `--source <alias>` | (required) | Source alias: `51job`, `job5156`, `seek` (repeatable) |
-| `--count <n>` | `20` | Resumes to collect per source |
+| `--count <n>` | `50` | Resumes to collect per source |
+| `--seek-count <n>` | `20` | Seek resumes to collect per source |
 | `--max-pages <n>` | `10` | Max pages to paginate through |
 | `--cdp-endpoint <url>` | `http://127.0.0.1:9222` | Chrome DevTools endpoint |
 | `--<source>-url <url>` | Per-source default | Override the search URL for a source |
@@ -92,8 +99,8 @@ bun run scripts/resume/snapshot-source-backups.ts \
 Creates a timestamped directory:
 ```
 output/resume-backups/20260602-190034/
-├── resume-backup-51job-top20-20260602-190034.json
-├── resume-backup-job5156-top20-20260602-190034.json
+├── resume-backup-51job-top50-20260602-190034.json
+├── resume-backup-job5156-top50-20260602-190034.json
 └── resume-backup-seek-top20-20260602-190034.json
 ```
 
@@ -178,7 +185,7 @@ Each `snapshot-source-backups.ts` invocation creates a new timestamped directory
 
 ```bash
 bun run scripts/resume/snapshot-source-backups.ts \
-  --source 51job --source job5156 --source seek --count 20
+  --source 51job --source job5156 --source seek --count 50
 ```
 
 This creates `output/resume-backups/<timestamp-1>/` with 51job, job5156, and seek-recommended snapshots.
@@ -187,11 +194,11 @@ This creates `output/resume-backups/<timestamp-1>/` with 51job, job5156, and see
 
 ```bash
 bun run scripts/resume/snapshot-source-backups.ts \
-  --source seek --count 20 \
+  --source seek --seek-count 20 \
   --seek-url "https://hk.employer.seek.com/talentsearch?searchQuery=CNC+Sales&market=MY&pageNumber=1&roleTitles=Sales&salaryType=MONTHLY&minSalary=0&salaryUnspecified=true&keywords=CNC&matchAll=false&sortBy=RELEVANCE"
 ```
 
-This creates `output/resume-backups/<timestamp-2>/` with the seek-talentsearch snapshot. Note that this file is also named `resume-backup-seek-top20-<timestamp>.json` (same alias), so it must be renamed before merging to avoid overwriting the seek-recommended file.
+This creates `output/resume-backups/<timestamp-2>/` with the seek-talentsearch snapshot. The file stays on the 20-resume ceiling (`resume-backup-seek-top20-<timestamp>.json`), so it can be merged without renaming conflicts.
 
 ### Step 3: Merge and push
 
@@ -211,8 +218,8 @@ Check that all 4 files are present before pushing:
 ```bash
 ls output/resume-backups/<timestamp-1>/
 # Expected:
-#   resume-backup-51job-top20-<ts>.json
-#   resume-backup-job5156-top20-<ts>.json
+#   resume-backup-51job-top50-<ts>.json
+#   resume-backup-job5156-top50-<ts>.json
 #   resume-backup-seek-top20-<ts>.json          (recommended)
 #   resume-backup-seek-talentsearch-top20.json  (talent search)
 ```

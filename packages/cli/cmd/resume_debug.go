@@ -596,7 +596,7 @@ func newResumeDebugAIScoreCmd() *cobra.Command {
 	cmd.Flags().StringVar(&jobDescriptionID, "job-description", "", "Optional job description ID")
 	cmd.Flags().StringVar(&source, "source", "convex", "Resume source: convex")
 	cmd.Flags().IntVar(&limit, "limit", 50, "Maximum candidates to consider before local AI scoring")
-	cmd.Flags().IntVar(&topN, "top-n", 10, "Number of top rule-ranked candidates to AI-score locally")
+	cmd.Flags().IntVar(&topN, "top-n", 50, "Number of top rule-ranked candidates to AI-score locally")
 	cmd.Flags().StringSliceVar(&resumeIDs, "resume-id", nil, "Optional specific Convex resume IDs to AI-score")
 	return cmd
 }

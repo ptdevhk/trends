@@ -19,7 +19,8 @@ import {
 
 const execFileAsync = promisify(execFileCallback);
 
-const DEFAULT_COUNT = 20;
+const DEFAULT_COUNT = 50;
+const DEFAULT_SEEK_COUNT = 20;
 const DEFAULT_MAX_PAGES = 10;
 const DEFAULT_CDP_ENDPOINT = "http://127.0.0.1:9222";
 const DEFAULT_WAIT_TIMEOUT_SEC = 600;
@@ -57,6 +58,7 @@ type SnapshotCliArgs = {
   apiUrl: string;
   workspace: string;
   count: number;
+  seekCount: number;
   maxPages: number;
   outDir: string;
   sources: OptionalSourceAlias[];
@@ -142,6 +144,7 @@ export type SnapshotRunSummary = {
   runStamp: string;
   outputDir: string;
   countPerSource: number;
+  seekCount: number;
   sources: SnapshotSourceResult[];
   skipped: SnapshotSkippedSource[];
 };
@@ -176,6 +179,7 @@ function usage(): string {
     "Options:",
     "  --source <alias>           Repeatable source alias: job5156 | seek | 51job (51job-manual opt-in only)",
     `  --count <number>           Resumes per source (default: ${DEFAULT_COUNT})`,
+    `  --seek-count <number>      Seek resumes per source (default: ${DEFAULT_SEEK_COUNT})`,
     `  --max-pages <number>       Browser pages per source collection (default: ${DEFAULT_MAX_PAGES})`,
     `  --api-url <url>            Retained for CLI compatibility (default: ${resolveApiUrl()})`,
     `  --workspace <slug>         Retained for CLI compatibility (default: ${resolveWorkspace()})`,
@@ -282,6 +286,10 @@ export function parseCliArgs(argv: string[]): SnapshotCliArgs {
     apiUrl: readCliValue(argv, "api-url")?.trim() || resolveApiUrl(),
     workspace: readCliValue(argv, "workspace")?.trim() || resolveWorkspace(),
     count: parsePositiveInteger(readCliValue(argv, "count"), DEFAULT_COUNT),
+    seekCount: parsePositiveInteger(
+      readCliValue(argv, "seek-count"),
+      DEFAULT_SEEK_COUNT,
+    ),
     maxPages: parsePositiveInteger(
       readCliValue(argv, "max-pages"),
       DEFAULT_MAX_PAGES,
@@ -514,9 +522,13 @@ async function writeSnapshotPayloadToFile(params: {
   payload: ResumeBackupEnvelope;
   expectedCount: number;
   outFile: string;
+  allowShortfall?: boolean;
 }): Promise<number> {
   const count = readResumeRecords(params.payload).length;
-  if (count !== params.expectedCount) {
+  if (
+    (params.allowShortfall === true && (count === 0 || count > params.expectedCount))
+    || (params.allowShortfall !== true && count !== params.expectedCount)
+  ) {
     throw new Error(
       `expected ${params.expectedCount} resumes in ${params.alias} snapshot, received ${count}`,
     );
@@ -655,6 +667,13 @@ function buildSourceLaunchUrl(
   return undefined;
 }
 
+function resolveSourceCount(alias: SourceAlias, options: SnapshotOptions): number {
+  if (alias === "seek") {
+    return Math.max(1, Math.min(options.count, options.seekCount));
+  }
+  return options.count;
+}
+
 export async function runSnapshotSourceBackups(
   options: SnapshotOptions,
   runtime: SnapshotRuntime = createRuntime(),
@@ -679,6 +698,7 @@ export async function runSnapshotSourceBackups(
     let launchUrl: string | undefined;
     let manualImportSummary: ManualImportSummary | undefined;
     let snapshotPayload: ResumeBackupEnvelope;
+    const sourceCount = resolveSourceCount(alias, options);
 
     try {
     if (alias !== MANUAL_SOURCE) {
@@ -689,7 +709,7 @@ export async function runSnapshotSourceBackups(
       const browserCollectorParams = buildBrowserCollectorParams(
         alias,
         launchUrl,
-        options,
+        { ...options, count: sourceCount },
         runtime,
       );
 
@@ -723,20 +743,21 @@ export async function runSnapshotSourceBackups(
       runtime.log(`[51job-manual] parsing ${manualArchivePath}`);
       const manualSnapshot = await buildManualSnapshotPayload({
         archivePath: manualArchivePath,
-        limit: options.count,
+        limit: sourceCount,
         runtime,
       });
       manualImportSummary = manualSnapshot.summary;
       snapshotPayload = manualSnapshot.payload;
     }
 
-    const outFile = buildOutputFilePath(runDir, alias, options.count, runStamp);
+    const outFile = buildOutputFilePath(runDir, alias, sourceCount, runStamp);
     runtime.log(`[${alias}] writing snapshot file ${outFile}`);
     const snapshotCount = await writeSnapshotPayloadToFile({
       alias,
       payload: snapshotPayload,
-      expectedCount: options.count,
+      expectedCount: sourceCount,
       outFile,
+      ...(alias === "seek" ? { allowShortfall: true } : {}),
     });
 
     results.push({
@@ -774,6 +795,7 @@ export async function runSnapshotSourceBackups(
     runStamp,
     outputDir: runDir,
     countPerSource: options.count,
+    seekCount: options.seekCount,
     sources: results,
     skipped,
   };

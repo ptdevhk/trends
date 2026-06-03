@@ -885,6 +885,24 @@ describe('useResumeSearchState', () => {
       },
     }))
 
+    recentSearchHistoryRecordsMock.push({
+      _id: 'history-1',
+      sessionKey: 'session-1',
+      title: 'Saved search',
+      location: 'China',
+      keywords: ['CNC', '销售'],
+      collectionSource: {
+        type: 'job5156',
+      },
+      filters: {
+        minRoleYears: 5,
+      },
+      selectedTags: [],
+      selectedCompanies: [],
+      selectedExperienceLevel: 'senior',
+      createdAt: Date.now(),
+    })
+
     resumesMock.push(
       createResume(1, {
         ingestData: {
@@ -960,6 +978,11 @@ describe('useResumeSearchState', () => {
     expect(dispatchAnalysisMutationMock).toHaveBeenCalledWith({
       keywords: ['CNC', '销售'],
       promptVersion: CURRENT_PROMPT_VERSION,
+      relatedExpContext: {
+        market: 'CN',
+        minRoleYears: 5,
+        roleFilterType: 'sales',
+      },
       resumeIds: ['resume-1', 'resume-2'],
     })
     expect(toastSuccessMock).toHaveBeenCalledWith('Analyzing 2 resumes...')
@@ -1344,6 +1367,9 @@ describe('useResumeSearchState', () => {
       keywords: ['machine', 'tools'],
       location: 'China',
       promptVersion: CURRENT_PROMPT_VERSION,
+      relatedExpContext: {
+        market: 'CN',
+      },
       resumeIds: Array.from({ length: 10 }, (_, index) => `resume-${index + 1}`),
     })
     expect(toastSuccessMock).toHaveBeenCalledWith(
@@ -1388,6 +1414,9 @@ describe('useResumeSearchState', () => {
       keywords: ['machine', 'tools'],
       location: 'China',
       promptVersion: CURRENT_PROMPT_VERSION,
+      relatedExpContext: {
+        market: 'CN',
+      },
       resumeIds: Array.from({ length: 10 }, (_, index) => `resume-${index + 1}`),
     })
     expect(toastSuccessMock).toHaveBeenCalledWith(
@@ -1592,6 +1621,9 @@ describe('useResumeSearchState', () => {
       keywords: ['machine', 'tools'],
       location: 'China',
       promptVersion: CURRENT_PROMPT_VERSION,
+      relatedExpContext: {
+        market: 'CN',
+      },
       resumeIds: Array.from({ length: 10 }, (_, index) => `resume-${index + 1}`),
     })
     expect(result.current.disableAnalyzeResults).toBe(false)

@@ -5,7 +5,11 @@ import { describe, expect, it } from "vitest";
 // For now, test the exported normalizeKeywords and extractKeywords
 // by verifying their behavior through the idempotency key construction.
 
-import { buildAnalysisDispatchIdempotencyKey, buildRelatedExpCtxArg } from "../convex/analysis_tasks";
+import {
+  buildAnalysisDispatchIdempotencyKey,
+  buildRelatedExpCtxArg,
+  classifyResumes,
+} from "../convex/analysis_tasks";
 
 // We'll also directly test normalizeKeywords and extractKeywords
 // by duplicating their logic in tests (since they're simple pure functions)
@@ -229,41 +233,8 @@ describe("normalizeKeywords logic", () => {
   });
 });
 
-// Test classifyResumes logic (duplicated as pure function for unit testing)
+// Test classifyResumes logic against the exported helper.
 describe("classifyResumes skip-threshold logic", () => {
-  // Mirrors analysis_tasks.ts:234-264
-  function classifyResumes(
-    resumes: Array<Record<string, unknown>>,
-    keywords: string[]
-  ): { toAnalyze: Array<Record<string, unknown>>; toSkip: Array<Record<string, unknown>> } {
-    if (keywords.length === 0) {
-      return { toAnalyze: resumes, toSkip: [] };
-    }
-
-    const toAnalyze: Array<Record<string, unknown>> = [];
-    const toSkip: Array<Record<string, unknown>> = [];
-    const threshold = 10;
-
-    for (const resume of resumes) {
-      const serialized = JSON.stringify(resume).toLowerCase();
-      let matches = 0;
-      for (const keyword of keywords) {
-        if (serialized.includes(keyword)) {
-          matches += 1;
-        }
-      }
-
-      const score = Math.min(100, Math.round((matches / Math.max(keywords.length, 1)) * 100));
-      if (score < threshold) {
-        toSkip.push(resume);
-        continue;
-      }
-      toAnalyze.push(resume);
-    }
-
-    return { toAnalyze, toSkip };
-  }
-
   it("analyzes all resumes when keywords are empty", () => {
     const resumes = [{ name: "A" }, { name: "B" }];
     const result = classifyResumes(resumes, []);
@@ -271,17 +242,15 @@ describe("classifyResumes skip-threshold logic", () => {
     expect(result.toSkip).toHaveLength(0);
   });
 
-  it("skips resumes with zero keyword matches", () => {
+  it("handles a mixed set of keyword matches and skips the zero-match resume", () => {
     const resumes = [
       { name: "张某", selfIntro: "保险销售" },
-      { name: "李某", selfIntro: "CNC操作员" },
+      { name: "李某", selfIntro: "质量检验员" },
     ];
-    // With 10 keywords, matching 0 gives score 0 < 10 → skip
+    // One resume matches the threshold; the other remains a zero-match skip case.
     const result = classifyResumes(resumes, ["cnc", "机床", "加工中心", "机械", "设备", "数控", "车床", "销售", "业务", "cmm"]);
-    // 张某 matches 1 keyword (销售/业务 ~2/10 = 20 >= 10 → analyze)
-    // Wait — let's check: "保险销售" contains "销售" → 1 match, "业务" not present
-    // Actually "保险销售" matches "销售" = 1 match. With 10 keywords: 1/10*100=10 >= 10 → analyze
-    // Let me adjust for a clear skip case
+    expect(result.toAnalyze).toHaveLength(1);
+    expect(result.toSkip).toHaveLength(1);
   });
 
   it("skips resumes with zero keyword matches (clear case)", () => {
@@ -315,6 +284,47 @@ describe("classifyResumes skip-threshold logic", () => {
     // "机械操作" matches "机械" → 1/11 ≈ 9% → below 10 → skip
     expect(result.toAnalyze).toHaveLength(0);
     expect(result.toSkip).toHaveLength(1);
+  });
+
+  it("keeps a low-keyword-match resume when related experience context has supporting evidence", () => {
+    const resumes = [
+      {
+        name: "赵先生",
+        ingestData: {
+          roleSignals: [
+            {
+              type: "sales",
+              matchedSignals: ["客户开发"],
+              signalCount: 1,
+              occurrences: 1,
+              years: 3,
+              industryVerifiedRelevantYears: 2,
+              matchedWorkEntries: [
+                {
+                  companyName: "富士电机（中国）有限公司深圳分公司",
+                  jobTitle: "销售主管",
+                  years: 2,
+                  industryVerified: true,
+                  matchedSignals: ["客户开发"],
+                  directRoleMatch: true,
+                },
+              ],
+              verifyIn: "workHistory",
+            },
+          ],
+        },
+      },
+    ];
+
+    const result = classifyResumes(resumes, ["cnc", "lathe"], {
+      roleFilterType: "sales",
+      minRoleYears: 1,
+      market: "CN",
+    });
+
+    expect(result.toAnalyze).toHaveLength(1);
+    expect(result.toSkip).toHaveLength(0);
+    expect(result.toAnalyze[0].name).toBe("赵先生");
   });
 });
 
