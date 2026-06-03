@@ -104,6 +104,18 @@ export function createExtractionPipeline(deps: ExtractionPipelineDeps) {
 
   // --- Collection guards ---
 
+  const GUARD_FIELD_NAMES = new Set([
+    "experience",
+    "jobIntention",
+    "selfIntro",
+    "expectedSalary",
+    "workHistory",
+    "profileEducation",
+    "projectExperience",
+    "skills",
+    "licences",
+  ]);
+
   const GUARD_ARRAY_FIELD_NAMES = new Set([
     "workHistory",
     "profileEducation",
@@ -147,7 +159,7 @@ export function createExtractionPipeline(deps: ExtractionPipelineDeps) {
         csv
           .split(",")
           .map((field) => field.trim())
-          .filter((field) => GUARD_ARRAY_FIELD_NAMES.has(field)),
+          .filter((field) => GUARD_FIELD_NAMES.has(field)),
       ),
     );
   }

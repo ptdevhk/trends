@@ -674,6 +674,9 @@ const _snapshotCollector = createSnapshotCollector({
   buildSubmitMetadata,
   delay: delay as (ms: number) => Promise<void>,
   document,
+  loadCollectionGuards: loadCollectionGuards as () => Promise<Record<string, unknown>>,
+  parseGuardFieldNames: parseGuardFieldNames as unknown as (csv: string) => string[],
+  applyCollectionGuards: applyCollectionGuards as (resume: unknown, fields: string[]) => unknown,
 });
 const {
   updateApiSnapshot,
@@ -725,6 +728,9 @@ const _autoActions = createAutoActions({
   buildExportFilename,
   document,
   window,
+  loadCollectionGuards: loadCollectionGuards as () => Promise<Record<string, unknown>>,
+  parseGuardFieldNames: parseGuardFieldNames as unknown as (csv: string) => string[],
+  applyCollectionGuards: applyCollectionGuards as (resume: unknown, fields: string[]) => unknown,
 });
 const {
   findAgeFilterBlock,

@@ -14,6 +14,14 @@ export const COLLECTION_GUARDS: Record<string, string[]> = {
   seek: ["experience", "jobIntention", "selfIntro"],
 };
 
+export const COLLECTION_GUARD_ARRAY_FIELD_NAMES = new Set([
+  "workHistory",
+  "profileEducation",
+  "projectExperience",
+  "skills",
+  "licences",
+]);
+
 export function applyCollectionGuards(
   resume: Record<string, unknown>,
   guardFields: string[],
@@ -21,7 +29,7 @@ export function applyCollectionGuards(
   if (!guardFields.length) return resume;
   const guarded = { ...resume };
   for (const field of guardFields) {
-    guarded[field] = "";
+    guarded[field] = COLLECTION_GUARD_ARRAY_FIELD_NAMES.has(field) ? [] : "";
   }
   return guarded;
 }

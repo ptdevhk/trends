@@ -3251,6 +3251,17 @@
       getPaginationInfo: getPaginationInfo2,
       asHTMLElement: asHTMLElement2
     } = deps;
+    const GUARD_FIELD_NAMES2 = /* @__PURE__ */ new Set([
+      "experience",
+      "jobIntention",
+      "selfIntro",
+      "expectedSalary",
+      "workHistory",
+      "profileEducation",
+      "projectExperience",
+      "skills",
+      "licences"
+    ]);
     const GUARD_ARRAY_FIELD_NAMES3 = /* @__PURE__ */ new Set([
       "workHistory",
       "profileEducation",
@@ -3287,7 +3298,7 @@
       if (!csv || typeof csv !== "string") return [];
       return Array.from(
         new Set(
-          csv.split(",").map((field) => field.trim()).filter((field) => GUARD_ARRAY_FIELD_NAMES3.has(field))
+          csv.split(",").map((field) => field.trim()).filter((field) => GUARD_FIELD_NAMES2.has(field))
         )
       );
     }
@@ -3788,7 +3799,10 @@
       waitForPageTransition: waitForPageTransition2,
       buildSubmitMetadata: buildSubmitMetadata2,
       delay: delay2,
-      document: doc
+      document: doc,
+      loadCollectionGuards: loadCollectionGuards2,
+      parseGuardFieldNames: parseGuardFieldNames2,
+      applyCollectionGuards: applyCollectionGuards2
     } = deps;
     function getApiSnapshotCount2() {
       if (Array.isArray(apiSnapshot2.searchRows)) {
@@ -3961,6 +3975,18 @@
       }
     }
     __name(updateApiSnapshot2, "updateApiSnapshot");
+    async function applySourceCollectionGuards(resumes, sourceKey) {
+      if (!Array.isArray(resumes) || resumes.length === 0) return resumes;
+      if (sourceKey !== SOURCE_KEYS2.JOB51 && sourceKey !== SOURCE_KEYS2.JOB5156 && sourceKey !== SOURCE_KEYS2.SEEK) {
+        return resumes;
+      }
+      const collectionGuards = await loadCollectionGuards2();
+      const guards = collectionGuards && typeof collectionGuards === "object" ? collectionGuards[sourceKey] : void 0;
+      const guardFields = parseGuardFieldNames2(typeof guards === "string" ? guards : "");
+      if (guardFields.length === 0) return resumes;
+      return resumes.map((resume) => applyCollectionGuards2(resume, guardFields));
+    }
+    __name(applySourceCollectionGuards, "applySourceCollectionGuards");
     async function collectSnapshotPayload2(options = {}) {
       const { limit, maxPages, allowEmpty } = normalizeSnapshotCollectOptions2(options);
       const sourceKey = getCurrentSourceKey2();
@@ -4024,6 +4050,7 @@
         if (sourceKey === SOURCE_KEYS2.SEEK && !isSeekProfileMode2() && pageResumes.length > 0) {
           pageResumes = await enrichSeekResumesWithDetail2(pageResumes);
         }
+        pageResumes = await applySourceCollectionGuards(pageResumes, sourceKey);
         lastPageResumeCount = pageResumes.length;
         if (pageResumes.length > 0) {
           collectedResumes.push(...pageResumes);
@@ -4142,7 +4169,10 @@
       buildExportMetadata: buildExportMetadata2,
       buildExportFilename: buildExportFilename2,
       document: doc,
-      window: win
+      window: win,
+      loadCollectionGuards: loadCollectionGuards2,
+      parseGuardFieldNames: parseGuardFieldNames2,
+      applyCollectionGuards: applyCollectionGuards2
     } = deps;
     function setAutoAgeAttributes2(status, minAge, maxAge) {
       try {
@@ -5103,6 +5133,19 @@
       }
     }
     __name(runAutoExportIfEnabled2, "runAutoExportIfEnabled");
+    async function applyCurrentSourceCollectionGuards(resumes) {
+      if (!Array.isArray(resumes) || resumes.length === 0) return resumes;
+      const sourceKey = getCurrentSourceKey2();
+      if (sourceKey !== SOURCE_KEYS2.JOB51 && sourceKey !== SOURCE_KEYS2.JOB5156 && sourceKey !== SOURCE_KEYS2.SEEK) {
+        return resumes;
+      }
+      const collectionGuards = await loadCollectionGuards2();
+      const guards = collectionGuards && typeof collectionGuards === "object" ? collectionGuards[sourceKey] : void 0;
+      const guardFields = parseGuardFieldNames2(typeof guards === "string" ? guards : "");
+      if (guardFields.length === 0) return resumes;
+      return resumes.map((resume) => applyCollectionGuards2(resume, guardFields));
+    }
+    __name(applyCurrentSourceCollectionGuards, "applyCurrentSourceCollectionGuards");
     async function syncCurrentPageToServer2(resumesOverride) {
       let resumes = Array.isArray(resumesOverride) ? resumesOverride : extractResumes2();
       const shouldEnrichFromCurrentPage = !Array.isArray(resumesOverride);
@@ -5115,6 +5158,7 @@
       if (shouldEnrichFromCurrentPage && getCurrentSourceKey2() === SOURCE_KEYS2.SEEK && !isSeekProfileMode2() && resumes.length > 0) {
         resumes = await enrichSeekResumesWithDetail2(resumes);
       }
+      resumes = await applyCurrentSourceCollectionGuards(resumes);
       const metadata = buildSubmitMetadata2({
         seekCaptureMode: Array.isArray(resumesOverride) && win.location.pathname.includes("/candidates/recommended") ? "graphql-list" : void 0
       });
@@ -7595,7 +7639,10 @@
     waitForPageTransition,
     buildSubmitMetadata,
     delay,
-    document
+    document,
+    loadCollectionGuards,
+    parseGuardFieldNames,
+    applyCollectionGuards
   });
   var {
     updateApiSnapshot,
@@ -7645,7 +7692,10 @@
     buildExportMetadata,
     buildExportFilename,
     document,
-    window
+    window,
+    loadCollectionGuards,
+    parseGuardFieldNames,
+    applyCollectionGuards
   });
   var {
     findAgeFilterBlock,

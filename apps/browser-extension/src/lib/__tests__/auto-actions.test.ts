@@ -50,6 +50,21 @@ function createMockDeps(overrides: Record<string, unknown> = {}): AutoActionsDep
     document,
     window: window as unknown as Window,
     chrome: { runtime: { sendMessage: vi.fn(), getManifest: vi.fn(() => ({ version: "1.0.0" })) } } as unknown as AutoActionsDeps["chrome"],
+    loadCollectionGuards: vi.fn(async () => ({
+      job5156: "experience,jobIntention,selfIntro",
+      "51job": "experience,jobIntention,selfIntro",
+      seek: "experience,jobIntention,selfIntro",
+    })),
+    parseGuardFieldNames: vi.fn((csv: string) =>
+      csv ? csv.split(",").map((f) => f.trim()).filter(Boolean) : [],
+    ),
+    applyCollectionGuards: vi.fn((resume: unknown, fields: string[]) => {
+      if (!resume || typeof resume !== "object") return resume;
+      const guarded = { ...(resume as Record<string, unknown>) };
+      const arrayFields = new Set(["workHistory", "profileEducation", "projectExperience", "skills", "licences"]);
+      for (const field of fields) guarded[field] = arrayFields.has(field) ? [] : "";
+      return guarded;
+    }),
     ...overrides,
   } as AutoActionsDeps;
 }
@@ -228,6 +243,68 @@ describe("auto-actions", () => {
       vi.stubGlobal("chrome", {});
       const actions = createAutoActions(createMockDeps());
       expect(actions.getExtensionVersion()).toBe("unknown");
+      vi.unstubAllGlobals();
+    });
+  });
+
+  describe("syncCurrentPageToServer", () => {
+    it("guards resume overrides before sending them to the server", async () => {
+      const sendMessage = vi.fn(async () => ({ success: true }));
+      vi.stubGlobal("chrome", { runtime: { sendMessage, getManifest: vi.fn(() => ({ version: "1.0.0" })) } });
+      const actions = createAutoActions(createMockDeps({
+        getCurrentSourceKey: vi.fn(() => SOURCE_KEYS.JOB5156),
+      }));
+
+      await actions.syncCurrentPageToServer([
+        {
+          name: "Alice",
+          experience: "8 years",
+          jobIntention: "Sales Engineer",
+          selfIntro: "Sensitive free text",
+        },
+      ]);
+
+      expect(sendMessage).toHaveBeenCalledWith(expect.objectContaining({
+        action: "syncToServer",
+        resumes: [
+          expect.objectContaining({
+            name: "Alice",
+            experience: "",
+            jobIntention: "",
+            selfIntro: "",
+          }),
+        ],
+      }));
+      vi.unstubAllGlobals();
+    });
+
+    it("guards resumes after current-page detail enrichment", async () => {
+      const sendMessage = vi.fn(async () => ({ success: true }));
+      vi.stubGlobal("chrome", { runtime: { sendMessage, getManifest: vi.fn(() => ({ version: "1.0.0" })) } });
+      const actions = createAutoActions(createMockDeps({
+        getCurrentSourceKey: vi.fn(() => SOURCE_KEYS.JOB5156),
+        extractResumes: vi.fn(() => [{ name: "Alice", experience: "", jobIntention: "", selfIntro: "" }]),
+        enrichJob5156SearchResumesWithDetail: vi.fn(async () => [
+          {
+            name: "Alice",
+            experience: "8 years",
+            jobIntention: "Sales Engineer",
+            selfIntro: "Sensitive free text",
+          },
+        ]),
+      }));
+
+      await actions.syncCurrentPageToServer(undefined);
+
+      expect(sendMessage).toHaveBeenCalledWith(expect.objectContaining({
+        resumes: [
+          expect.objectContaining({
+            experience: "",
+            jobIntention: "",
+            selfIntro: "",
+          }),
+        ],
+      }));
       vi.unstubAllGlobals();
     });
   });
