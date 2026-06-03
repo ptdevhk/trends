@@ -784,6 +784,107 @@ describe("resumes_search: scanResumeDigestPage", () => {
         expect(JSON.stringify(row).length).toBeLessThan(2048);
     });
 
+    it("does not copy large cold resume searchText into digest rows", async () => {
+        const t = convexTest(schema, modules);
+        const resumeId = await seedResume(t, {
+            externalId: "digest-large-search-text",
+            identityKey: "profileUrl:example.com/candidates/digest-large-search-text",
+            source: "job5156",
+            sourceKey: "job5156",
+            searchText: `cnc 销售 ${"coldblob ".repeat(5000)}`,
+            content: {
+                name: "Alice",
+                jobIntention: "CNC销售工程师",
+                locationHierarchy: { country: "China", region: "Guangdong", city: "Dongguan" },
+                workHistory: [{ raw: "2020-2025 CNC销售工程师 负责数控机床渠道开发" }],
+                skills: ["CNC", "数控", "销售"],
+            },
+            primaryRuleScore: 30,
+            age: 30,
+            ingestData: {
+                ...MINIMAL_INGEST_DATA,
+                synonymHits: ["cnc", "销售"],
+                verifiedRoleYears: { sales: 3 },
+            },
+        });
+
+        await t.mutation(api.resumes_search.upsertResumeDigestForTest, { resumeId });
+        const result = await t.query(api.resumes_search.scanResumeDigestPage, { numItems: 1000 });
+
+        expect(result.docs).toHaveLength(1);
+        const row = result.docs[0];
+        expect(row.searchText).toContain("cnc");
+        expect(row.searchText).toContain("销售");
+        expect(row.searchText).not.toContain("coldblob");
+        expect(JSON.stringify(row).length).toBeLessThan(2048);
+    });
+
+    it("retains compact domain tokens from existing searchText", async () => {
+        const t = convexTest(schema, modules);
+        const resumeId = await seedResume(t, {
+            externalId: "digest-domain-token",
+            identityKey: "profileUrl:example.com/candidates/digest-domain-token",
+            source: "job5156",
+            sourceKey: "job5156",
+            searchText: `数控 ${"coldblob ".repeat(5000)}`,
+            content: {
+                name: "Domain Token Candidate",
+                jobIntention: "销售工程师",
+                workHistory: [{ raw: "2020-2025 销售工程师" }],
+            },
+            ingestData: {
+                ...MINIMAL_INGEST_DATA,
+                synonymHits: ["销售"],
+                verifiedRoleYears: { sales: 3 },
+            },
+        });
+
+        await t.mutation(api.resumes_search.upsertResumeDigestForTest, { resumeId });
+        const result = await t.query(api.resumes_search.scanResumeDigestPage, { numItems: 1000 });
+
+        expect(result.docs).toHaveLength(1);
+        const row = result.docs[0];
+        expect(row.searchText).toContain("数控");
+        expect(row.searchText).toContain("cnc");
+        expect(row.searchText).not.toContain("coldblob");
+        expect(JSON.stringify(row).length).toBeLessThan(2048);
+    });
+
+    it("derives digest role years from roleSignals when verifiedRoleYears is missing", async () => {
+        const t = convexTest(schema, modules);
+        const resumeId = await seedResume(t, {
+            externalId: "digest-role-signals",
+            identityKey: "profileUrl:example.com/candidates/digest-role-signals",
+            source: "job5156",
+            sourceKey: "job5156",
+            content: {
+                name: "Bob",
+                jobIntention: "CNC销售工程师",
+                locationHierarchy: { country: "China", region: "Guangdong", city: "Dongguan" },
+                workHistory: [{ raw: "2020-2025 CNC销售工程师 负责数控机床渠道开发" }],
+            },
+            ingestData: {
+                ...MINIMAL_INGEST_DATA,
+                roleSignals: [{
+                    type: "sales",
+                    matchedSignals: ["销售工程师"],
+                    signalCount: 1,
+                    occurrences: 1,
+                    years: 3,
+                    industryVerifiedYears: 3,
+                    verifyIn: "workHistory",
+                }],
+            },
+        });
+
+        await t.mutation(api.resumes_search.upsertResumeDigestForTest, { resumeId });
+        const result = await t.query(api.resumes_search.scanResumeDigestPage, { numItems: 1000 });
+
+        expect(result.docs).toHaveLength(1);
+        expect(result.docs[0].roleTypes).toContain("sales");
+        expect(result.docs[0].roleYearsByType?.sales).toBe(3);
+    });
+
     it("caps digest pages at 1000 small rows", async () => {
         const t = convexTest(schema, modules);
         const resumeId = await seedResume(t, {

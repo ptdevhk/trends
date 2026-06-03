@@ -10,6 +10,7 @@ import {
   buildKeywordAnalysisId,
   getCurrentResumeAiPromptVersion,
   resolveResumeAnalysisSourceKey,
+  matchesResumeDigestFilters,
   formatLocationHierarchySearchText,
   formatKeywordQuery,
   normalizeKeywordPhrases,
@@ -17,6 +18,7 @@ import {
   buildWorkHistoryEntryText,
   buildLatestWorkHistoryEvidence,
   selectLatestWorkHistory,
+  type DigestRecord,
 } from "@trends/shared";
 import type { ResumeItem } from "../types/resume.js";
 import type { ResumeIndex } from "./resume-index.js";
@@ -200,6 +202,36 @@ export function hasResumeListFilters(params: {
     || typeof params.minAge === "number"
     || typeof params.maxAge === "number"
     || (params.sources?.length ?? 0) > 0;
+}
+
+function toDigestRoleYears(value: unknown): Record<string, number> | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+  const result: Record<string, number> = {};
+  for (const [key, entry] of Object.entries(value)) {
+    if (typeof entry === "number" && Number.isFinite(entry)) {
+      result[key] = entry;
+    }
+  }
+  return Object.keys(result).length > 0 ? result : undefined;
+}
+
+function toDigestFilterRecord(doc: Record<string, unknown>): DigestRecord {
+  return {
+    isArchived: typeof doc.isArchived === "boolean" ? doc.isArchived : undefined,
+    source: toStringValue(doc.source),
+    sourceKey: toStringValue(doc.sourceKey),
+    searchText: toStringValue(doc.searchText),
+    age: toOptionalNumber(doc.age),
+    locationText: toStringValue(doc.locationText),
+    educationLevel: toStringValue(doc.educationLevel),
+    salaryMin: toOptionalNumber(doc.salaryMin),
+    salaryMax: toOptionalNumber(doc.salaryMax),
+    experienceYears: toOptionalNumber(doc.experienceYears),
+    roleTypes: toStringArray(doc.roleTypes),
+    roleYearsByType: toDigestRoleYears(doc.roleYearsByType),
+  };
 }
 
 export function resolveResumeSortOrder(
@@ -546,16 +578,7 @@ export async function prepareConvexCandidates(params: {
           );
           if (!allGroupsMatch) continue;
 
-          // Basic filters that run on digest fields
-          if (filters) {
-            if (typeof filters.minAge === 'number' && typeof doc.age === 'number' && doc.age < filters.minAge) continue;
-            if (typeof filters.maxAge === 'number' && typeof doc.age === 'number' && doc.age > filters.maxAge) continue;
-            if (Array.isArray(filters.sources) && filters.sources.length > 0) {
-              const resumeSourceKey = (typeof doc.sourceKey === 'string' ? doc.sourceKey : undefined)
-                ?? resolveResumeAnalysisSourceKey({ source: typeof doc.source === 'string' ? doc.source : undefined });
-              if (!resumeSourceKey || !filters.sources.includes(resumeSourceKey)) continue;
-            }
-          }
+          if (filters && !matchesResumeDigestFilters(toDigestFilterRecord(doc), filters)) continue;
 
           const resumeId = toStringValue(doc.resumeId);
           if (resumeId) matchingIds.push(resumeId);

@@ -844,8 +844,8 @@ export const scanResumePageSlim = query({
 });
 
 // Digest scan — lightweight candidate discovery for AND-mode BFF path.
-// Each row is <1KB (vs ~27KB+ for scanResumePageSlim), so we can page 1000
-// rows safely without hitting the Convex 16 MiB byte limit.
+// Rows omit cold content/ingestData and keep bounded digest fields, so we can
+// page 1000 rows safely without hitting the Convex 16 MiB byte limit.
 export const scanResumeDigestPage = query({
     args: {
         cursor: v.optional(v.string()),

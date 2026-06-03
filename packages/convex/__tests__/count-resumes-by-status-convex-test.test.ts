@@ -205,6 +205,64 @@ describe("countResumesByStatus", () => {
     expect(result.new).toBe(1);
   });
 
+  it("uses digest rows for role-filtered counts without a multi-page resume scan", async () => {
+    const t = createTest();
+    const now = Date.now();
+
+    await t.run(async (ctx) => {
+      for (let index = 0; index < 205; index += 1) {
+        const identityKey = `ik-digest-sales-${index}`;
+        const resumeId = await ctx.db.insert("resumes", {
+          externalId: `ext-digest-sales-${index}`,
+          identityKey,
+          content: { name: `Digest Sales ${index}` },
+          hash: `hash-digest-sales-${index}`,
+          tags: [],
+          crawledAt: now + index,
+          source: "test",
+          sourceKey: "test",
+        });
+        await ctx.db.insert("resume_digests", {
+          resumeId,
+          identityKey,
+          externalId: `ext-digest-sales-${index}`,
+          source: "test",
+          sourceKey: "test",
+          searchText: "cnc sales",
+          isArchived: false,
+          roleTypes: ["sales"],
+          roleYearsByType: { sales: 2 },
+          updatedAt: now,
+        });
+      }
+
+      await ctx.db.insert("candidate_status", {
+        workspaceSlug: "test",
+        identityKey: "ik-digest-sales-0",
+        status: "shortlisted",
+        updatedAt: now,
+      });
+      await ctx.db.insert("candidate_status", {
+        workspaceSlug: "test",
+        identityKey: "ik-digest-sales-1",
+        status: "rejected",
+        updatedAt: now,
+      });
+    });
+
+    const result = await t.query(api.resumes.countResumesByStatus, {
+      workspaceSlug: "test",
+      roleFilterType: "sales",
+      minRoleYears: 1,
+    });
+
+    expect(result.total).toBe(205);
+    expect(result.new).toBe(203);
+    expect(result.shortlisted).toBe(1);
+    expect(result.rejected).toBe(1);
+    expect(result.overflow).toBe(false);
+  });
+
   it("defaults missing candidate_status to new", async () => {
     const t = createTest();
 

@@ -310,6 +310,66 @@ describe("BFF search dispatcher integration", () => {
             const docCall = calls.find((c) => c.pathName === "resumes_search:getResumeDocsByIds");
             expect(docCall?.args.ids).toEqual(["r1"]);
         });
+
+        it("applies supported digest filters before fetching full records", async () => {
+            const calls: ConvexCall[] = [];
+            vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+                const call = parseConvexCall(input, init);
+                calls.push(call);
+                if (call.pathName === "resumes_search:scanResumeDigestPage") {
+                    return convexSuccess({
+                        docs: [
+                            buildDigestRow("r1", {
+                                searchText: "cnc 销售 数控 销售工程师",
+                                age: 30,
+                                locationText: "中国 广东 东莞",
+                                roleYearsByType: { sales: 3 },
+                                roleTypes: ["sales"],
+                            }),
+                            buildDigestRow("r2", {
+                                searchText: "cnc 销售 数控 销售工程师",
+                                age: 30,
+                                locationText: "中国 广东 东莞",
+                                roleYearsByType: { operator: 4 },
+                                roleTypes: ["operator"],
+                            }),
+                            buildDigestRow("r3", {
+                                searchText: "cnc 销售 数控 销售工程师",
+                                age: 30,
+                                locationText: "Malaysia Kuala Lumpur",
+                                roleYearsByType: { sales: 3 },
+                                roleTypes: ["sales"],
+                            }),
+                            buildDigestRow("r4", {
+                                searchText: "cnc 销售 数控 销售工程师",
+                                age: 45,
+                                locationText: "中国 广东 东莞",
+                                roleYearsByType: { sales: 3 },
+                                roleTypes: ["sales"],
+                            }),
+                        ],
+                        isDone: true,
+                        cursor: null,
+                    });
+                }
+                if (call.pathName === "resumes_search:getResumeDocsByIds") {
+                    return convexSuccess([buildConvexResumeRecord("r1", { name: "Alice" })]);
+                }
+                if (call.pathName === "resumes_search:scanResumePageSlim") {
+                    throw new Error("AND-mode must not scan monolithic resume searchText pages");
+                }
+                throw new Error(`Unexpected convex path: ${call.pathName}`);
+            });
+
+            const app = createApp();
+            const response = await app.request(
+                "/api/resumes?source=convex&q=CNC%20销售&limit=5&minRoleYears=1&roleFilterType=sales&minAge=25&maxAge=40&locations=China",
+            );
+
+            expect(response.status).toBe(200);
+            const docCall = calls.find((c) => c.pathName === "resumes_search:getResumeDocsByIds");
+            expect(docCall?.args.ids).toEqual(["r1"]);
+        });
     });
 
     describe("Byte-limit safety validation", () => {

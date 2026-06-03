@@ -45,6 +45,7 @@ import {
     normalizeResumeBackupFetchLimit,
     normalizeResumeBackupArgs,
 } from "./lib/resumes_backup.js";
+import { matchesResumeDigestFilters } from "./lib/resume_digests.js";
 
 // Re-export for backward compatibility
 export {
@@ -658,22 +659,48 @@ export const countResumesByStatus = query({
             showArchived: false,
         });
 
-        // 3. Paginate through all non-archived resumes, counting by status
         const MAX_MATCHES = 5000;
         const counts: Record<string, number> = { new: 0, shortlisted: 0, rejected: 0 };
         let totalMatched = 0;
-        let cursor: string | null = null;
         let overflow = false;
-        const BATCH_SIZE = 200;
 
-        while (true) {
+        const incrementStatus = (identityKey: string | undefined) => {
+            const status = statusByIdentity.get(identityKey ?? "") ?? "new";
+            if (status === "shortlisted") {
+                counts.shortlisted += 1;
+            } else if (status === "rejected") {
+                counts.rejected += 1;
+            } else {
+                counts.new += 1;
+            }
+        };
+
+        // Count from the hot digest table. Convex rejects multiple paginated
+        // queries in one function, so do not walk resume pages here.
+        const digests = await ctx.db
+            .query("resume_digests")
+            .filter((q) => q.neq(q.field("isArchived"), true))
+            .collect();
+
+        if (digests.length > 0) {
+            for (const digest of digests) {
+                if (totalMatched >= MAX_MATCHES) {
+                    overflow = true;
+                    break;
+                }
+                if (!matchesResumeDigestFilters(digest, filters)) continue;
+                incrementStatus(digest.identityKey);
+                totalMatched += 1;
+            }
+        } else {
             const page = await ctx.db
                 .query("resumes")
                 .filter((q) => q.neq(q.field("isArchived"), true))
                 .paginate({
-                    cursor,
-                    numItems: BATCH_SIZE,
-                    maximumBytesRead: 10 * 1024 * 1024,
+                    cursor: null,
+                    numItems: 200,
+                    maximumBytesRead: PAGINATE_MAX_BYTES_READ,
+                    maximumRowsRead: PAGINATE_MAX_ROWS_READ,
                 });
 
             for (const resume of page.page) {
@@ -681,21 +708,11 @@ export const countResumesByStatus = query({
                     overflow = true;
                     break;
                 }
-                if (matchesResumeListFilters(resume, filters)) {
-                    const identityKey = resume.identityKey ?? "";
-                    const status = statusByIdentity.get(identityKey) ?? "new";
-                    if (status in counts) {
-                        counts[status] += 1;
-                    } else {
-                        // Treat unknown statuses as "new"
-                        counts.new += 1;
-                    }
-                    totalMatched += 1;
-                }
+                if (!matchesResumeListFilters(resume, filters)) continue;
+                incrementStatus(resume.identityKey);
+                totalMatched += 1;
             }
-
-            if (overflow || page.isDone) break;
-            cursor = page.continueCursor;
+            overflow = overflow || !page.isDone;
         }
 
         return {
