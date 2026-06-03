@@ -16,6 +16,7 @@ import {
   type ConvexResumeItem,
 } from '@/hooks/useConvexResumes'
 import { useFacetCounts } from '@/hooks/useFacetCounts'
+import { useStatusCounts } from '@/hooks/useStatusCounts'
 import {
   useUrlSearchState,
   type ExperienceLevelFilter,
@@ -915,6 +916,30 @@ export function useResumeSearchState() {
   const deferredFilteredResults = useDeferredValue(filteredResults)
 
   const facetCounts: FacetCounts = useFacetCounts(results, taxonomyClusters)
+
+  // Server-side status counts (real totals, not limited to loaded page)
+  const statusCounts = useStatusCounts({
+    filters: backendFilters,
+    workspaceSlug: slug ?? "dev",
+    useAndModeBff: resumeQuery.useAndModeBff ?? false,
+    bffStatusCounts: resumeQuery.bffStatusCounts,
+  });
+
+  // Merge server-side status counts into facetCounts, falling back to client-side
+  const facetCountsWithServerStatuses: FacetCounts = useMemo(() => {
+    if (!statusCounts.loading && statusCounts.total > 0) {
+      return {
+        ...facetCounts,
+        statuses: [
+          { value: "new", label: "新候选人", count: statusCounts.new },
+          { value: "shortlisted", label: "已入围", count: statusCounts.shortlisted },
+          { value: "rejected", label: "已拒绝", count: statusCounts.rejected },
+        ],
+      };
+    }
+    return facetCounts;
+  }, [facetCounts, statusCounts]);
+
   const hasMore = resumeQuery.hasMore
   const loading = !isLanding && resumeQuery.loading
   const loadingMore = resumeQuery.loadingMore
@@ -1808,7 +1833,7 @@ export function useResumeSearchState() {
     exportFormat,
     exportingResults,
     exportResults,
-    facetCounts,
+    facetCounts: facetCountsWithServerStatuses,
     filterCount,
     filteredResults: deferredFilteredResults,
     hasMore,

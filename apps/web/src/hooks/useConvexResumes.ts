@@ -797,6 +797,7 @@ type BffAndModeResult = {
   total: number
   expansion: KeywordExpansionSummary | null
   loading: boolean
+  statusCounts?: { new: number; shortlisted: number; rejected: number }
 }
 
 function useBffAndModeSearch(
@@ -808,13 +809,13 @@ function useBffAndModeSearch(
   jobDescriptionId: string | undefined,
   refetchTrigger?: number,
 ): BffAndModeResult {
-  const [result, setResult] = useState<BffAndModeResult>({ resumes: [], total: 0, expansion: null, loading: false })
+  const [result, setResult] = useState<BffAndModeResult>({ resumes: [], total: 0, expansion: null, loading: false, statusCounts: undefined })
   const prevBffActive = useRef(false)
   const bffNowActive = enabled && !!normalizedQuery && !!keywordExpansion && keywordExpansion.mode === 'AND' && !expansionLoading
 
   useEffect(() => {
     if (bffNowActive && !prevBffActive.current) {
-      setResult({ resumes: [], total: 0, expansion: null, loading: true })
+      setResult({ resumes: [], total: 0, expansion: null, loading: true, statusCounts: undefined })
     }
     prevBffActive.current = bffNowActive
   }, [bffNowActive])
@@ -830,7 +831,7 @@ function useBffAndModeSearch(
     let active = true
 
     if (!enabled || !normalizedQuery || !keywordExpansion || keywordExpansion.mode !== 'AND' || expansionLoading) {
-      setResult({ resumes: [], total: 0, expansion: null, loading: false })
+      setResult({ resumes: [], total: 0, expansion: null, loading: false, statusCounts: undefined })
       return () => { active = false }
     }
 
@@ -864,6 +865,7 @@ function useBffAndModeSearch(
             keywordGroups?: Array<{ original: string; variants: string[] }>
             expandedTo?: string[]
             sourceMapping?: Record<string, string>
+            statusCounts?: { new: number; shortlisted: number; rejected: number }
           }
           data?: Array<Record<string, unknown>>
         }>('/api/resumes', {
@@ -874,7 +876,7 @@ function useBffAndModeSearch(
       .then(({ data, error }) => {
         if (!active) return
         if (error || !data?.success || !Array.isArray(data.data)) {
-          setResult({ resumes: [], total: 0, expansion: keywordExpansion, loading: false })
+          setResult({ resumes: [], total: 0, expansion: keywordExpansion, loading: false, statusCounts: undefined })
           return
         }
 
@@ -913,12 +915,13 @@ function useBffAndModeSearch(
           total: data.summary?.total ?? resumes.length,
           expansion: keywordExpansion,
           loading: false,
+          statusCounts: data.summary?.statusCounts,
         })
       })
       .catch((err: unknown) => {
         console.error('BFF AND-mode search failed', err)
         if (active) {
-          setResult({ resumes: [], total: 0, expansion: keywordExpansion, loading: false })
+          setResult({ resumes: [], total: 0, expansion: keywordExpansion, loading: false, statusCounts: undefined })
         }
       })
 
@@ -1389,6 +1392,8 @@ export function useConvexResumes(
     hasMore,
     jobDescriptionId: normalizedJobDescriptionId,
     expansion: resolvedExpansion,
+    useAndModeBff: isAndModeBffActive,
+    bffStatusCounts: bffAndModeResult.statusCounts,
   }
 }
 

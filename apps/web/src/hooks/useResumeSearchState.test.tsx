@@ -41,6 +41,9 @@ vi.mock('../../../../packages/convex/convex/_generated/api', () => ({
     taxonomy_clusters: {
       list: 'taxonomy-clusters-list-query',
     },
+    resumes: {
+      countResumesByStatus: 'resumes:countResumesByStatus',
+    },
   },
 }))
 
@@ -304,6 +307,9 @@ describe('useResumeSearchState', () => {
       if (query === 'taxonomy-clusters-list-query') {
         return taxonomyClusterRecordsMock
       }
+      if (query === 'resumes:countResumesByStatus') {
+        return { new: 0, shortlisted: 0, rejected: 0, total: 0, overflow: false }
+      }
       return undefined
     })
 
@@ -326,6 +332,8 @@ describe('useResumeSearchState', () => {
       hasMore: convexQueryStateMock.hasMore,
       loading: convexQueryStateMock.loading,
       loadingMore: convexQueryStateMock.loadingMore,
+      useAndModeBff: false,
+      bffStatusCounts: undefined,
     }))
     exportDownloadMock.mockResolvedValue(undefined)
     dispatchAnalysisMutationMock.mockResolvedValue('analysis-task-1')
