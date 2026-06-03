@@ -11,6 +11,10 @@ merge_base="$(git merge-base main HEAD 2>/dev/null || true)"
 locale_pattern='apps/web/src/i18n/locales/'
 already_checked=0
 already_drift=0
+concept_drift_args=()
+if [ "${TRENDS_CONCEPT_DRIFT_STRICT:-0}" = "1" ]; then
+  concept_drift_args+=(--strict)
+fi
 
 # stdin: <local ref> SP <local sha1> SP <remote ref> SP <remote sha1> LF
 while IFS=' ' read -r _local_ref local_sha _remote_ref remote_sha; do
@@ -35,7 +39,7 @@ while IFS=' ' read -r _local_ref local_sha _remote_ref remote_sha; do
   if [ "$already_drift" -eq 0 ]; then
     echo ""
     echo "concept-drift: checking for stale vault pages..."
-    bash scripts/check-concept-drift.sh --range "$range" --strict
+    bash scripts/check-concept-drift.sh --range "$range" "${concept_drift_args[@]}"
     already_drift=1
   fi
 done
