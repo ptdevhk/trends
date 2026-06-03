@@ -1473,13 +1473,14 @@ export function useResumeListState(loadSearchHistory = false) {
           return
         }
 
-        const exportEntries = selectedEntries.map(({ key, match, action: currentAction, ruleScore, status, statusMeta }) => ({
+        const exportEntries = selectedEntries.map(({ key, match, action: currentAction, ruleScore, status, statusMeta, userRating }) => ({
           resumeId: key,
           match,
           action: currentAction,
           status,
           ruleScore: typeof match?.score === 'number' ? undefined : ruleScore,
           userComment: normalizeOptionalString(statusMeta?.notes),
+          userRating,
         }))
         const exportFormat = format ?? bulkExportFormat
         const exportRequest: ResumeExportRequestBody = {

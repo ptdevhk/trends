@@ -154,6 +154,7 @@ export function toExportEntryFields(entry: ResumeExportEntryContext): ResumeExpo
     ruleScore: entry.ruleScore,
     userComment: entry.userComment,
     referenceNote: entry.referenceNote,
+    userRating: entry.userRating,
   };
 }
 

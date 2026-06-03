@@ -5,7 +5,15 @@ import { describe, expect, it } from "vitest";
 import { ExportService } from "./export-service";
 
 import type { ResumeExportEntry, ExportBatchMeta } from "./export-service";
-import { buildSeekNameSearchUrl } from "@trends/shared";
+import {
+  buildSeekNameSearchUrl,
+  EXPORT_FIELD_KEYS,
+  EXPORT_CORE_FIELDS,
+  EXPORT_DEBUG_FIELDS,
+} from "@trends/shared";
+
+// Helper: export with all known fields to preserve old test expectations
+const fullFieldsConfig = { fields: [...EXPORT_FIELD_KEYS] };
 
 function buildEntry(age: string | undefined): ResumeExportEntry {
   return {
@@ -99,8 +107,12 @@ describe("ExportService", () => {
     );
     expect(sheet).toBeDefined();
     expect(sheet?.getRow(1).values).toContain("Age");
-    expect(sheet?.getCell("G2").value).toBe(31);
-    expect(sheet?.getCell("G3").value).toBe("");
+    // ExcelJS getRow().values is 1-based (index 0 = undefined)
+    const headers = (sheet?.getRow(1).values as unknown[]) ?? [];
+    const ageColIndex = headers.findIndex((v) => v === "Age");
+    expect(ageColIndex).toBeGreaterThan(0);
+    expect(sheet?.getCell(2, ageColIndex).value).toBe(31);
+    expect(sheet?.getCell(3, ageColIndex).value).toBe("");
   });
 
   it("includes per-entry userComment and referenceNote in CSV", async () => {
@@ -110,7 +122,9 @@ describe("ExportService", () => {
       userComment: "Excellent candidate",
       referenceNote: "Referred by HR dept",
     };
-    const file = await service.exportResumes("csv", [entry]);
+    const file = await service.exportResumes("csv", [entry], undefined, undefined, false, {
+      fields: [...EXPORT_FIELD_KEYS],
+    });
     const csv = file.content.toString("utf8");
     const parsed = Papa.parse<Record<string, string>>(csv, { header: true });
 
@@ -156,16 +170,12 @@ describe("ExportService", () => {
         if (index === 25) return 10;
         return 0;
       }),
-    });
+    }, false, { fields: [...EXPORT_FIELD_KEYS] });
     const csv = file.content.toString("utf8");
     const parsed = Papa.parse<Record<string, string>>(csv, { header: true });
 
     expect(parsed.meta.fields).toContain("industryDb");
     expect(parsed.meta.fields).toContain("relatedExp");
-    expect(parsed.meta.fields).not.toContain("industryDbV2Raw");
-    expect(parsed.meta.fields).not.toContain("industryDbV2Normalized");
-    expect(parsed.meta.fields).not.toContain("externalId");
-    expect(parsed.meta.fields).not.toContain("source");
     expect(parsed.data[0]?.aiScore).toBe("68");
     expect(parsed.data[0]?.industryDb).toBe("50");
     expect(parsed.data[0]?.relatedExp).toBe("18");
@@ -213,7 +223,7 @@ describe("ExportService", () => {
         },
         match: undefined,
       },
-    ]);
+    ], undefined, undefined, false, fullFieldsConfig);
     const csv = file.content.toString("utf8");
     const parsed = Papa.parse<Record<string, string>>(csv, { header: true });
 
@@ -273,7 +283,7 @@ describe("ExportService", () => {
       referenceNote: "Batch ref note",
     };
 
-    const file = await service.exportResumes("csv", [entryWithComment, entryWithout], batchMeta);
+    const file = await service.exportResumes("csv", [entryWithComment, entryWithout], batchMeta, undefined, false, fullFieldsConfig);
     const csv = file.content.toString("utf8");
     const parsed = Papa.parse<Record<string, string>>(csv, { header: true });
 
@@ -290,7 +300,7 @@ describe("ExportService", () => {
       userComment: "Test comment",
       referenceNote: "Test note",
     };
-    const file = await service.exportResumes("xlsx", [entry]);
+    const file = await service.exportResumes("xlsx", [entry], undefined, undefined, false, fullFieldsConfig);
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(file.content);
     const sheet = workbook.getWorksheet("Resumes");
@@ -358,7 +368,7 @@ describe("ExportService", () => {
       },
     };
 
-    const file = await service.exportResumes("csv", [entry]);
+    const file = await service.exportResumes("csv", [entry], undefined, undefined, false, fullFieldsConfig);
     const csv = file.content.toString("utf8");
     const parsed = Papa.parse<Record<string, string>>(csv, { header: true });
 
@@ -382,7 +392,7 @@ describe("ExportService", () => {
       resolveZhHans: (brandId: string) => `zh-${brandId.toLowerCase()}`,
       toJSON: () => ({}),
     });
-    const file = await service.exportResumes("csv", [buildEntry("27")]);
+    const file = await service.exportResumes("csv", [buildEntry("27")], undefined, undefined, false, fullFieldsConfig);
     const csv = file.content.toString("utf8");
     const parsed = Papa.parse<Record<string, string>>(csv, { header: true });
 
@@ -430,7 +440,7 @@ describe("ExportService", () => {
       ],
     };
 
-    const file = await service.exportResumes("csv", [entry]);
+    const file = await service.exportResumes("csv", [entry], undefined, undefined, false, fullFieldsConfig);
     const csv = file.content.toString("utf8");
     const parsed = Papa.parse<Record<string, string>>(csv, { header: true });
 
@@ -442,8 +452,8 @@ describe("ExportService", () => {
 
   it("keeps CSV and XLSX headers aligned", async () => {
     const service = new ExportService();
-    const csvFile = await service.exportResumes("csv", [buildEntry("27")]);
-    const xlsxFile = await service.exportResumes("xlsx", [buildEntry("27")]);
+    const csvFile = await service.exportResumes("csv", [buildEntry("27")], undefined, undefined, false, fullFieldsConfig);
+    const xlsxFile = await service.exportResumes("xlsx", [buildEntry("27")], undefined, undefined, false, fullFieldsConfig);
     const csvParsed = Papa.parse<Record<string, string>>(csvFile.content.toString("utf8"), { header: true });
     const csvHeaders = csvParsed.meta.fields ?? [];
 
@@ -498,7 +508,7 @@ describe("full-score audit integration — export fields (RED)", () => {
       },
     };
 
-    const file = await service.exportResumes("csv", [entry]);
+    const file = await service.exportResumes("csv", [entry], undefined, undefined, false, fullFieldsConfig);
     const csv = file.content.toString("utf8");
     const parsed = Papa.parse<Record<string, string>>(csv, { header: true });
 
@@ -523,7 +533,7 @@ describe("full-score audit integration — export fields (RED)", () => {
       },
     };
 
-    const file = await service.exportResumes("csv", [entry]);
+    const file = await service.exportResumes("csv", [entry], undefined, undefined, false, fullFieldsConfig);
     const csv = file.content.toString("utf8");
     const parsed = Papa.parse<Record<string, string>>(csv, { header: true });
 
@@ -547,7 +557,7 @@ describe("full-score audit integration — export fields (RED)", () => {
       },
     };
 
-    const file = await service.exportResumes("csv", [entry]);
+    const file = await service.exportResumes("csv", [entry], undefined, undefined, false, fullFieldsConfig);
     const csv = file.content.toString("utf8");
     const parsed = Papa.parse<Record<string, string>>(csv, { header: true });
 
@@ -563,7 +573,7 @@ describe("full-score audit integration — export fields (RED)", () => {
       match: undefined,
     };
 
-    const file = await service.exportResumes("csv", [entry]);
+    const file = await service.exportResumes("csv", [entry], undefined, undefined, false, fullFieldsConfig);
     const csv = file.content.toString("utf8");
     const parsed = Papa.parse<Record<string, string>>(csv, { header: true });
 
@@ -571,5 +581,127 @@ describe("full-score audit integration — export fields (RED)", () => {
     expect(parsed.data[0]?.relatedExpAuditFactor).toBe("");
     expect(parsed.data[0]?.relatedExpContribution).toBe("");
     expect(parsed.data[0]?.aiScore).toBe("");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Export fields production defaults & userRating
+// ---------------------------------------------------------------------------
+
+describe("export fields production defaults — core/detail/debug tiers", () => {
+  it("no-config CSV with debug=false has exact EXPORT_CORE_FIELDS headers", async () => {
+    const service = new ExportService();
+    const file = await service.exportResumes("csv", [buildEntry("25")]);
+    const csv = file.content.toString("utf8");
+    const parsed = Papa.parse<Record<string, string>>(csv, { header: true });
+
+    expect(parsed.meta.fields).toEqual([...EXPORT_CORE_FIELDS]);
+  });
+
+  it("no-config CSV with debug=true has EXPORT_CORE_FIELDS + EXPORT_DEBUG_FIELDS headers", async () => {
+    const service = new ExportService();
+    const file = await service.exportResumes("csv", [buildEntry("25")], undefined, undefined, true);
+    const csv = file.content.toString("utf8");
+    const parsed = Papa.parse<Record<string, string>>(csv, { header: true });
+
+    expect(parsed.meta.fields).toEqual([...EXPORT_CORE_FIELDS, ...EXPORT_DEBUG_FIELDS]);
+  });
+
+  it("no-config XLSX with debug=false has exact core headers", async () => {
+    const service = new ExportService();
+    const file = await service.exportResumes("xlsx", [buildEntry("25")]);
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(file.content);
+    const sheet = workbook.getWorksheet("Resumes");
+    const headers = ((sheet?.getRow(1).values as unknown[]) ?? [])
+      .filter((v): v is string => typeof v === "string");
+
+    // Core fields should all be present; debug fields should not
+    expect(headers).toContain("Resume ID");
+    expect(headers).toContain("Name");
+    expect(headers).toContain("Source");
+    expect(headers).not.toContain("External ID");
+    expect(headers).not.toContain("Industry DB V2 Raw");
+    expect(headers).not.toContain("Rule Score");
+  });
+
+  it("configured export preserves field order and appends only 5 debug fields", async () => {
+    const service = new ExportService();
+    const file = await service.exportResumes("csv", [buildEntry("25")], undefined, undefined, true, {
+      fields: ["name", "ruleScore"],
+      includeDebugWhenEnabled: true,
+    });
+    const csv = file.content.toString("utf8");
+    const parsed = Papa.parse<Record<string, string>>(csv, { header: true });
+
+    // name first, ruleScore second, then only the 5 debug fields
+    expect(parsed.meta.fields).toEqual(["name", "ruleScore", ...EXPORT_DEBUG_FIELDS]);
+  });
+
+  it("every EXPORT_FIELD_KEYS entry resolves to an export column", async () => {
+    const service = new ExportService();
+    const entry = buildEntry("25");
+    const file = await service.exportResumes("csv", [entry], undefined, undefined, true, {
+      fields: [...EXPORT_FIELD_KEYS],
+    });
+    const csv = file.content.toString("utf8");
+    const parsed = Papa.parse<Record<string, string>>(csv, { header: true });
+
+    for (const key of EXPORT_FIELD_KEYS) {
+      expect(parsed.meta.fields).toContain(key);
+    }
+  });
+});
+
+describe("export fields — userRating wiring", () => {
+  it("exports userRating as a number when present", async () => {
+    const service = new ExportService();
+    const entry: ResumeExportEntry = {
+      ...buildEntry("25"),
+      userRating: 4,
+    };
+    const file = await service.exportResumes("csv", [entry]);
+    const csv = file.content.toString("utf8");
+    const parsed = Papa.parse<Record<string, string>>(csv, { header: true });
+
+    expect(parsed.meta.fields).toContain("userRating");
+    expect(parsed.data[0]?.userRating).toBe("4");
+  });
+
+  it("exports missing userRating as empty cell", async () => {
+    const service = new ExportService();
+    const file = await service.exportResumes("csv", [buildEntry("25")]);
+    const csv = file.content.toString("utf8");
+    const parsed = Papa.parse<Record<string, string>>(csv, { header: true });
+
+    expect(parsed.data[0]?.userRating).toBe("");
+  });
+
+  it("includes userRating in XLSX header", async () => {
+    const service = new ExportService();
+    const entry: ResumeExportEntry = {
+      ...buildEntry("25"),
+      userRating: 3,
+    };
+    const file = await service.exportResumes("xlsx", [entry]);
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(file.content);
+    const sheet = workbook.getWorksheet("Resumes");
+    const headers = ((sheet?.getRow(1).values as unknown[]) ?? [])
+      .filter((v): v is string => typeof v === "string");
+
+    expect(headers).toContain("User Rating");
+  });
+
+  it("source is in core defaults, ruleScore is not", async () => {
+    const service = new ExportService();
+    // source should now be in core defaults (non-debug)
+    const file = await service.exportResumes("csv", [buildEntry("25")]);
+    const csv = file.content.toString("utf8");
+    const parsed = Papa.parse<Record<string, string>>(csv, { header: true });
+
+    expect(parsed.meta.fields).toContain("source");
+    // ruleScore should NOT be in core — it's a detail field
+    expect(parsed.meta.fields).not.toContain("ruleScore");
   });
 });

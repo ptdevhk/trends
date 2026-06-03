@@ -11,40 +11,36 @@ import type { ExportFieldKey } from '@trends/shared'
 
 const FIELD_GROUPS: Array<{ label: string; fields: ExportFieldKey[] }> = [
   {
-    label: 'Identity',
-    fields: ['resumeId', 'name'],
+    label: 'Core - Identity',
+    fields: ['resumeId', 'name', 'jobIntention', 'location', 'profileUrl', 'source'],
   },
   {
-    label: 'Profile',
-    fields: ['jobIntention', 'location', 'experience', 'education', 'age', 'expectedSalary'],
+    label: 'Core - Profile',
+    fields: ['education', 'age', 'expectedSalary'],
   },
   {
-    label: 'Scoring',
-    fields: ['aiScore', 'industryDb', 'relatedExp', 'recommendation', 'ruleScore', 'scoreSource'],
+    label: 'Core - Assessment',
+    fields: ['aiScore', 'aiSummary', 'status', 'userRating', 'userComment'],
   },
   {
-    label: 'Workflow',
-    fields: ['status', 'action'],
+    label: 'Detail - Profile',
+    fields: ['experience', 'workHistory', 'selfIntro'],
   },
   {
-    label: 'Matching',
+    label: 'Detail - Workflow',
+    fields: ['action', 'referenceNote'],
+  },
+  {
+    label: 'Detail - Scoring',
+    fields: ['finalAiScore', 'relatedExpAuditFactor', 'relatedExpContribution', 'industryDb', 'relatedExp', 'recommendation', 'ruleScore', 'scoreSource'],
+  },
+  {
+    label: 'Detail - Matching',
     fields: ['industryTags', 'brandHits', 'companyHits'],
   },
   {
-    label: 'Reference',
-    fields: ['profileUrl'],
-  },
-  {
-    label: 'Detail',
-    fields: ['workHistory', 'selfIntro', 'aiSummary'],
-  },
-  {
-    label: 'Annotation',
-    fields: ['userComment', 'referenceNote'],
-  },
-  {
     label: 'Debug',
-    fields: ['externalId', 'source', 'industryDbV2Raw', 'industryDbV2Normalized', 'roleEvidence', 'matchedWorkEntries'],
+    fields: ['externalId', 'industryDbV2Raw', 'industryDbV2Normalized', 'roleEvidence', 'matchedWorkEntries'],
   },
 ]
 
@@ -77,6 +73,7 @@ const FIELD_LABELS: Record<ExportFieldKey, string> = {
   aiSummary: 'AI Summary',
   userComment: 'User Comment',
   referenceNote: 'Reference Note',
+  userRating: 'User Rating',
   externalId: 'External ID',
   source: 'Source',
   industryDbV2Raw: 'Industry DB V2 Raw',

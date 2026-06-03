@@ -913,6 +913,7 @@ export const ResumeExportEntryContextSchema = z
     userComment: z.string().optional().openapi({ example: "Call back tomorrow" }),
     referenceNote: z.string().optional().openapi({ example: "Referred by HR" }),
     status: z.string().optional().openapi({ example: "contacted" }),
+    userRating: z.number().int().min(0).max(5).optional().openapi({ example: 4 }),
   })
   .openapi("ResumeExportEntryContext");
 
