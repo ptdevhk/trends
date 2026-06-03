@@ -620,4 +620,87 @@ export const getByIdsForExport = query({
     },
 });
 
+export const countResumesByStatus = query({
+  args: {
+    workspaceSlug: v.string(),
+    maxExperience: v.optional(v.number()),
+    minRoleYears: v.optional(v.number()),
+    roleFilterType: v.optional(v.string()),
+    minAge: v.optional(v.number()),
+    maxAge: v.optional(v.number()),
+    education: v.optional(v.array(v.string())),
+    skills: v.optional(v.array(v.string())),
+    requiredKeywords: v.optional(v.array(v.string())),
+    locations: v.optional(v.array(v.string())),
+    minSalary: v.optional(v.number()),
+    maxSalary: v.optional(v.number()),
+    sources: v.optional(v.array(v.string())),
+  },
+  handler: async (ctx, args) => {
+    const { workspaceSlug, ...rawFilters } = args;
+
+    // 1. Load candidate_status for workspace
+    const statuses = await ctx.db
+      .query("candidate_status")
+      .withIndex("by_workspace_status", (q) =>
+        q.eq("workspaceSlug", workspaceSlug)
+      )
+      .collect();
+
+    const statusByIdentity = new Map<string, string>();
+    for (const s of statuses) {
+      statusByIdentity.set(s.identityKey, s.status);
+    }
+
+    // 2. Build normalized filters (always exclude archived)
+    const filters = normalizeResumeListFilters({
+      ...rawFilters,
+      showArchived: false,
+    });
+
+    // 3. Paginate through all non-archived resumes, counting by status
+    const MAX_MATCHES = 5000;
+    const counts: Record<string, number> = { new: 0, shortlisted: 0, rejected: 0 };
+    let totalMatched = 0;
+    let cursor: string | null = null;
+    let overflow = false;
+    const BATCH_SIZE = 200;
+
+    while (true) {
+      const page = await ctx.db
+        .query("resumes")
+        .filter((q) => q.neq(q.field("isArchived"), true))
+        .paginate({
+          cursor,
+          numItems: BATCH_SIZE,
+          maximumBytesRead: 10 * 1024 * 1024,
+        });
+
+      for (const resume of page.page) {
+        if (totalMatched >= MAX_MATCHES) {
+          overflow = true;
+          break;
+        }
+        if (matchesResumeListFilters(resume, filters)) {
+          const identityKey = resume.identityKey ?? "";
+          const status = statusByIdentity.get(identityKey) ?? "new";
+          counts[status] = (counts[status] ?? 0) + 1;
+          totalMatched += 1;
+        }
+      }
+
+      if (overflow || page.isDone) break;
+      cursor = page.continueCursor;
+    }
+
+    return {
+      new: counts.new ?? 0,
+      shortlisted: counts.shortlisted ?? 0,
+      rejected: counts.rejected ?? 0,
+      total: totalMatched,
+      overflow,
+    };
+  },
+});
+
 
