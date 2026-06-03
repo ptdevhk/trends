@@ -1,5 +1,15 @@
 #!/usr/bin/env bash
-# Setup Chrome profile on cmux LXC from uploaded tarball
+# Setup a macOS Chrome profile on a Linux LXC (cmux) to bypass 51job device-bound auth.
+#
+# Primary use case: copy the logged-in 51job Chrome session from your Mac to a
+# cmux LXC, so the container's Chrome inherits the auth cookies and skips re-auth.
+#
+# Workflow (run from your Mac workspace):
+#   1. Create tarball:  scripts/create-chrome-profile-tarball.sh
+#   2. Upload to LXC:   scp ./tmp/chrome-profile-for-lxc.tar.gz root@<lxc-ip>:/root/chrome-profile-macos.tar.gz
+#   3. On the LXC:      ./scripts/chrome-profile-setup.sh --cmux /root/chrome-profile-macos.tar.gz
+#   4. Start Chrome:    systemctl restart cmux-devtools.service
+#   5. Verify session:  strings /root/.config/chrome/Default/Cookies | grep -i 51job
 #
 # Usage: chrome-profile-setup.sh [tarball_path] [target_dir]
 #        chrome-profile-setup.sh --cmux /path/to/macos-profile.tar.gz
@@ -9,6 +19,17 @@
 #   target:  /root/.config/chrome (or $CHROME_USER_DATA_DIR)
 #
 # For cmux compatibility, use: --cmux flag to set target to cmux default
+#
+# Limitations:
+#   - The macOS→Linux cookie encryption key migration requires removing the
+#     OS-bound key from Local State so Chrome re-wraps it with the Linux keyring
+#     (or basic storage when --password-store=basic is in use, as cmux does).
+#   - As a side effect, passwords that were saved in the macOS Chrome profile
+#     (and carried inside the tarball) are NOT visible in the restored Chrome on
+#     the LXC — the decrypted keyring data does not survive the OS migration.
+#     This does NOT affect session cookies — 51job device-auth bypass works.
+#   - Keep the source Mac profile fresh (re-login periodically); cookies expire.
+#   - Do NOT commit the tarball to git — it contains live session secrets.
 
 set -euo pipefail
 
