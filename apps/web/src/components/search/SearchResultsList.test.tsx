@@ -261,6 +261,34 @@ describe('SearchResultsList', () => {
     expect(screen.getByText('向下滑动查看更多')).toBeInTheDocument()
   })
 
+  it('attaches the load-more observer when results mount after hasMore is already true', () => {
+    const onLoadMore = vi.fn()
+    const { rerender } = render(
+      <SearchResultsList
+        expandedIds={new Set()}
+        hasMore
+        items={[]}
+        onLoadMore={onLoadMore}
+        onToggleExpanded={vi.fn()}
+      />,
+    )
+
+    expect(observeMock).not.toHaveBeenCalled()
+
+    rerender(
+      <SearchResultsList
+        expandedIds={new Set()}
+        hasMore
+        items={Array.from({ length: 2 }, (_, index) => createItem(index))}
+        onLoadMore={onLoadMore}
+        onToggleExpanded={vi.fn()}
+      />,
+    )
+
+    expect(observeMock).toHaveBeenCalledTimes(1)
+    expect(onLoadMore).toHaveBeenCalledTimes(1)
+  })
+
   it('renders the full non-virtualized list when any result is expanded', () => {
     const items = Array.from({ length: 45 }, (_, index) => createItem(index))
 

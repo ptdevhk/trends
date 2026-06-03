@@ -949,6 +949,39 @@ app.openapi(getResumesRoute, (c) => {
           ? working.map((item) => item.resume)
           : pagedWorking.map((item) => item.resume);
 
+        // Compute status counts from working set identityKeys
+        let statusCounts: { new: number; shortlisted: number; rejected: number } | undefined;
+        try {
+          const statusList: Array<{ identityKey?: string; status?: string }> = await callConvexQuery("candidate_status:list", {
+            workspaceSlug: "dev",
+          }) as Array<{ identityKey?: string; status?: string }>;
+          const statusMap = new Map<string, string>();
+          for (const s of statusList) {
+            if (s.identityKey && s.status) {
+              statusMap.set(String(s.identityKey), String(s.status));
+            }
+          }
+          const counts: Record<string, number> = { new: 0, shortlisted: 0, rejected: 0 };
+          const sourceItems = (usesPrePagedMatchResults || isSourcePaginated) ? working : pagedWorking;
+          for (const item of sourceItems) {
+            const resume = item.resume as Record<string, unknown> | undefined;
+            const identityKey = typeof resume?.identityKey === "string" ? resume.identityKey : undefined;
+            if (identityKey) {
+              const status = statusMap.get(identityKey) ?? "new";
+              if (status in counts) {
+                counts[status] = (counts[status] ?? 0) + 1;
+              }
+            }
+          }
+          statusCounts = {
+            new: counts.new ?? 0,
+            shortlisted: counts.shortlisted ?? 0,
+            rejected: counts.rejected ?? 0,
+          };
+        } catch {
+          statusCounts = undefined;
+        }
+
         return c.json({
           success: true as const,
           summary: {
@@ -960,6 +993,7 @@ app.openapi(getResumesRoute, (c) => {
             source,
             ...buildKeywordExpansionSummary(liveExpansion ?? keywordExpansion),
             searchMode: hybridSearchMode,
+            ...(statusCounts ? { statusCounts } : {}),
           },
           data: limited,
         }, 200);
@@ -1100,6 +1134,7 @@ app.openapi(getResumesRoute, (c) => {
           total: 0,
           returned: 0,
           query: keyword,
+          statusCounts: { new: 0, shortlisted: 0, rejected: 0 },
         },
         data: [],
       }, 200);

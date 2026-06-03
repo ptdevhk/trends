@@ -620,4 +620,86 @@ export const getByIdsForExport = query({
     },
 });
 
+export const countResumesByStatus = query({
+  args: {
+    workspaceSlug: v.string(),
+    maxExperience: v.optional(v.number()),
+    minRoleYears: v.optional(v.number()),
+    roleFilterType: v.optional(v.string()),
+    minAge: v.optional(v.number()),
+    maxAge: v.optional(v.number()),
+    education: v.optional(v.array(v.string())),
+    skills: v.optional(v.array(v.string())),
+    requiredKeywords: v.optional(v.array(v.string())),
+    locations: v.optional(v.array(v.string())),
+    minSalary: v.optional(v.number()),
+    maxSalary: v.optional(v.number()),
+    sources: v.optional(v.array(v.string())),
+  },
+  handler: async (ctx, args) => {
+    const { workspaceSlug, ...rawFilters } = args;
+
+    // 1. Load candidate_status for workspace
+    const statuses = await ctx.db
+      .query("candidate_status")
+      .withIndex("by_workspace_status", (q) =>
+        q.eq("workspaceSlug", workspaceSlug)
+      )
+      .collect();
+
+    const statusByIdentity = new Map<string, string>();
+    for (const s of statuses) {
+      statusByIdentity.set(s.identityKey, s.status);
+    }
+
+    // 2. Build normalized filters (always exclude archived)
+    const filters = normalizeResumeListFilters({
+      ...rawFilters,
+      showArchived: false,
+    });
+
+    // 3. Fetch non-archived resumes in a single paginated query.
+    // Convex only supports ONE .paginate() call per function (no loops).
+    const MAX_MATCHES = 5000;
+    const counts: Record<string, number> = { new: 0, shortlisted: 0, rejected: 0 };
+    let totalMatched = 0;
+    let overflow = false;
+
+    const page = await ctx.db
+      .query("resumes")
+      .filter((q) => q.neq(q.field("isArchived"), true))
+      .paginate({
+        cursor: null,
+        numItems: MAX_MATCHES,
+        maximumBytesRead: 10 * 1024 * 1024,
+      });
+
+    for (const resume of page.page) {
+      if (totalMatched >= MAX_MATCHES) {
+        overflow = true;
+        break;
+      }
+      if (matchesResumeListFilters(resume, filters)) {
+        const identityKey = resume.identityKey ?? "";
+        const status = statusByIdentity.get(identityKey) ?? "new";
+        counts[status] = (counts[status] ?? 0) + 1;
+        totalMatched += 1;
+      }
+    }
+
+    // If the page isn't done, we hit the byte limit before reading all docs
+    if (!page.isDone) {
+      overflow = true;
+    }
+
+    return {
+      new: counts.new ?? 0,
+      shortlisted: counts.shortlisted ?? 0,
+      rejected: counts.rejected ?? 0,
+      total: totalMatched,
+      overflow,
+    };
+  },
+});
+
 

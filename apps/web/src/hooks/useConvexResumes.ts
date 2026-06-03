@@ -797,6 +797,7 @@ type BffAndModeResult = {
   total: number
   expansion: KeywordExpansionSummary | null
   loading: boolean
+  statusCounts?: { new: number; shortlisted: number; rejected: number }
 }
 
 function useBffAndModeSearch(
@@ -864,6 +865,7 @@ function useBffAndModeSearch(
             keywordGroups?: Array<{ original: string; variants: string[] }>
             expandedTo?: string[]
             sourceMapping?: Record<string, string>
+            statusCounts?: { new: number; shortlisted: number; rejected: number }
           }
           data?: Array<Record<string, unknown>>
         }>('/api/resumes', {
@@ -913,6 +915,7 @@ function useBffAndModeSearch(
           total: data.summary?.total ?? resumes.length,
           expansion: keywordExpansion,
           loading: false,
+          statusCounts: data.summary?.statusCounts,
         })
       })
       .catch((err: unknown) => {
@@ -959,6 +962,17 @@ export function useConvexResumes(
   )
   const [keywordExpansion, setKeywordExpansion] = useState<KeywordExpansionSummary | null>(null)
   const [expansionLoading, setExpansionLoading] = useState(false)
+
+  // BFF path: track how many results to show (client-side pagination since all data is pre-loaded)
+  const [bffDisplayCount, setBffDisplayCount] = useState(CONVEX_RESUME_PAGE_SIZE)
+  // Reset BFF display count when query or filters change
+  const bffResetKey = useMemo(
+    () => `${normalizedQuery ?? ''}|${JSON.stringify(options?.filters ?? {})}`,
+    [normalizedQuery, options?.filters],
+  )
+  useEffect(() => {
+    setBffDisplayCount(CONVEX_RESUME_PAGE_SIZE)
+  }, [bffResetKey])
 
   useEffect(() => {
     let active = true
@@ -1065,6 +1079,13 @@ export function useConvexResumes(
     normalizedJobDescriptionId,
     bffRefetchTrigger,
   )
+
+  // Sync BFF display count when limit increases (driven by loadMore in parent)
+  useEffect(() => {
+    if (isAndModeBffActive && limit > bffDisplayCount) {
+      setBffDisplayCount(Math.min(limit, bffAndModeResult.resumes.length))
+    }
+  }, [isAndModeBffActive, limit, bffDisplayCount, bffAndModeResult.resumes.length])
 
   const paginatedSearchResults = useStablePaginatedQuery(
     api.resumes_search.searchWithTagExpansionPaginated,
@@ -1315,7 +1336,7 @@ export function useConvexResumes(
           })))
         : (mockPayload.list ?? []).slice(0, limit).map(mapResumeDoc)
       : isAndModeBffActive
-        ? bffAndModeResult.resumes.slice(0, limit)
+        ? bffAndModeResult.resumes.slice(0, bffDisplayCount)
         : normalizedQuery
           ? useJobDescriptionFallback
             ? visibleListResults.map(mapResumeDoc)
@@ -1331,6 +1352,7 @@ export function useConvexResumes(
           : visibleListResults.map(mapResumeDoc)
   ), [
     bffAndModeResult.resumes,
+    bffDisplayCount,
     isAndModeBffActive,
     limit,
     mockKeywordExpansion,
@@ -1365,11 +1387,11 @@ export function useConvexResumes(
     }
 
     if (isAndModeBffActive) {
-      return bffAndModeResult.total > limit
+      return bffDisplayCount < bffAndModeResult.resumes.length
     }
 
     return activePaginatedResultsLength > limit || activePaginatedStatus === 'CanLoadMore' || activePaginatedStatus === 'LoadingMore'
-  }, [activePaginatedResultsLength, activePaginatedStatus, bffAndModeResult.total, enabled, isAndModeBffActive, limit, mockPayload, normalizedQuery])
+  }, [activePaginatedResultsLength, activePaginatedStatus, bffAndModeResult.resumes.length, bffDisplayCount, enabled, isAndModeBffActive, limit, mockPayload, normalizedQuery])
 
   const resolvedExpansion = mockPayload
     ? (mockPayload.search?.expansion ?? mockKeywordExpansion)
@@ -1379,8 +1401,9 @@ export function useConvexResumes(
 
   const loadingMore = enabled
     && !mockPayload
-    && !isAndModeBffActive
-    && activePaginatedStatus === 'LoadingMore'
+    && (isAndModeBffActive
+      ? bffDisplayCount < Math.min(limit, bffAndModeResult.resumes.length)
+      : activePaginatedStatus === 'LoadingMore')
 
   return {
     resumes: enabled ? mappedResumes : [],
@@ -1389,6 +1412,8 @@ export function useConvexResumes(
     hasMore,
     jobDescriptionId: normalizedJobDescriptionId,
     expansion: resolvedExpansion,
+    isAndModeBff: isAndModeBffActive,
+    bffStatusCounts: bffAndModeResult.statusCounts,
   }
 }
 
@@ -1400,4 +1425,3 @@ export function useConvexResumeDetail(resumeId: Doc<'resumes'>['_id'] | null | u
     loading: resumeId !== null && resumeId !== undefined && detailDoc === undefined,
   }), [detailDoc, resumeId])
 }
-

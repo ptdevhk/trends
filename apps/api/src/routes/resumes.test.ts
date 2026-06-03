@@ -907,6 +907,10 @@ describe("resume routes", () => {
       const call = parseConvexCall(input, init);
       calls.push(call);
 
+      if (call.pathName === "candidate_status:list") {
+        return convexSuccess([]);
+      }
+
       if (call.pathName === "resumes:getByIdsForExport") {
         return convexSuccess([
           buildConvexExportResumeRecord("resume-live-3", { name: "Carla" }),
@@ -947,6 +951,12 @@ describe("resume routes", () => {
         pathName: "resumes:getByIdsForExport",
         args: expect.objectContaining({
           resumeIds: ["resume-live-1", "resume-live-2", "resume-live-3"],
+        }),
+      }),
+      expect.objectContaining({
+        pathName: "candidate_status:list",
+        args: expect.objectContaining({
+          workspaceSlug: "dev",
         }),
       }),
     ]);
@@ -1308,6 +1318,10 @@ describe("resume routes", () => {
       const call = parseConvexCall(input, init);
       calls.push(call);
 
+      if (call.pathName === "candidate_status:list") {
+        return convexSuccess([]);
+      }
+
       if (call.pathName === "resumes:getByIdsForExport") {
         return convexSuccess([
           buildConvexExportResumeRecord("resume-live-1", { name: "Alice" }),
@@ -1358,6 +1372,10 @@ describe("resume routes", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const call = parseConvexCall(input, init);
       calls.push(call);
+
+      if (call.pathName === "candidate_status:list") {
+        return convexSuccess([]);
+      }
 
       if (call.pathName === "resumes:getByIdsForExport") {
         return convexSuccess([
@@ -1415,6 +1433,10 @@ describe("resume routes", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const call = parseConvexCall(input, init);
       calls.push(call);
+
+      if (call.pathName === "candidate_status:list") {
+        return convexSuccess([]);
+      }
 
       if (call.pathName === "resumes:getByIdsForExport") {
         return convexSuccess([
