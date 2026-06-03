@@ -263,6 +263,52 @@ describe('useConvexResumes AND-mode search', () => {
     })
   })
 
+  it('reveals the next BFF AND-mode page when the display limit increases', async () => {
+    const bffResumes = Array.from({ length: 450 }, (_, index) =>
+      buildResumeDoc(`resume-${index}`, `Candidate ${index}`))
+
+    rawApiGetMock.mockImplementation(async (path?: unknown): Promise<KeywordExpansionResponse> => {
+      if (path === '/api/resumes') {
+        return {
+          data: {
+            success: true,
+            data: bffResumes,
+            summary: { total: bffResumes.length },
+          },
+        } as unknown as KeywordExpansionResponse
+      }
+
+      return {
+        data: {
+          success: true,
+          summary: {
+            groups: [{ original: 'cnc', variants: ['cnc'] }],
+            mode: 'AND' as const,
+            expandedTo: ['cnc'],
+            sourceMapping: {},
+          },
+        },
+      }
+    })
+
+    const { result, rerender } = renderHook(
+      ({ limit }) => useConvexResumes(limit, 'CNC'),
+      { initialProps: { limit: 200 } },
+    )
+
+    await waitFor(() => {
+      expect(result.current.resumes).toHaveLength(200)
+    })
+    expect(result.current.hasMore).toBe(true)
+
+    rerender({ limit: 400 })
+
+    await waitFor(() => {
+      expect(result.current.resumes).toHaveLength(400)
+    })
+    expect(result.current.hasMore).toBe(true)
+  })
+
   it('falls back to local keyword expansion when the expansion request fails', async () => {
     rawApiGetMock.mockResolvedValueOnce({
       error: new Error('network failed'),

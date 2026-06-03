@@ -1352,6 +1352,7 @@ export function useConvexResumes(
           : visibleListResults.map(mapResumeDoc)
   ), [
     bffAndModeResult.resumes,
+    bffDisplayCount,
     isAndModeBffActive,
     limit,
     mockKeywordExpansion,
@@ -1390,7 +1391,7 @@ export function useConvexResumes(
     }
 
     return activePaginatedResultsLength > limit || activePaginatedStatus === 'CanLoadMore' || activePaginatedStatus === 'LoadingMore'
-  }, [activePaginatedResultsLength, activePaginatedStatus, bffAndModeResult.total, bffAndModeResult.resumes.length, bffDisplayCount, enabled, isAndModeBffActive, limit, mockPayload, normalizedQuery])
+  }, [activePaginatedResultsLength, activePaginatedStatus, bffAndModeResult.resumes.length, bffDisplayCount, enabled, isAndModeBffActive, limit, mockPayload, normalizedQuery])
 
   const resolvedExpansion = mockPayload
     ? (mockPayload.search?.expansion ?? mockKeywordExpansion)
@@ -1424,4 +1425,3 @@ export function useConvexResumeDetail(resumeId: Doc<'resumes'>['_id'] | null | u
     loading: resumeId !== null && resumeId !== undefined && detailDoc === undefined,
   }), [detailDoc, resumeId])
 }
-

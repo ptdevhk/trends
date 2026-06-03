@@ -141,7 +141,7 @@ export function SearchResultsList({
   }, [items, rowVirtualizer, shouldVirtualize])
 
   useEffect(() => {
-    if (!hasMore || loadingMore) {
+    if (loading || items.length === 0 || !hasMore || loadingMore) {
       return
     }
 
@@ -158,7 +158,7 @@ export function SearchResultsList({
 
     observer.observe(target)
     return () => observer.disconnect()
-  }, [hasMore, loadingMore, onLoadMore])
+  }, [hasMore, items.length, loading, loadingMore, onLoadMore])
 
   // Keyboard navigation: J/K to move, Enter to expand, S to star, A to archive
   useEffect(() => {
