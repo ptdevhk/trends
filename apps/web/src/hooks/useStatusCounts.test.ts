@@ -78,7 +78,8 @@ describe("useStatusCounts", () => {
     expect(result.current.new).toBe(100);
     expect(result.current.shortlisted).toBe(20);
     expect(result.current.rejected).toBe(10);
-    expect(useQueryMock).not.toHaveBeenCalled();
+    // useQuery is called unconditionally (rules of hooks) but with "skip" for BFF path
+    expect(useQueryMock).toHaveBeenCalledWith("resumes:countResumesByStatus", "skip");
   });
 
   it("returns loading when BFF path has no bffStatusCounts yet", async () => {
