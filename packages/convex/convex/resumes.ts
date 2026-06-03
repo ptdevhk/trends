@@ -658,39 +658,38 @@ export const countResumesByStatus = query({
       showArchived: false,
     });
 
-    // 3. Paginate through all non-archived resumes, counting by status
+    // 3. Fetch non-archived resumes in a single paginated query.
+    // Convex only supports ONE .paginate() call per function (no loops).
     const MAX_MATCHES = 5000;
     const counts: Record<string, number> = { new: 0, shortlisted: 0, rejected: 0 };
     let totalMatched = 0;
-    let cursor: string | null = null;
     let overflow = false;
-    const BATCH_SIZE = 200;
 
-    while (true) {
-      const page = await ctx.db
-        .query("resumes")
-        .filter((q) => q.neq(q.field("isArchived"), true))
-        .paginate({
-          cursor,
-          numItems: BATCH_SIZE,
-          maximumBytesRead: 10 * 1024 * 1024,
-        });
+    const page = await ctx.db
+      .query("resumes")
+      .filter((q) => q.neq(q.field("isArchived"), true))
+      .paginate({
+        cursor: null,
+        numItems: MAX_MATCHES,
+        maximumBytesRead: 10 * 1024 * 1024,
+      });
 
-      for (const resume of page.page) {
-        if (totalMatched >= MAX_MATCHES) {
-          overflow = true;
-          break;
-        }
-        if (matchesResumeListFilters(resume, filters)) {
-          const identityKey = resume.identityKey ?? "";
-          const status = statusByIdentity.get(identityKey) ?? "new";
-          counts[status] = (counts[status] ?? 0) + 1;
-          totalMatched += 1;
-        }
+    for (const resume of page.page) {
+      if (totalMatched >= MAX_MATCHES) {
+        overflow = true;
+        break;
       }
+      if (matchesResumeListFilters(resume, filters)) {
+        const identityKey = resume.identityKey ?? "";
+        const status = statusByIdentity.get(identityKey) ?? "new";
+        counts[status] = (counts[status] ?? 0) + 1;
+        totalMatched += 1;
+      }
+    }
 
-      if (overflow || page.isDone) break;
-      cursor = page.continueCursor;
+    // If the page isn't done, we hit the byte limit before reading all docs
+    if (!page.isDone) {
+      overflow = true;
     }
 
     return {
