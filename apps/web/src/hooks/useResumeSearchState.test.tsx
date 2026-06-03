@@ -41,6 +41,9 @@ vi.mock('../../../../packages/convex/convex/_generated/api', () => ({
     taxonomy_clusters: {
       list: 'taxonomy-clusters-list-query',
     },
+    resumes: {
+      countResumesByStatus: 'resumes:countResumesByStatus',
+    },
   },
 }))
 

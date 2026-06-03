@@ -9,6 +9,7 @@ import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { useCandidateActions } from '@/hooks/useCandidateActions'
 import { useCandidateBlocks } from '@/hooks/useCandidateBlocks'
 import { useCandidateStatus } from '@/hooks/useCandidateStatus'
+import { useStatusCounts } from '@/hooks/useStatusCounts'
 import { useStableQuery } from '@/hooks/useStableQuery'
 import {
   useConvexResumes,
@@ -859,6 +860,27 @@ export function useResumeSearchState() {
   const deferredFilteredResults = useDeferredValue(filteredResults)
 
   const facetCounts: FacetCounts = useFacetCounts(results, taxonomyClusters)
+
+  // Merge server-side status counts into facetCounts, falling back to client-side
+  const serverStatusCounts = useStatusCounts({
+    filters: backendFilters,
+    workspaceSlug: slug,
+    useAndModeBff: resumeQuery.isAndModeBff ?? false,
+    bffStatusCounts: resumeQuery.bffStatusCounts,
+  })
+  const facetCountsWithServerStatuses: FacetCounts = useMemo(() => {
+    if (!serverStatusCounts.loading && serverStatusCounts.total > 0) {
+      return {
+        ...facetCounts,
+        statuses: [
+          { value: 'new', label: '新候选人', count: serverStatusCounts.new },
+          { value: 'shortlisted', label: '已入围', count: serverStatusCounts.shortlisted },
+          { value: 'rejected', label: '已拒绝', count: serverStatusCounts.rejected },
+        ],
+      }
+    }
+    return facetCounts
+  }, [facetCounts, serverStatusCounts])
   const hasMore = resumeQuery.hasMore
   const loading = !isLanding && resumeQuery.loading
   const loadingMore = resumeQuery.loadingMore
@@ -1750,7 +1772,7 @@ export function useResumeSearchState() {
     exportFormat,
     exportingResults,
     exportResults,
-    facetCounts,
+    facetCounts: facetCountsWithServerStatuses,
     filterCount,
     filteredResults: deferredFilteredResults,
     hasMore,

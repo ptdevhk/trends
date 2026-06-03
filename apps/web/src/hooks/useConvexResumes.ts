@@ -797,6 +797,7 @@ type BffAndModeResult = {
   total: number
   expansion: KeywordExpansionSummary | null
   loading: boolean
+  statusCounts?: { new: number; shortlisted: number; rejected: number }
 }
 
 function useBffAndModeSearch(
@@ -864,6 +865,7 @@ function useBffAndModeSearch(
             keywordGroups?: Array<{ original: string; variants: string[] }>
             expandedTo?: string[]
             sourceMapping?: Record<string, string>
+            statusCounts?: { new: number; shortlisted: number; rejected: number }
           }
           data?: Array<Record<string, unknown>>
         }>('/api/resumes', {
@@ -913,6 +915,7 @@ function useBffAndModeSearch(
           total: data.summary?.total ?? resumes.length,
           expansion: keywordExpansion,
           loading: false,
+          statusCounts: data.summary?.statusCounts,
         })
       })
       .catch((err: unknown) => {
@@ -1389,6 +1392,8 @@ export function useConvexResumes(
     hasMore,
     jobDescriptionId: normalizedJobDescriptionId,
     expansion: resolvedExpansion,
+    isAndModeBff: isAndModeBffActive,
+    bffStatusCounts: bffAndModeResult.statusCounts,
   }
 }
 
