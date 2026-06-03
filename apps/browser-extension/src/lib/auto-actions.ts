@@ -41,6 +41,9 @@ export interface AutoActionsDeps extends Record<string, unknown> {
   enrichJob5156SearchResumesWithDetail: (resumes: unknown[]) => Promise<unknown[]>;
   enrichSeekResumesWithDetail: (resumes: unknown[]) => Promise<unknown[]>;
   buildSubmitMetadata: (options?: Record<string, unknown>) => Record<string, unknown>;
+  loadCollectionGuards: () => Promise<Record<string, unknown>>;
+  parseGuardFieldNames: (csv: string) => string[];
+  applyCollectionGuards: (resume: unknown, fields: string[]) => unknown;
   AUTO_EXPORT_PARAM: string;
   AUTO_SYNC_PARAM: string;
   buildExportMetadata: (resumes: unknown[]) => Record<string, unknown>;
@@ -92,6 +95,9 @@ export function createAutoActions(deps: AutoActionsDeps) {
     buildExportFilename,
     document: doc,
     window: win,
+    loadCollectionGuards,
+    parseGuardFieldNames,
+    applyCollectionGuards,
   } = deps;
 
   // ── setAutoAgeAttributes ──
@@ -1280,6 +1286,26 @@ export function createAutoActions(deps: AutoActionsDeps) {
 
   // ── syncCurrentPageToServer ──
 
+  async function applyCurrentSourceCollectionGuards(resumes: unknown[]): Promise<unknown[]> {
+    if (!Array.isArray(resumes) || resumes.length === 0) return resumes;
+    const sourceKey = getCurrentSourceKey();
+    if (
+      sourceKey !== SOURCE_KEYS.JOB51 &&
+      sourceKey !== SOURCE_KEYS.JOB5156 &&
+      sourceKey !== SOURCE_KEYS.SEEK
+    ) {
+      return resumes;
+    }
+    const collectionGuards = await loadCollectionGuards();
+    const guards =
+      collectionGuards && typeof collectionGuards === "object"
+        ? (collectionGuards as Record<string, unknown>)[sourceKey]
+        : undefined;
+    const guardFields = parseGuardFieldNames(typeof guards === "string" ? guards : "");
+    if (guardFields.length === 0) return resumes;
+    return resumes.map((resume) => applyCollectionGuards(resume, guardFields));
+  }
+
   async function syncCurrentPageToServer(resumesOverride) {
     let resumes = Array.isArray(resumesOverride)
       ? resumesOverride
@@ -1309,6 +1335,7 @@ export function createAutoActions(deps: AutoActionsDeps) {
     ) {
       resumes = await enrichSeekResumesWithDetail(resumes);
     }
+    resumes = await applyCurrentSourceCollectionGuards(resumes);
     const metadata = buildSubmitMetadata({
       seekCaptureMode:
         Array.isArray(resumesOverride) &&

@@ -10,6 +10,8 @@ import {
   normalizeResumeLocationHierarchy,
   normalizeSeekProfileUrlForDisplay,
   inferSeekMarket,
+  COLLECTION_GUARDS,
+  applyCollectionGuards,
 } from "@trends/shared";
 import {
   ResumeImportItemSchema,
@@ -380,6 +382,31 @@ async function submitResumesToConvex(args: { resumes: ConvexResumeSubmitItem[] }
   return totals;
 }
 
+function isBrowserExtensionGenerated(metadata: ResumeImportMetadata): boolean {
+  return typeof metadata.generatedBy === "string" &&
+    metadata.generatedBy.trim().toLowerCase().startsWith("browser-extension");
+}
+
+function resolveCollectionGuardSourceKey(source: string): string | null {
+  if (COLLECTION_GUARDS[source]) return source;
+  if (source === JOB5156_HOST) return "job5156";
+  if (source === EHIRE_51JOB_HOST) return "51job";
+  if (source === "seek" || source?.endsWith(".employer.seek.com")) return "seek";
+  return null;
+}
+
+function applyImportCollectionGuards(
+  content: Record<string, unknown>,
+  metadata: ResumeImportMetadata,
+  source: string,
+): Record<string, unknown> {
+  if (!isBrowserExtensionGenerated(metadata)) return content;
+  const guardSourceKey = resolveCollectionGuardSourceKey(source);
+  if (!guardSourceKey) return content;
+  const guardFields = COLLECTION_GUARDS[guardSourceKey] ?? [];
+  return applyCollectionGuards(content, guardFields);
+}
+
 export function normalizeResumeImportPayload(input: ResumeImportRequest): NormalizedResumeImportPayload {
   const parsedInput = ResumeImportRequestSchema.parse(input);
   const metadata = normalizeImportMetadata(parsedInput.metadata);
@@ -397,10 +424,13 @@ export function normalizeResumeImportPayload(input: ResumeImportRequest): Normal
   const convexResumes = resumes.map((resume) => {
     const itemSource = normalizeSourceHost(resume.sourceHost) ?? source;
     const itemTags = normalizeTagList(resume.tags) ?? defaultTags;
-    const content: unknown = buildNormalizedResumeContent(
+    const normalizedContent = buildNormalizedResumeContent(
       resume,
       isSeekSource ? { sourceHost: itemSource, jobId: seekJobId } : undefined,
     );
+    const content = isRecord(normalizedContent)
+      ? applyImportCollectionGuards(normalizedContent, metadata, itemSource)
+      : normalizedContent;
     const hash = crypto.createHash("sha256").update(stableStringify(content), "utf8").digest("hex");
     const externalId = buildResumeExternalId(resume, itemSource, hash);
 

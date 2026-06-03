@@ -434,6 +434,48 @@ describe("resume-import-service", () => {
       });
       expect(result.options.recomputeDerivedFields).toBe(true);
     });
+
+    it("strips collection-guarded fields from browser-extension job5156 imports", () => {
+      const result = normalizeResumeImportPayload({
+        metadata: makeMetadata({
+          sourceKey: "job5156",
+          sourceHost: "hr.job5156.com",
+          generatedBy: "browser-extension@1.0.0",
+        }),
+        resumes: [
+          makeResume({
+            experience: "8 years",
+            jobIntention: "Sales Engineer",
+            selfIntro: "Sensitive free text",
+          }),
+        ],
+      });
+      const content = result.convexResumes[0].content as Record<string, unknown>;
+      expect(content.experience).toBe("");
+      expect(content.jobIntention).toBe("");
+      expect(content.selfIntro).toBe("");
+    });
+
+    it("preserves guarded-looking fields for manual source imports", () => {
+      const result = normalizeResumeImportPayload({
+        metadata: makeMetadata({
+          sourceKey: "51job-manual",
+          sourceHost: "51job-manual",
+          generatedBy: "manual-import@1.0.0",
+        }),
+        resumes: [
+          makeResume({
+            experience: "8 years",
+            jobIntention: "Sales Engineer",
+            selfIntro: "Manual resume text",
+          }),
+        ],
+      });
+      const content = result.convexResumes[0].content as Record<string, unknown>;
+      expect(content.experience).toBe("8 years");
+      expect(content.jobIntention).toBe("Sales Engineer");
+      expect(content.selfIntro).toBe("Manual resume text");
+    });
   });
 
   // ── submitNormalizedResumeImport ──────────────────────────────────

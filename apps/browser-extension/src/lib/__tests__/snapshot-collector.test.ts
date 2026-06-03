@@ -55,6 +55,21 @@ function createMockDeps(overrides: Record<string, unknown> = {}): SnapshotCollec
     waitForPageTransition: vi.fn(() => Promise.resolve()),
     buildSubmitMetadata: vi.fn(() => ({})),
     delay: vi.fn(() => Promise.resolve()),
+    loadCollectionGuards: vi.fn(async () => ({
+      job5156: "experience,jobIntention,selfIntro",
+      "51job": "experience,jobIntention,selfIntro",
+      seek: "experience,jobIntention,selfIntro",
+    })),
+    parseGuardFieldNames: vi.fn((csv: string) =>
+      csv ? csv.split(",").map((f) => f.trim()).filter(Boolean) : [],
+    ),
+    applyCollectionGuards: vi.fn((resume: unknown, fields: string[]) => {
+      if (!resume || typeof resume !== "object") return resume;
+      const guarded = { ...(resume as Record<string, unknown>) };
+      const arrayFields = new Set(["workHistory", "profileEducation", "projectExperience", "skills", "licences"]);
+      for (const field of fields) guarded[field] = arrayFields.has(field) ? [] : "";
+      return guarded;
+    }),
     document: {
       documentElement: {
         hasAttribute: vi.fn(() => false),
@@ -396,6 +411,45 @@ describe("snapshot-collector", () => {
       expect(result.resumes).toEqual(mockResumes);
       expect(result.summary.count).toBe(2);
       expect(result.metadata.totalResumes).toBe(2);
+    });
+
+    it("guards job5156 snapshot rows after detail enrichment", async () => {
+      const collector = createSnapshotCollector(createMockDeps({
+        getCurrentSourceKey: vi.fn(() => "job5156"),
+        extractResumes: vi.fn(() => [
+          { name: "Alice", experience: "", jobIntention: "", selfIntro: "" },
+        ]),
+        enrichJob5156SearchResumesWithDetail: vi.fn(async () => [
+          {
+            name: "Alice",
+            experience: "8 years",
+            jobIntention: "Sales Engineer",
+            selfIntro: "Sensitive free text",
+          },
+        ]),
+        getPaginationInfo: vi.fn(() => ({
+          currentPage: 1,
+          totalPages: 1,
+          totalItems: 1,
+          hasNextPage: false,
+        })),
+        buildSubmitMetadata: vi.fn(() => ({
+          sourceKey: "job5156",
+          sourceHost: "hr.job5156.com",
+          generatedBy: "browser-extension@1.0.0",
+        })),
+      }));
+
+      const payload = await collector.collectSnapshotPayload({ limit: 1 });
+
+      expect(payload.resumes).toEqual([
+        expect.objectContaining({
+          name: "Alice",
+          experience: "",
+          jobIntention: "",
+          selfIntro: "",
+        }),
+      ]);
     });
   });
 });

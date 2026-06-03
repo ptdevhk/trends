@@ -29,6 +29,9 @@ export interface SnapshotCollectorDeps extends Record<string, unknown> {
   isJob5156DetailPage: () => boolean;
   enrichSeekResumesWithDetail: (resumes: unknown[]) => Promise<unknown[]>;
   getPaginationInfo: () => { currentPage: number; totalPages: number; totalItems: number; hasNextPage: boolean };
+  loadCollectionGuards: () => Promise<Record<string, unknown>>;
+  parseGuardFieldNames: (csv: string) => string[];
+  applyCollectionGuards: (resume: unknown, fields: string[]) => unknown;
   isSeekAutoSyncPageWindowReached: (pageWindow: unknown, currentPage: number) => boolean;
   waitForPagination: (options?: unknown) => Promise<unknown>;
   clearCapturedResultsForNextPage: () => void;
@@ -74,6 +77,9 @@ export function createSnapshotCollector(deps: SnapshotCollectorDeps) {
     buildSubmitMetadata,
     delay,
     document: doc,
+    loadCollectionGuards,
+    parseGuardFieldNames,
+    applyCollectionGuards,
   } = deps;
 
   // ── getApiSnapshotCount ──
@@ -283,6 +289,25 @@ export function createSnapshotCollector(deps: SnapshotCollectorDeps) {
 
   // ── collectSnapshotPayload ──
 
+  async function applySourceCollectionGuards(resumes: unknown[], sourceKey: string): Promise<unknown[]> {
+    if (!Array.isArray(resumes) || resumes.length === 0) return resumes;
+    if (
+      sourceKey !== SOURCE_KEYS.JOB51 &&
+      sourceKey !== SOURCE_KEYS.JOB5156 &&
+      sourceKey !== SOURCE_KEYS.SEEK
+    ) {
+      return resumes;
+    }
+    const collectionGuards = await loadCollectionGuards();
+    const guards =
+      collectionGuards && typeof collectionGuards === "object"
+        ? (collectionGuards as Record<string, unknown>)[sourceKey]
+        : undefined;
+    const guardFields = parseGuardFieldNames(typeof guards === "string" ? guards : "");
+    if (guardFields.length === 0) return resumes;
+    return resumes.map((resume) => applyCollectionGuards(resume, guardFields));
+  }
+
   /**
    * @param {{
    *   limit?: number;
@@ -398,6 +423,8 @@ export function createSnapshotCollector(deps: SnapshotCollectorDeps) {
       ) {
         pageResumes = await enrichSeekResumesWithDetail(pageResumes);
       }
+
+      pageResumes = await applySourceCollectionGuards(pageResumes, sourceKey);
 
       lastPageResumeCount = pageResumes.length;
       if (pageResumes.length > 0) {

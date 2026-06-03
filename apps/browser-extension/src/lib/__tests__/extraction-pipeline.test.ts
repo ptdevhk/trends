@@ -76,6 +76,21 @@ describe("extraction-pipeline", () => {
       expect(result).toContain("licences");
     });
 
+    it("parses valid scalar and array guard field names", () => {
+      const pipeline = createExtractionPipeline(createMockDeps());
+      const result = pipeline.parseGuardFieldNames(
+        "workHistory,skills,experience,jobIntention,selfIntro,licences",
+      );
+      expect(result).toEqual([
+        "workHistory",
+        "skills",
+        "experience",
+        "jobIntention",
+        "selfIntro",
+        "licences",
+      ]);
+    });
+
     it("ignores invalid field names", () => {
       const pipeline = createExtractionPipeline(createMockDeps());
       const result = pipeline.parseGuardFieldNames("workHistory,invalidField,skills");
@@ -184,8 +199,48 @@ describe("extraction-pipeline", () => {
       });
       const pipeline = createExtractionPipeline(deps);
 
-      expect(pipeline.extractResumes()).toEqual(fallbackResumes);
+      // Default guards apply experience="" because mock DEFAULT_COLLECTION_GUARDS
+      // includes "experience" for seek — verify guards are applied
+      expect(pipeline.extractResumes()).toEqual([
+        { name: "Candidate One", experience: "", source: "seek" },
+      ]);
       expect(deps.extractSeekResumes).toHaveBeenCalled();
+    });
+
+    it("applies default scalar guards to extracted resumes", () => {
+      const fallbackResumes = [
+        {
+          name: "Candidate One",
+          experience: "5 years",
+          jobIntention: "Sales Engineer",
+          selfIntro: "Detailed intro",
+          source: "seek",
+        },
+      ];
+      const deps = createMockDeps({
+        getCurrentSourceKey: vi.fn(() => SOURCE_KEYS.SEEK),
+        DEFAULT_COLLECTION_GUARDS: {
+          job5156: "experience,jobIntention,selfIntro",
+          "51job": "experience,jobIntention,selfIntro",
+          seek: "experience,jobIntention,selfIntro",
+        },
+        isSeekProfileMode: vi.fn(() => false),
+        hasSeekProfileSnapshot: vi.fn(() => false),
+        hasSeekTalentSearchSnapshot: vi.fn(() => false),
+        hasSeekListSnapshot: vi.fn(() => false),
+        extractSeekResumes: vi.fn(() => fallbackResumes),
+      });
+      const pipeline = createExtractionPipeline(deps);
+
+      expect(pipeline.extractResumes()).toEqual([
+        {
+          name: "Candidate One",
+          experience: "",
+          jobIntention: "",
+          selfIntro: "",
+          source: "seek",
+        },
+      ]);
     });
   });
 
