@@ -1,4 +1,4 @@
-import { action, internalQuery, query, type QueryCtx } from "./_generated/server";
+import { action, internalQuery, mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { paginationOptsValidator } from "convex/server";
@@ -33,6 +33,7 @@ import type {
     SearchWithTagExpansionPageArgs,
     SearchWithTagExpansionScanPageArgs,
 } from "./lib/resumes_list_projections.js";
+import { buildResumeDigest } from "./lib/resume_digests.js";
 import {
     FILTERED_PAGINATE_OVERFETCH_MULTIPLIER,
     PAGINATE_MAX_BYTES_READ,
@@ -836,6 +837,108 @@ export const scanResumePageSlim = query({
                 primaryRuleScore: doc.primaryRuleScore,
                 age: doc.age,
             })),
+            isDone: page.isDone,
+            cursor: page.isDone ? null : page.continueCursor,
+        };
+    },
+});
+
+// Digest scan — lightweight candidate discovery for AND-mode BFF path.
+// Each row is <1KB (vs ~27KB+ for scanResumePageSlim), so we can page 1000
+// rows safely without hitting the Convex 16 MiB byte limit.
+export const scanResumeDigestPage = query({
+    args: {
+        cursor: v.optional(v.string()),
+        numItems: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const numItems = Math.min(args.numItems ?? 1000, 1000);
+        const page = await ctx.db
+            .query("resume_digests")
+            .order("desc")
+            .paginate({
+                cursor: args.cursor ?? null,
+                numItems,
+                maximumBytesRead: PAGINATE_MAX_BYTES_READ,
+                maximumRowsRead: PAGINATE_MAX_ROWS_READ,
+            });
+        return {
+            docs: page.page.map((doc) => ({
+                _id: doc._id,
+                resumeId: doc.resumeId,
+                identityKey: doc.identityKey,
+                source: doc.source,
+                sourceKey: doc.sourceKey,
+                searchText: doc.searchText,
+                isArchived: doc.isArchived,
+                primaryRuleScore: doc.primaryRuleScore,
+                crawledAt: doc.crawledAt,
+                age: doc.age,
+                locationText: doc.locationText,
+                educationLevel: doc.educationLevel,
+                salaryMin: doc.salaryMin,
+                salaryMax: doc.salaryMax,
+                experienceYears: doc.experienceYears,
+                roleTypes: doc.roleTypes,
+                roleYearsByType: doc.roleYearsByType,
+            })),
+            isDone: page.isDone,
+            cursor: page.isDone ? null : page.continueCursor,
+        };
+    },
+});
+
+// ── Digest helpers ────────────────────────────────────────────────────────
+
+async function upsertResumeDigest(
+    ctx: MutationCtx,
+    resume: Doc<"resumes">,
+): Promise<void> {
+    const existing = await ctx.db
+        .query("resume_digests")
+        .withIndex("by_resumeId", (q) => q.eq("resumeId", resume._id))
+        .first();
+    const digest = buildResumeDigest(resume, Date.now());
+    if (existing) {
+        await ctx.db.patch(existing._id, digest as any);
+    } else {
+        await ctx.db.insert("resume_digests", digest as any);
+    }
+}
+
+// Test-only mutation for Convex test seeders — upserts a single digest.
+export const upsertResumeDigestForTest = mutation({
+    args: { resumeId: v.id("resumes") },
+    handler: async (ctx, args) => {
+        const resume = await ctx.db.get(args.resumeId);
+        if (!resume) throw new Error(`Resume not found: ${args.resumeId}`);
+        await upsertResumeDigest(ctx, resume);
+    },
+});
+
+// Idempotent backfill: paginate through all resumes and upsert digests.
+// Safe to re-run — existing digests are updated in place.
+export const backfillResumeDigests = mutation({
+    args: {
+        cursor: v.optional(v.string()),
+        limit: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const numItems = Math.min(args.limit ?? 100, 200);
+        const page = await ctx.db
+            .query("resumes")
+            .order("desc")
+            .paginate({
+                cursor: args.cursor ?? null,
+                numItems,
+                maximumBytesRead: PAGINATE_MAX_BYTES_READ,
+                maximumRowsRead: PAGINATE_MAX_ROWS_READ,
+            });
+        for (const resume of page.page) {
+            await upsertResumeDigest(ctx, resume);
+        }
+        return {
+            processed: page.page.length,
             isDone: page.isDone,
             cursor: page.isDone ? null : page.continueCursor,
         };

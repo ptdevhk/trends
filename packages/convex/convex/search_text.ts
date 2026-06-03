@@ -211,6 +211,23 @@ function collectNonPriorityFragments(content: UnknownRecord): string[] {
     return toTextFragments(remainder);
 }
 
+const DOMAIN_SEARCH_ALIASES: ReadonlyArray<readonly [RegExp, readonly string[]]> = [
+    [/\bcnc\b/i, ["数控"]],
+    [/数控/, ["cnc"]],
+    [/机床/, ["machine tool", "machine tools"]],
+    [/销售/, ["sales"]],
+];
+
+function buildDomainAliasTokens(text: string): string[] {
+    const tokens: string[] = [];
+    for (const [pattern, aliases] of DOMAIN_SEARCH_ALIASES) {
+        if (pattern.test(text)) {
+            tokens.push(...aliases);
+        }
+    }
+    return toNormalizedSearchTokens(tokens);
+}
+
 export function buildSearchText(content: unknown): string {
     if (!isRecord(content)) {
         return normalizeWhitespace(toTextFragments(content).join(" ")).toLowerCase();
@@ -221,5 +238,6 @@ export function buildSearchText(content: unknown): string {
         ...collectNonPriorityFragments(content),
     ].join(" ");
 
-    return normalizeWhitespace(segmentChineseRuns(addScriptBoundarySpaces(merged))).toLowerCase();
+    const segmented = normalizeWhitespace(segmentChineseRuns(addScriptBoundarySpaces(merged))).toLowerCase();
+    return appendMissingSearchTokens(segmented, buildDomainAliasTokens(segmented));
 }

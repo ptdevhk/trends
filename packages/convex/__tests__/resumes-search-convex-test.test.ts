@@ -757,6 +757,48 @@ describe("resumes_search: getResumesByIds", () => {
 // searchWithTagExpansionAndMode (action)
 // ---------------------------------------------------------------------------
 
+describe("resumes_search: scanResumeDigestPage", () => {
+    it("returns digest projection without cold resume content or full ingestData", async () => {
+        const t = convexTest(schema, modules);
+        const resumeId = await seedResume(t, {
+            externalId: "digest-1",
+            identityKey: "profileUrl:example.com/candidates/digest-1",
+            source: "job5156",
+            sourceKey: "job5156",
+            searchText: "cnc 销售 数控 销售工程师",
+            primaryRuleScore: 30,
+            age: 30,
+            ingestData: MINIMAL_INGEST_DATA,
+        });
+
+        await t.mutation(api.resumes_search.upsertResumeDigestForTest, { resumeId });
+        const result = await t.query(api.resumes_search.scanResumeDigestPage, { numItems: 1000 });
+
+        expect(result.docs).toHaveLength(1);
+        const row = result.docs[0];
+        expect(row).toHaveProperty("resumeId", resumeId);
+        expect(row).toHaveProperty("searchText");
+        expect(row).toHaveProperty("age", 30);
+        expect(row).not.toHaveProperty("content");
+        expect(row).not.toHaveProperty("ingestData");
+        expect(JSON.stringify(row).length).toBeLessThan(2048);
+    });
+
+    it("caps digest pages at 1000 small rows", async () => {
+        const t = convexTest(schema, modules);
+        const resumeId = await seedResume(t, {
+            externalId: "digest-cap",
+            identityKey: "profileUrl:example.com/candidates/digest-cap",
+            searchText: "engineer",
+        });
+
+        await t.mutation(api.resumes_search.upsertResumeDigestForTest, { resumeId });
+        const result = await t.query(api.resumes_search.scanResumeDigestPage, { numItems: 5000 });
+
+        expect(result.docs).toHaveLength(1);
+    });
+});
+
 describe("resumes_search: searchWithTagExpansionAndMode", () => {
     const cncGroup = { original: "cnc", variants: ["cnc"] };
 
