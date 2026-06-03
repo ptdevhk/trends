@@ -1,4 +1,4 @@
-import { action, internalQuery, mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
+import { action, internalMutation, internalQuery, mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { paginationOptsValidator } from "convex/server";
@@ -890,7 +890,7 @@ export const scanResumeDigestPage = query({
 
 // ── Digest helpers ────────────────────────────────────────────────────────
 
-async function upsertResumeDigest(
+async function doUpsertResumeDigest(
     ctx: MutationCtx,
     resume: Doc<"resumes">,
 ): Promise<void> {
@@ -906,13 +906,24 @@ async function upsertResumeDigest(
     }
 }
 
+// Internal mutation — called by writes in resumes_mutations.ts to keep
+// digest in sync after resume insert/update.
+export const upsertResumeDigest = internalMutation({
+    args: { resumeId: v.id("resumes") },
+    handler: async (ctx, args) => {
+        const resume = await ctx.db.get(args.resumeId);
+        if (!resume) return; // deleted — digest already removed or will be GC'd
+        await doUpsertResumeDigest(ctx, resume);
+    },
+});
+
 // Test-only mutation for Convex test seeders — upserts a single digest.
 export const upsertResumeDigestForTest = mutation({
     args: { resumeId: v.id("resumes") },
     handler: async (ctx, args) => {
         const resume = await ctx.db.get(args.resumeId);
         if (!resume) throw new Error(`Resume not found: ${args.resumeId}`);
-        await upsertResumeDigest(ctx, resume);
+        await doUpsertResumeDigest(ctx, resume);
     },
 });
 
@@ -935,7 +946,7 @@ export const backfillResumeDigests = mutation({
                 maximumRowsRead: PAGINATE_MAX_ROWS_READ,
             });
         for (const resume of page.page) {
-            await upsertResumeDigest(ctx, resume);
+            await doUpsertResumeDigest(ctx, resume);
         }
         return {
             processed: page.page.length,

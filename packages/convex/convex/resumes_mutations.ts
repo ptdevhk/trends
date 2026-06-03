@@ -1,4 +1,5 @@
 import { internalMutation, internalQuery, mutation } from "./_generated/server";
+import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { ingestDataValidator, relatedExpEvidenceValidator } from "./validators.js";
@@ -180,6 +181,7 @@ export const updateIngestDataBatch = internalMutation({
             }
 
             await ctx.db.patch(update.resumeId, patch);
+            await ctx.runMutation(internal.resumes_search.upsertResumeDigest, { resumeId: update.resumeId });
         }));
     },
 });
@@ -419,6 +421,13 @@ export const deleteResumes = mutation({
         }
 
         for (const resume of existingResumes) {
+            const digest = await ctx.db
+                .query("resume_digests")
+                .withIndex("by_resumeId", (q) => q.eq("resumeId", resume._id))
+                .first();
+            if (digest) {
+                await ctx.db.delete(digest._id);
+            }
             await ctx.db.delete(resume._id);
         }
 
@@ -478,6 +487,7 @@ export const archiveResumes = mutation({
                 return;
             }
             await ctx.db.patch(resume._id, { isArchived: true, archivedAt: now });
+            await ctx.runMutation(internal.resumes_search.upsertResumeDigest, { resumeId: resume._id });
             archived += 1;
         }));
 
@@ -535,6 +545,7 @@ export const unarchiveResumes = mutation({
                 return;
             }
             await ctx.db.patch(resume._id, { isArchived: undefined, archivedAt: undefined });
+            await ctx.runMutation(internal.resumes_search.upsertResumeDigest, { resumeId: resume._id });
             unarchived += 1;
         }));
 
@@ -582,6 +593,7 @@ export const hardResetIngestData = mutation({
                 primaryRuleScore: undefined,
                 searchText: undefined,
             });
+            await ctx.runMutation(internal.resumes_search.upsertResumeDigest, { resumeId: resume._id });
             cleared += 1;
         }
 
