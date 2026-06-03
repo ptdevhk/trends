@@ -1,6 +1,6 @@
 import { buildWorkHistoryEntryText, sanitizeResumeRecordForSurface, selectLatestWorkHistory } from '@trends/shared'
 import { useTranslation } from 'react-i18next'
-import { User, CheckCircle, XCircle, Phone, Star, Ban, MessageSquare } from 'lucide-react'
+import { User, CheckCircle, XCircle, Phone, Ban, MessageSquare } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -567,14 +567,15 @@ export const ResumeCard = memo(function ResumeCard({
             <div className="ml-auto flex items-center gap-2">
               <StarRating value={userRating} onChange={onRating} size={14} />
               <div className="flex items-center gap-1">
-                <Button
+                {/* Star action button disabled — replaced by StarRating (5-star rating) */}
+                {/* <Button
                   variant={actionType === 'star' ? 'default' : 'ghost'}
                   size="icon"
                   onClick={() => onAction?.('star')}
                   aria-label={t('resumes.actions.star')}
                 >
                   <Star className="h-4 w-4" />
-                </Button>
+                </Button> */}
                 <Button
                   variant={actionType === 'shortlist' ? 'default' : 'ghost'}
                   size="icon"
