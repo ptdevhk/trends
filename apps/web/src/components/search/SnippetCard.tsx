@@ -2,7 +2,7 @@ import { buildWorkHistoryEntryText, selectLatestWorkHistory } from '@trends/shar
 import {
   ChevronDown,
   ChevronUp,
-  Star,
+  User,
 } from 'lucide-react'
 import { memo, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -104,8 +104,10 @@ export const SnippetCard = memo(function SnippetCard({
   onViewDetails,
   selected,
   onSelect,
-  actionType,
-  onAction,
+  /* eslint-disable @typescript-eslint/no-unused-vars */
+  actionType: _actionType,
+  onAction: _onAction,
+  /* eslint-enable @typescript-eslint/no-unused-vars */
   userRating,
   onRating,
   onCandidateStatusChange,
@@ -304,7 +306,7 @@ export const SnippetCard = memo(function SnippetCard({
             />
           ) : null}
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted shrink-0">
-            <Star className="h-5 w-5 text-muted-foreground" />
+            <User className="h-5 w-5 text-muted-foreground" />
           </div>
         </div>
 
@@ -335,17 +337,16 @@ export const SnippetCard = memo(function SnippetCard({
             {/* Action buttons - pushed to the right */}
             <div className="ml-auto flex items-center gap-1">
               <StarRating value={userRating} onChange={onRating ? (rating) => onRating(item.resume.resumeId, rating) : undefined} size={14} />
-              {onAction ? (
-                <Button
-                  variant={actionType === 'star' ? 'default' : 'ghost'}
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={(e) => { e.stopPropagation(); onAction(item.resume.resumeId, 'star') }}
-                  aria-label={t('resumes.actions.star', { defaultValue: '收藏' })}
-                >
-                  <Star className="h-4 w-4" />
-                </Button>
-              ) : null}
+              {/* Star action button disabled — replaced by StarRating (5-star rating) */}
+              {/* <Button
+                variant={actionType === 'star' ? 'default' : 'ghost'}
+                size="icon"
+                className="h-8 w-8"
+                onClick={(e) => { e.stopPropagation(); onAction(item.resume.resumeId, 'star') }}
+                aria-label={t('resumes.actions.star', { defaultValue: '收藏' })}
+              >
+                <Star className="h-4 w-4" />
+              </Button> */}
               <Button variant="ghost" size="sm" className="h-8" onClick={() => onViewDetails?.(item)}>
                 {t('resumes.actions.view', { defaultValue: '查看详情' })}
               </Button>
