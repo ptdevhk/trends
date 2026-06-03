@@ -306,8 +306,7 @@ describe('SnippetCard', () => {
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
   })
 
-  it('fires star action callback when star button clicked and onAction provided', async () => {
-    const user = userEvent.setup()
+  it('does not render star action button (disabled in favor of StarRating)', async () => {
     const onAction = vi.fn()
 
     render(
@@ -320,9 +319,8 @@ describe('SnippetCard', () => {
       />
     )
 
-    // Star button uses defaultValue '收藏' via t('resumes.actions.star', { defaultValue: '收藏' })
-    await user.click(screen.getByRole('button', { name: '收藏' }))
-    expect(onAction).toHaveBeenCalledWith('resume-1', 'star')
+    // Star action button disabled — StarRating (5-star rating) is the future direction
+    expect(screen.queryByRole('button', { name: '收藏' })).not.toBeInTheDocument()
   })
 
   it('fires view details callback when clicked', async () => {
