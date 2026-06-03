@@ -1,5 +1,6 @@
 import {
     formatLocationHierarchySearchText,
+    isRecord,
     matchesResumeDigestFilters,
     normalizeEducationLevel,
     normalizeResumeLocationHierarchy,
@@ -34,10 +35,6 @@ export type ResumeDigest = {
     roleYearsByType?: Record<string, number>;
     updatedAt: number;
 };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-    return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 export function buildResumeDigest(resume: Doc<"resumes">, now: number): ResumeDigest {
     const content = isRecord(resume.content) ? resume.content : {};

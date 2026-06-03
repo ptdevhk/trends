@@ -420,14 +420,31 @@ export const deleteResumes = mutation({
             isDone = result.isDone;
         }
 
-        for (const resume of existingResumes) {
-            const digest = await ctx.db
-                .query("resume_digests")
-                .withIndex("by_resumeId", (q) => q.eq("resumeId", resume._id))
-                .first();
-            if (digest) {
-                await ctx.db.delete(digest._id);
+        // Batch digest lookups + deletes to avoid N+1 round-trips (same
+        // pattern as ai_tagging_results cleanup above).
+        const digestBatches: Array<Id<"resume_digests">> = [];
+        const DIGEST_LOOKUP_BATCH = 50;
+        for (let i = 0; i < existingResumeIds.length; i += DIGEST_LOOKUP_BATCH) {
+            const batchIds = existingResumeIds.slice(i, i + DIGEST_LOOKUP_BATCH);
+            const digestResults = await Promise.all(
+                batchIds.map((resumeId) =>
+                    ctx.db
+                        .query("resume_digests")
+                        .withIndex("by_resumeId", (q) => q.eq("resumeId", resumeId))
+                        .collect()
+                )
+            );
+            for (const batch of digestResults) {
+                for (const digest of batch) {
+                    digestBatches.push(digest._id);
+                }
             }
+        }
+        for (const digestId of digestBatches) {
+            await ctx.db.delete(digestId);
+        }
+
+        for (const resume of existingResumes) {
             await ctx.db.delete(resume._id);
         }
 
