@@ -125,3 +125,78 @@ export function resolveExperienceYears(
   if (parsed !== null) return parsed;
   return computeExperienceFromWorkHistory(workHistory);
 }
+
+// ── Digest filter types and matching ────────────────────────────────────
+
+export type DigestFilterArgs = {
+  maxExperience?: number;
+  education?: string[];
+  skills?: string[];
+  requiredKeywords?: string[];
+  minSalary?: number;
+  maxSalary?: number;
+  roleFilterType?: string;
+  minRoleYears?: number;
+  minAge?: number;
+  maxAge?: number;
+  locations?: string[];
+  sources?: string[];
+  showArchived?: boolean;
+};
+
+export interface DigestRecord {
+  isArchived?: boolean;
+  source?: string;
+  sourceKey?: string;
+  searchText?: string;
+  age?: number;
+  locationText?: string;
+  educationLevel?: string;
+  salaryMin?: number;
+  salaryMax?: number;
+  experienceYears?: number;
+  roleTypes?: string[];
+  roleYearsByType?: Record<string, number>;
+}
+
+import { isLocationMatch } from "./location-tree.js";
+
+export function matchesResumeDigestFilters(digest: DigestRecord, filters: DigestFilterArgs | undefined): boolean {
+  if (!filters?.showArchived && digest.isArchived === true) return false;
+  if (!filters) return true;
+
+  if (typeof filters.maxExperience === "number" && (digest.experienceYears === undefined || digest.experienceYears > filters.maxExperience)) return false;
+  if (filters.education?.length && (!digest.educationLevel || !filters.education.includes(digest.educationLevel))) return false;
+  const haystack = digest.searchText?.toLowerCase() ?? "";
+  if (filters.skills?.length && !filters.skills.some((skill) => haystack.includes(skill.toLowerCase()))) return false;
+  if (filters.requiredKeywords?.length && !filters.requiredKeywords.every((kw) => haystack.includes(kw.toLowerCase()))) return false;
+  if (filters.locations?.length && !filters.locations.some((target) => isLocationMatch(digest.locationText ?? "", target))) return false;
+  if (typeof filters.minSalary === "number") {
+    const maxSalary = digest.salaryMax ?? digest.salaryMin;
+    if (maxSalary !== undefined && maxSalary < filters.minSalary) return false;
+  }
+  if (typeof filters.maxSalary === "number") {
+    const minSalary = digest.salaryMin ?? digest.salaryMax;
+    if (minSalary === undefined || minSalary > filters.maxSalary) return false;
+  }
+  if (filters.roleFilterType && !_hasDigestRoleType(digest, filters.roleFilterType)) return false;
+  if (typeof filters.minRoleYears === "number" && filters.minRoleYears > 0) {
+    const roleYears = filters.roleFilterType
+      ? digest.roleYearsByType?.[filters.roleFilterType.toLowerCase()] ?? 0
+      : Math.max(...Object.values(digest.roleYearsByType ?? {}), 0);
+    if (roleYears < filters.minRoleYears) return false;
+  }
+  if (typeof filters.minAge === "number" && typeof digest.age === "number" && digest.age < filters.minAge) return false;
+  if (typeof filters.maxAge === "number" && typeof digest.age === "number" && digest.age > filters.maxAge) return false;
+  if (filters.sources?.length) {
+    const source = digest.sourceKey ?? digest.source;
+    if (!source || !filters.sources.includes(source)) return false;
+  }
+  return true;
+}
+
+function _hasDigestRoleType(digest: DigestRecord, roleFilterType: string): boolean {
+  const key = roleFilterType.toLowerCase();
+  return (digest.roleTypes ?? []).some((role) => role.toLowerCase() === key)
+    || typeof digest.roleYearsByType?.[key] === "number";
+}

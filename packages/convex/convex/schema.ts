@@ -476,6 +476,37 @@ export default defineSchema({
             filterFields: ["sourceKey"],
         }),
 
+    // Resume Digests — lightweight hot table for keyword/filter candidate discovery
+    resume_digests: defineTable({
+        resumeId: v.id("resumes"),
+        identityKey: v.optional(v.string()),
+        externalId: v.optional(v.string()),
+        source: v.optional(v.string()),
+        sourceKey: v.optional(v.string()),
+        searchText: v.optional(v.string()),
+        isArchived: v.optional(v.boolean()),
+        archivedAt: v.optional(v.number()),
+        primaryRuleScore: v.optional(v.number()),
+        crawledAt: v.optional(v.number()),
+        age: v.optional(v.number()),
+        locationText: v.optional(v.string()),
+        educationLevel: v.optional(v.string()),
+        salaryMin: v.optional(v.number()),
+        salaryMax: v.optional(v.number()),
+        experienceYears: v.optional(v.number()),
+        roleTypes: v.optional(v.array(v.string())),
+        roleYearsByType: v.optional(v.record(v.string(), v.number())),
+        updatedAt: v.number(),
+    })
+        .index("by_resumeId", ["resumeId"])
+        .index("by_identityKey", ["identityKey"])
+        .index("by_sourceKey", ["sourceKey"])
+        .index("by_crawledAt", ["crawledAt"])
+        .searchIndex("search_body", {
+            searchField: "searchText",
+            filterFields: ["isArchived", "sourceKey"],
+        }),
+
     // Analysis Audit Log — EU AI Act compliance (Annex III §4a high-risk)
     analysis_audit_log: defineTable({
         resumeId: v.id("resumes"),

@@ -106,4 +106,28 @@ describe("buildSearchText", () => {
         const result = buildSearchText({ name: "张" });
         expect(result).toContain("张");
     });
+
+    it("keeps Intl.Segmenter CJK segmentation and adds CNC/数控 domain aliases", () => {
+        const result = buildSearchText({
+            desiredPosition: "CNC销售工程师",
+            skills: ["数控设备销售", "机床渠道开发"],
+        });
+
+        expect(result).toContain("cnc");
+        expect(result).toContain("销售");
+        expect(result).toContain("工程师");
+        expect(result).toContain("数控");
+        expect(result).toContain("机床");
+    });
+
+    it("matches CNC sales vocabulary without requiring a new tokenizer dependency", () => {
+        const result = buildSearchText({
+            desiredPosition: "数控销售工程师",
+            summary: "负责CNC机床代理渠道和客户开发",
+        });
+
+        for (const token of ["cnc", "数控", "销售", "机床", "渠道"]) {
+            expect(result).toContain(token);
+        }
+    });
 });

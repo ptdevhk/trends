@@ -28,6 +28,7 @@ import type * as lib_analysis_prompts from "../lib/analysis_prompts.js";
 import type * as lib_analysis_task_helpers from "../lib/analysis_task_helpers.js";
 import type * as lib_bias_metrics from "../lib/bias_metrics.js";
 import type * as lib_parallelism from "../lib/parallelism.js";
+import type * as lib_resume_digests from "../lib/resume_digests.js";
 import type * as lib_resume_identity from "../lib/resume_identity.js";
 import type * as lib_resume_task_helpers from "../lib/resume_task_helpers.js";
 import type * as lib_resumes_backup from "../lib/resumes_backup.js";
@@ -80,6 +81,7 @@ declare const fullApi: ApiFromModules<{
   "lib/analysis_task_helpers": typeof lib_analysis_task_helpers;
   "lib/bias_metrics": typeof lib_bias_metrics;
   "lib/parallelism": typeof lib_parallelism;
+  "lib/resume_digests": typeof lib_resume_digests;
   "lib/resume_identity": typeof lib_resume_identity;
   "lib/resume_task_helpers": typeof lib_resume_task_helpers;
   "lib/resumes_backup": typeof lib_resumes_backup;

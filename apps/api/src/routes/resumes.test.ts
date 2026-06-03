@@ -287,8 +287,8 @@ describe("resume routes", () => {
       const call = parseConvexCall(input, init);
       calls.push(call);
 
-      // AND-mode queries use two-phase scan: phase 1 via scanResumePageSlim
-      if (call.pathName === "resumes_search:scanResumePageSlim") {
+      // AND-mode queries use two-phase scan: phase 1 via scanResumeDigestPage
+      if (call.pathName === "resumes_search:scanResumeDigestPage") {
         const cursor = typeof call.args.cursor === "string" ? call.args.cursor : null;
         // Phase 1: slim projection — only searchText and basic fields
         return convexSuccess({
@@ -296,8 +296,10 @@ describe("resume routes", () => {
             ? []
             : [
                 {
-                  _id: "resume-live-1",
+                  _id: "d1",
+                  resumeId: "resume-live-1",
                   source: "seek",
+                  sourceKey: "seek",
                   primaryRuleScore: 44,
                   searchText: "CNC 数值控制 销售 engineer fanuc",
                   isArchived: false,
@@ -356,7 +358,7 @@ describe("resume routes", () => {
       })
     );
     expect(calls[0]).toEqual(expect.objectContaining({
-      pathName: "resumes_search:scanResumePageSlim",
+      pathName: "resumes_search:scanResumeDigestPage",
     }));
   });
 
@@ -590,17 +592,17 @@ describe("resume routes", () => {
       const call = parseConvexCall(input, init);
       calls.push(call);
 
-      // AND-mode queries use two-phase scan: phase 1 via scanResumePageSlim
-      if (call.pathName === "resumes_search:scanResumePageSlim") {
+      // AND-mode queries use two-phase scan: phase 1 via scanResumeDigestPage
+      if (call.pathName === "resumes_search:scanResumeDigestPage") {
         const cursor = typeof call.args.cursor === "string" ? call.args.cursor : null;
         return convexSuccess({
           docs: cursor
             ? []
             : [
-                { _id: "resume-live-1", source: "seek", searchText: "cnc sales engineer", isArchived: false },
-                { _id: "resume-live-2", source: "seek", searchText: "cnc sales manager", isArchived: false },
-                { _id: "resume-live-3", source: "seek", searchText: "cnc sales director", isArchived: false },
-                { _id: "resume-live-4", source: "seek", searchText: "cnc sales vp", isArchived: false },
+                { _id: "d1", resumeId: "resume-live-1", source: "seek", sourceKey: "seek", searchText: "cnc sales engineer", isArchived: false },
+                { _id: "d2", resumeId: "resume-live-2", source: "seek", sourceKey: "seek", searchText: "cnc sales manager", isArchived: false },
+                { _id: "d3", resumeId: "resume-live-3", source: "seek", sourceKey: "seek", searchText: "cnc sales director", isArchived: false },
+                { _id: "d4", resumeId: "resume-live-4", source: "seek", sourceKey: "seek", searchText: "cnc sales vp", isArchived: false },
               ],
           isDone: !cursor,
           cursor: cursor ? null : "next-page",
@@ -633,7 +635,7 @@ describe("resume routes", () => {
     }));
     expect(payload.data.map((item: { name: string }) => item.name)).toEqual(["Carla", "Dylan"]);
     expect(calls[0]).toEqual(expect.objectContaining({
-      pathName: "resumes_search:scanResumePageSlim",
+      pathName: "resumes_search:scanResumeDigestPage",
     }));
   });
 
@@ -644,15 +646,15 @@ describe("resume routes", () => {
       const call = parseConvexCall(input, init);
       calls.push(call);
 
-      // AND-mode queries use two-phase scan: phase 1 via scanResumePageSlim
-      if (call.pathName === "resumes_search:scanResumePageSlim") {
+      // AND-mode queries use two-phase scan: phase 1 via scanResumeDigestPage
+      if (call.pathName === "resumes_search:scanResumeDigestPage") {
         const cursor = typeof call.args.cursor === "string" ? call.args.cursor : null;
         return convexSuccess({
           docs: cursor
             ? []
             : [
-                { _id: "resume-live-3", source: "seek", searchText: "cnc sales director", isArchived: false },
-                { _id: "resume-live-4", source: "seek", searchText: "cnc sales vp", isArchived: false },
+                { _id: "d3", resumeId: "resume-live-3", source: "seek", sourceKey: "seek", searchText: "cnc sales director", isArchived: false },
+                { _id: "d4", resumeId: "resume-live-4", source: "seek", sourceKey: "seek", searchText: "cnc sales vp", isArchived: false },
               ],
           isDone: !cursor,
           cursor: cursor ? null : "next-page",
@@ -677,7 +679,7 @@ describe("resume routes", () => {
     const payload = await response.json();
     expect(payload.success).toBe(true);
     expect(calls[0]).toEqual(expect.objectContaining({
-      pathName: "resumes_search:scanResumePageSlim",
+      pathName: "resumes_search:scanResumeDigestPage",
     }));
   });
 
@@ -722,15 +724,15 @@ describe("resume routes", () => {
       const call = parseConvexCall(input, init);
       calls.push(call);
 
-      // AND-mode queries use two-phase scan: phase 1 via scanResumePageSlim
-      if (call.pathName === "resumes_search:scanResumePageSlim") {
+      // AND-mode queries use two-phase scan: phase 1 via scanResumeDigestPage
+      if (call.pathName === "resumes_search:scanResumeDigestPage") {
         const cursor = typeof call.args.cursor === "string" ? call.args.cursor : null;
         return convexSuccess({
           docs: cursor
             ? []
             : [
-                { _id: "resume-live-5", source: "hk.employer.seek.com", searchText: "machine tools precision machinery sales engineer", isArchived: false },
-                { _id: "resume-live-6", source: "hk.employer.seek.com", searchText: "precision machinery sales engineer account design", isArchived: false },
+                { _id: "d5", resumeId: "resume-live-5", source: "hk.employer.seek.com", sourceKey: "hk.employer.seek.com", searchText: "machine tools precision machinery sales engineer", isArchived: false },
+                { _id: "d6", resumeId: "resume-live-6", source: "hk.employer.seek.com", sourceKey: "hk.employer.seek.com", searchText: "precision machinery sales engineer account design", isArchived: false },
               ],
           isDone: !cursor,
           cursor: cursor ? null : "next-page",
@@ -767,7 +769,7 @@ describe("resume routes", () => {
       "Johnson Lee Wei Tao",
     ]);
     expect(calls[0]).toEqual(expect.objectContaining({
-      pathName: "resumes_search:scanResumePageSlim",
+      pathName: "resumes_search:scanResumeDigestPage",
     }));
   });
 
@@ -778,16 +780,18 @@ describe("resume routes", () => {
       const call = parseConvexCall(input, init);
       calls.push(call);
 
-      // AND-mode queries use two-phase scan: phase 1 via scanResumePageSlim
-      if (call.pathName === "resumes_search:scanResumePageSlim") {
+      // AND-mode queries use two-phase scan: phase 1 via scanResumeDigestPage
+      if (call.pathName === "resumes_search:scanResumeDigestPage") {
         const cursor = typeof call.args.cursor === "string" ? call.args.cursor : null;
         return convexSuccess({
           docs: cursor
             ? []
             : [
                 {
-                  _id: "resume-live-3",
+                  _id: "d3",
+                  resumeId: "resume-live-3",
                   source: "seek",
+                  sourceKey: "seek",
                   searchText: "cnc sales machine tools",
                   isArchived: false,
                 },
@@ -815,8 +819,8 @@ describe("resume routes", () => {
     const response = await app.request("/api/resumes?source=convex&q=cnc%20sales&limit=2&requiredKeywords=machine%20tools,CNC");
 
     expect(response.status).toBe(200);
-    // AND-mode now uses scanResumePageSlim instead of the action
-    expect(calls.some((c) => c.pathName === "resumes_search:scanResumePageSlim")).toBe(true);
+    // AND-mode now uses scanResumeDigestPage instead of the action
+    expect(calls.some((c) => c.pathName === "resumes_search:scanResumeDigestPage")).toBe(true);
     // Required keywords are applied as local filters in BFF AND-mode path
     const payload = await response.json();
     expect(payload.success).toBe(true);

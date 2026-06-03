@@ -174,6 +174,7 @@ describe("Re-ingest pipeline integration", () => {
     describe("hardResetIngestData handler", () => {
         it("clears ingestData, analysis, analyses, primaryRuleScore, searchText", async () => {
             const patch = vi.fn(async () => undefined);
+            const runMutation = vi.fn(async () => undefined);
 
             const resumes = [
                 {
@@ -221,6 +222,7 @@ describe("Re-ingest pipeline integration", () => {
                     },
                     patch,
                 },
+                runMutation,
             };
 
             const handler = (hardResetIngestData as unknown as {
@@ -242,6 +244,7 @@ describe("Re-ingest pipeline integration", () => {
 
         it("preserves resumes that have no computed fields", async () => {
             const patch = vi.fn(async () => undefined);
+            const runMutation = vi.fn(async () => undefined);
 
             const resumes = [
                 {
@@ -274,6 +277,7 @@ describe("Re-ingest pipeline integration", () => {
                     },
                     patch,
                 },
+                runMutation,
             };
 
             const handler = (hardResetIngestData as unknown as {

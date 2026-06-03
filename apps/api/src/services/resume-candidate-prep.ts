@@ -523,11 +523,13 @@ export async function prepareConvexCandidates(params: {
         loweredVariants: g.variants.map((v: string) => v.toLowerCase()),
       }));
 
-      // Phase 1: Scan all docs with slim projection (no content/ingestData).
-      // Only collect IDs of docs matching keyword groups + basic filters.
+      // Phase 1: Scan digest pages (lightweight, <1KB per row) for candidate
+      // discovery. Digest rows are pre-built from resume fields at ingest and
+      // backfill time, so the Convex query avoids the monolithic ~27KB searchText
+      // transfer that dominated the old scanResumePageSlim path.
       const matchingIds: string[] = [];
       while (true) {
-        const page = await callConvexQuery("resumes_search:scanResumePageSlim", {
+        const page = await callConvexQuery("resumes_search:scanResumeDigestPage", {
           ...(scanCursor ? { cursor: scanCursor } : {}),
           numItems: 1000,
         });
@@ -544,7 +546,7 @@ export async function prepareConvexCandidates(params: {
           );
           if (!allGroupsMatch) continue;
 
-          // Basic filters that can run on slim projection
+          // Basic filters that run on digest fields
           if (filters) {
             if (typeof filters.minAge === 'number' && typeof doc.age === 'number' && doc.age < filters.minAge) continue;
             if (typeof filters.maxAge === 'number' && typeof doc.age === 'number' && doc.age > filters.maxAge) continue;
@@ -555,7 +557,7 @@ export async function prepareConvexCandidates(params: {
             }
           }
 
-          const resumeId = toStringValue(doc._id);
+          const resumeId = toStringValue(doc.resumeId);
           if (resumeId) matchingIds.push(resumeId);
         }
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { bffMatchesResumeFilters } from "../../services/bff-filter-utils.js";
+import { matchesResumeDigestFilters, type DigestRecord } from "@trends/shared";
 
 function makeDoc(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
@@ -315,6 +316,50 @@ describe("bffMatchesResumeFilters", () => {
     it("excludes when no location matches", () => {
       const doc = makeDoc({ content: { location: "深圳" } });
       expect(bffMatchesResumeFilters(doc, "", { locations: ["东莞"] })).toBe(false);
+    });
+  });
+
+  describe("digest/full-doc filter parity", () => {
+    it("keeps digest filter semantics aligned for the CNC sales restored-dataset filter set", () => {
+      const doc = {
+        isArchived: false,
+        source: "job5156",
+        sourceKey: "job5156",
+        age: 30,
+        content: {
+          education: "本科",
+          expectedSalary: "15K-25K",
+          locationHierarchy: { country: "中国", province: "广东", city: "东莞" },
+          workHistory: [{ raw: "销售工程师 CNC 数控机床渠道开发" }],
+        },
+        ingestData: {
+          verifiedRoleYears: { sales: 3 },
+          roleSignals: [{ type: "sales", years: 3 }],
+        },
+      };
+      const digest: DigestRecord = {
+        isArchived: false,
+        source: "job5156",
+        sourceKey: "job5156",
+        age: 30,
+        locationText: "中国 广东 东莞",
+        educationLevel: "bachelor",
+        salaryMin: 15,
+        salaryMax: 25,
+        roleTypes: ["sales"],
+        roleYearsByType: { sales: 3 },
+        searchText: "cnc 销售 数控 机床 渠道",
+      };
+      const filters = {
+        minRoleYears: 1,
+        roleFilterType: "sales",
+        minAge: 25,
+        maxAge: 40,
+        locations: ["China"],
+      };
+
+      expect(matchesResumeDigestFilters(digest, filters)).toBe(true);
+      expect(bffMatchesResumeFilters(doc, digest.searchText, filters)).toBe(true);
     });
   });
 });
