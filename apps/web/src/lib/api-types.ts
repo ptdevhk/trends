@@ -12535,6 +12535,11 @@ export interface components {
                 };
                 /** @enum {string} */
                 searchMode?: "bm25" | "bm25_fallback" | "bm25_only_no_vectors" | "hybrid";
+                statusCounts?: {
+                    new: number;
+                    shortlisted: number;
+                    rejected: number;
+                };
             };
             data: components["schemas"]["ResumeItem"][];
         };

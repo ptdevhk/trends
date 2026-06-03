@@ -666,6 +666,13 @@ export const ResumesResponseSchema = z
         keywordGroups: z.array(KeywordGroupSchema).optional(),
         sourceMapping: z.record(z.string(), z.string()).optional(),
         searchMode: z.enum(["bm25", "bm25_fallback", "bm25_only_no_vectors", "hybrid"]).optional(),
+        statusCounts: z
+          .object({
+            new: z.number().int(),
+            shortlisted: z.number().int(),
+            rejected: z.number().int(),
+          })
+          .optional(),
       })
       .optional(),
     data: z.array(ResumeItemSchema),

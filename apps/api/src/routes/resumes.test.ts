@@ -922,6 +922,10 @@ describe("resume routes", () => {
         ]);
       }
 
+      if (call.pathName === "candidate_status:list") {
+        return convexSuccess([]);
+      }
+
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
@@ -946,14 +950,15 @@ describe("resume routes", () => {
       sortOrder: "desc",
     }));
     expect(getMatchesByResumeIdsSpy).not.toHaveBeenCalled();
-    expect(calls).toEqual([
-      expect.objectContaining({
-        pathName: "resumes:getByIdsForExport",
-        args: expect.objectContaining({
-          resumeIds: ["resume-live-1", "resume-live-2", "resume-live-3"],
-        }),
+    expect(calls[0]).toEqual(expect.objectContaining({
+      pathName: "resumes:getByIdsForExport",
+      args: expect.objectContaining({
+        resumeIds: ["resume-live-1", "resume-live-2", "resume-live-3"],
       }),
-    ]);
+    }));
+    expect(calls[1]).toEqual(expect.objectContaining({
+      pathName: "candidate_status:list",
+    }));
     expect(calls.some((call) => call.pathName === "resumes:listWithIngestData")).toBe(false);
     expect(calls.some((call) => call.pathName === "resumes_search:searchWithTagExpansion")).toBe(false);
   });

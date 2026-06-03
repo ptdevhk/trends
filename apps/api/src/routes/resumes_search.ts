@@ -616,7 +616,43 @@ const getResumesRoute = createRoute({
   },
 });
 
-app.openapi(getResumesRoute, (c) => {
+async function computeStatusCounts(
+  working: Array<{ resume: unknown; id?: string; identityKey?: string }>,
+  workspaceSlug: string,
+): Promise<{ new: number; shortlisted: number; rejected: number }> {
+  try {
+    const statusList = await callConvexQuery("candidate_status:list", {
+      workspaceSlug,
+    });
+    const statusMap = new Map<string, string>();
+    if (Array.isArray(statusList)) {
+      for (const item of statusList) {
+        if (item && typeof item === "object" && "identityKey" in item && "status" in item) {
+          statusMap.set(String(item.identityKey), String(item.status));
+        }
+      }
+    }
+
+    const counts = { new: 0, shortlisted: 0, rejected: 0 };
+    for (const item of working) {
+      const resume = (item as Record<string, unknown>).resume as Record<string, unknown> | undefined;
+      const ik = (resume?.identityKey as string)
+        ?? (item as Record<string, unknown>).identityKey as string
+        ?? "";
+      const status = statusMap.get(ik) ?? "new";
+      if (status === "new" || status === "shortlisted" || status === "rejected") {
+        counts[status] += 1;
+      } else {
+        counts.new += 1;
+      }
+    }
+    return counts;
+  } catch {
+    return { new: 0, shortlisted: 0, rejected: 0 };
+  }
+}
+
+app.openapi(getResumesRoute, async (c) => {
   const {
     sample,
     source,
@@ -949,6 +985,11 @@ app.openapi(getResumesRoute, (c) => {
           ? working.map((item) => item.resume)
           : pagedWorking.map((item) => item.resume);
 
+        const statusCounts = await computeStatusCounts(
+          usesPrePagedMatchResults || isSourcePaginated ? working : pagedWorking,
+          "dev",
+        );
+
         return c.json({
           success: true as const,
           summary: {
@@ -960,6 +1001,7 @@ app.openapi(getResumesRoute, (c) => {
             source,
             ...buildKeywordExpansionSummary(liveExpansion ?? keywordExpansion),
             searchMode: hybridSearchMode,
+            statusCounts,
           },
           data: limited,
         }, 200);
@@ -1076,6 +1118,8 @@ app.openapi(getResumesRoute, (c) => {
       });
     }
 
+    const statusCounts = await computeStatusCounts(working, "dev");
+
     return c.json({
       success: true as const,
       sample: sampleInfo,
@@ -1089,6 +1133,7 @@ app.openapi(getResumesRoute, (c) => {
         mode: keywordExpansion?.mode,
         keywordGroups: keywordExpansion?.groups,
         sourceMapping: keywordExpansion?.sourceMapping,
+        statusCounts,
       },
       data: limited,
     }, 200);
@@ -1100,6 +1145,7 @@ app.openapi(getResumesRoute, (c) => {
           total: 0,
           returned: 0,
           query: keyword,
+          statusCounts: { new: 0, shortlisted: 0, rejected: 0 },
         },
         data: [],
       }, 200);
