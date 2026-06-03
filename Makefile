@@ -476,9 +476,9 @@ push-sample-snapshots:
 	@SAMPLE_REPO="$${SAMPLE_REPO:-ptdevhk/trends-resume-samples}" \
 	SNAPSHOT_DIR="$${SNAPSHOT_DIR:-}"; \
 	if command -v bun >/dev/null 2>&1; then \
-		bun run scripts/resume/push-sample-snapshots.ts; \
+		GH_TOKEN="$${GH_TOKEN:-$$(gh auth token)}" bun run scripts/resume/push-sample-snapshots.ts; \
 	else \
-		npx tsx scripts/resume/push-sample-snapshots.ts; \
+		GH_TOKEN="$${GH_TOKEN:-$$(gh auth token)}" npx tsx scripts/resume/push-sample-snapshots.ts; \
 	fi
 
 # Pull resume snapshots from the sample repo into output/resume-samples

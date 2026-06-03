@@ -90,7 +90,9 @@ func TestResumeDebugAIScoreCommandWritesTable(t *testing.T) {
 	viper.Set("output", "table")
 	viper.Set("api_url", "http://localhost:3000")
 	viper.Set("workspace", "dev")
+	var seenRequest localResumeAIScoreRequest
 	runLocalResumeAIScorer = func(ctx context.Context, request localResumeAIScoreRequest) (*localResumeAIScoreResponse, error) {
+		seenRequest = request
 		if request.Source != "convex" {
 			t.Fatalf("expected convex source, got %q", request.Source)
 		}
@@ -114,14 +116,59 @@ func TestResumeDebugAIScoreCommandWritesTable(t *testing.T) {
 	var output bytes.Buffer
 	cmd.SetOut(&output)
 	cmd.SetErr(&output)
-	cmd.SetArgs([]string{"--query", "CNC 销售", "--top-n", "1"})
+	cmd.SetArgs([]string{"--query", "CNC 销售", "--top-n", "100"})
 
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("resume debug ai-score command failed: %v", err)
 	}
+	if seenRequest.TopN != 100 {
+		t.Fatalf("expected topN=100, got %d", seenRequest.TopN)
+	}
 	text := output.String()
 	if !strings.Contains(text, "Alice") || !strings.Contains(text, "92") {
 		t.Fatalf("unexpected command output: %s", text)
+	}
+}
+
+func TestResumeDebugAIScoreCommandUsesDefaultTopN50(t *testing.T) {
+	originalOutput := viper.GetString("output")
+	originalAPIURL := viper.GetString("api_url")
+	originalWorkspace := viper.GetString("workspace")
+	originalRunner := runLocalResumeAIScorer
+	t.Cleanup(func() {
+		viper.Set("output", originalOutput)
+		viper.Set("api_url", originalAPIURL)
+		viper.Set("workspace", originalWorkspace)
+		runLocalResumeAIScorer = originalRunner
+	})
+
+	viper.Set("output", "table")
+	viper.Set("api_url", "http://localhost:3000")
+	viper.Set("workspace", "dev")
+	var seenRequest localResumeAIScoreRequest
+	runLocalResumeAIScorer = func(ctx context.Context, request localResumeAIScoreRequest) (*localResumeAIScoreResponse, error) {
+		seenRequest = request
+		return &localResumeAIScoreResponse{
+			Success: true,
+			Source:  "convex",
+			Results: []localResumeAIScoreResult{},
+		}, nil
+	}
+
+	cmd := newResumeDebugAIScoreCmd()
+	var output bytes.Buffer
+	cmd.SetOut(&output)
+	cmd.SetErr(&output)
+	cmd.SetArgs([]string{"--query", "CNC 销售"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("resume debug ai-score command failed: %v", err)
+	}
+	if seenRequest.TopN != 50 {
+		t.Fatalf("expected default topN=50, got %d", seenRequest.TopN)
+	}
+	if seenRequest.Limit != 50 {
+		t.Fatalf("expected default limit=50, got %d", seenRequest.Limit)
 	}
 }
 

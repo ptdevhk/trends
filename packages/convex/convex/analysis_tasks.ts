@@ -156,16 +156,36 @@ export function buildRelatedExpCtxArg(
     };
 }
 
-function classifyResumes(
-    resumes: Doc<"resumes">[],
-    keywords: string[]
-): { toAnalyze: Doc<"resumes">[]; toSkip: Doc<"resumes">[] } {
+function hasRelatedExpContextEvidence(
+    resume: Record<string, unknown>,
+    relatedExpContext: RelatedExpContextInput,
+): boolean {
+    const relatedExpArg = buildRelatedExpCtxArg(resume, relatedExpContext);
+    if (!relatedExpArg) {
+        return false;
+    }
+
+    const evidence = relatedExpArg.ingestEvidence;
+    const directRoleMatch = evidence.directRoleMatch === true;
+    const industryVerifiedRelevantYears = evidence.industryVerifiedRelevantYears ?? 0;
+    const matchedWorkEntries = evidence.matchedWorkEntries ?? [];
+
+    return directRoleMatch
+        || industryVerifiedRelevantYears > 0
+        || matchedWorkEntries.length > 0;
+}
+
+export function classifyResumes<T extends Record<string, unknown>>(
+    resumes: T[],
+    keywords: string[],
+    relatedExpContext?: RelatedExpContextInput,
+): { toAnalyze: T[]; toSkip: T[] } {
     if (keywords.length === 0) {
         return { toAnalyze: resumes, toSkip: [] };
     }
 
-    const toAnalyze: Doc<"resumes">[] = [];
-    const toSkip: Doc<"resumes">[] = [];
+    const toAnalyze: T[] = [];
+    const toSkip: T[] = [];
     const threshold = 10;
 
     for (const resume of resumes) {
@@ -178,7 +198,7 @@ function classifyResumes(
         }
 
         const score = Math.min(100, Math.round((matches / Math.max(keywords.length, 1)) * 100));
-        if (score < threshold) {
+        if (score < threshold && !(relatedExpContext && hasRelatedExpContextEvidence(resume, relatedExpContext))) {
             toSkip.push(resume);
             continue;
         }
@@ -592,7 +612,7 @@ export const processAnalysisTask = internalAction({
                 : extractKeywords(keywordSource);
             const normalizedLocation = task.config.location?.trim() || undefined;
             const promptVersion = task.config.promptVersion ?? getCurrentResumeAiPromptVersion();
-            const { toAnalyze, toSkip } = classifyResumes(resumes, keywords);
+            const { toAnalyze, toSkip } = classifyResumes(resumes, keywords, task.config.relatedExpContext);
             const analysisJobDescriptionId = task.config.jobDescriptionId
                 || (keywords.length > 0
                     ? buildKeywordAnalysisId(keywords, {

@@ -1,4 +1,4 @@
-import { formatKeywordQuery, isSalesRequiredContext, parseKeywordQuery } from '@trends/shared'
+import { formatKeywordQuery, isSalesRequiredContext, parseKeywordQuery, resolveLocationHierarchy } from '@trends/shared'
 import { matchesSalaryFilter } from '@/hooks/resume-filter-helpers'
 import { useMutation } from 'convex/react'
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, useTransition } from 'react'
@@ -48,7 +48,7 @@ import {
   resolveResumeAnalysisSourceKey,
 } from '@/lib/analysis-utils'
 import { parseExperienceYears } from '@/lib/resume-filtering'
-import { resolveCollectionSource, getSourceLabelFromHostname } from '@/lib/search-profile-sources'
+import { getCollectionSourceMarket, resolveCollectionSource, getSourceLabelFromHostname } from '@/lib/search-profile-sources'
 import type { SearchHistoryItem } from '@/hooks/useSession'
 import type {
   CandidateActionType,
@@ -150,6 +150,62 @@ function resolveEffectiveRoleFilterType(state: UrlSearchState): string | undefin
   }
 
   return queryImpliesSalesRole(state.query, state.keywords) ? 'sales' : undefined
+}
+
+function resolveRelatedExpMarket(
+  state: UrlSearchState,
+  recentSearches: ResumeSearchRecentItem[],
+): 'CN' | 'MY' | undefined {
+  const explicitCollectionSource = recentSearches.find(
+    (item) => item.collectionSource,
+  )?.collectionSource
+
+  if (!explicitCollectionSource) {
+    const normalizedLocation = normalizeOptionalString(state.location)
+    if (!normalizedLocation) {
+      return undefined
+    }
+
+    const hierarchy = resolveLocationHierarchy(normalizedLocation)
+    if (!hierarchy) {
+      return undefined
+    }
+
+    if (hierarchy.country === 'Malaysia') {
+      return 'MY'
+    }
+
+    if (hierarchy.country === '中国') {
+      return 'CN'
+    }
+
+    return undefined
+  }
+
+  return getCollectionSourceMarket(explicitCollectionSource.type)
+}
+
+function buildRelatedExpContext(
+  state: UrlSearchState,
+  recentSearches: ResumeSearchRecentItem[],
+): {
+  roleFilterType?: string
+  minRoleYears?: number
+  market?: 'CN' | 'MY'
+} | undefined {
+  const roleFilterType = resolveEffectiveRoleFilterType(state)
+  const minRoleYears = state.filters.minRoleYears
+  const market = resolveRelatedExpMarket(state, recentSearches)
+
+  if (!roleFilterType && typeof minRoleYears !== 'number' && !market) {
+    return undefined
+  }
+
+  return {
+    ...(roleFilterType ? { roleFilterType } : {}),
+    ...(typeof minRoleYears === 'number' ? { minRoleYears } : {}),
+    ...(market ? { market } : {}),
+  }
 }
 
 function resolveScore(
@@ -1505,6 +1561,7 @@ export function useResumeSearchState() {
       const normalizedLocation = normalizeOptionalString(parsedState.location)
       const keywords =
         analysisKeywords.length > 0 ? analysisKeywords : undefined
+      const relatedExpContext = buildRelatedExpContext(parsedState, recentSearches)
       let jobDescriptionTitle: string | undefined
       let jobDescriptionContent: string | undefined
 
@@ -1530,6 +1587,7 @@ export function useResumeSearchState() {
         ...(jobDescriptionContent ? { jobDescriptionContent } : {}),
         ...(keywords ? { keywords } : {}),
         ...(normalizedLocation ? { location: normalizedLocation } : {}),
+        ...(relatedExpContext ? { relatedExpContext } : {}),
         promptVersion: currentPromptVersion,
         resumeIds: analysisDispatchBatchIds,
       })
@@ -1553,8 +1611,8 @@ export function useResumeSearchState() {
     currentPromptVersion,
     dispatchAnalysis,
     hasActiveAnalysisTask,
-    parsedState.jobDescriptionId,
-    parsedState.location,
+    parsedState,
+    recentSearches,
   ])
 
   useEffect(() => {

@@ -57,6 +57,11 @@ async function execGit(args: string[], cwd: string): Promise<string> {
 }
 
 async function getGhToken(): Promise<string | null> {
+  const envToken = process.env.GH_TOKEN?.trim();
+  if (envToken) {
+    return envToken;
+  }
+
   try {
     const { stdout } = await execFileAsync("gh", ["auth", "token"]);
     return stdout.trim() || null;
@@ -65,10 +70,10 @@ async function getGhToken(): Promise<string | null> {
   }
 }
 
-async function cloneSampleRepo(sampleRepo: string, tempDir: string): Promise<void> {
+async function cloneSampleRepo(sampleRepo: string, tempDir: string): Promise<string> {
   const token = await getGhToken();
   const cloneUrl = token
-    ? `https://oauth2:${token}@github.com/${sampleRepo}.git`
+    ? `https://x-access-token:${token}@github.com/${sampleRepo}.git`
     : `https://github.com/${sampleRepo}.git`;
 
   try {
@@ -79,6 +84,8 @@ async function cloneSampleRepo(sampleRepo: string, tempDir: string): Promise<voi
     }
     throw e;
   }
+
+  return cloneUrl;
 }
 
 interface SnapshotFile {
@@ -103,7 +110,7 @@ function parseResumeCount(raw: string): number {
 }
 
 function extractSource(fileName: string): string {
-  const match = /^resume-backup-(.+)-top\d+-/.exec(fileName);
+  const match = /^resume-backup-(.+)-top\d+(?:-|\.json$)/.exec(fileName);
   return match ? match[1] : "unknown";
 }
 
@@ -163,7 +170,7 @@ async function main(): Promise<void> {
   const tempDir = await mkdtemp("trends-push-samples-");
   try {
     console.log(`Cloning ${sampleRepo}...`);
-    await cloneSampleRepo(sampleRepo, tempDir);
+    const pushUrl = await cloneSampleRepo(sampleRepo, tempDir);
 
     const snapshotsDir = path.join(tempDir, "snapshots");
     await mkdir(snapshotsDir, { recursive: true });
@@ -205,7 +212,7 @@ async function main(): Promise<void> {
     }
 
     await execGit(["commit", "-m", `Update sample snapshots from ${timestamp}`], tempDir);
-    await execGit(["push", "origin", "main"], tempDir);
+    await execGit(["push", pushUrl, "main"], tempDir);
 
     console.log(`Pushed ${jsonFiles.length} snapshot file(s) to ${sampleRepo}`);
     for (const f of fileSummaries) {
