@@ -19,6 +19,8 @@ func NewFormatter(name string) (Formatter, error) {
 		return &JSONFormatter{}, nil
 	case "csv":
 		return &CSVFormatter{}, nil
+	case "agent":
+		return &AgentFormatter{}, nil
 	default:
 		return nil, fmt.Errorf("unsupported output formatter %q", name)
 	}

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/ptdevhk/trends/packages/cli/internal/client"
+	"github.com/ptdevhk/trends/packages/cli/internal/output"
 	"github.com/spf13/cobra"
 )
 
@@ -138,7 +139,8 @@ func newResumeSearchCmd() *cobra.Command {
 			}
 
 			options := currentOptions()
-			if options.Output != "json" {
+			switch options.Output {
+			case "table":
 				fmt.Fprintf(
 					cmd.OutOrStdout(),
 					"Query: %s | Source: %s | Total: %d | Returned: %d\n\n",
@@ -147,6 +149,15 @@ func newResumeSearchCmd() *cobra.Command {
 					response.Summary.Total,
 					response.Summary.Returned,
 				)
+			case "agent":
+				if err := writeAgentSummary(cmd, []output.Field{
+					{Key: "query", Value: response.Summary.Query},
+					{Key: "source", Value: coalesceString(response.Summary.Source, normalizeResumeSourceFlag(source))},
+					{Key: "total", Value: strconv.Itoa(response.Summary.Total)},
+					{Key: "returned", Value: strconv.Itoa(response.Summary.Returned)},
+				}); err != nil {
+					return err
+				}
 			}
 
 			headers := []string{"id", "name", "intention", "location", "experience", "education"}
@@ -354,6 +365,23 @@ func splitCSV(input string) []string {
 }
 
 func writeAnalyzeTable(cmd *cobra.Command, response *client.AnalyzeResponse) error {
+	if currentOptions().Output == "agent" {
+		fields := []output.Field{
+			{Key: "kind", Value: "analysis"},
+			{Key: "candidates", Value: strconv.Itoa(response.ResumeCount)},
+			{Key: "dry_run", Value: strconv.FormatBool(response.DryRun)},
+			{Key: "task_id", Value: response.TaskID},
+		}
+		if response.Config != nil {
+			fields = append(fields,
+				output.Field{Key: "job_description_id", Value: response.Config.JobDescriptionID},
+				output.Field{Key: "keywords", Value: strings.Join(response.Config.Keywords, ",")},
+				output.Field{Key: "location", Value: response.Config.Location},
+			)
+		}
+		return writeAgentFields(cmd, fields)
+	}
+
 	fmt.Fprintf(cmd.OutOrStdout(), "Candidates: %d\n", response.ResumeCount)
 	if response.DryRun {
 		fmt.Fprintf(cmd.OutOrStdout(), "Mode: dry-run (no analysis dispatched)\n")
@@ -480,7 +508,8 @@ func newResumeManualImportCmd() *cobra.Command {
 				return err
 			}
 
-			if currentOptions().Output != "json" {
+			switch currentOptions().Output {
+			case "table":
 				fmt.Fprintf(
 					cmd.OutOrStdout(),
 					"Source: %s | Uploaded: %d | Discovered: %d | Parsed: %d | Imported: %d | Failed: %d\n\n",
@@ -491,6 +520,17 @@ func newResumeManualImportCmd() *cobra.Command {
 					response.Summary.Imported,
 					response.Summary.Failed,
 				)
+			case "agent":
+				if err := writeAgentSummary(cmd, []output.Field{
+					{Key: "source", Value: coalesceString(response.Source.Label, response.Source.Key, "51job-manual")},
+					{Key: "uploaded", Value: strconv.Itoa(response.Summary.UploadedFiles)},
+					{Key: "discovered", Value: strconv.Itoa(response.Summary.DiscoveredFiles)},
+					{Key: "parsed", Value: strconv.Itoa(response.Summary.ParsedResumes)},
+					{Key: "imported", Value: strconv.Itoa(response.Summary.Imported)},
+					{Key: "failed", Value: strconv.Itoa(response.Summary.Failed)},
+				}); err != nil {
+					return err
+				}
 			}
 
 			output := buildResumeManualImportOutput(response)
@@ -540,6 +580,26 @@ func buildResumeManualImportOutput(response *client.ResumeManualImportResponse) 
 
 func writeResumeDetailOutput(cmd *cobra.Command, response *client.ResumeDetailResponse) error {
 	item := response.Data
+
+	if currentOptions().Output == "agent" {
+		return writeAgentFields(cmd, []output.Field{
+			{Key: "kind", Value: "resume_detail"},
+			{Key: "id", Value: coalesceString(item.ResumeID, item.PerUserID, item.ProfileID, item.ExternalID)},
+			{Key: "name", Value: item.Name},
+			{Key: "source", Value: response.Source},
+			{Key: "intention", Value: item.JobIntention},
+			{Key: "location", Value: item.Location},
+			{Key: "experience", Value: item.Experience},
+			{Key: "education", Value: item.Education},
+			{Key: "activity", Value: item.ActivityStatus},
+			{Key: "salary", Value: item.ExpectedSalary},
+			{Key: "profile", Value: item.ProfileURL},
+			{Key: "self_intro", Value: strconv.FormatBool(strings.TrimSpace(item.SelfIntro) != "")},
+			{Key: "work_history", Value: strconv.Itoa(len(item.WorkHistory))},
+			{Key: "detail", Value: "use --output json for full resume"},
+		})
+	}
+
 	out := cmd.OutOrStdout()
 
 	if _, err := fmt.Fprintf(

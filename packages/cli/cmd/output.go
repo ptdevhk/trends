@@ -47,6 +47,25 @@ func writeMessage(cmd *cobra.Command, message string) error {
 	if options.Output == "json" {
 		return writeOutput(cmd, nil, nil, map[string]string{"message": message})
 	}
+	if options.Output == "agent" {
+		return writeAgentFields(cmd, []output.Field{
+			{Key: "kind", Value: "message"},
+			{Key: "message", Value: message},
+		})
+	}
 	_, err := fmt.Fprintln(cmd.OutOrStdout(), message)
 	return err
+}
+
+func writeAgentFields(cmd *cobra.Command, fields []output.Field) error {
+	line := output.FormatFields(fields)
+	if line == "" {
+		return nil
+	}
+	_, err := fmt.Fprintln(cmd.OutOrStdout(), line)
+	return err
+}
+
+func writeAgentSummary(cmd *cobra.Command, fields []output.Field) error {
+	return writeAgentFields(cmd, append([]output.Field{{Key: "kind", Value: "summary"}}, fields...))
 }

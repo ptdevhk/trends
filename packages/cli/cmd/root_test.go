@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/spf13/viper"
@@ -41,6 +42,34 @@ func TestPersistentPreRunEValidatesOutput(t *testing.T) {
 	viper.Set("output", "xml")
 	if err := rootCmd.PersistentPreRunE(rootCmd, nil); err == nil {
 		t.Fatal("expected invalid output format error")
+	}
+}
+
+func TestDefaultOutputIsAgent(t *testing.T) {
+	if got := defaultOutput; got != "agent" {
+		t.Fatalf("expected default output agent, got %q", got)
+	}
+}
+
+func TestPersistentPreRunEValidatesAgentOutput(t *testing.T) {
+	originalOutput := viper.GetString("output")
+	defer viper.Set("output", originalOutput)
+
+	valid := []string{"agent", "table", "json", "csv", " AGENT "}
+	for _, format := range valid {
+		viper.Set("output", format)
+		if err := rootCmd.PersistentPreRunE(rootCmd, nil); err != nil {
+			t.Fatalf("expected valid output format %q, got error: %v", format, err)
+		}
+	}
+
+	viper.Set("output", "xml")
+	err := rootCmd.PersistentPreRunE(rootCmd, nil)
+	if err == nil {
+		t.Fatal("expected invalid output format error")
+	}
+	if !strings.Contains(err.Error(), "agent|table|json|csv") {
+		t.Fatalf("expected error to list valid formats, got %q", err.Error())
 	}
 }
 

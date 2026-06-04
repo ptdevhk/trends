@@ -14,7 +14,7 @@ import (
 const (
 	defaultAPIURL    = "http://localhost:3000"
 	defaultWorkerURL = "http://localhost:8000"
-	defaultOutput    = "table"
+	defaultOutput    = "agent"
 )
 
 type RootOptions struct {
@@ -34,11 +34,11 @@ var rootCmd = &cobra.Command{
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		output := strings.ToLower(strings.TrimSpace(viper.GetString("output")))
 		switch output {
-		case "table", "json", "csv":
+		case "agent", "table", "json", "csv":
 			viper.Set("output", output)
 			return nil
 		default:
-			return fmt.Errorf("invalid output format %q (expected table|json|csv)", output)
+			return fmt.Errorf("invalid output format %q (expected agent|table|json|csv)", output)
 		}
 	},
 }
@@ -55,7 +55,7 @@ func init() {
 	rootCmd.PersistentFlags().String("api-url", defaultAPIURL, "BFF API base URL")
 	rootCmd.PersistentFlags().String("worker-url", defaultWorkerURL, "Worker API base URL")
 	rootCmd.PersistentFlags().String("workspace", "dev", "Workspace slug")
-	rootCmd.PersistentFlags().StringP("output", "o", defaultOutput, "Output format: table|json|csv")
+	rootCmd.PersistentFlags().StringP("output", "o", defaultOutput, "Output format: agent|table|json|csv")
 
 	_ = viper.BindPFlag("api_url", rootCmd.PersistentFlags().Lookup("api-url"))
 	_ = viper.BindPFlag("worker_url", rootCmd.PersistentFlags().Lookup("worker-url"))

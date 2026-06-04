@@ -62,3 +62,50 @@ func TestCSVFormatter(t *testing.T) {
 		t.Fatalf("unexpected CSV output: %s", text)
 	}
 }
+
+func TestNewFormatterSupportsAgent(t *testing.T) {
+	formatter, err := NewFormatter("agent")
+	if err != nil {
+		t.Fatalf("NewFormatter(agent) returned error: %v", err)
+	}
+	if formatter == nil {
+		t.Fatal("NewFormatter(agent) returned nil formatter")
+	}
+}
+
+func TestAgentFormatterFormatsKeyValueRows(t *testing.T) {
+	formatter := &AgentFormatter{}
+	output, err := formatter.Format(TabularData{
+		Headers: []string{"Resume ID", "name", "score", "empty"},
+		Rows: [][]string{
+			{"resume-1", "Alice Chow", "91", ""},
+			{"resume-2", "Bob=Ops", "", "x|y"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Agent formatter returned error: %v", err)
+	}
+
+	want := strings.Join([]string{
+		`resume_id=resume-1 name="Alice Chow" score=91 empty=-`,
+		`resume_id=resume-2 name="Bob=Ops" score=- empty="x|y"`,
+		"",
+	}, "\n")
+	if string(output) != want {
+		t.Fatalf("unexpected agent output:\nwant=%q\ngot=%q", want, string(output))
+	}
+}
+
+func TestAgentFormatterHandlesMissingCells(t *testing.T) {
+	formatter := &AgentFormatter{}
+	output, err := formatter.Format(TabularData{
+		Headers: []string{"id", "status"},
+		Rows:    [][]string{{"task-1"}},
+	})
+	if err != nil {
+		t.Fatalf("Agent formatter returned error: %v", err)
+	}
+	if got := string(output); got != "id=task-1 status=-\n" {
+		t.Fatalf("unexpected output: %q", got)
+	}
+}

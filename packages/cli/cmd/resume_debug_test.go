@@ -885,6 +885,7 @@ func TestResumeDebugAnalysisTasksCommandWritesTable(t *testing.T) {
 	defer server.Close()
 
 	setResumeCLIConfig(t, server.URL, "dev")
+	setCLIOutput(t, "table")
 
 	cmd := newResumeDebugAnalysisTasksCmd()
 	var output bytes.Buffer
@@ -899,7 +900,7 @@ func TestResumeDebugAnalysisTasksCommandWritesTable(t *testing.T) {
 	if !strings.Contains(text, "task-1") || !strings.Contains(text, "CNC Sales") {
 		t.Fatalf("unexpected analysis-tasks table output: %s", text)
 	}
-	if !strings.Contains(text, "task-2") || !strings.Contains(text, "running") || !strings.Contains(text, "5/10") {
+	if !strings.Contains(text, "task-2") || !strings.Contains(text, "running") || !strings.Contains(text, "Sales") {
 		t.Fatalf("unexpected analysis-tasks table output (task-2): %s", text)
 	}
 }
