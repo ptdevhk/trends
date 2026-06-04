@@ -207,4 +207,87 @@ describe("countResumesByStatus", () => {
     expect(result.total).toBe(1);
     expect(result.new).toBe(1);
   });
+
+  it("excludes blocked resumes by default", async () => {
+    const source = "test-count-blocked-default";
+    const ws = "test-count-blocked-default-ws";
+    await test.run(async (ctx) => {
+      await ctx.db.insert("resumes", {
+        externalId: "ext-block-visible",
+        identityKey: "ik-block-visible",
+        content: { name: "Visible" },
+        hash: "hash-block-visible",
+        tags: [],
+        crawledAt: Date.now(),
+        source,
+        sourceKey: source,
+      });
+      await ctx.db.insert("resumes", {
+        externalId: "ext-block-hidden",
+        identityKey: "ik-block-hidden",
+        content: { name: "Hidden" },
+        hash: "hash-block-hidden",
+        tags: [],
+        crawledAt: Date.now(),
+        source,
+        sourceKey: source,
+      });
+      await ctx.db.insert("candidate_blocks", {
+        workspaceSlug: ws,
+        identityKey: "ik-block-hidden",
+        reason: "duplicate",
+        blockedAt: Date.now(),
+      });
+    });
+
+    const result = await test.query(api.resumes.countResumesByStatus, {
+      workspaceSlug: ws,
+      sources: [source],
+    });
+
+    expect(result.new).toBe(1);
+    expect(result.total).toBe(1);
+  });
+
+  it("includes blocked resumes when showBlocked is true", async () => {
+    const source = "test-count-blocked-visible";
+    const ws = "test-count-blocked-visible-ws";
+    await test.run(async (ctx) => {
+      await ctx.db.insert("resumes", {
+        externalId: "ext-show-block-visible",
+        identityKey: "ik-show-block-visible",
+        content: { name: "Visible" },
+        hash: "hash-show-block-visible",
+        tags: [],
+        crawledAt: Date.now(),
+        source,
+        sourceKey: source,
+      });
+      await ctx.db.insert("resumes", {
+        externalId: "ext-show-block-hidden",
+        identityKey: "ik-show-block-hidden",
+        content: { name: "Hidden" },
+        hash: "hash-show-block-hidden",
+        tags: [],
+        crawledAt: Date.now(),
+        source,
+        sourceKey: source,
+      });
+      await ctx.db.insert("candidate_blocks", {
+        workspaceSlug: ws,
+        identityKey: "ik-show-block-hidden",
+        reason: "duplicate",
+        blockedAt: Date.now(),
+      });
+    });
+
+    const result = await test.query(api.resumes.countResumesByStatus, {
+      workspaceSlug: ws,
+      sources: [source],
+      showBlocked: true,
+    });
+
+    expect(result.new).toBe(2);
+    expect(result.total).toBe(2);
+  });
 });

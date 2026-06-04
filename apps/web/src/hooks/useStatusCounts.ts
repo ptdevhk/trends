@@ -12,8 +12,13 @@ export interface StatusCounts {
   loading: boolean;
 }
 
+export type StatusCountFilters = ConvexResumeFilters & {
+  showBlocked?: boolean;
+};
+
 interface UseStatusCountsParams {
-  filters: ConvexResumeFilters;
+  enabled?: boolean;
+  filters: StatusCountFilters;
   workspaceSlug: string;
   useAndModeBff: boolean;
   bffStatusCounts?: { new: number; shortlisted: number; rejected: number };
@@ -28,11 +33,11 @@ interface CountResumesByStatusResult {
 }
 
 export function useStatusCounts(params: UseStatusCountsParams): StatusCounts {
-  const { filters, workspaceSlug, useAndModeBff, bffStatusCounts } = params;
+  const { enabled = true, filters, workspaceSlug, useAndModeBff, bffStatusCounts } = params;
 
   // Always call useMemo unconditionally (skip building args for BFF path)
   const queryArgs = useMemo(() => {
-    if (useAndModeBff) return "skip" as const;
+    if (!enabled || useAndModeBff) return "skip" as const;
     return {
       workspaceSlug,
       ...(filters.maxExperience != null ? { maxExperience: filters.maxExperience } : {}),
@@ -48,11 +53,16 @@ export function useStatusCounts(params: UseStatusCountsParams): StatusCounts {
       ...(filters.minSalary != null ? { minSalary: filters.minSalary } : {}),
       ...(filters.maxSalary != null ? { maxSalary: filters.maxSalary } : {}),
       ...(filters.sources?.length ? { sources: filters.sources } : {}),
+      ...(filters.showBlocked === true ? { showBlocked: true } : {}),
     };
-  }, [filters, workspaceSlug, useAndModeBff]);
+  }, [enabled, filters, workspaceSlug, useAndModeBff]);
 
   // Always call useQuery unconditionally
   const result = useQuery(api.resumes.countResumesByStatus, queryArgs as never) as CountResumesByStatusResult | undefined;
+
+  if (!enabled) {
+    return { new: 0, shortlisted: 0, rejected: 0, total: 0, overflow: false, loading: false };
+  }
 
   // BFF path: counts come from the BFF response
   if (useAndModeBff) {

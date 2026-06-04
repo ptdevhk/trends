@@ -17,6 +17,7 @@ import {
   type ConvexResumeItem,
 } from '@/hooks/useConvexResumes'
 import { useFacetCounts } from '@/hooks/useFacetCounts'
+import { useStatusCounts, type StatusCounts } from '@/hooks/useStatusCounts'
 import {
   useUrlSearchState,
   type ExperienceLevelFilter,
@@ -67,6 +68,7 @@ import type {
 const INITIAL_RESUME_LIMIT = 200
 const RESUME_PAGE_INCREMENT = 200
 const SESSION_KEY_PREFIX = 'trends.resume.search.sessionKey'
+const SERVER_STATUS_FACET_VALUES = ['new', 'shortlisted', 'rejected'] as const
 
 type JobDescriptionApiResponse = {
   success: boolean
@@ -478,6 +480,40 @@ function matchesBlockVisibility(
   return filters.showBlocked === true || !item.blocked
 }
 
+function mergeServerStatusFacetCounts(
+  facetCounts: FacetCounts,
+  statusCounts: StatusCounts,
+): FacetCounts {
+  if (statusCounts.loading) {
+    return facetCounts
+  }
+
+  const labelsByValue = new Map(
+    facetCounts.statuses.map((item) => [item.value, item.label]),
+  )
+  const statuses = SERVER_STATUS_FACET_VALUES
+    .map((value) => {
+      const label = labelsByValue.get(value)
+      return {
+        value,
+        count: statusCounts[value],
+        ...(label ? { label } : {}),
+      }
+    })
+    .filter((item) => item.count > 0)
+    .sort((left, right) => {
+      if (right.count !== left.count) {
+        return right.count - left.count
+      }
+      return left.value.localeCompare(right.value)
+    })
+
+  return {
+    ...facetCounts,
+    statuses,
+  }
+}
+
 function matchesLocalFilters(
   item: ResumeSearchResultItem,
   state: UrlSearchState,
@@ -729,6 +765,7 @@ export function useResumeSearchState() {
     parsedState.filters.status,
     parsedState.filters.minSalary,
     parsedState.filters.maxSalary,
+    parsedState.filters.showBlocked,
     parsedState.jobDescriptionId,
     parsedState.location,
     parsedState.query,
@@ -801,6 +838,7 @@ export function useResumeSearchState() {
       ...(activeSort === 'experience'
         ? { sortBy: 'experience' as const, sortOrder: 'desc' as const }
         : {}),
+      showBlocked: parsedState.filters.showBlocked === true,
     },
   )
 
@@ -936,14 +974,17 @@ export function useResumeSearchState() {
   const deferredFilteredResults = useDeferredValue(filteredResults)
 
   const facetCounts: FacetCounts = useFacetCounts(blockVisibleResults, taxonomyClusters)
-
-  // Status counts come from useFacetCounts which computes them from the
-  // actual search results. Each result's status is looked up from
-  // candidate_status, so counts stay correct after bulk status changes.
-  // Server-side counts (BFF statusCounts / Convex countResumesByStatus)
-  // were previously used here but could diverge from displayed results
-  // due to keyword mismatch, pagination limits, or stale data.
-  const facetCountsWithServerStatuses: FacetCounts = facetCounts
+  const statusCounts = useStatusCounts({
+    enabled: !isLanding,
+    filters: {
+      ...backendFilters,
+      showBlocked: parsedState.filters.showBlocked === true,
+    },
+    workspaceSlug: slug,
+    useAndModeBff: resumeQuery.isAndModeBff === true,
+    bffStatusCounts: resumeQuery.bffStatusCounts,
+  })
+  const facetCountsWithServerStatuses: FacetCounts = mergeServerStatusFacetCounts(facetCounts, statusCounts)
   const hasMore = resumeQuery.hasMore
   const loading = !isLanding && resumeQuery.loading
   const loadingMore = resumeQuery.loadingMore

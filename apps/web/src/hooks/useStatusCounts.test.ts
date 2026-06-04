@@ -60,6 +60,31 @@ describe("useStatusCounts", () => {
     expect(result.current.overflow).toBe(false);
   });
 
+  it("passes showBlocked to the Convex count query", async () => {
+    useQueryMock.mockReturnValue({
+      new: 3,
+      shortlisted: 0,
+      rejected: 0,
+      total: 3,
+      overflow: false,
+    });
+
+    const { useStatusCounts } = await import("@/hooks/useStatusCounts");
+    const filters = { locations: ["China"], showBlocked: true };
+    renderHook(() =>
+      useStatusCounts({ filters, workspaceSlug: "test", useAndModeBff: false })
+    );
+
+    expect(useQueryMock).toHaveBeenCalledWith(
+      "resumes:countResumesByStatus",
+      expect.objectContaining({
+        workspaceSlug: "test",
+        locations: ["China"],
+        showBlocked: true,
+      }),
+    );
+  });
+
   it("uses bffStatusCounts directly when useAndModeBff is true", async () => {
     useQueryMock.mockReturnValue(undefined);
 

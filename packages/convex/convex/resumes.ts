@@ -636,9 +636,10 @@ export const countResumesByStatus = query({
     minSalary: v.optional(v.number()),
     maxSalary: v.optional(v.number()),
     sources: v.optional(v.array(v.string())),
+    showBlocked: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    const { workspaceSlug, ...rawFilters } = args;
+    const { workspaceSlug, showBlocked, ...rawFilters } = args;
 
     // 1. Load candidate_status for workspace
     const statuses = await ctx.db
@@ -651,6 +652,19 @@ export const countResumesByStatus = query({
     const statusByIdentity = new Map<string, string>();
     for (const s of statuses) {
       statusByIdentity.set(s.identityKey, s.status);
+    }
+
+    const blockedIdentities = new Set<string>();
+    if (showBlocked !== true) {
+      const blocks = await ctx.db
+        .query("candidate_blocks")
+        .withIndex("by_workspace", (q) =>
+          q.eq("workspaceSlug", workspaceSlug)
+        )
+        .collect();
+      for (const block of blocks) {
+        blockedIdentities.add(block.identityKey);
+      }
     }
 
     // 2. Build normalized filters (always exclude archived)
@@ -682,8 +696,12 @@ export const countResumesByStatus = query({
       }
       if (matchesResumeListFilters(resume, filters)) {
         const identityKey = resume.identityKey ?? "";
+        if (identityKey && blockedIdentities.has(identityKey)) {
+          continue;
+        }
         const status = statusByIdentity.get(identityKey) ?? "new";
-        counts[status] = (counts[status] ?? 0) + 1;
+        const bucket = status === "shortlisted" || status === "rejected" ? status : "new";
+        counts[bucket] = (counts[bucket] ?? 0) + 1;
         totalMatched += 1;
       }
     }
@@ -702,5 +720,4 @@ export const countResumesByStatus = query({
     };
   },
 });
-
 

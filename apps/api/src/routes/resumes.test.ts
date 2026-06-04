@@ -362,6 +362,88 @@ describe("resume routes", () => {
     }));
   });
 
+  it("excludes workspace blocked candidates from convex statusCounts by default", async () => {
+    const calls: ConvexCall[] = [];
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+
+      if (call.pathName === "resumes_search:scanResumeDigestPage") {
+        return convexSuccess({
+          docs: [
+            { _id: "d1", resumeId: "resume-visible-new", source: "seek", sourceKey: "seek", searchText: "cnc sales", isArchived: false },
+            { _id: "d2", resumeId: "resume-blocked-new", source: "seek", sourceKey: "seek", searchText: "cnc sales", isArchived: false },
+            { _id: "d3", resumeId: "resume-visible-rejected", source: "seek", sourceKey: "seek", searchText: "cnc sales", isArchived: false },
+          ],
+          isDone: true,
+          cursor: null,
+        });
+      }
+
+      if (call.pathName === "resumes_search:getResumeDocsByIds") {
+        return convexSuccess([
+          {
+            ...buildConvexResumeRecord("resume-visible-new", {
+              identityKey: "ik-visible-new",
+              name: "Visible New",
+            }),
+            searchText: "cnc sales",
+            isArchived: false,
+          },
+          {
+            ...buildConvexResumeRecord("resume-blocked-new", {
+              identityKey: "ik-blocked-new",
+              name: "Blocked New",
+            }),
+            searchText: "cnc sales",
+            isArchived: false,
+          },
+          {
+            ...buildConvexResumeRecord("resume-visible-rejected", {
+              identityKey: "ik-visible-rejected",
+              name: "Visible Rejected",
+            }),
+            searchText: "cnc sales",
+            isArchived: false,
+          },
+        ]);
+      }
+
+      if (call.pathName === "candidate_status:list") {
+        expect(call.args).toEqual(expect.objectContaining({ workspaceSlug: "hr" }));
+        return convexSuccess([
+          { identityKey: "ik-visible-rejected", status: "rejected" },
+        ]);
+      }
+
+      if (call.pathName === "candidate_blocks:list") {
+        expect(call.args).toEqual(expect.objectContaining({ workspaceSlug: "hr" }));
+        return convexSuccess([
+          { identityKey: "ik-blocked-new" },
+        ]);
+      }
+
+      throw new Error(`Unexpected convex path: ${call.pathName}`);
+    });
+
+    const app = createApp();
+    const response = await app.request("/api/resumes?source=convex&q=cnc%20sales&limit=5", {
+      headers: {
+        "X-Workspace-Slug": "hr",
+      },
+    });
+
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(payload.summary.statusCounts).toEqual({
+      new: 1,
+      shortlisted: 0,
+      rejected: 1,
+    });
+    expect(calls.some((call) => call.pathName === "candidate_blocks:list")).toBe(true);
+  });
+
   it("keeps the static skills-version route from being shadowed by resume detail lookup", async () => {
     const app = createApp();
     const response = await app.request("/api/resumes/skills-version");
@@ -915,6 +997,10 @@ describe("resume routes", () => {
         return convexSuccess([]);
       }
 
+      if (call.pathName === "candidate_blocks:list") {
+        return convexSuccess([]);
+      }
+
       if (call.pathName === "resumes:getByIdsForExport") {
         return convexSuccess([
           buildConvexExportResumeRecord("resume-live-3", { name: "Carla" }),
@@ -959,6 +1045,12 @@ describe("resume routes", () => {
       }),
       expect.objectContaining({
         pathName: "candidate_status:list",
+        args: expect.objectContaining({
+          workspaceSlug: "dev",
+        }),
+      }),
+      expect.objectContaining({
+        pathName: "candidate_blocks:list",
         args: expect.objectContaining({
           workspaceSlug: "dev",
         }),
