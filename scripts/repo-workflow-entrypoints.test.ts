@@ -60,6 +60,7 @@ describe("workflow verifier repo entrypoints", () => {
     expect(recipe).toContain('RESET_MODE=fresh-sandbox');
     expect(recipe).toContain('CONFIRM_FRESH_SANDBOX=1');
     expect(makefile).toContain('migration-test-fresh-sandbox Run migration-test after a guarded full local app-state reset');
-    expect(migrationTestRunner).toContain('git clean -fdX output/ -e output/resume-backups/');
+    expect(migrationTestRunner).toContain('git ls-files -z -o -i --exclude-standard output/');
+    expect(migrationTestRunner).toContain('output/resume-backups|output/resume-backups/*');
   });
 });

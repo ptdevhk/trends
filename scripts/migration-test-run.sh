@@ -173,12 +173,23 @@ prepare_fresh_sandbox() {
     log "Removing ignored local state under output/ while preserving output/resume-backups..."
     if [ -d output ]; then
         if command -v git >/dev/null 2>&1 && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-            git clean -fdX output/ -e output/resume-backups/
+            while IFS= read -r -d '' ignored_path; do
+                case "$ignored_path" in
+                    output/resume-backups|output/resume-backups/*)
+                        continue
+                        ;;
+                esac
+                if [ -e "$ignored_path" ]; then
+                    log "  Removing $ignored_path"
+                    rm -rf "$ignored_path"
+                fi
+            done < <(git ls-files -z -o -i --exclude-standard output/)
         else
             rm -f output/resume_screening.db output/resume_screening.db-shm output/resume_screening.db-wal
             rm -rf output/rss
         fi
     fi
+    mkdir -p "$RESULTS_DIR"
 
     log "Removing local Convex and web environment selectors..."
     rm -f packages/convex/.env.local apps/web/.env.local
