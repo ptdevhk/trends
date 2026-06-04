@@ -320,7 +320,6 @@ export const SETTINGS_NAV_ITEMS: SurfaceNavDefinition[] = [
     defaultTitle: "Export Fields",
     hrefSuffix: "/settings/export-fields",
     matchesSuffixes: ["/settings/export-fields"],
-    requiresAdmin: true,
   },
 ];
 
