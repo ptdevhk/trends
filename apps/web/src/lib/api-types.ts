@@ -8931,6 +8931,7 @@ export interface paths {
                                         defaultTitle: string;
                                         hrefSuffix: string;
                                         matchesSuffixes?: string[];
+                                        requiresAdmin?: boolean;
                                     }[];
                                     settings: {
                                         id: string;
@@ -8938,6 +8939,7 @@ export interface paths {
                                         defaultTitle: string;
                                         hrefSuffix: string;
                                         matchesSuffixes?: string[];
+                                        requiresAdmin?: boolean;
                                     }[];
                                     systemSettings: {
                                         id: string;
@@ -8945,6 +8947,7 @@ export interface paths {
                                         defaultTitle: string;
                                         hrefSuffix: string;
                                         matchesSuffixes?: string[];
+                                        requiresAdmin?: boolean;
                                     }[];
                                     debugPage: {
                                         id: string;
@@ -8952,6 +8955,7 @@ export interface paths {
                                         defaultTitle: string;
                                         hrefSuffix: string;
                                         matchesSuffixes?: string[];
+                                        requiresAdmin?: boolean;
                                     }[];
                                 };
                                 labels: {
@@ -9356,7 +9360,7 @@ export interface paths {
                             /** @enum {boolean} */
                             success: true;
                             config: {
-                                fields: ("resumeId" | "name" | "jobIntention" | "location" | "experience" | "education" | "age" | "expectedSalary" | "aiScore" | "finalAiScore" | "relatedExpAuditFactor" | "relatedExpContribution" | "industryDb" | "relatedExp" | "recommendation" | "ruleScore" | "scoreSource" | "status" | "action" | "industryTags" | "brandHits" | "companyHits" | "profileUrl" | "workHistory" | "selfIntro" | "aiSummary" | "userComment" | "referenceNote" | "externalId" | "source" | "industryDbV2Raw" | "industryDbV2Normalized" | "roleEvidence" | "matchedWorkEntries")[];
+                                fields: ("resumeId" | "name" | "jobIntention" | "location" | "experience" | "education" | "age" | "expectedSalary" | "aiScore" | "finalAiScore" | "relatedExpAuditFactor" | "relatedExpContribution" | "industryDb" | "relatedExp" | "recommendation" | "ruleScore" | "scoreSource" | "status" | "action" | "industryTags" | "brandHits" | "companyHits" | "profileUrl" | "workHistory" | "selfIntro" | "aiSummary" | "userComment" | "referenceNote" | "externalId" | "source" | "industryDbV2Raw" | "industryDbV2Normalized" | "roleEvidence" | "matchedWorkEntries" | "userRating")[];
                                 includeDebugWhenEnabled?: boolean;
                             } | null;
                         };
@@ -9401,7 +9405,7 @@ export interface paths {
             requestBody?: {
                 content: {
                     "application/json": {
-                        fields: ("resumeId" | "name" | "jobIntention" | "location" | "experience" | "education" | "age" | "expectedSalary" | "aiScore" | "finalAiScore" | "relatedExpAuditFactor" | "relatedExpContribution" | "industryDb" | "relatedExp" | "recommendation" | "ruleScore" | "scoreSource" | "status" | "action" | "industryTags" | "brandHits" | "companyHits" | "profileUrl" | "workHistory" | "selfIntro" | "aiSummary" | "userComment" | "referenceNote" | "externalId" | "source" | "industryDbV2Raw" | "industryDbV2Normalized" | "roleEvidence" | "matchedWorkEntries")[];
+                        fields: ("resumeId" | "name" | "jobIntention" | "location" | "experience" | "education" | "age" | "expectedSalary" | "aiScore" | "finalAiScore" | "relatedExpAuditFactor" | "relatedExpContribution" | "industryDb" | "relatedExp" | "recommendation" | "ruleScore" | "scoreSource" | "status" | "action" | "industryTags" | "brandHits" | "companyHits" | "profileUrl" | "workHistory" | "selfIntro" | "aiSummary" | "userComment" | "referenceNote" | "externalId" | "source" | "industryDbV2Raw" | "industryDbV2Normalized" | "roleEvidence" | "matchedWorkEntries" | "userRating")[];
                         includeDebugWhenEnabled?: boolean;
                     };
                 };
@@ -9417,7 +9421,7 @@ export interface paths {
                             /** @enum {boolean} */
                             success: true;
                             config: {
-                                fields: ("resumeId" | "name" | "jobIntention" | "location" | "experience" | "education" | "age" | "expectedSalary" | "aiScore" | "finalAiScore" | "relatedExpAuditFactor" | "relatedExpContribution" | "industryDb" | "relatedExp" | "recommendation" | "ruleScore" | "scoreSource" | "status" | "action" | "industryTags" | "brandHits" | "companyHits" | "profileUrl" | "workHistory" | "selfIntro" | "aiSummary" | "userComment" | "referenceNote" | "externalId" | "source" | "industryDbV2Raw" | "industryDbV2Normalized" | "roleEvidence" | "matchedWorkEntries")[];
+                                fields: ("resumeId" | "name" | "jobIntention" | "location" | "experience" | "education" | "age" | "expectedSalary" | "aiScore" | "finalAiScore" | "relatedExpAuditFactor" | "relatedExpContribution" | "industryDb" | "relatedExp" | "recommendation" | "ruleScore" | "scoreSource" | "status" | "action" | "industryTags" | "brandHits" | "companyHits" | "profileUrl" | "workHistory" | "selfIntro" | "aiSummary" | "userComment" | "referenceNote" | "externalId" | "source" | "industryDbV2Raw" | "industryDbV2Normalized" | "roleEvidence" | "matchedWorkEntries" | "userRating")[];
                                 includeDebugWhenEnabled?: boolean;
                             } | null;
                         };
@@ -12265,6 +12269,8 @@ export interface components {
             referenceNote?: string;
             /** @example contacted */
             status?: string;
+            /** @example 4 */
+            userRating?: number;
         };
         ResumeExportMatch: {
             /** @example 88 */

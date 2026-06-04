@@ -89,10 +89,17 @@ describe('SYSTEM_NAV_ITEMS', () => {
 })
 
 describe('SETTINGS_NAV_ITEMS', () => {
-  it('includes home and profiles entries', () => {
+  it('includes home, profiles, and export fields entries', () => {
     const ids = SETTINGS_NAV_ITEMS.map((item) => item.id)
     expect(ids).toContain('home')
     expect(ids).toContain('profiles')
+    expect(ids).toContain('export-fields')
+  })
+
+  it('marks export fields as admin-only workspace settings', () => {
+    const exportFields = SETTINGS_NAV_ITEMS.find((item) => item.id === 'export-fields')
+    expect(exportFields?.hrefSuffix).toBe('/settings/export-fields')
+    expect(exportFields?.requiresAdmin).toBe(true)
   })
 })
 

@@ -6,84 +6,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { useSettingsRequestJson } from '@/pages/system-settings/lib'
-import { isRecord } from '@trends/shared'
+import { EXPORT_CORE_FIELDS, isRecord } from '@trends/shared'
 import type { ExportFieldKey } from '@trends/shared'
-
-const FIELD_GROUPS: Array<{ label: string; fields: ExportFieldKey[] }> = [
-  {
-    label: 'Identity',
-    fields: ['resumeId', 'name'],
-  },
-  {
-    label: 'Profile',
-    fields: ['jobIntention', 'location', 'experience', 'education', 'age', 'expectedSalary'],
-  },
-  {
-    label: 'Scoring',
-    fields: ['aiScore', 'industryDb', 'relatedExp', 'recommendation', 'ruleScore', 'scoreSource'],
-  },
-  {
-    label: 'Workflow',
-    fields: ['status', 'action'],
-  },
-  {
-    label: 'Matching',
-    fields: ['industryTags', 'brandHits', 'companyHits'],
-  },
-  {
-    label: 'Reference',
-    fields: ['profileUrl'],
-  },
-  {
-    label: 'Detail',
-    fields: ['workHistory', 'selfIntro', 'aiSummary'],
-  },
-  {
-    label: 'Annotation',
-    fields: ['userComment', 'referenceNote'],
-  },
-  {
-    label: 'Debug',
-    fields: ['externalId', 'source', 'industryDbV2Raw', 'industryDbV2Normalized', 'roleEvidence', 'matchedWorkEntries'],
-  },
-]
-
-const FIELD_LABELS: Record<ExportFieldKey, string> = {
-  resumeId: 'Resume ID',
-  name: 'Name',
-  jobIntention: 'Job Intention',
-  location: 'Location',
-  experience: 'Experience',
-  education: 'Education',
-  age: 'Age',
-  expectedSalary: 'Expected Salary',
-  aiScore: 'AI Score',
-  finalAiScore: 'Final AI Score',
-  relatedExpAuditFactor: 'Related Exp Audit Factor',
-  relatedExpContribution: 'Related Exp Contribution',
-  industryDb: 'Industry DB',
-  relatedExp: 'Related Exp',
-  recommendation: 'Recommendation',
-  ruleScore: 'Rule Score',
-  scoreSource: 'Score Source',
-  status: 'Status',
-  action: 'Action',
-  industryTags: 'Industry Tags',
-  brandHits: 'Brand Hits',
-  companyHits: 'Company Hits',
-  profileUrl: 'Profile URL',
-  workHistory: 'Work History',
-  selfIntro: 'Self Intro',
-  aiSummary: 'AI Summary',
-  userComment: 'User Comment',
-  referenceNote: 'Reference Note',
-  externalId: 'External ID',
-  source: 'Source',
-  industryDbV2Raw: 'Industry DB V2 Raw',
-  industryDbV2Normalized: 'Industry DB V2 Normalized',
-  roleEvidence: 'Role Evidence',
-  matchedWorkEntries: 'Matched Work Entries',
-}
+import { FIELD_GROUPS, FIELD_LABELS } from './SystemSettingsExportFieldsPage.metadata'
 
 interface ExportFieldsConfigState {
   fields: ExportFieldKey[]
@@ -96,12 +21,18 @@ function parseExportFieldsPayload(payload: unknown): ExportFieldsConfigState | n
   if (data === null || data === undefined) return null
   if (!isRecord(data)) return null
   if (!Array.isArray(data.fields)) return null
+  const fields = data.fields.filter((f): f is ExportFieldKey =>
+    typeof f === 'string' && f in FIELD_LABELS,
+  )
+  if (fields.length === 0) return null
   return {
-    fields: data.fields.filter((f): f is ExportFieldKey =>
-      typeof f === 'string' && f in FIELD_LABELS,
-    ),
+    fields,
     includeDebugWhenEnabled: typeof data.includeDebugWhenEnabled === 'boolean' ? data.includeDebugWhenEnabled : false,
   }
+}
+
+function getDefaultSelectedFields(): ExportFieldKey[] {
+  return [...EXPORT_CORE_FIELDS]
 }
 
 export function SystemSettingsExportFieldsPage() {
@@ -109,7 +40,7 @@ export function SystemSettingsExportFieldsPage() {
   const { requestJson } = useSettingsRequestJson()
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
-  const [selectedFields, setSelectedFields] = useState<ExportFieldKey[]>([])
+  const [selectedFields, setSelectedFields] = useState<ExportFieldKey[]>(getDefaultSelectedFields)
   const [includeDebug, setIncludeDebug] = useState(false)
   const [hasConfig, setHasConfig] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -132,8 +63,7 @@ export function SystemSettingsExportFieldsPage() {
         setIncludeDebug(config.includeDebugWhenEnabled)
         setHasConfig(true)
       } else {
-        // No config — defaults will be used
-        setSelectedFields([])
+        setSelectedFields(getDefaultSelectedFields())
         setIncludeDebug(false)
         setHasConfig(false)
       }
@@ -186,7 +116,13 @@ export function SystemSettingsExportFieldsPage() {
         method: 'PUT',
         body: JSON.stringify({ fields: selectedFields, includeDebugWhenEnabled: includeDebug }),
       })
-      setHasConfig(selectedFields.length > 0)
+      if (selectedFields.length > 0) {
+        setHasConfig(true)
+      } else {
+        setSelectedFields(getDefaultSelectedFields())
+        setIncludeDebug(false)
+        setHasConfig(false)
+      }
       toast.success(t('debugConfig.saved'))
     } catch (error) {
       console.error('Failed to save export fields config', error)
@@ -203,7 +139,7 @@ export function SystemSettingsExportFieldsPage() {
         method: 'PUT',
         body: JSON.stringify({ fields: [] as ExportFieldKey[] }),
       })
-      setSelectedFields([])
+      setSelectedFields(getDefaultSelectedFields())
       setIncludeDebug(false)
       setHasConfig(false)
       toast.success(t('debugConfig.saved'))

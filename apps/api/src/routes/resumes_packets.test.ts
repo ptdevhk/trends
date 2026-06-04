@@ -213,6 +213,23 @@ describe("toExportEntryFields", () => {
     expect(result.userComment).toBeUndefined();
     expect(result.referenceNote).toBeUndefined();
   });
+
+  it("preserves userRating from entry context", () => {
+    const result = toExportEntryFields(makeEntryContext({ userRating: 4 }));
+    expect(result.userRating).toBe(4);
+  });
+
+  it("omits userRating when not provided", () => {
+    const result = toExportEntryFields(makeEntryContext());
+    expect(result.userRating).toBeUndefined();
+  });
+
+  it("propagates userRating through toExportEntry", () => {
+    const resume = makeExportResumePayload();
+    const fields = toExportEntryFields(makeEntryContext({ userRating: 3 }));
+    const entry = toExportEntry("r-1", resume, fields);
+    expect(entry.userRating).toBe(3);
+  });
 });
 
 // ---------------------------------------------------------------------------

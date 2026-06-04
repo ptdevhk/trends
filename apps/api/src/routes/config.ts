@@ -145,6 +145,7 @@ const SurfaceNavItemSchema = z.object({
   defaultTitle: z.string(),
   hrefSuffix: z.string(),
   matchesSuffixes: z.array(z.string()).optional(),
+  requiresAdmin: z.boolean().optional(),
 });
 const CapabilityDescriptorSchema = z.object({
   id: z.string(),

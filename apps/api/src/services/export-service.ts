@@ -9,6 +9,9 @@ import {
   recommendationFromFinalAiScore,
   type ExportFieldsConfig,
   type ResumeWorkHistoryItem as SharedResumeWorkHistoryItem,
+  EXPORT_CORE_FIELDS,
+  EXPORT_DEBUG_FIELDS,
+  type ExportFieldKey,
 } from "@trends/shared";
 import type { BrandDisplayResolver } from "./brand-display-resolver.js";
 import {
@@ -63,6 +66,7 @@ export type ResumeExportEntry = {
   ruleScore?: number;
   userComment?: string;
   referenceNote?: string;
+  userRating?: number;
 };
 
 type ExportRow = {
@@ -100,6 +104,7 @@ type ExportRow = {
   aiSummary: string;
   userComment: string;
   referenceNote: string;
+  userRating: number | "";
 };
 
 type ReviewPacketRow = ExportRow & {
@@ -326,6 +331,7 @@ function toRow(
     aiSummary: normalizeString(entry.match?.summary),
     userComment: normalizeString(entry.userComment),
     referenceNote: normalizeString(entry.referenceNote),
+    userRating: typeof entry.userRating === "number" ? entry.userRating : "",
   };
 }
 
@@ -349,17 +355,20 @@ const STANDARD_EXCEL_COLUMNS_HEAD: ExcelColumn[] = [
   { header: "Related Exp", key: "relatedExp", width: 14 },
 ];
 
+const STANDARD_EXCEL_COLUMNS_MID: ExcelColumn[] = [
+  { header: "Source", key: "source", width: 16 },
+];
+
 const DEBUG_EXCEL_COLUMNS: ExcelColumn[] = [
   { header: "External ID", key: "externalId", width: 36 },
-  { header: "Source", key: "source", width: 16 },
   { header: "Industry DB V2 Raw", key: "industryDbV2Raw", width: 18 },
   { header: "Industry DB V2 Normalized", key: "industryDbV2Normalized", width: 24 },
-  { header: "Rule Score", key: "ruleScore", width: 10 },
   { header: "Role Evidence", key: "roleEvidence", width: 34 },
   { header: "Matched Work Entries", key: "matchedWorkEntries", width: 44 },
 ];
 
 const STANDARD_EXCEL_COLUMNS_TAIL: ExcelColumn[] = [
+  { header: "Rule Score", key: "ruleScore", width: 10 },
   { header: "Recommendation", key: "recommendation", width: 16 },
   { header: "Status", key: "status", width: 16 },
   { header: "Score Source", key: "scoreSource", width: 12 },
@@ -367,6 +376,7 @@ const STANDARD_EXCEL_COLUMNS_TAIL: ExcelColumn[] = [
   { header: "Industry Tags", key: "industryTags", width: 22 },
   { header: "Brand Hits", key: "brandHits", width: 34 },
   { header: "Company Hits", key: "companyHits", width: 22 },
+  { header: "User Rating", key: "userRating", width: 12 },
   { header: "Profile URL", key: "profileUrl", width: 28 },
   { header: "Work History", key: "workHistory", width: 44 },
   { header: "Self Intro", key: "selfIntro", width: 48 },
@@ -377,6 +387,7 @@ const STANDARD_EXCEL_COLUMNS_TAIL: ExcelColumn[] = [
 
 const ALL_EXCEL_COLUMNS: ExcelColumn[] = [
   ...STANDARD_EXCEL_COLUMNS_HEAD,
+  ...STANDARD_EXCEL_COLUMNS_MID,
   ...DEBUG_EXCEL_COLUMNS,
   ...STANDARD_EXCEL_COLUMNS_TAIL,
 ];
@@ -385,14 +396,14 @@ const EXCEL_COLUMN_BY_KEY = new Map<string, ExcelColumn>(
   ALL_EXCEL_COLUMNS.map((col) => [col.key, col]),
 );
 
-const DEBUG_FIELD_KEYS = new Set(DEBUG_EXCEL_COLUMNS.map((col) => col.key));
-
 function getExcelColumns(debug: boolean, fieldConfig?: ExportFieldsConfig | null): ExcelColumn[] {
   if (!fieldConfig || fieldConfig.fields.length === 0) {
-    // Default behavior: backwards-compatible
-    return debug
-      ? [...STANDARD_EXCEL_COLUMNS_HEAD, ...DEBUG_EXCEL_COLUMNS, ...STANDARD_EXCEL_COLUMNS_TAIL]
-      : [...STANDARD_EXCEL_COLUMNS_HEAD, ...STANDARD_EXCEL_COLUMNS_TAIL];
+    const defaultKeys = debug
+      ? [...EXPORT_CORE_FIELDS, ...EXPORT_DEBUG_FIELDS]
+      : [...EXPORT_CORE_FIELDS];
+    return defaultKeys
+      .map((key) => EXCEL_COLUMN_BY_KEY.get(key))
+      .filter((col): col is ExcelColumn => col !== undefined);
   }
 
   // Build columns from configured field list, preserving config order
@@ -405,8 +416,11 @@ function getExcelColumns(debug: boolean, fieldConfig?: ExportFieldsConfig | null
   // Optionally append debug columns not already in the list
   if (debug && fieldConfig.includeDebugWhenEnabled) {
     const presentKeys = new Set(columns.map((c) => c.key));
-    for (const col of DEBUG_EXCEL_COLUMNS) {
-      if (!presentKeys.has(col.key)) columns.push(col);
+    for (const debugKey of EXPORT_DEBUG_FIELDS) {
+      if (!presentKeys.has(debugKey)) {
+        const col = EXCEL_COLUMN_BY_KEY.get(debugKey);
+        if (col) columns.push(col);
+      }
     }
   }
 
@@ -460,15 +474,15 @@ const REVIEW_PACKET_EXCEL_COLUMNS_HEAD: ReviewPacketExcelColumn[] = [
 
 const REVIEW_PACKET_DEBUG_EXCEL_COLUMNS: ReviewPacketExcelColumn[] = [
   { header: "External ID", key: "externalId", width: 36 },
-  { header: "Source", key: "source", width: 16 },
   { header: "Industry DB V2 Raw", key: "industryDbV2Raw", width: 18 },
   { header: "Industry DB V2 Normalized", key: "industryDbV2Normalized", width: 24 },
-  { header: "Rule Score", key: "ruleScore", width: 10 },
   { header: "Role Evidence", key: "roleEvidence", width: 34 },
   { header: "Matched Work Entries", key: "matchedWorkEntries", width: 44 },
 ];
 
 const REVIEW_PACKET_EXCEL_COLUMNS_MACHINE_TAIL: ReviewPacketExcelColumn[] = [
+  { header: "Source", key: "source", width: 16 },
+  { header: "Rule Score", key: "ruleScore", width: 10 },
   { header: "Recommendation", key: "recommendation", width: 16 },
   { header: "Score Source", key: "scoreSource", width: 12 },
   { header: "Industry Tags", key: "industryTags", width: 22 },
@@ -483,6 +497,7 @@ const REVIEW_PACKET_EXCEL_COLUMNS_MACHINE_TAIL: ReviewPacketExcelColumn[] = [
 const REVIEW_PACKET_EXCEL_COLUMNS_HUMAN: ReviewPacketExcelColumn[] = [
   { header: "Status", key: "status", width: 16 },
   { header: "Action", key: "action", width: 12 },
+  { header: "User Rating", key: "userRating", width: 12 },
   { header: "User Comment", key: "userComment", width: 36 },
   { header: "Reference Note", key: "referenceNote", width: 36 },
 ];

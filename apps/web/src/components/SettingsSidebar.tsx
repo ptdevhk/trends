@@ -5,7 +5,7 @@ import {
   type SurfaceNavDefinition,
 } from '@trends/shared'
 import { Link, useLocation } from 'react-router-dom'
-import { Ban, Home, Search, X } from 'lucide-react'
+import { Ban, Home, Search, SlidersHorizontal, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
@@ -24,6 +24,7 @@ const NAV_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   home: Home,
   blocks: Ban,
   profiles: Search,
+  'export-fields': SlidersHorizontal,
 }
 
 interface SettingsSidebarProps {
@@ -32,20 +33,22 @@ interface SettingsSidebarProps {
 
 export function SettingsSidebar({ onClose }: SettingsSidebarProps) {
   const location = useLocation()
-  const { slug } = useWorkspace()
+  const { slug, isAdmin } = useWorkspace()
   const { t } = useTranslation()
   const metadata = useSystemMetadata()
   const appVersion = metadata?.identity?.appVersion ?? 'unknown'
 
   const navItems = useMemo<NavItem[]>(() => {
-    return SETTINGS_NAV_ITEMS.map((item) => ({
-      ...item,
-      title: t(item.titleKey, { defaultValue: item.defaultTitle }),
-      href: `/${slug}${item.hrefSuffix}`,
-      matches: item.matchesSuffixes.map((suffix) => `/${slug}${suffix}`),
-      icon: NAV_ICONS[item.id] ?? Home,
-    }))
-  }, [slug, t])
+    return SETTINGS_NAV_ITEMS
+      .filter((item) => !item.requiresAdmin || isAdmin)
+      .map((item) => ({
+        ...item,
+        title: t(item.titleKey, { defaultValue: item.defaultTitle }),
+        href: `/${slug}${item.hrefSuffix}`,
+        matches: item.matchesSuffixes.map((suffix) => `/${slug}${suffix}`),
+        icon: NAV_ICONS[item.id] ?? Home,
+      }))
+  }, [isAdmin, slug, t])
 
   return (
     <div className="flex flex-col h-full bg-muted/30">

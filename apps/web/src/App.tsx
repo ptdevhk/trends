@@ -180,6 +180,16 @@ function App() {
                   </RouteSuspense>
                 )}
               />
+              <Route
+                path="export-fields"
+                element={(
+                  <AdminGate>
+                    <RouteSuspense>
+                      <LazySystemSettingsExportFieldsPage />
+                    </RouteSuspense>
+                  </AdminGate>
+                )}
+              />
             </Route>
 
             <Route

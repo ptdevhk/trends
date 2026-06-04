@@ -1,0 +1,83 @@
+import type { ExportFieldKey } from '@trends/shared'
+
+export const FIELD_GROUPS: Array<{ label: string; fields: ExportFieldKey[] }> = [
+  {
+    label: 'Core - Identity',
+    fields: ['resumeId', 'name', 'jobIntention', 'location', 'profileUrl', 'source'],
+  },
+  {
+    label: 'Core - Profile',
+    fields: ['education', 'age', 'expectedSalary'],
+  },
+  {
+    label: 'Core - Assessment',
+    fields: ['aiScore', 'aiSummary', 'status', 'userRating', 'userComment'],
+  },
+  {
+    label: 'Detail - Profile',
+    fields: ['experience', 'workHistory', 'selfIntro'],
+  },
+  {
+    label: 'Detail - Workflow',
+    fields: ['action', 'referenceNote'],
+  },
+  {
+    label: 'Detail - Scoring',
+    fields: [
+      'finalAiScore',
+      'relatedExpAuditFactor',
+      'relatedExpContribution',
+      'industryDb',
+      'relatedExp',
+      'recommendation',
+      'ruleScore',
+      'scoreSource',
+    ],
+  },
+  {
+    label: 'Detail - Matching',
+    fields: ['industryTags', 'brandHits', 'companyHits'],
+  },
+  {
+    label: 'Debug',
+    fields: ['externalId', 'industryDbV2Raw', 'industryDbV2Normalized', 'roleEvidence', 'matchedWorkEntries'],
+  },
+]
+
+export const FIELD_LABELS: Record<ExportFieldKey, string> = {
+  resumeId: 'Resume ID',
+  name: 'Name',
+  jobIntention: 'Job Intention',
+  location: 'Location',
+  experience: 'Experience',
+  education: 'Education',
+  age: 'Age',
+  expectedSalary: 'Expected Salary',
+  aiScore: 'AI Score',
+  finalAiScore: 'Final AI Score',
+  relatedExpAuditFactor: 'Related Exp Audit Factor',
+  relatedExpContribution: 'Related Exp Contribution',
+  industryDb: 'Industry DB',
+  relatedExp: 'Related Exp',
+  recommendation: 'Recommendation',
+  ruleScore: 'Rule Score',
+  scoreSource: 'Score Source',
+  status: 'Status',
+  action: 'Action',
+  industryTags: 'Industry Tags',
+  brandHits: 'Brand Hits',
+  companyHits: 'Company Hits',
+  profileUrl: 'Profile URL',
+  workHistory: 'Work History',
+  selfIntro: 'Self Intro',
+  aiSummary: 'AI Summary',
+  userComment: 'User Comment',
+  referenceNote: 'Reference Note',
+  userRating: 'User Rating',
+  externalId: 'External ID',
+  source: 'Source',
+  industryDbV2Raw: 'Industry DB V2 Raw',
+  industryDbV2Normalized: 'Industry DB V2 Normalized',
+  roleEvidence: 'Role Evidence',
+  matchedWorkEntries: 'Matched Work Entries',
+}

@@ -3,8 +3,17 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 
+const workspaceState = vi.hoisted(() => ({
+  isAdmin: true,
+}))
+
 vi.mock('@/contexts/WorkspaceContext', () => ({
-  useWorkspace: () => ({ slug: 'dev', name: 'Dev', accessLevel: 'admin', isAdmin: true }),
+  useWorkspace: () => ({
+    slug: 'dev',
+    name: 'Dev',
+    accessLevel: workspaceState.isAdmin ? 'admin' : 'member',
+    isAdmin: workspaceState.isAdmin,
+  }),
 }))
 
 vi.mock('@/hooks/useSystemMetadata', () => ({
@@ -16,6 +25,7 @@ vi.mock('@trends/shared', () => ({
   SETTINGS_NAV_ITEMS: [
     { id: 'home', titleKey: 'nav.home', defaultTitle: 'Home', hrefSuffix: '/resumes', matchesSuffixes: ['/resumes'] },
     { id: 'blocks', titleKey: 'nav.blocks', defaultTitle: 'Blocks', hrefSuffix: '/blocks', matchesSuffixes: ['/blocks'] },
+    { id: 'export-fields', titleKey: 'nav.exportFields', defaultTitle: 'Export Fields', hrefSuffix: '/settings/export-fields', matchesSuffixes: ['/settings/export-fields'], requiresAdmin: true },
   ],
 }))
 
@@ -26,7 +36,10 @@ function renderWithRouter(ui: React.ReactElement, path = '/dev/resumes') {
 }
 
 describe('SettingsSidebar', () => {
-  beforeEach(() => { vi.clearAllMocks() })
+  beforeEach(() => {
+    vi.clearAllMocks()
+    workspaceState.isAdmin = true
+  })
 
   it('renders app name badge', () => {
     renderWithRouter(<SettingsSidebar />)
@@ -37,6 +50,16 @@ describe('SettingsSidebar', () => {
     renderWithRouter(<SettingsSidebar />)
     expect(screen.getByText('Home')).toBeInTheDocument()
     expect(screen.getByText('Blocks')).toBeInTheDocument()
+    expect(screen.getByText('Export Fields')).toBeInTheDocument()
+  })
+
+  it('hides admin-only navigation items for non-admin workspaces', () => {
+    workspaceState.isAdmin = false
+
+    renderWithRouter(<SettingsSidebar />)
+
+    expect(screen.getByText('Home')).toBeInTheDocument()
+    expect(screen.queryByText('Export Fields')).not.toBeInTheDocument()
   })
 
   it('highlights active navigation item', () => {
