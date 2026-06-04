@@ -25,8 +25,12 @@ echo "=== Step 1b: Strip schema-incompatible fields from export ==="
 FIX_DIR=$(mktemp -d)
 cd "$FIX_DIR"
 unzip -q "$EXPORT_PATH"
-python3 <<'PYEOF'
+python3 - "$PREVIEW_DIR/packages/convex/convex/schema.ts" <<'PYEOF'
 import json, os
+import pathlib
+import re
+import sys
+
 path = 'screening_sessions/documents.jsonl'
 if os.path.exists(path):
     docs = [json.loads(line) for line in open(path) if line.strip()]
@@ -38,6 +42,28 @@ if os.path.exists(path):
     with open(path, 'w') as f:
         f.write('\n'.join(json.dumps(d, ensure_ascii=False) for d in docs) + '\n')
     print(f"Stripped showBlocked from {changed}/{len(docs)} screening_sessions documents")
+
+schema_path = pathlib.Path(sys.argv[1])
+if not schema_path.exists():
+    raise SystemExit(f"Missing preview Convex schema: {schema_path}")
+
+schema_tables = re.findall(
+    r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:\s*defineTable\(",
+    schema_path.read_text(),
+    flags=re.MULTILINE,
+)
+created_empty_tables = []
+for table in schema_tables:
+    table_dir = pathlib.Path(table)
+    if table_dir.exists():
+        continue
+    table_dir.mkdir()
+    (table_dir / "generated_schema.jsonl").write_text('"uniform"\n')
+    (table_dir / "documents.jsonl").write_text("")
+    created_empty_tables.append(table)
+
+if created_empty_tables:
+    print("Materialized missing schema tables as empty: " + ", ".join(created_empty_tables))
 PYEOF
 EXPORT_PATH=/tmp/prod-convex-export-fixed.zip
 rm -f "$EXPORT_PATH"
@@ -82,7 +108,67 @@ docker exec trends-preview-convex bash -c "
 "
 
 echo ""
-echo "=== Step 4: Restart API to pick up fresh data ==="
+echo "=== Step 4: Rebuild resume digests ==="
+# The production export can omit empty derived tables. After replace-all imports,
+# rebuild resume_digests so preview search uses the same hot-table path as prod.
+digest_cursor=""
+digest_total=0
+digest_iteration=1
+while true; do
+    call_args="$(CURSOR="$digest_cursor" python3 <<'PYEOF'
+import json
+import os
+
+args = {"limit": 200}
+cursor = os.environ.get("CURSOR")
+if cursor:
+    args["cursor"] = cursor
+print(json.dumps(args))
+PYEOF
+)"
+
+    echo "Backfilling resume_digests batch $digest_iteration..."
+    if ! output="$(docker exec trends-preview-convex bash -c "cd /app/packages/convex && npx convex run resumes_search:backfillResumeDigests '$call_args'" 2>&1)"; then
+        printf '%s\n' "$output"
+        echo "resume_digests backfill failed" >&2
+        exit 1
+    fi
+
+    parsed="$(OUTPUT="$output" python3 <<'PYEOF'
+import json
+import os
+
+source = os.environ["OUTPUT"]
+start = source.find("{")
+end = source.rfind("}")
+if start == -1 or end == -1 or end < start:
+    raise SystemExit(f"Could not parse Convex response: {source}")
+value = json.loads(source[start : end + 1])
+processed = int(value.get("processed") or 0)
+is_done = 1 if value.get("isDone") else 0
+cursor = value.get("cursor") or ""
+print(f"{processed}\t{is_done}\t{cursor}")
+PYEOF
+)"
+    processed="${parsed%%$'\t'*}"
+    rest="${parsed#*$'\t'}"
+    is_done="${rest%%$'\t'*}"
+    digest_cursor="${rest#*$'\t'}"
+    digest_total=$((digest_total + processed))
+
+    if [ "$is_done" = "1" ]; then
+        break
+    fi
+    if [ -z "$digest_cursor" ]; then
+        echo "resume_digests backfill did not finish but returned no cursor" >&2
+        exit 1
+    fi
+    digest_iteration=$((digest_iteration + 1))
+done
+echo "Backfilled resume_digests for $digest_total resumes"
+
+echo ""
+echo "=== Step 5: Restart API to pick up fresh data ==="
 systemctl restart trends-preview-api
 sleep 3
 

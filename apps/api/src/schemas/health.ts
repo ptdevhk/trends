@@ -9,7 +9,7 @@ export const HealthResponseSchema = z
       example: "2026-02-11T15:03:47+08:00",
     }),
     version: z.string().optional().openapi({
-      example: "0.4.0",
+      example: "0.4.1",
     }),
   })
   .openapi("HealthResponse");
