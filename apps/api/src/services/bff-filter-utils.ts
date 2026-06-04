@@ -10,7 +10,7 @@ import {
   isLocationMatch,
   isRecord,
   normalizeResumeLocationHierarchy,
-  parseSalaryRange,
+  parseRawSalaryRange,
   resolveResumeAnalysisSourceKey,
   resolveExperienceYears,
 } from "@trends/shared";
@@ -104,7 +104,7 @@ export function bffMatchesResumeFilters(
 
   if (typeof filters.minSalary === "number" || typeof filters.maxSalary === "number") {
     const salaryStr = toStringValue(content.expectedSalary) ?? "";
-    const salary = parseSalaryRange(salaryStr);
+    const salary = parseRawSalaryRange(salaryStr);
     if (!salary) {
       // Unknown salary — exclude if maxSalary is set (cannot guarantee cap),
       // but skip minSalary (resume might meet the minimum).

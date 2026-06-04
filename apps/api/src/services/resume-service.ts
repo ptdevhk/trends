@@ -10,7 +10,7 @@ import {
   normalizeProfileUrlForDisplay,
   normalizeSharedResumeFields,
   parseExperienceYears,
-  parseSalaryRange,
+  parseRawSalaryRange,
   selectLatestWorkHistory,
 } from "@trends/shared";
 
@@ -620,7 +620,7 @@ export class ResumeService {
       }
 
       if (filters.minSalary !== undefined || filters.maxSalary !== undefined) {
-        const salary = parseSalaryRange(item.expectedSalary);
+        const salary = parseRawSalaryRange(item.expectedSalary);
         if (!salary) {
           // Unknown salary — exclude if maxSalary is set (cannot guarantee cap),
           // but skip minSalary (resume might meet the minimum).
@@ -646,7 +646,7 @@ export class ResumeService {
 export { normalizeEducationLevel, parseExperienceYears } from "@trends/shared";
 
 export function parseSalaryRangeWithMeta(value: string | undefined): { min?: number; max?: number; currency?: string; period?: string } | null {
-  const parsed = parseSalaryRange(value);
+  const parsed = parseRawSalaryRange(value);
   if (!parsed) return null;
   const normalized = value!.replace(/\s/g, "");
   const periodMatch = normalized.match(/\/(月|年)/);

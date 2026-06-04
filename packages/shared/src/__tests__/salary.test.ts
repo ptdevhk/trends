@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseSalaryRange } from "../salary.js";
+import { parseRawSalaryRange, parseSalaryRange } from "../salary.js";
 
 // ---------------------------------------------------------------------------
 // parseSalaryRange
@@ -58,6 +58,15 @@ describe("parseSalaryRange", () => {
   it("parses '1万-2万' in raw mode", () => {
     const result = parseSalaryRange("1万-2万", { unit: "raw" });
     expect(result).toEqual({ min: 10000, max: 20000 });
+  });
+
+  it("parses monthly decimal wan salary in raw mode", () => {
+    const result = parseSalaryRange("2.8-4.2万/月", { unit: "raw" });
+    expect(result).toEqual({ min: 28000, max: 42000 });
+  });
+
+  it("parses monthly decimal wan salary with explicit raw helper", () => {
+    expect(parseRawSalaryRange("2.8-4.2万/月")).toEqual({ min: 28000, max: 42000 });
   });
 
   // --- 千 unit ---

@@ -148,27 +148,31 @@ describe('matchesSalaryFilter', () => {
   })
 
   it('returns true when salary range overlaps min filter', () => {
-    expect(matchesSalaryFilter('10-20/月', 5)).toBe(true)
+    expect(matchesSalaryFilter('10000-20000/月', 5000)).toBe(true)
   })
 
   it('returns false when salary upper bound is below min filter', () => {
-    expect(matchesSalaryFilter('10-20/月', 25)).toBe(false)
+    expect(matchesSalaryFilter('10000-20000/月', 25000)).toBe(false)
   })
 
   it('returns true when salary range is below max filter', () => {
-    expect(matchesSalaryFilter('10-20/月', undefined, 25)).toBe(true)
+    expect(matchesSalaryFilter('10000-20000/月', undefined, 25000)).toBe(true)
   })
 
   it('returns false when salary lower bound exceeds max filter', () => {
-    expect(matchesSalaryFilter('10-20/月', undefined, 5)).toBe(false)
+    expect(matchesSalaryFilter('10000-20000/月', undefined, 5000)).toBe(false)
   })
 
-  it('handles 万 multiplier in filter matching', () => {
-    expect(matchesSalaryFilter('15-25万/年', 100, 300)).toBe(true)
+  it('handles raw-CNY filters with 万 multiplier in filter matching', () => {
+    expect(matchesSalaryFilter('15-25万/年', 100000, 300000)).toBe(true)
   })
 
   it('rejects 万 salary below min filter', () => {
-    expect(matchesSalaryFilter('15-25万/年', 300)).toBe(false)
+    expect(matchesSalaryFilter('15-25万/年', 300000)).toBe(false)
+  })
+
+  it('excludes monthly wan salaries above maxSalary=25000', () => {
+    expect(matchesSalaryFilter('2.8-4.2万/月', undefined, 25000)).toBe(false)
   })
 })
 

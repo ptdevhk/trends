@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseSalaryRange } from './salary'
+import { parseRawSalaryRange, parseSalaryRange } from './salary'
 
 describe('parseSalaryRange', () => {
   describe('null inputs', () => {
@@ -85,6 +85,14 @@ describe('parseSalaryRange', () => {
 
     it('converts single 万 value to raw CNY', () => {
       expect(parseSalaryRange('1.5万', { unit: 'raw' })).toEqual({ min: 15000, max: undefined })
+    })
+
+    it('converts monthly decimal 万 ranges to raw CNY', () => {
+      expect(parseSalaryRange('2.8-4.2万/月', { unit: 'raw' })).toEqual({ min: 28000, max: 42000 })
+    })
+
+    it('has an explicit raw-CNY helper', () => {
+      expect(parseRawSalaryRange('2.8-4.2万/月')).toEqual({ min: 28000, max: 42000 })
     })
   })
 

@@ -422,6 +422,31 @@ describe("ResumeService", () => {
       const filtered = service.filterResumes(items, { maxSalary: 10000 });
       expect(filtered).toHaveLength(0);
     });
+
+    it("excludes wan salaries above a raw-CNY maximum", () => {
+      const root = createFixtureRoot();
+      roots.push(root);
+      const service = new ResumeService(root);
+      const items = [
+        {
+          name: "High Salary",
+          profileUrl: "https://example.com/high-salary",
+          activityStatus: "Active",
+          age: "",
+          experience: "5 years",
+          education: "",
+          location: "China",
+          selfIntro: "",
+          jobIntention: "Sales",
+          expectedSalary: "2.8-4.2万/月",
+          workHistory: [],
+          extractedAt: "2026-03-20T00:00:00.000Z",
+        },
+      ];
+
+      const filtered = service.filterResumes(items, { maxSalary: 25000 });
+      expect(filtered).toHaveLength(0);
+    });
   });
 
   describe("education filter normalization", () => {

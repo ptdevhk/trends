@@ -4,7 +4,7 @@ import {
     matchesResumeDigestFilters,
     normalizeEducationLevel,
     normalizeResumeLocationHierarchy,
-    parseSalaryRange,
+    parseRawSalaryRange,
     resolveExperienceYears,
 } from "@trends/shared";
 import type { Doc, Id } from "../_generated/dataModel";
@@ -39,7 +39,9 @@ export type ResumeDigest = {
 export function buildResumeDigest(resume: Doc<"resumes">, now: number): ResumeDigest {
     const content = isRecord(resume.content) ? resume.content : {};
     const locationHierarchy = normalizeResumeLocationHierarchy(content, resume.source);
-    const salary = parseSalaryRange(typeof content.expectedSalary === "string" ? content.expectedSalary : undefined);
+    const salary = parseRawSalaryRange(
+        typeof content.expectedSalary === "string" ? content.expectedSalary : undefined,
+    );
     const roleYearsByType = collectRoleYearsByType(resume);
 
     return {
