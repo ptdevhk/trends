@@ -9,7 +9,7 @@ import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { useCandidateActions } from '@/hooks/useCandidateActions'
 import { useCandidateBlocks } from '@/hooks/useCandidateBlocks'
 import { useCandidateStatus } from '@/hooks/useCandidateStatus'
-import { useStatusCounts } from '@/hooks/useStatusCounts'
+
 import { useStableQuery } from '@/hooks/useStableQuery'
 import {
   useConvexResumes,
@@ -919,26 +919,13 @@ export function useResumeSearchState() {
 
   const facetCounts: FacetCounts = useFacetCounts(results, taxonomyClusters)
 
-  // Merge server-side status counts into facetCounts, falling back to client-side
-  const serverStatusCounts = useStatusCounts({
-    filters: backendFilters,
-    workspaceSlug: slug,
-    useAndModeBff: resumeQuery.isAndModeBff ?? false,
-    bffStatusCounts: resumeQuery.bffStatusCounts,
-  })
-  const facetCountsWithServerStatuses: FacetCounts = useMemo(() => {
-    if (!serverStatusCounts.loading && serverStatusCounts.total > 0) {
-      return {
-        ...facetCounts,
-        statuses: [
-          { value: 'new', label: '新候选人', count: serverStatusCounts.new },
-          { value: 'shortlisted', label: '已入围', count: serverStatusCounts.shortlisted },
-          { value: 'rejected', label: '已拒绝', count: serverStatusCounts.rejected },
-        ],
-      }
-    }
-    return facetCounts
-  }, [facetCounts, serverStatusCounts])
+  // Status counts come from useFacetCounts which computes them from the
+  // actual search results. Each result's status is looked up from
+  // candidate_status, so counts stay correct after bulk status changes.
+  // Server-side counts (BFF statusCounts / Convex countResumesByStatus)
+  // were previously used here but could diverge from displayed results
+  // due to keyword mismatch, pagination limits, or stale data.
+  const facetCountsWithServerStatuses: FacetCounts = facetCounts
   const hasMore = resumeQuery.hasMore
   const loading = !isLanding && resumeQuery.loading
   const loadingMore = resumeQuery.loadingMore
