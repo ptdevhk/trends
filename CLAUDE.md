@@ -111,6 +111,8 @@ make check-node / check-python
 npm test
 npm --workspace @trends/web run gen:api   # after API schema edits
 make e2e                                  # E2E smoke (requires make chrome-debug + make dev)
+make migration-test BACKUP_FILE=/tmp/trends-resume-backups/resumes-prod-<...>.tar.gz  # v0.2.1 -> main; refuses output/resume-backups
+make migration-test-fresh-sandbox YES=1 BACKUP_FILE=/tmp/trends-resume-backups/resumes-prod-<...>.tar.gz  # destructive local app-state reset + migration test
 make benchmark-critical-path              # Latency benchmark
 make benchmark-dev-resume-latency         # Dev-resume latency check
 ```

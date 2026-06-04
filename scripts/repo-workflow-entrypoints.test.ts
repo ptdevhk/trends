@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const makefile = readFileSync(new URL("../Makefile", import.meta.url), "utf8");
+const migrationTestRunner = readFileSync(new URL("./migration-test-run.sh", import.meta.url), "utf8");
 const packageJson = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as {
   scripts?: Record<string, string>;
 };
@@ -50,5 +51,18 @@ describe("workflow verifier repo entrypoints", () => {
     expect(recipe).toContain('bun scripts/resume/clear-workspace-demo-resumes.ts');
     expect(recipe).toContain('npx tsx scripts/resume/clear-workspace-demo-resumes.ts');
     expect(makefile).toContain('seed-clear-demo-resumes Clear only demo resumes tagged workspace-demo');
+  });
+
+  it("exposes a guarded fresh-sandbox migration test helper", () => {
+    const recipe = getTargetRecipe("migration-test-fresh-sandbox");
+
+    expect(recipe).toContain('YES=1 is required for migration-test-fresh-sandbox');
+    expect(recipe).toContain('RESET_MODE=fresh-sandbox');
+    expect(recipe).toContain('CONFIRM_FRESH_SANDBOX=1');
+    expect(makefile).toContain('migration-test-fresh-sandbox Run migration-test after a guarded full local app-state reset');
+    expect(migrationTestRunner).toContain('git ls-files -z -o -i --exclude-standard output/');
+    expect(migrationTestRunner).toContain('output/resume-backups|output/resume-backups/*');
+    expect(migrationTestRunner).toContain('cp scripts/migration-test-verify.sh "$VERIFY_SCRIPT"');
+    expect(migrationTestRunner).toContain('ORIGINAL_BRANCH=$(git branch --show-current');
   });
 });

@@ -11648,7 +11648,7 @@ export interface components {
             status: "healthy" | "degraded" | "unhealthy";
             /** @example 2026-02-11T15:03:47+08:00 */
             timestamp: string;
-            /** @example 0.2.1 */
+            /** @example 0.4.0 */
             version?: string;
         };
         TrendsResponse: {

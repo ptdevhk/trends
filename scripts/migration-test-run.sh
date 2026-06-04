@@ -1,25 +1,29 @@
 #!/bin/bash
 # Migration test: v0.2.1 backup → v0.3.0 upgrade
-# Usage: scripts/migration-test-run.sh [PHASE]
+# Usage: BACKUP_FILE=/abs/path/resumes-prod-dev.tar.gz scripts/migration-test-run.sh [PHASE]
 # PHASE: 1 = v0.2.1 restore + baseline
 #        2 = upgrade to HEAD + migrate + verify
 #        all = both phases (default)
 #
 # Prerequisites:
-#   - Backup file at output/resume-backups/resumes-prod-dev-20260512-111129.tar.gz
+#   - BACKUP_FILE points to a portable resume backup for phase 1/all
+#   - BACKUP_FILE must not live under output/resume-backups; migration tests should not depend on ignored local backups
 #   - bun, node, npx available
 #   - Ports 3210/3211/3000/5173 free (script kills stale processes)
 
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-BACKUP_FILE="output/resume-backups/resumes-prod-dev-20260512-111129.tar.gz"
+BACKUP_FILE="${BACKUP_FILE:-}"
+RESET_MODE="${RESET_MODE:-migration-only}"
+CONFIRM_FRESH_SANDBOX="${CONFIRM_FRESH_SANDBOX:-}"
 CONVEX_PORT=3210
 BASE_URL="http://localhost:3000"
 RESULTS_DIR="output/migration-test-results"
 PHASE="${1:-all}"
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 LOG="$RESULTS_DIR/migration-test-$TIMESTAMP.log"
+VERIFY_SCRIPT="${TMPDIR:-/tmp}/trends-migration-test-verify-$TIMESTAMP.sh"
 ORIGINAL_BRANCH=""
 DEV_PID=""
 
@@ -29,10 +33,13 @@ log() { echo "[$(date +%H:%M:%S)] $*" | tee -a "$LOG"; }
 
 cleanup() {
     log "Cleaning up..."
-    kill_dev_ports
+    if [ -n "$DEV_PID" ]; then
+        kill_dev_ports
+    fi
     if [ -n "$ORIGINAL_BRANCH" ]; then
         git checkout "$ORIGINAL_BRANCH" 2>/dev/null || true
     fi
+    rm -f "$VERIFY_SCRIPT"
 }
 trap cleanup EXIT
 
@@ -122,21 +129,105 @@ run_migrations() {
     log "All migrations complete"
 }
 
-# === PHASE 1: v0.2.1 restore + baseline ===
-phase1() {
-    log "=== PHASE 1: v0.2.1 Restore + Baseline ==="
+prepare_verifier() {
+    if [ ! -f scripts/migration-test-verify.sh ]; then
+        log "ERROR: scripts/migration-test-verify.sh not found before checkout."
+        exit 1
+    fi
 
-    kill_dev_ports
+    cp scripts/migration-test-verify.sh "$VERIFY_SCRIPT"
+    chmod +x "$VERIFY_SCRIPT"
+    log "Verifier snapshot: $VERIFY_SCRIPT"
+}
 
-    # Verify backup exists
+capture_original_branch() {
+    ORIGINAL_BRANCH=$(git branch --show-current 2>/dev/null || true)
+}
+
+require_phase1_backup() {
+    if [ -z "$BACKUP_FILE" ]; then
+        log "ERROR: BACKUP_FILE is required for phase 1/all."
+        log "Usage: BACKUP_FILE=/abs/path/resumes-prod-dev.tar.gz $0 [1|all]"
+        exit 1
+    fi
+
+    case "$BACKUP_FILE" in
+        output/resume-backups/*|./output/resume-backups/*|"$PWD"/output/resume-backups/*)
+            log "ERROR: BACKUP_FILE must not point inside output/resume-backups."
+            log "Use an external fixture path so migration tests do not restore from ignored local backups."
+            exit 1
+            ;;
+    esac
+
     if [ ! -f "$BACKUP_FILE" ]; then
         log "ERROR: Backup file not found: $BACKUP_FILE"
         exit 1
     fi
-    log "Backup: $BACKUP_FILE ($(du -h "$BACKUP_FILE" | cut -f1))"
 
-    # Save current branch for cleanup
-    ORIGINAL_BRANCH=$(git branch --show-current)
+    log "Backup: $BACKUP_FILE ($(du -h "$BACKUP_FILE" | cut -f1))"
+}
+
+prepare_fresh_sandbox() {
+    if [ "$RESET_MODE" != "fresh-sandbox" ]; then
+        return 0
+    fi
+
+    if [ "$PHASE" = "2" ]; then
+        log "ERROR: RESET_MODE=fresh-sandbox is not valid with phase 2 only."
+        log "Run phase 1 or all so the reset, restore baseline, and upgrade remain coupled."
+        exit 1
+    fi
+
+    if [ "$CONFIRM_FRESH_SANDBOX" != "1" ]; then
+        log "ERROR: CONFIRM_FRESH_SANDBOX=1 is required for RESET_MODE=fresh-sandbox."
+        exit 1
+    fi
+
+    log "=== FRESH SANDBOX RESET ==="
+    kill_dev_ports
+    DEV_PID=""
+
+    log "Removing ignored local state under output/ while preserving output/resume-backups..."
+    if [ -d output ]; then
+        if command -v git >/dev/null 2>&1 && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+            while IFS= read -r -d '' ignored_path; do
+                case "$ignored_path" in
+                    output/resume-backups|output/resume-backups/*)
+                        continue
+                        ;;
+                esac
+                if [ -e "$ignored_path" ]; then
+                    log "  Removing $ignored_path"
+                    rm -rf "$ignored_path"
+                fi
+            done < <(git ls-files -z -o -i --exclude-standard output/)
+        else
+            rm -f output/resume_screening.db output/resume_screening.db-shm output/resume_screening.db-wal
+            rm -rf output/rss
+        fi
+    fi
+    mkdir -p "$RESULTS_DIR"
+
+    log "Removing local Convex and web environment selectors..."
+    rm -f packages/convex/.env.local apps/web/.env.local
+
+    if [ -d "$HOME/.convex/anonymous-convex-backend-state" ]; then
+        log "Wiping anonymous local Convex backend state..."
+        rm -rf "$HOME/.convex/anonymous-convex-backend-state"
+    fi
+
+    rm -f "$RESULTS_DIR/baseline-count.txt"
+    log "Fresh sandbox reset complete"
+}
+
+# === PHASE 1: v0.2.1 restore + baseline ===
+phase1() {
+    log "=== PHASE 1: v0.2.1 Restore + Baseline ==="
+
+    require_phase1_backup
+    prepare_fresh_sandbox
+
+    kill_dev_ports
 
     # Guard: dirty tree blocks checkout
     if ! git diff --quiet || ! git diff --cached --quiet; then
@@ -170,14 +261,14 @@ phase1() {
 
     # Restore backup
     log "Restoring backup..."
-    make restore-resumes FILE="$BACKUP_FILE" MODE=replace YES=1 2>&1 | tee -a "$LOG"
+    SKIP_AUTO_BACKUP=1 make restore-resumes FILE="$BACKUP_FILE" MODE=replace YES=1 2>&1 | tee -a "$LOG"
 
     # Wait for restore to settle
     sleep 5
 
     # Baseline verification
     log "Recording baseline metrics..."
-    scripts/migration-test-verify.sh "$BASE_URL" "$RESULTS_DIR/baseline-v021-$TIMESTAMP.log"
+    "$VERIFY_SCRIPT" "$BASE_URL" "$RESULTS_DIR/baseline-v021-$TIMESTAMP.log"
 
     # Save baseline count via Convex CLI (API response format varies between versions)
     BASELINE_COUNT=$(npm --workspace @trends/convex exec convex run resumes:count '{}' 2>/dev/null || echo "error")
@@ -186,6 +277,7 @@ phase1() {
 
     # Stop dev
     kill_dev_ports
+    DEV_PID=""
 
     log "=== PHASE 1 COMPLETE ==="
     log "Baseline saved to $RESULTS_DIR/baseline-v021-$TIMESTAMP.log"
@@ -225,7 +317,7 @@ phase2() {
 
     # Post-upgrade verification
     log "Running post-upgrade verification..."
-    scripts/migration-test-verify.sh "$BASE_URL" "$RESULTS_DIR/post-upgrade-$TIMESTAMP.log"
+    "$VERIFY_SCRIPT" "$BASE_URL" "$RESULTS_DIR/post-upgrade-$TIMESTAMP.log"
 
     # Compare counts via Convex CLI
     POST_COUNT=$(npm --workspace @trends/convex exec convex run resumes:count '{}' 2>/dev/null || echo "error")
@@ -242,6 +334,7 @@ phase2() {
 
     # Stop dev
     kill_dev_ports
+    DEV_PID=""
 
     log "=== PHASE 2 COMPLETE ==="
     log "Results saved to $RESULTS_DIR/post-upgrade-$TIMESTAMP.log"
@@ -250,6 +343,8 @@ phase2() {
 # === MAIN ===
 log "Migration test starting (phase=$PHASE)"
 log "Results directory: $RESULTS_DIR"
+capture_original_branch
+prepare_verifier
 
 case "$PHASE" in
     1) phase1 ;;
