@@ -7,6 +7,7 @@ import {
   inferSeekMarket,
   normalizeProfileUrlForDisplay,
   recommendationFromFinalAiScore,
+  parseRawSalaryRange,
   type ExportFieldsConfig,
   type ResumeWorkHistoryItem as SharedResumeWorkHistoryItem,
   EXPORT_CORE_FIELDS,
@@ -80,6 +81,8 @@ type ExportRow = {
   education: string;
   age: number | "";
   expectedSalary: string;
+  expectedSalaryMinCny: number | "";
+  expectedSalaryMaxCny: number | "";
   aiScore: number | "";
   finalAiScore: number | "";
   relatedExpAuditFactor: number | "";
@@ -281,6 +284,8 @@ function toRow(
     ? computeRelatedExpContribution(relatedExp)
     : "";
   const finalAiScore = aiScore;
+  const expectedSalary = normalizeString(entry.resume.expectedSalary);
+  const expectedSalaryRange = parseRawSalaryRange(expectedSalary);
 
   return {
     resumeId: entry.key,
@@ -292,7 +297,9 @@ function toRow(
     experience: normalizeString(entry.resume.experience),
     education: normalizeString(entry.resume.education),
     age: parseAgeNumber(entry.resume.age) ?? "",
-    expectedSalary: normalizeString(entry.resume.expectedSalary),
+    expectedSalary,
+    expectedSalaryMinCny: expectedSalaryRange?.min ?? "",
+    expectedSalaryMaxCny: expectedSalaryRange?.max ?? "",
     aiScore,
     finalAiScore,
     relatedExpAuditFactor: relatedExpAuditFactor !== undefined ? relatedExpAuditFactor : "",
@@ -347,6 +354,8 @@ const STANDARD_EXCEL_COLUMNS_HEAD: ExcelColumn[] = [
   { header: "Education", key: "education", width: 14 },
   { header: "Age", key: "age", width: 10 },
   { header: "Expected Salary", key: "expectedSalary", width: 16 },
+  { header: "Expected Salary Min CNY", key: "expectedSalaryMinCny", width: 24 },
+  { header: "Expected Salary Max CNY", key: "expectedSalaryMaxCny", width: 24 },
   { header: "AI Score", key: "aiScore", width: 10 },
   { header: "Final AI Score", key: "finalAiScore", width: 16 },
   { header: "Related Exp Audit Factor", key: "relatedExpAuditFactor", width: 24 },
@@ -464,6 +473,8 @@ const REVIEW_PACKET_EXCEL_COLUMNS_HEAD: ReviewPacketExcelColumn[] = [
   { header: "Education", key: "education", width: 14 },
   { header: "Age", key: "age", width: 10 },
   { header: "Expected Salary", key: "expectedSalary", width: 16 },
+  { header: "Expected Salary Min CNY", key: "expectedSalaryMinCny", width: 24 },
+  { header: "Expected Salary Max CNY", key: "expectedSalaryMaxCny", width: 24 },
   { header: "AI Score", key: "aiScore", width: 10 },
   { header: "Final AI Score", key: "finalAiScore", width: 16 },
   { header: "Related Exp Audit Factor", key: "relatedExpAuditFactor", width: 24 },

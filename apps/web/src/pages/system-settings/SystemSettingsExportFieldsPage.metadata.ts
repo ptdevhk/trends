@@ -7,7 +7,7 @@ export const FIELD_GROUPS: Array<{ label: string; fields: ExportFieldKey[] }> = 
   },
   {
     label: 'Core - Profile',
-    fields: ['education', 'age', 'expectedSalary'],
+    fields: ['education', 'age', 'expectedSalary', 'expectedSalaryMinCny', 'expectedSalaryMaxCny'],
   },
   {
     label: 'Core - Assessment',
@@ -53,6 +53,8 @@ export const FIELD_LABELS: Record<ExportFieldKey, string> = {
   education: 'Education',
   age: 'Age',
   expectedSalary: 'Expected Salary',
+  expectedSalaryMinCny: 'Expected Salary Min CNY',
+  expectedSalaryMaxCny: 'Expected Salary Max CNY',
   aiScore: 'AI Score',
   finalAiScore: 'Final AI Score',
   relatedExpAuditFactor: 'Related Exp Audit Factor',

@@ -91,6 +91,18 @@ describe('parseSalaryRange', () => {
       expect(parseSalaryRange('2.8-4.2万/月', { unit: 'raw' })).toEqual({ min: 28000, max: 42000 })
     })
 
+    it('converts mixed 千-to-万 monthly ranges to raw CNY per bound', () => {
+      expect(parseSalaryRange('8千-1.1万/月', { unit: 'raw' })).toEqual({ min: 8000, max: 11000 })
+    })
+
+    it('uses the second bound unit for bare-to-万 monthly ranges in raw mode', () => {
+      expect(parseSalaryRange('8000-1.1万/月', { unit: 'raw' })).toEqual({ min: 8000, max: 11000 })
+    })
+
+    it('keeps decimal 万-to-万 monthly ranges in raw CNY', () => {
+      expect(parseSalaryRange('0.8万-1.1万/月', { unit: 'raw' })).toEqual({ min: 8000, max: 11000 })
+    })
+
     it('has an explicit raw-CNY helper', () => {
       expect(parseRawSalaryRange('2.8-4.2万/月')).toEqual({ min: 28000, max: 42000 })
     })

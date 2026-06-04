@@ -183,6 +183,12 @@ describe("bffMatchesResumeFilters — salary", () => {
     expect(bffMatchesResumeFilters(doc, BASE_TEXT, { maxSalary: 25000 })).toBe(false);
   });
 
+  it("handles mixed 千-to-万 salaries with raw-CNY maximums", () => {
+    const doc = makeDoc({ content: { expectedSalary: "8千-1.1万/月" } });
+    expect(bffMatchesResumeFilters(doc, BASE_TEXT, { maxSalary: 9000 })).toBe(true);
+    expect(bffMatchesResumeFilters(doc, BASE_TEXT, { maxSalary: 7000 })).toBe(false);
+  });
+
   it("excludes unknown salary when maxSalary is set", () => {
     const doc = makeDoc({ content: { expectedSalary: undefined } });
     expect(bffMatchesResumeFilters(doc, BASE_TEXT, { maxSalary: 20000 })).toBe(false);

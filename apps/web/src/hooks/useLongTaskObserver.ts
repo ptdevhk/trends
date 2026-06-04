@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 
 /**
  * Observes long tasks (>50ms) on the main thread using the Long Tasks API.
- * Logs warnings in development, silently no-ops if the API is unavailable.
+ * Logs diagnostics in development, silently no-ops if the API is unavailable.
  * Mount <LongTaskObserver /> once at the app root.
  */
 export function useLongTaskObserver() {
@@ -12,7 +12,7 @@ export function useLongTaskObserver() {
     const observer = new PerformanceObserver((list) => {
       for (const entry of list.getEntries()) {
         if (import.meta.env.DEV) {
-          console.warn(
+          console.debug(
             `[longtask] ${Math.round(entry.duration)}ms at ${entry.startTime.toFixed(0)}ms`,
             entry,
           )

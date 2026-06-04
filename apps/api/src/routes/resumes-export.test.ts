@@ -268,6 +268,61 @@ describe("resume export route", () => {
     expect(parsed.data[0]?.brandHits).toBe("发那科, 三菱");
   });
 
+  it("exports raw and normalized expected salary fields for spreadsheet filtering", async () => {
+    mockWorkspaceExportFieldsConfig([
+      "resumeId",
+      "name",
+      "expectedSalary",
+      "expectedSalaryMinCny",
+      "expectedSalaryMaxCny",
+    ]);
+
+    vi.spyOn(ResumeService.prototype, "loadSample").mockReturnValue({
+      items: [
+        buildSampleResume({
+          resumeId: "resume-salary",
+          name: "Salary Candidate",
+          expectedSalary: "8千-1.1万/月",
+        }),
+      ],
+      sample: {
+        name: "sample-test",
+        filename: "sample-test.json",
+        updatedAt: "2026-03-01T00:00:00.000Z",
+        size: 1,
+      },
+      metadata: undefined,
+      indexes: new Map(),
+    });
+
+    const app = createApp();
+    const response = await app.request("/api/resumes/export", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        format: "csv",
+        source: "sample",
+        sample: "sample-test",
+        entries: [{ resumeId: "resume-salary", status: "new" }],
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    const parsed = Papa.parse<Record<string, string>>(await response.text(), { header: true });
+    expect(parsed.meta.fields).toEqual([
+      "resumeId",
+      "name",
+      "expectedSalary",
+      "expectedSalaryMinCny",
+      "expectedSalaryMaxCny",
+    ]);
+    expect(parsed.data[0]?.expectedSalary).toBe("8千-1.1万/月");
+    expect(parsed.data[0]?.expectedSalaryMinCny).toBe("8000");
+    expect(parsed.data[0]?.expectedSalaryMaxCny).toBe("11000");
+  });
+
   it("exports convex-backed requests via server-side Convex resolution", async () => {
     const calls: ConvexCall[] = [];
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {

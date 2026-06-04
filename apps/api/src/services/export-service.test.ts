@@ -473,6 +473,7 @@ describe("ExportService", () => {
           if (lower === "id") return "ID";
           if (lower === "ai") return "AI";
           if (lower === "db") return "DB";
+          if (lower === "cny") return "CNY";
           if (lower === "v2") return "V2";
           if (lower === "url") return "URL";
           return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();

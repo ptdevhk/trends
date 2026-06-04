@@ -39,6 +39,7 @@ export default defineSchema({
         }),
         results: v.optional(collectionTaskResultsValidator),
         workerId: v.optional(v.string()), // ID of the worker processing this task
+        idempotencyKey: v.optional(v.string()),
         lastStatus: v.optional(v.string()), // Real-time status message (e.g. "Scraping page 2")
         error: v.optional(v.string()),
         startedAt: v.optional(v.number()), // Timestamp
@@ -46,6 +47,7 @@ export default defineSchema({
     })
         .index("by_status", ["status"])
         .index("by_worker", ["workerId"])
+        .index("by_idempotency_status", ["idempotencyKey", "status"])
         .index("by_completedAt", ["completedAt"]),
 
     collection_workers: defineTable({

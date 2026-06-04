@@ -69,6 +69,18 @@ describe("parseSalaryRange", () => {
     expect(parseRawSalaryRange("2.8-4.2万/月")).toEqual({ min: 28000, max: 42000 });
   });
 
+  it("parses mixed 千-to-万 monthly salary in raw mode", () => {
+    expect(parseRawSalaryRange("8千-1.1万/月")).toEqual({ min: 8000, max: 11000 });
+  });
+
+  it("parses bare-to-万 monthly salary in raw mode", () => {
+    expect(parseRawSalaryRange("8000-1.1万/月")).toEqual({ min: 8000, max: 11000 });
+  });
+
+  it("parses decimal 万-to-万 monthly salary in raw mode", () => {
+    expect(parseRawSalaryRange("0.8万-1.1万/月")).toEqual({ min: 8000, max: 11000 });
+  });
+
   // --- 千 unit ---
 
   it("parses '5千-8千' in K mode", () => {

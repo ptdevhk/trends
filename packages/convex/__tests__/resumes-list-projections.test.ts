@@ -144,6 +144,15 @@ describe("matchesResumeListFilters", () => {
 
     expect(matchesResumeListFilters(resume, { maxSalary: 25000 })).toBe(false);
   });
+
+  it("uses raw-CNY salary filters for mixed 千-to-万 salaries", () => {
+    const resume = makeResume({
+      content: { expectedSalary: "8千-1.1万/月" },
+    }) as Parameters<typeof matchesResumeListFilters>[0];
+
+    expect(matchesResumeListFilters(resume, { maxSalary: 9000 })).toBe(true);
+    expect(matchesResumeListFilters(resume, { maxSalary: 7000 })).toBe(false);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -159,6 +168,16 @@ describe("buildResumeDigest", () => {
 
     expect(digest.salaryMin).toBe(28000);
     expect(digest.salaryMax).toBe(42000);
+  });
+
+  it("stores mixed-unit salary values in raw CNY for digest filtering", () => {
+    const resume = makeResume({
+      content: { expectedSalary: "8千-1.1万/月" },
+    }) as Parameters<typeof buildResumeDigest>[0];
+    const digest = buildResumeDigest(resume, Date.UTC(2026, 5, 4));
+
+    expect(digest.salaryMin).toBe(8000);
+    expect(digest.salaryMax).toBe(11000);
   });
 });
 
