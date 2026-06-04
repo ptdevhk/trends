@@ -4,6 +4,8 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 const makefile = readFileSync(new URL("../Makefile", import.meta.url), "utf8");
 const installScript = readFileSync(new URL("./install.sh", import.meta.url), "utf8");
+const restorePreviewScript = readFileSync(new URL("../deploy/restore-preview-from-prod.sh", import.meta.url), "utf8");
+const previewMcpDockerfile = readFileSync(new URL("../deploy/docker/Dockerfile.mcp", import.meta.url), "utf8");
 const removedSeedEnvVar = "SEED_" + "RESUMES";
 
 function getTargetRecipe(target: string): string {
@@ -117,5 +119,33 @@ describe("seed_and_migrate_convex migration order", () => {
   it("passes limit to backfillIngestData", () => {
     expect(body).toContain("backfillIngestData");
     expect(body).toContain('{"limit":100}');
+  });
+});
+
+describe("preview restore export compatibility", () => {
+  it("strips removed screening-session fields before importing production data", () => {
+    expect(restorePreviewScript).toContain("showBlocked");
+    expect(restorePreviewScript).toContain("Stripped showBlocked");
+  });
+
+  it("materializes missing preview schema tables as empty before replace-all import", () => {
+    expect(restorePreviewScript).toContain("packages/convex/convex/schema.ts");
+    expect(restorePreviewScript).toContain("defineTable");
+    expect(restorePreviewScript).toContain("generated_schema.jsonl");
+    expect(restorePreviewScript).toContain("documents.jsonl");
+    expect(restorePreviewScript).toContain("Materialized missing schema tables as empty");
+  });
+
+  it("rebuilds resume digests in bounded batches after the replace-all preview import", () => {
+    expect(restorePreviewScript).toContain("Rebuild resume digests");
+    expect(restorePreviewScript).toContain("resumes_search:backfillResumeDigests");
+    expect(restorePreviewScript).toContain('"limit": 200');
+  });
+});
+
+describe("preview MCP image", () => {
+  it("copies shared Python packages required by trendradar imports", () => {
+    expect(previewMcpDockerfile).toContain("COPY trendradar/ ./trendradar/");
+    expect(previewMcpDockerfile).toContain("COPY packages/ ./packages/");
   });
 });

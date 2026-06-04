@@ -10,6 +10,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY mcp_server/ ./mcp_server/
 # 复制 trendradar 模块（MCP 服务需要读取 SQLite 数据）
 COPY trendradar/ ./trendradar/
+# 复制共享 Python 配置模块（trendradar.utils.time imports packages.config）
+COPY packages/ ./packages/
 
 # 创建必要目录
 RUN mkdir -p /app/config /app/output
