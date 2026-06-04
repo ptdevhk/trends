@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/ptdevhk/trends/packages/cli/internal/client"
+	"github.com/ptdevhk/trends/packages/cli/internal/output"
 	"github.com/spf13/cobra"
 )
 
@@ -662,7 +663,8 @@ func newResumeDebugWorkflowDatasetCmd() *cobra.Command {
 				})
 			}
 
-			if options.Output == "table" {
+			switch options.Output {
+			case "table":
 				fmt.Fprintf(
 					cmd.OutOrStdout(),
 					"Query: %s | Workspace: %s | Query matches: %d | Visible after filters: %d\n",
@@ -681,6 +683,29 @@ func newResumeDebugWorkflowDatasetCmd() *cobra.Command {
 					"Visible by source key: %s\n\n",
 					formatWorkflowDatasetCounts(report.VisibleBySourceKey),
 				)
+			case "agent":
+				if err := writeAgentSummary(cmd, []output.Field{
+					{Key: "query", Value: report.Query},
+					{Key: "workspace", Value: report.Workspace},
+					{Key: "query_matches", Value: strconv.Itoa(report.QueryMatchCount)},
+					{Key: "visible", Value: strconv.Itoa(report.VisibleCount)},
+				}); err != nil {
+					return err
+				}
+				if err := writeAgentFields(cmd, []output.Field{
+					{Key: "kind", Value: "dataset_counts"},
+					{Key: "scope", Value: "dataset"},
+					{Key: "counts", Value: formatWorkflowDatasetCounts(report.DatasetBySourceKey)},
+				}); err != nil {
+					return err
+				}
+				if err := writeAgentFields(cmd, []output.Field{
+					{Key: "kind", Value: "dataset_counts"},
+					{Key: "scope", Value: "visible"},
+					{Key: "counts", Value: formatWorkflowDatasetCounts(report.VisibleBySourceKey)},
+				}); err != nil {
+					return err
+				}
 			}
 
 			if fieldCoverage && len(report.FieldCoverageBySource) > 0 {
@@ -713,9 +738,16 @@ func newResumeDebugWorkflowDatasetCmd() *cobra.Command {
 						formatWorkflowDatasetCoveragePercent(row.SkillsPct),
 					})
 				}
-				if options.Output == "table" {
+
+				if options.Output == "agent" {
+					coverageHeaders = append([]string{"kind"}, coverageHeaders...)
+					for i := range coverageRows {
+						coverageRows[i] = append([]string{"field_coverage"}, coverageRows[i]...)
+					}
+				} else if options.Output == "table" {
 					fmt.Fprintln(cmd.OutOrStdout(), "Field coverage by source:")
 				}
+
 				if err := writeOutput(cmd, coverageHeaders, coverageRows, report.FieldCoverageBySource); err != nil {
 					return err
 				}
@@ -724,7 +756,7 @@ func newResumeDebugWorkflowDatasetCmd() *cobra.Command {
 				}
 			}
 
-			if len(rows) == 0 && options.Output == "table" {
+			if len(rows) == 0 && (options.Output == "table" || options.Output == "agent") {
 				return writeMessage(cmd, "No visible resumes after workflow filters")
 			}
 			return writeOutput(cmd, headers, rows, report)
@@ -1163,48 +1195,59 @@ func newResumeDebugAnalysisTasksCmd() *cobra.Command {
 
 func writeAnalysisTasksTable(cmd *cobra.Command, response *client.AnalysisTasksResponse) error {
 	if len(response.Tasks) == 0 {
-		fmt.Fprintf(cmd.OutOrStdout(), "No analysis tasks found.\n")
-		return nil
+		return writeMessage(cmd, "No analysis tasks found.")
 	}
 
+	headers := []string{"task_id", "status", "progress_current", "progress_total", "skipped", "label", "location", "analyzed", "avg_score", "error"}
+	rows := make([][]string, 0, len(response.Tasks))
 	for _, task := range response.Tasks {
-		var label string
-		if task.Config != nil {
-			label = task.Config.JobDescriptionTitle
-			if label == "" && len(task.Config.Keywords) > 0 {
-				label = strings.Join(task.Config.Keywords, ", ")
-			}
-			if label == "" {
-				label = task.Config.JobDescriptionID
-			}
-		} else {
-			label = task.ID
+		label := analysisTaskLabel(task)
+		progressCurrent := ""
+		progressTotal := ""
+		skipped := "0"
+		if task.Progress != nil {
+			progressCurrent = strconv.Itoa(task.Progress.Current)
+			progressTotal = strconv.Itoa(task.Progress.Total)
+			skipped = strconv.Itoa(task.Progress.Skipped)
 		}
-
-		status := task.Status
-		if task.Progress != nil && task.Progress.Total > 0 {
-			status = fmt.Sprintf("%s (%d/%d", task.Status, task.Progress.Current, task.Progress.Total)
-			if task.Progress.Skipped > 0 {
-				status += fmt.Sprintf(", skipped: %d", task.Progress.Skipped)
-			}
-			status += ")"
-		}
-
-		line := fmt.Sprintf("%s  %s", task.ID, status)
-		if label != "" {
-			line += fmt.Sprintf("  %s", label)
-		}
-		if task.Config != nil && task.Config.Location != "" {
-			line += fmt.Sprintf("  [%s]", task.Config.Location)
-		}
+		analyzed := ""
+		avgScore := ""
 		if task.Results != nil && task.Status == "completed" {
-			line += fmt.Sprintf("  analyzed=%d avg=%.0f", task.Results.Analyzed, task.Results.AvgScore)
+			analyzed = strconv.Itoa(task.Results.Analyzed)
+			avgScore = strconv.FormatFloat(task.Results.AvgScore, 'f', 0, 64)
 		}
-		if task.Error != "" {
-			line += fmt.Sprintf("  error=%s", task.Error)
+		location := ""
+		if task.Config != nil {
+			location = task.Config.Location
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "%s\n", line)
+		rows = append(rows, []string{
+			task.ID,
+			task.Status,
+			progressCurrent,
+			progressTotal,
+			skipped,
+			label,
+			location,
+			analyzed,
+			avgScore,
+			task.Error,
+		})
 	}
+	return writeOutput(cmd, headers, rows, response)
+}
 
-	return nil
+func analysisTaskLabel(task client.AnalysisTask) string {
+	if task.Config == nil {
+		return task.ID
+	}
+	if task.Config.JobDescriptionTitle != "" {
+		return task.Config.JobDescriptionTitle
+	}
+	if len(task.Config.Keywords) > 0 {
+		return strings.Join(task.Config.Keywords, ", ")
+	}
+	if task.Config.JobDescriptionID != "" {
+		return task.Config.JobDescriptionID
+	}
+	return task.ID
 }
