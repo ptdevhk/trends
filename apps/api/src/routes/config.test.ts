@@ -218,6 +218,65 @@ describe('config route workspace access', () => {
     })
   })
 
+  it('allows hr users to load export field settings', async () => {
+    const getExportFieldsSpy = vi.spyOn(workspaceConfigService, 'getExportFieldsConfig').mockResolvedValue({
+      fields: ['resumeId', 'name'],
+      includeDebugWhenEnabled: false,
+    })
+
+    const app = createTestApp()
+    const response = await app.request('/api/config/export-fields', {
+      headers: {
+        'X-Workspace-Slug': 'hr',
+      },
+    })
+
+    expect(response.status).toBe(200)
+    expect(getExportFieldsSpy).toHaveBeenCalledWith('hr')
+    expect(await response.json()).toEqual({
+      success: true,
+      config: {
+        fields: ['resumeId', 'name'],
+        includeDebugWhenEnabled: false,
+      },
+    })
+  })
+
+  it('allows hr users to update export field settings', async () => {
+    const setExportFieldsSpy = vi.spyOn(workspaceConfigService, 'setExportFieldsConfig').mockResolvedValue()
+    const getExportFieldsSpy = vi.spyOn(workspaceConfigService, 'getExportFieldsConfig').mockResolvedValue({
+      fields: ['resumeId', 'name', 'userRating'],
+      includeDebugWhenEnabled: true,
+    })
+
+    const app = createTestApp()
+    const response = await app.request('/api/config/export-fields', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Workspace-Slug': 'hr',
+      },
+      body: JSON.stringify({
+        fields: ['resumeId', 'name', 'userRating'],
+        includeDebugWhenEnabled: true,
+      }),
+    })
+
+    expect(response.status).toBe(200)
+    expect(setExportFieldsSpy).toHaveBeenCalledWith('hr', {
+      fields: ['resumeId', 'name', 'userRating'],
+      includeDebugWhenEnabled: true,
+    })
+    expect(getExportFieldsSpy).toHaveBeenCalledWith('hr')
+    expect(await response.json()).toEqual({
+      success: true,
+      config: {
+        fields: ['resumeId', 'name', 'userRating'],
+        includeDebugWhenEnabled: true,
+      },
+    })
+  })
+
   it('lists allowlisted config sources', async () => {
     const listSourcesSpy = vi.spyOn(configSourceInspector, 'listSources').mockReturnValue([
       {

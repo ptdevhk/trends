@@ -25,7 +25,7 @@ vi.mock('@trends/shared', () => ({
   SETTINGS_NAV_ITEMS: [
     { id: 'home', titleKey: 'nav.home', defaultTitle: 'Home', hrefSuffix: '/resumes', matchesSuffixes: ['/resumes'] },
     { id: 'blocks', titleKey: 'nav.blocks', defaultTitle: 'Blocks', hrefSuffix: '/blocks', matchesSuffixes: ['/blocks'] },
-    { id: 'export-fields', titleKey: 'nav.exportFields', defaultTitle: 'Export Fields', hrefSuffix: '/settings/export-fields', matchesSuffixes: ['/settings/export-fields'], requiresAdmin: true },
+    { id: 'export-fields', titleKey: 'nav.exportFields', defaultTitle: 'Export Fields', hrefSuffix: '/settings/export-fields', matchesSuffixes: ['/settings/export-fields'] },
   ],
 }))
 
@@ -53,13 +53,13 @@ describe('SettingsSidebar', () => {
     expect(screen.getByText('Export Fields')).toBeInTheDocument()
   })
 
-  it('hides admin-only navigation items for non-admin workspaces', () => {
+  it('shows export fields navigation for non-admin workspaces', () => {
     workspaceState.isAdmin = false
 
     renderWithRouter(<SettingsSidebar />)
 
     expect(screen.getByText('Home')).toBeInTheDocument()
-    expect(screen.queryByText('Export Fields')).not.toBeInTheDocument()
+    expect(screen.getByText('Export Fields')).toBeInTheDocument()
   })
 
   it('highlights active navigation item', () => {

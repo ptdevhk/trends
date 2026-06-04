@@ -9370,19 +9370,6 @@ export interface paths {
                         };
                     };
                 };
-                /** @description Admin access required */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            /** @enum {boolean} */
-                            success: false;
-                            error: string;
-                        };
-                    };
-                };
                 /** @description Server error */
                 500: {
                     headers: {
@@ -9433,19 +9420,6 @@ export interface paths {
                 };
                 /** @description Invalid payload */
                 400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            /** @enum {boolean} */
-                            success: false;
-                            error: string;
-                        };
-                    };
-                };
-                /** @description Forbidden */
-                403: {
                     headers: {
                         [name: string]: unknown;
                     };

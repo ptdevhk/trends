@@ -126,6 +126,18 @@ describe('App redirects', () => {
     expect(screen.getByText('Resumes Page')).toBeInTheDocument()
   })
 
+  it('allows non-admin workspace users to open export field settings', async () => {
+    window.history.replaceState({}, '', '/hr/settings/export-fields')
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(window.location.pathname).toBe('/hr/settings/export-fields')
+    })
+
+    expect(screen.getByText('Settings Layout')).toBeInTheDocument()
+  })
+
   it('redirects review-packets to resumes when feature flag is off', async () => {
     featureFlagsMock.reviewPacketsEnabled = false
 

@@ -96,10 +96,10 @@ describe('SETTINGS_NAV_ITEMS', () => {
     expect(ids).toContain('export-fields')
   })
 
-  it('marks export fields as admin-only workspace settings', () => {
+  it('marks export fields as regular workspace settings', () => {
     const exportFields = SETTINGS_NAV_ITEMS.find((item) => item.id === 'export-fields')
     expect(exportFields?.hrefSuffix).toBe('/settings/export-fields')
-    expect(exportFields?.requiresAdmin).toBe(true)
+    expect(exportFields?.requiresAdmin).toBeUndefined()
   })
 })
 
