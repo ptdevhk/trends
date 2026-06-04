@@ -140,6 +140,10 @@ prepare_verifier() {
     log "Verifier snapshot: $VERIFY_SCRIPT"
 }
 
+capture_original_branch() {
+    ORIGINAL_BRANCH=$(git branch --show-current 2>/dev/null || true)
+}
+
 require_phase1_backup() {
     if [ -z "$BACKUP_FILE" ]; then
         log "ERROR: BACKUP_FILE is required for phase 1/all."
@@ -224,9 +228,6 @@ phase1() {
     prepare_fresh_sandbox
 
     kill_dev_ports
-
-    # Save current branch for cleanup
-    ORIGINAL_BRANCH=$(git branch --show-current)
 
     # Guard: dirty tree blocks checkout
     if ! git diff --quiet || ! git diff --cached --quiet; then
@@ -342,6 +343,7 @@ phase2() {
 # === MAIN ===
 log "Migration test starting (phase=$PHASE)"
 log "Results directory: $RESULTS_DIR"
+capture_original_branch
 prepare_verifier
 
 case "$PHASE" in

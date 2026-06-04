@@ -63,5 +63,6 @@ describe("workflow verifier repo entrypoints", () => {
     expect(migrationTestRunner).toContain('git ls-files -z -o -i --exclude-standard output/');
     expect(migrationTestRunner).toContain('output/resume-backups|output/resume-backups/*');
     expect(migrationTestRunner).toContain('cp scripts/migration-test-verify.sh "$VERIFY_SCRIPT"');
+    expect(migrationTestRunner).toContain('ORIGINAL_BRANCH=$(git branch --show-current');
   });
 });
