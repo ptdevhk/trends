@@ -639,6 +639,7 @@ app.openapi(getResumesRoute, (c) => {
     sources,
     minMatchScore,
     recommendation,
+    showBlocked,
     sortBy,
     sortOrder,
     sessionId,
@@ -661,6 +662,7 @@ app.openapi(getResumesRoute, (c) => {
   try {
     if (source === "convex") {
       return (async () => {
+        const workspaceSlug = c.var.workspaceSlug ?? "dev";
         const resolvedJobId = jobDescriptionId?.trim() || undefined;
         const normalizedKeywords = keyword ? normalizeKeywords(parseKeywordQuery(keyword).keywords) : [];
         const normalizedRequiredKeywords = normalizeKeywords(requiredKeywords);
@@ -961,13 +963,26 @@ app.openapi(getResumesRoute, (c) => {
         // Compute status counts from working set identityKeys
         let statusCounts: { new: number; shortlisted: number; rejected: number } | undefined;
         try {
-          const statusList: Array<{ identityKey?: string; status?: string }> = await callConvexQuery("candidate_status:list", {
-            workspaceSlug: "dev",
-          }) as Array<{ identityKey?: string; status?: string }>;
+          const [statusList, blockList] = await Promise.all([
+            callConvexQuery("candidate_status:list", {
+              workspaceSlug,
+            }) as Promise<Array<{ identityKey?: string; status?: string }>>,
+            showBlocked
+              ? Promise.resolve([] as Array<{ identityKey?: string }>)
+              : callConvexQuery("candidate_blocks:list", {
+                workspaceSlug,
+              }) as Promise<Array<{ identityKey?: string }>>,
+          ]);
           const statusMap = new Map<string, string>();
           for (const s of statusList) {
             if (s.identityKey && s.status) {
               statusMap.set(String(s.identityKey), String(s.status));
+            }
+          }
+          const blockedIdentities = new Set<string>();
+          for (const block of blockList) {
+            if (block.identityKey) {
+              blockedIdentities.add(String(block.identityKey));
             }
           }
           const counts: Record<string, number> = { new: 0, shortlisted: 0, rejected: 0 };
@@ -975,6 +990,9 @@ app.openapi(getResumesRoute, (c) => {
           for (const item of sourceItems) {
             const resume = item.resume as Record<string, unknown> | undefined;
             const identityKey = typeof resume?.identityKey === "string" ? resume.identityKey : undefined;
+            if (identityKey && blockedIdentities.has(identityKey)) {
+              continue;
+            }
             // Match Convex countResumesByStatus: missing identityKey → "new";
             // non-standard statuses (contacted, interviewing, etc.) → "new"
             const status = identityKey ? (statusMap.get(identityKey) ?? "new") : "new";

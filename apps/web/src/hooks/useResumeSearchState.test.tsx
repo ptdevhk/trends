@@ -1929,6 +1929,82 @@ describe('useResumeSearchState', () => {
     expect(useFacetCountsMock.mock.calls[0]?.[0].map((item: { key: string }) => item.key)).toEqual(['resume-2'])
   })
 
+  it('uses server status totals for status facets instead of the loaded client slice', () => {
+    Object.assign(parsedStateMock, createParsedState({
+      query: 'CNC 销售',
+      keywords: ['CNC', '销售'],
+    }))
+    useFacetCountsMock.mockReturnValue({
+      clusters: [],
+      tags: [],
+      companies: [],
+      experienceLevels: [],
+      education: [],
+      statuses: [{ value: 'new', count: 2, label: 'New candidate' }],
+      minScoreOptions: [],
+      sources: [],
+    })
+    useQueryMock.mockImplementation((query) => {
+      if (query === 'resumes:countResumesByStatus') {
+        return {
+          new: 797,
+          shortlisted: 0,
+          rejected: 1,
+          total: 798,
+          overflow: false,
+        }
+      }
+      return undefined
+    })
+    resumesMock.push(
+      createResume(1, { primaryRuleScore: 95 }),
+      createResume(2, { primaryRuleScore: 90 }),
+    )
+
+    const { result } = renderHook(() => useResumeSearchState())
+
+    expect(result.current.facetCounts.statuses).toEqual([
+      { value: 'new', count: 797, label: 'New candidate' },
+      { value: 'rejected', count: 1 },
+    ])
+  })
+
+  it('uses BFF status totals for AND-mode status facets', () => {
+    Object.assign(parsedStateMock, createParsedState({
+      query: 'CNC 销售',
+      keywords: ['CNC', '销售'],
+    }))
+    useFacetCountsMock.mockReturnValue({
+      clusters: [],
+      tags: [],
+      companies: [],
+      experienceLevels: [],
+      education: [],
+      statuses: [{ value: 'new', count: 2, label: 'New candidate' }],
+      minScoreOptions: [],
+      sources: [],
+    })
+    resumesMock.push(
+      createResume(1, { primaryRuleScore: 95 }),
+      createResume(2, { primaryRuleScore: 90 }),
+    )
+    useConvexResumesMock.mockImplementation(() => ({
+      resumes: resumesMock,
+      hasMore: false,
+      loading: false,
+      loadingMore: false,
+      isAndModeBff: true,
+      bffStatusCounts: { new: 797, shortlisted: 0, rejected: 1 },
+    }))
+
+    const { result } = renderHook(() => useResumeSearchState())
+
+    expect(result.current.facetCounts.statuses).toEqual([
+      { value: 'new', count: 797, label: 'New candidate' },
+      { value: 'rejected', count: 1 },
+    ])
+  })
+
   it('includes rejected resumes when explicitly filtered for', () => {
     Object.assign(parsedStateMock, createParsedState({
       query: 'CNC 销售',

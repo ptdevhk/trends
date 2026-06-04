@@ -807,6 +807,7 @@ function useBffAndModeSearch(
   keywordExpansion: KeywordExpansionSummary | null,
   expansionLoading: boolean,
   filters: ConvexResumeFilters | undefined,
+  showBlocked: boolean,
   jobDescriptionId: string | undefined,
   refetchTrigger?: number,
 ): BffAndModeResult {
@@ -853,6 +854,7 @@ function useBffAndModeSearch(
       ...(filters?.minSalary != null ? { minSalary: filters.minSalary } : {}),
       ...(filters?.maxSalary != null ? { maxSalary: filters.maxSalary } : {}),
       ...(filters?.sources?.length ? { sources: filters.sources.join(',') } : {}),
+      ...(showBlocked ? { showBlocked: 'true' } : {}),
       ...(jobDescriptionId ? { jobDescriptionId } : {}),
     }
 
@@ -928,7 +930,7 @@ function useBffAndModeSearch(
 
     return () => { active = false }
   // eslint-disable-next-line react-hooks/exhaustive-deps -- filtersKey captures all filter fields via JSON.stringify
-  }, [enabled, expansionLoading, filtersKey, jobDescriptionId, keywordExpansion, normalizedQuery, refetchTrigger])
+  }, [enabled, expansionLoading, filtersKey, jobDescriptionId, keywordExpansion, normalizedQuery, refetchTrigger, showBlocked])
 
   return {
     ...(result.loading && result.resumes.length === 0
@@ -947,6 +949,7 @@ export function useConvexResumes(
     sortBy?: ConvexResumeSortBy
     sortOrder?: 'asc' | 'desc'
     filters?: ConvexResumeFilters
+    showBlocked?: boolean
   }
 ) {
   const enabled = options?.enabled ?? true
@@ -968,8 +971,8 @@ export function useConvexResumes(
   const [bffDisplayCount, setBffDisplayCount] = useState(CONVEX_RESUME_PAGE_SIZE)
   // Reset BFF display count when query or filters change
   const bffResetKey = useMemo(
-    () => `${normalizedQuery ?? ''}|${JSON.stringify(options?.filters ?? {})}`,
-    [normalizedQuery, options?.filters],
+    () => `${normalizedQuery ?? ''}|${JSON.stringify(options?.filters ?? {})}|${options?.showBlocked === true}`,
+    [normalizedQuery, options?.filters, options?.showBlocked],
   )
   useEffect(() => {
     setBffDisplayCount(CONVEX_RESUME_PAGE_SIZE)
@@ -1077,6 +1080,7 @@ export function useConvexResumes(
     keywordExpansion,
     expansionLoading,
     options?.filters,
+    options?.showBlocked === true,
     normalizedJobDescriptionId,
     bffRefetchTrigger,
   )

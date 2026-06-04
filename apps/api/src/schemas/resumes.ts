@@ -639,6 +639,14 @@ export const ResumesQuerySchema = z.object({
     param: { name: "recommendation", in: "query" },
     example: "strong_match,match",
   }),
+  showBlocked: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((value) => value === "true")
+    .openapi({
+      param: { name: "showBlocked", in: "query" },
+      example: "false",
+    }),
   // Semantic search parameters
   enableSemantic: z
     .enum(["true", "false"])
@@ -682,6 +690,11 @@ export const ResumesResponseSchema = z
         keywordGroups: z.array(KeywordGroupSchema).optional(),
         sourceMapping: z.record(z.string(), z.string()).optional(),
         searchMode: z.enum(["bm25", "bm25_fallback", "bm25_only_no_vectors", "hybrid"]).optional(),
+        statusCounts: z.object({
+          new: z.number().int(),
+          shortlisted: z.number().int(),
+          rejected: z.number().int(),
+        }).optional(),
       })
       .optional(),
     data: z.array(ResumeItemSchema),
