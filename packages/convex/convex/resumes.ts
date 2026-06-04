@@ -631,6 +631,7 @@ export const countResumesByStatus = query({
     education: v.optional(v.array(v.string())),
     skills: v.optional(v.array(v.string())),
     requiredKeywords: v.optional(v.array(v.string())),
+    keywords: v.optional(v.array(v.string())),
     locations: v.optional(v.array(v.string())),
     minSalary: v.optional(v.number()),
     maxSalary: v.optional(v.number()),

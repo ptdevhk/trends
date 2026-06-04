@@ -23,6 +23,7 @@ export type ConvexResumeFilters = {
   education?: string[]
   skills?: string[]
   requiredKeywords?: string[]
+  keywords?: string[]
   locations?: string[]
   minSalary?: number
   maxSalary?: number

@@ -96,6 +96,7 @@ export type ResumeListFilterArgs = {
     education?: string[];
     skills?: string[];
     requiredKeywords?: string[];
+    keywords?: string[];
     locations?: string[];
     minSalary?: number;
     maxSalary?: number;
@@ -351,6 +352,7 @@ export function normalizeResumeListFilters(filters: ResumeListFilterArgs | undef
         .map((value) => value.toLowerCase())
         .filter((value) => value.length > 0);
     const locations = filters.locations?.map((value) => value.trim()).filter((value) => value.length > 0);
+    const keywords = filters.keywords?.map((k) => k.trim()).filter(Boolean);
     const sources = filters.sources?.map((value) => value.trim().toLowerCase()).filter((value) => value.length > 0);
     const roleFilterType = toOptionalStringValue(filters.roleFilterType)?.toLowerCase();
     const minAge = typeof filters.minAge === "number" && Number.isFinite(filters.minAge) && filters.minAge > 0
@@ -369,6 +371,7 @@ export function normalizeResumeListFilters(filters: ResumeListFilterArgs | undef
         ...(education && education.length > 0 ? { education } : {}),
         ...(skills && skills.length > 0 ? { skills } : {}),
         ...(requiredKeywords.length > 0 ? { requiredKeywords } : {}),
+        ...(keywords && keywords.length > 0 ? { keywords } : {}),
         ...(locations && locations.length > 0 ? { locations } : {}),
         ...(filters.minSalary === undefined ? {} : { minSalary: filters.minSalary }),
         ...(filters.maxSalary === undefined ? {} : { maxSalary: filters.maxSalary }),
@@ -560,6 +563,14 @@ export function matchesResumeListFilters(resume: Doc<"resumes">, filters: Resume
     if (filters.requiredKeywords?.length) {
         const haystack = resume.searchText?.toLowerCase() ?? buildResumeFilterSearchText(content, resume.source);
         if (!matchesAllRequiredKeywords(haystack, filters.requiredKeywords)) {
+            return false;
+        }
+    }
+
+    if (filters.keywords?.length) {
+        const haystack = resume.searchText?.toLowerCase() ?? buildResumeFilterSearchText(content, resume.source);
+        const normalized = filters.keywords.map((k) => k.toLowerCase().trim()).filter(Boolean);
+        if (normalized.length > 0 && !normalized.every((k) => haystack.includes(k))) {
             return false;
         }
     }
