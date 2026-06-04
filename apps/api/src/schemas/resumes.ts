@@ -603,6 +603,14 @@ export const ResumesQuerySchema = z.object({
     param: { name: "locations", in: "query" },
     example: "东莞,深圳",
   }),
+  location: z
+    .string()
+    .optional()
+    .openapi({
+      param: { name: "location", in: "query" },
+      example: "China",
+      description: "Legacy/browser URL alias for locations",
+    }),
   minSalary: OptionalIntParam({ name: "minSalary", example: "5000" }),
   maxSalary: OptionalIntParam({ name: "maxSalary", example: "15000" }),
   minRoleYears: OptionalIntParam({ name: "minRoleYears", example: "1" }),
@@ -612,6 +620,14 @@ export const ResumesQuerySchema = z.object({
     .openapi({
       param: { name: "roleFilterType", in: "query" },
       example: "sales",
+    }),
+  roleType: z
+    .string()
+    .optional()
+    .openapi({
+      param: { name: "roleType", in: "query" },
+      example: "sales",
+      description: "Legacy/browser URL alias for roleFilterType",
     }),
   minAge: OptionalIntParam({ name: "minAge", example: "25" }),
   maxAge: OptionalIntParam({ name: "maxAge", example: "40" }),

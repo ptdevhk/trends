@@ -1760,10 +1760,14 @@ export interface paths {
                     skills?: string | string[];
                     requiredKeywords?: string | string[];
                     locations?: string | string[];
+                    /** @description Legacy/browser URL alias for locations */
+                    location?: string;
                     minSalary?: string;
                     maxSalary?: string;
                     minRoleYears?: string;
                     roleFilterType?: string;
+                    /** @description Legacy/browser URL alias for roleFilterType */
+                    roleType?: string;
                     minAge?: string;
                     maxAge?: string;
                     sources?: string | string[];

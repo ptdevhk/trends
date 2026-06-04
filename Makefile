@@ -431,7 +431,7 @@ local-restore-from-prod:
 	@while $(MAKE) --no-print-directory clear-resumes 2>&1 | tee /tmp/clear-resumes.out | grep -q '"partial": true'; do :; done
 	@$(MAKE) --no-print-directory restore-resumes FILE="$(FILE)" MODE=replace YES=1 \
 		API_URL="$${API_URL:-http://localhost:3000}" WORKSPACE="$${WORKSPACE:-dev}"
-	@echo "→ backfilling derived fields"
+	@echo "→ backfilling derived fields and resume digests"
 	@$(MAKE) --no-print-directory backfill-derived-fields
 	@echo "→ checking derived field coverage"
 	@$(MAKE) --no-print-directory check-derived-fields

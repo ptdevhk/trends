@@ -1359,8 +1359,7 @@ seed_and_migrate_convex() {
     run_convex_migration "$convex_dir" "backfillSearchText"
     run_convex_migration "$convex_dir" "backfillEvidenceText"
     run_convex_migration "$convex_dir" "backfillPrimaryRuleScore"
-    run_convex_migration "$convex_dir" "backfillVerifiedRoleYears"
-    run_convex_migration "$convex_dir" "reindexSearchText"
+    run_convex_migration "$convex_dir" "validateDataConsistency"
 }
 
 resolve_env_file() {

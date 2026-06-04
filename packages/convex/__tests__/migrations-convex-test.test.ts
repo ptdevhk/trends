@@ -1618,6 +1618,66 @@ describe("migration: validateDataConsistency", () => {
     expect(result.backfillVerifiedRoleYears.scanned).toBeGreaterThanOrEqual(1);
   });
 
+  it("backfills resume digests needed by restored AND-mode search", async () => {
+    const t = createTest();
+
+    const resumeId = await insertResume(t, {
+      content: { name: "CNC Sales", location: "广东东莞" },
+      searchText: "cnc 销售 china",
+      ingestData: {
+        ruleScores: {},
+        industryTags: ["机械", "销售"],
+        synonymHits: ["cnc", "销售"],
+        brandHits: [],
+        companyHits: [],
+        experienceLevel: "mid",
+        computedAt: Date.now(),
+        skillsVersion: 1,
+        verifiedRoleYears: { sales: 2 },
+        roleSignals: [
+          {
+            type: "sales",
+            matchedSignals: ["销售"],
+            signalCount: 1,
+            occurrences: 1,
+            years: 2,
+            industryVerifiedYears: 2,
+            roleRelevantYears: 2,
+            industryVerifiedRelevantYears: 2,
+            matchedWorkEntries: [
+              {
+                jobTitle: "销售经理",
+                years: 2,
+                industryVerified: true,
+                matchedSignals: ["销售"],
+                directRoleMatch: true,
+              },
+            ],
+            verifyIn: "workHistory",
+          },
+        ],
+      },
+    });
+
+    const before = await t.run(async (ctx) => {
+      return ctx.db.query("resume_digests").collect();
+    });
+    expect(before).toHaveLength(0);
+
+    const result = await t.action(api.migrations.validateDataConsistency, {});
+
+    expect(result.backfillResumeDigests).toBeDefined();
+    expect(result.backfillResumeDigests.processed).toBeGreaterThanOrEqual(1);
+
+    const after = await t.run(async (ctx) => {
+      return ctx.db.query("resume_digests").collect();
+    });
+    expect(after).toHaveLength(1);
+    expect(after[0].resumeId).toBe(resumeId);
+    expect(after[0].searchText).toContain("cnc");
+    expect(after[0].roleYearsByType?.sales).toBe(2);
+  });
+
   it("reports zero updates when all data is consistent", async () => {
     const t = createTest();
 

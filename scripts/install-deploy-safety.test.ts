@@ -55,8 +55,7 @@ describe("seed_and_migrate_convex migration order", () => {
     "backfillSearchText",
     "backfillEvidenceText",
     "backfillPrimaryRuleScore",
-    "backfillVerifiedRoleYears",
-    "reindexSearchText",
+    "validateDataConsistency",
   ];
 
   let body = "";
@@ -106,8 +105,8 @@ describe("seed_and_migrate_convex migration order", () => {
     expect(migrations[0]).toBe("backfillSourceKey");
   });
 
-  it("ends with reindexSearchText (rebuilds index over finalized content)", () => {
-    expect(migrations.at(-1)).toBe("reindexSearchText");
+  it("ends with validateDataConsistency (repairs finalized derived fields and digests)", () => {
+    expect(migrations.at(-1)).toBe("validateDataConsistency");
   });
 
   it("passes batchSize to backfillManual51jobStructuredContent", () => {

@@ -628,10 +628,12 @@ app.openapi(getResumesRoute, (c) => {
     skills,
     requiredKeywords,
     locations,
+    location,
     minSalary,
     maxSalary,
     minRoleYears,
     roleFilterType,
+    roleType,
     minAge,
     maxAge,
     sources,
@@ -648,6 +650,13 @@ app.openapi(getResumesRoute, (c) => {
   const sampleName = sample?.trim() || undefined;
   const keyword = q?.trim() || undefined;
   const keywordExpansion = resumeService.expandSearchQuery(keyword);
+  const normalizedLocationAlias = location?.trim() || undefined;
+  const effectiveLocations = locations && locations.length > 0
+    ? locations
+    : normalizedLocationAlias
+      ? [normalizedLocationAlias]
+      : undefined;
+  const effectiveRoleFilterType = roleFilterType?.trim() || roleType?.trim() || undefined;
 
   try {
     if (source === "convex") {
@@ -662,11 +671,11 @@ app.openapi(getResumesRoute, (c) => {
           education,
           skills,
           requiredKeywords: normalizedRequiredKeywords,
-          locations,
+          locations: effectiveLocations,
           minSalary,
           maxSalary,
           minRoleYears,
-          roleFilterType,
+          roleFilterType: effectiveRoleFilterType,
           minAge,
           maxAge,
           sources,
@@ -677,11 +686,11 @@ app.openapi(getResumesRoute, (c) => {
           education,
           skills,
           requiredKeywords: normalizedRequiredKeywords,
-          locations,
+          locations: effectiveLocations,
           minSalary,
           maxSalary,
           minRoleYears,
-          roleFilterType,
+          roleFilterType: effectiveRoleFilterType,
           minAge,
           maxAge,
           sources,
@@ -729,13 +738,13 @@ app.openapi(getResumesRoute, (c) => {
               })),
               maxExperience,
               minRoleYears,
-              roleFilterType,
+              roleFilterType: effectiveRoleFilterType,
               minAge,
               maxAge,
               education,
               skills,
               requiredKeywords: normalizedRequiredKeywords,
-              locations,
+              locations: effectiveLocations,
               minSalary,
               maxSalary,
               sources,
@@ -1025,7 +1034,7 @@ app.openapi(getResumesRoute, (c) => {
       education,
       skills,
       requiredKeywords: normalizeKeywords(requiredKeywords),
-      locations,
+      locations: effectiveLocations,
       minSalary,
       maxSalary,
     });
