@@ -975,12 +975,11 @@ app.openapi(getResumesRoute, (c) => {
           for (const item of sourceItems) {
             const resume = item.resume as Record<string, unknown> | undefined;
             const identityKey = typeof resume?.identityKey === "string" ? resume.identityKey : undefined;
-            if (identityKey) {
-              const status = statusMap.get(identityKey) ?? "new";
-              if (status in counts) {
-                counts[status] = (counts[status] ?? 0) + 1;
-              }
-            }
+            // Match Convex countResumesByStatus: missing identityKey → "new";
+            // non-standard statuses (contacted, interviewing, etc.) → "new"
+            const status = identityKey ? (statusMap.get(identityKey) ?? "new") : "new";
+            const bucket = status in counts ? status : "new";
+            counts[bucket] = (counts[bucket] ?? 0) + 1;
           }
           statusCounts = {
             new: counts.new ?? 0,
