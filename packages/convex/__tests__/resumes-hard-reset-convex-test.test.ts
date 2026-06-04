@@ -145,6 +145,31 @@ describe("resumes: hardResetIngestData", () => {
 });
 
 // ---------------------------------------------------------------------------
+// resetDatabase
+// ---------------------------------------------------------------------------
+
+describe("resume_tasks: resetDatabase", () => {
+  it("clears resume digests with resume runtime state", async () => {
+    const t = createTest();
+    const resumeId = await insertResume(t, {
+      content: { name: "Digest Candidate" },
+      searchText: "digest candidate sales",
+    });
+    await t.mutation(api.resumes_search.upsertResumeDigestForTest, { resumeId });
+
+    const before = await t.run(async (ctx) => ctx.db.query("resume_digests").collect());
+    expect(before).toHaveLength(1);
+
+    const result = await t.mutation(api.resume_tasks.resetDatabase, {});
+
+    expect(result.success).toBe(true);
+    expect(result.deleted.resume_digests).toBe(1);
+    const after = await t.run(async (ctx) => ctx.db.query("resume_digests").collect());
+    expect(after).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // clearAnalyses
 // ---------------------------------------------------------------------------
 

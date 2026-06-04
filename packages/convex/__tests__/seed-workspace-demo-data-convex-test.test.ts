@@ -115,3 +115,32 @@ describe("seed: clearWorkspaceDemoResumes", () => {
     expect(resumes[0].externalId).toBe("real-seek-profile");
   });
 });
+
+describe("seed: clearAll", () => {
+  it("clears resume digests during full local reset", async () => {
+    const t = createTest();
+    const resumeId = await t.run(async (ctx) => {
+      return ctx.db.insert("resumes", {
+        externalId: "digest-reset",
+        identityKey: "profileUrl:example.com/digest-reset",
+        content: { name: "Digest Reset" },
+        hash: "hash-digest-reset",
+        source: "test",
+        sourceKey: "test",
+        tags: ["test"],
+        crawledAt: 1,
+        searchText: "digest reset",
+      });
+    });
+    await t.mutation(api.resumes_search.upsertResumeDigestForTest, { resumeId });
+
+    const before = await t.run(async (ctx) => ctx.db.query("resume_digests").collect());
+    expect(before).toHaveLength(1);
+
+    const result = await t.mutation(api.seed.clearAll, {});
+
+    expect(result.success).toBe(true);
+    const after = await t.run(async (ctx) => ctx.db.query("resume_digests").collect());
+    expect(after).toHaveLength(0);
+  });
+});
