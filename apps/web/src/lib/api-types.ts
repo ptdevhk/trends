@@ -8931,6 +8931,7 @@ export interface paths {
                                         defaultTitle: string;
                                         hrefSuffix: string;
                                         matchesSuffixes?: string[];
+                                        requiresAdmin?: boolean;
                                     }[];
                                     settings: {
                                         id: string;
@@ -8938,6 +8939,7 @@ export interface paths {
                                         defaultTitle: string;
                                         hrefSuffix: string;
                                         matchesSuffixes?: string[];
+                                        requiresAdmin?: boolean;
                                     }[];
                                     systemSettings: {
                                         id: string;
@@ -8945,6 +8947,7 @@ export interface paths {
                                         defaultTitle: string;
                                         hrefSuffix: string;
                                         matchesSuffixes?: string[];
+                                        requiresAdmin?: boolean;
                                     }[];
                                     debugPage: {
                                         id: string;
@@ -8952,6 +8955,7 @@ export interface paths {
                                         defaultTitle: string;
                                         hrefSuffix: string;
                                         matchesSuffixes?: string[];
+                                        requiresAdmin?: boolean;
                                     }[];
                                 };
                                 labels: {

@@ -52,6 +52,7 @@ export interface SurfaceNavDefinition {
   defaultTitle: string;
   hrefSuffix: string;
   matchesSuffixes: string[];
+  requiresAdmin?: boolean;
 }
 
 export interface SystemCapabilityDescriptor {
@@ -312,6 +313,14 @@ export const SETTINGS_NAV_ITEMS: SurfaceNavDefinition[] = [
     defaultTitle: "Search Profiles",
     hrefSuffix: "/settings/profiles",
     matchesSuffixes: ["/settings/profiles"],
+  },
+  {
+    id: "export-fields",
+    titleKey: "debugConfig.settingsNavExportFields",
+    defaultTitle: "Export Fields",
+    hrefSuffix: "/settings/export-fields",
+    matchesSuffixes: ["/settings/export-fields"],
+    requiresAdmin: true,
   },
 ];
 

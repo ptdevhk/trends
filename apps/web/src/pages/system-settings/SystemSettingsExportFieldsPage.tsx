@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { useSettingsRequestJson } from '@/pages/system-settings/lib'
-import { isRecord } from '@trends/shared'
+import { EXPORT_CORE_FIELDS, isRecord } from '@trends/shared'
 import type { ExportFieldKey } from '@trends/shared'
 import { FIELD_GROUPS, FIELD_LABELS } from './SystemSettingsExportFieldsPage.metadata'
 
@@ -21,12 +21,18 @@ function parseExportFieldsPayload(payload: unknown): ExportFieldsConfigState | n
   if (data === null || data === undefined) return null
   if (!isRecord(data)) return null
   if (!Array.isArray(data.fields)) return null
+  const fields = data.fields.filter((f): f is ExportFieldKey =>
+    typeof f === 'string' && f in FIELD_LABELS,
+  )
+  if (fields.length === 0) return null
   return {
-    fields: data.fields.filter((f): f is ExportFieldKey =>
-      typeof f === 'string' && f in FIELD_LABELS,
-    ),
+    fields,
     includeDebugWhenEnabled: typeof data.includeDebugWhenEnabled === 'boolean' ? data.includeDebugWhenEnabled : false,
   }
+}
+
+function getDefaultSelectedFields(): ExportFieldKey[] {
+  return [...EXPORT_CORE_FIELDS]
 }
 
 export function SystemSettingsExportFieldsPage() {
@@ -34,7 +40,7 @@ export function SystemSettingsExportFieldsPage() {
   const { requestJson } = useSettingsRequestJson()
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
-  const [selectedFields, setSelectedFields] = useState<ExportFieldKey[]>([])
+  const [selectedFields, setSelectedFields] = useState<ExportFieldKey[]>(getDefaultSelectedFields)
   const [includeDebug, setIncludeDebug] = useState(false)
   const [hasConfig, setHasConfig] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -57,8 +63,7 @@ export function SystemSettingsExportFieldsPage() {
         setIncludeDebug(config.includeDebugWhenEnabled)
         setHasConfig(true)
       } else {
-        // No config — defaults will be used
-        setSelectedFields([])
+        setSelectedFields(getDefaultSelectedFields())
         setIncludeDebug(false)
         setHasConfig(false)
       }
@@ -111,7 +116,13 @@ export function SystemSettingsExportFieldsPage() {
         method: 'PUT',
         body: JSON.stringify({ fields: selectedFields, includeDebugWhenEnabled: includeDebug }),
       })
-      setHasConfig(selectedFields.length > 0)
+      if (selectedFields.length > 0) {
+        setHasConfig(true)
+      } else {
+        setSelectedFields(getDefaultSelectedFields())
+        setIncludeDebug(false)
+        setHasConfig(false)
+      }
       toast.success(t('debugConfig.saved'))
     } catch (error) {
       console.error('Failed to save export fields config', error)
@@ -128,7 +139,7 @@ export function SystemSettingsExportFieldsPage() {
         method: 'PUT',
         body: JSON.stringify({ fields: [] as ExportFieldKey[] }),
       })
-      setSelectedFields([])
+      setSelectedFields(getDefaultSelectedFields())
       setIncludeDebug(false)
       setHasConfig(false)
       toast.success(t('debugConfig.saved'))
