@@ -6,6 +6,7 @@
 		install-deps fetch-docs clean check help docker docker-build docker-down \
 		check-python check-node check-build \
 		test test-python test-node test-resume test-extension-keyword-mode test-api-search-profiles test-worker-resume-tasks test-collect-url-smoke \
+		migration-test migration-test-fresh-sandbox \
 		build-static build-static-fresh build-extension-zip serve-static \
 		i18n-check i18n-sync i18n-convert i18n-translate i18n-build \
 		refresh-sample refresh-sample-manual prefetch-convex chrome-debug \
@@ -923,6 +924,44 @@ e2e:
 	@echo "Running E2E smoke tests via DevTools..."
 	@npx tsx scripts/e2e-smoke.ts
 
+# Run guided v0.2.1 -> main migration compatibility workflow
+# Requires BACKUP_FILE outside output/resume-backups for PHASE=1/all.
+migration-test:
+	@PHASE="$${PHASE:-$(or $(PHASE),all)}"; \
+	BACKUP_FILE="$${BACKUP_FILE:-$(BACKUP_FILE)}"; \
+	if [ "$$PHASE" != "2" ] && [ -z "$$BACKUP_FILE" ]; then \
+		echo "BACKUP_FILE=<path> is required for migration-test PHASE=$$PHASE"; \
+		echo "Example: make migration-test BACKUP_FILE=/tmp/trends-resume-backups/resumes-prod-dev.tar.gz"; \
+		exit 1; \
+	fi; \
+	case "$$BACKUP_FILE" in \
+		output/resume-backups/*|./output/resume-backups/*|"$(CURDIR)"/output/resume-backups/*) \
+			echo "migration-test refuses BACKUP_FILE inside output/resume-backups"; \
+			echo "Use an external fixture path so tests do not depend on ignored local backups."; \
+			exit 1; \
+			;; \
+	esac; \
+	RESET_MODE="$${RESET_MODE:-$(RESET_MODE)}" \
+	CONFIRM_FRESH_SANDBOX="$${CONFIRM_FRESH_SANDBOX:-$(CONFIRM_FRESH_SANDBOX)}" \
+	BACKUP_FILE="$$BACKUP_FILE" scripts/migration-test-run.sh "$$PHASE"
+
+# Run migration compatibility workflow from an explicit fresh local app-state sandbox.
+# Destructive: removes local SQLite DBs, local Convex anonymous state, and local env selectors.
+migration-test-fresh-sandbox:
+	@if [ "$(YES)" != "1" ]; then \
+		echo "YES=1 is required for migration-test-fresh-sandbox"; \
+		echo "Example: make migration-test-fresh-sandbox YES=1 BACKUP_FILE=/tmp/trends-resume-backups/resumes-prod-dev.tar.gz"; \
+		exit 1; \
+	fi; \
+	PHASE="$${PHASE:-$(or $(PHASE),all)}"; \
+	BACKUP_FILE="$${BACKUP_FILE:-$(BACKUP_FILE)}"; \
+	if [ "$$PHASE" = "2" ]; then \
+		echo "migration-test-fresh-sandbox requires PHASE=1 or PHASE=all"; \
+		exit 1; \
+	fi; \
+	RESET_MODE=fresh-sandbox CONFIRM_FRESH_SANDBOX=1 BACKUP_FILE="$$BACKUP_FILE" \
+		$(MAKE) --no-print-directory migration-test PHASE="$$PHASE"
+
 # Run all derived-field backfill migrations (searchText reindex + verifiedRoleYears backfill)
 backfill-derived-fields:
 	@echo "→ force-validating data consistency (reindex + backfill + search index refresh)"
@@ -1325,6 +1364,8 @@ help:
 	@echo "Local tooling:"
 	@echo "  check / test              Validate / test the repo"
 	@echo "  check-node / check-python / check-build"
+	@echo "  migration-test            Run v0.2.1 -> main migration workflow (requires external BACKUP_FILE)"
+	@echo "  migration-test-fresh-sandbox Run migration-test after a guarded full local app-state reset"
 	@echo "  install-deps              Install deps + build bin/trends + prefetch Convex"
 	@echo "  prefetch-convex           Prefetch Convex local backend + dashboard"
 	@echo "  cli-build / cli-install / cli-test"

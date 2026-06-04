@@ -51,4 +51,13 @@ describe("workflow verifier repo entrypoints", () => {
     expect(recipe).toContain('npx tsx scripts/resume/clear-workspace-demo-resumes.ts');
     expect(makefile).toContain('seed-clear-demo-resumes Clear only demo resumes tagged workspace-demo');
   });
+
+  it("exposes a guarded fresh-sandbox migration test helper", () => {
+    const recipe = getTargetRecipe("migration-test-fresh-sandbox");
+
+    expect(recipe).toContain('YES=1 is required for migration-test-fresh-sandbox');
+    expect(recipe).toContain('RESET_MODE=fresh-sandbox');
+    expect(recipe).toContain('CONFIRM_FRESH_SANDBOX=1');
+    expect(makefile).toContain('migration-test-fresh-sandbox Run migration-test after a guarded full local app-state reset');
+  });
 });
