@@ -43,6 +43,7 @@ export function useStatusCounts(params: UseStatusCountsParams): StatusCounts {
       ...(filters.education?.length ? { education: filters.education } : {}),
       ...(filters.skills?.length ? { skills: filters.skills } : {}),
       ...(filters.requiredKeywords?.length ? { requiredKeywords: filters.requiredKeywords } : {}),
+      ...(filters.keywords?.length ? { keywords: filters.keywords } : {}),
       ...(filters.locations?.length ? { locations: filters.locations } : {}),
       ...(filters.minSalary != null ? { minSalary: filters.minSalary } : {}),
       ...(filters.maxSalary != null ? { maxSalary: filters.maxSalary } : {}),
