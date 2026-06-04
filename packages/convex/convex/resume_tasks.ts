@@ -28,6 +28,7 @@ export {
 
 const DEFAULT_WORKER_HEALTH_FRESHNESS_MS = 15_000;
 const DEFAULT_STALE_PENDING_MS = 180_000;
+const RECENT_IDEMPOTENT_COMPLETED_MS = 24 * 60 * 60 * 1000;
 
 // List recent tasks for monitoring
 export const list = query({
@@ -75,12 +76,42 @@ export const dispatch = mutation({
         maxSalary: v.optional(v.number()),
         autoAnalyze: v.optional(v.boolean()),
         analysisTopN: v.optional(v.number()),
+        idempotencyKey: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
         const minAge = normalizeOptionalPositiveInt(args.minAge);
         const maxAge = normalizeOptionalPositiveInt(args.maxAge);
         if (typeof minAge === "number" && typeof maxAge === "number" && minAge > maxAge) {
             throw new Error("minAge cannot be greater than maxAge");
+        }
+
+        const idempotencyKey = typeof args.idempotencyKey === "string" && args.idempotencyKey.trim()
+            ? args.idempotencyKey.trim()
+            : undefined;
+        if (idempotencyKey) {
+            for (const status of ["pending", "processing"] as const) {
+                const existing = await ctx.db
+                    .query("collection_tasks")
+                    .withIndex("by_idempotency_status", (q) => q.eq("idempotencyKey", idempotencyKey).eq("status", status))
+                    .first();
+                if (existing) {
+                    return existing._id;
+                }
+            }
+
+            const recentCompleted = await ctx.db
+                .query("collection_tasks")
+                .withIndex("by_idempotency_status", (q) => q.eq("idempotencyKey", idempotencyKey).eq("status", "completed"))
+                .order("desc")
+                .take(20);
+            const now = Date.now();
+            const reusableCompleted = recentCompleted.find((task) =>
+                typeof task.completedAt === "number"
+                && now - task.completedAt <= RECENT_IDEMPOTENT_COMPLETED_MS
+            );
+            if (reusableCompleted) {
+                return reusableCompleted._id;
+            }
         }
 
         const taskId = await ctx.db.insert("collection_tasks", {
@@ -96,6 +127,7 @@ export const dispatch = mutation({
                 analysisTopN: args.analysisTopN,
             },
             status: "pending",
+            idempotencyKey,
             progress: {
                 current: 0,
                 total: 0,

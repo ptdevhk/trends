@@ -253,6 +253,77 @@ describe("resume_tasks: dispatch", () => {
     expect(task?.config.autoAnalyze).toBe(true);
     expect(task?.config.analysisTopN).toBe(20);
   });
+
+  it("reuses active collection tasks for duplicate idempotency keys", async () => {
+    const t = createTest();
+
+    const first = await t.mutation(api.resume_tasks.dispatch, {
+      keyword: "cnc sales",
+      location: "Dongguan",
+      limit: 50,
+      idempotencyKey: "profile:hr:cnc-sales:2026-06-05",
+    });
+    const second = await t.mutation(api.resume_tasks.dispatch, {
+      keyword: "cnc sales",
+      location: "Dongguan",
+      limit: 50,
+      idempotencyKey: "profile:hr:cnc-sales:2026-06-05",
+    });
+
+    expect(second).toBe(first);
+
+    const tasks = await t.run(async (ctx) => {
+      return ctx.db.query("collection_tasks").collect();
+    });
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0]?.idempotencyKey).toBe("profile:hr:cnc-sales:2026-06-05");
+  });
+
+  it("creates a new collection task for a changed idempotency key", async () => {
+    const t = createTest();
+
+    const first = await t.mutation(api.resume_tasks.dispatch, {
+      keyword: "cnc sales",
+      location: "Dongguan",
+      limit: 50,
+      idempotencyKey: "profile:hr:cnc-sales:2026-06-05",
+    });
+    const second = await t.mutation(api.resume_tasks.dispatch, {
+      keyword: "cnc sales",
+      location: "Dongguan",
+      limit: 50,
+      idempotencyKey: "profile:hr:cnc-sales:2026-06-06",
+    });
+
+    expect(second).not.toBe(first);
+
+    const tasks = await t.run(async (ctx) => {
+      return ctx.db.query("collection_tasks").collect();
+    });
+    expect(tasks).toHaveLength(2);
+  });
+
+  it("keeps manual dispatch without idempotency keys backward-compatible", async () => {
+    const t = createTest();
+
+    const first = await t.mutation(api.resume_tasks.dispatch, {
+      keyword: "manual",
+      location: "Dongguan",
+      limit: 50,
+    });
+    const second = await t.mutation(api.resume_tasks.dispatch, {
+      keyword: "manual",
+      location: "Dongguan",
+      limit: 50,
+    });
+
+    expect(second).not.toBe(first);
+
+    const tasks = await t.run(async (ctx) => {
+      return ctx.db.query("collection_tasks").collect();
+    });
+    expect(tasks).toHaveLength(2);
+  });
 });
 
 // ---------------------------------------------------------------------------

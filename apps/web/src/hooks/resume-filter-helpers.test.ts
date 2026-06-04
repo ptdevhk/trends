@@ -174,6 +174,11 @@ describe('matchesSalaryFilter', () => {
   it('excludes monthly wan salaries above maxSalary=25000', () => {
     expect(matchesSalaryFilter('2.8-4.2万/月', undefined, 25000)).toBe(false)
   })
+
+  it('handles mixed 千-to-万 salaries with raw-CNY maximums', () => {
+    expect(matchesSalaryFilter('8千-1.1万/月', undefined, 9000)).toBe(true)
+    expect(matchesSalaryFilter('8千-1.1万/月', undefined, 7000)).toBe(false)
+  })
 })
 
 describe('toStatusFilterList', () => {

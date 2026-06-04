@@ -17,9 +17,14 @@ def _make_profile(keywords: Any, filters: Any = None) -> dict[str, Any]:
     return profile
 
 
+def _enable_headless_collector(monkeypatch) -> None:
+    monkeypatch.setenv("ENABLE_HEADLESS_COLLECTOR", "true")
+
+
 def test_run_resume_crawl_task_normalizes_keyword_list_with_spaces(monkeypatch) -> None:
     captured: dict[str, Any] = {}
 
+    _enable_headless_collector(monkeypatch)
     monkeypatch.setattr(resume_tasks, "_resolve_convex_url", lambda: "http://127.0.0.1:3210")
 
     def fake_mutation(convex_url: str, mutation_path: str, args: dict[str, Any]) -> str:
@@ -40,11 +45,13 @@ def test_run_resume_crawl_task_normalizes_keyword_list_with_spaces(monkeypatch) 
     assert captured["args"]["keyword"] == "CNC 车床 销售 STAR"
     assert captured["args"]["location"] == "东莞"
     assert captured["args"]["limit"] == 120
+    assert captured["args"]["idempotencyKey"] == "profile:profile-1:cnc-车床-销售-star:东莞:120:10"
 
 
 def test_run_resume_crawl_task_trims_and_skips_empty_keyword_items(monkeypatch) -> None:
     captured: dict[str, Any] = {}
 
+    _enable_headless_collector(monkeypatch)
     monkeypatch.setattr(resume_tasks, "_resolve_convex_url", lambda: "http://127.0.0.1:3210")
 
     def fake_mutation(_convex_url: str, _mutation_path: str, args: dict[str, Any]) -> str:
@@ -64,6 +71,7 @@ def test_run_resume_crawl_task_trims_and_skips_empty_keyword_items(monkeypatch) 
 def test_run_resume_crawl_task_keeps_non_list_keyword_string(monkeypatch) -> None:
     captured: dict[str, Any] = {}
 
+    _enable_headless_collector(monkeypatch)
     monkeypatch.setattr(resume_tasks, "_resolve_convex_url", lambda: "http://127.0.0.1:3210")
 
     def fake_mutation(_convex_url: str, _mutation_path: str, args: dict[str, Any]) -> str:
@@ -81,6 +89,7 @@ def test_run_resume_crawl_task_keeps_non_list_keyword_string(monkeypatch) -> Non
 def test_run_resume_crawl_task_returns_false_for_empty_keyword(monkeypatch) -> None:
     called = {"mutation": False}
 
+    _enable_headless_collector(monkeypatch)
     monkeypatch.setattr(resume_tasks, "_resolve_convex_url", lambda: "http://127.0.0.1:3210")
 
     def fake_mutation(_convex_url: str, _mutation_path: str, _args: dict[str, Any]) -> str:
@@ -98,6 +107,7 @@ def test_run_resume_crawl_task_returns_false_for_empty_keyword(monkeypatch) -> N
 def test_run_resume_crawl_task_passes_age_range_filters(monkeypatch) -> None:
     captured: dict[str, Any] = {}
 
+    _enable_headless_collector(monkeypatch)
     monkeypatch.setattr(resume_tasks, "_resolve_convex_url", lambda: "http://127.0.0.1:3210")
 
     def fake_mutation(_convex_url: str, _mutation_path: str, args: dict[str, Any]) -> str:
@@ -186,7 +196,7 @@ def test_run_workspace_summary_falls_back_to_daily_for_invalid_period(monkeypatc
     ok = tasks.run_workspace_summary(
         api_base_url="http://localhost:3000",
         workspace_slug="dev",
-        period="monthly",
+        period="quarterly",
     )
 
     assert ok is True
@@ -243,7 +253,7 @@ def test_list_summary_profiles_runtime_normalizes_payload(monkeypatch) -> None:
             "profileId": "daily-ops",
             "name": "Daily Ops",
             "cron": "0 9 * * *",
-            "period": "daily",
+            "period": "monthly",
             "channel": "telegram",
             "dryRun": True,
             "templateId": "summary-daily",
@@ -265,6 +275,8 @@ def test_list_summary_profiles_runtime_normalizes_payload(monkeypatch) -> None:
 def test_worker_scheduler_load_profile_jobs_schedules_runtime_profiles(monkeypatch) -> None:
     calls: list[dict[str, Any]] = []
     constructed: list[bool] = []
+
+    _enable_headless_collector(monkeypatch)
 
     class FakeLoader:
         def __init__(self) -> None:
@@ -308,6 +320,8 @@ def test_worker_scheduler_load_profile_jobs_schedules_runtime_profiles(monkeypat
 
 
 def test_worker_scheduler_load_profile_jobs_logs_and_skips_loader_failures(monkeypatch, caplog) -> None:
+    _enable_headless_collector(monkeypatch)
+
     class BrokenLoader:
         def __init__(self) -> None:
             pass

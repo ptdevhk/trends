@@ -10,6 +10,42 @@ from urllib.request import Request, urlopen
 logger = logging.getLogger(__name__)
 
 
+def _idempotency_part(value: Any) -> str:
+    normalized = re.sub(r"\s+", "-", str(value).strip().lower())
+    normalized = re.sub(r"[^0-9a-z\u4e00-\u9fff._:-]+", "-", normalized)
+    return normalized.strip("-") or "none"
+
+
+def _build_profile_dispatch_idempotency_key(
+    *,
+    profile_id: str,
+    keyword_str: str,
+    location: str,
+    limit: int,
+    max_pages: int,
+    min_age: Optional[int],
+    max_age: Optional[int],
+    max_salary: Optional[int],
+    auto_analyze: bool,
+    analysis_top_n: int,
+) -> str:
+    parts = [
+        "profile",
+        _idempotency_part(profile_id or "unknown"),
+        _idempotency_part(keyword_str),
+        _idempotency_part(location),
+        str(limit),
+        str(max_pages),
+    ]
+    if min_age is not None or max_age is not None:
+        parts.append(f"age-{min_age or 'none'}-{max_age or 'none'}")
+    if max_salary is not None:
+        parts.append(f"salary-max-{max_salary}")
+    if auto_analyze:
+        parts.append(f"analyze-{analysis_top_n}")
+    return ":".join(parts)
+
+
 def _read_env_var_from_file(file_path: Path, key: str) -> Optional[str]:
     if not file_path.exists():
         return None
@@ -212,6 +248,18 @@ def run_resume_crawl_task(profile: Dict[str, Any]) -> bool:
             "maxPages": max_pages,
             "autoAnalyze": auto_analyze,
             "analysisTopN": analysis_top_n,
+            "idempotencyKey": _build_profile_dispatch_idempotency_key(
+                profile_id=profile_id,
+                keyword_str=keyword_str,
+                location=location,
+                limit=limit,
+                max_pages=max_pages,
+                min_age=min_age,
+                max_age=max_age,
+                max_salary=max_salary,
+                auto_analyze=auto_analyze,
+                analysis_top_n=analysis_top_n,
+            ),
         }
         if min_age is not None:
             mutation_args["minAge"] = min_age
