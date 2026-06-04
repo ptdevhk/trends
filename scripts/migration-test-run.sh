@@ -108,8 +108,7 @@ run_migrations() {
         backfillSearchText
         backfillEvidenceText
         backfillPrimaryRuleScore
-        backfillVerifiedRoleYears
-        reindexSearchText
+        validateDataConsistency
     )
     for migration in "${migrations[@]}"; do
         log "  Running: $migration"

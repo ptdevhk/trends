@@ -99,6 +99,55 @@ function buildDigestRow(resumeId: string, overrides: Record<string, unknown> = {
     };
 }
 
+function buildFilterableConvexResumeRecord(
+    resumeId: string,
+    params: {
+        location: string;
+        verifiedRoleYears: Record<string, number>;
+    },
+) {
+    const record = buildConvexResumeRecord(resumeId, {
+        name: resumeId,
+        searchText: "cnc 销售 数控 销售工程师",
+    });
+    return {
+        ...record,
+        content: {
+            ...record.content,
+            location: params.location,
+        },
+        ingestData: {
+            ruleScores: {},
+            industryTags: ["机械", "销售"],
+            synonymHits: ["cnc", "销售"],
+            brandHits: [],
+            companyHits: [],
+            experienceLevel: "mid",
+            computedAt: Date.now(),
+            skillsVersion: 1,
+            verifiedRoleYears: params.verifiedRoleYears,
+            roleSignals: Object.entries(params.verifiedRoleYears).map(([type, years]) => ({
+                type,
+                matchedSignals: [type],
+                signalCount: 1,
+                occurrences: 1,
+                years,
+                industryVerifiedYears: years,
+                roleRelevantYears: years,
+                industryVerifiedRelevantYears: years,
+                matchedWorkEntries: [{
+                    jobTitle: `${type} role`,
+                    years,
+                    industryVerified: true,
+                    matchedSignals: [type],
+                    directRoleMatch: true,
+                }],
+                verifyIn: "workHistory",
+            })),
+        },
+    };
+}
+
 // ── Tests ──────────────────────────────────────────────────────────────
 
 describe("BFF search dispatcher integration", () => {
@@ -309,6 +358,50 @@ describe("BFF search dispatcher integration", () => {
             expect(calls.some((c) => c.pathName === "resumes_search:scanResumePageSlim")).toBe(false);
             const docCall = calls.find((c) => c.pathName === "resumes_search:getResumeDocsByIds");
             expect(docCall?.args.ids).toEqual(["r1"]);
+        });
+
+        it("normalizes browser URL aliases for location and role type filters", async () => {
+            vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+                const call = parseConvexCall(input, init);
+                if (call.pathName === "resumes_search:scanResumeDigestPage") {
+                    return convexSuccess({
+                        docs: [
+                            buildDigestRow("r1", { searchText: "cnc 销售 数控 销售工程师" }),
+                            buildDigestRow("r2", { searchText: "cnc 销售 数控 销售工程师" }),
+                            buildDigestRow("r3", { searchText: "cnc 销售 数控 销售工程师" }),
+                        ],
+                        isDone: true,
+                        cursor: null,
+                    });
+                }
+                if (call.pathName === "resumes_search:getResumeDocsByIds") {
+                    return convexSuccess([
+                        buildFilterableConvexResumeRecord("r1", {
+                            location: "东莞",
+                            verifiedRoleYears: { sales: 3 },
+                        }),
+                        buildFilterableConvexResumeRecord("r2", {
+                            location: "Kuala Lumpur MY",
+                            verifiedRoleYears: { sales: 3 },
+                        }),
+                        buildFilterableConvexResumeRecord("r3", {
+                            location: "东莞",
+                            verifiedRoleYears: { engineer: 3 },
+                        }),
+                    ]);
+                }
+                throw new Error(`Unexpected convex path: ${call.pathName}`);
+            });
+
+            const app = createApp();
+            const response = await app.request(
+                "/api/resumes?source=convex&q=CNC%20销售&limit=5&minRoleYears=1&roleType=sales&location=China",
+            );
+
+            expect(response.status).toBe(200);
+            const payload = await response.json();
+            expect(payload.success).toBe(true);
+            expect(payload.data.map((item: { name: string }) => item.name)).toEqual(["r1"]);
         });
     });
 

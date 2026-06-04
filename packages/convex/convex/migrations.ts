@@ -527,6 +527,12 @@ type ReIngestAllResumesResult = {
     batches: number;
 };
 
+type BackfillResumeDigestsResult = {
+    processed: number;
+    isDone: boolean;
+    cursor: string | null;
+};
+
 export const backfillSearchText = mutation({
     args: {
         cursor: v.optional(v.string()),
@@ -1512,9 +1518,25 @@ export const validateDataConsistency = action({
             vryCursor = result.cursor;
         }
 
+        // Step 3: Rebuild resume_digests after all resume-derived fields settle.
+        // The BFF AND-mode search path scans this hot table; restores from older
+        // backups can have complete resumes but no digest rows.
+        let digestCursor: string | null = null;
+        let digestProcessed = 0;
+        for (let i = 0; i < 10000; i++) {
+            const result: BackfillResumeDigestsResult = await ctx.runMutation(api.resumes_search.backfillResumeDigests, {
+                cursor: digestCursor ?? undefined,
+                limit: batchSize,
+            });
+            digestProcessed += result.processed;
+            if (result.isDone) break;
+            digestCursor = result.cursor;
+        }
+
         return {
             reindexSearchText: { scanned: reindexScanned, updated: reindexUpdated },
             backfillVerifiedRoleYears: { scanned: vryScanned, updated: vryUpdated },
+            backfillResumeDigests: { processed: digestProcessed },
         };
     },
 });

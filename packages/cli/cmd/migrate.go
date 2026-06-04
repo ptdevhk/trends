@@ -139,7 +139,7 @@ func newMigrateValidateConsistencyCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "validate-consistency",
-		Short: "Run full data consistency validation and repair (reindexSearchText + backfillVerifiedRoleYears)",
+		Short: "Run full data consistency validation and repair (searchText + verifiedRoleYears + resume digests)",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var extraArgs []string
 			if forceFlag {
