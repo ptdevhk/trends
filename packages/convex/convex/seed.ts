@@ -982,6 +982,9 @@ export const clearAll = mutation({
     const jds = await ctx.db.query("job_descriptions").collect();
     for (const jd of jds) await ctx.db.delete(jd._id);
 
+    const resumeDigests = await ctx.db.query("resume_digests").collect();
+    for (const digest of resumeDigests) await ctx.db.delete(digest._id);
+
     const resumes = await ctx.db.query("resumes").collect();
     for (const resume of resumes) await ctx.db.delete(resume._id);
 

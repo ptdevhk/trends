@@ -612,6 +612,7 @@ export const getSummaryWindow = query({
 
 const RESET_TABLES = [
     "collection_tasks",
+    "resume_digests",
     "resumes",
     "collection_workers",
     "candidate_blocks",
