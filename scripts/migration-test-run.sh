@@ -170,11 +170,14 @@ prepare_fresh_sandbox() {
     kill_dev_ports
     DEV_PID=""
 
-    log "Removing local SQLite databases under output/ while preserving output/resume-backups..."
+    log "Removing ignored local state under output/ while preserving output/resume-backups..."
     if [ -d output ]; then
-        find output -path output/resume-backups -prune -o \
-            \( -type f \( -name "*.db" -o -name "*.db-shm" -o -name "*.db-wal" \) -print -exec rm -f {} \; \)
-        rm -rf output/news output/rss
+        if command -v git >/dev/null 2>&1 && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+            git clean -fdX output/ -e output/resume-backups/
+        else
+            rm -f output/resume_screening.db output/resume_screening.db-shm output/resume_screening.db-wal
+            rm -rf output/rss
+        fi
     fi
 
     log "Removing local Convex and web environment selectors..."

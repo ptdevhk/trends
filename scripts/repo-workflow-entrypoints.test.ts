@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const makefile = readFileSync(new URL("../Makefile", import.meta.url), "utf8");
+const migrationTestRunner = readFileSync(new URL("./migration-test-run.sh", import.meta.url), "utf8");
 const packageJson = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as {
   scripts?: Record<string, string>;
 };
@@ -59,5 +60,6 @@ describe("workflow verifier repo entrypoints", () => {
     expect(recipe).toContain('RESET_MODE=fresh-sandbox');
     expect(recipe).toContain('CONFIRM_FRESH_SANDBOX=1');
     expect(makefile).toContain('migration-test-fresh-sandbox Run migration-test after a guarded full local app-state reset');
+    expect(migrationTestRunner).toContain('git clean -fdX output/ -e output/resume-backups/');
   });
 });
