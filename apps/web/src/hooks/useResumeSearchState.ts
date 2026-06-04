@@ -471,6 +471,13 @@ const ACTION_TO_STATUS: Partial<Record<CandidateActionType, CandidateStatus>> = 
   star: 'new',
 }
 
+function matchesBlockVisibility(
+  item: ResumeSearchResultItem,
+  filters: Partial<ResumeFilters>,
+): boolean {
+  return filters.showBlocked === true || !item.blocked
+}
+
 function matchesLocalFilters(
   item: ResumeSearchResultItem,
   state: UrlSearchState,
@@ -511,6 +518,10 @@ function matchesLocalFilters(
   const education = item.resume.education?.trim().toLowerCase() ?? ''
   const experienceLevel = normalizeExperienceLevel(item.resume.ingestData?.experienceLevel)
   const minScore = state.filters.minMatchScore
+
+  if (!matchesBlockVisibility(item, state.filters)) {
+    return false
+  }
 
   if (
     normalizedSelectedTags.length > 0 &&
@@ -886,10 +897,15 @@ export function useResumeSearchState() {
     statusByIdentity,
   ])
 
+  const blockVisibleResults = useMemo(
+    () => results.filter((item) => matchesBlockVisibility(item, parsedState.filters)),
+    [parsedState.filters, results],
+  )
+
   const filteredResults = useMemo(
     () =>
       sortResults(
-        results.filter((item) =>
+        blockVisibleResults.filter((item) =>
           matchesLocalFilters(
             item,
             {
@@ -908,9 +924,9 @@ export function useResumeSearchState() {
       ),
     [
       activeSort,
+      blockVisibleResults,
       effectiveRoleFilterType,
       parsedState,
-      results,
       selectedClusterTags,
       selectedRawTags,
       taxonomyResolver,
@@ -919,7 +935,7 @@ export function useResumeSearchState() {
 
   const deferredFilteredResults = useDeferredValue(filteredResults)
 
-  const facetCounts: FacetCounts = useFacetCounts(results, taxonomyClusters)
+  const facetCounts: FacetCounts = useFacetCounts(blockVisibleResults, taxonomyClusters)
 
   // Status counts come from useFacetCounts which computes them from the
   // actual search results. Each result's status is looked up from
