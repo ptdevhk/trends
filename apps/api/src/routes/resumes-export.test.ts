@@ -56,6 +56,32 @@ function convexSuccess(value: unknown): Response {
   );
 }
 
+function workspaceExportFieldsConfig(fields: string[], includeDebugWhenEnabled = false): unknown {
+  return {
+    workspaceSlug: "dev",
+    configKey: "export-fields",
+    configValue: {
+      fields,
+      includeDebugWhenEnabled,
+    },
+    updatedAt: Date.now(),
+  };
+}
+
+function mockWorkspaceExportFieldsConfig(fields: string[], includeDebugWhenEnabled = false): void {
+  vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+    const call = parseConvexCall(input, init);
+    expect(call).toMatchObject({
+      pathName: "workspace_config:get",
+      args: {
+        workspaceSlug: "dev",
+        configKey: "export-fields",
+      },
+    });
+    return convexSuccess(workspaceExportFieldsConfig(fields, includeDebugWhenEnabled));
+  });
+}
+
 function buildSampleResume(overrides: Partial<ResumeItem> & { resumeId: string; name: string }): ResumeItem {
   return {
     resumeId: overrides.resumeId,
@@ -119,6 +145,8 @@ describe("resume export route", () => {
   });
 
   it("exports sample-backed requests by resumeId and preserves request order", async () => {
+    mockWorkspaceExportFieldsConfig(["resumeId", "name", "userComment", "brandHits"]);
+
     vi.spyOn(ResumeService.prototype, "loadSample").mockReturnValue({
       items: [
         buildSampleResume({
@@ -178,6 +206,8 @@ describe("resume export route", () => {
   });
 
   it("exports sample-backed brand hits as names-only summaries with alias dedupe", async () => {
+    mockWorkspaceExportFieldsConfig(["resumeId", "name", "brandHits"]);
+
     vi.spyOn(ResumeService.prototype, "loadSample").mockReturnValue({
       items: [
         buildSampleResume({
@@ -244,7 +274,14 @@ describe("resume export route", () => {
       const call = parseConvexCall(input, init);
       calls.push(call);
       if (call.pathName === "workspace_config:get") {
-        return convexSuccess(null);
+        return convexSuccess(workspaceExportFieldsConfig([
+          "resumeId",
+          "name",
+          "aiScore",
+          "industryDb",
+          "relatedExp",
+          "brandHits",
+        ], true));
       }
       if (call.pathName === "resumes:getByIdsForExport") {
         return convexSuccess([

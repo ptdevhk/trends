@@ -155,7 +155,7 @@ describe("review packet routes", () => {
     const parsed = Papa.parse<Record<string, string>>(await download.text(), { header: true });
     expect(parsed.meta.fields).toContain("Resume ID");
     expect(parsed.meta.fields).toContain("Packet Run ID");
-    expect(parsed.meta.fields?.slice(-4)).toEqual(["Status", "Action", "User Comment", "Reference Note"]);
+    expect(parsed.meta.fields?.slice(-5)).toEqual(["Status", "Action", "User Rating", "User Comment", "Reference Note"]);
     expect(parsed.data[0]?.["Resume ID"]).toBe("resume-b");
     expect(parsed.data[0]?.["Packet Run ID"]).toBe(payload.run.id);
     expect(parsed.data[0]?.["User Comment"]).toBe("Call Bob");
