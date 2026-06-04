@@ -236,6 +236,45 @@ export function buildExportEntriesFromResolvedResumes(
   return resolvedEntries;
 }
 
+export function applyStoredUserRatings(
+  entries: ResumeExportEntry[],
+  ratingsByResume: ReadonlyMap<string, number>
+): ResumeExportEntry[] {
+  if (ratingsByResume.size === 0) {
+    return entries;
+  }
+
+  return entries.map((entry) => {
+    if (entry.userRating !== undefined) {
+      return entry;
+    }
+
+    const rating = ratingsByResume.get(entry.key);
+    return rating === undefined
+      ? entry
+      : {
+          ...entry,
+          userRating: rating,
+        };
+  });
+}
+
+function resolveStoredRatingsForExportRequest(
+  request: Pick<ResumeExportCanonicalRequest, "sessionId" | "jobDescriptionId">,
+  entries: ResumeExportEntry[]
+): Map<string, number> {
+  const sessionId = request.sessionId?.trim();
+  if (!sessionId) {
+    return new Map();
+  }
+
+  return actionStorage.getLatestRatingsForSession({
+    sessionId,
+    jobDescriptionId: request.jobDescriptionId?.trim() || undefined,
+    resumeIds: entries.map((entry) => entry.key),
+  });
+}
+
 async function resolveExportRequest(
   request: ResumeExportCanonicalRequest
 ): Promise<{
@@ -248,7 +287,11 @@ async function resolveExportRequest(
   const resolvedResumes = request.source === "sample"
     ? resolveSampleExportResumeMap(request.sample ?? "", request.entries)
     : await resolveConvexExportResumeMap(request.entries);
-  const entries = buildExportEntriesFromResolvedResumes(request.entries, resolvedResumes);
+  const resolvedEntries = buildExportEntriesFromResolvedResumes(request.entries, resolvedResumes);
+  const entries = applyStoredUserRatings(
+    resolvedEntries,
+    resolveStoredRatingsForExportRequest(request, resolvedEntries)
+  );
 
   const industryDbV2Stats = request.industryDbV2Stats
     ?? computeBatchStats(entries.map((entry) => {
@@ -435,8 +478,12 @@ async function resolveReviewPacketExportRequest(
     ? resolveSampleReviewPacketRecordMap(request.sample ?? "", request.entries)
     : await resolveConvexReviewPacketRecordMap(request.entries);
   const resolved = buildReviewPacketEntriesFromResolvedRecords(request.entries, resolvedRecords);
+  const entries = applyStoredUserRatings(
+    resolved.entries,
+    resolveStoredRatingsForExportRequest(request, resolved.entries)
+  );
   const industryDbV2Stats = request.industryDbV2Stats
-    ?? computeBatchStats(resolved.entries.map((entry) => computeEffectiveIndustryDbV2Raw(entry.resume.ingestData)));
+    ?? computeBatchStats(entries.map((entry) => computeEffectiveIndustryDbV2Raw(entry.resume.ingestData)));
 
   return {
     format: request.format,
@@ -444,7 +491,7 @@ async function resolveReviewPacketExportRequest(
     sampleName: request.sample?.trim() || undefined,
     sessionId: request.sessionId?.trim() || undefined,
     jobDescriptionId: request.jobDescriptionId?.trim() || undefined,
-    entries: resolved.entries,
+    entries,
     items: resolved.items,
     batchMeta: {
       userComment: request.userComment,

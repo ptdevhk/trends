@@ -446,6 +446,7 @@ function buildSearchExportMatch(
 
 function buildSearchExportEntry(
   item: ResumeSearchResultItem,
+  userRating?: number,
 ): ResumeExportRequestBody['entries'][number] {
   const match = buildSearchExportMatch(item)
   const userComment = normalizeOptionalString(item.statusMeta?.notes)
@@ -458,6 +459,7 @@ function buildSearchExportEntry(
       ? { ruleScore: item.resume.primaryRuleScore }
       : {}),
     ...(userComment ? { userComment } : {}),
+    ...(typeof userRating === 'number' ? { userRating } : {}),
   }
 }
 
@@ -1536,10 +1538,15 @@ export function useResumeSearchState() {
 
     setExportingResults(true)
     try {
+      const normalizedJobDescriptionId = normalizeOptionalString(parsedState.jobDescriptionId)
       const exportRequest: ResumeExportRequestBody = {
         format: exportFormat,
         source: 'convex',
-        entries: exportCandidates.map(buildSearchExportEntry),
+        sessionId: sessionKey,
+        ...(normalizedJobDescriptionId ? { jobDescriptionId: normalizedJobDescriptionId } : {}),
+        entries: exportCandidates.map((item) =>
+          buildSearchExportEntry(item, ratingsByResume[item.resume.resumeId])
+        ),
       }
 
       await submitResumeExportDownload(apiBaseUrl, exportRequest)
@@ -1554,7 +1561,7 @@ export function useResumeSearchState() {
     } finally {
       setExportingResults(false)
     }
-  }, [apiBaseUrl, exportFormat, filteredResults]) // selectedIds excluded on purpose — export uses snapshot at call time
+  }, [apiBaseUrl, exportFormat, filteredResults, parsedState.jobDescriptionId, ratingsByResume, sessionKey]) // selectedIds excluded on purpose — export uses snapshot at call time
 
   const analyzeResults = useCallback(async () => {
     if (analysisDispatchBatchIds.length === 0) {

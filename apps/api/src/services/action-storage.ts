@@ -122,6 +122,13 @@ function normalizeAction(row: Record<string, unknown>): CandidateAction {
   };
 }
 
+function parseRatingValue(actionData: Record<string, unknown> | undefined): number | undefined {
+  const rating = actionData?.rating;
+  return typeof rating === "number" && Number.isInteger(rating) && rating >= 0 && rating <= 5
+    ? rating
+    : undefined;
+}
+
 export class ActionStorage {
   private readonly db;
 
@@ -258,6 +265,37 @@ export class ActionStorage {
         );
 
     return rows.map((row) => normalizeAction(row));
+  }
+
+  getLatestRatingsForSession(params: {
+    sessionId: string;
+    resumeIds: string[];
+    jobDescriptionId?: string;
+  }): Map<string, number> {
+    const requestedResumeIds = new Set(
+      params.resumeIds
+        .map((resumeId) => resumeId.trim())
+        .filter((resumeId) => resumeId.length > 0)
+    );
+    if (requestedResumeIds.size === 0) {
+      return new Map();
+    }
+
+    const ratingsByResume = new Map<string, number>();
+    const latestActions = this.getLatestActionsForSession(params.sessionId, params.jobDescriptionId);
+    for (const action of latestActions) {
+      const resumeId = action.resumeId.trim();
+      if (action.actionType !== "rating" || !requestedResumeIds.has(resumeId)) {
+        continue;
+      }
+
+      const rating = parseRatingValue(action.actionData);
+      if (rating !== undefined && rating > 0) {
+        ratingsByResume.set(resumeId, rating);
+      }
+    }
+
+    return ratingsByResume;
   }
 
   summarizeActionsInWindow(params: {

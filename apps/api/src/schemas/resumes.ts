@@ -951,6 +951,8 @@ export const ResumeExportCanonicalRequestSchema = z
     format: z.enum(["csv", "xlsx"]).default("csv").openapi({ example: "csv" }),
     source: ResumeExportSourceSchema,
     sample: z.string().optional().openapi({ example: "sample-initial" }),
+    sessionId: z.string().optional().openapi({ example: "lathe-sales" }),
+    jobDescriptionId: z.string().optional().openapi({ example: "jd-123" }),
     userComment: z.string().optional().openapi({ example: "Batch note" }),
     referenceNote: z.string().optional().openapi({ example: "Internal export" }),
     industryDbV2Stats: IndustryDbV2StatsSchema.optional(),
