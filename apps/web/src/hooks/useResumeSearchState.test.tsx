@@ -1908,6 +1908,27 @@ describe('useResumeSearchState', () => {
     expect(result.current.filteredResults.map((item) => item.key)).toEqual(['resume-1'])
   })
 
+  it('hides blocked new resumes from results and status facets by default', () => {
+    Object.assign(parsedStateMock, createParsedState({
+      query: 'CNC 销售',
+      keywords: ['CNC', '销售'],
+      filters: { status: ['new'] },
+    }))
+
+    resumesMock.push(
+      createResume(1, { primaryRuleScore: 95 }),
+      createResume(2, { primaryRuleScore: 90 }),
+    )
+    statusByIdentityMock['identity-1'] = createStatusRecord('identity-1', 'new')
+    statusByIdentityMock['identity-2'] = createStatusRecord('identity-2', 'new')
+    blocksByIdentityMock['identity-1'] = true
+
+    const { result } = renderHook(() => useResumeSearchState())
+
+    expect(result.current.filteredResults.map((item) => item.key)).toEqual(['resume-2'])
+    expect(useFacetCountsMock.mock.calls[0]?.[0].map((item: { key: string }) => item.key)).toEqual(['resume-2'])
+  })
+
   it('includes rejected resumes when explicitly filtered for', () => {
     Object.assign(parsedStateMock, createParsedState({
       query: 'CNC 销售',
