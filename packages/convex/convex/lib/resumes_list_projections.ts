@@ -16,7 +16,7 @@ import {
     resolveExperienceYears,
     normalizeEducationLevel,
     isLocationMatch,
-    parseSalaryRange,
+    parseRawSalaryRange,
     resolveResumeAnalysisSourceKey,
     getVerifiedRoleSignalYears,
 } from "@trends/shared";
@@ -576,7 +576,7 @@ export function matchesResumeListFilters(resume: Doc<"resumes">, filters: Resume
     }
 
     if (filters.minSalary !== undefined || filters.maxSalary !== undefined) {
-        const salary = parseSalaryRange(toStringValue(content.expectedSalary));
+        const salary = parseRawSalaryRange(toStringValue(content.expectedSalary));
         if (!salary) {
             // Unknown salary — skip salary filter instead of excluding.
             // Same graceful-degradation pattern as experience filter:

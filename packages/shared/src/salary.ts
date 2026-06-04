@@ -9,8 +9,8 @@
  *   - "8000-12000"         → {8000, 12000} (bare numbers, same in both modes)
  *   - "12000-18000元/月"   → {12000, 18000} (bare numbers, same in both modes)
  *
- * Default output is in K-units (matches web UI filter convention).
- * Pass { unit: "raw" } for raw CNY values (ingest/index storage).
+ * Default output is in K-units for legacy callers.
+ * Pass { unit: "raw" } for raw CNY values (API filters and ingest/index storage).
  *
  * Bare numbers (no K/千/万 annotation) are returned as-is in both modes.
  * Only explicitly annotated values are unit-converted.
@@ -53,4 +53,8 @@ export function parseSalaryRange(
   // Bare numbers: returned as-is (unit-agnostic)
 
   return { min, max };
+}
+
+export function parseRawSalaryRange(value: string | undefined): { min?: number; max?: number } | null {
+  return parseSalaryRange(value, { unit: "raw" });
 }

@@ -430,6 +430,7 @@ describe('buildSeekTalentSearchUrl', () => {
       matchAll: false,
       salaryType: 'MONTHLY',
       minSalary: 0,
+      maxSalary: 25000,
       salaryUnspecified: true,
     })
     expect(url).not.toBeNull()
@@ -445,6 +446,7 @@ describe('buildSeekTalentSearchUrl', () => {
     expect(parsed.searchParams.get('matchAll')).toBe('false')
     expect(parsed.searchParams.get('salaryType')).toBe('MONTHLY')
     expect(parsed.searchParams.get('minSalary')).toBe('0')
+    expect(parsed.searchParams.get('maxSalary')).toBe('25000')
     expect(parsed.searchParams.get('salaryUnspecified')).toBe('true')
   })
 

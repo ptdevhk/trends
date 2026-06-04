@@ -169,23 +169,28 @@ describe("bffMatchesResumeFilters — requiredKeywords", () => {
 
 describe("bffMatchesResumeFilters — salary", () => {
   it("passes when salary is within range", () => {
-    const doc = makeDoc(); // expectedSalary: "15k-25k" → parseSalaryRange returns {min:15, max:25}
-    expect(bffMatchesResumeFilters(doc, BASE_TEXT, { minSalary: 10, maxSalary: 30 })).toBe(true);
+    const doc = makeDoc(); // expectedSalary: "15k-25k" → raw CNY {min:15000, max:25000}
+    expect(bffMatchesResumeFilters(doc, BASE_TEXT, { minSalary: 10000, maxSalary: 30000 })).toBe(true);
   });
 
   it("fails when salary is below minimum", () => {
     const doc = makeDoc();
-    expect(bffMatchesResumeFilters(doc, BASE_TEXT, { minSalary: 30 })).toBe(false);
+    expect(bffMatchesResumeFilters(doc, BASE_TEXT, { minSalary: 30000 })).toBe(false);
+  });
+
+  it("excludes wan salaries above a raw-CNY maximum", () => {
+    const doc = makeDoc({ content: { expectedSalary: "2.8-4.2万/月" } });
+    expect(bffMatchesResumeFilters(doc, BASE_TEXT, { maxSalary: 25000 })).toBe(false);
   });
 
   it("excludes unknown salary when maxSalary is set", () => {
     const doc = makeDoc({ content: { expectedSalary: undefined } });
-    expect(bffMatchesResumeFilters(doc, BASE_TEXT, { maxSalary: 20 })).toBe(false);
+    expect(bffMatchesResumeFilters(doc, BASE_TEXT, { maxSalary: 20000 })).toBe(false);
   });
 
   it("includes unknown salary when only minSalary is set", () => {
     const doc = makeDoc({ content: { expectedSalary: undefined } });
-    expect(bffMatchesResumeFilters(doc, BASE_TEXT, { minSalary: 10 })).toBe(true);
+    expect(bffMatchesResumeFilters(doc, BASE_TEXT, { minSalary: 10000 })).toBe(true);
   });
 });
 

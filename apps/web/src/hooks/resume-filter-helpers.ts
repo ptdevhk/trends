@@ -1,5 +1,5 @@
 import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
-import { formatKeywordQuery, formatLocationHierarchySearchText, getVerifiedRoleSignalYears, normalizeKeywordPhrases, parseSalaryRange } from '@trends/shared'
+import { formatKeywordQuery, formatLocationHierarchySearchText, getVerifiedRoleSignalYears, normalizeKeywordPhrases, parseRawSalaryRange } from '@trends/shared'
 import { resolveResumeAnalysisSourceKey } from '@trends/shared'
 import type { ExperienceLevelFilter, UrlSearchState } from '@/hooks/useUrlSearchState'
 
@@ -47,7 +47,7 @@ export function matchesSalaryFilter(
     return true
   }
 
-  const salary = parseSalaryRange(expectedSalary)
+  const salary = parseRawSalaryRange(expectedSalary)
   if (!salary) {
     return false
   }

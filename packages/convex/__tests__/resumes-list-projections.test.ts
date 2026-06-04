@@ -2,10 +2,11 @@
  * Unit tests for lib/resumes_list_projections.ts
  *
  * Covers: projectResumeListDoc, projectResumeDetailDoc,
- * matchesResumeListFilters, sortResumeDocs,
+ * matchesResumeListFilters, buildResumeDigest, sortResumeDocs,
  * normalizeResumeListFilters, getIngestRuleScore.
  */
 import { describe, expect, it } from "vitest";
+import { buildResumeDigest } from "../convex/lib/resume_digests.js";
 import {
   projectResumeListDoc,
   projectResumeDetailDoc,
@@ -134,6 +135,30 @@ describe("matchesResumeListFilters", () => {
     // Source is resolved to the domain key (e.g. "job5156") via resolveResumeAnalysisSourceKey
     expect(matchesResumeListFilters(resume as any, { sources: ["job5156"] })).toBe(true);
     expect(matchesResumeListFilters(resume as any, { sources: ["linkedin"] })).toBe(false);
+  });
+
+  it("uses raw-CNY salary filters for wan salaries", () => {
+    const resume = makeResume({
+      content: { expectedSalary: "2.8-4.2万/月" },
+    }) as Parameters<typeof matchesResumeListFilters>[0];
+
+    expect(matchesResumeListFilters(resume, { maxSalary: 25000 })).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildResumeDigest
+// ---------------------------------------------------------------------------
+
+describe("buildResumeDigest", () => {
+  it("stores salary values in raw CNY for digest filtering", () => {
+    const resume = makeResume({
+      content: { expectedSalary: "2.8-4.2万/月" },
+    }) as Parameters<typeof buildResumeDigest>[0];
+    const digest = buildResumeDigest(resume, Date.UTC(2026, 5, 4));
+
+    expect(digest.salaryMin).toBe(28000);
+    expect(digest.salaryMax).toBe(42000);
   });
 });
 

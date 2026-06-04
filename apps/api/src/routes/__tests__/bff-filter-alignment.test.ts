@@ -96,32 +96,36 @@ describe("bffMatchesResumeFilters", () => {
 
   describe("salary filter — parseSalaryRange", () => {
     it("parses salary with 万 multiplier correctly", () => {
-      // parseSalaryRange("15-25万/年") returns {min: 150, max: 250} (in 千 units)
+      // Search filters use raw CNY; "15-25万/年" parses to {min: 150000, max: 250000}.
       const doc = makeDoc({ content: { expectedSalary: "15-25万/年" } });
-      // max 250 should be above minSalary: 100 (千)
-      expect(bffMatchesResumeFilters(doc, "", { minSalary: 100 })).toBe(true);
+      expect(bffMatchesResumeFilters(doc, "", { minSalary: 100000 })).toBe(true);
     });
 
     it("excludes resumes below minSalary using range-aware parsing", () => {
-      // parseSalaryRange("5-8千/月") returns {min: 5, max: 8} (in 千 units)
+      // Search filters use raw CNY; "5-8千/月" parses to {min: 5000, max: 8000}.
       const doc = makeDoc({ content: { expectedSalary: "5-8千/月" } });
-      expect(bffMatchesResumeFilters(doc, "", { minSalary: 10 })).toBe(false);
+      expect(bffMatchesResumeFilters(doc, "", { minSalary: 10000 })).toBe(false);
     });
 
     it("excludes unknown salary when maxSalary is set", () => {
       const doc = makeDoc({ content: { expectedSalary: "" } });
-      expect(bffMatchesResumeFilters(doc, "", { maxSalary: 200 })).toBe(false);
+      expect(bffMatchesResumeFilters(doc, "", { maxSalary: 200000 })).toBe(false);
     });
 
     it("passes unknown salary when only minSalary is set", () => {
       const doc = makeDoc({ content: { expectedSalary: "" } });
-      expect(bffMatchesResumeFilters(doc, "", { minSalary: 50 })).toBe(true);
+      expect(bffMatchesResumeFilters(doc, "", { minSalary: 50000 })).toBe(true);
     });
 
     it("excludes resumes exceeding maxSalary", () => {
-      // parseSalaryRange("30-50万/年") returns {min: 300, max: 500} (in 千 units)
+      // Search filters use raw CNY; "30-50万/年" parses to {min: 300000, max: 500000}.
       const doc = makeDoc({ content: { expectedSalary: "30-50万/年" } });
-      expect(bffMatchesResumeFilters(doc, "", { maxSalary: 200 })).toBe(false);
+      expect(bffMatchesResumeFilters(doc, "", { maxSalary: 200000 })).toBe(false);
+    });
+
+    it("excludes monthly wan salaries above maxSalary=25000", () => {
+      const doc = makeDoc({ content: { expectedSalary: "2.8-4.2万/月" } });
+      expect(bffMatchesResumeFilters(doc, "", { maxSalary: 25000 })).toBe(false);
     });
   });
 
@@ -132,7 +136,7 @@ describe("bffMatchesResumeFilters", () => {
         maxExperience: 10,
         education: ["bachelor"],
         skills: ["cnc"],
-        minSalary: 100,
+        minSalary: 100000,
       })).toBe(true);
     });
 
@@ -344,8 +348,8 @@ describe("bffMatchesResumeFilters", () => {
         age: 30,
         locationText: "中国 广东 东莞",
         educationLevel: "bachelor",
-        salaryMin: 15,
-        salaryMax: 25,
+        salaryMin: 15000,
+        salaryMax: 25000,
         roleTypes: ["sales"],
         roleYearsByType: { sales: 3 },
         searchText: "cnc 销售 数控 机床 渠道",
@@ -356,6 +360,7 @@ describe("bffMatchesResumeFilters", () => {
         minAge: 25,
         maxAge: 40,
         locations: ["China"],
+        maxSalary: 25000,
       };
 
       expect(matchesResumeDigestFilters(digest, filters)).toBe(true);
