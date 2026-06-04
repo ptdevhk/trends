@@ -1483,9 +1483,12 @@ export function useResumeListState(loadSearchHistory = false) {
           userRating,
         }))
         const exportFormat = format ?? bulkExportFormat
+        const normalizedJobDescriptionId = normalizeOptionalString(jobDescriptionId)
         const exportRequest: ResumeExportRequestBody = {
           format: exportFormat,
           source: mode === 'ai' ? 'convex' : 'sample',
+          sessionId: sessionActionScope,
+          ...(normalizedJobDescriptionId ? { jobDescriptionId: normalizedJobDescriptionId } : {}),
           entries: exportEntries,
           ...(appliedSearchHistory?.industryDbV2Stats
             ? { industryDbV2Stats: appliedSearchHistory.industryDbV2Stats }
@@ -1537,7 +1540,7 @@ export function useResumeListState(loadSearchHistory = false) {
         toast.error(t('bulk.actionFailed', { defaultValue: 'Bulk action failed. Please try again.' }))
       }
     },
-    [apiBaseUrl, appliedSearchHistory?.industryDbV2Stats, blockCandidates, bulkExportFormat, displayedResumes, mode, saveAction, selectedIds, selectedSample, sendLearningFeedback, t, updateCandidateStatus]
+    [apiBaseUrl, appliedSearchHistory?.industryDbV2Stats, blockCandidates, bulkExportFormat, displayedResumes, jobDescriptionId, mode, saveAction, selectedIds, selectedSample, sendLearningFeedback, sessionActionScope, t, updateCandidateStatus]
   )
 
   const handleOpenReviewPacket = useCallback(async () => {

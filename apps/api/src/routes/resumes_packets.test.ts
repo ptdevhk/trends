@@ -8,6 +8,7 @@ import {
   normalizeExportResumePayload,
   toExportEntryFields,
   toExportEntry,
+  applyStoredUserRatings,
   buildExportEntriesFromResolvedResumes,
   buildReviewPacketIdentityKey,
   toReviewPacketItemSnapshot,
@@ -250,6 +251,37 @@ describe("toExportEntry", () => {
   it("trims the key", () => {
     const result = toExportEntry("  r-1  ", makeExportResumePayload(), toExportEntryFields(makeEntryContext()));
     expect(result.key).toBe("r-1");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// applyStoredUserRatings
+// ---------------------------------------------------------------------------
+
+describe("applyStoredUserRatings", () => {
+  it("fills missing userRating from stored session ratings", () => {
+    const entry = toExportEntry("r-1", makeExportResumePayload(), toExportEntryFields(makeEntryContext()));
+
+    const result = applyStoredUserRatings([entry], new Map([["r-1", 5]]));
+
+    expect(result[0]?.userRating).toBe(5);
+  });
+
+  it("keeps an explicitly provided userRating over the stored fallback", () => {
+    const fields = toExportEntryFields(makeEntryContext({ userRating: 3 }));
+    const entry = toExportEntry("r-1", makeExportResumePayload(), fields);
+
+    const result = applyStoredUserRatings([entry], new Map([["r-1", 5]]));
+
+    expect(result[0]?.userRating).toBe(3);
+  });
+
+  it("returns original entries when no stored rating exists", () => {
+    const entry = toExportEntry("r-1", makeExportResumePayload(), toExportEntryFields(makeEntryContext()));
+
+    const result = applyStoredUserRatings([entry], new Map());
+
+    expect(result[0]).toBe(entry);
   });
 });
 

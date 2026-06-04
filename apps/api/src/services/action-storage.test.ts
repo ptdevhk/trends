@@ -158,6 +158,46 @@ describe("ActionStorage", () => {
     });
   });
 
+  describe("getLatestRatingsForSession", () => {
+    it("returns the latest non-zero ratings for requested resumes", () => {
+      setup();
+      storage.saveAction({ sessionId: "s1", resumeId: "r1", actionType: "rating", actionData: { rating: 2 } });
+      storage.saveAction({ sessionId: "s1", resumeId: "r1", actionType: "rating", actionData: { rating: 4 } });
+      storage.saveAction({ sessionId: "s1", resumeId: "r2", actionType: "rating", actionData: { rating: 0 } });
+      storage.saveAction({ sessionId: "s1", resumeId: "r3", actionType: "rating", actionData: { rating: 5 } });
+
+      const ratings = storage.getLatestRatingsForSession({
+        sessionId: "s1",
+        resumeIds: ["r1", "r2"],
+      });
+
+      expect(Object.fromEntries(ratings)).toEqual({ r1: 4 });
+    });
+
+    it("uses the same synthetic scope as the UI action loader", () => {
+      setup();
+      storage.saveAction({
+        sessionId: "keywords:cnc",
+        resumeId: "r1",
+        actionType: "rating",
+        actionData: { rating: 5 },
+      });
+      storage.saveAction({
+        sessionId: "keywords:lathe",
+        resumeId: "r1",
+        actionType: "rating",
+        actionData: { rating: 2 },
+      });
+
+      const ratings = storage.getLatestRatingsForSession({
+        sessionId: "keywords:cnc",
+        resumeIds: ["r1"],
+      });
+
+      expect(ratings.get("r1")).toBe(5);
+    });
+  });
+
   it("summarizes actions in a workspace window using persisted sessions and review packets", () => {
     root = createFixtureRoot();
     storage = new ActionStorage(root);

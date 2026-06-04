@@ -12205,6 +12205,10 @@ export interface components {
             source: components["schemas"]["ResumeExportSource"];
             /** @example sample-initial */
             sample?: string;
+            /** @example lathe-sales */
+            sessionId?: string;
+            /** @example jd-123 */
+            jobDescriptionId?: string;
             /** @example Batch note */
             userComment?: string;
             /** @example Internal export */

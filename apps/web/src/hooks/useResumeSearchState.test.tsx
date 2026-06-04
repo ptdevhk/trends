@@ -72,6 +72,7 @@ const {
   saveSearchHistoryMutationMock,
   recentSearchHistoryRecordsMock,
   analysisTasksMock,
+  ratingsByResumeMock,
   statusByIdentityMock,
   updateStatusMock,
   saveActionMock,
@@ -100,6 +101,7 @@ const {
   saveSearchHistoryMutationMock: vi.fn(async () => 'history-1'),
   recentSearchHistoryRecordsMock: [] as Array<Record<string, unknown>>,
   analysisTasksMock: [] as Array<Record<string, unknown>>,
+  ratingsByResumeMock: {} as Record<string, number>,
   statusByIdentityMock: {} as Record<string, CandidateStatusRecord>,
   updateStatusMock: vi.fn(async () => true),
   saveActionMock: vi.fn(async () => ({ success: true })),
@@ -146,7 +148,7 @@ vi.mock('@/hooks/useCandidateActions', () => ({
     actions: {},
     actionsByResume: {},
     aiFeedbackByResume: {},
-    ratingsByResume: {},
+    ratingsByResume: ratingsByResumeMock,
     loading: false,
     error: null,
     reload: vi.fn(),
@@ -278,6 +280,7 @@ describe('useResumeSearchState', () => {
     taxonomyClusterRecordsMock.splice?.(0, taxonomyClusterRecordsMock.length)
     Object.keys(statusByIdentityMock).forEach((key) => delete statusByIdentityMock[key])
     Object.keys(blocksByIdentityMock).forEach((key) => delete blocksByIdentityMock[key])
+    Object.keys(ratingsByResumeMock).forEach((key) => delete ratingsByResumeMock[key])
     convexQueryStateMock.hasMore = false
     convexQueryStateMock.loading = false
     convexQueryStateMock.loadingMore = false
@@ -1243,6 +1246,7 @@ describe('useResumeSearchState', () => {
   })
 
   it('exports the current filtered results with score-first metadata', async () => {
+    localStorage.setItem('trends.resume.search.sessionKey.dev', 'search-session-1')
     Object.assign(parsedStateMock, createParsedState({
       query: 'machine tools',
       keywords: ['machine tools'],
@@ -1283,6 +1287,7 @@ describe('useResumeSearchState', () => {
     statusByIdentityMock['identity-1'] = createStatusRecord('identity-1', 'contacted', {
       notes: 'Call first',
     })
+    ratingsByResumeMock['resume-1'] = 4
 
     const { result } = renderHook(() => useResumeSearchState())
 
@@ -1295,6 +1300,7 @@ describe('useResumeSearchState', () => {
       {
         format: 'csv',
         source: 'convex',
+        sessionId: 'search-session-1',
         entries: [
           {
             resumeId: 'resume-1',
@@ -1311,6 +1317,7 @@ describe('useResumeSearchState', () => {
             },
             ruleScore: 88,
             userComment: 'Call first',
+            userRating: 4,
           },
           {
             resumeId: 'resume-2',

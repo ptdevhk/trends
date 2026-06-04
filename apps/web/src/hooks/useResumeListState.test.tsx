@@ -1140,11 +1140,13 @@ describe('useResumeListState role filter regression', () => {
 
     const parsedBody = capturedExportPayload as {
       source: string
+      sessionId?: string
       entries: Array<{ resumeId: string; userComment?: string; status?: string }>
       format: string
     }
     expect(parsedBody.format).toBe('csv')
     expect(parsedBody.source).toBe('convex')
+    expect(parsedBody.sessionId).toBe('global')
     expect(parsedBody.entries).toContainEqual(expect.objectContaining({
       resumeId: 'resume-ideal-cnc-sales',
       status: 'contacted',
