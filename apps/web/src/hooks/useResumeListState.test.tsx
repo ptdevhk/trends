@@ -435,8 +435,8 @@ describe('useResumeListState role filter regression', () => {
       education: ['bachelor'],
       skills: ['fanuc'],
       locations: ['Dongguan'],
-      minSalary: 10,
-      maxSalary: 20,
+      minSalary: 10000,
+      maxSalary: 20000,
     }
 
     renderHook(() => useResumeListState())
@@ -449,8 +449,8 @@ describe('useResumeListState role filter regression', () => {
           education: ['bachelor'],
           skills: ['fanuc'],
           locations: ['Dongguan'],
-          minSalary: 10,
-          maxSalary: 20,
+          minSalary: 10000,
+          maxSalary: 20000,
         },
       },
     })
@@ -459,7 +459,7 @@ describe('useResumeListState role filter regression', () => {
   it('applies skills and salary filters in AI mode', () => {
     mockState.filters = {
       skills: ['fanuc'],
-      minSalary: 15,
+      minSalary: 15000,
     }
     mockState.convexResumes = [
       buildResume({
