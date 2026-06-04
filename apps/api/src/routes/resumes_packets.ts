@@ -66,8 +66,6 @@ import {
 } from "./resumes-packets-helpers.js";
 
 const app = new OpenAPIHono();
-app.use("/api/resumes/export", requireAdmin);
-app.use("/api/resumes/export/*", requireAdmin);
 app.use("/api/resumes/review-packets", requireAdmin);
 app.use("/api/resumes/review-packets/*", requireAdmin);
 app.use("/api/resumes/learning-feedback", requireAdmin);
