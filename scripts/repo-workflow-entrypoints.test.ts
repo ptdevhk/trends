@@ -62,5 +62,6 @@ describe("workflow verifier repo entrypoints", () => {
     expect(makefile).toContain('migration-test-fresh-sandbox Run migration-test after a guarded full local app-state reset');
     expect(migrationTestRunner).toContain('git ls-files -z -o -i --exclude-standard output/');
     expect(migrationTestRunner).toContain('output/resume-backups|output/resume-backups/*');
+    expect(migrationTestRunner).toContain('cp scripts/migration-test-verify.sh "$VERIFY_SCRIPT"');
   });
 });

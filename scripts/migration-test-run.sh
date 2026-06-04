@@ -23,6 +23,7 @@ RESULTS_DIR="output/migration-test-results"
 PHASE="${1:-all}"
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 LOG="$RESULTS_DIR/migration-test-$TIMESTAMP.log"
+VERIFY_SCRIPT="${TMPDIR:-/tmp}/trends-migration-test-verify-$TIMESTAMP.sh"
 ORIGINAL_BRANCH=""
 DEV_PID=""
 
@@ -38,6 +39,7 @@ cleanup() {
     if [ -n "$ORIGINAL_BRANCH" ]; then
         git checkout "$ORIGINAL_BRANCH" 2>/dev/null || true
     fi
+    rm -f "$VERIFY_SCRIPT"
 }
 trap cleanup EXIT
 
@@ -125,6 +127,17 @@ run_migrations() {
         log "  Done: $migration"
     done
     log "All migrations complete"
+}
+
+prepare_verifier() {
+    if [ ! -f scripts/migration-test-verify.sh ]; then
+        log "ERROR: scripts/migration-test-verify.sh not found before checkout."
+        exit 1
+    fi
+
+    cp scripts/migration-test-verify.sh "$VERIFY_SCRIPT"
+    chmod +x "$VERIFY_SCRIPT"
+    log "Verifier snapshot: $VERIFY_SCRIPT"
 }
 
 require_phase1_backup() {
@@ -254,7 +267,7 @@ phase1() {
 
     # Baseline verification
     log "Recording baseline metrics..."
-    scripts/migration-test-verify.sh "$BASE_URL" "$RESULTS_DIR/baseline-v021-$TIMESTAMP.log"
+    "$VERIFY_SCRIPT" "$BASE_URL" "$RESULTS_DIR/baseline-v021-$TIMESTAMP.log"
 
     # Save baseline count via Convex CLI (API response format varies between versions)
     BASELINE_COUNT=$(npm --workspace @trends/convex exec convex run resumes:count '{}' 2>/dev/null || echo "error")
@@ -303,7 +316,7 @@ phase2() {
 
     # Post-upgrade verification
     log "Running post-upgrade verification..."
-    scripts/migration-test-verify.sh "$BASE_URL" "$RESULTS_DIR/post-upgrade-$TIMESTAMP.log"
+    "$VERIFY_SCRIPT" "$BASE_URL" "$RESULTS_DIR/post-upgrade-$TIMESTAMP.log"
 
     # Compare counts via Convex CLI
     POST_COUNT=$(npm --workspace @trends/convex exec convex run resumes:count '{}' 2>/dev/null || echo "error")
@@ -329,6 +342,7 @@ phase2() {
 # === MAIN ===
 log "Migration test starting (phase=$PHASE)"
 log "Results directory: $RESULTS_DIR"
+prepare_verifier
 
 case "$PHASE" in
     1) phase1 ;;
