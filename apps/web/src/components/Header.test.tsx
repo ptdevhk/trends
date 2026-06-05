@@ -39,6 +39,7 @@ vi.mock('react-i18next', () => ({
         'nav.resumes': 'Resumes',
         'nav.reviewPackets': 'Review packets',
         'nav.settings': 'Settings',
+        'nav.system': 'System from i18n',
       }
       return values[key] ?? key
     },
@@ -130,7 +131,7 @@ describe('Header', () => {
       expect(link).toHaveAttribute('data-reset', 'false')
     })
 
-    const systemLinks = screen.getAllByRole('link', { name: 'System' })
+    const systemLinks = screen.getAllByRole('link', { name: 'System from i18n' })
     expect(systemLinks).toHaveLength(2)
     systemLinks.forEach((link) => {
       expect(link).toHaveAttribute('href', '/dev/system')

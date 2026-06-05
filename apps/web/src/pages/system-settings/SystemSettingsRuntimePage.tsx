@@ -14,6 +14,7 @@ import {
   type AgentsConfig,
   useSettingsRequestJson,
 } from '@/pages/system-settings/lib'
+import { reportUiError } from '@/lib/ui-error-reporting'
 
 export function SystemSettingsRuntimePage() {
   const { t } = useTranslation()
@@ -48,7 +49,7 @@ export function SystemSettingsRuntimePage() {
       setAiStatus(parsedAiStatus)
       setAgentsConfig(parsedAgentsConfig)
     } catch (error) {
-      console.error('Failed to load runtime settings', error)
+      reportUiError('Failed to load runtime settings', error)
       setLoadError(t('resumes.error'))
     } finally {
       setLoading(false)
@@ -57,7 +58,7 @@ export function SystemSettingsRuntimePage() {
 
   useEffect(() => {
     loadData().catch((error) => {
-      console.error('Unexpected loadData failure', error)
+      reportUiError('Unexpected loadData failure', error)
     })
   }, [loadData])
 
@@ -158,7 +159,7 @@ export function SystemSettingsRuntimePage() {
       setAgentsConfig(parsed)
       toast.success(t('debugConfig.saved'))
     } catch (error) {
-      console.error('Failed to save agent config', error)
+      reportUiError('Failed to save agent config', error)
       toast.error(t('debugConfig.saveError'))
     } finally {
       setSavingAgentId(null)
@@ -184,7 +185,7 @@ export function SystemSettingsRuntimePage() {
         </div>
         <Button variant="outline" onClick={() => {
           loadData().catch((error) => {
-            console.error('Unexpected loadData failure', error)
+            reportUiError('Unexpected loadData failure', error)
           })
         }} disabled={loading}>
           {loading ? t('trends.loading') : t('common.refresh', { defaultValue: 'Refresh' })}
@@ -291,7 +292,7 @@ export function SystemSettingsRuntimePage() {
                         size="sm"
                         onClick={() => {
                           handleSaveAgents(agent.id).catch((error) => {
-                            console.error('Unexpected handleSaveAgents failure', error)
+                            reportUiError('Unexpected handleSaveAgents failure', error)
                           })
                         }}
                         disabled={isSaving}

@@ -27,17 +27,18 @@ import {
   type TaxonomyClusterSource,
   type TaxonomyClusterStatus,
 } from '@/lib/taxonomy'
+import { reportUiError } from '@/lib/ui-error-reporting'
 
-const STATUS_OPTIONS: Array<{ value: TaxonomyClusterStatus; label: string }> = [
-  { value: 'active', label: 'Active' },
-  { value: 'draft', label: 'Draft' },
-  { value: 'archived', label: 'Archived' },
+const STATUS_OPTIONS: Array<{ value: TaxonomyClusterStatus; labelKey: string; defaultLabel: string }> = [
+  { value: 'active', labelKey: 'debugConfig.taxonomy.status.active', defaultLabel: 'Active' },
+  { value: 'draft', labelKey: 'debugConfig.taxonomy.status.draft', defaultLabel: 'Draft' },
+  { value: 'archived', labelKey: 'debugConfig.taxonomy.status.archived', defaultLabel: 'Archived' },
 ]
 
-const SOURCE_OPTIONS: Array<{ value: TaxonomyClusterSource; label: string }> = [
-  { value: 'human', label: 'Human' },
-  { value: 'ai', label: 'AI' },
-  { value: 'merged', label: 'Merged' },
+const SOURCE_OPTIONS: Array<{ value: TaxonomyClusterSource; labelKey: string; defaultLabel: string }> = [
+  { value: 'human', labelKey: 'debugConfig.taxonomy.source.human', defaultLabel: 'Human' },
+  { value: 'ai', labelKey: 'debugConfig.taxonomy.source.ai', defaultLabel: 'AI' },
+  { value: 'merged', labelKey: 'debugConfig.taxonomy.source.merged', defaultLabel: 'Merged' },
 ]
 
 function buildTaxonomyPayload(form: TaxonomyClusterFormState) {
@@ -66,14 +67,6 @@ function buildTaxonomyPayload(form: TaxonomyClusterFormState) {
   }
 }
 
-function formatSourceLabel(value: TaxonomyClusterSource): string {
-  return SOURCE_OPTIONS.find((option) => option.value === value)?.label ?? value
-}
-
-function formatStatusLabel(value: TaxonomyClusterStatus): string {
-  return STATUS_OPTIONS.find((option) => option.value === value)?.label ?? value
-}
-
 export function SystemSettingsTaxonomyPage() {
   const { t } = useTranslation()
   const { requestJson } = useSettingsRequestJson()
@@ -98,7 +91,7 @@ export function SystemSettingsTaxonomyPage() {
       }
       setItems(parsed)
     } catch (error) {
-      console.error('Failed to load taxonomy clusters', error)
+      reportUiError('Failed to load taxonomy clusters', error)
       setLoadError(t('resumes.error'))
     } finally {
       setLoading(false)
@@ -107,7 +100,7 @@ export function SystemSettingsTaxonomyPage() {
 
   useEffect(() => {
     loadData().catch((error) => {
-      console.error('Unexpected taxonomy load failure', error)
+      reportUiError('Unexpected taxonomy load failure', error)
     })
   }, [loadData])
 
@@ -117,14 +110,32 @@ export function SystemSettingsTaxonomyPage() {
     archived: items.filter((item) => item.status === 'archived').length,
   }), [items])
 
+  const statusOptions = useMemo(() => STATUS_OPTIONS.map((option) => ({
+    value: option.value,
+    label: t(option.labelKey, { defaultValue: option.defaultLabel }),
+  })), [t])
+
+  const sourceOptions = useMemo(() => SOURCE_OPTIONS.map((option) => ({
+    value: option.value,
+    label: t(option.labelKey, { defaultValue: option.defaultLabel }),
+  })), [t])
+
+  const formatStatusLabel = useCallback((value: TaxonomyClusterStatus) => {
+    return statusOptions.find((option) => option.value === value)?.label ?? value
+  }, [statusOptions])
+
+  const formatSourceLabel = useCallback((value: TaxonomyClusterSource) => {
+    return sourceOptions.find((option) => option.value === value)?.label ?? value
+  }, [sourceOptions])
+
   const parentSlugOptions = useMemo(() => {
     return [
-      { value: '', label: 'None' },
+      { value: '', label: t('debugConfig.taxonomy.none', { defaultValue: 'None' }) },
       ...items
         .filter((item) => !editingItem || item.id !== editingItem.id)
         .map((item) => ({ value: item.slug, label: item.name })),
     ]
-  }, [editingItem, items])
+  }, [editingItem, items, t])
 
   const openCreateDialog = useCallback(() => {
     setEditingItem(null)
@@ -157,7 +168,7 @@ export function SystemSettingsTaxonomyPage() {
       setDialogOpen(false)
       toast.success(t('debugConfig.saved'))
     } catch (error) {
-      console.error('Failed to save taxonomy cluster', error)
+      reportUiError('Failed to save taxonomy cluster', error)
       toast.error(t('debugConfig.saveError'))
     } finally {
       setSaving(false)
@@ -177,7 +188,7 @@ export function SystemSettingsTaxonomyPage() {
       setItems(parsed)
       toast.success(t('debugConfig.saved'))
     } catch (error) {
-      console.error('Failed to delete taxonomy cluster', error)
+      reportUiError('Failed to delete taxonomy cluster', error)
       toast.error(t('debugConfig.saveError'))
     } finally {
       setDeletingId(null)
@@ -196,9 +207,12 @@ export function SystemSettingsTaxonomyPage() {
         throw new Error('Invalid taxonomy suggest payload')
       }
       await loadData()
-      toast.success(`Generated ${parsed.length} draft taxonomy suggestions`)
+      toast.success(t('debugConfig.taxonomy.generatedDrafts', {
+        count: parsed.length,
+        defaultValue: 'Generated {{count}} draft taxonomy suggestions',
+      }))
     } catch (error) {
-      console.error('Failed to suggest taxonomy clusters', error)
+      reportUiError('Failed to suggest taxonomy clusters', error)
       toast.error(t('debugConfig.saveError'))
     } finally {
       setSuggesting(false)
@@ -221,7 +235,7 @@ export function SystemSettingsTaxonomyPage() {
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={() => {
             loadData().catch((error) => {
-              console.error('Unexpected taxonomy load failure', error)
+              reportUiError('Unexpected taxonomy load failure', error)
             })
           }} disabled={loading}>
             {loading ? t('trends.loading') : t('common.refresh', { defaultValue: 'Refresh' })}
@@ -229,9 +243,11 @@ export function SystemSettingsTaxonomyPage() {
           <Button variant="outline" onClick={() => {
             void suggestClusters()
           }} disabled={suggesting}>
-            {suggesting ? 'Generating drafts...' : 'Generate Drafts'}
+            {suggesting
+              ? t('debugConfig.taxonomy.generatingDrafts', { defaultValue: 'Generating drafts...' })
+              : t('debugConfig.taxonomy.generateDrafts', { defaultValue: 'Generate Drafts' })}
           </Button>
-          <Button onClick={openCreateDialog}>New Cluster</Button>
+          <Button onClick={openCreateDialog}>{t('debugConfig.taxonomy.newCluster', { defaultValue: 'New Cluster' })}</Button>
         </div>
       </div>
 
@@ -244,22 +260,22 @@ export function SystemSettingsTaxonomyPage() {
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Active</CardTitle>
-            <CardDescription>Visible in the search facet sidebar.</CardDescription>
+            <CardTitle className="text-base">{t('debugConfig.taxonomy.status.active', { defaultValue: 'Active' })}</CardTitle>
+            <CardDescription>{t('debugConfig.taxonomy.activeDescription', { defaultValue: 'Visible in the search facet sidebar.' })}</CardDescription>
           </CardHeader>
           <CardContent className="text-3xl font-semibold">{statusCounts.active}</CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Draft</CardTitle>
-            <CardDescription>Generated or staged before approval.</CardDescription>
+            <CardTitle className="text-base">{t('debugConfig.taxonomy.status.draft', { defaultValue: 'Draft' })}</CardTitle>
+            <CardDescription>{t('debugConfig.taxonomy.draftDescription', { defaultValue: 'Generated or staged before approval.' })}</CardDescription>
           </CardHeader>
           <CardContent className="text-3xl font-semibold">{statusCounts.draft}</CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Archived</CardTitle>
-            <CardDescription>Kept for history but hidden from search.</CardDescription>
+            <CardTitle className="text-base">{t('debugConfig.taxonomy.status.archived', { defaultValue: 'Archived' })}</CardTitle>
+            <CardDescription>{t('debugConfig.taxonomy.archivedDescription', { defaultValue: 'Kept for history but hidden from search.' })}</CardDescription>
           </CardHeader>
           <CardContent className="text-3xl font-semibold">{statusCounts.archived}</CardContent>
         </Card>
@@ -267,9 +283,11 @@ export function SystemSettingsTaxonomyPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Cluster registry</CardTitle>
+          <CardTitle>{t('debugConfig.taxonomy.clusterRegistry', { defaultValue: 'Cluster registry' })}</CardTitle>
           <CardDescription>
-            Drafts can be reviewed and promoted to active clusters. Active clusters are used by the search-first resume sidebar.
+            {t('debugConfig.taxonomy.clusterRegistryDescription', {
+              defaultValue: 'Drafts can be reviewed and promoted to active clusters. Active clusters are used by the search-first resume sidebar.',
+            })}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -277,18 +295,18 @@ export function SystemSettingsTaxonomyPage() {
             <div className="text-sm text-muted-foreground">{t('trends.loading')}</div>
           ) : items.length === 0 ? (
             <div className="rounded-md border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
-              No taxonomy clusters yet.
+              {t('debugConfig.taxonomy.empty', { defaultValue: 'No taxonomy clusters yet.' })}
             </div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Source</TableHead>
-                  <TableHead>Parent</TableHead>
-                  <TableHead>Tags</TableHead>
-                  <TableHead className="w-[180px] text-right">Actions</TableHead>
+                  <TableHead>{t('debugConfig.taxonomy.name', { defaultValue: 'Name' })}</TableHead>
+                  <TableHead>{t('debugConfig.taxonomy.statusLabel', { defaultValue: 'Status' })}</TableHead>
+                  <TableHead>{t('debugConfig.taxonomy.sourceLabel', { defaultValue: 'Source' })}</TableHead>
+                  <TableHead>{t('debugConfig.taxonomy.parent', { defaultValue: 'Parent' })}</TableHead>
+                  <TableHead>{t('debugConfig.taxonomy.tags', { defaultValue: 'Tags' })}</TableHead>
+                  <TableHead className="w-[180px] text-right">{t('debugConfig.taxonomy.actions', { defaultValue: 'Actions' })}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -320,7 +338,7 @@ export function SystemSettingsTaxonomyPage() {
                     <TableCell className="align-top text-right">
                       <div className="flex justify-end gap-2">
                         <Button variant="outline" size="sm" onClick={() => openEditDialog(item)}>
-                          Edit
+                          {t('common.edit', { defaultValue: 'Edit' })}
                         </Button>
                         <Button
                           variant="outline"
@@ -330,7 +348,9 @@ export function SystemSettingsTaxonomyPage() {
                           }}
                           disabled={deletingId === item.id}
                         >
-                          {deletingId === item.id ? 'Deleting...' : 'Delete'}
+                          {deletingId === item.id
+                            ? t('common.deleting', { defaultValue: 'Deleting...' })
+                            : t('common.delete', { defaultValue: 'Delete' })}
                         </Button>
                       </div>
                     </TableCell>
@@ -345,15 +365,21 @@ export function SystemSettingsTaxonomyPage() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>{editingItem ? 'Edit taxonomy cluster' : 'Create taxonomy cluster'}</DialogTitle>
+            <DialogTitle>
+              {editingItem
+                ? t('debugConfig.taxonomy.editCluster', { defaultValue: 'Edit taxonomy cluster' })
+                : t('debugConfig.taxonomy.createCluster', { defaultValue: 'Create taxonomy cluster' })}
+            </DialogTitle>
             <DialogDescription>
-              Define a stable cluster name, slug, and the raw tags that should roll up into it.
+              {t('debugConfig.taxonomy.dialogDescription', {
+                defaultValue: 'Define a stable cluster name, slug, and the raw tags that should roll up into it.',
+              })}
             </DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Name</label>
+              <label className="text-sm font-medium">{t('debugConfig.taxonomy.name', { defaultValue: 'Name' })}</label>
               <Input
                 value={form.name}
                 onChange={(event) => {
@@ -372,7 +398,7 @@ export function SystemSettingsTaxonomyPage() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">Slug</label>
+              <label className="text-sm font-medium">{t('debugConfig.taxonomy.slug', { defaultValue: 'Slug' })}</label>
               <Input
                 value={form.slug}
                 onChange={(event) => {
@@ -384,9 +410,9 @@ export function SystemSettingsTaxonomyPage() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">Status</label>
+              <label className="text-sm font-medium">{t('debugConfig.taxonomy.statusLabel', { defaultValue: 'Status' })}</label>
               <Select
-                options={STATUS_OPTIONS}
+                options={statusOptions}
                 value={form.status}
                 onChange={(event) => {
                   setForm((current) => ({ ...current, status: event.target.value as TaxonomyClusterStatus }))
@@ -395,9 +421,9 @@ export function SystemSettingsTaxonomyPage() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">Source</label>
+              <label className="text-sm font-medium">{t('debugConfig.taxonomy.sourceLabel', { defaultValue: 'Source' })}</label>
               <Select
-                options={SOURCE_OPTIONS}
+                options={sourceOptions}
                 value={form.source}
                 onChange={(event) => {
                   setForm((current) => ({ ...current, source: event.target.value as TaxonomyClusterSource }))
@@ -406,7 +432,7 @@ export function SystemSettingsTaxonomyPage() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">Parent Cluster</label>
+              <label className="text-sm font-medium">{t('debugConfig.taxonomy.parentCluster', { defaultValue: 'Parent Cluster' })}</label>
               <Select
                 options={parentSlugOptions}
                 value={form.parentSlug}
@@ -417,7 +443,7 @@ export function SystemSettingsTaxonomyPage() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">Confidence</label>
+              <label className="text-sm font-medium">{t('debugConfig.taxonomy.confidence', { defaultValue: 'Confidence' })}</label>
               <Input
                 value={form.confidence}
                 onChange={(event) => {
@@ -428,7 +454,7 @@ export function SystemSettingsTaxonomyPage() {
             </div>
 
             <div className="space-y-2 md:col-span-2">
-              <label className="text-sm font-medium">Tags</label>
+              <label className="text-sm font-medium">{t('debugConfig.taxonomy.tags', { defaultValue: 'Tags' })}</label>
               <Input
                 value={form.tags}
                 onChange={(event) => {
@@ -437,19 +463,25 @@ export function SystemSettingsTaxonomyPage() {
                 placeholder="Go, Java, Rust"
               />
               <p className="text-xs text-muted-foreground">
-                Separate tags with commas. Search facets will group any matching resume tag into this cluster.
+                {t('debugConfig.taxonomy.tagsHelp', {
+                  defaultValue: 'Separate tags with commas. Search facets will group any matching resume tag into this cluster.',
+                })}
               </p>
             </div>
           </div>
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>
-              Cancel
+              {t('common.cancel', { defaultValue: 'Cancel' })}
             </Button>
             <Button onClick={() => {
               void saveCluster()
             }} disabled={saving}>
-              {saving ? 'Saving...' : editingItem ? 'Save Changes' : 'Create Cluster'}
+              {saving
+                ? t('common.saving', { defaultValue: 'Saving...' })
+                : editingItem
+                  ? t('debugConfig.taxonomy.saveChanges', { defaultValue: 'Save Changes' })
+                  : t('debugConfig.taxonomy.createClusterButton', { defaultValue: 'Create Cluster' })}
             </Button>
           </DialogFooter>
         </DialogContent>

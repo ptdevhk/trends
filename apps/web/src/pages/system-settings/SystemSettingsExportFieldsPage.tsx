@@ -9,6 +9,7 @@ import { useSettingsRequestJson } from '@/pages/system-settings/lib'
 import { EXPORT_CORE_FIELDS, isRecord } from '@trends/shared'
 import type { ExportFieldKey } from '@trends/shared'
 import { FIELD_GROUPS, FIELD_LABELS } from './SystemSettingsExportFieldsPage.metadata'
+import { reportUiError } from '@/lib/ui-error-reporting'
 
 interface ExportFieldsConfigState {
   fields: ExportFieldKey[]
@@ -68,7 +69,7 @@ export function SystemSettingsExportFieldsPage() {
         setHasConfig(false)
       }
     } catch (error) {
-      console.error('Failed to load export fields config', error)
+      reportUiError('Failed to load export fields config', error)
       setLoadError(t('resumes.error'))
     } finally {
       setLoading(false)
@@ -77,7 +78,7 @@ export function SystemSettingsExportFieldsPage() {
 
   useEffect(() => {
     loadData().catch((error) => {
-      console.error('Unexpected loadData failure', error)
+      reportUiError('Unexpected loadData failure', error)
     })
   }, [loadData])
 
@@ -125,7 +126,7 @@ export function SystemSettingsExportFieldsPage() {
       }
       toast.success(t('debugConfig.saved'))
     } catch (error) {
-      console.error('Failed to save export fields config', error)
+      reportUiError('Failed to save export fields config', error)
       toast.error(t('debugConfig.saveError'))
     } finally {
       setSaving(false)
@@ -144,7 +145,7 @@ export function SystemSettingsExportFieldsPage() {
       setHasConfig(false)
       toast.success(t('debugConfig.saved'))
     } catch (error) {
-      console.error('Failed to reset export fields config', error)
+      reportUiError('Failed to reset export fields config', error)
       toast.error(t('debugConfig.saveError'))
     } finally {
       setSaving(false)
@@ -169,7 +170,7 @@ export function SystemSettingsExportFieldsPage() {
             variant="outline"
             onClick={() => {
               loadData().catch((error) => {
-                console.error('Unexpected loadData failure', error)
+                reportUiError('Unexpected loadData failure', error)
               })
             }}
             disabled={loading}

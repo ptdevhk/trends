@@ -12,12 +12,19 @@
     "debugAi": "Debug AI",
     "search": "Search",
     "settings": "Settings",
+    "system": "System",
     "reviewPackets": "Review packets",
     "jds": "JDs",
     "archived": "Archived",
     "aiTaggingCompare": "AI Tagging (Compare)",
     "dataInspector": "Data Inspector",
     "auditCompliance": "Audit & Compliance"
+  },
+  "notFound": {
+    "eyebrow": "404",
+    "title": "Page not found",
+    "description": "The page you're looking for doesn't exist or has moved.",
+    "backToResumes": "Back to resumes"
   },
   "common": {
     "loading": "Loading",
@@ -32,7 +39,10 @@
     "reset": "Reset",
     "apply": "Apply",
     "archive": "Archive",
-    "delete": "Delete"
+    "delete": "Delete",
+    "edit": "Edit",
+    "saving": "Saving...",
+    "deleting": "Deleting..."
   },
   "jdManagement": {
     "title": "Job Description Management",
@@ -277,6 +287,12 @@
         "bachelor": "Bachelor",
         "master": "Master",
         "phd": "PhD"
+      },
+      "badges": {
+        "maxExperience": "≤{{value}} years",
+        "ageRange": "{{min}}-{{max}} years old",
+        "minAge": "≥{{value}} years old",
+        "maxAge": "≤{{value}} years old"
       }
     },
     "columns": {
@@ -374,13 +390,13 @@
     "searchPage": {
       "facets": {
         "filtersTitle": "Filters",
-        "filtersDescription": "Refine your search results.",
+        "filtersDescription": "Refine the currently loaded search results.",
         "filtersDescriptionMobile": "Refine your search results.",
-        "loadedCount": "Showing counts for the first {{count}} results",
+        "loadedCount": "Facet counts are based on the first {{count}} loaded results.",
         "emptyLabel": "No options available",
         "showLess": "Show less",
         "showMore": "Show {{count}} more",
-        "experienceLevel": "Experience",
+        "experienceLevel": "Experience level",
         "experience": {
           "senior": "Senior",
           "mid": "Mid",
@@ -388,18 +404,19 @@
         },
         "skillClusters": "Skill Clusters",
         "tags": "Tags",
-        "companies": "Companies",
+        "companies": "Company experience",
         "brands": "Brand Tags",
         "education": "Education",
         "status": "Candidate Status",
         "matchScore": "Match Score",
-        "sources": "Source Channel",
+        "sources": "Sources",
         "salary": "Expected Salary",
         "salaryUnit": "k",
         "minRoleYears": "Relevant Experience",
         "ageRange": "Age Range",
-        "ageUnit": "yrs",
-        "custom": "Custom"
+        "ageUnit": "years old",
+        "custom": "Custom",
+        "idOrNamePlaceholder": "ID / Name / External ID"
       },
       "hero": {
         "quickStart": "Quick Start",
@@ -744,7 +761,19 @@
     },
     "runNetworkError": "Cannot reach API server. Start make dev or make dev-api.",
     "seekJobUrlError": "Enabled Seek source requires a Seek recommended candidates URL",
-    "seekJobUrlMissing": "Seek Run Now requires an exact Seek recommended candidates URL."
+    "seekJobUrlMissing": "Seek Run Now requires an exact Seek recommended candidates URL.",
+    "card": {
+      "resultCount": "{{count}} resumes",
+      "never": "never",
+      "quickStartBadge": "quick start",
+      "landingQuickStart": "Landing quick start:",
+      "schedule": "Schedule:",
+      "disabled": "disabled",
+      "enabledSchedule": "{{schedule}} (enabled)",
+      "lastRun": "Last run:",
+      "runStatus": "Run status:",
+      "runNow": "Run Now"
+    }
   },
   "searchAnalytics": {
     "nav": "Search Analytics",
@@ -1040,7 +1069,50 @@
     "workflowSeedStatus": "Status",
     "workflowSeedVisible": "Visible",
     "taxonomyPageDescription": "Manage grouped resume skill clusters used by the search facet sidebar.",
-    "workflowSeedsDescription": "Search-first landing quick starts now live in the same Search Profiles workspace registry as every other profile."
+    "workflowSeedsDescription": "Search-first landing quick starts now live in the same Search Profiles workspace registry as every other profile.",
+    "collectionKeywordRequired": "Please enter a keyword",
+    "collectionTaskDispatched": "Collection task dispatched",
+    "collectionTaskFailed": "Failed to start collection",
+    "databaseResetSuccess": "Database has been reset",
+    "databaseResetFailed": "Failed to reset database",
+    "taxonomy": {
+      "status": {
+        "active": "Active",
+        "draft": "Draft",
+        "archived": "Archived"
+      },
+      "source": {
+        "human": "Human",
+        "ai": "AI",
+        "merged": "Merged"
+      },
+      "none": "None",
+      "generatedDrafts": "Generated {{count}} draft taxonomy suggestions",
+      "generatingDrafts": "Generating drafts...",
+      "generateDrafts": "Generate Drafts",
+      "newCluster": "New Cluster",
+      "activeDescription": "Visible in the search facet sidebar.",
+      "draftDescription": "Generated or staged before approval.",
+      "archivedDescription": "Kept for history but hidden from search.",
+      "clusterRegistry": "Cluster registry",
+      "clusterRegistryDescription": "Drafts can be reviewed and promoted to active clusters. Active clusters are used by the search-first resume sidebar.",
+      "empty": "No taxonomy clusters yet.",
+      "name": "Name",
+      "statusLabel": "Status",
+      "sourceLabel": "Source",
+      "parent": "Parent",
+      "tags": "Tags",
+      "actions": "Actions",
+      "editCluster": "Edit taxonomy cluster",
+      "createCluster": "Create taxonomy cluster",
+      "dialogDescription": "Define a stable cluster name, slug, and the raw tags that should roll up into it.",
+      "slug": "Slug",
+      "parentCluster": "Parent Cluster",
+      "confidence": "Confidence",
+      "tagsHelp": "Separate tags with commas. Search facets will group any matching resume tag into this cluster.",
+      "saveChanges": "Save Changes",
+      "createClusterButton": "Create Cluster"
+    }
   },
   "platforms": {
     "zhihu": "Zhihu",
@@ -1166,7 +1238,19 @@
     "profileRestartVisibilityHint": "Runtime updates can take a few seconds after save. After restart, confirm the rebuilt job in worker status.",
     "profilesDescription": "Save reusable scheduled summary profiles here, then validate the output with the manual run tools below before enabling them for worker restarts.",
     "profilesEmpty": "No summary profiles saved yet. Create one here, validate it with the manual preview/send tools below, and restart the worker when you are ready to activate it.",
-    "runDescription": "Preview the outbound summary content as a dry-run, then send it through the selected channel using the existing summary ledger."
+    "runDescription": "Preview the outbound summary content as a dry-run, then send it through the selected channel using the existing summary ledger.",
+    "profileSaved": "Summary profile saved",
+    "profileCreated": "Summary profile created",
+    "profileDeleted": "Summary profile deleted",
+    "errors": {
+      "loadRunDetailFailed": "Failed to load summary run detail",
+      "loadRunsFailed": "Failed to load summary runs",
+      "loadProfilesFailed": "Failed to load summary profiles",
+      "invalidProfile": "Invalid summary profile",
+      "saveProfileFailed": "Failed to save summary profile",
+      "createProfileFailed": "Failed to create summary profile",
+      "deleteProfileFailed": "Failed to delete summary profile"
+    }
   },
   "footer": {},
   "aiTagging": {
@@ -1491,6 +1575,21 @@
     },
     "common": {
       "retry": "Retry"
+    }
+  },
+  "shareLink": {
+    "button": "Share",
+    "copiedSearch": "Share link copied",
+    "copiedSession": "Session link copied",
+    "copyPreparedFailed": "Automatic copy failed. Copy the link below manually.",
+    "copyUrlFailed": "Failed to copy link. Copy the URL from the address bar manually.",
+    "retryCopyFailed": "Copy still failed. Copy the link below manually.",
+    "dialog": {
+      "title": "Copy share link manually",
+      "description": "Automatic copy did not complete. The link is ready to copy manually.",
+      "titleLabel": "Share title",
+      "urlLabel": "Share link",
+      "retryCopy": "Try copying again"
     }
   }
 }

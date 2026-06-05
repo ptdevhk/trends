@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { formatDistanceToNow } from 'date-fns/formatDistanceToNow'
 import { useTranslation } from 'react-i18next'
+import { reportUiError } from '@/lib/ui-error-reporting'
 
 interface WorkerStatus {
     jobs_executed: number
@@ -75,7 +76,7 @@ export function SchedulerStatus({ apiBaseUrl }: SchedulerStatusProps) {
                 setStatus(data)
                 setError(null)
             } catch (err) {
-                console.error('Failed to fetch scheduler status', err)
+                reportUiError('Failed to fetch scheduler status', err)
                 setError('Failed to load scheduler status')
             } finally {
                 setLoading(false)
@@ -92,7 +93,7 @@ export function SchedulerStatus({ apiBaseUrl }: SchedulerStatusProps) {
             <Card className="bg-muted/30 border-dashed">
                 <CardHeader className="py-4">
                     <CardTitle className="text-lg">Scheduler Status</CardTitle>
-                    <CardDescription>Loading...</CardDescription>
+                    <CardDescription>{t('common.loading', { defaultValue: 'Loading...' })}</CardDescription>
                 </CardHeader>
             </Card>
         )

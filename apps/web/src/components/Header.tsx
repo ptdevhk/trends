@@ -80,7 +80,7 @@ export function Header({ leftAction }: HeaderProps = {}) {
                   )
                 }
               >
-                System
+                {t('nav.system', { defaultValue: 'System' })}
               </NavLink>
             ) : null}
           </nav>
@@ -137,7 +137,7 @@ export function Header({ leftAction }: HeaderProps = {}) {
                   )
                 }
               >
-                System
+                {t('nav.system', { defaultValue: 'System' })}
               </NavLink>
             ) : null}
           </nav>

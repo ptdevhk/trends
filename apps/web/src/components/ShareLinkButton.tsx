@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Link2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -12,6 +13,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import type { EnsureApiSessionOptions, ResumeSearchShareState } from '@/hooks/useSession'
+import { reportUiError } from '@/lib/ui-error-reporting'
 
 type ShareLinkButtonProps = {
   shareTitle: string
@@ -79,17 +81,13 @@ function buildSessionShareUrl(sessionId: string): string {
   return shareUrl.toString()
 }
 
-function buildCopySuccessMessage(usedSessionLink: boolean): string {
-  return usedSessionLink ? '已复制会话链接' : '已复制分享链接'
-}
-
 async function copyText(text: string): Promise<void> {
   if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
     try {
       await navigator.clipboard.writeText(text)
       return
     } catch (error) {
-      console.error('Clipboard API copy failed, falling back to execCommand', error)
+      reportUiError('Clipboard API copy failed, falling back to execCommand', error)
     }
   }
 
@@ -112,6 +110,7 @@ async function copyText(text: string): Promise<void> {
 }
 
 export function ShareLinkButton({ shareTitle, state, ensureApiSession, onCopyState }: ShareLinkButtonProps) {
+  const { t } = useTranslation()
   const [fallbackPayload, setFallbackPayload] = useState<ShareLinkPayload | null>(null)
   const fallbackTextareaRef = useRef<HTMLTextAreaElement | null>(null)
   const selectFallbackText = useCallback(() => {
@@ -161,18 +160,24 @@ export function ShareLinkButton({ shareTitle, state, ensureApiSession, onCopySta
       await copyText(shareUrl)
       onCopyState?.(payload)
       setFallbackPayload(null)
-      toast.success(buildCopySuccessMessage(usedSessionLink))
+      toast.success(usedSessionLink
+        ? t('shareLink.copiedSession', { defaultValue: 'Session link copied' })
+        : t('shareLink.copiedSearch', { defaultValue: 'Share link copied' }))
     } catch (error) {
-      console.error('Failed to copy share URL', error)
+      reportUiError('Failed to copy share URL', error)
       if (payload) {
         setFallbackPayload(payload)
-        toast.error('自动复制失败，请手动复制下方链接')
+        toast.error(t('shareLink.copyPreparedFailed', {
+          defaultValue: 'Automatic copy failed. Copy the link below manually.',
+        }))
         return
       }
 
-      toast.error('复制链接失败，请手动复制地址栏 URL')
+      toast.error(t('shareLink.copyUrlFailed', {
+        defaultValue: 'Failed to copy link. Copy the URL from the address bar manually.',
+      }))
     }
-  }, [ensureApiSession, onCopyState, shareTitle, state])
+  }, [ensureApiSession, onCopyState, shareTitle, state, t])
 
   const handleFallbackCopy = useCallback(async () => {
     if (!fallbackPayload) {
@@ -183,13 +188,17 @@ export function ShareLinkButton({ shareTitle, state, ensureApiSession, onCopySta
       await copyText(fallbackPayload.shareUrl)
       onCopyState?.(fallbackPayload)
       setFallbackPayload(null)
-      toast.success(buildCopySuccessMessage(fallbackPayload.usedSessionLink))
+      toast.success(fallbackPayload.usedSessionLink
+        ? t('shareLink.copiedSession', { defaultValue: 'Session link copied' })
+        : t('shareLink.copiedSearch', { defaultValue: 'Share link copied' }))
     } catch (error) {
-      console.error('Retry share copy failed', error)
+      reportUiError('Retry share copy failed', error)
       selectFallbackText()
-      toast.error('自动复制仍然失败，请手动复制下方链接')
+      toast.error(t('shareLink.retryCopyFailed', {
+        defaultValue: 'Copy still failed. Copy the link below manually.',
+      }))
     }
-  }, [fallbackPayload, onCopyState, selectFallbackText])
+  }, [fallbackPayload, onCopyState, selectFallbackText, t])
 
   return (
     <>
@@ -202,7 +211,7 @@ export function ShareLinkButton({ shareTitle, state, ensureApiSession, onCopySta
         }}
       >
         <Link2 className="h-3.5 w-3.5" />
-        分享
+        {t('shareLink.button', { defaultValue: 'Share' })}
       </Button>
 
       <Dialog open={fallbackPayload !== null} onOpenChange={(open: boolean) => {
@@ -213,16 +222,18 @@ export function ShareLinkButton({ shareTitle, state, ensureApiSession, onCopySta
       >
         <DialogContent data-testid="share-link-fallback-dialog" className="sm:max-w-xl">
           <DialogHeader>
-            <DialogTitle>手动复制分享链接</DialogTitle>
+            <DialogTitle>{t('shareLink.dialog.title', { defaultValue: 'Copy share link manually' })}</DialogTitle>
             <DialogDescription>
-              当前浏览器未完成自动复制。链接已准备好，手动复制后仍可直接打开当前搜索上下文。
+              {t('shareLink.dialog.description', {
+                defaultValue: 'Automatic copy did not complete. The link is ready to copy manually.',
+              })}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3">
             <div className="rounded-lg border border-border/70 bg-muted/20 px-3 py-2">
               <div className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                分享标题
+                {t('shareLink.dialog.titleLabel', { defaultValue: 'Share title' })}
               </div>
               <div className="mt-1 text-sm font-medium text-foreground">
                 {shareTitle}
@@ -230,7 +241,7 @@ export function ShareLinkButton({ shareTitle, state, ensureApiSession, onCopySta
             </div>
             <Textarea
               ref={fallbackTextareaRef}
-              aria-label="分享链接"
+              aria-label={t('shareLink.dialog.urlLabel', { defaultValue: 'Share link' })}
               readOnly
               value={fallbackPayload?.shareUrl ?? ''}
               rows={3}
@@ -248,7 +259,7 @@ export function ShareLinkButton({ shareTitle, state, ensureApiSession, onCopySta
                 setFallbackPayload(null)
               }}
             >
-              关闭
+              {t('common.close', { defaultValue: 'Close' })}
             </Button>
             <Button
               type="button"
@@ -256,7 +267,7 @@ export function ShareLinkButton({ shareTitle, state, ensureApiSession, onCopySta
                 void handleFallbackCopy()
               }}
             >
-              再试一次复制
+              {t('shareLink.dialog.retryCopy', { defaultValue: 'Try copying again' })}
             </Button>
           </DialogFooter>
         </DialogContent>

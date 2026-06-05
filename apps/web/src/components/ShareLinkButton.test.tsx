@@ -15,6 +15,29 @@ vi.mock('sonner', () => ({
   },
 }))
 
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string, options?: string | Record<string, unknown>) => {
+      if (typeof options === 'string') return options
+      const translations: Record<string, string> = {
+        'shareLink.button': 'Share',
+        'shareLink.copiedSearch': 'Share link copied',
+        'shareLink.copiedSession': 'Session link copied',
+        'shareLink.copyPreparedFailed': 'Automatic copy failed. Copy the link below manually.',
+        'shareLink.copyUrlFailed': 'Failed to copy link. Copy the URL from the address bar manually.',
+        'shareLink.retryCopyFailed': 'Copy still failed. Copy the link below manually.',
+        'shareLink.dialog.title': 'Copy share link manually',
+        'shareLink.dialog.description': 'Automatic copy did not complete. The link is ready to copy manually.',
+        'shareLink.dialog.titleLabel': 'Share title',
+        'shareLink.dialog.urlLabel': 'Share link',
+        'shareLink.dialog.retryCopy': 'Try copying again',
+        'common.close': 'Close',
+      }
+      return translations[key] ?? (typeof options?.defaultValue === 'string' ? options.defaultValue : key)
+    },
+  }),
+}))
+
 vi.mock('@/components/ui/dialog', () => ({
   Dialog: ({ open, children }: { open: boolean; children: React.ReactNode }) => (open ? <div>{children}</div> : null),
   DialogContent: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
@@ -62,7 +85,7 @@ describe('ShareLinkButton', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: '分享' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Share' }))
 
     await waitFor(() => {
       expect(clipboardWriteTextMock).toHaveBeenCalledWith(
@@ -71,7 +94,7 @@ describe('ShareLinkButton', () => {
     })
 
     expect(ensureApiSession).not.toHaveBeenCalled()
-    expect(toastSuccessMock).toHaveBeenCalledWith('已复制分享链接')
+    expect(toastSuccessMock).toHaveBeenCalledWith('Share link copied')
   })
 
   it('creates and copies a short sid link for bulky or session-backed state', async () => {
@@ -103,7 +126,7 @@ describe('ShareLinkButton', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: '分享' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Share' }))
 
     await waitFor(() => {
       expect(ensureApiSession).toHaveBeenCalledWith({
@@ -127,7 +150,7 @@ describe('ShareLinkButton', () => {
       sessionId: 'session-share-1',
       usedSessionLink: true,
     })
-    expect(toastSuccessMock).toHaveBeenCalledWith('已复制会话链接')
+    expect(toastSuccessMock).toHaveBeenCalledWith('Session link copied')
   })
 
   it('creates a durable sid link when share state includes a reference note', async () => {
@@ -150,7 +173,7 @@ describe('ShareLinkButton', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: '分享' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Share' }))
 
     await waitFor(() => {
       expect(ensureApiSession).toHaveBeenCalledWith({
@@ -166,7 +189,7 @@ describe('ShareLinkButton', () => {
     expect(clipboardWriteTextMock).toHaveBeenCalledWith(
       `${window.location.origin}/dev/resumes?sid=session-share-note`
     )
-    expect(toastSuccessMock).toHaveBeenCalledWith('已复制会话链接')
+    expect(toastSuccessMock).toHaveBeenCalledWith('Session link copied')
   })
 
   it('reports the existing sid when copying a shared-link URL directly', async () => {
@@ -190,7 +213,7 @@ describe('ShareLinkButton', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: '分享' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Share' }))
 
     await waitFor(() => {
       expect(clipboardWriteTextMock).toHaveBeenCalledWith(
@@ -230,10 +253,10 @@ describe('ShareLinkButton', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: '分享' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Share' }))
 
     expect(await screen.findByTestId('share-link-fallback-dialog')).toBeInTheDocument()
     expect(screen.getByDisplayValue(`${window.location.origin}/dev/resumes?sid=session-share-1`)).toBeInTheDocument()
-    expect(toastErrorMock).toHaveBeenCalledWith('自动复制失败，请手动复制下方链接')
+    expect(toastErrorMock).toHaveBeenCalledWith('Automatic copy failed. Copy the link below manually.')
   })
 })

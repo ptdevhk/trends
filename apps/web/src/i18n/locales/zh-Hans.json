@@ -12,12 +12,19 @@
     "debugAi": "AI 调试",
     "search": "搜索",
     "settings": "设置",
+    "system": "系统",
     "reviewPackets": "评审包",
     "jds": "职位",
     "archived": "已归档",
     "aiTaggingCompare": "AI 标注（对比）",
     "dataInspector": "数据检查",
     "auditCompliance": "审计与合规"
+  },
+  "notFound": {
+    "eyebrow": "404",
+    "title": "页面未找到",
+    "description": "你访问的页面不存在或已移动。",
+    "backToResumes": "返回简历"
   },
   "common": {
     "loading": "加载中...",
@@ -32,7 +39,10 @@
     "reset": "重置",
     "apply": "应用",
     "archive": "归档",
-    "delete": "删除"
+    "delete": "删除",
+    "edit": "编辑",
+    "saving": "保存中...",
+    "deleting": "删除中..."
   },
   "jdManagement": {
     "title": "职位描述管理",
@@ -276,6 +286,12 @@
         "bachelor": "本科",
         "master": "硕士",
         "phd": "博士"
+      },
+      "badges": {
+        "maxExperience": "≤{{value}} 年",
+        "ageRange": "{{min}}-{{max}} 岁",
+        "minAge": "≥{{value}} 岁",
+        "maxAge": "≤{{value}} 岁"
       }
     },
     "columns": {
@@ -373,9 +389,9 @@
     "searchPage": {
       "facets": {
         "filtersTitle": "筛选条件",
-        "filtersDescription": "在当前搜索结果中进一步精确筛选。",
+        "filtersDescription": "在当前加载的搜索结果中进一步筛选。",
         "filtersDescriptionMobile": "在当前搜索结果中进一步精确筛选。",
-        "loadedCount": "显示前 {{count}} 条结果中的筛选统计",
+        "loadedCount": "筛选统计基于前 {{count}} 条已加载结果。",
         "emptyLabel": "暂无可用选项",
         "showLess": "收起",
         "showMore": "展开剩余 {{count}} 项",
@@ -395,10 +411,11 @@
         "sources": "来源渠道",
         "salary": "期望薪资",
         "salaryUnit": "k",
-        "minRoleYears": "相关工作年限",
+        "minRoleYears": "相关经验",
         "ageRange": "年龄范围",
         "ageUnit": "岁",
-        "custom": "自定义"
+        "custom": "自定义",
+        "idOrNamePlaceholder": "ID / 姓名 / 外部ID"
       },
       "hero": {
         "quickStart": "快速开始",
@@ -716,7 +733,50 @@
     "workflowSeedStatus": "状态",
     "workflowSeedVisible": "可见",
     "taxonomyPageDescription": "管理搜索侧面栏使用的分组简历技能集群。",
-    "workflowSeedsDescription": "搜索优先的落地快速启动现在与其他配置一样位于同一搜索配置工作区注册表中。"
+    "workflowSeedsDescription": "搜索优先的落地快速启动现在与其他配置一样位于同一搜索配置工作区注册表中。",
+    "collectionKeywordRequired": "请输入关键词",
+    "collectionTaskDispatched": "采集任务已派发",
+    "collectionTaskFailed": "启动采集失败",
+    "databaseResetSuccess": "数据库已重置",
+    "databaseResetFailed": "重置数据库失败",
+    "taxonomy": {
+      "status": {
+        "active": "启用",
+        "draft": "草稿",
+        "archived": "已归档"
+      },
+      "source": {
+        "human": "人工",
+        "ai": "AI",
+        "merged": "合并"
+      },
+      "none": "无",
+      "generatedDrafts": "已生成 {{count}} 条草稿分类建议",
+      "generatingDrafts": "正在生成草稿...",
+      "generateDrafts": "生成草稿",
+      "newCluster": "新建聚类",
+      "activeDescription": "显示在搜索筛选侧边栏中。",
+      "draftDescription": "生成或暂存，等待审核。",
+      "archivedDescription": "保留历史记录，但不在搜索中显示。",
+      "clusterRegistry": "聚类注册表",
+      "clusterRegistryDescription": "可以审核草稿并提升为启用聚类。启用聚类会用于搜索优先的简历侧边栏。",
+      "empty": "暂无分类聚类。",
+      "name": "名称",
+      "statusLabel": "状态",
+      "sourceLabel": "来源",
+      "parent": "父级",
+      "tags": "标签",
+      "actions": "操作",
+      "editCluster": "编辑分类聚类",
+      "createCluster": "创建分类聚类",
+      "dialogDescription": "定义稳定的聚类名称、slug，以及应归入该聚类的原始标签。",
+      "slug": "Slug",
+      "parentCluster": "父级聚类",
+      "confidence": "置信度",
+      "tagsHelp": "用逗号分隔标签。搜索筛选会把匹配的简历标签归入此聚类。",
+      "saveChanges": "保存更改",
+      "createClusterButton": "创建聚类"
+    }
   },
   "searchProfiles": {
     "deleteError": "删除配置失败",
@@ -788,7 +848,19 @@
     },
     "runNetworkError": "无法连接 API 服务器。请启动 make dev 或 make dev-api。",
     "seekJobUrlError": "启用 Seek 来源需要 Seek 推荐候选人 URL",
-    "seekJobUrlMissing": "Seek 立即运行需要精确的 Seek 推荐候选人 URL。"
+    "seekJobUrlMissing": "Seek 立即运行需要精确的 Seek 推荐候选人 URL。",
+    "card": {
+      "resultCount": "{{count}} 份简历",
+      "never": "从未运行",
+      "quickStartBadge": "快捷入口",
+      "landingQuickStart": "落地页快捷入口：",
+      "schedule": "计划：",
+      "disabled": "已停用",
+      "enabledSchedule": "{{schedule}}（已启用）",
+      "lastRun": "上次运行：",
+      "runStatus": "运行状态：",
+      "runNow": "立即运行"
+    }
   },
   "debug": {
     "processTitle": "处理数据",
@@ -1194,7 +1266,19 @@
     "profileRestartVisibilityHint": "保存后运行时更新可能需要几秒。重启后，请在 worker 状态中确认重建的作业。",
     "profilesDescription": "在此保存可复用的定时摘要配置，然后使用下方的手动运行工具验证输出，再启用 worker 重启。",
     "profilesEmpty": "尚未保存摘要配置。在此创建一个，使用下方的手动预览/发送工具验证，准备好后重启 worker 以激活。",
-    "runDescription": "以空运行方式预览出站摘要内容，然后使用现有摘要账本通过所选渠道发送。"
+    "runDescription": "以空运行方式预览出站摘要内容，然后使用现有摘要账本通过所选渠道发送。",
+    "profileSaved": "摘要配置已保存",
+    "profileCreated": "摘要配置已创建",
+    "profileDeleted": "摘要配置已删除",
+    "errors": {
+      "loadRunDetailFailed": "加载摘要运行详情失败",
+      "loadRunsFailed": "加载摘要运行失败",
+      "loadProfilesFailed": "加载摘要配置失败",
+      "invalidProfile": "摘要配置无效",
+      "saveProfileFailed": "保存摘要配置失败",
+      "createProfileFailed": "创建摘要配置失败",
+      "deleteProfileFailed": "删除摘要配置失败"
+    }
   },
   "aiTagging": {
     "candidateLimit": "候选人上限",
@@ -1518,6 +1602,21 @@
     },
     "common": {
       "retry": "重试"
+    }
+  },
+  "shareLink": {
+    "button": "分享",
+    "copiedSearch": "已复制分享链接",
+    "copiedSession": "已复制会话链接",
+    "copyPreparedFailed": "自动复制失败，请手动复制下方链接。",
+    "copyUrlFailed": "复制链接失败，请手动复制地址栏 URL。",
+    "retryCopyFailed": "自动复制仍然失败，请手动复制下方链接。",
+    "dialog": {
+      "title": "手动复制分享链接",
+      "description": "当前浏览器未完成自动复制。链接已准备好，手动复制后仍可直接打开当前搜索上下文。",
+      "titleLabel": "分享标题",
+      "urlLabel": "分享链接",
+      "retryCopy": "再试一次复制"
     }
   }
 }

@@ -16,6 +16,7 @@ import { PageHeader } from '@/components/PageHeader'
 import { useTranslation } from 'react-i18next'
 import { formatInAppTimezone } from '@/lib/timezone'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
+import { reportUiError } from '@/lib/ui-error-reporting'
 
 type SortColumn = 'title' | 'type' | 'lastModified' | 'usageCount'
 type SortDirection = 'asc' | 'desc'
@@ -70,7 +71,7 @@ export default function DebugJDs() {
             const result = await loadJdsWithUsage({ workspaceSlug: slug })
             setJds(result)
         } catch (error) {
-            console.error('Failed to load job descriptions with usage', error)
+            reportUiError('Failed to load job descriptions with usage', error)
             setDeleteError((previous) => previous ?? t('jdManagement.errors.deleteFailed'))
         }
     }, [loadJdsWithUsage, slug, t])
@@ -120,7 +121,7 @@ export default function DebugJDs() {
                 setDeleteId(null)
                 setDeleteError(null)
             } catch (error) {
-                console.error("Failed to delete JD:", error)
+                reportUiError("Failed to delete JD:", error)
                 const message = error instanceof Error ? error.message : t('jdManagement.errors.deleteFailed')
                 setDeleteError(message || t('jdManagement.errors.deleteFailed'))
                 setDeleteId(null) // Close dialog so they can see the error
@@ -176,7 +177,7 @@ export default function DebugJDs() {
             setShowBulkDeleteConfirm(false)
             setDeleteError(null)
         } catch (error) {
-            console.error("Failed to batch delete JDs:", error)
+            reportUiError("Failed to batch delete JDs:", error)
             const message = error instanceof Error ? error.message : t('jdManagement.errors.deleteFailed')
             setDeleteError(message || t('jdManagement.errors.deleteFailed'))
             setShowBulkDeleteConfirm(false)
@@ -232,7 +233,7 @@ export default function DebugJDs() {
             link.remove()
             window.URL.revokeObjectURL(url)
         } catch (error) {
-            console.error('Failed to export JD markdown:', error)
+            reportUiError('Failed to export JD markdown:', error)
         }
     }
 
@@ -251,7 +252,7 @@ export default function DebugJDs() {
             link.remove()
             window.URL.revokeObjectURL(url)
         } catch (error) {
-            console.error('Failed to export bulk JDs:', error)
+            reportUiError('Failed to export bulk JDs:', error)
         }
     }
 

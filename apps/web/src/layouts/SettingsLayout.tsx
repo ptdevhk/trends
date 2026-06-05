@@ -5,6 +5,7 @@ import { Menu } from 'lucide-react'
 import { Header } from '@/components/Header'
 import { SettingsSidebar } from '@/components/SettingsSidebar'
 import { Button } from '@/components/ui/button'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 
 export default function SettingsLayout() {
   const [open, setOpen] = useState(false)
@@ -40,7 +41,9 @@ export default function SettingsLayout() {
           )}
 
           <main className="flex-1 p-6 space-y-6">
-            <Outlet />
+            <ErrorBoundary>
+              <Outlet />
+            </ErrorBoundary>
           </main>
         </div>
       </div>

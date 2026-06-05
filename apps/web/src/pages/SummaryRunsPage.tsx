@@ -14,6 +14,7 @@ import { PageHeader } from '@/components/PageHeader'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { rawApiClient } from '@/lib/api-helpers'
 import type { paths } from '@/lib/api-types'
+import { reportUiError } from '@/lib/ui-error-reporting'
 
 type SummaryRunListResponse = paths['/api/summaries/runs']['get']['responses'][200]['content']['application/json']
 type SummaryRunDetailResponse = paths['/api/summaries/runs/{runId}']['get']['responses'][200]['content']['application/json']
@@ -330,13 +331,13 @@ export function SummaryRunsPage() {
       }
       setSelectedRun(data.item)
     } catch (error) {
-      console.error(`Failed to load summary run detail ${runId}`, error)
-      toast.error(error instanceof Error ? error.message : 'Failed to load summary run detail')
+      reportUiError(`Failed to load summary run detail ${runId}`, error)
+      toast.error(error instanceof Error ? error.message : t('summaries.errors.loadRunDetailFailed', { defaultValue: 'Failed to load summary run detail' }))
       setSelectedRun(null)
     } finally {
       setDetailLoading(false)
     }
-  }, [])
+  }, [t])
 
   const loadRuns = useCallback(async (preferredRunId?: string) => {
     setLoading(true)
@@ -368,15 +369,15 @@ export function SummaryRunsPage() {
         setSelectedRun(null)
       }
     } catch (error) {
-      console.error('Failed to load summary runs', error)
-      toast.error(error instanceof Error ? error.message : 'Failed to load summary runs')
+      reportUiError('Failed to load summary runs', error)
+      toast.error(error instanceof Error ? error.message : t('summaries.errors.loadRunsFailed', { defaultValue: 'Failed to load summary runs' }))
       setRuns([])
       setSelectedRunId(null)
       setSelectedRun(null)
     } finally {
       setLoading(false)
     }
-  }, [loadRunDetail])
+  }, [loadRunDetail, t])
 
   useEffect(() => {
     void loadRuns()
@@ -408,15 +409,15 @@ export function SummaryRunsPage() {
         setProfileForm(createEmptyProfileForm())
       }
     } catch (error) {
-      console.error('Failed to load summary profiles', error)
-      toast.error(error instanceof Error ? error.message : 'Failed to load summary profiles')
+      reportUiError('Failed to load summary profiles', error)
+      toast.error(error instanceof Error ? error.message : t('summaries.errors.loadProfilesFailed', { defaultValue: 'Failed to load summary profiles' }))
       setProfiles([])
       setEditingProfileId(null)
       setProfileForm(createEmptyProfileForm())
     } finally {
       setProfilesLoading(false)
     }
-  }, [])
+  }, [t])
 
   useEffect(() => {
     void loadProfiles()
@@ -602,7 +603,7 @@ export function SummaryRunsPage() {
           : t('summaries.sendSuccess', { defaultValue: 'Summary sent' }),
       )
     } catch (error) {
-      console.error(`Failed to ${mode} summary`, error)
+      reportUiError(`Failed to ${mode} summary`, error)
       toast.error(
         error instanceof Error
           ? error.message
@@ -618,7 +619,7 @@ export function SummaryRunsPage() {
   async function handleSaveProfile() {
     const { request, validationError } = buildProfileRequest()
     if (validationError || !request) {
-      toast.error(validationError ?? 'Invalid summary profile')
+      toast.error(validationError ?? t('summaries.errors.invalidProfile', { defaultValue: 'Invalid summary profile' }))
       return
     }
 
@@ -653,15 +654,17 @@ export function SummaryRunsPage() {
         resetProfileForm(data.profile)
       }
 
-      toast.success(editingExistingProfile ? 'Summary profile saved' : 'Summary profile created')
+      toast.success(editingExistingProfile
+        ? t('summaries.profileSaved', { defaultValue: 'Summary profile saved' })
+        : t('summaries.profileCreated', { defaultValue: 'Summary profile created' }))
     } catch (error) {
-      console.error(`Failed to ${nextMode} summary profile`, error)
+      reportUiError(`Failed to ${nextMode} summary profile`, error)
       toast.error(
         error instanceof Error
           ? error.message
           : editingExistingProfile
-            ? 'Failed to save summary profile'
-            : 'Failed to create summary profile',
+            ? t('summaries.errors.saveProfileFailed', { defaultValue: 'Failed to save summary profile' })
+            : t('summaries.errors.createProfileFailed', { defaultValue: 'Failed to create summary profile' }),
       )
     } finally {
       setProfileSubmittingMode(null)
@@ -687,10 +690,10 @@ export function SummaryRunsPage() {
       const nextProfiles = profiles.filter((profile) => profile.id !== editingProfileId)
       setProfiles(nextProfiles)
       resetProfileForm(nextProfiles[0] ?? null)
-      toast.success('Summary profile deleted')
+      toast.success(t('summaries.profileDeleted', { defaultValue: 'Summary profile deleted' }))
     } catch (error) {
-      console.error(`Failed to delete summary profile ${editingProfileId}`, error)
-      toast.error(error instanceof Error ? error.message : 'Failed to delete summary profile')
+      reportUiError(`Failed to delete summary profile ${editingProfileId}`, error)
+      toast.error(error instanceof Error ? error.message : t('summaries.errors.deleteProfileFailed', { defaultValue: 'Failed to delete summary profile' }))
     } finally {
       setProfileSubmittingMode(null)
     }

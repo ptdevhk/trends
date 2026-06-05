@@ -22,6 +22,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { PageHeader } from '@/components/PageHeader'
 import { useResumeFieldUsagePolicy } from '@/contexts/ResumeFieldUsagePolicyContext'
 import { SourceFacetSelect } from '@/components/SourceFacetSelect'
+import { reportUiError } from '@/lib/ui-error-reporting'
 
 type IngestDiagnosticsResume = {
   resumeId: string
@@ -204,7 +205,7 @@ export default function DebugIngest() {
       }
       setSkillsVersion(version)
     } catch (error) {
-      console.error('Failed to fetch skills version', error)
+      reportUiError('Failed to fetch skills version', error)
       toast.error(t('debugIngest.skillsVersionFailed', { defaultValue: 'Failed to load skills version' }))
     } finally {
       setVersionLoading(false)
@@ -380,7 +381,7 @@ export default function DebugIngest() {
       )
       await loadSkillsVersion()
     } catch (error) {
-      console.error('Failed to trigger re-ingest', error)
+      reportUiError('Failed to trigger re-ingest', error)
       toast.error(t('debugIngest.reingestFailed', { defaultValue: 'Failed to trigger re-ingest' }))
     } finally {
       setReingesting(false)
@@ -404,7 +405,7 @@ export default function DebugIngest() {
         }),
       )
     } catch (error) {
-      console.error('Failed to clear analyses', error)
+      reportUiError('Failed to clear analyses', error)
       toast.error(t('debugIngest.clearAnalysesFailed', { defaultValue: 'Failed to clear analyses' }))
     } finally {
       setClearingAnalyses(false)
@@ -432,7 +433,7 @@ export default function DebugIngest() {
       )
       await loadSkillsVersion()
     } catch (error) {
-      console.error('Failed to hard reset ingest data', error)
+      reportUiError('Failed to hard reset ingest data', error)
       toast.error(
         t('debugIngest.hardResetFailed', {
           defaultValue: 'Failed to hard reset resumes and schedule re-ingest',
@@ -461,7 +462,7 @@ export default function DebugIngest() {
       )
       await loadSkillsVersion()
     } catch (error) {
-      console.error('Failed to reset resume database', error)
+      reportUiError('Failed to reset resume database', error)
       toast.error(
         t('debugIngest.resetDatabaseFailed', {
           defaultValue: 'Failed to clear resume database',
@@ -500,7 +501,7 @@ export default function DebugIngest() {
         toast.error(summaryMessage)
       }
     } catch (error) {
-      console.error('Failed to delete resumes', error)
+      reportUiError('Failed to delete resumes', error)
       toast.error(t('debugIngest.deleteFailed', { defaultValue: 'Failed to delete resumes' }))
     } finally {
       setDeletingResumes(false)
@@ -532,7 +533,7 @@ export default function DebugIngest() {
         toast.info(t('debugIngest.archiveAlreadyDone', { defaultValue: 'Resumes already archived' }))
       }
     } catch (error) {
-      console.error('Failed to archive resumes', error)
+      reportUiError('Failed to archive resumes', error)
       toast.error(t('debugIngest.archiveFailed', { defaultValue: 'Failed to archive resumes' }))
     } finally {
       setArchivingResumes(false)

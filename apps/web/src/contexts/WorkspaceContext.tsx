@@ -12,7 +12,13 @@ type WorkspaceContextValue = {
 
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null)
 
-export function WorkspaceProvider({ children }: { children: ReactNode }) {
+export function WorkspaceProvider({
+  children,
+  invalidFallback,
+}: {
+  children: ReactNode
+  invalidFallback?: ReactNode
+}) {
   const location = useLocation()
   const params = useParams()
   const teamSlug = params.teamSlug
@@ -30,6 +36,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, [validSlug])
 
   if (!validSlug) {
+    if (invalidFallback) {
+      return <>{invalidFallback}</>
+    }
     return <Navigate to={{ pathname: '/dev/resumes', search: location.search }} replace />
   }
 

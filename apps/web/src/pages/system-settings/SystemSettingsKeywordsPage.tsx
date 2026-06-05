@@ -29,6 +29,7 @@ import {
   useSettingsRequestJson,
 } from '@/pages/system-settings/lib'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
+import { reportUiError } from '@/lib/ui-error-reporting'
 
 const MARKET_OPTIONS: Array<{ value: KeywordMarket; label: string }> = [
   { value: 'CN', label: 'CN' },
@@ -79,7 +80,7 @@ export function SystemSettingsKeywordsPage() {
     try {
       await Promise.all([loadCustomKeywords(), loadBrandKeywords()])
     } catch (error) {
-      console.error('Failed to load keyword settings', error)
+      reportUiError('Failed to load keyword settings', error)
       setLoadError(t('resumes.error'))
     } finally {
       setLoading(false)
@@ -88,7 +89,7 @@ export function SystemSettingsKeywordsPage() {
 
   useEffect(() => {
     loadData().catch((error) => {
-      console.error('Unexpected loadData failure', error)
+      reportUiError('Unexpected loadData failure', error)
     })
   }, [loadData])
 
@@ -147,7 +148,7 @@ export function SystemSettingsKeywordsPage() {
       setCustomKeywordDialogOpen(false)
       toast.success(t('debugConfig.saved'))
     } catch (error) {
-      console.error('Failed to save custom keyword', error)
+      reportUiError('Failed to save custom keyword', error)
       toast.error(t('debugConfig.saveError'))
     } finally {
       setSavingCustomKeyword(false)
@@ -168,7 +169,7 @@ export function SystemSettingsKeywordsPage() {
       setDeleteCustomKeywordTargetId(null)
       toast.success(t('debugConfig.saved'))
     } catch (error) {
-      console.error('Failed to delete custom keyword', error)
+      reportUiError('Failed to delete custom keyword', error)
       toast.error(t('debugConfig.saveError'))
     } finally {
       setDeletingCustomKeyword(false)
@@ -192,7 +193,7 @@ export function SystemSettingsKeywordsPage() {
           variant="outline"
           onClick={() => {
             loadData().catch((error) => {
-              console.error('Unexpected loadData failure', error)
+              reportUiError('Unexpected loadData failure', error)
             })
           }}
           disabled={loading}
@@ -479,7 +480,7 @@ export function SystemSettingsKeywordsPage() {
             <Button
               onClick={() => {
                 handleSaveCustomKeyword().catch((error) => {
-                  console.error('Unexpected handleSaveCustomKeyword failure', error)
+                  reportUiError('Unexpected handleSaveCustomKeyword failure', error)
                 })
               }}
               disabled={savingCustomKeyword}
@@ -526,7 +527,7 @@ export function SystemSettingsKeywordsPage() {
               variant="destructive"
               onClick={() => {
                 handleDeleteCustomKeyword().catch((error) => {
-                  console.error('Unexpected handleDeleteCustomKeyword failure', error)
+                  reportUiError('Unexpected handleDeleteCustomKeyword failure', error)
                 })
               }}
               disabled={deletingCustomKeyword}

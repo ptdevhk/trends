@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { PageHeader } from '@/components/PageHeader'
+import { reportUiError } from '@/lib/ui-error-reporting'
 type SearchSummaryPayload = {
   totalSearches: number
   zeroResultSearches: number
@@ -85,7 +86,7 @@ export default function SearchAnalyticsPage() {
       setZeroResults(zeroResponse.data?.success ? (zeroResponse.data.items || []) : [])
       setSuggestions(suggestionResponse.data?.success ? (suggestionResponse.data.suggestions || []) : [])
     } catch (error) {
-      console.error('Failed to load search analytics', error)
+      reportUiError('Failed to load search analytics', error)
       toast.error(t('searchAnalytics.loadError', { defaultValue: 'Failed to load search analytics' }))
     } finally {
       setLoading(false)
@@ -130,7 +131,7 @@ export default function SearchAnalyticsPage() {
       toast.success(t('searchAnalytics.suggestionSaved', { defaultValue: 'Synonym suggestion saved' }))
       await loadAnalytics()
     } catch (error) {
-      console.error('Failed to submit synonym suggestion', error)
+      reportUiError('Failed to submit synonym suggestion', error)
       toast.error(t('searchAnalytics.suggestionError', { defaultValue: 'Failed to save suggestion' }))
     } finally {
       setSubmittingQuery(null)

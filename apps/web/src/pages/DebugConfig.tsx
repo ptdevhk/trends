@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/dialog'
 import { useSystemMetadata } from '@/hooks/useSystemMetadata'
 import { resolveSystemSettingsSubpages, type SystemSettingsSubpageDefinition } from '@/pages/system-settings/lib'
+import { reportUiError } from '@/lib/ui-error-reporting'
 
 function getSectionIcon(id: SystemSettingsSubpageDefinition['id']) {
   switch (id) {
@@ -58,10 +59,10 @@ export default function DebugConfig() {
     try {
       await resetDatabase()
       setResetDatabaseDialogOpen(false)
-      toast.success('Database has been reset')
+      toast.success(t('debugConfig.databaseResetSuccess', { defaultValue: 'Database has been reset' }))
     } catch (error) {
-      console.error('Failed to reset database', error)
-      toast.error('Failed to reset database')
+      reportUiError('Failed to reset database', error)
+      toast.error(t('debugConfig.databaseResetFailed', { defaultValue: 'Failed to reset database' }))
     } finally {
       setResettingDatabase(false)
     }
@@ -174,7 +175,7 @@ export default function DebugConfig() {
               variant="destructive"
               onClick={() => {
                 handleResetDatabase().catch((error) => {
-                  console.error('Unexpected handleResetDatabase failure', error)
+                  reportUiError('Unexpected handleResetDatabase failure', error)
                 })
               }}
               disabled={resettingDatabase}

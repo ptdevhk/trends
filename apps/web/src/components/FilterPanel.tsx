@@ -78,13 +78,30 @@ export function FilterPanel({
     const items: string[] = []
 
     if (filters.maxExperience) {
-      items.push(`≤${filters.maxExperience}年`)
+      items.push(t('resumes.filters.badges.maxExperience', {
+        value: filters.maxExperience,
+        defaultValue: '≤{{value}} years',
+      }))
     }
 
     if (filters.minAge || filters.maxAge) {
-      if (filters.minAge && filters.maxAge) items.push(`${filters.minAge}-${filters.maxAge}岁`)
-      else if (filters.minAge) items.push(`≥${filters.minAge}岁`)
-      else items.push(`≤${filters.maxAge}岁`)
+      if (filters.minAge && filters.maxAge) {
+        items.push(t('resumes.filters.badges.ageRange', {
+          min: filters.minAge,
+          max: filters.maxAge,
+          defaultValue: '{{min}}-{{max}} years old',
+        }))
+      } else if (filters.minAge) {
+        items.push(t('resumes.filters.badges.minAge', {
+          value: filters.minAge,
+          defaultValue: '≥{{value}} years old',
+        }))
+      } else {
+        items.push(t('resumes.filters.badges.maxAge', {
+          value: filters.maxAge,
+          defaultValue: '≤{{value}} years old',
+        }))
+      }
     }
 
     if (filters.minMatchScore) items.push(t('resumes.matching.scoreLabel', { score: `≥${filters.minMatchScore}` }))

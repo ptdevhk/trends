@@ -14,6 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { PageHeader } from '@/components/PageHeader'
 import { useResumeFieldUsagePolicy } from '@/contexts/ResumeFieldUsagePolicyContext'
 import { SourceFacetSelect } from '@/components/SourceFacetSelect'
+import { reportUiError } from '@/lib/ui-error-reporting'
 
 type ArchivedResume = {
   resumeId: string
@@ -122,7 +123,7 @@ export default function ArchivedResumes() {
         toast.info(t('archivedResumes.restoreNothing', { defaultValue: 'No resumes to restore' }))
       }
     } catch (error) {
-      console.error('Failed to restore resumes', error)
+      reportUiError('Failed to restore resumes', error)
       toast.error(t('archivedResumes.restoreFailed', { defaultValue: 'Failed to restore resumes' }))
     } finally {
       setUnarchiving(false)

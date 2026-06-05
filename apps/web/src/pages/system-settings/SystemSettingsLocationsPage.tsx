@@ -11,6 +11,7 @@ import {
   type SystemLocationItem,
   useSettingsRequestJson,
 } from '@/pages/system-settings/lib'
+import { reportUiError } from '@/lib/ui-error-reporting'
 
 export function SystemSettingsLocationsPage() {
   const { t } = useTranslation()
@@ -64,7 +65,7 @@ export function SystemSettingsLocationsPage() {
 
       setSystemLocationItems(parsed.systemLocations)
     } catch (error) {
-      console.error('Failed to load system locations', error)
+      reportUiError('Failed to load system locations', error)
       setLoadError(t('resumes.error'))
     } finally {
       setLoading(false)
@@ -73,7 +74,7 @@ export function SystemSettingsLocationsPage() {
 
   useEffect(() => {
     loadData().catch((error) => {
-      console.error('Unexpected loadData failure', error)
+      reportUiError('Unexpected loadData failure', error)
     })
   }, [loadData])
 
@@ -93,7 +94,7 @@ export function SystemSettingsLocationsPage() {
       )
       toast.success(t('debugConfig.saved'))
     } catch (error) {
-      console.error('Failed to toggle system location visibility', error)
+      reportUiError('Failed to toggle system location visibility', error)
       toast.error(t('debugConfig.saveError'))
     } finally {
       setSavingSystemLocationId(null)
@@ -117,7 +118,7 @@ export function SystemSettingsLocationsPage() {
           variant="outline"
           onClick={() => {
             loadData().catch((error) => {
-              console.error('Unexpected loadData failure', error)
+              reportUiError('Unexpected loadData failure', error)
             })
           }}
           disabled={loading}
@@ -210,7 +211,7 @@ export function SystemSettingsLocationsPage() {
                               disabled={isSaving}
                               onClick={() => {
                                 handleToggleSystemLocationVisibility(item).catch((error) => {
-                                  console.error('Unexpected handleToggleSystemLocationVisibility failure', error)
+                                  reportUiError('Unexpected handleToggleSystemLocationVisibility failure', error)
                                 })
                               }}
                             >

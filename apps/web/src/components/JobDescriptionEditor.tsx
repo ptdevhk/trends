@@ -25,6 +25,7 @@ import {
     sanitizeIndustryTags,
     type StructuredSeedFields,
 } from "@/lib/jd-editor-utils"
+import { reportUiError } from '@/lib/ui-error-reporting'
 
 const INDUSTRY_TAG_OPTIONS = CANONICAL_INDUSTRY_TAGS
 
@@ -208,7 +209,7 @@ export function JobDescriptionEditor({ open, onOpenChange, initialData, onSaveSu
             })
             onOpenChange(false)
         } catch (error) {
-            console.error("Failed to save JD", error)
+            reportUiError("Failed to save JD", error)
         } finally {
             setLoading(false)
         }
