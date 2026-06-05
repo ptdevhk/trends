@@ -101,6 +101,10 @@ CONVEX_URL=http://127.0.0.1:3210
 CONVEX_SITE_URL=http://127.0.0.1:3211
 EOF
 
+echo ""
+echo "=== Step 3b: Sync preview AI env into Convex ==="
+PREVIEW_DIR="$PREVIEW_DIR" "$PREVIEW_DIR/deploy/sync-preview-convex-env.sh"
+
 # Run import inside the container (where 127.0.0.1:3210 resolves to local backend)
 docker exec trends-preview-convex bash -c "
     cd /app/packages/convex && \

@@ -9,6 +9,17 @@ set -e
 
 mkdir -p /root/.cache/tmp
 
+# The Convex local backend is a native binary and uses the system CA store for
+# outbound HTTPS calls made by Convex actions. node:*-slim can omit it.
+if [ ! -s /etc/ssl/certs/ca-certificates.crt ]; then
+  echo "Installing ca-certificates for Convex action HTTPS calls..."
+  apt-get update
+  DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends ca-certificates
+  rm -rf /var/lib/apt/lists/*
+fi
+
+export SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+
 cd /app/packages/convex
 npm install --no-save --no-audit --no-fund 2>&1 | tail -3
 

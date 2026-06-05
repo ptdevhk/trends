@@ -59,6 +59,12 @@ elif [ -f "$REPO_HEAD/deploy/env.preview" ]; then
 fi
 # Must run as root (not sudo -u ubuntu) because the file may be root-owned from cp above
 chown ubuntu:ubuntu "$DST/.env.preview"
+chmod 600 "$DST/.env.preview"
+
+if [ -x "$DST/deploy/sync-preview-convex-env.sh" ]; then
+    echo "[5/7] Hydrating missing preview AI env vars from production env"
+    PREVIEW_DIR="$DST" "$DST/deploy/sync-preview-convex-env.sh" --hydrate-only
+fi
 
 # 6. Install dependencies + rebuild native modules for the host Node
 echo "[6/7] Installing npm dependencies..."
@@ -84,7 +90,8 @@ echo "=== Setup complete ==="
 echo "Next steps:"
 echo "  1. Verify .env.preview has secrets: vi $DST/.env.preview"
 echo "  2. Start Docker services: cd $DST && docker compose -f docker-compose.preview.yml up -d"
-echo "  3. Restart preview API systemd: systemctl restart trends-preview-api"
-echo "  4. (Optional) Restore prod data: bash deploy/restore-preview-from-prod.sh"
+echo "  3. Sync AI env to Convex: PREVIEW_DIR=$DST bash deploy/sync-preview-convex-env.sh"
+echo "  4. Restart preview API systemd: systemctl restart trends-preview-api"
+echo "  5. (Optional) Restore prod data: bash deploy/restore-preview-from-prod.sh"
 echo ""
 echo "  Smoke check: curl https://preview.pt-mes.com/api/blocks → 200"
