@@ -162,6 +162,49 @@ function toDigestFilterRecord(doc: Record<string, unknown>) {
   };
 }
 
+type DigestFilterRecord = ReturnType<typeof toDigestFilterRecord>;
+
+function hasDigestRoleMetadata(digest: DigestFilterRecord): boolean {
+  return (digest.roleTypes?.length ?? 0) > 0
+    || Object.keys(digest.roleYearsByType ?? {}).length > 0;
+}
+
+function digestFiltersForAvailableFields(digest: DigestFilterRecord, filters: ResumeFilters | undefined): ResumeFilters | undefined {
+  if (!filters) return undefined;
+
+  const availableFilters: ResumeFilters = { ...filters };
+
+  if (filters.maxExperience !== undefined && digest.experienceYears === undefined) {
+    delete availableFilters.maxExperience;
+  }
+  if (filters.education?.length && !digest.educationLevel) {
+    delete availableFilters.education;
+  }
+  if ((filters.skills?.length || filters.requiredKeywords?.length)
+    && !(typeof digest.searchText === "string" && digest.searchText.length > 0)) {
+    delete availableFilters.skills;
+    delete availableFilters.requiredKeywords;
+  }
+  if (filters.locations?.length && !digest.locationText) {
+    delete availableFilters.locations;
+  }
+  if ((filters.minSalary !== undefined || filters.maxSalary !== undefined)
+    && digest.salaryMin === undefined
+    && digest.salaryMax === undefined) {
+    delete availableFilters.minSalary;
+    delete availableFilters.maxSalary;
+  }
+  if ((filters.roleFilterType || filters.minRoleYears !== undefined) && !hasDigestRoleMetadata(digest)) {
+    delete availableFilters.roleFilterType;
+    delete availableFilters.minRoleYears;
+  }
+  if (filters.sources?.length && !digest.sourceKey && !digest.source) {
+    delete availableFilters.sources;
+  }
+
+  return availableFilters;
+}
+
 export function collectBffAndModeProvenance(
   searchText: string,
   groups: Array<{ original: string; variants: string[] }>,
@@ -579,7 +622,8 @@ export async function prepareConvexCandidates(params: {
           );
           if (!allGroupsMatch) continue;
 
-          if (!matchesResumeDigestFilters(toDigestFilterRecord(doc), filters)) continue;
+          const digest = toDigestFilterRecord(doc);
+          if (!matchesResumeDigestFilters(digest, digestFiltersForAvailableFields(digest, filters))) continue;
 
           const resumeId = toStringValue(doc.resumeId);
           if (resumeId) matchingIds.push(resumeId);
