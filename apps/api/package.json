@@ -24,6 +24,7 @@
     "mammoth": "^1.12.0",
     "node-unrar-js": "^2.0.2",
     "nodemailer": "^8.0.8",
+    "openid-client": "^6.8.4",
     "papaparse": "^5.5.3",
     "pdf-parse": "^2.4.5",
     "yaml": "^2.9.0",
