@@ -2,7 +2,7 @@
 
 .PHONY: dev dev-samples dev-fast dev-critical dev-backend dev-clean dev-mcp dev-crawl dev-convex dev-convex-stop dev-convex-restart dev-convex-refresh dev-convex-ensure dev-convex-status dev-web dev-api dev-worker dev-api-worker \
 		local-run-crawler local-run-mcp local-run-mcp-http local-run-worker local-run-worker-once run crawl mcp mcp-http worker worker-once \
-		on-prod-install on-prod-deploy on-prod-deploy-check on-prod-uninstall on-prod-refresh-env prod-install prod-deploy prod-deploy-check install deploy deploy-check uninstall refresh-env \
+		on-prod-install on-prod-deploy on-prod-deploy-check on-prod-uninstall on-prod-refresh-env on-prod-preview-restore-full-state prod-install prod-deploy prod-deploy-check install deploy deploy-check uninstall refresh-env preview-restore-full-state restore-preview-full-state \
 		install-deps fetch-docs clean check help docker docker-build docker-down \
 		check-python check-node check-build \
 		test test-python test-node test-resume test-extension-keyword-mode test-api-search-profiles test-worker-resume-tasks test-collect-url-smoke \
@@ -373,6 +373,13 @@ on-prod-refresh-env:
 	sudo systemctl is-active --quiet trends-mcp && echo "  trends-mcp: active" || echo "  trends-mcp: FAILED"
 
 refresh-env: on-prod-refresh-env
+
+# Runs on prod host ONLY. Restore production Convex + SQLite candidate-action state into preview
+on-prod-preview-restore-full-state:
+	sudo ./deploy/restore-preview-full-state-from-prod.sh $(ARGS)
+
+preview-restore-full-state: on-prod-preview-restore-full-state
+restore-preview-full-state: on-prod-preview-restore-full-state
 
 # Dual-target: follows $API_URL. Defaults to http://localhost:3000 (local).
 # Backup live resume records to a portable JSON or .tar.gz file
@@ -1358,6 +1365,9 @@ help:
 	@echo "  on-prod-deploy         Preflight + snapshot + upgrade, requires sudo (alias: prod-deploy/deploy)"
 	@echo "  on-prod-deploy-check   Dry run deploy precheck (alias: prod-deploy-check/deploy-check)"
 	@echo "  on-prod-refresh-env    Refresh env + rebuild web bundle (alias: refresh-env)"
+	@echo "  on-prod-preview-restore-full-state"
+	@echo "                         Restore prod Convex + SQLite candidate actions into preview"
+	@echo "                         (alias: preview-restore-full-state/restore-preview-full-state)"
 	@echo "  on-prod-uninstall      Remove systemd services, requires sudo (alias: uninstall)"
 	@echo "                         See ./scripts/install.sh --help for branch preflight, rollback backups, CI=true/1"
 	@echo ""

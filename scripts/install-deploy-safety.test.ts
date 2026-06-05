@@ -9,6 +9,7 @@ const makefile = readFileSync(new URL("../Makefile", import.meta.url), "utf8");
 const installScript = readFileSync(new URL("./install.sh", import.meta.url), "utf8");
 const setupPreviewScript = readFileSync(new URL("../deploy/setup-preview.sh", import.meta.url), "utf8");
 const restorePreviewScript = readFileSync(new URL("../deploy/restore-preview-from-prod.sh", import.meta.url), "utf8");
+const restorePreviewFullStateScript = readFileSync(new URL("../deploy/restore-preview-full-state-from-prod.sh", import.meta.url), "utf8");
 const syncPreviewConvexEnvScript = readFileSync(new URL("../deploy/sync-preview-convex-env.sh", import.meta.url), "utf8");
 const previewMcpDockerfile = readFileSync(new URL("../deploy/docker/Dockerfile.mcp", import.meta.url), "utf8");
 const previewCompose = readFileSync(new URL("../deploy/docker/docker-compose.preview.yml", import.meta.url), "utf8");
@@ -163,6 +164,60 @@ describe("preview restore export compatibility", () => {
     expect(restorePreviewScript.indexOf("wait_for_preview_api")).toBeLessThan(
       restorePreviewScript.indexOf("=== Verification ==="),
     );
+  });
+
+  it("honors production and preview directory overrides", () => {
+    expect(restorePreviewScript).toContain('PROD_DIR="${PROD_DIR:-/opt/trends}"');
+    expect(restorePreviewScript).toContain('PREVIEW_DIR="${PREVIEW_DIR:-/home/ubuntu/trends-preview}"');
+    expect(restorePreviewScript).toContain('PROD_CONVEX_DIR="$PROD_DIR/packages/convex"');
+    expect(restorePreviewScript).toContain('cd "$PREVIEW_DIR"');
+  });
+});
+
+describe("preview full-state restore", () => {
+  it("exposes a host-local on-prod target with compatibility aliases and no SSH hop", () => {
+    const recipe = getTargetRecipe("on-prod-preview-restore-full-state");
+
+    expect(recipe).toContain("sudo ./deploy/restore-preview-full-state-from-prod.sh");
+    expect(recipe).not.toContain("ssh ");
+    expect(makefile).toMatch(/^preview-restore-full-state:\s+on-prod-preview-restore-full-state$/m);
+    expect(makefile).toMatch(/^restore-preview-full-state:\s+on-prod-preview-restore-full-state$/m);
+  });
+
+  it("advertises the host-local preview full-state restore in help output", () => {
+    expect(makefile).toContain("on-prod-preview-restore-full-state");
+    expect(makefile).toContain("Restore prod Convex + SQLite candidate actions into preview");
+  });
+
+  it("runs Convex restore before replacing preview SQLite state", () => {
+    expect(restorePreviewFullStateScript).toContain("restore-preview-from-prod.sh");
+    expect(restorePreviewFullStateScript).toContain("restore_convex_state");
+    expect(restorePreviewFullStateScript).toContain("restore_sqlite_state");
+    const modeCaseStart = restorePreviewFullStateScript.indexOf('case "$MODE" in');
+    const defaultModeBranch = restorePreviewFullStateScript.slice(
+      restorePreviewFullStateScript.indexOf("all)", modeCaseStart),
+      restorePreviewFullStateScript.indexOf("sqlite-only)", modeCaseStart),
+    );
+    expect(defaultModeBranch.indexOf("restore_convex_state")).toBeLessThan(
+      defaultModeBranch.indexOf("restore_sqlite_state"),
+    );
+  });
+
+  it("copies production SQLite through a consistent backup and preserves the old preview DB", () => {
+    expect(restorePreviewFullStateScript).toContain(".backup");
+    expect(restorePreviewFullStateScript).toContain("pre-full-state-restore-");
+    expect(restorePreviewFullStateScript).toContain("$PREVIEW_DB-shm");
+    expect(restorePreviewFullStateScript).toContain("$PREVIEW_DB-wal");
+    expect(restorePreviewFullStateScript).toContain("candidate_actions");
+  });
+
+  it("stops and restarts only the preview API around the SQLite swap", () => {
+    expect(restorePreviewFullStateScript).toContain("systemctl stop \"$PREVIEW_API_SERVICE\"");
+    expect(restorePreviewFullStateScript).toContain("systemctl start \"$PREVIEW_API_SERVICE\"");
+    expect(restorePreviewFullStateScript).toContain("wait_for_preview_api");
+    expect(restorePreviewFullStateScript).toContain("/api/blocks");
+    expect(restorePreviewFullStateScript).toContain("/api/search-profiles");
+    expect(restorePreviewFullStateScript).not.toContain("ssh ");
   });
 });
 

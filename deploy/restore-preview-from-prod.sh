@@ -9,7 +9,9 @@ set -e
 EXPORT_PATH=/tmp/prod-convex-export.zip
 # Clean up stale exports from previous runs
 rm -f "$EXPORT_PATH" /tmp/prod-convex-export-fixed.zip
-PREVIEW_DIR=/home/ubuntu/trends-preview
+PROD_DIR="${PROD_DIR:-/opt/trends}"
+PROD_CONVEX_DIR="$PROD_DIR/packages/convex"
+PREVIEW_DIR="${PREVIEW_DIR:-/home/ubuntu/trends-preview}"
 
 wait_for_preview_api() {
     local max_wait=120
@@ -29,9 +31,9 @@ wait_for_preview_api() {
 }
 
 echo "=== Step 1: Export production Convex data ==="
-sudo -u trends bash -c "cd /opt/trends/packages/convex && \
+sudo -u trends bash -c "cd '$PROD_CONVEX_DIR' && \
     CONVEX_URL=http://127.0.0.1:3210 \
-    npx convex export --path $EXPORT_PATH --include-file-storage"
+    npx convex export --path '$EXPORT_PATH' --include-file-storage"
 
 ls -lh "$EXPORT_PATH"
 
@@ -99,7 +101,7 @@ echo "=== Step 3: Import into preview Convex ==="
 # Restart the Convex container so it sees the freshly copied export file
 # (bind mounts can go stale on long-running containers)
 echo "Restarting preview Convex to ensure bind mount is fresh..."
-cd /home/ubuntu/trends-preview && docker compose -f docker-compose.preview.yml restart convex
+cd "$PREVIEW_DIR" && docker compose -f docker-compose.preview.yml restart convex
 # Wait for health
 echo "Waiting for Convex to become healthy..."
 timeout 180 bash -c 'while [ "$(docker inspect --format="{{.State.Health.Status}}" trends-preview-convex 2>/dev/null)" != "healthy" ]; do sleep 10; done'
