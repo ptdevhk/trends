@@ -7,6 +7,7 @@ import { bodyLimit } from "hono/body-limit";
 
 import {
   healthRoutes,
+  authRoutes,
   aiSummaryRoutes,
   taxonomyRoutes,
   trendsRoutes,
@@ -40,8 +41,30 @@ import {
 } from "./routes/index.js";
 import { config } from "./services/config.js";
 import { workspaceMiddleware } from "./middleware/workspace.js";
+import { optionalAuth, requireCsrf } from "./middleware/auth.js";
 import { serverTimingMiddleware } from "./middleware/server-timing.js";
 import { rateLimit } from "./middleware/rate-limit.js";
+
+const LOCAL_DEV_ORIGINS = new Set([
+  "http://localhost:3000",
+  "http://localhost:3001",
+  "http://localhost:5173",
+  "http://localhost:5174",
+  "http://127.0.0.1:3000",
+  "http://127.0.0.1:3001",
+  "http://127.0.0.1:5173",
+  "http://127.0.0.1:5174",
+]);
+
+function resolveCorsOrigin(origin: string): string | null {
+  if (config.auth.allowedOrigins.includes(origin)) {
+    return origin;
+  }
+  if (process.env.NODE_ENV !== "production" && config.auth.allowedOrigins.length === 0 && LOCAL_DEV_ORIGINS.has(origin)) {
+    return origin;
+  }
+  return null;
+}
 
 export const openApiConfig = {
   openapi: "3.1.0",
@@ -96,13 +119,15 @@ export function createApp() {
   app.use(
     "*",
     cors({
-      origin: "*",
+      origin: resolveCorsOrigin,
+      credentials: true,
       exposeHeaders: ["Content-Disposition", "Content-Length"],
     })
   );
   app.use("*", logger());
   app.use("*", prettyJSON());
   app.use("*", workspaceMiddleware);
+  app.use("*", optionalAuth);
 
   // Rate limiting on API routes (100 req/min per IP in production).
   // In development, localhost requests share key "unknown" and exhaust the budget quickly.
@@ -126,9 +151,11 @@ export function createApp() {
       })(c, next);
     },
   );
+  app.use("/api/*", requireCsrf);
 
   // Mount routes
   app.route("/", healthRoutes);
+  app.route("/", authRoutes);
   app.route("/", aiSummaryRoutes);
   app.route("/", taxonomyRoutes);
   app.route("/", trendsRoutes);

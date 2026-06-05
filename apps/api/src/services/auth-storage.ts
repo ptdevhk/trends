@@ -10,6 +10,7 @@ import type {
   WorkspaceMembership,
   WorkspaceRole,
 } from "./auth-types.js";
+import type { PasswordCredential } from "./local-password-provider.js";
 
 type IdentityRow = {
   user_id?: unknown;
@@ -19,6 +20,18 @@ type MembershipRow = {
   user_id: string;
   workspace_slug: string;
   role: WorkspaceRole;
+};
+
+type PasswordCredentialRow = {
+  user_id?: unknown;
+  password_hash?: unknown;
+  salt?: unknown;
+  scrypt_n?: unknown;
+  scrypt_r?: unknown;
+  scrypt_p?: unknown;
+  key_length?: unknown;
+  must_change_password?: unknown;
+  password_changed_at?: unknown;
 };
 
 type UserRow = {
@@ -34,6 +47,12 @@ export type StoredAuthSession = {
   userId: string;
   csrfTokenHash: string;
   expiresAt: string;
+};
+
+export type StoredPasswordCredential = PasswordCredential & {
+  userId: string;
+  mustChangePassword: boolean;
+  passwordChangedAt?: string;
 };
 
 type SessionRow = {
@@ -195,6 +214,93 @@ export class AuthStorage {
       workspaceSlug: row.workspace_slug,
       role: row.role,
     }));
+  }
+
+  savePasswordCredential(input: PasswordCredential & {
+    userId: string;
+    mustChangePassword?: boolean;
+  }): void {
+    const now = toIsoNow();
+    const mustChangePassword = input.mustChangePassword ?? true;
+    this.db.prepare(`
+      INSERT INTO auth_password_credentials (
+        user_id,
+        password_hash,
+        salt,
+        scrypt_n,
+        scrypt_r,
+        scrypt_p,
+        key_length,
+        must_change_password,
+        password_changed_at,
+        created_at,
+        updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(user_id)
+      DO UPDATE SET
+        password_hash = excluded.password_hash,
+        salt = excluded.salt,
+        scrypt_n = excluded.scrypt_n,
+        scrypt_r = excluded.scrypt_r,
+        scrypt_p = excluded.scrypt_p,
+        key_length = excluded.key_length,
+        must_change_password = excluded.must_change_password,
+        password_changed_at = excluded.password_changed_at,
+        updated_at = excluded.updated_at
+    `).run(
+      input.userId,
+      input.passwordHash,
+      input.salt,
+      input.scryptN,
+      input.scryptR,
+      input.scryptP,
+      input.keyLength,
+      mustChangePassword ? 1 : 0,
+      mustChangePassword ? null : now,
+      now,
+      now,
+    );
+  }
+
+  findPasswordCredential(userId: string): StoredPasswordCredential | null {
+    const row = this.db.prepare(`
+      SELECT
+        user_id,
+        password_hash,
+        salt,
+        scrypt_n,
+        scrypt_r,
+        scrypt_p,
+        key_length,
+        must_change_password,
+        password_changed_at
+      FROM auth_password_credentials
+      WHERE user_id = ?
+    `).get(userId) as PasswordCredentialRow | undefined;
+
+    if (
+      typeof row?.user_id !== "string"
+      || typeof row.password_hash !== "string"
+      || typeof row.salt !== "string"
+      || typeof row.scrypt_n !== "number"
+      || typeof row.scrypt_r !== "number"
+      || typeof row.scrypt_p !== "number"
+      || typeof row.key_length !== "number"
+    ) {
+      return null;
+    }
+
+    return {
+      userId: row.user_id,
+      passwordHash: row.password_hash,
+      salt: row.salt,
+      scryptN: row.scrypt_n,
+      scryptR: row.scrypt_r,
+      scryptP: row.scrypt_p,
+      keyLength: row.key_length,
+      mustChangePassword: row.must_change_password === 1,
+      passwordChangedAt: typeof row.password_changed_at === "string" ? row.password_changed_at : undefined,
+    };
   }
 
   createSession(input: {

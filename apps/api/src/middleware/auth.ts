@@ -65,8 +65,13 @@ export function createAuthMiddleware(options: AuthMiddlewareOptions = {}) {
     }
 
     const token = getCookie(c, sessionCookieName);
+    if (!token) {
+      await next();
+      return;
+    }
+
     const csrf = c.req.header(csrfHeaderName);
-    if (!token || !csrf || !sessions.verifyCsrf(token, csrf)) {
+    if (!csrf || !sessions.verifyCsrf(token, csrf)) {
       return c.json({ success: false as const, error: "CSRF token required" }, 403);
     }
     await next();
