@@ -5,6 +5,7 @@ import path from "node:path";
 import Papa from "papaparse";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { createAuthContext } from "../test-auth-helpers";
 import type { ResumeItem } from "../types/resume.js";
 
 function createFixtureRoot(): string {
@@ -95,6 +96,10 @@ async function loadModules(root: string) {
   };
 }
 
+function createAdminApp(createApp: Awaited<ReturnType<typeof loadModules>>["createApp"]) {
+  return createApp({ authContext: createAuthContext({ workspaceSlug: "dev", role: "admin" }) });
+}
+
 describe("resumes packets route", () => {
   let root = "";
 
@@ -116,7 +121,7 @@ describe("resumes packets route", () => {
   it("returns empty list when no runs exist", async () => {
     root = createFixtureRoot();
     const { createApp } = await loadModules(root);
-    const app = createApp();
+    const app = createAdminApp(createApp);
 
     const response = await app.request("/api/resumes/review-packets", {
       headers: { "X-Workspace-Slug": "dev" },
@@ -150,7 +155,7 @@ describe("resumes packets route", () => {
       items: [],
     });
 
-    const app = createApp();
+    const app = createAdminApp(createApp);
     const response = await app.request("/api/resumes/review-packets", {
       headers: { "X-Workspace-Slug": "dev" },
     });
@@ -173,7 +178,7 @@ describe("resumes packets route", () => {
     storage.createRun({ id: "run-lim-2", workspaceSlug: "dev", source: "convex", format: "csv", totalCount: 1, items: [] });
     storage.createRun({ id: "run-lim-3", workspaceSlug: "dev", source: "convex", format: "csv", totalCount: 1, items: [] });
 
-    const app = createApp();
+    const app = createAdminApp(createApp);
     const response = await app.request("/api/resumes/review-packets?limit=2", {
       headers: { "X-Workspace-Slug": "dev" },
     });
@@ -203,7 +208,7 @@ describe("resumes packets route", () => {
       items: [{ resumeId: "r1", identityKey: "k1" }],
     });
 
-    const app = createApp();
+    const app = createAdminApp(createApp);
     const response = await app.request("/api/resumes/review-packets/my-run", {
       headers: { "X-Workspace-Slug": "dev" },
     });
@@ -219,7 +224,7 @@ describe("resumes packets route", () => {
   it("returns 404 when run not found", async () => {
     root = createFixtureRoot();
     const { createApp } = await loadModules(root);
-    const app = createApp();
+    const app = createAdminApp(createApp);
 
     const response = await app.request("/api/resumes/review-packets/nonexistent", {
       headers: { "X-Workspace-Slug": "dev" },
@@ -254,7 +259,7 @@ describe("resumes packets route", () => {
     fs.mkdirSync(packetDir, { recursive: true });
     fs.writeFileSync(path.join(packetDir, "review-packet-csv-run.csv"), "Resume ID,Name\nr1,Alice\n", "utf8");
 
-    const app = createApp();
+    const app = createAdminApp(createApp);
     const response = await app.request("/api/resumes/review-packets/csv-run/download?workspaceSlug=dev");
 
     expect(response.status).toBe(200);
@@ -287,7 +292,7 @@ describe("resumes packets route", () => {
     fs.mkdirSync(packetDir, { recursive: true });
     fs.writeFileSync(path.join(packetDir, "review-packet-xlsx-run.xlsx"), "fake-xlsx-content");
 
-    const app = createApp();
+    const app = createAdminApp(createApp);
     const response = await app.request("/api/resumes/review-packets/xlsx-run/download?workspaceSlug=dev");
 
     expect(response.status).toBe(200);
@@ -302,7 +307,7 @@ describe("resumes packets route", () => {
   it("returns 404 when download run not found", async () => {
     root = createFixtureRoot();
     const { createApp } = await loadModules(root);
-    const app = createApp();
+    const app = createAdminApp(createApp);
 
     const response = await app.request("/api/resumes/review-packets/nonexistent/download?workspaceSlug=dev");
 
@@ -326,7 +331,7 @@ describe("resumes packets route", () => {
       items: [{ resumeId: "r1", identityKey: "k1" }],
     });
 
-    const app = createApp();
+    const app = createAdminApp(createApp);
     const response = await app.request("/api/resumes/review-packets/missing-file/download?workspaceSlug=dev");
 
     expect(response.status).toBe(404);
@@ -355,7 +360,7 @@ describe("resumes packets route", () => {
 
     const formData = new FormData();
 
-    const app = createApp();
+    const app = createAdminApp(createApp);
     const response = await app.request("/api/resumes/review-packets/fb-no-file/feedback-import", {
       method: "POST",
       headers: { "X-Workspace-Slug": "dev" },
@@ -372,7 +377,7 @@ describe("resumes packets route", () => {
     const formData = new FormData();
     formData.append("file", new File(["Resume ID\nr1"], "test.csv", { type: "text/csv" }));
 
-    const app = createApp();
+    const app = createAdminApp(createApp);
     const response = await app.request("/api/resumes/review-packets/nonexistent-fb/feedback-import", {
       method: "POST",
       headers: { "X-Workspace-Slug": "dev" },
@@ -393,7 +398,7 @@ describe("resumes packets route", () => {
     root = createFixtureRoot();
     const { createApp } = await loadModules(root);
 
-    const app = createApp();
+    const app = createAdminApp(createApp);
     const response = await app.request("/api/resumes/learning-feedback", {
       method: "POST",
       headers: {
@@ -417,7 +422,7 @@ describe("resumes packets route", () => {
       observation: "Test observation",
     });
 
-    const app = createApp();
+    const app = createAdminApp(createApp);
     const response = await app.request("/api/resumes/learning-feedback", {
       method: "POST",
       headers: {
@@ -451,7 +456,7 @@ describe("resumes packets route", () => {
       );
     });
 
-    const app = createApp();
+    const app = createAdminApp(createApp);
     const response = await app.request("/api/resumes/learning-feedback", {
       method: "POST",
       headers: {
@@ -513,7 +518,7 @@ describe("resumes packets route", () => {
       })
     );
 
-    const app = createApp();
+    const app = createAdminApp(createApp);
     const response = await app.request("/api/resumes/export/download", {
       method: "POST",
       headers: { "X-Workspace-Slug": "dev" },

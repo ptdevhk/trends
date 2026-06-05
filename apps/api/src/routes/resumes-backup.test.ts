@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createApp } from "../app";
+import { createAuthContext } from "./test-auth-helpers";
 
 type ConvexCall = {
   pathName: string;
@@ -134,7 +135,7 @@ describe("resume backup and reset routes", () => {
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
-    const app = createApp();
+    const app = createApp({ authContext: createAuthContext({ workspaceSlug: "dev", role: "admin" }) });
     const response = await app.request("/api/resumes/backup", {
       method: "POST",
       headers: {
@@ -276,7 +277,7 @@ describe("resume backup and reset routes", () => {
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
-    const app = createApp();
+    const app = createApp({ authContext: createAuthContext({ workspaceSlug: "dev", role: "admin" }) });
     const response = await app.request("/api/resumes/backup", {
       method: "POST",
       headers: {
@@ -295,7 +296,7 @@ describe("resume backup and reset routes", () => {
 
   it("blocks resume backup for non-admin workspaces", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
-    const app = createApp();
+    const app = createApp({ authContext: createAuthContext({ workspaceSlug: "hr", role: "user" }) });
 
     const response = await app.request("/api/resumes/backup", {
       method: "POST",
@@ -336,7 +337,7 @@ describe("resume backup and reset routes", () => {
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
-    const app = createApp();
+    const app = createApp({ authContext: createAuthContext({ workspaceSlug: "dev", role: "admin" }) });
     const response = await app.request("/api/resumes/reset", {
       method: "POST",
       headers: {
