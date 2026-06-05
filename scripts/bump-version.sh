@@ -33,12 +33,14 @@ find . -name package.json -not -path '*/node_modules/*' -exec sed -i '' "s/\"$CU
 
 # --- Python pyproject.toml + __init__.py ---
 sed -i '' "s/^version = \"$CURRENT\"/version = \"$NEW_VERSION\"/" pyproject.toml
+sed -i '' "s/^version = \"$CURRENT\"/version = \"$NEW_VERSION\"/" apps/worker/pyproject.toml
 sed -i '' "s/__version__ = \"$CURRENT\"/__version__ = \"$NEW_VERSION\"/" apps/worker/__init__.py
 sed -i '' "s/__version__ = \"$CURRENT\"/__version__ = \"$NEW_VERSION\"/" trendradar/__init__.py
 
 # --- API config + schemas ---
 sed -i '' "s/version: \"$CURRENT\"/version: \"$NEW_VERSION\"/" apps/api/src/services/config.ts
 sed -i '' "s/example: \"$CURRENT\"/example: \"$NEW_VERSION\"/" apps/api/src/schemas/health.ts
+sed -i '' "s/version: \"$CURRENT\"/version: \"$NEW_VERSION\"/" apps/api/src/schemas/schemas-validation.test.ts
 
 # --- OpenAPI spec ---
 sed -i '' "s/version: $CURRENT/version: $NEW_VERSION/" apps/api/openapi.yaml
@@ -60,6 +62,7 @@ if command -v bun &>/dev/null; then
 fi
 if command -v uv &>/dev/null; then
   uv lock 2>/dev/null || true
+  (cd apps/worker && uv lock 2>/dev/null) || true
 fi
 
 # --- Verify no stale references remain (source files only) ---
