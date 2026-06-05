@@ -4,11 +4,16 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import filterPresetsRoutes from './filter-presets'
 import { workspaceMiddleware } from '../middleware/workspace'
 import { workspaceConfigService } from '../services/workspace-config-service'
+import { createAuthContext } from './test-auth-helpers'
 
 // dev workspace = admin, hr workspace = user
 function createTestApp() {
   const app = new OpenAPIHono()
   app.use('*', workspaceMiddleware)
+  app.use('*', async (c, next) => {
+    c.set('auth', createAuthContext({ workspaceSlug: 'dev', role: 'admin' }))
+    await next()
+  })
   app.route('/api/filter-presets', filterPresetsRoutes)
   return app
 }

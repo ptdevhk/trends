@@ -3,19 +3,24 @@ import JSZip from "jszip";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { workspaceMiddleware } from "../middleware/workspace";
+import { createAuthContext } from "./test-auth-helpers";
 
 type ConvexCall = {
   pathName: string;
   args: Record<string, unknown>;
 };
 
-async function createTestApp() {
+async function createTestApp(role: "user" | "admin" = "admin") {
   const [{ default: resumesRoutes }, { default: resumesImportRoutes }] = await Promise.all([
     import("./resumes"),
     import("./resumes_import"),
   ]);
   const app = new OpenAPIHono();
   app.use("*", workspaceMiddleware);
+  app.use("*", async (c, next) => {
+    c.set("auth", createAuthContext({ workspaceSlug: "hr", role }));
+    await next();
+  });
   app.route("/", resumesImportRoutes);
   app.route("/", resumesRoutes);
   return app;
@@ -1571,7 +1576,7 @@ describe("manual resume import route", () => {
 
   it("keeps the legacy JSON import route admin-only", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
-    const app = await createTestApp();
+    const app = await createTestApp("user");
 
     const response = await app.request("/api/resumes/import", {
       method: "POST",

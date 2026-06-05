@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createApp } from "../app";
+import { config } from "../services/config";
+import { resetResumeScreeningDb } from "../services/database";
 import { workspaceConfigService } from "../services/workspace-config-service";
+import { createAuthHeaders } from "./test-auth-helpers";
 
 type ConvexCall = {
   type: "query" | "mutation";
@@ -57,9 +60,35 @@ function convexSuccess(value: unknown): Response {
 describe("candidate-status route", () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    resetResumeScreeningDb();
+  });
+
+  it("rejects status writes without a session", async () => {
+    const calls: ConvexCall[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      calls.push(parseConvexCall(input, init));
+      return convexSuccess(null);
+    });
+
+    const app = createApp();
+    const response = await app.request("/api/candidate-status", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Workspace-Slug": "hr",
+      },
+      body: JSON.stringify({
+        identityKey: "resume-1",
+        status: "interviewing",
+      }),
+    });
+
+    expect(response.status).toBe(401);
+    expect(calls).toHaveLength(0);
   });
 
   it("updates candidate status successfully", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
     const calls: ConvexCall[] = [];
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const call = parseConvexCall(input, init);
@@ -72,8 +101,9 @@ describe("candidate-status route", () => {
         return convexSuccess({
           _id: "status-id-1",
           identityKey: "resume-1",
-          workspaceSlug: "dev",
+          workspaceSlug: "hr",
           status: "interviewing",
+          updatedBy: auth.userId,
           updatedAt: 1_700_000_000_000,
         });
       }
@@ -81,16 +111,17 @@ describe("candidate-status route", () => {
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
-    const app = createApp();
+    const app = createApp({ authStorage: auth.storage });
     const response = await app.request("/api/candidate-status", {
       method: "POST",
       headers: {
+        ...auth.headers,
         "Content-Type": "application/json",
-        "X-Workspace-Slug": "dev",
       },
       body: JSON.stringify({
         identityKey: "resume-1",
         status: "interviewing",
+        updatedBy: "body-user",
       }),
     });
 
@@ -100,7 +131,7 @@ describe("candidate-status route", () => {
       success: true,
       item: {
         identityKey: "resume-1",
-        workspaceSlug: "dev",
+        workspaceSlug: "hr",
         status: "interviewing",
       },
     });
@@ -111,22 +142,25 @@ describe("candidate-status route", () => {
       type: "mutation",
       pathName: "candidate_status:upsert",
       args: {
-        workspaceSlug: "dev",
+        workspaceSlug: "hr",
         identityKey: "resume-1",
         status: "interviewing",
+        updatedBy: auth.userId,
+        writeSecret: config.auth.convexWriteSecret,
       },
     });
     expect(calls[1]).toMatchObject({
       type: "query",
       pathName: "candidate_status:getByIdentity",
       args: {
-        workspaceSlug: "dev",
+        workspaceSlug: "hr",
         identityKey: "resume-1",
       },
     });
   });
 
   it("appends learning log entry for interviewed_reject updates", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "dev", role: "user" });
     const appendSpy = vi
       .spyOn(workspaceConfigService, "appendLearningLogEntry")
       .mockResolvedValue({
@@ -152,12 +186,12 @@ describe("candidate-status route", () => {
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
-    const app = createApp();
+    const app = createApp({ authStorage: auth.storage });
     const response = await app.request("/api/candidate-status", {
       method: "POST",
       headers: {
+        ...auth.headers,
         "Content-Type": "application/json",
-        "X-Workspace-Slug": "dev",
       },
       body: JSON.stringify({
         identityKey: "resume-2",
@@ -179,7 +213,33 @@ describe("candidate-status route", () => {
     );
   });
 
-  it("rejects non-admin workspace access with 403", async () => {
+  it("rejects status writes when auth lacks selected workspace membership", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", requestWorkspaceSlug: "dev", role: "user" });
+    const calls: ConvexCall[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+      return convexSuccess(null);
+    });
+
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request("/api/candidate-status", {
+      method: "POST",
+      headers: {
+        ...auth.headers,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        identityKey: "resume-1",
+        status: "interviewing",
+      }),
+    });
+
+    expect(response.status).toBe(403);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("lists statuses for the selected workspace", async () => {
     const calls: ConvexCall[] = [];
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const call = parseConvexCall(input, init);
@@ -198,10 +258,11 @@ describe("candidate-status route", () => {
     });
     const devResponse = await app.request("/api/candidate-status");
 
-    expect(hrResponse.status).toBe(403);
+    expect(hrResponse.status).toBe(200);
     expect(devResponse.status).toBe(200);
-    expect(calls).toHaveLength(1);
-    expect(calls[0]?.args.workspaceSlug).toBe("dev");
+    expect(calls).toHaveLength(2);
+    expect(calls[0]?.args.workspaceSlug).toBe("hr");
+    expect(calls[1]?.args.workspaceSlug).toBe("dev");
   });
 
   describe("POST /api/candidate-appeal", () => {

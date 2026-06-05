@@ -3,10 +3,18 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import resumesImportRoutes from "./resumes_import";
 import { workspaceMiddleware } from "../middleware/workspace";
+import { createAuthContext } from "./test-auth-helpers";
 
-function createTestApp() {
+function createTestApp(input: { workspaceSlug?: string; role?: "user" | "admin" } = {}) {
   const app = new OpenAPIHono();
   app.use("*", workspaceMiddleware);
+  app.use("*", async (c, next) => {
+    c.set("auth", createAuthContext({
+      workspaceSlug: input.workspaceSlug ?? "dev",
+      role: input.role ?? "admin",
+    }));
+    await next();
+  });
   app.route("/", resumesImportRoutes);
   return app;
 }
@@ -47,7 +55,7 @@ describe("resumes_import", () => {
     });
 
     it("rejects non-admin access with 403", async () => {
-      const app = createTestApp();
+      const app = createTestApp({ workspaceSlug: "hr", role: "user" });
       const response = await app.request("/api/resumes/import", {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-Workspace-Slug": "hr" },
@@ -107,7 +115,7 @@ describe("resumes_import", () => {
     });
 
     it("rejects non-admin access with 403", async () => {
-      const app = createTestApp();
+      const app = createTestApp({ workspaceSlug: "hr", role: "user" });
       const response = await app.request("/api/resumes/backup", {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-Workspace-Slug": "hr" },
@@ -120,7 +128,7 @@ describe("resumes_import", () => {
 
   describe("POST /api/resumes/reset", () => {
     it("rejects non-admin access with 403", async () => {
-      const app = createTestApp();
+      const app = createTestApp({ workspaceSlug: "hr", role: "user" });
       const response = await app.request("/api/resumes/reset", {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-Workspace-Slug": "hr" },

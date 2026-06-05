@@ -2,14 +2,23 @@ import { OpenAPIHono } from '@hono/zod-openapi'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import configRoutes from './config'
+import { createAuthMiddleware } from '../middleware/auth'
 import { workspaceMiddleware } from '../middleware/workspace'
+import type { AuthStorage } from '../services/auth-storage'
 import { configSourceInspector, UnknownConfigSourceError } from '../services/config-source-inspector'
 import { customKeywordService } from '../services/custom-keyword-service'
+import { resetResumeScreeningDb } from '../services/database'
 import { workspaceConfigService } from '../services/workspace-config-service'
+import { createAuthHeaders } from './test-auth-helpers'
 
-function createTestApp() {
+function createTestApp(storage?: AuthStorage) {
   const app = new OpenAPIHono()
   app.use('*', workspaceMiddleware)
+  if (storage) {
+    const middleware = createAuthMiddleware({ storage, ttlSeconds: 3600 })
+    app.use('*', middleware.optionalAuth)
+    app.use('/api/*', middleware.requireCsrf)
+  }
   app.route('/api/config', configRoutes)
   return app
 }
@@ -17,6 +26,7 @@ function createTestApp() {
 describe('config route workspace access', () => {
   afterEach(() => {
     vi.restoreAllMocks()
+    resetResumeScreeningDb()
   })
 
   it('loads rule weights for the requested workspace', async () => {
@@ -89,7 +99,7 @@ describe('config route workspace access', () => {
     })
   })
 
-  it('blocks hr users from updating workspace config', async () => {
+  it('requires authentication for workspace config updates', async () => {
     const setRuleWeightsSpy = vi.spyOn(workspaceConfigService, 'setWorkspaceRuleWeights').mockResolvedValue()
 
     const app = createTestApp()
@@ -98,6 +108,32 @@ describe('config route workspace access', () => {
       headers: {
         'Content-Type': 'application/json',
         'X-Workspace-Slug': 'hr',
+      },
+      body: JSON.stringify({
+        roleMatch: {
+          screener: { passThreshold: 60 },
+        },
+      }),
+    })
+
+    expect(response.status).toBe(401)
+    expect(await response.json()).toEqual({
+      success: false,
+      error: 'Authentication required',
+    })
+    expect(setRuleWeightsSpy).not.toHaveBeenCalled()
+  })
+
+  it('blocks workspace users from updating workspace config', async () => {
+    const auth = createAuthHeaders({ workspaceSlug: 'hr', role: 'user' })
+    const setRuleWeightsSpy = vi.spyOn(workspaceConfigService, 'setWorkspaceRuleWeights').mockResolvedValue()
+
+    const app = createTestApp(auth.storage)
+    const response = await app.request('/api/config/rule-weights', {
+      method: 'PUT',
+      headers: {
+        ...auth.headers,
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         roleMatch: {
@@ -115,6 +151,7 @@ describe('config route workspace access', () => {
   })
 
   it('allows dev admin updates and persists them to the dev workspace', async () => {
+    const auth = createAuthHeaders({ workspaceSlug: 'dev', role: 'admin' })
     const setRuleWeightsSpy = vi.spyOn(workspaceConfigService, 'setWorkspaceRuleWeights').mockResolvedValue()
     const getRuleWeightsSpy = vi.spyOn(workspaceConfigService, 'getRuleWeights').mockResolvedValue({
       roleMatch: {
@@ -122,12 +159,12 @@ describe('config route workspace access', () => {
       },
     } as never)
 
-    const app = createTestApp()
+    const app = createTestApp(auth.storage)
     const response = await app.request('/api/config/rule-weights', {
       method: 'PUT',
       headers: {
+        ...auth.headers,
         'Content-Type': 'application/json',
-        'X-Workspace-Slug': 'dev',
       },
       body: JSON.stringify({
         roleMatch: {
@@ -153,6 +190,38 @@ describe('config route workspace access', () => {
     })
   })
 
+  it('allows hr workspace admins to update hr workspace config', async () => {
+    const auth = createAuthHeaders({ workspaceSlug: 'hr', role: 'admin' })
+    const setRuleWeightsSpy = vi.spyOn(workspaceConfigService, 'setWorkspaceRuleWeights').mockResolvedValue()
+    const getRuleWeightsSpy = vi.spyOn(workspaceConfigService, 'getRuleWeights').mockResolvedValue({
+      roleMatch: {
+        screener: { passThreshold: 68 },
+      },
+    } as never)
+
+    const app = createTestApp(auth.storage)
+    const response = await app.request('/api/config/rule-weights', {
+      method: 'PUT',
+      headers: {
+        ...auth.headers,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        roleMatch: {
+          screener: { passThreshold: 68 },
+        },
+      }),
+    })
+
+    expect(response.status).toBe(200)
+    expect(setRuleWeightsSpy).toHaveBeenCalledWith('hr', {
+      roleMatch: {
+        screener: { passThreshold: 68 },
+      },
+    })
+    expect(getRuleWeightsSpy).toHaveBeenCalledWith('hr')
+  })
+
   it('allows dev admin updates for the resume field usage policy', async () => {
     const setPolicySpy = vi.spyOn(workspaceConfigService, 'setWorkspaceResumeFieldUsagePolicy').mockResolvedValue()
     const getPolicySpy = vi.spyOn(workspaceConfigService, 'getResumeFieldUsagePolicy').mockResolvedValue({
@@ -170,12 +239,13 @@ describe('config route workspace access', () => {
       },
     })
 
-    const app = createTestApp()
+    const auth = createAuthHeaders({ workspaceSlug: 'dev', role: 'admin' })
+    const app = createTestApp(auth.storage)
     const response = await app.request('/api/config/resume-field-usage-policy', {
       method: 'PUT',
       headers: {
+        ...auth.headers,
         'Content-Type': 'application/json',
-        'X-Workspace-Slug': 'dev',
       },
       body: JSON.stringify({
         fields: {
@@ -620,12 +690,13 @@ describe('config route workspace access', () => {
     } as never)
     const setWorkspaceCustomKeywordsSpy = vi.spyOn(workspaceConfigService, 'setWorkspaceCustomKeywords').mockResolvedValue()
 
-    const app = createTestApp()
+    const auth = createAuthHeaders({ workspaceSlug: 'dev', role: 'admin' })
+    const app = createTestApp(auth.storage)
     const response = await app.request('/api/config/custom-keywords/seed-role-sales', {
       method: 'PUT',
       headers: {
+        ...auth.headers,
         'Content-Type': 'application/json',
-        'X-Workspace-Slug': 'dev',
       },
       body: JSON.stringify({
         id: 'seed-role-sales',
@@ -711,12 +782,11 @@ describe('config route workspace access', () => {
     } as never)
     const setWorkspaceCustomKeywordsSpy = vi.spyOn(workspaceConfigService, 'setWorkspaceCustomKeywords').mockResolvedValue()
 
-    const app = createTestApp()
+    const auth = createAuthHeaders({ workspaceSlug: 'dev', role: 'admin' })
+    const app = createTestApp(auth.storage)
     const response = await app.request('/api/config/custom-keywords/workflow-seeds/seek-my-cnc-sales', {
       method: 'DELETE',
-      headers: {
-        'X-Workspace-Slug': 'dev',
-      },
+      headers: auth.headers,
     })
 
     expect(response.status).toBe(200)

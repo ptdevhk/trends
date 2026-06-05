@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { createApp } from '../app'
+import { resetResumeScreeningDb } from '../services/database'
+import { createAuthHeaders } from './test-auth-helpers'
 
 type ConvexCall = {
   type: 'query' | 'mutation'
@@ -56,6 +58,7 @@ function convexSuccess(value: unknown): Response {
 describe('blocks route', () => {
   afterEach(() => {
     vi.restoreAllMocks()
+    resetResumeScreeningDb()
   })
 
   it('respects workspace isolation via X-Workspace-Slug on list', async () => {
@@ -85,7 +88,43 @@ describe('blocks route', () => {
     expect(calls[1]?.args.workspaceSlug).toBe('dev')
   })
 
-  it('passes hr workspace slug through bulk block requests', async () => {
+  it('rejects block mutations without a session', async () => {
+    const calls: ConvexCall[] = []
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      calls.push(parseConvexCall(input, init))
+      return convexSuccess(null)
+    })
+
+    const app = createApp()
+    const postResponse = await app.request('/api/blocks', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Workspace-Slug': 'hr',
+      },
+      body: JSON.stringify({ identityKey: 'resume-1' }),
+    })
+    const patchResponse = await app.request('/api/blocks', {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Workspace-Slug': 'hr',
+      },
+      body: JSON.stringify({ identityKey: 'resume-1', reason: 'duplicate' }),
+    })
+    const deleteResponse = await app.request('/api/blocks?identityKey=resume-1', {
+      method: 'DELETE',
+      headers: { 'X-Workspace-Slug': 'hr' },
+    })
+
+    expect(postResponse.status).toBe(401)
+    expect(patchResponse.status).toBe(401)
+    expect(deleteResponse.status).toBe(401)
+    expect(calls).toHaveLength(0)
+  })
+
+  it('passes hr workspace slug and authenticated actor through bulk block requests', async () => {
+    const auth = createAuthHeaders({ workspaceSlug: 'hr', role: 'user' })
     const calls: ConvexCall[] = []
 
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
@@ -99,17 +138,17 @@ describe('blocks route', () => {
       throw new Error(`Unexpected convex path: ${call.pathName}`)
     })
 
-    const app = createApp()
+    const app = createApp({ authStorage: auth.storage })
     const response = await app.request('/api/blocks', {
       method: 'POST',
       headers: {
+        ...auth.headers,
         'Content-Type': 'application/json',
-        'X-Workspace-Slug': 'hr',
       },
       body: JSON.stringify({
         identityKeys: ['resume-1', 'resume-2', 'resume-1'],
         reason: 'duplicate applicants',
-        blockedBy: 'hr-user',
+        blockedBy: 'body-user',
       }),
     })
 
@@ -130,12 +169,35 @@ describe('blocks route', () => {
         workspaceSlug: 'hr',
         identityKeys: ['resume-1', 'resume-2'],
         reason: 'duplicate applicants',
-        blockedBy: 'hr-user',
+        blockedBy: auth.userId,
       },
     })
   })
 
-  it('uses the default dev workspace when unblocking without a header', async () => {
+  it('rejects authenticated users outside the selected workspace', async () => {
+    const auth = createAuthHeaders({ workspaceSlug: 'hr', requestWorkspaceSlug: 'dev', role: 'user' })
+    const calls: ConvexCall[] = []
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      calls.push(parseConvexCall(input, init))
+      return convexSuccess(null)
+    })
+
+    const app = createApp({ authStorage: auth.storage })
+    const response = await app.request('/api/blocks', {
+      method: 'POST',
+      headers: {
+        ...auth.headers,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ identityKey: 'resume-1' }),
+    })
+
+    expect(response.status).toBe(403)
+    expect(calls).toHaveLength(0)
+  })
+
+  it('uses the default dev workspace when unblocking with dev auth', async () => {
+    const auth = createAuthHeaders({ workspaceSlug: 'dev', role: 'user' })
     const calls: ConvexCall[] = []
 
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
@@ -149,9 +211,10 @@ describe('blocks route', () => {
       throw new Error(`Unexpected convex path: ${call.pathName}`)
     })
 
-    const app = createApp()
+    const app = createApp({ authStorage: auth.storage })
     const response = await app.request('/api/blocks?identityKey=resume-7', {
       method: 'DELETE',
+      headers: auth.headers,
     })
 
     expect(response.status).toBe(200)

@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import jobDescriptionsRoutes from "./job-descriptions";
 import { workspaceMiddleware } from "../middleware/workspace";
+import { createAuthContext } from "./test-auth-helpers";
 
 const DEFAULT_TEST_MODEL = "openai/gpt-4o-mini";
 
@@ -21,6 +22,10 @@ vi.mock("../services/jd-keyword-extraction-service.js", () => ({
 function createTestApp() {
   const app = new OpenAPIHono()
   app.use("*", workspaceMiddleware)
+  app.use("*", async (c, next) => {
+    c.set("auth", createAuthContext({ workspaceSlug: "dev", role: "admin" }))
+    await next()
+  })
   app.route("/", jobDescriptionsRoutes)
   return app
 }

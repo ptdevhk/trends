@@ -60,7 +60,7 @@ import { formatIsoOffsetInTimezone } from "../services/timezone.js";
 import { workspaceConfigService } from "../services/workspace-config-service.js";
 import { BrandDisplayResolver } from "../services/brand-display-resolver.js";
 import { logger } from "../services/logger.js";
-import { requireAdmin } from "../middleware/workspace.js";
+import { requireAdmin } from "../middleware/auth.js";
 
 import { isRecord } from "@trends/shared";
 import type { ResumeItem } from "../types/resume.js";

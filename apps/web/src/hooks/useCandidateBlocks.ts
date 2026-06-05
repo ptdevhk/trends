@@ -41,7 +41,7 @@ export function useCandidateBlocks(enabled: boolean = true) {
   }, [enabled])
 
   const blockCandidates = useCallback(
-    async (identityKeys: string[], reason?: string, blockedBy?: string) => {
+    async (identityKeys: string[], reason?: string) => {
       const normalized = Array.from(new Set(identityKeys.map((item) => item.trim()).filter((item) => item.length > 0)))
       if (normalized.length === 0) {
         return false
@@ -51,7 +51,6 @@ export function useCandidateBlocks(enabled: boolean = true) {
         body: {
           identityKeys: normalized,
           reason,
-          blockedBy,
         },
       })
 

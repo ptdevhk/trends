@@ -4,9 +4,23 @@
  * Uses edge-runtime environment (configured via environmentMatchGlobs in root vitest.config.ts).
  */
 import { createTest } from "./test-helpers.js";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { api } from "../convex/_generated/api.js";
 
+const WRITE_SECRET = "test-secret";
+const originalWriteSecret = process.env.CONVEX_WRITE_SECRET;
+
+beforeEach(() => {
+  process.env.CONVEX_WRITE_SECRET = WRITE_SECRET;
+});
+
+afterEach(() => {
+  if (originalWriteSecret === undefined) {
+    delete process.env.CONVEX_WRITE_SECRET;
+    return;
+  }
+  process.env.CONVEX_WRITE_SECRET = originalWriteSecret;
+});
 
 describe("candidate_blocks (convex-test)", () => {
   describe("list", () => {
@@ -94,6 +108,7 @@ describe("candidate_blocks (convex-test)", () => {
         workspaceSlug: "ws1",
         identityKey: "user-new",
         reason: "fraud",
+        writeSecret: WRITE_SECRET,
       });
 
       expect(id).toBeDefined();
@@ -113,6 +128,7 @@ describe("candidate_blocks (convex-test)", () => {
         workspaceSlug: "ws1",
         identityKey: "user-dup",
         reason: "first",
+        writeSecret: WRITE_SECRET,
       });
 
       const id2 = await t.mutation(api.candidate_blocks.upsert, {
@@ -120,6 +136,7 @@ describe("candidate_blocks (convex-test)", () => {
         identityKey: "user-dup",
         reason: "second",
         blockedBy: "admin",
+        writeSecret: WRITE_SECRET,
       });
 
       expect(id2).toBe(id1);
@@ -137,6 +154,7 @@ describe("candidate_blocks (convex-test)", () => {
       await expect(
         t.mutation(api.candidate_blocks.upsert, {
           identityKey: "  ",
+          writeSecret: WRITE_SECRET,
         }),
       ).rejects.toThrow("identityKey is required");
     });
@@ -150,12 +168,14 @@ describe("candidate_blocks (convex-test)", () => {
         workspaceSlug: "ws1",
         identityKey: "user-upd",
         reason: "old",
+        writeSecret: WRITE_SECRET,
       });
 
       const updated = await t.mutation(api.candidate_blocks.updateReason, {
         workspaceSlug: "ws1",
         identityKey: "user-upd",
         reason: "new reason",
+        writeSecret: WRITE_SECRET,
       });
       expect(updated).toBe(true);
 
@@ -172,6 +192,7 @@ describe("candidate_blocks (convex-test)", () => {
         workspaceSlug: "ws1",
         identityKey: "nonexistent",
         reason: "test",
+        writeSecret: WRITE_SECRET,
       });
       expect(updated).toBe(false);
     });
@@ -185,6 +206,7 @@ describe("candidate_blocks (convex-test)", () => {
         workspaceSlug: "ws1",
         identityKeys: ["user-a", "user-b", "user-c"],
         reason: "bulk",
+        writeSecret: WRITE_SECRET,
       });
 
       expect(result.total).toBe(3);
@@ -199,6 +221,7 @@ describe("candidate_blocks (convex-test)", () => {
         workspaceSlug: "ws1",
         identityKeys: ["user-x", "user-x", "user-y"],
         reason: "dedup",
+        writeSecret: WRITE_SECRET,
       });
 
       expect(result.total).toBe(2);
@@ -212,12 +235,14 @@ describe("candidate_blocks (convex-test)", () => {
         workspaceSlug: "ws1",
         identityKey: "user-exist",
         reason: "original",
+        writeSecret: WRITE_SECRET,
       });
 
       const result = await t.mutation(api.candidate_blocks.bulkUpsert, {
         workspaceSlug: "ws1",
         identityKeys: ["user-exist", "user-new"],
         reason: "bulk",
+        writeSecret: WRITE_SECRET,
       });
 
       expect(result.total).toBe(2);
@@ -232,6 +257,7 @@ describe("candidate_blocks (convex-test)", () => {
         workspaceSlug: "ws1",
         identityKeys: ["user-ok", "  ", ""],
         reason: "filter",
+        writeSecret: WRITE_SECRET,
       });
 
       expect(result.total).toBe(1);
@@ -245,11 +271,13 @@ describe("candidate_blocks (convex-test)", () => {
       await t.mutation(api.candidate_blocks.upsert, {
         workspaceSlug: "ws1",
         identityKey: "user-del",
+        writeSecret: WRITE_SECRET,
       });
 
       const removed = await t.mutation(api.candidate_blocks.remove, {
         workspaceSlug: "ws1",
         identityKey: "user-del",
+        writeSecret: WRITE_SECRET,
       });
       expect(removed).toBe(true);
 
@@ -265,6 +293,7 @@ describe("candidate_blocks (convex-test)", () => {
       const removed = await t.mutation(api.candidate_blocks.remove, {
         workspaceSlug: "ws1",
         identityKey: "nonexistent",
+        writeSecret: WRITE_SECRET,
       });
       expect(removed).toBe(false);
     });
@@ -274,6 +303,7 @@ describe("candidate_blocks (convex-test)", () => {
       const removed = await t.mutation(api.candidate_blocks.remove, {
         workspaceSlug: "ws1",
         identityKey: "  ",
+        writeSecret: WRITE_SECRET,
       });
       expect(removed).toBe(false);
     });

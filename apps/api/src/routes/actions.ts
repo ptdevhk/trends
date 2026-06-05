@@ -2,9 +2,17 @@ import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 
 import { config } from "../services/config.js";
 import { ActionStorage } from "../services/action-storage.js";
+import { getAuthenticatedActorId, requireWorkspaceUser } from "../middleware/auth.js";
 
 const app = new OpenAPIHono();
 const actionStorage = new ActionStorage(config.projectRoot);
+
+app.use("/api/actions", async (c, next) => {
+  if (c.req.method === "POST") {
+    return requireWorkspaceUser(c, next);
+  }
+  await next();
+});
 
 const ActionTypeSchema = z.enum([
   "star",
@@ -84,7 +92,7 @@ const createActionRoute = createRoute({
 app.openapi(createActionRoute, (c) => {
   const body = c.req.valid("json");
   const action = actionStorage.saveAction({
-    userId: body.userId,
+    userId: getAuthenticatedActorId(c),
     sessionId: body.sessionId,
     resumeId: body.resumeId,
     actionType: body.actionType,

@@ -4,9 +4,23 @@
  * Covers: list, listForBackup, getByIdentity, upsert (insert + update + history).
  */
 import { createTest } from "./test-helpers.js";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { api } from "../convex/_generated/api.js";
 
+const WRITE_SECRET = "test-secret";
+const originalWriteSecret = process.env.CONVEX_WRITE_SECRET;
+
+beforeEach(() => {
+  process.env.CONVEX_WRITE_SECRET = WRITE_SECRET;
+});
+
+afterEach(() => {
+  if (originalWriteSecret === undefined) {
+    delete process.env.CONVEX_WRITE_SECRET;
+    return;
+  }
+  process.env.CONVEX_WRITE_SECRET = originalWriteSecret;
+});
 
 // ---------------------------------------------------------------------------
 // upsert + getByIdentity
@@ -21,6 +35,7 @@ describe("candidate_status: upsert + getByIdentity", () => {
       status: "new",
       notes: "Initial entry",
       updatedBy: "recruiter@example.com",
+      writeSecret: WRITE_SECRET,
     });
 
     expect(id).toBeDefined();
@@ -43,14 +58,15 @@ describe("candidate_status: upsert + getByIdentity", () => {
     await t.mutation(api.candidate_status.upsert, {
       identityKey: "candidate-2",
       status: "new",
+      writeSecret: WRITE_SECRET,
     });
 
-    const now = Date.now();
     await t.mutation(api.candidate_status.upsert, {
       identityKey: "candidate-2",
       status: "contacted",
       notes: "Reached out via email",
       updatedBy: "recruiter@example.com",
+      writeSecret: WRITE_SECRET,
     });
 
     const result = await t.query(api.candidate_status.getByIdentity, {
@@ -70,12 +86,14 @@ describe("candidate_status: upsert + getByIdentity", () => {
     await t.mutation(api.candidate_status.upsert, {
       identityKey: "candidate-3",
       status: "new",
+      writeSecret: WRITE_SECRET,
     });
 
     await t.mutation(api.candidate_status.upsert, {
       identityKey: "candidate-3",
       status: "new",
       notes: "Updated notes only",
+      writeSecret: WRITE_SECRET,
     });
 
     const result = await t.query(api.candidate_status.getByIdentity, {
@@ -105,6 +123,7 @@ describe("candidate_status: upsert + getByIdentity", () => {
       t.mutation(api.candidate_status.upsert, {
         identityKey: "  ",
         status: "new",
+        writeSecret: WRITE_SECRET,
       }),
     ).rejects.toThrow("identityKey is required");
   });
@@ -116,6 +135,7 @@ describe("candidate_status: upsert + getByIdentity", () => {
       workspaceSlug: "",
       identityKey: "candidate-empty-ws",
       status: "new",
+      writeSecret: WRITE_SECRET,
     });
 
     const result = await t.query(api.candidate_status.getByIdentity, {
@@ -160,16 +180,19 @@ describe("candidate_status: list + listForBackup", () => {
       workspaceSlug: "ws-list",
       identityKey: "c-1",
       status: "new",
+      writeSecret: WRITE_SECRET,
     });
     await t.mutation(api.candidate_status.upsert, {
       workspaceSlug: "ws-list",
       identityKey: "c-2",
       status: "contacted",
+      writeSecret: WRITE_SECRET,
     });
     await t.mutation(api.candidate_status.upsert, {
       workspaceSlug: "ws-other",
       identityKey: "c-3",
       status: "interviewing",
+      writeSecret: WRITE_SECRET,
     });
 
     const list = await t.query(api.candidate_status.list, {
@@ -190,6 +213,7 @@ describe("candidate_status: list + listForBackup", () => {
       status: "interviewed_pass",
       notes: "Strong candidate",
       updatedBy: "reviewer",
+      writeSecret: WRITE_SECRET,
     });
 
     const rows = await t.query(api.candidate_status.listForBackup, {

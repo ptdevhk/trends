@@ -5,12 +5,19 @@ import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 
 
 import { callConvexQuery, callConvexMutation } from "../services/convex-utils.js";
+import { config } from "../services/config.js";
 import { workspaceConfigService } from "../services/workspace-config-service.js";
 import { logger } from "../services/logger.js";
-import { requireAdmin } from "../middleware/workspace.js";
+import { getAuthenticatedActorId, requireWorkspaceUser } from "../middleware/auth.js";
 
 const app = new OpenAPIHono();
-app.use("/api/candidate-status", requireAdmin);
+
+app.use("/api/candidate-status", async (c, next) => {
+  if (c.req.method === "POST") {
+    return requireWorkspaceUser(c, next);
+  }
+  await next();
+});
 
 
 const CandidateStatusEnum = z.enum([
@@ -144,7 +151,8 @@ app.openapi(updateRoute, async (c) => {
     identityKey: body.identityKey,
     status: body.status,
     notes: body.notes,
-    updatedBy: body.updatedBy,
+    updatedBy: getAuthenticatedActorId(c),
+    writeSecret: config.auth.convexWriteSecret,
   });
 
   const item = await callConvexQuery( "candidate_status:getByIdentity", {

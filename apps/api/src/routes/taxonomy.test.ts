@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import taxonomyRoutes from "./taxonomy";
 import { workspaceMiddleware } from "../middleware/workspace";
 import { logger } from "../services/logger";
+import { createAuthContext } from "./test-auth-helpers";
 
 const {
   resolveConvexUrlMock,
@@ -18,6 +19,10 @@ vi.mock("../services/resume-import-service.js", () => ({
 function createTestApp() {
   const app = new OpenAPIHono()
   app.use("*", workspaceMiddleware)
+  app.use("*", async (c, next) => {
+    c.set("auth", createAuthContext({ workspaceSlug: "dev", role: "admin" }))
+    await next()
+  })
   app.route("/", taxonomyRoutes)
   return app
 }
