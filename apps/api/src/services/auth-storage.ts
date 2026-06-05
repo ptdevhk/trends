@@ -23,6 +23,21 @@ type UserRow = {
   status?: unknown;
 };
 
+export type StoredAuthSession = {
+  id: string;
+  userId: string;
+  csrfTokenHash: string;
+  expiresAt: string;
+};
+
+type SessionRow = {
+  id?: unknown;
+  user_id?: unknown;
+  csrf_token_hash?: unknown;
+  expires_at?: unknown;
+  revoked_at?: unknown;
+};
+
 function toIsoNow(): string {
   return formatIsoOffsetInTimezone(new Date(), config.timezone);
 }
@@ -165,5 +180,71 @@ export class AuthStorage {
       workspaceSlug: row.workspace_slug,
       role: row.role,
     }));
+  }
+
+  createSession(input: {
+    userId: string;
+    tokenHash: string;
+    csrfTokenHash: string;
+    expiresAt: string;
+  }): StoredAuthSession {
+    const id = randomUUID();
+    const now = toIsoNow();
+    this.db.prepare(`
+      INSERT INTO auth_sessions (
+        id,
+        user_id,
+        token_hash,
+        csrf_token_hash,
+        created_at,
+        expires_at,
+        revoked_at
+      ) VALUES (?, ?, ?, ?, ?, ?, NULL)
+    `).run(id, input.userId, input.tokenHash, input.csrfTokenHash, now, input.expiresAt);
+
+    return {
+      id,
+      userId: input.userId,
+      csrfTokenHash: input.csrfTokenHash,
+      expiresAt: input.expiresAt,
+    };
+  }
+
+  findSessionByTokenHash(tokenHash: string): StoredAuthSession | null {
+    const row = this.db.prepare(`
+      SELECT id, user_id, csrf_token_hash, expires_at, revoked_at
+      FROM auth_sessions
+      WHERE token_hash = ?
+    `).get(tokenHash) as SessionRow | undefined;
+
+    if (
+      !row
+      || typeof row.id !== "string"
+      || typeof row.user_id !== "string"
+      || typeof row.csrf_token_hash !== "string"
+      || typeof row.expires_at !== "string"
+      || row.revoked_at
+    ) {
+      return null;
+    }
+
+    if (Date.parse(row.expires_at) <= Date.now()) {
+      return null;
+    }
+
+    return {
+      id: row.id,
+      userId: row.user_id,
+      csrfTokenHash: row.csrf_token_hash,
+      expiresAt: row.expires_at,
+    };
+  }
+
+  revokeSessionByTokenHash(tokenHash: string): void {
+    this.db.prepare(`
+      UPDATE auth_sessions
+      SET revoked_at = ?
+      WHERE token_hash = ? AND revoked_at IS NULL
+    `).run(toIsoNow(), tokenHash);
   }
 }
