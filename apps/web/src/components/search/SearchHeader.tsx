@@ -10,6 +10,7 @@ import type { ResumeSearchRecentItem, SearchSortValue } from '@/components/searc
 type SearchHeaderProps = {
   activeQuery?: string
   activeResultCount: number
+  activeResultCountIsLowerBound?: boolean
   jobDescriptionId?: string
   loading?: boolean
   location?: string
@@ -27,6 +28,7 @@ type SearchHeaderProps = {
 export function SearchHeader({
   activeQuery,
   activeResultCount,
+  activeResultCountIsLowerBound = false,
   jobDescriptionId,
   loading = false,
   location,
@@ -41,14 +43,15 @@ export function SearchHeader({
   onSortChange,
 }: SearchHeaderProps) {
   const { t } = useTranslation()
+  const resultCountLabel = `${activeResultCount.toLocaleString()}${activeResultCountIsLowerBound ? '+' : ''}`
   const resultsLabel = activeQuery
     ? t('resumes.searchPage.header.resultsWithQuery', {
-      count: activeResultCount.toLocaleString(),
+      count: resultCountLabel,
       query: activeQuery,
       defaultValue: '为"{{query}}"找到 {{count}} 条结果',
     })
     : t('resumes.searchPage.header.results', {
-      count: activeResultCount.toLocaleString(),
+      count: resultCountLabel,
       defaultValue: '找到 {{count}} 条结果',
     })
   const sortLabel = t('resumes.searchPage.header.sort', {

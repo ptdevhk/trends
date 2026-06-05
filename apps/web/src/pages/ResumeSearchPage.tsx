@@ -333,6 +333,7 @@ export function ResumeSearchPage() {
             <SearchHeader
               activeQuery={activeQuery}
               activeResultCount={filteredResults.length}
+              activeResultCountIsLowerBound={hasMore}
               jobDescriptionId={parsedState.jobDescriptionId}
               loading={loading}
               location={parsedState.location}

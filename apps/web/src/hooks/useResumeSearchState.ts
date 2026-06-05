@@ -466,11 +466,16 @@ function buildSearchExportEntry(
 }
 
 const DEFAULT_STATUS_WHEN_EMPTY: CandidateStatus = 'new'
+const PRIMARY_STATUS_BUCKETS = new Set<CandidateStatus>(SERVER_STATUS_FACET_VALUES)
 
 const ACTION_TO_STATUS: Partial<Record<CandidateActionType, CandidateStatus>> = {
   shortlist: 'shortlisted',
   reject: 'rejected',
   star: 'new',
+}
+
+function getPrimaryStatusBucket(status: CandidateStatus): typeof SERVER_STATUS_FACET_VALUES[number] {
+  return status === 'shortlisted' || status === 'rejected' ? status : 'new'
 }
 
 function matchesBlockVisibility(
@@ -554,6 +559,7 @@ function matchesLocalFilters(
   const education = item.resume.education?.trim().toLowerCase() ?? ''
   const experienceLevel = normalizeExperienceLevel(item.resume.ingestData?.experienceLevel)
   const minScore = state.filters.minMatchScore
+  const statusBucket = getPrimaryStatusBucket(item.status)
 
   if (!matchesBlockVisibility(item, state.filters)) {
     return false
@@ -617,10 +623,15 @@ function matchesLocalFilters(
 
   // Default: show only new (untriaged) resumes unless user explicitly filters for a status
   if (normalizedStatuses.length > 0) {
-    if (!normalizedStatuses.includes(item.status)) {
+    const matchesSelectedStatus = normalizedStatuses.some((status) =>
+      PRIMARY_STATUS_BUCKETS.has(status)
+        ? getPrimaryStatusBucket(status) === statusBucket
+        : item.status === status,
+    )
+    if (!matchesSelectedStatus) {
       return false
     }
-  } else if (item.status !== DEFAULT_STATUS_WHEN_EMPTY) {
+  } else if (statusBucket !== DEFAULT_STATUS_WHEN_EMPTY) {
     return false
   }
 
