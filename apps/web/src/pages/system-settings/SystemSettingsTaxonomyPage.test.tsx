@@ -19,7 +19,11 @@ const tMock = (key: string, options?: string | { defaultValue?: string; [key: st
     return options
   }
 
-  return options?.defaultValue ?? key
+  const defaultValue = options?.defaultValue ?? key
+  return defaultValue.replace(/\{\{(\w+)\}\}/g, (_: string, token: string) => {
+    const value = options?.[token]
+    return value === undefined || value === null ? '' : String(value)
+  })
 }
 
 vi.mock('react-i18next', () => ({

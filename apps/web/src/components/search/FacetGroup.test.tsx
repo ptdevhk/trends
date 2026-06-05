@@ -39,7 +39,7 @@ describe('FacetGroup', () => {
     )
 
     expect(screen.getByText('resumes.searchPage.facets.emptyLabel')).toBeInTheDocument()
-    expect(screen.queryByText(/收起/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Show less/i)).not.toBeInTheDocument()
   })
 
   it('uses case-insensitive selection and expands hidden facet values', async () => {
@@ -63,12 +63,12 @@ describe('FacetGroup', () => {
     expect(screen.getByText('1')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Machine Tools/i })).toHaveClass('bg-slate-900')
     expect(screen.queryByRole('button', { name: /Robotics/i })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /展开剩余 1 项/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Show 1 more/i })).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: /展开剩余 1 项/i }))
+    await user.click(screen.getByRole('button', { name: /Show 1 more/i }))
 
     expect(screen.getByRole('button', { name: /Robotics/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /收起/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Show less/i })).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: /Automation/i }))
 
@@ -92,13 +92,13 @@ describe('FacetGroup', () => {
       />
     )
 
-    await user.click(screen.getByRole('button', { name: /展开剩余 1 项/i }))
+    await user.click(screen.getByRole('button', { name: /Show 1 more/i }))
     expect(screen.getByRole('button', { name: /Robotics/i })).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: /收起/i }))
+    await user.click(screen.getByRole('button', { name: /Show less/i }))
 
     expect(screen.queryByRole('button', { name: /Robotics/i })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /展开剩余 1 项/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Show 1 more/i })).toBeInTheDocument()
   })
 
   it('omits the show-more control when the visible limit already covers every value', () => {
