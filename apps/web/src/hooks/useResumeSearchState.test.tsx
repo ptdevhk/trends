@@ -1926,6 +1926,32 @@ describe('useResumeSearchState', () => {
     expect(result.current.filteredResults.map((item) => item.key)).toEqual(['resume-1'])
   })
 
+  it('treats pipeline-only statuses as part of the new triage bucket', () => {
+    Object.assign(parsedStateMock, createParsedState({
+      query: 'CNC 销售',
+      keywords: ['CNC', '销售'],
+    }))
+
+    resumesMock.push(
+      createResume(1, { primaryRuleScore: 95 }),
+      createResume(2, { primaryRuleScore: 90 }),
+      createResume(3, { primaryRuleScore: 85 }),
+      createResume(4, { primaryRuleScore: 80 }),
+    )
+    statusByIdentityMock['identity-1'] = createStatusRecord('identity-1', 'new')
+    statusByIdentityMock['identity-2'] = createStatusRecord('identity-2', 'contacted')
+    statusByIdentityMock['identity-3'] = createStatusRecord('identity-3', 'interviewing')
+    statusByIdentityMock['identity-4'] = createStatusRecord('identity-4', 'rejected')
+
+    const { result } = renderHook(() => useResumeSearchState())
+
+    expect(result.current.filteredResults.map((item) => item.key)).toEqual([
+      'resume-1',
+      'resume-2',
+      'resume-3',
+    ])
+  })
+
   it('hides blocked new resumes from results and status facets by default', () => {
     Object.assign(parsedStateMock, createParsedState({
       query: 'CNC 销售',

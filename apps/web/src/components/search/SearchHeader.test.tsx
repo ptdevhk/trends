@@ -136,6 +136,27 @@ describe('SearchHeader', () => {
     expect(screen.getAllByText('找到 3 条结果')[0]).toBeInTheDocument()
   })
 
+  it('marks the result count as a lower bound when more pages may exist', () => {
+    render(
+      <SearchHeader
+        activeQuery="machine tools"
+        activeResultCount={1250}
+        activeResultCountIsLowerBound
+        queryInput="machine tools"
+        recentSearches={[]}
+        sortValue="score"
+        onApplyRecentSearch={vi.fn()}
+        onApplyExtractedKeywords={vi.fn()}
+        onChangeQuery={vi.fn()}
+        onClearQuery={vi.fn()}
+        onSubmitQuery={vi.fn()}
+        onSortChange={vi.fn()}
+      />
+    )
+
+    expect(screen.getAllByText('为"machine tools"找到 1,250+ 条结果')[0]).toBeInTheDocument()
+  })
+
   it('forwards header search-bar callbacks to the parent handlers', async () => {
     const user = userEvent.setup()
     const onApplyExtractedKeywords = vi.fn()

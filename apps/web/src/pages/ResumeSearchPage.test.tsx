@@ -168,6 +168,7 @@ vi.mock('@/components/search/SearchHeader', () => ({
   SearchHeader: ({
     activeQuery,
     activeResultCount,
+    activeResultCountIsLowerBound,
     exportFormat,
     exportingResults,
     onApplyExtractedKeywords,
@@ -176,6 +177,7 @@ vi.mock('@/components/search/SearchHeader', () => ({
   }: {
     activeQuery?: string
     activeResultCount: number
+    activeResultCountIsLowerBound?: boolean
     exportFormat?: string
     exportingResults?: boolean
     onApplyExtractedKeywords: (keywords: string[]) => void
@@ -184,7 +186,7 @@ vi.mock('@/components/search/SearchHeader', () => ({
   }) => (
     <div>
       <div>
-        Header {activeQuery} {activeResultCount} export:{exportFormat} exporting:
+        Header {activeQuery} {activeResultCount}{activeResultCountIsLowerBound ? '+' : ''} export:{exportFormat} exporting:
         {String(exportingResults)}
       </div>
       <button
@@ -822,6 +824,21 @@ describe('ResumeSearchPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Load more results' }))
     expect(state.loadMore).toHaveBeenCalledTimes(1)
+  })
+
+  it('marks the active result count as a lower bound when more search pages exist', () => {
+    useResumeSearchStateMock.mockReturnValue(createResumeSearchState({
+      activeQuery: 'machine tools',
+      filteredResults: [createResult(1), createResult(2)],
+      hasMore: true,
+      isLanding: false,
+      parsedState: createParsedState(),
+      queryInput: 'machine tools',
+    }))
+
+    render(<ResumeSearchPage />)
+
+    expect(screen.getByText(/Header machine tools 2\+/)).toBeInTheDocument()
   })
 
   it('hides the AI summary panel when the dedicated summary feature flag is off', () => {
