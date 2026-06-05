@@ -64,5 +64,8 @@ describe("workflow verifier repo entrypoints", () => {
     expect(migrationTestRunner).toContain('output/resume-backups|output/resume-backups/*');
     expect(migrationTestRunner).toContain('cp scripts/migration-test-verify.sh "$VERIFY_SCRIPT"');
     expect(migrationTestRunner).toContain('ORIGINAL_BRANCH=$(git branch --show-current');
+    expect(migrationTestRunner).toContain("clear_resumes_until_complete()");
+    expect(migrationTestRunner).toContain('"partial"[[:space:]]*:[[:space:]]*true');
+    expect(migrationTestRunner).toContain("clear-resumes returned partial:true");
   });
 });
