@@ -16,6 +16,7 @@ import type { ResumeExportFormat } from '@/types/resume'
 
 interface BulkActionBarProps {
     totalCount: number
+    totalCountIsLowerBound?: boolean
     selectedCount: number
     highScoreCount: number
     exportFormat?: ResumeExportFormat
@@ -38,6 +39,7 @@ interface BulkActionBarProps {
 
 export function BulkActionBar({
     totalCount,
+    totalCountIsLowerBound = false,
     selectedCount,
     highScoreCount,
     exportFormat = 'csv',
@@ -55,6 +57,7 @@ export function BulkActionBar({
 }: BulkActionBarProps) {
     const { t } = useTranslation()
     const [loading, setLoading] = useState<string | null>(null)
+    const totalCountLabel = `${totalCount}${totalCountIsLowerBound ? '+' : ''}`
 
     const handleAction = useCallback(async (action: 'shortlist' | 'reject' | 'block' | 'export') => {
         setLoading(action)
@@ -78,7 +81,7 @@ export function BulkActionBar({
                     {t('bulkActions.selected', '已选择')}:
                 </span>
                 <span className="font-medium">
-                    {selectedCount} / {totalCount}
+                    {selectedCount} / {totalCountLabel}
                 </span>
             </div>
 
