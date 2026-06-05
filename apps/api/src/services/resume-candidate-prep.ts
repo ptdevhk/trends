@@ -17,6 +17,7 @@ import {
   buildWorkHistoryEntryText,
   buildLatestWorkHistoryEvidence,
   selectLatestWorkHistory,
+  matchesResumeDigestFilters,
 } from "@trends/shared";
 import type { ResumeItem } from "../types/resume.js";
 import type { ResumeIndex } from "./resume-index.js";
@@ -127,6 +128,81 @@ export function parseConvexProvenance(value: unknown): ResumeSearchProvenance[] 
   });
 
   return provenance.length > 0 ? provenance : undefined;
+}
+
+function toNumberRecord(value: unknown): Record<string, number> | undefined {
+  if (!isRecord(value)) return undefined;
+  const result: Record<string, number> = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (typeof item === "number" && Number.isFinite(item)) {
+      result[key] = item;
+    }
+  }
+  return Object.keys(result).length > 0 ? result : undefined;
+}
+
+function toDigestFilterRecord(doc: Record<string, unknown>) {
+  const source = typeof doc.source === "string" ? doc.source : undefined;
+  const sourceKey = typeof doc.sourceKey === "string"
+    ? doc.sourceKey
+    : resolveResumeAnalysisSourceKey({ source });
+  return {
+    isArchived: typeof doc.isArchived === "boolean" ? doc.isArchived : undefined,
+    source,
+    sourceKey,
+    searchText: typeof doc.searchText === "string" ? doc.searchText : undefined,
+    age: toOptionalNumber(doc.age),
+    locationText: typeof doc.locationText === "string" ? doc.locationText : undefined,
+    educationLevel: typeof doc.educationLevel === "string" ? doc.educationLevel : undefined,
+    salaryMin: toOptionalNumber(doc.salaryMin),
+    salaryMax: toOptionalNumber(doc.salaryMax),
+    experienceYears: toOptionalNumber(doc.experienceYears),
+    roleTypes: toStringArray(doc.roleTypes),
+    roleYearsByType: toNumberRecord(doc.roleYearsByType),
+  };
+}
+
+type DigestFilterRecord = ReturnType<typeof toDigestFilterRecord>;
+
+function hasDigestRoleMetadata(digest: DigestFilterRecord): boolean {
+  return (digest.roleTypes?.length ?? 0) > 0
+    || Object.keys(digest.roleYearsByType ?? {}).length > 0;
+}
+
+function digestFiltersForAvailableFields(digest: DigestFilterRecord, filters: ResumeFilters | undefined): ResumeFilters | undefined {
+  if (!filters) return undefined;
+
+  const availableFilters: ResumeFilters = { ...filters };
+
+  if (filters.maxExperience !== undefined && digest.experienceYears === undefined) {
+    delete availableFilters.maxExperience;
+  }
+  if (filters.education?.length && !digest.educationLevel) {
+    delete availableFilters.education;
+  }
+  if ((filters.skills?.length || filters.requiredKeywords?.length)
+    && !(typeof digest.searchText === "string" && digest.searchText.length > 0)) {
+    delete availableFilters.skills;
+    delete availableFilters.requiredKeywords;
+  }
+  if (filters.locations?.length && !digest.locationText) {
+    delete availableFilters.locations;
+  }
+  if ((filters.minSalary !== undefined || filters.maxSalary !== undefined)
+    && digest.salaryMin === undefined
+    && digest.salaryMax === undefined) {
+    delete availableFilters.minSalary;
+    delete availableFilters.maxSalary;
+  }
+  if ((filters.roleFilterType || filters.minRoleYears !== undefined) && !hasDigestRoleMetadata(digest)) {
+    delete availableFilters.roleFilterType;
+    delete availableFilters.minRoleYears;
+  }
+  if (filters.sources?.length && !digest.sourceKey && !digest.source) {
+    delete availableFilters.sources;
+  }
+
+  return availableFilters;
 }
 
 export function collectBffAndModeProvenance(
@@ -546,16 +622,8 @@ export async function prepareConvexCandidates(params: {
           );
           if (!allGroupsMatch) continue;
 
-          // Basic filters that run on digest fields
-          if (filters) {
-            if (typeof filters.minAge === 'number' && typeof doc.age === 'number' && doc.age < filters.minAge) continue;
-            if (typeof filters.maxAge === 'number' && typeof doc.age === 'number' && doc.age > filters.maxAge) continue;
-            if (Array.isArray(filters.sources) && filters.sources.length > 0) {
-              const resumeSourceKey = (typeof doc.sourceKey === 'string' ? doc.sourceKey : undefined)
-                ?? resolveResumeAnalysisSourceKey({ source: typeof doc.source === 'string' ? doc.source : undefined });
-              if (!resumeSourceKey || !filters.sources.includes(resumeSourceKey)) continue;
-            }
-          }
+          const digest = toDigestFilterRecord(doc);
+          if (!matchesResumeDigestFilters(digest, digestFiltersForAvailableFields(digest, filters))) continue;
 
           const resumeId = toStringValue(doc.resumeId);
           if (resumeId) matchingIds.push(resumeId);
