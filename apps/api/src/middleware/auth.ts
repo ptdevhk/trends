@@ -20,16 +20,22 @@ type AuthMiddlewareOptions = {
 };
 
 export function createAuthMiddleware(options: AuthMiddlewareOptions = {}) {
-  const storage = options.storage ?? new AuthStorage(config.projectRoot);
-  const sessions = new AuthSessionService(storage, {
-    ttlSeconds: options.ttlSeconds ?? config.auth.sessionTtlSeconds,
-  });
+  let storage = options.storage;
+  let sessions: AuthSessionService | undefined;
   const sessionCookieName = options.sessionCookieName ?? config.auth.sessionCookieName;
   const csrfHeaderName = options.csrfHeaderName ?? "X-CSRF-Token";
 
+  function getSessions(): AuthSessionService {
+    storage ??= new AuthStorage(config.projectRoot);
+    sessions ??= new AuthSessionService(storage, {
+      ttlSeconds: options.ttlSeconds ?? config.auth.sessionTtlSeconds,
+    });
+    return sessions;
+  }
+
   const optionalAuth: MiddlewareHandler = async (c, next) => {
     const token = getCookie(c, sessionCookieName);
-    const auth = token ? sessions.resolveSession(token) : null;
+    const auth = token ? getSessions().resolveSession(token) : null;
     if (auth) {
       c.set("auth", auth);
     }
@@ -71,7 +77,7 @@ export function createAuthMiddleware(options: AuthMiddlewareOptions = {}) {
     }
 
     const csrf = c.req.header(csrfHeaderName);
-    if (!csrf || !sessions.verifyCsrf(token, csrf)) {
+    if (!csrf || !getSessions().verifyCsrf(token, csrf)) {
       return c.json({ success: false as const, error: "CSRF token required" }, 403);
     }
     await next();

@@ -124,12 +124,22 @@ async function createSessionResponse(
 
 export function createAuthRoutes(options: AuthRoutesOptions = {}) {
   const app = new OpenAPIHono();
-  const storage = options.storage ?? new AuthStorage(config.projectRoot);
-  const sessions = new AuthSessionService(storage, {
-    ttlSeconds: options.ttlSeconds ?? config.auth.sessionTtlSeconds,
-  });
+  let storage = options.storage;
+  let sessions: AuthSessionService | undefined;
   const oidcEnabled = options.oidcEnabled ?? config.auth.oidc.enabled;
   const oidcProvider = options.oidcProvider ?? new CasdoorOidcProvider(config.auth.oidc);
+
+  function getStorage(): AuthStorage {
+    storage ??= new AuthStorage(config.projectRoot);
+    return storage;
+  }
+
+  function getSessions(): AuthSessionService {
+    sessions ??= new AuthSessionService(getStorage(), {
+      ttlSeconds: options.ttlSeconds ?? config.auth.sessionTtlSeconds,
+    });
+    return sessions;
+  }
 
   const loginRoute = createRoute({
     method: "post",
@@ -166,15 +176,16 @@ export function createAuthRoutes(options: AuthRoutesOptions = {}) {
 
   app.openapi(loginRoute, async (c) => {
     const { username, password } = c.req.valid("json");
-    const identity = storage.findIdentity("local", username, "local");
-    const credential = identity ? storage.findPasswordCredential(identity.userId) : null;
-    const user = identity ? storage.findUser(identity.userId) : null;
+    const authStorage = getStorage();
+    const identity = authStorage.findIdentity("local", username, "local");
+    const credential = identity ? authStorage.findPasswordCredential(identity.userId) : null;
+    const user = identity ? authStorage.findUser(identity.userId) : null;
 
     if (!credential || !user || !(await verifyPassword(password, credential))) {
       return c.json({ success: false as const, error: "Invalid username or password" }, 401);
     }
 
-    return c.json(await createSessionResponse(user, storage, sessions, c), 200);
+    return c.json(await createSessionResponse(user, authStorage, getSessions(), c), 200);
   });
 
   const meRoute = createRoute({
@@ -234,7 +245,7 @@ export function createAuthRoutes(options: AuthRoutesOptions = {}) {
   app.openapi(logoutRoute, (c) => {
     const token = getCookie(c, config.auth.sessionCookieName);
     if (token) {
-      sessions.revokeSession(token);
+      getSessions().revokeSession(token);
     }
     clearSessionCookies(c);
     return c.json({ success: true as const }, 200);
@@ -288,12 +299,13 @@ export function createAuthRoutes(options: AuthRoutesOptions = {}) {
     }
 
     const { currentPassword, newPassword } = c.req.valid("json");
-    const credential = storage.findPasswordCredential(auth.user.id);
+    const authStorage = getStorage();
+    const credential = authStorage.findPasswordCredential(auth.user.id);
     if (!credential || !(await verifyPassword(currentPassword, credential))) {
       return c.json({ success: false as const, error: "Current password is incorrect" }, 403);
     }
 
-    storage.savePasswordCredential({
+    authStorage.savePasswordCredential({
       userId: auth.user.id,
       ...(await hashPassword(newPassword)),
       mustChangePassword: false,
@@ -331,7 +343,7 @@ export function createAuthRoutes(options: AuthRoutesOptions = {}) {
     const { redirectTo } = c.req.valid("query");
     const result = await oidcProvider.buildLoginUrl(
       sanitizeRedirect(redirectTo),
-      (state) => storage.saveOidcState(state),
+      (state) => getStorage().saveOidcState(state),
     );
     return c.redirect(result.url.href, 302);
   });
@@ -373,26 +385,27 @@ export function createAuthRoutes(options: AuthRoutesOptions = {}) {
       return c.json({ success: false as const, error: "OIDC state is required" }, 400);
     }
 
-    const storedState = storage.consumeOidcState(stateValue);
+    const authStorage = getStorage();
+    const storedState = authStorage.consumeOidcState(stateValue);
     if (!storedState) {
       return c.json({ success: false as const, error: "OIDC state is invalid or expired" }, 400);
     }
 
     const identity = await oidcProvider.handleCallback(new URL(c.req.url), storedState);
-    const existing = storage.findIdentity(
+    const existing = authStorage.findIdentity(
       identity.provider,
       identity.providerSubject,
       identity.providerTenant,
     );
     const user = existing
-      ? storage.findUser(existing.userId)
-      : storage.createUser({ email: identity.email, displayName: identity.displayName });
+      ? authStorage.findUser(existing.userId)
+      : authStorage.createUser({ email: identity.email, displayName: identity.displayName });
 
     if (!user) {
       return c.json({ success: false as const, error: "OIDC user is disabled" }, 403);
     }
 
-    storage.linkIdentity({
+    authStorage.linkIdentity({
       userId: user.id,
       provider: identity.provider,
       providerSubject: identity.providerSubject,
@@ -402,7 +415,7 @@ export function createAuthRoutes(options: AuthRoutesOptions = {}) {
       rawProfile: identity.rawProfile,
     });
 
-    const session = sessions.createSession(user.id);
+    const session = getSessions().createSession(user.id);
     setSessionCookies(c, session);
     return c.redirect(sanitizeRedirect(storedState.redirectTo), 302);
   });

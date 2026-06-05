@@ -5,8 +5,16 @@ import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 
 
 import { callConvexQuery, callConvexMutation } from "../services/convex-utils.js";
+import { getAuthenticatedActorId, requireWorkspaceUser } from "../middleware/auth.js";
 
 const app = new OpenAPIHono();
+
+app.use("/api/blocks", async (c, next) => {
+  if (c.req.method === "POST" || c.req.method === "PATCH" || c.req.method === "DELETE") {
+    return requireWorkspaceUser(c, next);
+  }
+  await next();
+});
 
 
 const CandidateBlockSchema = z.object({
@@ -27,7 +35,6 @@ const UpsertBlockRequestSchema = z.object({
   identityKey: z.string().optional(),
   identityKeys: z.array(z.string()).optional(),
   reason: z.string().optional(),
-  blockedBy: z.string().optional(),
 });
 
 const PatchBlockRequestSchema = z.object({
@@ -105,6 +112,7 @@ const upsertRoute = createRoute({
 
 app.openapi(upsertRoute, async (c) => {
   const body = c.req.valid("json");
+  const actorId = getAuthenticatedActorId(c);
   const identityKeys = Array.from(
     new Set((body.identityKeys ?? []).map((key) => key.trim()).filter((key) => key.length > 0))
   );
@@ -121,7 +129,7 @@ app.openapi(upsertRoute, async (c) => {
       workspaceSlug: c.var.workspaceSlug,
       identityKey: identityKeys[0],
       reason: body.reason,
-      blockedBy: body.blockedBy,
+      blockedBy: actorId,
     });
 
     return c.json({
@@ -137,7 +145,7 @@ app.openapi(upsertRoute, async (c) => {
     workspaceSlug: c.var.workspaceSlug,
     identityKeys,
     reason: body.reason,
-    blockedBy: body.blockedBy,
+    blockedBy: actorId,
   });
 
   const normalized = isRecord(result) ? result : {};

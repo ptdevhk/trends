@@ -7,7 +7,6 @@ import { bodyLimit } from "hono/body-limit";
 
 import {
   healthRoutes,
-  authRoutes,
   aiSummaryRoutes,
   taxonomyRoutes,
   trendsRoutes,
@@ -39,9 +38,11 @@ import {
   resumesSearchRoutes,
   resumesMatchRoutes,
 } from "./routes/index.js";
+import { createAuthRoutes } from "./routes/auth.js";
 import { config } from "./services/config.js";
+import type { AuthStorage } from "./services/auth-storage.js";
 import { workspaceMiddleware } from "./middleware/workspace.js";
-import { optionalAuth, requireCsrf } from "./middleware/auth.js";
+import { createAuthMiddleware } from "./middleware/auth.js";
 import { serverTimingMiddleware } from "./middleware/server-timing.js";
 import { rateLimit } from "./middleware/rate-limit.js";
 
@@ -65,6 +66,11 @@ function resolveCorsOrigin(origin: string): string | null {
   }
   return null;
 }
+
+type CreateAppOptions = {
+  authStorage?: AuthStorage;
+  authTtlSeconds?: number;
+};
 
 export const openApiConfig = {
   openapi: "3.1.0",
@@ -95,8 +101,12 @@ export const openApiConfig = {
   ],
 };
 
-export function createApp() {
+export function createApp(options: CreateAppOptions = {}) {
   const app = new OpenAPIHono();
+  const authMiddleware = createAuthMiddleware({
+    storage: options.authStorage,
+    ttlSeconds: options.authTtlSeconds,
+  });
 
   // Middleware
   app.use("*", serverTimingMiddleware);
@@ -127,7 +137,7 @@ export function createApp() {
   app.use("*", logger());
   app.use("*", prettyJSON());
   app.use("*", workspaceMiddleware);
-  app.use("*", optionalAuth);
+  app.use("*", authMiddleware.optionalAuth);
 
   // Rate limiting on API routes (100 req/min per IP in production).
   // In development, localhost requests share key "unknown" and exhaust the budget quickly.
@@ -151,11 +161,14 @@ export function createApp() {
       })(c, next);
     },
   );
-  app.use("/api/*", requireCsrf);
+  app.use("/api/*", authMiddleware.requireCsrf);
 
   // Mount routes
   app.route("/", healthRoutes);
-  app.route("/", authRoutes);
+  app.route("/", createAuthRoutes({
+    storage: options.authStorage,
+    ttlSeconds: options.authTtlSeconds,
+  }));
   app.route("/", aiSummaryRoutes);
   app.route("/", taxonomyRoutes);
   app.route("/", trendsRoutes);
