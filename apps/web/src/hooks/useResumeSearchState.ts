@@ -639,8 +639,15 @@ function matchesLocalFilters(
   const idOrNameNeedle = state.filters.idOrNameSearch?.trim().toLowerCase()
   if (idOrNameNeedle) {
     const resumeIdStr = String(item.resume.resumeId).toLowerCase()
+    const externalIdStr = (item.resume.externalId ?? '').toLowerCase()
+    const identityKeyStr = (item.identityKey ?? item.resume.identityKey ?? '').toLowerCase()
     const nameStr = (item.resume.name ?? '').toLowerCase()
-    if (!resumeIdStr.includes(idOrNameNeedle) && !nameStr.includes(idOrNameNeedle)) {
+    if (
+      !resumeIdStr.includes(idOrNameNeedle) &&
+      !externalIdStr.includes(idOrNameNeedle) &&
+      !identityKeyStr.includes(idOrNameNeedle) &&
+      !nameStr.includes(idOrNameNeedle)
+    ) {
       return false
     }
   }

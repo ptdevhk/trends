@@ -23,6 +23,7 @@ import {
     type SearchProfileSource,
 } from '@/lib/search-profile-sources'
 import { api } from '../../../../packages/convex/convex/_generated/api'
+import { reportUiError } from '@/lib/ui-error-reporting'
 
 export type SearchProfileFilters = {
     maxExperience?: number | null
@@ -434,7 +435,7 @@ export function SearchProfileEditorDialog({
             setSourceForm(sourceState.known)
             setAdditionalSources(sourceState.additional)
         } catch (error) {
-            console.error('Failed to load profile', error)
+            reportUiError('Failed to load profile', error)
             toast.error(t('searchProfiles.loadDetailError', { defaultValue: 'Failed to load profile details' }))
             onOpenChange(false)
         }
@@ -550,7 +551,7 @@ export function SearchProfileEditorDialog({
                     maxAge: toNumericText(suggestedFilters?.maxAge),
                 }))
             } catch (error) {
-                console.error('Failed to load job description defaults', error)
+                reportUiError('Failed to load job description defaults', error)
             } finally {
                 if (!cancelled) {
                     completeHydration()
@@ -663,7 +664,7 @@ export function SearchProfileEditorDialog({
             onOpenChange(false)
             toast.success(t('searchProfiles.saveSuccess', { defaultValue: 'Profile saved' }))
         } catch (error) {
-            console.error('Failed to save profile', error)
+            reportUiError('Failed to save profile', error)
             toast.error(t('searchProfiles.saveError', { defaultValue: 'Failed to save profile' }))
         } finally {
             setSubmitting(false)

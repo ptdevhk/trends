@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { useState } from 'react'
 import { SystemSidebar } from '@/components/SystemSidebar'
 import { Header } from '@/components/Header'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 
 export default function SystemLayout() {
   const [open, setOpen] = useState(false)
@@ -44,7 +45,9 @@ export default function SystemLayout() {
 
           {/* Main padding and overflow handling */}
           <main className="flex-1 p-6 space-y-6">
-            <Outlet />
+            <ErrorBoundary>
+              <Outlet />
+            </ErrorBoundary>
           </main>
         </div>
       </div>

@@ -12,6 +12,7 @@ import {
   type ConfigSourceGroupSummary,
   useSettingsRequestJson,
 } from '@/pages/system-settings/lib'
+import { reportUiError } from '@/lib/ui-error-reporting'
 
 export function SystemSettingsConfigSourcesPage() {
   const { t } = useTranslation()
@@ -58,7 +59,7 @@ export function SystemSettingsConfigSourcesPage() {
 
     try {
       const resumeDisplayLimitsPromise = requestJson('/api/config/resume-display-limits').catch((error) => {
-        console.error('Failed to load resume display limits', error)
+        reportUiError('Failed to load resume display limits', error)
         return null
       })
       const payload = await requestJson('/api/config/source-groups')
@@ -83,7 +84,7 @@ export function SystemSettingsConfigSourcesPage() {
         })
       }
     } catch (error) {
-      console.error('Failed to load config source groups', error)
+      reportUiError('Failed to load config source groups', error)
       setLoadError(t('resumes.error'))
     } finally {
       setLoading(false)
@@ -92,7 +93,7 @@ export function SystemSettingsConfigSourcesPage() {
 
   useEffect(() => {
     loadData().catch((error) => {
-      console.error('Unexpected loadData failure', error)
+      reportUiError('Unexpected loadData failure', error)
     })
   }, [loadData])
 
@@ -123,7 +124,7 @@ export function SystemSettingsConfigSourcesPage() {
         if (cancelled) {
           return
         }
-        console.error('Failed to load config source detail', error)
+        reportUiError('Failed to load config source detail', error)
         setSelectedConfigSourceDetail(null)
         toast.error(t('debugConfig.configSourcesLoadError'))
       })
@@ -148,7 +149,7 @@ export function SystemSettingsConfigSourcesPage() {
           variant="outline"
           onClick={() => {
             loadData().catch((error) => {
-              console.error('Unexpected loadData failure', error)
+              reportUiError('Unexpected loadData failure', error)
             })
           }}
           disabled={loading}

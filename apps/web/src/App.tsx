@@ -6,6 +6,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { LongTaskObserver } from '@/hooks/useLongTaskObserver'
 import { ResumesPage } from '@/pages/ResumesPage'
 import { ReviewPacketsPage } from '@/pages/ReviewPacketsPage'
+import { NotFoundPage } from '@/pages/NotFoundPage'
 import SettingsLayout from '@/layouts/SettingsLayout'
 import SystemLayout from '@/layouts/SystemLayout'
 import SystemSettingsLayout from '@/layouts/SystemSettingsLayout'
@@ -94,7 +95,9 @@ function MainShell() {
       <Toaster position="top-center" richColors />
       <Header />
       <main className="container py-6">
-        <Outlet />
+        <ErrorBoundary>
+          <Outlet />
+        </ErrorBoundary>
       </main>
       <footer className="border-t py-6 mt-8" />
     </div>
@@ -116,7 +119,7 @@ function PreserveSearchNavigate({ pathname }: { pathname: string }) {
 
 function WorkspaceShell() {
   return (
-    <WorkspaceProvider>
+    <WorkspaceProvider invalidFallback={<StandaloneNotFoundPage />}>
       <ResumeFieldUsagePolicyProvider>
         <BrandDisplayMapProvider>
           <Outlet />
@@ -124,6 +127,21 @@ function WorkspaceShell() {
       </ResumeFieldUsagePolicyProvider>
     </WorkspaceProvider>
   )
+}
+
+function StandaloneNotFoundPage() {
+  return (
+    <div className="min-h-screen bg-background">
+      <main className="container py-6">
+        <NotFoundPage />
+      </main>
+    </div>
+  )
+}
+
+function WorkspaceNotFoundPage() {
+  const { slug } = useWorkspace()
+  return <NotFoundPage homePath={`/${slug}/resumes`} />
 }
 
 function AdminGate({ children }: { children: ReactNode }) {
@@ -160,6 +178,7 @@ function App() {
               ) : (
                 <Route path="review-packets" element={<PreserveSearchNavigate pathname="resumes" />} />
               )}
+              <Route path="*" element={<WorkspaceNotFoundPage />} />
             </Route>
 
             <Route path="settings" element={<SettingsLayout />}>
@@ -337,13 +356,16 @@ function App() {
           <Route
             path="/explanation/:resumeId"
             element={
-              <RouteSuspense>
-                <LazyCandidateExplanationPage />
-              </RouteSuspense>
+              <ErrorBoundary>
+                <RouteSuspense>
+                  <LazyCandidateExplanationPage />
+                </RouteSuspense>
+              </ErrorBoundary>
             }
           />
 
-          <Route path="*" element={<PreserveSearchNavigate pathname="/dev/resumes" />} />
+          <Route path="/" element={<PreserveSearchNavigate pathname="/dev/resumes" />} />
+          <Route path="*" element={<StandaloneNotFoundPage />} />
         </Routes>
       </ErrorBoundary>
     </BrowserRouter>

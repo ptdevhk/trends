@@ -272,20 +272,20 @@ export function ResumeSearchPage() {
     ],
   )
   const analysisTitle = t('resumes.searchPage.analysis.title', {
-    defaultValue: '简历 AI 测算',
+    defaultValue: 'Resume AI analysis',
   })
   const analysisDescription = t('resumes.searchPage.analysis.description', {
-    defaultValue: '为加载的搜索结果生成 AI 摘要和详细分数拆解。',
+    defaultValue: 'Generate AI summary and detailed score breakdown for the loaded search results.',
   })
   const analyzingLabel = t('resumes.searchPage.analysis.analyzing', {
-    defaultValue: '分析中...',
+    defaultValue: 'Analyzing...',
   })
   const analyzeLoadedLabel = t('resumes.searchPage.analysis.analyzeLoaded', {
     count: analysisCandidateCount,
-    defaultValue: '测算 {{count}} 份简历',
+    defaultValue: 'Analyze loaded {{count}}',
   })
   const analyzeLoadedResultsLabel = t('resumes.searchPage.analysis.analyzeLoadedResults', {
-    defaultValue: '测算当前结果',
+    defaultValue: 'Analyze loaded results',
   })
   const errorSearchBarLabel = t('resumes.searchPage.error.searchBar', {
     defaultValue: 'Search bar failed to load.',

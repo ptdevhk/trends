@@ -16,6 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { reportUiError } from '@/lib/ui-error-reporting'
 
 const MANUAL_IMPORT_URL = new URL(`${apiBaseUrl}/api/resumes/manual-import`, window.location.origin).toString()
 
@@ -221,7 +222,7 @@ export function ManualResumeImportDialog({
 
       toast.error(getBatchFailureMessage(payload, t('manualResumeImport.importFailed', 'Failed to import resumes')))
     } catch (error) {
-      console.error('Failed to import manual resumes', error)
+      reportUiError('Failed to import manual resumes', error)
       const message = error instanceof Error
         ? error.message
         : t('manualResumeImport.importFailed', 'Failed to import resumes')

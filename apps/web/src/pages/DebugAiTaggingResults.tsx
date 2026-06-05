@@ -17,6 +17,7 @@ import { JobDescriptionSelect } from '@/components/JobDescriptionSelect'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { useResumeFieldUsagePolicy } from '@/contexts/ResumeFieldUsagePolicyContext'
 import { useConvexResumes } from '@/hooks/useConvexResumes'
+import { reportUiError } from '@/lib/ui-error-reporting'
 
 type AiTaggingRow = Doc<'ai_tagging_results'>
 
@@ -151,7 +152,7 @@ export default function DebugAiTaggingResults() {
         })
       )
     } catch (error) {
-      console.error('Failed to enqueue AI tagging', error)
+      reportUiError('Failed to enqueue AI tagging', error)
       toast.error(t('aiTagging.enqueueFailed', { defaultValue: 'Failed to enqueue AI tagging' }))
     } finally {
       setEnqueueing(false)

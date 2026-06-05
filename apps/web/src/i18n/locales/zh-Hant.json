@@ -12,12 +12,19 @@
     "debugAi": "AI 偵錯",
     "search": "搜尋",
     "settings": "設定",
+    "system": "系統",
     "reviewPackets": "評審包",
     "jds": "職位",
     "archived": "已歸檔",
     "aiTaggingCompare": "AI 標註（對比）",
     "dataInspector": "資料檢查",
     "auditCompliance": "稽核與合規"
+  },
+  "notFound": {
+    "eyebrow": "404",
+    "title": "頁面未找到",
+    "description": "你訪問的頁面不存在或已移動。",
+    "backToResumes": "返回簡歷"
   },
   "common": {
     "loading": "載入中...",
@@ -32,7 +39,10 @@
     "reset": "重置",
     "apply": "應用",
     "archive": "歸檔",
-    "delete": "刪除"
+    "delete": "刪除",
+    "edit": "編輯",
+    "saving": "儲存中...",
+    "deleting": "刪除中..."
   },
   "jdManagement": {
     "title": "職位描述管理",
@@ -276,6 +286,12 @@
         "bachelor": "本科",
         "master": "碩士",
         "phd": "博士"
+      },
+      "badges": {
+        "maxExperience": "≤{{value}} 年",
+        "ageRange": "{{min}}-{{max}} 歲",
+        "minAge": "≥{{value}} 歲",
+        "maxAge": "≤{{value}} 歲"
       }
     },
     "columns": {
@@ -373,9 +389,9 @@
     "searchPage": {
       "facets": {
         "filtersTitle": "篩選條件",
-        "filtersDescription": "在當前搜索結果中進一步精確篩選。",
+        "filtersDescription": "在目前已載入的搜尋結果中進一步篩選。",
         "filtersDescriptionMobile": "在當前搜索結果中進一步精確篩選。",
-        "loadedCount": "顯示前 {{count}} 條結果中的篩選統計",
+        "loadedCount": "篩選統計基於前 {{count}} 筆已載入結果。",
         "emptyLabel": "暫無可用選項",
         "showLess": "收起",
         "showMore": "展開剩餘 {{count}} 項",
@@ -395,10 +411,11 @@
         "sources": "來源渠道",
         "salary": "期望薪資",
         "salaryUnit": "k",
-        "minRoleYears": "相關工作經驗",
+        "minRoleYears": "相關經驗",
         "ageRange": "年齡範圍",
         "ageUnit": "歲",
-        "custom": "自訂"
+        "custom": "自訂",
+        "idOrNamePlaceholder": "ID / 姓名 / 外部ID"
       },
       "hero": {
         "quickStart": "快速開始",
@@ -744,7 +761,19 @@
     },
     "runNetworkError": "無法連接 API 伺服器。請啟動 make dev 或 make dev-api。",
     "seekJobUrlError": "啟用 Seek 來源需要 Seek 推薦候選人 URL",
-    "seekJobUrlMissing": "Seek 立即執行需要精確的 Seek 推薦候選人 URL。"
+    "seekJobUrlMissing": "Seek 立即執行需要精確的 Seek 推薦候選人 URL。",
+    "card": {
+      "resultCount": "{{count}} 份履歷",
+      "never": "從未執行",
+      "quickStartBadge": "快捷入口",
+      "landingQuickStart": "落地頁快捷入口：",
+      "schedule": "排程：",
+      "disabled": "已停用",
+      "enabledSchedule": "{{schedule}}（已啟用）",
+      "lastRun": "上次執行：",
+      "runStatus": "執行狀態：",
+      "runNow": "立即執行"
+    }
   },
   "searchAnalytics": {
     "nav": "搜尋分析",
@@ -1040,7 +1069,50 @@
     "workflowSeedStatus": "狀態",
     "workflowSeedVisible": "可見",
     "taxonomyPageDescription": "管理搜尋側面欄使用的分組簡歷技能集群。",
-    "workflowSeedsDescription": "搜尋優先的落地快速啟動現在與其他配置一樣位於同一搜尋配置工作區註冊表中。"
+    "workflowSeedsDescription": "搜尋優先的落地快速啟動現在與其他配置一樣位於同一搜尋配置工作區註冊表中。",
+    "collectionKeywordRequired": "請輸入關鍵字",
+    "collectionTaskDispatched": "採集任務已派發",
+    "collectionTaskFailed": "啟動採集失敗",
+    "databaseResetSuccess": "資料庫已重置",
+    "databaseResetFailed": "重置資料庫失敗",
+    "taxonomy": {
+      "status": {
+        "active": "啟用",
+        "draft": "草稿",
+        "archived": "已歸檔"
+      },
+      "source": {
+        "human": "人工",
+        "ai": "AI",
+        "merged": "合併"
+      },
+      "none": "無",
+      "generatedDrafts": "已產生 {{count}} 條草稿分類建議",
+      "generatingDrafts": "正在產生草稿...",
+      "generateDrafts": "產生草稿",
+      "newCluster": "新增聚類",
+      "activeDescription": "顯示在搜尋篩選側邊欄中。",
+      "draftDescription": "產生或暫存，等待審核。",
+      "archivedDescription": "保留歷史記錄，但不在搜尋中顯示。",
+      "clusterRegistry": "聚類註冊表",
+      "clusterRegistryDescription": "可以審核草稿並提升為啟用聚類。啟用聚類會用於搜尋優先的履歷側邊欄。",
+      "empty": "暫無分類聚類。",
+      "name": "名稱",
+      "statusLabel": "狀態",
+      "sourceLabel": "來源",
+      "parent": "父級",
+      "tags": "標籤",
+      "actions": "操作",
+      "editCluster": "編輯分類聚類",
+      "createCluster": "建立分類聚類",
+      "dialogDescription": "定義穩定的聚類名稱、slug，以及應歸入該聚類的原始標籤。",
+      "slug": "Slug",
+      "parentCluster": "父級聚類",
+      "confidence": "信心度",
+      "tagsHelp": "用逗號分隔標籤。搜尋篩選會把匹配的履歷標籤歸入此聚類。",
+      "saveChanges": "儲存變更",
+      "createClusterButton": "建立聚類"
+    }
   },
   "platforms": {
     "zhihu": "知乎",
@@ -1166,7 +1238,19 @@
     "profileRestartVisibilityHint": "儲存後執行時更新可能需要幾秒。重啟後，請在 worker 狀態中確認重建的作業。",
     "profilesDescription": "在此儲存可複用的定時摘要配置，然後使用下方的手動執行工具驗證輸出，再啟用 worker 重啟。",
     "profilesEmpty": "尚未儲存摘要配置。在此建立一個，使用下方的手動預覽/發送工具驗證，準備好後重啟 worker 以啟動。",
-    "runDescription": "以空執行方式預覽出站摘要內容，然後使用現有摘要帳本透過所選渠道發送。"
+    "runDescription": "以空執行方式預覽出站摘要內容，然後使用現有摘要帳本透過所選渠道發送。",
+    "profileSaved": "摘要設定已儲存",
+    "profileCreated": "摘要設定已建立",
+    "profileDeleted": "摘要設定已刪除",
+    "errors": {
+      "loadRunDetailFailed": "載入摘要執行詳情失敗",
+      "loadRunsFailed": "載入摘要執行失敗",
+      "loadProfilesFailed": "載入摘要設定失敗",
+      "invalidProfile": "摘要設定無效",
+      "saveProfileFailed": "儲存摘要設定失敗",
+      "createProfileFailed": "建立摘要設定失敗",
+      "deleteProfileFailed": "刪除摘要設定失敗"
+    }
   },
   "footer": {},
   "aiTagging": {
@@ -1491,6 +1575,21 @@
     },
     "common": {
       "retry": "重試"
+    }
+  },
+  "shareLink": {
+    "button": "分享",
+    "copiedSearch": "已複製分享連結",
+    "copiedSession": "已複製會話連結",
+    "copyPreparedFailed": "自動複製失敗，請手動複製下方連結。",
+    "copyUrlFailed": "複製連結失敗，請手動複製地址列 URL。",
+    "retryCopyFailed": "自動複製仍然失敗，請手動複製下方連結。",
+    "dialog": {
+      "title": "手動複製分享連結",
+      "description": "目前瀏覽器未完成自動複製。連結已準備好，手動複製後仍可直接開啟目前搜尋上下文。",
+      "titleLabel": "分享標題",
+      "urlLabel": "分享連結",
+      "retryCopy": "再試一次複製"
     }
   }
 }

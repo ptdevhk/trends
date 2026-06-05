@@ -78,8 +78,8 @@ export function FacetGroup({
       {items.length > maxVisible ? (
         <Button type="button" variant="ghost" className="h-auto px-0 text-sm" onClick={() => setExpanded((value) => !value)}>
           {expanded
-            ? t('resumes.searchPage.facets.showLess', { defaultValue: '收起' })
-            : t('resumes.searchPage.facets.showMore', { count: items.length - maxVisible, defaultValue: '展开剩余 {{count}} 项' })}
+            ? t('resumes.searchPage.facets.showLess', { defaultValue: 'Show less' })
+            : t('resumes.searchPage.facets.showMore', { count: items.length - maxVisible, defaultValue: 'Show {{count}} more' })}
         </Button>
       ) : null}
     </div>

@@ -466,6 +466,24 @@ describe('useResumeSearchState', () => {
     expect(result.current.filteredResults[1]?.resume.experience).toBe('3 years')
   })
 
+  it('matches idOrNameSearch against external IDs', () => {
+    Object.assign(parsedStateMock, createParsedState({
+      query: 'machine tools',
+      keywords: ['machine tools'],
+      filters: {
+        idOrNameSearch: 'external-2',
+      },
+    }))
+    resumesMock.push(
+      createResume(1, { externalId: 'external-1' }),
+      createResume(2, { externalId: 'external-2' }),
+    )
+
+    const { result } = renderHook(() => useResumeSearchState())
+
+    expect(result.current.filteredResults.map((item) => item.resume.externalId)).toEqual(['external-2'])
+  })
+
   it('applies age filters while keeping resumes with unknown ages', () => {
     Object.assign(parsedStateMock, createParsedState({
       query: 'machine tools',

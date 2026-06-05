@@ -1,5 +1,6 @@
 import { memo } from 'react'
 import { formatDistanceToNow } from 'date-fns/formatDistanceToNow'
+import { useTranslation } from 'react-i18next'
 import { Play, Pencil, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
@@ -71,9 +72,14 @@ export const ProfileCard = memo(function ProfileCard({
   onEdit,
   onDelete,
 }: ProfileCardProps) {
+  const { t } = useTranslation()
+  const resultCount = runStatus?.resultCount ?? runStatus?.submitted ?? 0
   const lastRunText = runStatus
-    ? `${formatDistanceToNow(new Date(runStatus.updatedAt), { addSuffix: true })} | ${runStatus.resultCount ?? runStatus.submitted ?? 0} resumes`
-    : 'never'
+    ? `${formatDistanceToNow(new Date(runStatus.updatedAt), { addSuffix: true })} | ${t('searchProfiles.card.resultCount', {
+      count: resultCount,
+      defaultValue: '{{count}} resumes',
+    })}`
+    : t('searchProfiles.card.never', { defaultValue: 'never' })
 
   return (
     <Card>
@@ -82,7 +88,7 @@ export const ProfileCard = memo(function ProfileCard({
           <CardTitle className="text-base leading-tight">{profile.name}</CardTitle>
           <div className="flex flex-wrap items-center justify-end gap-2">
             {profile.quickStart?.enabled ? (
-              <Badge variant="secondary">quick start</Badge>
+              <Badge variant="secondary">{t('searchProfiles.card.quickStartBadge', { defaultValue: 'quick start' })}</Badge>
             ) : null}
             <Badge variant={statusBadgeVariant(profile.status)}>{profile.status}</Badge>
           </div>
@@ -94,19 +100,19 @@ export const ProfileCard = memo(function ProfileCard({
       <CardContent className="space-y-2 text-sm">
         {profile.quickStart?.enabled ? (
           <div>
-            <span className="font-medium">Landing quick start:</span>{' '}
+            <span className="font-medium">{t('searchProfiles.card.landingQuickStart', { defaultValue: 'Landing quick start:' })}</span>{' '}
             {profile.quickStart.label || profile.name}
           </div>
         ) : null}
         <div>
-          <span className="font-medium">Schedule:</span> {scheduleLabel === 'disabled' ? 'disabled' : `${scheduleLabel} (enabled)`}
+          <span className="font-medium">{t('searchProfiles.card.schedule', { defaultValue: 'Schedule:' })}</span> {scheduleLabel === 'disabled' ? t('searchProfiles.card.disabled', { defaultValue: 'disabled' }) : t('searchProfiles.card.enabledSchedule', { schedule: scheduleLabel, defaultValue: '{{schedule}} (enabled)' })}
         </div>
         <div>
-          <span className="font-medium">Last run:</span> {lastRunText}
+          <span className="font-medium">{t('searchProfiles.card.lastRun', { defaultValue: 'Last run:' })}</span> {lastRunText}
         </div>
         {runStatus ? (
           <div>
-            <span className="font-medium">Run status:</span> {runStatusLabel(runStatus.taskStatus)}
+            <span className="font-medium">{t('searchProfiles.card.runStatus', { defaultValue: 'Run status:' })}</span> {runStatusLabel(runStatus.taskStatus)}
             {runStatus.error ? ` (${runStatus.error})` : ''}
           </div>
         ) : null}
@@ -114,7 +120,7 @@ export const ProfileCard = memo(function ProfileCard({
       <CardFooter className="gap-2 justify-end">
         <Button size="sm" onClick={() => onRunNow(profile.id)} disabled={running}>
           <Play className="h-3.5 w-3.5 mr-1" />
-          Run Now
+          {t('searchProfiles.card.runNow', { defaultValue: 'Run Now' })}
         </Button>
         <Button
           size="sm"
@@ -122,7 +128,7 @@ export const ProfileCard = memo(function ProfileCard({
           onClick={() => onEdit(profile.id)}
         >
           <Pencil className="h-3.5 w-3.5 mr-1" />
-          Edit
+          {t('common.edit', { defaultValue: 'Edit' })}
         </Button>
         <Button
           size="sm"
@@ -130,7 +136,7 @@ export const ProfileCard = memo(function ProfileCard({
           onClick={() => onDelete(profile.id)}
         >
           <Trash2 className="h-3.5 w-3.5 mr-1" />
-          Delete
+          {t('common.delete', { defaultValue: 'Delete' })}
         </Button>
       </CardFooter>
     </Card>

@@ -18,6 +18,7 @@ import {
   resolveSeekModeFromUrl,
   type CollectionSourceType,
 } from '@/lib/search-profile-sources'
+import { reportUiError } from '@/lib/ui-error-reporting'
 
 type ListProfilesResponse = {
   success: boolean
@@ -182,7 +183,7 @@ export function SearchProfilesPage() {
 
       return status
     } catch (error) {
-      console.error(`Failed to load run status for profile ${profileId}`, error)
+      reportUiError(`Failed to load run status for profile ${profileId}`, error)
       return null
     }
   }, [clearPolling])
@@ -211,7 +212,7 @@ export function SearchProfilesPage() {
       }))
       return profile
     } catch (error) {
-      console.error(`Failed to load profile detail ${profileId}`, error)
+      reportUiError(`Failed to load profile detail ${profileId}`, error)
       return null
     }
   }, [])
@@ -247,7 +248,7 @@ export function SearchProfilesPage() {
         await fetchRunStatus(profile.id)
       }))
     } catch (error) {
-      console.error('Failed to load search profiles', error)
+      reportUiError('Failed to load search profiles', error)
       toast.error(t('searchProfiles.loadError', { defaultValue: 'Failed to load profiles' }))
     } finally {
       setLoading(false)
@@ -460,7 +461,7 @@ export function SearchProfilesPage() {
       startPolling(profileId)
       runNowLocksRef.current.delete(profileId)
     } catch (error) {
-      console.error(`Failed to run profile ${profileId}`, error)
+      reportUiError(`Failed to run profile ${profileId}`, error)
       const rawMessage = extractApiErrorMessage(error)
       const message = isLikelyNetworkError(rawMessage)
         ? t('searchProfiles.runNetworkError', { defaultValue: 'Cannot reach API server. Start make dev or make dev-api.' })

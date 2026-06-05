@@ -17,6 +17,7 @@ import { apiBaseUrl } from '@/lib/api-client'
 import type { components } from '@/lib/api-types'
 import { rawApiClient } from '@/lib/api-helpers'
 import { withWorkspaceHeaders } from '@/lib/workspace-ref'
+import { reportUiError } from '@/lib/ui-error-reporting'
 
 type ReviewPacketRun = components['schemas']['ReviewPacketRun']
 type ReviewPacketRunStatus = components['schemas']['ReviewPacketRunStatus']
@@ -287,7 +288,7 @@ export function ReviewPacketsPage() {
         setSummaryPreview(null)
       }
     } catch (error) {
-      console.error('Failed to load review packet runs', error)
+      reportUiError('Failed to load review packet runs', error)
       const message = error instanceof Error && error.message.trim().length > 0
         ? error.message
         : t('reviewPackets.loadRunsError', { defaultValue: 'Failed to load review packet runs' })
@@ -313,7 +314,7 @@ export function ReviewPacketsPage() {
       setSelectedRun(data.run)
       setRuns((current) => mergeRun(current, data.run))
     } catch (error) {
-      console.error(`Failed to load review packet run ${runId}`, error)
+      reportUiError(`Failed to load review packet run ${runId}`, error)
       const message = error instanceof Error && error.message.trim().length > 0
         ? error.message
         : t('reviewPackets.loadRunError', { defaultValue: 'Failed to load review packet run' })
@@ -415,7 +416,7 @@ export function ReviewPacketsPage() {
       toast.success(t('reviewPackets.exportSuccess', { defaultValue: 'Review packet exported' }))
       await loadRuns(data.run.id)
     } catch (error) {
-      console.error('Failed to export review packet', error)
+      reportUiError('Failed to export review packet', error)
       const message = error instanceof Error && error.message.trim().length > 0
         ? error.message
         : t('reviewPackets.exportError', { defaultValue: 'Failed to create review packet export' })
@@ -447,7 +448,7 @@ export function ReviewPacketsPage() {
         ?? `review-packet-${run.id}.${run.format}`
       triggerBlobDownload(blob, filename)
     } catch (error) {
-      console.error(`Failed to download review packet ${run.id}`, error)
+      reportUiError(`Failed to download review packet ${run.id}`, error)
       const message = error instanceof Error && error.message.trim().length > 0
         ? error.message
         : t('reviewPackets.downloadError', { defaultValue: 'Failed to download review packet' })
@@ -513,7 +514,7 @@ export function ReviewPacketsPage() {
         }),
       )
     } catch (error) {
-      console.error(`Failed to import feedback for review packet ${selectedRun.id}`, error)
+      reportUiError(`Failed to import feedback for review packet ${selectedRun.id}`, error)
       const message = error instanceof Error && error.message.trim().length > 0
         ? error.message
         : t('reviewPackets.feedbackImportError', { defaultValue: 'Failed to import review packet feedback' })
@@ -553,7 +554,7 @@ export function ReviewPacketsPage() {
       setSummaryPreview(data)
       toast.success(t('reviewPackets.summaryPreviewSuccess', { defaultValue: 'Summary preview generated' }))
     } catch (error) {
-      console.error(`Failed to preview summary for review packet ${selectedRun.id}`, error)
+      reportUiError(`Failed to preview summary for review packet ${selectedRun.id}`, error)
       const message = error instanceof Error && error.message.trim().length > 0
         ? error.message
         : t('reviewPackets.summaryPreviewError', { defaultValue: 'Failed to preview summary' })
@@ -596,7 +597,7 @@ export function ReviewPacketsPage() {
       updateRunState(data.run)
       toast.success(t('reviewPackets.summarySendSuccess', { defaultValue: 'Summary sent' }))
     } catch (error) {
-      console.error(`Failed to send summary for review packet ${selectedRun.id}`, error)
+      reportUiError(`Failed to send summary for review packet ${selectedRun.id}`, error)
       const message = error instanceof Error && error.message.trim().length > 0
         ? error.message
         : t('reviewPackets.summarySendError', { defaultValue: 'Failed to send summary' })

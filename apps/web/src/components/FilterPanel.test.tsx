@@ -6,7 +6,16 @@ import { FilterPanel } from './FilterPanel'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string) => key,
+    t: (key: string, options?: Record<string, unknown>) => {
+      const labels: Record<string, string> = {
+        'resumes.filters.badges.maxExperience': '≤{{value}} years',
+        'resumes.filters.badges.ageRange': '{{min}}-{{max}} years old',
+        'resumes.filters.badges.minAge': '≥{{value}} years old',
+        'resumes.filters.badges.maxAge': '≤{{value}} years old',
+      }
+      const template = labels[key] ?? key
+      return template.replace(/\{\{(\w+)\}\}/g, (_match, token: string) => String(options?.[token] ?? ''))
+    },
   }),
 }))
 
@@ -33,7 +42,7 @@ describe('FilterPanel', () => {
 
     expect(toggle).toHaveAttribute('aria-expanded', 'false')
     expect(toggle.className).toContain('min-h-10')
-    expect(screen.getByText('25-35岁')).toBeInTheDocument()
+    expect(screen.getByText('25-35 years old')).toBeInTheDocument()
     expect(screen.getByText('广东, 江苏')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '分享' })).toBeInTheDocument()
     expect(clearButton).toBeInTheDocument()
@@ -47,7 +56,7 @@ describe('FilterPanel', () => {
     expect(screen.getByRole('button', { name: '分享' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'resumes.filters.clear' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'resumes.filters.apply' })).toBeInTheDocument()
-    expect(screen.getByText('25-35岁')).toBeInTheDocument()
+    expect(screen.getByText('25-35 years old')).toBeInTheDocument()
     expect(screen.getByText('广东, 江苏')).toBeInTheDocument()
   })
 })

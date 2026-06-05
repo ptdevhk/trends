@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { useSettingsRequestJson } from '@/pages/system-settings/lib'
 import { SystemSummary } from '@/pages/system-settings/SystemSummary'
+import { reportUiError } from '@/lib/ui-error-reporting'
 
 const EXTENSION_META_URL = '/extension/extension-meta.json'
 const EXTENSION_ZIP_URL = '/extension/trends-resume-collector-latest.zip'
@@ -36,7 +37,7 @@ function useExtensionVersion() {
           setVersion(payload.version)
         }
       } catch (error) {
-        console.error('Failed to load extension metadata', error)
+        reportUiError('Failed to load extension metadata', error)
       }
     }
     void load()
@@ -59,7 +60,7 @@ export function SystemSettingsOperationsPage() {
 
   async function handleStartCollection() {
     if (!collectionKeyword.trim()) {
-      toast.error('Please enter a keyword')
+      toast.error(t('debugConfig.collectionKeywordRequired', { defaultValue: 'Please enter a keyword' }))
       return
     }
 
@@ -73,11 +74,11 @@ export function SystemSettingsOperationsPage() {
         limit,
         maxPages,
       })
-      toast.success('Collection task dispatched')
+      toast.success(t('debugConfig.collectionTaskDispatched', { defaultValue: 'Collection task dispatched' }))
       setCollectionKeyword('')
     } catch (error) {
-      console.error('Failed to dispatch collection', error)
-      toast.error('Failed to start collection')
+      reportUiError('Failed to dispatch collection', error)
+      toast.error(t('debugConfig.collectionTaskFailed', { defaultValue: 'Failed to start collection' }))
     }
   }
 
@@ -167,7 +168,7 @@ export function SystemSettingsOperationsPage() {
             data-testid="ops-start-collection"
             onClick={() => {
               handleStartCollection().catch((error) => {
-                console.error('Unexpected handleStartCollection failure', error)
+                reportUiError('Unexpected handleStartCollection failure', error)
               })
             }}
             className="w-full sm:w-auto"

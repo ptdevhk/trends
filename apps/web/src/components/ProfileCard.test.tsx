@@ -7,6 +7,20 @@ vi.mock('date-fns/formatDistanceToNow', () => ({
   formatDistanceToNow: () => '2 hours ago',
 }))
 
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string, options?: string | Record<string, unknown>) => {
+      if (typeof options === 'string') return options
+      const translations: Record<string, string> = {
+        'searchProfiles.card.resultCount': '{{count}} CVs',
+        'searchProfiles.card.never': 'never',
+      }
+      const template = translations[key] ?? (typeof options?.defaultValue === 'string' ? options.defaultValue : key)
+      return template.replace(/\{\{(\w+)\}\}/g, (_match, token: string) => String(options?.[token] ?? ''))
+    },
+  }),
+}))
+
 const baseProfile: SearchProfileSummary = {
   id: 'p-1',
   name: 'Frontend Devs',
@@ -125,6 +139,6 @@ describe('ProfileCard', () => {
 
   it('uses submitted when resultCount is absent', () => {
     renderProfile({ runStatus: { profileId: 'p-1', taskId: 't-1', taskStatus: 'completed', startedAt: '2026-05-13T00:00:00Z', updatedAt: '2026-05-13T01:00:00Z', submitted: 15 } })
-    expect(screen.getByText(/15 resumes/)).toBeInTheDocument()
+    expect(screen.getByText(/15 CVs/)).toBeInTheDocument()
   })
 })

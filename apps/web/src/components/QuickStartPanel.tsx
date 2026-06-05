@@ -7,6 +7,7 @@ import { useQuery } from 'convex/react'
 import { JobDescriptionSelect } from './JobDescriptionSelect'
 import { JobDescriptionEditor } from './JobDescriptionEditor'
 import { KeywordChips } from './KeywordChips'
+import { reportUiError } from '@/lib/ui-error-reporting'
 
 const SearchAssistantDrawer = lazy(() => import('./SearchAssistantDrawer').then((m) => ({ default: m.SearchAssistantDrawer })))
 import { type SearchProfileDetails, type SearchProfileFilters } from './SearchProfileEditorDialog'
@@ -538,7 +539,7 @@ export function QuickStartPanel({
           }
         }
       } catch (error) {
-        console.error('Failed to fetch role type from job description', error)
+        reportUiError('Failed to fetch role type from job description', error)
         if (!cancelled) {
           setActiveRoleType(undefined)
           setJdMinRoleYears(undefined)
@@ -582,7 +583,7 @@ export function QuickStartPanel({
 
         setWorkflowSeeds(parsed.workflowSeeds.filter((item) => item.visible !== false))
       } catch (error) {
-        console.error('Failed to load workflow seeds', error)
+        reportUiError('Failed to load workflow seeds', error)
         if (!cancelled) {
           setWorkflowSeeds([])
         }
@@ -755,7 +756,7 @@ export function QuickStartPanel({
           setAutoMatchResult(nextAutoMatchResult)
         }
       } catch (error) {
-        console.error('Failed to auto-match search profile', error)
+        reportUiError('Failed to auto-match search profile', error)
         if (!cancelled) {
           setAutoMatchResult(null)
         }

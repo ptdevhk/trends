@@ -19,6 +19,7 @@ import {
   SEARCH_PROFILE_SOURCE_TYPES,
   type CollectionSource,
 } from '@/lib/search-profile-sources'
+import { reportUiError } from '@/lib/ui-error-reporting'
 const EXTENSION_META_URL = '/extension/extension-meta.json'
 const EXTENSION_ZIP_URL = '/extension/trends-resume-collector-latest.zip'
 
@@ -197,7 +198,7 @@ export function CollectResumesButton({
           setExtensionVersion(payload.version)
         }
       } catch (error) {
-        console.error('Failed to load extension metadata', error)
+        reportUiError('Failed to load extension metadata', error)
       }
     }
 

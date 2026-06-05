@@ -122,7 +122,7 @@ function MinRoleYearsGroup({
   return (
     <div className="space-y-3">
       <div className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
-        {t('resumes.searchPage.facets.minRoleYears', { defaultValue: '岗位年限' })}
+        {t('resumes.searchPage.facets.minRoleYears', { defaultValue: 'Relevant Experience' })}
       </div>
       <div className="flex flex-wrap items-center gap-2">
         {PRESET_ROLE_YEARS.map((value) => {
@@ -170,7 +170,7 @@ function MinRoleYearsGroup({
               variant="ghost"
               size="icon"
               className="h-6 w-6 p-0 text-slate-500 hover:text-slate-700"
-              aria-label={t('common.apply', { defaultValue: '应用' })}
+              aria-label={t('common.apply', { defaultValue: 'Apply' })}
             >
               <Check className="h-4 w-4" />
             </Button>
@@ -182,7 +182,7 @@ function MinRoleYearsGroup({
                 setCustomText('')
               }}
             >
-              {t('resumes.searchPage.facets.custom', { defaultValue: '自定义' })}
+              {t('resumes.searchPage.facets.custom', { defaultValue: 'Custom' })}
             </button>
           </form>
         ) : (
@@ -193,7 +193,7 @@ function MinRoleYearsGroup({
               setCustomOpen(true)
             }}
           >
-            {t('resumes.searchPage.facets.custom', { defaultValue: '自定义' })}
+            {t('resumes.searchPage.facets.custom', { defaultValue: 'Custom' })}
           </button>
         )}
       </div>
@@ -344,7 +344,7 @@ function RangeFilterGroup({
               variant="ghost"
               size="icon"
               className="h-6 w-6 p-0 text-slate-500 hover:text-slate-700"
-              aria-label={t('common.apply', { defaultValue: '应用' })}
+              aria-label={t('common.apply', { defaultValue: 'Apply' })}
             >
               <Check className="h-4 w-4" />
             </Button>
@@ -357,7 +357,7 @@ function RangeFilterGroup({
                 setCustomMax('')
               }}
             >
-              {t('resumes.searchPage.facets.custom', { defaultValue: '自定义' })}
+              {t('resumes.searchPage.facets.custom', { defaultValue: 'Custom' })}
             </button>
           </form>
         ) : (
@@ -368,7 +368,7 @@ function RangeFilterGroup({
               setCustomOpen(true)
             }}
           >
-            {t('resumes.searchPage.facets.custom', { defaultValue: '自定义' })}
+            {t('resumes.searchPage.facets.custom', { defaultValue: 'Custom' })}
           </button>
         )}
       </div>
@@ -416,16 +416,19 @@ export function FacetSidebar({
     <div className="space-y-6">
       {loadedCount !== undefined && loadedCount > 0 && (
         <div className="text-xs text-muted-foreground">
-          {t('resumes.searchPage.facets.loadedCount', { count: loadedCount, defaultValue: `显示前 ${loadedCount} 条结果中的筛选统计` })}
+          {t('resumes.searchPage.facets.loadedCount', {
+            count: loadedCount,
+            defaultValue: 'Facet counts are based on the first {{count}} loaded results.',
+          })}
         </div>
       )}
       <div className="flex items-center justify-between">
         <div>
-          <div className="text-sm font-semibold text-slate-900">{t('resumes.searchPage.facets.filtersTitle', { defaultValue: '筛选条件' })}</div>
-          <div className="text-xs text-muted-foreground">{t('resumes.searchPage.facets.filtersDescription', { defaultValue: '在当前搜索结果中进一步精确筛选。' })}</div>
+          <div className="text-sm font-semibold text-slate-900">{t('resumes.searchPage.facets.filtersTitle', { defaultValue: 'Filters' })}</div>
+          <div className="text-xs text-muted-foreground">{t('resumes.searchPage.facets.filtersDescription', { defaultValue: 'Refine the currently loaded search results.' })}</div>
         </div>
         <button type="button" className="text-sm text-muted-foreground hover:text-foreground" onClick={onClearAll}>
-          {t('common.reset', { defaultValue: '重置' })}
+          {t('common.reset', { defaultValue: 'Reset' })}
         </button>
       </div>
 
@@ -433,7 +436,7 @@ export function FacetSidebar({
       <div className="relative">
         <Input
           type="text"
-          placeholder="ID · 候选人姓名"
+          placeholder={t('resumes.searchPage.facets.idOrNamePlaceholder', { defaultValue: 'ID / Name / External ID' })}
           value={idOrNameSearch ?? ''}
           onChange={(e) => onSetIdOrNameSearch(e.target.value || undefined)}
           className="pr-7 text-sm"
@@ -450,8 +453,9 @@ export function FacetSidebar({
         )}
       </div>
 
+      <FacetGroup title={t('resumes.searchPage.facets.status', { defaultValue: 'Candidate Status' })} items={facetCounts.statuses} selectedValues={selectedStatuses} onToggle={(value) => onToggleStatus(value as CandidateStatus)} />
       <FacetGroup
-        title={t('resumes.searchPage.facets.matchScore', { defaultValue: '匹配分' })}
+        title={t('resumes.searchPage.facets.matchScore', { defaultValue: 'Match Score' })}
         items={facetCounts.minScoreOptions.map((item) => ({ ...item, value: `${item.value}+` }))}
         selectedValues={typeof minScore === 'number' ? [`${minScore}+`] : []}
         onToggle={(value) => {
@@ -459,45 +463,44 @@ export function FacetSidebar({
           onSetMinScore(minScore === numericValue ? undefined : numericValue)
         }}
       />
-      <FacetGroup
-        title={t('resumes.searchPage.facets.skillClusters', { defaultValue: '技能图谱' })}
-        items={facetCounts.clusters}
-        selectedValues={selectedClusters}
-        onToggle={onToggleCluster}
-      />
-      <FacetGroup title={t('resumes.searchPage.facets.tags', { defaultValue: '标签聚类' })} items={facetCounts.tags} selectedValues={selectedTags} onToggle={onToggleTag} />
-      <FacetGroup title={t('resumes.searchPage.facets.brands', { defaultValue: '品牌标签' })} items={facetCounts.brands} selectedValues={selectedBrands} onToggle={onToggleBrand} />
-      <FacetGroup title={t('resumes.searchPage.facets.companies', { defaultValue: '公司经历' })} items={facetCounts.companies} selectedValues={selectedCompanies} onToggle={onToggleCompany} />
-      <FacetGroup title={t('resumes.searchPage.facets.sources', { defaultValue: '来源渠道' })} items={facetCounts.sources} selectedValues={selectedSources} onToggle={onToggleSource} />
-      <PillGroup
-        label={t('resumes.searchPage.facets.experienceLevel', { defaultValue: '工作经验' })}
-        items={[
-          { value: 'senior' as const, label: t('resumes.searchPage.facets.experience.senior', { defaultValue: '资深' }) },
-          { value: 'mid' as const, label: t('resumes.searchPage.facets.experience.mid', { defaultValue: '中级' }) },
-          { value: 'junior' as const, label: t('resumes.searchPage.facets.experience.junior', { defaultValue: '初级' }) },
-        ]}
-        selectedValue={selectedExperienceLevel}
-        onSelect={onSetExperienceLevel}
-      />
       <MinRoleYearsGroup minRoleYears={minRoleYears} onSetMinRoleYears={onSetMinRoleYears} isFilterTransitionPending={isFilterTransitionPending} />
       <RangeFilterGroup
         presets={PRESET_AGE_RANGES}
-        label={t('resumes.searchPage.facets.ageRange', { defaultValue: '年龄范围' })}
-        unitSuffix={t('resumes.searchPage.facets.ageUnit', { defaultValue: '岁' })}
+        label={t('resumes.searchPage.facets.ageRange', { defaultValue: 'Age Range' })}
+        unitSuffix={t('resumes.searchPage.facets.ageUnit', { defaultValue: 'years old' })}
         valueMin={minAge}
         valueMax={maxAge}
         onSetRange={onSetAgeRange}
       />
       <RangeFilterGroup
         presets={PRESET_SALARY_RANGES}
-        label={t('resumes.searchPage.facets.salary', { defaultValue: '期望薪资' })}
+        label={t('resumes.searchPage.facets.salary', { defaultValue: 'Expected Salary' })}
         unitSuffix={t('resumes.searchPage.facets.salaryUnit', { defaultValue: 'k' })}
         valueMin={minSalary}
         valueMax={maxSalary}
         onSetRange={onSetSalaryRange}
       />
-      <FacetGroup title={t('resumes.searchPage.facets.education', { defaultValue: '学历' })} items={facetCounts.education} selectedValues={selectedEducation} onToggle={onToggleEducation} />
-      <FacetGroup title={t('resumes.searchPage.facets.status', { defaultValue: '候选人状态' })} items={facetCounts.statuses} selectedValues={selectedStatuses} onToggle={(value) => onToggleStatus(value as CandidateStatus)} />
+      <FacetGroup
+        title={t('resumes.searchPage.facets.skillClusters', { defaultValue: 'Skill Clusters' })}
+        items={facetCounts.clusters}
+        selectedValues={selectedClusters}
+        onToggle={onToggleCluster}
+      />
+      <FacetGroup title={t('resumes.searchPage.facets.tags', { defaultValue: 'Tag clusters' })} items={facetCounts.tags} selectedValues={selectedTags} onToggle={onToggleTag} />
+      <FacetGroup title={t('resumes.searchPage.facets.brands', { defaultValue: 'Brand tags' })} items={facetCounts.brands} selectedValues={selectedBrands} onToggle={onToggleBrand} />
+      <FacetGroup title={t('resumes.searchPage.facets.companies', { defaultValue: 'Company experience' })} items={facetCounts.companies} selectedValues={selectedCompanies} onToggle={onToggleCompany} />
+      <FacetGroup title={t('resumes.searchPage.facets.sources', { defaultValue: 'Sources' })} items={facetCounts.sources} selectedValues={selectedSources} onToggle={onToggleSource} />
+      <PillGroup
+        label={t('resumes.searchPage.facets.experienceLevel', { defaultValue: 'Experience level' })}
+        items={[
+          { value: 'senior' as const, label: t('resumes.searchPage.facets.experience.senior', { defaultValue: 'Senior' }) },
+          { value: 'mid' as const, label: t('resumes.searchPage.facets.experience.mid', { defaultValue: 'Mid-level' }) },
+          { value: 'junior' as const, label: t('resumes.searchPage.facets.experience.junior', { defaultValue: 'Junior' }) },
+        ]}
+        selectedValue={selectedExperienceLevel}
+        onSelect={onSetExperienceLevel}
+      />
+      <FacetGroup title={t('resumes.searchPage.facets.education', { defaultValue: 'Education' })} items={facetCounts.education} selectedValues={selectedEducation} onToggle={onToggleEducation} />
     </div>
   )
 

@@ -101,9 +101,9 @@ describe('FacetSidebar', () => {
 
     expect(container.firstElementChild).toHaveClass('space-y-6')
     expect(container.firstElementChild).not.toHaveClass('rounded-[1.75rem]')
-    expect(screen.getByText('在当前搜索结果中进一步精确筛选。')).toBeInTheDocument()
+    expect(screen.getByText('Refine the currently loaded search results.')).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: '重置' }))
+    await user.click(screen.getByRole('button', { name: 'Reset' }))
 
     expect(onClearAll).toHaveBeenCalledTimes(1)
   })
@@ -145,9 +145,9 @@ describe('FacetSidebar', () => {
     )
 
     expect(screen.getByRole('button', { name: /Machine Tools/i })).toHaveClass('bg-slate-900')
-    expect(screen.getByRole('button', { name: /展开剩余 1 项/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Show 1 more/i })).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: '重置' }))
+    await user.click(screen.getByRole('button', { name: 'Reset' }))
     await user.click(screen.getByRole('button', { name: /Manufacturing Systems/i }))
     await user.click(screen.getByRole('button', { name: /Machine Tools/i }))
     await user.click(screen.getByRole('button', { name: /FANUC/i }))
@@ -160,6 +160,52 @@ describe('FacetSidebar', () => {
     expect(onToggleCompany).toHaveBeenCalledWith('FANUC')
     expect(onToggleEducation).toHaveBeenCalledWith('Bachelor')
     expect(onToggleStatus).toHaveBeenCalledWith('new')
+  })
+
+  it('renders the primary screening filters before secondary facets', () => {
+    const { container } = render(
+      <FacetSidebar
+        facetCounts={buildFacetCounts()}
+        selectedBrands={[]}
+        selectedClusters={[]}
+        selectedCompanies={[]}
+        selectedEducation={[]}
+        selectedStatuses={[]}
+        selectedTags={[]}
+        onClearAll={vi.fn()}
+        onSetExperienceLevel={vi.fn()}
+        onSetMinRoleYears={vi.fn()}
+        onSetAgeRange={vi.fn()}
+        onSetMinScore={vi.fn()}
+        onSetSalaryRange={vi.fn()}
+        onToggleBrand={vi.fn()}
+        onToggleCluster={vi.fn()}
+        onToggleCompany={vi.fn()}
+        onToggleEducation={vi.fn()}
+        onToggleStatus={vi.fn()}
+        onToggleTag={vi.fn()}
+        selectedSources={[]}
+        onToggleSource={vi.fn()}
+        onSetIdOrNameSearch={vi.fn()}
+      />
+    )
+
+    expect(screen.getByPlaceholderText('ID / Name / External ID')).toBeInTheDocument()
+
+    const renderedText = container.textContent ?? ''
+    const primaryLabels = [
+      'Candidate Status',
+      'Match Score',
+      'Relevant Experience',
+      'Age Range',
+      'Expected Salary',
+    ]
+    const labelPositions = primaryLabels.map((label) => renderedText.indexOf(label))
+    const firstSecondaryFacetPosition = renderedText.indexOf('Skill Clusters')
+
+    expect(labelPositions).not.toContain(-1)
+    expect(labelPositions).toEqual([...labelPositions].sort((left, right) => left - right))
+    expect(firstSecondaryFacetPosition).toBeGreaterThan(labelPositions[labelPositions.length - 1] ?? -1)
   })
 
   it('toggles experience level and minimum score filters', async () => {
@@ -196,8 +242,8 @@ describe('FacetSidebar', () => {
       />
     )
 
-    await user.click(screen.getByRole('button', { name: '资深' }))
-    await user.click(screen.getByRole('button', { name: '中级' }))
+    await user.click(screen.getByRole('button', { name: 'Senior' }))
+    await user.click(screen.getByRole('button', { name: 'Mid-level' }))
     await user.click(screen.getByRole('button', { name: /80\+/i }))
     await user.click(screen.getByRole('button', { name: /70\+/i }))
 
@@ -279,8 +325,8 @@ describe('FacetSidebar', () => {
       />
     )
 
-    // Click the "自定义" button within the minRoleYears section (first one)
-    const customButtons = screen.getAllByRole('button', { name: /自定义/i })
+    // Click the "Custom" button within the minRoleYears section (first one)
+    const customButtons = screen.getAllByRole('button', { name: /Custom/i })
     await user.click(customButtons[0])
     const inputs = screen.getAllByRole('spinbutton')
     const input = inputs[0]
@@ -413,7 +459,7 @@ describe('idOrNameSearch filter input', () => {
 
   it('renders the id/name search input placeholder', () => {
     render(<FacetSidebar {...buildProps()} embedded />)
-    expect(screen.getByPlaceholderText('ID · 候选人姓名')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('ID / Name / External ID')).toBeInTheDocument()
   })
 
   it('shows current idOrNameSearch value', () => {
@@ -425,7 +471,7 @@ describe('idOrNameSearch filter input', () => {
     const user = userEvent.setup()
     const onSetIdOrNameSearch = vi.fn()
     render(<FacetSidebar {...buildProps()} embedded onSetIdOrNameSearch={onSetIdOrNameSearch} />)
-    const input = screen.getByPlaceholderText('ID · 候选人姓名')
+    const input = screen.getByPlaceholderText('ID / Name / External ID')
     await user.type(input, 'x')
     expect(onSetIdOrNameSearch).toHaveBeenCalledWith('x')
   })

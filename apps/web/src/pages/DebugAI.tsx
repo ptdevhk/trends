@@ -106,7 +106,7 @@ export default function DebugAI() {
     navigator.clipboard.writeText(analysisJson).then(() => {
       toast.success(t('debugAi.jsonCopied', 'JSON copied'))
     }).catch(() => {
-      toast.error(t('debugAi.copyFailed', '复制失败'))
+      toast.error(t('debugAi.copyFailed', 'Copy failed'))
     })
   }, [analysisJson, t])
 
