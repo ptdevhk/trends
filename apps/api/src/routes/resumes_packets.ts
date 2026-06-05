@@ -1165,6 +1165,7 @@ app.openapi(importReviewPacketFeedbackRoute, async (c) => {
             status: params.status,
             notes: params.notes,
             updatedBy: params.updatedBy,
+            writeSecret: config.auth.convexWriteSecret,
           });
         },
         saveAction: async (params) => {
