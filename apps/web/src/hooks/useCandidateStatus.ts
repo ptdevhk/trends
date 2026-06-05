@@ -1,7 +1,8 @@
 import { useCallback, useMemo } from 'react'
-import { useMutation, useQuery } from 'convex/react'
+import { useQuery } from 'convex/react'
 import { api } from '../../../../packages/convex/convex/_generated/api'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
+import { rawApiClient } from '@/lib/api-helpers'
 import type { CandidateStatus } from '@/types/resume'
 
 export type CandidateStatusRecord = {
@@ -17,6 +18,10 @@ export type CandidateStatusRecord = {
     updatedAt: number
     notes?: string
   }>
+}
+
+type CandidateStatusWriteResponse = {
+  success: boolean
 }
 
 export function useCandidateStatus(enabled: boolean = true) {
@@ -41,8 +46,6 @@ export function useCandidateStatus(enabled: boolean = true) {
     }))
   }, [rawItems])
 
-  const upsert = useMutation(api.candidate_status.upsert)
-
   const updateStatus = useCallback(
     async (identityKey: string, status: CandidateStatus, notes?: string) => {
       const normalized = identityKey.trim()
@@ -51,13 +54,19 @@ export function useCandidateStatus(enabled: boolean = true) {
       }
 
       try {
-        await upsert({ identityKey: normalized, status, workspaceSlug, notes })
-        return true
+        const { data, error: apiError } = await rawApiClient.POST<CandidateStatusWriteResponse>('/api/candidate-status', {
+          body: {
+            identityKey: normalized,
+            status,
+            notes,
+          },
+        })
+        return !apiError && data?.success === true
       } catch {
         return false
       }
     },
-    [upsert, workspaceSlug],
+    [],
   )
 
   const statusByIdentity = useMemo(() => {
