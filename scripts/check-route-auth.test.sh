@@ -16,6 +16,8 @@ fi
 
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
+PASS_OUT="$TMP_DIR/pass.out"
+FAIL_OUT="$TMP_DIR/fail.out"
 
 cat >"$TMP_DIR/workspace-write.ts" <<'ROUTE'
 import { createRoute } from "@hono/zod-openapi";
@@ -35,7 +37,7 @@ app.openapi(route, (c) => {
 });
 ROUTE
 
-ROUTES_DIR="$TMP_DIR" bash "$SCRIPT" >/tmp/check-route-auth-pass.out
+ROUTES_DIR="$TMP_DIR" bash "$SCRIPT" >"$PASS_OUT"
 
 cat >"$TMP_DIR/missing-auth.ts" <<'ROUTE'
 import { createRoute } from "@hono/zod-openapi";
@@ -43,14 +45,14 @@ const route = createRoute({ method: "post", path: "/api/example", responses: {} 
 app.openapi(route, () => {});
 ROUTE
 
-if ROUTES_DIR="$TMP_DIR" bash "$SCRIPT" >/tmp/check-route-auth-fail.out 2>&1; then
+if ROUTES_DIR="$TMP_DIR" bash "$SCRIPT" >"$FAIL_OUT" 2>&1; then
   echo "FAIL: checker passed a createRoute file without auth"
   exit 1
 fi
 
-if ! grep -q "missing-auth.ts" /tmp/check-route-auth-fail.out; then
+if ! grep -q "missing-auth.ts" "$FAIL_OUT"; then
   echo "FAIL: checker did not report the unauthenticated route file"
-  cat /tmp/check-route-auth-fail.out
+  cat "$FAIL_OUT"
   exit 1
 fi
 
