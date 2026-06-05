@@ -4,7 +4,7 @@
 
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { workspaceConfigService } from "../services/workspace-config-service.js";
-import { denyIfNotAdmin } from "../middleware/workspace.js";
+import { getAdminAccessError } from "../middleware/auth.js";
 
 const app = new OpenAPIHono();
 
@@ -217,9 +217,10 @@ const createPresetRoute = createRoute({
 });
 
 app.openapi(createPresetRoute, async (c) => {
-    if (denyIfNotAdmin(c.var.accessLevel)) {
-        return c.json({ success: false as const, error: "Admin access required" }, 403);
-    }
+    const adminError = getAdminAccessError(c);
+  if (adminError) {
+    return c.json(adminError.body, adminError.status);
+  }
     const payload = c.req.valid("json");
     const workspaceConfig = await workspaceConfigService.getWorkspaceFilterPresets(c.var.workspaceSlug);
     const exists = workspaceConfig.presets.some((preset) => preset.id === payload.id);
@@ -278,9 +279,10 @@ const updatePresetRoute = createRoute({
 });
 
 app.openapi(updatePresetRoute, async (c) => {
-    if (denyIfNotAdmin(c.var.accessLevel)) {
-        return c.json({ success: false as const, error: "Admin access required" }, 403);
-    }
+    const adminError = getAdminAccessError(c);
+  if (adminError) {
+    return c.json(adminError.body, adminError.status);
+  }
     const { id } = c.req.valid("param");
     const updates = c.req.valid("json");
     const workspaceConfig = await workspaceConfigService.getWorkspaceFilterPresets(c.var.workspaceSlug);
@@ -336,9 +338,10 @@ const deletePresetRoute = createRoute({
 });
 
 app.openapi(deletePresetRoute, async (c) => {
-    if (denyIfNotAdmin(c.var.accessLevel)) {
-        return c.json({ success: false as const, error: "Admin access required" }, 403);
-    }
+    const adminError = getAdminAccessError(c);
+  if (adminError) {
+    return c.json(adminError.body, adminError.status);
+  }
     const { id } = c.req.valid("param");
     const workspaceConfig = await workspaceConfigService.getWorkspaceFilterPresets(c.var.workspaceSlug);
     const nextPresets = workspaceConfig.presets.filter((preset) => preset.id !== id);

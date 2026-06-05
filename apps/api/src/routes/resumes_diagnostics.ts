@@ -9,7 +9,7 @@ import {
   ResumeDiagnosticsQuerySchema,
   ResumeDiagnosticsResponseSchema,
 } from "../schemas/index.js";
-import { requireAdmin } from "../middleware/workspace.js";
+import { requireAdmin } from "../middleware/auth.js";
 
 const app = new OpenAPIHono();
 app.use("/api/resumes/analysis-tasks", requireAdmin);

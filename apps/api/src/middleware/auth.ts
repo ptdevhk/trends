@@ -19,6 +19,28 @@ type AuthMiddlewareOptions = {
   csrfHeaderName?: string;
 };
 
+type AdminAccessError = {
+  body: { success: false; error: string };
+  status: 401 | 403;
+};
+
+export function getAdminAccessError(c: { var: { auth?: AuthContext; workspaceSlug: string } }): AdminAccessError | null {
+  const auth = c.var.auth;
+  if (!auth) {
+    return {
+      body: { success: false, error: "Authentication required" },
+      status: 401,
+    };
+  }
+  if (!hasWorkspaceRole(auth.memberships, c.var.workspaceSlug, ["admin"])) {
+    return {
+      body: { success: false, error: "Admin access required" },
+      status: 403,
+    };
+  }
+  return null;
+}
+
 export function createAuthMiddleware(options: AuthMiddlewareOptions = {}) {
   let storage = options.storage;
   let sessions: AuthSessionService | undefined;
@@ -54,12 +76,9 @@ export function createAuthMiddleware(options: AuthMiddlewareOptions = {}) {
   };
 
   const requireAdmin: MiddlewareHandler = async (c, next) => {
-    const auth = c.var.auth;
-    if (!auth) {
-      return c.json({ success: false as const, error: "Authentication required" }, 401);
-    }
-    if (!hasWorkspaceRole(auth.memberships, c.var.workspaceSlug, ["admin"])) {
-      return c.json({ success: false as const, error: "Admin access required" }, 403);
+    const adminError = getAdminAccessError(c);
+    if (adminError) {
+      return c.json(adminError.body, adminError.status);
     }
     await next();
   };

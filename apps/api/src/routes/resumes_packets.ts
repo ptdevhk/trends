@@ -21,7 +21,7 @@ import {
   SimpleErrorSchema,
 } from "../schemas/index.js";
 import { logger } from "../services/logger.js";
-import { requireAdmin } from "../middleware/workspace.js";
+import { requireAdmin } from "../middleware/auth.js";
 import { config } from "../services/config.js";
 import { ResumeService } from "../services/resume-service.js";
 import { DataNotFoundError } from "../services/errors.js";

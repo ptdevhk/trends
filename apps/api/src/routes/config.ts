@@ -19,7 +19,7 @@ import {
   SYSTEM_NAV_ITEMS,
   isRecord,
 } from "@trends/shared";
-import { denyIfNotAdmin } from "../middleware/workspace.js";
+import { getAdminAccessError } from "../middleware/auth.js";
 import { getMaskedApiKey, loadAIConfig, validateAIConfig } from "../services/ai-config.js";
 import { configSourceInspector, UnknownConfigSourceError } from "../services/config-source-inspector.js";
 import { customKeywordService } from "../services/custom-keyword-service.js";
@@ -447,14 +447,16 @@ const putAgentsRoute = createRoute({
   responses: {
     200: { description: "Updated agents config", content: { "application/json": { schema: AgentsGetResponseSchema } } },
     400: { description: "Invalid payload", content: { "application/json": { schema: ErrorResponseSchema } } },
+    401: { description: "Authentication required", content: { "application/json": { schema: ErrorResponseSchema } } },
     403: { description: "Forbidden", content: { "application/json": { schema: ErrorResponseSchema } } },
     500: { description: "Server error", content: { "application/json": { schema: ErrorResponseSchema } } },
   },
 });
 
 app.openapi(putAgentsRoute, async (c) => {
-  if (denyIfNotAdmin(c.var.accessLevel)) {
-    return c.json({ success: false as const, error: "Admin access required" }, 403);
+  const adminError = getAdminAccessError(c);
+  if (adminError) {
+    return c.json(adminError.body, adminError.status);
   }
   try {
     const data = c.req.valid("json");
@@ -547,6 +549,7 @@ const putSystemLocationRoute = createRoute({
   responses: {
     200: { description: "Updated location", content: { "application/json": { schema: SystemLocationUpdateResponseSchema } } },
     400: { description: "Invalid payload", content: { "application/json": { schema: ErrorResponseSchema } } },
+    401: { description: "Authentication required", content: { "application/json": { schema: ErrorResponseSchema } } },
     403: { description: "Forbidden", content: { "application/json": { schema: ErrorResponseSchema } } },
     404: { description: "Not found", content: { "application/json": { schema: ErrorResponseSchema } } },
     500: { description: "Server error", content: { "application/json": { schema: ErrorResponseSchema } } },
@@ -554,8 +557,9 @@ const putSystemLocationRoute = createRoute({
 });
 
 app.openapi(putSystemLocationRoute, async (c) => {
-  if (denyIfNotAdmin(c.var.accessLevel)) {
-    return c.json({ success: false as const, error: "Admin access required" }, 403);
+  const adminError = getAdminAccessError(c);
+  if (adminError) {
+    return c.json(adminError.body, adminError.status);
   }
   try {
     const { id } = c.req.valid("param");
@@ -599,6 +603,7 @@ const postCustomKeywordRoute = createRoute({
   responses: {
     201: { description: "Created tag", content: { "application/json": { schema: CustomKeywordTagResponseSchema } } },
     400: { description: "Invalid payload", content: { "application/json": { schema: ErrorResponseSchema } } },
+    401: { description: "Authentication required", content: { "application/json": { schema: ErrorResponseSchema } } },
     403: { description: "Forbidden", content: { "application/json": { schema: ErrorResponseSchema } } },
     409: { description: "Already exists", content: { "application/json": { schema: ErrorResponseSchema } } },
     500: { description: "Server error", content: { "application/json": { schema: ErrorResponseSchema } } },
@@ -606,8 +611,9 @@ const postCustomKeywordRoute = createRoute({
 });
 
 app.openapi(postCustomKeywordRoute, async (c) => {
-  if (denyIfNotAdmin(c.var.accessLevel)) {
-    return c.json({ success: false as const, error: "Admin access required" }, 403);
+  const adminError = getAdminAccessError(c);
+  if (adminError) {
+    return c.json(adminError.body, adminError.status);
   }
   try {
     const data = c.req.valid("json");
@@ -654,6 +660,7 @@ const putCustomKeywordRoute = createRoute({
   responses: {
     200: { description: "Updated tag", content: { "application/json": { schema: CustomKeywordTagResponseSchema } } },
     400: { description: "Invalid payload", content: { "application/json": { schema: ErrorResponseSchema } } },
+    401: { description: "Authentication required", content: { "application/json": { schema: ErrorResponseSchema } } },
     403: { description: "Forbidden", content: { "application/json": { schema: ErrorResponseSchema } } },
     404: { description: "Not found", content: { "application/json": { schema: ErrorResponseSchema } } },
     500: { description: "Server error", content: { "application/json": { schema: ErrorResponseSchema } } },
@@ -661,8 +668,9 @@ const putCustomKeywordRoute = createRoute({
 });
 
 app.openapi(putCustomKeywordRoute, async (c) => {
-  if (denyIfNotAdmin(c.var.accessLevel)) {
-    return c.json({ success: false as const, error: "Admin access required" }, 403);
+  const adminError = getAdminAccessError(c);
+  if (adminError) {
+    return c.json(adminError.body, adminError.status);
   }
   try {
     const { id } = c.req.valid("param");
@@ -710,6 +718,7 @@ const deleteCustomKeywordRoute = createRoute({
   },
   responses: {
     200: { description: "Deleted", content: { "application/json": { schema: SuccessResponseSchema } } },
+    401: { description: "Authentication required", content: { "application/json": { schema: ErrorResponseSchema } } },
     403: { description: "Forbidden", content: { "application/json": { schema: ErrorResponseSchema } } },
     404: { description: "Not found", content: { "application/json": { schema: ErrorResponseSchema } } },
     500: { description: "Server error", content: { "application/json": { schema: ErrorResponseSchema } } },
@@ -717,8 +726,9 @@ const deleteCustomKeywordRoute = createRoute({
 });
 
 app.openapi(deleteCustomKeywordRoute, async (c) => {
-  if (denyIfNotAdmin(c.var.accessLevel)) {
-    return c.json({ success: false as const, error: "Admin access required" }, 403);
+  const adminError = getAdminAccessError(c);
+  if (adminError) {
+    return c.json(adminError.body, adminError.status);
   }
   try {
     const { id } = c.req.valid("param");
@@ -761,6 +771,7 @@ const postWorkflowSeedRoute = createRoute({
   responses: {
     201: { description: "Created seed", content: { "application/json": { schema: CustomKeywordWorkflowSeedResponseSchema } } },
     400: { description: "Invalid payload", content: { "application/json": { schema: ErrorResponseSchema } } },
+    401: { description: "Authentication required", content: { "application/json": { schema: ErrorResponseSchema } } },
     403: { description: "Forbidden", content: { "application/json": { schema: ErrorResponseSchema } } },
     409: { description: "Already exists", content: { "application/json": { schema: ErrorResponseSchema } } },
     500: { description: "Server error", content: { "application/json": { schema: ErrorResponseSchema } } },
@@ -768,8 +779,9 @@ const postWorkflowSeedRoute = createRoute({
 });
 
 app.openapi(postWorkflowSeedRoute, async (c) => {
-  if (denyIfNotAdmin(c.var.accessLevel)) {
-    return c.json({ success: false as const, error: "Admin access required" }, 403);
+  const adminError = getAdminAccessError(c);
+  if (adminError) {
+    return c.json(adminError.body, adminError.status);
   }
   try {
     const data = c.req.valid("json");
@@ -807,6 +819,7 @@ const putWorkflowSeedRoute = createRoute({
   responses: {
     200: { description: "Updated seed", content: { "application/json": { schema: CustomKeywordWorkflowSeedResponseSchema } } },
     400: { description: "Invalid payload", content: { "application/json": { schema: ErrorResponseSchema } } },
+    401: { description: "Authentication required", content: { "application/json": { schema: ErrorResponseSchema } } },
     403: { description: "Forbidden", content: { "application/json": { schema: ErrorResponseSchema } } },
     404: { description: "Not found", content: { "application/json": { schema: ErrorResponseSchema } } },
     500: { description: "Server error", content: { "application/json": { schema: ErrorResponseSchema } } },
@@ -814,8 +827,9 @@ const putWorkflowSeedRoute = createRoute({
 });
 
 app.openapi(putWorkflowSeedRoute, async (c) => {
-  if (denyIfNotAdmin(c.var.accessLevel)) {
-    return c.json({ success: false as const, error: "Admin access required" }, 403);
+  const adminError = getAdminAccessError(c);
+  if (adminError) {
+    return c.json(adminError.body, adminError.status);
   }
   try {
     const { id } = c.req.valid("param");
@@ -857,6 +871,7 @@ const deleteWorkflowSeedRoute = createRoute({
   },
   responses: {
     200: { description: "Deleted", content: { "application/json": { schema: SuccessResponseSchema } } },
+    401: { description: "Authentication required", content: { "application/json": { schema: ErrorResponseSchema } } },
     403: { description: "Forbidden", content: { "application/json": { schema: ErrorResponseSchema } } },
     404: { description: "Not found", content: { "application/json": { schema: ErrorResponseSchema } } },
     500: { description: "Server error", content: { "application/json": { schema: ErrorResponseSchema } } },
@@ -864,8 +879,9 @@ const deleteWorkflowSeedRoute = createRoute({
 });
 
 app.openapi(deleteWorkflowSeedRoute, async (c) => {
-  if (denyIfNotAdmin(c.var.accessLevel)) {
-    return c.json({ success: false as const, error: "Admin access required" }, 403);
+  const adminError = getAdminAccessError(c);
+  if (adminError) {
+    return c.json(adminError.body, adminError.status);
   }
   try {
     const { id } = c.req.valid("param");
@@ -928,14 +944,16 @@ const putRuleWeightsRoute = createRoute({
   responses: {
     200: { description: "Updated rule weights", content: { "application/json": { schema: RuleWeightsResponseSchema } } },
     400: { description: "Invalid payload", content: { "application/json": { schema: ErrorResponseSchema } } },
+    401: { description: "Authentication required", content: { "application/json": { schema: ErrorResponseSchema } } },
     403: { description: "Forbidden", content: { "application/json": { schema: ErrorResponseSchema } } },
     500: { description: "Server error", content: { "application/json": { schema: ErrorResponseSchema } } },
   },
 });
 
 app.openapi(putRuleWeightsRoute, async (c) => {
-  if (denyIfNotAdmin(c.var.accessLevel)) {
-    return c.json({ success: false as const, error: "Admin access required" }, 403);
+  const adminError = getAdminAccessError(c);
+  if (adminError) {
+    return c.json(adminError.body, adminError.status);
   }
   try {
     const data = c.req.valid("json");
@@ -985,14 +1003,16 @@ const putResumeFieldUsagePolicyRoute = createRoute({
   responses: {
     200: { description: "Updated policy", content: { "application/json": { schema: ResumeFieldUsagePolicyResponseSchema } } },
     400: { description: "Invalid payload", content: { "application/json": { schema: ErrorResponseSchema } } },
+    401: { description: "Authentication required", content: { "application/json": { schema: ErrorResponseSchema } } },
     403: { description: "Forbidden", content: { "application/json": { schema: ErrorResponseSchema } } },
     500: { description: "Server error", content: { "application/json": { schema: ErrorResponseSchema } } },
   },
 });
 
 app.openapi(putResumeFieldUsagePolicyRoute, async (c) => {
-  if (denyIfNotAdmin(c.var.accessLevel)) {
-    return c.json({ success: false as const, error: "Admin access required" }, 403);
+  const adminError = getAdminAccessError(c);
+  if (adminError) {
+    return c.json(adminError.body, adminError.status);
   }
   try {
     const data = c.req.valid("json");
@@ -1042,14 +1062,16 @@ const postLearningLogRoute = createRoute({
   responses: {
     201: { description: "Appended entry", content: { "application/json": { schema: LearningLogAppendResponseSchema } } },
     400: { description: "Invalid payload", content: { "application/json": { schema: ErrorResponseSchema } } },
+    401: { description: "Authentication required", content: { "application/json": { schema: ErrorResponseSchema } } },
     403: { description: "Forbidden", content: { "application/json": { schema: ErrorResponseSchema } } },
     500: { description: "Server error", content: { "application/json": { schema: ErrorResponseSchema } } },
   },
 });
 
 app.openapi(postLearningLogRoute, async (c) => {
-  if (denyIfNotAdmin(c.var.accessLevel)) {
-    return c.json({ success: false as const, error: "Admin access required" }, 403);
+  const adminError = getAdminAccessError(c);
+  if (adminError) {
+    return c.json(adminError.body, adminError.status);
   }
   try {
     const data = c.req.valid("json");

@@ -3,7 +3,7 @@ import { callConvexAction, callConvexMutation, callConvexQuery } from "../servic
 import { IngestComputeService } from "../services/ingest-compute-service.js";
 import { config } from "../services/config.js";
 import { logger } from "../services/logger.js";
-import { requireAdmin } from "../middleware/workspace.js";
+import { requireAdmin } from "../middleware/auth.js";
 import { notificationService } from "../services/notification-service.js";
 
 const app = new OpenAPIHono();

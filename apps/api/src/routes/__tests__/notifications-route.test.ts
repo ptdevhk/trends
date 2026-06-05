@@ -2,6 +2,10 @@ import { OpenAPIHono } from "@hono/zod-openapi";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import notificationsRoutes from "../notifications";
+import { createAuthMiddleware } from "../../middleware/auth";
+import { workspaceMiddleware } from "../../middleware/workspace";
+import { resetResumeScreeningDb } from "../../services/database";
+import { createAuthHeaders } from "../test-auth-helpers";
 
 vi.mock("../../services/notification-service", () => ({
   notificationService: {
@@ -27,9 +31,14 @@ vi.mock("../../services/ai-matching", () => ({
 }));
 
 function createTestApp() {
+  const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
+  const middleware = createAuthMiddleware({ storage: auth.storage, ttlSeconds: 3600 });
   const app = new OpenAPIHono();
+  app.use("*", workspaceMiddleware);
+  app.use("*", middleware.optionalAuth);
+  app.use("/api/*", middleware.requireCsrf);
   app.route("/api/notifications", notificationsRoutes);
-  return app;
+  return { app, headers: auth.headers };
 }
 
 const jsonHeaders = (extra: Record<string, string> = {}): Record<string, string> => ({
@@ -40,11 +49,12 @@ const jsonHeaders = (extra: Record<string, string> = {}): Record<string, string>
 describe("notifications routes", () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    resetResumeScreeningDb();
   });
 
   describe("GET /api/notifications/templates", () => {
     it("returns template list", async () => {
-      const app = createTestApp();
+      const { app } = createTestApp();
       const response = await app.request("/api/notifications/templates");
 
       expect(response.status).toBe(200);
@@ -56,7 +66,7 @@ describe("notifications routes", () => {
 
   describe("POST /api/notifications/draft", () => {
     it("generates outreach draft", async () => {
-      const app = createTestApp();
+      const { app } = createTestApp();
       const response = await app.request("/api/notifications/draft", {
         method: "POST",
         headers: jsonHeaders(),
@@ -73,7 +83,7 @@ describe("notifications routes", () => {
     });
 
     it("returns 400 for invalid body", async () => {
-      const app = createTestApp();
+      const { app } = createTestApp();
       const response = await app.request("/api/notifications/draft", {
         method: "POST",
         headers: jsonHeaders(),
@@ -86,7 +96,7 @@ describe("notifications routes", () => {
 
   describe("POST /api/notifications/preview", () => {
     it("renders email preview", async () => {
-      const app = createTestApp();
+      const { app } = createTestApp();
       const response = await app.request("/api/notifications/preview", {
         method: "POST",
         headers: jsonHeaders(),
@@ -103,7 +113,7 @@ describe("notifications routes", () => {
     });
 
     it("renders feishu preview", async () => {
-      const app = createTestApp();
+      const { app } = createTestApp();
       const response = await app.request("/api/notifications/preview", {
         method: "POST",
         headers: jsonHeaders(),
@@ -123,10 +133,10 @@ describe("notifications routes", () => {
 
   describe("POST /api/notifications/send", () => {
     it("rejects non-admin with 403", async () => {
-      const app = createTestApp();
+      const { app, headers } = createTestApp();
       const response = await app.request("/api/notifications/send", {
         method: "POST",
-        headers: jsonHeaders({ "X-Workspace-Slug": "hr" }),
+        headers: jsonHeaders(headers),
         body: JSON.stringify({ to: "test@example.com", subject: "Hi", body: "Hello" }),
       });
 
@@ -136,10 +146,10 @@ describe("notifications routes", () => {
 
   describe("POST /api/notifications/send-template", () => {
     it("rejects non-admin with 403", async () => {
-      const app = createTestApp();
+      const { app, headers } = createTestApp();
       const response = await app.request("/api/notifications/send-template", {
         method: "POST",
-        headers: jsonHeaders({ "X-Workspace-Slug": "hr" }),
+        headers: jsonHeaders(headers),
         body: JSON.stringify({
           channel: "feishu",
           templateId: "test-template",

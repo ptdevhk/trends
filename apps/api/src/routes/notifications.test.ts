@@ -5,13 +5,33 @@ import notificationsRoutes from './notifications'
 import { aiMatchingService } from '../services/ai-matching'
 import { notificationService } from '../services/notification-service'
 import { notificationTemplateService } from '../services/notification-template-service'
+import { createAuthMiddleware } from '../middleware/auth'
 import { workspaceMiddleware } from '../middleware/workspace'
+import type { AuthStorage } from '../services/auth-storage'
+import { resetResumeScreeningDb } from '../services/database'
+import { createAuthHeaders } from './test-auth-helpers'
 
-function createTestApp() {
+let defaultAuthHeaders: Record<string, string> = {}
+
+function createTestApp(storage?: AuthStorage) {
   const app = new Hono()
   app.use('/api/*', workspaceMiddleware)
+  const auth = storage ? undefined : createAuthHeaders({ workspaceSlug: 'dev', role: 'admin' })
+  const authStorage = storage ?? auth!.storage
+  defaultAuthHeaders = auth?.headers ?? defaultAuthHeaders
+  const middleware = createAuthMiddleware({ storage: authStorage, ttlSeconds: 3600 })
+  app.use('/api/*', middleware.optionalAuth)
+  app.use('/api/*', middleware.requireCsrf)
   app.route('/api/notifications', notificationsRoutes)
   return app
+}
+
+function jsonHeaders(extra: Record<string, string> = {}): Record<string, string> {
+  return {
+    ...defaultAuthHeaders,
+    'Content-Type': 'application/json',
+    ...extra,
+  }
 }
 
 const MOCK_TEMPLATES = [
@@ -32,6 +52,7 @@ const MOCK_RENDERED = {
 describe('notifications routes', () => {
   afterEach(() => {
     vi.restoreAllMocks()
+    resetResumeScreeningDb()
   })
 
   describe('GET /api/notifications/templates', () => {
@@ -149,7 +170,7 @@ describe('notifications routes', () => {
       const app = createTestApp()
       const response = await app.request('/api/notifications/send', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Workspace-Slug': 'dev' },
+        headers: jsonHeaders(),
         body: JSON.stringify({ to: 'test@example.com', subject: 'Hello', body: '<p>Hi</p>' }),
       })
       expect(response.status).toBe(200)
@@ -163,7 +184,7 @@ describe('notifications routes', () => {
       const app = createTestApp()
       const response = await app.request('/api/notifications/send', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Workspace-Slug': 'dev' },
+        headers: jsonHeaders(),
         body: JSON.stringify({ to: 'test@example.com', subject: 'Hello', body: '<p>Hi</p>' }),
       })
       expect(response.status).toBe(500)
@@ -173,7 +194,7 @@ describe('notifications routes', () => {
       const app = createTestApp()
       const response = await app.request('/api/notifications/send', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Workspace-Slug': 'dev' },
+        headers: jsonHeaders(),
         body: JSON.stringify({ to: 'not-an-email', subject: 'Hello', body: 'test' }),
       })
       expect(response.status).toBe(400)
@@ -187,7 +208,7 @@ describe('notifications routes', () => {
       const app = createTestApp()
       const response = await app.request('/api/notifications/send-template', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Workspace-Slug': 'dev' },
+        headers: jsonHeaders(),
         body: JSON.stringify({ channel: 'email', templateId: 'outreach-email', to: 'test@example.com', data: {} }),
       })
       expect(response.status).toBe(200)
@@ -203,7 +224,7 @@ describe('notifications routes', () => {
       const app = createTestApp()
       const response = await app.request('/api/notifications/send-template', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Workspace-Slug': 'dev' },
+        headers: jsonHeaders(),
         body: JSON.stringify({ channel: 'wechat_work', templateId: 'match-alert', data: {} }),
       })
       expect(response.status).toBe(200)
@@ -218,7 +239,7 @@ describe('notifications routes', () => {
       const app = createTestApp()
       const response = await app.request('/api/notifications/send-template', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Workspace-Slug': 'dev' },
+        headers: jsonHeaders(),
         body: JSON.stringify({ channel: 'feishu', templateId: 'match-alert', data: {} }),
       })
       expect(response.status).toBe(200)
@@ -234,7 +255,7 @@ describe('notifications routes', () => {
       const app = createTestApp()
       const response = await app.request('/api/notifications/send-template', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Workspace-Slug': 'dev' },
+        headers: jsonHeaders(),
         body: JSON.stringify({ channel: 'email', templateId: 'missing', to: 'test@example.com', data: {} }),
       })
       expect(response.status).toBe(500)
@@ -243,20 +264,24 @@ describe('notifications routes', () => {
 
   describe('admin guard', () => {
     it('rejects /send without admin workspace', async () => {
-      const app = createTestApp()
+      const auth = createAuthHeaders({ workspaceSlug: 'hr', role: 'user' })
+      defaultAuthHeaders = auth.headers
+      const app = createTestApp(auth.storage)
       const response = await app.request('/api/notifications/send', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Workspace-Slug': 'hr' },
+        headers: jsonHeaders(),
         body: JSON.stringify({ to: 'test@example.com', subject: 'Hello', body: '<p>Hi</p>' }),
       })
       expect(response.status).toBe(403)
     })
 
     it('rejects /send-template without admin workspace', async () => {
-      const app = createTestApp()
+      const auth = createAuthHeaders({ workspaceSlug: 'hr', role: 'user' })
+      defaultAuthHeaders = auth.headers
+      const app = createTestApp(auth.storage)
       const response = await app.request('/api/notifications/send-template', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Workspace-Slug': 'hr' },
+        headers: jsonHeaders(),
         body: JSON.stringify({ channel: 'email', templateId: 'outreach-email', to: 'test@example.com', data: {} }),
       })
       expect(response.status).toBe(403)

@@ -15,7 +15,7 @@ import { summaryDispatcher } from "../services/summaries/summary-dispatcher.js";
 import { SummaryRenderer } from "../services/summaries/summary-renderer.js";
 import { workspaceConfigService } from "../services/workspace-config-service.js";
 import { logger } from "../services/logger.js";
-import { denyIfNotAdmin } from "../middleware/workspace.js";
+import { getAdminAccessError } from "../middleware/auth.js";
 import {
   WorkspaceSummaryRunStorage,
   type StoredWorkspaceSummaryRun,
@@ -416,6 +416,14 @@ const listProfilesRoute = createRoute({
         },
       },
     },
+    401: {
+      description: "Authentication required",
+      content: {
+        "application/json": {
+          schema: ErrorSchema,
+        },
+      },
+    },
     403: {
       description: "Forbidden",
       content: {
@@ -428,8 +436,9 @@ const listProfilesRoute = createRoute({
 });
 
 app.openapi(listProfilesRoute, async (c) => {
-  if (denyIfNotAdmin(c.var.accessLevel)) {
-    return c.json({ success: false as const, error: "Admin access required" }, 403);
+  const adminError = getAdminAccessError(c);
+  if (adminError) {
+    return c.json(adminError.body, adminError.status);
   }
 
   const config = await workspaceConfigService.getWorkspaceSummaryProfiles(c.var.workspaceSlug);
@@ -470,6 +479,14 @@ const createProfileRoute = createRoute({
         },
       },
     },
+    401: {
+      description: "Authentication required",
+      content: {
+        "application/json": {
+          schema: ErrorSchema,
+        },
+      },
+    },
     403: {
       description: "Forbidden",
       content: {
@@ -490,8 +507,9 @@ const createProfileRoute = createRoute({
 });
 
 app.openapi(createProfileRoute, async (c) => {
-  if (denyIfNotAdmin(c.var.accessLevel)) {
-    return c.json({ success: false as const, error: "Admin access required" }, 403);
+  const adminError = getAdminAccessError(c);
+  if (adminError) {
+    return c.json(adminError.body, adminError.status);
   }
 
   const payload = c.req.valid("json");
@@ -575,6 +593,14 @@ const getProfileRoute = createRoute({
         },
       },
     },
+    401: {
+      description: "Authentication required",
+      content: {
+        "application/json": {
+          schema: ErrorSchema,
+        },
+      },
+    },
     403: {
       description: "Forbidden",
       content: {
@@ -595,8 +621,9 @@ const getProfileRoute = createRoute({
 });
 
 app.openapi(getProfileRoute, async (c) => {
-  if (denyIfNotAdmin(c.var.accessLevel)) {
-    return c.json({ success: false as const, error: "Admin access required" }, 403);
+  const adminError = getAdminAccessError(c);
+  if (adminError) {
+    return c.json(adminError.body, adminError.status);
   }
 
   const { profileId } = c.req.valid("param");
@@ -649,6 +676,14 @@ const updateProfileRoute = createRoute({
         },
       },
     },
+    401: {
+      description: "Authentication required",
+      content: {
+        "application/json": {
+          schema: ErrorSchema,
+        },
+      },
+    },
     403: {
       description: "Forbidden",
       content: {
@@ -669,8 +704,9 @@ const updateProfileRoute = createRoute({
 });
 
 app.openapi(updateProfileRoute, async (c) => {
-  if (denyIfNotAdmin(c.var.accessLevel)) {
-    return c.json({ success: false as const, error: "Admin access required" }, 403);
+  const adminError = getAdminAccessError(c);
+  if (adminError) {
+    return c.json(adminError.body, adminError.status);
   }
 
   const { profileId } = c.req.valid("param");
@@ -729,6 +765,14 @@ const deleteProfileRoute = createRoute({
         },
       },
     },
+    401: {
+      description: "Authentication required",
+      content: {
+        "application/json": {
+          schema: ErrorSchema,
+        },
+      },
+    },
     403: {
       description: "Forbidden",
       content: {
@@ -749,8 +793,9 @@ const deleteProfileRoute = createRoute({
 });
 
 app.openapi(deleteProfileRoute, async (c) => {
-  if (denyIfNotAdmin(c.var.accessLevel)) {
-    return c.json({ success: false as const, error: "Admin access required" }, 403);
+  const adminError = getAdminAccessError(c);
+  if (adminError) {
+    return c.json(adminError.body, adminError.status);
   }
 
   const { profileId } = c.req.valid("param");

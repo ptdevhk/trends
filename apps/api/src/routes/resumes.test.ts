@@ -4,6 +4,7 @@ import { createApp } from "../app";
 import { MatchStorage, type StoredMatch } from "../services/match-storage";
 import { ResumeService } from "../services/resume-service";
 import { SessionManager } from "../services/session-manager";
+import { createAuthContext } from "./test-auth-helpers";
 
 type ConvexCall = {
   pathName: string;
@@ -62,6 +63,12 @@ function convexSuccess(value: unknown): Response {
       },
     }
   );
+}
+
+function createTestApp() {
+  return createApp({
+    authContext: createAuthContext({ workspaceSlug: "dev", role: "admin" }),
+  });
 }
 
 function buildConvexResumeRecord(
@@ -188,7 +195,7 @@ describe("resume routes", () => {
       indexes: new Map(),
     });
 
-    const app = createApp();
+    const app = createTestApp();
     const response = await app.request("/api/resumes/sample-resume-1?source=sample");
 
     expect(response.status).toBe(200);
@@ -253,7 +260,7 @@ describe("resume routes", () => {
       });
     });
 
-    const app = createApp();
+    const app = createTestApp();
     const response = await app.request("/api/resumes/resume-live-1?source=convex");
 
     expect(response.status).toBe(200);
@@ -340,7 +347,7 @@ describe("resume routes", () => {
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
-    const app = createApp();
+    const app = createTestApp();
     const response = await app.request("/api/resumes?source=convex&q=CNC%20%E9%94%80%E5%94%AE&limit=5");
 
     expect(response.status).toBe(200);
@@ -427,7 +434,7 @@ describe("resume routes", () => {
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
-    const app = createApp();
+    const app = createTestApp();
     const response = await app.request("/api/resumes?source=convex&q=cnc%20sales&limit=5", {
       headers: {
         "X-Workspace-Slug": "hr",
@@ -445,7 +452,7 @@ describe("resume routes", () => {
   });
 
   it("keeps the static skills-version route from being shadowed by resume detail lookup", async () => {
-    const app = createApp();
+    const app = createTestApp();
     const response = await app.request("/api/resumes/skills-version");
 
     expect(response.status).toBe(200);
@@ -491,7 +498,7 @@ describe("resume routes", () => {
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
-    const app = createApp();
+    const app = createTestApp();
     const response = await app.request(
       "/api/resumes/diagnostics?archived=true&sourceKey=51job-manual&sourceKey=seek&limit=25"
     );
@@ -565,7 +572,7 @@ describe("resume routes", () => {
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
-    const app = createApp();
+    const app = createTestApp();
     const response = await app.request("/api/resumes/match", {
       method: "POST",
       headers: {
@@ -644,7 +651,7 @@ describe("resume routes", () => {
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
-    const app = createApp();
+    const app = createTestApp();
     const response = await app.request("/api/resumes?source=convex&limit=2&offset=2");
 
     expect(response.status).toBe(200);
@@ -704,7 +711,7 @@ describe("resume routes", () => {
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
-    const app = createApp();
+    const app = createTestApp();
     const response = await app.request("/api/resumes?source=convex&q=cnc%20sales&limit=2&offset=2");
 
     expect(response.status).toBe(200);
@@ -754,7 +761,7 @@ describe("resume routes", () => {
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
-    const app = createApp();
+    const app = createTestApp();
     const response = await app.request("/api/resumes?source=convex&q=cnc%20sales&limit=2&offset=2&sortBy=name&sortOrder=desc");
 
     expect(response.status).toBe(200);
@@ -832,7 +839,7 @@ describe("resume routes", () => {
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
-    const app = createApp();
+    const app = createTestApp();
     const response = await app.request(
       "/api/resumes?source=convex&q=%22machine%20tools%22&locations=Kuala%20Lumpur%20MY&jobDescriptionId=seek-malaysia-sales&limit=5"
     );
@@ -897,7 +904,7 @@ describe("resume routes", () => {
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
-    const app = createApp();
+    const app = createTestApp();
     const response = await app.request("/api/resumes?source=convex&q=cnc%20sales&limit=2&requiredKeywords=machine%20tools,CNC");
 
     expect(response.status).toBe(200);
@@ -928,7 +935,7 @@ describe("resume routes", () => {
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
-    const app = createApp();
+    const app = createTestApp();
     const response = await app.request("/api/resumes?source=convex&limit=2&offset=2&locations=%E4%B8%9C%E8%8E%9E&requiredKeywords=CNC");
 
     expect(response.status).toBe(200);
@@ -961,7 +968,7 @@ describe("resume routes", () => {
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
-    const app = createApp();
+    const app = createTestApp();
     const response = await app.request("/api/resumes?source=convex&limit=2&offset=2&sortBy=experience");
 
     expect(response.status).toBe(200);
@@ -1015,7 +1022,7 @@ describe("resume routes", () => {
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
-    const app = createApp();
+    const app = createTestApp();
     const response = await app.request(
       "/api/resumes?source=convex&limit=1&offset=1&sortBy=score&jobDescriptionId=jd-1&locations=%E4%B8%9C%E8%8E%9E"
     );
@@ -1088,7 +1095,7 @@ describe("resume routes", () => {
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
-    const app = createApp();
+    const app = createTestApp();
     const response = await app.request(
       "/api/resumes?source=convex&limit=1&offset=1&sortBy=score&jobDescriptionId=jd-1&q=cnc%20sales&locations=%E4%B8%9C%E8%8E%9E"
     );
@@ -1143,7 +1150,7 @@ describe("resume routes", () => {
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
-    const app = createApp();
+    const app = createTestApp();
     const response = await app.request("/api/resumes?source=convex&limit=1&offset=1&sortBy=score&jobDescriptionId=jd-1&q=cnc%20sales");
 
     expect(response.status).toBe(200);
@@ -1200,7 +1207,7 @@ describe("resume routes", () => {
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
-    const app = createApp();
+    const app = createTestApp();
     const response = await app.request("/api/resumes?source=convex&limit=2&sortBy=score&jobDescriptionId=jd-1&q=cnc%20sales");
 
     expect(response.status).toBe(200);
@@ -1316,7 +1323,7 @@ describe("resume routes", () => {
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
-    const app = createApp();
+    const app = createTestApp();
     const response = await app.request("/api/resumes?source=convex&limit=2&sortBy=score&jobDescriptionId=jd-1&q=cnc%20sales");
 
     expect(response.status).toBe(200);
@@ -1373,7 +1380,7 @@ describe("resume routes", () => {
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
-    const app = createApp();
+    const app = createTestApp();
     const response = await app.request(
       "/api/resumes?source=convex&limit=2&jobDescriptionId=jd-1&q=cnc%20sales&minMatchScore=70&sortBy=name&sortOrder=desc"
     );
@@ -1428,7 +1435,7 @@ describe("resume routes", () => {
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
-    const app = createApp();
+    const app = createTestApp();
     const response = await app.request("/api/resumes?source=convex&limit=2&offset=2&sortBy=score&jobDescriptionId=jd-1");
 
     expect(response.status).toBe(200);
@@ -1483,7 +1490,7 @@ describe("resume routes", () => {
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
-    const app = createApp();
+    const app = createTestApp();
     const response = await app.request("/api/resumes?source=convex&limit=2&jobDescriptionId=jd-1&minMatchScore=70");
 
     expect(response.status).toBe(200);
@@ -1544,7 +1551,7 @@ describe("resume routes", () => {
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
-    const app = createApp();
+    const app = createTestApp();
     const response = await app.request(
       "/api/resumes?source=convex&limit=2&jobDescriptionId=jd-1&recommendation=strong_match,match"
     );
@@ -1599,7 +1606,7 @@ describe("resume routes", () => {
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
-    const app = createApp();
+    const app = createTestApp();
     const response = await app.request("/api/resumes/analyze", {
       method: "POST",
       headers: {
@@ -1666,7 +1673,7 @@ describe("resume routes", () => {
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
-    const app = createApp();
+    const app = createTestApp();
     const response = await app.request("/api/resumes/analyze", {
       method: "POST",
       headers: {
@@ -1720,7 +1727,7 @@ describe("resume routes", () => {
       return convexSuccess({ cleared: 1, hasMore: false, cursor: null });
     });
 
-    const app = createApp();
+    const app = createTestApp();
     const response = await app.request("/api/resumes/clear-analyses", {
       method: "POST",
       headers: {
@@ -1769,7 +1776,7 @@ describe("resume routes", () => {
       return convexSuccess({ cleared: 1, hasMore: false, cursor: null });
     });
 
-    const app = createApp();
+    const app = createTestApp();
     const response = await app.request("/api/resumes/clear-analyses", {
       method: "POST",
       headers: {
@@ -1790,7 +1797,7 @@ describe("resume routes", () => {
   });
 
   it("rejects convex or read-only match-stream requests", async () => {
-    const app = createApp();
+    const app = createTestApp();
 
     const convexResponse = await app.request("/api/resumes/match-stream", {
       method: "POST",
@@ -1838,7 +1845,7 @@ describe("resume routes", () => {
         });
       });
 
-      const app = createApp();
+      const app = createTestApp();
       const response = await app.request("/api/resumes/explanation", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1860,7 +1867,7 @@ describe("resume routes", () => {
         return convexSuccess(null);
       });
 
-      const app = createApp();
+      const app = createTestApp();
       const response = await app.request("/api/resumes/explanation", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1874,7 +1881,7 @@ describe("resume routes", () => {
     });
 
     it("returns 400 when resumeId is missing", async () => {
-      const app = createApp();
+      const app = createTestApp();
       const response = await app.request("/api/resumes/explanation", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1887,7 +1894,7 @@ describe("resume routes", () => {
     });
 
     it("returns 400 when workspaceSlug is missing", async () => {
-      const app = createApp();
+      const app = createTestApp();
       const response = await app.request("/api/resumes/explanation", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1907,7 +1914,7 @@ describe("resume routes", () => {
         });
       });
 
-      const app = createApp();
+      const app = createTestApp();
       const response = await app.request("/api/resumes/explanation", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1932,7 +1939,7 @@ describe("resume routes", () => {
         ]);
       });
 
-      const app = createApp();
+      const app = createTestApp();
       const response = await app.request("/api/resumes/audit-logs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1954,7 +1961,7 @@ describe("resume routes", () => {
         ]);
       });
 
-      const app = createApp();
+      const app = createTestApp();
       const response = await app.request("/api/resumes/audit-logs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1967,7 +1974,7 @@ describe("resume routes", () => {
     });
 
     it("returns 400 when workspaceSlug is missing", async () => {
-      const app = createApp();
+      const app = createTestApp();
       const response = await app.request("/api/resumes/audit-logs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1978,7 +1985,7 @@ describe("resume routes", () => {
     });
 
     it("returns 400 for invalid decisionType", async () => {
-      const app = createApp();
+      const app = createTestApp();
       const response = await app.request("/api/resumes/audit-logs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1997,7 +2004,7 @@ describe("resume routes", () => {
         ]);
       });
 
-      const app = createApp();
+      const app = createTestApp();
       const response = await app.request("/api/resumes/audit-logs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -2010,7 +2017,7 @@ describe("resume routes", () => {
     });
 
     it("returns 400 for invalid outcome", async () => {
-      const app = createApp();
+      const app = createTestApp();
       const response = await app.request("/api/resumes/audit-logs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -2030,7 +2037,7 @@ describe("resume routes", () => {
         return convexSuccess(null);
       });
 
-      const app = createApp();
+      const app = createTestApp();
       const response = await app.request("/api/resumes/audit-outcome", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -2049,7 +2056,7 @@ describe("resume routes", () => {
         return convexSuccess(null);
       });
 
-      const app = createApp();
+      const app = createTestApp();
       const response = await app.request("/api/resumes/audit-outcome", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -2066,7 +2073,7 @@ describe("resume routes", () => {
         return convexSuccess(null);
       });
 
-      const app = createApp();
+      const app = createTestApp();
       const response = await app.request("/api/resumes/audit-outcome", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -2077,7 +2084,7 @@ describe("resume routes", () => {
     });
 
     it("returns 400 when auditLogId is missing", async () => {
-      const app = createApp();
+      const app = createTestApp();
       const response = await app.request("/api/resumes/audit-outcome", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -2088,7 +2095,7 @@ describe("resume routes", () => {
     });
 
     it("returns 400 for invalid outcome", async () => {
-      const app = createApp();
+      const app = createTestApp();
       const response = await app.request("/api/resumes/audit-outcome", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -2106,7 +2113,7 @@ describe("resume routes", () => {
         });
       });
 
-      const app = createApp();
+      const app = createTestApp();
       const response = await app.request("/api/resumes/audit-outcome", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

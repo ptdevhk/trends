@@ -41,6 +41,7 @@ import {
 import { createAuthRoutes } from "./routes/auth.js";
 import { config } from "./services/config.js";
 import type { AuthStorage } from "./services/auth-storage.js";
+import type { AuthContext } from "./services/auth-types.js";
 import { workspaceMiddleware } from "./middleware/workspace.js";
 import { createAuthMiddleware } from "./middleware/auth.js";
 import { serverTimingMiddleware } from "./middleware/server-timing.js";
@@ -69,6 +70,7 @@ function resolveCorsOrigin(origin: string): string | null {
 
 type CreateAppOptions = {
   authStorage?: AuthStorage;
+  authContext?: AuthContext;
   authTtlSeconds?: number;
 };
 
@@ -137,6 +139,12 @@ export function createApp(options: CreateAppOptions = {}) {
   app.use("*", logger());
   app.use("*", prettyJSON());
   app.use("*", workspaceMiddleware);
+  if (options.authContext) {
+    app.use("*", async (c, next) => {
+      c.set("auth", options.authContext);
+      await next();
+    });
+  }
   app.use("*", authMiddleware.optionalAuth);
 
   // Rate limiting on API routes (100 req/min per IP in production).

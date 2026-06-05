@@ -4,7 +4,7 @@ import path from "node:path";
 
 import { AuthSessionService } from "../services/auth-session-service.js";
 import { AuthStorage } from "../services/auth-storage.js";
-import type { WorkspaceRole } from "../services/auth-types.js";
+import type { AuthContext, WorkspaceRole } from "../services/auth-types.js";
 import { config } from "../services/config.js";
 import { resetResumeScreeningDb } from "../services/database.js";
 
@@ -36,5 +36,24 @@ export function createAuthHeaders(input: {
       "X-CSRF-Token": session.csrfToken,
       Cookie: `${config.auth.sessionCookieName}=${session.token}`,
     },
+  };
+}
+
+export function createAuthContext(input: {
+  workspaceSlug: string;
+  role: WorkspaceRole;
+  userId?: string;
+}): AuthContext {
+  const userId = input.userId ?? `${input.role}-user`;
+  return {
+    user: {
+      id: userId,
+      email: `${input.role}@example.com`,
+      displayName: input.role,
+      status: "active",
+    },
+    memberships: [{ userId, workspaceSlug: input.workspaceSlug, role: input.role }],
+    sessionId: "test-session",
+    csrfToken: "test-csrf-token-hash",
   };
 }
