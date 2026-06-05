@@ -167,6 +167,33 @@ require_phase1_backup() {
     log "Backup: $BACKUP_FILE ($(du -h "$BACKUP_FILE" | cut -f1))"
 }
 
+clear_resumes_until_complete() {
+    local attempt=1
+    local max_attempts=10
+    local output=""
+
+    while [ "$attempt" -le "$max_attempts" ]; do
+        log "  clear-resumes attempt $attempt/$max_attempts"
+        if output="$(make clear-resumes 2>&1)"; then
+            printf '%s\n' "$output" | tee -a "$LOG"
+            if printf '%s\n' "$output" | grep -q '"partial"[[:space:]]*:[[:space:]]*true'; then
+                log "  clear-resumes returned partial:true; retrying after Convex jobs settle..."
+            else
+                return 0
+            fi
+        else
+            printf '%s\n' "$output" | tee -a "$LOG"
+            log "  clear-resumes failed; retrying after Convex jobs settle..."
+        fi
+
+        attempt=$((attempt + 1))
+        sleep 5
+    done
+
+    log "ERROR: clear-resumes did not complete after $max_attempts attempts."
+    return 1
+}
+
 prepare_fresh_sandbox() {
     if [ "$RESET_MODE" != "fresh-sandbox" ]; then
         return 0
@@ -253,11 +280,7 @@ phase1() {
 
     # Clear resumes before restore
     log "Clearing existing resumes..."
-    make clear-resumes 2>&1 | tee -a "$LOG" || {
-        log "WARNING: clear-resumes failed, attempting retry..."
-        sleep 5
-        make clear-resumes 2>&1 | tee -a "$LOG"
-    }
+    clear_resumes_until_complete
 
     # Restore backup
     log "Restoring backup..."
