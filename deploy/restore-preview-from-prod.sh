@@ -16,7 +16,7 @@ wait_for_preview_api() {
     local waited=0
 
     echo "Waiting for preview API to become ready..."
-    while ! curl -fsS http://127.0.0.1:3002/api/health >/dev/null 2>&1; do
+    while ! curl -fsS http://127.0.0.1:3002/ >/dev/null 2>&1; do
         sleep 2
         waited=$((waited + 2))
         if [ "$waited" -ge "$max_wait" ]; then

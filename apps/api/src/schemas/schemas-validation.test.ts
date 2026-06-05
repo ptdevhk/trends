@@ -498,7 +498,7 @@ describe("HealthResponseSchema", () => {
     const result = HealthResponseSchema.safeParse({
       status: "healthy",
       timestamp: "2024-01-01T00:00:00Z",
-      version: "0.4.3",
+      version: "0.4.4",
     });
     expect(result.success).toBe(true);
   });
