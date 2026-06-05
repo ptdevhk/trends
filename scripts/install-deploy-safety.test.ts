@@ -1,11 +1,18 @@
-import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import { beforeAll, describe, expect, it } from "vitest";
 
 const makefile = readFileSync(new URL("../Makefile", import.meta.url), "utf8");
 const installScript = readFileSync(new URL("./install.sh", import.meta.url), "utf8");
+const setupPreviewScript = readFileSync(new URL("../deploy/setup-preview.sh", import.meta.url), "utf8");
 const restorePreviewScript = readFileSync(new URL("../deploy/restore-preview-from-prod.sh", import.meta.url), "utf8");
+const syncPreviewConvexEnvScript = readFileSync(new URL("../deploy/sync-preview-convex-env.sh", import.meta.url), "utf8");
 const previewMcpDockerfile = readFileSync(new URL("../deploy/docker/Dockerfile.mcp", import.meta.url), "utf8");
+const previewCompose = readFileSync(new URL("../deploy/docker/docker-compose.preview.yml", import.meta.url), "utf8");
+const previewConvexStartScript = readFileSync(new URL("../deploy/docker/start-convex.sh", import.meta.url), "utf8");
 const removedSeedEnvVar = "SEED_" + "RESUMES";
 
 function getTargetRecipe(target: string): string {
@@ -141,11 +148,73 @@ describe("preview restore export compatibility", () => {
     expect(restorePreviewScript).toContain("resumes_search:backfillResumeDigests");
     expect(restorePreviewScript).toContain('"limit": 200');
   });
+
+  it("syncs preview AI env into Convex before importing production data", () => {
+    expect(restorePreviewScript).toContain("Sync preview AI env into Convex");
+    expect(restorePreviewScript).toContain("deploy/sync-preview-convex-env.sh");
+    expect(restorePreviewScript.indexOf("deploy/sync-preview-convex-env.sh")).toBeLessThan(
+      restorePreviewScript.indexOf("convex import --replace-all"),
+    );
+  });
+});
+
+describe("preview AI env sync", () => {
+  it("hydrates missing preview AI env values from production env during setup", () => {
+    expect(setupPreviewScript).toContain("Hydrating missing preview AI env vars from production env");
+    expect(setupPreviewScript).toContain("deploy/sync-preview-convex-env.sh");
+    expect(setupPreviewScript).toContain("--hydrate-only");
+  });
+
+  it("syncs the resume scoring AI key fallback into preview Convex", () => {
+    expect(syncPreviewConvexEnvScript).toContain("AI_API_KEY");
+    expect(syncPreviewConvexEnvScript).toContain("OPENAI_API_KEY");
+    expect(syncPreviewConvexEnvScript).toContain("AI_ANALYSIS_RESUMES_ENABLED");
+    expect(syncPreviewConvexEnvScript).toContain("AI_OUTPUT_LOCALE");
+    expect(syncPreviewConvexEnvScript).toContain("AI_ANALYSIS_PARALLELISM");
+    expect(syncPreviewConvexEnvScript).toContain("/etc/trends/env");
+    expect(syncPreviewConvexEnvScript).toContain("/opt/trends/.env.production");
+    expect(syncPreviewConvexEnvScript).toContain("npx convex env set");
+    expect(syncPreviewConvexEnvScript).toContain("shlex.quote");
+    expect(syncPreviewConvexEnvScript).toContain("Preview resume AI is enabled but AI_API_KEY/OPENAI_API_KEY is empty");
+  });
+
+  it("shell-quotes hydrated values copied from production env", () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "trends-preview-env-"));
+    const previewEnv = join(tempDir, ".env.preview");
+    const prodEnv = join(tempDir, "prod.env");
+
+    try {
+      writeFileSync(previewEnv, "AI_API_KEY=\nAI_ANALYSIS_RESUMES_ENABLED=true\n");
+      writeFileSync(prodEnv, "AI_API_KEY=abc def#ghi\n");
+
+      execFileSync("bash", ["deploy/sync-preview-convex-env.sh", "--hydrate-only"], {
+        cwd: new URL("..", import.meta.url),
+        env: {
+          ...process.env,
+          PREVIEW_DIR: tempDir,
+          PREVIEW_ENV: previewEnv,
+          PROD_ENV: prodEnv,
+        },
+      });
+
+      expect(readFileSync(previewEnv, "utf8")).toContain("AI_API_KEY='abc def#ghi'");
+    } finally {
+      rmSync(tempDir, { force: true, recursive: true });
+    }
+  });
 });
 
 describe("preview MCP image", () => {
   it("copies shared Python packages required by trendradar imports", () => {
     expect(previewMcpDockerfile).toContain("COPY trendradar/ ./trendradar/");
     expect(previewMcpDockerfile).toContain("COPY packages/ ./packages/");
+  });
+});
+
+describe("preview Convex container", () => {
+  it("installs and exposes system CA certificates for Convex action HTTPS calls", () => {
+    expect(previewConvexStartScript).toContain("ca-certificates");
+    expect(previewConvexStartScript).toContain("SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt");
+    expect(previewCompose).toContain("SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt");
   });
 });

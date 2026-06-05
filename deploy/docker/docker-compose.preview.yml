@@ -60,6 +60,7 @@ services:
       - HOME=/root
       # tmp on same fs as project to avoid cross-filesystem Convex binary move errors
       - CONVEX_TMPDIR=/root/.cache/tmp
+      - SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
       - CONVEX_LOCAL_BACKEND_STARTUP_TIMEOUT_SECS=120
       # Memory tuning — defaults from get-convex/convex-backend/crates/common/src/knobs.rs.
       # Reclaims ~950 MiB at steady state vs. the 1 GiB shared UDF cache default.
