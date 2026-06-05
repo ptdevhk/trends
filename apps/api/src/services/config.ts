@@ -28,5 +28,5 @@ export const config = {
   workerUrl: process.env.WORKER_URL || "http://localhost:8000",
   projectRoot,
   timezone,
-  version: "0.4.5",
+  version: "0.4.6",
 };
