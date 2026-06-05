@@ -156,6 +156,14 @@ describe("preview restore export compatibility", () => {
       restorePreviewScript.indexOf("convex import --replace-all"),
     );
   });
+
+  it("waits for the preview API after restart before final smoke checks", () => {
+    expect(restorePreviewScript).toContain("wait_for_preview_api()");
+    expect(restorePreviewScript).toContain("http://127.0.0.1:3002/api/health");
+    expect(restorePreviewScript.indexOf("wait_for_preview_api")).toBeLessThan(
+      restorePreviewScript.indexOf("=== Verification ==="),
+    );
+  });
 });
 
 describe("preview AI env sync", () => {
