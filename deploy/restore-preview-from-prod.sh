@@ -11,6 +11,23 @@ EXPORT_PATH=/tmp/prod-convex-export.zip
 rm -f "$EXPORT_PATH" /tmp/prod-convex-export-fixed.zip
 PREVIEW_DIR=/home/ubuntu/trends-preview
 
+wait_for_preview_api() {
+    local max_wait=120
+    local waited=0
+
+    echo "Waiting for preview API to become ready..."
+    while ! curl -fsS http://127.0.0.1:3002/api/health >/dev/null 2>&1; do
+        sleep 2
+        waited=$((waited + 2))
+        if [ "$waited" -ge "$max_wait" ]; then
+            echo "Preview API did not become ready after ${max_wait}s" >&2
+            systemctl status trends-preview-api --no-pager -l >&2 || true
+            exit 1
+        fi
+    done
+    echo "Preview API ready after ${waited}s"
+}
+
 echo "=== Step 1: Export production Convex data ==="
 sudo -u trends bash -c "cd /opt/trends/packages/convex && \
     CONVEX_URL=http://127.0.0.1:3210 \
@@ -174,7 +191,7 @@ echo "Backfilled resume_digests for $digest_total resumes"
 echo ""
 echo "=== Step 5: Restart API to pick up fresh data ==="
 systemctl restart trends-preview-api
-sleep 3
+wait_for_preview_api
 
 echo ""
 echo "=== Verification ==="
