@@ -31,6 +31,16 @@ describe('BulkActionBar', () => {
         expect(screen.getByText(/\(10\)/)).toBeInTheDocument()
     })
 
+    it('marks the total count as a lower bound when more result pages exist', () => {
+        render(
+            <MemoryRouter>
+                <BulkActionBar {...defaultProps} totalCountIsLowerBound />
+            </MemoryRouter>,
+        )
+
+        expect(screen.getByText('5 / 100+')).toBeInTheDocument()
+    })
+
     it('triggers selection callbacks', async () => {
         const user = userEvent.setup()
         render(<MemoryRouter><BulkActionBar {...defaultProps} /></MemoryRouter>)

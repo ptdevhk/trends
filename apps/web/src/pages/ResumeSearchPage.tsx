@@ -421,9 +421,10 @@ export function ResumeSearchPage() {
                 </ErrorBoundary>
               )}
 
-              <div className="sticky top-0 z-20 -mx-1 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-1 py-1">
+              <div className="sticky top-14 z-20 -mx-1 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-1 py-1">
                 <BulkActionBar
                   totalCount={filteredResults.length}
+                  totalCountIsLowerBound={hasMore}
                   selectedCount={selectedIds.size}
                   highScoreCount={highScoreCount}
                   exportFormat={exportFormat}

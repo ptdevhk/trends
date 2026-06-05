@@ -357,6 +357,7 @@ vi.mock('@/components/BulkActionBar', () => ({
     highScoreCount,
     selectedCount,
     totalCount,
+    totalCountIsLowerBound,
   }: {
     onExportFormatChange?: (format: string) => void
     onBulkAction?: (action: string, format?: string) => void
@@ -364,9 +365,10 @@ vi.mock('@/components/BulkActionBar', () => ({
     highScoreCount?: number
     selectedCount?: number
     totalCount?: number
+    totalCountIsLowerBound?: boolean
   }) => (
     <div>
-      <div>BulkActionBar {selectedCount}/{totalCount} high:{highScoreCount} fmt:{exportFormat}</div>
+      <div>BulkActionBar {selectedCount}/{totalCount}{totalCountIsLowerBound ? '+' : ''} high:{highScoreCount} fmt:{exportFormat}</div>
       {onExportFormatChange && (
         <button type="button" onClick={() => onExportFormatChange('xlsx')}>
           Change Export Format
@@ -839,6 +841,13 @@ describe('ResumeSearchPage', () => {
     render(<ResumeSearchPage />)
 
     expect(screen.getByText(/Header machine tools 2\+/)).toBeInTheDocument()
+    expect(screen.getByText(/BulkActionBar 0\/2\+/)).toBeInTheDocument()
+  })
+
+  it('keeps the sticky bulk bar below the app header', () => {
+    const { container } = render(<ResumeSearchPage />)
+
+    expect(container.querySelector('.sticky.top-14')).toBeInTheDocument()
   })
 
   it('hides the AI summary panel when the dedicated summary feature flag is off', () => {
