@@ -4,6 +4,7 @@ import path from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
+import { AuthStorage } from "./auth-storage.js";
 import { getResumeScreeningDb, resetResumeScreeningDb } from "./database.js";
 
 describe("auth sqlite schema", () => {
@@ -29,5 +30,27 @@ describe("auth sqlite schema", () => {
         "workspace_memberships",
       ]),
     );
+  });
+
+  it("creates a user, local identity, and workspace membership", () => {
+    const root = mkdtempSync(path.join(tmpdir(), "trends-auth-storage-"));
+    const storage = new AuthStorage(root);
+
+    const user = storage.createUser({
+      email: "hr@example.com",
+      displayName: "HR User",
+    });
+    storage.linkIdentity({
+      userId: user.id,
+      provider: "local",
+      providerSubject: "hr-admin",
+      providerTenant: "local",
+    });
+    storage.upsertMembership({ userId: user.id, workspaceSlug: "hr", role: "admin" });
+
+    expect(storage.findIdentity("local", "hr-admin", "local")?.userId).toBe(user.id);
+    expect(storage.listMemberships(user.id)).toEqual([
+      { userId: user.id, workspaceSlug: "hr", role: "admin" },
+    ]);
   });
 });
