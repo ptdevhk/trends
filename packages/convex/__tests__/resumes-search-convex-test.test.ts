@@ -758,6 +758,126 @@ describe("resumes_search: getResumesByIds", () => {
 // ---------------------------------------------------------------------------
 
 describe("resumes_search: scanResumeDigestPage", () => {
+    it("builds compact digest search text without copying cold resume searchText", async () => {
+        const t = convexTest(schema, modules);
+        const coldSearchText = [
+            "cnc 销售",
+            "coldblob ".repeat(6000),
+        ].join(" ");
+        const resumeId = await seedResume(t, {
+            externalId: "digest-compact",
+            identityKey: "profileUrl:example.com/candidates/digest-compact",
+            source: "job5156",
+            sourceKey: "job5156",
+            searchText: coldSearchText,
+            content: {
+                name: "Compact Candidate",
+                desiredPosition: "CNC销售工程师",
+                education: "本科",
+                expectedSalary: "15-25K",
+                locationHierarchy: { country: "中国", province: "广东", city: "东莞" },
+                skills: ["CNC", "销售"],
+                workHistory: [{
+                    companyName: "制造有限公司",
+                    jobTitle: "CNC销售工程师",
+                    description: "负责数控机床销售",
+                    startDate: "2021-01",
+                    endDate: "至今",
+                }],
+            },
+            age: 30,
+            ingestData: {
+                ...MINIMAL_INGEST_DATA,
+                synonymHits: ["数控", "销售"],
+                verifiedRoleYears: { sales: 3 },
+            },
+        });
+
+        await t.mutation(api.resumes_search.upsertResumeDigestForTest, { resumeId });
+        const result = await t.query(api.resumes_search.scanResumeDigestPage, { numItems: 1000 });
+
+        expect(result.docs).toHaveLength(1);
+        const row = result.docs[0];
+        expect(row.searchText).toContain("cnc");
+        expect(row.searchText).toContain("销售");
+        expect(row.searchText).not.toContain("coldblob");
+        expect(JSON.stringify(row).length).toBeLessThan(2048);
+    });
+
+    it("preserves domain keyword tokens from cold searchText without copying it", async () => {
+        const t = convexTest(schema, modules);
+        const resumeId = await seedResume(t, {
+            externalId: "digest-domain-token",
+            identityKey: "profileUrl:example.com/candidates/digest-domain-token",
+            source: "job5156",
+            sourceKey: "job5156",
+            searchText: [
+                "profile education included 数控 原理 and 销售 context",
+                "coldblob ".repeat(6000),
+            ].join(" "),
+            content: {
+                name: "Domain Token Candidate",
+                education: "本科",
+                expectedSalary: "15-25K",
+                locationHierarchy: { country: "中国" },
+            },
+            age: 30,
+        });
+
+        await t.mutation(api.resumes_search.upsertResumeDigestForTest, { resumeId });
+        const result = await t.query(api.resumes_search.scanResumeDigestPage, { numItems: 1000 });
+
+        const row = result.docs[0];
+        expect(row.searchText).toContain("cnc");
+        expect(row.searchText).toContain("数控");
+        expect(row.searchText).toContain("销售");
+        expect(row.searchText).not.toContain("coldblob");
+        expect(JSON.stringify(row).length).toBeLessThan(2048);
+    });
+
+    it("derives digest role years from roleSignals when verifiedRoleYears is absent", async () => {
+        const t = convexTest(schema, modules);
+        const resumeId = await seedResume(t, {
+            externalId: "digest-role-signals",
+            identityKey: "profileUrl:example.com/candidates/digest-role-signals",
+            searchText: "cnc 销售",
+            content: {
+                name: "Role Signal Candidate",
+                workHistory: [{ raw: "2021-2024 销售工程师" }],
+            },
+            ingestData: {
+                ...MINIMAL_INGEST_DATA,
+                verifiedRoleYears: {},
+                roleSignals: [{
+                    type: "sales",
+                    matchedSignals: ["销售"],
+                    signalCount: 1,
+                    occurrences: 1,
+                    years: 3,
+                    industryVerifiedYears: 3,
+                    industryVerifiedRelevantYears: 3,
+                    roleRelevantYears: 3,
+                    matchedWorkEntries: [{
+                        companyName: "测试公司",
+                        jobTitle: "销售工程师",
+                        years: 3,
+                        directRoleMatch: true,
+                        industryVerified: true,
+                        matchedSignals: ["销售"],
+                    }],
+                    verifyIn: "workHistory",
+                }],
+            },
+        });
+
+        await t.mutation(api.resumes_search.upsertResumeDigestForTest, { resumeId });
+        const result = await t.query(api.resumes_search.scanResumeDigestPage, { numItems: 1000 });
+
+        const row = result.docs[0];
+        expect(row.roleTypes).toEqual(["sales"]);
+        expect(row.roleYearsByType).toEqual({ sales: 3 });
+    });
+
     it("returns digest projection without cold resume content or full ingestData", async () => {
         const t = convexTest(schema, modules);
         const resumeId = await seedResume(t, {
