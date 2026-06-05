@@ -53,4 +53,29 @@ describe("auth sqlite schema", () => {
       { userId: user.id, workspaceSlug: "hr", role: "admin" },
     ]);
   });
+
+  it("consumes OIDC state only once", () => {
+    const root = mkdtempSync(path.join(tmpdir(), "trends-auth-oidc-state-"));
+    const storage = new AuthStorage(root);
+    const expiresAt = new Date(Date.now() + 60_000).toISOString();
+
+    storage.saveOidcState({
+      state: "state-123",
+      provider: "casdoor",
+      codeVerifier: "verifier-123",
+      nonce: "nonce-123",
+      redirectTo: "/resumes",
+      expiresAt,
+    });
+
+    expect(storage.consumeOidcState("state-123")).toEqual({
+      state: "state-123",
+      provider: "casdoor",
+      codeVerifier: "verifier-123",
+      nonce: "nonce-123",
+      redirectTo: "/resumes",
+      expiresAt,
+    });
+    expect(storage.consumeOidcState("state-123")).toBeNull();
+  });
 });

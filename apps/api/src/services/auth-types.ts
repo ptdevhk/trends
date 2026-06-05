@@ -21,6 +21,15 @@ export type AuthContext = {
   csrfToken: string;
 };
 
+export type StoredOidcState = {
+  state: string;
+  provider: "casdoor";
+  codeVerifier: string;
+  nonce?: string;
+  redirectTo?: string;
+  expiresAt: string;
+};
+
 export function hasWorkspaceRole(
   memberships: WorkspaceMembership[],
   workspaceSlug: string,

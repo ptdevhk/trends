@@ -3,7 +3,13 @@ import { randomUUID } from "node:crypto";
 import { config } from "./config.js";
 import { getResumeScreeningDb } from "./database.js";
 import { formatIsoOffsetInTimezone } from "./timezone.js";
-import type { AuthProvider, AuthUser, WorkspaceMembership, WorkspaceRole } from "./auth-types.js";
+import type {
+  AuthProvider,
+  AuthUser,
+  StoredOidcState,
+  WorkspaceMembership,
+  WorkspaceRole,
+} from "./auth-types.js";
 
 type IdentityRow = {
   user_id?: unknown;
@@ -36,6 +42,15 @@ type SessionRow = {
   csrf_token_hash?: unknown;
   expires_at?: unknown;
   revoked_at?: unknown;
+};
+
+type OidcStateRow = {
+  state?: unknown;
+  provider?: unknown;
+  code_verifier?: unknown;
+  nonce?: unknown;
+  redirect_to?: unknown;
+  expires_at?: unknown;
 };
 
 function toIsoNow(): string {
@@ -246,5 +261,66 @@ export class AuthStorage {
       SET revoked_at = ?
       WHERE token_hash = ? AND revoked_at IS NULL
     `).run(toIsoNow(), tokenHash);
+  }
+
+  saveOidcState(state: StoredOidcState): void {
+    const now = toIsoNow();
+    this.db.prepare(`
+      INSERT INTO auth_oidc_states (
+        state,
+        provider,
+        code_verifier,
+        nonce,
+        redirect_to,
+        created_at,
+        expires_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(state)
+      DO UPDATE SET
+        provider = excluded.provider,
+        code_verifier = excluded.code_verifier,
+        nonce = excluded.nonce,
+        redirect_to = excluded.redirect_to,
+        created_at = excluded.created_at,
+        expires_at = excluded.expires_at
+    `).run(
+      state.state,
+      state.provider,
+      state.codeVerifier,
+      state.nonce ?? null,
+      state.redirectTo ?? null,
+      now,
+      state.expiresAt,
+    );
+  }
+
+  consumeOidcState(state: string): StoredOidcState | null {
+    const row = this.db.prepare(`
+      SELECT state, provider, code_verifier, nonce, redirect_to, expires_at
+      FROM auth_oidc_states
+      WHERE state = ?
+    `).get(state) as OidcStateRow | undefined;
+
+    this.db.prepare("DELETE FROM auth_oidc_states WHERE state = ?").run(state);
+
+    if (
+      !row
+      || row.provider !== "casdoor"
+      || typeof row.state !== "string"
+      || typeof row.code_verifier !== "string"
+      || typeof row.expires_at !== "string"
+      || Date.parse(row.expires_at) <= Date.now()
+    ) {
+      return null;
+    }
+
+    return {
+      state: row.state,
+      provider: row.provider,
+      codeVerifier: row.code_verifier,
+      nonce: typeof row.nonce === "string" ? row.nonce : undefined,
+      redirectTo: typeof row.redirect_to === "string" ? row.redirect_to : undefined,
+      expiresAt: row.expires_at,
+    };
   }
 }
