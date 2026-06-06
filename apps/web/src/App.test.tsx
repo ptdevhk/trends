@@ -18,6 +18,19 @@ vi.mock('@/components/Header', () => ({
   Header: () => <header>App header</header>,
 }))
 
+vi.mock('@/contexts/AuthContext', () => ({
+  useAuth: () => ({
+    user: null,
+    workspaceRole: null,
+    isAuthenticated: false,
+    isLoading: false,
+    login: async () => false,
+    logout: async () => {},
+    refresh: async () => {},
+  }),
+  AuthProvider: ({ children }: { children: React.ReactNode }) => children,
+}))
+
 vi.mock('@/contexts/BrandDisplayMapContext', () => ({
   BrandDisplayMapProvider: ({ children }: { children: React.ReactNode }) => children,
 }))

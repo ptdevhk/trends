@@ -1618,5 +1618,17 @@
       "urlLabel": "分享链接",
       "retryCopy": "再试一次复制"
     }
+  },
+  "auth": {
+    "loginTitle": "登录",
+    "loginSubtitle": "请输入凭证以继续",
+    "username": "用户名",
+    "password": "密码",
+    "signIn": "登录",
+    "signingIn": "登录中...",
+    "loginFailed": "用户名或密码错误",
+    "logout": "退出登录",
+    "loginRequired": "请先登录",
+    "workspaceAccessRequired": "您没有此工作区的访问权限"
   }
 }

@@ -1591,5 +1591,17 @@
       "urlLabel": "Share link",
       "retryCopy": "Try copying again"
     }
+  },
+  "auth": {
+    "loginTitle": "Sign in",
+    "loginSubtitle": "Enter your credentials to continue",
+    "username": "Username",
+    "password": "Password",
+    "signIn": "Sign in",
+    "signingIn": "Signing in...",
+    "loginFailed": "Invalid username or password",
+    "logout": "Sign out",
+    "loginRequired": "Please sign in to continue",
+    "workspaceAccessRequired": "You do not have access to this workspace"
   }
 }
