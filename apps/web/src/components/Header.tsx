@@ -1,12 +1,14 @@
 import { useTranslation } from 'react-i18next'
 import { NavLink, Link } from 'react-router-dom'
-import { TrendingUp } from 'lucide-react'
+import { LogOut, TrendingUp } from 'lucide-react'
 import { LanguageSwitcher } from './LanguageSwitcher'
 import { WorkspaceSwitcher } from './WorkspaceSwitcher'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
+import { useAuth } from '@/contexts/AuthContext'
 import { RESUME_HOME_RESET_STATE } from '@/lib/resume-home-navigation'
 import { isReviewPacketsEnabled } from '@/lib/feature-flags'
 import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 
 interface HeaderProps {
   leftAction?: React.ReactNode
@@ -142,8 +144,47 @@ export function Header({ leftAction }: HeaderProps = {}) {
             ) : null}
           </nav>
           <LanguageSwitcher />
+          <AuthChip />
         </div>
       </div>
     </header>
+  )
+}
+
+function AuthChip() {
+  const { t } = useTranslation()
+  const { user, isAuthenticated, logout } = useAuth()
+  const { slug } = useWorkspace()
+
+  if (!isAuthenticated || !user) {
+    return (
+      <NavLink
+        to={`/${slug}/login`}
+        className={({ isActive }: { isActive: boolean }) =>
+          cn(
+            'transition-colors hover:text-foreground text-sm',
+            isActive ? 'text-foreground' : 'text-muted-foreground'
+          )
+        }
+      >
+        {t('auth.signIn', { defaultValue: 'Sign in' })}
+      </NavLink>
+    )
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <span className="hidden md:inline-flex items-center rounded-md border px-2 py-0.5 text-xs text-muted-foreground">
+        {user.displayName ?? user.email ?? user.id}
+      </span>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => void logout()}
+        aria-label={t('auth.logout', { defaultValue: 'Sign out' })}
+      >
+        <LogOut className="h-4 w-4" />
+      </Button>
+    </div>
   )
 }

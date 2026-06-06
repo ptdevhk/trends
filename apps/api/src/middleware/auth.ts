@@ -1,6 +1,7 @@
 import type { MiddlewareHandler } from "hono";
 import { getCookie } from "hono/cookie";
 
+import type { AuthEventStorage } from "../services/auth-event-storage.js";
 import { AuthSessionService } from "../services/auth-session-service.js";
 import { AuthStorage } from "../services/auth-storage.js";
 import { config } from "../services/config.js";
@@ -14,6 +15,7 @@ declare module "hono" {
 
 type AuthMiddlewareOptions = {
   storage?: AuthStorage;
+  eventStorage?: AuthEventStorage;
   ttlSeconds?: number;
   sessionCookieName?: string;
   csrfHeaderName?: string;
@@ -43,6 +45,7 @@ export function getAdminAccessError(c: { var: { auth?: AuthContext; workspaceSlu
 
 export function createAuthMiddleware(options: AuthMiddlewareOptions = {}) {
   let storage = options.storage;
+  let eventStorage = options.eventStorage;
   let sessions: AuthSessionService | undefined;
   const sessionCookieName = options.sessionCookieName ?? config.auth.sessionCookieName;
   const csrfHeaderName = options.csrfHeaderName ?? "X-CSRF-Token";
@@ -53,6 +56,13 @@ export function createAuthMiddleware(options: AuthMiddlewareOptions = {}) {
       ttlSeconds: options.ttlSeconds ?? config.auth.sessionTtlSeconds,
     });
     return sessions;
+  }
+
+  function getEventStorage(): AuthEventStorage | null {
+    if (options.eventStorage) return options.eventStorage;
+    // Lazy create only if eventStorage was not explicitly set
+    // Skip event logging when no eventStorage is configured (default middleware)
+    return null;
   }
 
   const optionalAuth: MiddlewareHandler = async (c, next) => {
@@ -70,6 +80,12 @@ export function createAuthMiddleware(options: AuthMiddlewareOptions = {}) {
       return c.json({ success: false as const, error: "Authentication required" }, 401);
     }
     if (!hasWorkspaceRole(auth.memberships, c.var.workspaceSlug, ["user", "admin"])) {
+      getEventStorage()?.append({
+        type: "workspace_access_denied",
+        userId: auth.user.id,
+        workspaceSlug: c.var.workspaceSlug,
+        sessionId: auth.sessionId,
+      });
       return c.json({ success: false as const, error: "Workspace access required" }, 403);
     }
     await next();
@@ -78,6 +94,16 @@ export function createAuthMiddleware(options: AuthMiddlewareOptions = {}) {
   const requireAdmin: MiddlewareHandler = async (c, next) => {
     const adminError = getAdminAccessError(c);
     if (adminError) {
+      const auth = c.var.auth;
+      if (auth) {
+        const eventType = adminError.status === 401 ? "workspace_access_denied" as const : "admin_access_denied" as const;
+        getEventStorage()?.append({
+          type: eventType,
+          userId: auth.user.id,
+          workspaceSlug: c.var.workspaceSlug,
+          sessionId: auth.sessionId,
+        });
+      }
       return c.json(adminError.body, adminError.status);
     }
     await next();
@@ -97,6 +123,13 @@ export function createAuthMiddleware(options: AuthMiddlewareOptions = {}) {
 
     const csrf = c.req.header(csrfHeaderName);
     if (!csrf || !getSessions().verifyCsrf(token, csrf)) {
+      const auth = c.var.auth;
+      getEventStorage()?.append({
+        type: "csrf_reject",
+        userId: auth?.user.id,
+        workspaceSlug: c.var.workspaceSlug,
+        sessionId: auth?.sessionId,
+      });
       return c.json({ success: false as const, error: "CSRF token required" }, 403);
     }
     await next();

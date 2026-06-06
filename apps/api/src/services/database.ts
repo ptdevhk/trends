@@ -286,6 +286,25 @@ function initSchema(db: Database.Database): void {
 
     CREATE INDEX IF NOT EXISTS idx_review_packet_runs_workspace ON review_packet_runs(workspace_slug);
     CREATE INDEX IF NOT EXISTS idx_review_packet_runs_exported ON review_packet_runs(exported_at DESC);
+
+    CREATE TABLE IF NOT EXISTS auth_events (
+      id TEXT PRIMARY KEY,
+      type TEXT NOT NULL,
+      user_id TEXT,
+      provider TEXT,
+      workspace_slug TEXT,
+      session_id TEXT,
+      reason TEXT,
+      metadata_json TEXT,
+      ip_hash TEXT,
+      user_agent TEXT,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_auth_events_created_at ON auth_events(created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_auth_events_workspace ON auth_events(workspace_slug);
+    CREATE INDEX IF NOT EXISTS idx_auth_events_type ON auth_events(type);
+    CREATE INDEX IF NOT EXISTS idx_auth_events_user ON auth_events(user_id);
   `);
 
   if (existingTables.has("users")) {

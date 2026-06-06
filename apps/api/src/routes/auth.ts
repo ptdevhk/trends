@@ -1,6 +1,8 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 
+import { AuthEventStorage } from "../services/auth-event-storage.js";
+import type { AuthEvent } from "../services/auth-event-types.js";
 import { AuthSessionService } from "../services/auth-session-service.js";
 import { AuthStorage } from "../services/auth-storage.js";
 import type { AuthContext, AuthUser, WorkspaceRole } from "../services/auth-types.js";
@@ -10,6 +12,7 @@ import { CasdoorOidcProvider } from "../services/oidc-provider.js";
 
 type AuthRoutesOptions = {
   storage?: AuthStorage;
+  eventStorage?: AuthEventStorage;
   ttlSeconds?: number;
   oidcEnabled?: boolean;
   oidcProvider?: CasdoorOidcProvider;
@@ -125,6 +128,7 @@ async function createSessionResponse(
 export function createAuthRoutes(options: AuthRoutesOptions = {}) {
   const app = new OpenAPIHono();
   let storage = options.storage;
+  let eventStorage = options.eventStorage;
   let sessions: AuthSessionService | undefined;
   const oidcEnabled = options.oidcEnabled ?? config.auth.oidc.enabled;
   const oidcProvider = options.oidcProvider ?? new CasdoorOidcProvider(config.auth.oidc);
@@ -132,6 +136,11 @@ export function createAuthRoutes(options: AuthRoutesOptions = {}) {
   function getStorage(): AuthStorage {
     storage ??= new AuthStorage(config.projectRoot);
     return storage;
+  }
+
+  function getEventStorage(): AuthEventStorage {
+    eventStorage ??= new AuthEventStorage(config.projectRoot);
+    return eventStorage;
   }
 
   function getSessions(): AuthSessionService {
@@ -176,16 +185,33 @@ export function createAuthRoutes(options: AuthRoutesOptions = {}) {
 
   app.openapi(loginRoute, async (c) => {
     const { username, password } = c.req.valid("json");
+    const workspaceSlug = c.var.workspaceSlug;
     const authStorage = getStorage();
     const identity = authStorage.findIdentity("local", username, "local");
     const credential = identity ? authStorage.findPasswordCredential(identity.userId) : null;
     const user = identity ? authStorage.findUser(identity.userId) : null;
 
     if (!credential || !user || !(await verifyPassword(password, credential))) {
+      getEventStorage().append({
+        type: "login_failure",
+        provider: "local",
+        workspaceSlug,
+        reason: "invalid_credentials",
+        metadata: { username },
+      });
       return c.json({ success: false as const, error: "Invalid username or password" }, 401);
     }
 
-    return c.json(await createSessionResponse(user, authStorage, getSessions(), c), 200);
+    const result = await createSessionResponse(user, authStorage, getSessions(), c);
+    getEventStorage().append({
+      type: "login_success",
+      userId: user.id,
+      provider: "local",
+      workspaceSlug,
+      sessionId: result.csrfToken ? undefined : undefined,
+      metadata: { username },
+    });
+    return c.json(result, 200);
   });
 
   const meRoute = createRoute({
@@ -244,8 +270,17 @@ export function createAuthRoutes(options: AuthRoutesOptions = {}) {
 
   app.openapi(logoutRoute, (c) => {
     const token = getCookie(c, config.auth.sessionCookieName);
+    const auth = c.var.auth;
     if (token) {
       getSessions().revokeSession(token);
+    }
+    if (auth) {
+      getEventStorage().append({
+        type: "logout",
+        userId: auth.user.id,
+        workspaceSlug: c.var.workspaceSlug,
+        sessionId: auth.sessionId,
+      });
     }
     clearSessionCookies(c);
     return c.json({ success: true as const }, 200);
@@ -418,6 +453,112 @@ export function createAuthRoutes(options: AuthRoutesOptions = {}) {
     const session = getSessions().createSession(user.id);
     setSessionCookies(c, session);
     return c.redirect(sanitizeRedirect(storedState.redirectTo), 302);
+  });
+
+  // GET /api/auth/options — login page configuration (no secrets)
+  const optionsRoute = createRoute({
+    method: "get",
+    path: "/api/auth/options",
+    tags: ["auth"],
+    responses: {
+      200: {
+        description: "Auth options for login page",
+        content: {
+          "application/json": {
+            schema: z.object({
+              success: z.literal(true),
+              localPasswordEnabled: z.literal(true),
+              casdoorEnabled: z.boolean(),
+            }),
+          },
+        },
+      },
+    },
+  });
+
+  app.openapi(optionsRoute, (c) => {
+    return c.json({
+      success: true as const,
+      localPasswordEnabled: true as const,
+      casdoorEnabled: oidcEnabled,
+    }, 200);
+  });
+
+  // GET /api/auth/events — admin-only recent auth diagnostics
+  const eventsRoute = createRoute({
+    method: "get",
+    path: "/api/auth/events",
+    tags: ["auth"],
+    request: {
+      query: z.object({
+        limit: z.string().optional(),
+        type: z.string().optional(),
+        userId: z.string().optional(),
+        workspaceSlug: z.string().optional(),
+      }),
+    },
+    responses: {
+      200: {
+        description: "Recent auth events",
+        content: {
+          "application/json": {
+            schema: z.object({
+              success: z.literal(true),
+              events: z.array(z.object({
+                id: z.string(),
+                type: z.string(),
+                userId: z.string().optional(),
+                provider: z.string().optional(),
+                workspaceSlug: z.string().optional(),
+                sessionId: z.string().optional(),
+                reason: z.string().optional(),
+                metadata: z.record(z.string(), z.unknown()).optional(),
+                ipHash: z.string().optional(),
+                userAgent: z.string().optional(),
+                createdAt: z.string(),
+              })),
+            }),
+          },
+        },
+      },
+      401: {
+        description: "Authentication required",
+        content: { "application/json": { schema: ErrorResponseSchema } },
+      },
+      403: {
+        description: "Admin access required",
+        content: { "application/json": { schema: ErrorResponseSchema } },
+      },
+    },
+  });
+
+  app.openapi(eventsRoute, (c) => {
+    const auth = c.var.auth;
+    if (!auth) {
+      return c.json({ success: false as const, error: "Authentication required" }, 401);
+    }
+
+    const workspaceSlug = c.var.workspaceSlug;
+    const workspaceRole = auth.memberships.find(
+      (m) => m.workspaceSlug === workspaceSlug,
+    )?.role;
+
+    if (workspaceRole !== "admin") {
+      return c.json({ success: false as const, error: "Admin access required" }, 403);
+    }
+
+    const query = c.req.valid("query");
+    const limit = query.limit ? parseInt(query.limit, 10) : 50;
+    const filterWorkspace = query.workspaceSlug ?? workspaceSlug;
+
+    const events = getEventStorage().listRecent({
+      limit: Math.min(limit, 200),
+      type: query.type as AuthEvent["type"] | undefined,
+      userId: query.userId,
+      workspaceSlug: filterWorkspace,
+    });
+
+    return c.json({ success: true as const, events }, 200);
   });
 
   return app;

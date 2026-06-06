@@ -6,6 +6,7 @@ import { Hono } from "hono";
 import { describe, expect, it } from "vitest";
 
 import { AuthSessionService } from "../services/auth-session-service.js";
+import { AuthEventStorage } from "../services/auth-event-storage.js";
 import { AuthStorage } from "../services/auth-storage.js";
 import type { AuthContext, WorkspaceRole } from "../services/auth-types.js";
 import { hasWorkspaceRole } from "../services/auth-types.js";
@@ -153,5 +154,80 @@ describe("auth middleware gates", () => {
     });
     expect(validRes.status).toBe(200);
     await expect(validRes.json()).resolves.toMatchObject({ actorId: user.id });
+  });
+});
+
+describe("auth middleware event logging", () => {
+  it("logs workspace_access_denied when workspace membership is missing", async () => {
+    resetResumeScreeningDb();
+    const root = mkdtempSync(path.join(tmpdir(), "trends-auth-mw-events-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const middleware = createAuthMiddleware({ storage, ttlSeconds: 3600, eventStorage });
+    const app = createGateApp(createAuthContext("user", "hr"), middleware.requireWorkspaceUser);
+
+    const res = await app.request("/protected", {
+      headers: { "X-Workspace-Slug": "dev" },
+    });
+
+    expect(res.status).toBe(403);
+    const events = eventStorage.listRecent({ limit: 10 });
+    expect(events).toHaveLength(1);
+    expect(events[0].type).toBe("workspace_access_denied");
+    expect(events[0].userId).toBe("user-1");
+    expect(events[0].workspaceSlug).toBe("dev");
+  });
+
+  it("logs admin_access_denied when admin membership is missing", async () => {
+    resetResumeScreeningDb();
+    const root = mkdtempSync(path.join(tmpdir(), "trends-auth-mw-events-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const middleware = createAuthMiddleware({ storage, ttlSeconds: 3600, eventStorage });
+    const app = createGateApp(createAuthContext("user", "hr"), middleware.requireAdmin);
+
+    const res = await app.request("/protected", {
+      headers: { "X-Workspace-Slug": "hr" },
+    });
+
+    expect(res.status).toBe(403);
+    const events = eventStorage.listRecent({ limit: 10 });
+    expect(events).toHaveLength(1);
+    expect(events[0].type).toBe("admin_access_denied");
+    expect(events[0].userId).toBe("user-1");
+    expect(events[0].workspaceSlug).toBe("hr");
+  });
+
+  it("logs csrf_reject when CSRF token is missing", async () => {
+    resetResumeScreeningDb();
+    const root = mkdtempSync(path.join(tmpdir(), "trends-auth-mw-events-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const user = storage.createUser({ email: "hr@example.com", displayName: "HR" });
+    storage.upsertMembership({ userId: user.id, workspaceSlug: "hr", role: "user" });
+    const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
+    const session = sessions.createSession(user.id);
+    const middleware = createAuthMiddleware({ storage, ttlSeconds: 3600, eventStorage });
+
+    const app = new Hono();
+    app.use("*", workspaceMiddleware);
+    app.use("*", middleware.optionalAuth);
+    app.use("*", middleware.requireWorkspaceUser);
+    app.use("*", middleware.requireCsrf);
+    app.post("/mutate", (c) => c.json({ ok: true }));
+
+    const res = await app.request("/mutate", {
+      method: "POST",
+      headers: {
+        "X-Workspace-Slug": "hr",
+        Cookie: `${config.auth.sessionCookieName}=${session.token}`,
+      },
+    });
+
+    expect(res.status).toBe(403);
+    const events = eventStorage.listRecent({ limit: 10 });
+    expect(events).toHaveLength(1);
+    expect(events[0].type).toBe("csrf_reject");
+    expect(events[0].userId).toBe(user.id);
   });
 });
