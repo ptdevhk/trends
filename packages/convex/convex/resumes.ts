@@ -46,6 +46,54 @@ import {
     normalizeResumeBackupArgs,
 } from "./lib/resumes_backup.js";
 
+const CANDIDATE_STATUS_VALUES = [
+    "new",
+    "shortlisted",
+    "rejected",
+    "contacted",
+    "interviewing",
+    "interviewed_pass",
+    "interviewed_reject",
+    "appeal_submitted",
+    "human_review",
+    "upheld",
+    "reversed",
+    "offer",
+    "hired",
+    "withdrawn",
+] as const;
+
+type CandidateStatus = typeof CANDIDATE_STATUS_VALUES[number];
+type CandidateStatusCounts = Record<CandidateStatus, number>;
+const CANDIDATE_STATUS_SET: ReadonlySet<string> = new Set(CANDIDATE_STATUS_VALUES);
+
+function createCandidateStatusCounts(): CandidateStatusCounts {
+    return {
+        new: 0,
+        shortlisted: 0,
+        rejected: 0,
+        contacted: 0,
+        interviewing: 0,
+        interviewed_pass: 0,
+        interviewed_reject: 0,
+        appeal_submitted: 0,
+        human_review: 0,
+        upheld: 0,
+        reversed: 0,
+        offer: 0,
+        hired: 0,
+        withdrawn: 0,
+    };
+}
+
+function isCandidateStatus(value: string): value is CandidateStatus {
+    return CANDIDATE_STATUS_SET.has(value);
+}
+
+function resolveCandidateStatus(value: string | undefined): CandidateStatus {
+    return value && isCandidateStatus(value) ? value : "new";
+}
+
 // Re-export for backward compatibility
 export {
     toStringValue,
@@ -676,7 +724,7 @@ export const countResumesByStatus = query({
     // 3. Fetch non-archived resumes in a single paginated query.
     // Convex only supports ONE .paginate() call per function (no loops).
     const MAX_MATCHES = 5000;
-    const counts: Record<string, number> = { new: 0, shortlisted: 0, rejected: 0 };
+    const counts = createCandidateStatusCounts();
     let totalMatched = 0;
     let overflow = false;
 
@@ -700,8 +748,8 @@ export const countResumesByStatus = query({
           continue;
         }
         const status = statusByIdentity.get(identityKey) ?? "new";
-        const bucket = status === "shortlisted" || status === "rejected" ? status : "new";
-        counts[bucket] = (counts[bucket] ?? 0) + 1;
+        const bucket = resolveCandidateStatus(status);
+        counts[bucket] += 1;
         totalMatched += 1;
       }
     }
@@ -712,12 +760,9 @@ export const countResumesByStatus = query({
     }
 
     return {
-      new: counts.new ?? 0,
-      shortlisted: counts.shortlisted ?? 0,
-      rejected: counts.rejected ?? 0,
+      ...counts,
       total: totalMatched,
       overflow,
     };
   },
 });
-

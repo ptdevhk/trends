@@ -52,11 +52,12 @@ import {
 import { parseExperienceYears } from '@/lib/resume-filtering'
 import { getCollectionSourceMarket, resolveCollectionSource, getSourceLabelFromHostname } from '@/lib/search-profile-sources'
 import type { SearchHistoryItem } from '@/hooks/useSession'
-import type {
-  CandidateActionType,
-  CandidateStatus,
-  ResumeExportFormat,
-  ResumeFilters,
+import {
+  CANDIDATE_STATUS_VALUES,
+  type CandidateActionType,
+  type CandidateStatus,
+  type ResumeExportFormat,
+  type ResumeFilters,
 } from '@/types/resume'
 import type {
   FacetCounts,
@@ -68,7 +69,7 @@ import type {
 const INITIAL_RESUME_LIMIT = 200
 const RESUME_PAGE_INCREMENT = 200
 const SESSION_KEY_PREFIX = 'trends.resume.search.sessionKey'
-const SERVER_STATUS_FACET_VALUES = ['new', 'shortlisted', 'rejected'] as const
+const SERVER_STATUS_FACET_VALUES = CANDIDATE_STATUS_VALUES
 
 type JobDescriptionApiResponse = {
   success: boolean
@@ -466,16 +467,11 @@ function buildSearchExportEntry(
 }
 
 const DEFAULT_STATUS_WHEN_EMPTY: CandidateStatus = 'new'
-const PRIMARY_STATUS_BUCKETS = new Set<CandidateStatus>(SERVER_STATUS_FACET_VALUES)
 
 const ACTION_TO_STATUS: Partial<Record<CandidateActionType, CandidateStatus>> = {
   shortlist: 'shortlisted',
   reject: 'rejected',
   star: 'new',
-}
-
-function getPrimaryStatusBucket(status: CandidateStatus): typeof SERVER_STATUS_FACET_VALUES[number] {
-  return status === 'shortlisted' || status === 'rejected' ? status : 'new'
 }
 
 function matchesBlockVisibility(
@@ -559,7 +555,6 @@ function matchesLocalFilters(
   const education = item.resume.education?.trim().toLowerCase() ?? ''
   const experienceLevel = normalizeExperienceLevel(item.resume.ingestData?.experienceLevel)
   const minScore = state.filters.minMatchScore
-  const statusBucket = getPrimaryStatusBucket(item.status)
 
   if (!matchesBlockVisibility(item, state.filters)) {
     return false
@@ -623,15 +618,11 @@ function matchesLocalFilters(
 
   // Default: show only new (untriaged) resumes unless user explicitly filters for a status
   if (normalizedStatuses.length > 0) {
-    const matchesSelectedStatus = normalizedStatuses.some((status) =>
-      PRIMARY_STATUS_BUCKETS.has(status)
-        ? getPrimaryStatusBucket(status) === statusBucket
-        : item.status === status,
-    )
+    const matchesSelectedStatus = normalizedStatuses.some((status) => item.status === status)
     if (!matchesSelectedStatus) {
       return false
     }
-  } else if (statusBucket !== DEFAULT_STATUS_WHEN_EMPTY) {
+  } else if (item.status !== DEFAULT_STATUS_WHEN_EMPTY && !(state.filters.showRejected === true && item.status === 'rejected')) {
     return false
   }
 

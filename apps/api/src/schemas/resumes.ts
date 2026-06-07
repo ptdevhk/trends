@@ -358,25 +358,46 @@ export const CandidateActionBackupSchema = z
   })
   .openapi("CandidateActionBackup");
 
+export const CANDIDATE_STATUS_VALUES = [
+  "new",
+  "shortlisted",
+  "rejected",
+  "contacted",
+  "interviewing",
+  "interviewed_pass",
+  "interviewed_reject",
+  "appeal_submitted",
+  "human_review",
+  "upheld",
+  "reversed",
+  "offer",
+  "hired",
+  "withdrawn",
+] as const;
+
+export const CandidateStatusEnumSchema = z.enum(CANDIDATE_STATUS_VALUES);
+
+const CandidateStatusCountsSchema = z.object({
+  new: z.number().int(),
+  shortlisted: z.number().int(),
+  rejected: z.number().int(),
+  contacted: z.number().int(),
+  interviewing: z.number().int(),
+  interviewed_pass: z.number().int(),
+  interviewed_reject: z.number().int(),
+  appeal_submitted: z.number().int(),
+  human_review: z.number().int(),
+  upheld: z.number().int(),
+  reversed: z.number().int(),
+  offer: z.number().int(),
+  hired: z.number().int(),
+  withdrawn: z.number().int(),
+});
+
 export const CandidateStatusBackupSchema = z
   .object({
     identityKey: z.string().openapi({ example: "profileUrl:https://hr.job5156.com/resume/view/123" }),
-    status: z.enum([
-      "new",
-      "shortlisted",
-      "rejected",
-      "contacted",
-      "interviewing",
-      "interviewed_pass",
-      "interviewed_reject",
-      "appeal_submitted",
-      "human_review",
-      "upheld",
-      "reversed",
-      "offer",
-      "hired",
-      "withdrawn",
-    ]).openapi({ example: "interviewing" }),
+    status: CandidateStatusEnumSchema.openapi({ example: "interviewing" }),
     notes: z.string().optional().openapi({ example: "Strong candidate" }),
     updatedBy: z.string().optional().openapi({ example: "hr.lead" }),
     updatedAt: z.number().openapi({ example: 1710489600000 }),
@@ -690,11 +711,7 @@ export const ResumesResponseSchema = z
         keywordGroups: z.array(KeywordGroupSchema).optional(),
         sourceMapping: z.record(z.string(), z.string()).optional(),
         searchMode: z.enum(["bm25", "bm25_fallback", "bm25_only_no_vectors", "hybrid"]).optional(),
-        statusCounts: z.object({
-          new: z.number().int(),
-          shortlisted: z.number().int(),
-          rejected: z.number().int(),
-        }).optional(),
+        statusCounts: CandidateStatusCountsSchema.optional(),
       })
       .optional(),
     data: z.array(ResumeItemSchema),

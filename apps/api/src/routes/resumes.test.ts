@@ -382,6 +382,7 @@ describe("resume routes", () => {
             { _id: "d1", resumeId: "resume-visible-new", source: "seek", sourceKey: "seek", searchText: "cnc sales", isArchived: false },
             { _id: "d2", resumeId: "resume-blocked-new", source: "seek", sourceKey: "seek", searchText: "cnc sales", isArchived: false },
             { _id: "d3", resumeId: "resume-visible-rejected", source: "seek", sourceKey: "seek", searchText: "cnc sales", isArchived: false },
+            { _id: "d4", resumeId: "k172rcvmvqj4hhn98r74r3brps82v28b", source: "seek", sourceKey: "seek", searchText: "cnc sales", isArchived: false },
           ],
           isDone: true,
           cursor: null,
@@ -414,6 +415,14 @@ describe("resume routes", () => {
             searchText: "cnc sales",
             isArchived: false,
           },
+          {
+            ...buildConvexResumeRecord("k172rcvmvqj4hhn98r74r3brps82v28b", {
+              identityKey: "ik-interviewed-pass",
+              name: "周先生",
+            }),
+            searchText: "cnc sales",
+            isArchived: false,
+          },
         ]);
       }
 
@@ -421,6 +430,7 @@ describe("resume routes", () => {
         expect(call.args).toEqual(expect.objectContaining({ workspaceSlug: "hr" }));
         return convexSuccess([
           { identityKey: "ik-visible-rejected", status: "rejected" },
+          { identityKey: "ik-interviewed-pass", status: "interviewed_pass" },
         ]);
       }
 
@@ -443,10 +453,11 @@ describe("resume routes", () => {
 
     expect(response.status).toBe(200);
     const payload = await response.json();
-    expect(payload.summary.statusCounts).toEqual({
+    expect(payload.summary.statusCounts).toMatchObject({
       new: 1,
       shortlisted: 0,
       rejected: 1,
+      interviewed_pass: 1,
     });
     expect(calls.some((call) => call.pathName === "candidate_blocks:list")).toBe(true);
   });

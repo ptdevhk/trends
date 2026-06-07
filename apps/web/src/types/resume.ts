@@ -59,21 +59,24 @@ export type TaggingEnvelope = {
 export type Recommendation = 'strong_match' | 'match' | 'potential' | 'no_match'
 export type ScoreSource = 'rule' | 'ai'
 export type ResumeExportFormat = 'csv' | 'xlsx'
-export type CandidateStatus =
-  | 'new'
-  | 'shortlisted'
-  | 'rejected'
-  | 'contacted'
-  | 'interviewing'
-  | 'interviewed_pass'
-  | 'interviewed_reject'
-  | 'appeal_submitted'
-  | 'human_review'
-  | 'upheld'
-  | 'reversed'
-  | 'offer'
-  | 'hired'
-  | 'withdrawn'
+export const CANDIDATE_STATUS_VALUES = [
+  'new',
+  'shortlisted',
+  'rejected',
+  'contacted',
+  'interviewing',
+  'interviewed_pass',
+  'interviewed_reject',
+  'appeal_submitted',
+  'human_review',
+  'upheld',
+  'reversed',
+  'offer',
+  'hired',
+  'withdrawn',
+] as const
+
+export type CandidateStatus = typeof CANDIDATE_STATUS_VALUES[number]
 
 export type MatchBreakdown = Record<string, number>
 

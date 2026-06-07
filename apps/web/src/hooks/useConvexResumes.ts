@@ -6,6 +6,7 @@ import { api } from '../../../../packages/convex/convex/_generated/api'
 import type { Doc } from '../../../../packages/convex/convex/_generated/dataModel'
 import { withRetry } from '@/lib/retry'
 import { rawApiClient } from '@/lib/api-helpers'
+import type { CandidateStatus } from '@/types/resume'
 import type { ResumeItem } from './useResumes'
 
 export const DEFAULT_CONVEX_RESUME_LIMIT = 200
@@ -798,7 +799,7 @@ type BffAndModeResult = {
   total: number
   expansion: KeywordExpansionSummary | null
   loading: boolean
-  statusCounts?: { new: number; shortlisted: number; rejected: number }
+  statusCounts?: Partial<Record<CandidateStatus, number>>
 }
 
 function useBffAndModeSearch(
@@ -868,7 +869,7 @@ function useBffAndModeSearch(
             keywordGroups?: Array<{ original: string; variants: string[] }>
             expandedTo?: string[]
             sourceMapping?: Record<string, string>
-            statusCounts?: { new: number; shortlisted: number; rejected: number }
+            statusCounts?: Partial<Record<CandidateStatus, number>>
           }
           data?: Array<Record<string, unknown>>
         }>('/api/resumes', {

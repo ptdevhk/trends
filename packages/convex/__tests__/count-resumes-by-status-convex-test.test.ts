@@ -172,6 +172,52 @@ describe("countResumesByStatus", () => {
     expect(result.rejected).toBe(0);
   });
 
+  it("counts explicit interviewed_pass separately from new", async () => {
+    const source = "test-count-interviewed-pass";
+    const ws = "test-count-interviewed-pass-ws";
+    await test.run(async (ctx) => {
+      await ctx.db.insert("resumes", {
+        externalId: "ext-zs-new",
+        identityKey: "ik-zs-new",
+        content: { name: "New Candidate" },
+        hash: "hash-zs-new",
+        tags: [],
+        crawledAt: Date.now(),
+        source,
+        sourceKey: source,
+      });
+      await ctx.db.insert("resumes", {
+        externalId: "k172rcvmvqj4hhn98r74r3brps82v28b",
+        identityKey: "ik-zs-interviewed",
+        content: { name: "周先生" },
+        hash: "hash-zs-interviewed",
+        tags: [],
+        crawledAt: Date.now(),
+        source,
+        sourceKey: source,
+      });
+      await ctx.db.insert("candidate_status", {
+        workspaceSlug: ws,
+        identityKey: "ik-zs-interviewed",
+        status: "interviewed_pass",
+        updatedAt: Date.now(),
+      });
+    });
+
+    const result = await test.query(api.resumes.countResumesByStatus, {
+      workspaceSlug: ws,
+      sources: [source],
+    });
+
+    expect(result).toMatchObject({
+      new: 1,
+      shortlisted: 0,
+      rejected: 0,
+      interviewed_pass: 1,
+      total: 2,
+    });
+  });
+
   it("excludes archived resumes", async () => {
     const source = "test-count-archived";
     const ws = "test-count-archived-ws";
