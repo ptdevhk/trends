@@ -9,6 +9,8 @@ PROD_DB="${PROD_DB:-$PROD_DIR/output/resume_screening.db}"
 PREVIEW_DB="${PREVIEW_DB:-$PREVIEW_DIR/output/resume_screening.db}"
 PREVIEW_API_SERVICE="${PREVIEW_API_SERVICE:-trends-preview-api}"
 PREVIEW_API_URL="${PREVIEW_API_URL:-http://127.0.0.1:3002}"
+PREVIEW_RESUME_SMOKE_PATH="/api/resumes?source=convex&paged=true&limit=1"
+PREVIEW_CONVEX_URL="${PREVIEW_CONVEX_URL:-http://127.0.0.1:4210}"
 CONVEX_RESTORE_SCRIPT="${CONVEX_RESTORE_SCRIPT:-$PROD_DIR/deploy/restore-preview-from-prod.sh}"
 MODE="all"
 API_STOPPED=0
@@ -31,7 +33,9 @@ Environment overrides:
   PREVIEW_DB            default: \$PREVIEW_DIR/output/resume_screening.db
   PREVIEW_API_SERVICE   default: trends-preview-api
   PREVIEW_API_URL       default: http://127.0.0.1:3002
+  PREVIEW_CONVEX_URL    default: http://127.0.0.1:4210
   CONVEX_RESTORE_SCRIPT default: \$PROD_DIR/deploy/restore-preview-from-prod.sh
+  SKIP_PREVIEW_AI_SMOKE set to 1/true/yes to skip the bounded AI analysis smoke
 EOF
 }
 
@@ -111,6 +115,41 @@ check_endpoint() {
     fi
 }
 
+run_preview_ai_smoke() {
+    local keyword="${PREVIEW_AI_SMOKE_KEYWORD:-CNC}"
+    local timeout="${PREVIEW_AI_SMOKE_TIMEOUT_SEC:-300}"
+
+    case "${SKIP_PREVIEW_AI_SMOKE:-}" in
+        1|true|yes)
+            log "Skipping preview AI smoke because SKIP_PREVIEW_AI_SMOKE is set."
+            return 0
+            ;;
+    esac
+
+    log ""
+    log "=== Step 4: Preview AI analysis smoke ==="
+    if [ -x "$PREVIEW_DIR/node_modules/.bin/tsx" ]; then
+        cd "$PREVIEW_DIR" && \
+            CONVEX_URL="$PREVIEW_CONVEX_URL" \
+            ANALYSIS_TIMEOUT_SEC="$timeout" \
+            "$PREVIEW_DIR/node_modules/.bin/tsx" scripts/verify-critical-path.ts \
+                --mode=seeded \
+                --keyword="$keyword" \
+                --analysis-timeout-sec="$timeout" \
+                --json
+        return
+    fi
+
+    cd "$PREVIEW_DIR" && \
+        CONVEX_URL="$PREVIEW_CONVEX_URL" \
+        ANALYSIS_TIMEOUT_SEC="$timeout" \
+        npx tsx scripts/verify-critical-path.ts \
+            --mode=seeded \
+            --keyword="$keyword" \
+            --analysis-timeout-sec="$timeout" \
+            --json
+}
+
 restore_convex_state() {
     if [ ! -f "$CONVEX_RESTORE_SCRIPT" ]; then
         echo "Missing Convex restore script: $CONVEX_RESTORE_SCRIPT" >&2
@@ -118,7 +157,10 @@ restore_convex_state() {
     fi
 
     log "=== Step 1: Restore production Convex state into preview ==="
-    bash "$CONVEX_RESTORE_SCRIPT"
+    case "${SKIP_PREVIEW_AI_SMOKE:-}" in
+        1|true|yes) bash "$CONVEX_RESTORE_SCRIPT" ;;
+        *) SKIP_PREVIEW_AI_SMOKE=1 bash "$CONVEX_RESTORE_SCRIPT" ;;
+    esac
 }
 
 restore_sqlite_state() {
@@ -197,7 +239,7 @@ verify_preview() {
     log ""
     log "=== Step 3: Verify preview API ==="
     check_endpoint "/api/blocks"
-    check_endpoint "/api/search-profiles"
+    check_endpoint "$PREVIEW_RESUME_SMOKE_PATH"
 }
 
 require_root
@@ -210,13 +252,17 @@ case "$MODE" in
         restore_convex_state
         restore_sqlite_state
         verify_preview
+        run_preview_ai_smoke
         ;;
     sqlite-only)
         restore_sqlite_state
         verify_preview
+        run_preview_ai_smoke
         ;;
     convex-only)
         restore_convex_state
+        verify_preview
+        run_preview_ai_smoke
         ;;
 esac
 

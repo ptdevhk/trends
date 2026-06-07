@@ -12,13 +12,16 @@ rm -f "$EXPORT_PATH" /tmp/prod-convex-export-fixed.zip
 PROD_DIR="${PROD_DIR:-/opt/trends}"
 PROD_CONVEX_DIR="$PROD_DIR/packages/convex"
 PREVIEW_DIR="${PREVIEW_DIR:-/home/ubuntu/trends-preview}"
+PREVIEW_API_URL="${PREVIEW_API_URL:-http://127.0.0.1:3002}"
+PREVIEW_RESUME_SMOKE_PATH="/api/resumes?source=convex&paged=true&limit=1"
+PREVIEW_CONVEX_URL="${PREVIEW_CONVEX_URL:-http://127.0.0.1:4210}"
 
 wait_for_preview_api() {
     local max_wait=120
     local waited=0
 
     echo "Waiting for preview API to become ready..."
-    while ! curl -fsS http://127.0.0.1:3002/ >/dev/null 2>&1; do
+    while ! curl -fsS "$PREVIEW_API_URL/" >/dev/null 2>&1; do
         sleep 2
         waited=$((waited + 2))
         if [ "$waited" -ge "$max_wait" ]; then
@@ -28,6 +31,53 @@ wait_for_preview_api() {
         fi
     done
     echo "Preview API ready after ${waited}s"
+}
+
+check_preview_endpoint() {
+    local path="$1"
+    local status=""
+
+    status="$(curl -s -o /dev/null -w '%{http_code}' "$PREVIEW_API_URL$path" || echo 000)"
+    printf '%s: %s\n' "$path" "$status"
+    if [ "$status" != "200" ]; then
+        echo "Preview endpoint failed: $path returned $status" >&2
+        exit 1
+    fi
+}
+
+run_preview_ai_smoke() {
+    local keyword="${PREVIEW_AI_SMOKE_KEYWORD:-CNC}"
+    local timeout="${PREVIEW_AI_SMOKE_TIMEOUT_SEC:-300}"
+
+    case "${SKIP_PREVIEW_AI_SMOKE:-}" in
+        1|true|yes)
+            echo "Skipping preview AI smoke because SKIP_PREVIEW_AI_SMOKE is set."
+            return 0
+            ;;
+    esac
+
+    echo ""
+    echo "=== Preview AI Analysis Smoke ==="
+    if [ -x "$PREVIEW_DIR/node_modules/.bin/tsx" ]; then
+        cd "$PREVIEW_DIR" && \
+            CONVEX_URL="$PREVIEW_CONVEX_URL" \
+            ANALYSIS_TIMEOUT_SEC="$timeout" \
+            "$PREVIEW_DIR/node_modules/.bin/tsx" scripts/verify-critical-path.ts \
+                --mode=seeded \
+                --keyword="$keyword" \
+                --analysis-timeout-sec="$timeout" \
+                --json
+        return
+    fi
+
+    cd "$PREVIEW_DIR" && \
+        CONVEX_URL="$PREVIEW_CONVEX_URL" \
+        ANALYSIS_TIMEOUT_SEC="$timeout" \
+        npx tsx scripts/verify-critical-path.ts \
+            --mode=seeded \
+            --keyword="$keyword" \
+            --analysis-timeout-sec="$timeout" \
+            --json
 }
 
 echo "=== Step 1: Export production Convex data ==="
@@ -197,8 +247,9 @@ wait_for_preview_api
 
 echo ""
 echo "=== Verification ==="
-echo -n "/api/blocks: " && curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3002/api/blocks
-echo -n "/api/search-profiles: " && curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3002/api/search-profiles
+check_preview_endpoint "/api/blocks"
+check_preview_endpoint "$PREVIEW_RESUME_SMOKE_PATH"
+run_preview_ai_smoke
 
 echo ""
 echo "=== Done ==="

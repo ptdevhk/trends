@@ -868,9 +868,11 @@ env_only_upgrade_steps() {
     ensure_uv
     create_service_user
     sync_service_user_gh_credentials
+    validate_auth_env
     deploy_env_file
     setup_convex
     restart_units
+    wait_for_api_health
 }
 
 env_only_upgrade_flow() {
@@ -1409,6 +1411,27 @@ deploy_env_file() {
     log_info "  - $system_env_path"
 }
 
+validate_auth_env() {
+    local resolved_env_path=""
+
+    if [[ -z "${ENV_FILE:-}" ]]; then
+        log_warn "ENV_FILE is empty; skipping production auth environment validation."
+        return 0
+    fi
+
+    resolved_env_path="$(resolve_env_file)"
+    if [[ ! -f "$INSTALL_DIR/scripts/check-auth-env.ts" ]]; then
+        log_error "Auth environment checker not found at $INSTALL_DIR/scripts/check-auth-env.ts"
+        exit 1
+    fi
+
+    log_info "Validating production auth environment from $resolved_env_path..."
+    if ! (cd "$INSTALL_DIR" && npx tsx scripts/check-auth-env.ts --mode production --env-file "$resolved_env_path"); then
+        log_error "Production auth environment validation failed."
+        exit 1
+    fi
+}
+
 copy_file_if_exists() {
     local source_path="$1"
     local target_path="$2"
@@ -1771,6 +1794,33 @@ start_services() {
     done
 }
 
+wait_for_api_health() {
+    local port=""
+    local url=""
+    local timeout=120
+    local elapsed=0
+
+    port="$(resolve_runtime_env_var "PORT")"
+    if [[ -z "$port" ]]; then
+        port="3000"
+    fi
+    url="http://127.0.0.1:$port/health"
+
+    log_info "Waiting for API health at $url..."
+    while [[ "$elapsed" -lt "$timeout" ]]; do
+        if curl -fsS "$url" >/dev/null 2>&1; then
+            log_info "API health check passed after ${elapsed}s."
+            return 0
+        fi
+        sleep 2
+        elapsed=$((elapsed + 2))
+    done
+
+    log_error "API health check did not pass after ${timeout}s: $url"
+    systemctl status trends-api.service --no-pager -l >&2 || true
+    exit 1
+}
+
 stop_port_processes() {
     local port="$1"
     local pids pid
@@ -1839,6 +1889,7 @@ install_flow() {
     sync_service_user_gh_credentials
     clone_or_update_repo
     sync_dependencies
+    validate_auth_env
     deploy_env_file
     sync_web_build_env
     build_shared_artifact
@@ -1850,13 +1901,14 @@ install_flow() {
     install_systemd_units
     enable_units
     start_services
+    wait_for_api_health
 
     echo ""
     log_info "Installation completed."
     echo ""
     echo "Verification commands:"
     echo "  systemctl status trends-convex trends-api trends-worker trends-worker-api trends-mcp"
-    echo "  curl -s http://127.0.0.1:3000/api/health"
+    echo "  curl -s http://127.0.0.1:3000/health"
     echo "  curl -s https://trends.pt-mes.com/"
     echo ""
     echo "Caddy setup recommendation:"
@@ -1869,6 +1921,7 @@ full_upgrade_steps() {
     clone_or_update_repo
     sync_dependencies
     if [[ -n "$ENV_FILE" ]]; then
+        validate_auth_env
         deploy_env_file
         sync_web_build_env
     else
@@ -1882,6 +1935,7 @@ full_upgrade_steps() {
     remove_legacy_units
     install_systemd_units
     restart_units
+    wait_for_api_health
 }
 
 upgrade_flow() {
@@ -1934,6 +1988,7 @@ upgrade_check_flow() {
     fi
 
     create_service_user
+    validate_auth_env
     plan_upgrade_action
     print_upgrade_plan
 
