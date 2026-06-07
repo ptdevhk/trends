@@ -11,6 +11,7 @@ const setupPreviewScript = readFileSync(new URL("../deploy/setup-preview.sh", im
 const restorePreviewScript = readFileSync(new URL("../deploy/restore-preview-from-prod.sh", import.meta.url), "utf8");
 const restorePreviewFullStateScript = readFileSync(new URL("../deploy/restore-preview-full-state-from-prod.sh", import.meta.url), "utf8");
 const syncPreviewConvexEnvScript = readFileSync(new URL("../deploy/sync-preview-convex-env.sh", import.meta.url), "utf8");
+const previewDoctorScript = readFileSync(new URL("../deploy/preview-doctor.sh", import.meta.url), "utf8");
 const previewMcpDockerfile = readFileSync(new URL("../deploy/docker/Dockerfile.mcp", import.meta.url), "utf8");
 const previewCompose = readFileSync(new URL("../deploy/docker/docker-compose.preview.yml", import.meta.url), "utf8");
 const previewConvexStartScript = readFileSync(new URL("../deploy/docker/start-convex.sh", import.meta.url), "utf8");
@@ -24,6 +25,32 @@ function getTargetRecipe(target: string): string {
     throw new Error(`Missing Makefile recipe for target: ${target}`);
   }
   return match[1];
+}
+
+function extractShellFunction(script: string, functionName: string): string {
+  const startMarker = `${functionName}() {`;
+  const startIdx = script.indexOf(startMarker);
+  if (startIdx === -1) {
+    throw new Error(`Could not find ${functionName}`);
+  }
+  const bodyStart = script.indexOf("{", startIdx) + 1;
+  let depth = 1;
+  let index = bodyStart;
+  while (index < script.length && depth > 0) {
+    if (script[index] === "{") depth++;
+    else if (script[index] === "}") depth--;
+    if (depth > 0) index++;
+  }
+  if (depth !== 0) {
+    throw new Error(`Could not extract ${functionName} body`);
+  }
+  return script.slice(bodyStart, index);
+}
+
+function expectBefore(source: string, first: string, second: string): void {
+  expect(source).toContain(first);
+  expect(source).toContain(second);
+  expect(source.indexOf(first)).toBeLessThan(source.indexOf(second));
 }
 
 describe("install/deploy demo resume safety", () => {
@@ -71,26 +98,6 @@ describe("seed_and_migrate_convex migration order", () => {
   let body = "";
   let migrations: string[] = [];
 
-  function extractSeedAndMigrateBody(script: string): string {
-    const startMarker = "seed_and_migrate_convex() {";
-    const startIdx = script.indexOf(startMarker);
-    if (startIdx === -1) {
-      throw new Error("Could not find seed_and_migrate_convex in install.sh");
-    }
-    const bodyStart = script.indexOf("{", startIdx) + 1;
-    let depth = 1;
-    let i = bodyStart;
-    while (i < script.length && depth > 0) {
-      if (script[i] === "{") depth++;
-      else if (script[i] === "}") depth--;
-      if (depth > 0) i++;
-    }
-    if (depth !== 0) {
-      throw new Error("Could not extract seed_and_migrate_convex body from install.sh");
-    }
-    return script.slice(bodyStart, i);
-  }
-
   function extractMigrationCalls(fnBody: string): string[] {
     const calls: string[] = [];
     for (const line of fnBody.split("\n")) {
@@ -103,7 +110,7 @@ describe("seed_and_migrate_convex migration order", () => {
   }
 
   beforeAll(() => {
-    body = extractSeedAndMigrateBody(installScript);
+    body = extractShellFunction(installScript, "seed_and_migrate_convex");
     migrations = extractMigrationCalls(body);
   });
 
@@ -127,6 +134,46 @@ describe("seed_and_migrate_convex migration order", () => {
   it("passes limit to backfillIngestData", () => {
     expect(body).toContain("backfillIngestData");
     expect(body).toContain('{"limit":100}');
+  });
+});
+
+describe("production deploy readiness checks", () => {
+  it("validates auth env before production install, upgrade, env-only, and upgrade-check paths", () => {
+    expect(installScript).toContain("validate_auth_env()");
+    expect(installScript).toContain("scripts/check-auth-env.ts");
+    expect(installScript).toContain("--mode production");
+
+    expectBefore(extractShellFunction(installScript, "install_flow"), "validate_auth_env", "deploy_env_file");
+    expectBefore(extractShellFunction(installScript, "full_upgrade_steps"), "validate_auth_env", "deploy_env_file");
+    expectBefore(extractShellFunction(installScript, "env_only_upgrade_steps"), "validate_auth_env", "deploy_env_file");
+    expectBefore(extractShellFunction(installScript, "upgrade_check_flow"), "validate_auth_env", "plan_upgrade_action");
+  });
+
+  it("uses the real API health route for production readiness and operator guidance", () => {
+    expect(installScript).toContain("wait_for_api_health()");
+    expect(installScript).toContain("/health");
+    expect(installScript).not.toContain("127.0.0.1:3000/api/health");
+  });
+
+  it("does not use anonymous admin-gated search profile routes as preview smoke checks", () => {
+    expect(restorePreviewScript).not.toContain("/api/search-profiles");
+    expect(restorePreviewFullStateScript).not.toContain("/api/search-profiles");
+    expect(previewDoctorScript).not.toContain("/api/search-profiles");
+
+    expect(restorePreviewScript).toContain("/api/resumes?source=convex&paged=true&limit=1");
+    expect(restorePreviewFullStateScript).toContain("/api/resumes?source=convex&paged=true&limit=1");
+    expect(previewDoctorScript).toContain("/api/resumes?source=convex&paged=true&limit=1");
+  });
+
+  it("runs a bounded preview AI analysis smoke after production-state restores", () => {
+    expect(restorePreviewScript).toContain("run_preview_ai_smoke");
+    expect(restorePreviewScript).toContain("SKIP_PREVIEW_AI_SMOKE");
+    expect(restorePreviewScript).toContain("scripts/verify-critical-path.ts");
+    expect(restorePreviewScript).toContain("--mode=seeded");
+    expect(restorePreviewScript).toContain("ANALYSIS_TIMEOUT_SEC");
+
+    expect(restorePreviewFullStateScript).toContain("run_preview_ai_smoke");
+    expect(restorePreviewFullStateScript).toContain("SKIP_PREVIEW_AI_SMOKE");
   });
 });
 
@@ -160,7 +207,8 @@ describe("preview restore export compatibility", () => {
 
   it("waits for the preview API after restart before final smoke checks", () => {
     expect(restorePreviewScript).toContain("wait_for_preview_api()");
-    expect(restorePreviewScript).toContain("http://127.0.0.1:3002/");
+    expect(restorePreviewScript).toContain('PREVIEW_API_URL="${PREVIEW_API_URL:-http://127.0.0.1:3002}"');
+    expect(restorePreviewScript).toContain('"$PREVIEW_API_URL/"');
     expect(restorePreviewScript.indexOf("wait_for_preview_api")).toBeLessThan(
       restorePreviewScript.indexOf("=== Verification ==="),
     );
@@ -216,7 +264,7 @@ describe("preview full-state restore", () => {
     expect(restorePreviewFullStateScript).toContain("systemctl start \"$PREVIEW_API_SERVICE\"");
     expect(restorePreviewFullStateScript).toContain("wait_for_preview_api");
     expect(restorePreviewFullStateScript).toContain("/api/blocks");
-    expect(restorePreviewFullStateScript).toContain("/api/search-profiles");
+    expect(restorePreviewFullStateScript).toContain("/api/resumes?source=convex&paged=true&limit=1");
     expect(restorePreviewFullStateScript).not.toContain("ssh ");
   });
 });
