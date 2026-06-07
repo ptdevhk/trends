@@ -9,6 +9,7 @@ import { config } from "../services/config.js";
 import { workspaceConfigService } from "../services/workspace-config-service.js";
 import { logger } from "../services/logger.js";
 import { getAuthenticatedActorId, requireWorkspaceUser } from "../middleware/auth.js";
+import { CandidateStatusEnumSchema } from "../schemas/index.js";
 
 const app = new OpenAPIHono();
 
@@ -20,28 +21,11 @@ app.use("/api/candidate-status", async (c, next) => {
 });
 
 
-const CandidateStatusEnum = z.enum([
-  "new",
-  "shortlisted",
-  "rejected",
-  "contacted",
-  "interviewing",
-  "interviewed_pass",
-  "interviewed_reject",
-  "appeal_submitted",
-  "human_review",
-  "upheld",
-  "reversed",
-  "offer",
-  "hired",
-  "withdrawn",
-]);
-
 const CandidateStatusSchema = z.object({
   _id: z.string(),
   identityKey: z.string(),
   workspaceSlug: z.string(),
-  status: CandidateStatusEnum,
+  status: CandidateStatusEnumSchema,
   notes: z.string().optional(),
   updatedBy: z.string().optional(),
   updatedAt: z.number(),
@@ -59,7 +43,7 @@ const ListResponseSchema = z.object({
 
 const UpdateRequestSchema = z.object({
   identityKey: z.string(),
-  status: CandidateStatusEnum,
+  status: CandidateStatusEnumSchema,
   notes: z.string().optional(),
   updatedBy: z.string().optional(),
 });

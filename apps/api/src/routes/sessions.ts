@@ -1,6 +1,6 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 
-import { ResumeFiltersSchema } from "../schemas/index.js";
+import { CandidateStatusEnumSchema, ResumeFiltersSchema } from "../schemas/index.js";
 import { config } from "../services/config.js";
 import { SessionManager } from "../services/session-manager.js";
 
@@ -8,28 +8,12 @@ const app = new OpenAPIHono();
 const sessionManager = new SessionManager(config.projectRoot);
 
 const SessionStatusSchema = z.enum(["active", "completed", "archived"]);
-const CandidateStatusSchema = z.enum([
-  "new",
-  "shortlisted",
-  "rejected",
-  "contacted",
-  "interviewing",
-  "interviewed_pass",
-  "interviewed_reject",
-  "appeal_submitted",
-  "human_review",
-  "upheld",
-  "reversed",
-  "offer",
-  "hired",
-  "withdrawn",
-]);
 const SessionFiltersSchema = ResumeFiltersSchema.extend({
   minRoleYears: z.number().min(0).optional(),
   roleFilterType: z.string().optional(),
   minAge: z.number().min(0).optional(),
   maxAge: z.number().min(0).optional(),
-  status: z.array(CandidateStatusSchema).optional(),
+  status: z.array(CandidateStatusEnumSchema).optional(),
   showBlocked: z.boolean().optional(),
   showRejected: z.boolean().optional(),
 });

@@ -42,6 +42,7 @@ describe("useStatusCounts", () => {
       new: 42,
       shortlisted: 7,
       rejected: 3,
+      interviewed_pass: 2,
       total: 52,
       overflow: false,
     });
@@ -56,6 +57,7 @@ describe("useStatusCounts", () => {
     expect(result.current.new).toBe(42);
     expect(result.current.shortlisted).toBe(7);
     expect(result.current.rejected).toBe(3);
+    expect(result.current).toMatchObject({ interviewed_pass: 2 });
     expect(result.current.total).toBe(52);
     expect(result.current.overflow).toBe(false);
   });
@@ -90,12 +92,13 @@ describe("useStatusCounts", () => {
 
     const { useStatusCounts } = await import("@/hooks/useStatusCounts");
     const filters: ConvexResumeFilters = {};
+    const bffStatusCounts = { new: 100, shortlisted: 20, rejected: 10, interviewed_pass: 2 };
     const { result } = renderHook(() =>
       useStatusCounts({
         filters,
         workspaceSlug: "test",
         useAndModeBff: true,
-        bffStatusCounts: { new: 100, shortlisted: 20, rejected: 10 },
+        bffStatusCounts,
       })
     );
 
@@ -103,6 +106,8 @@ describe("useStatusCounts", () => {
     expect(result.current.new).toBe(100);
     expect(result.current.shortlisted).toBe(20);
     expect(result.current.rejected).toBe(10);
+    expect(result.current).toMatchObject({ interviewed_pass: 2 });
+    expect(result.current.total).toBe(132);
     // useQuery is called unconditionally (rules of hooks) but with "skip" for BFF path
     expect(useQueryMock).toHaveBeenCalledWith("resumes:countResumesByStatus", "skip");
   });

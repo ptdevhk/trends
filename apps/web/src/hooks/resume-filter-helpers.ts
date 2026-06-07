@@ -3,7 +3,7 @@ import { formatKeywordQuery, formatLocationHierarchySearchText, getVerifiedRoleS
 import { resolveResumeAnalysisSourceKey } from '@trends/shared'
 import type { ExperienceLevelFilter, UrlSearchState } from '@/hooks/useUrlSearchState'
 
-import type { CandidateStatus, ResumeFilters } from '@/types/resume'
+import { CANDIDATE_STATUS_VALUES, type CandidateStatus, type ResumeFilters } from '@/types/resume'
 import type { CollectionSource } from '@/lib/search-profile-sources'
 
 const EDUCATION_KEYWORDS: Record<string, string[]> = {
@@ -13,6 +13,8 @@ const EDUCATION_KEYWORDS: Record<string, string[]> = {
   master: ['硕士', '研究生', 'master'],
   phd: ['博士', 'phd', 'doctor'],
 }
+
+const CANDIDATE_STATUS_SET = new Set<CandidateStatus>(CANDIDATE_STATUS_VALUES)
 
 export function normalizeFilterToken(value: string): string {
   return value.trim().toLowerCase()
@@ -76,16 +78,7 @@ export function toStatusFilterList(values: CandidateStatus[] | undefined): Candi
 
   const unique = new Set<CandidateStatus>()
   values.forEach((value) => {
-    if (
-      value === 'new'
-      || value === 'contacted'
-      || value === 'interviewing'
-      || value === 'interviewed_pass'
-      || value === 'interviewed_reject'
-      || value === 'offer'
-      || value === 'hired'
-      || value === 'withdrawn'
-    ) {
+    if (CANDIDATE_STATUS_SET.has(value)) {
       unique.add(value)
     }
   })

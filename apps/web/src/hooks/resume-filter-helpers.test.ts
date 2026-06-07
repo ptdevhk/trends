@@ -203,10 +203,25 @@ describe('toStatusFilterList', () => {
     expect(result).toEqual(['contacted', 'hired', 'new'])
   })
 
-  it('accepts all valid statuses', () => {
-    const all = ['new', 'contacted', 'interviewing', 'interviewed_pass', 'interviewed_reject', 'offer', 'hired', 'withdrawn'] as const
-    const result = toStatusFilterList([...all])
-    expect(result).toHaveLength(8)
+  it('accepts every valid candidate status', () => {
+    const all = [
+      'new',
+      'shortlisted',
+      'rejected',
+      'contacted',
+      'interviewing',
+      'interviewed_pass',
+      'interviewed_reject',
+      'appeal_submitted',
+      'human_review',
+      'upheld',
+      'reversed',
+      'offer',
+      'hired',
+      'withdrawn',
+    ] as const satisfies readonly CandidateStatus[]
+
+    expect(toStatusFilterList([...all])).toEqual([...all].sort())
   })
 })
 

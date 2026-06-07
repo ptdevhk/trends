@@ -1926,7 +1926,7 @@ describe('useResumeSearchState', () => {
     expect(result.current.filteredResults.map((item) => item.key)).toEqual(['resume-1'])
   })
 
-  it('treats pipeline-only statuses as part of the new triage bucket', () => {
+  it('excludes explicit pipeline statuses from the default new triage bucket', () => {
     Object.assign(parsedStateMock, createParsedState({
       query: 'CNC 销售',
       keywords: ['CNC', '销售'],
@@ -1940,16 +1940,31 @@ describe('useResumeSearchState', () => {
     )
     statusByIdentityMock['identity-1'] = createStatusRecord('identity-1', 'new')
     statusByIdentityMock['identity-2'] = createStatusRecord('identity-2', 'contacted')
-    statusByIdentityMock['identity-3'] = createStatusRecord('identity-3', 'interviewing')
+    statusByIdentityMock['identity-3'] = createStatusRecord('identity-3', 'interviewed_pass')
     statusByIdentityMock['identity-4'] = createStatusRecord('identity-4', 'rejected')
 
     const { result } = renderHook(() => useResumeSearchState())
 
-    expect(result.current.filteredResults.map((item) => item.key)).toEqual([
-      'resume-1',
-      'resume-2',
-      'resume-3',
-    ])
+    expect(result.current.filteredResults.map((item) => item.key)).toEqual(['resume-1'])
+  })
+
+  it('includes interviewed_pass resumes when explicitly filtered', () => {
+    Object.assign(parsedStateMock, createParsedState({
+      query: 'CNC 销售',
+      keywords: ['CNC', '销售'],
+      filters: { status: ['interviewed_pass'] },
+    }))
+
+    resumesMock.push(
+      createResume(1, { primaryRuleScore: 95 }),
+      createResume(2, { primaryRuleScore: 90 }),
+    )
+    statusByIdentityMock['identity-1'] = createStatusRecord('identity-1', 'new')
+    statusByIdentityMock['identity-2'] = createStatusRecord('identity-2', 'interviewed_pass')
+
+    const { result } = renderHook(() => useResumeSearchState())
+
+    expect(result.current.filteredResults.map((item) => item.key)).toEqual(['resume-2'])
   })
 
   it('hides blocked new resumes from results and status facets by default', () => {
@@ -1994,6 +2009,7 @@ describe('useResumeSearchState', () => {
           new: 797,
           shortlisted: 0,
           rejected: 1,
+          interviewed_pass: 3,
           total: 798,
           overflow: false,
         }
@@ -2009,6 +2025,7 @@ describe('useResumeSearchState', () => {
 
     expect(result.current.facetCounts.statuses).toEqual([
       { value: 'new', count: 797, label: 'New candidate' },
+      { value: 'interviewed_pass', count: 3 },
       { value: 'rejected', count: 1 },
     ])
   })
@@ -2038,13 +2055,14 @@ describe('useResumeSearchState', () => {
       loading: false,
       loadingMore: false,
       isAndModeBff: true,
-      bffStatusCounts: { new: 797, shortlisted: 0, rejected: 1 },
+      bffStatusCounts: { new: 797, shortlisted: 0, rejected: 1, interviewed_pass: 3 },
     }))
 
     const { result } = renderHook(() => useResumeSearchState())
 
     expect(result.current.facetCounts.statuses).toEqual([
       { value: 'new', count: 797, label: 'New candidate' },
+      { value: 'interviewed_pass', count: 3 },
       { value: 'rejected', count: 1 },
     ])
   })

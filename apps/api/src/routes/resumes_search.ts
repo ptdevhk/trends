@@ -20,6 +20,7 @@ import {
   ResumeKeywordExpansionQuerySchema,
   ResumeKeywordExpansionResponseSchema,
   ResumeSamplesResponseSchema,
+  CANDIDATE_STATUS_VALUES,
 } from "../schemas/index.js";
 import { resolveResumeId } from "../services/resume-id.js";
 import { callConvexAction, callConvexQuery, isConvexPaginatedQueryPage } from "../services/convex-utils.js";
@@ -82,6 +83,36 @@ const searchEventLogger = new SearchEventLogger(config.projectRoot);
 
 const DEFAULT_CONVEX_RESUME_PAGE_SIZE = 50;
 const MAX_SAFE_CONVEX_POST_FILTER_SCAN = 250;
+type CandidateStatus = typeof CANDIDATE_STATUS_VALUES[number];
+type CandidateStatusCounts = Record<CandidateStatus, number>;
+const CANDIDATE_STATUS_SET: ReadonlySet<string> = new Set(CANDIDATE_STATUS_VALUES);
+
+function createCandidateStatusCounts(): CandidateStatusCounts {
+  return {
+    new: 0,
+    shortlisted: 0,
+    rejected: 0,
+    contacted: 0,
+    interviewing: 0,
+    interviewed_pass: 0,
+    interviewed_reject: 0,
+    appeal_submitted: 0,
+    human_review: 0,
+    upheld: 0,
+    reversed: 0,
+    offer: 0,
+    hired: 0,
+    withdrawn: 0,
+  };
+}
+
+function isCandidateStatus(value: string): value is CandidateStatus {
+  return CANDIDATE_STATUS_SET.has(value);
+}
+
+function resolveCandidateStatus(value: string | undefined): CandidateStatus {
+  return value && isCandidateStatus(value) ? value : "new";
+}
 
 export function scorePreparedCandidates(
   prepared: PreparedResumeCandidate[],
@@ -961,7 +992,7 @@ app.openapi(getResumesRoute, (c) => {
           : pagedWorking.map((item) => item.resume);
 
         // Compute status counts from working set identityKeys
-        let statusCounts: { new: number; shortlisted: number; rejected: number } | undefined;
+        let statusCounts: CandidateStatusCounts | undefined;
         try {
           const [statusList, blockList] = await Promise.all([
             callConvexQuery("candidate_status:list", {
@@ -985,7 +1016,7 @@ app.openapi(getResumesRoute, (c) => {
               blockedIdentities.add(String(block.identityKey));
             }
           }
-          const counts: Record<string, number> = { new: 0, shortlisted: 0, rejected: 0 };
+          const counts = createCandidateStatusCounts();
           const sourceItems = (usesPrePagedMatchResults || isSourcePaginated) ? working : pagedWorking;
           for (const item of sourceItems) {
             const resume = item.resume as Record<string, unknown> | undefined;
@@ -993,17 +1024,11 @@ app.openapi(getResumesRoute, (c) => {
             if (identityKey && blockedIdentities.has(identityKey)) {
               continue;
             }
-            // Match Convex countResumesByStatus: missing identityKey → "new";
-            // non-standard statuses (contacted, interviewing, etc.) → "new"
             const status = identityKey ? (statusMap.get(identityKey) ?? "new") : "new";
-            const bucket = status in counts ? status : "new";
-            counts[bucket] = (counts[bucket] ?? 0) + 1;
+            const bucket = resolveCandidateStatus(status);
+            counts[bucket] += 1;
           }
-          statusCounts = {
-            new: counts.new ?? 0,
-            shortlisted: counts.shortlisted ?? 0,
-            rejected: counts.rejected ?? 0,
-          };
+          statusCounts = counts;
         } catch {
           statusCounts = undefined;
         }
@@ -1160,7 +1185,7 @@ app.openapi(getResumesRoute, (c) => {
           total: 0,
           returned: 0,
           query: keyword,
-          statusCounts: { new: 0, shortlisted: 0, rejected: 0 },
+          statusCounts: createCandidateStatusCounts(),
         },
         data: [],
       }, 200);

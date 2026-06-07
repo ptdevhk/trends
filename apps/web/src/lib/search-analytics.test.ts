@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { afterAll, describe, expect, it, vi, beforeEach } from 'vitest'
 import { logSearchEvent } from '@/lib/search-analytics'
 
 describe('logSearchEvent', () => {
@@ -7,6 +7,11 @@ describe('logSearchEvent', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    document.cookie = 'trends_csrf=; Max-Age=0; path=/'
+  })
+
+  afterAll(() => {
+    vi.unstubAllGlobals()
   })
 
   it('sends POST with query and resultCount', () => {
@@ -41,6 +46,15 @@ describe('logSearchEvent', () => {
     mockFetch.mockResolvedValue({ ok: true })
     logSearchEvent({ query: 'test', resultCount: 1 })
     expect(mockFetch.mock.calls[0][1].keepalive).toBe(true)
+  })
+
+  it('sends CSRF token when present', () => {
+    document.cookie = 'trends_csrf=csrf-token-analytics; path=/'
+    mockFetch.mockResolvedValue({ ok: true })
+
+    logSearchEvent({ query: 'test', resultCount: 1 })
+
+    expect(mockFetch.mock.calls[0][1].headers['X-CSRF-Token']).toBe('csrf-token-analytics')
   })
 
   it('silently ignores network errors', () => {
