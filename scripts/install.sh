@@ -1411,6 +1411,18 @@ deploy_env_file() {
     log_info "  - $system_env_path"
 }
 
+run_tsx_script() {
+    local script_path="$1"
+    shift
+
+    if command -v bun >/dev/null 2>&1; then
+        bunx tsx "$script_path" "$@"
+        return
+    fi
+
+    npx tsx "$script_path" "$@"
+}
+
 validate_auth_env() {
     local resolved_env_path=""
 
@@ -1426,7 +1438,7 @@ validate_auth_env() {
     fi
 
     log_info "Validating production auth environment from $resolved_env_path..."
-    if ! (cd "$INSTALL_DIR" && npx tsx scripts/check-auth-env.ts --mode production --env-file "$resolved_env_path"); then
+    if ! (cd "$INSTALL_DIR" && run_tsx_script scripts/check-auth-env.ts --mode production --env-file "$resolved_env_path"); then
         log_error "Production auth environment validation failed."
         exit 1
     fi

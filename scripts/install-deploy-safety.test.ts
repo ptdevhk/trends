@@ -142,6 +142,11 @@ describe("production deploy readiness checks", () => {
     expect(installScript).toContain("validate_auth_env()");
     expect(installScript).toContain("scripts/check-auth-env.ts");
     expect(installScript).toContain("--mode production");
+    expect(extractShellFunction(installScript, "validate_auth_env")).toContain("run_tsx_script");
+
+    const tsxRunner = extractShellFunction(installScript, "run_tsx_script");
+    expect(tsxRunner).toContain("command -v bun");
+    expectBefore(tsxRunner, "bunx tsx", "npx tsx");
 
     expectBefore(extractShellFunction(installScript, "install_flow"), "validate_auth_env", "deploy_env_file");
     expectBefore(extractShellFunction(installScript, "full_upgrade_steps"), "validate_auth_env", "deploy_env_file");
