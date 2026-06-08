@@ -11,6 +11,9 @@ import {
   executeProviderMembershipCommand,
   parseProviderMembershipArgs,
 } from "./manage-provider-membership.js";
+import type { ProviderMembershipCommandResult } from "./manage-provider-membership.js";
+
+type AuditExportTestResult = Extract<ProviderMembershipCommandResult, { action: "export-audit" }>;
 
 describe("manage-provider-membership CLI", () => {
   afterEach(() => {
@@ -104,6 +107,33 @@ describe("manage-provider-membership CLI", () => {
       action: "list-preapprovals",
       provider: "casdoor",
       workspaceSlug: "hr",
+      output: "json",
+      dryRun: false,
+    });
+  });
+
+  it("parses provider audit export filters", () => {
+    expect(parseProviderMembershipArgs([
+      "export-audit",
+      "--provider",
+      "casdoor",
+      "--workspace",
+      "hr",
+      "--status",
+      "revoked",
+      "--from",
+      "2026-01-01T00:00:00Z",
+      "--to",
+      "2026-12-31T23:59:59Z",
+      "--output",
+      "json",
+    ])).toEqual({
+      action: "export-audit",
+      provider: "casdoor",
+      workspaceSlug: "hr",
+      status: "revoked",
+      from: "2026-01-01T00:00:00Z",
+      to: "2026-12-31T23:59:59Z",
       output: "json",
       dryRun: false,
     });
@@ -405,5 +435,158 @@ describe("manage-provider-membership CLI", () => {
       { type: "workspace_membership_revoked", workspaceSlug: "hr" },
       { type: "workspace_membership_granted", workspaceSlug: "hr" },
     ]);
+  });
+
+  it("exports redacted provider membership audit evidence with related event ids", () => {
+    const root = mkdtempSync(path.join(tmpdir(), "trends-provider-membership-audit-"));
+    const storage = new AuthStorage(root);
+    const user = storage.createUser({
+      email: "casdoor@example.com",
+      displayName: "Casdoor User",
+    });
+    storage.linkIdentity({
+      userId: user.id,
+      provider: "casdoor",
+      providerSubject: "sub-1",
+      providerTenant: "tenant-1",
+      email: user.email,
+      displayName: user.displayName,
+      rawProfile: {
+        access_token: "secret-access-token",
+        authorization: "Bearer secret",
+        password: "secret-password",
+      },
+    });
+    storage.preapproveProviderMembership({
+      provider: "casdoor",
+      providerSubject: "sub-1",
+      providerTenant: "tenant-1",
+      workspaceSlug: "hr",
+      role: "user",
+      operatorId: "ops@example.com",
+    });
+    storage.preapproveProviderMembership({
+      provider: "casdoor",
+      providerSubject: "sub-1",
+      providerTenant: "tenant-1",
+      workspaceSlug: "dev",
+      role: "admin",
+      operatorId: "ops@example.com",
+    });
+    storage.revokeProviderMembershipPreapproval({
+      provider: "casdoor",
+      providerSubject: "sub-1",
+      providerTenant: "tenant-1",
+      workspaceSlug: "hr",
+      operatorId: "ops@example.com",
+    });
+
+    const result = executeProviderMembershipCommand(
+      parseProviderMembershipArgs([
+        "export-audit",
+        "--provider",
+        "casdoor",
+        "--workspace",
+        "hr",
+        "--status",
+        "revoked",
+        "--from",
+        "2000-01-01T00:00:00Z",
+        "--to",
+        "2999-12-31T23:59:59Z",
+        "--output",
+        "json",
+      ]),
+      { projectRoot: root },
+    ) as unknown as AuditExportTestResult;
+
+    expect(result).toMatchObject({
+      success: true,
+      action: "export-audit",
+      filters: {
+        provider: "casdoor",
+        workspaceSlug: "hr",
+        status: "revoked",
+        from: "2000-01-01T00:00:00Z",
+        to: "2999-12-31T23:59:59Z",
+      },
+      audit: {
+        identities: [
+          {
+            providerSubject: "sub-1",
+            providerTenant: "tenant-1",
+            userId: user.id,
+          },
+        ],
+        preapprovals: [
+          {
+            providerSubject: "sub-1",
+            providerTenant: "tenant-1",
+            workspaceSlug: "hr",
+            active: false,
+          },
+        ],
+        grants: [
+          {
+            providerSubject: "sub-1",
+            providerTenant: "tenant-1",
+            workspaceSlug: "hr",
+            active: false,
+          },
+        ],
+      },
+    });
+    expect(result.audit.preapprovals[0]?.relatedAuthEventIds).toHaveLength(2);
+    expect(result.audit.grants[0]?.relatedAuthEventIds).toEqual(result.audit.preapprovals[0]?.relatedAuthEventIds);
+    expect(result.audit.events.map((event) => event.type)).toEqual([
+      "workspace_membership_revoked",
+      "workspace_membership_granted",
+    ]);
+    expect(JSON.stringify(result)).not.toMatch(/rawProfile|access_token|authorization|secret-access-token|secret-password|Bearer secret/i);
+  });
+
+  it("filters provider membership audit export by date range", () => {
+    const root = mkdtempSync(path.join(tmpdir(), "trends-provider-membership-audit-date-"));
+    const storage = new AuthStorage(root);
+    const user = storage.createUser({
+      email: "casdoor@example.com",
+      displayName: "Casdoor User",
+    });
+    storage.linkIdentity({
+      userId: user.id,
+      provider: "casdoor",
+      providerSubject: "sub-1",
+      providerTenant: "tenant-1",
+      email: user.email,
+      displayName: user.displayName,
+    });
+    storage.preapproveProviderMembership({
+      provider: "casdoor",
+      providerSubject: "sub-1",
+      providerTenant: "tenant-1",
+      workspaceSlug: "hr",
+      role: "user",
+      operatorId: "ops@example.com",
+    });
+
+    const result = executeProviderMembershipCommand(
+      parseProviderMembershipArgs([
+        "export-audit",
+        "--provider",
+        "casdoor",
+        "--from",
+        "2999-01-01T00:00:00Z",
+        "--output",
+        "json",
+      ]),
+      { projectRoot: root },
+    ) as unknown as AuditExportTestResult;
+
+    expect(result.audit).toEqual({
+      identities: [],
+      preapprovals: [],
+      grants: [],
+      events: [],
+    });
   });
 });
