@@ -1,0 +1,130 @@
+{
+  "actions.ts": {
+    "class": "workspace-write",
+    "reason": "Candidate action writes require authenticated workspace membership through requireWorkspaceUser."
+  },
+  "ai-summary.ts": {
+    "class": "candidate-link",
+    "reason": "Candidate-facing AI summary access is intentionally reachable without workspace login."
+  },
+  "auth.ts": {
+    "class": "public",
+    "reason": "Authentication entrypoints must remain reachable before a user session exists."
+  },
+  "blocks.ts": {
+    "class": "workspace-write",
+    "reason": "Candidate block reads and writes are scoped to authenticated workspace users."
+  },
+  "candidate-status.ts": {
+    "class": "workspace-write",
+    "reason": "Candidate status mutations require authenticated workspace membership while candidate appeal remains a candidate-facing path."
+  },
+  "config.ts": {
+    "class": "admin",
+    "reason": "Runtime configuration reads and writes are admin-only through getAdminAccessError checks."
+  },
+  "filter-presets.ts": {
+    "class": "admin",
+    "reason": "Filter preset administration is guarded by getAdminAccessError checks."
+  },
+  "health.ts": {
+    "class": "public",
+    "reason": "Health check endpoints are intentionally unauthenticated for uptime probes."
+  },
+  "industry.ts": {
+    "class": "public",
+    "reason": "Industry taxonomy lookup data is public product metadata."
+  },
+  "job-descriptions.ts": {
+    "class": "admin",
+    "reason": "Job description operations are guarded by getAdminAccessError checks."
+  },
+  "notifications.ts": {
+    "class": "admin",
+    "reason": "Notification administration uses route-level requireAdmin middleware."
+  },
+  "resume-submit.ts": {
+    "class": "candidate-link",
+    "reason": "Candidate resume submission is externally reachable and uses its own submission token authorization."
+  },
+  "resumes.ts": {
+    "class": "admin",
+    "reason": "Resume analysis, audit, reingest, and reset operations use requireAdmin middleware."
+  },
+  "resumes_admin.ts": {
+    "class": "admin",
+    "reason": "Resume admin operations use per-route requireAdmin middleware."
+  },
+  "resumes_diagnostics.ts": {
+    "class": "admin",
+    "reason": "Resume diagnostic routes use requireAdmin middleware."
+  },
+  "resumes_import.ts": {
+    "class": "admin",
+    "reason": "Resume import, backup, and reset routes use requireAdmin middleware."
+  },
+  "resumes_match.ts": {
+    "class": "workspace-read",
+    "reason": "Resume matching reads are selected by workspace context and are scheduled for later membership hardening."
+  },
+  "resumes_packets.ts": {
+    "class": "admin",
+    "reason": "Review packet and learning feedback operations use requireAdmin middleware."
+  },
+  "resumes_search.ts": {
+    "class": "workspace-read",
+    "reason": "Resume search reads are selected by workspace context and are scheduled for later membership hardening."
+  },
+  "rss.ts": {
+    "class": "public",
+    "reason": "RSS routes expose public feed data."
+  },
+  "scoring-evaluation.ts": {
+    "class": "workspace-read",
+    "reason": "Scoring evaluation reads are workspace-context selected and are scheduled for later membership hardening."
+  },
+  "search-alerts.ts": {
+    "class": "workspace-read",
+    "reason": "Search alert reads are workspace-context selected and are scheduled for later membership hardening."
+  },
+  "search-analytics.ts": {
+    "class": "telemetry",
+    "reason": "Search analytics accepts client telemetry rather than workspace membership-gated operational writes."
+  },
+  "search-profiles.ts": {
+    "class": "admin",
+    "reason": "Search profile administration uses requireAdmin middleware."
+  },
+  "search.ts": {
+    "class": "public",
+    "reason": "News search endpoints expose public product search data."
+  },
+  "sessions.ts": {
+    "class": "workspace-read",
+    "reason": "Session and search-history reads are selected by workspace context and are scheduled for later membership hardening."
+  },
+  "summaries.ts": {
+    "class": "admin",
+    "reason": "Summary administration and runtime configuration use getAdminAccessError checks."
+  },
+  "taxonomy.ts": {
+    "class": "admin",
+    "reason": "Taxonomy routes use requireAdmin middleware."
+  },
+  "topics.ts": {
+    "class": "public",
+    "reason": "Topic routes expose public product data."
+  },
+  "trends.ts": {
+    "class": "public",
+    "reason": "Trend routes expose public product data."
+  },
+  "web-vitals.ts": {
+    "class": "telemetry",
+    "reason": "Web vitals accepts client performance telemetry."
+  },
+  "worker.ts": {
+    "class": "internal-worker",
+    "reason": "Worker proxy routes use the worker service's own authorization path."
+  }
+}
