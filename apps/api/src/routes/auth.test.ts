@@ -83,8 +83,10 @@ function createTestApp(
 
 function createCasdoorProviderMock(input: {
   providerSubject: string;
+  providerTenant?: string;
   email: string;
   displayName: string;
+  rawProfile?: unknown;
 }): CasdoorOidcProvider {
   const oidcProvider = new CasdoorOidcProvider({
     issuer: "https://casdoor.example.com",
@@ -96,10 +98,10 @@ function createCasdoorProviderMock(input: {
   vi.spyOn(oidcProvider, "handleCallback").mockResolvedValue({
     provider: "casdoor",
     providerSubject: input.providerSubject,
-    providerTenant: "https://casdoor.example.com",
+    providerTenant: input.providerTenant ?? "https://casdoor.example.com",
     email: input.email,
     displayName: input.displayName,
-    rawProfile: {
+    rawProfile: input.rawProfile ?? {
       sub: input.providerSubject,
       tenant: "wecom-tenant-1",
     },
@@ -301,6 +303,168 @@ describe("auth routes", () => {
 
     expect(allowed.status).toBe(200);
     expect(deniedOtherWorkspace.status).toBe(403);
+  });
+
+  it("rejects disabled linked OIDC users and records a redacted callback failure", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "trends-auth-casdoor-disabled-callback-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const disabledUser = storage.createUser({
+      email: "disabled-user@example.com",
+      displayName: "Disabled User",
+    });
+    storage.linkIdentity({
+      userId: disabledUser.id,
+      provider: "casdoor",
+      providerSubject: "casdoor-disabled-user",
+      providerTenant: "https://casdoor.example.com",
+      email: disabledUser.email,
+      displayName: disabledUser.displayName,
+    });
+    getResumeScreeningDb(root).prepare("UPDATE users SET status = 'disabled' WHERE id = ?").run(disabledUser.id);
+    storage.saveOidcState({
+      state: "casdoor-disabled-state",
+      provider: "casdoor",
+      codeVerifier: "verifier-disabled",
+      nonce: "nonce-disabled",
+      redirectTo: "/resumes",
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    });
+    const oidcProvider = createCasdoorProviderMock({
+      providerSubject: "casdoor-disabled-user",
+      email: "disabled-user@example.com",
+      displayName: "Disabled User",
+      rawProfile: {
+        sub: "casdoor-disabled-user",
+        access_token: "secret-access-token",
+        rawProfile: "secret-profile",
+      },
+    });
+    const app = createTestApp(storage, eventStorage, {
+      oidcEnabled: true,
+      oidcProvider,
+    });
+
+    const callback = await app.request("/api/auth/casdoor/callback?state=casdoor-disabled-state&code=secret-code", {
+      headers: { "X-Workspace-Slug": "hr" },
+    });
+
+    expect(callback.status).toBe(403);
+    await expect(callback.json()).resolves.toEqual({
+      success: false,
+      error: "OIDC user is disabled",
+    });
+    expect(callback.headers.get("Set-Cookie") ?? "").not.toContain(config.auth.sessionCookieName);
+    const events = eventStorage.listRecent({ limit: 10 });
+    expect(events).toEqual([
+      expect.objectContaining({
+        type: "login_failure",
+        provider: "casdoor",
+        userId: disabledUser.id,
+        workspaceSlug: "hr",
+        reason: "oidc_user_disabled",
+        metadata: {
+          providerSubject: "casdoor-disabled-user",
+          providerTenant: "https://casdoor.example.com",
+        },
+      }),
+    ]);
+    expect(JSON.stringify(events)).not.toMatch(/secret-code|secret-access-token|secret-profile|rawProfile/i);
+  });
+
+  it("does not reuse or grant access from a same-subject identity in another provider tenant", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "trends-auth-casdoor-tenant-mismatch-"));
+    const storage = new AuthStorage(root);
+    const existingUser = storage.createUser({
+      email: "existing-user@example.com",
+      displayName: "Existing User",
+    });
+    storage.linkIdentity({
+      userId: existingUser.id,
+      provider: "casdoor",
+      providerSubject: "casdoor-shared-subject",
+      providerTenant: "https://old-casdoor.example.com",
+      email: existingUser.email,
+      displayName: existingUser.displayName,
+    });
+    storage.preapproveProviderMembership({
+      provider: "casdoor",
+      providerSubject: "casdoor-shared-subject",
+      providerTenant: "https://old-casdoor.example.com",
+      workspaceSlug: "hr",
+      role: "admin",
+      operatorId: "operator@example.com",
+    });
+    storage.saveOidcState({
+      state: "casdoor-new-tenant-state",
+      provider: "casdoor",
+      codeVerifier: "verifier-new-tenant",
+      nonce: "nonce-new-tenant",
+      redirectTo: "/resumes",
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    });
+    const oidcProvider = createCasdoorProviderMock({
+      providerSubject: "casdoor-shared-subject",
+      providerTenant: "https://new-casdoor.example.com",
+      email: "new-tenant-user@example.com",
+      displayName: "New Tenant User",
+    });
+    const app = createTestApp(storage, undefined, {
+      oidcEnabled: true,
+      oidcProvider,
+    });
+
+    const callback = await app.request("/api/auth/casdoor/callback?state=casdoor-new-tenant-state&code=ok", {
+      headers: { "X-Workspace-Slug": "hr" },
+    });
+
+    expect(callback.status).toBe(302);
+    const newTenantIdentity = storage.findIdentity(
+      "casdoor",
+      "casdoor-shared-subject",
+      "https://new-casdoor.example.com",
+    );
+    expect(newTenantIdentity).not.toBeNull();
+    expect(newTenantIdentity?.userId).not.toBe(existingUser.id);
+    expect(storage.listMemberships(newTenantIdentity?.userId ?? "")).toEqual([]);
+    expect(storage.listMemberships(existingUser.id)).toEqual([
+      { userId: existingUser.id, workspaceSlug: "hr", role: "admin" },
+    ]);
+  });
+
+  it("records redacted audit events when OIDC callback state is invalid", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "trends-auth-casdoor-invalid-state-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const oidcProvider = createCasdoorProviderMock({
+      providerSubject: "casdoor-invalid-state-user",
+      email: "invalid-state@example.com",
+      displayName: "Invalid State User",
+    });
+    const app = createTestApp(storage, eventStorage, {
+      oidcEnabled: true,
+      oidcProvider,
+    });
+
+    const callback = await app.request("/api/auth/casdoor/callback?state=missing-state&code=secret-code", {
+      headers: { "X-Workspace-Slug": "hr" },
+    });
+
+    expect(callback.status).toBe(400);
+    expect(oidcProvider.handleCallback).not.toHaveBeenCalled();
+    const events = eventStorage.listRecent({ limit: 10 });
+    expect(events).toEqual([
+      expect.objectContaining({
+        type: "oidc_state_invalid",
+        provider: "casdoor",
+        workspaceSlug: "hr",
+        reason: "invalid_state",
+        metadata: {
+          statePresent: true,
+        },
+      }),
+    ]);
+    expect(JSON.stringify(events)).not.toContain("secret-code");
   });
 
   it("revokes the current session on logout", async () => {

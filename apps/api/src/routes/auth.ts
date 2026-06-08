@@ -236,6 +236,48 @@ function appendProviderMembershipAdminEvent(
   });
 }
 
+function appendOidcStateInvalidEvent(
+  eventStorage: AuthEventStorage,
+  input: {
+    workspaceSlug: string;
+    reason: "missing_state" | "invalid_state";
+    statePresent: boolean;
+  },
+): void {
+  eventStorage.append({
+    type: "oidc_state_invalid",
+    provider: "casdoor",
+    workspaceSlug: input.workspaceSlug,
+    reason: input.reason,
+    metadata: {
+      statePresent: input.statePresent,
+    },
+  });
+}
+
+function appendOidcLoginFailureEvent(
+  eventStorage: AuthEventStorage,
+  input: {
+    workspaceSlug: string;
+    reason: "oidc_user_disabled";
+    userId?: string;
+    providerSubject: string;
+    providerTenant: string;
+  },
+): void {
+  eventStorage.append({
+    type: "login_failure",
+    provider: "casdoor",
+    workspaceSlug: input.workspaceSlug,
+    userId: input.userId,
+    reason: input.reason,
+    metadata: {
+      providerSubject: input.providerSubject,
+      providerTenant: input.providerTenant,
+    },
+  });
+}
+
 function setSessionCookies(
   c: Parameters<typeof setCookie>[0],
   session: { token: string; csrfToken: string; expiresAt: string },
@@ -563,12 +605,22 @@ export function createAuthRoutes(options: AuthRoutesOptions = {}) {
 
     const stateValue = c.req.query("state");
     if (!stateValue) {
+      appendOidcStateInvalidEvent(getEventStorage(), {
+        workspaceSlug: c.var.workspaceSlug,
+        reason: "missing_state",
+        statePresent: false,
+      });
       return c.json({ success: false as const, error: "OIDC state is required" }, 400);
     }
 
     const authStorage = getStorage();
     const storedState = authStorage.consumeOidcState(stateValue);
     if (!storedState) {
+      appendOidcStateInvalidEvent(getEventStorage(), {
+        workspaceSlug: c.var.workspaceSlug,
+        reason: "invalid_state",
+        statePresent: true,
+      });
       return c.json({ success: false as const, error: "OIDC state is invalid or expired" }, 400);
     }
 
@@ -583,6 +635,13 @@ export function createAuthRoutes(options: AuthRoutesOptions = {}) {
       : authStorage.createUser({ email: identity.email, displayName: identity.displayName });
 
     if (!user) {
+      appendOidcLoginFailureEvent(getEventStorage(), {
+        workspaceSlug: c.var.workspaceSlug,
+        reason: "oidc_user_disabled",
+        userId: existing?.userId,
+        providerSubject: identity.providerSubject,
+        providerTenant: identity.providerTenant,
+      });
       return c.json({ success: false as const, error: "OIDC user is disabled" }, 403);
     }
 
