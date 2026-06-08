@@ -13,19 +13,19 @@ export class AuthSessionService {
     private readonly options: { ttlSeconds: number },
   ) {}
 
-  createSession(userId: string): { token: string; csrfToken: string; expiresAt: string } {
+  createSession(userId: string): { id: string; token: string; csrfToken: string; expiresAt: string } {
     const token = randomBytes(32).toString("base64url");
     const csrfToken = randomBytes(32).toString("base64url");
     const expiresAt = new Date(Date.now() + this.options.ttlSeconds * 1000).toISOString();
 
-    this.storage.createSession({
+    const session = this.storage.createSession({
       userId,
       tokenHash: hashSecret(token),
       csrfTokenHash: hashSecret(csrfToken),
       expiresAt,
     });
 
-    return { token, csrfToken, expiresAt };
+    return { id: session.id, token, csrfToken, expiresAt };
   }
 
   resolveSession(token: string): AuthContext | null {

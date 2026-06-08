@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createAuthMiddleware } from "../middleware/auth.js";
 import { workspaceMiddleware } from "../middleware/workspace.js";
-import { AuthSessionService } from "../services/auth-session-service.js";
+import { AuthSessionService, hashSecret } from "../services/auth-session-service.js";
 import { AuthEventStorage } from "../services/auth-event-storage.js";
 import { AuthStorage } from "../services/auth-storage.js";
 import { config } from "../services/config.js";
@@ -752,11 +752,19 @@ describe("auth event logging", () => {
     });
 
     expect(response.status).toBe(200);
+    const sessionCookie = readCookie(response, config.auth.sessionCookieName);
+    const sessionToken = sessionCookie.split("=", 2)[1];
+    const storedSession = storage.findSessionByTokenHash(hashSecret(sessionToken));
+    if (!storedSession) {
+      throw new Error("Expected successful login to create a stored session");
+    }
+
     const events = eventStorage.listRecent({ limit: 10 });
     expect(events).toHaveLength(1);
     expect(events[0].type).toBe("login_success");
     expect(events[0].provider).toBe("local");
     expect(events[0].workspaceSlug).toBe("hr");
+    expect(events[0].sessionId).toBe(storedSession.id);
   });
 
   it("records login_failure event on invalid credentials", async () => {
