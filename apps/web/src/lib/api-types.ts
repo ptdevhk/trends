@@ -12529,6 +12529,17 @@ export interface components {
                     new: number;
                     shortlisted: number;
                     rejected: number;
+                    contacted: number;
+                    interviewing: number;
+                    interviewed_pass: number;
+                    interviewed_reject: number;
+                    appeal_submitted: number;
+                    human_review: number;
+                    upheld: number;
+                    reversed: number;
+                    offer: number;
+                    hired: number;
+                    withdrawn: number;
                 };
             };
             data: components["schemas"]["ResumeItem"][];

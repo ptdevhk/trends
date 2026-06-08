@@ -2,15 +2,15 @@ import { useQuery } from "convex/react";
 import { useMemo } from "react";
 import { api } from "../../../../packages/convex/convex/_generated/api";
 import type { ConvexResumeFilters } from "./useConvexResumes";
+import { CANDIDATE_STATUS_VALUES, type CandidateStatus } from "@/types/resume";
 
-export interface StatusCounts {
-  new: number;
-  shortlisted: number;
-  rejected: number;
+export type CandidateStatusCounts = Record<CandidateStatus, number>;
+
+export type StatusCounts = CandidateStatusCounts & {
   total: number;
   overflow: boolean;
   loading: boolean;
-}
+};
 
 export type StatusCountFilters = ConvexResumeFilters & {
   showBlocked?: boolean;
@@ -21,15 +21,59 @@ interface UseStatusCountsParams {
   filters: StatusCountFilters;
   workspaceSlug: string;
   useAndModeBff: boolean;
-  bffStatusCounts?: { new: number; shortlisted: number; rejected: number };
+  bffStatusCounts?: Partial<CandidateStatusCounts>;
 }
 
-interface CountResumesByStatusResult {
-  new: number;
-  shortlisted: number;
-  rejected: number;
+type CountResumesByStatusResult = CandidateStatusCounts & {
   total: number;
   overflow: boolean;
+};
+
+function createEmptyStatusCounts(): CandidateStatusCounts {
+  return {
+    new: 0,
+    shortlisted: 0,
+    rejected: 0,
+    contacted: 0,
+    interviewing: 0,
+    interviewed_pass: 0,
+    interviewed_reject: 0,
+    appeal_submitted: 0,
+    human_review: 0,
+    upheld: 0,
+    reversed: 0,
+    offer: 0,
+    hired: 0,
+    withdrawn: 0,
+  };
+}
+
+function normalizeStatusCounts(input: Partial<CandidateStatusCounts> | undefined): CandidateStatusCounts {
+  const counts = createEmptyStatusCounts();
+  if (!input) {
+    return counts;
+  }
+
+  CANDIDATE_STATUS_VALUES.forEach((status) => {
+    counts[status] = input[status] ?? 0;
+  });
+  return counts;
+}
+
+function sumStatusCounts(counts: CandidateStatusCounts): number {
+  return CANDIDATE_STATUS_VALUES.reduce((total, status) => total + counts[status], 0);
+}
+
+function withMetadata(
+  counts: CandidateStatusCounts,
+  metadata: { total?: number; overflow: boolean; loading: boolean },
+): StatusCounts {
+  return {
+    ...counts,
+    total: metadata.total ?? sumStatusCounts(counts),
+    overflow: metadata.overflow,
+    loading: metadata.loading,
+  };
 }
 
 export function useStatusCounts(params: UseStatusCountsParams): StatusCounts {
@@ -61,35 +105,27 @@ export function useStatusCounts(params: UseStatusCountsParams): StatusCounts {
   const result = useQuery(api.resumes.countResumesByStatus, queryArgs as never) as CountResumesByStatusResult | undefined;
 
   if (!enabled) {
-    return { new: 0, shortlisted: 0, rejected: 0, total: 0, overflow: false, loading: false };
+    return withMetadata(createEmptyStatusCounts(), { total: 0, overflow: false, loading: false });
   }
 
   // BFF path: counts come from the BFF response
   if (useAndModeBff) {
     if (bffStatusCounts) {
-      return {
-        new: bffStatusCounts.new,
-        shortlisted: bffStatusCounts.shortlisted,
-        rejected: bffStatusCounts.rejected,
-        total: bffStatusCounts.new + bffStatusCounts.shortlisted + bffStatusCounts.rejected,
-        overflow: false,
-        loading: false,
-      };
+      const counts = normalizeStatusCounts(bffStatusCounts);
+      return withMetadata(counts, { overflow: false, loading: false });
     }
-    return { new: 0, shortlisted: 0, rejected: 0, total: 0, overflow: false, loading: true };
+    return withMetadata(createEmptyStatusCounts(), { total: 0, overflow: false, loading: true });
   }
 
   // Convex direct path
   if (result === undefined) {
-    return { new: 0, shortlisted: 0, rejected: 0, total: 0, overflow: false, loading: true };
+    return withMetadata(createEmptyStatusCounts(), { total: 0, overflow: false, loading: true });
   }
 
-  return {
-    new: result.new ?? 0,
-    shortlisted: result.shortlisted ?? 0,
-    rejected: result.rejected ?? 0,
+  const counts = normalizeStatusCounts(result);
+  return withMetadata(counts, {
     total: result.total ?? 0,
     overflow: result.overflow ?? false,
     loading: false,
-  };
+  });
 }

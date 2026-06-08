@@ -20,6 +20,7 @@ import {
   ResumeKeywordExpansionQuerySchema,
   ResumeKeywordExpansionResponseSchema,
   ResumeSamplesResponseSchema,
+  CANDIDATE_STATUS_VALUES,
 } from "../schemas/index.js";
 import { resolveResumeId } from "../services/resume-id.js";
 import { callConvexAction, callConvexQuery, isConvexPaginatedQueryPage } from "../services/convex-utils.js";
@@ -82,55 +83,59 @@ const searchEventLogger = new SearchEventLogger(config.projectRoot);
 
 const DEFAULT_CONVEX_RESUME_PAGE_SIZE = 50;
 const MAX_SAFE_CONVEX_POST_FILTER_SCAN = 250;
-const PRIMARY_STATUS_FILTERS = ["new", "shortlisted", "rejected"] as const;
-const STATUS_FILTER_VALUES = [
-  "new",
-  "shortlisted",
-  "rejected",
-  "contacted",
-  "interviewing",
-  "interviewed_pass",
-  "interviewed_reject",
-  "appeal_submitted",
-  "human_review",
-  "upheld",
-  "reversed",
-  "offer",
-  "hired",
-  "withdrawn",
-] as const;
+type CandidateStatus = typeof CANDIDATE_STATUS_VALUES[number];
+type CandidateStatusCounts = Record<CandidateStatus, number>;
 
-type PrimaryStatusFilter = typeof PRIMARY_STATUS_FILTERS[number];
-type StatusFilterValue = typeof STATUS_FILTER_VALUES[number];
+const CANDIDATE_STATUS_SET: ReadonlySet<string> = new Set(CANDIDATE_STATUS_VALUES);
 
-const PRIMARY_STATUS_FILTER_SET = new Set<string>(PRIMARY_STATUS_FILTERS);
-const STATUS_FILTER_VALUE_SET = new Set<string>(STATUS_FILTER_VALUES);
+function createCandidateStatusCounts(): CandidateStatusCounts {
+  return {
+    new: 0,
+    shortlisted: 0,
+    rejected: 0,
+    contacted: 0,
+    interviewing: 0,
+    interviewed_pass: 0,
+    interviewed_reject: 0,
+    appeal_submitted: 0,
+    human_review: 0,
+    upheld: 0,
+    reversed: 0,
+    offer: 0,
+    hired: 0,
+    withdrawn: 0,
+  };
+}
+
+function isCandidateStatus(value: string): value is CandidateStatus {
+  return CANDIDATE_STATUS_SET.has(value);
+}
+
+function resolveCandidateStatus(value: string | undefined): CandidateStatus {
+  return value && isCandidateStatus(value) ? value : "new";
+}
 
 type CandidateStatusContext = {
   statusByIdentity: Map<string, string>;
   blockedIdentities: Set<string>;
 };
 
-function normalizeStatusFilters(values: string[] | undefined): StatusFilterValue[] {
+function normalizeStatusFilters(values: string[] | undefined): CandidateStatus[] {
   if (!values?.length) {
     return [];
   }
 
-  const normalized: StatusFilterValue[] = [];
+  const normalized: CandidateStatus[] = [];
   const seen = new Set<string>();
   for (const value of values) {
     const key = value.trim().toLowerCase();
-    if (!STATUS_FILTER_VALUE_SET.has(key) || seen.has(key)) {
+    if (!isCandidateStatus(key) || seen.has(key)) {
       continue;
     }
     seen.add(key);
-    normalized.push(key as StatusFilterValue);
+    normalized.push(key);
   }
   return normalized;
-}
-
-function getPrimaryStatusBucket(status: string | undefined): PrimaryStatusFilter {
-  return status === "shortlisted" || status === "rejected" ? status : "new";
 }
 
 function getResumeIdentityKey(item: { resume: ResumeItem }): string | undefined {
@@ -140,15 +145,15 @@ function getResumeIdentityKey(item: { resume: ResumeItem }): string | undefined 
     : undefined;
 }
 
-function getCandidateStatus(item: { resume: ResumeItem }, context: CandidateStatusContext): string {
+function getCandidateStatus(item: { resume: ResumeItem }, context: CandidateStatusContext): CandidateStatus {
   const identityKey = getResumeIdentityKey(item);
-  return identityKey ? (context.statusByIdentity.get(identityKey) ?? "new") : "new";
+  return identityKey ? resolveCandidateStatus(context.statusByIdentity.get(identityKey)) : "new";
 }
 
 function matchesStatusFilter(
   item: { resume: ResumeItem },
   context: CandidateStatusContext,
-  activeFilters: StatusFilterValue[],
+  activeFilters: CandidateStatus[],
 ): boolean {
   const identityKey = getResumeIdentityKey(item);
   if (identityKey && context.blockedIdentities.has(identityKey)) {
@@ -159,12 +164,7 @@ function matchesStatusFilter(
   }
 
   const status = getCandidateStatus(item, context);
-  const primaryBucket = getPrimaryStatusBucket(status);
-  return activeFilters.some((filterValue) => (
-    PRIMARY_STATUS_FILTER_SET.has(filterValue)
-      ? primaryBucket === filterValue
-      : status === filterValue
-  ));
+  return activeFilters.some((filterValue) => status === filterValue);
 }
 
 async function loadCandidateStatusContext(
@@ -199,24 +199,19 @@ async function loadCandidateStatusContext(
   return { statusByIdentity, blockedIdentities };
 }
 
-function countPrimaryStatuses(
+function countCandidateStatuses(
   items: Array<{ resume: ResumeItem }>,
   context: CandidateStatusContext,
-): { new: number; shortlisted: number; rejected: number } {
-  const counts: Record<PrimaryStatusFilter, number> = { new: 0, shortlisted: 0, rejected: 0 };
+): CandidateStatusCounts {
+  const counts = createCandidateStatusCounts();
   for (const item of items) {
     const identityKey = getResumeIdentityKey(item);
     if (identityKey && context.blockedIdentities.has(identityKey)) {
       continue;
     }
-    const bucket = getPrimaryStatusBucket(getCandidateStatus(item, context));
-    counts[bucket] = (counts[bucket] ?? 0) + 1;
+    counts[getCandidateStatus(item, context)] += 1;
   }
-  return {
-    new: counts.new ?? 0,
-    shortlisted: counts.shortlisted ?? 0,
-    rejected: counts.rejected ?? 0,
-  };
+  return counts;
 }
 
 export function scorePreparedCandidates(
@@ -1088,11 +1083,11 @@ app.openapi(getResumesRoute, (c) => {
         // Compute status counts from the working set, then apply explicit
         // status filters before response pagination. Without this, status=new
         // reported counts but still returned all statuses.
-        let statusCounts: { new: number; shortlisted: number; rejected: number } | undefined;
+        let statusCounts: CandidateStatusCounts | undefined;
         let statusFilteredWorking = working;
         try {
           const statusContext = await loadCandidateStatusContext(workspaceSlug, showBlocked);
-          statusCounts = countPrimaryStatuses(working, statusContext);
+          statusCounts = countCandidateStatuses(working, statusContext);
           if (normalizedStatusFilters.length > 0) {
             statusFilteredWorking = working.filter((item) =>
               matchesStatusFilter(item, statusContext, normalizedStatusFilters)
@@ -1275,7 +1270,7 @@ app.openapi(getResumesRoute, (c) => {
           total: 0,
           returned: 0,
           query: keyword,
-          statusCounts: { new: 0, shortlisted: 0, rejected: 0 },
+          statusCounts: createCandidateStatusCounts(),
         },
         data: [],
       }, 200);
