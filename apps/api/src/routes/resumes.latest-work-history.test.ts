@@ -6,6 +6,7 @@ import { AIMatchingService } from '../services/ai-matching'
 import { MatchStorage } from '../services/match-storage'
 import { ResumeService } from '../services/resume-service'
 import { workspaceConfigService } from '../services/workspace-config-service'
+import { createAuthContext } from './test-auth-helpers'
 
 describe('resume routes latest work history', () => {
   afterEach(() => {
@@ -71,7 +72,9 @@ describe('resume routes latest work history', () => {
       indexes: new Map(),
     })
 
-    const app = createApp()
+    const app = createApp({
+      authContext: createAuthContext({ workspaceSlug: 'dev', role: 'user' }),
+    })
     const response = await app.request('/api/resumes/match', {
       method: 'POST',
       headers: {

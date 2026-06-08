@@ -66,9 +66,9 @@ function convexSuccess(value: unknown): Response {
   );
 }
 
-function createTestApp() {
+function createTestApp(authContext = createAuthContext({ workspaceSlug: "dev", role: "admin" })) {
   return createApp({
-    authContext: createAuthContext({ workspaceSlug: "dev", role: "admin" }),
+    authContext,
   });
 }
 
@@ -445,7 +445,7 @@ describe("resume routes", () => {
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
-    const app = createTestApp();
+    const app = createTestApp(createAuthContext({ workspaceSlug: "hr", role: "admin" }));
     const response = await app.request("/api/resumes?source=convex&q=cnc%20sales&limit=5", {
       headers: {
         "X-Workspace-Slug": "hr",

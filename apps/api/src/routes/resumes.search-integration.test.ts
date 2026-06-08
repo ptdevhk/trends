@@ -19,6 +19,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createApp } from "../app";
+import { createAuthContext } from "./test-auth-helpers";
 
 // ── Helpers ────────────────────────────────────────────────────────────
 
@@ -148,6 +149,12 @@ function buildFilterableConvexResumeRecord(
     };
 }
 
+function createAuthenticatedApp() {
+    return createApp({
+        authContext: createAuthContext({ workspaceSlug: "dev", role: "user" }),
+    });
+}
+
 // ── Tests ──────────────────────────────────────────────────────────────
 
 describe("BFF search dispatcher integration", () => {
@@ -174,7 +181,7 @@ describe("BFF search dispatcher integration", () => {
                 throw new Error(`Unexpected convex path: ${call.pathName}`);
             });
 
-            const app = createApp();
+            const app = createAuthenticatedApp();
             const response = await app.request("/api/resumes?source=convex&q=CNC%20销售&limit=5");
 
             expect(response.status).toBe(200);
@@ -213,7 +220,7 @@ describe("BFF search dispatcher integration", () => {
                 throw new Error(`Unexpected convex path: ${call.pathName}`);
             });
 
-            const app = createApp();
+            const app = createAuthenticatedApp();
             const response = await app.request("/api/resumes?source=convex&q=CNC%20销售&limit=5");
             expect(response.status).toBe(200);
 
@@ -238,7 +245,7 @@ describe("BFF search dispatcher integration", () => {
                 throw new Error(`Unexpected convex path: ${call.pathName}`);
             });
 
-            const app = createApp();
+            const app = createAuthenticatedApp();
             await app.request("/api/resumes?source=convex&q=CNC%20销售&limit=5");
 
             const digestCall = calls.find((c) => c.pathName === "resumes_search:scanResumeDigestPage");
@@ -262,7 +269,7 @@ describe("BFF search dispatcher integration", () => {
                 throw new Error(`Unexpected convex path: ${call.pathName}`);
             });
 
-            const app = createApp();
+            const app = createAuthenticatedApp();
             const response = await app.request("/api/resumes?source=convex&q=CNC%20销售&limit=5");
             expect(response.status).toBe(200);
 
@@ -287,7 +294,7 @@ describe("BFF search dispatcher integration", () => {
                 throw new Error(`Unexpected convex path: ${call.pathName}`);
             });
 
-            const app = createApp();
+            const app = createAuthenticatedApp();
             await app.request("/api/resumes?source=convex&q=CNC%20销售&minAge=25&maxAge=40");
 
             // Filters are applied BFF-side after scanResumeDigestPage
@@ -351,7 +358,7 @@ describe("BFF search dispatcher integration", () => {
                 throw new Error(`Unexpected convex path: ${call.pathName}`);
             });
 
-            const app = createApp();
+            const app = createAuthenticatedApp();
             const response = await app.request(
                 "/api/resumes?source=convex&q=CNC%20销售&limit=5&minRoleYears=1&roleFilterType=sales&minAge=25&maxAge=40&locations=China",
             );
@@ -410,7 +417,7 @@ describe("BFF search dispatcher integration", () => {
                 throw new Error(`Unexpected convex path: ${call.pathName}`);
             });
 
-            const app = createApp();
+            const app = createAuthenticatedApp();
             const response = await app.request(
                 "/api/resumes?source=convex&q=CNC%20销售&limit=5&minRoleYears=1&roleFilterType=sales&minAge=25&maxAge=40&locations=China",
             );
@@ -464,7 +471,7 @@ describe("BFF search dispatcher integration", () => {
                 throw new Error(`Unexpected convex path: ${call.pathName}`);
             });
 
-            const app = createApp();
+            const app = createAuthenticatedApp();
             const response = await app.request(
                 "/api/resumes?source=convex&q=CNC%20销售&limit=5&minRoleYears=1&roleType=sales&location=China",
             );
@@ -492,7 +499,7 @@ describe("BFF search dispatcher integration", () => {
                 throw new Error(`Unexpected convex path: ${call.pathName}`);
             });
 
-            const app = createApp();
+            const app = createAuthenticatedApp();
             await app.request("/api/resumes?source=convex&q=CNC%20销售&limit=100");
 
             for (const batchSize of batchSizes) {

@@ -19,7 +19,7 @@
 		clear-resumes \
 		cli-build cli-install cli-test \
 		sync-agent-policy check-agent-policy sync-project-skills check-project-skills install-global-skills install-agent-skill check-agent-skill sync-agent-governance \
-		check-route-auth \
+		check-route-auth auth-workspace-smoke \
 		install-skill validate-skill check-skill-install install-test-plan-skill check-test-plan-skill \
 		install-browser-ext-skill check-browser-ext-skill \
 		sync-resume-ai-prompts check-resume-ai-prompts \
@@ -1302,6 +1302,10 @@ test-collect-url-smoke:                    ## Run quick smoke for Collect URL ke
 		npm run test:e2e:collect-url; \
 	fi
 
+auth-workspace-smoke:                      ## Run auth/session/CSRF workspace smoke (requires AUTH_SMOKE_EMAIL/PASSWORD)
+	@echo "Running auth workspace smoke check..."
+	@bunx tsx scripts/auth-workspace-smoke.ts
+
 test-coverage:                             ## Run Node.js tests with coverage
 	@echo "Running Node.js tests with coverage..."
 	@npm run --workspace @trends/shared build
@@ -1428,6 +1432,7 @@ help:
 	@echo "  test-api-search-profiles Run API route test for profile-run keyword dispatch"
 	@echo "  test-worker-resume-tasks Run worker keyword assembly tests"
 	@echo "  test-collect-url-smoke Run Collect button URL smoke check"
+	@echo "  auth-workspace-smoke Run auth/session/CSRF workspace smoke (requires AUTH_SMOKE_EMAIL/PASSWORD)"
 	@echo "  test-resume    Validate resume fixtures"
 	@echo "  clean-db       Clean local databases and environment (Convex state + SQLite)"
 	@echo "  fresh-env      Wipe everything and reinstall dependencies (nuclear option)"
