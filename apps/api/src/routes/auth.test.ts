@@ -633,6 +633,10 @@ describe("provider membership admin routes", () => {
       providerTenant: "tenant-1",
       email: providerUser.email,
       displayName: providerUser.displayName,
+      rawProfile: {
+        access_token: "secret-access-token",
+        rawProfile: "secret-profile",
+      },
     });
     const app = createTestApp(storage, eventStorage);
 
@@ -668,6 +672,24 @@ describe("provider membership admin routes", () => {
         { userId: providerUser.id, workspaceSlug: "hr", role: "admin" },
       ],
     });
+
+    const events = eventStorage.listRecent({ limit: 10 });
+    expect(events).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: "provider_membership_preapproved",
+        userId: admin.id,
+        provider: "casdoor",
+        workspaceSlug: "hr",
+        metadata: expect.objectContaining({
+          action: "preapprove",
+          operatorId: admin.id,
+          providerSubject: "sub-1",
+          providerTenant: "tenant-1",
+          role: "admin",
+        }),
+      }),
+    ]));
+    expect(JSON.stringify(events)).not.toMatch(/secret-access-token|secret-profile|rawProfile/i);
   });
 
   it("lets admins revoke provider-derived access without deleting unrelated manual memberships", async () => {
@@ -730,6 +752,22 @@ describe("provider membership admin routes", () => {
     expect(storage.listMemberships(providerUser.id)).toEqual([
       { userId: providerUser.id, workspaceSlug: "dev", role: "admin" },
     ]);
+    const events = eventStorage.listRecent({ limit: 10 });
+    expect(events).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: "provider_membership_revoked",
+        userId: admin.id,
+        provider: "casdoor",
+        workspaceSlug: "hr",
+        metadata: expect.objectContaining({
+          action: "revoke",
+          operatorId: admin.id,
+          providerSubject: "sub-1",
+          providerTenant: "tenant-1",
+          role: "user",
+        }),
+      }),
+    ]));
   });
 
   it("lets admins revoke provider access without deleting same-workspace manual memberships", async () => {

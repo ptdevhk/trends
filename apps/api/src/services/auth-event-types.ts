@@ -6,6 +6,8 @@ export type AuthEventType =
   | "workspace_access_denied"
   | "admin_access_denied"
   | "oidc_state_invalid"
+  | "provider_membership_preapproved"
+  | "provider_membership_revoked"
   | "workspace_membership_granted"
   | "workspace_membership_revoked";
 
