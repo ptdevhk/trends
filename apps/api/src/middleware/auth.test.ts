@@ -4,6 +4,7 @@ import path from "node:path";
 
 import { Hono } from "hono";
 import { describe, expect, it } from "vitest";
+import { listWorkspaceSlugs } from "@trends/shared";
 
 import { AuthSessionService } from "../services/auth-session-service.js";
 import { AuthEventStorage } from "../services/auth-event-storage.js";
@@ -95,6 +96,33 @@ describe("auth middleware gates", () => {
 
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toMatchObject({ actorId: "user-1" });
+  });
+
+  it.each(listWorkspaceSlugs())("allows a matching member for registered workspace %s", async (slug) => {
+    const middleware = createAuthMiddleware();
+    const app = createGateApp(createAuthContext("user", slug), middleware.requireWorkspaceUser);
+
+    const res = await app.request("/protected", {
+      headers: { "X-Workspace-Slug": slug },
+    });
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({ actorId: "user-1" });
+  });
+
+  it("rejects invalid workspace slugs before the auth gate runs", async () => {
+    const middleware = createAuthMiddleware();
+    const app = createGateApp(createAuthContext("user", "hr"), middleware.requireWorkspaceUser);
+
+    const res = await app.request("/protected", {
+      headers: { "X-Workspace-Slug": "prod" },
+    });
+
+    expect(res.status).toBe(400);
+    await expect(res.json()).resolves.toMatchObject({
+      success: false,
+      error: expect.stringContaining("Invalid workspace slug"),
+    });
   });
 
   it("requires admin membership for admin routes", async () => {

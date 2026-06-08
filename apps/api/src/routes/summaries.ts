@@ -2,8 +2,9 @@ import { randomUUID } from "node:crypto";
 
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import {
-  WORKSPACE_TEAMS,
+  formatWorkspaceSlugList,
   isValidWorkspace,
+  listWorkspaceSlugs,
   type SummaryProfileRecord as SummaryProfileRecordType,
   type SummaryProfileRuntimeItem as SummaryProfileRuntimeItemType,
   type SummaryProfilesConfig as SummaryProfilesConfigType,
@@ -25,7 +26,7 @@ const app = new OpenAPIHono();
 const summaryDataService = new SummaryDataService();
 const summaryRenderer = new SummaryRenderer();
 const workspaceSummaryRunStorage = new WorkspaceSummaryRunStorage();
-const KNOWN_WORKSPACE_SLUGS = Object.keys(WORKSPACE_TEAMS).filter(isValidWorkspace);
+const KNOWN_WORKSPACE_SLUGS = listWorkspaceSlugs();
 const SummaryPeriodSchema = z.enum(["daily", "weekly", "monthly"]);
 const WorkspaceSlugSchema = z.string().min(1);
 
@@ -344,7 +345,7 @@ function resolveWorkspaceSlug(value: string | undefined, fallback: WorkspaceSlug
     return fallback;
   }
   if (!isValidWorkspace(candidate)) {
-    throw new Error(`Invalid workspace slug: ${candidate}. Allowed: dev, hr`);
+    throw new Error(`Invalid workspace slug: ${candidate}. Allowed: ${formatWorkspaceSlugList()}`);
   }
   return candidate;
 }
