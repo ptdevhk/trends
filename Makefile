@@ -91,16 +91,7 @@ dev-crawl:
 
 # Start only local Convex dev backend
 dev-convex:
-	@if [ -d "packages/convex" ]; then \
-		if command -v bun >/dev/null 2>&1; then \
-			cd packages/convex && bun run dev; \
-		else \
-			cd packages/convex && npm run dev; \
-		fi; \
-	else \
-		echo "packages/convex not found."; \
-		exit 1; \
-	fi
+	@./scripts/dev.sh --convex-only --no-seed $(ARGS)
 
 # Stop only local Convex dev backend listeners
 dev-convex-stop:
@@ -172,7 +163,7 @@ dev-convex-refresh:
 	if tmux has-session -t "$$tmux_session" 2>/dev/null; then \
 		tmux kill-session -t "$$tmux_session" 2>/dev/null || true; \
 	fi; \
-	tmux new-session -d -s "$$tmux_session" "cd '$$project_root/packages/convex' && if command -v bun >/dev/null 2>&1; then bun run dev; else npm run dev; fi"; \
+	tmux new-session -d -s "$$tmux_session" "cd '$$project_root' && $(MAKE) dev-convex"; \
 	echo "Waiting up to $$refresh_wait_secs seconds for local Convex to become ready..."; \
 	for _ in $$(seq 1 "$$refresh_wait_secs"); do \
 		if curl -fsS "http://127.0.0.1:$$convex_port/version" >/dev/null 2>&1; then \

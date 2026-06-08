@@ -1644,6 +1644,7 @@ print_usage() {
     echo "Usage: $0 [OPTIONS]"
     echo ""
     echo "Options:"
+    echo "  --convex-only Start only local Convex dev backend"
     echo "  --mcp-only    Start only MCP server"
     echo "  --crawl-only  Run crawler only (no long-running services)"
     echo "  --skip-crawl  Skip initial crawl and start servers immediately (default)"
@@ -1699,6 +1700,10 @@ main() {
 
     while [[ $# -gt 0 ]]; do
         case $1 in
+            --convex-only)
+                services=("convex")
+                shift
+                ;;
             --mcp-only)
                 services=("mcp")
                 shift
