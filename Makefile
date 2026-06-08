@@ -1309,6 +1309,9 @@ auth-workspace-smoke:                      ## Run auth/session/CSRF workspace sm
 auth-provider-membership:                  ## Manage provider membership preapprovals (ARGS="list-identities --provider casdoor")
 	@bunx tsx scripts/auth/manage-provider-membership.ts $(ARGS)
 
+auth-provider-claims-smoke:                ## Run fixture-driven Casdoor/WeCom provider claims smoke
+	@bunx tsx scripts/auth/casdoor-wecom-claims-smoke.ts
+
 test-coverage:                             ## Run Node.js tests with coverage
 	@echo "Running Node.js tests with coverage..."
 	@npm run --workspace @trends/shared build
