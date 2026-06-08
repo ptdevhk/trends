@@ -38,6 +38,18 @@ export function isEmbeddingEnabled(): boolean {
     return value === "true" || value === "1";
 }
 
+export function resolveBm25OnlySearchMode(params: {
+    embeddingEnabled: boolean;
+    enableSemanticRequested: boolean;
+    hasQuery: boolean;
+}): "bm25" | "bm25_only_no_vectors" {
+    if (params.hasQuery && params.enableSemanticRequested && !params.embeddingEnabled) {
+        return "bm25_only_no_vectors";
+    }
+
+    return "bm25";
+}
+
 // ---------------------------------------------------------------------------
 // RRF (Reciprocal Rank Fusion) merge — exported for testing
 // ---------------------------------------------------------------------------
@@ -467,10 +479,13 @@ export const hybridSearchResumes = action({
     },
     handler: async (ctx, args): Promise<HybridSearchResult> => {
         // System-level gate: embedding disabled means semantic search is off regardless of client request
-        const enableSemantic = isEmbeddingEnabled() && (args.enableSemantic ?? true);
+        const embeddingEnabled = isEmbeddingEnabled();
+        const enableSemanticRequested = args.enableSemantic ?? true;
+        const enableSemantic = embeddingEnabled && enableSemanticRequested;
         const semanticWeight = args.semanticWeight ?? 0.5;
         const semanticLimit = Math.min(args.semanticLimit ?? 50, 256);
         const bm25Weight = 1 - semanticWeight;
+        const hasQuery = Boolean(args.query.trim());
 
         // 1. Run existing BM25 search
         const bm25Result = (await ctx.runAction(api.resumes_search.searchWithTagExpansionAndMode, {
@@ -497,10 +512,14 @@ export const hybridSearchResumes = action({
         })) as unknown as HybridSearchResult;
 
         // If semantic search disabled or query empty, return BM25 results as-is
-        if (!enableSemantic || !args.query.trim()) {
+        if (!enableSemantic || !hasQuery) {
             return {
                 ...bm25Result,
-                searchMode: "bm25" as const,
+                searchMode: resolveBm25OnlySearchMode({
+                    embeddingEnabled,
+                    enableSemanticRequested,
+                    hasQuery,
+                }),
             };
         }
 
