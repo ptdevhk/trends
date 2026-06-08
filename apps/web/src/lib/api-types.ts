@@ -523,6 +523,339 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/provider-memberships": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    provider?: "local" | "casdoor";
+                    workspaceSlug?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Provider membership admin state */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            identities: {
+                                /** @enum {string} */
+                                provider: "local" | "casdoor";
+                                providerSubject: string;
+                                providerTenant: string | null;
+                                userId: string;
+                                email?: string;
+                                displayName?: string;
+                                updatedAt: string;
+                            }[];
+                            preapprovals: {
+                                /** @enum {string} */
+                                provider: "local" | "casdoor";
+                                providerSubject: string;
+                                providerTenant: string;
+                                workspaceSlug: string;
+                                /** @enum {string} */
+                                role: "user" | "admin";
+                                operatorId: string;
+                                active: boolean;
+                                createdAt: string;
+                                updatedAt: string;
+                                revokedAt?: string;
+                                revokedBy?: string;
+                            }[];
+                            grants: {
+                                /** @enum {string} */
+                                provider: "local" | "casdoor";
+                                providerSubject: string;
+                                providerTenant: string;
+                                workspaceSlug: string;
+                                /** @enum {string} */
+                                role: "user" | "admin";
+                                userId: string;
+                                preapprovalId: string;
+                                active: boolean;
+                                grantedAt: string;
+                                revokedAt?: string;
+                            }[];
+                            events: {
+                                id: string;
+                                type: string;
+                                userId?: string;
+                                provider?: string;
+                                workspaceSlug?: string;
+                                sessionId?: string;
+                                reason?: string;
+                                metadata?: {
+                                    [key: string]: unknown;
+                                };
+                                ipHash?: string;
+                                userAgent?: string;
+                                createdAt: string;
+                            }[];
+                        };
+                    };
+                };
+                /** @description Authentication required */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Admin access required */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/provider-memberships/preapprove": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        provider: "local" | "casdoor";
+                        providerSubject: string;
+                        providerTenant: string;
+                        workspaceSlug: string;
+                        /** @enum {string} */
+                        role: "user" | "admin";
+                    };
+                };
+            };
+            responses: {
+                /** @description Provider membership preapproved */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            preapproval: {
+                                /** @enum {string} */
+                                provider: "local" | "casdoor";
+                                providerSubject: string;
+                                providerTenant: string;
+                                workspaceSlug: string;
+                                /** @enum {string} */
+                                role: "user" | "admin";
+                                operatorId: string;
+                                active: boolean;
+                                createdAt: string;
+                                updatedAt: string;
+                                revokedAt?: string;
+                                revokedBy?: string;
+                            };
+                            appliedMemberships: {
+                                userId: string;
+                                workspaceSlug: string;
+                                /** @enum {string} */
+                                role: "user" | "admin";
+                            }[];
+                        };
+                    };
+                };
+                /** @description Authentication required */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Admin access required */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Provider membership preapproval not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/provider-memberships/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        provider: "local" | "casdoor";
+                        providerSubject: string;
+                        providerTenant: string;
+                        workspaceSlug: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Provider membership preapproval revoked */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            revoked: {
+                                /** @enum {string} */
+                                provider: "local" | "casdoor";
+                                providerSubject: string;
+                                providerTenant: string;
+                                workspaceSlug: string;
+                                /** @enum {string} */
+                                role: "user" | "admin";
+                                operatorId: string;
+                                active: boolean;
+                                createdAt: string;
+                                updatedAt: string;
+                                revokedAt?: string;
+                                revokedBy?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Authentication required */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Admin access required */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Provider membership preapproval not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/resumes/search-summary": {
         parameters: {
             query?: never;

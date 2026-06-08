@@ -81,6 +81,11 @@ const LazySystemSettingsRuntimePage = lazy(async () => {
   return { default: module.SystemSettingsRuntimePage }
 })
 
+const LazySystemSettingsAuthPage = lazy(async () => {
+  const module = await import('@/pages/system-settings/SystemSettingsAuthPage')
+  return { default: module.SystemSettingsAuthPage }
+})
+
 const LazySystemSettingsTaxonomyPage = lazy(async () => {
   const module = await import('@/pages/system-settings/SystemSettingsTaxonomyPage')
   return { default: module.SystemSettingsTaxonomyPage }
@@ -245,6 +250,14 @@ function App() {
                   element={(
                     <RouteSuspense>
                       <LazySystemSettingsRuntimePage />
+                    </RouteSuspense>
+                  )}
+                />
+                <Route
+                  path="auth"
+                  element={(
+                    <RouteSuspense>
+                      <LazySystemSettingsAuthPage />
                     </RouteSuspense>
                   )}
                 />

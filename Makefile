@@ -19,7 +19,7 @@
 		clear-resumes \
 		cli-build cli-install cli-test \
 		sync-agent-policy check-agent-policy sync-project-skills check-project-skills install-global-skills install-agent-skill check-agent-skill sync-agent-governance \
-		check-route-auth auth-workspace-smoke \
+		check-route-auth auth-workspace-smoke auth-provider-membership \
 		install-skill validate-skill check-skill-install install-test-plan-skill check-test-plan-skill \
 		install-browser-ext-skill check-browser-ext-skill \
 		sync-resume-ai-prompts check-resume-ai-prompts \
@@ -1306,6 +1306,9 @@ auth-workspace-smoke:                      ## Run auth/session/CSRF workspace sm
 	@echo "Running auth workspace smoke check..."
 	@bunx tsx scripts/auth-workspace-smoke.ts
 
+auth-provider-membership:                  ## Manage provider membership preapprovals (ARGS="list-identities --provider casdoor")
+	@bunx tsx scripts/auth/manage-provider-membership.ts $(ARGS)
+
 test-coverage:                             ## Run Node.js tests with coverage
 	@echo "Running Node.js tests with coverage..."
 	@npm run --workspace @trends/shared build
@@ -1433,6 +1436,7 @@ help:
 	@echo "  test-worker-resume-tasks Run worker keyword assembly tests"
 	@echo "  test-collect-url-smoke Run Collect button URL smoke check"
 	@echo "  auth-workspace-smoke Run auth/session/CSRF workspace smoke (requires AUTH_SMOKE_EMAIL/PASSWORD)"
+	@echo "  auth-provider-membership Manage provider membership preapprovals (ARGS='list-identities --provider casdoor')"
 	@echo "  test-resume    Validate resume fixtures"
 	@echo "  clean-db       Clean local databases and environment (Convex state + SQLite)"
 	@echo "  fresh-env      Wipe everything and reinstall dependencies (nuclear option)"

@@ -9,6 +9,7 @@ export type AuthUser = {
 }
 
 export type WorkspaceRole = 'user' | 'admin'
+export type AuthProvider = 'local' | 'casdoor'
 
 export type WorkspaceMembership = {
   userId: string
@@ -29,6 +30,91 @@ export type LocalLoginResponse = {
   memberships: WorkspaceMembership[]
   csrfToken: string
   expiresAt: string
+}
+
+export type ProviderIdentity = {
+  provider: AuthProvider
+  providerSubject: string
+  providerTenant: string | null
+  userId: string
+  email?: string
+  displayName?: string
+  updatedAt: string
+}
+
+export type ProviderMembershipPreapproval = {
+  provider: AuthProvider
+  providerSubject: string
+  providerTenant: string
+  workspaceSlug: string
+  role: WorkspaceRole
+  operatorId: string
+  active: boolean
+  createdAt: string
+  updatedAt: string
+  revokedAt?: string
+  revokedBy?: string
+}
+
+export type ProviderMembershipGrant = {
+  provider: AuthProvider
+  providerSubject: string
+  providerTenant: string
+  workspaceSlug: string
+  role: WorkspaceRole
+  userId: string
+  preapprovalId: string
+  active: boolean
+  grantedAt: string
+  revokedAt?: string
+}
+
+export type AuthEvent = {
+  id: string
+  type: string
+  userId?: string
+  provider?: string
+  workspaceSlug?: string
+  sessionId?: string
+  reason?: string
+  metadata?: Record<string, unknown>
+  ipHash?: string
+  userAgent?: string
+  createdAt: string
+}
+
+export type ProviderMembershipsResponse = {
+  success: true
+  identities: ProviderIdentity[]
+  preapprovals: ProviderMembershipPreapproval[]
+  grants: ProviderMembershipGrant[]
+  events: AuthEvent[]
+}
+
+export type PreapproveProviderMembershipInput = {
+  provider: AuthProvider
+  providerSubject: string
+  providerTenant: string
+  workspaceSlug: string
+  role: WorkspaceRole
+}
+
+export type PreapproveProviderMembershipResponse = {
+  success: true
+  preapproval: ProviderMembershipPreapproval
+  appliedMemberships: WorkspaceMembership[]
+}
+
+export type RevokeProviderMembershipInput = {
+  provider: AuthProvider
+  providerSubject: string
+  providerTenant: string
+  workspaceSlug: string
+}
+
+export type RevokeProviderMembershipResponse = {
+  success: true
+  revoked: ProviderMembershipPreapproval
 }
 
 function joinApiPath(path: string): string {
@@ -70,6 +156,40 @@ export async function loginWithLocalPassword(username: string, password: string)
 export async function logout(): Promise<boolean> {
   const { data, error } = await rawApiClient.POST<{ success: boolean }>('/api/auth/logout')
   return !error && data?.success === true
+}
+
+export async function fetchProviderMemberships(): Promise<ProviderMembershipsResponse | null> {
+  const { data, error } = await rawApiClient.GET<ProviderMembershipsResponse>('/api/auth/provider-memberships')
+  if (error || data?.success !== true) {
+    return null
+  }
+  return data
+}
+
+export async function preapproveProviderMembership(
+  input: PreapproveProviderMembershipInput,
+): Promise<PreapproveProviderMembershipResponse | null> {
+  const { data, error } = await rawApiClient.POST<PreapproveProviderMembershipResponse>(
+    '/api/auth/provider-memberships/preapprove',
+    { body: input },
+  )
+  if (error || data?.success !== true) {
+    return null
+  }
+  return data
+}
+
+export async function revokeProviderMembership(
+  input: RevokeProviderMembershipInput,
+): Promise<RevokeProviderMembershipResponse | null> {
+  const { data, error } = await rawApiClient.POST<RevokeProviderMembershipResponse>(
+    '/api/auth/provider-memberships/revoke',
+    { body: input },
+  )
+  if (error || data?.success !== true) {
+    return null
+  }
+  return data
 }
 
 export function getCasdoorLoginUrl(redirectTo: string = getCurrentRedirectPath()): string {
