@@ -2,9 +2,6 @@
  * Search Profiles API Routes
  */
 
-import fs from "node:fs";
-import path from "node:path";
-
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import {
     computeTemplateHash,
@@ -27,6 +24,13 @@ import { requireAdmin } from "../middleware/workspace.js";
 import { callConvexQuery, callConvexMutation } from "../services/convex-utils.js";
 import { resolveConvexUrl } from "../services/resume-import-service.js";
 import { readString, readNumber } from "../services/workspace-config-service.js";
+import {
+    ProfileRunStatusSchema,
+    readRunStatusStore,
+    toScopedProfileKey,
+    upsertRunStatus,
+    type ProfileRunStatus,
+} from "../services/search-profile-run-status.js";
 
 const app = new OpenAPIHono();
 app.use("/api/search-profiles", requireAdmin);
@@ -126,22 +130,6 @@ const RunProfileResponseSchema = z.object({
     }),
 });
 
-const ProfileRunStatusSchema = z.object({
-    profileId: z.string(),
-    taskId: z.string(),
-    taskStatus: z.enum(["pending", "processing", "completed", "failed", "cancelled", "unknown"]),
-    startedAt: z.string(),
-    updatedAt: z.string(),
-    completedAt: z.string().optional(),
-    resultCount: z.number().int().optional(),
-    extracted: z.number().int().optional(),
-    submitted: z.number().int().optional(),
-    error: z.string().optional(),
-});
-
-type ProfileRunStatus = z.infer<typeof ProfileRunStatusSchema>;
-
-
 function toIsoTimestamp(value: unknown): string | undefined {
     const numeric = readNumber(value);
     if (numeric === null) {
@@ -162,48 +150,6 @@ function normalizeTaskStatus(value: unknown): ProfileRunStatus["taskStatus"] {
         return status;
     }
     return "unknown";
-}
-
-function getRunStatusFilePath(): string {
-    return path.join(searchProfileService.projectRoot, "output", "search-profile-runs.json");
-}
-
-function readRunStatusStore(): Record<string, ProfileRunStatus> {
-    try {
-        const content = fs.readFileSync(getRunStatusFilePath(), "utf8");
-        const parsed = JSON.parse(content) as unknown;
-        if (!isRecord(parsed)) {
-            return {};
-        }
-
-        const store: Record<string, ProfileRunStatus> = {};
-        for (const [key, value] of Object.entries(parsed)) {
-            const validated = ProfileRunStatusSchema.safeParse(value);
-            if (!validated.success) {
-                continue;
-            }
-            store[key] = validated.data;
-        }
-        return store;
-    } catch {
-        return {};
-    }
-}
-
-function writeRunStatusStore(store: Record<string, ProfileRunStatus>): void {
-    const filePath = getRunStatusFilePath();
-    fs.mkdirSync(path.dirname(filePath), { recursive: true });
-    fs.writeFileSync(filePath, JSON.stringify(store, null, 2), "utf8");
-}
-
-function toScopedProfileKey(workspaceSlug: string, profileId: string): string {
-    return `${workspaceSlug}:${profileId}`;
-}
-
-function upsertRunStatus(workspaceSlug: string, status: ProfileRunStatus): void {
-    const store = readRunStatusStore();
-    store[toScopedProfileKey(workspaceSlug, status.profileId)] = status;
-    writeRunStatusStore(store);
 }
 
 async function dispatchCollectionTask(args: {

@@ -138,4 +138,21 @@ describe("resume-extractor", () => {
       expect(extractor).toBeDefined();
     });
   });
+
+  describe("buildSubmitMetadata", () => {
+    it("copies the launched search profile id into submit metadata", () => {
+      const extractor = createResumeExtractor(createMockDeps({
+        win: {
+          location: {
+            href: "https://hr.job5156.com/search?keyword=CNC&tr_search_profile_id=51job-cn-cnc-sales&tr_auto_sync=1",
+          },
+        } as unknown as Window,
+      }));
+
+      const metadata = extractor.buildSubmitMetadata();
+
+      expect(metadata.searchProfileId).toBe("51job-cn-cnc-sales");
+      expect(String(metadata.sourceUrl)).not.toContain("tr_search_profile_id");
+    });
+  });
 });

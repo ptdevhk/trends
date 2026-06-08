@@ -166,7 +166,7 @@ app.openapi(resumeSubmitRoute, async (c) => {
       return c.json({ success: false as const, error: "Invalid resume submit payload" }, 400);
     }
 
-    const result = await submitResumeImport(parsedBody.data);
+    const result = await submitResumeImport(parsedBody.data, c.var.workspaceSlug);
 
     return c.json(result, 200);
   } catch (error) {
