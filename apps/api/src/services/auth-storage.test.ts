@@ -163,6 +163,67 @@ describe("auth sqlite schema", () => {
     ]);
   });
 
+  it("preserves same-workspace manual memberships when provider-derived access is revoked", () => {
+    const root = mkdtempSync(path.join(tmpdir(), "trends-auth-casdoor-manual-same-workspace-"));
+    const storage = new AuthStorage(root);
+
+    storage.preapproveProviderMembership({
+      provider: "casdoor",
+      providerSubject: "casdoor-user-1",
+      providerTenant: "https://casdoor.example.com",
+      workspaceSlug: "hr",
+      role: "user",
+      operatorId: "operator@example.com",
+    });
+
+    const user = storage.createUser({
+      email: "wecom-user@example.com",
+      displayName: "WeCom User",
+    });
+    storage.linkIdentity({
+      userId: user.id,
+      provider: "casdoor",
+      providerSubject: "casdoor-user-1",
+      providerTenant: "https://casdoor.example.com",
+      email: user.email,
+      displayName: user.displayName,
+    });
+    storage.upsertMembership({ userId: user.id, workspaceSlug: "hr", role: "user" });
+
+    expect(storage.applyProviderMembershipPreapprovals({
+      provider: "casdoor",
+      providerSubject: "casdoor-user-1",
+      providerTenant: "https://casdoor.example.com",
+      userId: user.id,
+    })).toEqual([
+      { userId: user.id, workspaceSlug: "hr", role: "user" },
+    ]);
+
+    storage.revokeProviderMembershipPreapproval({
+      provider: "casdoor",
+      providerSubject: "casdoor-user-1",
+      providerTenant: "https://casdoor.example.com",
+      workspaceSlug: "hr",
+      operatorId: "operator@example.com",
+    });
+
+    expect(storage.listMemberships(user.id)).toEqual([
+      { userId: user.id, workspaceSlug: "hr", role: "user" },
+    ]);
+    expect(storage.listProviderMembershipGrants({
+      provider: "casdoor",
+      workspaceSlug: "hr",
+      includeRevoked: true,
+    })).toMatchObject([
+      {
+        providerSubject: "casdoor-user-1",
+        providerTenant: "https://casdoor.example.com",
+        workspaceSlug: "hr",
+        active: false,
+      },
+    ]);
+  });
+
   it("grants immediately when a Casdoor preapproval matches an existing identity", () => {
     const root = mkdtempSync(path.join(tmpdir(), "trends-auth-casdoor-existing-preapproval-"));
     const storage = new AuthStorage(root);

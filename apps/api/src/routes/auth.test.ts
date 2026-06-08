@@ -731,6 +731,68 @@ describe("provider membership admin routes", () => {
       { userId: providerUser.id, workspaceSlug: "dev", role: "admin" },
     ]);
   });
+
+  it("lets admins revoke provider access without deleting same-workspace manual memberships", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "trends-auth-provider-admin-revoke-manual-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const admin = await seedWorkspaceUser(storage, {
+      username: "hr-admin",
+      email: "admin@example.com",
+      role: "admin",
+    });
+    const providerUser = storage.createUser({
+      email: "casdoor@example.com",
+      displayName: "Casdoor User",
+    });
+    storage.linkIdentity({
+      userId: providerUser.id,
+      provider: "casdoor",
+      providerSubject: "sub-1",
+      providerTenant: "tenant-1",
+      email: providerUser.email,
+      displayName: providerUser.displayName,
+    });
+    storage.upsertMembership({ userId: providerUser.id, workspaceSlug: "hr", role: "user" });
+    storage.preapproveProviderMembership({
+      provider: "casdoor",
+      providerSubject: "sub-1",
+      providerTenant: "tenant-1",
+      workspaceSlug: "hr",
+      role: "user",
+      operatorId: admin.id,
+    });
+    const app = createTestApp(storage, eventStorage);
+
+    const response = await app.request("/api/auth/provider-memberships/revoke", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...createSessionHeaders(storage, admin.id),
+      },
+      body: JSON.stringify({
+        provider: "casdoor",
+        providerSubject: "sub-1",
+        providerTenant: "tenant-1",
+        workspaceSlug: "hr",
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      success: true,
+      revoked: {
+        provider: "casdoor",
+        providerSubject: "sub-1",
+        providerTenant: "tenant-1",
+        workspaceSlug: "hr",
+        active: false,
+      },
+    });
+    expect(storage.listMemberships(providerUser.id)).toEqual([
+      { userId: providerUser.id, workspaceSlug: "hr", role: "user" },
+    ]);
+  });
 });
 
 describe("auth event logging", () => {

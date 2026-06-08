@@ -55,6 +55,7 @@ type ProviderMembershipGrantRow = {
   user_id?: unknown;
   workspace_slug?: unknown;
   role?: unknown;
+  membership_created?: unknown;
 };
 
 type ProviderMembershipGrantListRow = ProviderMembershipGrantRow & {
@@ -567,11 +568,13 @@ export class AuthStorage {
         workspaceSlug: row.workspace_slug,
         role: row.role,
       };
+      const existingMembership = this.findMembership(input.userId, row.workspace_slug);
       const existingGrant = this.findActiveProviderMembershipGrant({
         ...input,
         workspaceSlug: row.workspace_slug,
       });
       const isNewGrant = !existingGrant || existingGrant.role !== row.role;
+      const membershipCreated = existingGrant ? existingGrant.membershipCreated : existingMembership === null;
 
       this.upsertMembership(membership);
       if (isNewGrant) {
@@ -580,6 +583,7 @@ export class AuthStorage {
           preapprovalId: row.id,
           workspaceSlug: row.workspace_slug,
           role: row.role,
+          membershipCreated,
         });
         this.appendAuthEvent({
           type: "workspace_membership_granted",
@@ -622,7 +626,7 @@ export class AuthStorage {
 
     const now = toIsoNow();
     const grants = this.db.prepare(`
-      SELECT id, user_id, workspace_slug, role
+      SELECT id, user_id, workspace_slug, role, membership_created
       FROM auth_provider_membership_grants
       WHERE provider = ?
         AND provider_subject = ?
@@ -652,11 +656,13 @@ export class AuthStorage {
         continue;
       }
 
-      this.deleteProviderGrantedMembership({
-        userId: grant.user_id,
-        workspaceSlug: grant.workspace_slug,
-        role: grant.role,
-      });
+      if (grant.membership_created !== 0) {
+        this.deleteProviderGrantedMembership({
+          userId: grant.user_id,
+          workspaceSlug: grant.workspace_slug,
+          role: grant.role,
+        });
+      }
       this.db.prepare(`
         UPDATE auth_provider_membership_grants
         SET revoked_at = ?
@@ -702,15 +708,29 @@ export class AuthStorage {
     }));
   }
 
+  private findMembership(userId: string, workspaceSlug: string): WorkspaceMembership | null {
+    const row = this.db.prepare(`
+      SELECT user_id, workspace_slug, role
+      FROM workspace_memberships
+      WHERE user_id = ? AND workspace_slug = ?
+    `).get(userId, workspaceSlug) as MembershipRow | undefined;
+
+    return row ? {
+      userId: row.user_id,
+      workspaceSlug: row.workspace_slug,
+      role: row.role,
+    } : null;
+  }
+
   private findActiveProviderMembershipGrant(input: {
     provider: AuthProvider;
     providerSubject: string;
     providerTenant: string;
     workspaceSlug: string;
     userId: string;
-  }): { role: WorkspaceRole } | null {
+  }): { role: WorkspaceRole; membershipCreated: boolean } | null {
     const row = this.db.prepare(`
-      SELECT role
+      SELECT role, membership_created
       FROM auth_provider_membership_grants
       WHERE provider = ?
         AND provider_subject = ?
@@ -726,7 +746,9 @@ export class AuthStorage {
       input.userId,
     ) as ProviderMembershipGrantRow | undefined;
 
-    return isWorkspaceRole(row?.role) ? { role: row.role } : null;
+    return isWorkspaceRole(row?.role)
+      ? { role: row.role, membershipCreated: row.membership_created !== 0 }
+      : null;
   }
 
   private upsertProviderMembershipGrant(input: {
@@ -737,6 +759,7 @@ export class AuthStorage {
     workspaceSlug: string;
     role: WorkspaceRole;
     userId: string;
+    membershipCreated: boolean;
   }): void {
     const now = toIsoNow();
     this.db.prepare(`
@@ -749,13 +772,15 @@ export class AuthStorage {
         provider_tenant,
         workspace_slug,
         role,
+        membership_created,
         granted_at,
         revoked_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
       ON CONFLICT(provider, provider_subject, provider_tenant, workspace_slug, user_id)
       DO UPDATE SET
         preapproval_id = excluded.preapproval_id,
         role = excluded.role,
+        membership_created = excluded.membership_created,
         granted_at = excluded.granted_at,
         revoked_at = NULL
     `).run(
@@ -767,6 +792,7 @@ export class AuthStorage {
       input.providerTenant,
       input.workspaceSlug,
       input.role,
+      input.membershipCreated ? 1 : 0,
       now,
     );
   }
