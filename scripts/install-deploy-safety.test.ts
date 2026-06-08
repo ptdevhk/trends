@@ -7,6 +7,10 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 const makefile = readFileSync(new URL("../Makefile", import.meta.url), "utf8");
 const installScript = readFileSync(new URL("./install.sh", import.meta.url), "utf8");
+const devScript = readFileSync(new URL("./dev.sh", import.meta.url), "utf8");
+const convexPackageJson = JSON.parse(
+  readFileSync(new URL("../packages/convex/package.json", import.meta.url), "utf8"),
+) as { scripts: Record<string, string | undefined> };
 const setupPreviewScript = readFileSync(new URL("../deploy/setup-preview.sh", import.meta.url), "utf8");
 const restorePreviewScript = readFileSync(new URL("../deploy/restore-preview-from-prod.sh", import.meta.url), "utf8");
 const restorePreviewFullStateScript = readFileSync(new URL("../deploy/restore-preview-full-state-from-prod.sh", import.meta.url), "utf8");
@@ -15,6 +19,7 @@ const previewDoctorScript = readFileSync(new URL("../deploy/preview-doctor.sh", 
 const previewMcpDockerfile = readFileSync(new URL("../deploy/docker/Dockerfile.mcp", import.meta.url), "utf8");
 const previewCompose = readFileSync(new URL("../deploy/docker/docker-compose.preview.yml", import.meta.url), "utf8");
 const previewConvexStartScript = readFileSync(new URL("../deploy/docker/start-convex.sh", import.meta.url), "utf8");
+const productionConvexService = readFileSync(new URL("../deploy/systemd/trends-convex.service", import.meta.url), "utf8");
 const removedSeedEnvVar = "SEED_" + "RESUMES";
 
 function getTargetRecipe(target: string): string {
@@ -179,6 +184,35 @@ describe("production deploy readiness checks", () => {
 
     expect(restorePreviewFullStateScript).toContain("run_preview_ai_smoke");
     expect(restorePreviewFullStateScript).toContain("SKIP_PREVIEW_AI_SMOKE");
+  });
+});
+
+describe("non-Docker Convex startup safety", () => {
+  it("does not force-upgrade local Convex package scripts", () => {
+    expect(convexPackageJson.scripts.dev).toContain("convex dev --local");
+    expect(convexPackageJson.scripts.predev).toContain("convex dev --once --local");
+    expect(convexPackageJson.scripts.dev).not.toContain("--local-force-upgrade");
+    expect(convexPackageJson.scripts.predev).not.toContain("--local-force-upgrade");
+  });
+
+  it("does not force-upgrade the production Convex systemd service", () => {
+    expect(productionConvexService).toContain("ExecStart=/usr/bin/npx convex dev --local");
+    expect(productionConvexService).not.toContain("--local-force-upgrade");
+  });
+
+  it("does not force-upgrade the install-time Convex schema push", () => {
+    const setupConvexLocal = extractShellFunction(installScript, "setup_convex_local");
+
+    expect(setupConvexLocal).toContain("npx convex dev --local --once");
+    expect(setupConvexLocal).not.toContain("--local-force-upgrade");
+  });
+
+  it("keeps dev-script force upgrade opt-in only", () => {
+    expect(devScript).toContain('local local_mode_requested="true"');
+    expect(devScript).toContain('CONVEX_LOCAL_FORCE_UPGRADE:-false');
+    expect(devScript).toContain(
+      "CONVEX_LOCAL_FORCE_UPGRADE Enable --local-force-upgrade on first attempt: true|false (default: false)",
+    );
   });
 });
 
