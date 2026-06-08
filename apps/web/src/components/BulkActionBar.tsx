@@ -33,6 +33,8 @@ interface BulkActionBarProps {
     statusFilter?: CandidateStatus[]
     /** Toggle a status in the filter */
     onStatusToggle?: (status: CandidateStatus) => void
+    /** Replace the status filter. Undefined restores the default new-only view. */
+    onStatusFilterChange?: (statuses: CandidateStatus[] | undefined) => void
     /** Facet counts by status for chip labels */
     statusFacetCounts?: Record<string, number>
 }
@@ -53,6 +55,7 @@ export function BulkActionBar({
     disabled = false,
     statusFilter,
     onStatusToggle,
+    onStatusFilterChange,
     statusFacetCounts,
 }: BulkActionBarProps) {
     const { t } = useTranslation()
@@ -112,6 +115,31 @@ export function BulkActionBar({
             {/* Status Filter Chips */}
             {onStatusToggle && (
                 <div className="flex items-center gap-1">
+                    {onStatusFilterChange && (
+                        <button
+                            type="button"
+                            onClick={() => {
+                                const allStatuses: CandidateStatus[] = ['new', 'shortlisted', 'rejected']
+                                const allActive = statusFilter?.length === allStatuses.length
+                                    && allStatuses.every((status) => statusFilter.includes(status))
+                                onStatusFilterChange(allActive ? undefined : allStatuses)
+                            }}
+                            className={cn(
+                                'px-2 py-0.5 rounded-full text-xs border transition-colors',
+                                statusFilter?.length === 3
+                                    ? 'bg-primary/10 border-primary text-primary font-medium'
+                                    : 'border-border text-muted-foreground hover:bg-muted',
+                            )}
+                        >
+                            {t('bulkActions.statusAll', '全部状态')}
+                            {statusFacetCounts && (
+                                <span className="ml-1 opacity-70">
+                                    {(['new', 'shortlisted', 'rejected'] as CandidateStatus[])
+                                        .reduce((sum, status) => sum + (statusFacetCounts[status] ?? 0), 0)}
+                                </span>
+                            )}
+                        </button>
+                    )}
                     {(['new', 'shortlisted', 'rejected'] as CandidateStatus[]).map((status) => {
                         const isActive = statusFilter && statusFilter.length > 0
                             ? statusFilter.includes(status)

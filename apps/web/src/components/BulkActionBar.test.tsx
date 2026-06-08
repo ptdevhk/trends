@@ -9,6 +9,7 @@ describe('BulkActionBar', () => {
     const onSelectHighScore = vi.fn()
     const onClearSelection = vi.fn()
     const onBulkAction = vi.fn()
+    const onStatusFilterChange = vi.fn()
 
     const defaultProps = {
         totalCount: 100,
@@ -69,5 +70,23 @@ describe('BulkActionBar', () => {
         expect(screen.getByText('批量入围').closest('button')).toBeDisabled()
         expect(screen.getByText('批量拒绝').closest('button')).toBeDisabled()
         expect(screen.queryByText('取消选择')).not.toBeInTheDocument()
+    })
+
+    it('switches to all primary statuses from the status toolbar', async () => {
+        const user = userEvent.setup()
+        render(
+            <MemoryRouter>
+                <BulkActionBar
+                    {...defaultProps}
+                    onStatusFilterChange={onStatusFilterChange}
+                    onStatusToggle={vi.fn()}
+                    statusFacetCounts={{ new: 2, shortlisted: 15, rejected: 149 }}
+                />
+            </MemoryRouter>,
+        )
+
+        await user.click(screen.getByText('全部状态'))
+
+        expect(onStatusFilterChange).toHaveBeenCalledWith(['new', 'shortlisted', 'rejected'])
     })
 })

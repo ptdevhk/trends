@@ -807,6 +807,8 @@ function useBffAndModeSearch(
   keywordExpansion: KeywordExpansionSummary | null,
   expansionLoading: boolean,
   filters: ConvexResumeFilters | undefined,
+  sortBy: ConvexResumeSortBy | undefined,
+  sortOrder: 'asc' | 'desc' | undefined,
   showBlocked: boolean,
   jobDescriptionId: string | undefined,
   refetchTrigger?: number,
@@ -854,6 +856,8 @@ function useBffAndModeSearch(
       ...(filters?.minSalary != null ? { minSalary: filters.minSalary } : {}),
       ...(filters?.maxSalary != null ? { maxSalary: filters.maxSalary } : {}),
       ...(filters?.sources?.length ? { sources: filters.sources.join(',') } : {}),
+      ...(sortBy ? { sortBy } : {}),
+      ...(sortBy && sortOrder ? { sortOrder } : {}),
       ...(showBlocked ? { showBlocked: 'true' } : {}),
       ...(jobDescriptionId ? { jobDescriptionId } : {}),
     }
@@ -930,7 +934,7 @@ function useBffAndModeSearch(
 
     return () => { active = false }
   // eslint-disable-next-line react-hooks/exhaustive-deps -- filtersKey captures all filter fields via JSON.stringify
-  }, [enabled, expansionLoading, filtersKey, jobDescriptionId, keywordExpansion, normalizedQuery, refetchTrigger, showBlocked])
+  }, [enabled, expansionLoading, filtersKey, jobDescriptionId, keywordExpansion, normalizedQuery, refetchTrigger, showBlocked, sortBy, sortOrder])
 
   return {
     ...(result.loading && result.resumes.length === 0
@@ -1080,6 +1084,8 @@ export function useConvexResumes(
     keywordExpansion,
     expansionLoading,
     options?.filters,
+    options?.sortBy,
+    resolvedSortOrder,
     options?.showBlocked === true,
     normalizedJobDescriptionId,
     bffRefetchTrigger,

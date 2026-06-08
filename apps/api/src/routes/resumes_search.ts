@@ -82,6 +82,142 @@ const searchEventLogger = new SearchEventLogger(config.projectRoot);
 
 const DEFAULT_CONVEX_RESUME_PAGE_SIZE = 50;
 const MAX_SAFE_CONVEX_POST_FILTER_SCAN = 250;
+const PRIMARY_STATUS_FILTERS = ["new", "shortlisted", "rejected"] as const;
+const STATUS_FILTER_VALUES = [
+  "new",
+  "shortlisted",
+  "rejected",
+  "contacted",
+  "interviewing",
+  "interviewed_pass",
+  "interviewed_reject",
+  "appeal_submitted",
+  "human_review",
+  "upheld",
+  "reversed",
+  "offer",
+  "hired",
+  "withdrawn",
+] as const;
+
+type PrimaryStatusFilter = typeof PRIMARY_STATUS_FILTERS[number];
+type StatusFilterValue = typeof STATUS_FILTER_VALUES[number];
+
+const PRIMARY_STATUS_FILTER_SET = new Set<string>(PRIMARY_STATUS_FILTERS);
+const STATUS_FILTER_VALUE_SET = new Set<string>(STATUS_FILTER_VALUES);
+
+type CandidateStatusContext = {
+  statusByIdentity: Map<string, string>;
+  blockedIdentities: Set<string>;
+};
+
+function normalizeStatusFilters(values: string[] | undefined): StatusFilterValue[] {
+  if (!values?.length) {
+    return [];
+  }
+
+  const normalized: StatusFilterValue[] = [];
+  const seen = new Set<string>();
+  for (const value of values) {
+    const key = value.trim().toLowerCase();
+    if (!STATUS_FILTER_VALUE_SET.has(key) || seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    normalized.push(key as StatusFilterValue);
+  }
+  return normalized;
+}
+
+function getPrimaryStatusBucket(status: string | undefined): PrimaryStatusFilter {
+  return status === "shortlisted" || status === "rejected" ? status : "new";
+}
+
+function getResumeIdentityKey(item: { resume: ResumeItem }): string | undefined {
+  const resumeRecord = item.resume as Record<string, unknown>;
+  return typeof resumeRecord.identityKey === "string" && resumeRecord.identityKey.trim().length > 0
+    ? resumeRecord.identityKey
+    : undefined;
+}
+
+function getCandidateStatus(item: { resume: ResumeItem }, context: CandidateStatusContext): string {
+  const identityKey = getResumeIdentityKey(item);
+  return identityKey ? (context.statusByIdentity.get(identityKey) ?? "new") : "new";
+}
+
+function matchesStatusFilter(
+  item: { resume: ResumeItem },
+  context: CandidateStatusContext,
+  activeFilters: StatusFilterValue[],
+): boolean {
+  const identityKey = getResumeIdentityKey(item);
+  if (identityKey && context.blockedIdentities.has(identityKey)) {
+    return false;
+  }
+  if (activeFilters.length === 0) {
+    return true;
+  }
+
+  const status = getCandidateStatus(item, context);
+  const primaryBucket = getPrimaryStatusBucket(status);
+  return activeFilters.some((filterValue) => (
+    PRIMARY_STATUS_FILTER_SET.has(filterValue)
+      ? primaryBucket === filterValue
+      : status === filterValue
+  ));
+}
+
+async function loadCandidateStatusContext(
+  workspaceSlug: string,
+  showBlocked: boolean | undefined,
+): Promise<CandidateStatusContext> {
+  const [statusList, blockList] = await Promise.all([
+    callConvexQuery("candidate_status:list", {
+      workspaceSlug,
+    }) as Promise<Array<{ identityKey?: string; status?: string }>>,
+    showBlocked
+      ? Promise.resolve([] as Array<{ identityKey?: string }>)
+      : callConvexQuery("candidate_blocks:list", {
+        workspaceSlug,
+      }) as Promise<Array<{ identityKey?: string }>>,
+  ]);
+
+  const statusByIdentity = new Map<string, string>();
+  for (const statusItem of statusList) {
+    if (statusItem.identityKey && statusItem.status) {
+      statusByIdentity.set(String(statusItem.identityKey), String(statusItem.status));
+    }
+  }
+
+  const blockedIdentities = new Set<string>();
+  for (const block of blockList) {
+    if (block.identityKey) {
+      blockedIdentities.add(String(block.identityKey));
+    }
+  }
+
+  return { statusByIdentity, blockedIdentities };
+}
+
+function countPrimaryStatuses(
+  items: Array<{ resume: ResumeItem }>,
+  context: CandidateStatusContext,
+): { new: number; shortlisted: number; rejected: number } {
+  const counts: Record<PrimaryStatusFilter, number> = { new: 0, shortlisted: 0, rejected: 0 };
+  for (const item of items) {
+    const identityKey = getResumeIdentityKey(item);
+    if (identityKey && context.blockedIdentities.has(identityKey)) {
+      continue;
+    }
+    const bucket = getPrimaryStatusBucket(getCandidateStatus(item, context));
+    counts[bucket] = (counts[bucket] ?? 0) + 1;
+  }
+  return {
+    new: counts.new ?? 0,
+    shortlisted: counts.shortlisted ?? 0,
+    rejected: counts.rejected ?? 0,
+  };
+}
 
 export function scorePreparedCandidates(
   prepared: PreparedResumeCandidate[],
@@ -637,6 +773,7 @@ app.openapi(getResumesRoute, (c) => {
     minAge,
     maxAge,
     sources,
+    status,
     minMatchScore,
     recommendation,
     showBlocked,
@@ -667,6 +804,7 @@ app.openapi(getResumesRoute, (c) => {
         const normalizedKeywords = keyword ? normalizeKeywords(parseKeywordQuery(keyword).keywords) : [];
         const normalizedRequiredKeywords = normalizeKeywords(requiredKeywords);
         const normalizedRecommendations = normalizeMatchRecommendations(recommendation);
+        const normalizedStatusFilters = normalizeStatusFilters(status);
         const hasLocalMatchFilters = minMatchScore !== undefined || (normalizedRecommendations?.length ?? 0) > 0;
         const hasLocalResumeFilters = hasResumeListFilters({
           maxExperience,
@@ -947,73 +1085,50 @@ app.openapi(getResumesRoute, (c) => {
           });
         }
 
+        // Compute status counts from the working set, then apply explicit
+        // status filters before response pagination. Without this, status=new
+        // reported counts but still returned all statuses.
+        let statusCounts: { new: number; shortlisted: number; rejected: number } | undefined;
+        let statusFilteredWorking = working;
+        try {
+          const statusContext = await loadCandidateStatusContext(workspaceSlug, showBlocked);
+          statusCounts = countPrimaryStatuses(working, statusContext);
+          if (normalizedStatusFilters.length > 0) {
+            statusFilteredWorking = working.filter((item) =>
+              matchesStatusFilter(item, statusContext, normalizedStatusFilters)
+            );
+          }
+        } catch (error) {
+          logger.error("[Resumes] Failed to load candidate status context", error, {
+            route: "resumes_search",
+            workspaceSlug,
+          });
+          statusCounts = undefined;
+        }
+
         // Cursor-scan returns all results without pre-slicing, so
         // offset/limit must be applied after local filtering.
         const start = offset ?? 0;
         const end = typeof limit === "number" ? start + limit : undefined;
-        const pagedWorking = end ? working.slice(start, end) : working.slice(start);
+        const pagedWorking = end ? statusFilteredWorking.slice(start, end) : statusFilteredWorking.slice(start);
         // usesPrePagedMatchResults already has correct offset/limit from match storage;
         // canUseSourcePagination with no keywords already has offset/limit from Convex list page;
         // all other paths need offset/limit applied locally.
         const isSourcePaginated = canUseSourcePagination && normalizedKeywords.length === 0;
-        const limited = (usesPrePagedMatchResults || isSourcePaginated)
-          ? working.map((item) => item.resume)
+        const shouldUsePrePagedResponse = normalizedStatusFilters.length === 0 && (usesPrePagedMatchResults || isSourcePaginated);
+        const limited = shouldUsePrePagedResponse
+          ? statusFilteredWorking.map((item) => item.resume)
           : pagedWorking.map((item) => item.resume);
-
-        // Compute status counts from working set identityKeys
-        let statusCounts: { new: number; shortlisted: number; rejected: number } | undefined;
-        try {
-          const [statusList, blockList] = await Promise.all([
-            callConvexQuery("candidate_status:list", {
-              workspaceSlug,
-            }) as Promise<Array<{ identityKey?: string; status?: string }>>,
-            showBlocked
-              ? Promise.resolve([] as Array<{ identityKey?: string }>)
-              : callConvexQuery("candidate_blocks:list", {
-                workspaceSlug,
-              }) as Promise<Array<{ identityKey?: string }>>,
-          ]);
-          const statusMap = new Map<string, string>();
-          for (const s of statusList) {
-            if (s.identityKey && s.status) {
-              statusMap.set(String(s.identityKey), String(s.status));
-            }
-          }
-          const blockedIdentities = new Set<string>();
-          for (const block of blockList) {
-            if (block.identityKey) {
-              blockedIdentities.add(String(block.identityKey));
-            }
-          }
-          const counts: Record<string, number> = { new: 0, shortlisted: 0, rejected: 0 };
-          const sourceItems = (usesPrePagedMatchResults || isSourcePaginated) ? working : pagedWorking;
-          for (const item of sourceItems) {
-            const resume = item.resume as Record<string, unknown> | undefined;
-            const identityKey = typeof resume?.identityKey === "string" ? resume.identityKey : undefined;
-            if (identityKey && blockedIdentities.has(identityKey)) {
-              continue;
-            }
-            // Match Convex countResumesByStatus: missing identityKey → "new";
-            // non-standard statuses (contacted, interviewing, etc.) → "new"
-            const status = identityKey ? (statusMap.get(identityKey) ?? "new") : "new";
-            const bucket = status in counts ? status : "new";
-            counts[bucket] = (counts[bucket] ?? 0) + 1;
-          }
-          statusCounts = {
-            new: counts.new ?? 0,
-            shortlisted: counts.shortlisted ?? 0,
-            rejected: counts.rejected ?? 0,
-          };
-        } catch {
-          statusCounts = undefined;
-        }
+        const responseTotal = normalizedStatusFilters.length > 0
+          ? statusFilteredWorking.length
+          : (usesPrePagedMatchResults || isSourcePaginated)
+            ? (totalCount ?? statusFilteredWorking.length)
+            : statusFilteredWorking.length;
 
         return c.json({
           success: true as const,
           summary: {
-            total: (usesPrePagedMatchResults || isSourcePaginated)
-              ? (totalCount ?? working.length)
-              : working.length,
+            total: responseTotal,
             returned: limited.length,
             query: keyword,
             source,

@@ -263,6 +263,32 @@ describe('useConvexResumes AND-mode search', () => {
     })
   })
 
+  it('forwards sort and source filters to the BFF AND-mode search path', async () => {
+    renderHook(() => useConvexResumes(200, 'CNC', undefined, {
+      filters: {
+        sources: ['51job'],
+      },
+      sortBy: 'extractedAt',
+      sortOrder: 'desc',
+    }))
+
+    await waitFor(() => {
+      const bffCall = rawApiGetMock.mock.calls.find(([path]) => path === '/api/resumes')
+      expect(bffCall?.[1]).toEqual({
+        params: {
+          query: expect.objectContaining({
+            q: 'CNC',
+            source: 'convex',
+            paged: 'true',
+            sources: '51job',
+            sortBy: 'extractedAt',
+            sortOrder: 'desc',
+          }),
+        },
+      })
+    })
+  })
+
   it('reveals the next BFF AND-mode page when the display limit increases', async () => {
     const bffResumes = Array.from({ length: 450 }, (_, index) =>
       buildResumeDoc(`resume-${index}`, `Candidate ${index}`))
