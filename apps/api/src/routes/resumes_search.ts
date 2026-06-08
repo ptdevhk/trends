@@ -24,6 +24,7 @@ import {
 } from "../schemas/index.js";
 import { resolveResumeId } from "../services/resume-id.js";
 import { callConvexAction, callConvexQuery, isConvexPaginatedQueryPage } from "../services/convex-utils.js";
+import { requireWorkspaceUser } from "../middleware/auth.js";
 import {
   formatKeywordQuery,
   parseKeywordQuery,
@@ -630,6 +631,7 @@ const getResumesRoute = createRoute({
   method: "get",
   path: "/api/resumes",
   tags: ["resumes"],
+  middleware: [requireWorkspaceUser] as const,
   summary: "List resumes from a sample file",
   description: "Returns resume items from the latest or specified sample JSON",
   request: {

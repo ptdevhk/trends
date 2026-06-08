@@ -113,9 +113,9 @@ for file in "$ROUTES_DIR"/*.ts; do
   fi
 
   case "$access_class" in
-    workspace-write)
+    workspace-read|workspace-write)
       if ! has_workspace_user_guard "$file"; then
-        echo "FAIL: $base — workspace-write policy requires requireWorkspaceUser"
+        echo "FAIL: $base — $access_class policy requires requireWorkspaceUser"
         FAIL=1
       fi
       ;;
@@ -125,7 +125,7 @@ for file in "$ROUTES_DIR"/*.ts; do
         FAIL=1
       fi
       ;;
-    public|telemetry|workspace-read|internal-worker|candidate-link)
+    public|telemetry|internal-worker|candidate-link)
       ;;
     *)
       echo "FAIL: $base — unsupported route auth policy class: $access_class"

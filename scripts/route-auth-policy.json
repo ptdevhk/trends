@@ -64,8 +64,8 @@
     "reason": "Resume import, backup, and reset routes use requireAdmin middleware."
   },
   "resumes_match.ts": {
-    "class": "workspace-read",
-    "reason": "Resume matching reads are selected by workspace context and are scheduled for later membership hardening."
+    "class": "workspace-write",
+    "reason": "Resume matching reads and run mutation paths require authenticated workspace membership through requireWorkspaceUser."
   },
   "resumes_packets.ts": {
     "class": "admin",
@@ -73,19 +73,19 @@
   },
   "resumes_search.ts": {
     "class": "workspace-read",
-    "reason": "Resume search reads are selected by workspace context and are scheduled for later membership hardening."
+    "reason": "The operational resume list route requires authenticated workspace membership; sample and keyword helper routes remain public within the file."
   },
   "rss.ts": {
     "class": "public",
     "reason": "RSS routes expose public feed data."
   },
   "scoring-evaluation.ts": {
-    "class": "workspace-read",
-    "reason": "Scoring evaluation reads are workspace-context selected and are scheduled for later membership hardening."
+    "class": "workspace-write",
+    "reason": "Scoring reports and tuning/rollback operations require authenticated workspace membership through requireWorkspaceUser."
   },
   "search-alerts.ts": {
-    "class": "workspace-read",
-    "reason": "Search alert reads are workspace-context selected and are scheduled for later membership hardening."
+    "class": "workspace-write",
+    "reason": "Search alert reads and mutations require authenticated workspace membership through requireWorkspaceUser."
   },
   "search-analytics.ts": {
     "class": "telemetry",
@@ -100,8 +100,8 @@
     "reason": "News search endpoints expose public product search data."
   },
   "sessions.ts": {
-    "class": "workspace-read",
-    "reason": "Session and search-history reads are selected by workspace context and are scheduled for later membership hardening."
+    "class": "workspace-write",
+    "reason": "Session reads and mutations require authenticated workspace membership through requireWorkspaceUser."
   },
   "summaries.ts": {
     "class": "admin",

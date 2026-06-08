@@ -37,6 +37,7 @@ import {
   scorePreparedCandidates,
   prepareSampleCandidates,
 } from "./resumes_search.js";
+import { requireWorkspaceUser } from "../middleware/auth.js";
 
 const app = new OpenAPIHono();
 const resumeService = new ResumeService(config.projectRoot);
@@ -48,6 +49,11 @@ const ruleScoringService = new RuleScoringService(config.projectRoot);
 const searchEventLogger = new SearchEventLogger(config.projectRoot);
 
 const DEFAULT_AI_TOP_N = 20;
+
+app.use("/api/resumes/match", requireWorkspaceUser);
+app.use("/api/resumes/match-stream", requireWorkspaceUser);
+app.use("/api/resumes/matches", requireWorkspaceUser);
+app.use("/api/resumes/match-runs", requireWorkspaceUser);
 
 type ResumeSource = "sample" | "convex";
 type MatchMode = "rules_only" | "hybrid" | "ai_only";

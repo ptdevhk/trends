@@ -61,6 +61,7 @@ describe("search_alerts (convex-test)", () => {
 
       await t.mutation(api.search_alerts.toggle, {
         alertId: id,
+        workspaceSlug: "ws1",
         enabled: false,
       });
 
@@ -77,10 +78,12 @@ describe("search_alerts (convex-test)", () => {
 
       await t.mutation(api.search_alerts.toggle, {
         alertId: id,
+        workspaceSlug: "ws1",
         enabled: false,
       });
       await t.mutation(api.search_alerts.toggle, {
         alertId: id,
+        workspaceSlug: "ws1",
         enabled: true,
       });
 
@@ -88,6 +91,20 @@ describe("search_alerts (convex-test)", () => {
         workspaceSlug: "ws1",
       });
       expect(enabled).toHaveLength(1);
+    });
+
+    it("rejects toggling an alert from a different workspace", async () => {
+      const t = createTest();
+
+      const id = await t.mutation(api.search_alerts.create, seedAlert({ workspaceSlug: "ws2" }));
+
+      await expect(
+        t.mutation(api.search_alerts.toggle, {
+          alertId: id,
+          workspaceSlug: "ws1",
+          enabled: false,
+        }),
+      ).rejects.toThrow("Search alert not found in workspace");
     });
   });
 
@@ -135,6 +152,7 @@ describe("search_alerts (convex-test)", () => {
 
       await t.mutation(api.search_alerts.toggle, {
         alertId: id2,
+        workspaceSlug: "ws1",
         enabled: false,
       });
 
@@ -173,12 +191,22 @@ describe("search_alerts (convex-test)", () => {
 
       const id = await t.mutation(api.search_alerts.create, seedAlert());
 
-      await t.mutation(api.search_alerts.remove, { alertId: id });
+      await t.mutation(api.search_alerts.remove, { alertId: id, workspaceSlug: "ws1" });
 
       const alerts = await t.query(api.search_alerts.list, {
         workspaceSlug: "ws1",
       });
       expect(alerts).toHaveLength(0);
+    });
+
+    it("rejects deleting an alert from a different workspace", async () => {
+      const t = createTest();
+
+      const id = await t.mutation(api.search_alerts.create, seedAlert({ workspaceSlug: "ws2" }));
+
+      await expect(
+        t.mutation(api.search_alerts.remove, { alertId: id, workspaceSlug: "ws1" }),
+      ).rejects.toThrow("Search alert not found in workspace");
     });
   });
 });

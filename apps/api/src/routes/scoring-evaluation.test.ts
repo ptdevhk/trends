@@ -5,12 +5,20 @@ import scoringEvalRoutes from './scoring-evaluation'
 import { workspaceMiddleware } from '../middleware/workspace'
 import { SearchEventAnalyzer } from '../services/search-event-analyzer'
 import { ScoringAutoTuner } from '../services/scoring-auto-tuner'
+import type { AuthContext } from '../services/auth-types'
 import { WeightHistoryService } from '../services/weight-history'
 import { workspaceConfigService } from '../services/workspace-config-service'
+import { createAuthContext } from './test-auth-helpers'
 
-function createTestApp() {
+function createTestApp(authContext: AuthContext | null = createAuthContext({ workspaceSlug: 'dev', role: 'user' })) {
   const app = new OpenAPIHono()
   app.use('*', workspaceMiddleware)
+  if (authContext) {
+    app.use('*', async (c, next) => {
+      c.set('auth', authContext)
+      await next()
+    })
+  }
   app.route('/api/scoring-evaluation', scoringEvalRoutes)
   return app
 }
@@ -85,6 +93,36 @@ const MOCK_HISTORY_ITEMS = [
 describe('scoring-evaluation routes', () => {
   afterEach(() => {
     vi.restoreAllMocks()
+  })
+
+  describe('workspace membership', () => {
+    it('rejects anonymous scoring report reads', async () => {
+      const app = createTestApp(null)
+      const response = await app.request('/api/scoring-evaluation/report', {
+        headers: ADMIN_HEADERS,
+      })
+
+      expect(response.status).toBe(401)
+    })
+
+    it('rejects scoring report reads from users outside the selected workspace', async () => {
+      const app = createTestApp(createAuthContext({ workspaceSlug: 'hr', role: 'user' }))
+      const response = await app.request('/api/scoring-evaluation/report', {
+        headers: ADMIN_HEADERS,
+      })
+
+      expect(response.status).toBe(403)
+    })
+
+    it('allows workspace members to read scoring reports', async () => {
+      vi.spyOn(SearchEventAnalyzer.prototype, 'analyze').mockReturnValue(MOCK_REPORT as never)
+      const app = createTestApp()
+      const response = await app.request('/api/scoring-evaluation/report', {
+        headers: ADMIN_HEADERS,
+      })
+
+      expect(response.status).toBe(200)
+    })
   })
 
   describe('GET /api/scoring-evaluation/report', () => {

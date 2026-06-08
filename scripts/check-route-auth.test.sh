@@ -43,6 +43,14 @@ app.use("/api/workspace", requireWorkspaceUser);
 app.openapi(route, () => {});
 ROUTE
 
+cat >"$TMP_DIR/workspace-read.ts" <<'ROUTE'
+import { createRoute } from "@hono/zod-openapi";
+import { requireWorkspaceUser } from "../middleware/auth.js";
+const route = createRoute({ method: "get", path: "/api/workspace-read", responses: {} });
+app.use("/api/workspace-read", requireWorkspaceUser);
+app.openapi(route, () => {});
+ROUTE
+
 cat >"$TMP_DIR/admin.ts" <<'ROUTE'
 import { createRoute } from "@hono/zod-openapi";
 import { getAdminAccessError } from "../middleware/auth.js";
@@ -61,6 +69,10 @@ write_policy '{
   "workspace-write.ts": {
     "class": "workspace-write",
     "reason": "Workspace writes require user membership."
+  },
+  "workspace-read.ts": {
+    "class": "workspace-read",
+    "reason": "Workspace reads require user membership."
   },
   "admin.ts": {
     "class": "admin",
@@ -111,6 +123,31 @@ import { createRoute } from "@hono/zod-openapi";
 import { requireWorkspaceUser } from "../middleware/auth.js";
 const route = createRoute({ method: "post", path: "/api/workspace", responses: {} });
 app.use("/api/workspace", requireWorkspaceUser);
+app.openapi(route, () => {});
+ROUTE
+
+cat >"$TMP_DIR/workspace-read.ts" <<'ROUTE'
+import { createRoute } from "@hono/zod-openapi";
+const route = createRoute({ method: "get", path: "/api/workspace-read", responses: {} });
+app.openapi(route, () => {});
+ROUTE
+
+if run_checker >"$FAIL_OUT" 2>&1; then
+  echo "FAIL: checker passed a workspace-read policy without requireWorkspaceUser"
+  exit 1
+fi
+
+if ! grep -q "workspace-read.ts" "$FAIL_OUT"; then
+  echo "FAIL: checker did not report the workspace-read guard gap"
+  cat "$FAIL_OUT"
+  exit 1
+fi
+
+cat >"$TMP_DIR/workspace-read.ts" <<'ROUTE'
+import { createRoute } from "@hono/zod-openapi";
+import { requireWorkspaceUser } from "../middleware/auth.js";
+const route = createRoute({ method: "get", path: "/api/workspace-read", responses: {} });
+app.use("/api/workspace-read", requireWorkspaceUser);
 app.openapi(route, () => {});
 ROUTE
 

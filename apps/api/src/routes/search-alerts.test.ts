@@ -3,12 +3,20 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import searchAlertsRoutes from './search-alerts'
 import { workspaceMiddleware } from '../middleware/workspace'
+import type { AuthContext } from '../services/auth-types'
+import { createAuthContext } from './test-auth-helpers'
 
 // search-alerts uses a local convexQuery/convexMutation that calls resolveConvexUrl + fetch.
 // We mock the global fetch to intercept Convex HTTP API calls.
-function createTestApp() {
+function createTestApp(authContext: AuthContext | null = createAuthContext({ workspaceSlug: 'dev', role: 'user' })) {
   const app = new OpenAPIHono()
   app.use('*', workspaceMiddleware)
+  if (authContext) {
+    app.use('*', async (c, next) => {
+      c.set('auth', authContext)
+      await next()
+    })
+  }
   app.route('/', searchAlertsRoutes)
   return app
 }
@@ -57,6 +65,30 @@ const MOCK_ALERTS = [
 describe('search-alerts routes', () => {
   afterEach(() => {
     vi.restoreAllMocks()
+  })
+
+  describe('workspace membership', () => {
+    it('rejects anonymous alert reads', async () => {
+      const app = createTestApp(null)
+      const response = await app.request('/', { headers: ADMIN_HEADERS })
+
+      expect(response.status).toBe(401)
+    })
+
+    it('rejects alert reads from users outside the selected workspace', async () => {
+      const app = createTestApp(createAuthContext({ workspaceSlug: 'hr', role: 'user' }))
+      const response = await app.request('/', { headers: ADMIN_HEADERS })
+
+      expect(response.status).toBe(403)
+    })
+
+    it('allows workspace members to read alerts', async () => {
+      vi.spyOn(globalThis, 'fetch').mockResolvedValue(mockConvexResponse(MOCK_ALERTS) as never)
+      const app = createTestApp()
+      const response = await app.request('/', { headers: ADMIN_HEADERS })
+
+      expect(response.status).toBe(200)
+    })
   })
 
   describe('GET /api/search-alerts/', () => {
@@ -180,6 +212,7 @@ describe('search-alerts routes', () => {
       const callBody = JSON.parse(fetchSpy.mock.calls[0]?.[1]?.body as string ?? '{}')
       expect(callBody.path).toBe('search_alerts:toggle')
       expect(callBody.args.alertId).toBe('alert-1')
+      expect(callBody.args.workspaceSlug).toBe('dev')
       expect(callBody.args.enabled).toBe(true)
     })
 
@@ -216,6 +249,7 @@ describe('search-alerts routes', () => {
       })
       const callBody = JSON.parse(fetchSpy.mock.calls[0]?.[1]?.body as string ?? '{}')
       expect(callBody.path).toBe('search_alerts:remove')
+      expect(callBody.args.workspaceSlug).toBe('dev')
       expect(callBody.args.alertId).toBe('alert-1')
     })
   })
