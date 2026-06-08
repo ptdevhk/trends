@@ -3,12 +3,15 @@
  *
  * Usage:
  *   bunx tsx scripts/auth/manage-provider-membership.ts list-identities --provider casdoor --output json
+ *   bunx tsx scripts/auth/manage-provider-membership.ts export-audit --provider casdoor --workspace hr --status all --output json
  *   bunx tsx scripts/auth/manage-provider-membership.ts preapprove --provider casdoor --provider-subject sub-1 --provider-tenant tenant-1 --workspace hr --role user --operator-id ops@example.com --output json
  */
 
 import { pathToFileURL } from "node:url";
 
+import { AuthEventStorage } from "../../apps/api/src/services/auth-event-storage.js";
 import { AuthStorage } from "../../apps/api/src/services/auth-storage.js";
+import type { AuthEvent } from "../../apps/api/src/services/auth-event-types.js";
 import type {
   AuthProvider,
   WorkspaceMembership,
@@ -21,7 +24,35 @@ import type {
 } from "../../apps/api/src/services/auth-storage.js";
 
 type OutputMode = "json" | "agent";
-type ProviderMembershipAction = "list-identities" | "list-preapprovals" | "preapprove" | "revoke";
+type ProviderMembershipAction = "list-identities" | "list-preapprovals" | "export-audit" | "preapprove" | "revoke";
+type ProviderAuditStatus = "active" | "revoked" | "all";
+
+type ProviderAuditFilters = {
+  provider?: AuthProvider;
+  workspaceSlug?: string;
+  status: ProviderAuditStatus;
+  from?: string;
+  to?: string;
+};
+
+type ProviderAuditEvent = Pick<AuthEvent, "id" | "type" | "userId" | "provider" | "workspaceSlug" | "sessionId" | "reason" | "createdAt"> & {
+  metadata?: Record<string, string | number | boolean | null>;
+};
+
+type ProviderAuditPreapprovalRecord = ProviderMembershipPreapprovalRecord & {
+  relatedAuthEventIds: string[];
+};
+
+type ProviderAuditGrantRecord = ProviderMembershipGrantRecord & {
+  relatedAuthEventIds: string[];
+};
+
+type ProviderMembershipAuditExport = {
+  identities: ProviderIdentityRecord[];
+  preapprovals: ProviderAuditPreapprovalRecord[];
+  grants: ProviderAuditGrantRecord[];
+  events: ProviderAuditEvent[];
+};
 
 export type ProviderMembershipCommand =
   | {
@@ -34,6 +65,16 @@ export type ProviderMembershipCommand =
     action: "list-preapprovals";
     provider: AuthProvider;
     workspaceSlug?: string;
+    output: OutputMode;
+    dryRun: false;
+  }
+  | {
+    action: "export-audit";
+    provider?: AuthProvider;
+    workspaceSlug?: string;
+    status: ProviderAuditStatus;
+    from?: string;
+    to?: string;
     output: OutputMode;
     dryRun: false;
   }
@@ -72,6 +113,12 @@ export type ProviderMembershipCommandResult =
   }
   | {
     success: true;
+    action: "export-audit";
+    filters: ProviderAuditFilters;
+    audit: ProviderMembershipAuditExport;
+  }
+  | {
+    success: true;
     dryRun: true;
     action: "preapprove";
     provider: AuthProvider;
@@ -106,18 +153,20 @@ export type ProviderMembershipCommandResult =
 type ExecuteOptions = {
   projectRoot?: string;
   storage?: AuthStorage;
+  eventStorage?: AuthEventStorage;
 };
 
 function parseAction(value: string | undefined): ProviderMembershipAction {
   if (
     value === "list-identities"
     || value === "list-preapprovals"
+    || value === "export-audit"
     || value === "preapprove"
     || value === "revoke"
   ) {
     return value;
   }
-  throw new Error("action must be list-identities, list-preapprovals, preapprove, or revoke");
+  throw new Error("action must be list-identities, list-preapprovals, export-audit, preapprove, or revoke");
 }
 
 function parseProvider(value: string | undefined): AuthProvider {
@@ -144,6 +193,26 @@ function parseOutput(value: string | undefined): OutputMode {
   throw new Error("--output must be json or agent");
 }
 
+function parseAuditStatus(value: string | undefined): ProviderAuditStatus {
+  if (value === undefined || value === "all") {
+    return "all";
+  }
+  if (value === "active" || value === "revoked") {
+    return value;
+  }
+  throw new Error("--status must be active, revoked, or all");
+}
+
+function parseIsoFilter(name: string, value: string | undefined): string | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (Number.isNaN(Date.parse(value))) {
+    throw new Error(`${name} must be a valid date/time`);
+  }
+  return value;
+}
+
 function requireFlag(name: string, value: string | undefined): string {
   if (!value) {
     throw new Error(`${name} is required`);
@@ -167,6 +236,9 @@ export function parseProviderMembershipArgs(argv: string[]): ProviderMembershipC
   let workspaceSlug: string | undefined;
   let role: WorkspaceRole | undefined;
   let operatorId: string | undefined;
+  let status: ProviderAuditStatus = "all";
+  let from: string | undefined;
+  let to: string | undefined;
   let output: OutputMode = "json";
   let dryRun = false;
 
@@ -197,6 +269,18 @@ export function parseProviderMembershipArgs(argv: string[]): ProviderMembershipC
         operatorId = readFlagValue(argv, i, arg);
         i++;
         break;
+      case "--status":
+        status = parseAuditStatus(readFlagValue(argv, i, arg));
+        i++;
+        break;
+      case "--from":
+        from = parseIsoFilter(arg, readFlagValue(argv, i, arg));
+        i++;
+        break;
+      case "--to":
+        to = parseIsoFilter(arg, readFlagValue(argv, i, arg));
+        i++;
+        break;
       case "--dry-run":
         dryRun = true;
         break;
@@ -223,6 +307,18 @@ export function parseProviderMembershipArgs(argv: string[]): ProviderMembershipC
       action,
       provider: requiredProvider,
       workspaceSlug,
+      output,
+      dryRun: false,
+    };
+  }
+  if (action === "export-audit") {
+    return {
+      action,
+      provider,
+      workspaceSlug,
+      status,
+      from,
+      to,
       output,
       dryRun: false,
     };
@@ -289,6 +385,162 @@ function listAppliedMemberships(
   );
 }
 
+function toTime(value: string | undefined): number | undefined {
+  if (!value) {
+    return undefined;
+  }
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? undefined : parsed;
+}
+
+function hasTimestampInRange(values: Array<string | undefined>, filters: ProviderAuditFilters): boolean {
+  const from = toTime(filters.from);
+  const to = toTime(filters.to);
+  if (from === undefined && to === undefined) {
+    return true;
+  }
+  return values.some((value) => {
+    const timestamp = toTime(value);
+    if (timestamp === undefined) {
+      return false;
+    }
+    return (from === undefined || timestamp >= from) && (to === undefined || timestamp <= to);
+  });
+}
+
+function matchesAuditStatus(active: boolean, status: ProviderAuditStatus): boolean {
+  return status === "all" || (status === "active" ? active : !active);
+}
+
+function providerAuditKey(input: { provider: AuthProvider; providerSubject: string; providerTenant: string | null }): string {
+  return `${input.provider}\u0000${input.providerTenant ?? ""}\u0000${input.providerSubject}`;
+}
+
+function isSensitiveMetadataKey(key: string): boolean {
+  return /secret|password|authorization|access_token|id_token|rawProfile|raw_profile|token|clientSecret|client_secret/i.test(key);
+}
+
+function redactMetadata(metadata: AuthEvent["metadata"]): ProviderAuditEvent["metadata"] {
+  if (!metadata) {
+    return undefined;
+  }
+  const entries = Object.entries(metadata).filter(([key]) => !isSensitiveMetadataKey(key));
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+}
+
+function eventMatchesProviderRecord(
+  event: AuthEvent,
+  record: { provider: AuthProvider; providerSubject: string; providerTenant: string; workspaceSlug: string },
+): boolean {
+  const metadata = event.metadata;
+  return (
+    event.provider === record.provider
+    && event.workspaceSlug === record.workspaceSlug
+    && metadata?.providerSubject === record.providerSubject
+    && metadata?.providerTenant === record.providerTenant
+  );
+}
+
+function eventMatchesAuditFilters(event: AuthEvent, filters: ProviderAuditFilters): boolean {
+  return (
+    (!filters.provider || event.provider === filters.provider)
+    && (!filters.workspaceSlug || event.workspaceSlug === filters.workspaceSlug)
+    && hasTimestampInRange([event.createdAt], filters)
+  );
+}
+
+function toAuditFilters(command: Extract<ProviderMembershipCommand, { action: "export-audit" }>): ProviderAuditFilters {
+  return {
+    provider: command.provider,
+    workspaceSlug: command.workspaceSlug,
+    status: command.status,
+    from: command.from,
+    to: command.to,
+  };
+}
+
+function toAuditEvent(event: AuthEvent): ProviderAuditEvent {
+  return {
+    id: event.id,
+    type: event.type,
+    userId: event.userId,
+    provider: event.provider,
+    workspaceSlug: event.workspaceSlug,
+    sessionId: event.sessionId,
+    reason: event.reason,
+    metadata: redactMetadata(event.metadata),
+    createdAt: event.createdAt,
+  };
+}
+
+function buildProviderMembershipAuditExport(
+  command: Extract<ProviderMembershipCommand, { action: "export-audit" }>,
+  options: ExecuteOptions,
+): ProviderMembershipAuditExport {
+  const storage = options.storage ?? new AuthStorage(options.projectRoot);
+  const eventStorage = options.eventStorage ?? new AuthEventStorage(options.projectRoot);
+  const filters = toAuditFilters(command);
+
+  const events = eventStorage.listRecent({ limit: 1_000 })
+    .filter((event) => eventMatchesAuditFilters(event, filters));
+
+  const preapprovals = storage.listProviderMembershipPreapprovals({
+    provider: command.provider,
+    workspaceSlug: command.workspaceSlug,
+    includeRevoked: true,
+  }).filter((record) => (
+    matchesAuditStatus(record.active, command.status)
+    && hasTimestampInRange([record.createdAt, record.updatedAt, record.revokedAt], filters)
+  ));
+
+  const grants = storage.listProviderMembershipGrants({
+    provider: command.provider,
+    workspaceSlug: command.workspaceSlug,
+    includeRevoked: true,
+  }).filter((record) => (
+    matchesAuditStatus(record.active, command.status)
+    && hasTimestampInRange([record.grantedAt, record.revokedAt], filters)
+  ));
+
+  const selectedKeys = new Set([
+    ...preapprovals.map(providerAuditKey),
+    ...grants.map(providerAuditKey),
+  ]);
+  const shouldScopeIdentitiesToSelectedRecords = Boolean(command.workspaceSlug) || command.status !== "all";
+  const identities = storage.listProviderIdentities({ provider: command.provider })
+    .filter((identity) => hasTimestampInRange([identity.updatedAt], filters))
+    .filter((identity) => !shouldScopeIdentitiesToSelectedRecords || selectedKeys.has(providerAuditKey(identity)));
+
+  const relatedEventIds = (record: {
+    provider: AuthProvider;
+    providerSubject: string;
+    providerTenant: string;
+    workspaceSlug: string;
+  }) => events
+    .filter((event) => eventMatchesProviderRecord(event, record))
+    .map((event) => event.id);
+
+  const preapprovalsWithEvents = preapprovals.map((record) => ({
+    ...record,
+    relatedAuthEventIds: relatedEventIds(record),
+  }));
+  const grantsWithEvents = grants.map((record) => ({
+    ...record,
+    relatedAuthEventIds: relatedEventIds(record),
+  }));
+  const selectedEventIds = new Set([
+    ...preapprovalsWithEvents.flatMap((record) => record.relatedAuthEventIds),
+    ...grantsWithEvents.flatMap((record) => record.relatedAuthEventIds),
+  ]);
+
+  return {
+    identities,
+    preapprovals: preapprovalsWithEvents,
+    grants: grantsWithEvents,
+    events: events.filter((event) => selectedEventIds.has(event.id)).map(toAuditEvent),
+  };
+}
+
 export function executeProviderMembershipCommand(
   command: ProviderMembershipCommand,
   options: ExecuteOptions = {},
@@ -340,6 +592,16 @@ export function executeProviderMembershipCommand(
     };
   }
 
+  if (command.action === "export-audit") {
+    const audit = buildProviderMembershipAuditExport(command, options);
+    return {
+      success: true,
+      action: command.action,
+      filters: toAuditFilters(command),
+      audit,
+    };
+  }
+
   if (command.action === "preapprove") {
     storage.preapproveProviderMembership({
       provider: command.provider,
@@ -379,6 +641,9 @@ function formatAgentResult(result: ProviderMembershipCommandResult): string {
   }
   if (result.action === "list-preapprovals") {
     return `provider preapprovals: ${result.preapprovals.length}`;
+  }
+  if (result.action === "export-audit") {
+    return `provider audit export: ${result.audit.preapprovals.length} preapprovals, ${result.audit.grants.length} grants, ${result.audit.events.length} events`;
   }
   if (result.action === "preapprove" && "dryRun" in result) {
     return `dry run: preapprove ${result.provider}:${result.providerSubject} for ${result.workspaceSlug} as ${result.role}`;
