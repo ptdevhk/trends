@@ -409,6 +409,18 @@ restore-resumes:
 		npx tsx scripts/resume/restore-resumes.ts; \
 	fi
 
+# Derive a small restore-compatible backup from a full portable resume backup
+resume-lite-backup:
+	@COUNT="$${COUNT:-20}" \
+	FILE="$${FILE:-output/resume-backups/resumes-prod-dev-20260512-111129.tar.gz}" \
+	OUT="$${OUT:-output/resume-backups/resumes-prod-dev-lite-top$${COUNT}.tar.gz}"; \
+	export COUNT FILE OUT; \
+	if command -v bun >/dev/null 2>&1; then \
+		bun run scripts/resume/create-lite-backup.ts; \
+	else \
+		npx tsx scripts/resume/create-lite-backup.ts; \
+	fi
+
 # One-liner: SSH tunnel → backup prod workspace → close tunnel
 # Defaults: SSH_HOST=ptcloud, TUNNEL_PORT=13000, WORKSPACE=dev
 # OUT defaults to output/resume-backups/resumes-prod-<workspace>-<timestamp>.tar.gz
