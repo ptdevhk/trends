@@ -188,6 +188,37 @@ describe("production deploy readiness checks", () => {
 });
 
 describe("non-Docker Convex startup safety", () => {
+  it("routes make dev-convex through the hardened non-Docker dev script path", () => {
+    const recipe = getTargetRecipe("dev-convex");
+
+    expect(recipe).toContain("./scripts/dev.sh --convex-only --no-seed");
+    expect(recipe).not.toContain("docker");
+    expect(recipe).not.toContain("compose");
+    expect(recipe).not.toContain("cd packages/convex");
+  });
+
+  it("routes detached Convex refresh through the same non-Docker dev script path", () => {
+    const recipe = getTargetRecipe("dev-convex-refresh");
+
+    expect(recipe).toContain("$(MAKE) dev-convex");
+    expect(recipe).not.toContain("cd '$$project_root/packages/convex'");
+    expect(recipe).not.toContain("bun run dev");
+    expect(recipe).not.toContain("npm run dev");
+    expect(recipe).not.toContain("docker");
+    expect(recipe).not.toContain("compose");
+  });
+
+  it("exposes a convex-only dev script mode without Docker compose", () => {
+    const optionStart = devScript.indexOf("--convex-only)");
+    const nextOptionStart = devScript.indexOf("--mcp-only)", optionStart);
+    const optionBranch = devScript.slice(optionStart, nextOptionStart);
+
+    expect(devScript).toContain("--convex-only");
+    expect(optionBranch).toContain('services=("convex")');
+    expect(optionBranch).not.toContain("docker");
+    expect(optionBranch).not.toContain("compose");
+  });
+
   it("does not force-upgrade local Convex package scripts", () => {
     expect(convexPackageJson.scripts.dev).toContain("convex dev --local");
     expect(convexPackageJson.scripts.predev).toContain("convex dev --once --local");
