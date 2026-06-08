@@ -10,6 +10,7 @@ import { hasWorkspaceRole, type AuthContext } from "../services/auth-types.js";
 declare module "hono" {
   interface ContextVariableMap {
     auth?: AuthContext;
+    authEventStorage?: AuthEventStorage;
   }
 }
 
@@ -45,7 +46,6 @@ export function getAdminAccessError(c: { var: { auth?: AuthContext; workspaceSlu
 
 export function createAuthMiddleware(options: AuthMiddlewareOptions = {}) {
   let storage = options.storage;
-  let eventStorage = options.eventStorage;
   let sessions: AuthSessionService | undefined;
   const sessionCookieName = options.sessionCookieName ?? config.auth.sessionCookieName;
   const csrfHeaderName = options.csrfHeaderName ?? "X-CSRF-Token";
@@ -58,11 +58,8 @@ export function createAuthMiddleware(options: AuthMiddlewareOptions = {}) {
     return sessions;
   }
 
-  function getEventStorage(): AuthEventStorage | null {
-    if (options.eventStorage) return options.eventStorage;
-    // Lazy create only if eventStorage was not explicitly set
-    // Skip event logging when no eventStorage is configured (default middleware)
-    return null;
+  function getEventStorage(c: { var: { authEventStorage?: AuthEventStorage } }): AuthEventStorage | null {
+    return options.eventStorage ?? c.var.authEventStorage ?? null;
   }
 
   const optionalAuth: MiddlewareHandler = async (c, next) => {
@@ -80,7 +77,7 @@ export function createAuthMiddleware(options: AuthMiddlewareOptions = {}) {
       return c.json({ success: false as const, error: "Authentication required" }, 401);
     }
     if (!hasWorkspaceRole(auth.memberships, c.var.workspaceSlug, ["user", "admin"])) {
-      getEventStorage()?.append({
+      getEventStorage(c)?.append({
         type: "workspace_access_denied",
         userId: auth.user.id,
         workspaceSlug: c.var.workspaceSlug,
@@ -97,7 +94,7 @@ export function createAuthMiddleware(options: AuthMiddlewareOptions = {}) {
       const auth = c.var.auth;
       if (auth) {
         const eventType = adminError.status === 401 ? "workspace_access_denied" as const : "admin_access_denied" as const;
-        getEventStorage()?.append({
+        getEventStorage(c)?.append({
           type: eventType,
           userId: auth.user.id,
           workspaceSlug: c.var.workspaceSlug,
@@ -124,7 +121,7 @@ export function createAuthMiddleware(options: AuthMiddlewareOptions = {}) {
     const csrf = c.req.header(csrfHeaderName);
     if (!csrf || !getSessions().verifyCsrf(token, csrf)) {
       const auth = c.var.auth;
-      getEventStorage()?.append({
+      getEventStorage(c)?.append({
         type: "csrf_reject",
         userId: auth?.user.id,
         workspaceSlug: c.var.workspaceSlug,
