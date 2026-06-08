@@ -235,10 +235,46 @@ function initSchema(db: Database.Database): void {
       FOREIGN KEY (user_id) REFERENCES users(id)
     );
 
+    CREATE TABLE IF NOT EXISTS auth_provider_membership_preapprovals (
+      id TEXT PRIMARY KEY,
+      provider TEXT NOT NULL,
+      provider_subject TEXT NOT NULL,
+      provider_tenant TEXT NOT NULL,
+      workspace_slug TEXT NOT NULL,
+      role TEXT NOT NULL,
+      operator_id TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      revoked_at TEXT,
+      revoked_by TEXT,
+      UNIQUE(provider, provider_subject, provider_tenant, workspace_slug)
+    );
+
+    CREATE TABLE IF NOT EXISTS auth_provider_membership_grants (
+      id TEXT PRIMARY KEY,
+      preapproval_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      provider TEXT NOT NULL,
+      provider_subject TEXT NOT NULL,
+      provider_tenant TEXT NOT NULL,
+      workspace_slug TEXT NOT NULL,
+      role TEXT NOT NULL,
+      granted_at TEXT NOT NULL,
+      revoked_at TEXT,
+      UNIQUE(provider, provider_subject, provider_tenant, workspace_slug, user_id),
+      FOREIGN KEY (preapproval_id) REFERENCES auth_provider_membership_preapprovals(id),
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+
     CREATE INDEX IF NOT EXISTS idx_auth_identities_user ON auth_identities(user_id);
     CREATE INDEX IF NOT EXISTS idx_auth_sessions_user ON auth_sessions(user_id);
     CREATE INDEX IF NOT EXISTS idx_auth_sessions_token ON auth_sessions(token_hash);
     CREATE INDEX IF NOT EXISTS idx_workspace_memberships_workspace ON workspace_memberships(workspace_slug);
+    CREATE INDEX IF NOT EXISTS idx_auth_provider_preapprovals_subject
+      ON auth_provider_membership_preapprovals(provider, provider_subject, provider_tenant);
+    CREATE INDEX IF NOT EXISTS idx_auth_provider_grants_user ON auth_provider_membership_grants(user_id);
+    CREATE INDEX IF NOT EXISTS idx_auth_provider_grants_subject
+      ON auth_provider_membership_grants(provider, provider_subject, provider_tenant);
 
     CREATE TABLE IF NOT EXISTS workspace_summary_runs (
       id TEXT PRIMARY KEY,

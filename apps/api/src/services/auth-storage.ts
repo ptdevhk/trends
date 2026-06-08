@@ -10,6 +10,7 @@ import type {
   WorkspaceMembership,
   WorkspaceRole,
 } from "./auth-types.js";
+import type { AuthEventInput } from "./auth-event-types.js";
 import type { PasswordCredential } from "./local-password-provider.js";
 
 type IdentityRow = {
@@ -20,6 +21,20 @@ type MembershipRow = {
   user_id: string;
   workspace_slug: string;
   role: WorkspaceRole;
+};
+
+type ProviderMembershipPreapprovalRow = {
+  id?: unknown;
+  workspace_slug?: unknown;
+  role?: unknown;
+  operator_id?: unknown;
+};
+
+type ProviderMembershipGrantRow = {
+  id?: unknown;
+  user_id?: unknown;
+  workspace_slug?: unknown;
+  role?: unknown;
 };
 
 type PasswordCredentialRow = {
@@ -72,8 +87,36 @@ type OidcStateRow = {
   expires_at?: unknown;
 };
 
+export type ProviderMembershipPreapprovalInput = {
+  provider: AuthProvider;
+  providerSubject: string;
+  providerTenant: string;
+  workspaceSlug: string;
+  role: WorkspaceRole;
+  operatorId: string;
+};
+
+export type ProviderMembershipApplyInput = {
+  provider: AuthProvider;
+  providerSubject: string;
+  providerTenant: string;
+  userId: string;
+};
+
+export type ProviderMembershipRevokeInput = {
+  provider: AuthProvider;
+  providerSubject: string;
+  providerTenant: string;
+  workspaceSlug: string;
+  operatorId: string;
+};
+
 function toIsoNow(): string {
   return formatIsoOffsetInTimezone(new Date(), config.timezone);
+}
+
+function isWorkspaceRole(value: unknown): value is WorkspaceRole {
+  return value === "user" || value === "admin";
 }
 
 export class AuthStorage {
@@ -191,6 +234,193 @@ export class AuthStorage {
     return typeof row?.user_id === "string" ? { userId: row.user_id } : null;
   }
 
+  preapproveProviderMembership(input: ProviderMembershipPreapprovalInput): void {
+    const now = toIsoNow();
+    this.db.prepare(`
+      INSERT INTO auth_provider_membership_preapprovals (
+        id,
+        provider,
+        provider_subject,
+        provider_tenant,
+        workspace_slug,
+        role,
+        operator_id,
+        created_at,
+        updated_at,
+        revoked_at,
+        revoked_by
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL)
+      ON CONFLICT(provider, provider_subject, provider_tenant, workspace_slug)
+      DO UPDATE SET
+        role = excluded.role,
+        operator_id = excluded.operator_id,
+        updated_at = excluded.updated_at,
+        revoked_at = NULL,
+        revoked_by = NULL
+    `).run(
+      randomUUID(),
+      input.provider,
+      input.providerSubject,
+      input.providerTenant,
+      input.workspaceSlug,
+      input.role,
+      input.operatorId,
+      now,
+      now,
+    );
+
+    const existingIdentity = this.findIdentity(input.provider, input.providerSubject, input.providerTenant);
+    if (existingIdentity) {
+      this.applyProviderMembershipPreapprovals({
+        provider: input.provider,
+        providerSubject: input.providerSubject,
+        providerTenant: input.providerTenant,
+        userId: existingIdentity.userId,
+      });
+    }
+  }
+
+  applyProviderMembershipPreapprovals(input: ProviderMembershipApplyInput): WorkspaceMembership[] {
+    const rows = this.db.prepare(`
+      SELECT id, workspace_slug, role, operator_id
+      FROM auth_provider_membership_preapprovals
+      WHERE provider = ?
+        AND provider_subject = ?
+        AND provider_tenant = ?
+        AND revoked_at IS NULL
+      ORDER BY workspace_slug ASC
+    `).all(
+      input.provider,
+      input.providerSubject,
+      input.providerTenant,
+    ) as ProviderMembershipPreapprovalRow[];
+
+    const memberships: WorkspaceMembership[] = [];
+    for (const row of rows) {
+      if (
+        typeof row.id !== "string"
+        || typeof row.workspace_slug !== "string"
+        || !isWorkspaceRole(row.role)
+        || typeof row.operator_id !== "string"
+      ) {
+        continue;
+      }
+
+      const membership: WorkspaceMembership = {
+        userId: input.userId,
+        workspaceSlug: row.workspace_slug,
+        role: row.role,
+      };
+      const existingGrant = this.findActiveProviderMembershipGrant({
+        ...input,
+        workspaceSlug: row.workspace_slug,
+      });
+      const isNewGrant = !existingGrant || existingGrant.role !== row.role;
+
+      this.upsertMembership(membership);
+      if (isNewGrant) {
+        this.upsertProviderMembershipGrant({
+          ...input,
+          preapprovalId: row.id,
+          workspaceSlug: row.workspace_slug,
+          role: row.role,
+        });
+        this.appendAuthEvent({
+          type: "workspace_membership_granted",
+          userId: input.userId,
+          provider: input.provider,
+          workspaceSlug: row.workspace_slug,
+          metadata: {
+            operatorId: row.operator_id,
+            providerSubject: input.providerSubject,
+            providerTenant: input.providerTenant,
+            role: row.role,
+          },
+        });
+      }
+      memberships.push(membership);
+    }
+
+    return memberships;
+  }
+
+  revokeProviderMembershipPreapproval(input: ProviderMembershipRevokeInput): void {
+    const preapproval = this.db.prepare(`
+      SELECT id, role
+      FROM auth_provider_membership_preapprovals
+      WHERE provider = ?
+        AND provider_subject = ?
+        AND provider_tenant = ?
+        AND workspace_slug = ?
+        AND revoked_at IS NULL
+    `).get(
+      input.provider,
+      input.providerSubject,
+      input.providerTenant,
+      input.workspaceSlug,
+    ) as ProviderMembershipPreapprovalRow | undefined;
+
+    if (typeof preapproval?.id !== "string" || !isWorkspaceRole(preapproval.role)) {
+      return;
+    }
+
+    const now = toIsoNow();
+    const grants = this.db.prepare(`
+      SELECT id, user_id, workspace_slug, role
+      FROM auth_provider_membership_grants
+      WHERE provider = ?
+        AND provider_subject = ?
+        AND provider_tenant = ?
+        AND workspace_slug = ?
+        AND revoked_at IS NULL
+    `).all(
+      input.provider,
+      input.providerSubject,
+      input.providerTenant,
+      input.workspaceSlug,
+    ) as ProviderMembershipGrantRow[];
+
+    this.db.prepare(`
+      UPDATE auth_provider_membership_preapprovals
+      SET revoked_at = ?, revoked_by = ?, updated_at = ?
+      WHERE id = ?
+    `).run(now, input.operatorId, now, preapproval.id);
+
+    for (const grant of grants) {
+      if (
+        typeof grant.id !== "string"
+        || typeof grant.user_id !== "string"
+        || typeof grant.workspace_slug !== "string"
+        || !isWorkspaceRole(grant.role)
+      ) {
+        continue;
+      }
+
+      this.deleteProviderGrantedMembership({
+        userId: grant.user_id,
+        workspaceSlug: grant.workspace_slug,
+        role: grant.role,
+      });
+      this.db.prepare(`
+        UPDATE auth_provider_membership_grants
+        SET revoked_at = ?
+        WHERE id = ?
+      `).run(now, grant.id);
+      this.appendAuthEvent({
+        type: "workspace_membership_revoked",
+        userId: grant.user_id,
+        provider: input.provider,
+        workspaceSlug: grant.workspace_slug,
+        metadata: {
+          operatorId: input.operatorId,
+          providerSubject: input.providerSubject,
+          providerTenant: input.providerTenant,
+          role: grant.role,
+        },
+      });
+    }
+  }
+
   upsertMembership(input: WorkspaceMembership): void {
     const now = toIsoNow();
     this.db.prepare(`
@@ -214,6 +444,116 @@ export class AuthStorage {
       workspaceSlug: row.workspace_slug,
       role: row.role,
     }));
+  }
+
+  private findActiveProviderMembershipGrant(input: {
+    provider: AuthProvider;
+    providerSubject: string;
+    providerTenant: string;
+    workspaceSlug: string;
+    userId: string;
+  }): { role: WorkspaceRole } | null {
+    const row = this.db.prepare(`
+      SELECT role
+      FROM auth_provider_membership_grants
+      WHERE provider = ?
+        AND provider_subject = ?
+        AND provider_tenant = ?
+        AND workspace_slug = ?
+        AND user_id = ?
+        AND revoked_at IS NULL
+    `).get(
+      input.provider,
+      input.providerSubject,
+      input.providerTenant,
+      input.workspaceSlug,
+      input.userId,
+    ) as ProviderMembershipGrantRow | undefined;
+
+    return isWorkspaceRole(row?.role) ? { role: row.role } : null;
+  }
+
+  private upsertProviderMembershipGrant(input: {
+    preapprovalId: string;
+    provider: AuthProvider;
+    providerSubject: string;
+    providerTenant: string;
+    workspaceSlug: string;
+    role: WorkspaceRole;
+    userId: string;
+  }): void {
+    const now = toIsoNow();
+    this.db.prepare(`
+      INSERT INTO auth_provider_membership_grants (
+        id,
+        preapproval_id,
+        user_id,
+        provider,
+        provider_subject,
+        provider_tenant,
+        workspace_slug,
+        role,
+        granted_at,
+        revoked_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+      ON CONFLICT(provider, provider_subject, provider_tenant, workspace_slug, user_id)
+      DO UPDATE SET
+        preapproval_id = excluded.preapproval_id,
+        role = excluded.role,
+        granted_at = excluded.granted_at,
+        revoked_at = NULL
+    `).run(
+      randomUUID(),
+      input.preapprovalId,
+      input.userId,
+      input.provider,
+      input.providerSubject,
+      input.providerTenant,
+      input.workspaceSlug,
+      input.role,
+      now,
+    );
+  }
+
+  private deleteProviderGrantedMembership(input: {
+    userId: string;
+    workspaceSlug: string;
+    role: WorkspaceRole;
+  }): void {
+    this.db.prepare(`
+      DELETE FROM workspace_memberships
+      WHERE user_id = ? AND workspace_slug = ? AND role = ?
+    `).run(input.userId, input.workspaceSlug, input.role);
+  }
+
+  private appendAuthEvent(input: AuthEventInput): void {
+    this.db.prepare(`
+      INSERT INTO auth_events (
+        id,
+        type,
+        user_id,
+        provider,
+        workspace_slug,
+        session_id,
+        reason,
+        metadata_json,
+        ip_hash,
+        user_agent,
+        created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      randomUUID(),
+      input.type,
+      input.userId ?? null,
+      input.provider ?? null,
+      input.workspaceSlug ?? null,
+      input.sessionId ?? null,
+      input.reason ?? null,
+      input.metadata ? JSON.stringify(input.metadata) : null,
+      input.ipHash ?? null,
+      input.userAgent ?? null,
+      toIsoNow(),
+    );
   }
 
   savePasswordCredential(input: PasswordCredential & {

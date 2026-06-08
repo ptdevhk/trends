@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { OpenAPIHono } from "@hono/zod-openapi";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createAuthMiddleware } from "../middleware/auth.js";
 import { workspaceMiddleware } from "../middleware/workspace.js";
@@ -11,8 +11,9 @@ import { AuthSessionService } from "../services/auth-session-service.js";
 import { AuthEventStorage } from "../services/auth-event-storage.js";
 import { AuthStorage } from "../services/auth-storage.js";
 import { config } from "../services/config.js";
-import { resetResumeScreeningDb } from "../services/database.js";
+import { getResumeScreeningDb, resetResumeScreeningDb } from "../services/database.js";
 import { hashPassword } from "../services/local-password-provider.js";
+import { CasdoorOidcProvider } from "../services/oidc-provider.js";
 import { createAuthRoutes } from "./auth.js";
 
 // Helper to create app with event storage for event logging tests
@@ -46,14 +47,64 @@ async function seedLocalUser(storage: AuthStorage) {
   return user;
 }
 
-function createTestApp(storage: AuthStorage, eventStorage?: AuthEventStorage) {
+type AuthRouteOverrides = Omit<
+  NonNullable<Parameters<typeof createAuthRoutes>[0]>,
+  "storage" | "eventStorage" | "ttlSeconds"
+>;
+
+type AuthIdentityDetailsRow = {
+  provider?: unknown;
+  provider_subject?: unknown;
+  provider_tenant?: unknown;
+  raw_profile_json?: unknown;
+};
+
+function createTestApp(
+  storage: AuthStorage,
+  eventStorage?: AuthEventStorage,
+  routeOverrides: AuthRouteOverrides = {},
+) {
   const middleware = createAuthMiddleware({ storage, ttlSeconds: 3600, eventStorage });
   const app = new OpenAPIHono();
   app.use("*", workspaceMiddleware);
   app.use("*", middleware.optionalAuth);
   app.use("/api/*", middleware.requireCsrf);
-  app.route("/", createAuthRoutes({ storage, ttlSeconds: 3600, eventStorage }));
+  app.get("/api/test/workspace-gated", middleware.requireWorkspaceUser, (c) => {
+    return c.json({ success: true as const });
+  });
+  app.route("/", createAuthRoutes({
+    storage,
+    ttlSeconds: 3600,
+    eventStorage,
+    ...routeOverrides,
+  }));
   return app;
+}
+
+function createCasdoorProviderMock(input: {
+  providerSubject: string;
+  email: string;
+  displayName: string;
+}): CasdoorOidcProvider {
+  const oidcProvider = new CasdoorOidcProvider({
+    issuer: "https://casdoor.example.com",
+    clientId: "trends",
+    clientSecret: "secret",
+    redirectUri: "http://localhost:3000/api/auth/casdoor/callback",
+    scope: "openid profile email",
+  });
+  vi.spyOn(oidcProvider, "handleCallback").mockResolvedValue({
+    provider: "casdoor",
+    providerSubject: input.providerSubject,
+    providerTenant: "https://casdoor.example.com",
+    email: input.email,
+    displayName: input.displayName,
+    rawProfile: {
+      sub: input.providerSubject,
+      tenant: "wecom-tenant-1",
+    },
+  });
+  return oidcProvider;
 }
 
 function readCookie(response: Response, name: string): string {
@@ -123,6 +174,133 @@ describe("auth routes", () => {
     const response = await app.request("/api/auth/casdoor/login");
 
     expect(response.status).toBe(404);
+  });
+
+  it("creates a Casdoor session without workspace membership for unknown provider subjects", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "trends-auth-casdoor-callback-"));
+    const storage = new AuthStorage(root);
+    storage.saveOidcState({
+      state: "casdoor-state-1",
+      provider: "casdoor",
+      codeVerifier: "verifier-1",
+      nonce: "nonce-1",
+      redirectTo: "/resumes",
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    });
+    const oidcProvider = createCasdoorProviderMock({
+      providerSubject: "casdoor-user-1",
+      email: "wecom-user@example.com",
+      displayName: "WeCom User",
+    });
+    const app = createTestApp(storage, undefined, {
+      oidcEnabled: true,
+      oidcProvider,
+    });
+
+    const callback = await app.request("/api/auth/casdoor/callback?state=casdoor-state-1&code=ok", {
+      headers: { "X-Workspace-Slug": "hr" },
+    });
+
+    expect(callback.status).toBe(302);
+    expect(callback.headers.get("Location")).toBe("/resumes");
+    const identity = storage.findIdentity(
+      "casdoor",
+      "casdoor-user-1",
+      "https://casdoor.example.com",
+    );
+    expect(identity).not.toBeNull();
+    if (!identity) {
+      throw new Error("Casdoor identity was not linked");
+    }
+    expect(storage.listMemberships(identity.userId)).toEqual([]);
+    const identityDetails = getResumeScreeningDb(root).prepare(`
+      SELECT provider, provider_subject, provider_tenant, raw_profile_json
+      FROM auth_identities
+      WHERE user_id = ?
+    `).get(identity.userId) as AuthIdentityDetailsRow | undefined;
+    expect(identityDetails).toMatchObject({
+      provider: "casdoor",
+      provider_subject: "casdoor-user-1",
+      provider_tenant: "https://casdoor.example.com",
+    });
+    expect(JSON.parse(String(identityDetails?.raw_profile_json))).toMatchObject({
+      sub: "casdoor-user-1",
+      tenant: "wecom-tenant-1",
+    });
+
+    const denied = await app.request("/api/test/workspace-gated", {
+      headers: {
+        "X-Workspace-Slug": "hr",
+        Cookie: readCookie(callback, config.auth.sessionCookieName),
+      },
+    });
+
+    expect(denied.status).toBe(403);
+  });
+
+  it("applies explicit Casdoor membership preapproval during callback", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "trends-auth-casdoor-preapproved-callback-"));
+    const storage = new AuthStorage(root);
+    storage.preapproveProviderMembership({
+      provider: "casdoor",
+      providerSubject: "casdoor-user-2",
+      providerTenant: "https://casdoor.example.com",
+      workspaceSlug: "hr",
+      role: "user",
+      operatorId: "operator@example.com",
+    });
+    storage.saveOidcState({
+      state: "casdoor-state-2",
+      provider: "casdoor",
+      codeVerifier: "verifier-2",
+      nonce: "nonce-2",
+      redirectTo: "/resumes",
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    });
+    const oidcProvider = createCasdoorProviderMock({
+      providerSubject: "casdoor-user-2",
+      email: "approved-user@example.com",
+      displayName: "Approved WeCom User",
+    });
+    const app = createTestApp(storage, undefined, {
+      oidcEnabled: true,
+      oidcProvider,
+    });
+
+    const callback = await app.request("/api/auth/casdoor/callback?state=casdoor-state-2&code=ok", {
+      headers: { "X-Workspace-Slug": "hr" },
+    });
+
+    expect(callback.status).toBe(302);
+    const identity = storage.findIdentity(
+      "casdoor",
+      "casdoor-user-2",
+      "https://casdoor.example.com",
+    );
+    expect(identity).not.toBeNull();
+    if (!identity) {
+      throw new Error("Casdoor identity was not linked");
+    }
+    expect(storage.listMemberships(identity.userId)).toEqual([
+      { userId: identity.userId, workspaceSlug: "hr", role: "user" },
+    ]);
+    const sessionCookie = readCookie(callback, config.auth.sessionCookieName);
+
+    const allowed = await app.request("/api/test/workspace-gated", {
+      headers: {
+        "X-Workspace-Slug": "hr",
+        Cookie: sessionCookie,
+      },
+    });
+    const deniedOtherWorkspace = await app.request("/api/test/workspace-gated", {
+      headers: {
+        "X-Workspace-Slug": "dev",
+        Cookie: sessionCookie,
+      },
+    });
+
+    expect(allowed.status).toBe(200);
+    expect(deniedOtherWorkspace.status).toBe(403);
   });
 
   it("revokes the current session on logout", async () => {
