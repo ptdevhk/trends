@@ -8,11 +8,15 @@ import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { CheckCircle, XCircle, Download, Users, Ban } from 'lucide-react'
-import type { CandidateStatus } from '@/types/resume'
+import { CANDIDATE_STATUS_VALUES, type CandidateStatus } from '@/types/resume'
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 import type { ResumeExportFormat } from '@/types/resume'
+
+const PRIMARY_STATUS_FILTERS: CandidateStatus[] = ['new', 'shortlisted', 'rejected']
+const PRIMARY_STATUS_SET: ReadonlySet<CandidateStatus> = new Set(PRIMARY_STATUS_FILTERS)
+const ALL_STATUS_FILTERS: CandidateStatus[] = [...CANDIDATE_STATUS_VALUES]
 
 interface BulkActionBarProps {
     totalCount: number
@@ -61,6 +65,20 @@ export function BulkActionBar({
     const { t } = useTranslation()
     const [loading, setLoading] = useState<string | null>(null)
     const totalCountLabel = `${totalCount}${totalCountIsLowerBound ? '+' : ''}`
+    const allStatusActive = statusFilter?.length === ALL_STATUS_FILTERS.length
+        && ALL_STATUS_FILTERS.every((status) => statusFilter.includes(status))
+    const allStatusCount = statusFacetCounts
+        ? ALL_STATUS_FILTERS.reduce((sum, status) => sum + (statusFacetCounts[status] ?? 0), 0)
+        : undefined
+    const statusChips = [
+        ...PRIMARY_STATUS_FILTERS,
+        ...ALL_STATUS_FILTERS.filter((status) => {
+            if (PRIMARY_STATUS_SET.has(status)) {
+                return false
+            }
+            return (statusFacetCounts?.[status] ?? 0) > 0 || statusFilter?.includes(status) === true
+        }),
+    ]
 
     const handleAction = useCallback(async (action: 'shortlist' | 'reject' | 'block' | 'export') => {
         setLoading(action)
@@ -119,28 +137,24 @@ export function BulkActionBar({
                         <button
                             type="button"
                             onClick={() => {
-                                const allStatuses: CandidateStatus[] = ['new', 'shortlisted', 'rejected']
-                                const allActive = statusFilter?.length === allStatuses.length
-                                    && allStatuses.every((status) => statusFilter.includes(status))
-                                onStatusFilterChange(allActive ? undefined : allStatuses)
+                                onStatusFilterChange(allStatusActive ? undefined : ALL_STATUS_FILTERS)
                             }}
                             className={cn(
                                 'px-2 py-0.5 rounded-full text-xs border transition-colors',
-                                statusFilter?.length === 3
+                                allStatusActive
                                     ? 'bg-primary/10 border-primary text-primary font-medium'
                                     : 'border-border text-muted-foreground hover:bg-muted',
                             )}
                         >
                             {t('bulkActions.statusAll', '全部状态')}
-                            {statusFacetCounts && (
+                            {typeof allStatusCount === 'number' && (
                                 <span className="ml-1 opacity-70">
-                                    {(['new', 'shortlisted', 'rejected'] as CandidateStatus[])
-                                        .reduce((sum, status) => sum + (statusFacetCounts[status] ?? 0), 0)}
+                                    {allStatusCount}
                                 </span>
                             )}
                         </button>
                     )}
-                    {(['new', 'shortlisted', 'rejected'] as CandidateStatus[]).map((status) => {
+                    {statusChips.map((status) => {
                         const isActive = statusFilter && statusFilter.length > 0
                             ? statusFilter.includes(status)
                             : status === 'new'

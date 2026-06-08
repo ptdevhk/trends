@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 import { BulkActionBar } from './BulkActionBar'
+import { CANDIDATE_STATUS_VALUES } from '@/types/resume'
 
 describe('BulkActionBar', () => {
     const onSelectAll = vi.fn()
@@ -72,7 +73,7 @@ describe('BulkActionBar', () => {
         expect(screen.queryByText('取消选择')).not.toBeInTheDocument()
     })
 
-    it('switches to all primary statuses from the status toolbar', async () => {
+    it('switches to all candidate statuses from the status toolbar', async () => {
         const user = userEvent.setup()
         render(
             <MemoryRouter>
@@ -80,13 +81,15 @@ describe('BulkActionBar', () => {
                     {...defaultProps}
                     onStatusFilterChange={onStatusFilterChange}
                     onStatusToggle={vi.fn()}
-                    statusFacetCounts={{ new: 2, shortlisted: 15, rejected: 149 }}
+                    statusFacetCounts={{ new: 26, shortlisted: 15, rejected: 172, interviewed_pass: 1 }}
                 />
             </MemoryRouter>,
         )
 
         await user.click(screen.getByText('全部状态'))
 
-        expect(onStatusFilterChange).toHaveBeenCalledWith(['new', 'shortlisted', 'rejected'])
+        expect(onStatusFilterChange).toHaveBeenCalledWith([...CANDIDATE_STATUS_VALUES])
+        expect(screen.getByText('214')).toBeInTheDocument()
+        expect(screen.getByText('interviewed_pass')).toBeInTheDocument()
     })
 })

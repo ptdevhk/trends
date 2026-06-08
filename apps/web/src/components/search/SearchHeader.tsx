@@ -53,7 +53,9 @@ export function SearchHeader({
 }: SearchHeaderProps) {
   const { t } = useTranslation()
   const resultCountLabel = `${activeResultCount.toLocaleString()}${activeResultCountIsLowerBound ? '+' : ''}`
-  const processedStatusCount = (statusSummary?.shortlisted ?? 0) + (statusSummary?.rejected ?? 0)
+  const processedStatusCount = statusSummary
+    ? Math.max(0, statusSummary.total - statusSummary.new)
+    : 0
   const resultsLabel = activeQuery
     ? t('resumes.searchPage.header.resultsWithQuery', {
       count: resultCountLabel,

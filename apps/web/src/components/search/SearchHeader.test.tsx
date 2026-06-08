@@ -157,6 +157,33 @@ describe('SearchHeader', () => {
     expect(screen.getAllByText('为"machine tools"找到 1,250+ 条结果')[0]).toBeInTheDocument()
   })
 
+  it('counts all non-new candidate statuses as processed in the summary badges', () => {
+    render(
+      <SearchHeader
+        activeQuery="CNC 销售"
+        activeResultCount={26}
+        queryInput="CNC 销售"
+        recentSearches={[]}
+        sortValue="score"
+        statusSummary={{
+          new: 26,
+          shortlisted: 15,
+          rejected: 172,
+          total: 214,
+        }}
+        onApplyRecentSearch={vi.fn()}
+        onApplyExtractedKeywords={vi.fn()}
+        onChangeQuery={vi.fn()}
+        onClearQuery={vi.fn()}
+        onSubmitQuery={vi.fn()}
+        onSortChange={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('全部状态 214')).toBeInTheDocument()
+    expect(screen.getByText('已处理 188')).toBeInTheDocument()
+  })
+
   it('forwards header search-bar callbacks to the parent handlers', async () => {
     const user = userEvent.setup()
     const onApplyExtractedKeywords = vi.fn()
