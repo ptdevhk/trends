@@ -169,7 +169,7 @@ require_phase1_backup() {
 
 clear_resumes_until_complete() {
     local attempt=1
-    local max_attempts=10
+    local max_attempts="${CLEAR_RESUMES_MAX_ATTEMPTS:-150}"
     local output=""
 
     while [ "$attempt" -le "$max_attempts" ]; do
@@ -238,10 +238,15 @@ prepare_fresh_sandbox() {
     log "Removing local Convex and web environment selectors..."
     rm -f packages/convex/.env.local apps/web/.env.local
 
-    if [ -d "$HOME/.convex/anonymous-convex-backend-state" ]; then
-        log "Wiping anonymous local Convex backend state..."
-        rm -rf "$HOME/.convex/anonymous-convex-backend-state"
-    fi
+    for convex_state_dir in \
+        ".convex/local" \
+        "packages/convex/.convex/local" \
+        "$HOME/.convex/anonymous-convex-backend-state"; do
+        if [ -d "$convex_state_dir" ]; then
+            log "Wiping local Convex backend state: $convex_state_dir"
+            rm -rf "$convex_state_dir"
+        fi
+    done
 
     rm -f "$RESULTS_DIR/baseline-count.txt"
     log "Fresh sandbox reset complete"
@@ -348,11 +353,13 @@ phase2() {
     log "Baseline count: $BASELINE_COUNT"
 
     if [ "$POST_COUNT" = "error" ] || [ "$BASELINE_COUNT" = "error" ]; then
-        log "WARN: Count comparison unreliable — one or both counts failed"
+        log "ERROR: Count comparison unreliable — one or both counts failed"
+        return 1
     elif [ "$POST_COUNT" = "$BASELINE_COUNT" ]; then
         log "PASS: Resume count matches baseline"
     else
         log "FAIL: Resume count mismatch! baseline=$BASELINE_COUNT post=$POST_COUNT"
+        return 1
     fi
 
     # Stop dev
