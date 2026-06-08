@@ -3,9 +3,12 @@
  *
  * Usage:
  *   bunx tsx scripts/auth/casdoor-wecom-claims-smoke.ts
- *   CASDOOR_SMOKE_BASE_URL=https://casdoor.example.com bunx tsx scripts/auth/casdoor-wecom-claims-smoke.ts
+ *   LIVE_PROVIDER_SMOKE=1 CASDOOR_SMOKE_BASE_URL=https://casdoor.example.com bunx tsx scripts/auth/casdoor-wecom-claims-smoke.ts
  */
 
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { AuthStorage } from "../../apps/api/src/services/auth-storage.js";
@@ -21,18 +24,34 @@ const REQUIRED_LIVE_ENV = [
 
 type LiveEnvKey = typeof REQUIRED_LIVE_ENV[number];
 
-type SmokeEnv = Record<LiveEnvKey, string | undefined>;
+type SmokeEnv = Record<string, string | undefined>;
 type SmokeMembership = { workspaceSlug: string; role: WorkspaceRole };
+type FetchLike = (input: URL, init?: RequestInit) => Promise<Response>;
 
-type LiveSmokeResult =
+export type LiveCasdoorSmokeConfig =
   | {
+    enabled: false;
     status: "skipped_live_provider_smoke";
-    missingEnv: LiveEnvKey[];
+    reason: string;
+    missingEnv?: LiveEnvKey[];
   }
   | {
+    enabled: true;
+    baseUrl: string;
+    clientId: string;
+    clientSecret: string;
+    redirectUri: string;
+  };
+
+type LiveSmokeResult =
+  | Extract<LiveCasdoorSmokeConfig, { enabled: false }>
+  | {
     status: "live_provider_discovery_ok";
-    issuer?: string;
-    authorizationEndpoint?: string;
+    issuer: string;
+    authorizationEndpoint: string;
+    tokenEndpoint: string;
+    redirectUri: string;
+    clientId: string;
   };
 
 export type CasdoorWeComClaimsSmokeResult = {
@@ -64,7 +83,7 @@ export type CasdoorWeComClaimsSmokeResult = {
 
 type SmokeOptions = {
   projectRoot?: string;
-  env?: Partial<SmokeEnv>;
+  env?: SmokeEnv;
 };
 
 function readOptionalString(value: unknown): string | undefined {
@@ -86,47 +105,201 @@ function buildProviderIdentityKey(identity: { provider: string; providerTenant: 
   return `${identity.provider}:${identity.providerTenant}:${identity.providerSubject}`;
 }
 
-export async function runOptionalLiveCasdoorSmoke(options: { env?: Partial<SmokeEnv> } = {}): Promise<LiveSmokeResult> {
-  const env = options.env ?? process.env;
+function resolveSmokeProjectRoot(projectRoot: string | undefined): string {
+  return projectRoot ?? mkdtempSync(path.join(tmpdir(), "trends-casdoor-wecom-smoke-"));
+}
+
+export function parseLiveCasdoorSmokeConfig(env: SmokeEnv): LiveCasdoorSmokeConfig {
+  if (env.LIVE_PROVIDER_SMOKE !== "1") {
+    return {
+      enabled: false,
+      status: "skipped_live_provider_smoke",
+      reason: "LIVE_PROVIDER_SMOKE is not set",
+    };
+  }
+
   const missingEnv = REQUIRED_LIVE_ENV.filter((key) => !env[key]);
   if (missingEnv.length > 0) {
     return {
+      enabled: false,
       status: "skipped_live_provider_smoke",
+      reason: `Missing live provider env vars: ${missingEnv.join(", ")}`,
       missingEnv,
     };
   }
 
   const baseUrl = readOptionalString(env.CASDOOR_SMOKE_BASE_URL);
-  if (!baseUrl) {
+  const clientId = readOptionalString(env.CASDOOR_SMOKE_CLIENT_ID);
+  const clientSecret = readOptionalString(env.CASDOOR_SMOKE_CLIENT_SECRET);
+  const redirectUri = readOptionalString(env.CASDOOR_SMOKE_REDIRECT_URI);
+  if (!baseUrl || !clientId || !clientSecret || !redirectUri) {
+    const invalidEnv = REQUIRED_LIVE_ENV.filter((key) => !readOptionalString(env[key]));
     return {
+      enabled: false,
       status: "skipped_live_provider_smoke",
-      missingEnv: ["CASDOOR_SMOKE_BASE_URL"],
+      reason: `Missing live provider env vars: ${invalidEnv.join(", ")}`,
+      missingEnv: invalidEnv,
     };
   }
 
-  const discoveryUrl = new URL("/.well-known/openid-configuration", baseUrl);
+  return {
+    enabled: true,
+    baseUrl,
+    clientId,
+    clientSecret,
+    redirectUri,
+  };
+}
+
+export function redactLiveCasdoorConfig(config: LiveCasdoorSmokeConfig): LiveCasdoorSmokeConfig | (Omit<Extract<LiveCasdoorSmokeConfig, { enabled: true }>, "clientSecret"> & { clientSecret: "[redacted]" }) {
+  if (!config.enabled) {
+    return config;
+  }
+  return {
+    ...config,
+    clientSecret: "[redacted]",
+  };
+}
+
+export class LiveProviderValidationError extends Error {
+  constructor(
+    public readonly code: string,
+    message: string,
+    public readonly details: unknown,
+  ) {
+    super(message);
+    this.name = "LiveProviderValidationError";
+  }
+}
+
+function isSensitiveDiagnosticKey(key: string): boolean {
+  return /secret|password|authorization|access_token|id_token|rawProfile|raw_profile|csrfToken|clientSecret|client_secret/i.test(key);
+}
+
+function redactDiagnosticValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => redactDiagnosticValue(item));
+  }
+  if (typeof value === "object" && value !== null) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [
+        key,
+        isSensitiveDiagnosticKey(key) ? "[redacted]" : redactDiagnosticValue(item),
+      ]),
+    );
+  }
+  return value;
+}
+
+export function serializeSmokeError(error: unknown): {
+  success: false;
+  code?: string;
+  message: string;
+  details?: unknown;
+} {
+  if (error instanceof LiveProviderValidationError) {
+    return {
+      success: false,
+      code: error.code,
+      message: error.message,
+      details: redactDiagnosticValue(error.details),
+    };
+  }
+  return {
+    success: false,
+    message: error instanceof Error ? error.message : String(error),
+  };
+}
+
+export async function runLiveCasdoorValidation(
+  config: Extract<LiveCasdoorSmokeConfig, { enabled: true }>,
+  deps: { fetch?: FetchLike } = {},
+): Promise<Extract<LiveSmokeResult, { status: "live_provider_discovery_ok" }>> {
+  const discoveryUrl = new URL("/.well-known/openid-configuration", config.baseUrl);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10_000);
   try {
-    const response = await fetch(discoveryUrl, { signal: controller.signal });
-    if (!response.ok) {
-      throw new Error(`Casdoor discovery failed with HTTP ${response.status}`);
+    const fetchImpl = deps.fetch ?? fetch;
+    let response: Response;
+    try {
+      response = await fetchImpl(discoveryUrl, { signal: controller.signal });
+    } catch (error) {
+      throw new LiveProviderValidationError(
+        "live_provider_discovery_failed",
+        `Casdoor discovery request failed: ${error instanceof Error ? error.message : String(error)}`,
+        {
+          baseUrl: config.baseUrl,
+          config: redactLiveCasdoorConfig(config),
+        },
+      );
     }
-    const discovery: unknown = await response.json();
+    if (!response.ok) {
+      throw new LiveProviderValidationError(
+        "live_provider_discovery_failed",
+        `Casdoor discovery failed with HTTP ${response.status}`,
+        {
+          baseUrl: config.baseUrl,
+          status: response.status,
+          config: redactLiveCasdoorConfig(config),
+        },
+      );
+    }
+    let discovery: unknown;
+    try {
+      discovery = await response.json();
+    } catch (error) {
+      throw new LiveProviderValidationError(
+        "live_provider_discovery_invalid",
+        `Casdoor discovery metadata is not valid JSON: ${error instanceof Error ? error.message : String(error)}`,
+        {
+          baseUrl: config.baseUrl,
+          config: redactLiveCasdoorConfig(config),
+        },
+      );
+    }
+    const issuer = readDiscoveryField(discovery, "issuer");
+    const authorizationEndpoint = readDiscoveryField(discovery, "authorization_endpoint");
+    const tokenEndpoint = readDiscoveryField(discovery, "token_endpoint");
+    if (!issuer || !authorizationEndpoint || !tokenEndpoint) {
+      throw new LiveProviderValidationError(
+        "live_provider_discovery_invalid",
+        "Casdoor discovery metadata is missing required OIDC fields",
+        {
+          baseUrl: config.baseUrl,
+          fields: {
+            issuer: typeof issuer,
+            authorization_endpoint: typeof authorizationEndpoint,
+            token_endpoint: typeof tokenEndpoint,
+          },
+          config: redactLiveCasdoorConfig(config),
+        },
+      );
+    }
     return {
       status: "live_provider_discovery_ok",
-      issuer: readDiscoveryField(discovery, "issuer"),
-      authorizationEndpoint: readDiscoveryField(discovery, "authorization_endpoint"),
+      issuer,
+      authorizationEndpoint,
+      tokenEndpoint,
+      redirectUri: config.redirectUri,
+      clientId: config.clientId,
     };
   } finally {
     clearTimeout(timeout);
   }
 }
 
+export async function runOptionalLiveCasdoorSmoke(options: { env?: SmokeEnv; fetch?: FetchLike } = {}): Promise<LiveSmokeResult> {
+  const config = parseLiveCasdoorSmokeConfig(options.env ?? process.env);
+  if (!config.enabled) {
+    return config;
+  }
+  return runLiveCasdoorValidation(config, { fetch: options.fetch });
+}
+
 export async function runCasdoorWeComClaimsSmoke(
   options: SmokeOptions = {},
 ): Promise<CasdoorWeComClaimsSmokeResult> {
-  const storage = new AuthStorage(options.projectRoot);
+  const storage = new AuthStorage(resolveSmokeProjectRoot(options.projectRoot));
   const user = storage.createUser({
     email: "operator@example.com",
     displayName: "WeCom Operator",
@@ -249,7 +422,7 @@ if (isCliEntryPoint()) {
       console.log(JSON.stringify(result, null, 2));
     })
     .catch((error: unknown) => {
-      console.error(error instanceof Error ? `Error: ${error.message}` : String(error));
+      console.error(JSON.stringify(serializeSmokeError(error), null, 2));
       process.exitCode = 1;
     })
     .finally(() => {
