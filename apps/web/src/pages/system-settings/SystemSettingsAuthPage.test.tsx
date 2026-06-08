@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mockFetchProviderMemberships = vi.hoisted(() => vi.fn())
 const mockPreapproveProviderMembership = vi.hoisted(() => vi.fn())
 const mockRevokeProviderMembership = vi.hoisted(() => vi.fn())
+const mockToast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }))
 
 vi.mock('@/lib/auth', () => ({
   fetchProviderMemberships: mockFetchProviderMemberships,
@@ -14,6 +15,10 @@ vi.mock('@/lib/auth', () => ({
 
 vi.mock('@/contexts/WorkspaceContext', () => ({
   useWorkspace: () => ({ slug: 'hr' }),
+}))
+
+vi.mock('sonner', () => ({
+  toast: mockToast,
 }))
 
 import { SystemSettingsAuthPage } from './SystemSettingsAuthPage'
@@ -139,14 +144,59 @@ describe('SystemSettingsAuthPage', () => {
     })
   })
 
-  it('hides admin controls when provider membership state cannot be loaded', async () => {
-    mockFetchProviderMemberships.mockResolvedValueOnce(null)
+  it('hides admin controls and shows provider membership load errors', async () => {
+    mockFetchProviderMemberships.mockResolvedValueOnce({
+      success: false,
+      status: 403,
+      error: 'Admin access required',
+    })
     render(<SystemSettingsAuthPage />)
 
     await waitFor(() => {
-      expect(screen.getByText('Admin access required')).toBeInTheDocument()
+      expect(screen.getByText('Admin access required (403)')).toBeInTheDocument()
     })
     expect(screen.queryByTestId('auth-preapprove-submit')).not.toBeInTheDocument()
     expect(screen.queryByTestId('auth-revoke-sub-1-hr')).not.toBeInTheDocument()
+  })
+
+  it('shows provider preapproval error messages from the API', async () => {
+    mockPreapproveProviderMembership.mockResolvedValueOnce({
+      success: false,
+      status: 400,
+      error: 'Invalid workspace',
+    })
+    const user = userEvent.setup()
+    render(<SystemSettingsAuthPage />)
+
+    await screen.findByText('Casdoor User')
+    await user.clear(screen.getByTestId('auth-provider-subject-input'))
+    await user.type(screen.getByTestId('auth-provider-subject-input'), 'sub-2')
+    await user.clear(screen.getByTestId('auth-provider-tenant-input'))
+    await user.type(screen.getByTestId('auth-provider-tenant-input'), 'tenant-2')
+    await user.clear(screen.getByTestId('auth-workspace-input'))
+    await user.type(screen.getByTestId('auth-workspace-input'), 'prod')
+    await user.click(screen.getByTestId('auth-preapprove-submit'))
+
+    await waitFor(() => {
+      expect(mockToast.error).toHaveBeenCalledWith('Invalid workspace')
+    })
+  })
+
+  it('shows provider revocation error messages from the API', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValueOnce(true)
+    mockRevokeProviderMembership.mockResolvedValueOnce({
+      success: false,
+      status: 404,
+      error: 'Provider membership preapproval not found',
+    })
+    const user = userEvent.setup()
+    render(<SystemSettingsAuthPage />)
+
+    await user.click(await screen.findByTestId('auth-revoke-sub-1-hr'))
+
+    await waitFor(() => {
+      expect(mockToast.error).toHaveBeenCalledWith('Provider membership preapproval not found')
+    })
+    confirmSpy.mockRestore()
   })
 })
