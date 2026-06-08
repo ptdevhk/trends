@@ -40,6 +40,7 @@ import {
 } from "./routes/index.js";
 import { createAuthRoutes } from "./routes/auth.js";
 import { config } from "./services/config.js";
+import type { AuthEventStorage } from "./services/auth-event-storage.js";
 import type { AuthStorage } from "./services/auth-storage.js";
 import type { AuthContext } from "./services/auth-types.js";
 import { workspaceMiddleware } from "./middleware/workspace.js";
@@ -70,6 +71,7 @@ function resolveCorsOrigin(origin: string): string | null {
 
 type CreateAppOptions = {
   authStorage?: AuthStorage;
+  authEventStorage?: AuthEventStorage;
   authContext?: AuthContext;
   authTtlSeconds?: number;
 };
@@ -107,6 +109,7 @@ export function createApp(options: CreateAppOptions = {}) {
   const app = new OpenAPIHono();
   const authMiddleware = createAuthMiddleware({
     storage: options.authStorage,
+    eventStorage: options.authEventStorage,
     ttlSeconds: options.authTtlSeconds,
   });
 
@@ -145,6 +148,12 @@ export function createApp(options: CreateAppOptions = {}) {
       await next();
     });
   }
+  if (options.authEventStorage) {
+    app.use("*", async (c, next) => {
+      c.set("authEventStorage", options.authEventStorage);
+      await next();
+    });
+  }
   app.use("*", authMiddleware.optionalAuth);
 
   // Rate limiting on API routes (100 req/min per IP in production).
@@ -175,6 +184,7 @@ export function createApp(options: CreateAppOptions = {}) {
   app.route("/", healthRoutes);
   app.route("/", createAuthRoutes({
     storage: options.authStorage,
+    eventStorage: options.authEventStorage,
     ttlSeconds: options.authTtlSeconds,
   }));
   app.route("/", aiSummaryRoutes);
