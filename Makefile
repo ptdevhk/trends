@@ -1261,7 +1261,7 @@ test: test-python test-node                ## Run all tests (Python + TypeScript
 
 test-python:                               ## Run Python tests
 	@echo "Running Python tests..."
-	@uv run pytest tests/ -v
+	@uv run pytest apps/worker/tests tests/ -v
 
 test-node:                                 ## Run TypeScript tests (bun locally, npm in CI)
 	@echo "Running Node.js tests..."
@@ -1289,7 +1289,7 @@ test-api-search-profiles:                  ## Run search-profiles dispatch keywo
 
 test-worker-resume-tasks:                  ## Run worker resume task keyword assembly tests
 	@echo "Running worker resume task tests..."
-	@uv run pytest tests/test_resume_tasks.py -q
+	@uv run pytest apps/worker/tests/test_resume_tasks.py tests/test_resume_tasks.py -q
 
 test-collect-url-smoke:                    ## Run quick smoke for Collect URL keyword concatenation
 	@echo "Running Collect URL smoke check..."
