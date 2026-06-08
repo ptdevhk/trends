@@ -167,6 +167,79 @@ describe("manage-provider-membership CLI", () => {
     ])).toThrow(/workspace/);
   });
 
+  it("rejects unknown preapprove workspaces before mutating storage", () => {
+    const root = mkdtempSync(path.join(tmpdir(), "trends-provider-membership-invalid-preapprove-"));
+
+    expect(() => {
+      const command = parseProviderMembershipArgs([
+        "preapprove",
+        "--provider",
+        "casdoor",
+        "--provider-subject",
+        "sub-1",
+        "--provider-tenant",
+        "tenant-1",
+        "--workspace",
+        "prod",
+        "--role",
+        "user",
+        "--operator-id",
+        "ops@example.com",
+        "--output",
+        "json",
+      ]);
+      executeProviderMembershipCommand(command, { projectRoot: root });
+    }).toThrow(/workspace/i);
+
+    const storage = new AuthStorage(root);
+    expect(storage.listProviderMembershipPreapprovals({ provider: "casdoor", includeRevoked: true })).toEqual([]);
+  });
+
+  it("rejects unknown revoke workspaces before mutating storage", () => {
+    const root = mkdtempSync(path.join(tmpdir(), "trends-provider-membership-invalid-revoke-"));
+    const storage = new AuthStorage(root);
+    storage.preapproveProviderMembership({
+      provider: "casdoor",
+      providerSubject: "sub-1",
+      providerTenant: "tenant-1",
+      workspaceSlug: "prod",
+      role: "user",
+      operatorId: "ops@example.com",
+    });
+
+    expect(() => {
+      const command = parseProviderMembershipArgs([
+        "revoke",
+        "--provider",
+        "casdoor",
+        "--provider-subject",
+        "sub-1",
+        "--provider-tenant",
+        "tenant-1",
+        "--workspace",
+        "prod",
+        "--operator-id",
+        "ops@example.com",
+        "--output",
+        "json",
+      ]);
+      executeProviderMembershipCommand(command, { projectRoot: root });
+    }).toThrow(/workspace/i);
+
+    expect(storage.listProviderMembershipPreapprovals({
+      provider: "casdoor",
+      workspaceSlug: "prod",
+      includeRevoked: true,
+    })).toMatchObject([
+      {
+        providerSubject: "sub-1",
+        providerTenant: "tenant-1",
+        workspaceSlug: "prod",
+        active: true,
+      },
+    ]);
+  });
+
   it("returns dry-run output without touching storage", () => {
     const root = mkdtempSync(path.join(tmpdir(), "trends-provider-membership-dry-"));
     const result = executeProviderMembershipCommand(

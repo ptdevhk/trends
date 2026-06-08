@@ -9,6 +9,8 @@
 
 import { pathToFileURL } from "node:url";
 
+import { isValidWorkspace, WORKSPACE_TEAMS } from "@trends/shared";
+
 import { AuthEventStorage } from "../../apps/api/src/services/auth-event-storage.js";
 import { AuthStorage } from "../../apps/api/src/services/auth-storage.js";
 import type { AuthEvent } from "../../apps/api/src/services/auth-event-types.js";
@@ -203,6 +205,16 @@ function parseAuditStatus(value: string | undefined): ProviderAuditStatus {
   throw new Error("--status must be active, revoked, or all");
 }
 
+function parseWorkspace(value: string | undefined): string | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (isValidWorkspace(value)) {
+    return value;
+  }
+  throw new Error(`--workspace must be one of: ${Object.keys(WORKSPACE_TEAMS).join(", ")}`);
+}
+
 function parseIsoFilter(name: string, value: string | undefined): string | undefined {
   if (value === undefined) {
     return undefined;
@@ -258,7 +270,7 @@ export function parseProviderMembershipArgs(argv: string[]): ProviderMembershipC
         i++;
         break;
       case "--workspace":
-        workspaceSlug = readFlagValue(argv, i, arg);
+        workspaceSlug = parseWorkspace(readFlagValue(argv, i, arg));
         i++;
         break;
       case "--role":
