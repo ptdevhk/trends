@@ -211,7 +211,7 @@ dev-convex-status:
 				current="$$parent"; \
 			done; \
 		done; \
-	} | sort -u | tr '\n' ' ' )"; \
+	} | sed '/^[[:space:]]*$$/d' | sort -u | tr '\n' ' ' | xargs )"; \
 	if [ -n "$$pids" ]; then \
 		ps -o pid,ppid,pgid,rss,%mem,etime,cmd -p $$pids; \
 	else \
