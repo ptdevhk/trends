@@ -112,10 +112,17 @@ describe('auth helpers', () => {
     expect(mockApiClient.GET).toHaveBeenCalledWith('/api/auth/provider-memberships')
   })
 
-  it('returns null when provider membership fetch fails', async () => {
-    mockApiClient.GET.mockResolvedValueOnce({ error: { status: 403 } })
+  it('returns provider membership fetch failures with status and message', async () => {
+    mockApiClient.GET.mockResolvedValueOnce({
+      error: { success: false, error: 'Admin access required' },
+      response: { status: 403 },
+    })
 
-    await expect(fetchProviderMemberships()).resolves.toBeNull()
+    await expect(fetchProviderMemberships()).resolves.toEqual({
+      success: false,
+      status: 403,
+      error: 'Admin access required',
+    })
   })
 
   it('preapproves provider membership through the auth endpoint', async () => {
@@ -155,6 +162,25 @@ describe('auth helpers', () => {
     })
   })
 
+  it('returns provider preapproval failures with status and message', async () => {
+    mockApiClient.POST.mockResolvedValueOnce({
+      error: { success: false, error: 'Invalid workspace' },
+      response: { status: 400 },
+    })
+
+    await expect(preapproveProviderMembership({
+      provider: 'casdoor',
+      providerSubject: 'sub-1',
+      providerTenant: 'tenant-1',
+      workspaceSlug: 'prod',
+      role: 'user',
+    })).resolves.toEqual({
+      success: false,
+      status: 400,
+      error: 'Invalid workspace',
+    })
+  })
+
   it('revokes provider membership through the auth endpoint', async () => {
     const response = {
       success: true as const,
@@ -187,6 +213,24 @@ describe('auth helpers', () => {
         providerTenant: 'tenant-1',
         workspaceSlug: 'hr',
       },
+    })
+  })
+
+  it('returns provider revocation failures with status and message', async () => {
+    mockApiClient.POST.mockResolvedValueOnce({
+      error: { success: false, error: 'Provider membership preapproval not found' },
+      response: { status: 404 },
+    })
+
+    await expect(revokeProviderMembership({
+      provider: 'casdoor',
+      providerSubject: 'sub-1',
+      providerTenant: 'tenant-1',
+      workspaceSlug: 'hr',
+    })).resolves.toEqual({
+      success: false,
+      status: 404,
+      error: 'Provider membership preapproval not found',
     })
   })
 })

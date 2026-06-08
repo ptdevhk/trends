@@ -91,6 +91,14 @@ export type ProviderMembershipsResponse = {
   events: AuthEvent[]
 }
 
+export type ProviderMembershipApiError = {
+  success: false
+  error: string
+  status?: number
+}
+
+export type ProviderMembershipsResult = ProviderMembershipsResponse | ProviderMembershipApiError
+
 export type PreapproveProviderMembershipInput = {
   provider: AuthProvider
   providerSubject: string
@@ -105,6 +113,8 @@ export type PreapproveProviderMembershipResponse = {
   appliedMemberships: WorkspaceMembership[]
 }
 
+export type PreapproveProviderMembershipResult = PreapproveProviderMembershipResponse | ProviderMembershipApiError
+
 export type RevokeProviderMembershipInput = {
   provider: AuthProvider
   providerSubject: string
@@ -115,6 +125,64 @@ export type RevokeProviderMembershipInput = {
 export type RevokeProviderMembershipResponse = {
   success: true
   revoked: ProviderMembershipPreapproval
+}
+
+export type RevokeProviderMembershipResult = RevokeProviderMembershipResponse | ProviderMembershipApiError
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function readStatus(value: unknown): number | undefined {
+  if (!isRecord(value) || typeof value.status !== 'number') {
+    return undefined
+  }
+  return value.status
+}
+
+function readErrorMessage(value: unknown): string | undefined {
+  if (typeof value === 'string') {
+    return value
+  }
+  if (value instanceof Error && value.message.trim()) {
+    return value.message
+  }
+  if (!isRecord(value)) {
+    return undefined
+  }
+  if (typeof value.error === 'string' && value.error.trim()) {
+    return value.error
+  }
+  if (typeof value.message === 'string' && value.message.trim()) {
+    return value.message
+  }
+  return undefined
+}
+
+function defaultErrorForStatus(status: number | undefined, fallback: string): string {
+  switch (status) {
+    case 401:
+      return 'Authentication required'
+    case 403:
+      return 'Admin access required'
+    default:
+      return fallback
+  }
+}
+
+function providerMembershipApiError(
+  data: unknown,
+  error: unknown,
+  response: { status?: number } | undefined,
+  fallback: string,
+): ProviderMembershipApiError {
+  const status = response?.status ?? readStatus(error) ?? readStatus(data)
+  const message = readErrorMessage(data) ?? readErrorMessage(error) ?? defaultErrorForStatus(status, fallback)
+  const result: ProviderMembershipApiError = { success: false, error: message }
+  if (status !== undefined) {
+    result.status = status
+  }
+  return result
 }
 
 function joinApiPath(path: string): string {
@@ -158,38 +226,38 @@ export async function logout(): Promise<boolean> {
   return !error && data?.success === true
 }
 
-export async function fetchProviderMemberships(): Promise<ProviderMembershipsResponse | null> {
-  const { data, error } = await rawApiClient.GET<ProviderMembershipsResponse>('/api/auth/provider-memberships')
-  if (error || data?.success !== true) {
-    return null
+export async function fetchProviderMemberships(): Promise<ProviderMembershipsResult> {
+  const { data, error, response } = await rawApiClient.GET<ProviderMembershipsResult>('/api/auth/provider-memberships')
+  if (data?.success === true) {
+    return data
   }
-  return data
+  return providerMembershipApiError(data, error, response, 'Failed to load provider membership state')
 }
 
 export async function preapproveProviderMembership(
   input: PreapproveProviderMembershipInput,
-): Promise<PreapproveProviderMembershipResponse | null> {
-  const { data, error } = await rawApiClient.POST<PreapproveProviderMembershipResponse>(
+): Promise<PreapproveProviderMembershipResult> {
+  const { data, error, response } = await rawApiClient.POST<PreapproveProviderMembershipResult>(
     '/api/auth/provider-memberships/preapprove',
     { body: input },
   )
-  if (error || data?.success !== true) {
-    return null
+  if (data?.success === true) {
+    return data
   }
-  return data
+  return providerMembershipApiError(data, error, response, 'Failed to grant provider access')
 }
 
 export async function revokeProviderMembership(
   input: RevokeProviderMembershipInput,
-): Promise<RevokeProviderMembershipResponse | null> {
-  const { data, error } = await rawApiClient.POST<RevokeProviderMembershipResponse>(
+): Promise<RevokeProviderMembershipResult> {
+  const { data, error, response } = await rawApiClient.POST<RevokeProviderMembershipResult>(
     '/api/auth/provider-memberships/revoke',
     { body: input },
   )
-  if (error || data?.success !== true) {
-    return null
+  if (data?.success === true) {
+    return data
   }
-  return data
+  return providerMembershipApiError(data, error, response, 'Failed to revoke provider access')
 }
 
 export function getCasdoorLoginUrl(redirectTo: string = getCurrentRedirectPath()): string {

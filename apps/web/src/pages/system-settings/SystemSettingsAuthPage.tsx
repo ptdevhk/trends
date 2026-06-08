@@ -10,6 +10,7 @@ import {
   preapproveProviderMembership,
   revokeProviderMembership,
   type AuthProvider,
+  type ProviderMembershipApiError,
   type ProviderMembershipPreapproval,
   type ProviderMembershipsResponse,
   type WorkspaceRole,
@@ -39,6 +40,10 @@ function toActionId(value: string): string {
   return value.replace(/[^a-zA-Z0-9-]+/g, '-')
 }
 
+function formatProviderMembershipError(error: ProviderMembershipApiError): string {
+  return error.status === undefined ? error.error : `${error.error} (${error.status})`
+}
+
 function StatusPill({ active }: { active: boolean }) {
   return (
     <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${active ? 'bg-emerald-50 text-emerald-700' : 'bg-muted text-muted-foreground'}`}>
@@ -63,6 +68,7 @@ export function SystemSettingsAuthPage() {
   const [state, setState] = useState<ProviderMembershipsResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [accessDenied, setAccessDenied] = useState(false)
+  const [accessError, setAccessError] = useState<ProviderMembershipApiError | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [form, setForm] = useState<FormState>(() => createInitialForm(slug))
   const providerIdentities = state?.identities.filter((identity) => identity.provider === form.provider) ?? []
@@ -71,11 +77,19 @@ export function SystemSettingsAuthPage() {
     setLoading(true)
     try {
       const result = await fetchProviderMemberships()
+      if (result.success === false) {
+        setState(null)
+        setAccessError(result)
+        setAccessDenied(true)
+        return
+      }
       setState(result)
-      setAccessDenied(result === null)
+      setAccessError(null)
+      setAccessDenied(false)
     } catch (error) {
       reportUiError('Failed to load provider membership state', error)
       setState(null)
+      setAccessError(null)
       setAccessDenied(true)
     } finally {
       setLoading(false)
@@ -100,8 +114,8 @@ export function SystemSettingsAuthPage() {
         workspaceSlug: form.workspaceSlug.trim(),
         role: form.role,
       })
-      if (!result) {
-        toast.error(t('debugConfig.authAccessGrantFailed', { defaultValue: 'Failed to grant provider access' }))
+      if (result.success === false) {
+        toast.error(result.error)
         return
       }
       toast.success(t('debugConfig.authAccessGrantSaved', { defaultValue: 'Provider access saved' }))
@@ -130,8 +144,8 @@ export function SystemSettingsAuthPage() {
         providerTenant: preapproval.providerTenant,
         workspaceSlug: preapproval.workspaceSlug,
       })
-      if (!result) {
-        toast.error(t('debugConfig.authAccessRevokeFailed', { defaultValue: 'Failed to revoke provider access' }))
+      if (result.success === false) {
+        toast.error(result.error)
         return
       }
       toast.success(t('debugConfig.authAccessRevoked', { defaultValue: 'Provider access revoked' }))
@@ -156,7 +170,9 @@ export function SystemSettingsAuthPage() {
         </h2>
         <Card className="border-destructive/30">
           <CardContent className="py-6 text-sm text-destructive">
-            {t('debugConfig.authAccessAdminRequired', { defaultValue: 'Admin access required' })}
+            {accessError
+              ? formatProviderMembershipError(accessError)
+              : t('debugConfig.authAccessAdminRequired', { defaultValue: 'Admin access required' })}
           </CardContent>
         </Card>
       </div>
