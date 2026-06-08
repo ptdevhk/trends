@@ -9,7 +9,7 @@
 
 import { pathToFileURL } from "node:url";
 
-import { isValidWorkspace, WORKSPACE_TEAMS } from "@trends/shared";
+import { formatWorkspaceSlugList, isValidWorkspace } from "@trends/shared";
 
 import { AuthEventStorage } from "../../apps/api/src/services/auth-event-storage.js";
 import { AuthStorage } from "../../apps/api/src/services/auth-storage.js";
@@ -212,7 +212,7 @@ function parseWorkspace(value: string | undefined): string | undefined {
   if (isValidWorkspace(value)) {
     return value;
   }
-  throw new Error(`--workspace must be one of: ${Object.keys(WORKSPACE_TEAMS).join(", ")}`);
+  throw new Error(`--workspace must be one of: ${formatWorkspaceSlugList()}`);
 }
 
 function parseIsoFilter(name: string, value: string | undefined): string | undefined {

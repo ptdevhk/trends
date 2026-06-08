@@ -13,7 +13,7 @@ import {
     getWorkspaceSearchProfileTemplates,
     isRecord,
     isValidWorkspace,
-    WORKSPACE_TEAMS,
+    listWorkspaceSlugs,
 } from "@trends/shared";
 
 import {
@@ -293,7 +293,7 @@ type JobDescriptionSyncPayload = {
 
 const DEFAULT_WORKSPACE_SLUG = "dev";
 const CONFIG_SEED_SOURCE = "config/search-profiles";
-const KNOWN_WORKSPACE_SLUGS = Object.keys(WORKSPACE_TEAMS).filter(isValidWorkspace);
+const KNOWN_WORKSPACE_SLUGS = listWorkspaceSlugs();
 
 function belongsToWorkspace(recordWorkspaceSlug: unknown, workspaceSlug: string): boolean {
     const normalizedRecordWorkspace = readString(recordWorkspaceSlug);

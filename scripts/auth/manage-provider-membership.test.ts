@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
+import { formatWorkspaceSlugList, listWorkspaceSlugs } from "@trends/shared";
 
 import { AuthEventStorage } from "../../apps/api/src/services/auth-event-storage.js";
 import { AuthStorage } from "../../apps/api/src/services/auth-storage.js";
@@ -112,6 +113,48 @@ describe("manage-provider-membership CLI", () => {
     });
   });
 
+  it.each(listWorkspaceSlugs())("accepts registered workspace %s in provider membership commands", (slug) => {
+    expect(parseProviderMembershipArgs([
+      "preapprove",
+      "--provider",
+      "casdoor",
+      "--provider-subject",
+      "sub-1",
+      "--provider-tenant",
+      "tenant-1",
+      "--workspace",
+      slug,
+      "--role",
+      "user",
+      "--operator-id",
+      "ops@example.com",
+      "--output",
+      "json",
+    ])).toMatchObject({
+      action: "preapprove",
+      workspaceSlug: slug,
+    });
+
+    expect(parseProviderMembershipArgs([
+      "revoke",
+      "--provider",
+      "casdoor",
+      "--provider-subject",
+      "sub-1",
+      "--provider-tenant",
+      "tenant-1",
+      "--workspace",
+      slug,
+      "--operator-id",
+      "ops@example.com",
+      "--output",
+      "json",
+    ])).toMatchObject({
+      action: "revoke",
+      workspaceSlug: slug,
+    });
+  });
+
   it("parses provider audit export filters", () => {
     expect(parseProviderMembershipArgs([
       "export-audit",
@@ -189,7 +232,7 @@ describe("manage-provider-membership CLI", () => {
         "json",
       ]);
       executeProviderMembershipCommand(command, { projectRoot: root });
-    }).toThrow(/workspace/i);
+    }).toThrow(`--workspace must be one of: ${formatWorkspaceSlugList()}`);
 
     const storage = new AuthStorage(root);
     expect(storage.listProviderMembershipPreapprovals({ provider: "casdoor", includeRevoked: true })).toEqual([]);

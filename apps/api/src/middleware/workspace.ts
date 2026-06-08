@@ -1,5 +1,11 @@
 import type { MiddlewareHandler } from "hono";
-import { getAccessLevel, isValidWorkspace, type AccessLevel, type WorkspaceSlug } from "@trends/shared";
+import {
+  formatWorkspaceSlugList,
+  getAccessLevel,
+  isValidWorkspace,
+  type AccessLevel,
+  type WorkspaceSlug,
+} from "@trends/shared";
 
 declare module "hono" {
   interface ContextVariableMap {
@@ -20,7 +26,7 @@ export const workspaceMiddleware: MiddlewareHandler = async (c, next) => {
     return c.json(
       {
         success: false,
-        error: `Invalid workspace slug: ${candidate}. Allowed: dev, hr`,
+        error: `Invalid workspace slug: ${candidate}. Allowed: ${formatWorkspaceSlugList()}`,
       },
       400,
     );
