@@ -205,6 +205,37 @@ function listAppliedWorkspaceMemberships(
   );
 }
 
+function appendProviderMembershipAdminEvent(
+  eventStorage: AuthEventStorage,
+  input: {
+    action: "preapprove" | "revoke";
+    operatorId: string;
+    provider: AuthProvider;
+    providerSubject: string;
+    providerTenant: string;
+    workspaceSlug: string;
+    role?: WorkspaceRole;
+  },
+): void {
+  const type = input.action === "preapprove"
+    ? "provider_membership_preapproved"
+    : "provider_membership_revoked";
+
+  eventStorage.append({
+    type,
+    userId: input.operatorId,
+    provider: input.provider,
+    workspaceSlug: input.workspaceSlug,
+    metadata: {
+      action: input.action,
+      operatorId: input.operatorId,
+      providerSubject: input.providerSubject,
+      providerTenant: input.providerTenant,
+      ...(input.role ? { role: input.role } : {}),
+    },
+  });
+}
+
 function setSessionCookies(
   c: Parameters<typeof setCookie>[0],
   session: { token: string; csrfToken: string; expiresAt: string },
@@ -801,6 +832,15 @@ export function createAuthRoutes(options: AuthRoutesOptions = {}) {
     if (!preapproval) {
       return c.json({ success: false as const, error: "Provider membership preapproval not found" }, 404);
     }
+    appendProviderMembershipAdminEvent(getEventStorage(), {
+      action: "preapprove",
+      operatorId: auth.user.id,
+      provider: input.provider,
+      providerSubject: input.providerSubject,
+      providerTenant: input.providerTenant,
+      workspaceSlug: input.workspaceSlug,
+      role: input.role,
+    });
 
     return c.json({
       success: true as const,
@@ -873,6 +913,15 @@ export function createAuthRoutes(options: AuthRoutesOptions = {}) {
     if (!revoked) {
       return c.json({ success: false as const, error: "Provider membership preapproval not found" }, 404);
     }
+    appendProviderMembershipAdminEvent(getEventStorage(), {
+      action: "revoke",
+      operatorId: auth.user.id,
+      provider: input.provider,
+      providerSubject: input.providerSubject,
+      providerTenant: input.providerTenant,
+      workspaceSlug: input.workspaceSlug,
+      role: revoked.role,
+    });
 
     return c.json({
       success: true as const,
