@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -188,6 +188,30 @@ describe("production deploy readiness checks", () => {
 });
 
 describe("non-Docker Convex startup safety", () => {
+  it("prints dev-convex-status without ps errors when no local Convex process is running", () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "trends-convex-status-"));
+
+    try {
+      const result = spawnSync("make", ["dev-convex-status"], {
+        cwd: new URL("..", import.meta.url),
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          CONVEX_PORT: String(39000 + Math.floor(Math.random() * 10000)),
+          CONVEX_STATE_DIR: tempDir,
+        },
+      });
+      const output = `${result.stdout ?? ""}\n${result.stderr ?? ""}`;
+
+      expect(result.status).toBe(0);
+      expect(output).toContain("No local Convex processes found.");
+      expect(output).not.toContain("list of process IDs must follow -p");
+      expect(output).not.toContain("Usage:");
+    } finally {
+      rmSync(tempDir, { force: true, recursive: true });
+    }
+  });
+
   it("routes make dev-convex through the hardened non-Docker dev script path", () => {
     const recipe = getTargetRecipe("dev-convex");
 
