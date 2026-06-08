@@ -438,6 +438,301 @@ describe("GET /api/auth/events", () => {
   });
 });
 
+describe("provider membership admin routes", () => {
+  afterEach(() => {
+    resetResumeScreeningDb();
+  });
+
+  function createSessionHeaders(storage: AuthStorage, userId: string, workspaceSlug = "hr") {
+    const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
+    const session = sessions.createSession(userId);
+    return {
+      "X-Workspace-Slug": workspaceSlug,
+      "X-CSRF-Token": session.csrfToken,
+      Cookie: `${config.auth.sessionCookieName}=${session.token}`,
+    };
+  }
+
+  async function seedWorkspaceUser(
+    storage: AuthStorage,
+    input: { username: string; email: string; role: "user" | "admin" },
+  ) {
+    const user = storage.createUser({ email: input.email, displayName: input.username });
+    storage.linkIdentity({
+      userId: user.id,
+      provider: "local",
+      providerSubject: input.username,
+      providerTenant: "local",
+      email: user.email,
+      displayName: user.displayName,
+    });
+    storage.upsertMembership({ userId: user.id, workspaceSlug: "hr", role: input.role });
+    storage.savePasswordCredential({
+      userId: user.id,
+      ...(await hashPassword("secret-pass")),
+      mustChangePassword: false,
+    });
+    return user;
+  }
+
+  it("rejects unauthenticated requests to every provider membership endpoint", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "trends-auth-provider-admin-unauth-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const app = createTestApp(storage, eventStorage);
+
+    const list = await app.request("/api/auth/provider-memberships", {
+      headers: { "X-Workspace-Slug": "hr" },
+    });
+    const preapprove = await app.request("/api/auth/provider-memberships/preapprove", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Workspace-Slug": "hr" },
+      body: JSON.stringify({
+        provider: "casdoor",
+        providerSubject: "sub-1",
+        providerTenant: "tenant-1",
+        workspaceSlug: "hr",
+        role: "user",
+      }),
+    });
+    const revoke = await app.request("/api/auth/provider-memberships/revoke", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Workspace-Slug": "hr" },
+      body: JSON.stringify({
+        provider: "casdoor",
+        providerSubject: "sub-1",
+        providerTenant: "tenant-1",
+        workspaceSlug: "hr",
+      }),
+    });
+
+    expect(list.status).toBe(401);
+    expect(preapprove.status).toBe(401);
+    expect(revoke.status).toBe(401);
+  });
+
+  it("rejects non-admin workspace users", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "trends-auth-provider-admin-forbidden-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const user = await seedWorkspaceUser(storage, {
+      username: "hr-user",
+      email: "user@example.com",
+      role: "user",
+    });
+    const app = createTestApp(storage, eventStorage);
+
+    const response = await app.request("/api/auth/provider-memberships", {
+      headers: createSessionHeaders(storage, user.id),
+    });
+
+    expect(response.status).toBe(403);
+  });
+
+  it("lets admins list provider identities, preapprovals, grants, and auth events", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "trends-auth-provider-admin-list-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const admin = await seedWorkspaceUser(storage, {
+      username: "hr-admin",
+      email: "admin@example.com",
+      role: "admin",
+    });
+    const providerUser = storage.createUser({
+      email: "casdoor@example.com",
+      displayName: "Casdoor User",
+    });
+    storage.linkIdentity({
+      userId: providerUser.id,
+      provider: "casdoor",
+      providerSubject: "sub-1",
+      providerTenant: "tenant-1",
+      email: providerUser.email,
+      displayName: providerUser.displayName,
+      rawProfile: { token: "secret-token" },
+    });
+    storage.preapproveProviderMembership({
+      provider: "casdoor",
+      providerSubject: "sub-1",
+      providerTenant: "tenant-1",
+      workspaceSlug: "hr",
+      role: "user",
+      operatorId: admin.id,
+    });
+    const app = createTestApp(storage, eventStorage);
+
+    const response = await app.request("/api/auth/provider-memberships?provider=casdoor", {
+      headers: createSessionHeaders(storage, admin.id),
+    });
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body).toMatchObject({
+      success: true,
+      identities: [
+        {
+          provider: "casdoor",
+          providerSubject: "sub-1",
+          providerTenant: "tenant-1",
+          userId: providerUser.id,
+          email: "casdoor@example.com",
+          displayName: "Casdoor User",
+        },
+      ],
+      preapprovals: [
+        {
+          provider: "casdoor",
+          providerSubject: "sub-1",
+          providerTenant: "tenant-1",
+          workspaceSlug: "hr",
+          role: "user",
+          operatorId: admin.id,
+          active: true,
+        },
+      ],
+      grants: [
+        {
+          provider: "casdoor",
+          providerSubject: "sub-1",
+          providerTenant: "tenant-1",
+          workspaceSlug: "hr",
+          role: "user",
+          userId: providerUser.id,
+          active: true,
+        },
+      ],
+      events: [
+        {
+          type: "workspace_membership_granted",
+          provider: "casdoor",
+          userId: providerUser.id,
+          workspaceSlug: "hr",
+        },
+      ],
+    });
+    expect(JSON.stringify(body)).not.toContain("secret-token");
+  });
+
+  it("lets admins create provider preapprovals with authenticated actor attribution", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "trends-auth-provider-admin-preapprove-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const admin = await seedWorkspaceUser(storage, {
+      username: "hr-admin",
+      email: "admin@example.com",
+      role: "admin",
+    });
+    const providerUser = storage.createUser({
+      email: "casdoor@example.com",
+      displayName: "Casdoor User",
+    });
+    storage.linkIdentity({
+      userId: providerUser.id,
+      provider: "casdoor",
+      providerSubject: "sub-1",
+      providerTenant: "tenant-1",
+      email: providerUser.email,
+      displayName: providerUser.displayName,
+    });
+    const app = createTestApp(storage, eventStorage);
+
+    const response = await app.request("/api/auth/provider-memberships/preapprove", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...createSessionHeaders(storage, admin.id),
+      },
+      body: JSON.stringify({
+        provider: "casdoor",
+        providerSubject: "sub-1",
+        providerTenant: "tenant-1",
+        workspaceSlug: "hr",
+        role: "admin",
+        operatorId: "spoofed-operator",
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      success: true,
+      preapproval: {
+        provider: "casdoor",
+        providerSubject: "sub-1",
+        providerTenant: "tenant-1",
+        workspaceSlug: "hr",
+        role: "admin",
+        operatorId: admin.id,
+        active: true,
+      },
+      appliedMemberships: [
+        { userId: providerUser.id, workspaceSlug: "hr", role: "admin" },
+      ],
+    });
+  });
+
+  it("lets admins revoke provider-derived access without deleting unrelated manual memberships", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "trends-auth-provider-admin-revoke-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const admin = await seedWorkspaceUser(storage, {
+      username: "hr-admin",
+      email: "admin@example.com",
+      role: "admin",
+    });
+    const providerUser = storage.createUser({
+      email: "casdoor@example.com",
+      displayName: "Casdoor User",
+    });
+    storage.linkIdentity({
+      userId: providerUser.id,
+      provider: "casdoor",
+      providerSubject: "sub-1",
+      providerTenant: "tenant-1",
+      email: providerUser.email,
+      displayName: providerUser.displayName,
+    });
+    storage.upsertMembership({ userId: providerUser.id, workspaceSlug: "dev", role: "admin" });
+    storage.preapproveProviderMembership({
+      provider: "casdoor",
+      providerSubject: "sub-1",
+      providerTenant: "tenant-1",
+      workspaceSlug: "hr",
+      role: "user",
+      operatorId: admin.id,
+    });
+    const app = createTestApp(storage, eventStorage);
+
+    const response = await app.request("/api/auth/provider-memberships/revoke", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...createSessionHeaders(storage, admin.id),
+      },
+      body: JSON.stringify({
+        provider: "casdoor",
+        providerSubject: "sub-1",
+        providerTenant: "tenant-1",
+        workspaceSlug: "hr",
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      success: true,
+      revoked: {
+        provider: "casdoor",
+        providerSubject: "sub-1",
+        providerTenant: "tenant-1",
+        workspaceSlug: "hr",
+        active: false,
+      },
+    });
+    expect(storage.listMemberships(providerUser.id)).toEqual([
+      { userId: providerUser.id, workspaceSlug: "dev", role: "admin" },
+    ]);
+  });
+});
+
 describe("auth event logging", () => {
   afterEach(() => {
     resetResumeScreeningDb();

@@ -17,6 +17,16 @@ type IdentityRow = {
   user_id?: unknown;
 };
 
+type ProviderIdentityRow = {
+  user_id?: unknown;
+  provider?: unknown;
+  provider_subject?: unknown;
+  provider_tenant?: unknown;
+  email?: unknown;
+  display_name?: unknown;
+  updated_at?: unknown;
+};
+
 type MembershipRow = {
   user_id: string;
   workspace_slug: string;
@@ -30,11 +40,30 @@ type ProviderMembershipPreapprovalRow = {
   operator_id?: unknown;
 };
 
+type ProviderMembershipPreapprovalListRow = ProviderMembershipPreapprovalRow & {
+  provider?: unknown;
+  provider_subject?: unknown;
+  provider_tenant?: unknown;
+  created_at?: unknown;
+  updated_at?: unknown;
+  revoked_at?: unknown;
+  revoked_by?: unknown;
+};
+
 type ProviderMembershipGrantRow = {
   id?: unknown;
   user_id?: unknown;
   workspace_slug?: unknown;
   role?: unknown;
+};
+
+type ProviderMembershipGrantListRow = ProviderMembershipGrantRow & {
+  preapproval_id?: unknown;
+  provider?: unknown;
+  provider_subject?: unknown;
+  provider_tenant?: unknown;
+  granted_at?: unknown;
+  revoked_at?: unknown;
 };
 
 type PasswordCredentialRow = {
@@ -111,8 +140,65 @@ export type ProviderMembershipRevokeInput = {
   operatorId: string;
 };
 
+export type ProviderIdentityRecord = {
+  provider: AuthProvider;
+  providerSubject: string;
+  providerTenant: string | null;
+  userId: string;
+  email?: string;
+  displayName?: string;
+  updatedAt: string;
+};
+
+export type ProviderMembershipPreapprovalRecord = {
+  provider: AuthProvider;
+  providerSubject: string;
+  providerTenant: string;
+  workspaceSlug: string;
+  role: WorkspaceRole;
+  operatorId: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+  revokedAt?: string;
+  revokedBy?: string;
+};
+
+export type ProviderMembershipGrantRecord = {
+  provider: AuthProvider;
+  providerSubject: string;
+  providerTenant: string;
+  workspaceSlug: string;
+  role: WorkspaceRole;
+  userId: string;
+  preapprovalId: string;
+  active: boolean;
+  grantedAt: string;
+  revokedAt?: string;
+};
+
+export type ProviderIdentityListInput = {
+  provider?: AuthProvider;
+};
+
+export type ProviderMembershipPreapprovalListInput = {
+  provider?: AuthProvider;
+  workspaceSlug?: string;
+  includeRevoked?: boolean;
+};
+
+export type ProviderMembershipGrantListInput = {
+  provider?: AuthProvider;
+  workspaceSlug?: string;
+  includeRevoked?: boolean;
+};
+
 function toIsoNow(): string {
   return formatIsoOffsetInTimezone(new Date(), config.timezone);
+}
+
+function isAuthProvider(value: unknown): value is AuthProvider {
+  return value === "local" || value === "casdoor";
 }
 
 function isWorkspaceRole(value: unknown): value is WorkspaceRole {
@@ -234,6 +320,50 @@ export class AuthStorage {
     return typeof row?.user_id === "string" ? { userId: row.user_id } : null;
   }
 
+  listProviderIdentities(input: ProviderIdentityListInput = {}): ProviderIdentityRecord[] {
+    const where: string[] = [];
+    const params: string[] = [];
+    if (input.provider) {
+      where.push("provider = ?");
+      params.push(input.provider);
+    }
+
+    const rows = this.db.prepare(`
+      SELECT
+        user_id,
+        provider,
+        provider_subject,
+        provider_tenant,
+        email,
+        display_name,
+        updated_at
+      FROM auth_identities
+      ${where.length > 0 ? `WHERE ${where.join(" AND ")}` : ""}
+      ORDER BY provider ASC, provider_tenant ASC, provider_subject ASC
+    `).all(...params) as ProviderIdentityRow[];
+
+    return rows.flatMap((row) => {
+      if (
+        !isAuthProvider(row.provider)
+        || typeof row.provider_subject !== "string"
+        || typeof row.user_id !== "string"
+        || typeof row.updated_at !== "string"
+      ) {
+        return [];
+      }
+
+      return [{
+        provider: row.provider,
+        providerSubject: row.provider_subject,
+        providerTenant: typeof row.provider_tenant === "string" ? row.provider_tenant : null,
+        userId: row.user_id,
+        email: typeof row.email === "string" ? row.email : undefined,
+        displayName: typeof row.display_name === "string" ? row.display_name : undefined,
+        updatedAt: row.updated_at,
+      }];
+    });
+  }
+
   preapproveProviderMembership(input: ProviderMembershipPreapprovalInput): void {
     const now = toIsoNow();
     this.db.prepare(`
@@ -278,6 +408,132 @@ export class AuthStorage {
         userId: existingIdentity.userId,
       });
     }
+  }
+
+  listProviderMembershipPreapprovals(
+    input: ProviderMembershipPreapprovalListInput = {},
+  ): ProviderMembershipPreapprovalRecord[] {
+    const where: string[] = [];
+    const params: string[] = [];
+    if (input.provider) {
+      where.push("provider = ?");
+      params.push(input.provider);
+    }
+    if (input.workspaceSlug) {
+      where.push("workspace_slug = ?");
+      params.push(input.workspaceSlug);
+    }
+    if (!input.includeRevoked) {
+      where.push("revoked_at IS NULL");
+    }
+
+    const rows = this.db.prepare(`
+      SELECT
+        provider,
+        provider_subject,
+        provider_tenant,
+        workspace_slug,
+        role,
+        operator_id,
+        created_at,
+        updated_at,
+        revoked_at,
+        revoked_by
+      FROM auth_provider_membership_preapprovals
+      ${where.length > 0 ? `WHERE ${where.join(" AND ")}` : ""}
+      ORDER BY provider ASC, workspace_slug ASC, provider_tenant ASC, provider_subject ASC
+    `).all(...params) as ProviderMembershipPreapprovalListRow[];
+
+    return rows.flatMap((row) => {
+      if (
+        !isAuthProvider(row.provider)
+        || typeof row.provider_subject !== "string"
+        || typeof row.provider_tenant !== "string"
+        || typeof row.workspace_slug !== "string"
+        || !isWorkspaceRole(row.role)
+        || typeof row.operator_id !== "string"
+        || typeof row.created_at !== "string"
+        || typeof row.updated_at !== "string"
+      ) {
+        return [];
+      }
+
+      const revokedAt = typeof row.revoked_at === "string" ? row.revoked_at : undefined;
+      return [{
+        provider: row.provider,
+        providerSubject: row.provider_subject,
+        providerTenant: row.provider_tenant,
+        workspaceSlug: row.workspace_slug,
+        role: row.role,
+        operatorId: row.operator_id,
+        active: !revokedAt,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+        revokedAt,
+        revokedBy: typeof row.revoked_by === "string" ? row.revoked_by : undefined,
+      }];
+    });
+  }
+
+  listProviderMembershipGrants(input: ProviderMembershipGrantListInput = {}): ProviderMembershipGrantRecord[] {
+    const where: string[] = [];
+    const params: string[] = [];
+    if (input.provider) {
+      where.push("provider = ?");
+      params.push(input.provider);
+    }
+    if (input.workspaceSlug) {
+      where.push("workspace_slug = ?");
+      params.push(input.workspaceSlug);
+    }
+    if (!input.includeRevoked) {
+      where.push("revoked_at IS NULL");
+    }
+
+    const rows = this.db.prepare(`
+      SELECT
+        preapproval_id,
+        user_id,
+        provider,
+        provider_subject,
+        provider_tenant,
+        workspace_slug,
+        role,
+        granted_at,
+        revoked_at
+      FROM auth_provider_membership_grants
+      ${where.length > 0 ? `WHERE ${where.join(" AND ")}` : ""}
+      ORDER BY provider ASC, workspace_slug ASC, provider_tenant ASC, provider_subject ASC, user_id ASC
+    `).all(...params) as ProviderMembershipGrantListRow[];
+
+    return rows.flatMap((row) => {
+      if (
+        !isAuthProvider(row.provider)
+        || typeof row.provider_subject !== "string"
+        || typeof row.provider_tenant !== "string"
+        || typeof row.workspace_slug !== "string"
+        || !isWorkspaceRole(row.role)
+        || typeof row.user_id !== "string"
+        || typeof row.preapproval_id !== "string"
+        || typeof row.granted_at !== "string"
+      ) {
+        return [];
+      }
+
+      const revokedAt = typeof row.revoked_at === "string" ? row.revoked_at : undefined;
+      return [{
+        provider: row.provider,
+        providerSubject: row.provider_subject,
+        providerTenant: row.provider_tenant,
+        workspaceSlug: row.workspace_slug,
+        role: row.role,
+        userId: row.user_id,
+        preapprovalId: row.preapproval_id,
+        active: !revokedAt,
+        grantedAt: row.granted_at,
+        revokedAt,
+      }];
+    });
   }
 
   applyProviderMembershipPreapprovals(input: ProviderMembershipApplyInput): WorkspaceMembership[] {

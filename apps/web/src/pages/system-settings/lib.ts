@@ -137,7 +137,7 @@ export interface BrandKeywordItem {
 }
 
 export type AgentNumericField = 'batchSize' | 'parallelism' | 'timeout' | 'temperature'
-export type SystemSettingsSubpageId = 'overview' | 'operations' | 'runtime' | 'config-sources' | 'keywords' | 'taxonomy' | 'locations' | 'export-fields'
+export type SystemSettingsSubpageId = 'overview' | 'operations' | 'runtime' | 'auth' | 'config-sources' | 'keywords' | 'taxonomy' | 'locations' | 'export-fields'
 
 export interface SystemSettingsSubpageDefinition {
   id: SystemSettingsSubpageId
@@ -160,6 +160,10 @@ const SYSTEM_SETTINGS_SUBPAGE_COPY: Record<SystemSettingsSubpageId, Pick<SystemS
   runtime: {
     descriptionKey: 'debugConfig.runtimePageDescription',
     defaultDescription: 'Inspect AI connectivity and review-stage runtime tuning.',
+  },
+  auth: {
+    descriptionKey: 'debugConfig.authAccessPageDescription',
+    defaultDescription: 'Manage provider-derived workspace access and review related auth events.',
   },
   'config-sources': {
     descriptionKey: 'debugConfig.configSourcesPageDescription',

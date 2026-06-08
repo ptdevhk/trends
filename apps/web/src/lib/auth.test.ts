@@ -15,9 +15,12 @@ vi.mock('./api-client', () => ({
 
 import {
   fetchCurrentAuth,
+  fetchProviderMemberships,
   getCasdoorLoginUrl,
   loginWithLocalPassword,
   logout,
+  preapproveProviderMembership,
+  revokeProviderMembership,
 } from './auth'
 
 const user = {
@@ -82,5 +85,108 @@ describe('auth helpers', () => {
     expect(getCasdoorLoginUrl('/settings?tab=auth')).toBe(
       '/api/auth/casdoor/login?redirectTo=%2Fsettings%3Ftab%3Dauth',
     )
+  })
+
+  it('fetches provider membership admin state', async () => {
+    const providerMemberships = {
+      success: true as const,
+      identities: [
+        {
+          provider: 'casdoor' as const,
+          providerSubject: 'sub-1',
+          providerTenant: 'tenant-1',
+          userId: 'user-1',
+          email: 'casdoor@example.com',
+          displayName: 'Casdoor User',
+          updatedAt: '2026-06-08T00:00:00.000Z',
+        },
+      ],
+      preapprovals: [],
+      grants: [],
+      events: [],
+    }
+    mockApiClient.GET.mockResolvedValueOnce({ data: providerMemberships })
+
+    await expect(fetchProviderMemberships()).resolves.toEqual(providerMemberships)
+
+    expect(mockApiClient.GET).toHaveBeenCalledWith('/api/auth/provider-memberships')
+  })
+
+  it('returns null when provider membership fetch fails', async () => {
+    mockApiClient.GET.mockResolvedValueOnce({ error: { status: 403 } })
+
+    await expect(fetchProviderMemberships()).resolves.toBeNull()
+  })
+
+  it('preapproves provider membership through the auth endpoint', async () => {
+    const response = {
+      success: true as const,
+      preapproval: {
+        provider: 'casdoor' as const,
+        providerSubject: 'sub-1',
+        providerTenant: 'tenant-1',
+        workspaceSlug: 'hr',
+        role: 'user' as const,
+        operatorId: 'admin-1',
+        active: true,
+        createdAt: '2026-06-08T00:00:00.000Z',
+        updatedAt: '2026-06-08T00:00:00.000Z',
+      },
+      appliedMemberships: [],
+    }
+    mockApiClient.POST.mockResolvedValueOnce({ data: response })
+
+    await expect(preapproveProviderMembership({
+      provider: 'casdoor',
+      providerSubject: 'sub-1',
+      providerTenant: 'tenant-1',
+      workspaceSlug: 'hr',
+      role: 'user',
+    })).resolves.toEqual(response)
+
+    expect(mockApiClient.POST).toHaveBeenCalledWith('/api/auth/provider-memberships/preapprove', {
+      body: {
+        provider: 'casdoor',
+        providerSubject: 'sub-1',
+        providerTenant: 'tenant-1',
+        workspaceSlug: 'hr',
+        role: 'user',
+      },
+    })
+  })
+
+  it('revokes provider membership through the auth endpoint', async () => {
+    const response = {
+      success: true as const,
+      revoked: {
+        provider: 'casdoor' as const,
+        providerSubject: 'sub-1',
+        providerTenant: 'tenant-1',
+        workspaceSlug: 'hr',
+        role: 'user' as const,
+        operatorId: 'admin-1',
+        active: false,
+        createdAt: '2026-06-08T00:00:00.000Z',
+        updatedAt: '2026-06-08T00:00:00.000Z',
+        revokedAt: '2026-06-08T00:00:01.000Z',
+      },
+    }
+    mockApiClient.POST.mockResolvedValueOnce({ data: response })
+
+    await expect(revokeProviderMembership({
+      provider: 'casdoor',
+      providerSubject: 'sub-1',
+      providerTenant: 'tenant-1',
+      workspaceSlug: 'hr',
+    })).resolves.toEqual(response)
+
+    expect(mockApiClient.POST).toHaveBeenCalledWith('/api/auth/provider-memberships/revoke', {
+      body: {
+        provider: 'casdoor',
+        providerSubject: 'sub-1',
+        providerTenant: 'tenant-1',
+        workspaceSlug: 'hr',
+      },
+    })
   })
 })

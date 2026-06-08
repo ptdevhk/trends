@@ -1,11 +1,12 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 
+import { getAdminAccessError } from "../middleware/auth.js";
 import { AuthEventStorage } from "../services/auth-event-storage.js";
 import type { AuthEvent } from "../services/auth-event-types.js";
 import { AuthSessionService } from "../services/auth-session-service.js";
 import { AuthStorage } from "../services/auth-storage.js";
-import type { AuthContext, AuthUser, WorkspaceRole } from "../services/auth-types.js";
+import type { AuthContext, AuthProvider, AuthUser, WorkspaceMembership, WorkspaceRole } from "../services/auth-types.js";
 import { config } from "../services/config.js";
 import { hashPassword, verifyPassword } from "../services/local-password-provider.js";
 import { CasdoorOidcProvider } from "../services/oidc-provider.js";
@@ -49,6 +50,60 @@ const MembershipSchema = z.object({
   role: z.enum(["user", "admin"]),
 });
 
+const AuthProviderSchema = z.enum(["local", "casdoor"]);
+const WorkspaceRoleSchema = z.enum(["user", "admin"]);
+
+const ProviderIdentitySchema = z.object({
+  provider: AuthProviderSchema,
+  providerSubject: z.string(),
+  providerTenant: z.string().nullable(),
+  userId: z.string(),
+  email: z.string().optional(),
+  displayName: z.string().optional(),
+  updatedAt: z.string(),
+});
+
+const ProviderMembershipPreapprovalSchema = z.object({
+  provider: AuthProviderSchema,
+  providerSubject: z.string(),
+  providerTenant: z.string(),
+  workspaceSlug: z.string(),
+  role: WorkspaceRoleSchema,
+  operatorId: z.string(),
+  active: z.boolean(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  revokedAt: z.string().optional(),
+  revokedBy: z.string().optional(),
+});
+
+const ProviderMembershipGrantSchema = z.object({
+  provider: AuthProviderSchema,
+  providerSubject: z.string(),
+  providerTenant: z.string(),
+  workspaceSlug: z.string(),
+  role: WorkspaceRoleSchema,
+  userId: z.string(),
+  preapprovalId: z.string(),
+  active: z.boolean(),
+  grantedAt: z.string(),
+  revokedAt: z.string().optional(),
+});
+
+const AuthEventSchema = z.object({
+  id: z.string(),
+  type: z.string(),
+  userId: z.string().optional(),
+  provider: z.string().optional(),
+  workspaceSlug: z.string().optional(),
+  sessionId: z.string().optional(),
+  reason: z.string().optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+  ipHash: z.string().optional(),
+  userAgent: z.string().optional(),
+  createdAt: z.string(),
+});
+
 const LoginRequestSchema = z.object({
   username: z.string().min(1),
   password: z.string().min(1),
@@ -78,6 +133,26 @@ const SuccessResponseSchema = z.object({
   success: z.literal(true),
 });
 
+const ProviderMembershipListQuerySchema = z.object({
+  provider: AuthProviderSchema.optional(),
+  workspaceSlug: z.string().optional(),
+});
+
+const ProviderMembershipPreapproveRequestSchema = z.object({
+  provider: AuthProviderSchema,
+  providerSubject: z.string().min(1),
+  providerTenant: z.string().min(1),
+  workspaceSlug: z.string().min(1),
+  role: WorkspaceRoleSchema,
+});
+
+const ProviderMembershipRevokeRequestSchema = z.object({
+  provider: AuthProviderSchema,
+  providerSubject: z.string().min(1),
+  providerTenant: z.string().min(1),
+  workspaceSlug: z.string().min(1),
+});
+
 const RedirectQuerySchema = z.object({
   redirectTo: z.string().optional(),
 });
@@ -91,6 +166,43 @@ function sanitizeRedirect(value: string | undefined): string {
 
 function getWorkspaceRole(auth: AuthContext, workspaceSlug: string): WorkspaceRole | null {
   return auth.memberships.find((membership) => membership.workspaceSlug === workspaceSlug)?.role ?? null;
+}
+
+function findProviderPreapproval(
+  storage: AuthStorage,
+  input: {
+    provider: AuthProvider;
+    providerSubject: string;
+    providerTenant: string;
+    workspaceSlug: string;
+  },
+) {
+  return storage.listProviderMembershipPreapprovals({
+    provider: input.provider,
+    workspaceSlug: input.workspaceSlug,
+    includeRevoked: true,
+  }).find((preapproval) => (
+    preapproval.providerSubject === input.providerSubject
+    && preapproval.providerTenant === input.providerTenant
+  )) ?? null;
+}
+
+function listAppliedWorkspaceMemberships(
+  storage: AuthStorage,
+  input: {
+    provider: AuthProvider;
+    providerSubject: string;
+    providerTenant: string;
+    workspaceSlug: string;
+  },
+): WorkspaceMembership[] {
+  const identity = storage.findIdentity(input.provider, input.providerSubject, input.providerTenant);
+  if (!identity) {
+    return [];
+  }
+  return storage.listMemberships(identity.userId).filter(
+    (membership) => membership.workspaceSlug === input.workspaceSlug,
+  );
 }
 
 function setSessionCookies(
@@ -510,19 +622,7 @@ export function createAuthRoutes(options: AuthRoutesOptions = {}) {
           "application/json": {
             schema: z.object({
               success: z.literal(true),
-              events: z.array(z.object({
-                id: z.string(),
-                type: z.string(),
-                userId: z.string().optional(),
-                provider: z.string().optional(),
-                workspaceSlug: z.string().optional(),
-                sessionId: z.string().optional(),
-                reason: z.string().optional(),
-                metadata: z.record(z.string(), z.unknown()).optional(),
-                ipHash: z.string().optional(),
-                userAgent: z.string().optional(),
-                createdAt: z.string(),
-              })),
+              events: z.array(AuthEventSchema),
             }),
           },
         },
@@ -565,6 +665,216 @@ export function createAuthRoutes(options: AuthRoutesOptions = {}) {
     });
 
     return c.json({ success: true as const, events }, 200);
+  });
+
+  const providerMembershipListRoute = createRoute({
+    method: "get",
+    path: "/api/auth/provider-memberships",
+    tags: ["auth"],
+    request: {
+      query: ProviderMembershipListQuerySchema,
+    },
+    responses: {
+      200: {
+        description: "Provider membership admin state",
+        content: {
+          "application/json": {
+            schema: z.object({
+              success: z.literal(true),
+              identities: z.array(ProviderIdentitySchema),
+              preapprovals: z.array(ProviderMembershipPreapprovalSchema),
+              grants: z.array(ProviderMembershipGrantSchema),
+              events: z.array(AuthEventSchema),
+            }),
+          },
+        },
+      },
+      401: {
+        description: "Authentication required",
+        content: { "application/json": { schema: ErrorResponseSchema } },
+      },
+      403: {
+        description: "Admin access required",
+        content: { "application/json": { schema: ErrorResponseSchema } },
+      },
+    },
+  });
+
+  app.openapi(providerMembershipListRoute, (c) => {
+    const adminError = getAdminAccessError(c);
+    if (adminError) {
+      return c.json(adminError.body, adminError.status);
+    }
+
+    const query = c.req.valid("query");
+    const workspaceSlug = query.workspaceSlug ?? c.var.workspaceSlug;
+    if (workspaceSlug !== c.var.workspaceSlug) {
+      return c.json({ success: false as const, error: "Admin access required" }, 403);
+    }
+
+    const authStorage = getStorage();
+    return c.json({
+      success: true as const,
+      identities: authStorage.listProviderIdentities({ provider: query.provider }),
+      preapprovals: authStorage.listProviderMembershipPreapprovals({
+        provider: query.provider,
+        workspaceSlug,
+        includeRevoked: true,
+      }),
+      grants: authStorage.listProviderMembershipGrants({
+        provider: query.provider,
+        workspaceSlug,
+        includeRevoked: true,
+      }),
+      events: getEventStorage().listRecent({
+        limit: 50,
+        workspaceSlug,
+      }),
+    }, 200);
+  });
+
+  const providerMembershipPreapproveRoute = createRoute({
+    method: "post",
+    path: "/api/auth/provider-memberships/preapprove",
+    tags: ["auth"],
+    request: {
+      body: {
+        content: {
+          "application/json": {
+            schema: ProviderMembershipPreapproveRequestSchema,
+          },
+        },
+      },
+    },
+    responses: {
+      200: {
+        description: "Provider membership preapproved",
+        content: {
+          "application/json": {
+            schema: z.object({
+              success: z.literal(true),
+              preapproval: ProviderMembershipPreapprovalSchema,
+              appliedMemberships: z.array(MembershipSchema),
+            }),
+          },
+        },
+      },
+      401: {
+        description: "Authentication required",
+        content: { "application/json": { schema: ErrorResponseSchema } },
+      },
+      403: {
+        description: "Admin access required",
+        content: { "application/json": { schema: ErrorResponseSchema } },
+      },
+      404: {
+        description: "Provider membership preapproval not found",
+        content: { "application/json": { schema: ErrorResponseSchema } },
+      },
+    },
+  });
+
+  app.openapi(providerMembershipPreapproveRoute, (c) => {
+    const adminError = getAdminAccessError(c);
+    if (adminError) {
+      return c.json(adminError.body, adminError.status);
+    }
+    const auth = c.var.auth;
+    if (!auth) {
+      return c.json({ success: false as const, error: "Authentication required" }, 401);
+    }
+
+    const input = c.req.valid("json");
+    if (input.workspaceSlug !== c.var.workspaceSlug) {
+      return c.json({ success: false as const, error: "Admin access required" }, 403);
+    }
+
+    const authStorage = getStorage();
+    authStorage.preapproveProviderMembership({
+      ...input,
+      operatorId: auth.user.id,
+    });
+    const preapproval = findProviderPreapproval(authStorage, input);
+    if (!preapproval) {
+      return c.json({ success: false as const, error: "Provider membership preapproval not found" }, 404);
+    }
+
+    return c.json({
+      success: true as const,
+      preapproval,
+      appliedMemberships: listAppliedWorkspaceMemberships(authStorage, input),
+    }, 200);
+  });
+
+  const providerMembershipRevokeRoute = createRoute({
+    method: "post",
+    path: "/api/auth/provider-memberships/revoke",
+    tags: ["auth"],
+    request: {
+      body: {
+        content: {
+          "application/json": {
+            schema: ProviderMembershipRevokeRequestSchema,
+          },
+        },
+      },
+    },
+    responses: {
+      200: {
+        description: "Provider membership preapproval revoked",
+        content: {
+          "application/json": {
+            schema: z.object({
+              success: z.literal(true),
+              revoked: ProviderMembershipPreapprovalSchema,
+            }),
+          },
+        },
+      },
+      401: {
+        description: "Authentication required",
+        content: { "application/json": { schema: ErrorResponseSchema } },
+      },
+      403: {
+        description: "Admin access required",
+        content: { "application/json": { schema: ErrorResponseSchema } },
+      },
+      404: {
+        description: "Provider membership preapproval not found",
+        content: { "application/json": { schema: ErrorResponseSchema } },
+      },
+    },
+  });
+
+  app.openapi(providerMembershipRevokeRoute, (c) => {
+    const adminError = getAdminAccessError(c);
+    if (adminError) {
+      return c.json(adminError.body, adminError.status);
+    }
+    const auth = c.var.auth;
+    if (!auth) {
+      return c.json({ success: false as const, error: "Authentication required" }, 401);
+    }
+
+    const input = c.req.valid("json");
+    if (input.workspaceSlug !== c.var.workspaceSlug) {
+      return c.json({ success: false as const, error: "Admin access required" }, 403);
+    }
+
+    const authStorage = getStorage();
+    authStorage.revokeProviderMembershipPreapproval({
+      ...input,
+      operatorId: auth.user.id,
+    });
+    const revoked = findProviderPreapproval(authStorage, input);
+    if (!revoked) {
+      return c.json({ success: false as const, error: "Provider membership preapproval not found" }, 404);
+    }
+
+    return c.json({
+      success: true as const,
+      revoked,
+    }, 200);
   });
 
   return app;

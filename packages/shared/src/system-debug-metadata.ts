@@ -346,6 +346,14 @@ export const SYSTEM_SETTINGS_NAV_ITEMS: SurfaceNavDefinition[] = [
     matchesSuffixes: ["/system/settings/runtime"],
   },
   {
+    id: "auth",
+    titleKey: "debugConfig.settingsNavAuth",
+    defaultTitle: "Auth access",
+    hrefSuffix: "/system/settings/auth",
+    matchesSuffixes: ["/system/settings/auth"],
+    requiresAdmin: true,
+  },
+  {
     id: "config-sources",
     titleKey: "debugConfig.settingsNavConfigSources",
     defaultTitle: "Config sources",
