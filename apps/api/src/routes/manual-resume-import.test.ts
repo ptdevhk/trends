@@ -1,6 +1,6 @@
 import { OpenAPIHono } from "@hono/zod-openapi";
 import JSZip from "jszip";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { workspaceMiddleware } from "../middleware/workspace";
 import { createAuthContext } from "./test-auth-helpers";
@@ -103,6 +103,37 @@ ${paragraphs}
   return new File([buffer], name, { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
 }
 
+function decodeTestDocxXml(value: string): string {
+  return value
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, "&");
+}
+
+async function extractGeneratedDocxText(buffer: Buffer): Promise<string> {
+  const zip = await JSZip.loadAsync(buffer);
+  const documentXml = await zip.file("word/document.xml")?.async("string");
+  if (!documentXml) {
+    return "";
+  }
+
+  return Array.from(documentXml.matchAll(/<w:t[^>]*>([\s\S]*?)<\/w:t>/g))
+    .map((match) => decodeTestDocxXml(match[1] ?? "").trim())
+    .filter(Boolean)
+    .join("\n");
+}
+
+function mockMammothDocxExtraction() {
+  vi.doMock("mammoth", () => ({
+    extractRawText: vi.fn(async ({ buffer }: { buffer: Buffer }) => ({
+      value: await extractGeneratedDocxText(buffer),
+      messages: [],
+    })),
+  }));
+}
+
 const DEFAULT_CONVEX_SUBMIT_RESULT = {
   submitted: 1,
   deduped: 0,
@@ -183,6 +214,10 @@ async function expectUnreadablePdfUploadFailure(options: {
 }
 
 describe("manual resume import route", () => {
+  beforeEach(() => {
+    mockMammothDocxExtraction();
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
     vi.doUnmock("mammoth");
