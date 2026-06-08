@@ -1,6 +1,8 @@
 import {
     formatLocationHierarchySearchText,
     isRecord,
+    getVerifiedRoleSignalYears,
+    type AnalysisRoleSignalLike,
     matchesResumeDigestFilters,
     normalizeEducationLevel,
     normalizeResumeLocationHierarchy,
@@ -43,6 +45,7 @@ export function buildResumeDigest(resume: Doc<"resumes">, now: number): ResumeDi
         typeof content.expectedSalary === "string" ? content.expectedSalary : undefined,
     );
     const roleYearsByType = collectRoleYearsByType(resume);
+    const roleTypes = collectRoleTypes(resume, roleYearsByType);
 
     return {
         resumeId: resume._id,
@@ -61,21 +64,54 @@ export function buildResumeDigest(resume: Doc<"resumes">, now: number): ResumeDi
         salaryMin: salary?.min,
         salaryMax: salary?.max,
         experienceYears: resolveExperienceYears(typeof content.experience === "string" ? content.experience : undefined, content.workHistory) ?? undefined,
-        roleTypes: Object.keys(roleYearsByType),
+        roleTypes,
         roleYearsByType,
         updatedAt: now,
     };
 }
 
+function collectRoleTypes(resume: Doc<"resumes">, roleYearsByType: Record<string, number>): string[] {
+    const raw = resume.ingestData as Record<string, unknown> | null | undefined;
+    if (!raw) return Object.keys(roleYearsByType).sort();
+
+    const out = new Set<string>(Object.keys(roleYearsByType));
+    const roleSignals = Array.isArray(raw.roleSignals)
+        ? raw.roleSignals as AnalysisRoleSignalLike[]
+        : [];
+    for (const signal of roleSignals) {
+        const key = typeof signal.type === "string" ? signal.type.trim().toLowerCase() : "";
+        if (key) {
+            out.add(key);
+        }
+    }
+    return Array.from(out).sort();
+}
+
 function collectRoleYearsByType(resume: Doc<"resumes">): Record<string, number> {
     const raw = resume.ingestData as Record<string, unknown> | null | undefined;
     if (!raw) return {};
-    const verifiedRoleYears = raw.verifiedRoleYears as Record<string, unknown> | null | undefined;
-    if (!isRecord(verifiedRoleYears)) return {};
     const result: Record<string, number> = {};
+
+    const roleSignals = Array.isArray(raw.roleSignals)
+        ? raw.roleSignals as AnalysisRoleSignalLike[]
+        : [];
+    for (const signal of roleSignals) {
+        const key = typeof signal.type === "string" ? signal.type.trim().toLowerCase() : "";
+        if (!key) {
+            continue;
+        }
+        const years = getVerifiedRoleSignalYears([signal], key);
+        if (years > 0) {
+            result[key] = Math.max(result[key] ?? 0, years);
+        }
+    }
+
+    const verifiedRoleYears = raw.verifiedRoleYears as Record<string, unknown> | null | undefined;
+    if (!isRecord(verifiedRoleYears)) return result;
     for (const [key, value] of Object.entries(verifiedRoleYears)) {
-        if (typeof value === "number" && Number.isFinite(value) && value > 0) {
-            result[key.toLowerCase()] = Math.max(result[key.toLowerCase()] ?? 0, value);
+        const normalizedKey = key.trim().toLowerCase();
+        if (normalizedKey && typeof value === "number" && Number.isFinite(value) && value > 0) {
+            result[normalizedKey] = Math.max(result[normalizedKey] ?? 0, value);
         }
     }
     return result;

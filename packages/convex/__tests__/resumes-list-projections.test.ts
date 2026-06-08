@@ -153,6 +153,80 @@ describe("matchesResumeListFilters", () => {
     expect(matchesResumeListFilters(resume, { maxSalary: 9000 })).toBe(true);
     expect(matchesResumeListFilters(resume, { maxSalary: 7000 })).toBe(false);
   });
+
+  it("does not count direct unverified sales work-history years for minRoleYears", () => {
+    const resume = makeResume({
+      ingestData: {
+        verifiedRoleYears: {},
+        roleSignals: [{
+          type: "sales",
+          signalCount: 2,
+          years: 6.75,
+          roleRelevantYears: 6.75,
+          industryVerifiedRelevantYears: 0,
+          industryVerifiedYears: 0,
+          matchedSignals: ["销售"],
+          matchedWorkEntries: [{
+            jobTitle: "电话销售",
+            years: 6.75,
+            industryVerified: false,
+            directRoleMatch: true,
+            matchedSignals: ["销售"],
+          }],
+        }],
+      },
+    }) as Parameters<typeof matchesResumeListFilters>[0];
+
+    expect(matchesResumeListFilters(resume, { roleFilterType: "sales", minRoleYears: 1 })).toBe(false);
+  });
+
+  it("checks any role when roleFilterType is not set", () => {
+    const resume = makeResume({
+      ingestData: {
+        verifiedRoleYears: { sales: 2 },
+        roleSignals: [],
+      },
+    }) as Parameters<typeof matchesResumeListFilters>[0];
+
+    expect(matchesResumeListFilters(resume, { minRoleYears: 1 })).toBe(true);
+  });
+
+  it("normalizes roleFilterType whitespace before applying minRoleYears", () => {
+    const resume = makeResume({
+      ingestData: {
+        verifiedRoleYears: { sales: 2 },
+        roleSignals: [],
+      },
+    }) as Parameters<typeof matchesResumeListFilters>[0];
+
+    expect(matchesResumeListFilters(resume, { roleFilterType: " Sales ", minRoleYears: 1 })).toBe(true);
+  });
+
+  it("rejects non-direct sales mentions for minRoleYears", () => {
+    const resume = makeResume({
+      ingestData: {
+        verifiedRoleYears: {},
+        roleSignals: [{
+          type: "sales",
+          signalCount: 1,
+          years: 5,
+          roleRelevantYears: 0,
+          industryVerifiedRelevantYears: 0,
+          industryVerifiedYears: 0,
+          matchedSignals: ["销售"],
+          matchedWorkEntries: [{
+            jobTitle: "CNC/数控操机",
+            years: 5,
+            industryVerified: false,
+            directRoleMatch: false,
+            matchedSignals: ["销售"],
+          }],
+        }],
+      },
+    }) as Parameters<typeof matchesResumeListFilters>[0];
+
+    expect(matchesResumeListFilters(resume, { roleFilterType: "sales", minRoleYears: 1 })).toBe(false);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -179,6 +253,48 @@ describe("buildResumeDigest", () => {
     expect(digest.salaryMin).toBe(8000);
     expect(digest.salaryMax).toBe(11000);
   });
+
+  it("projects verified role years from roleSignals when verifiedRoleYears is absent", () => {
+    const resume = makeResume({
+      ingestData: {
+        roleSignals: [{
+          type: "sales",
+          signalCount: 2,
+          years: 6.75,
+          roleRelevantYears: 6.75,
+          industryVerifiedRelevantYears: 3,
+          industryVerifiedYears: 3,
+          matchedSignals: ["销售"],
+        }],
+      },
+    }) as Parameters<typeof buildResumeDigest>[0];
+
+    const digest = buildResumeDigest(resume, Date.UTC(2026, 5, 4));
+
+    expect(digest.roleTypes).toEqual(["sales"]);
+    expect(digest.roleYearsByType).toEqual({ sales: 3 });
+  });
+
+  it("keeps unverified role signal types separate from verified digest role years", () => {
+    const resume = makeResume({
+      ingestData: {
+        roleSignals: [{
+          type: "sales",
+          signalCount: 1,
+          years: 2,
+          roleRelevantYears: 2,
+          industryVerifiedRelevantYears: 0,
+          industryVerifiedYears: 0,
+          matchedSignals: ["销售"],
+        }],
+      },
+    }) as Parameters<typeof buildResumeDigest>[0];
+
+    const digest = buildResumeDigest(resume, Date.UTC(2026, 5, 4));
+
+    expect(digest.roleTypes).toEqual(["sales"]);
+    expect(digest.roleYearsByType).toEqual({});
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -194,10 +310,12 @@ describe("normalizeResumeListFilters", () => {
     const result = normalizeResumeListFilters({
       education: ["  MBA  ", "PhD"],
       skills: ["  Python  "],
+      roleFilterType: " Sales ",
     });
 
     expect(result!.education).toEqual(["mba", "phd"]);
     expect(result!.skills).toEqual(["python"]);
+    expect(result!.roleFilterType).toBe("sales");
   });
 
   it("removes empty entries", () => {

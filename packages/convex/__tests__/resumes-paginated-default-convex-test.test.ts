@@ -218,7 +218,7 @@ describe("resumes: listWithIngestDataPaginated", () => {
     expect(name).toBe("Alice");
   });
 
-  it("rejects resumes with only unverified role years from minRoleYears filter", async () => {
+  it("rejects direct role-relevant years when industry verification is absent", async () => {
     const t = createTest();
 
     await insertResume(t, {
@@ -282,8 +282,10 @@ describe("resumes: listWithIngestDataPaginated", () => {
     });
 
     expect(result.page).toHaveLength(1);
-    const name = ((result.page[0] as Record<string, unknown>).content as Record<string, unknown>)?.name;
-    expect(name).toBe("Verified");
+    const names = result.page.map((item) =>
+      ((item as Record<string, unknown>).content as Record<string, unknown>)?.name
+    );
+    expect(names).toEqual(["Verified"]);
   });
 
   it("reads ingestData.verifiedRoleYears directly when present", async () => {
@@ -364,6 +366,34 @@ describe("resumes: listWithIngestDataPaginated", () => {
 
     expect(result.page).toHaveLength(1);
     const name = ((result.page[0] as Record<string, unknown>).content as Record<string, unknown>)?.name;
+    expect(name).toBe("Job5156");
+  });
+
+  it("filters offset pages by source keys", async () => {
+    const t = createTest();
+
+    await insertResume(t, {
+      content: { name: "Job5156" },
+      primaryRuleScore: 90,
+      source: "hr.job5156.com",
+      sourceKey: "job5156",
+    });
+    await insertResume(t, {
+      content: { name: "Seek" },
+      primaryRuleScore: 80,
+      source: "hk.employer.seek.com",
+      sourceKey: "seek",
+    });
+
+    const result = await t.query(api.resumes.listWithIngestDataPage, {
+      limit: 10,
+      offset: 0,
+      sources: ["job5156"],
+    });
+
+    expect(result.total).toBe(1);
+    expect(result.results).toHaveLength(1);
+    const name = ((result.results[0] as Record<string, unknown>).content as Record<string, unknown>)?.name;
     expect(name).toBe("Job5156");
   });
 
@@ -604,7 +634,7 @@ describe("resumes: searchWithTagExpansionPaginated", () => {
     expect(result.page).toHaveLength(1);
   });
 
-  it("filters by direct sales years when matchedWorkEntries metadata is present", async () => {
+  it("filters by verified direct sales years when matchedWorkEntries metadata is present", async () => {
     const t = createTest();
 
     await insertResume(t, {

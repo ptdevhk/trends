@@ -236,6 +236,16 @@ describe("bffMatchesResumeFilters", () => {
       expect(bffMatchesResumeFilters(doc, "", { roleFilterType: "sales manager", minRoleYears: 3 })).toBe(true);
     });
 
+    it("normalizes roleFilterType before reading legacy verifiedRoleYears", () => {
+      const doc = makeDoc({
+        ingestData: {
+          verifiedRoleYears: { "sales manager": 5 },
+          roleSignals: [],
+        },
+      });
+      expect(bffMatchesResumeFilters(doc, "", { roleFilterType: " Sales Manager ", minRoleYears: 3 })).toBe(true);
+    });
+
     it("excludes when verifiedRoleYears for roleFilterType is below threshold", () => {
       const doc = makeDoc({
         ingestData: {
@@ -254,6 +264,58 @@ describe("bffMatchesResumeFilters", () => {
         },
       });
       expect(bffMatchesResumeFilters(doc, "", { roleFilterType: "cnc operator", minRoleYears: 3 })).toBe(true);
+    });
+
+    it("does not count direct unverified sales work-history years for the search role-year gate", () => {
+      const doc = makeDoc({
+        ingestData: {
+          verifiedRoleYears: {},
+          roleSignals: [{
+            type: "sales",
+            signalCount: 2,
+            years: 6.75,
+            roleRelevantYears: 6.75,
+            industryVerifiedRelevantYears: 0,
+            industryVerifiedYears: 0,
+            matchedSignals: ["销售"],
+            matchedWorkEntries: [{
+              jobTitle: "电话销售",
+              years: 6.75,
+              industryVerified: false,
+              directRoleMatch: true,
+              matchedSignals: ["销售"],
+            }],
+          }],
+        },
+      });
+
+      expect(bffMatchesResumeFilters(doc, "", { roleFilterType: "sales", minRoleYears: 1 })).toBe(false);
+    });
+
+    it("does not count non-direct sales mentions for the search role-year gate", () => {
+      const doc = makeDoc({
+        ingestData: {
+          verifiedRoleYears: {},
+          roleSignals: [{
+            type: "sales",
+            signalCount: 1,
+            years: 5,
+            roleRelevantYears: 0,
+            industryVerifiedRelevantYears: 0,
+            industryVerifiedYears: 0,
+            matchedSignals: ["销售"],
+            matchedWorkEntries: [{
+              jobTitle: "CNC/数控操机",
+              years: 5,
+              industryVerified: false,
+              directRoleMatch: false,
+              matchedSignals: ["销售"],
+            }],
+          }],
+        },
+      });
+
+      expect(bffMatchesResumeFilters(doc, "", { roleFilterType: "sales", minRoleYears: 1 })).toBe(false);
     });
 
     it("checks any role when roleFilterType is not set", () => {
@@ -365,6 +427,32 @@ describe("bffMatchesResumeFilters", () => {
 
       expect(matchesResumeDigestFilters(digest, filters)).toBe(true);
       expect(bffMatchesResumeFilters(doc, digest.searchText, filters)).toBe(true);
+    });
+
+    it("normalizes digest roleFilterType before checking verified role years", () => {
+      const digest: DigestRecord = {
+        isArchived: false,
+        source: "job5156",
+        sourceKey: "job5156",
+        roleTypes: ["sales"],
+        roleYearsByType: { sales: 2 },
+        searchText: "cnc 销售",
+      };
+
+      expect(matchesResumeDigestFilters(digest, { roleFilterType: " Sales ", minRoleYears: 1 })).toBe(true);
+    });
+
+    it("lets China-source digest rows match a country-wide China filter when locationText is missing", () => {
+      const digest: DigestRecord = {
+        isArchived: false,
+        source: "ehire.51job.com",
+        sourceKey: "51job",
+        locationText: "",
+        searchText: "cnc 销售",
+      };
+
+      expect(matchesResumeDigestFilters(digest, { locations: ["China"], sources: ["51job"] })).toBe(true);
+      expect(matchesResumeDigestFilters(digest, { locations: ["广东"], sources: ["51job"] })).toBe(false);
     });
   });
 });

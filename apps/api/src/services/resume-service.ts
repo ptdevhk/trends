@@ -3,6 +3,7 @@ import path from "node:path";
 import {
   buildWorkHistoryEntryText,
   formatLocationHierarchySearchText,
+  getVerifiedRoleSignalYears,
   isLocationMatch,
   isRecord,
   normalizeEducationLevel,
@@ -90,6 +91,25 @@ function toOptionalNumber(value: unknown): number | undefined {
 
   const parsed = Number(trimmed);
   return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function normalizeNumberRecord(value: unknown): Record<string, number> | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const entries = Object.entries(value)
+    .map(([key, rawValue]) => {
+      const normalizedKey = key.trim().toLowerCase();
+      const numericValue = toOptionalNumber(rawValue);
+      if (!normalizedKey || numericValue === undefined) {
+        return null;
+      }
+      return [normalizedKey, numericValue] as const;
+    })
+    .filter((entry): entry is readonly [string, number] => entry !== null);
+
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined;
 }
 
 export function toStringArray(value: unknown): string[] {
@@ -218,12 +238,14 @@ export function normalizeIngestData(value: unknown): ResumeIngestData | undefine
   const brandHits = normalizeIngestBrandHits(value.brandHits);
   const companyHits = toStringArray(value.companyHits);
   const roleSignals = normalizeRoleSignals(value.roleSignals);
+  const verifiedRoleYears = normalizeNumberRecord(value.verifiedRoleYears);
 
   if (
     industryTags.length === 0
     && brandHits === undefined
     && companyHits.length === 0
     && roleSignals === undefined
+    && verifiedRoleYears === undefined
   ) {
     return undefined;
   }
@@ -233,6 +255,7 @@ export function normalizeIngestData(value: unknown): ResumeIngestData | undefine
     ...(brandHits ? { brandHits } : {}),
     ...(companyHits.length > 0 ? { companyHits } : {}),
     ...(roleSignals ? { roleSignals } : {}),
+    ...(verifiedRoleYears ? { verifiedRoleYears } : {}),
     ...(isRecord(value.ruleScores) && Object.keys(value.ruleScores).length > 0 ? { ruleScores: value.ruleScores as Record<string, number> } : {}),
     ...(typeof value.market === 'string' && value.market ? { market: value.market } : {}),
   };
@@ -363,6 +386,52 @@ function normalizePayload(payload: ResumePayload, filepath: string): ResumeItem[
   const metadata = !Array.isArray(payload) && payload ? payload.metadata : undefined;
   const source = inferResumeSource(metadata);
   return list.map((item) => normalizeResumeItem(item, source));
+}
+
+function normalizeRoleType(value: string | undefined): string {
+  return value?.trim().toLowerCase() ?? "";
+}
+
+function getResumeItemRoleYears(item: ResumeItem, roleType?: string): number {
+  const normalizedRoleType = normalizeRoleType(roleType);
+  const verifiedRoleYears = item.ingestData?.verifiedRoleYears;
+  if (verifiedRoleYears && normalizedRoleType) {
+    const storedYears = verifiedRoleYears[normalizedRoleType];
+    if (typeof storedYears === "number" && Number.isFinite(storedYears) && storedYears > 0) {
+      return storedYears;
+    }
+  } else if (verifiedRoleYears) {
+    const storedMax = Math.max(
+      ...Object.values(verifiedRoleYears).map((value) =>
+        typeof value === "number" && Number.isFinite(value) ? value : 0
+      ),
+      0
+    );
+    if (storedMax > 0) {
+      return storedMax;
+    }
+  }
+
+  const roleSignals = item.ingestData?.roleSignals;
+  return Array.isArray(roleSignals) && roleSignals.length > 0
+    ? getVerifiedRoleSignalYears(roleSignals, normalizedRoleType)
+    : 0;
+}
+
+function hasResumeItemRole(item: ResumeItem, roleType?: string): boolean {
+  const normalizedRoleType = normalizeRoleType(roleType);
+  if (!normalizedRoleType) {
+    return true;
+  }
+
+  const verifiedRoleYears = item.ingestData?.verifiedRoleYears;
+  if (verifiedRoleYears && typeof verifiedRoleYears[normalizedRoleType] === "number") {
+    return true;
+  }
+
+  return (item.ingestData?.roleSignals ?? []).some(
+    (signal) => normalizeRoleType(signal.type) === normalizedRoleType
+  );
 }
 
 export class ResumeService {
@@ -619,6 +688,10 @@ export class ResumeService {
         if (!matchesAllRequiredKeywords(haystack, filters.requiredKeywords)) return false;
       }
 
+      if (filters.roleFilterType && !hasResumeItemRole(item, filters.roleFilterType)) {
+        return false;
+      }
+
       if (filters.minSalary !== undefined || filters.maxSalary !== undefined) {
         const salary = parseRawSalaryRange(item.expectedSalary);
         if (!salary) {
@@ -635,6 +708,11 @@ export class ResumeService {
             if (minSalary !== undefined && minSalary > filters.maxSalary) return false;
           }
         }
+      }
+
+      if ((filters.minRoleYears ?? 0) > 0) {
+        const roleYears = getResumeItemRoleYears(item, filters.roleFilterType);
+        if (roleYears < filters.minRoleYears!) return false;
       }
 
       return true;

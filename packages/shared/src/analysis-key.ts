@@ -254,8 +254,8 @@ export function deriveAnalysisLookupKey(
 
 /**
  * Strict variant of {@link getRoleSignalYears} that counts only
- * industry-verified role years. Used by the `minRoleYears` filter so that
- * unverified signal years cannot pass the gate.
+ * industry-verified role years. Used by search gates and scoring/audit paths
+ * that require industry verification instead of broader role relevance.
  *
  * Precedence per signal:
  *  1. If `matchedWorkEntries` carry `directRoleMatch` + `industryVerified`
@@ -327,6 +327,82 @@ export function getVerifiedRoleSignalYears(
 }
 
 /**
+ * Broad display/ranking variant that counts role-relevant years for the
+ * requested role type. This is intentionally broader than
+ * `getVerifiedRoleSignalYears` and must not be used for verified role-year
+ * search gates.
+ *
+ * Precedence per signal:
+ *  1. If matched work entries carry `directRoleMatch`, sum years where it is
+ *     true. `industryVerified` is not required for this broad relevance view.
+ *  2. Otherwise fall back to `roleRelevantYears`, then the older verified
+ *     aggregate fields, then raw signal `years` for legacy role signals.
+ */
+export function getRoleRelevantSignalYears(
+  roleSignals: AnalysisRoleSignalLike[] | undefined,
+  roleType: string,
+  verifyIn?: string
+): number {
+  if (!roleSignals || roleSignals.length === 0) {
+    return 0;
+  }
+
+  const normalizedType = roleType.trim().toLowerCase();
+  const normalizedVerifyIn = verifyIn?.trim().toLowerCase();
+
+  const resolveRelevantYears = (signal: AnalysisRoleSignalLike): number => {
+    if (Array.isArray(signal.matchedWorkEntries) && signal.matchedWorkEntries.length > 0) {
+      const flaggedEntries = signal.matchedWorkEntries.filter(
+        (entry) => typeof entry.directRoleMatch === "boolean"
+      );
+      if (flaggedEntries.length > 0) {
+        const directYears = flaggedEntries.reduce((total, entry) => {
+          if (entry.directRoleMatch !== true) {
+            return total;
+          }
+          const years = entry.years;
+          if (typeof years !== "number" || !Number.isFinite(years)) {
+            return total;
+          }
+          return total + years;
+        }, 0);
+        return Number.isFinite(directYears) ? directYears : 0;
+      }
+    }
+
+    const years =
+      signal.roleRelevantYears
+      ?? signal.industryVerifiedRelevantYears
+      ?? signal.industryVerifiedYears
+      ?? signal.years
+      ?? 0;
+    return Number.isFinite(years) ? years : 0;
+  };
+
+  if (!normalizedType) {
+    return roleSignals.reduce((maxYears, signal) => {
+      return Math.max(maxYears, resolveRelevantYears(signal));
+    }, 0);
+  }
+
+  const matched = roleSignals.find((signal) => {
+    if (signal.type.trim().toLowerCase() !== normalizedType) {
+      return false;
+    }
+    if (!normalizedVerifyIn) {
+      return true;
+    }
+    return signal.verifyIn?.trim().toLowerCase() === normalizedVerifyIn;
+  });
+
+  if (!matched) {
+    return 0;
+  }
+
+  return resolveRelevantYears(matched);
+}
+
+/**
  * Precomputed projection of verified role years, keyed by normalized role
  * type (lower-cased, trimmed). Used to populate `ingestData.verifiedRoleYears`
  * at ingest time so the `minRoleYears` filter can gate on a single field
@@ -364,10 +440,9 @@ export function computeVerifiedRoleYears(
  * Ranking / display helper — returns the "best available" years estimate
  * for a role signal. May include unverified `roleRelevantYears`.
  *
- * WARNING: Do NOT use this for the `minRoleYears` filter or any hard gate.
- * Filter callers MUST use `getVerifiedRoleSignalYears` or read
- * `ingestData.verifiedRoleYears` directly. See plan:
- * docs/superpowers/plans/2026-04-24-direct-role-years-precomputed-field-plan.md
+ * Ranking / display callers can use this "best available" estimate. Search
+ * filter and scoring/audit callers that require industry verification should
+ * use `getVerifiedRoleSignalYears`.
  */
 export function getRoleSignalYears(
   roleSignals: AnalysisRoleSignalLike[] | undefined,

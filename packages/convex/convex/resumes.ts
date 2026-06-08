@@ -476,6 +476,7 @@ export const listWithIngestDataPage = query({
         locations: v.optional(v.array(v.string())),
         minSalary: v.optional(v.number()),
         maxSalary: v.optional(v.number()),
+        sources: v.optional(v.array(v.string())),
     },
     handler: async (ctx, args) => {
         const result = await runListWithIngestDataPageQuery(ctx, args);
@@ -720,4 +721,3 @@ export const countResumesByStatus = query({
     };
   },
 });
-

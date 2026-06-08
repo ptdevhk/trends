@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   computeVerifiedRoleYears,
+  getRoleRelevantSignalYears,
   isSalesRequiredContext,
   resolveResumeDiagnosticsSourceKey,
 } from "../analysis-key";
@@ -93,5 +94,63 @@ describe("computeVerifiedRoleYears", () => {
   it("returns empty object for undefined / empty input", () => {
     expect(computeVerifiedRoleYears(undefined)).toEqual({});
     expect(computeVerifiedRoleYears([])).toEqual({});
+  });
+});
+
+describe("getRoleRelevantSignalYears", () => {
+  it("counts direct role-matched sales years even when the company is not industry verified", () => {
+    const years = getRoleRelevantSignalYears([
+      {
+        type: "sales",
+        verifyIn: "workHistory",
+        years: 6.75,
+        roleRelevantYears: 6.75,
+        industryVerifiedRelevantYears: 0,
+        matchedWorkEntries: [
+          {
+            years: 6.75,
+            directRoleMatch: true,
+            industryVerified: false,
+          },
+        ],
+      },
+    ], "sales");
+
+    expect(years).toBe(6.75);
+  });
+
+  it("does not count description-only sales mentions when directRoleMatch is false", () => {
+    const years = getRoleRelevantSignalYears([
+      {
+        type: "sales",
+        verifyIn: "workHistory",
+        years: 5,
+        roleRelevantYears: 0,
+        industryVerifiedRelevantYears: 0,
+        matchedWorkEntries: [
+          {
+            years: 5,
+            directRoleMatch: false,
+            industryVerified: false,
+          },
+        ],
+      },
+    ], "sales");
+
+    expect(years).toBe(0);
+  });
+
+  it("falls back to roleRelevantYears for older role signals without entry-level direct flags", () => {
+    const years = getRoleRelevantSignalYears([
+      {
+        type: "sales",
+        verifyIn: "workHistory",
+        years: 2.08,
+        roleRelevantYears: 2.08,
+        industryVerifiedRelevantYears: 0,
+      },
+    ], "sales");
+
+    expect(years).toBe(2.08);
   });
 });

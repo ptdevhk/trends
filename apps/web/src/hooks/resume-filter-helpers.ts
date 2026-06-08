@@ -112,8 +112,8 @@ export function getRoleYears(resume: Pick<ConvexResumeItem, 'ingestData'>, roleT
     return 0
   }
 
-  // Use verified-only years when a specific role type is given, matching
-  // the server-side getResumeRoleYears / getVerifiedRoleSignalYears logic.
+  // Use verified-only years for the search gate, matching the server-side
+  // getResumeRoleYears / getVerifiedRoleSignalYears logic.
   const normalizedRoleType = normalizeFilterToken(roleType)
   if (normalizedRoleType) {
     const stored = resume.ingestData?.verifiedRoleYears?.[normalizedRoleType]
