@@ -229,11 +229,14 @@ async function createSessionResponse(
   setSessionCookies(c, session);
 
   return {
-    success: true as const,
-    user,
-    memberships: storage.listMemberships(user.id),
-    csrfToken: session.csrfToken,
-    expiresAt: session.expiresAt,
+    body: {
+      success: true as const,
+      user,
+      memberships: storage.listMemberships(user.id),
+      csrfToken: session.csrfToken,
+      expiresAt: session.expiresAt,
+    },
+    sessionId: session.id,
   };
 }
 
@@ -320,10 +323,10 @@ export function createAuthRoutes(options: AuthRoutesOptions = {}) {
       userId: user.id,
       provider: "local",
       workspaceSlug,
-      sessionId: result.csrfToken ? undefined : undefined,
+      sessionId: result.sessionId,
       metadata: { username },
     });
-    return c.json(result, 200);
+    return c.json(result.body, 200);
   });
 
   const meRoute = createRoute({
