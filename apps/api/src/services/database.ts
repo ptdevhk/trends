@@ -259,6 +259,7 @@ function initSchema(db: Database.Database): void {
       provider_tenant TEXT NOT NULL,
       workspace_slug TEXT NOT NULL,
       role TEXT NOT NULL,
+      membership_created INTEGER NOT NULL DEFAULT 1,
       granted_at TEXT NOT NULL,
       revoked_at TEXT,
       UNIQUE(provider, provider_subject, provider_tenant, workspace_slug, user_id),
@@ -357,6 +358,10 @@ function initSchema(db: Database.Database): void {
     ensureColumn(db, "search_sessions", "workspace_slug", "TEXT DEFAULT 'dev'");
     ensureColumn(db, "search_sessions", "share_title", "TEXT");
     ensureColumn(db, "search_sessions", "search_state", "TEXT");
+  }
+
+  if (existingTables.has("auth_provider_membership_grants")) {
+    ensureColumn(db, "auth_provider_membership_grants", "membership_created", "INTEGER NOT NULL DEFAULT 1");
   }
 }
 
