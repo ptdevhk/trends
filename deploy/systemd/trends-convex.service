@@ -20,7 +20,7 @@ ExecStartPre=/usr/bin/bash /opt/trends/scripts/prefetch-convex-backend.sh
 # deadline (available in Convex CLI >= 1.36.0); prewarm remains useful to
 # reduce perceived startup latency from ~30s to ~5s.
 ExecStartPre=/usr/bin/bash /opt/trends/scripts/convex-prewarm.sh
-ExecStart=/usr/bin/npx convex dev --local --local-force-upgrade
+ExecStart=/usr/bin/npx convex dev --local
 Restart=on-failure
 RestartSec=5
 StandardOutput=journal

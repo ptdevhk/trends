@@ -415,7 +415,7 @@ function collectHostSnapshot(): HostSnapshot {
         swapUsedMiB: swapTotalMiB !== null && swapFreeMiB !== null ? swapTotalMiB - swapFreeMiB : null,
         swapFreeMiB,
         swapTotalMiB,
-        convexRssMiB: sumProcessRssMiB([/convex-local-backend/, /node .*\/convex dev --local --local-force-upgrade/]),
+        convexRssMiB: sumProcessRssMiB([/convex-local-backend/, /convex dev --local/]),
         chromeRssMiB: sumProcessRssMiB([/chrome/]),
         convexStateSizeMiB: readConvexStateSizeMiB(),
     };
