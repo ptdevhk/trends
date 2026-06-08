@@ -270,6 +270,31 @@ export async function runAuthWorkspaceSmoke(
     expectedStatuses: [403],
   }));
 
+  results.push(await requestStep({
+    name: "csrf rejection",
+    fetchImpl,
+    url: buildUrl(config.apiUrl, "/api/auth/logout"),
+    init: {
+      method: "POST",
+      headers: {
+        Cookie: cookieJar,
+        "X-Workspace-Slug": config.workspaceSlug,
+      },
+    },
+    expectedStatuses: [403],
+  }));
+
+  results.push(await requestStep({
+    name: "logout success",
+    fetchImpl,
+    url: buildUrl(config.apiUrl, "/api/auth/logout"),
+    init: {
+      method: "POST",
+      headers: authHeaders,
+    },
+    expectedStatuses: [200],
+  }));
+
   return results;
 }
 
