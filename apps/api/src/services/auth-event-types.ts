@@ -5,7 +5,9 @@ export type AuthEventType =
   | "csrf_reject"
   | "workspace_access_denied"
   | "admin_access_denied"
-  | "oidc_state_invalid";
+  | "oidc_state_invalid"
+  | "workspace_membership_granted"
+  | "workspace_membership_revoked";
 
 export type AuthEventInput = {
   type: AuthEventType;

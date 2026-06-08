@@ -1,102 +1,151 @@
 #!/usr/bin/env bash
-# check-route-auth.sh — Verify that API route files have auth middleware.
-#
-# Checks each route file in apps/api/src/routes/ for:
-# 1. Admin middleware or inline admin auth checks
-# 2. Workspace-user middleware for authenticated non-admin write routes
-#
-# Exit 0 if all route files with createRoute have auth.
-# Exit 1 if any non-public route file has createRoute but no auth mechanism detected.
+# check-route-auth.sh — Verify API route files match the route auth policy matrix.
 
 set -euo pipefail
 
-ROUTES_DIR="${ROUTES_DIR:-apps/api/src/routes}"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROUTES_DIR="${ROUTES_DIR:-$ROOT_DIR/apps/api/src/routes}"
+POLICY_FILE="${ROUTE_AUTH_POLICY_FILE:-$ROOT_DIR/scripts/route-auth-policy.json}"
 FAIL=0
-SKIP_FILES=(
-  # Health/version — public endpoints
-  "health.ts"
-  "version.ts"
-  # Public read-only data endpoints
-  "search.ts"
-  "rss.ts"
-  "topics.ts"
-  "trends.ts"
-  "industry.ts"
-  # User-facing session/action/state endpoints (workspace-scoped, no admin required)
-  "sessions.ts"
-  "web-vitals.ts"
-  # Auth endpoints are public by design; protected routes consume their sessions.
-  "auth.ts"
-  # Resume search/match (workspace-scoped read paths)
-  "resumes_search.ts"
-  "resumes_match.ts"
-  # Public submission endpoints (browser extension, candidate-facing)
-  "resume-submit.ts"
-  "ai-summary.ts"
-  "search-alerts.ts"
-  "search-analytics.ts"
-  "scoring-evaluation.ts"
-  # Internal worker endpoints (own auth via WORKER_SECRET)
-  "worker.ts"
-)
 
-is_skipped() {
-  local file="$1"
-  local base
-  base=$(basename "$file")
-  for skip in "${SKIP_FILES[@]}"; do
-    if [[ "$base" == "$skip" ]]; then
-      return 0
-    fi
-  done
-  return 1
+POLICY_ROWS="$(
+  node - "$POLICY_FILE" <<'NODE'
+const fs = require("node:fs");
+
+const policyFile = process.argv[2];
+const allowedClasses = new Set([
+  "public",
+  "telemetry",
+  "workspace-read",
+  "workspace-write",
+  "admin",
+  "internal-worker",
+  "candidate-link",
+]);
+
+if (!fs.existsSync(policyFile)) {
+  console.error(`FAIL: route auth policy file missing: ${policyFile}`);
+  process.exit(1);
 }
+
+let policy;
+try {
+  policy = JSON.parse(fs.readFileSync(policyFile, "utf8"));
+} catch (error) {
+  console.error(`FAIL: route auth policy file is invalid JSON: ${error.message}`);
+  process.exit(1);
+}
+
+if (!policy || typeof policy !== "object" || Array.isArray(policy)) {
+  console.error("FAIL: route auth policy file must contain a JSON object");
+  process.exit(1);
+}
+
+let failed = false;
+for (const [file, entry] of Object.entries(policy).sort(([left], [right]) => left.localeCompare(right))) {
+  if (!file.endsWith(".ts")) {
+    console.error(`FAIL: ${file} — policy key must be a TypeScript route basename`);
+    failed = true;
+    continue;
+  }
+
+  const accessClass = entry && typeof entry === "object" ? entry.class : undefined;
+  const reason = entry && typeof entry === "object" ? entry.reason : undefined;
+
+  if (!allowedClasses.has(accessClass)) {
+    console.error(`FAIL: ${file} — policy class must be one of ${Array.from(allowedClasses).join(", ")}`);
+    failed = true;
+  }
+
+  if (typeof reason !== "string" || reason.trim().length === 0) {
+    console.error(`FAIL: ${file} — policy reason is required`);
+    failed = true;
+  }
+
+  if (allowedClasses.has(accessClass) && typeof reason === "string" && reason.trim().length > 0) {
+    console.log(`${file}\t${accessClass}\t${reason.trim().replace(/\s+/g, " ")}`);
+  }
+}
+
+if (failed) {
+  process.exit(1);
+}
+NODE
+)" || exit 1
+
+policy_class_for() {
+  local base="$1"
+  awk -F '\t' -v base="$base" '
+    $1 == base { print $2; found = 1 }
+    END { if (!found) exit 1 }
+  ' <<<"$POLICY_ROWS"
+}
+
+has_admin_guard() {
+  local file="$1"
+  grep -Eq 'requireAdmin|denyIfNotAdmin|getAdminAccessError' "$file" 2>/dev/null
+}
+
+has_workspace_user_guard() {
+  local file="$1"
+  grep -q 'requireWorkspaceUser' "$file" 2>/dev/null
+}
+
+ROUTE_POLICY_BASES=""
 
 for file in "$ROUTES_DIR"/*.ts; do
   base=$(basename "$file")
 
-  # Skip test files, helpers, and known public routes
   if [[ "$base" == *.test.ts ]] || [[ "$base" == *.test-d.ts ]] || [[ "$base" == *helpers* ]]; then
     continue
   fi
 
-  # Check if file has any createRoute calls
   if ! grep -q 'createRoute(' "$file" 2>/dev/null; then
     continue
   fi
 
-  # Skip known public routes
-  if is_skipped "$base"; then
+  ROUTE_POLICY_BASES="$ROUTE_POLICY_BASES $base "
+
+  if ! access_class=$(policy_class_for "$base"); then
+    echo "FAIL: $base — has createRoute but no route auth policy entry"
+    FAIL=1
     continue
   fi
 
-  # Check for auth mechanism
-  has_auth_gate=false
-
-  if grep -q 'requireAdmin' "$file" 2>/dev/null; then
-    has_auth_gate=true
-  fi
-  if grep -q 'denyIfNotAdmin' "$file" 2>/dev/null; then
-    has_auth_gate=true
-  fi
-  if grep -q 'getAdminAccessError' "$file" 2>/dev/null; then
-    has_auth_gate=true
-  fi
-  if grep -q 'requireWorkspaceUser' "$file" 2>/dev/null; then
-    has_auth_gate=true
-  fi
-
-  if [[ "$has_auth_gate" == false ]]; then
-    echo "FAIL: $base — has createRoute but no auth gate"
-    FAIL=1
-  fi
+  case "$access_class" in
+    workspace-read|workspace-write)
+      if ! has_workspace_user_guard "$file"; then
+        echo "FAIL: $base — $access_class policy requires requireWorkspaceUser"
+        FAIL=1
+      fi
+      ;;
+    admin)
+      if ! has_admin_guard "$file"; then
+        echo "FAIL: $base — admin policy requires requireAdmin, denyIfNotAdmin, or getAdminAccessError"
+        FAIL=1
+      fi
+      ;;
+    public|telemetry|internal-worker|candidate-link)
+      ;;
+    *)
+      echo "FAIL: $base — unsupported route auth policy class: $access_class"
+      FAIL=1
+      ;;
+  esac
 done
 
+while IFS=$'\t' read -r policy_base _policy_class _policy_reason; do
+  if [[ "$ROUTE_POLICY_BASES" != *" $policy_base "* ]]; then
+    echo "FAIL: $policy_base — policy entry has no matching route file with createRoute"
+    FAIL=1
+  fi
+done <<<"$POLICY_ROWS"
+
 if [[ "$FAIL" -eq 0 ]]; then
-  echo "OK: All API route files have auth middleware"
+  echo "OK: API route files match route auth policy matrix"
   exit 0
 else
   echo ""
-  echo "Some route files are missing auth gating. Add requireAdmin, getAdminAccessError, or requireWorkspaceUser."
+  echo "Some route files do not match scripts/route-auth-policy.json."
   exit 1
 fi

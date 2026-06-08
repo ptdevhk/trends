@@ -4,6 +4,7 @@ import path from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
+import { AuthEventStorage } from "./auth-event-storage.js";
 import { AuthStorage } from "./auth-storage.js";
 import { getResumeScreeningDb, resetResumeScreeningDb } from "./database.js";
 
@@ -28,6 +29,8 @@ describe("auth sqlite schema", () => {
         "auth_sessions",
         "auth_oidc_states",
         "workspace_memberships",
+        "auth_provider_membership_preapprovals",
+        "auth_provider_membership_grants",
       ]),
     );
   });
@@ -77,5 +80,117 @@ describe("auth sqlite schema", () => {
       expiresAt,
     });
     expect(storage.consumeOidcState("state-123")).toBeNull();
+  });
+
+  it("applies and revokes explicit Casdoor membership preapprovals with audit events", () => {
+    const root = mkdtempSync(path.join(tmpdir(), "trends-auth-casdoor-preapproval-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+
+    storage.preapproveProviderMembership({
+      provider: "casdoor",
+      providerSubject: "casdoor-user-1",
+      providerTenant: "https://casdoor.example.com",
+      workspaceSlug: "hr",
+      role: "user",
+      operatorId: "operator@example.com",
+    });
+
+    const user = storage.createUser({
+      email: "wecom-user@example.com",
+      displayName: "WeCom User",
+    });
+    storage.linkIdentity({
+      userId: user.id,
+      provider: "casdoor",
+      providerSubject: "casdoor-user-1",
+      providerTenant: "https://casdoor.example.com",
+      email: user.email,
+      displayName: user.displayName,
+    });
+
+    expect(storage.applyProviderMembershipPreapprovals({
+      provider: "casdoor",
+      providerSubject: "casdoor-user-1",
+      providerTenant: "https://casdoor.example.com",
+      userId: user.id,
+    })).toEqual([
+      { userId: user.id, workspaceSlug: "hr", role: "user" },
+    ]);
+    expect(storage.listMemberships(user.id)).toEqual([
+      { userId: user.id, workspaceSlug: "hr", role: "user" },
+    ]);
+    expect(storage.listMemberships(user.id)).not.toContainEqual({
+      userId: user.id,
+      workspaceSlug: "dev",
+      role: "admin",
+    });
+
+    storage.revokeProviderMembershipPreapproval({
+      provider: "casdoor",
+      providerSubject: "casdoor-user-1",
+      providerTenant: "https://casdoor.example.com",
+      workspaceSlug: "hr",
+      operatorId: "operator@example.com",
+    });
+
+    expect(storage.listMemberships(user.id)).toEqual([]);
+    expect(eventStorage.listRecent({ limit: 10 })).toMatchObject([
+      {
+        type: "workspace_membership_revoked",
+        provider: "casdoor",
+        userId: user.id,
+        workspaceSlug: "hr",
+        metadata: {
+          operatorId: "operator@example.com",
+          providerSubject: "casdoor-user-1",
+          providerTenant: "https://casdoor.example.com",
+          role: "user",
+        },
+      },
+      {
+        type: "workspace_membership_granted",
+        provider: "casdoor",
+        userId: user.id,
+        workspaceSlug: "hr",
+        metadata: {
+          operatorId: "operator@example.com",
+          providerSubject: "casdoor-user-1",
+          providerTenant: "https://casdoor.example.com",
+          role: "user",
+        },
+      },
+    ]);
+  });
+
+  it("grants immediately when a Casdoor preapproval matches an existing identity", () => {
+    const root = mkdtempSync(path.join(tmpdir(), "trends-auth-casdoor-existing-preapproval-"));
+    const storage = new AuthStorage(root);
+
+    const user = storage.createUser({
+      email: "linked-user@example.com",
+      displayName: "Linked User",
+    });
+    storage.linkIdentity({
+      userId: user.id,
+      provider: "casdoor",
+      providerSubject: "casdoor-existing-user",
+      providerTenant: "https://casdoor.example.com",
+      email: user.email,
+      displayName: user.displayName,
+    });
+
+    storage.preapproveProviderMembership({
+      provider: "casdoor",
+      providerSubject: "casdoor-existing-user",
+      providerTenant: "https://casdoor.example.com",
+      workspaceSlug: "hr",
+      role: "admin",
+      operatorId: "operator@example.com",
+    });
+
+    expect(storage.listMemberships(user.id)).toEqual([
+      { userId: user.id, workspaceSlug: "hr", role: "admin" },
+    ]);
   });
 });

@@ -449,6 +449,12 @@ export function createAuthRoutes(options: AuthRoutesOptions = {}) {
       displayName: identity.displayName,
       rawProfile: identity.rawProfile,
     });
+    authStorage.applyProviderMembershipPreapprovals({
+      userId: user.id,
+      provider: identity.provider,
+      providerSubject: identity.providerSubject,
+      providerTenant: identity.providerTenant,
+    });
 
     const session = getSessions().createSession(user.id);
     setSessionCookies(c, session);

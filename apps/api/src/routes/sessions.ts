@@ -1,11 +1,15 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 
 import { CandidateStatusEnumSchema, ResumeFiltersSchema } from "../schemas/index.js";
+import { requireWorkspaceUser } from "../middleware/auth.js";
 import { config } from "../services/config.js";
 import { SessionManager } from "../services/session-manager.js";
 
 const app = new OpenAPIHono();
 const sessionManager = new SessionManager(config.projectRoot);
+
+app.use("/api/sessions", requireWorkspaceUser);
+app.use("/api/sessions/*", requireWorkspaceUser);
 
 const SessionStatusSchema = z.enum(["active", "completed", "archived"]);
 const SessionFiltersSchema = ResumeFiltersSchema.extend({

@@ -4,10 +4,18 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import resumesSearchRoutes from "./resumes_search";
 import { workspaceMiddleware } from "../middleware/workspace";
 import { ResumeService } from "../services/resume-service";
+import type { AuthContext } from "../services/auth-types";
+import { createAuthContext } from "./test-auth-helpers";
 
-function createTestApp() {
+function createTestApp(authContext: AuthContext | null = null) {
   const app = new OpenAPIHono();
   app.use("*", workspaceMiddleware);
+  if (authContext) {
+    app.use("*", async (c, next) => {
+      c.set("auth", authContext);
+      await next();
+    });
+  }
   app.route("/", resumesSearchRoutes);
   return app;
 }
@@ -57,7 +65,7 @@ describe("resumes_search", () => {
 });
 
 describe("ResumesQuerySchema semantic search params", () => {
-  it("accepts enableSemantic parameter", async () => {
+  it("rejects anonymous resume list requests", async () => {
     vi.spyOn(ResumeService.prototype, "loadSample").mockReturnValue({
       items: [],
       sample: undefined,
@@ -66,6 +74,36 @@ describe("ResumesQuerySchema semantic search params", () => {
     });
 
     const app = createTestApp();
+    const response = await app.request("/api/resumes");
+
+    expect(response.status).toBe(401);
+  });
+
+  it("rejects resume list requests from users outside the selected workspace", async () => {
+    vi.spyOn(ResumeService.prototype, "loadSample").mockReturnValue({
+      items: [],
+      sample: undefined,
+      metadata: undefined,
+      indexes: [],
+    });
+
+    const app = createTestApp(createAuthContext({ workspaceSlug: "hr", role: "user" }));
+    const response = await app.request("/api/resumes", {
+      headers: { "X-Workspace-Slug": "dev" },
+    });
+
+    expect(response.status).toBe(403);
+  });
+
+  it("accepts enableSemantic parameter", async () => {
+    vi.spyOn(ResumeService.prototype, "loadSample").mockReturnValue({
+      items: [],
+      sample: undefined,
+      metadata: undefined,
+      indexes: [],
+    });
+
+    const app = createTestApp(createAuthContext({ workspaceSlug: "dev", role: "user" }));
     const response = await app.request("/api/resumes?enableSemantic=true");
 
     expect(response.status).toBe(200);
@@ -79,7 +117,7 @@ describe("ResumesQuerySchema semantic search params", () => {
       indexes: [],
     });
 
-    const app = createTestApp();
+    const app = createTestApp(createAuthContext({ workspaceSlug: "dev", role: "user" }));
     const response = await app.request("/api/resumes?semanticWeight=0.7");
 
     expect(response.status).toBe(200);
@@ -93,21 +131,21 @@ describe("ResumesQuerySchema semantic search params", () => {
       indexes: [],
     });
 
-    const app = createTestApp();
+    const app = createTestApp(createAuthContext({ workspaceSlug: "dev", role: "user" }));
     const response = await app.request("/api/resumes?semanticLimit=100");
 
     expect(response.status).toBe(200);
   });
 
   it("rejects semanticWeight outside 0-1 range", async () => {
-    const app = createTestApp();
+    const app = createTestApp(createAuthContext({ workspaceSlug: "dev", role: "user" }));
     const response = await app.request("/api/resumes?semanticWeight=2.0");
 
     expect(response.status).toBe(400);
   });
 
   it("rejects semanticLimit above 256", async () => {
-    const app = createTestApp();
+    const app = createTestApp(createAuthContext({ workspaceSlug: "dev", role: "user" }));
     const response = await app.request("/api/resumes?semanticLimit=500");
 
     expect(response.status).toBe(400);

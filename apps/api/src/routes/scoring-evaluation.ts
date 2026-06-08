@@ -1,5 +1,6 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 
+import { requireWorkspaceUser } from "../middleware/auth.js";
 import { config } from "../services/config.js";
 import { ScoringAutoTuner } from "../services/scoring-auto-tuner.js";
 import { SearchEventAnalyzer } from "../services/search-event-analyzer.js";
@@ -10,6 +11,8 @@ const app = new OpenAPIHono();
 const analyzer = new SearchEventAnalyzer(config.projectRoot);
 const autoTuner = new ScoringAutoTuner(config.projectRoot);
 const weightHistory = new WeightHistoryService(config.projectRoot);
+
+app.use("*", requireWorkspaceUser);
 
 const CategoryWeightsSchema = z.object({
   skillMatch: z.number().min(0),
