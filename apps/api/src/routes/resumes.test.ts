@@ -4,6 +4,7 @@ import { createApp } from "../app";
 import { MatchStorage, type StoredMatch } from "../services/match-storage";
 import { ResumeService } from "../services/resume-service";
 import { SessionManager } from "../services/session-manager";
+import { logger } from "../services/logger";
 import { createAuthContext } from "./test-auth-helpers";
 
 type ConvexCall = {
@@ -1891,6 +1892,41 @@ describe("resume routes", () => {
       expect(payload.data).toBeNull();
     });
 
+    it("returns null data when Convex rejects an invalid resume id", async () => {
+      const loggerWarnSpy = vi.spyOn(logger, "warn").mockImplementation(() => {});
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+        const call = parseConvexCall(input, init);
+        expect(call.pathName).toBe("audit:getExplanationForCandidate");
+        expect(call.args).toEqual({ resumeId: "seek-profile-001", workspaceSlug: "dev" });
+        return new Response(
+          JSON.stringify({
+            status: "error",
+            errorMessage: 'Value does not match validator. Path: .resumeId Validator: v.id("resumes")',
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        );
+      });
+
+      const app = createTestApp();
+      const response = await app.request("/api/resumes/explanation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ resumeId: "seek-profile-001", workspaceSlug: "dev" }),
+      });
+
+      expect(response.status).toBe(200);
+      const payload = await response.json();
+      expect(payload.success).toBe(true);
+      expect(payload.data).toBeNull();
+      expect(loggerWarnSpy).toHaveBeenCalledWith(
+        "Candidate explanation requested with a non-Convex resume id",
+        { route: "resumes" },
+      );
+    });
+
     it("returns 400 when resumeId is missing", async () => {
       const app = createTestApp();
       const response = await app.request("/api/resumes/explanation", {
@@ -1918,6 +1954,7 @@ describe("resume routes", () => {
     });
 
     it("returns 500 when Convex call fails", async () => {
+      const loggerErrorSpy = vi.spyOn(logger, "error").mockImplementation(() => {});
       vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
         return new Response(JSON.stringify({ status: "error", errorMessage: "Not found" }), {
           status: 200,
@@ -1933,6 +1970,11 @@ describe("resume routes", () => {
       });
 
       expect(response.status).toBe(500);
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        "Failed to load candidate explanation",
+        expect.any(Error),
+        { route: "resumes" },
+      );
     });
   });
 
