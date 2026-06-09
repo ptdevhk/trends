@@ -28,6 +28,12 @@ describe("workflow verifier repo entrypoints", () => {
     expect(packageJson.scripts?.["clear:workspace-demo-resumes"]).toBe("tsx scripts/resume/clear-workspace-demo-resumes.ts");
   });
 
+  it("exposes the reusable local demo auth bootstrap script through package.json", () => {
+    expect(packageJson.scripts?.["auth:bootstrap-demo"]).toBe(
+      'tsx scripts/auth/manage-user.ts --username demo-admin --email demo-admin@example.com --display-name "Demo Admin" --workspace dev --role admin --password-env AUTH_BOOTSTRAP_PASSWORD --output json',
+    );
+  });
+
   it("exposes a Make target with the expected forwarding flags", () => {
     const recipe = getTargetRecipe("verify-workflow-dataset");
 
