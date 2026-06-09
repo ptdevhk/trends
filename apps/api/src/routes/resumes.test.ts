@@ -560,6 +560,49 @@ describe("resume routes", () => {
     expect(calls.some((call) => call.pathName === "candidate_blocks:list")).toBe(true);
   });
 
+  it("omits operational statusCounts for anonymous hr convex search", async () => {
+    const calls: ConvexCall[] = [];
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+
+      if (call.pathName === "resumes:listWithIngestDataPage") {
+        return convexSuccess({
+          results: [
+            buildConvexResumeRecord("resume-live-1", {
+              identityKey: "ik-live-1",
+              name: "Anonymous Visible",
+            }),
+          ],
+          total: 1,
+        });
+      }
+
+      if (call.pathName === "candidate_status:list" || call.pathName === "candidate_blocks:list") {
+        return convexSuccess([]);
+      }
+
+      throw new Error(`Unexpected convex path: ${call.pathName}`);
+    });
+
+    const app = createTestApp(null);
+    const response = await app.request("/api/resumes?source=convex&limit=1", {
+      headers: {
+        "X-Workspace-Slug": "hr",
+      },
+    });
+
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(payload.summary.statusCounts).toBeUndefined();
+    expect(calls).toEqual([
+      expect.objectContaining({
+        pathName: "resumes:listWithIngestDataPage",
+      }),
+    ]);
+  });
+
   it("keeps the static skills-version route from being shadowed by resume detail lookup", async () => {
     const app = createTestApp();
     const response = await app.request("/api/resumes/skills-version");

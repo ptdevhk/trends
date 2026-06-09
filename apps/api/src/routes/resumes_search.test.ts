@@ -65,7 +65,23 @@ describe("resumes_search", () => {
 });
 
 describe("ResumesQuerySchema semantic search params", () => {
-  it("rejects anonymous resume list requests", async () => {
+  it("allows anonymous resume list requests for the hr workspace", async () => {
+    vi.spyOn(ResumeService.prototype, "loadSample").mockReturnValue({
+      items: [],
+      sample: undefined,
+      metadata: undefined,
+      indexes: [],
+    });
+
+    const app = createTestApp();
+    const response = await app.request("/api/resumes", {
+      headers: { "X-Workspace-Slug": "hr" },
+    });
+
+    expect(response.status).toBe(200);
+  });
+
+  it("rejects anonymous resume list requests without an hr workspace header", async () => {
     vi.spyOn(ResumeService.prototype, "loadSample").mockReturnValue({
       items: [],
       sample: undefined,
@@ -75,6 +91,22 @@ describe("ResumesQuerySchema semantic search params", () => {
 
     const app = createTestApp();
     const response = await app.request("/api/resumes");
+
+    expect(response.status).toBe(401);
+  });
+
+  it("rejects anonymous resume list requests for the dev workspace", async () => {
+    vi.spyOn(ResumeService.prototype, "loadSample").mockReturnValue({
+      items: [],
+      sample: undefined,
+      metadata: undefined,
+      indexes: [],
+    });
+
+    const app = createTestApp();
+    const response = await app.request("/api/resumes", {
+      headers: { "X-Workspace-Slug": "dev" },
+    });
 
     expect(response.status).toBe(401);
   });

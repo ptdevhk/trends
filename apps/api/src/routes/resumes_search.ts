@@ -1,4 +1,5 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
+import type { MiddlewareHandler } from "hono";
 import {
   ResumeService,
   normalizeEducationLevel,
@@ -87,6 +88,14 @@ const MAX_SAFE_CONVEX_POST_FILTER_SCAN = 250;
 type CandidateStatus = typeof CANDIDATE_STATUS_VALUES[number];
 type CandidateStatusCounts = Record<CandidateStatus, number>;
 const CANDIDATE_STATUS_SET: ReadonlySet<string> = new Set(CANDIDATE_STATUS_VALUES);
+
+const allowAnonymousHrResumeRead: MiddlewareHandler = async (c, next) => {
+  if (!c.var.auth && c.var.workspaceSlug === "hr") {
+    await next();
+    return;
+  }
+  return requireWorkspaceUser(c, next);
+};
 
 function createCandidateStatusCounts(): CandidateStatusCounts {
   return {
@@ -730,7 +739,7 @@ const getResumesRoute = createRoute({
   method: "get",
   path: "/api/resumes",
   tags: ["resumes"],
-  middleware: [requireWorkspaceUser] as const,
+  middleware: [allowAnonymousHrResumeRead] as const,
   summary: "List resumes from a sample file",
   description: "Returns resume items from the latest or specified sample JSON",
   request: {
@@ -784,6 +793,7 @@ app.openapi(getResumesRoute, (c) => {
   const sampleName = sample?.trim() || undefined;
   const keyword = q?.trim() || undefined;
   const keywordExpansion = resumeService.expandSearchQuery(keyword);
+  const canReadOperationalOverlays = Boolean(c.var.auth);
   const normalizedLocationAlias = location?.trim() || undefined;
   const effectiveLocations = locations && locations.length > 0
     ? locations
@@ -1081,25 +1091,28 @@ app.openapi(getResumesRoute, (c) => {
           });
         }
 
-        // Compute status counts from the working set, then apply explicit
-        // status filters before response pagination. Without this, status=new
-        // reported counts but still returned all statuses.
+        // Compute operational status overlays only after authentication. Anonymous
+        // HR search returns base resume/search data and ignores status filters
+        // because status is part of the HR decision trail.
         let statusCounts: CandidateStatusCounts | undefined;
         let statusFilteredWorking = working;
-        try {
-          const statusContext = await loadCandidateStatusContext(workspaceSlug, showBlocked);
-          statusCounts = countCandidateStatuses(working, statusContext);
-          if (normalizedStatusFilters.length > 0) {
-            statusFilteredWorking = working.filter((item) =>
-              matchesStatusFilter(item, statusContext, normalizedStatusFilters)
-            );
+        const canApplyStatusFilters = canReadOperationalOverlays && normalizedStatusFilters.length > 0;
+        if (canReadOperationalOverlays) {
+          try {
+            const statusContext = await loadCandidateStatusContext(workspaceSlug, showBlocked);
+            statusCounts = countCandidateStatuses(working, statusContext);
+            if (canApplyStatusFilters) {
+              statusFilteredWorking = working.filter((item) =>
+                matchesStatusFilter(item, statusContext, normalizedStatusFilters)
+              );
+            }
+          } catch (error) {
+            logger.error("[Resumes] Failed to load candidate status context", error, {
+              route: "resumes_search",
+              workspaceSlug,
+            });
+            statusCounts = undefined;
           }
-        } catch (error) {
-          logger.error("[Resumes] Failed to load candidate status context", error, {
-            route: "resumes_search",
-            workspaceSlug,
-          });
-          statusCounts = undefined;
         }
 
         // Cursor-scan returns all results without pre-slicing, so
@@ -1111,11 +1124,11 @@ app.openapi(getResumesRoute, (c) => {
         // canUseSourcePagination with no keywords already has offset/limit from Convex list page;
         // all other paths need offset/limit applied locally.
         const isSourcePaginated = canUseSourcePagination && normalizedKeywords.length === 0;
-        const shouldUsePrePagedResponse = normalizedStatusFilters.length === 0 && (usesPrePagedMatchResults || isSourcePaginated);
+        const shouldUsePrePagedResponse = !canApplyStatusFilters && (usesPrePagedMatchResults || isSourcePaginated);
         const limited = shouldUsePrePagedResponse
           ? statusFilteredWorking.map((item) => item.resume)
           : pagedWorking.map((item) => item.resume);
-        const responseTotal = normalizedStatusFilters.length > 0
+        const responseTotal = canApplyStatusFilters
           ? statusFilteredWorking.length
           : (usesPrePagedMatchResults || isSourcePaginated)
             ? (totalCount ?? statusFilteredWorking.length)
@@ -1271,7 +1284,7 @@ app.openapi(getResumesRoute, (c) => {
           total: 0,
           returned: 0,
           query: keyword,
-          statusCounts: createCandidateStatusCounts(),
+          ...(canReadOperationalOverlays ? { statusCounts: createCandidateStatusCounts() } : {}),
         },
         data: [],
       }, 200);

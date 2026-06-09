@@ -6,7 +6,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ResumeSearchPage } from './ResumeSearchPage'
 import type { ResumeSearchResultItem } from '@/components/search/search-types'
 import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
+import type { AuthUser, WorkspaceRole } from '@/lib/auth'
 import type { UrlSearchState } from '@/hooks/useUrlSearchState'
+
+type AuthMockValue = {
+  user: AuthUser | null
+  workspaceRole: WorkspaceRole | null
+  isAuthenticated: boolean
+  isLoading: boolean
+  login: (username: string, password: string) => Promise<boolean>
+  logout: () => Promise<void>
+  refresh: () => Promise<void>
+}
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -31,6 +42,7 @@ vi.mock('react-i18next', () => ({
         'resumes.searchPage.analysis.analyzeLoaded': 'Analyze loaded {{count}}',
         'resumes.searchPage.analysis.analyzeLoadedResults': 'Analyze loaded results',
         'resumes.searchPage.analysis.analyzing': 'Analyzing...',
+        'resumes.searchPage.readOnly.loginRequired': 'Sign in to rate, update status, add notes, block, export, or run bulk actions.',
       }
       const text = englishTexts[key] ?? key
       return text.replace(/\{\{(\w+)\}\}/g, (_, token: string) => {
@@ -55,8 +67,24 @@ const featureFlagsMock = vi.hoisted(() => ({
   resumeAiSummaryEnabled: false,
 }))
 
+const authMock = vi.hoisted((): { value: AuthMockValue } => ({
+  value: {
+    user: { id: 'user-1', displayName: 'Tester', status: 'active' },
+    workspaceRole: 'user',
+    isAuthenticated: true,
+    isLoading: false,
+    login: vi.fn(async () => true),
+    logout: vi.fn(async () => {}),
+    refresh: vi.fn(async () => {}),
+  },
+}))
+
 vi.mock('@/lib/feature-flags', () => ({
   isResumeAiSummaryEnabled: () => featureFlagsMock.resumeAiSummaryEnabled,
+}))
+
+vi.mock('@/contexts/AuthContext', () => ({
+  useAuth: () => authMock.value,
 }))
 
 vi.mock('@/hooks/useAiSearchSummary', () => ({
@@ -284,8 +312,13 @@ vi.mock('@/components/search/SearchResultsList', () => ({
     loading,
     loadingMore,
     showAiScore,
+    onAction,
+    onCandidateStatusChange,
     onLoadMore,
+    onRating,
     onToggleExpanded,
+    onToggleSelect,
+    onToggleBlock,
   }: {
     expandedIds: Set<string>
     hasMore: boolean
@@ -293,14 +326,26 @@ vi.mock('@/components/search/SearchResultsList', () => ({
     loading?: boolean
     loadingMore?: boolean
     showAiScore?: boolean
+    onAction?: () => void
+    onCandidateStatusChange?: () => void
     onLoadMore: () => void
+    onRating?: () => void
     onToggleExpanded: (key: string) => void
+    onToggleSelect?: () => void
+    onToggleBlock?: () => void
   }) => (
     <div>
       <div>
         Results List {items.length} hasMore:{String(hasMore)} loading:
         {String(loading)} loadingMore:{String(loadingMore)} showAiScore:
         {String(showAiScore)} expanded:{Array.from(expandedIds).join('|') || 'none'}
+      </div>
+      <div>
+        Result controls action:{String(Boolean(onAction))} rating:
+        {String(Boolean(onRating))} status:
+        {String(Boolean(onCandidateStatusChange))} block:
+        {String(Boolean(onToggleBlock))} select:
+        {String(Boolean(onToggleSelect))}
       </div>
       {items[0] ? (
         <button type="button" onClick={() => onToggleExpanded(items[0].key)}>
@@ -355,6 +400,7 @@ vi.mock('@/components/BulkActionBar', () => ({
     onBulkAction,
     exportFormat,
     highScoreCount,
+    disabled,
     selectedCount,
     totalCount,
     totalCountIsLowerBound,
@@ -363,19 +409,20 @@ vi.mock('@/components/BulkActionBar', () => ({
     onBulkAction?: (action: string, format?: string) => void
     exportFormat?: string
     highScoreCount?: number
+    disabled?: boolean
     selectedCount?: number
     totalCount?: number
     totalCountIsLowerBound?: boolean
   }) => (
     <div>
-      <div>BulkActionBar {selectedCount}/{totalCount}{totalCountIsLowerBound ? '+' : ''} high:{highScoreCount} fmt:{exportFormat}</div>
+      <div>BulkActionBar {selectedCount}/{totalCount}{totalCountIsLowerBound ? '+' : ''} high:{highScoreCount} fmt:{exportFormat} disabled:{String(Boolean(disabled))}</div>
       {onExportFormatChange && (
-        <button type="button" onClick={() => onExportFormatChange('xlsx')}>
+        <button type="button" disabled={disabled} onClick={() => onExportFormatChange('xlsx')}>
           Change Export Format
         </button>
       )}
       {onBulkAction && (
-        <button type="button" onClick={() => onBulkAction('export', exportFormat)}>
+        <button type="button" disabled={disabled} onClick={() => onBulkAction('export', exportFormat)}>
           Bulk Export
         </button>
       )}
@@ -528,6 +575,15 @@ describe('ResumeSearchPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     featureFlagsMock.resumeAiSummaryEnabled = false
+    authMock.value = {
+      user: { id: 'user-1', displayName: 'Tester', status: 'active' },
+      workspaceRole: 'user',
+      isAuthenticated: true,
+      isLoading: false,
+      login: vi.fn(async () => true),
+      logout: vi.fn(async () => {}),
+      refresh: vi.fn(async () => {}),
+    }
     useIndustryKeywordsMock.mockReturnValue({
       hotKeywords: [],
       quickStartProfiles: [],
@@ -891,6 +947,59 @@ describe('ResumeSearchPage', () => {
 
     expect(state.setExportFormat).toHaveBeenCalledWith('xlsx')
     expect(state.handleBulkAction).toHaveBeenCalledWith('export', 'csv')
+  })
+
+  it('keeps anonymous search results read-only and blocks bulk/export candidate operations', async () => {
+    const user = userEvent.setup()
+    authMock.value = {
+      user: null,
+      workspaceRole: null,
+      isAuthenticated: false,
+      isLoading: false,
+      login: vi.fn(async () => false),
+      logout: vi.fn(async () => {}),
+      refresh: vi.fn(async () => {}),
+    }
+    const state = createResumeSearchState({
+      activeQuery: 'CNC Sales',
+      analysisCandidateCount: 1,
+      disableAnalyzeResults: false,
+      filteredResults: [createResult(1)],
+      highScoreCount: 1,
+      isLanding: false,
+      selectedIds: new Set<string>(['resume-1']),
+    })
+    useResumeSearchStateMock.mockReturnValue(state)
+
+    render(<ResumeSearchPage />)
+
+    expect(
+      screen.getByRole('status', {
+        name: 'Sign in to rate, update status, add notes, block, export, or run bulk actions.',
+      }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Result controls action:false rating:false status:false block:false select:false',
+      ),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/BulkActionBar 1\/1 high:1 fmt:csv disabled:true/),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Change Export Format' }),
+    ).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Bulk Export' })).toBeDisabled()
+    expect(
+      screen.getByRole('button', { name: /Analyze loaded 1/i }),
+    ).toBeDisabled()
+
+    await user.click(screen.getByRole('button', { name: 'Bulk Export' }))
+    await user.click(screen.getByRole('button', { name: /Analyze loaded 1/i }))
+
+    expect(state.setExportFormat).not.toHaveBeenCalled()
+    expect(state.handleBulkAction).not.toHaveBeenCalled()
+    expect(state.analyzeResults).not.toHaveBeenCalled()
   })
 
   it('wires the search-first analyze action into the page controls', async () => {

@@ -1,10 +1,11 @@
 import { formatKeywordQuery, isSalesRequiredContext, parseKeywordQuery, resolveLocationHierarchy } from '@trends/shared'
 import { matchesSalaryFilter } from '@/hooks/resume-filter-helpers'
-import { useMutation } from 'convex/react'
+import { useMutation, useQuery } from 'convex/react'
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { toast } from 'sonner'
 import { logSearchEvent } from '@/lib/search-analytics'
 import { api } from '../../../../packages/convex/convex/_generated/api'
+import { useAuth } from '@/contexts/AuthContext'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { useCandidateActions } from '@/hooks/useCandidateActions'
 import { useCandidateBlocks } from '@/hooks/useCandidateBlocks'
@@ -723,8 +724,10 @@ function ensureStoredSessionKey(storageKey: string): string {
 }
 
 export function useResumeSearchState() {
+  const { isAuthenticated } = useAuth()
   const { slug } = useWorkspace()
   const { parsedState, syncToUrl } = useUrlSearchState()
+  const canLoadOperationalState = isAuthenticated
   const storageKey = `${SESSION_KEY_PREFIX}.${slug}`
   const [sessionKey, setSessionKey] = useState(() =>
     ensureStoredSessionKey(storageKey),
@@ -753,19 +756,31 @@ export function useResumeSearchState() {
     api.sessions.markSearchHistoryOpened,
   )
   const dispatchAnalysis = useMutation(api.analysis_tasks.dispatch)
-  const analysisTasks = useStableQuery(api.analysis_tasks.list)
-  const recentSearchHistoryRecords = useStableQuery(api.sessions.recentSearches, {
-    sessionKey,
-    workspaceSlug: slug,
-    limit: 10,
-  })
+  const analysisTasks = useQuery(
+    api.analysis_tasks.list,
+    canLoadOperationalState ? {} : 'skip',
+  )
+  const recentSearchHistoryRecords = useQuery(
+    api.sessions.recentSearches,
+    canLoadOperationalState
+      ? {
+        sessionKey,
+        workspaceSlug: slug,
+        limit: 10,
+      }
+      : 'skip',
+  )
   const taxonomyClusterRecords = useStableQuery(api.taxonomy_clusters.list, {
     workspaceSlug: slug,
     status: 'active',
   })
-  const { statusByIdentity, updateStatus: updateCandidateStatus } = useCandidateStatus(true)
-  const { blocksByIdentity, blockCandidates, unblockCandidate } = useCandidateBlocks(true)
-  const { actions: actionsByResume, ratingsByResume, saveAction, getAiFeedback } = useCandidateActions(sessionKey, parsedState.jobDescriptionId)
+  const { statusByIdentity, updateStatus: updateCandidateStatus } = useCandidateStatus(canLoadOperationalState)
+  const { blocksByIdentity, blockCandidates, unblockCandidate } = useCandidateBlocks(canLoadOperationalState)
+  const { actions: actionsByResume, ratingsByResume, saveAction, getAiFeedback } = useCandidateActions(
+    sessionKey,
+    parsedState.jobDescriptionId,
+    canLoadOperationalState,
+  )
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const apiBaseUrl = useMemo(() => {
     const rawBaseUrl = import.meta.env.VITE_API_URL || '/api'
@@ -1002,7 +1017,7 @@ export function useResumeSearchState() {
 
   const facetCounts: FacetCounts = useFacetCounts(blockVisibleResults, taxonomyClusters)
   const statusCounts = useStatusCounts({
-    enabled: !isLanding,
+    enabled: !isLanding && canLoadOperationalState,
     filters: {
       ...backendFilters,
       showBlocked: parsedState.filters.showBlocked === true,
@@ -1136,6 +1151,9 @@ export function useResumeSearchState() {
 
   const lastSavedFingerprintRef = useRef<string>('')
   useEffect(() => {
+    if (!canLoadOperationalState) {
+      return
+    }
     if (isLanding) {
       return
     }
@@ -1190,7 +1208,7 @@ export function useResumeSearchState() {
     }, 800)
 
     return () => window.clearTimeout(timer)
-  }, [isLanding, parsedState, results, saveSearchHistory, sessionKey, slug])
+  }, [canLoadOperationalState, isLanding, parsedState, results, saveSearchHistory, sessionKey, slug])
 
   useEffect(() => {
     if (aiModeEnabled) {
@@ -1949,7 +1967,7 @@ export function useResumeSearchState() {
     results,
     selectedClusterTags,
     selectedRawTags,
-    searchHistoryLoading: recentSearchHistoryRecords === undefined,
+    searchHistoryLoading: canLoadOperationalState && recentSearchHistoryRecords === undefined,
     isFilterPending,
     committedMinRoleYears,
     setMinRoleYearsFilter,

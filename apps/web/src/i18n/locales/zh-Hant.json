@@ -471,6 +471,9 @@
         "analyzeLoaded": "分析已載入的 {{count}} 份",
         "analyzeLoadedResults": "分析已載入結果"
       },
+      "readOnly": {
+        "loginRequired": "登入後可評分、更新狀態、加入備註、屏蔽、匯出或執行批量操作。"
+      },
       "aiSummary": {
         "title": "AI 結果摘要",
         "noSummary": "目前搜尋暫時沒有可用摘要。",

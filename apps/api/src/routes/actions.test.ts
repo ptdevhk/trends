@@ -3,20 +3,29 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import actionsRoutes from './actions'
 import { createAuthMiddleware } from '../middleware/auth'
+import { AuthEventStorage } from '../services/auth-event-storage'
 import { workspaceMiddleware } from '../middleware/workspace'
 import { ActionStorage } from '../services/action-storage'
 import type { AuthStorage } from '../services/auth-storage'
 import { resetResumeScreeningDb } from '../services/database'
 import { createAuthHeaders } from './test-auth-helpers'
 
-function createTestApp(storage?: AuthStorage) {
+function createTestApp(options: { storage?: AuthStorage; eventStorage?: AuthEventStorage } = {}) {
   const app = new OpenAPIHono()
   app.use('*', workspaceMiddleware)
-  if (storage) {
-    const middleware = createAuthMiddleware({ storage, ttlSeconds: 3600 })
-    app.use('*', middleware.optionalAuth)
-    app.use('/api/*', middleware.requireCsrf)
+  if (options.eventStorage) {
+    app.use('*', async (c, next) => {
+      c.set('authEventStorage', options.eventStorage)
+      await next()
+    })
   }
+  const middleware = createAuthMiddleware({
+    storage: options.storage,
+    eventStorage: options.eventStorage,
+    ttlSeconds: 3600,
+  })
+  app.use('*', middleware.optionalAuth)
+  app.use('/api/*', middleware.requireCsrf)
   app.route('/', actionsRoutes)
   return app
 }
@@ -58,13 +67,46 @@ describe('actions routes', () => {
       expect(saveSpy).not.toHaveBeenCalled()
     })
 
+    it('records auth denial evidence for anonymous writes', async () => {
+      const eventStorage = new AuthEventStorage()
+      const saveSpy = vi.spyOn(ActionStorage.prototype, 'saveAction').mockReturnValue(MOCK_ACTION as never)
+      const app = createTestApp({ eventStorage })
+
+      const response = await app.request('/api/actions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Workspace-Slug': 'hr',
+        },
+        body: JSON.stringify({
+          resumeId: 'resume-123',
+          actionType: 'rating',
+          actionData: { rating: 4 },
+        }),
+      })
+
+      expect(response.status).toBe(401)
+      expect(saveSpy).not.toHaveBeenCalled()
+      expect(eventStorage.listRecent({ type: 'workspace_access_denied', limit: 10 })).toContainEqual(
+        expect.objectContaining({
+          type: 'workspace_access_denied',
+          workspaceSlug: 'hr',
+          reason: 'authentication_required',
+          metadata: expect.objectContaining({
+            method: 'POST',
+            path: '/api/actions',
+          }),
+        }),
+      )
+    })
+
     it('creates a star action with the authenticated actor', async () => {
       const auth = createAuthHeaders({ workspaceSlug: 'hr', role: 'user' })
       const saveSpy = vi.spyOn(ActionStorage.prototype, 'saveAction').mockReturnValue({
         ...MOCK_ACTION,
         userId: auth.userId,
       } as never)
-      const app = createTestApp(auth.storage)
+      const app = createTestApp({ storage: auth.storage })
       const response = await app.request('/api/actions', {
         method: 'POST',
         headers: {
@@ -93,7 +135,7 @@ describe('actions routes', () => {
     it('creates an action with optional data', async () => {
       const auth = createAuthHeaders({ workspaceSlug: 'hr', role: 'user' })
       const saveSpy = vi.spyOn(ActionStorage.prototype, 'saveAction').mockReturnValue(MOCK_ACTION as never)
-      const app = createTestApp(auth.storage)
+      const app = createTestApp({ storage: auth.storage })
       await app.request('/api/actions', {
         method: 'POST',
         headers: {
@@ -117,7 +159,7 @@ describe('actions routes', () => {
     it('rejects authenticated users outside the selected workspace', async () => {
       const auth = createAuthHeaders({ workspaceSlug: 'hr', requestWorkspaceSlug: 'dev', role: 'user' })
       const saveSpy = vi.spyOn(ActionStorage.prototype, 'saveAction').mockReturnValue(MOCK_ACTION as never)
-      const app = createTestApp(auth.storage)
+      const app = createTestApp({ storage: auth.storage })
       const response = await app.request('/api/actions', {
         method: 'POST',
         headers: {

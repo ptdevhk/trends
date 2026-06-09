@@ -210,6 +210,7 @@ export function BulkActionBar({
                         size="sm"
                         data-testid="bulk-clear-selection"
                         onClick={onClearSelection}
+                        disabled={disabled}
                     >
                         {t('bulkActions.clearSelection', '取消选择')}
                     </Button>
@@ -256,6 +257,7 @@ export function BulkActionBar({
                     <Select
                         value={exportFormat}
                         aria-label={t('bulkActions.exportFormat')}
+                        disabled={disabled}
                         onChange={(e) => {
                             const val = e.target.value
                             const format = val === 'xlsx' ? 'xlsx' : 'csv'

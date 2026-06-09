@@ -203,7 +203,21 @@ function sanitizeRedirectPath(path: string): string {
   return path
 }
 
+function hasCookie(name: string): boolean {
+  if (typeof document === 'undefined') {
+    return true
+  }
+  const prefix = `${name}=`
+  return document.cookie
+    .split(';')
+    .map((part) => part.trim())
+    .some((part) => part.startsWith(prefix))
+}
+
 export async function fetchCurrentAuth(): Promise<CurrentAuth | null> {
+  if (!hasCookie('trends_csrf')) {
+    return null
+  }
   const { data, error } = await rawApiClient.GET<CurrentAuth>('/api/auth/me')
   if (error || data?.success !== true) {
     return null

@@ -40,9 +40,11 @@ const authMe = {
 describe('auth helpers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    document.cookie = 'trends_csrf=; Max-Age=0; path=/'
   })
 
   it('fetches the current auth context', async () => {
+    document.cookie = 'trends_csrf=csrf-token; path=/'
     mockApiClient.GET.mockResolvedValueOnce({ data: authMe })
 
     await expect(fetchCurrentAuth()).resolves.toEqual(authMe)
@@ -51,9 +53,16 @@ describe('auth helpers', () => {
   })
 
   it('returns null when current auth request is unauthenticated', async () => {
+    document.cookie = 'trends_csrf=csrf-token; path=/'
     mockApiClient.GET.mockResolvedValueOnce({ error: { status: 401 } })
 
     await expect(fetchCurrentAuth()).resolves.toBeNull()
+  })
+
+  it('skips the current auth request when no csrf cookie is present', async () => {
+    await expect(fetchCurrentAuth()).resolves.toBeNull()
+
+    expect(mockApiClient.GET).not.toHaveBeenCalled()
   })
 
   it('logs in with local credentials', async () => {

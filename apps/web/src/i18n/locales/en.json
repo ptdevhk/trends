@@ -472,6 +472,9 @@
         "analyzeLoaded": "Analyze loaded {{count}}",
         "analyzeLoadedResults": "Analyze loaded results"
       },
+      "readOnly": {
+        "loginRequired": "Sign in to rate, update status, add notes, block, export, or run bulk actions."
+      },
       "aiSummary": {
         "title": "AI result summary",
         "noSummary": "No summary is available for the current search yet.",
