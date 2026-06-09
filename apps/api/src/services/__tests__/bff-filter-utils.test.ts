@@ -176,12 +176,14 @@ describe("bff-filter-utils", () => {
     });
 
     describe("location filter", () => {
+      const locationDoc = { ...baseDoc, source: "manual" };
+
       it("includes doc when location matches", () => {
-        expect(bffMatchesResumeFilters(baseDoc, loweredSearchText, { locations: ["New York"] })).toBe(true);
+        expect(bffMatchesResumeFilters(locationDoc, loweredSearchText, { locations: ["New York"] })).toBe(true);
       });
 
       it("excludes doc when location does not match", () => {
-        expect(bffMatchesResumeFilters(baseDoc, loweredSearchText, { locations: ["London"] })).toBe(false);
+        expect(bffMatchesResumeFilters(locationDoc, loweredSearchText, { locations: ["London"] })).toBe(false);
       });
     });
 
