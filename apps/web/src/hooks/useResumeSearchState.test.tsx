@@ -72,6 +72,7 @@ const {
   saveSearchHistoryMutationMock,
   recentSearchHistoryRecordsMock,
   analysisTasksMock,
+  authMock,
   ratingsByResumeMock,
   statusByIdentityMock,
   updateStatusMock,
@@ -80,6 +81,9 @@ const {
   taxonomyClusterRecordsMock,
   useFacetCountsMock,
   useConvexResumesMock,
+  useCandidateActionsHookMock,
+  useCandidateBlocksHookMock,
+  useCandidateStatusHookMock,
   useMutationMock,
   useQueryMock,
   useUrlSearchStateMock,
@@ -101,6 +105,9 @@ const {
   saveSearchHistoryMutationMock: vi.fn(async () => 'history-1'),
   recentSearchHistoryRecordsMock: [] as Array<Record<string, unknown>>,
   analysisTasksMock: [] as Array<Record<string, unknown>>,
+  authMock: {
+    isAuthenticated: true,
+  },
   ratingsByResumeMock: {} as Record<string, number>,
   statusByIdentityMock: {} as Record<string, CandidateStatusRecord>,
   updateStatusMock: vi.fn(async () => true),
@@ -109,6 +116,9 @@ const {
   taxonomyClusterRecordsMock: [] as Array<Record<string, unknown>>,
   useFacetCountsMock: vi.fn(),
   useConvexResumesMock: vi.fn(),
+  useCandidateActionsHookMock: vi.fn(),
+  useCandidateBlocksHookMock: vi.fn(),
+  useCandidateStatusHookMock: vi.fn(),
   useMutationMock: vi.fn(),
   useQueryMock: vi.fn(),
   useUrlSearchStateMock: vi.fn(),
@@ -126,25 +136,41 @@ vi.mock('@/contexts/WorkspaceContext', () => ({
   useWorkspace: () => workspaceMock,
 }))
 
+vi.mock('@/contexts/AuthContext', () => ({
+  useAuth: () => authMock,
+}))
+
 vi.mock('@/hooks/useUrlSearchState', () => ({
   useUrlSearchState: (...args: unknown[]) => useUrlSearchStateMock(...args),
 }))
 
 vi.mock('@/hooks/useCandidateStatus', () => ({
-  useCandidateStatus: () => ({
-    statusByIdentity: statusByIdentityMock,
-    updateStatus: updateStatusMock,
-  }),
+  useCandidateStatus: (...args: unknown[]) => useCandidateStatusHookMock(...args),
 }))
 
 vi.mock('@/hooks/useCandidateBlocks', () => ({
-  useCandidateBlocks: () => ({
-    blocksByIdentity: blocksByIdentityMock,
-  }),
+  useCandidateBlocks: (...args: unknown[]) => useCandidateBlocksHookMock(...args),
 }))
 
 vi.mock('@/hooks/useCandidateActions', () => ({
-  useCandidateActions: () => ({
+  useCandidateActions: (...args: unknown[]) => useCandidateActionsHookMock(...args),
+}))
+
+function createCandidateStatusHookValue() {
+  return {
+    statusByIdentity: statusByIdentityMock,
+    updateStatus: updateStatusMock,
+  }
+}
+
+function createCandidateBlocksHookValue() {
+  return {
+    blocksByIdentity: blocksByIdentityMock,
+  }
+}
+
+function createCandidateActionsHookValue() {
+  return {
     actions: {},
     actionsByResume: {},
     aiFeedbackByResume: {},
@@ -154,8 +180,8 @@ vi.mock('@/hooks/useCandidateActions', () => ({
     reload: vi.fn(),
     saveAction: saveActionMock,
     getAiFeedback: vi.fn(),
-  }),
-}))
+  }
+}
 
 vi.mock('@/hooks/useConvexResumes', () => ({
   useConvexResumes: (...args: unknown[]) => useConvexResumesMock(...args),
@@ -261,6 +287,7 @@ describe('useResumeSearchState', () => {
     localStorage.clear()
 
     workspaceMock.slug = 'dev'
+    authMock.isAuthenticated = true
     parsedStateMock.shareSessionId = undefined
     parsedStateMock.query = undefined
     parsedStateMock.location = undefined
@@ -299,6 +326,9 @@ describe('useResumeSearchState', () => {
       parsedState: parsedStateMock,
       syncToUrl: syncToUrlMock,
     })
+    useCandidateStatusHookMock.mockReturnValue(createCandidateStatusHookValue())
+    useCandidateBlocksHookMock.mockReturnValue(createCandidateBlocksHookValue())
+    useCandidateActionsHookMock.mockReturnValue(createCandidateActionsHookValue())
 
     useQueryMock.mockImplementation((query) => {
       if (query === 'recent-searches-query') {
@@ -343,6 +373,24 @@ describe('useResumeSearchState', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+  })
+
+  it('does not load operational overlays for anonymous users', () => {
+    authMock.isAuthenticated = false
+
+    const { result } = renderHook(() => useResumeSearchState())
+
+    expect(useCandidateStatusHookMock).toHaveBeenCalledWith(false)
+    expect(useCandidateBlocksHookMock).toHaveBeenCalledWith(false)
+    expect(useCandidateActionsHookMock).toHaveBeenCalledWith(
+      expect.any(String),
+      undefined,
+      false,
+    )
+    expect(useQueryMock).toHaveBeenCalledWith('analysis-tasks-list-query', 'skip')
+    expect(useQueryMock).toHaveBeenCalledWith('recent-searches-query', 'skip')
+    expect(useQueryMock).toHaveBeenCalledWith('resumes:countResumesByStatus', 'skip')
+    expect(result.current.searchHistoryLoading).toBe(false)
   })
 
   it('defaults to score-first ordering for loaded search results', () => {

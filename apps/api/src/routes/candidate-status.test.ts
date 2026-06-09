@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createApp } from "../app";
+import { AuthEventStorage } from "../services/auth-event-storage";
 import { config } from "../services/config";
 import { resetResumeScreeningDb } from "../services/database";
 import { workspaceConfigService } from "../services/workspace-config-service";
@@ -85,6 +86,43 @@ describe("candidate-status route", () => {
 
     expect(response.status).toBe(401);
     expect(calls).toHaveLength(0);
+  });
+
+  it("records auth denial evidence for anonymous status writes", async () => {
+    const calls: ConvexCall[] = [];
+    const eventStorage = new AuthEventStorage();
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      calls.push(parseConvexCall(input, init));
+      return convexSuccess(null);
+    });
+
+    const app = createApp({ authEventStorage: eventStorage });
+    const response = await app.request("/api/candidate-status", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Workspace-Slug": "hr",
+      },
+      body: JSON.stringify({
+        identityKey: "resume-1",
+        status: "interviewing",
+        notes: "Looks promising",
+      }),
+    });
+
+    expect(response.status).toBe(401);
+    expect(calls).toHaveLength(0);
+    expect(eventStorage.listRecent({ type: "workspace_access_denied", limit: 10 })).toContainEqual(
+      expect.objectContaining({
+        type: "workspace_access_denied",
+        workspaceSlug: "hr",
+        reason: "authentication_required",
+        metadata: expect.objectContaining({
+          method: "POST",
+          path: "/api/candidate-status",
+        }),
+      }),
+    );
   });
 
   it("updates candidate status successfully", async () => {

@@ -46,6 +46,29 @@ describe('StarRating', () => {
     await userEvent.setup().click(screen.getByRole('button', { name: '4 stars' }))
   })
 
+  it('disables star buttons when disabled and does not call onChange', async () => {
+    const onChange = vi.fn()
+    render(<StarRating value={2} onChange={onChange} disabled />)
+
+    const buttons = screen.getAllByRole('button')
+    expect(buttons).toHaveLength(5)
+    buttons.forEach((button) => {
+      expect(button).toBeDisabled()
+    })
+
+    await userEvent.setup().click(screen.getByRole('button', { name: '4 stars' }))
+
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('treats missing onChange as read-only', () => {
+    render(<StarRating value={2} />)
+
+    screen.getAllByRole('button').forEach((button) => {
+      expect(button).toBeDisabled()
+    })
+  })
+
   it('applies filled class to stars up to the value', () => {
     render(<StarRating value={3} />)
     const buttons = screen.getAllByRole('button')

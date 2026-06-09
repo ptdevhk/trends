@@ -18,10 +18,12 @@ import { Button } from '@/components/ui/button'
 import { useAiSearchSummary } from '@/hooks/useAiSearchSummary'
 import { useIndustryKeywords } from '@/hooks/useIndustryKeywords'
 import { useResumeSearchState } from '@/hooks/useResumeSearchState'
+import { useAuth } from '@/contexts/AuthContext'
 import { isResumeAiSummaryEnabled } from '@/lib/feature-flags'
 
 export function ResumeSearchPage() {
   const { t } = useTranslation()
+  const { isAuthenticated, isLoading: authLoading } = useAuth()
   const resumeAiSummaryEnabled = isResumeAiSummaryEnabled()
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
   const [filtersOpen, setFiltersOpen] = useState(false)
@@ -305,6 +307,11 @@ export function ResumeSearchPage() {
   const reloadPageLabel = t('resumes.searchPage.error.reloadPage', {
     defaultValue: 'Reload page',
   })
+  const readOnlyLoginRequiredLabel = t('resumes.searchPage.readOnly.loginRequired', {
+    defaultValue: 'Sign in to rate, update status, add notes, block, export, or run bulk actions.',
+  })
+  const canManageCandidateData = isAuthenticated
+  const showReadOnlyLoginRequired = !authLoading && !canManageCandidateData
 
   return (
     <div className="space-y-6">
@@ -393,7 +400,7 @@ export function ResumeSearchPage() {
                     size="sm"
                     data-testid="resume-analyze-button"
                     className="h-10 gap-2 rounded-full px-4"
-                    disabled={disableAnalyzeResults || !aiModeEnabled}
+                    disabled={disableAnalyzeResults || !aiModeEnabled || !canManageCandidateData}
                     onClick={() => {
                       void analyzeResults()
                     }}
@@ -416,6 +423,16 @@ export function ResumeSearchPage() {
                 </div>
               </div>
 
+              {showReadOnlyLoginRequired ? (
+                <div
+                  role="status"
+                  aria-label={readOnlyLoginRequiredLabel}
+                  className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900"
+                >
+                  {readOnlyLoginRequiredLabel}
+                </div>
+              ) : null}
+
               {resumeAiSummaryEnabled && (
                 <ErrorBoundary fallback={<InlineErrorFallback message={errorAiSummaryLabel} />}>
                   <AiSummaryPanel
@@ -433,6 +450,7 @@ export function ResumeSearchPage() {
                   selectedCount={selectedIds.size}
                   highScoreCount={highScoreCount}
                   exportFormat={exportFormat}
+                  disabled={!canManageCandidateData}
                   onExportFormatChange={setExportFormat}
                   onSelectAll={selectAll}
                   onSelectHighScore={() => selectHighScore()}
@@ -458,11 +476,11 @@ export function ResumeSearchPage() {
                   selectedIds={selectedIds}
                   actionsByResume={actionsByResume}
                   ratingsByResume={ratingsByResume}
-                  onToggleSelect={toggleSelectItem}
-                  onAction={handleCandidateAction}
-                  onRating={handleRating}
-                  onCandidateStatusChange={handleCandidateStatusChange}
-                  onToggleBlock={handleToggleBlock}
+                  onToggleSelect={canManageCandidateData ? toggleSelectItem : undefined}
+                  onAction={canManageCandidateData ? handleCandidateAction : undefined}
+                  onRating={canManageCandidateData ? handleRating : undefined}
+                  onCandidateStatusChange={canManageCandidateData ? handleCandidateStatusChange : undefined}
+                  onToggleBlock={canManageCandidateData ? handleToggleBlock : undefined}
                   searchQuery={queryInput}
                 />
               </ErrorBoundary>

@@ -74,6 +74,15 @@ export function createAuthMiddleware(options: AuthMiddlewareOptions = {}) {
   const requireWorkspaceUser: MiddlewareHandler = async (c, next) => {
     const auth = c.var.auth;
     if (!auth) {
+      getEventStorage(c)?.append({
+        type: "workspace_access_denied",
+        workspaceSlug: c.var.workspaceSlug,
+        reason: "authentication_required",
+        metadata: {
+          method: c.req.method,
+          path: c.req.path,
+        },
+      });
       return c.json({ success: false as const, error: "Authentication required" }, 401);
     }
     if (!hasWorkspaceRole(auth.memberships, c.var.workspaceSlug, ["user", "admin"])) {
