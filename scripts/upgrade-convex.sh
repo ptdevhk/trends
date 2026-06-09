@@ -4,7 +4,7 @@
 # Handles three environments:
 #   dev        macOS local dev (auto-detected) — bun install, local prefetch
 #   linux-dev  Linux dev VM                   — npm install, local prefetch
-#   prod       Linux prod (ptcloud)           — patches package.json, prints manual steps
+#   prod       Linux prod (SSH_HOST, defaults to ptcloud) — patches package.json, prints manual steps
 #
 # Also writes CONVEX_LOCAL_BACKEND_STARTUP_TIMEOUT_SECS to .env.local,
 # which is the official override for the CLI's startup timeout (available in
@@ -308,7 +308,7 @@ patch_convex_dep "$CARET_VERSION" "$WEB_PKG_JSON" "$CONVEX_PKG_JSON"
 
 if [[ "$ENV" == "prod" ]]; then
     log ""
-    log "=== Production Upgrade Instructions (ptcloud) ==="
+    log "=== Production Upgrade Instructions (SSH_HOST, defaults to ptcloud) ==="
     log ""
     log "The package.json files have been patched locally."
     log "Complete the production upgrade with these manual steps:"
@@ -318,8 +318,8 @@ if [[ "$ENV" == "prod" ]]; then
     log "     git commit -m 'chore: upgrade convex to $CARET_VERSION'"
     log "     git push"
     log ""
-    log "  2. Deploy to ptcloud:"
-    log "     ssh ptcloud && cd /opt/trends && sudo make on-prod-deploy"
+    log "  2. Deploy to prod host:"
+    log "     ssh \${SSH_HOST:-ptcloud} && cd /opt/trends && sudo make on-prod-deploy"
     log ""
     log "  3. Add startup timeout to production env config:"
     log "     # Add to /etc/trends/env:"

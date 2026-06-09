@@ -1,7 +1,7 @@
 #!/bin/bash
 # Preview environment health check + auto-recovery for preview.pt-mes.com.
 #
-# Run on ptcloud (any user with sudo). Reports on:
+# Run on the preview host (any user with sudo). Reports on:
 #   - Caddy reachability (preview.pt-mes.com)
 #   - Convex container health + memory headroom
 #   - Convex /version + sync HTTP upgrade

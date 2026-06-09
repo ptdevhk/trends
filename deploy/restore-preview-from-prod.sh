@@ -1,6 +1,6 @@
 #!/bin/bash
 # Restore production data into preview Convex via Convex export/import API.
-# Run on ptcloud as root.
+# Run on the preview host as root.
 #
 # This is the CORRECT way to copy data between Convex deployments.
 # DO NOT use raw SQLite file copy — binary version mismatch breaks schema push.
