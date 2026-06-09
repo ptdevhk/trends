@@ -1,6 +1,8 @@
-import { mkdtempSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -10,6 +12,9 @@ import { verifyPassword } from "../../apps/api/src/services/local-password-provi
 
 // Import the module logic functions directly for unit testing.
 // The script itself is tested via CLI invocation in integration tests.
+
+const repoRoot = fileURLToPath(new URL("../..", import.meta.url));
+const manageUserScript = fileURLToPath(new URL("./manage-user.ts", import.meta.url));
 
 function createTestUser(
   storage: AuthStorage,
@@ -154,5 +159,57 @@ describe("manage-user bootstrap logic", () => {
 
     expect(userJson).not.toContain("password");
     expect(identityJson).not.toContain("password");
+  });
+
+  it("loads password-env from the project .env for direct dev CLI runs", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "trends-manage-user-env-"));
+    writeFileSync(path.join(root, ".env"), "AUTH_BOOTSTRAP_PASSWORD=demo-admin\n");
+
+    const env = { ...process.env, PROJECT_ROOT: root };
+    delete env.AUTH_BOOTSTRAP_PASSWORD;
+
+    const result = spawnSync(
+      "node",
+      [
+        "--import",
+        "tsx",
+        manageUserScript,
+        "--username",
+        "demo-admin",
+        "--email",
+        "demo-admin@example.com",
+        "--display-name",
+        "Demo Admin",
+        "--workspace",
+        "dev",
+        "--role",
+        "admin",
+        "--password-env",
+        "AUTH_BOOTSTRAP_PASSWORD",
+        "--output",
+        "json",
+      ],
+      {
+        cwd: repoRoot,
+        env,
+        encoding: "utf8",
+      },
+    );
+
+    expect(result.stderr).not.toContain("demo-admin");
+    expect(result.stdout).not.toContain("demo-admin");
+    expect(result.status).toBe(0);
+
+    const output = JSON.parse(result.stdout) as { success: boolean; passwordSet: boolean };
+    expect(output.success).toBe(true);
+    expect(output.passwordSet).toBe(true);
+
+    const storage = new AuthStorage(root);
+    const identity = storage.findIdentity("local", "demo-admin", "local");
+    expect(identity).not.toBeNull();
+
+    const credential = storage.findPasswordCredential(identity!.userId);
+    expect(credential).not.toBeNull();
+    expect(await verifyPassword("demo-admin", credential!)).toBe(true);
   });
 });

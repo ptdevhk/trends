@@ -2,15 +2,20 @@
  * Idempotent local user + workspace membership bootstrap script.
  *
  * Usage:
- *   AUTH_BOOTSTRAP_PASSWORD='secret' bun run scripts/auth/manage-user.ts \
+ *   bun run scripts/auth/manage-user.ts \
  *     --username hr-admin --email hr@example.com --display-name "HR Admin" \
  *     --workspace hr --role admin --password-env AUTH_BOOTSTRAP_PASSWORD --output json
  *
+ * Loads PROJECT_ROOT/.env or cwd/.env when present for local dev helpers.
  * Password input priority: --password-env > --password-stdin > --no-password
  * Never echoes passwords in stdout/stderr.
  */
 
+import { existsSync, readFileSync, statSync } from "node:fs";
+import path from "node:path";
+
 import { AuthStorage } from "../../apps/api/src/services/auth-storage.js";
+import { findProjectRoot } from "../../apps/api/src/services/db.js";
 import { hashPassword } from "../../apps/api/src/services/local-password-provider.js";
 import { resetResumeScreeningDb } from "../../apps/api/src/services/database.js";
 
@@ -75,6 +80,54 @@ function parseArgs(argv: string[]): Args {
   }
 
   return args;
+}
+
+function parseEnvValue(raw: string): string {
+  const value = raw.trim();
+  if (
+    (value.startsWith("\"") && value.endsWith("\""))
+    || (value.startsWith("'") && value.endsWith("'"))
+  ) {
+    return value.slice(1, -1);
+  }
+
+  const commentIndex = value.search(/\s#/);
+  if (commentIndex >= 0) {
+    return value.slice(0, commentIndex).trim();
+  }
+
+  return value;
+}
+
+function resolveProjectRoot(): string {
+  return path.resolve(process.env.PROJECT_ROOT?.trim() || findProjectRoot());
+}
+
+function loadProjectEnvFile(projectRoot: string): void {
+  const envPath = path.resolve(projectRoot, ".env");
+  if (!existsSync(envPath) || statSync(envPath).isDirectory()) {
+    return;
+  }
+
+  const content = readFileSync(envPath, "utf8");
+  for (const line of content.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) {
+      continue;
+    }
+
+    const eqIndex = trimmed.indexOf("=");
+    if (eqIndex < 1) {
+      continue;
+    }
+
+    const key = trimmed.slice(0, eqIndex).trim();
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key) || process.env[key] !== undefined) {
+      continue;
+    }
+
+    process.env[key] = parseEnvValue(trimmed.slice(eqIndex + 1));
+  }
 }
 
 async function readPassword(args: Args): Promise<string | null> {
@@ -173,6 +226,10 @@ function upsertUser(
 }
 
 async function main() {
+  let projectRoot = resolveProjectRoot();
+  loadProjectEnvFile(projectRoot);
+  projectRoot = resolveProjectRoot();
+
   const args = parseArgs(process.argv.slice(2));
 
   if (!args.username) {
@@ -204,7 +261,7 @@ async function main() {
     return;
   }
 
-  const storage = new AuthStorage();
+  const storage = new AuthStorage(projectRoot);
 
   // Check if identity exists to determine create vs update
   const existingIdentity = storage.findIdentity("local", args.username, "local");
