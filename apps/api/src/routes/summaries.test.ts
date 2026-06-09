@@ -131,8 +131,11 @@ async function loadSummaryModules(root: string) {
   const { summaryTelegramBridge } = await import("../services/summaries/summary-telegram-bridge");
   const { workspaceConfigService } = await import("../services/workspace-config-service");
   const { resetResumeScreeningDb } = await import("../services/database");
+  const { createAuthContext } = await import("./test-auth-helpers");
   return {
-    createApp,
+    createApp: () => createApp({
+      authContext: createAuthContext({ workspaceSlug: "dev", role: "admin" }),
+    }),
     SessionManager,
     ActionStorage,
     ReviewPacketStorage,

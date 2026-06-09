@@ -3,10 +3,15 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import resumesDiagnosticsRoutes from "./resumes_diagnostics";
 import { workspaceMiddleware } from "../middleware/workspace";
+import { createAuthContext } from "./test-auth-helpers";
 
 function createTestApp() {
   const app = new OpenAPIHono();
   app.use("*", workspaceMiddleware);
+  app.use("*", async (c, next) => {
+    c.set("auth", createAuthContext({ workspaceSlug: "dev", role: "admin" }));
+    await next();
+  });
   app.route("/", resumesDiagnosticsRoutes);
   return app;
 }

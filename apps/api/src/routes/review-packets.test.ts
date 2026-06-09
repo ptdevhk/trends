@@ -74,8 +74,11 @@ async function loadReviewPacketModules(root: string) {
   const { ActionStorage } = await import("../services/action-storage");
   const { resetResumeScreeningDb } = await import("../services/database");
   const { notificationService } = await import("../services/notification-service");
+  const { createAuthContext } = await import("./test-auth-helpers");
   return {
-    createApp,
+    createApp: () => createApp({
+      authContext: createAuthContext({ workspaceSlug: "dev", role: "admin" }),
+    }),
     ResumeService,
     ReviewPacketStorage,
     ActionStorage,

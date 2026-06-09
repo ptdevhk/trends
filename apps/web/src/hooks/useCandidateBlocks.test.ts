@@ -56,7 +56,7 @@ describe('useCandidateBlocks', () => {
     expect(Object.keys(result.current.blocksByIdentity)).toEqual(['a', 'b'])
   })
 
-  it('blockCandidates POSTs and reloads', async () => {
+  it('blockCandidates POSTs without client-supplied actor and reloads', async () => {
     mockApiClient.GET.mockResolvedValue({ data: { success: true, items: [] } })
     mockApiClient.POST.mockResolvedValueOnce({ data: { success: true } })
 
@@ -70,7 +70,7 @@ describe('useCandidateBlocks', () => {
 
     expect(success).toBe(true)
     expect(mockApiClient.POST).toHaveBeenCalledWith('/api/blocks', {
-      body: { identityKeys: ['key-1', 'key-2'], reason: 'spam', blockedBy: undefined },
+      body: { identityKeys: ['key-1', 'key-2'], reason: 'spam' },
     })
   })
 

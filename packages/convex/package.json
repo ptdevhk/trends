@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "env -u TZ convex dev --local --local-force-upgrade",
-    "predev": "env -u TZ convex dev --once --local --local-force-upgrade",
+    "dev": "env -u TZ convex dev --local",
+    "predev": "env -u TZ convex dev --once --local",
     "build": "convex codegen",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

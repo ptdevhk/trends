@@ -6,10 +6,12 @@ import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { LongTaskObserver } from '@/hooks/useLongTaskObserver'
 import { ResumesPage } from '@/pages/ResumesPage'
 import { ReviewPacketsPage } from '@/pages/ReviewPacketsPage'
+import { LoginPage } from '@/pages/LoginPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import SettingsLayout from '@/layouts/SettingsLayout'
 import SystemLayout from '@/layouts/SystemLayout'
 import SystemSettingsLayout from '@/layouts/SystemSettingsLayout'
+import { AuthProvider } from '@/contexts/AuthContext'
 import { WorkspaceProvider, useWorkspace } from '@/contexts/WorkspaceContext'
 import { BrandDisplayMapProvider } from '@/contexts/BrandDisplayMapContext'
 import { ResumeFieldUsagePolicyProvider } from '@/contexts/ResumeFieldUsagePolicyContext'
@@ -79,6 +81,11 @@ const LazySystemSettingsRuntimePage = lazy(async () => {
   return { default: module.SystemSettingsRuntimePage }
 })
 
+const LazySystemSettingsAuthPage = lazy(async () => {
+  const module = await import('@/pages/system-settings/SystemSettingsAuthPage')
+  return { default: module.SystemSettingsAuthPage }
+})
+
 const LazySystemSettingsTaxonomyPage = lazy(async () => {
   const module = await import('@/pages/system-settings/SystemSettingsTaxonomyPage')
   return { default: module.SystemSettingsTaxonomyPage }
@@ -120,11 +127,13 @@ function PreserveSearchNavigate({ pathname }: { pathname: string }) {
 function WorkspaceShell() {
   return (
     <WorkspaceProvider invalidFallback={<StandaloneNotFoundPage />}>
-      <ResumeFieldUsagePolicyProvider>
-        <BrandDisplayMapProvider>
-          <Outlet />
-        </BrandDisplayMapProvider>
-      </ResumeFieldUsagePolicyProvider>
+      <AuthProvider>
+        <ResumeFieldUsagePolicyProvider>
+          <BrandDisplayMapProvider>
+            <Outlet />
+          </BrandDisplayMapProvider>
+        </ResumeFieldUsagePolicyProvider>
+      </AuthProvider>
     </WorkspaceProvider>
   )
 }
@@ -172,6 +181,7 @@ function App() {
             <Route index element={<PreserveSearchNavigate pathname="resumes" />} />
 
             <Route element={<MainShell />}>
+              <Route path="login" element={<LoginPage />} />
               <Route path="resumes" element={<ResumesPage />} />
               {isReviewPacketsEnabled() ? (
                 <Route path="review-packets" element={<ReviewPacketsPage />} />
@@ -240,6 +250,14 @@ function App() {
                   element={(
                     <RouteSuspense>
                       <LazySystemSettingsRuntimePage />
+                    </RouteSuspense>
+                  )}
+                />
+                <Route
+                  path="auth"
+                  element={(
+                    <RouteSuspense>
+                      <LazySystemSettingsAuthPage />
                     </RouteSuspense>
                   )}
                 />

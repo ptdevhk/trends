@@ -5,7 +5,7 @@ import { notificationService } from "../services/notification-service.js";
 import { notificationTemplateService } from "../services/notification-template-service.js";
 import { config } from "../services/config.js";
 import { formatIsoOffsetInTimezone } from "../services/timezone.js";
-import { requireAdmin } from "../middleware/workspace.js";
+import { requireAdmin } from "../middleware/auth.js";
 
 const app = new OpenAPIHono();
 

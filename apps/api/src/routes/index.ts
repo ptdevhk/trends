@@ -1,4 +1,5 @@
 export { default as healthRoutes } from "./health.js";
+export { default as authRoutes } from "./auth.js";
 export { default as aiSummaryRoutes } from "./ai-summary.js";
 export { default as taxonomyRoutes } from "./taxonomy.js";
 export { default as trendsRoutes } from "./trends.js";

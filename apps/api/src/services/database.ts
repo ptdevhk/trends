@@ -82,6 +82,8 @@ function initSchema(db: Database.Database): void {
       id TEXT PRIMARY KEY,
       email TEXT,
       name TEXT,
+      display_name TEXT,
+      status TEXT DEFAULT 'active',
       role TEXT DEFAULT 'recruiter',
       team_id TEXT,
       created_at TEXT NOT NULL,
@@ -172,6 +174,109 @@ function initSchema(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_actions_user ON candidate_actions(user_id);
     CREATE INDEX IF NOT EXISTS idx_actions_type ON candidate_actions(action_type);
 
+    CREATE TABLE IF NOT EXISTS auth_identities (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      provider TEXT NOT NULL,
+      provider_subject TEXT NOT NULL,
+      provider_tenant TEXT,
+      email TEXT,
+      display_name TEXT,
+      raw_profile_json TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      UNIQUE(provider, provider_subject, provider_tenant),
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS auth_password_credentials (
+      user_id TEXT PRIMARY KEY,
+      password_hash TEXT NOT NULL,
+      salt TEXT NOT NULL,
+      scrypt_n INTEGER NOT NULL,
+      scrypt_r INTEGER NOT NULL,
+      scrypt_p INTEGER NOT NULL,
+      key_length INTEGER NOT NULL,
+      must_change_password INTEGER NOT NULL DEFAULT 1,
+      password_changed_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS auth_sessions (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      token_hash TEXT NOT NULL UNIQUE,
+      csrf_token_hash TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      revoked_at TEXT,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS auth_oidc_states (
+      state TEXT PRIMARY KEY,
+      provider TEXT NOT NULL,
+      code_verifier TEXT NOT NULL,
+      nonce TEXT,
+      redirect_to TEXT,
+      created_at TEXT NOT NULL,
+      expires_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS workspace_memberships (
+      user_id TEXT NOT NULL,
+      workspace_slug TEXT NOT NULL,
+      role TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (user_id, workspace_slug),
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS auth_provider_membership_preapprovals (
+      id TEXT PRIMARY KEY,
+      provider TEXT NOT NULL,
+      provider_subject TEXT NOT NULL,
+      provider_tenant TEXT NOT NULL,
+      workspace_slug TEXT NOT NULL,
+      role TEXT NOT NULL,
+      operator_id TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      revoked_at TEXT,
+      revoked_by TEXT,
+      UNIQUE(provider, provider_subject, provider_tenant, workspace_slug)
+    );
+
+    CREATE TABLE IF NOT EXISTS auth_provider_membership_grants (
+      id TEXT PRIMARY KEY,
+      preapproval_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      provider TEXT NOT NULL,
+      provider_subject TEXT NOT NULL,
+      provider_tenant TEXT NOT NULL,
+      workspace_slug TEXT NOT NULL,
+      role TEXT NOT NULL,
+      membership_created INTEGER NOT NULL DEFAULT 1,
+      granted_at TEXT NOT NULL,
+      revoked_at TEXT,
+      UNIQUE(provider, provider_subject, provider_tenant, workspace_slug, user_id),
+      FOREIGN KEY (preapproval_id) REFERENCES auth_provider_membership_preapprovals(id),
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_auth_identities_user ON auth_identities(user_id);
+    CREATE INDEX IF NOT EXISTS idx_auth_sessions_user ON auth_sessions(user_id);
+    CREATE INDEX IF NOT EXISTS idx_auth_sessions_token ON auth_sessions(token_hash);
+    CREATE INDEX IF NOT EXISTS idx_workspace_memberships_workspace ON workspace_memberships(workspace_slug);
+    CREATE INDEX IF NOT EXISTS idx_auth_provider_preapprovals_subject
+      ON auth_provider_membership_preapprovals(provider, provider_subject, provider_tenant);
+    CREATE INDEX IF NOT EXISTS idx_auth_provider_grants_user ON auth_provider_membership_grants(user_id);
+    CREATE INDEX IF NOT EXISTS idx_auth_provider_grants_subject
+      ON auth_provider_membership_grants(provider, provider_subject, provider_tenant);
+
     CREATE TABLE IF NOT EXISTS workspace_summary_runs (
       id TEXT PRIMARY KEY,
       workspace_slug TEXT NOT NULL DEFAULT 'dev',
@@ -218,7 +323,31 @@ function initSchema(db: Database.Database): void {
 
     CREATE INDEX IF NOT EXISTS idx_review_packet_runs_workspace ON review_packet_runs(workspace_slug);
     CREATE INDEX IF NOT EXISTS idx_review_packet_runs_exported ON review_packet_runs(exported_at DESC);
+
+    CREATE TABLE IF NOT EXISTS auth_events (
+      id TEXT PRIMARY KEY,
+      type TEXT NOT NULL,
+      user_id TEXT,
+      provider TEXT,
+      workspace_slug TEXT,
+      session_id TEXT,
+      reason TEXT,
+      metadata_json TEXT,
+      ip_hash TEXT,
+      user_agent TEXT,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_auth_events_created_at ON auth_events(created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_auth_events_workspace ON auth_events(workspace_slug);
+    CREATE INDEX IF NOT EXISTS idx_auth_events_type ON auth_events(type);
+    CREATE INDEX IF NOT EXISTS idx_auth_events_user ON auth_events(user_id);
   `);
+
+  if (existingTables.has("users")) {
+    ensureColumn(db, "users", "display_name", "TEXT");
+    ensureColumn(db, "users", "status", "TEXT DEFAULT 'active'");
+  }
 
   if (existingTables.has("resume_matches")) {
     ensureColumn(db, "resume_matches", "breakdown", "TEXT");
@@ -229,6 +358,10 @@ function initSchema(db: Database.Database): void {
     ensureColumn(db, "search_sessions", "workspace_slug", "TEXT DEFAULT 'dev'");
     ensureColumn(db, "search_sessions", "share_title", "TEXT");
     ensureColumn(db, "search_sessions", "search_state", "TEXT");
+  }
+
+  if (existingTables.has("auth_provider_membership_grants")) {
+    ensureColumn(db, "auth_provider_membership_grants", "membership_created", "INTEGER NOT NULL DEFAULT 1");
   }
 }
 

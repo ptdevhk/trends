@@ -4,6 +4,8 @@ import path from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { createAuthContext } from "./test-auth-helpers";
+
 function createFixtureRoot(): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "sessions-route-"));
   fs.mkdirSync(path.join(root, "output"), { recursive: true });
@@ -57,7 +59,7 @@ describe("session routes", () => {
   it("creates and rehydrates persisted share session state", async () => {
     root = createFixtureRoot();
     const { createApp } = await loadSessionModules(root);
-    const app = createApp();
+    const app = createApp({ authContext: createAuthContext({ workspaceSlug: "hr", role: "user" }) });
 
     const createResponse = await app.request("/api/sessions", {
       method: "POST",
@@ -164,7 +166,7 @@ describe("session routes", () => {
   it("updates and clears persisted share metadata within the workspace scope", async () => {
     root = createFixtureRoot();
     const { createApp } = await loadSessionModules(root);
-    const app = createApp();
+    const app = createApp({ authContext: createAuthContext({ workspaceSlug: "hr", role: "user" }) });
 
     const createResponse = await app.request("/api/sessions", {
       method: "POST",
@@ -229,6 +231,39 @@ describe("session routes", () => {
       },
     });
 
-    expect(missingWorkspaceResponse.status).toBe(404);
+    expect(missingWorkspaceResponse.status).toBe(403);
+  });
+
+  it("rejects anonymous session reads", async () => {
+    root = createFixtureRoot();
+    const { createApp } = await loadSessionModules(root);
+    const app = createApp();
+
+    const response = await app.request("/api/sessions/session-1", {
+      headers: {
+        "X-Workspace-Slug": "hr",
+      },
+    });
+
+    expect(response.status).toBe(401);
+  });
+
+  it("rejects session creation from users outside the selected workspace", async () => {
+    root = createFixtureRoot();
+    const { createApp } = await loadSessionModules(root);
+    const app = createApp({ authContext: createAuthContext({ workspaceSlug: "hr", role: "user" }) });
+
+    const response = await app.request("/api/sessions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Workspace-Slug": "dev",
+      },
+      body: JSON.stringify({
+        shareTitle: "Wrong workspace",
+      }),
+    });
+
+    expect(response.status).toBe(403);
   });
 });

@@ -12,6 +12,13 @@ function normalizeIdentityKey(value: string): string {
     return value.trim();
 }
 
+function requireWriteSecret(writeSecret: string | undefined): void {
+    const expected = process.env.CONVEX_WRITE_SECRET;
+    if (!expected || writeSecret !== expected) {
+        throw new Error("Unauthorized Convex write");
+    }
+}
+
 export const list = query({
     args: {
         workspaceSlug: v.optional(v.string()),
@@ -52,8 +59,10 @@ export const upsert = mutation({
         identityKey: v.string(),
         reason: v.optional(v.string()),
         blockedBy: v.optional(v.string()),
+        writeSecret: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
+        requireWriteSecret(args.writeSecret);
         const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
         const identityKey = normalizeIdentityKey(args.identityKey);
         if (!identityKey) {
@@ -92,8 +101,10 @@ export const updateReason = mutation({
         workspaceSlug: v.optional(v.string()),
         identityKey: v.string(),
         reason: v.optional(v.string()),
+        writeSecret: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
+        requireWriteSecret(args.writeSecret);
         const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
         const identityKey = normalizeIdentityKey(args.identityKey);
         if (!identityKey) {
@@ -125,8 +136,10 @@ export const bulkUpsert = mutation({
         identityKeys: v.array(v.string()),
         reason: v.optional(v.string()),
         blockedBy: v.optional(v.string()),
+        writeSecret: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
+        requireWriteSecret(args.writeSecret);
         const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
         const identityKeys = Array.from(
             new Set(args.identityKeys.map((item) => normalizeIdentityKey(item)).filter((item) => item.length > 0))
@@ -178,8 +191,10 @@ export const remove = mutation({
     args: {
         workspaceSlug: v.optional(v.string()),
         identityKey: v.string(),
+        writeSecret: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
+        requireWriteSecret(args.writeSecret);
         const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
         const identityKey = normalizeIdentityKey(args.identityKey);
         if (!identityKey) {

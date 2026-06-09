@@ -2,7 +2,11 @@ import { OpenAPIHono } from "@hono/zod-openapi";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import resumesAdminRoutes from "./resumes_admin";
+import { createAuthMiddleware } from "../middleware/auth";
 import { workspaceMiddleware } from "../middleware/workspace";
+import type { AuthStorage } from "../services/auth-storage";
+import { resetResumeScreeningDb } from "../services/database";
+import { createAuthHeaders } from "./test-auth-helpers";
 
 vi.mock("../services/notification-service", () => ({
   notificationService: {
@@ -12,9 +16,17 @@ vi.mock("../services/notification-service", () => ({
   },
 }));
 
-function createTestApp() {
+let defaultAuthHeaders: Record<string, string> = {};
+
+function createTestApp(storage?: AuthStorage) {
+  const auth = storage ? undefined : createAuthHeaders({ workspaceSlug: "dev", role: "admin" });
+  const authStorage = storage ?? auth!.storage;
+  defaultAuthHeaders = auth?.headers ?? defaultAuthHeaders;
+  const middleware = createAuthMiddleware({ storage: authStorage, ttlSeconds: 3600 });
   const app = new OpenAPIHono();
   app.use("*", workspaceMiddleware);
+  app.use("*", middleware.optionalAuth);
+  app.use("/api/*", middleware.requireCsrf);
   app.route("/", resumesAdminRoutes);
   return app;
 }
@@ -28,12 +40,14 @@ function convexSuccess(value: unknown): Response {
 
 describe("resumes_admin", () => {
   const jsonHeaders = (extra: Record<string, string> = {}): Record<string, string> => ({
+    ...defaultAuthHeaders,
     "Content-Type": "application/json",
     ...extra,
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
+    resetResumeScreeningDb();
   });
 
   describe("admin access gating", () => {

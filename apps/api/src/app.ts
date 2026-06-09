@@ -38,10 +38,43 @@ import {
   resumesSearchRoutes,
   resumesMatchRoutes,
 } from "./routes/index.js";
+import { createAuthRoutes } from "./routes/auth.js";
 import { config } from "./services/config.js";
+import type { AuthEventStorage } from "./services/auth-event-storage.js";
+import type { AuthStorage } from "./services/auth-storage.js";
+import type { AuthContext } from "./services/auth-types.js";
 import { workspaceMiddleware } from "./middleware/workspace.js";
+import { createAuthMiddleware } from "./middleware/auth.js";
 import { serverTimingMiddleware } from "./middleware/server-timing.js";
 import { rateLimit } from "./middleware/rate-limit.js";
+
+const LOCAL_DEV_ORIGINS = new Set([
+  "http://localhost:3000",
+  "http://localhost:3001",
+  "http://localhost:5173",
+  "http://localhost:5174",
+  "http://127.0.0.1:3000",
+  "http://127.0.0.1:3001",
+  "http://127.0.0.1:5173",
+  "http://127.0.0.1:5174",
+]);
+
+function resolveCorsOrigin(origin: string): string | null {
+  if (config.auth.allowedOrigins.includes(origin)) {
+    return origin;
+  }
+  if (process.env.NODE_ENV !== "production" && config.auth.allowedOrigins.length === 0 && LOCAL_DEV_ORIGINS.has(origin)) {
+    return origin;
+  }
+  return null;
+}
+
+type CreateAppOptions = {
+  authStorage?: AuthStorage;
+  authEventStorage?: AuthEventStorage;
+  authContext?: AuthContext;
+  authTtlSeconds?: number;
+};
 
 export const openApiConfig = {
   openapi: "3.1.0",
@@ -72,8 +105,13 @@ export const openApiConfig = {
   ],
 };
 
-export function createApp() {
+export function createApp(options: CreateAppOptions = {}) {
   const app = new OpenAPIHono();
+  const authMiddleware = createAuthMiddleware({
+    storage: options.authStorage,
+    eventStorage: options.authEventStorage,
+    ttlSeconds: options.authTtlSeconds,
+  });
 
   // Middleware
   app.use("*", serverTimingMiddleware);
@@ -96,13 +134,27 @@ export function createApp() {
   app.use(
     "*",
     cors({
-      origin: "*",
+      origin: resolveCorsOrigin,
+      credentials: true,
       exposeHeaders: ["Content-Disposition", "Content-Length"],
     })
   );
   app.use("*", logger());
   app.use("*", prettyJSON());
   app.use("*", workspaceMiddleware);
+  if (options.authContext) {
+    app.use("*", async (c, next) => {
+      c.set("auth", options.authContext);
+      await next();
+    });
+  }
+  if (options.authEventStorage) {
+    app.use("*", async (c, next) => {
+      c.set("authEventStorage", options.authEventStorage);
+      await next();
+    });
+  }
+  app.use("*", authMiddleware.optionalAuth);
 
   // Rate limiting on API routes (100 req/min per IP in production).
   // In development, localhost requests share key "unknown" and exhaust the budget quickly.
@@ -126,9 +178,15 @@ export function createApp() {
       })(c, next);
     },
   );
+  app.use("/api/*", authMiddleware.requireCsrf);
 
   // Mount routes
   app.route("/", healthRoutes);
+  app.route("/", createAuthRoutes({
+    storage: options.authStorage,
+    eventStorage: options.authEventStorage,
+    ttlSeconds: options.authTtlSeconds,
+  }));
   app.route("/", aiSummaryRoutes);
   app.route("/", taxonomyRoutes);
   app.route("/", trendsRoutes);

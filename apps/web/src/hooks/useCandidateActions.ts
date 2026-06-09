@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { rawApiClient } from '@/lib/api-helpers'
+import { classifyApiError, getAuthErrorTranslationKey, type AuthErrorType } from '@/lib/auth-errors'
 import {
   actionToAiFeedback,
   type AiFeedbackSentiment,
@@ -36,12 +37,21 @@ function extractRatingFromActionType(actionType: CandidateActionType, actionData
   return typeof rating === 'number' && rating >= 0 && rating <= 5 ? rating : undefined
 }
 
+function getErrorStatus(error: unknown): number | undefined {
+  if (typeof error === 'object' && error !== null && 'status' in error) {
+    const { status } = error as { status: unknown }
+    return typeof status === 'number' ? status : undefined
+  }
+  return undefined
+}
+
 export function useCandidateActions(sessionId?: string, jobDescriptionId?: string, enabled: boolean = true) {
   const [actionsByResume, setActionsByResume] = useState<Record<string, CandidateActionType>>({})
   const [aiFeedbackByResume, setAiFeedbackByResume] = useState<Record<string, AiFeedbackState>>({})
   const [ratingsByResume, setRatingsByResume] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [authError, setAuthError] = useState<AuthErrorType>(null)
 
   const loadActions = useCallback(async () => {
     if (!enabled || !sessionId) return
@@ -182,7 +192,15 @@ export function useCandidateActions(sessionId?: string, jobDescriptionId?: strin
             })
           }
         }
-        setError('Failed to save action')
+
+        const errorStatus = getErrorStatus(apiError)
+        const authErrorType = classifyApiError(errorStatus, data as { error?: string } | undefined)
+        if (authErrorType) {
+          setAuthError(authErrorType)
+          setError(getAuthErrorTranslationKey(authErrorType))
+        } else {
+          setError('Failed to save action')
+        }
         return null
       }
 
@@ -227,6 +245,7 @@ export function useCandidateActions(sessionId?: string, jobDescriptionId?: strin
     ratingsByResume,
     loading,
     error,
+    authError,
     reload: loadActions,
     saveAction,
     getAiFeedback,

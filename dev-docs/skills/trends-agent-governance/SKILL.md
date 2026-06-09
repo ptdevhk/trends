@@ -13,29 +13,20 @@ validation:
 
 # Trends Agent Governance
 
-Apply this workflow for non-trivial technical planning and recommendation tasks.
+Lightweight adapter for Trends-specific governance. Do not duplicate the
+dev-loop pipeline here.
 
 ## Workflow
 
-1. Classify the task.
-   - If the task is a technical design/recommendation task, require source evidence.
-   - If the task is a trivial edit or command-only action, skip evidence unless explicitly requested.
-2. Load local sources first.
-   - Read implementation files and relevant docs in this repository.
-   - Read `dev-docs/*.txt` material relevant to the task.
-3. Query Context7 for libraries/frameworks/APIs involved in the recommendation.
-4. Query official web sources only when freshness-sensitive facts are required.
-5. Format output for portability.
-   - Use repo-relative paths for implementation/report content (for example `apps/api/src/routes/resumes.ts`).
-   - Write commands so they are copy/paste-ready from repository root in a fresh environment.
-   - Avoid machine-specific absolute paths in implementation guidance.
-6. Produce output with `Sources Used` section using the template in `references/evidence-template.md`.
-   - Use repo-relative paths in `Sources Used`.
-7. If AGENTS governance files changed, run:
-   - `make sync-agent-policy`
-   - `make check-agent-policy`
+1. For implementation, debugging, review, prep, investigate, merge, and browser verification work, follow `@dev-loop` and `.claude/dev-loop.config.md`.
+2. For non-trivial architecture, design, library, framework, API, or governance recommendations, apply the canonical policy in `AGENTS.md`.
+3. Use the source order from `AGENTS.md`: local repo, Context7, DevTools for browser-facing verification, then official web only for freshness-sensitive facts.
+4. Include `Sources Used` only for non-trivial technical recommendations, and list only source categories actually consulted.
+5. Keep reusable guidance portable: repo-relative paths, repo-root commands, and no machine-specific paths.
+6. If governance policy or this skill package changes, run the relevant sync/check commands from `AGENTS.md`.
 
 ## References
 
-- Source matrix rules: `references/source-matrix.md`
-- Evidence format template: `references/evidence-template.md`
+- Canonical policy: `AGENTS.md`
+- Pipeline config: `.claude/dev-loop.config.md`
+- Evidence reminder: `references/evidence-template.md`

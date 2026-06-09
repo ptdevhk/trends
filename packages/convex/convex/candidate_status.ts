@@ -13,6 +13,13 @@ function normalizeIdentityKey(value: string): string {
     return value.trim();
 }
 
+function requireWriteSecret(writeSecret: string | undefined): void {
+    const expected = process.env.CONVEX_WRITE_SECRET;
+    if (!expected || writeSecret !== expected) {
+        throw new Error("Unauthorized Convex write");
+    }
+}
+
 export const listForBackup = query({
     args: {
         workspaceSlug: v.optional(v.string()),
@@ -90,8 +97,10 @@ export const upsert = mutation({
         ),
         notes: v.optional(v.string()),
         updatedBy: v.optional(v.string()),
+        writeSecret: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
+        requireWriteSecret(args.writeSecret);
         const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
         const identityKey = normalizeIdentityKey(args.identityKey);
         if (!identityKey) {
@@ -139,4 +148,3 @@ export const upsert = mutation({
         });
     },
 });
-

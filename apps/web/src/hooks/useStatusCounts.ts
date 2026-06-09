@@ -53,7 +53,6 @@ function normalizeStatusCounts(input: Partial<CandidateStatusCounts> | undefined
   if (!input) {
     return counts;
   }
-
   CANDIDATE_STATUS_VALUES.forEach((status) => {
     counts[status] = input[status] ?? 0;
   });

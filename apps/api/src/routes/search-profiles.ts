@@ -10,7 +10,7 @@ import {
     getWorkspaceSearchProfileTemplates,
     isRecord,
     isValidWorkspace,
-    WORKSPACE_TEAMS,
+    listWorkspaceSlugs,
 } from "@trends/shared";
 
 import {
@@ -20,7 +20,7 @@ import {
     type SearchProfile,
 } from "../services/search-profile-service.js";
 import { logger } from "../services/logger.js";
-import { requireAdmin } from "../middleware/workspace.js";
+import { requireAdmin } from "../middleware/auth.js";
 import { callConvexQuery, callConvexMutation } from "../services/convex-utils.js";
 import { resolveConvexUrl } from "../services/resume-import-service.js";
 import { readString, readNumber } from "../services/workspace-config-service.js";
@@ -239,7 +239,7 @@ type JobDescriptionSyncPayload = {
 
 const DEFAULT_WORKSPACE_SLUG = "dev";
 const CONFIG_SEED_SOURCE = "config/search-profiles";
-const KNOWN_WORKSPACE_SLUGS = Object.keys(WORKSPACE_TEAMS).filter(isValidWorkspace);
+const KNOWN_WORKSPACE_SLUGS = listWorkspaceSlugs();
 
 function belongsToWorkspace(recordWorkspaceSlug: unknown, workspaceSlug: string): boolean {
     const normalizedRecordWorkspace = readString(recordWorkspaceSlug);

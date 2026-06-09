@@ -2,7 +2,7 @@
 
 .PHONY: dev dev-samples dev-fast dev-critical dev-backend dev-clean dev-mcp dev-crawl dev-convex dev-convex-stop dev-convex-restart dev-convex-refresh dev-convex-ensure dev-convex-status dev-web dev-api dev-worker dev-api-worker \
 		local-run-crawler local-run-mcp local-run-mcp-http local-run-worker local-run-worker-once run crawl mcp mcp-http worker worker-once \
-		on-prod-install on-prod-deploy on-prod-deploy-check on-prod-uninstall on-prod-refresh-env prod-install prod-deploy prod-deploy-check install deploy deploy-check uninstall refresh-env \
+		on-prod-install on-prod-deploy on-prod-deploy-check on-prod-uninstall on-prod-refresh-env on-prod-preview-restore-full-state prod-install prod-deploy prod-deploy-check install deploy deploy-check uninstall refresh-env preview-restore-full-state restore-preview-full-state \
 		install-deps fetch-docs clean check help docker docker-build docker-down \
 		check-python check-node check-build \
 		test test-python test-node test-resume test-extension-keyword-mode test-api-search-profiles test-worker-resume-tasks test-collect-url-smoke \
@@ -19,7 +19,7 @@
 		clear-resumes \
 		cli-build cli-install cli-test \
 		sync-agent-policy check-agent-policy sync-project-skills check-project-skills install-global-skills install-agent-skill check-agent-skill sync-agent-governance \
-		check-route-auth \
+		check-route-auth auth-workspace-smoke auth-provider-membership \
 		install-skill validate-skill check-skill-install install-test-plan-skill check-test-plan-skill \
 		install-browser-ext-skill check-browser-ext-skill \
 		sync-resume-ai-prompts check-resume-ai-prompts \
@@ -91,16 +91,7 @@ dev-crawl:
 
 # Start only local Convex dev backend
 dev-convex:
-	@if [ -d "packages/convex" ]; then \
-		if command -v bun >/dev/null 2>&1; then \
-			cd packages/convex && bun run dev; \
-		else \
-			cd packages/convex && npm run dev; \
-		fi; \
-	else \
-		echo "packages/convex not found."; \
-		exit 1; \
-	fi
+	@./scripts/dev.sh --convex-only --no-seed $(ARGS)
 
 # Stop only local Convex dev backend listeners
 dev-convex-stop:
@@ -172,7 +163,7 @@ dev-convex-refresh:
 	if tmux has-session -t "$$tmux_session" 2>/dev/null; then \
 		tmux kill-session -t "$$tmux_session" 2>/dev/null || true; \
 	fi; \
-	tmux new-session -d -s "$$tmux_session" "cd '$$project_root/packages/convex' && if command -v bun >/dev/null 2>&1; then bun run dev; else npm run dev; fi"; \
+	tmux new-session -d -s "$$tmux_session" "cd '$$project_root' && $(MAKE) dev-convex"; \
 	echo "Waiting up to $$refresh_wait_secs seconds for local Convex to become ready..."; \
 	for _ in $$(seq 1 "$$refresh_wait_secs"); do \
 		if curl -fsS "http://127.0.0.1:$$convex_port/version" >/dev/null 2>&1; then \
@@ -220,7 +211,7 @@ dev-convex-status:
 				current="$$parent"; \
 			done; \
 		done; \
-	} | sort -u | tr '\n' ' ' )"; \
+	} | sed '/^[[:space:]]*$$/d' | sort -u | tr '\n' ' ' | xargs )"; \
 	if [ -n "$$pids" ]; then \
 		ps -o pid,ppid,pgid,rss,%mem,etime,cmd -p $$pids; \
 	else \
@@ -374,6 +365,13 @@ on-prod-refresh-env:
 
 refresh-env: on-prod-refresh-env
 
+# Runs on prod host ONLY. Restore production Convex + SQLite candidate-action state into preview
+on-prod-preview-restore-full-state:
+	sudo ./deploy/restore-preview-full-state-from-prod.sh $(ARGS)
+
+preview-restore-full-state: on-prod-preview-restore-full-state
+restore-preview-full-state: on-prod-preview-restore-full-state
+
 # Dual-target: follows $API_URL. Defaults to http://localhost:3000 (local).
 # Backup live resume records to a portable JSON or .tar.gz file
 backup-resumes:
@@ -400,6 +398,18 @@ restore-resumes:
 		bun run scripts/resume/restore-resumes.ts; \
 	else \
 		npx tsx scripts/resume/restore-resumes.ts; \
+	fi
+
+# Derive a small restore-compatible backup from a full portable resume backup
+resume-lite-backup:
+	@COUNT="$${COUNT:-20}" \
+	FILE="$${FILE:-output/resume-backups/resumes-prod-dev-20260512-111129.tar.gz}" \
+	OUT="$${OUT:-output/resume-backups/resumes-prod-dev-lite-top$${COUNT}.tar.gz}"; \
+	export COUNT FILE OUT; \
+	if command -v bun >/dev/null 2>&1; then \
+		bun run scripts/resume/create-lite-backup.ts; \
+	else \
+		npx tsx scripts/resume/create-lite-backup.ts; \
 	fi
 
 # One-liner: SSH tunnel → backup prod workspace → close tunnel
@@ -1254,7 +1264,7 @@ test: test-python test-node                ## Run all tests (Python + TypeScript
 
 test-python:                               ## Run Python tests
 	@echo "Running Python tests..."
-	@uv run pytest tests/ -v
+	@uv run pytest apps/worker/tests tests/ -v
 
 test-node:                                 ## Run TypeScript tests (bun locally, npm in CI)
 	@echo "Running Node.js tests..."
@@ -1282,7 +1292,7 @@ test-api-search-profiles:                  ## Run search-profiles dispatch keywo
 
 test-worker-resume-tasks:                  ## Run worker resume task keyword assembly tests
 	@echo "Running worker resume task tests..."
-	@uv run pytest tests/test_resume_tasks.py -q
+	@uv run pytest apps/worker/tests/test_resume_tasks.py tests/test_resume_tasks.py -q
 
 test-collect-url-smoke:                    ## Run quick smoke for Collect URL keyword concatenation
 	@echo "Running Collect URL smoke check..."
@@ -1291,6 +1301,16 @@ test-collect-url-smoke:                    ## Run quick smoke for Collect URL ke
 	else \
 		npm run test:e2e:collect-url; \
 	fi
+
+auth-workspace-smoke:                      ## Run auth/session/CSRF workspace smoke (requires AUTH_SMOKE_EMAIL/PASSWORD)
+	@echo "Running auth workspace smoke check..."
+	@bunx tsx scripts/auth-workspace-smoke.ts
+
+auth-provider-membership:                  ## Manage provider membership preapprovals (ARGS="list-identities --provider casdoor")
+	@bunx tsx scripts/auth/manage-provider-membership.ts $(ARGS)
+
+auth-provider-claims-smoke:                ## Run fixture-driven Casdoor/WeCom provider claims smoke
+	@bunx tsx scripts/auth/casdoor-wecom-claims-smoke.ts
 
 test-coverage:                             ## Run Node.js tests with coverage
 	@echo "Running Node.js tests with coverage..."
@@ -1358,6 +1378,9 @@ help:
 	@echo "  on-prod-deploy         Preflight + snapshot + upgrade, requires sudo (alias: prod-deploy/deploy)"
 	@echo "  on-prod-deploy-check   Dry run deploy precheck (alias: prod-deploy-check/deploy-check)"
 	@echo "  on-prod-refresh-env    Refresh env + rebuild web bundle (alias: refresh-env)"
+	@echo "  on-prod-preview-restore-full-state"
+	@echo "                         Restore prod Convex + SQLite candidate actions into preview"
+	@echo "                         (alias: preview-restore-full-state/restore-preview-full-state)"
 	@echo "  on-prod-uninstall      Remove systemd services, requires sudo (alias: uninstall)"
 	@echo "                         See ./scripts/install.sh --help for branch preflight, rollback backups, CI=true/1"
 	@echo ""
@@ -1415,6 +1438,8 @@ help:
 	@echo "  test-api-search-profiles Run API route test for profile-run keyword dispatch"
 	@echo "  test-worker-resume-tasks Run worker keyword assembly tests"
 	@echo "  test-collect-url-smoke Run Collect button URL smoke check"
+	@echo "  auth-workspace-smoke Run auth/session/CSRF workspace smoke (requires AUTH_SMOKE_EMAIL/PASSWORD)"
+	@echo "  auth-provider-membership Manage provider membership preapprovals (ARGS='list-identities --provider casdoor')"
 	@echo "  test-resume    Validate resume fixtures"
 	@echo "  clean-db       Clean local databases and environment (Convex state + SQLite)"
 	@echo "  fresh-env      Wipe everything and reinstall dependencies (nuclear option)"

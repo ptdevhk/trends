@@ -27,9 +27,14 @@ export const create = mutation({
 export const toggle = mutation({
     args: {
         alertId: v.id("search_alerts"),
+        workspaceSlug: v.string(),
         enabled: v.boolean(),
     },
     handler: async (ctx, args) => {
+        const alert = await ctx.db.get(args.alertId);
+        if (!alert || alert.workspaceSlug !== args.workspaceSlug) {
+            throw new Error("Search alert not found in workspace");
+        }
         await ctx.db.patch(args.alertId, { enabled: args.enabled });
     },
 });
@@ -40,8 +45,13 @@ export const toggle = mutation({
 export const remove = mutation({
     args: {
         alertId: v.id("search_alerts"),
+        workspaceSlug: v.string(),
     },
     handler: async (ctx, args) => {
+        const alert = await ctx.db.get(args.alertId);
+        if (!alert || alert.workspaceSlug !== args.workspaceSlug) {
+            throw new Error("Search alert not found in workspace");
+        }
         await ctx.db.delete(args.alertId);
     },
 });

@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -7,12 +7,19 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 const makefile = readFileSync(new URL("../Makefile", import.meta.url), "utf8");
 const installScript = readFileSync(new URL("./install.sh", import.meta.url), "utf8");
+const devScript = readFileSync(new URL("./dev.sh", import.meta.url), "utf8");
+const convexPackageJson = JSON.parse(
+  readFileSync(new URL("../packages/convex/package.json", import.meta.url), "utf8"),
+) as { scripts: Record<string, string | undefined> };
 const setupPreviewScript = readFileSync(new URL("../deploy/setup-preview.sh", import.meta.url), "utf8");
 const restorePreviewScript = readFileSync(new URL("../deploy/restore-preview-from-prod.sh", import.meta.url), "utf8");
+const restorePreviewFullStateScript = readFileSync(new URL("../deploy/restore-preview-full-state-from-prod.sh", import.meta.url), "utf8");
 const syncPreviewConvexEnvScript = readFileSync(new URL("../deploy/sync-preview-convex-env.sh", import.meta.url), "utf8");
+const previewDoctorScript = readFileSync(new URL("../deploy/preview-doctor.sh", import.meta.url), "utf8");
 const previewMcpDockerfile = readFileSync(new URL("../deploy/docker/Dockerfile.mcp", import.meta.url), "utf8");
 const previewCompose = readFileSync(new URL("../deploy/docker/docker-compose.preview.yml", import.meta.url), "utf8");
 const previewConvexStartScript = readFileSync(new URL("../deploy/docker/start-convex.sh", import.meta.url), "utf8");
+const productionConvexService = readFileSync(new URL("../deploy/systemd/trends-convex.service", import.meta.url), "utf8");
 const removedSeedEnvVar = "SEED_" + "RESUMES";
 
 function getTargetRecipe(target: string): string {
@@ -23,6 +30,32 @@ function getTargetRecipe(target: string): string {
     throw new Error(`Missing Makefile recipe for target: ${target}`);
   }
   return match[1];
+}
+
+function extractShellFunction(script: string, functionName: string): string {
+  const startMarker = `${functionName}() {`;
+  const startIdx = script.indexOf(startMarker);
+  if (startIdx === -1) {
+    throw new Error(`Could not find ${functionName}`);
+  }
+  const bodyStart = script.indexOf("{", startIdx) + 1;
+  let depth = 1;
+  let index = bodyStart;
+  while (index < script.length && depth > 0) {
+    if (script[index] === "{") depth++;
+    else if (script[index] === "}") depth--;
+    if (depth > 0) index++;
+  }
+  if (depth !== 0) {
+    throw new Error(`Could not extract ${functionName} body`);
+  }
+  return script.slice(bodyStart, index);
+}
+
+function expectBefore(source: string, first: string, second: string): void {
+  expect(source).toContain(first);
+  expect(source).toContain(second);
+  expect(source.indexOf(first)).toBeLessThan(source.indexOf(second));
 }
 
 describe("install/deploy demo resume safety", () => {
@@ -70,26 +103,6 @@ describe("seed_and_migrate_convex migration order", () => {
   let body = "";
   let migrations: string[] = [];
 
-  function extractSeedAndMigrateBody(script: string): string {
-    const startMarker = "seed_and_migrate_convex() {";
-    const startIdx = script.indexOf(startMarker);
-    if (startIdx === -1) {
-      throw new Error("Could not find seed_and_migrate_convex in install.sh");
-    }
-    const bodyStart = script.indexOf("{", startIdx) + 1;
-    let depth = 1;
-    let i = bodyStart;
-    while (i < script.length && depth > 0) {
-      if (script[i] === "{") depth++;
-      else if (script[i] === "}") depth--;
-      if (depth > 0) i++;
-    }
-    if (depth !== 0) {
-      throw new Error("Could not extract seed_and_migrate_convex body from install.sh");
-    }
-    return script.slice(bodyStart, i);
-  }
-
   function extractMigrationCalls(fnBody: string): string[] {
     const calls: string[] = [];
     for (const line of fnBody.split("\n")) {
@@ -102,7 +115,7 @@ describe("seed_and_migrate_convex migration order", () => {
   }
 
   beforeAll(() => {
-    body = extractSeedAndMigrateBody(installScript);
+    body = extractShellFunction(installScript, "seed_and_migrate_convex");
     migrations = extractMigrationCalls(body);
   });
 
@@ -126,6 +139,135 @@ describe("seed_and_migrate_convex migration order", () => {
   it("passes limit to backfillIngestData", () => {
     expect(body).toContain("backfillIngestData");
     expect(body).toContain('{"limit":100}');
+  });
+});
+
+describe("production deploy readiness checks", () => {
+  it("validates auth env before production install, upgrade, env-only, and upgrade-check paths", () => {
+    expect(installScript).toContain("validate_auth_env()");
+    expect(installScript).toContain("scripts/check-auth-env.ts");
+    expect(installScript).toContain("--mode production");
+    expect(extractShellFunction(installScript, "validate_auth_env")).toContain("run_tsx_script");
+
+    const tsxRunner = extractShellFunction(installScript, "run_tsx_script");
+    expect(tsxRunner).toContain("command -v bun");
+    expectBefore(tsxRunner, "bunx tsx", "npx tsx");
+
+    expectBefore(extractShellFunction(installScript, "install_flow"), "validate_auth_env", "deploy_env_file");
+    expectBefore(extractShellFunction(installScript, "full_upgrade_steps"), "validate_auth_env", "deploy_env_file");
+    expectBefore(extractShellFunction(installScript, "env_only_upgrade_steps"), "validate_auth_env", "deploy_env_file");
+    expectBefore(extractShellFunction(installScript, "upgrade_check_flow"), "validate_auth_env", "plan_upgrade_action");
+  });
+
+  it("uses the real API health route for production readiness and operator guidance", () => {
+    expect(installScript).toContain("wait_for_api_health()");
+    expect(installScript).toContain("/health");
+    expect(installScript).not.toContain("127.0.0.1:3000/api/health");
+  });
+
+  it("does not use anonymous admin-gated search profile routes as preview smoke checks", () => {
+    expect(restorePreviewScript).not.toContain("/api/search-profiles");
+    expect(restorePreviewFullStateScript).not.toContain("/api/search-profiles");
+    expect(previewDoctorScript).not.toContain("/api/search-profiles");
+
+    expect(restorePreviewScript).toContain("/api/resumes?source=convex&paged=true&limit=1");
+    expect(restorePreviewFullStateScript).toContain("/api/resumes?source=convex&paged=true&limit=1");
+    expect(previewDoctorScript).toContain("/api/resumes?source=convex&paged=true&limit=1");
+  });
+
+  it("runs a bounded preview AI analysis smoke after production-state restores", () => {
+    expect(restorePreviewScript).toContain("run_preview_ai_smoke");
+    expect(restorePreviewScript).toContain("SKIP_PREVIEW_AI_SMOKE");
+    expect(restorePreviewScript).toContain("scripts/verify-critical-path.ts");
+    expect(restorePreviewScript).toContain("--mode=seeded");
+    expect(restorePreviewScript).toContain("ANALYSIS_TIMEOUT_SEC");
+
+    expect(restorePreviewFullStateScript).toContain("run_preview_ai_smoke");
+    expect(restorePreviewFullStateScript).toContain("SKIP_PREVIEW_AI_SMOKE");
+  });
+});
+
+describe("non-Docker Convex startup safety", () => {
+  it("prints dev-convex-status without ps errors when no local Convex process is running", () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "trends-convex-status-"));
+
+    try {
+      const result = spawnSync("make", ["dev-convex-status"], {
+        cwd: new URL("..", import.meta.url),
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          CONVEX_PORT: String(39000 + Math.floor(Math.random() * 10000)),
+          CONVEX_STATE_DIR: tempDir,
+        },
+      });
+      const output = `${result.stdout ?? ""}\n${result.stderr ?? ""}`;
+
+      expect(result.status).toBe(0);
+      expect(output).toContain("No local Convex processes found.");
+      expect(output).not.toContain("list of process IDs must follow -p");
+      expect(output).not.toContain("Usage:");
+    } finally {
+      rmSync(tempDir, { force: true, recursive: true });
+    }
+  });
+
+  it("routes make dev-convex through the hardened non-Docker dev script path", () => {
+    const recipe = getTargetRecipe("dev-convex");
+
+    expect(recipe).toContain("./scripts/dev.sh --convex-only --no-seed");
+    expect(recipe).not.toContain("docker");
+    expect(recipe).not.toContain("compose");
+    expect(recipe).not.toContain("cd packages/convex");
+  });
+
+  it("routes detached Convex refresh through the same non-Docker dev script path", () => {
+    const recipe = getTargetRecipe("dev-convex-refresh");
+
+    expect(recipe).toContain("$(MAKE) dev-convex");
+    expect(recipe).not.toContain("cd '$$project_root/packages/convex'");
+    expect(recipe).not.toContain("bun run dev");
+    expect(recipe).not.toContain("npm run dev");
+    expect(recipe).not.toContain("docker");
+    expect(recipe).not.toContain("compose");
+  });
+
+  it("exposes a convex-only dev script mode without Docker compose", () => {
+    const optionStart = devScript.indexOf("--convex-only)");
+    const nextOptionStart = devScript.indexOf("--mcp-only)", optionStart);
+    const optionBranch = devScript.slice(optionStart, nextOptionStart);
+
+    expect(devScript).toContain("--convex-only");
+    expect(optionBranch).toContain('services=("convex")');
+    expect(optionBranch).not.toContain("docker");
+    expect(optionBranch).not.toContain("compose");
+  });
+
+  it("does not force-upgrade local Convex package scripts", () => {
+    expect(convexPackageJson.scripts.dev).toContain("convex dev --local");
+    expect(convexPackageJson.scripts.predev).toContain("convex dev --once --local");
+    expect(convexPackageJson.scripts.dev).not.toContain("--local-force-upgrade");
+    expect(convexPackageJson.scripts.predev).not.toContain("--local-force-upgrade");
+  });
+
+  it("does not force-upgrade the production Convex systemd service", () => {
+    expect(productionConvexService).toContain("ExecStart=/usr/bin/npx convex dev --local");
+    expect(productionConvexService).not.toContain("--local-force-upgrade");
+  });
+
+  it("does not force-upgrade the install-time Convex schema push", () => {
+    const setupConvexLocal = extractShellFunction(installScript, "setup_convex_local");
+
+    expect(setupConvexLocal).toContain("npx convex dev --local --once");
+    expect(setupConvexLocal).not.toContain("--local-force-upgrade");
+  });
+
+  it("keeps dev-script force upgrade opt-in only", () => {
+    expect(devScript).toContain('local local_mode_requested="true"');
+    expect(devScript).toContain('CONVEX_LOCAL_FORCE_UPGRADE:-false');
+    expect(devScript).toContain(
+      "CONVEX_LOCAL_FORCE_UPGRADE Enable --local-force-upgrade on first attempt: true|false (default: false)",
+    );
   });
 });
 
@@ -159,10 +301,65 @@ describe("preview restore export compatibility", () => {
 
   it("waits for the preview API after restart before final smoke checks", () => {
     expect(restorePreviewScript).toContain("wait_for_preview_api()");
-    expect(restorePreviewScript).toContain("http://127.0.0.1:3002/");
+    expect(restorePreviewScript).toContain('PREVIEW_API_URL="${PREVIEW_API_URL:-http://127.0.0.1:3002}"');
+    expect(restorePreviewScript).toContain('"$PREVIEW_API_URL/"');
     expect(restorePreviewScript.indexOf("wait_for_preview_api")).toBeLessThan(
       restorePreviewScript.indexOf("=== Verification ==="),
     );
+  });
+
+  it("honors production and preview directory overrides", () => {
+    expect(restorePreviewScript).toContain('PROD_DIR="${PROD_DIR:-/opt/trends}"');
+    expect(restorePreviewScript).toContain('PREVIEW_DIR="${PREVIEW_DIR:-/home/ubuntu/trends-preview}"');
+    expect(restorePreviewScript).toContain('PROD_CONVEX_DIR="$PROD_DIR/packages/convex"');
+    expect(restorePreviewScript).toContain('cd "$PREVIEW_DIR"');
+  });
+});
+
+describe("preview full-state restore", () => {
+  it("exposes a host-local on-prod target with compatibility aliases and no SSH hop", () => {
+    const recipe = getTargetRecipe("on-prod-preview-restore-full-state");
+
+    expect(recipe).toContain("sudo ./deploy/restore-preview-full-state-from-prod.sh");
+    expect(recipe).not.toContain("ssh ");
+    expect(makefile).toMatch(/^preview-restore-full-state:\s+on-prod-preview-restore-full-state$/m);
+    expect(makefile).toMatch(/^restore-preview-full-state:\s+on-prod-preview-restore-full-state$/m);
+  });
+
+  it("advertises the host-local preview full-state restore in help output", () => {
+    expect(makefile).toContain("on-prod-preview-restore-full-state");
+    expect(makefile).toContain("Restore prod Convex + SQLite candidate actions into preview");
+  });
+
+  it("runs Convex restore before replacing preview SQLite state", () => {
+    expect(restorePreviewFullStateScript).toContain("restore-preview-from-prod.sh");
+    expect(restorePreviewFullStateScript).toContain("restore_convex_state");
+    expect(restorePreviewFullStateScript).toContain("restore_sqlite_state");
+    const modeCaseStart = restorePreviewFullStateScript.indexOf('case "$MODE" in');
+    const defaultModeBranch = restorePreviewFullStateScript.slice(
+      restorePreviewFullStateScript.indexOf("all)", modeCaseStart),
+      restorePreviewFullStateScript.indexOf("sqlite-only)", modeCaseStart),
+    );
+    expect(defaultModeBranch.indexOf("restore_convex_state")).toBeLessThan(
+      defaultModeBranch.indexOf("restore_sqlite_state"),
+    );
+  });
+
+  it("copies production SQLite through a consistent backup and preserves the old preview DB", () => {
+    expect(restorePreviewFullStateScript).toContain(".backup");
+    expect(restorePreviewFullStateScript).toContain("pre-full-state-restore-");
+    expect(restorePreviewFullStateScript).toContain("$PREVIEW_DB-shm");
+    expect(restorePreviewFullStateScript).toContain("$PREVIEW_DB-wal");
+    expect(restorePreviewFullStateScript).toContain("candidate_actions");
+  });
+
+  it("stops and restarts only the preview API around the SQLite swap", () => {
+    expect(restorePreviewFullStateScript).toContain("systemctl stop \"$PREVIEW_API_SERVICE\"");
+    expect(restorePreviewFullStateScript).toContain("systemctl start \"$PREVIEW_API_SERVICE\"");
+    expect(restorePreviewFullStateScript).toContain("wait_for_preview_api");
+    expect(restorePreviewFullStateScript).toContain("/api/blocks");
+    expect(restorePreviewFullStateScript).toContain("/api/resumes?source=convex&paged=true&limit=1");
+    expect(restorePreviewFullStateScript).not.toContain("ssh ");
   });
 });
 

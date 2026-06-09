@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { describe, expect, it } from "vitest";
+import { formatWorkspaceSlugList, getAccessLevel, listWorkspaceSlugs } from "@trends/shared";
 
 import { workspaceMiddleware, requireAdmin, denyIfNotAdmin } from "./workspace.js";
 import { serverTimingMiddleware } from "./server-timing.js";
@@ -94,26 +95,18 @@ describe("workspaceMiddleware", () => {
     const body = await res.json();
     expect(body.success).toBe(false);
     expect(body.error).toContain("Invalid workspace slug");
+    expect(body.error).toContain(`Allowed: ${formatWorkspaceSlugList()}`);
   });
 
-  it("sets accessLevel based on workspace", async () => {
+  it.each(listWorkspaceSlugs())("accepts registered workspace %s with its shared access level", async (slug) => {
     const app = createTestApp();
     const res = await app.request("/test", {
-      headers: { "X-Workspace-Slug": "dev" },
+      headers: { "X-Workspace-Slug": slug },
     });
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.accessLevel).toBe("admin");
-  });
-
-  it("sets user accessLevel for hr workspace", async () => {
-    const app = createTestApp();
-    const res = await app.request("/test", {
-      headers: { "X-Workspace-Slug": "hr" },
-    });
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.accessLevel).toBe("user");
+    expect(body.workspaceSlug).toBe(slug);
+    expect(body.accessLevel).toBe(getAccessLevel(slug));
   });
 });
 

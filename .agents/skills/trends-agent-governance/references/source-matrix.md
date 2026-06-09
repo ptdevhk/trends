@@ -1,17 +1,7 @@
 # Source Matrix
 
-Use this order for non-trivial technical design/recommendation tasks.
+Canonical source policy lives in `AGENTS.md`.
 
-1. Local repository files
-   - Prefer implementation files and config in this repository.
-   - Include relevant cached docs under `dev-docs/*.txt`.
-2. Context7
-   - Query library/framework/API documentation for behavioral correctness and usage details.
-3. Official web sources
-   - Use only for freshness-sensitive facts (new releases, policy changes, current status).
+Summary: local repository sources first, Context7 for library/framework/API behavior, DevTools for browser-facing verification, and official web only for freshness-sensitive facts.
 
-Output pathing rules:
-- Use repo-relative paths in implementation/report content so the output is portable to fresh environments.
-- Use repo-relative paths in `Sources Used` to document what was consulted.
-
-If a source tier is not used, state `none` for that tier in `Sources Used`.
+For dev-loop execution work, use `.claude/dev-loop.config.md` because it defines the active fact-check tier and browser verification gate.

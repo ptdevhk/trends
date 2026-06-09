@@ -7,6 +7,9 @@ const upsertMock = vi.fn(async () => 'doc-id')
 let useQueryArg: unknown = undefined
 
 const mockQueryItems = vi.hoisted(() => ({ value: [] as CandidateStatusRecord[] | undefined }))
+const mockApiClient = vi.hoisted(() => ({
+  POST: vi.fn(async () => ({ data: { success: true } })),
+}))
 
 vi.mock('convex/react', () => ({
   useQuery: (_api: unknown, args: unknown) => {
@@ -19,6 +22,10 @@ vi.mock('convex/react', () => ({
 
 vi.mock('@/contexts/WorkspaceContext', () => ({
   useWorkspace: () => ({ slug: 'dev' }),
+}))
+
+vi.mock('@/lib/api-helpers', () => ({
+  rawApiClient: mockApiClient,
 }))
 
 vi.mock('../../../../packages/convex/convex/_generated/api', () => ({
@@ -91,7 +98,7 @@ describe('useCandidateStatus', () => {
     expect(result.current.statusByIdentity['key-2']).toEqual(item2)
   })
 
-  it('updateStatus calls Convex upsert with correct args', async () => {
+  it('updateStatus posts to BFF with correct args', async () => {
     mockQueryItems.value = [mockItem]
     const { result } = renderHook(() => useCandidateStatus(true))
 
@@ -101,11 +108,45 @@ describe('useCandidateStatus', () => {
     })
 
     expect(success).toBe(true)
-    expect(upsertMock).toHaveBeenCalledWith({
-      identityKey: 'key-1',
-      status: 'interviewing',
-      workspaceSlug: 'dev',
-      notes: 'good fit',
+    expect(mockApiClient.POST).toHaveBeenCalledWith('/api/candidate-status', {
+      body: {
+        identityKey: 'key-1',
+        status: 'interviewing',
+        notes: 'good fit',
+      },
+    })
+    expect(upsertMock).not.toHaveBeenCalled()
+  })
+
+  it('updateStatus trims identityKey before posting to BFF', async () => {
+    const { result } = renderHook(() => useCandidateStatus(true))
+
+    await act(async () => {
+      await result.current.updateStatus('  key-1  ', 'shortlisted')
+    })
+
+    expect(mockApiClient.POST).toHaveBeenCalledWith('/api/candidate-status', {
+      body: {
+        identityKey: 'key-1',
+        status: 'shortlisted',
+        notes: undefined,
+      },
+    })
+  })
+
+  it('updateStatus does not send workspaceSlug or updatedBy from the browser', async () => {
+    const { result } = renderHook(() => useCandidateStatus(true))
+
+    await act(async () => {
+      await result.current.updateStatus('key-1', 'interviewing')
+    })
+
+    expect(mockApiClient.POST).toHaveBeenCalledWith('/api/candidate-status', {
+      body: {
+        identityKey: 'key-1',
+        status: 'interviewing',
+        notes: undefined,
+      },
     })
   })
 
@@ -118,11 +159,12 @@ describe('useCandidateStatus', () => {
     })
 
     expect(success).toBe(false)
+    expect(mockApiClient.POST).not.toHaveBeenCalled()
     expect(upsertMock).not.toHaveBeenCalled()
   })
 
-  it('updateStatus returns false when Convex mutation throws', async () => {
-    upsertMock.mockRejectedValueOnce(new Error('Convex error'))
+  it('updateStatus returns false when BFF write fails', async () => {
+    mockApiClient.POST.mockResolvedValueOnce({ data: { success: false } })
     const { result } = renderHook(() => useCandidateStatus(true))
 
     let success = true

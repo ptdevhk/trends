@@ -195,6 +195,24 @@ idle_deep_research:
     p_score_default: P3
 ```
 
+## Preflight prep
+
+> Human-attended readiness mode for `/dev-loop prep`. It batches questions
+> and writes readiness metadata only after approval, then unattended `/goal`
+> cycles skip work that is not explicitly ready.
+
+```yaml
+preflight:
+  enabled: true
+  default_limit: 5
+  default_lanes: [work, captures, hygiene]
+  require_approved_spec_and_plan: true
+  unattended_not_ready_behavior: skip
+  defaults:
+    compatibility_policy: "Trends changes are additive/backward-compatible unless explicitly scoped otherwise."
+    verification_policy: "Run make check; browser-facing changes require make dev plus playwright-cli/e2e per CLAUDE.md."
+```
+
 ## Browser verification
 
 > Per CLAUDE.md feedback memory: every browser-facing change MUST be
@@ -289,7 +307,7 @@ knowledge_backends:
 interview:
   setup:
     skill: setup-dev-loop
-    glossary: native           # grill-with-docs not installed; setup uses bundled prompts
+    glossary: grill-with-docs  # installed at ~/.claude/skills/grill-with-docs/SKILL.md
   work_item:
     default: native
     upgrade: grill-me          # installed at ~/.claude/skills/grill-me/SKILL.md

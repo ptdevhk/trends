@@ -2,12 +2,21 @@ import { OpenAPIHono } from '@hono/zod-openapi'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import actionsRoutes from './actions'
+import { createAuthMiddleware } from '../middleware/auth'
 import { workspaceMiddleware } from '../middleware/workspace'
 import { ActionStorage } from '../services/action-storage'
+import type { AuthStorage } from '../services/auth-storage'
+import { resetResumeScreeningDb } from '../services/database'
+import { createAuthHeaders } from './test-auth-helpers'
 
-function createTestApp() {
+function createTestApp(storage?: AuthStorage) {
   const app = new OpenAPIHono()
   app.use('*', workspaceMiddleware)
+  if (storage) {
+    const middleware = createAuthMiddleware({ storage, ttlSeconds: 3600 })
+    app.use('*', middleware.optionalAuth)
+    app.use('/api/*', middleware.requireCsrf)
+  }
   app.route('/', actionsRoutes)
   return app
 }
@@ -27,11 +36,12 @@ const MOCK_ACTIONS = [
 describe('actions routes', () => {
   afterEach(() => {
     vi.restoreAllMocks()
+    resetResumeScreeningDb()
   })
 
   describe('POST /api/actions', () => {
-    it('creates a star action', async () => {
-      vi.spyOn(ActionStorage.prototype, 'saveAction').mockReturnValue(MOCK_ACTION as never)
+    it('rejects writes without a session', async () => {
+      const saveSpy = vi.spyOn(ActionStorage.prototype, 'saveAction').mockReturnValue(MOCK_ACTION as never)
       const app = createTestApp()
       const response = await app.request('/api/actions', {
         method: 'POST',
@@ -44,20 +54,51 @@ describe('actions routes', () => {
           actionType: 'star',
         }),
       })
+      expect(response.status).toBe(401)
+      expect(saveSpy).not.toHaveBeenCalled()
+    })
+
+    it('creates a star action with the authenticated actor', async () => {
+      const auth = createAuthHeaders({ workspaceSlug: 'hr', role: 'user' })
+      const saveSpy = vi.spyOn(ActionStorage.prototype, 'saveAction').mockReturnValue({
+        ...MOCK_ACTION,
+        userId: auth.userId,
+      } as never)
+      const app = createTestApp(auth.storage)
+      const response = await app.request('/api/actions', {
+        method: 'POST',
+        headers: {
+          ...auth.headers,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: 'body-user',
+          resumeId: 'resume-123',
+          actionType: 'star',
+        }),
+      })
       expect(response.status).toBe(200)
       const body = await response.json()
       expect(body.success).toBe(true)
       expect(body.action.actionType).toBe('star')
+      expect(saveSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: auth.userId,
+          resumeId: 'resume-123',
+          actionType: 'star',
+        }),
+      )
     })
 
     it('creates an action with optional data', async () => {
+      const auth = createAuthHeaders({ workspaceSlug: 'hr', role: 'user' })
       const saveSpy = vi.spyOn(ActionStorage.prototype, 'saveAction').mockReturnValue(MOCK_ACTION as never)
-      const app = createTestApp()
+      const app = createTestApp(auth.storage)
       await app.request('/api/actions', {
         method: 'POST',
         headers: {
+          ...auth.headers,
           'Content-Type': 'application/json',
-          'X-Workspace-Slug': 'dev',
         },
         body: JSON.stringify({
           resumeId: 'resume-123',
@@ -71,6 +112,25 @@ describe('actions routes', () => {
           actionData: { text: 'Great candidate' },
         }),
       )
+    })
+
+    it('rejects authenticated users outside the selected workspace', async () => {
+      const auth = createAuthHeaders({ workspaceSlug: 'hr', requestWorkspaceSlug: 'dev', role: 'user' })
+      const saveSpy = vi.spyOn(ActionStorage.prototype, 'saveAction').mockReturnValue(MOCK_ACTION as never)
+      const app = createTestApp(auth.storage)
+      const response = await app.request('/api/actions', {
+        method: 'POST',
+        headers: {
+          ...auth.headers,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          resumeId: 'resume-123',
+          actionType: 'star',
+        }),
+      })
+      expect(response.status).toBe(403)
+      expect(saveSpy).not.toHaveBeenCalled()
     })
   })
 

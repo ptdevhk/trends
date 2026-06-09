@@ -24,6 +24,7 @@ import {
 } from "../schemas/index.js";
 import { resolveResumeId } from "../services/resume-id.js";
 import { callConvexAction, callConvexQuery, isConvexPaginatedQueryPage } from "../services/convex-utils.js";
+import { requireWorkspaceUser } from "../middleware/auth.js";
 import {
   formatKeywordQuery,
   parseKeywordQuery,
@@ -85,7 +86,6 @@ const DEFAULT_CONVEX_RESUME_PAGE_SIZE = 50;
 const MAX_SAFE_CONVEX_POST_FILTER_SCAN = 250;
 type CandidateStatus = typeof CANDIDATE_STATUS_VALUES[number];
 type CandidateStatusCounts = Record<CandidateStatus, number>;
-
 const CANDIDATE_STATUS_SET: ReadonlySet<string> = new Set(CANDIDATE_STATUS_VALUES);
 
 function createCandidateStatusCounts(): CandidateStatusCounts {
@@ -730,6 +730,7 @@ const getResumesRoute = createRoute({
   method: "get",
   path: "/api/resumes",
   tags: ["resumes"],
+  middleware: [requireWorkspaceUser] as const,
   summary: "List resumes from a sample file",
   description: "Returns resume items from the latest or specified sample JSON",
   request: {
