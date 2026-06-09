@@ -478,12 +478,24 @@ function collectLocationHierarchyCandidates(record: Record<string, unknown>): Ra
 }
 
 export function normalizeResumeLocationHierarchy(record: Record<string, unknown>, source?: string): LocationHierarchy | undefined {
+  const sourceCountry = inferCountryFromSource(source ?? record.source ?? record.sourceHost);
   const explicitHierarchy = normalizeLocationTreeHierarchy(record.locationHierarchy);
   if (explicitHierarchy) {
+    if (sourceCountry && explicitHierarchy.country !== sourceCountry) {
+      return { country: sourceCountry, matchedFrom: "source", confidence: "low" };
+    }
     return explicitHierarchy;
   }
 
-  return chooseBestLocationHierarchy(collectLocationHierarchyCandidates({ ...record, source: source ?? record.source }));
+  const recordWithSource: Record<string, unknown> = { ...record, source: source ?? record.source };
+  const selected = chooseBestLocationHierarchy(collectLocationHierarchyCandidates(recordWithSource));
+  if (selected) {
+    return selected;
+  }
+
+  return sourceCountry
+    ? { country: sourceCountry, matchedFrom: "source", confidence: "low" }
+    : undefined;
 }
 
 function normalizeProfileEducation(value: unknown): ResumeProfileEducationItem[] | undefined {

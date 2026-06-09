@@ -403,11 +403,11 @@ export function SearchProfilesPage() {
       }
 
       const finalLaunchUrl = (() => {
-        if (activeSource.type !== SEARCH_PROFILE_SOURCE_TYPES.job51) {
-          return launchUrl
-        }
         const url = new URL(launchUrl)
-        url.searchParams.set('tr_job51_detail_wait', 'page1')
+        url.searchParams.set('tr_search_profile_id', profileId)
+        if (activeSource.type === SEARCH_PROFILE_SOURCE_TYPES.job51) {
+          url.searchParams.set('tr_job51_detail_wait', 'page1')
+        }
         return url.toString()
       })()
 

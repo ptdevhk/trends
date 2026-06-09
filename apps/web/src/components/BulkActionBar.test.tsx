@@ -3,12 +3,14 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 import { BulkActionBar } from './BulkActionBar'
+import { CANDIDATE_STATUS_VALUES } from '@/types/resume'
 
 describe('BulkActionBar', () => {
     const onSelectAll = vi.fn()
     const onSelectHighScore = vi.fn()
     const onClearSelection = vi.fn()
     const onBulkAction = vi.fn()
+    const onStatusFilterChange = vi.fn()
 
     const defaultProps = {
         totalCount: 100,
@@ -69,5 +71,25 @@ describe('BulkActionBar', () => {
         expect(screen.getByText('批量入围').closest('button')).toBeDisabled()
         expect(screen.getByText('批量拒绝').closest('button')).toBeDisabled()
         expect(screen.queryByText('取消选择')).not.toBeInTheDocument()
+    })
+
+    it('switches to all candidate statuses from the status toolbar', async () => {
+        const user = userEvent.setup()
+        render(
+            <MemoryRouter>
+                <BulkActionBar
+                    {...defaultProps}
+                    onStatusFilterChange={onStatusFilterChange}
+                    onStatusToggle={vi.fn()}
+                    statusFacetCounts={{ new: 26, shortlisted: 15, rejected: 172, interviewed_pass: 1 }}
+                />
+            </MemoryRouter>,
+        )
+
+        await user.click(screen.getByText('全部状态'))
+
+        expect(onStatusFilterChange).toHaveBeenCalledWith([...CANDIDATE_STATUS_VALUES])
+        expect(screen.getByText('214')).toBeInTheDocument()
+        expect(screen.getByText('interviewed_pass')).toBeInTheDocument()
     })
 })

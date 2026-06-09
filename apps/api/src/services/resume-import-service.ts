@@ -23,6 +23,7 @@ import {
 import { config } from "./config.js";
 import { logger } from "./logger.js";
 import { ActionStorage, type CandidateActionBackupRow } from "./action-storage.js";
+import { recordSearchProfileSubmitRunStatus } from "./search-profile-run-status.js";
 
 const JOB5156_HOST = "hr.job5156.com";
 const EHIRE_51JOB_HOST = "ehire.51job.com";
@@ -557,6 +558,14 @@ export async function submitResumeImport(input: ResumeImportRequest, workspaceSl
   const resumeResult = await submitNormalizedResumeImport(normalized);
 
   const resolvedWorkspace = workspaceSlug ?? "dev";
+  if (normalized.metadata.searchProfileId) {
+    recordSearchProfileSubmitRunStatus({
+      workspaceSlug: resolvedWorkspace,
+      profileId: normalized.metadata.searchProfileId,
+      submitted: resumeResult.submitted,
+    });
+  }
+
   const stateResult = await replayCandidateState({
     candidateStatus: input.candidateStatus,
     candidateActions: input.candidateActions,

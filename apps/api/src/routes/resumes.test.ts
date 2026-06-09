@@ -463,6 +463,103 @@ describe("resume routes", () => {
     expect(calls.some((call) => call.pathName === "candidate_blocks:list")).toBe(true);
   });
 
+  it("filters convex resume results by requested candidate status", async () => {
+    const calls: ConvexCall[] = [];
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+
+      if (call.pathName === "resumes_search:scanResumeDigestPage") {
+        return convexSuccess({
+          docs: [
+            { _id: "d1", resumeId: "resume-visible-new", source: "seek", sourceKey: "seek", searchText: "cnc sales", isArchived: false },
+            { _id: "d2", resumeId: "resume-blocked-new", source: "seek", sourceKey: "seek", searchText: "cnc sales", isArchived: false },
+            { _id: "d3", resumeId: "resume-visible-rejected", source: "seek", sourceKey: "seek", searchText: "cnc sales", isArchived: false },
+            { _id: "d4", resumeId: "k172rcvmvqj4hhn98r74r3brps82v28b", source: "seek", sourceKey: "seek", searchText: "cnc sales", isArchived: false },
+          ],
+          isDone: true,
+          cursor: null,
+        });
+      }
+
+      if (call.pathName === "resumes_search:getResumeDocsByIds") {
+        return convexSuccess([
+          {
+            ...buildConvexResumeRecord("resume-visible-new", {
+              identityKey: "ik-visible-new",
+              name: "Visible New",
+            }),
+            searchText: "cnc sales",
+            isArchived: false,
+          },
+          {
+            ...buildConvexResumeRecord("resume-blocked-new", {
+              identityKey: "ik-blocked-new",
+              name: "Blocked New",
+            }),
+            searchText: "cnc sales",
+            isArchived: false,
+          },
+          {
+            ...buildConvexResumeRecord("resume-visible-rejected", {
+              identityKey: "ik-visible-rejected",
+              name: "Visible Rejected",
+            }),
+            searchText: "cnc sales",
+            isArchived: false,
+          },
+          {
+            ...buildConvexResumeRecord("k172rcvmvqj4hhn98r74r3brps82v28b", {
+              identityKey: "ik-interviewed-pass",
+              name: "周先生",
+            }),
+            searchText: "cnc sales",
+            isArchived: false,
+          },
+        ]);
+      }
+
+      if (call.pathName === "candidate_status:list") {
+        expect(call.args).toEqual(expect.objectContaining({ workspaceSlug: "hr" }));
+        return convexSuccess([
+          { identityKey: "ik-visible-rejected", status: "rejected" },
+          { identityKey: "ik-interviewed-pass", status: "interviewed_pass" },
+        ]);
+      }
+
+      if (call.pathName === "candidate_blocks:list") {
+        expect(call.args).toEqual(expect.objectContaining({ workspaceSlug: "hr" }));
+        return convexSuccess([
+          { identityKey: "ik-blocked-new" },
+        ]);
+      }
+
+      throw new Error(`Unexpected convex path: ${call.pathName}`);
+    });
+
+    const app = createTestApp(createAuthContext({ workspaceSlug: "hr", role: "admin" }));
+    const response = await app.request("/api/resumes?source=convex&q=cnc%20sales&limit=5&status=new", {
+      headers: {
+        "X-Workspace-Slug": "hr",
+      },
+    });
+
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(payload.summary.total).toBe(1);
+    expect(payload.summary.returned).toBe(1);
+    expect(payload.summary.statusCounts).toMatchObject({
+      new: 1,
+      shortlisted: 0,
+      rejected: 1,
+      interviewed_pass: 1,
+    });
+    expect(payload.data).toHaveLength(1);
+    expect(payload.data[0]).toEqual(expect.objectContaining({ name: "Visible New" }));
+    expect(calls.some((call) => call.pathName === "candidate_blocks:list")).toBe(true);
+  });
+
   it("keeps the static skills-version route from being shadowed by resume detail lookup", async () => {
     const app = createTestApp();
     const response = await app.request("/api/resumes/skills-version");

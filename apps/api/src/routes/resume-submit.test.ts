@@ -1,6 +1,10 @@
+import fs from "node:fs";
+import path from "node:path";
+
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createApp } from "../app";
+import { config } from "../services/config";
 
 type ConvexCall = {
   pathName: string;
@@ -18,7 +22,7 @@ function parseConvexCall(input: RequestInfo | URL, init?: RequestInit): ConvexCa
       ? input.toString()
       : input.url;
 
-  if (!requestUrl.includes("/api/mutation")) {
+  if (!requestUrl.includes("/api/mutation") && !requestUrl.includes("/api/query")) {
     throw new Error(`Unexpected request URL: ${requestUrl}`);
   }
 
@@ -283,5 +287,109 @@ describe("resume submit route", () => {
         },
       ],
     });
+  });
+
+  it("records completed search profile status for profile-linked extension submissions", async () => {
+    process.env.RESUME_SUBMIT_TOKEN = "test-token";
+    const statusFile = path.join(config.projectRoot, "output", "search-profile-runs.json");
+    const originalStatusFile = fs.existsSync(statusFile) ? fs.readFileSync(statusFile, "utf8") : null;
+    fs.rmSync(statusFile, { force: true });
+
+    try {
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+        const call = parseConvexCall(input, init);
+
+        if (call.pathName === "resume_tasks:submitResumes") {
+          return convexSuccess({
+            submitted: 1,
+            deduped: 0,
+            inserted: 1,
+            updated: 0,
+            unchanged: 0,
+          });
+        }
+
+        if (call.pathName === "search_profiles:getById") {
+          return convexSuccess({
+            _id: "profile-record-1",
+            profileId: "51job-cn-cnc-sales",
+            workspaceSlug: "dev",
+            profile: {
+              id: "51job-cn-cnc-sales",
+              name: "51job CNC Sales",
+              status: "active",
+              location: "China",
+              keywords: ["CNC", "销售"],
+              seedSource: "config/search-profiles",
+            },
+          });
+        }
+
+        if (call.pathName === "resume_tasks:getById") {
+          return convexSuccess(null);
+        }
+
+        throw new Error(`Unexpected convex path: ${call.pathName}`);
+      });
+
+      const app = createApp();
+      const submitResponse = await app.request("/api/resumes/submit", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer test-token",
+        },
+        body: JSON.stringify({
+          metadata: {
+            sourceKey: "51job",
+            sourceHost: "ehire.51job.com",
+            sourceUrl: "https://ehire.51job.com/Revision/talent/search?keyword=CNC",
+            keyword: "CNC 销售",
+            searchProfileId: "51job-cn-cnc-sales",
+            generatedBy: "browser-extension@1.0.0",
+          },
+          resumes: [
+            {
+              resumeId: "J51-123456",
+              name: "Alex Chen",
+              profileUrl: "https://ehire.51job.com/Candidate/ResumeView?resumeId=J51-123456",
+              activityStatus: "今日活跃",
+              age: "28",
+              experience: "5 years",
+              education: "Bachelor",
+              location: "Dongguan",
+              selfIntro: "CNC sales",
+              jobIntention: "CNC Sales",
+              expectedSalary: "10-15K",
+              workHistory: [{ raw: "2021-03 ~ 2023-08 Example Co. - Sales Manager" }],
+              extractedAt: "2026-06-08T08:00:00.000Z",
+            },
+          ],
+        }),
+      });
+      expect(submitResponse.status).toBe(200);
+
+      const statusResponse = await app.request("/api/search-profiles/51job-cn-cnc-sales/status");
+      expect(statusResponse.status).toBe(200);
+      const statusBody = await statusResponse.json();
+      expect(statusBody).toMatchObject({
+        success: true,
+        status: {
+          profileId: "51job-cn-cnc-sales",
+          taskStatus: "completed",
+          resultCount: 1,
+          extracted: 1,
+          submitted: 1,
+        },
+      });
+      expect(statusBody.status.taskId).toMatch(/^browser-submit:/);
+      expect(Date.parse(statusBody.status.completedAt)).not.toBeNaN();
+    } finally {
+      fs.rmSync(statusFile, { force: true });
+      if (originalStatusFile !== null) {
+        fs.mkdirSync(path.dirname(statusFile), { recursive: true });
+        fs.writeFileSync(statusFile, originalStatusFile, "utf8");
+      }
+    }
   });
 });

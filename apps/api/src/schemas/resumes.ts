@@ -656,6 +656,10 @@ export const ResumesQuerySchema = z.object({
     param: { name: "sources", in: "query" },
     example: "job5156,51job",
   }),
+  status: CsvStringArraySchema.openapi({
+    param: { name: "status", in: "query" },
+    example: "new,shortlisted,rejected",
+  }),
   recommendation: CsvStringArraySchema.openapi({
     param: { name: "recommendation", in: "query" },
     example: "strong_match,match",

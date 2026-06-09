@@ -104,6 +104,7 @@
     "reviewPacket": "Review packet",
     "blocked": "Blocked",
     "manageBlocked": "Manage",
+    "statusAll": "All statuses",
     "exportFormat": "Export format",
     "export": "Export"
   },
@@ -450,6 +451,9 @@
         "copyLink": "Copy link",
         "linkCopied": "Link copied",
         "loading": "Loading...",
+        "allStatuses": "All statuses {{count}}",
+        "collectedToday": "Collected today {{count}}",
+        "processedStatuses": "Processed {{count}}",
         "exportFormat": "Export format",
         "exporting": "Exporting...",
         "export": "Export {{count}}"

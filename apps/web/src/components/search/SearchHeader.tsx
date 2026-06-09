@@ -11,12 +11,19 @@ type SearchHeaderProps = {
   activeQuery?: string
   activeResultCount: number
   activeResultCountIsLowerBound?: boolean
+  collectedTodayCount?: number
   jobDescriptionId?: string
   loading?: boolean
   location?: string
   queryInput: string
   recentSearches: ResumeSearchRecentItem[]
   sortValue: SearchSortValue
+  statusSummary?: {
+    new: number
+    shortlisted: number
+    rejected: number
+    total: number
+  }
   onApplyRecentSearch: (item: ResumeSearchRecentItem) => void | Promise<void>
   onApplyExtractedKeywords: (keywords: string[]) => void
   onChangeQuery: (value: string) => void
@@ -29,12 +36,14 @@ export function SearchHeader({
   activeQuery,
   activeResultCount,
   activeResultCountIsLowerBound = false,
+  collectedTodayCount = 0,
   jobDescriptionId,
   loading = false,
   location,
   queryInput,
   recentSearches,
   sortValue,
+  statusSummary,
   onApplyRecentSearch,
   onApplyExtractedKeywords,
   onChangeQuery,
@@ -44,6 +53,9 @@ export function SearchHeader({
 }: SearchHeaderProps) {
   const { t } = useTranslation()
   const resultCountLabel = `${activeResultCount.toLocaleString()}${activeResultCountIsLowerBound ? '+' : ''}`
+  const processedStatusCount = statusSummary
+    ? Math.max(0, statusSummary.total - statusSummary.new)
+    : 0
   const resultsLabel = activeQuery
     ? t('resumes.searchPage.header.resultsWithQuery', {
       count: resultCountLabel,
@@ -94,6 +106,30 @@ export function SearchHeader({
           <div className="flex flex-wrap gap-2">
             {location ? <Badge variant="outline">{location}</Badge> : null}
             {jobDescriptionId ? <Badge variant="outline">JD {jobDescriptionId}</Badge> : null}
+            {statusSummary && statusSummary.total > activeResultCount ? (
+              <Badge variant="outline">
+                {t('resumes.searchPage.header.allStatuses', {
+                  count: statusSummary.total.toLocaleString(),
+                  defaultValue: '全部状态 {{count}}',
+                })}
+              </Badge>
+            ) : null}
+            {collectedTodayCount > 0 ? (
+              <Badge variant="outline">
+                {t('resumes.searchPage.header.collectedToday', {
+                  count: collectedTodayCount.toLocaleString(),
+                  defaultValue: '今日采集 {{count}}',
+                })}
+              </Badge>
+            ) : null}
+            {processedStatusCount > 0 ? (
+              <Badge variant="outline">
+                {t('resumes.searchPage.header.processedStatuses', {
+                  count: processedStatusCount.toLocaleString(),
+                  defaultValue: '已处理 {{count}}',
+                })}
+              </Badge>
+            ) : null}
           </div>
         </div>
 

@@ -354,7 +354,7 @@ export function normalizeResumeListFilters(filters: ResumeListFilterArgs | undef
     const locations = filters.locations?.map((value) => value.trim()).filter((value) => value.length > 0);
     const keywords = filters.keywords?.map((k) => k.trim()).filter(Boolean);
     const sources = filters.sources?.map((value) => value.trim().toLowerCase()).filter((value) => value.length > 0);
-    const roleFilterType = toOptionalStringValue(filters.roleFilterType)?.toLowerCase();
+    const roleFilterType = toOptionalStringValue(filters.roleFilterType)?.trim().toLowerCase();
     const minAge = typeof filters.minAge === "number" && Number.isFinite(filters.minAge) && filters.minAge > 0
         ? Math.trunc(filters.minAge)
         : undefined;
@@ -422,23 +422,16 @@ export function matchesAllRequiredKeywords(text: string, requiredKeywords: strin
  * Resolve the verified role-years value used by the `minRoleYears` filter.
  *
  * Preference order:
- *   1. Precomputed `ingestData.verifiedRoleYears[roleType]` (populated at
- *      ingest time and by the paginated backfill migration).
- *   2. Live compute via `getVerifiedRoleSignalYears` — same semantics as the
- *      stored projection. Guards the transition window before backfill
- *      completes, and old resumes whose `ingestData` has not been rewritten.
- *
- * Never consults unverified `roleRelevantYears` or raw `years`. See plan:
- * docs/superpowers/plans/2026-04-24-direct-role-years-precomputed-field-plan.md
+ *   1. Precomputed `ingestData.verifiedRoleYears[roleType]`.
+ *   2. Live compute from `roleSignals` via `getVerifiedRoleSignalYears` for
+ *      rows whose stored projection is missing.
  */
 export function hasMatchingRoleSignal(resume: Doc<"resumes">, roleType: string | undefined): boolean {
-    const key = toOptionalStringValue(roleType)?.toLowerCase() ?? "";
+    const key = toOptionalStringValue(roleType)?.trim().toLowerCase() ?? "";
     if (!key) {
         return true;
     }
 
-    // The stored verifiedRoleYears field is the source of truth for role years;
-    // if it has an entry for the given role type, the resume matches that role.
     const verifiedRoleYears = resume.ingestData?.verifiedRoleYears;
     if (isRecord(verifiedRoleYears) && typeof verifiedRoleYears[key] === "number") {
         return true;
@@ -453,22 +446,30 @@ export function hasMatchingRoleSignal(resume: Doc<"resumes">, roleType: string |
 }
 
 export function getResumeRoleYears(resume: Doc<"resumes">, roleType: string | undefined): number {
-    const key = toOptionalStringValue(roleType)?.toLowerCase() ?? "";
-    if (!key) {
-        return 0;
-    }
+    const key = toOptionalStringValue(roleType)?.trim().toLowerCase() ?? "";
 
-    const stored = resume.ingestData?.verifiedRoleYears?.[key];
-    if (typeof stored === "number" && Number.isFinite(stored)) {
-        return stored;
+    const verifiedRoleYears = resume.ingestData?.verifiedRoleYears;
+    if (!key) {
+        const storedMax = Math.max(
+            ...Object.values(verifiedRoleYears ?? {}).map((value) =>
+                typeof value === "number" && Number.isFinite(value) ? value : 0
+            ),
+            0
+        );
+        if (storedMax > 0) {
+            return storedMax;
+        }
+    } else {
+        const stored = resume.ingestData?.verifiedRoleYears?.[key];
+        if (typeof stored === "number" && Number.isFinite(stored) && stored > 0) {
+            return stored;
+        }
     }
 
     const roleSignals = resume.ingestData?.roleSignals;
-    if (!Array.isArray(roleSignals) || roleSignals.length === 0) {
-        return 0;
-    }
-
-    return getVerifiedRoleSignalYears(roleSignals, key);
+    return Array.isArray(roleSignals) && roleSignals.length > 0
+        ? getVerifiedRoleSignalYears(roleSignals, key)
+        : 0;
 }
 
 // ---------------------------------------------------------------------------

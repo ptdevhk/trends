@@ -43,6 +43,7 @@ export function ResumeSearchPage() {
     filterCount,
     filteredResults,
     hasMore,
+    loadedCollectedTodayCount,
     hasActiveAnalysisTask,
     isLanding,
     loading,
@@ -64,6 +65,8 @@ export function ResumeSearchPage() {
     setQueryInput,
     setSelectedExperienceLevel,
     setSort,
+    setStatusFilters,
+    statusSummary,
     submitSearch,
     taxonomyClusters,
     toggleCompany,
@@ -334,12 +337,14 @@ export function ResumeSearchPage() {
               activeQuery={activeQuery}
               activeResultCount={filteredResults.length}
               activeResultCountIsLowerBound={hasMore}
+              collectedTodayCount={loadedCollectedTodayCount}
               jobDescriptionId={parsedState.jobDescriptionId}
               loading={loading}
               location={parsedState.location}
               queryInput={queryInput}
               recentSearches={recentSearches}
               sortValue={activeSort}
+              statusSummary={statusSummary}
               onApplyRecentSearch={handleApplyRecentSearch}
               onApplyExtractedKeywords={applyExtractedKeywords}
               onChangeQuery={setQueryInput}
@@ -434,6 +439,7 @@ export function ResumeSearchPage() {
                   onClearSelection={clearSelection}
                   onBulkAction={handleBulkActionWithScroll}
                   statusFilter={parsedState.filters.status}
+                  onStatusFilterChange={setStatusFilters}
                   onStatusToggle={toggleStatus}
                   statusFacetCounts={facetCounts?.statuses?.reduce((acc, { value, count }) => ({ ...acc, [value]: count }), {} as Record<string, number>)}
                 />

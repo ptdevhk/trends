@@ -295,6 +295,171 @@ describe("ResumeService", () => {
     expect(service.filterResumes(items, { skills: ["fanuc"] })).toEqual([]);
   });
 
+  it("treats 51job samples with unresolved city-only locations as China for country filters", () => {
+    const root = createFixtureRoot();
+    roots.push(root);
+
+    const samplePath = path.join(root, "output", "resumes", "samples", "51job-city-sample.json");
+    fs.writeFileSync(
+      samplePath,
+      JSON.stringify({
+        metadata: {
+          sourceHost: "ehire.51job.com",
+          sourceKey: "51job",
+          sourceUrl: "https://ehire.51job.com/resume",
+          generatedBy: "browser-extension@1.1.1",
+        },
+        data: [
+          {
+            name: "51job China Candidate",
+            profileUrl: "https://ehire.51job.com/resume/abc",
+            activityStatus: "Active",
+            age: "32岁",
+            experience: "8年",
+            education: "本科",
+            location: "徐州",
+            selfIntro: "",
+            jobIntention: "销售工程师",
+            expectedSalary: "",
+            workHistory: [{ raw: "常州天陨机械有限公司 销售工程师" }],
+            extractedAt: "2026-03-20T00:00:00.000Z",
+          },
+        ],
+      }, null, 2),
+      "utf8"
+    );
+
+    const service = new ResumeService(root);
+    const { items } = service.loadSample("51job-city-sample");
+
+    expect(service.filterResumes(items, { locations: ["China"] })).toHaveLength(1);
+    expect(service.filterResumes(items, { locations: ["广东"] })).toHaveLength(0);
+  });
+
+  it("rejects direct unverified sales work-history years in local sample filters", () => {
+    const root = createFixtureRoot();
+    roots.push(root);
+
+    const service = new ResumeService(root);
+    const items = [
+      {
+        name: "Unverified Direct Sales",
+        profileUrl: "https://example.com/unverified-direct-sales",
+        activityStatus: "Active",
+        age: "30",
+        experience: "6 years",
+        education: "Bachelor",
+        location: "Shenzhen",
+        selfIntro: "",
+        jobIntention: "Sales",
+        expectedSalary: "",
+        workHistory: [],
+        ingestData: {
+          roleSignals: [
+            {
+              type: "sales",
+              matchedSignals: ["电话销售"],
+              signalCount: 1,
+              occurrences: 1,
+              years: 6.75,
+              roleRelevantYears: 6.75,
+              industryVerifiedRelevantYears: 0,
+              verifyIn: "workHistory",
+              matchedWorkEntries: [
+                {
+                  companyName: "Example Trading",
+                  jobTitle: "电话销售",
+                  years: 6.75,
+                  industryVerified: false,
+                  directRoleMatch: true,
+                  matchedSignals: ["电话销售"],
+                },
+              ],
+            },
+          ],
+        },
+        extractedAt: "2026-03-20T00:00:00.000Z",
+      },
+      {
+        name: "Verified Sales",
+        profileUrl: "https://example.com/verified-sales",
+        activityStatus: "Active",
+        age: "30",
+        experience: "6 years",
+        education: "Bachelor",
+        location: "Shenzhen",
+        selfIntro: "",
+        jobIntention: "Sales",
+        expectedSalary: "",
+        workHistory: [],
+        ingestData: {
+          roleSignals: [
+            {
+              type: "sales",
+              matchedSignals: ["销售工程师"],
+              signalCount: 1,
+              occurrences: 1,
+              years: 3,
+              roleRelevantYears: 6,
+              industryVerifiedRelevantYears: 3,
+              verifyIn: "workHistory",
+              matchedWorkEntries: [
+                {
+                  companyName: "Example Machine Tools",
+                  jobTitle: "销售工程师",
+                  years: 3,
+                  industryVerified: true,
+                  directRoleMatch: true,
+                  matchedSignals: ["销售工程师"],
+                },
+              ],
+            },
+          ],
+        },
+        extractedAt: "2026-03-20T00:00:00.000Z",
+      },
+      {
+        name: "Sales Mention Only",
+        profileUrl: "https://example.com/mention-only",
+        activityStatus: "Active",
+        age: "30",
+        experience: "6 years",
+        education: "Bachelor",
+        location: "Shenzhen",
+        selfIntro: "",
+        jobIntention: "Engineer",
+        expectedSalary: "",
+        workHistory: [],
+        ingestData: {
+          roleSignals: [
+            {
+              type: "sales",
+              matchedSignals: ["销售"],
+              signalCount: 1,
+              occurrences: 1,
+              years: 6,
+              verifyIn: "workHistory",
+              matchedWorkEntries: [
+                {
+                  companyName: "Example Manufacturing",
+                  jobTitle: "CNC Engineer",
+                  years: 6,
+                  industryVerified: false,
+                  directRoleMatch: false,
+                  matchedSignals: ["销售"],
+                },
+              ],
+            },
+          ],
+        },
+        extractedAt: "2026-03-20T00:00:00.000Z",
+      },
+    ];
+
+    const filtered = service.filterResumes(items, { roleFilterType: "sales", minRoleYears: 1 });
+    expect(filtered.map((item) => item.name)).toEqual(["Verified Sales"]);
+  });
+
   describe("experience filter graceful degradation", () => {
     it("resumes with empty experience pass minExperience filter", () => {
       const root = createFixtureRoot();

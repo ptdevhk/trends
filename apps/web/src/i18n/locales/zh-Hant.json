@@ -104,6 +104,7 @@
     "reviewPacket": "評審包",
     "blocked": "封鎖",
     "manageBlocked": "管理",
+    "statusAll": "全部狀態",
     "exportFormat": "匯出格式",
     "export": "匯出"
   },
@@ -449,6 +450,9 @@
         "exporting": "匯出中...",
         "export": "匯出 {{count}} 條",
         "loading": "載入中...",
+        "allStatuses": "全部狀態 {{count}}",
+        "collectedToday": "今日採集 {{count}}",
+        "processedStatuses": "已處理 {{count}}",
         "linkCopied": "鏈接已複製",
         "copyFailed": "複製失敗",
         "copyLink": "複製鏈接"

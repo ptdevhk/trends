@@ -1,5 +1,7 @@
 import type { Selectors } from "./types";
 
+const AUTO_SEARCH_PROFILE_ID_PARAM = "tr_search_profile_id";
+
 export interface ResumeWorkHistoryItem {
   raw: string;
   company?: string;
@@ -176,6 +178,7 @@ export function createResumeExtractor(deps: ResumeExtractorDeps) {
   function buildSubmitMetadata(options: Record<string, unknown> = {}) {
     const url = new URL(win.location.href);
     const sourceKey = getCurrentSourceKey();
+    const searchProfileId = url.searchParams.get(AUTO_SEARCH_PROFILE_ID_PARAM)?.trim() || "";
     const keyword = normalizeKeyword(
       url.searchParams.get(AUTO_SEARCH_PARAM) || "",
     );
@@ -185,6 +188,7 @@ export function createResumeExtractor(deps: ResumeExtractorDeps) {
     url.searchParams.delete(AUTO_SYNC_PARAM);
     url.searchParams.delete(AUTO_LIMIT_PARAM);
     url.searchParams.delete(AUTO_MAX_PAGES_PARAM);
+    url.searchParams.delete(AUTO_SEARCH_PROFILE_ID_PARAM);
     url.searchParams.delete(SAMPLE_NAME_PARAM);
 
     const metadata: Record<string, unknown> = {
@@ -196,6 +200,7 @@ export function createResumeExtractor(deps: ResumeExtractorDeps) {
 
     if (keyword) metadata.keyword = keyword;
     if (location) metadata.location = location;
+    if (searchProfileId) metadata.searchProfileId = searchProfileId;
     if (sourceKey === SOURCE_KEYS.SEEK) {
       metadata.collectionContext = buildSeekCollectionContext({
         captureModeOverride: options.seekCaptureMode as string | undefined,

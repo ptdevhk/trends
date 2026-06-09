@@ -474,6 +474,24 @@ const ACTION_TO_STATUS: Partial<Record<CandidateActionType, CandidateStatus>> = 
   star: 'new',
 }
 
+function isExtractedToday(extractedAt: string | undefined): boolean {
+  if (!extractedAt) {
+    return false
+  }
+
+  const timestamp = Date.parse(extractedAt)
+  if (!Number.isFinite(timestamp)) {
+    return false
+  }
+
+  const todayStart = new Date()
+  todayStart.setHours(0, 0, 0, 0)
+  const tomorrowStart = new Date(todayStart)
+  tomorrowStart.setDate(todayStart.getDate() + 1)
+
+  return timestamp >= todayStart.getTime() && timestamp < tomorrowStart.getTime()
+}
+
 function matchesBlockVisibility(
   item: ResumeSearchResultItem,
   filters: Partial<ResumeFilters>,
@@ -994,6 +1012,28 @@ export function useResumeSearchState() {
     bffStatusCounts: resumeQuery.bffStatusCounts,
   })
   const facetCountsWithServerStatuses: FacetCounts = mergeServerStatusFacetCounts(facetCounts, statusCounts)
+  const loadedCollectedTodayCount = useMemo(
+    () => blockVisibleResults.filter((item) => isExtractedToday(item.resume.extractedAt)).length,
+    [blockVisibleResults],
+  )
+  const statusSummary = useMemo(() => {
+    if (statusCounts.loading) {
+      return undefined
+    }
+
+    return {
+      new: statusCounts.new,
+      shortlisted: statusCounts.shortlisted,
+      rejected: statusCounts.rejected,
+      total: statusCounts.total,
+    }
+  }, [
+    statusCounts.loading,
+    statusCounts.new,
+    statusCounts.rejected,
+    statusCounts.shortlisted,
+    statusCounts.total,
+  ])
   const hasMore = resumeQuery.hasMore
   const loading = !isLanding && resumeQuery.loading
   const loadingMore = resumeQuery.loadingMore
@@ -1483,13 +1523,14 @@ export function useResumeSearchState() {
   )
 
   const setStatusFilters = useCallback(
-    (status: CandidateStatus[]) => {
+    (status: CandidateStatus[] | undefined) => {
+      const normalizedStatus = status && status.length > 0 ? status : undefined
       startFilterTransition(() => {
         syncToUrl(
           buildUrlState(parsedState, {
             filters: {
               ...parsedState.filters,
-              status,
+              status: normalizedStatus,
             },
           }),
         )
@@ -1896,6 +1937,7 @@ export function useResumeSearchState() {
     filterCount,
     filteredResults: deferredFilteredResults,
     hasMore,
+    loadedCollectedTodayCount,
     hasActiveAnalysisTask,
     isLanding,
     loading,
@@ -1922,6 +1964,8 @@ export function useResumeSearchState() {
     setSelectedExperienceLevel,
     setSelectedTags,
     setSort,
+    setStatusFilters,
+    statusSummary,
     submitSearch,
     taxonomyClusters,
     toggleCompany,

@@ -123,7 +123,7 @@ export function bffMatchesResumeFilters(
 
   if (filters.roleFilterType) {
     // Match Convex hasMatchingRoleSignal: check verifiedRoleYears first, then roleSignals
-    const key = filters.roleFilterType.toLowerCase();
+    const key = filters.roleFilterType.trim().toLowerCase();
     const verifiedRoleYears = isRecord(ingestData.verifiedRoleYears)
       ? ingestData.verifiedRoleYears as Record<string, unknown>
       : {};
@@ -135,7 +135,7 @@ export function bffMatchesResumeFilters(
         : [];
       hasMatchingRole = roleSignals.some((signal: unknown) => {
         if (!isRecord(signal)) return false;
-        return typeof signal.type === "string" && signal.type.toLowerCase() === key;
+        return typeof signal.type === "string" && signal.type.trim().toLowerCase() === key;
       });
     }
     if (!hasMatchingRole) return false;
@@ -145,18 +145,15 @@ export function bffMatchesResumeFilters(
     const verifiedRoleYears = isRecord(ingestData.verifiedRoleYears)
       ? ingestData.verifiedRoleYears as Record<string, unknown>
       : {};
-    const precomputed = filters.roleFilterType
-      ? toOptionalNumber(verifiedRoleYears[filters.roleFilterType]) ?? undefined
-      : (Object.values(verifiedRoleYears).some((v) => (toOptionalNumber(v) ?? 0) >= filters.minRoleYears!) ? filters.minRoleYears : undefined);
-    if (precomputed !== undefined) {
-      if (precomputed < filters.minRoleYears) return false;
-    } else {
-      const roleSignals = Array.isArray(ingestData.roleSignals) ? (ingestData.roleSignals as AnalysisRoleSignalLike[]) : [];
-      const fallback = filters.roleFilterType
-        ? getVerifiedRoleSignalYears(roleSignals, filters.roleFilterType)
-        : Math.max(...roleSignals.map((sig) => typeof sig.type === "string" ? getVerifiedRoleSignalYears(roleSignals, sig.type) : 0), 0);
-      if (fallback < filters.minRoleYears) return false;
-    }
+    const roleSignals = Array.isArray(ingestData.roleSignals) ? (ingestData.roleSignals as AnalysisRoleSignalLike[]) : [];
+    const roleFilterKey = filters.roleFilterType?.trim().toLowerCase() ?? "";
+    const storedRoleYears = roleFilterKey
+      ? toOptionalNumber(verifiedRoleYears[roleFilterKey]) ?? 0
+      : Math.max(...Object.values(verifiedRoleYears).map((v) => toOptionalNumber(v) ?? 0), 0);
+    const roleYears = storedRoleYears > 0
+      ? storedRoleYears
+      : getVerifiedRoleSignalYears(roleSignals, roleFilterKey);
+    if (roleYears < filters.minRoleYears) return false;
   }
 
   if (typeof filters.minAge === "number" || typeof filters.maxAge === "number") {

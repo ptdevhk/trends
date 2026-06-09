@@ -271,6 +271,11 @@ describe("ResumesQuerySchema", () => {
     expect(result.recommendation).toEqual(["strong_match", "match"]);
   });
 
+  it("parses status as CSV string", () => {
+    const result = ResumesQuerySchema.parse({ status: "new,shortlisted,rejected" });
+    expect(result.status).toEqual(["new", "shortlisted", "rejected"]);
+  });
+
   it("parses minMatchScore string to number", () => {
     const result = ResumesQuerySchema.parse({ minMatchScore: "70" });
     expect(result.minMatchScore).toBe(70);

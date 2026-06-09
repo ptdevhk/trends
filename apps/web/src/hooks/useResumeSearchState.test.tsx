@@ -1892,7 +1892,7 @@ describe('useResumeSearchState', () => {
       ...baseSyncedState,
       filters: {
         ...baseSyncedState.filters,
-        status: [],
+        status: undefined,
       },
     })
 

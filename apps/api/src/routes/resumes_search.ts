@@ -115,6 +115,105 @@ function resolveCandidateStatus(value: string | undefined): CandidateStatus {
   return value && isCandidateStatus(value) ? value : "new";
 }
 
+type CandidateStatusContext = {
+  statusByIdentity: Map<string, string>;
+  blockedIdentities: Set<string>;
+};
+
+function normalizeStatusFilters(values: string[] | undefined): CandidateStatus[] {
+  if (!values?.length) {
+    return [];
+  }
+
+  const normalized: CandidateStatus[] = [];
+  const seen = new Set<string>();
+  for (const value of values) {
+    const key = value.trim().toLowerCase();
+    if (!isCandidateStatus(key) || seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    normalized.push(key);
+  }
+  return normalized;
+}
+
+function getResumeIdentityKey(item: { resume: ResumeItem }): string | undefined {
+  const resumeRecord = item.resume as Record<string, unknown>;
+  return typeof resumeRecord.identityKey === "string" && resumeRecord.identityKey.trim().length > 0
+    ? resumeRecord.identityKey
+    : undefined;
+}
+
+function getCandidateStatus(item: { resume: ResumeItem }, context: CandidateStatusContext): CandidateStatus {
+  const identityKey = getResumeIdentityKey(item);
+  return identityKey ? resolveCandidateStatus(context.statusByIdentity.get(identityKey)) : "new";
+}
+
+function matchesStatusFilter(
+  item: { resume: ResumeItem },
+  context: CandidateStatusContext,
+  activeFilters: CandidateStatus[],
+): boolean {
+  const identityKey = getResumeIdentityKey(item);
+  if (identityKey && context.blockedIdentities.has(identityKey)) {
+    return false;
+  }
+  if (activeFilters.length === 0) {
+    return true;
+  }
+
+  const status = getCandidateStatus(item, context);
+  return activeFilters.some((filterValue) => status === filterValue);
+}
+
+async function loadCandidateStatusContext(
+  workspaceSlug: string,
+  showBlocked: boolean | undefined,
+): Promise<CandidateStatusContext> {
+  const [statusList, blockList] = await Promise.all([
+    callConvexQuery("candidate_status:list", {
+      workspaceSlug,
+    }) as Promise<Array<{ identityKey?: string; status?: string }>>,
+    showBlocked
+      ? Promise.resolve([] as Array<{ identityKey?: string }>)
+      : callConvexQuery("candidate_blocks:list", {
+        workspaceSlug,
+      }) as Promise<Array<{ identityKey?: string }>>,
+  ]);
+
+  const statusByIdentity = new Map<string, string>();
+  for (const statusItem of statusList) {
+    if (statusItem.identityKey && statusItem.status) {
+      statusByIdentity.set(String(statusItem.identityKey), String(statusItem.status));
+    }
+  }
+
+  const blockedIdentities = new Set<string>();
+  for (const block of blockList) {
+    if (block.identityKey) {
+      blockedIdentities.add(String(block.identityKey));
+    }
+  }
+
+  return { statusByIdentity, blockedIdentities };
+}
+
+function countCandidateStatuses(
+  items: Array<{ resume: ResumeItem }>,
+  context: CandidateStatusContext,
+): CandidateStatusCounts {
+  const counts = createCandidateStatusCounts();
+  for (const item of items) {
+    const identityKey = getResumeIdentityKey(item);
+    if (identityKey && context.blockedIdentities.has(identityKey)) {
+      continue;
+    }
+    counts[getCandidateStatus(item, context)] += 1;
+  }
+  return counts;
+}
+
 export function scorePreparedCandidates(
   prepared: PreparedResumeCandidate[],
   context: RuleScoringContext
@@ -670,6 +769,7 @@ app.openapi(getResumesRoute, (c) => {
     minAge,
     maxAge,
     sources,
+    status,
     minMatchScore,
     recommendation,
     showBlocked,
@@ -700,6 +800,7 @@ app.openapi(getResumesRoute, (c) => {
         const normalizedKeywords = keyword ? normalizeKeywords(parseKeywordQuery(keyword).keywords) : [];
         const normalizedRequiredKeywords = normalizeKeywords(requiredKeywords);
         const normalizedRecommendations = normalizeMatchRecommendations(recommendation);
+        const normalizedStatusFilters = normalizeStatusFilters(status);
         const hasLocalMatchFilters = minMatchScore !== undefined || (normalizedRecommendations?.length ?? 0) > 0;
         const hasLocalResumeFilters = hasResumeListFilters({
           maxExperience,
@@ -980,67 +1081,50 @@ app.openapi(getResumesRoute, (c) => {
           });
         }
 
+        // Compute status counts from the working set, then apply explicit
+        // status filters before response pagination. Without this, status=new
+        // reported counts but still returned all statuses.
+        let statusCounts: CandidateStatusCounts | undefined;
+        let statusFilteredWorking = working;
+        try {
+          const statusContext = await loadCandidateStatusContext(workspaceSlug, showBlocked);
+          statusCounts = countCandidateStatuses(working, statusContext);
+          if (normalizedStatusFilters.length > 0) {
+            statusFilteredWorking = working.filter((item) =>
+              matchesStatusFilter(item, statusContext, normalizedStatusFilters)
+            );
+          }
+        } catch (error) {
+          logger.error("[Resumes] Failed to load candidate status context", error, {
+            route: "resumes_search",
+            workspaceSlug,
+          });
+          statusCounts = undefined;
+        }
+
         // Cursor-scan returns all results without pre-slicing, so
         // offset/limit must be applied after local filtering.
         const start = offset ?? 0;
         const end = typeof limit === "number" ? start + limit : undefined;
-        const pagedWorking = end ? working.slice(start, end) : working.slice(start);
+        const pagedWorking = end ? statusFilteredWorking.slice(start, end) : statusFilteredWorking.slice(start);
         // usesPrePagedMatchResults already has correct offset/limit from match storage;
         // canUseSourcePagination with no keywords already has offset/limit from Convex list page;
         // all other paths need offset/limit applied locally.
         const isSourcePaginated = canUseSourcePagination && normalizedKeywords.length === 0;
-        const limited = (usesPrePagedMatchResults || isSourcePaginated)
-          ? working.map((item) => item.resume)
+        const shouldUsePrePagedResponse = normalizedStatusFilters.length === 0 && (usesPrePagedMatchResults || isSourcePaginated);
+        const limited = shouldUsePrePagedResponse
+          ? statusFilteredWorking.map((item) => item.resume)
           : pagedWorking.map((item) => item.resume);
-
-        // Compute status counts from working set identityKeys
-        let statusCounts: CandidateStatusCounts | undefined;
-        try {
-          const [statusList, blockList] = await Promise.all([
-            callConvexQuery("candidate_status:list", {
-              workspaceSlug,
-            }) as Promise<Array<{ identityKey?: string; status?: string }>>,
-            showBlocked
-              ? Promise.resolve([] as Array<{ identityKey?: string }>)
-              : callConvexQuery("candidate_blocks:list", {
-                workspaceSlug,
-              }) as Promise<Array<{ identityKey?: string }>>,
-          ]);
-          const statusMap = new Map<string, string>();
-          for (const s of statusList) {
-            if (s.identityKey && s.status) {
-              statusMap.set(String(s.identityKey), String(s.status));
-            }
-          }
-          const blockedIdentities = new Set<string>();
-          for (const block of blockList) {
-            if (block.identityKey) {
-              blockedIdentities.add(String(block.identityKey));
-            }
-          }
-          const counts = createCandidateStatusCounts();
-          const sourceItems = (usesPrePagedMatchResults || isSourcePaginated) ? working : pagedWorking;
-          for (const item of sourceItems) {
-            const resume = item.resume as Record<string, unknown> | undefined;
-            const identityKey = typeof resume?.identityKey === "string" ? resume.identityKey : undefined;
-            if (identityKey && blockedIdentities.has(identityKey)) {
-              continue;
-            }
-            const status = identityKey ? (statusMap.get(identityKey) ?? "new") : "new";
-            const bucket = resolveCandidateStatus(status);
-            counts[bucket] += 1;
-          }
-          statusCounts = counts;
-        } catch {
-          statusCounts = undefined;
-        }
+        const responseTotal = normalizedStatusFilters.length > 0
+          ? statusFilteredWorking.length
+          : (usesPrePagedMatchResults || isSourcePaginated)
+            ? (totalCount ?? statusFilteredWorking.length)
+            : statusFilteredWorking.length;
 
         return c.json({
           success: true as const,
           summary: {
-            total: (usesPrePagedMatchResults || isSourcePaginated)
-              ? (totalCount ?? working.length)
-              : working.length,
+            total: responseTotal,
             returned: limited.length,
             query: keyword,
             source,

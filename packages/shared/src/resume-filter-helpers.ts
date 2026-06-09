@@ -9,6 +9,9 @@
  * convex/__tests__/schema-validator-sync.test.ts.
  */
 
+import { resolveResumeAnalysisSourceKey } from "./analysis-key.js";
+import { isLocationMatch } from "./location-tree.js";
+
 /**
  * Normalize education level strings to standard English tokens.
  *
@@ -159,7 +162,27 @@ export interface DigestRecord {
   roleYearsByType?: Record<string, number>;
 }
 
-import { isLocationMatch } from "./location-tree.js";
+function resolveDigestSourceCountry(digest: DigestRecord): string | undefined {
+  const sourceKey = resolveResumeAnalysisSourceKey({
+    sourceKey: digest.sourceKey,
+    source: digest.source,
+  });
+  if (sourceKey === "51job" || sourceKey === "job5156") {
+    return "中国";
+  }
+  if (sourceKey === "seek") {
+    return "Malaysia";
+  }
+  return undefined;
+}
+
+function resolveDigestLocationText(digest: DigestRecord): string {
+  const locationText = digest.locationText?.trim();
+  if (locationText) {
+    return locationText;
+  }
+  return resolveDigestSourceCountry(digest) ?? "";
+}
 
 export function matchesResumeDigestFilters(digest: DigestRecord, filters: DigestFilterArgs | undefined): boolean {
   if (!filters?.showArchived && digest.isArchived === true) return false;
@@ -170,7 +193,7 @@ export function matchesResumeDigestFilters(digest: DigestRecord, filters: Digest
   const haystack = digest.searchText?.toLowerCase() ?? "";
   if (filters.skills?.length && !filters.skills.some((skill) => haystack.includes(skill.toLowerCase()))) return false;
   if (filters.requiredKeywords?.length && !filters.requiredKeywords.every((kw) => haystack.includes(kw.toLowerCase()))) return false;
-  if (filters.locations?.length && !filters.locations.some((target) => isLocationMatch(digest.locationText ?? "", target))) return false;
+  if (filters.locations?.length && !filters.locations.some((target) => isLocationMatch(resolveDigestLocationText(digest), target))) return false;
   if (typeof filters.minSalary === "number") {
     const maxSalary = digest.salaryMax ?? digest.salaryMin;
     if (maxSalary !== undefined && maxSalary < filters.minSalary) return false;
@@ -181,22 +204,23 @@ export function matchesResumeDigestFilters(digest: DigestRecord, filters: Digest
   }
   if (filters.roleFilterType && !_hasDigestRoleType(digest, filters.roleFilterType)) return false;
   if (typeof filters.minRoleYears === "number" && filters.minRoleYears > 0) {
+    const roleKey = filters.roleFilterType?.trim().toLowerCase();
     const roleYears = filters.roleFilterType
-      ? digest.roleYearsByType?.[filters.roleFilterType.toLowerCase()] ?? 0
+      ? digest.roleYearsByType?.[roleKey ?? ""] ?? 0
       : Math.max(...Object.values(digest.roleYearsByType ?? {}), 0);
     if (roleYears < filters.minRoleYears) return false;
   }
   if (typeof filters.minAge === "number" && typeof digest.age === "number" && digest.age < filters.minAge) return false;
   if (typeof filters.maxAge === "number" && typeof digest.age === "number" && digest.age > filters.maxAge) return false;
   if (filters.sources?.length) {
-    const source = digest.sourceKey ?? digest.source;
+    const source = digest.sourceKey ?? resolveResumeAnalysisSourceKey({ source: digest.source });
     if (!source || !filters.sources.includes(source)) return false;
   }
   return true;
 }
 
 function _hasDigestRoleType(digest: DigestRecord, roleFilterType: string): boolean {
-  const key = roleFilterType.toLowerCase();
-  return (digest.roleTypes ?? []).some((role) => role.toLowerCase() === key)
+  const key = roleFilterType.trim().toLowerCase();
+  return (digest.roleTypes ?? []).some((role) => role.trim().toLowerCase() === key)
     || typeof digest.roleYearsByType?.[key] === "number";
 }

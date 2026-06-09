@@ -5904,6 +5904,7 @@
   __name(delay, "delay");
 
   // src/lib/resume-extractor.ts
+  var AUTO_SEARCH_PROFILE_ID_PARAM = "tr_search_profile_id";
   function createResumeExtractor(deps) {
     const {
       SELECTORS: SELECTORS2,
@@ -5994,6 +5995,7 @@
     function buildSubmitMetadata2(options = {}) {
       const url = new URL(win.location.href);
       const sourceKey = getCurrentSourceKey2();
+      const searchProfileId = url.searchParams.get(AUTO_SEARCH_PROFILE_ID_PARAM)?.trim() || "";
       const keyword = normalizeKeyword2(
         url.searchParams.get(AUTO_SEARCH_PARAM2) || ""
       );
@@ -6002,6 +6004,7 @@
       url.searchParams.delete(AUTO_SYNC_PARAM2);
       url.searchParams.delete(AUTO_LIMIT_PARAM2);
       url.searchParams.delete(AUTO_MAX_PAGES_PARAM2);
+      url.searchParams.delete(AUTO_SEARCH_PROFILE_ID_PARAM);
       url.searchParams.delete(SAMPLE_NAME_PARAM2);
       const metadata = {
         sourceKey,
@@ -6011,6 +6014,7 @@
       };
       if (keyword) metadata.keyword = keyword;
       if (location) metadata.location = location;
+      if (searchProfileId) metadata.searchProfileId = searchProfileId;
       if (sourceKey === SOURCE_KEYS2.SEEK) {
         metadata.collectionContext = buildSeekCollectionContext2({
           captureModeOverride: options.seekCaptureMode

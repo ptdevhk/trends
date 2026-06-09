@@ -229,6 +229,7 @@ describe('getRoleYears', () => {
   function makeResume(roleSignals: Array<{
     type: string
     years: number
+    roleRelevantYears?: number
     industryVerifiedYears?: number
     industryVerifiedRelevantYears?: number
     matchedWorkEntries?: Array<{ years: number; directRoleMatch: boolean; industryVerified: boolean; matchedSignals: string[] }>
@@ -247,6 +248,7 @@ describe('getRoleYears', () => {
           signalCount: 1,
           occurrences: 1,
           years: s.years,
+          ...(s.roleRelevantYears !== undefined ? { roleRelevantYears: s.roleRelevantYears } : {}),
           industryVerifiedYears: s.industryVerifiedYears ?? 0,
           ...(s.industryVerifiedRelevantYears !== undefined ? { industryVerifiedRelevantYears: s.industryVerifiedRelevantYears } : {}),
           ...(s.matchedWorkEntries
@@ -282,14 +284,40 @@ describe('getRoleYears', () => {
     expect(getRoleYears(resume, 'sales')).toBe(5)
   })
 
-  it('falls back to getVerifiedRoleSignalYears via industryVerifiedRelevantYears', () => {
+  it('falls back to industryVerifiedRelevantYears when no direct role entries exist', () => {
     const resume = makeResume([
       { type: 'sales', years: 8, industryVerifiedRelevantYears: 4 },
     ])
     expect(getRoleYears(resume, 'sales')).toBe(4)
   })
 
-  it('sums verified work entry years when matchedWorkEntries are present', () => {
+  it('does not count direct unverified sales work-history years', () => {
+    const resume = makeResume([{
+      type: 'sales',
+      years: 6.75,
+      roleRelevantYears: 6.75,
+      industryVerifiedRelevantYears: 0,
+      matchedWorkEntries: [
+        { years: 6.75, directRoleMatch: true, industryVerified: false, matchedSignals: ['销售'] },
+      ],
+    }])
+    expect(getRoleYears(resume, 'sales')).toBe(0)
+  })
+
+  it('does not count non-direct sales work-history mentions', () => {
+    const resume = makeResume([{
+      type: 'sales',
+      years: 5,
+      roleRelevantYears: 0,
+      industryVerifiedRelevantYears: 0,
+      matchedWorkEntries: [
+        { years: 5, directRoleMatch: false, industryVerified: false, matchedSignals: ['销售'] },
+      ],
+    }])
+    expect(getRoleYears(resume, 'sales')).toBe(0)
+  })
+
+  it('sums only verified direct role-matched work entry years when matchedWorkEntries are present', () => {
     const resume = makeResume([{
       type: 'sales',
       years: 8,

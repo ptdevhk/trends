@@ -2584,6 +2584,7 @@ export interface paths {
                     minAge?: string;
                     maxAge?: string;
                     sources?: string | string[];
+                    status?: string | string[];
                     recommendation?: string | string[];
                     showBlocked?: "true" | "false";
                     enableSemantic?: "true" | "false";

@@ -8,11 +8,15 @@ import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { CheckCircle, XCircle, Download, Users, Ban } from 'lucide-react'
-import type { CandidateStatus } from '@/types/resume'
+import { CANDIDATE_STATUS_VALUES, type CandidateStatus } from '@/types/resume'
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 import type { ResumeExportFormat } from '@/types/resume'
+
+const PRIMARY_STATUS_FILTERS: CandidateStatus[] = ['new', 'shortlisted', 'rejected']
+const PRIMARY_STATUS_SET: ReadonlySet<CandidateStatus> = new Set(PRIMARY_STATUS_FILTERS)
+const ALL_STATUS_FILTERS: CandidateStatus[] = [...CANDIDATE_STATUS_VALUES]
 
 interface BulkActionBarProps {
     totalCount: number
@@ -33,6 +37,8 @@ interface BulkActionBarProps {
     statusFilter?: CandidateStatus[]
     /** Toggle a status in the filter */
     onStatusToggle?: (status: CandidateStatus) => void
+    /** Replace the status filter. Undefined restores the default new-only view. */
+    onStatusFilterChange?: (statuses: CandidateStatus[] | undefined) => void
     /** Facet counts by status for chip labels */
     statusFacetCounts?: Record<string, number>
 }
@@ -53,11 +59,26 @@ export function BulkActionBar({
     disabled = false,
     statusFilter,
     onStatusToggle,
+    onStatusFilterChange,
     statusFacetCounts,
 }: BulkActionBarProps) {
     const { t } = useTranslation()
     const [loading, setLoading] = useState<string | null>(null)
     const totalCountLabel = `${totalCount}${totalCountIsLowerBound ? '+' : ''}`
+    const allStatusActive = statusFilter?.length === ALL_STATUS_FILTERS.length
+        && ALL_STATUS_FILTERS.every((status) => statusFilter.includes(status))
+    const allStatusCount = statusFacetCounts
+        ? ALL_STATUS_FILTERS.reduce((sum, status) => sum + (statusFacetCounts[status] ?? 0), 0)
+        : undefined
+    const statusChips = [
+        ...PRIMARY_STATUS_FILTERS,
+        ...ALL_STATUS_FILTERS.filter((status) => {
+            if (PRIMARY_STATUS_SET.has(status)) {
+                return false
+            }
+            return (statusFacetCounts?.[status] ?? 0) > 0 || statusFilter?.includes(status) === true
+        }),
+    ]
 
     const handleAction = useCallback(async (action: 'shortlist' | 'reject' | 'block' | 'export') => {
         setLoading(action)
@@ -112,7 +133,28 @@ export function BulkActionBar({
             {/* Status Filter Chips */}
             {onStatusToggle && (
                 <div className="flex items-center gap-1">
-                    {(['new', 'shortlisted', 'rejected'] as CandidateStatus[]).map((status) => {
+                    {onStatusFilterChange && (
+                        <button
+                            type="button"
+                            onClick={() => {
+                                onStatusFilterChange(allStatusActive ? undefined : ALL_STATUS_FILTERS)
+                            }}
+                            className={cn(
+                                'px-2 py-0.5 rounded-full text-xs border transition-colors',
+                                allStatusActive
+                                    ? 'bg-primary/10 border-primary text-primary font-medium'
+                                    : 'border-border text-muted-foreground hover:bg-muted',
+                            )}
+                        >
+                            {t('bulkActions.statusAll', '全部状态')}
+                            {typeof allStatusCount === 'number' && (
+                                <span className="ml-1 opacity-70">
+                                    {allStatusCount}
+                                </span>
+                            )}
+                        </button>
+                    )}
+                    {statusChips.map((status) => {
                         const isActive = statusFilter && statusFilter.length > 0
                             ? statusFilter.includes(status)
                             : status === 'new'

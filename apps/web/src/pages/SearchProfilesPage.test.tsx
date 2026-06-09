@@ -606,6 +606,7 @@ describe('SearchProfilesPage run behavior', () => {
     expect(openedUrl.searchParams.get('tr_max_pages')).toBe('10')
     expect(openedUrl.searchParams.get('tr_unsafe_limits')).toBe('1')
     expect(openedUrl.searchParams.get('tr_job51_detail_wait')).toBe('page1')
+    expect(openedUrl.searchParams.get('tr_search_profile_id')).toBe('profile-unsafe-1')
     expect(openedUrl.searchParams.get('tr_min_age')).toBe('25')
     expect(openedUrl.searchParams.get('tr_max_age')).toBe('40')
   })
