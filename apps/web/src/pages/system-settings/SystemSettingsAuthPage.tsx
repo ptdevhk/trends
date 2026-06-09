@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Ban, RefreshCw, ShieldCheck } from 'lucide-react'
+import { Ban, Lock, RefreshCw, ShieldCheck } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
@@ -17,6 +17,7 @@ import {
 } from '@/lib/auth'
 import { reportUiError } from '@/lib/ui-error-reporting'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
+import { useAuth } from '@/contexts/AuthContext'
 
 type FormState = {
   provider: AuthProvider
@@ -44,12 +45,16 @@ function formatProviderMembershipError(error: ProviderMembershipApiError): strin
   return error.status === undefined ? error.error : `${error.error} (${error.status})`
 }
 
-function StatusPill({ active }: { active: boolean }) {
+function Pill({ children, active = true }: { children: string; active?: boolean }) {
   return (
     <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${active ? 'bg-emerald-50 text-emerald-700' : 'bg-muted text-muted-foreground'}`}>
-      {active ? 'Active' : 'Revoked'}
+      {children}
     </span>
   )
+}
+
+function StatusPill({ active }: { active: boolean }) {
+  return <Pill active={active}>{active ? 'Active' : 'Revoked'}</Pill>
 }
 
 function EmptyRow({ colSpan, label }: { colSpan: number; label: string }) {
@@ -65,6 +70,7 @@ function EmptyRow({ colSpan, label }: { colSpan: number; label: string }) {
 export function SystemSettingsAuthPage() {
   const { t } = useTranslation()
   const { slug } = useWorkspace()
+  const auth = useAuth()
   const [state, setState] = useState<ProviderMembershipsResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [accessDenied, setAccessDenied] = useState(false)
@@ -72,6 +78,13 @@ export function SystemSettingsAuthPage() {
   const [submitting, setSubmitting] = useState(false)
   const [form, setForm] = useState<FormState>(() => createInitialForm(slug))
   const providerIdentities = state?.identities.filter((identity) => identity.provider === form.provider) ?? []
+  const anonymousResumeSearchEnabled = slug === 'hr'
+  const currentRoleLabel = auth.workspaceRole === 'admin'
+    ? 'Workspace admin'
+    : auth.workspaceRole === 'user'
+      ? 'Workspace user'
+      : 'No workspace role'
+  const currentUserLabel = auth.user?.displayName ?? auth.user?.email ?? auth.user?.id ?? 'Signed out'
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -190,6 +203,106 @@ export function SystemSettingsAuthPage() {
             defaultValue: 'Manage provider-derived workspace access and review related auth events.',
           })}
         </p>
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(320px,0.8fr)]">
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('debugConfig.authAccessPolicyTitle', { defaultValue: 'Workspace access policy' })}</CardTitle>
+            <CardDescription>
+              {t('debugConfig.authAccessPolicyDescription', {
+                defaultValue: 'Review the effective role and permission defaults for this workspace.',
+              })}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="overflow-x-auto">
+            <table className="w-full min-w-[680px] text-sm">
+              <thead className="border-b text-left text-xs uppercase text-muted-foreground">
+                <tr>
+                  <th className="px-3 py-2">Principal</th>
+                  <th className="px-3 py-2">Role</th>
+                  <th className="px-3 py-2">Search</th>
+                  <th className="px-3 py-2">Operational HR data</th>
+                  <th className="px-3 py-2">Writes</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="border-b">
+                  <td className="px-3 py-2 font-medium">Everyone / anonymous</td>
+                  <td className="px-3 py-2">public-search</td>
+                  <td className="px-3 py-2">
+                    {anonymousResumeSearchEnabled ? (
+                      <Pill>resume:search</Pill>
+                    ) : (
+                      <Pill active={false}>not granted</Pill>
+                    )}
+                  </td>
+                  <td className="px-3 py-2 text-muted-foreground">login required</td>
+                  <td className="px-3 py-2 text-muted-foreground">login required</td>
+                </tr>
+                <tr className="border-b">
+                  <td className="px-3 py-2 font-medium">Workspace users</td>
+                  <td className="px-3 py-2">user</td>
+                  <td className="px-3 py-2"><Pill>resume:search</Pill></td>
+                  <td className="px-3 py-2">
+                    <div className="flex flex-wrap gap-1">
+                      <Pill>candidate:status:read</Pill>
+                      <Pill>candidate:action:read</Pill>
+                    </div>
+                  </td>
+                  <td className="px-3 py-2"><Pill>candidate:mutate</Pill></td>
+                </tr>
+                <tr>
+                  <td className="px-3 py-2 font-medium">Workspace admins</td>
+                  <td className="px-3 py-2">admin</td>
+                  <td className="px-3 py-2"><Pill>resume:search</Pill></td>
+                  <td className="px-3 py-2"><Pill>resume:export</Pill></td>
+                  <td className="px-3 py-2"><Pill>workspace:admin</Pill></td>
+                </tr>
+              </tbody>
+            </table>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('debugConfig.authAccessCurrentRoleTitle', { defaultValue: 'Current user role' })}</CardTitle>
+            <CardDescription>
+              {t('debugConfig.authAccessCurrentRoleDescription', {
+                defaultValue: 'Effective workspace role from the active session.',
+              })}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-1">
+              <div className="text-sm font-medium">{currentUserLabel}</div>
+              {auth.user?.email && auth.user.email !== currentUserLabel && (
+                <div className="text-sm text-muted-foreground">{auth.user.email}</div>
+              )}
+              <div className="pt-2">
+                <Pill active={auth.workspaceRole !== null}>{currentRoleLabel}</Pill>
+              </div>
+            </div>
+            <div className="rounded-md border border-dashed p-3">
+              <div className="text-sm font-medium">Role editor</div>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {t('debugConfig.authAccessRoleEditorDescription', {
+                  defaultValue: 'Backend role mutation APIs are pending; provider preapproval remains available below.',
+                })}
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                className="mt-3 w-full justify-start"
+                data-testid="workspace-role-editor-placeholder"
+                disabled
+              >
+                <Lock className="mr-2 h-4 w-4" />
+                Role editor backend pending
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       <Card>

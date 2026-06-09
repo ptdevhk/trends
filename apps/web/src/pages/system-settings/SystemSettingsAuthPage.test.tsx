@@ -6,6 +6,17 @@ const mockFetchProviderMemberships = vi.hoisted(() => vi.fn())
 const mockPreapproveProviderMembership = vi.hoisted(() => vi.fn())
 const mockRevokeProviderMembership = vi.hoisted(() => vi.fn())
 const mockToast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }))
+const authMock = vi.hoisted(() => ({
+  value: {
+    user: { id: 'admin-1', email: 'admin@example.com', displayName: 'Admin User', status: 'active' as const },
+    workspaceRole: 'admin' as const,
+    isAuthenticated: true,
+    isLoading: false,
+    login: vi.fn(async () => true),
+    logout: vi.fn(async () => {}),
+    refresh: vi.fn(async () => {}),
+  },
+}))
 
 vi.mock('@/lib/auth', () => ({
   fetchProviderMemberships: mockFetchProviderMemberships,
@@ -15,6 +26,10 @@ vi.mock('@/lib/auth', () => ({
 
 vi.mock('@/contexts/WorkspaceContext', () => ({
   useWorkspace: () => ({ slug: 'hr' }),
+}))
+
+vi.mock('@/contexts/AuthContext', () => ({
+  useAuth: () => authMock.value,
 }))
 
 vi.mock('sonner', () => ({
@@ -94,6 +109,21 @@ describe('SystemSettingsAuthPage', () => {
     expect(screen.getByTestId('auth-role-select')).toBeInTheDocument()
     expect(screen.getByTestId('auth-preapprove-submit')).toBeInTheDocument()
     expect(screen.getByTestId('auth-revoke-sub-1-hr')).toBeInTheDocument()
+  })
+
+  it('renders workspace role policy and disabled role editor controls', async () => {
+    render(<SystemSettingsAuthPage />)
+
+    expect(await screen.findByText('Workspace access policy')).toBeInTheDocument()
+    expect(screen.getByText('Everyone / anonymous')).toBeInTheDocument()
+    expect(screen.getAllByText('resume:search').length).toBeGreaterThan(0)
+    expect(screen.getByText('Current user role')).toBeInTheDocument()
+    expect(screen.getByText('Admin User')).toBeInTheDocument()
+    expect(screen.getByText('admin@example.com')).toBeInTheDocument()
+    expect(screen.getByText('Workspace admin')).toBeInTheDocument()
+    expect(screen.getByText('Role editor backend pending')).toBeInTheDocument()
+    expect(screen.getByTestId('workspace-role-editor-placeholder')).toBeDisabled()
+    expect(screen.getByText('Provider-derived grants')).toBeInTheDocument()
   })
 
   it('creates a provider preapproval from the form', async () => {

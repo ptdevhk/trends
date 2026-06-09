@@ -603,6 +603,103 @@ describe("resume routes", () => {
     ]);
   });
 
+  it("allows anonymous hr convex search with BFF AND-mode filters", async () => {
+    const calls: ConvexCall[] = [];
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+
+      if (call.pathName === "resumes_search:scanResumeDigestPage") {
+        return convexSuccess({
+          docs: [
+            {
+              _id: "d1",
+              resumeId: "resume-live-1",
+              source: "seek",
+              sourceKey: "seek",
+              searchText: "cnc sales",
+              locationText: "China",
+              roleSignals: [{ type: "sales", years: 3 }],
+              isArchived: false,
+            },
+          ],
+          isDone: true,
+          cursor: null,
+        });
+      }
+
+      if (call.pathName === "resumes_search:getResumeDocsByIds") {
+        return convexSuccess([
+          {
+            ...buildConvexResumeRecord("resume-live-1", {
+              identityKey: "ik-live-1",
+              name: "Anonymous Search Result",
+              location: "China",
+              ingestData: {
+                roleSignals: [
+                  {
+                    type: "sales",
+                    matchedSignals: ["sales"],
+                    years: 3,
+                    industryVerifiedYears: 3,
+                    signalCount: 1,
+                    occurrences: 1,
+                    verifyIn: "workHistory",
+                  },
+                ],
+              },
+            }),
+            searchText: "cnc sales",
+            isArchived: false,
+          },
+        ]);
+      }
+
+      if (call.pathName === "candidate_status:list" || call.pathName === "candidate_blocks:list") {
+        throw new Error(`Anonymous search should not load operational overlays: ${call.pathName}`);
+      }
+
+      throw new Error(`Unexpected convex path: ${call.pathName}`);
+    });
+
+    const app = createTestApp(null);
+    const response = await app.request(
+      "/api/resumes?q=cnc%20sales&source=convex&paged=true&minRoleYears=1&roleFilterType=sales&locations=China",
+      {
+        headers: {
+          "X-Workspace-Slug": "hr",
+        },
+      },
+    );
+
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(payload.success).toBe(true);
+    expect(payload.summary.statusCounts).toBeUndefined();
+    expect(calls.map((call) => call.pathName)).toEqual([
+      "resumes_search:scanResumeDigestPage",
+      "resumes_search:getResumeDocsByIds",
+    ]);
+  });
+
+  it("rejects anonymous dev convex search with BFF AND-mode filters", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("Convex should not be called"));
+
+    const app = createTestApp(null);
+    const response = await app.request(
+      "/api/resumes?q=cnc%20sales&source=convex&paged=true&minRoleYears=1&roleFilterType=sales&locations=China",
+      {
+        headers: {
+          "X-Workspace-Slug": "dev",
+        },
+      },
+    );
+
+    expect(response.status).toBe(401);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it("keeps the static skills-version route from being shadowed by resume detail lookup", async () => {
     const app = createTestApp();
     const response = await app.request("/api/resumes/skills-version");

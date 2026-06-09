@@ -73,7 +73,7 @@
   },
   "resumes_search.ts": {
     "class": "workspace-read",
-    "reason": "The operational resume list route requires authenticated workspace membership except for the narrow anonymous read-only hr workspace search fast path; sample and keyword helper routes remain public within the file."
+    "reason": "The operational resume list route uses workspace permission checks so hr can grant anonymous/everyone resume:search while operational overlays stay authenticated."
   },
   "rss.ts": {
     "class": "public",

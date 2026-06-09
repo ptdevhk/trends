@@ -1,5 +1,4 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import type { MiddlewareHandler } from "hono";
 import {
   ResumeService,
   normalizeEducationLevel,
@@ -25,7 +24,7 @@ import {
 } from "../schemas/index.js";
 import { resolveResumeId } from "../services/resume-id.js";
 import { callConvexAction, callConvexQuery, isConvexPaginatedQueryPage } from "../services/convex-utils.js";
-import { requireWorkspaceUser } from "../middleware/auth.js";
+import { requireWorkspacePermission } from "../services/workspace-permissions.js";
 import {
   formatKeywordQuery,
   parseKeywordQuery,
@@ -88,14 +87,6 @@ const MAX_SAFE_CONVEX_POST_FILTER_SCAN = 250;
 type CandidateStatus = typeof CANDIDATE_STATUS_VALUES[number];
 type CandidateStatusCounts = Record<CandidateStatus, number>;
 const CANDIDATE_STATUS_SET: ReadonlySet<string> = new Set(CANDIDATE_STATUS_VALUES);
-
-const allowAnonymousHrResumeRead: MiddlewareHandler = async (c, next) => {
-  if (!c.var.auth && c.var.workspaceSlug === "hr") {
-    await next();
-    return;
-  }
-  return requireWorkspaceUser(c, next);
-};
 
 function createCandidateStatusCounts(): CandidateStatusCounts {
   return {
@@ -739,7 +730,7 @@ const getResumesRoute = createRoute({
   method: "get",
   path: "/api/resumes",
   tags: ["resumes"],
-  middleware: [allowAnonymousHrResumeRead] as const,
+  middleware: [requireWorkspacePermission("resume:search")] as const,
   summary: "List resumes from a sample file",
   description: "Returns resume items from the latest or specified sample JSON",
   request: {
