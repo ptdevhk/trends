@@ -1,6 +1,6 @@
 #!/bin/bash
 # Sets up the preview environment at /home/ubuntu/trends-preview/ from origin/main.
-# Run on ptcloud as root.  Usage: bash deploy/setup-preview.sh
+# Run on the preview host as root.  Usage: bash deploy/setup-preview.sh
 #
 # IMPORTANT: This pulls from origin/main, NOT /opt/trends. Production might be
 # weeks behind main. Preview should always reflect the bleeding-edge code.

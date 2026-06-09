@@ -345,7 +345,7 @@ bump_script:
 publish_via: none
 deploy_script: bash scripts/install.sh upgrade
 manifests_count: 5
-remote_hosts: [ptcloud]
+remote_hosts: [${SSH_HOST:-ptcloud}]
 ```
 
 ## CI Configuration
@@ -363,7 +363,7 @@ ci_discovery: runtime
 ```yaml
 notes:
   stack: Monorepo — React+Vite (web), Hono+OpenAPI (api), FastAPI (worker), Convex (data)
-  deploy: production deploys via `make on-prod-deploy` on ptcloud after `make on-prod-deploy-check`
+  deploy: production deploys via `make on-prod-deploy` on prod host (`SSH_HOST`, defaults to `ptcloud`) after `make on-prod-deploy-check`
   config_docs: CLAUDE.md is canonical; AGENTS.md is symlink
   planning: EnterPlanMode gated — TDD-first pipeline uses superpowers:writing-plans for plan, then superpowers:test-driven-development for execute
   gotcha: api-types.ts regenerates on make check after API schema edits — always stage it

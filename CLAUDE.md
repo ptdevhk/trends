@@ -131,7 +131,7 @@ make local-restore-from-prod FILE=output/resume-backups/resumes-prod-<...>.tar.g
 # Go CLI: trends resume full-restore <path>
 ```
 
-### On prod host (after `ssh ptcloud && cd /opt/trends`)
+### On prod host (SSH via `${SSH_HOST:-ptcloud}`; `SSH_HOST` defaults to `ptcloud` if unset)
 ```bash
 make on-prod-deploy-check        # dry run (alias: prod-deploy-check / deploy-check)
 make on-prod-deploy              # full upgrade (alias: prod-deploy / deploy)
@@ -139,11 +139,11 @@ make on-prod-install             # first-time systemd install (alias: prod-insta
 make on-prod-refresh-env         # refresh env + rebuild web bundle (alias: refresh-env)
 ```
 
-### Preview deployment (preview.pt-mes.com on ptcloud)
+### Preview deployment (preview.pt-mes.com; uses `${SSH_HOST:-ptcloud}`)
 Preview runs in parallel with production on different ports — Convex `4210/4211`, API `3002`, MCP `3334`, web at `/home/ubuntu/trends-preview/apps/web/dist`. See `deploy/restore-preview-from-prod.sh` and the compound entry `projects/trends/compound/2026-05-29-preview-deployment-lessons.md` for the full postmortem.
 
 ```bash
-# On ptcloud as root
+# On the preview host as root (SSH_HOST)
 bash /opt/trends/deploy/setup-preview.sh           # rsync code, build API+web (~6m)
 cd /home/ubuntu/trends-preview && \
   docker compose -f docker-compose.preview.yml up -d   # Convex + MCP
