@@ -45,9 +45,9 @@ ROUTE
 
 cat >"$TMP_DIR/workspace-read.ts" <<'ROUTE'
 import { createRoute } from "@hono/zod-openapi";
-import { requireWorkspaceUser } from "../middleware/auth.js";
+import { requireWorkspacePermission } from "../services/workspace-permissions.js";
 const route = createRoute({ method: "get", path: "/api/workspace-read", responses: {} });
-app.use("/api/workspace-read", requireWorkspaceUser);
+app.use("/api/workspace-read", requireWorkspacePermission("resume:search"));
 app.openapi(route, () => {});
 ROUTE
 
@@ -145,9 +145,9 @@ fi
 
 cat >"$TMP_DIR/workspace-read.ts" <<'ROUTE'
 import { createRoute } from "@hono/zod-openapi";
-import { requireWorkspaceUser } from "../middleware/auth.js";
+import { requireWorkspacePermission } from "../services/workspace-permissions.js";
 const route = createRoute({ method: "get", path: "/api/workspace-read", responses: {} });
-app.use("/api/workspace-read", requireWorkspaceUser);
+app.use("/api/workspace-read", requireWorkspacePermission("resume:search"));
 app.openapi(route, () => {});
 ROUTE
 

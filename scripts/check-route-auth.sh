@@ -91,6 +91,11 @@ has_workspace_user_guard() {
   grep -q 'requireWorkspaceUser' "$file" 2>/dev/null
 }
 
+has_workspace_read_guard() {
+  local file="$1"
+  grep -Eq 'requireWorkspaceUser|requireWorkspacePermission' "$file" 2>/dev/null
+}
+
 ROUTE_POLICY_BASES=""
 
 for file in "$ROUTES_DIR"/*.ts; do
@@ -113,9 +118,15 @@ for file in "$ROUTES_DIR"/*.ts; do
   fi
 
   case "$access_class" in
-    workspace-read|workspace-write)
+    workspace-read)
+      if ! has_workspace_read_guard "$file"; then
+        echo "FAIL: $base — workspace-read policy requires requireWorkspaceUser or requireWorkspacePermission"
+        FAIL=1
+      fi
+      ;;
+    workspace-write)
       if ! has_workspace_user_guard "$file"; then
-        echo "FAIL: $base — $access_class policy requires requireWorkspaceUser"
+        echo "FAIL: $base — workspace-write policy requires requireWorkspaceUser"
         FAIL=1
       fi
       ;;
