@@ -6,7 +6,7 @@ type AuthState = {
   workspaceRole: WorkspaceRole | null
   isAuthenticated: boolean
   isLoading: boolean
-  login: (username: string, password: string) => Promise<boolean>
+  login: (username: string, password: string) => Promise<CurrentAuth | null>
   logout: () => Promise<void>
   refresh: () => Promise<void>
 }
@@ -16,7 +16,7 @@ const AuthContext = createContext<AuthState>({
   workspaceRole: null,
   isAuthenticated: false,
   isLoading: true,
-  login: async () => false,
+  login: async () => null,
   logout: async () => {},
   refresh: async () => {},
 })
@@ -39,14 +39,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void refresh()
   }, [refresh])
 
-  const login = useCallback(async (username: string, password: string): Promise<boolean> => {
+  const login = useCallback(async (username: string, password: string): Promise<CurrentAuth | null> => {
     const result = await loginWithLocalPassword(username, password)
-    if (result?.success) {
-      await refresh()
-      return true
+    if (!result?.success) {
+      return null
     }
-    return false
-  }, [refresh])
+
+    const refreshed = await fetchCurrentAuth()
+    if (refreshed) {
+      setAuth(refreshed)
+      setIsLoading(false)
+      return refreshed
+    }
+
+    const fallback: CurrentAuth = {
+      success: true,
+      user: result.user,
+      memberships: result.memberships,
+      workspaceRole: null,
+    }
+    setAuth(fallback)
+    setIsLoading(false)
+    return fallback
+  }, [])
 
   const logout = useCallback(async () => {
     await logoutApi()

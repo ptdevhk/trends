@@ -112,12 +112,13 @@ describe('Sidebar reset navigation', () => {
   })
 
   it('attaches resume reset state to system sidebar home links only', () => {
-    mockState.pathname = '/dev/system/settings'
+    mockState.pathname = '/admin/system/settings'
+    mockState.slug = 'admin'
 
     const { container } = render(<SystemSidebar />)
 
-    expectResetLinks(container, '/dev/resumes', 2)
-    expectPlainLink(container, '/dev/system/settings')
-    expectPlainLink(container, '/dev/system/jds')
+    expectResetLinks(container, '/admin/resumes', 2)
+    expectPlainLink(container, '/admin/system/settings')
+    expectPlainLink(container, '/admin/system/jds')
   })
 })

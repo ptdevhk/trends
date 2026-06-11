@@ -6,6 +6,18 @@ const mockNavigate = vi.fn()
 const mockSearchParams = new URLSearchParams()
 const mockLogin = vi.fn()
 
+function loginResult(workspaceSlug: string, role: 'user' | 'admin' = 'user') {
+  return {
+    success: true,
+    user: {
+      id: `${workspaceSlug}-${role}`,
+      status: 'active',
+    },
+    memberships: [{ userId: `${workspaceSlug}-${role}`, workspaceSlug, role }],
+    workspaceRole: role,
+  }
+}
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, opts?: { defaultValue?: string }) => opts?.defaultValue ?? key,
@@ -42,7 +54,7 @@ describe('LoginPage', () => {
   })
 
   it('submits credentials and navigates to default path on success', async () => {
-    mockLogin.mockResolvedValueOnce(true)
+    mockLogin.mockResolvedValueOnce(loginResult('dev', 'user'))
     const user = userEvent.setup()
 
     render(<LoginPage />)
@@ -55,9 +67,22 @@ describe('LoginPage', () => {
     expect(mockNavigate).toHaveBeenCalledWith('/dev/resumes', { replace: true })
   })
 
+  it('routes an admin-only login to the admin auth settings page by default', async () => {
+    mockLogin.mockResolvedValueOnce(loginResult('admin', 'admin'))
+    const user = userEvent.setup()
+
+    render(<LoginPage />)
+
+    await user.type(screen.getByLabelText(/username/i), 'demo-admin')
+    await user.type(screen.getByLabelText(/password/i), 'demo-admin')
+    await user.click(screen.getByRole('button', { name: /sign in/i }))
+
+    expect(mockNavigate).toHaveBeenCalledWith('/admin/system/settings/auth', { replace: true })
+  })
+
   it('navigates to redirectTo path on success', async () => {
     mockSearchParams.set('redirectTo', '/dev/settings')
-    mockLogin.mockResolvedValueOnce(true)
+    mockLogin.mockResolvedValueOnce(loginResult('admin', 'admin'))
     const user = userEvent.setup()
 
     render(<LoginPage />)
@@ -70,7 +95,7 @@ describe('LoginPage', () => {
   })
 
   it('shows error message on login failure', async () => {
-    mockLogin.mockResolvedValueOnce(false)
+    mockLogin.mockResolvedValueOnce(null)
     const user = userEvent.setup()
 
     render(<LoginPage />)
@@ -84,8 +109,8 @@ describe('LoginPage', () => {
   })
 
   it('disables form fields while submitting', async () => {
-    let resolveLogin: (value: boolean) => void
-    mockLogin.mockImplementationOnce(() => new Promise<boolean>((resolve) => { resolveLogin = resolve }))
+    let resolveLogin: (value: ReturnType<typeof loginResult>) => void
+    mockLogin.mockImplementationOnce(() => new Promise<ReturnType<typeof loginResult>>((resolve) => { resolveLogin = resolve }))
     const user = userEvent.setup()
 
     render(<LoginPage />)
@@ -98,6 +123,6 @@ describe('LoginPage', () => {
     expect(screen.getByLabelText(/password/i)).toBeDisabled()
     expect(screen.getByRole('button', { name: /signing in/i })).toBeDisabled()
 
-    resolveLogin!(true)
+    resolveLogin!(loginResult('dev', 'user'))
   })
 })

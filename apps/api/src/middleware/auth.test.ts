@@ -86,6 +86,21 @@ describe("auth middleware gates", () => {
     });
   });
 
+  it("does not let an admin workspace membership access the dev workspace", async () => {
+    const middleware = createAuthMiddleware();
+    const app = createGateApp(createAuthContext("admin", "admin"), middleware.requireWorkspaceUser);
+
+    const res = await app.request("/protected", {
+      headers: { "X-Workspace-Slug": "dev" },
+    });
+
+    expect(res.status).toBe(403);
+    await expect(res.json()).resolves.toMatchObject({
+      success: false,
+      error: "Workspace access required",
+    });
+  });
+
   it("allows a workspace user member on the selected workspace", async () => {
     const middleware = createAuthMiddleware();
     const app = createGateApp(createAuthContext("user", "hr"), middleware.requireWorkspaceUser);

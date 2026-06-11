@@ -19,7 +19,7 @@ describe("workspaceMiddleware", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.slug).toBe("dev");
-    expect(body.level).toBe("admin");
+    expect(body.level).toBe("user");
   });
 
   it("uses X-Workspace-Slug header when provided", async () => {
@@ -82,9 +82,23 @@ describe("requireAdmin", () => {
     app.get("/test", (c) => c.text("ok"));
 
     const res = await app.request("/test", {
-      headers: { "X-Workspace-Slug": "dev" },
+      headers: { "X-Workspace-Slug": "admin" },
     });
     expect(res.status).toBe(200);
+  });
+
+  it("blocks dev workspace with 403", async () => {
+    const app = createTestApp();
+    app.use("*", workspaceMiddleware);
+    app.use("*", requireAdmin);
+    app.get("/test", (c) => c.text("ok"));
+
+    const res = await app.request("/test", {
+      headers: { "X-Workspace-Slug": "dev" },
+    });
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.error).toBe("Admin access required");
   });
 
   it("blocks non-admin workspaces with 403", async () => {
