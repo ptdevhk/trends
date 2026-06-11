@@ -693,6 +693,16 @@ export class AuthStorage {
     `).run(input.userId, input.workspaceSlug, input.role, now, now);
   }
 
+  replaceMemberships(userId: string, memberships: readonly Omit<WorkspaceMembership, "userId">[]): void {
+    const replace = this.db.transaction(() => {
+      this.db.prepare("DELETE FROM workspace_memberships WHERE user_id = ?").run(userId);
+      for (const membership of memberships) {
+        this.upsertMembership({ userId, ...membership });
+      }
+    });
+    replace();
+  }
+
   listMemberships(userId: string): WorkspaceMembership[] {
     const rows = this.db.prepare(`
       SELECT user_id, workspace_slug, role

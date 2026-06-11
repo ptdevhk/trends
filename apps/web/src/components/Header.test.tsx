@@ -6,7 +6,7 @@ import { Header } from './Header'
 const mockState = vi.hoisted(() => ({
   slug: 'dev',
   name: 'Development',
-  isAdmin: true,
+  isAdmin: false,
 }))
 
 function renderMockLink(
@@ -95,7 +95,7 @@ describe('Header', () => {
   beforeEach(() => {
     mockState.slug = 'dev'
     mockState.name = 'Development'
-    mockState.isAdmin = true
+    mockState.isAdmin = false
     featureFlagsMock.reviewPacketsEnabled = true
   })
 
@@ -115,26 +115,30 @@ describe('Header', () => {
   })
 
   it('does not attach resume reset state to review packets, settings, or system links', () => {
+    mockState.slug = 'admin'
+    mockState.name = 'Admin'
+    mockState.isAdmin = true
+
     render(<Header />)
 
     const reviewPacketLinks = screen.getAllByRole('link', { name: 'Review packets' })
     expect(reviewPacketLinks).toHaveLength(2)
     reviewPacketLinks.forEach((link) => {
-      expect(link).toHaveAttribute('href', '/dev/review-packets')
+      expect(link).toHaveAttribute('href', '/admin/review-packets')
       expect(link).toHaveAttribute('data-reset', 'false')
     })
 
     const settingsLinks = screen.getAllByRole('link', { name: 'Settings' })
     expect(settingsLinks).toHaveLength(2)
     settingsLinks.forEach((link) => {
-      expect(link).toHaveAttribute('href', '/dev/settings')
+      expect(link).toHaveAttribute('href', '/admin/settings')
       expect(link).toHaveAttribute('data-reset', 'false')
     })
 
     const systemLinks = screen.getAllByRole('link', { name: 'System from i18n' })
     expect(systemLinks).toHaveLength(2)
     systemLinks.forEach((link) => {
-      expect(link).toHaveAttribute('href', '/dev/system')
+      expect(link).toHaveAttribute('href', '/admin/system')
       expect(link).toHaveAttribute('data-reset', 'false')
     })
   })

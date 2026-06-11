@@ -5,6 +5,23 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import type { CurrentAuth } from '@/lib/auth'
+
+function getDefaultRedirect(auth: CurrentAuth, fallbackWorkspaceSlug: string): string {
+  const adminMembership = auth.memberships.find(
+    (membership) => membership.workspaceSlug === 'admin' && membership.role === 'admin',
+  )
+  if (adminMembership) {
+    return '/admin/system/settings/auth'
+  }
+
+  const firstMembership = auth.memberships[0]
+  if (firstMembership) {
+    return `/${firstMembership.workspaceSlug}/resumes`
+  }
+
+  return `/${fallbackWorkspaceSlug}/resumes`
+}
 
 export function LoginPage() {
   const { t } = useTranslation()
@@ -12,7 +29,7 @@ export function LoginPage() {
   const { slug } = useWorkspace()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const redirectTo = searchParams.get('redirectTo') || `/${slug}/resumes`
+  const explicitRedirectTo = searchParams.get('redirectTo')
 
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -24,9 +41,9 @@ export function LoginPage() {
     setError(null)
     setIsSubmitting(true)
 
-    const success = await login(username, password)
-    if (success) {
-      navigate(redirectTo, { replace: true })
+    const result = await login(username, password)
+    if (result) {
+      navigate(explicitRedirectTo || getDefaultRedirect(result, slug), { replace: true })
     } else {
       setError(t('auth.loginFailed', { defaultValue: 'Invalid username or password' }))
     }

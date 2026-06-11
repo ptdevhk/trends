@@ -277,7 +277,7 @@ describe('System settings routes', () => {
   })
 
   it('renders the overview hub with local settings navigation', () => {
-    renderSettingsRoute('/dev/system/settings')
+    renderSettingsRoute('/admin/system/settings')
 
     expect(screen.getByText('Settings overview')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Open each system settings area in its own page.' })).toBeInTheDocument()
@@ -288,14 +288,14 @@ describe('System settings routes', () => {
   })
 
   it('loads config-source details on the config sources route', async () => {
-    renderSettingsRoute('/dev/system/settings/config-sources')
+    renderSettingsRoute('/admin/system/settings/config-sources')
 
     expect(await screen.findByText('Canonical resume AI prompt source')).toBeInTheDocument()
     expect(screen.getAllByText('config/resume/ai-prompts.md').length).toBeGreaterThan(0)
   })
 
   it('renders the dedicated locations page without keyword or config source sections', async () => {
-    renderSettingsRoute('/dev/system/settings/locations')
+    renderSettingsRoute('/admin/system/settings/locations')
 
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: 'System location config' })).toBeInTheDocument()
@@ -308,7 +308,7 @@ describe('System settings routes', () => {
   })
 
   it('renders the keywords route with editable and derived keyword data', async () => {
-    renderSettingsRoute('/dev/system/settings/keywords')
+    renderSettingsRoute('/admin/system/settings/keywords')
 
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: 'Keywords' })).toBeInTheDocument()
@@ -320,7 +320,7 @@ describe('System settings routes', () => {
   })
 
   it('routes landing quick-start ownership to search profiles from the keywords page', async () => {
-    renderSettingsRoute('/dev/system/settings/keywords')
+    renderSettingsRoute('/admin/system/settings/keywords')
 
     await waitFor(() => {
       expect(screen.getByText('Landing quick starts')).toBeInTheDocument()

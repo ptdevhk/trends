@@ -4,7 +4,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 
 vi.mock('@/contexts/WorkspaceContext', () => ({
-  useWorkspace: () => ({ slug: 'dev', name: 'Dev', accessLevel: 'admin', isAdmin: true }),
+  useWorkspace: () => ({ slug: 'admin', name: 'Admin', accessLevel: 'admin', isAdmin: true }),
 }))
 
 vi.mock('@/hooks/useSystemMetadata', () => ({
@@ -21,7 +21,7 @@ vi.mock('@trends/shared', () => ({
 
 import { SystemSidebar } from '@/components/SystemSidebar'
 
-function renderWithRouter(ui: React.ReactElement, path = '/dev/resumes') {
+function renderWithRouter(ui: React.ReactElement, path = '/admin/resumes') {
   return render(<MemoryRouter initialEntries={[path]}>{ui}</MemoryRouter>)
 }
 
@@ -40,7 +40,7 @@ describe('SystemSidebar', () => {
   })
 
   it('highlights active navigation item', () => {
-    renderWithRouter(<SystemSidebar />, '/dev/system/settings')
+    renderWithRouter(<SystemSidebar />, '/admin/system/settings')
     const settingsLink = screen.getByText('Settings').closest('a')
     expect(settingsLink?.className).toContain('bg-primary/10')
   })

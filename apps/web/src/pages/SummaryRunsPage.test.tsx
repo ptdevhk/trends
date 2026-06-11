@@ -136,7 +136,7 @@ type SummaryProfile = {
 
 function renderSummaryRunsPage() {
   return render(
-    <MemoryRouter initialEntries={['/dev/system/summaries']}>
+    <MemoryRouter initialEntries={['/admin/system/summaries']}>
       <Routes>
         <Route path="/:teamSlug/system/summaries" element={<SummaryRunsPage />} />
       </Routes>
@@ -602,7 +602,7 @@ describe('SummaryRunsPage', () => {
     expect(await screen.findByText('Summary profiles')).toBeInTheDocument()
     expect(screen.getByText('Changes apply after the next worker restart.')).toBeInTheDocument()
     expect(screen.getByText('Runtime updates can take a few seconds after save. After restart, confirm the rebuilt job in worker status.')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Open worker status' })).toHaveAttribute('href', '/dev/system/settings/operations')
+    expect(screen.getByRole('link', { name: 'Open worker status' })).toHaveAttribute('href', '/admin/system/settings/operations')
     expect(screen.getByDisplayValue('daily-ops')).toBeDisabled()
     expect(screen.getByDisplayValue('Daily Ops')).toBeInTheDocument()
 

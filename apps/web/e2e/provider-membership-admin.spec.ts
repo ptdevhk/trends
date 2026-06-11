@@ -89,7 +89,7 @@ const users: Record<UserKind, AuthUser> = {
 }
 
 const memberships: Record<UserKind, WorkspaceMembership[]> = {
-  admin: [{ userId: users.admin.id, workspaceSlug: 'dev', role: 'admin' }],
+  admin: [{ userId: users.admin.id, workspaceSlug: 'admin', role: 'admin' }],
   hr: [{ userId: users.hr.id, workspaceSlug: 'hr', role: 'user' }],
 }
 
@@ -482,7 +482,8 @@ async function installProviderMembershipApi(page: Page) {
 }
 
 async function signIn(page: Page, username: string, password: string, redirectTo: string) {
-  await page.goto(`/dev/login?redirectTo=${encodeURIComponent(redirectTo)}`)
+  const loginWorkspace = redirectTo.startsWith('/admin/') ? 'admin' : 'dev'
+  await page.goto(`/${loginWorkspace}/login?redirectTo=${encodeURIComponent(redirectTo)}`)
   await page.getByLabel('Username').fill(username)
   await page.getByLabel('Password').fill(password)
   await page.getByRole('button', { name: 'Sign in' }).click()
@@ -493,7 +494,7 @@ test.describe('Provider membership admin page', () => {
   test('admin can operate provider membership grants and revocations', async ({ page }) => {
     const api = await installProviderMembershipApi(page)
 
-    await signIn(page, 'admin-e2e', 'admin-secret', '/dev/system/settings/auth')
+    await signIn(page, 'admin-e2e', 'admin-secret', '/admin/system/settings/auth')
     const consoleProblems = collectConsoleProblems(page)
     await page.reload()
 
@@ -550,7 +551,7 @@ test.describe('Provider membership admin page', () => {
   test('HR user cannot operate provider membership admin page or endpoints', async ({ page }) => {
     const api = await installProviderMembershipApi(page)
 
-    await signIn(page, 'hr-e2e', 'hr-secret', '/dev/system/settings/auth')
+    await signIn(page, 'hr-e2e', 'hr-secret', '/admin/system/settings/auth')
 
     await expect(page.getByText('Admin access required')).toBeVisible()
     await expect(page.getByTestId('auth-preapprove-submit')).toHaveCount(0)
@@ -560,7 +561,7 @@ test.describe('Provider membership admin page', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Workspace-Slug': 'dev',
+          'X-Workspace-Slug': 'admin',
         },
         body: JSON.stringify({
           provider: 'casdoor',

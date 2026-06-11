@@ -2,18 +2,18 @@ import { describe, expect, it } from 'vitest'
 import { isValidWorkspace, getAccessLevel, WORKSPACE_TEAMS, formatWorkspaceSlugList, listWorkspaceSlugs } from './workspace'
 
 describe('WORKSPACE_TEAMS', () => {
-  it('has dev and hr teams', () => {
-    expect(Object.keys(WORKSPACE_TEAMS)).toEqual(['dev', 'hr'])
+  it('has admin, dev, and hr teams', () => {
+    expect(Object.keys(WORKSPACE_TEAMS)).toEqual(['admin', 'dev', 'hr'])
   })
 })
 
 describe('workspace registry helpers', () => {
   it('lists registered workspace slugs in registry order', () => {
-    expect(listWorkspaceSlugs()).toEqual(['dev', 'hr'])
+    expect(listWorkspaceSlugs()).toEqual(['admin', 'dev', 'hr'])
   })
 
   it('formats registered workspace slugs for consumer error messages', () => {
-    expect(formatWorkspaceSlugList()).toBe('dev, hr')
+    expect(formatWorkspaceSlugList()).toBe('admin, dev, hr')
   })
 
   it('keeps the helper list aligned with validation and access levels', () => {
@@ -25,6 +25,10 @@ describe('workspace registry helpers', () => {
 })
 
 describe('isValidWorkspace', () => {
+  it('returns true for admin', () => {
+    expect(isValidWorkspace('admin')).toBe(true)
+  })
+
   it('returns true for dev', () => {
     expect(isValidWorkspace('dev')).toBe(true)
   })
@@ -48,8 +52,12 @@ describe('isValidWorkspace', () => {
 })
 
 describe('getAccessLevel', () => {
-  it('returns admin for dev', () => {
-    expect(getAccessLevel('dev')).toBe('admin')
+  it('returns admin for admin', () => {
+    expect(getAccessLevel('admin')).toBe('admin')
+  })
+
+  it('returns user for dev', () => {
+    expect(getAccessLevel('dev')).toBe('user')
   })
 
   it('returns user for hr', () => {

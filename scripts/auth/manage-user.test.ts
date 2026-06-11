@@ -181,9 +181,10 @@ describe("manage-user bootstrap logic", () => {
         "--display-name",
         "Demo Admin",
         "--workspace",
-        "dev",
+        "admin",
         "--role",
         "admin",
+        "--replace-memberships",
         "--password-env",
         "AUTH_BOOTSTRAP_PASSWORD",
         "--output",
@@ -208,8 +209,65 @@ describe("manage-user bootstrap logic", () => {
     const identity = storage.findIdentity("local", "demo-admin", "local");
     expect(identity).not.toBeNull();
 
+    const memberships = storage.listMemberships(identity!.userId);
+    expect(memberships).toEqual([{ userId: identity!.userId, workspaceSlug: "admin", role: "admin" }]);
+
     const credential = storage.findPasswordCredential(identity!.userId);
     expect(credential).not.toBeNull();
     expect(await verifyPassword("demo-admin", credential!)).toBe(true);
+  });
+
+  it("replaces legacy demo-admin workspace memberships when requested", () => {
+    const root = mkdtempSync(path.join(tmpdir(), "trends-manage-user-replace-"));
+    const storage = new AuthStorage(root);
+    const user = storage.createUser({
+      email: "demo-admin@example.com",
+      displayName: "Demo Admin",
+    });
+    storage.linkIdentity({
+      userId: user.id,
+      provider: "local",
+      providerSubject: "demo-admin",
+      providerTenant: "local",
+      email: "demo-admin@example.com",
+      displayName: "Demo Admin",
+    });
+    storage.upsertMembership({ userId: user.id, workspaceSlug: "dev", role: "admin" });
+
+    const result = spawnSync(
+      "node",
+      [
+        "--import",
+        "tsx",
+        manageUserScript,
+        "--username",
+        "demo-admin",
+        "--email",
+        "demo-admin@example.com",
+        "--display-name",
+        "Demo Admin",
+        "--workspace",
+        "admin",
+        "--role",
+        "admin",
+        "--replace-memberships",
+        "--no-password",
+        "--output",
+        "json",
+      ],
+      {
+        cwd: repoRoot,
+        env: { ...process.env, PROJECT_ROOT: root },
+        encoding: "utf8",
+      },
+    );
+
+    expect(result.status).toBe(0);
+    const output = JSON.parse(result.stdout) as { success: boolean; totalMemberships: number };
+    expect(output.success).toBe(true);
+    expect(output.totalMemberships).toBe(1);
+    expect(storage.listMemberships(user.id)).toEqual([
+      { userId: user.id, workspaceSlug: "admin", role: "admin" },
+    ]);
   });
 });

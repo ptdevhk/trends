@@ -38,6 +38,7 @@ describe("workspaceMiddleware", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.workspaceSlug).toBe("dev");
+    expect(body.accessLevel).toBe("user");
   });
 
   it("uses workspace from X-Workspace-Slug header", async () => {
@@ -115,12 +116,23 @@ describe("workspaceMiddleware", () => {
 // ---------------------------------------------------------------------------
 
 describe("requireAdmin", () => {
-  it("allows admin workspace (dev)", async () => {
+  it("allows admin workspace", async () => {
+    const app = createAdminApp();
+    const res = await app.request("/admin", {
+      headers: { "X-Workspace-Slug": "admin" },
+    });
+    expect(res.status).toBe(200);
+  });
+
+  it("rejects dev workspace because it is not the admin workspace", async () => {
     const app = createAdminApp();
     const res = await app.request("/admin", {
       headers: { "X-Workspace-Slug": "dev" },
     });
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.success).toBe(false);
+    expect(body.error).toContain("Admin access required");
   });
 
   it("rejects non-admin workspace (hr)", async () => {
@@ -137,8 +149,7 @@ describe("requireAdmin", () => {
   it("rejects request without workspace middleware (undefined accessLevel)", async () => {
     const app = createAdminApp();
     const res = await app.request("/admin");
-    // Default workspace is dev (admin), so this should pass
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(403);
   });
 });
 

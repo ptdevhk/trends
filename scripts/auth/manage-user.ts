@@ -28,6 +28,7 @@ type Args = {
   passwordEnv?: string;
   passwordStdin: boolean;
   noPassword: boolean;
+  replaceMemberships: boolean;
   dryRun: boolean;
   output: "json" | "agent";
 };
@@ -39,6 +40,7 @@ function parseArgs(argv: string[]): Args {
     role: "user",
     passwordStdin: false,
     noPassword: false,
+    replaceMemberships: false,
     dryRun: false,
     output: "json",
   };
@@ -69,6 +71,9 @@ function parseArgs(argv: string[]): Args {
         break;
       case "--no-password":
         args.noPassword = true;
+        break;
+      case "--replace-memberships":
+        args.replaceMemberships = true;
         break;
       case "--dry-run":
         args.dryRun = true;
@@ -255,6 +260,7 @@ async function main() {
       displayName: args.displayName,
       workspace: args.workspace,
       role: args.role,
+      replaceMemberships: args.replaceMemberships,
       passwordProvided: password !== null,
     };
     console.log(JSON.stringify(output, null, 2));
@@ -301,11 +307,15 @@ async function main() {
   const existingMembership = storage.listMemberships(userId).find(
     (m) => m.workspaceSlug === args.workspace,
   );
-  storage.upsertMembership({
-    userId,
-    workspaceSlug: args.workspace,
-    role: args.role,
-  });
+  const membership = { workspaceSlug: args.workspace, role: args.role };
+  if (args.replaceMemberships) {
+    storage.replaceMemberships(userId, [membership]);
+  } else {
+    storage.upsertMembership({
+      userId,
+      ...membership,
+    });
+  }
 
   const memberships = storage.listMemberships(userId);
 
