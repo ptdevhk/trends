@@ -5723,6 +5723,20 @@ export interface paths {
                                     };
                                     createdAt: string;
                                 };
+                                member?: {
+                                    workspaceSlug: string;
+                                    canReview: boolean;
+                                    searchRun: {
+                                        id: string;
+                                        resumeKeys: string[];
+                                        query: {
+                                            [key: string]: unknown;
+                                        };
+                                        filters: {
+                                            [key: string]: unknown;
+                                        };
+                                    };
+                                };
                             };
                         };
                     };

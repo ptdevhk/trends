@@ -1965,6 +1965,7 @@ export function useResumeSearchState() {
     queryInput,
     recentSearches,
     results,
+    sessionKey,
     selectedClusterTags,
     selectedRawTags,
     searchHistoryLoading: canLoadOperationalState && recentSearchHistoryRecords === undefined,

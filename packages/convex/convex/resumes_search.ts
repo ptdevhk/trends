@@ -999,6 +999,45 @@ export const getResumeDocsByIds = query({
     },
 });
 
+export const getResumeDocsByIdentityKeys = query({
+    args: {
+        identityKeys: v.array(v.string()),
+    },
+    handler: async (ctx, args) => {
+        const keys = Array.from(
+            new Set(
+                args.identityKeys
+                    .map((key) => key.trim())
+                    .filter((key) => key.length > 0)
+            )
+        ).slice(0, 2000);
+        const docs: Doc<"resumes">[] = [];
+        const seenDocIds = new Set<string>();
+
+        for (const key of keys) {
+            let doc = await ctx.db
+                .query("resumes")
+                .withIndex("by_identityKey", (q) => q.eq("identityKey", key))
+                .order("desc")
+                .first();
+
+            if (!doc) {
+                const resumeId = ctx.db.normalizeId("resumes", key);
+                doc = resumeId ? await ctx.db.get(resumeId) : null;
+            }
+
+            if (!doc || doc.isArchived === true || seenDocIds.has(String(doc._id))) {
+                continue;
+            }
+
+            seenDocIds.add(String(doc._id));
+            docs.push(doc);
+        }
+
+        return docs.map((doc) => projectResumeListDoc(doc));
+    },
+});
+
 // ---------------------------------------------------------------------------
 // Internal queries
 // ---------------------------------------------------------------------------
