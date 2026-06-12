@@ -43,6 +43,10 @@
     "class": "admin",
     "reason": "Notification administration uses route-level requireAdmin middleware."
   },
+  "public-shares.ts": {
+    "class": "workspace-read",
+    "reason": "Public share creation requires the resume:share:public:create workspace permission; anonymous reads resolve only through hash-backed public tokens."
+  },
   "resume-submit.ts": {
     "class": "candidate-link",
     "reason": "Candidate resume submission is externally reachable and uses its own submission token authorization."

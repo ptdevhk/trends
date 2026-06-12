@@ -181,7 +181,7 @@ describe("manage-user bootstrap logic", () => {
         "--display-name",
         "Demo Admin",
         "--workspace",
-        "admin",
+        "dev",
         "--role",
         "admin",
         "--replace-memberships",
@@ -210,7 +210,7 @@ describe("manage-user bootstrap logic", () => {
     expect(identity).not.toBeNull();
 
     const memberships = storage.listMemberships(identity!.userId);
-    expect(memberships).toEqual([{ userId: identity!.userId, workspaceSlug: "admin", role: "admin" }]);
+    expect(memberships).toEqual([{ userId: identity!.userId, workspaceSlug: "dev", role: "admin" }]);
 
     const credential = storage.findPasswordCredential(identity!.userId);
     expect(credential).not.toBeNull();
@@ -232,7 +232,8 @@ describe("manage-user bootstrap logic", () => {
       email: "demo-admin@example.com",
       displayName: "Demo Admin",
     });
-    storage.upsertMembership({ userId: user.id, workspaceSlug: "dev", role: "admin" });
+    storage.upsertMembership({ userId: user.id, workspaceSlug: "admin", role: "admin" });
+    storage.upsertMembership({ userId: user.id, workspaceSlug: "hr", role: "admin" });
 
     const result = spawnSync(
       "node",
@@ -247,7 +248,7 @@ describe("manage-user bootstrap logic", () => {
         "--display-name",
         "Demo Admin",
         "--workspace",
-        "admin",
+        "dev",
         "--role",
         "admin",
         "--replace-memberships",
@@ -267,7 +268,7 @@ describe("manage-user bootstrap logic", () => {
     expect(output.success).toBe(true);
     expect(output.totalMemberships).toBe(1);
     expect(storage.listMemberships(user.id)).toEqual([
-      { userId: user.id, workspaceSlug: "admin", role: "admin" },
+      { userId: user.id, workspaceSlug: "dev", role: "admin" },
     ]);
   });
 });

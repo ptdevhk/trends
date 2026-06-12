@@ -23,8 +23,15 @@ vi.mock('react-i18next', () => ({
         'shareLink.button': 'Share',
         'shareLink.copiedSearch': 'Share link copied',
         'shareLink.copiedSession': 'Session link copied',
+        'shareLink.copiedPublic': 'Public share copied',
+        'shareLink.publicButton': 'Public share',
+        'shareLink.publicDialog.title': 'Create public share?',
+        'shareLink.publicDialog.description': 'Create an immutable public snapshot link.',
+        'shareLink.publicDialog.cancel': 'Cancel',
+        'shareLink.publicDialog.confirm': 'Create public share',
         'shareLink.copyPreparedFailed': 'Automatic copy failed. Copy the link below manually.',
         'shareLink.copyUrlFailed': 'Failed to copy link. Copy the URL from the address bar manually.',
+        'shareLink.createPublicFailed': 'Failed to create public share.',
         'shareLink.retryCopyFailed': 'Copy still failed. Copy the link below manually.',
         'shareLink.dialog.title': 'Copy share link manually',
         'shareLink.dialog.description': 'Automatic copy did not complete. The link is ready to copy manually.',
@@ -190,6 +197,52 @@ describe('ShareLinkButton', () => {
       `${window.location.origin}/dev/resumes?sid=session-share-note`
     )
     expect(toastSuccessMock).toHaveBeenCalledWith('Session link copied')
+  })
+
+  it('confirms and copies a separate public share token link', async () => {
+    window.history.replaceState({}, '', '/dev/resumes?location=Kuala+Lumpur&q=CNC')
+    const ensureApiSession = vi.fn(async () => 'session-share-1')
+    const createPublicShare = vi.fn(async () => ({
+      publicPath: '/s/public-token-1',
+    }))
+
+    render(
+      <ShareLinkButton
+        shareTitle="Kuala Lumpur · CNC"
+        state={{
+          location: 'Kuala Lumpur',
+          keywords: ['CNC'],
+          requiredKeywords: [],
+          filters: {},
+          selectedTags: [],
+          selectedCompanies: [],
+        }}
+        ensureApiSession={ensureApiSession}
+        createPublicShare={createPublicShare}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Public share' }))
+
+    expect(screen.getByText('Create public share?')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create public share' }))
+
+    await waitFor(() => {
+      expect(createPublicShare).toHaveBeenCalledWith({
+        shareTitle: 'Kuala Lumpur · CNC',
+        searchState: expect.objectContaining({
+          location: 'Kuala Lumpur',
+          keywords: ['CNC'],
+        }),
+      })
+    })
+
+    expect(ensureApiSession).not.toHaveBeenCalled()
+    expect(clipboardWriteTextMock).toHaveBeenCalledWith(
+      `${window.location.origin}/s/public-token-1`
+    )
+    expect(toastSuccessMock).toHaveBeenCalledWith('Public share copied')
   })
 
   it('reports the existing sid when copying a shared-link URL directly', async () => {

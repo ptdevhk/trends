@@ -18,6 +18,7 @@ import {
   industryRoutes,
   jobDescriptionsRoutes,
   sessionsRoutes,
+  publicSharesRoutes,
   actionsRoutes,
   blocksRoutes,
   candidateStatusRoutes,
@@ -93,6 +94,7 @@ export const openApiConfig = {
     { name: "industry", description: "Industry data for verification" },
     { name: "job-descriptions", description: "Job description templates" },
     { name: "sessions", description: "Resume search sessions" },
+    { name: "public-shares", description: "Public immutable resume search snapshots" },
     { name: "actions", description: "Candidate actions" },
     { name: "blocks", description: "Candidate blocklist management" },
     { name: "candidate-status", description: "Candidate interview status tracking" },
@@ -204,6 +206,7 @@ export function createApp(options: CreateAppOptions = {}) {
   app.route("/", industryRoutes);
   app.route("/", jobDescriptionsRoutes);
   app.route("/", sessionsRoutes);
+  app.route("/", publicSharesRoutes);
   app.route("/", actionsRoutes);
   app.route("/", blocksRoutes);
   app.route("/", candidateStatusRoutes);
@@ -247,6 +250,7 @@ export function createApp(options: CreateAppOptions = {}) {
         resume_match_runs: "/api/resumes/match-runs",
         resume_matches_rescore: "/api/resumes/matches/rescore",
         sessions: "/api/sessions",
+        public_shares: "/api/public-shares",
         actions: "/api/actions",
         blocks: "/api/blocks",
         candidate_status: "/api/candidate-status",

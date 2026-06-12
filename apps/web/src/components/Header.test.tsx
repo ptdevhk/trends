@@ -7,6 +7,13 @@ const mockState = vi.hoisted(() => ({
   slug: 'dev',
   name: 'Development',
   isAdmin: false,
+  isPublicSurface: false,
+}))
+
+const mockAuthState = vi.hoisted(() => ({
+  memberships: [] as Array<{ userId: string; workspaceSlug: string; role: 'user' | 'admin' }>,
+  user: null as null | { id: string; status: 'active'; displayName?: string },
+  isAuthenticated: false,
 }))
 
 function renderMockLink(
@@ -75,6 +82,15 @@ vi.mock('@/contexts/WorkspaceContext', () => ({
   useWorkspace: () => mockState,
 }))
 
+vi.mock('@/contexts/AuthContext', () => ({
+  useAuth: () => ({
+    memberships: mockAuthState.memberships,
+    user: mockAuthState.user,
+    isAuthenticated: mockAuthState.isAuthenticated,
+    logout: async () => {},
+  }),
+}))
+
 vi.mock('./LanguageSwitcher', () => ({
   LanguageSwitcher: () => <div>Language Switcher</div>,
 }))
@@ -96,6 +112,10 @@ describe('Header', () => {
     mockState.slug = 'dev'
     mockState.name = 'Development'
     mockState.isAdmin = false
+    mockState.isPublicSurface = false
+    mockAuthState.memberships = []
+    mockAuthState.user = null
+    mockAuthState.isAuthenticated = false
     featureFlagsMock.reviewPacketsEnabled = true
   })
 
@@ -115,23 +135,23 @@ describe('Header', () => {
   })
 
   it('does not attach resume reset state to review packets, settings, or system links', () => {
-    mockState.slug = 'admin'
-    mockState.name = 'Admin'
-    mockState.isAdmin = true
+    mockAuthState.memberships = [{ userId: 'demo-admin', workspaceSlug: 'dev', role: 'admin' }]
+    mockAuthState.user = { id: 'demo-admin', status: 'active', displayName: 'Demo Admin' }
+    mockAuthState.isAuthenticated = true
 
     render(<Header />)
 
     const reviewPacketLinks = screen.getAllByRole('link', { name: 'Review packets' })
     expect(reviewPacketLinks).toHaveLength(2)
     reviewPacketLinks.forEach((link) => {
-      expect(link).toHaveAttribute('href', '/admin/review-packets')
+      expect(link).toHaveAttribute('href', '/dev/review-packets')
       expect(link).toHaveAttribute('data-reset', 'false')
     })
 
     const settingsLinks = screen.getAllByRole('link', { name: 'Settings' })
     expect(settingsLinks).toHaveLength(2)
     settingsLinks.forEach((link) => {
-      expect(link).toHaveAttribute('href', '/admin/settings')
+      expect(link).toHaveAttribute('href', '/dev/settings')
       expect(link).toHaveAttribute('data-reset', 'false')
     })
 

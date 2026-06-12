@@ -4,24 +4,51 @@ import { hasWorkspaceRole, type AuthContext } from "./auth-types.js";
 
 export type WorkspacePermission =
   | "resume:search"
+  | "resume:session:create"
+  | "resume:session:read"
+  | "resume:analysis:run"
+  | "resume:analysis:snapshot:create"
+  | "resume:share:public:create"
+  | "resume:share:public:read"
   | "candidate:status:read"
   | "candidate:action:read"
   | "candidate:mutate"
   | "resume:export"
   | "workspace:admin";
 
+export type PublicSharePrincipal = {
+  type: "public-token";
+  shareId: string;
+  workspaceSlug: string;
+};
+
 type WorkspacePermissionInput = {
   auth?: AuthContext;
+  principal?: PublicSharePrincipal;
   workspaceSlug: string;
   permission: WorkspacePermission;
 };
 
 const MEMBER_PERMISSIONS: ReadonlySet<WorkspacePermission> = new Set([
   "resume:search",
+  "resume:session:create",
+  "resume:session:read",
+  "resume:analysis:run",
+  "resume:analysis:snapshot:create",
   "candidate:status:read",
   "candidate:action:read",
   "candidate:mutate",
   "resume:export",
+]);
+
+const ADMIN_PERMISSIONS: ReadonlySet<WorkspacePermission> = new Set([
+  ...MEMBER_PERMISSIONS,
+  "resume:share:public:create",
+]);
+
+const PUBLIC_SHARE_PRINCIPAL_PERMISSIONS: ReadonlySet<WorkspacePermission> = new Set([
+  "resume:search",
+  "resume:share:public:read",
 ]);
 
 const ANONYMOUS_WORKSPACE_GRANTS: Readonly<Record<string, ReadonlySet<WorkspacePermission>>> = {
@@ -34,6 +61,14 @@ function normalizeWorkspaceSlug(workspaceSlug: string): string {
 
 export function hasWorkspacePermission(input: WorkspacePermissionInput): boolean {
   const workspaceSlug = normalizeWorkspaceSlug(input.workspaceSlug);
+  if (input.principal) {
+    return (
+      input.principal.type === "public-token"
+      && normalizeWorkspaceSlug(input.principal.workspaceSlug) === workspaceSlug
+      && PUBLIC_SHARE_PRINCIPAL_PERMISSIONS.has(input.permission)
+    );
+  }
+
   const auth = input.auth;
 
   if (!auth) {
@@ -44,8 +79,12 @@ export function hasWorkspacePermission(input: WorkspacePermissionInput): boolean
     return hasWorkspaceRole(auth.memberships, workspaceSlug, ["admin"]);
   }
 
+  if (hasWorkspaceRole(auth.memberships, workspaceSlug, ["admin"])) {
+    return ADMIN_PERMISSIONS.has(input.permission);
+  }
+
   return (
-    hasWorkspaceRole(auth.memberships, workspaceSlug, ["user", "admin"])
+    hasWorkspaceRole(auth.memberships, workspaceSlug, ["user"])
     && MEMBER_PERMISSIONS.has(input.permission)
   );
 }

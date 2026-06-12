@@ -4,7 +4,13 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 
 vi.mock('@/contexts/WorkspaceContext', () => ({
-  useWorkspace: () => ({ slug: 'admin', name: 'Admin', accessLevel: 'admin', isAdmin: true }),
+  useWorkspace: () => ({
+    slug: 'dev',
+    name: 'Development',
+    accessLevel: 'user',
+    isAdmin: false,
+    isSystemSurface: true,
+  }),
 }))
 
 vi.mock('@/hooks/useSystemMetadata', () => ({
@@ -21,7 +27,7 @@ vi.mock('@trends/shared', () => ({
 
 import { SystemSidebar } from '@/components/SystemSidebar'
 
-function renderWithRouter(ui: React.ReactElement, path = '/admin/resumes') {
+function renderWithRouter(ui: React.ReactElement, path = '/admin/system') {
   return render(<MemoryRouter initialEntries={[path]}>{ui}</MemoryRouter>)
 }
 

@@ -18,7 +18,13 @@ vi.mock('@/lib/api-helpers', () => ({
 }))
 
 vi.mock('@/contexts/WorkspaceContext', () => ({
-  useWorkspace: () => ({ slug: 'admin', name: 'Admin', accessLevel: 'admin', isAdmin: true }),
+  useWorkspace: () => ({
+    slug: 'dev',
+    name: 'Development',
+    accessLevel: 'user',
+    isAdmin: false,
+    isSystemSurface: true,
+  }),
 }))
 
 import { JobDescriptionSelect } from '@/components/JobDescriptionSelect'

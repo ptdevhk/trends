@@ -17,11 +17,10 @@ vi.mock('react-router-dom', () => ({
 
 vi.mock('@trends/shared', () => ({
   WORKSPACE_TEAMS: {
-    admin: { name: 'Admin', accessLevel: 'admin' },
     dev: { name: 'Development', accessLevel: 'user' },
     hr: { name: 'HR Team', accessLevel: 'user' },
   },
-  isValidWorkspace: (s: string) => s === 'admin' || s === 'dev' || s === 'hr',
+  isValidWorkspace: (s: string) => s === 'dev' || s === 'hr',
 }))
 
 import { WorkspaceProvider, useWorkspace } from '@/contexts/WorkspaceContext'
@@ -40,14 +39,27 @@ function renderWithProvider(slug: string | undefined, children: ReactNode) {
 describe('WorkspaceProvider', () => {
   beforeEach(() => { vi.clearAllMocks() })
 
-  it('provides context for valid admin slug', () => {
+  it('redirects for admin because it is a system namespace, not a workspace', () => {
     renderWithProvider('admin', <TestConsumer />)
-    expect(screen.getByTestId('ws')).toHaveTextContent('admin:Admin:admin:true')
+    expect(mockNavigate).toHaveBeenCalledWith({ pathname: '/dev/resumes', search: '' })
   })
 
   it('provides context for valid dev slug', () => {
     renderWithProvider('dev', <TestConsumer />)
     expect(screen.getByTestId('ws')).toHaveTextContent('dev:Development:user:false')
+  })
+
+  it('supports fixed backing workspaces for public and system surfaces', () => {
+    mockUseParams.mockReturnValue({ teamSlug: undefined })
+    mockUseLocation.mockReturnValue({ search: '' })
+
+    render(
+      <WorkspaceProvider workspaceSlug="hr" surface="public">
+        <TestConsumer />
+      </WorkspaceProvider>,
+    )
+
+    expect(screen.getByTestId('ws')).toHaveTextContent('hr:HR Team:user:false')
   })
 
   it('redirects for invalid slug', () => {

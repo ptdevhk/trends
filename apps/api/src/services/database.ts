@@ -158,6 +158,62 @@ function initSchema(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_match_runs_job ON match_runs(job_description_id);
     CREATE INDEX IF NOT EXISTS idx_match_runs_started ON match_runs(started_at DESC);
 
+    CREATE TABLE IF NOT EXISTS search_runs (
+      id TEXT PRIMARY KEY,
+      workspace_slug TEXT NOT NULL DEFAULT 'dev',
+      session_id TEXT,
+      query_json TEXT NOT NULL,
+      safe_filters_json TEXT NOT NULL,
+      result_set_hash TEXT NOT NULL,
+      resume_keys_json TEXT NOT NULL,
+      created_by TEXT,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_search_runs_workspace_session
+      ON search_runs(workspace_slug, session_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_search_runs_result_hash ON search_runs(result_set_hash);
+
+    CREATE TABLE IF NOT EXISTS analysis_snapshots (
+      id TEXT PRIMARY KEY,
+      workspace_slug TEXT NOT NULL DEFAULT 'dev',
+      search_run_id TEXT NOT NULL,
+      scoring_mode TEXT NOT NULL,
+      prompt_version TEXT NOT NULL,
+      skill_config_version TEXT NOT NULL,
+      model_provider TEXT NOT NULL,
+      model_name TEXT NOT NULL,
+      result_set_hash TEXT NOT NULL,
+      sanitized_payload_json TEXT NOT NULL,
+      created_by TEXT,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (search_run_id) REFERENCES search_runs(id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_analysis_snapshots_run
+      ON analysis_snapshots(search_run_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_analysis_snapshots_workspace
+      ON analysis_snapshots(workspace_slug, created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS public_shares (
+      id TEXT PRIMARY KEY,
+      token_hash TEXT NOT NULL UNIQUE,
+      workspace_slug TEXT NOT NULL DEFAULT 'dev',
+      target_type TEXT NOT NULL,
+      target_id TEXT NOT NULL,
+      title TEXT,
+      description TEXT,
+      created_by TEXT,
+      created_at TEXT NOT NULL,
+      expires_at TEXT,
+      revoked_at TEXT,
+      revoked_by TEXT
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_public_shares_token_hash ON public_shares(token_hash);
+    CREATE INDEX IF NOT EXISTS idx_public_shares_workspace ON public_shares(workspace_slug, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_public_shares_target ON public_shares(target_type, target_id);
+
     CREATE TABLE IF NOT EXISTS candidate_actions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id TEXT,
