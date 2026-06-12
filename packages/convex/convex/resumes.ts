@@ -231,6 +231,7 @@ export {
     scanResumePageSlim,
     getResumes,
     getResumeDocsByIds,
+    getResumeDocsByIdentityKeys,
     collectSearchIndexDocIds,
     getResumesByIds,
 } from "./resumes_search.js";

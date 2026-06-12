@@ -127,7 +127,7 @@ export type ConvexResumeItem = ResumeItem & {
   }>
 }
 
-type ResumeListDocLike = {
+export type ResumeListDocLike = {
   _id: Doc<'resumes'>['_id']
   identityKey?: string
   age?: number
@@ -636,7 +636,7 @@ function readMockConvexResumePayload(): MockConvexResumePayload | null {
   return value as MockConvexResumePayload
 }
 
-function mapResumeDoc(doc: ResumeListDocLike): ConvexResumeItem {
+export function mapResumeDoc(doc: ResumeListDocLike): ConvexResumeItem {
   const content = isRecord(doc.content) ? doc.content : {}
   const candidateName = toStringValue(content.name);
   const seekMarket = doc.source?.includes("seek") ? inferSeekMarket(doc.source) : undefined;

@@ -54,10 +54,14 @@ vi.mock('react-i18next', () => ({
 }))
 
 const {
+  apiPostMock,
+  shareLinkButtonPropsMock,
   useIndustryKeywordsMock,
   useAiSearchSummaryMock,
   useResumeSearchStateMock,
 } = vi.hoisted(() => ({
+  apiPostMock: vi.fn(),
+  shareLinkButtonPropsMock: vi.fn(),
   useIndustryKeywordsMock: vi.fn(),
   useAiSearchSummaryMock: vi.fn(),
   useResumeSearchStateMock: vi.fn(),
@@ -85,6 +89,38 @@ vi.mock('@/lib/feature-flags', () => ({
 
 vi.mock('@/contexts/AuthContext', () => ({
   useAuth: () => authMock.value,
+}))
+
+vi.mock('@/lib/api-helpers', () => ({
+  rawApiClient: {
+    POST: (...args: unknown[]) => apiPostMock(...args),
+  },
+}))
+
+vi.mock('@/components/ShareLinkButton', () => ({
+  ShareLinkButton: (props: {
+    shareTitle: string
+    state: unknown
+    createPublicShare?: (options: {
+      shareTitle: string
+      searchState: unknown
+    }) => Promise<unknown>
+  }) => {
+    shareLinkButtonPropsMock(props)
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          void props.createPublicShare?.({
+            shareTitle: props.shareTitle,
+            searchState: props.state,
+          })
+        }}
+      >
+        Create public share
+      </button>
+    )
+  },
 }))
 
 vi.mock('@/hooks/useAiSearchSummary', () => ({
@@ -532,6 +568,7 @@ function createResumeSearchState(overrides: Record<string, unknown> = {}) {
     queryInput: '',
     recentSearches: [],
     searchHistoryLoading: false,
+    sessionKey: 'search-session-1',
     selectedClusterTags: [] as string[],
     selectedRawTags: [] as string[],
     setAiModeEnabled: vi.fn(),
@@ -574,6 +611,14 @@ function createResumeSearchState(overrides: Record<string, unknown> = {}) {
 describe('ResumeSearchPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    apiPostMock.mockResolvedValue({
+      data: {
+        success: true,
+        share: {
+          publicPath: '/s/public-token-1',
+        },
+      },
+    })
     featureFlagsMock.resumeAiSummaryEnabled = false
     authMock.value = {
       user: { id: 'user-1', displayName: 'Tester', status: 'active' },
@@ -1020,6 +1065,79 @@ describe('ResumeSearchPage', () => {
     await user.click(screen.getByRole('button', { name: /Analyze loaded 2/i }))
 
     expect(state.analyzeResults).toHaveBeenCalledTimes(1)
+  })
+
+  it('creates a public share from all loaded filtered search results', async () => {
+    const user = userEvent.setup()
+    const filteredResults = Array.from({ length: 101 }, (_, index) => createResult(index + 1))
+    const state = createResumeSearchState({
+      activeQuery: 'CNC 销售',
+      filteredResults,
+      isLanding: false,
+      parsedState: createParsedState({
+        query: 'CNC 销售',
+        location: 'China',
+        keywords: ['CNC', '销售'],
+        filters: {
+          minRoleYears: 1,
+          roleFilterType: 'sales',
+          minAge: 25,
+          maxAge: 40,
+        },
+      }),
+      queryInput: 'CNC 销售',
+      sessionKey: 'session-china-cnc',
+    })
+    useResumeSearchStateMock.mockReturnValue(state)
+
+    render(<ResumeSearchPage />)
+
+    expect(shareLinkButtonPropsMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        shareTitle: 'China · CNC 销售',
+        state: expect.objectContaining({
+          location: 'China',
+          keywords: ['CNC', '销售'],
+          filters: expect.objectContaining({
+            minRoleYears: 1,
+            roleFilterType: 'sales',
+            minAge: 25,
+            maxAge: 40,
+          }),
+        }),
+        createPublicShare: expect.any(Function),
+      }),
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Create public share' }))
+
+    expect(apiPostMock).toHaveBeenCalledWith('/api/public-shares', {
+      body: expect.objectContaining({
+        title: 'China · CNC 销售',
+        sessionId: 'session-china-cnc',
+        search: {
+          query: 'CNC 销售 China',
+          filters: {
+            locations: ['China'],
+            minRoleYears: 1,
+            roleFilterType: 'sales',
+            minAge: 25,
+            maxAge: 40,
+          },
+        },
+        results: expect.any(Array),
+      }),
+    })
+    const request = apiPostMock.mock.calls[0]?.[1] as { body: { results: Array<Record<string, unknown>> } } | undefined
+    expect(request?.body.results).toHaveLength(101)
+    expect(request?.body.results[0]).toMatchObject({
+      resumeKey: 'identity-1',
+      displayName: 'Candidate 1',
+    })
+    expect(request?.body.results[100]).toMatchObject({
+      resumeKey: 'identity-101',
+      displayName: 'Candidate 101',
+    })
   })
 
   it('wires the AI mode toggle and keeps the analyze button disabled while original mode is selected', async () => {

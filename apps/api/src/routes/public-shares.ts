@@ -82,6 +82,17 @@ const AnalysisSnapshotResponseSchema = z.object({
   createdAt: z.string(),
 });
 
+const PublicShareMemberResponseSchema = z.object({
+  workspaceSlug: z.string(),
+  canReview: z.boolean(),
+  searchRun: z.object({
+    id: z.string(),
+    resumeKeys: z.array(z.string()),
+    query: z.record(z.string(), z.unknown()),
+    filters: z.record(z.string(), z.unknown()),
+  }),
+});
+
 const PublicShareCreateResponseSchema = z.object({
   success: z.literal(true),
   share: z.object({
@@ -104,6 +115,7 @@ const PublicShareReadResponseSchema = z.object({
     createdAt: z.string(),
     expiresAt: z.string().optional(),
     snapshot: AnalysisSnapshotResponseSchema,
+    member: PublicShareMemberResponseSchema.optional(),
   }),
 });
 
@@ -284,6 +296,24 @@ app.openapi(getPublicShareRoute, (c) => {
     },
   });
 
+  const canReadMemberSnapshot = Boolean(
+    lookup.searchRun
+    && c.var.auth
+    && hasWorkspacePermission({
+      auth: c.var.auth,
+      workspaceSlug: lookup.share.workspaceSlug,
+      permission: "resume:search",
+    })
+  );
+  const canReview = Boolean(
+    c.var.auth
+    && hasWorkspacePermission({
+      auth: c.var.auth,
+      workspaceSlug: lookup.share.workspaceSlug,
+      permission: "candidate:mutate",
+    })
+  );
+
   return c.json({
     success: true as const,
     share: {
@@ -304,6 +334,20 @@ app.openapi(getPublicShareRoute, (c) => {
         payload: lookup.snapshot.payload,
         createdAt: lookup.snapshot.createdAt,
       },
+      ...(canReadMemberSnapshot && lookup.searchRun
+        ? {
+          member: {
+            workspaceSlug: lookup.share.workspaceSlug,
+            canReview,
+            searchRun: {
+              id: lookup.searchRun.id,
+              resumeKeys: lookup.searchRun.resumeKeys,
+              query: lookup.searchRun.query,
+              filters: lookup.searchRun.safeFilters,
+            },
+          },
+        }
+        : {}),
     },
   }, 200);
 });

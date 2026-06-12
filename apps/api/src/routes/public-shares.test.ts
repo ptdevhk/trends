@@ -72,6 +72,16 @@ type PublicShareReadResponse = {
         results: Array<Record<string, unknown>>;
       };
     };
+    member?: {
+      workspaceSlug: string;
+      canReview: boolean;
+      searchRun: {
+        id: string;
+        resumeKeys: string[];
+        query: Record<string, unknown>;
+        filters: Record<string, unknown>;
+      };
+    };
   };
 };
 
@@ -175,6 +185,84 @@ describe("public share routes", () => {
     expect(readPayload.share.snapshot.payload.results[0]).not.toHaveProperty("actions");
     expect(readPayload.share.snapshot.payload.results[0]).not.toHaveProperty("notes");
     expect(readPayload.share.snapshot.payload.results[0]).not.toHaveProperty("auditLog");
+    expect(readPayload.share).not.toHaveProperty("member");
+  });
+
+  it("exposes search-run resume keys only to authenticated members of the share workspace", async () => {
+    root = createFixtureRoot();
+    const { createApp } = await loadPublicShareModules(root);
+    const adminApp = createApp({ authContext: createAuthContext({ workspaceSlug: "hr", role: "admin" }) });
+    const publicApp = createApp();
+    const memberApp = createApp({ authContext: createAuthContext({ workspaceSlug: "hr", role: "user" }) });
+    const otherWorkspaceApp = createApp({ authContext: createAuthContext({ workspaceSlug: "dev", role: "user" }) });
+
+    const createResponse = await adminApp.request("/api/public-shares", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Workspace-Slug": "hr",
+      },
+      body: JSON.stringify({
+        title: "China CNC sales snapshot",
+        sessionId: "session-1",
+        search: {
+          query: "CNC 销售 China",
+          filters: {
+            locations: ["China"],
+            minRoleYears: 1,
+            roleFilterType: "sales",
+            minAge: 25,
+            maxAge: 40,
+          },
+        },
+        analysis: {
+          scoringMode: "hybrid",
+          promptVersion: "prompt-v1",
+          skillConfigVersion: "skills-v1",
+          modelProvider: "openai",
+          modelName: "gpt-test",
+        },
+        results: Array.from({ length: 3 }, (_, index) => ({
+          resumeKey: `identity-${index + 1}`,
+          displayName: `Candidate ${index + 1}`,
+        })),
+      }),
+    });
+
+    const createPayload = await createResponse.json() as PublicShareCreateResponse;
+    const token = extractToken(createPayload.share.publicPath);
+
+    const publicResponse = await publicApp.request(`/api/public-shares/${token}`);
+    const publicPayload = await publicResponse.json() as PublicShareReadResponse;
+    expect(publicPayload.share).not.toHaveProperty("member");
+
+    const memberResponse = await memberApp.request(`/api/public-shares/${token}`, {
+      headers: {
+        "X-Workspace-Slug": "dev",
+      },
+    });
+    expect(memberResponse.status).toBe(200);
+    const memberPayload = await memberResponse.json() as PublicShareReadResponse;
+    expect(memberPayload.share.member).toEqual({
+      workspaceSlug: "hr",
+      canReview: true,
+      searchRun: {
+        id: expect.any(String),
+        resumeKeys: ["identity-1", "identity-2", "identity-3"],
+        query: { text: "CNC 销售 China" },
+        filters: {
+          locations: ["China"],
+          minRoleYears: 1,
+          roleFilterType: "sales",
+          minAge: 25,
+          maxAge: 40,
+        },
+      },
+    });
+
+    const otherWorkspaceResponse = await otherWorkspaceApp.request(`/api/public-shares/${token}`);
+    const otherWorkspacePayload = await otherWorkspaceResponse.json() as PublicShareReadResponse;
+    expect(otherWorkspacePayload.share).not.toHaveProperty("member");
   });
 
   it("rejects public share creation when the actor lacks the create scope", async () => {

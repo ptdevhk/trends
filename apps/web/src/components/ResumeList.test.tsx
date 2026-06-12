@@ -1,6 +1,11 @@
-import { render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ResumeList } from './ResumeList'
+
+const { apiPostMock } = vi.hoisted(() => ({
+  apiPostMock: vi.fn(),
+}))
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -53,6 +58,12 @@ vi.mock('@/hooks/useConvexResumes', () => ({
   useConvexResumeDetail: () => ({ resume: null, loading: false }),
 }))
 
+vi.mock('@/lib/api-helpers', () => ({
+  rawApiClient: {
+    POST: (...args: unknown[]) => apiPostMock(...args),
+  },
+}))
+
 vi.mock('@/lib/resume-scoring', () => ({
   buildResumeKey: (_resume: Record<string, unknown>, idx: number) => `key-${idx}`,
   hasIngestData: () => false,
@@ -99,8 +110,26 @@ vi.mock('@/components/CollectResumesButton', () => ({
 }))
 
 vi.mock('@/components/ShareLinkButton', () => ({
-  ShareLinkButton: () => (
-    <div data-testid="share-link-button" />
+  ShareLinkButton: (props: {
+    shareTitle: string
+    state: unknown
+    createPublicShare?: (options: {
+      shareTitle: string
+      searchState: unknown
+    }) => Promise<unknown>
+  }) => (
+    <button
+      type="button"
+      data-testid="share-link-button"
+      onClick={() => {
+        void props.createPublicShare?.({
+          shareTitle: props.shareTitle,
+          searchState: props.state,
+        })
+      }}
+    >
+      Share
+    </button>
   ),
 }))
 
@@ -197,6 +226,14 @@ describe('ResumeList', () => {
   beforeEach(() => {
     mockResumeListState = { ...baseMockState }
     vi.clearAllMocks()
+    apiPostMock.mockResolvedValue({
+      data: {
+        success: true,
+        share: {
+          publicPath: '/s/public-token-1',
+        },
+      },
+    })
   })
 
   it('renders empty state when no resumes and not loading', () => {
@@ -337,5 +374,61 @@ describe('ResumeList', () => {
   it('renders bulk-action-bar', () => {
     render(<ResumeList />)
     expect(screen.getByTestId('bulk-action-bar')).toBeInTheDocument()
+  })
+
+  it('creates public shares from every loaded displayed resume', async () => {
+    const user = userEvent.setup()
+    mockResumeListState.activeSessionId = 'legacy-session-1'
+    mockResumeListState.shareTitle = 'China · CNC'
+    mockResumeListState.shareState = {
+      location: 'China',
+      keywords: ['CNC'],
+      requiredKeywords: ['销售'],
+      filters: {
+        minRoleYears: 1,
+        roleFilterType: 'sales',
+        minAge: 25,
+        maxAge: 40,
+      },
+    }
+    mockResumeListState.displayedResumes = Array.from({ length: 101 }, (_, index) => ({
+      key: `key-${index + 1}`,
+      identityKey: `identity-${index + 1}`,
+      resume: {
+        name: `Candidate ${index + 1}`,
+        profileUrl: `https://example.com/${index + 1}`,
+        activityStatus: 'Active',
+        age: '30',
+        experience: '5 years',
+        education: 'Bachelor',
+        location: 'China',
+        selfIntro: 'CNC sales',
+        jobIntention: 'Sales',
+        expectedSalary: '10k',
+        workHistory: [],
+        extractedAt: '2026-01-01T00:00:00.000Z',
+      },
+      match: undefined,
+      ruleScore: undefined,
+      action: undefined,
+      blocked: false,
+      status: undefined,
+      statusMeta: undefined,
+      userRating: undefined,
+    })) as unknown as Array<Record<string, unknown>>
+
+    render(<ResumeList />)
+
+    await user.click(screen.getByTestId('share-link-button'))
+
+    await waitFor(() => {
+      expect(apiPostMock).toHaveBeenCalled()
+    })
+    const request = apiPostMock.mock.calls[0]?.[1] as { body: { results: Array<Record<string, unknown>> } } | undefined
+    expect(request?.body.results).toHaveLength(101)
+    expect(request?.body.results[100]).toMatchObject({
+      resumeKey: 'identity-101',
+      displayName: 'Candidate 101',
+    })
   })
 })

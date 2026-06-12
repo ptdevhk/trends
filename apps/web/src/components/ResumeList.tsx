@@ -241,7 +241,7 @@ export function ResumeList() {
   const createPublicShare = useCallback(async (
     options: CreatePublicShareOptions
   ): Promise<PublicShareCreateResult | undefined> => {
-    const results = displayedResumes.slice(0, 100).map((entry, index) => ({
+    const results = displayedResumes.map((entry, index) => ({
       resumeKey: entry.identityKey || entry.key || buildResumeKey(entry.resume, index),
       displayName: entry.resume.name,
       headline: entry.resume.jobIntention || entry.resume.experience,
