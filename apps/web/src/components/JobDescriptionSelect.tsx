@@ -4,6 +4,7 @@ import { ExternalLink } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { rawApiClient } from '@/lib/api-helpers'
 import { Select } from '@/components/ui/select'
+import { SYSTEM_ROUTE_PREFIX } from '@/lib/workspace-access'
 import {
   buildJobDescriptionOptions,
   type ConvexJobDescriptionItem,
@@ -70,7 +71,7 @@ export function JobDescriptionSelect({ value, onChange, disabled }: JobDescripti
       />
       {value && (
         <Link
-          to={`/${slug}/system/jds`}
+          to={`${SYSTEM_ROUTE_PREFIX}/jds`}
           className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
           title={t('resumes.jobDescription.manage')}
           aria-label={t('resumes.jobDescription.manage')}

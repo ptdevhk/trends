@@ -8,14 +8,23 @@ import { ResumesPage } from '@/pages/ResumesPage'
 import { ReviewPacketsPage } from '@/pages/ReviewPacketsPage'
 import { LoginPage } from '@/pages/LoginPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
+import { PublicSharePage } from '@/pages/PublicSharePage'
 import SettingsLayout from '@/layouts/SettingsLayout'
 import SystemLayout from '@/layouts/SystemLayout'
 import SystemSettingsLayout from '@/layouts/SystemSettingsLayout'
-import { AuthProvider } from '@/contexts/AuthContext'
+import { AuthProvider, useAuth } from '@/contexts/AuthContext'
 import { WorkspaceProvider, useWorkspace } from '@/contexts/WorkspaceContext'
 import { BrandDisplayMapProvider } from '@/contexts/BrandDisplayMapContext'
 import { ResumeFieldUsagePolicyProvider } from '@/contexts/ResumeFieldUsagePolicyContext'
 import { isReviewPacketsEnabled } from '@/lib/feature-flags'
+import {
+  getFirstAuthorizedWorkspaceSlug,
+  hasSystemAdminAccess,
+  hasWorkspaceMembership,
+  PUBLIC_RESUME_WORKSPACE,
+  SYSTEM_AUTH_WORKSPACE,
+  SYSTEM_ROUTE_PREFIX,
+} from '@/lib/workspace-access'
 
 const LazyDebugPage = lazy(async () => {
   const module = await import('@/pages/DebugPage')
@@ -96,14 +105,14 @@ const LazySystemSettingsExportFieldsPage = lazy(async () => {
   return { default: module.SystemSettingsExportFieldsPage }
 })
 
-function MainShell() {
+function MainShell({ children }: { children?: ReactNode }) {
   return (
     <div className="min-h-screen bg-background">
       <Toaster position="top-center" richColors />
       <Header />
       <main className="container py-6">
         <ErrorBoundary>
-          <Outlet />
+          {children ?? <Outlet />}
         </ErrorBoundary>
       </main>
       <footer className="border-t py-6 mt-8" />
@@ -124,17 +133,69 @@ function PreserveSearchNavigate({ pathname }: { pathname: string }) {
   return <Navigate to={{ pathname, search: location.search }} replace />
 }
 
-function WorkspaceShell() {
+function AppProviders({
+  children,
+  surface,
+  workspaceSlug,
+  invalidFallback,
+}: {
+  children: ReactNode
+  surface?: 'workspace' | 'system' | 'public'
+  workspaceSlug?: typeof SYSTEM_AUTH_WORKSPACE | typeof PUBLIC_RESUME_WORKSPACE
+  invalidFallback?: ReactNode
+}) {
   return (
-    <WorkspaceProvider invalidFallback={<StandaloneNotFoundPage />}>
+    <WorkspaceProvider
+      workspaceSlug={workspaceSlug}
+      surface={surface}
+      invalidFallback={invalidFallback}
+    >
       <AuthProvider>
         <ResumeFieldUsagePolicyProvider>
           <BrandDisplayMapProvider>
-            <Outlet />
+            {children}
           </BrandDisplayMapProvider>
         </ResumeFieldUsagePolicyProvider>
       </AuthProvider>
     </WorkspaceProvider>
+  )
+}
+
+function WorkspaceShell() {
+  return (
+    <AppProviders invalidFallback={<StandaloneNotFoundPage />}>
+      <WorkspaceMembershipGate>
+        <Outlet />
+      </WorkspaceMembershipGate>
+    </AppProviders>
+  )
+}
+
+function PublicResumeRoute() {
+  return (
+    <AppProviders workspaceSlug={PUBLIC_RESUME_WORKSPACE} surface="public">
+      <MainShell>
+        <ResumesPage />
+      </MainShell>
+    </AppProviders>
+  )
+}
+
+function PublicShareRoute() {
+  return (
+    <AppProviders workspaceSlug={PUBLIC_RESUME_WORKSPACE} surface="public">
+      <MainShell>
+        <PublicSharePage />
+      </MainShell>
+    </AppProviders>
+  )
+}
+
+function SystemWorkspaceShell() {
+  return (
+    <AppProviders workspaceSlug={SYSTEM_AUTH_WORKSPACE} surface="system">
+      <Outlet />
+    </AppProviders>
   )
 }
 
@@ -153,20 +214,59 @@ function WorkspaceNotFoundPage() {
   return <NotFoundPage homePath={`/${slug}/resumes`} />
 }
 
-function AdminGate({ children }: { children: ReactNode }) {
-  const { isAdmin, slug } = useWorkspace()
+function WorkspaceMembershipGate({ children }: { children: ReactNode }) {
+  const auth = useAuth()
+  const { slug } = useWorkspace()
   const location = useLocation()
-  if (!isAdmin) {
-    return <Navigate to={{ pathname: `/${slug}/resumes`, search: location.search }} replace />
+  if (auth.isLoading) {
+    return <div className="py-6 text-sm text-muted-foreground">Loading...</div>
+  }
+  if (auth.isAuthenticated && !hasWorkspaceMembership(auth.memberships, slug)) {
+    const fallbackSlug = getFirstAuthorizedWorkspaceSlug(auth.memberships) ?? SYSTEM_AUTH_WORKSPACE
+    return <Navigate to={{ pathname: `/${fallbackSlug}/resumes`, search: location.search }} replace />
   }
   return <>{children}</>
 }
 
-function WorkspaceDebugPage() {
+function SystemAccessGate({ children }: { children: ReactNode }) {
+  const auth = useAuth()
+  const location = useLocation()
+  if (auth.isLoading) {
+    return <div className="py-6 text-sm text-muted-foreground">Loading...</div>
+  }
+  if (!auth.isAuthenticated) {
+    const redirectTo = `${location.pathname}${location.search}`
+    const search = new URLSearchParams({ redirectTo }).toString()
+    return <Navigate to={{ pathname: `/${SYSTEM_AUTH_WORKSPACE}/login`, search: `?${search}` }} replace />
+  }
+  if (!hasSystemAdminAccess(auth.memberships)) {
+    const fallbackSlug = getFirstAuthorizedWorkspaceSlug(auth.memberships) ?? SYSTEM_AUTH_WORKSPACE
+    return <Navigate to={{ pathname: `/${fallbackSlug}/resumes`, search: location.search }} replace />
+  }
+  return <>{children}</>
+}
+
+function LegacyDevSystemRedirect() {
+  const location = useLocation()
+  const suffix = location.pathname.replace(/^\/dev\/system/, '')
+  return <Navigate to={{ pathname: `${SYSTEM_ROUTE_PREFIX}${suffix}`, search: location.search }} replace />
+}
+
+function WorkspaceResumeRoute() {
+  const auth = useAuth()
   const { slug } = useWorkspace()
+  if (!auth.isLoading && !auth.isAuthenticated && slug === PUBLIC_RESUME_WORKSPACE) {
+    return <PreserveSearchNavigate pathname="/resumes" />
+  }
+  return <ResumesPage />
+}
+
+function WorkspaceDebugPage() {
+  const { isSystemSurface, slug } = useWorkspace()
+  const basePath = isSystemSurface ? `${SYSTEM_ROUTE_PREFIX}/data` : `/${slug}/system/data`
   return (
     <RouteSuspense>
-      <LazyDebugPage basePath={`/${slug}/system/data`} />
+      <LazyDebugPage basePath={basePath} />
     </RouteSuspense>
   )
 }
@@ -177,55 +277,16 @@ function App() {
       <LongTaskObserver />
       <ErrorBoundary>
         <Routes>
-          <Route path="/:teamSlug" element={<WorkspaceShell />}>
-            <Route index element={<PreserveSearchNavigate pathname="resumes" />} />
-
-            <Route element={<MainShell />}>
-              <Route path="login" element={<LoginPage />} />
-              <Route path="resumes" element={<ResumesPage />} />
-              {isReviewPacketsEnabled() ? (
-                <Route path="review-packets" element={<ReviewPacketsPage />} />
-              ) : (
-                <Route path="review-packets" element={<PreserveSearchNavigate pathname="resumes" />} />
-              )}
-              <Route path="*" element={<WorkspaceNotFoundPage />} />
-            </Route>
-
-            <Route path="settings" element={<SettingsLayout />}>
-              <Route index element={<Navigate to="blocks" replace />} />
-              <Route
-                path="blocks"
-                element={(
-                  <RouteSuspense>
-                    <LazyBlacklistPage />
-                  </RouteSuspense>
-                )}
-              />
-              <Route
-                path="profiles"
-                element={(
-                  <RouteSuspense>
-                    <LazySearchProfilesPage />
-                  </RouteSuspense>
-                )}
-              />
-              <Route
-                path="export-fields"
-                element={(
-                  <RouteSuspense>
-                    <LazySystemSettingsExportFieldsPage />
-                  </RouteSuspense>
-                )}
-              />
-            </Route>
-
+          <Route path="/resumes" element={<PublicResumeRoute />} />
+          <Route path="/s/:token" element={<PublicShareRoute />} />
+          <Route path="/dev/system/*" element={<LegacyDevSystemRedirect />} />
+          <Route path="/admin/system" element={<SystemWorkspaceShell />}>
             <Route
-              path="system"
-              element={
-                <AdminGate>
+              element={(
+                <SystemAccessGate>
                   <SystemLayout />
-                </AdminGate>
-              }
+                </SystemAccessGate>
+              )}
             >
               <Route index element={<Navigate to="settings" replace />} />
               <Route path="settings" element={<SystemSettingsLayout />}>
@@ -370,6 +431,50 @@ function App() {
             </Route>
           </Route>
 
+          <Route path="/:teamSlug" element={<WorkspaceShell />}>
+            <Route index element={<PreserveSearchNavigate pathname="resumes" />} />
+
+            <Route element={<MainShell />}>
+              <Route path="login" element={<LoginPage />} />
+              <Route path="resumes" element={<WorkspaceResumeRoute />} />
+              {isReviewPacketsEnabled() ? (
+                <Route path="review-packets" element={<ReviewPacketsPage />} />
+              ) : (
+                <Route path="review-packets" element={<PreserveSearchNavigate pathname="resumes" />} />
+              )}
+              <Route path="*" element={<WorkspaceNotFoundPage />} />
+            </Route>
+
+            <Route path="settings" element={<SettingsLayout />}>
+              <Route index element={<Navigate to="blocks" replace />} />
+              <Route
+                path="blocks"
+                element={(
+                  <RouteSuspense>
+                    <LazyBlacklistPage />
+                  </RouteSuspense>
+                )}
+              />
+              <Route
+                path="profiles"
+                element={(
+                  <RouteSuspense>
+                    <LazySearchProfilesPage />
+                  </RouteSuspense>
+                )}
+              />
+              <Route
+                path="export-fields"
+                element={(
+                  <RouteSuspense>
+                    <LazySystemSettingsExportFieldsPage />
+                  </RouteSuspense>
+                )}
+              />
+            </Route>
+
+          </Route>
+
           {/* Public route: candidate explanation (EU AI Act Art. 13) */}
           <Route
             path="/explanation/:resumeId"
@@ -382,7 +487,7 @@ function App() {
             }
           />
 
-          <Route path="/" element={<PreserveSearchNavigate pathname="/dev/resumes" />} />
+          <Route path="/" element={<PreserveSearchNavigate pathname="/resumes" />} />
           <Route path="*" element={<StandaloneNotFoundPage />} />
         </Routes>
       </ErrorBoundary>

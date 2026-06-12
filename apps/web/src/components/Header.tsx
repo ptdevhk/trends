@@ -9,6 +9,7 @@ import { RESUME_HOME_RESET_STATE } from '@/lib/resume-home-navigation'
 import { isReviewPacketsEnabled } from '@/lib/feature-flags'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { hasSystemAdminAccess, SYSTEM_ROUTE_PREFIX } from '@/lib/workspace-access'
 
 interface HeaderProps {
   leftAction?: React.ReactNode
@@ -16,12 +17,15 @@ interface HeaderProps {
 
 export function Header({ leftAction }: HeaderProps = {}) {
   const { t } = useTranslation()
-  const { slug, name, isAdmin } = useWorkspace()
-  const resumesPath = `/${slug}/resumes`
+  const { slug, name, isPublicSurface } = useWorkspace()
+  const { memberships } = useAuth()
+  const resumesPath = isPublicSurface ? '/resumes' : `/${slug}/resumes`
   const reviewPacketsPath = `/${slug}/review-packets`
   const showReviewPackets = isReviewPacketsEnabled()
   const settingsPath = `/${slug}/settings`
-  const systemPath = `/${slug}/system`
+  const systemPath = SYSTEM_ROUTE_PREFIX
+  const showWorkspaceNav = !isPublicSurface
+  const showSystemNav = hasSystemAdminAccess(memberships)
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -48,7 +52,7 @@ export function Header({ leftAction }: HeaderProps = {}) {
             >
               {t('nav.resumes')}
             </NavLink>
-            {showReviewPackets ? (
+            {showWorkspaceNav && showReviewPackets ? (
               <NavLink
                 to={reviewPacketsPath}
                 className={({ isActive }: { isActive: boolean }) =>
@@ -61,18 +65,20 @@ export function Header({ leftAction }: HeaderProps = {}) {
                 {t('nav.reviewPackets', { defaultValue: 'Review packets' })}
               </NavLink>
             ) : null}
-            <NavLink
-              to={settingsPath}
-              className={({ isActive }: { isActive: boolean }) =>
-                cn(
-                  'transition-colors hover:text-foreground',
-                  isActive ? 'text-foreground' : 'text-muted-foreground'
-                )
-              }
-            >
-              {t('nav.settings')}
-            </NavLink>
-            {isAdmin ? (
+            {showWorkspaceNav ? (
+              <NavLink
+                to={settingsPath}
+                className={({ isActive }: { isActive: boolean }) =>
+                  cn(
+                    'transition-colors hover:text-foreground',
+                    isActive ? 'text-foreground' : 'text-muted-foreground'
+                  )
+                }
+              >
+                {t('nav.settings')}
+              </NavLink>
+            ) : null}
+            {showSystemNav ? (
               <NavLink
                 to={systemPath}
                 className={({ isActive }: { isActive: boolean }) =>
@@ -88,10 +94,12 @@ export function Header({ leftAction }: HeaderProps = {}) {
           </nav>
         </div>
         <div className="flex items-center gap-3">
-          <span className="hidden md:inline-flex items-center rounded-md border px-2 py-0.5 text-xs text-muted-foreground">
-            {name}
-          </span>
-          <WorkspaceSwitcher />
+          {!isPublicSurface ? (
+            <span className="hidden md:inline-flex items-center rounded-md border px-2 py-0.5 text-xs text-muted-foreground">
+              {name}
+            </span>
+          ) : null}
+          {!isPublicSurface ? <WorkspaceSwitcher /> : null}
           <nav className="flex items-center gap-3 text-sm sm:hidden">
             <NavLink
               to={resumesPath}
@@ -105,7 +113,7 @@ export function Header({ leftAction }: HeaderProps = {}) {
             >
               {t('nav.resumes')}
             </NavLink>
-            {showReviewPackets ? (
+            {showWorkspaceNav && showReviewPackets ? (
               <NavLink
                 to={reviewPacketsPath}
                 className={({ isActive }: { isActive: boolean }) =>
@@ -118,18 +126,20 @@ export function Header({ leftAction }: HeaderProps = {}) {
                 {t('nav.reviewPackets', { defaultValue: 'Review packets' })}
               </NavLink>
             ) : null}
-            <NavLink
-              to={settingsPath}
-              className={({ isActive }: { isActive: boolean }) =>
-                cn(
-                  'transition-colors hover:text-foreground',
-                  isActive ? 'text-foreground' : 'text-muted-foreground'
-                )
-              }
-            >
-              {t('nav.settings')}
-            </NavLink>
-            {isAdmin ? (
+            {showWorkspaceNav ? (
+              <NavLink
+                to={settingsPath}
+                className={({ isActive }: { isActive: boolean }) =>
+                  cn(
+                    'transition-colors hover:text-foreground',
+                    isActive ? 'text-foreground' : 'text-muted-foreground'
+                  )
+                }
+              >
+                {t('nav.settings')}
+              </NavLink>
+            ) : null}
+            {showSystemNav ? (
               <NavLink
                 to={systemPath}
                 className={({ isActive }: { isActive: boolean }) =>

@@ -67,8 +67,8 @@ describe('LoginPage', () => {
     expect(mockNavigate).toHaveBeenCalledWith('/dev/resumes', { replace: true })
   })
 
-  it('routes an admin-only login to the admin auth settings page by default', async () => {
-    mockLogin.mockResolvedValueOnce(loginResult('admin', 'admin'))
+  it('routes a dev admin login to the system auth settings page by default', async () => {
+    mockLogin.mockResolvedValueOnce(loginResult('dev', 'admin'))
     const user = userEvent.setup()
 
     render(<LoginPage />)
@@ -82,7 +82,7 @@ describe('LoginPage', () => {
 
   it('navigates to redirectTo path on success', async () => {
     mockSearchParams.set('redirectTo', '/dev/settings')
-    mockLogin.mockResolvedValueOnce(loginResult('admin', 'admin'))
+    mockLogin.mockResolvedValueOnce(loginResult('dev', 'admin'))
     const user = userEvent.setup()
 
     render(<LoginPage />)
@@ -92,6 +92,34 @@ describe('LoginPage', () => {
     await user.click(screen.getByRole('button', { name: /sign in/i }))
 
     expect(mockNavigate).toHaveBeenCalledWith('/dev/settings', { replace: true })
+  })
+
+  it('preserves an explicit system redirect only for dev admins', async () => {
+    mockSearchParams.set('redirectTo', '/admin/system/settings/auth')
+    mockLogin.mockResolvedValueOnce(loginResult('dev', 'admin'))
+    const user = userEvent.setup()
+
+    render(<LoginPage />)
+
+    await user.type(screen.getByLabelText(/username/i), 'demo-admin')
+    await user.type(screen.getByLabelText(/password/i), 'demo-admin')
+    await user.click(screen.getByRole('button', { name: /sign in/i }))
+
+    expect(mockNavigate).toHaveBeenCalledWith('/admin/system/settings/auth', { replace: true })
+  })
+
+  it('ignores an explicit system redirect for non-admin users', async () => {
+    mockSearchParams.set('redirectTo', '/admin/system/settings/auth')
+    mockLogin.mockResolvedValueOnce(loginResult('dev', 'user'))
+    const user = userEvent.setup()
+
+    render(<LoginPage />)
+
+    await user.type(screen.getByLabelText(/username/i), 'dev-user')
+    await user.type(screen.getByLabelText(/password/i), 'secret')
+    await user.click(screen.getByRole('button', { name: /sign in/i }))
+
+    expect(mockNavigate).toHaveBeenCalledWith('/dev/resumes', { replace: true })
   })
 
   it('shows error message on login failure', async () => {

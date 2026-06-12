@@ -2,18 +2,18 @@ import { describe, expect, it } from 'vitest'
 import { isValidWorkspace, getAccessLevel, WORKSPACE_TEAMS, formatWorkspaceSlugList, listWorkspaceSlugs } from './workspace'
 
 describe('WORKSPACE_TEAMS', () => {
-  it('has admin, dev, and hr teams', () => {
-    expect(Object.keys(WORKSPACE_TEAMS)).toEqual(['admin', 'dev', 'hr'])
+  it('has only real data workspaces', () => {
+    expect(Object.keys(WORKSPACE_TEAMS)).toEqual(['dev', 'hr'])
   })
 })
 
 describe('workspace registry helpers', () => {
   it('lists registered workspace slugs in registry order', () => {
-    expect(listWorkspaceSlugs()).toEqual(['admin', 'dev', 'hr'])
+    expect(listWorkspaceSlugs()).toEqual(['dev', 'hr'])
   })
 
   it('formats registered workspace slugs for consumer error messages', () => {
-    expect(formatWorkspaceSlugList()).toBe('admin, dev, hr')
+    expect(formatWorkspaceSlugList()).toBe('dev, hr')
   })
 
   it('keeps the helper list aligned with validation and access levels', () => {
@@ -25,8 +25,8 @@ describe('workspace registry helpers', () => {
 })
 
 describe('isValidWorkspace', () => {
-  it('returns true for admin', () => {
-    expect(isValidWorkspace('admin')).toBe(true)
+  it('returns false for admin because it is a system route namespace', () => {
+    expect(isValidWorkspace('admin')).toBe(false)
   })
 
   it('returns true for dev', () => {
@@ -52,8 +52,8 @@ describe('isValidWorkspace', () => {
 })
 
 describe('getAccessLevel', () => {
-  it('returns admin for admin', () => {
-    expect(getAccessLevel('admin')).toBe('admin')
+  it('returns null for admin because it is not a workspace', () => {
+    expect(getAccessLevel('admin')).toBeNull()
   })
 
   it('returns user for dev', () => {

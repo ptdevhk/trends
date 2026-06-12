@@ -89,7 +89,7 @@ const users: Record<UserKind, AuthUser> = {
 }
 
 const memberships: Record<UserKind, WorkspaceMembership[]> = {
-  admin: [{ userId: users.admin.id, workspaceSlug: 'admin', role: 'admin' }],
+  admin: [{ userId: users.admin.id, workspaceSlug: 'dev', role: 'admin' }],
   hr: [{ userId: users.hr.id, workspaceSlug: 'hr', role: 'user' }],
 }
 
@@ -482,8 +482,7 @@ async function installProviderMembershipApi(page: Page) {
 }
 
 async function signIn(page: Page, username: string, password: string, redirectTo: string) {
-  const loginWorkspace = redirectTo.startsWith('/admin/') ? 'admin' : 'dev'
-  await page.goto(`/${loginWorkspace}/login?redirectTo=${encodeURIComponent(redirectTo)}`)
+  await page.goto(`/dev/login?redirectTo=${encodeURIComponent(redirectTo)}`)
   await page.getByLabel('Username').fill(username)
   await page.getByLabel('Password').fill(password)
   await page.getByRole('button', { name: 'Sign in' }).click()

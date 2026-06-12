@@ -75,7 +75,7 @@ describe("workspaceMiddleware", () => {
 });
 
 describe("requireAdmin", () => {
-  it("allows admin workspaces through", async () => {
+  it("rejects the admin namespace before admin access is evaluated", async () => {
     const app = createTestApp();
     app.use("*", workspaceMiddleware);
     app.use("*", requireAdmin);
@@ -84,7 +84,9 @@ describe("requireAdmin", () => {
     const res = await app.request("/test", {
       headers: { "X-Workspace-Slug": "admin" },
     });
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toContain("Invalid workspace slug");
   });
 
   it("blocks dev workspace with 403", async () => {

@@ -1,5 +1,4 @@
 export const WORKSPACE_TEAMS = {
-  admin: { name: "Admin", accessLevel: "admin" as const },
   dev: { name: "Development", accessLevel: "user" as const },
   hr: { name: "HR Team", accessLevel: "user" as const },
 } as const;

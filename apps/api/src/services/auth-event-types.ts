@@ -9,7 +9,10 @@ export type AuthEventType =
   | "provider_membership_preapproved"
   | "provider_membership_revoked"
   | "workspace_membership_granted"
-  | "workspace_membership_revoked";
+  | "workspace_membership_revoked"
+  | "public_share_created"
+  | "public_share_read"
+  | "public_share_unavailable";
 
 export type AuthEventInput = {
   type: AuthEventType;

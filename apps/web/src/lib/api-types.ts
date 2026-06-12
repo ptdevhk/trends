@@ -5552,6 +5552,205 @@ export interface paths {
         };
         trace?: never;
     };
+    "/api/public-shares": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a public immutable resume search snapshot */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        title?: string;
+                        description?: string;
+                        sessionId?: string;
+                        search?: {
+                            query?: string;
+                            filters?: {
+                                [key: string]: unknown;
+                            };
+                        };
+                        analysis: {
+                            scoringMode: string;
+                            promptVersion: string;
+                            skillConfigVersion: string;
+                            modelProvider: string;
+                            modelName: string;
+                            resultSetHash?: string;
+                        };
+                        results: ({
+                            resumeKey: string;
+                            displayName?: string;
+                            name?: string;
+                            headline?: string;
+                            location?: string;
+                            summary?: string;
+                            score?: number;
+                            recommendation?: string;
+                            highlights?: string[];
+                            concerns?: string[];
+                            skills?: string[];
+                        } & {
+                            [key: string]: unknown;
+                        })[];
+                        expiresAt?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Public share created */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            share: {
+                                id: string;
+                                publicPath: string;
+                                title?: string;
+                                /** @enum {string} */
+                                targetType: "search_run" | "analysis_snapshot";
+                                targetId: string;
+                                createdAt: string;
+                                expiresAt?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Authentication required */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Workspace permission required */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/public-shares/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read a public immutable resume search snapshot */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    token: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Public share snapshot */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            share: {
+                                id: string;
+                                title?: string;
+                                description?: string;
+                                createdAt: string;
+                                expiresAt?: string;
+                                snapshot: {
+                                    id: string;
+                                    searchRunId: string;
+                                    scoringMode: string;
+                                    promptVersion: string;
+                                    skillConfigVersion: string;
+                                    modelProvider: string;
+                                    modelName: string;
+                                    resultSetHash: string;
+                                    payload: {
+                                        title?: string;
+                                        description?: string;
+                                        search?: {
+                                            query?: string;
+                                            filters?: {
+                                                [key: string]: unknown;
+                                            };
+                                        };
+                                        results: ({
+                                            resumeKey: string;
+                                            displayName?: string;
+                                            name?: string;
+                                            headline?: string;
+                                            location?: string;
+                                            summary?: string;
+                                            score?: number;
+                                            recommendation?: string;
+                                            highlights?: string[];
+                                            concerns?: string[];
+                                            skills?: string[];
+                                        } & {
+                                            [key: string]: unknown;
+                                        })[];
+                                    };
+                                    createdAt: string;
+                                };
+                            };
+                        };
+                    };
+                };
+                /** @description Public share not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Public share revoked or expired */
+                410: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/actions": {
         parameters: {
             query?: never;

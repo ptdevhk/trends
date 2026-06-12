@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useWindowVirtualizer } from '@tanstack/react-virtual'
 import { useTranslation } from 'react-i18next'
@@ -14,17 +14,29 @@ import { QuickStartPanel } from '@/components/QuickStartPanel'
 import { BulkActionBar } from '@/components/BulkActionBar'
 import { AnalysisTaskMonitor } from '@/components/AnalysisTaskMonitor'
 import { CollectResumesButton } from '@/components/CollectResumesButton'
-import { ShareLinkButton } from '@/components/ShareLinkButton'
+import {
+  ShareLinkButton,
+  type CreatePublicShareOptions,
+  type PublicShareCreateResult,
+} from '@/components/ShareLinkButton'
 import { useResumeListState } from '@/hooks/useResumeListState'
 import { useSyncNotifications } from '@/hooks/useSyncNotifications'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { buildResumeKey, hasIngestData } from '@/lib/resume-scoring'
 import { useBrandDisplayMap } from '@/hooks/useBrandDisplayMap'
 import { shouldPreloadOnPointerDown } from '@/lib/pointer-preload'
+import { rawApiClient } from '@/lib/api-helpers'
 
 const loadResumeDetail = () => import('@/components/ResumeDetail')
 const loadSearchHistoryDialog = () => import('@/components/SearchHistoryDialog')
 const loadManualResumeImportDialog = () => import('@/components/ManualResumeImportDialog')
+
+type PublicShareCreateResponse = {
+  success: boolean
+  share?: {
+    publicPath?: string
+  }
+}
 
 const ResumeDetail = lazy(async () => {
   const module = await loadResumeDetail()
@@ -226,6 +238,56 @@ export function ResumeList() {
     void loadManualResumeImportDialog()
   }
 
+  const createPublicShare = useCallback(async (
+    options: CreatePublicShareOptions
+  ): Promise<PublicShareCreateResult | undefined> => {
+    const results = displayedResumes.slice(0, 100).map((entry, index) => ({
+      resumeKey: entry.identityKey || entry.key || buildResumeKey(entry.resume, index),
+      displayName: entry.resume.name,
+      headline: entry.resume.jobIntention || entry.resume.experience,
+      location: entry.resume.location,
+      summary: entry.match?.summary || entry.resume.selfIntro,
+      score: entry.match?.score ?? entry.ruleScore,
+      recommendation: entry.match?.recommendation,
+      highlights: entry.match?.highlights ?? [],
+      concerns: entry.match?.concerns ?? [],
+    }))
+
+    const query = [
+      ...(options.searchState.keywords ?? []),
+      ...(options.searchState.requiredKeywords ?? []),
+      options.searchState.location,
+    ]
+      .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+      .join(' ')
+
+    const { data, error } = await rawApiClient.POST<PublicShareCreateResponse>('/api/public-shares', {
+      body: {
+        title: options.shareTitle,
+        sessionId: activeSessionId,
+        search: {
+          query,
+          filters: options.searchState.filters ?? {},
+        },
+        analysis: {
+          scoringMode: jobDescriptionId ? 'hybrid' : 'rules_only',
+          promptVersion: 'current',
+          skillConfigVersion: 'current',
+          modelProvider: 'trends',
+          modelName: 'workspace-analysis',
+        },
+        results,
+      },
+    })
+
+    if (error || !data?.success || !data.share?.publicPath) {
+      console.error('Failed to create public share', error ?? data)
+      return undefined
+    }
+
+    return { publicPath: data.share.publicPath }
+  }, [activeSessionId, displayedResumes, jobDescriptionId])
+
   const renderResumeCard = (entry: (typeof displayedResumes)[number]) => {
     const ingestData = hasIngestData(entry.resume) ? entry.resume.ingestData : undefined
 
@@ -425,6 +487,7 @@ export function ResumeList() {
               shareTitle={shareTitle}
               state={shareState}
               ensureApiSession={ensureApiSession}
+              createPublicShare={createPublicShare}
               onCopyState={({ sessionId, usedSessionLink }) => {
                 if (usedSessionLink) {
                   handleShareSessionCopied(sessionId)

@@ -1634,10 +1634,13 @@
   },
   "shareLink": {
     "button": "分享",
+    "publicButton": "公开分享",
     "copiedSearch": "已复制分享链接",
     "copiedSession": "已复制会话链接",
+    "copiedPublic": "已复制公开分享链接",
     "copyPreparedFailed": "自动复制失败，请手动复制下方链接。",
     "copyUrlFailed": "复制链接失败，请手动复制地址栏 URL。",
+    "createPublicFailed": "创建公开分享失败。",
     "retryCopyFailed": "自动复制仍然失败，请手动复制下方链接。",
     "dialog": {
       "title": "手动复制分享链接",
@@ -1645,6 +1648,12 @@
       "titleLabel": "分享标题",
       "urlLabel": "分享链接",
       "retryCopy": "再试一次复制"
+    },
+    "publicDialog": {
+      "title": "创建公开分享？",
+      "description": "创建不可变的公开快照链接。",
+      "cancel": "取消",
+      "confirm": "创建公开分享"
     }
   },
   "auth": {

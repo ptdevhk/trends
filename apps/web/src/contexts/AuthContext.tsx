@@ -1,8 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
-import { fetchCurrentAuth, loginWithLocalPassword, logout as logoutApi, type CurrentAuth, type AuthUser, type WorkspaceRole } from '@/lib/auth'
+import { fetchCurrentAuth, loginWithLocalPassword, logout as logoutApi, type CurrentAuth, type AuthUser, type WorkspaceMembership, type WorkspaceRole } from '@/lib/auth'
 
 type AuthState = {
   user: AuthUser | null
+  memberships: WorkspaceMembership[]
   workspaceRole: WorkspaceRole | null
   isAuthenticated: boolean
   isLoading: boolean
@@ -13,6 +14,7 @@ type AuthState = {
 
 const AuthContext = createContext<AuthState>({
   user: null,
+  memberships: [],
   workspaceRole: null,
   isAuthenticated: false,
   isLoading: true,
@@ -71,6 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <AuthContext.Provider value={{
       user: auth?.user ?? null,
+      memberships: auth?.memberships ?? [],
       workspaceRole: auth?.workspaceRole ?? null,
       isAuthenticated: auth?.success === true,
       isLoading,
