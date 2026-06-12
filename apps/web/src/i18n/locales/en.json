@@ -1607,10 +1607,13 @@
   },
   "shareLink": {
     "button": "Share",
+    "publicButton": "Public share",
     "copiedSearch": "Share link copied",
     "copiedSession": "Session link copied",
+    "copiedPublic": "Public share copied",
     "copyPreparedFailed": "Automatic copy failed. Copy the link below manually.",
     "copyUrlFailed": "Failed to copy link. Copy the URL from the address bar manually.",
+    "createPublicFailed": "Failed to create public share.",
     "retryCopyFailed": "Copy still failed. Copy the link below manually.",
     "dialog": {
       "title": "Copy share link manually",
@@ -1618,6 +1621,12 @@
       "titleLabel": "Share title",
       "urlLabel": "Share link",
       "retryCopy": "Try copying again"
+    },
+    "publicDialog": {
+      "title": "Create public share?",
+      "description": "Create an immutable public snapshot link.",
+      "cancel": "Cancel",
+      "confirm": "Create public share"
     }
   },
   "auth": {
