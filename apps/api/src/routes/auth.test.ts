@@ -6,6 +6,7 @@ import { OpenAPIHono } from "@hono/zod-openapi";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createAuthMiddleware } from "../middleware/auth.js";
+import { __resetLoginRateLimiterForTests } from "../middleware/login-rate-limit.js";
 import { workspaceMiddleware } from "../middleware/workspace.js";
 import { AuthSessionService, hashSecret } from "../services/auth-session-service.js";
 import { AuthEventStorage } from "../services/auth-event-storage.js";
@@ -119,6 +120,7 @@ function readCookie(response: Response, name: string): string {
 describe("auth routes", () => {
   afterEach(() => {
     resetResumeScreeningDb();
+    __resetLoginRateLimiterForTests();
   });
 
   it("logs in local users and sets auth and csrf cookies", async () => {
@@ -487,6 +489,106 @@ describe("auth routes", () => {
     expect(response.status).toBe(200);
     expect(sessions.resolveSession(session.token)).toBeNull();
     expect(readCookie(response, config.auth.sessionCookieName)).toBe(`${config.auth.sessionCookieName}=`);
+  });
+
+  it("locks out login after 5 rapid failures for the same username from one IP", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "trends-auth-bruteforce-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(storage.db);
+    await seedLocalUser(storage);
+    const app = createTestApp(storage, eventStorage);
+
+    const badBody = JSON.stringify({ username: "hr-admin", password: "wrong-pass" });
+    const headers = {
+      "Content-Type": "application/json",
+      "X-Workspace-Slug": "hr",
+      "X-Forwarded-For": "203.0.113.1",
+    };
+
+    // 5 rapid failures
+    for (let i = 0; i < 5; i += 1) {
+      const r = await app.request("/api/auth/login", { method: "POST", headers, body: badBody });
+      expect(r.status).toBe(401);
+    }
+
+    // 6th attempt: locked out (429)
+    const locked = await app.request("/api/auth/login", { method: "POST", headers, body: badBody });
+    expect(locked.status).toBe(429);
+    await expect(locked.json()).resolves.toMatchObject({ success: false, error: expect.stringContaining("lock") });
+
+    // A login_throttled event is recorded
+    const events = eventStorage.listRecent({ limit: 50 });
+    expect(events.some((e) => e.type === "login_throttled")).toBe(true);
+  });
+
+  it("resets the failure counter after a successful login", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "trends-auth-reset-"));
+    const storage = new AuthStorage(root);
+    await seedLocalUser(storage);
+    const app = createTestApp(storage);
+
+    const headers = {
+      "Content-Type": "application/json",
+      "X-Workspace-Slug": "hr",
+      "X-Forwarded-For": "203.0.113.2",
+    };
+
+    // 4 failures (under the 5-attempt threshold)
+    for (let i = 0; i < 4; i += 1) {
+      const r = await app.request("/api/auth/login", {
+        method: "POST", headers,
+        body: JSON.stringify({ username: "hr-admin", password: "wrong-pass" }),
+      });
+      expect(r.status).toBe(401);
+    }
+
+    // Successful login resets the counter
+    const ok = await app.request("/api/auth/login", {
+      method: "POST", headers,
+      body: JSON.stringify({ username: "hr-admin", password: "secret-pass" }),
+    });
+    expect(ok.status).toBe(200);
+
+    // 4 more failures should NOT lock out (counter was reset)
+    for (let i = 0; i < 4; i += 1) {
+      const r = await app.request("/api/auth/login", {
+        method: "POST", headers,
+        body: JSON.stringify({ username: "hr-admin", password: "wrong-pass" }),
+      });
+      expect(r.status).toBe(401);
+    }
+  });
+
+  it("keys the limiter on username+IP independently (different IP not blocked)", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "trends-auth-dualkey-"));
+    const storage = new AuthStorage(root);
+    await seedLocalUser(storage);
+    const app = createTestApp(storage);
+
+    // 5 failures for hr-admin from IP1
+    for (let i = 0; i < 5; i += 1) {
+      await app.request("/api/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Workspace-Slug": "hr",
+          "X-Forwarded-For": "203.0.113.10",
+        },
+        body: JSON.stringify({ username: "hr-admin", password: "wrong-pass" }),
+      });
+    }
+
+    // Same username from a different IP should still get a 401 (not locked)
+    const fromIp2 = await app.request("/api/auth/login", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Workspace-Slug": "hr",
+        "X-Forwarded-For": "203.0.113.20",
+      },
+      body: JSON.stringify({ username: "hr-admin", password: "wrong-pass" }),
+    });
+    expect(fromIp2.status).toBe(401);
   });
 });
 

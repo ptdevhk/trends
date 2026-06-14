@@ -14,16 +14,25 @@ export interface RateLimitOptions {
   keyExtractor?: (c: { req: { header: (name: string) => string | undefined } }) => string;
 }
 
+/**
+ * Extract the client IP from request headers.
+ *
+ * Reads `X-Forwarded-For` (first hop) then falls back to `X-Real-Ip`, then
+ * `"unknown"`. Trusts the headers as-is — the deployment MUST sit behind a
+ * trusted proxy that overwrites `X-Forwarded-For` for this to be meaningful.
+ */
+export function extractClientIp(headers: { header: (name: string) => string | undefined }): string {
+  const forwarded = headers.header("X-Forwarded-For");
+  if (forwarded) {
+    return forwarded.split(",")[0]?.trim() ?? "unknown";
+  }
+  return headers.header("X-Real-Ip") ?? "unknown";
+}
+
 const DEFAULT_OPTIONS: Required<RateLimitOptions> = {
   limit: 100,
   windowMs: 60_000,
-  keyExtractor: (c) => {
-    const forwarded = c.req.header("X-Forwarded-For");
-    if (forwarded) {
-      return forwarded.split(",")[0]?.trim() ?? "unknown";
-    }
-    return c.req.header("X-Real-Ip") ?? "unknown";
-  },
+  keyExtractor: (c) => extractClientIp(c.req),
 };
 
 /**
