@@ -2,6 +2,12 @@ import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 
 import { getAdminAccessError } from "../middleware/auth.js";
+import {
+  checkLoginAttempt,
+  extractClientIp,
+  recordLoginFailure,
+  resetOnSuccess,
+} from "../middleware/login-rate-limit.js";
 import { AuthEventStorage } from "../services/auth-event-storage.js";
 import type { AuthEvent } from "../services/auth-event-types.js";
 import { AuthSessionService } from "../services/auth-session-service.js";
@@ -368,18 +374,53 @@ export function createAuthRoutes(options: AuthRoutesOptions = {}) {
           },
         },
       },
+      429: {
+        description: "Account temporarily locked due to repeated failures",
+        content: {
+          "application/json": {
+            schema: ErrorResponseSchema,
+          },
+        },
+      },
     },
   });
 
   app.openapi(loginRoute, async (c) => {
     const { username, password } = c.req.valid("json");
     const workspaceSlug = c.var.workspaceSlug;
+    const clientIp = extractClientIp(c.req);
+
+    // Account-scoped login rate limit (username+IP). Runs in all environments,
+    // not just production, so local dev catches regressions.
+    const attempt = checkLoginAttempt(username, clientIp);
+    if (!attempt.allowed) {
+      getEventStorage().append({
+        type: "login_throttled",
+        provider: "local",
+        workspaceSlug,
+        reason: "account_lockout",
+        metadata: {
+          username,
+          retryAfterSeconds: attempt.retryAfterSeconds,
+        },
+      });
+      c.header("Retry-After", String(attempt.retryAfterSeconds));
+      return c.json(
+        {
+          success: false as const,
+          error: `Account temporarily locked. Try again in ${attempt.retryAfterSeconds}s.`,
+        },
+        429,
+      );
+    }
+
     const authStorage = getStorage();
     const identity = authStorage.findIdentity("local", username, "local");
     const credential = identity ? authStorage.findPasswordCredential(identity.userId) : null;
     const user = identity ? authStorage.findUser(identity.userId) : null;
 
     if (!credential || !user || !(await verifyPassword(password, credential))) {
+      recordLoginFailure(username, clientIp);
       getEventStorage().append({
         type: "login_failure",
         provider: "local",
@@ -390,6 +431,7 @@ export function createAuthRoutes(options: AuthRoutesOptions = {}) {
       return c.json({ success: false as const, error: "Invalid username or password" }, 401);
     }
 
+    resetOnSuccess(username, clientIp);
     const result = await createSessionResponse(user, authStorage, getSessions(), c);
     getEventStorage().append({
       type: "login_success",

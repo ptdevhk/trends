@@ -108,6 +108,19 @@ export interface paths {
                         };
                     };
                 };
+                /** @description Account temporarily locked due to repeated failures */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
             };
         };
         delete?: never;
