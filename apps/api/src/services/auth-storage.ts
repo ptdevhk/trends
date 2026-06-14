@@ -90,6 +90,7 @@ type UserRow = {
 export type StoredAuthSession = {
   id: string;
   userId: string;
+  tokenHash: string;
   csrfTokenHash: string;
   expiresAt: string;
 };
@@ -103,6 +104,7 @@ export type StoredPasswordCredential = PasswordCredential & {
 type SessionRow = {
   id?: unknown;
   user_id?: unknown;
+  token_hash?: unknown;
   csrf_token_hash?: unknown;
   expires_at?: unknown;
   revoked_at?: unknown;
@@ -957,6 +959,7 @@ export class AuthStorage {
     return {
       id,
       userId: input.userId,
+      tokenHash: input.tokenHash,
       csrfTokenHash: input.csrfTokenHash,
       expiresAt: input.expiresAt,
     };
@@ -964,7 +967,7 @@ export class AuthStorage {
 
   findSessionByTokenHash(tokenHash: string): StoredAuthSession | null {
     const row = this.db.prepare(`
-      SELECT id, user_id, csrf_token_hash, expires_at, revoked_at
+      SELECT id, user_id, token_hash, csrf_token_hash, expires_at, revoked_at
       FROM auth_sessions
       WHERE token_hash = ?
     `).get(tokenHash) as SessionRow | undefined;
@@ -973,6 +976,7 @@ export class AuthStorage {
       !row
       || typeof row.id !== "string"
       || typeof row.user_id !== "string"
+      || typeof row.token_hash !== "string"
       || typeof row.csrf_token_hash !== "string"
       || typeof row.expires_at !== "string"
       || row.revoked_at
@@ -987,6 +991,7 @@ export class AuthStorage {
     return {
       id: row.id,
       userId: row.user_id,
+      tokenHash: row.token_hash,
       csrfTokenHash: row.csrf_token_hash,
       expiresAt: row.expires_at,
     };
@@ -998,6 +1003,60 @@ export class AuthStorage {
       SET revoked_at = ?
       WHERE token_hash = ? AND revoked_at IS NULL
     `).run(toIsoNow(), tokenHash);
+  }
+
+  /**
+   * List all non-revoked sessions for a user. Expiry filtering is applied in
+   * JS (via Date.parse) to match the existing findSessionByTokenHash pattern —
+   * ISO-string SQL comparison is fragile across timezone-offset formats.
+   */
+  listSessionsByUser(userId: string): StoredAuthSession[] {
+    const rows = this.db.prepare(`
+      SELECT id, user_id, token_hash, csrf_token_hash, expires_at, revoked_at
+      FROM auth_sessions
+      WHERE user_id = ? AND revoked_at IS NULL
+    `).all(userId) as SessionRow[];
+
+    const now = Date.now();
+    return rows
+      .filter((row): row is SessionRow & Record<"id" | "user_id" | "token_hash" | "csrf_token_hash" | "expires_at", string> => (
+        typeof row.id === "string"
+        && typeof row.user_id === "string"
+        && typeof row.token_hash === "string"
+        && typeof row.csrf_token_hash === "string"
+        && typeof row.expires_at === "string"
+      ))
+      .filter((row) => Date.parse(row.expires_at) > now)
+      .map((row) => ({
+        id: row.id,
+        userId: row.user_id,
+        tokenHash: row.token_hash,
+        csrfTokenHash: row.csrf_token_hash,
+        expiresAt: row.expires_at,
+      }));
+  }
+
+  /**
+   * Revoke every non-revoked session for a user. Optionally preserve one
+   * token hash (e.g. the caller's current session on change-password).
+   * Returns the count of revoked sessions.
+   */
+  revokeAllSessionsByUser(userId: string, exceptTokenHash?: string): number {
+    const now = toIsoNow();
+    if (exceptTokenHash) {
+      const result = this.db.prepare(`
+        UPDATE auth_sessions
+        SET revoked_at = ?
+        WHERE user_id = ? AND revoked_at IS NULL AND token_hash != ?
+      `).run(now, userId, exceptTokenHash);
+      return result.changes;
+    }
+    const result = this.db.prepare(`
+      UPDATE auth_sessions
+      SET revoked_at = ?
+      WHERE user_id = ? AND revoked_at IS NULL
+    `).run(now, userId);
+    return result.changes;
   }
 
   saveOidcState(state: StoredOidcState): void {

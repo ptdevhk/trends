@@ -1,4 +1,5 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
+import type { Context } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 
 import { getAdminAccessError } from "../middleware/auth.js";
@@ -10,12 +11,22 @@ import {
 } from "../middleware/login-rate-limit.js";
 import { AuthEventStorage } from "../services/auth-event-storage.js";
 import type { AuthEvent } from "../services/auth-event-types.js";
-import { AuthSessionService } from "../services/auth-session-service.js";
+import { AuthSessionService, hashSecret } from "../services/auth-session-service.js";
 import { AuthStorage } from "../services/auth-storage.js";
 import type { AuthContext, AuthProvider, AuthUser, WorkspaceMembership, WorkspaceRole } from "../services/auth-types.js";
 import { config } from "../services/config.js";
 import { hashPassword, verifyPassword } from "../services/local-password-provider.js";
 import { CasdoorOidcProvider } from "../services/oidc-provider.js";
+
+/**
+ * Derive the current session's token hash from the request cookie, for use as
+ * the `exceptTokenHash` argument to `revokeAllSessionsByUser`. Returns
+ * `undefined` when no session cookie is present.
+ */
+function currentSessionTokenHash(c: Context): string | undefined {
+  const token = getCookie(c, config.auth.sessionCookieName);
+  return token ? hashSecret(token) : undefined;
+}
 
 type AuthRoutesOptions = {
   storage?: AuthStorage;
@@ -575,6 +586,64 @@ export function createAuthRoutes(options: AuthRoutesOptions = {}) {
       ...(await hashPassword(newPassword)),
       mustChangePassword: false,
     });
+
+    // Revoke all other sessions for this user — a compromised password, once
+    // changed, must kick the attacker out. Preserve the caller's current
+    // session so the legitimate user isn't forced to re-login immediately.
+    const exceptTokenHash = currentSessionTokenHash(c);
+    authStorage.revokeAllSessionsByUser(auth.user.id, exceptTokenHash);
+    getEventStorage().append({
+      type: "sessions_revoked",
+      userId: auth.user.id,
+      workspaceSlug: c.var.workspaceSlug,
+      reason: "password_change",
+      sessionId: auth.sessionId,
+    });
+
+    return c.json({ success: true as const }, 200);
+  });
+
+  const revokeAllSessionsRoute = createRoute({
+    method: "post",
+    path: "/api/auth/sessions/revoke-all",
+    tags: ["auth"],
+    responses: {
+      200: {
+        description: "All other sessions revoked",
+        content: {
+          "application/json": {
+            schema: SuccessResponseSchema,
+          },
+        },
+      },
+      401: {
+        description: "Authentication required",
+        content: {
+          "application/json": {
+            schema: ErrorResponseSchema,
+          },
+        },
+      },
+    },
+  });
+
+  app.openapi(revokeAllSessionsRoute, (c) => {
+    const auth = c.var.auth;
+    if (!auth) {
+      return c.json({ success: false as const, error: "Authentication required" }, 401);
+    }
+
+    const exceptTokenHash = currentSessionTokenHash(c);
+    const authStorage = getStorage();
+    authStorage.revokeAllSessionsByUser(auth.user.id, exceptTokenHash);
+    getEventStorage().append({
+      type: "sessions_revoked",
+      userId: auth.user.id,
+      workspaceSlug: c.var.workspaceSlug,
+      reason: "revoke_all",
+      sessionId: auth.sessionId,
+    });
+
     return c.json({ success: true as const }, 200);
   });
 

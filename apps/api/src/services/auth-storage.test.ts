@@ -307,3 +307,104 @@ describe("auth sqlite schema", () => {
     ]);
   });
 });
+
+describe("auth session revocation by user", () => {
+  afterEach(() => {
+    resetResumeScreeningDb();
+  });
+
+  it("listSessionsByUser returns all non-revoked sessions for a user", () => {
+    const root = mkdtempSync(path.join(tmpdir(), "trends-session-list-"));
+    const storage = new AuthStorage(root);
+    const user = storage.createUser({ email: "u@example.com", displayName: "U" });
+
+    storage.createSession({
+      userId: user.id,
+      tokenHash: "hash-1",
+      csrfTokenHash: "csrf-1",
+      expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+    });
+    storage.createSession({
+      userId: user.id,
+      tokenHash: "hash-2",
+      csrfTokenHash: "csrf-2",
+      expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+    });
+
+    const sessions = storage.listSessionsByUser(user.id);
+    expect(sessions).toHaveLength(2);
+    expect(sessions.map((s) => s.tokenHash).sort()).toEqual(["hash-1", "hash-2"]);
+  });
+
+  it("revokeAllSessionsByUser revokes every session for the user", () => {
+    const root = mkdtempSync(path.join(tmpdir(), "trends-session-revoke-all-"));
+    const storage = new AuthStorage(root);
+    const user = storage.createUser({ email: "u@example.com", displayName: "U" });
+
+    storage.createSession({
+      userId: user.id,
+      tokenHash: "hash-1",
+      csrfTokenHash: "csrf-1",
+      expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+    });
+    storage.createSession({
+      userId: user.id,
+      tokenHash: "hash-2",
+      csrfTokenHash: "csrf-2",
+      expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+    });
+
+    const revoked = storage.revokeAllSessionsByUser(user.id);
+    expect(revoked).toBe(2);
+    expect(storage.listSessionsByUser(user.id)).toHaveLength(0);
+  });
+
+  it("revokeAllSessionsByUser preserves an excepted token hash", () => {
+    const root = mkdtempSync(path.join(tmpdir(), "trends-session-except-"));
+    const storage = new AuthStorage(root);
+    const user = storage.createUser({ email: "u@example.com", displayName: "U" });
+
+    storage.createSession({
+      userId: user.id,
+      tokenHash: "keep-me",
+      csrfTokenHash: "csrf-keep",
+      expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+    });
+    storage.createSession({
+      userId: user.id,
+      tokenHash: "revoke-me",
+      csrfTokenHash: "csrf-revoke",
+      expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+    });
+
+    const revoked = storage.revokeAllSessionsByUser(user.id, "keep-me");
+    expect(revoked).toBe(1);
+    const remaining = storage.listSessionsByUser(user.id);
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0]?.tokenHash).toBe("keep-me");
+  });
+
+  it("revokeAllSessionsByUser does not touch other users' sessions", () => {
+    const root = mkdtempSync(path.join(tmpdir(), "trends-session-isolation-"));
+    const storage = new AuthStorage(root);
+    const userA = storage.createUser({ email: "a@example.com", displayName: "A" });
+    const userB = storage.createUser({ email: "b@example.com", displayName: "B" });
+
+    storage.createSession({
+      userId: userA.id,
+      tokenHash: "hash-a",
+      csrfTokenHash: "csrf-a",
+      expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+    });
+    storage.createSession({
+      userId: userB.id,
+      tokenHash: "hash-b",
+      csrfTokenHash: "csrf-b",
+      expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+    });
+
+    storage.revokeAllSessionsByUser(userA.id);
+    expect(storage.listSessionsByUser(userA.id)).toHaveLength(0);
+    expect(storage.listSessionsByUser(userB.id)).toHaveLength(1);
+  });
+});
