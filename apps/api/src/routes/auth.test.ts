@@ -590,6 +590,86 @@ describe("auth routes", () => {
     });
     expect(fromIp2.status).toBe(401);
   });
+
+  it("changePassword revokes all other sessions for the user", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "trends-auth-cp-revoke-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(storage.db);
+    const user = await seedLocalUser(storage);
+    const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
+
+    // Current session (the one making the change-password request)
+    const currentSession = sessions.createSession(user.id);
+    // A second "other device" session that should be revoked
+    const otherSession = sessions.createSession(user.id);
+
+    const app = createTestApp(storage, eventStorage);
+
+    const response = await app.request("/api/auth/change-password", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Workspace-Slug": "hr",
+        "X-CSRF-Token": currentSession.csrfToken,
+        Cookie: `${config.auth.sessionCookieName}=${currentSession.token}`,
+      },
+      body: JSON.stringify({ currentPassword: "secret-pass", newPassword: "new-secret-pass-2" }),
+    });
+
+    expect(response.status).toBe(200);
+    // Current session survives
+    expect(sessions.resolveSession(currentSession.token)).not.toBeNull();
+    // Other session is revoked
+    expect(sessions.resolveSession(otherSession.token)).toBeNull();
+    // sessions_revoked event recorded
+    const events = eventStorage.listRecent({ limit: 50 });
+    expect(events.some((e) => e.type === "sessions_revoked" && e.reason === "password_change")).toBe(true);
+  });
+
+  it("revoke-all endpoint revokes all sessions except the caller's current one", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "trends-auth-revoke-all-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(storage.db);
+    const user = await seedLocalUser(storage);
+    const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
+
+    const currentSession = sessions.createSession(user.id);
+    const otherSession = sessions.createSession(user.id);
+
+    const app = createTestApp(storage, eventStorage);
+
+    const response = await app.request("/api/auth/sessions/revoke-all", {
+      method: "POST",
+      headers: {
+        "X-Workspace-Slug": "hr",
+        "X-CSRF-Token": currentSession.csrfToken,
+        Cookie: `${config.auth.sessionCookieName}=${currentSession.token}`,
+      },
+    });
+
+    expect(response.status).toBe(200);
+    // Current session survives
+    expect(sessions.resolveSession(currentSession.token)).not.toBeNull();
+    // Other session is revoked
+    expect(sessions.resolveSession(otherSession.token)).toBeNull();
+    // sessions_revoked event recorded with reason revoke_all
+    const events = eventStorage.listRecent({ limit: 50 });
+    expect(events.some((e) => e.type === "sessions_revoked" && e.reason === "revoke_all")).toBe(true);
+  });
+
+  it("revoke-all endpoint rejects unauthenticated requests", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "trends-auth-revoke-all-auth-"));
+    const storage = new AuthStorage(root);
+    await seedLocalUser(storage);
+    const app = createTestApp(storage);
+
+    const response = await app.request("/api/auth/sessions/revoke-all", {
+      method: "POST",
+      headers: { "X-Workspace-Slug": "hr" },
+    });
+
+    expect(response.status).toBe(401);
+  });
 });
 
 describe("GET /api/auth/options", () => {
