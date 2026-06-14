@@ -1,8 +1,8 @@
 import { Hono } from "hono";
 import { describe, expect, it } from "vitest";
-import { formatWorkspaceSlugList, getAccessLevel, listWorkspaceSlugs } from "@trends/shared";
+import { formatWorkspaceSlugList, listWorkspaceSlugs } from "@trends/shared";
 
-import { workspaceMiddleware, requireAdmin, denyIfNotAdmin } from "./workspace.js";
+import { workspaceMiddleware } from "./workspace.js";
 import { serverTimingMiddleware } from "./server-timing.js";
 
 function createTestApp() {
@@ -11,18 +11,7 @@ function createTestApp() {
   app.get("/test", (c) => {
     return c.json({
       workspaceSlug: c.var.workspaceSlug,
-      accessLevel: c.var.accessLevel,
     });
-  });
-  return app;
-}
-
-function createAdminApp() {
-  const app = new Hono();
-  app.use("*", workspaceMiddleware);
-  app.use("*", requireAdmin);
-  app.get("/admin", (c) => {
-    return c.json({ ok: true, workspaceSlug: c.var.workspaceSlug });
   });
   return app;
 }
@@ -38,7 +27,6 @@ describe("workspaceMiddleware", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.workspaceSlug).toBe("dev");
-    expect(body.accessLevel).toBe("user");
   });
 
   it("uses workspace from X-Workspace-Slug header", async () => {
@@ -99,7 +87,7 @@ describe("workspaceMiddleware", () => {
     expect(body.error).toContain(`Allowed: ${formatWorkspaceSlugList()}`);
   });
 
-  it.each(listWorkspaceSlugs())("accepts registered workspace %s with its shared access level", async (slug) => {
+  it.each(listWorkspaceSlugs())("accepts registered workspace %s", async (slug) => {
     const app = createTestApp();
     const res = await app.request("/test", {
       headers: { "X-Workspace-Slug": slug },
@@ -107,74 +95,6 @@ describe("workspaceMiddleware", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.workspaceSlug).toBe(slug);
-    expect(body.accessLevel).toBe(getAccessLevel(slug));
-  });
-});
-
-// ---------------------------------------------------------------------------
-// requireAdmin
-// ---------------------------------------------------------------------------
-
-describe("requireAdmin", () => {
-  it("rejects the admin namespace before admin access is evaluated", async () => {
-    const app = createAdminApp();
-    const res = await app.request("/admin", {
-      headers: { "X-Workspace-Slug": "admin" },
-    });
-    expect(res.status).toBe(400);
-    const body = await res.json();
-    expect(body.success).toBe(false);
-    expect(body.error).toContain("Invalid workspace slug");
-  });
-
-  it("rejects dev workspace because it is not the admin workspace", async () => {
-    const app = createAdminApp();
-    const res = await app.request("/admin", {
-      headers: { "X-Workspace-Slug": "dev" },
-    });
-    expect(res.status).toBe(403);
-    const body = await res.json();
-    expect(body.success).toBe(false);
-    expect(body.error).toContain("Admin access required");
-  });
-
-  it("rejects non-admin workspace (hr)", async () => {
-    const app = createAdminApp();
-    const res = await app.request("/admin", {
-      headers: { "X-Workspace-Slug": "hr" },
-    });
-    expect(res.status).toBe(403);
-    const body = await res.json();
-    expect(body.success).toBe(false);
-    expect(body.error).toContain("Admin access required");
-  });
-
-  it("rejects request without workspace middleware (undefined accessLevel)", async () => {
-    const app = createAdminApp();
-    const res = await app.request("/admin");
-    expect(res.status).toBe(403);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// denyIfNotAdmin
-// ---------------------------------------------------------------------------
-
-describe("denyIfNotAdmin", () => {
-  it("returns false for admin access level", () => {
-    expect(denyIfNotAdmin("admin")).toBe(false);
-  });
-
-  it("returns true for user access level", () => {
-    expect(denyIfNotAdmin("user")).toBe(true);
-  });
-
-  it("returns true for undefined access level", () => {
-    expect(denyIfNotAdmin(undefined)).toBe(true);
-  });
-
-  it("returns true for empty string", () => {
-    expect(denyIfNotAdmin("")).toBe(true);
   });
 });
 

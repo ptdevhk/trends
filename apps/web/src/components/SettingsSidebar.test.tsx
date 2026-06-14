@@ -11,7 +11,6 @@ vi.mock('@/contexts/WorkspaceContext', () => ({
   useWorkspace: () => ({
     slug: 'dev',
     name: 'Dev',
-    accessLevel: workspaceState.isAdmin ? 'admin' : 'member',
     isAdmin: workspaceState.isAdmin,
   }),
 }))

@@ -17,8 +17,8 @@ vi.mock('react-router-dom', () => ({
 
 vi.mock('@trends/shared', () => ({
   WORKSPACE_TEAMS: {
-    dev: { name: 'Development', accessLevel: 'user' },
-    hr: { name: 'HR Team', accessLevel: 'user' },
+    dev: { name: 'Development' },
+    hr: { name: 'HR Team' },
   },
   isValidWorkspace: (s: string) => s === 'dev' || s === 'hr',
 }))
@@ -27,7 +27,7 @@ import { WorkspaceProvider, useWorkspace } from '@/contexts/WorkspaceContext'
 
 function TestConsumer() {
   const ws = useWorkspace()
-  return <div data-testid="ws">{ws.slug}:{ws.name}:{ws.accessLevel}:{String(ws.isAdmin)}</div>
+  return <div data-testid="ws">{ws.slug}:{ws.name}:{String(ws.isAdmin)}</div>
 }
 
 function renderWithProvider(slug: string | undefined, children: ReactNode) {
@@ -46,7 +46,7 @@ describe('WorkspaceProvider', () => {
 
   it('provides context for valid dev slug', () => {
     renderWithProvider('dev', <TestConsumer />)
-    expect(screen.getByTestId('ws')).toHaveTextContent('dev:Development:user:false')
+    expect(screen.getByTestId('ws')).toHaveTextContent('dev:Development:false')
   })
 
   it('supports fixed backing workspaces for public and system surfaces', () => {
@@ -59,7 +59,7 @@ describe('WorkspaceProvider', () => {
       </WorkspaceProvider>,
     )
 
-    expect(screen.getByTestId('ws')).toHaveTextContent('hr:HR Team:user:false')
+    expect(screen.getByTestId('ws')).toHaveTextContent('hr:HR Team:false')
   })
 
   it('redirects for invalid slug', () => {

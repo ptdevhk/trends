@@ -1,6 +1,6 @@
 import { createContext, useContext, useMemo, type ReactNode } from 'react'
 import { Navigate, useLocation, useParams } from 'react-router-dom'
-import { WORKSPACE_TEAMS, isValidWorkspace, type AccessLevel, type WorkspaceSlug } from '@trends/shared'
+import { WORKSPACE_TEAMS, isValidWorkspace, type WorkspaceSlug } from '@trends/shared'
 import { workspaceRef } from '@/lib/workspace-ref'
 
 export type WorkspaceSurface = 'workspace' | 'system' | 'public'
@@ -8,7 +8,6 @@ export type WorkspaceSurface = 'workspace' | 'system' | 'public'
 type WorkspaceContextValue = {
   slug: WorkspaceSlug
   name: string
-  accessLevel: AccessLevel
   isAdmin: boolean
   surface: WorkspaceSurface
   isSystemSurface: boolean
@@ -39,7 +38,6 @@ export function WorkspaceProvider({
     return {
       slug,
       name: workspace.name,
-      accessLevel: workspace.accessLevel,
       isAdmin: false,
       surface,
       isSystemSurface: surface === 'system',

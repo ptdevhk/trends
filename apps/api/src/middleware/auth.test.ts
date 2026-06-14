@@ -160,6 +160,28 @@ describe("auth middleware gates", () => {
     expect(adminRes.status).toBe(200);
   });
 
+  it("denies a user-role member of the dev workspace admin routes (membership-gated, not workspace-identity-gated)", async () => {
+    // Regression guard: the deleted workspace.ts requireAdmin gated on the
+    // static-registry accessLevel (workspace identity), not on per-user role.
+    // The membership requireAdmin must gate on the user's membership role, so
+    // a dev-workspace user-role member is denied even though the workspace
+    // exists in the registry. This test pins the invariant so a future
+    // static-access pattern cannot silently reintroduce the bypass.
+    const middleware = createAuthMiddleware();
+    const devUserApp = createGateApp(createAuthContext("user", "dev"), middleware.requireAdmin);
+    const devAdminApp = createGateApp(createAuthContext("admin", "dev"), middleware.requireAdmin);
+
+    const devUserRes = await devUserApp.request("/protected", {
+      headers: { "X-Workspace-Slug": "dev" },
+    });
+    const devAdminRes = await devAdminApp.request("/protected", {
+      headers: { "X-Workspace-Slug": "dev" },
+    });
+
+    expect(devUserRes.status).toBe(403);
+    expect(devAdminRes.status).toBe(200);
+  });
+
   it("requires a valid CSRF header for mutating requests", async () => {
     resetResumeScreeningDb();
     const root = mkdtempSync(path.join(tmpdir(), "trends-auth-middleware-"));

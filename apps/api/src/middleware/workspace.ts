@@ -1,16 +1,13 @@
 import type { MiddlewareHandler } from "hono";
 import {
   formatWorkspaceSlugList,
-  getAccessLevel,
   isValidWorkspace,
-  type AccessLevel,
   type WorkspaceSlug,
 } from "@trends/shared";
 
 declare module "hono" {
   interface ContextVariableMap {
     workspaceSlug: WorkspaceSlug;
-    accessLevel: AccessLevel;
   }
 }
 
@@ -32,31 +29,6 @@ export const workspaceMiddleware: MiddlewareHandler = async (c, next) => {
     );
   }
 
-  const accessLevel = getAccessLevel(candidate);
-  if (!accessLevel) {
-    return c.json(
-      {
-        success: false,
-        error: `Unable to resolve access level for workspace: ${candidate}`,
-      },
-      400,
-    );
-  }
-
   c.set("workspaceSlug", candidate);
-  c.set("accessLevel", accessLevel);
   await next();
 };
-
-export const requireAdmin: MiddlewareHandler = async (c, next) => {
-  if (c.var.accessLevel !== "admin") {
-    return c.json({ success: false, error: "Admin access required" }, 403);
-  }
-  await next();
-};
-
-/** Helper to add admin guard inline in OpenAPI route handlers.
- *  Returns true if access is denied (handler should return early). */
-export function denyIfNotAdmin(accessLevel: string | undefined): boolean {
-  return accessLevel !== "admin";
-}
