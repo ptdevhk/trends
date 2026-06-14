@@ -84,10 +84,7 @@ function initSchema(db: Database.Database): void {
       name TEXT,
       display_name TEXT,
       status TEXT DEFAULT 'active',
-      role TEXT DEFAULT 'recruiter',
-      team_id TEXT,
       created_at TEXT NOT NULL,
-      last_active_at TEXT,
       settings TEXT
     );
 
@@ -419,6 +416,14 @@ function initSchema(db: Database.Database): void {
   if (existingTables.has("auth_provider_membership_grants")) {
     ensureColumn(db, "auth_provider_membership_grants", "membership_created", "INTEGER NOT NULL DEFAULT 1");
   }
+
+  // Drop dead auth columns (ADR D1/D3). Idempotent — no-op on fresh DBs
+  // (CREATE TABLE above no longer declares them) and on DBs already migrated.
+  if (existingTables.has("users")) {
+    dropColumnIfExists(db, "users", "role");
+    dropColumnIfExists(db, "users", "team_id");
+    dropColumnIfExists(db, "users", "last_active_at");
+  }
 }
 
 function isDuplicateColumnError(error: unknown, column: string): boolean {
@@ -444,4 +449,23 @@ function ensureColumn(
     }
     throw error;
   }
+}
+
+/**
+ * Idempotently drop a column from a table. No-op if the column does not exist
+ * (e.g. fresh DBs created after the column was removed from CREATE TABLE, or
+ * DBs already migrated). Used to retire dead schema fields on restored prod
+ * databases without a separate migration runner.
+ */
+function dropColumnIfExists(
+  db: Database.Database,
+  table: string,
+  column: string
+): void {
+  const rows = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name?: unknown }>;
+  const exists = rows.some((row) => row.name === column);
+  if (!exists) {
+    return;
+  }
+  db.exec(`ALTER TABLE ${table} DROP COLUMN ${column}`);
 }
