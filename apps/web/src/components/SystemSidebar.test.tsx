@@ -7,7 +7,6 @@ vi.mock('@/contexts/WorkspaceContext', () => ({
   useWorkspace: () => ({
     slug: 'dev',
     name: 'Development',
-    accessLevel: 'user',
     isAdmin: false,
     isSystemSurface: true,
   }),
