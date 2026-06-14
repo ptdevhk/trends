@@ -19,6 +19,7 @@ type GoogleSearchBarProps = {
   onClear: () => void
   onSubmit: (value?: string) => void
   placeholder?: string
+  prefetchSearch?: boolean
 }
 
 function getRecentSearchLabel(item: ResumeSearchRecentItem): string {
@@ -36,6 +37,7 @@ export function GoogleSearchBar({
   onClear,
   onSubmit,
   placeholder,
+  prefetchSearch = true,
 }: GoogleSearchBarProps) {
   const { t } = useTranslation()
   const [focused, setFocused] = useState(false)
@@ -44,7 +46,7 @@ export function GoogleSearchBar({
   const containerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const trimmedValue = value.trim()
-  useSearchPrefetch(trimmedValue)
+  useSearchPrefetch(trimmedValue, prefetchSearch)
   const placeholderLabel = placeholder ?? t('resumes.searchPage.searchBar.placeholder', {
     defaultValue: 'Search resumes by keywords, brands, roles, or locations',
   })

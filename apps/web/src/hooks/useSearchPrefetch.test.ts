@@ -38,6 +38,13 @@ describe('useSearchPrefetch', () => {
     expect(result.current).toBeUndefined()
   })
 
+  it('skips query when prefetching is disabled', () => {
+    useQueryMock.mockReturnValue(undefined)
+    const { result } = renderHook(() => useSearchPrefetch('React', false))
+    expect(useQueryMock).toHaveBeenCalledWith('resumes_search:search', 'skip')
+    expect(result.current).toBeUndefined()
+  })
+
   it('trims whitespace from query', () => {
     useQueryMock.mockReturnValue([])
     renderHook(() => useSearchPrefetch('  React  '))
