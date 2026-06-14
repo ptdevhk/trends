@@ -6,7 +6,6 @@ function makeInput(overrides: Partial<AuthEnvInput> = {}): AuthEnvInput {
     mode: 'local',
     CONVEX_WRITE_SECRET: '',
     AUTH_ALLOWED_ORIGINS: '',
-    AUTH_DEV_BYPASS: '',
     AUTH_OIDC_ENABLED: '',
     AUTH_OIDC_ISSUER: '',
     AUTH_OIDC_CLIENT_ID: '',
@@ -21,13 +20,6 @@ describe('checkAuthEnv', () => {
     it('passes with all auth values empty', () => {
       const result = checkAuthEnv(makeInput({ mode: 'local' }))
       expect(result.errors).toHaveLength(0)
-    })
-
-    it('warns when AUTH_DEV_BYPASS is true', () => {
-      const result = checkAuthEnv(makeInput({ mode: 'local', AUTH_DEV_BYPASS: 'true' }))
-      expect(result.warnings).toEqual(
-        expect.arrayContaining([expect.stringContaining('AUTH_DEV_BYPASS')])
-      )
     })
 
     it('passes when OIDC enabled with all required fields', () => {
@@ -107,18 +99,6 @@ describe('checkAuthEnv', () => {
       const result = checkAuthEnv(makeInput({ mode: 'production' }))
       expect(result.errors).toEqual(
         expect.arrayContaining([expect.stringContaining('AUTH_ALLOWED_ORIGINS')])
-      )
-    })
-
-    it('errors when AUTH_DEV_BYPASS is true', () => {
-      const result = checkAuthEnv(makeInput({
-        mode: 'production',
-        CONVEX_WRITE_SECRET: 'secret',
-        AUTH_ALLOWED_ORIGINS: 'https://trends.pt-mes.com',
-        AUTH_DEV_BYPASS: 'true',
-      }))
-      expect(result.errors).toEqual(
-        expect.arrayContaining([expect.stringContaining('AUTH_DEV_BYPASS')])
       )
     })
 

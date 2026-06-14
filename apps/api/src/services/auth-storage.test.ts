@@ -1,7 +1,8 @@
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, mkdirSync as fsMkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
+import Database from "better-sqlite3";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { AuthEventStorage } from "./auth-event-storage.js";
@@ -33,6 +34,57 @@ describe("auth sqlite schema", () => {
         "auth_provider_membership_grants",
       ]),
     );
+  });
+
+  it("does not carry dead auth columns on the users table", () => {
+    const root = mkdtempSync(path.join(tmpdir(), "trends-auth-dead-cols-"));
+    const db = getResumeScreeningDb(root);
+
+    const columns = db
+      .prepare("PRAGMA table_info(users)")
+      .all() as Array<{ name: string }>;
+    const columnNames = columns.map((row) => row.name);
+
+    // Removed per ADR D1/D3 — authorization is membership-derived, "team" is
+    // a URL alias only, and last_active_at was never updated post-creation.
+    expect(columnNames).not.toContain("role");
+    expect(columnNames).not.toContain("team_id");
+    expect(columnNames).not.toContain("last_active_at");
+  });
+
+  it("drops dead auth columns when migrating an existing users table", () => {
+    // Simulate a restored prod DB that still has the legacy columns.
+    const root = mkdtempSync(path.join(tmpdir(), "trends-auth-migrate-"));
+    const outputDir = path.join(root, "output");
+    fsMkdirSync(outputDir, { recursive: true });
+    const rawDb = new Database(path.join(outputDir, "resume_screening.db"));
+    rawDb.exec(`
+      CREATE TABLE users (
+        id TEXT PRIMARY KEY,
+        email TEXT,
+        name TEXT,
+        display_name TEXT,
+        status TEXT DEFAULT 'active',
+        role TEXT DEFAULT 'recruiter',
+        team_id TEXT,
+        created_at TEXT NOT NULL,
+        last_active_at TEXT,
+        settings TEXT
+      );
+    `);
+    rawDb.close();
+
+    // initSchema runs via getResumeScreeningDb and must idempotently drop the
+    // dead columns.
+    const db = getResumeScreeningDb(root);
+    const columns = db
+      .prepare("PRAGMA table_info(users)")
+      .all() as Array<{ name: string }>;
+    const columnNames = columns.map((row) => row.name);
+
+    expect(columnNames).not.toContain("role");
+    expect(columnNames).not.toContain("team_id");
+    expect(columnNames).not.toContain("last_active_at");
   });
 
   it("creates a user, local identity, and workspace membership", () => {

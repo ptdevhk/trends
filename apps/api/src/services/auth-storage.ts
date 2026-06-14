@@ -217,14 +217,13 @@ export class AuthStorage {
     const id = randomUUID();
     const now = toIsoNow();
     this.db.prepare(`
-      INSERT INTO users (id, email, name, display_name, status, created_at, last_active_at)
-      VALUES (?, ?, ?, ?, 'active', ?, ?)
+      INSERT INTO users (id, email, name, display_name, status, created_at)
+      VALUES (?, ?, ?, ?, 'active', ?)
     `).run(
       id,
       input.email ?? null,
       input.displayName ?? null,
       input.displayName ?? null,
-      now,
       now,
     );
 

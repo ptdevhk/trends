@@ -17,7 +17,6 @@ export interface AuthEnvInput {
   mode: AuthEnvMode
   CONVEX_WRITE_SECRET: string
   AUTH_ALLOWED_ORIGINS: string
-  AUTH_DEV_BYPASS: string
   AUTH_OIDC_ENABLED: string
   AUTH_OIDC_ISSUER: string
   AUTH_OIDC_CLIENT_ID: string
@@ -43,16 +42,6 @@ export function checkAuthEnv(input: AuthEnvInput): CheckResult {
   // Production/preview: require AUTH_ALLOWED_ORIGINS
   if (isProdLike && !input.AUTH_ALLOWED_ORIGINS) {
     errors.push('AUTH_ALLOWED_ORIGINS is required in ' + input.mode + ' mode')
-  }
-
-  // AUTH_DEV_BYPASS must not be enabled in production
-  if (isProdLike && input.AUTH_DEV_BYPASS === 'true') {
-    errors.push('AUTH_DEV_BYPASS must not be enabled in ' + input.mode + ' mode')
-  }
-
-  // Local: warn if dev bypass is on (informational)
-  if (!isProdLike && input.AUTH_DEV_BYPASS === 'true') {
-    warnings.push('AUTH_DEV_BYPASS is enabled — auth checks are bypassed in local mode')
   }
 
   // OIDC validation: when enabled, all required fields must be set
@@ -120,7 +109,6 @@ function resolveInput(mode: AuthEnvMode, envFilePath?: string): AuthEnvInput {
     mode,
     CONVEX_WRITE_SECRET: get('CONVEX_WRITE_SECRET'),
     AUTH_ALLOWED_ORIGINS: get('AUTH_ALLOWED_ORIGINS'),
-    AUTH_DEV_BYPASS: get('AUTH_DEV_BYPASS'),
     AUTH_OIDC_ENABLED: get('AUTH_OIDC_ENABLED'),
     AUTH_OIDC_ISSUER: get('AUTH_OIDC_ISSUER'),
     AUTH_OIDC_CLIENT_ID: get('AUTH_OIDC_CLIENT_ID'),
