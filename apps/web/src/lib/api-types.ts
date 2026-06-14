@@ -5092,7 +5092,6 @@ export interface paths {
             requestBody?: {
                 content: {
                     "application/json": {
-                        userId?: string;
                         jobDescriptionId?: string;
                         sampleName?: string;
                         filters?: components["schemas"]["ResumeFilters"] & {
@@ -5387,7 +5386,6 @@ export interface paths {
             requestBody?: {
                 content: {
                     "application/json": {
-                        userId?: string;
                         jobDescriptionId?: string;
                         sampleName?: string;
                         filters?: components["schemas"]["ResumeFilters"] & {

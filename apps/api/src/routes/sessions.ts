@@ -59,7 +59,6 @@ const SessionResponseSchema = z.object({
 });
 
 const SessionCreateSchema = z.object({
-  userId: z.string().optional(),
   jobDescriptionId: z.string().optional(),
   sampleName: z.string().optional(),
   filters: SessionFiltersSchema.optional(),
@@ -68,7 +67,6 @@ const SessionCreateSchema = z.object({
 });
 
 const SessionUpdateSchema = z.object({
-  userId: z.string().optional(),
   jobDescriptionId: z.string().optional(),
   sampleName: z.string().optional(),
   filters: SessionFiltersSchema.optional(),
@@ -116,7 +114,7 @@ app.openapi(createSessionRoute, (c) => {
   const workspaceSlug = c.var.workspaceSlug;
   const session = sessionManager.createSession({
     workspaceSlug,
-    userId: body.userId,
+    userId: c.var.auth?.user.id,
     jobDescriptionId: body.jobDescriptionId,
     sampleName: body.sampleName,
     filters: body.filters,
@@ -184,7 +182,6 @@ app.openapi(updateSessionRoute, (c) => {
   const body = c.req.valid("json");
   const workspaceSlug = c.var.workspaceSlug;
   const session = sessionManager.updateSession(id, {
-    userId: body.userId,
     jobDescriptionId: body.jobDescriptionId,
     sampleName: body.sampleName,
     filters: body.filters,

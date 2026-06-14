@@ -16,6 +16,7 @@ type SearchHeaderProps = {
   loading?: boolean
   location?: string
   queryInput: string
+  prefetchSearch?: boolean
   recentSearches: ResumeSearchRecentItem[]
   sortValue: SearchSortValue
   statusSummary?: {
@@ -41,6 +42,7 @@ export function SearchHeader({
   loading = false,
   location,
   queryInput,
+  prefetchSearch = true,
   recentSearches,
   sortValue,
   statusSummary,
@@ -94,6 +96,7 @@ export function SearchHeader({
           onChange={onChangeQuery}
           onClear={onClearQuery}
           onSubmit={onSubmitQuery}
+          prefetchSearch={prefetchSearch}
         />
       </div>
 
