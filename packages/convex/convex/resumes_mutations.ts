@@ -294,6 +294,15 @@ export const clearAnalyses = mutation({
             if (!resume) continue;
             if (!resume.analysis && !resume.analyses) continue;
 
+            // Phase 3 completion: after patching the hot doc, sync the cold
+            // resume_analyses row. Non-surgical clear → archive the row.
+            // Surgical (jobDescriptionId) clear → patch the map; archive only
+            // if the map is now empty AND current analysis is cleared.
+            const coldRow = await ctx.db
+                .query("resume_analyses")
+                .withIndex("by_resume", (q) => q.eq("resumeId", resume._id))
+                .unique();
+
             if (args.jobDescriptionId && resume.analyses) {
                 const analyses = { ...resume.analyses };
                 const matchingKeys = Object.keys(analyses).filter((key) =>
@@ -308,6 +317,26 @@ export const clearAnalyses = mutation({
                         analyses,
                         ...(isCurrentAnalysis ? { analysis: undefined } : {}),
                     });
+                    // Sync cold row: archive only if map is now empty AND no current analysis.
+                    if (coldRow) {
+                        const remainingKeys = Object.keys(analyses).length;
+                        const hasCurrent = isCurrentAnalysis ? false : resume.analysis !== undefined;
+                        if (remainingKeys === 0 && !hasCurrent) {
+                            await ctx.db.patch(coldRow._id, {
+                                status: "archived",
+                                archivedAt: Date.now(),
+                                analysis: undefined,
+                                analyses: {},
+                                updatedAt: Date.now(),
+                            });
+                        } else {
+                            await ctx.db.patch(coldRow._id, {
+                                analysis: isCurrentAnalysis ? undefined : coldRow.analysis,
+                                analyses,
+                                updatedAt: Date.now(),
+                            });
+                        }
+                    }
                     cleared += 1;
                 }
             } else {
@@ -315,6 +344,14 @@ export const clearAnalyses = mutation({
                     analysis: undefined,
                     analyses: undefined,
                 });
+                // Non-surgical clear: always archive the cold row.
+                if (coldRow) {
+                    await ctx.db.patch(coldRow._id, {
+                        status: "archived",
+                        archivedAt: Date.now(),
+                        updatedAt: Date.now(),
+                    });
+                }
                 cleared += 1;
             }
         }
@@ -457,6 +494,30 @@ export const deleteResumes = mutation({
         }
         for (const digestId of digestBatches) {
             await ctx.db.delete(digestId);
+        }
+
+        // Phase 3 completion: hard-delete resume_analyses rows for deleted
+        // resumes. Resume is gone — no audit value in orphan cold-table rows.
+        // Same batched by_resume lookup pattern as digest cleanup above.
+        const analysesBatches: Array<Id<"resume_analyses">> = [];
+        for (let i = 0; i < existingResumeIds.length; i += DIGEST_LOOKUP_BATCH) {
+            const batchIds = existingResumeIds.slice(i, i + DIGEST_LOOKUP_BATCH);
+            const analysesResults = await Promise.all(
+                batchIds.map((resumeId) =>
+                    ctx.db
+                        .query("resume_analyses")
+                        .withIndex("by_resume", (q) => q.eq("resumeId", resumeId))
+                        .collect()
+                )
+            );
+            for (const batch of analysesResults) {
+                for (const row of batch) {
+                    analysesBatches.push(row._id);
+                }
+            }
+        }
+        for (const rowId of analysesBatches) {
+            await ctx.db.delete(rowId);
         }
 
         for (const resume of existingResumes) {
@@ -625,6 +686,20 @@ export const hardResetIngestData = mutation({
                 primaryRuleScore: undefined,
                 searchText: undefined,
             });
+            // Phase 3 completion: archive the cold resume_analyses row to
+            // keep it in sync with the cleared hot doc. Soft-clear preserves
+            // the analysis blob for audit/undo.
+            const coldRow = await ctx.db
+                .query("resume_analyses")
+                .withIndex("by_resume", (q) => q.eq("resumeId", resume._id))
+                .unique();
+            if (coldRow && coldRow.status === "active") {
+                await ctx.db.patch(coldRow._id, {
+                    status: "archived",
+                    archivedAt: Date.now(),
+                    updatedAt: Date.now(),
+                });
+            }
             await ctx.runMutation(internal.resumes_search.upsertResumeDigest, { resumeId: resume._id });
             cleared += 1;
         }

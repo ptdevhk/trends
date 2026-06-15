@@ -100,11 +100,23 @@ describe("projectResumeListDoc", () => {
 // ---------------------------------------------------------------------------
 
 describe("projectResumeDetailDoc", () => {
-  it("projects detail content with work history", () => {
+  it("projects detail content with work history", async () => {
     const resume = makeResume({
       content: { name: "Alice", workHistory: [{ companyName: "Acme", jobTitle: "Engineer", raw: "Acme - Engineer (2020-2023)" }] },
     });
-    const projected = projectResumeDetailDoc(resume as any);
+    // Phase 3 completion: projectResumeDetailDoc is now async and fetches
+    // analysis from resume_analyses via by_resume index. Mock ctx.db.query
+    // chain to return no cold row (resume has no analysis in this fixture).
+    const mockCtx = {
+      db: {
+        query: () => ({
+          withIndex: () => ({
+            unique: async () => null,
+          }),
+        }),
+      },
+    } as any;
+    const projected = await projectResumeDetailDoc(mockCtx, resume as any);
 
     expect(projected.content).toBeDefined();
     expect(projected.externalId).toBe("ext-1");
