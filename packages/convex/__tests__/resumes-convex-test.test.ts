@@ -56,16 +56,16 @@ describe("resumes.listWithIngestData (convex-test)", () => {
     const t = createTest();
 
     await t.run(async (ctx) => {
-      await ctx.db.insert("resumes", seedResume({
+      await insertResumeWithDigest(ctx, {
         externalId: "ext-low",
         primaryRuleScore: 30,
         searchText: "cnc operator",
-      }));
-      await ctx.db.insert("resumes", seedResume({
+      });
+      await insertResumeWithDigest(ctx, {
         externalId: "ext-high",
         primaryRuleScore: 80,
         searchText: "cnc programmer",
-      }));
+      });
     });
 
     const result = await t.query(api.resumes.listWithIngestData, { limit: 10 });
@@ -80,17 +80,17 @@ describe("resumes.listWithIngestData (convex-test)", () => {
     const t = createTest();
 
     await t.run(async (ctx) => {
-      await ctx.db.insert("resumes", seedResume({
+      await insertResumeWithDigest(ctx, {
         externalId: "ext-active",
         primaryRuleScore: 50,
         searchText: "active resume",
-      }));
-      await ctx.db.insert("resumes", seedResume({
+      });
+      await insertResumeWithDigest(ctx, {
         externalId: "ext-archived",
         primaryRuleScore: 90,
         searchText: "archived resume",
         isArchived: true,
-      }));
+      });
     });
 
     const result = await t.query(api.resumes.listWithIngestData, { limit: 10 });
@@ -104,11 +104,11 @@ describe("resumes.listWithIngestData (convex-test)", () => {
 
     await t.run(async (ctx) => {
       for (let i = 0; i < 5; i++) {
-        await ctx.db.insert("resumes", seedResume({
+        await insertResumeWithDigest(ctx, {
           externalId: `ext-${i}`,
           primaryRuleScore: 50 + i,
           searchText: `resume ${i}`,
-        }));
+        });
       }
     });
 

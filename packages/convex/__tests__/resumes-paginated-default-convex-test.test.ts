@@ -430,30 +430,18 @@ describe("resumes: listWithIngestDataPaginated", () => {
   it("matches resumes by source hostname when sourceKey is not set", async () => {
     const t = createTest();
 
-    // Insert directly without sourceKey to test hostname fallback
-    _counter += 1;
-    await t.run(async (ctx) => {
-      await ctx.db.insert("resumes", {
-        externalId: `ext-${_counter}`,
-        content: { name: "Job5156" },
-        hash: `hash-${_counter}`,
-        tags: [],
-        crawledAt: Date.now(),
-        source: "hr.job5156.com",
-        primaryRuleScore: 90,
-      });
+    // Insert without sourceKey to test hostname fallback
+    await insertResume(t, {
+      content: { name: "Job5156" },
+      source: "hr.job5156.com",
+      sourceKey: undefined as any,
+      primaryRuleScore: 90,
     });
-    _counter += 1;
-    await t.run(async (ctx) => {
-      await ctx.db.insert("resumes", {
-        externalId: `ext-${_counter}`,
-        content: { name: "Seek" },
-        hash: `hash-${_counter}`,
-        tags: [],
-        crawledAt: Date.now(),
-        source: "hk.employer.seek.com",
-        primaryRuleScore: 80,
-      });
+    await insertResume(t, {
+      content: { name: "Seek" },
+      source: "hk.employer.seek.com",
+      sourceKey: undefined as any,
+      primaryRuleScore: 80,
     });
 
     const result = await t.query(api.resumes.listWithIngestDataPaginated, {
@@ -723,5 +711,85 @@ describe("resumes: searchWithTagExpansionPaginated", () => {
     expect(result.page).toHaveLength(1);
     const name = ((result.page[0] as Record<string, unknown>).content as Record<string, unknown>)?.name;
     expect(name).toBe("DirectSales");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// listWithIngestDataPaginated digest discovery parity (Phase 1B)
+// ---------------------------------------------------------------------------
+
+describe("listWithIngestDataPaginated digest discovery parity", () => {
+  it("keeps primaryRuleScore ordering when default list is backed by digests", async () => {
+    const t = createTest();
+    await insertResume(t, {
+      externalId: "list-low",
+      identityKey: "identity-list-low",
+      primaryRuleScore: 10,
+      searchText: "cnc low",
+    });
+    await insertResume(t, {
+      externalId: "list-high",
+      identityKey: "identity-list-high",
+      primaryRuleScore: 90,
+      searchText: "cnc high",
+    });
+
+    const result = await t.query(api.resumes.listWithIngestDataPaginated, {
+      paginationOpts: { cursor: null, numItems: 10 },
+    });
+
+    expect(result.page.map((row) => row.externalId).slice(0, 2)).toEqual([
+      "list-high",
+      "list-low",
+    ]);
+  });
+
+  it("applies digest-supported filters before full-doc hydration", async () => {
+    const t = createTest();
+    await insertResume(t, {
+      externalId: "list-sales-cn",
+      identityKey: "identity-list-sales-cn",
+      searchText: "cnc sales shanghai",
+      content: {
+        name: "Sales CN",
+        location: "Shanghai, China",
+        workHistory: [{ companyName: "Machine Co", jobTitle: "Sales Manager" }],
+      },
+      ingestData: {
+        industryTags: ["manufacturing"],
+        synonymHits: ["cnc"],
+        ruleScores: {},
+        experienceLevel: "senior",
+        computedAt: Date.now(),
+        skillsVersion: 2,
+        roleSignals: [{
+          type: "sales",
+          matchedSignals: ["Sales Manager"],
+          signalCount: 1,
+          occurrences: 1,
+          years: 5,
+          verifyIn: "workHistory",
+        }],
+        verifiedRoleYears: { sales: 5 },
+      },
+      sourceKey: "51job",
+    });
+    await insertResume(t, {
+      externalId: "list-engineer-cn",
+      identityKey: "identity-list-engineer-cn",
+      searchText: "cnc engineer shanghai",
+      content: { name: "Engineer CN", location: "Shanghai, China" },
+      sourceKey: "51job",
+    });
+
+    const result = await t.query(api.resumes.listWithIngestDataPaginated, {
+      paginationOpts: { cursor: null, numItems: 10 },
+      locations: ["China"],
+      roleFilterType: "sales",
+      minRoleYears: 3,
+      sources: ["51job"],
+    });
+
+    expect(result.page.map((row) => row.externalId)).toEqual(["list-sales-cn"]);
   });
 });
