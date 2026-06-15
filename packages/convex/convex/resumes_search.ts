@@ -905,7 +905,7 @@ export const scanResumeDigestPage = query({
 
 // ── Digest helpers ────────────────────────────────────────────────────────
 
-async function doUpsertResumeDigest(
+export async function doUpsertResumeDigest(
     ctx: MutationCtx,
     resume: Doc<"resumes">,
 ): Promise<void> {
@@ -921,6 +921,28 @@ async function doUpsertResumeDigest(
     }
 }
 
+// Upsert the cold resume_analyses row (full analysis blob) for a resume.
+// Called after analysis writes to keep the cold table in sync.
+export async function doUpsertResumeAnalysis(
+    ctx: MutationCtx,
+    resume: Doc<"resumes">,
+): Promise<void> {
+    const existing = await ctx.db
+        .query("resume_analyses")
+        .withIndex("by_resume", (q) => q.eq("resumeId", resume._id))
+        .first();
+    const patch = {
+        analysis: resume.analysis,
+        analyses: resume.analyses,
+        updatedAt: Date.now(),
+    };
+    if (existing) {
+        await ctx.db.patch(existing._id, patch);
+    } else {
+        await ctx.db.insert("resume_analyses", { resumeId: resume._id, ...patch });
+    }
+}
+
 // Internal mutation — called by writes in resumes_mutations.ts to keep
 // digest in sync after resume insert/update.
 export const upsertResumeDigest = internalMutation({
@@ -929,6 +951,17 @@ export const upsertResumeDigest = internalMutation({
         const resume = await ctx.db.get(args.resumeId);
         if (!resume) return; // deleted — digest already removed or will be GC'd
         await doUpsertResumeDigest(ctx, resume);
+    },
+});
+
+// Internal mutation — called after analysis writes to keep the cold
+// resume_analyses table in sync.
+export const upsertResumeAnalysis = internalMutation({
+    args: { resumeId: v.id("resumes") },
+    handler: async (ctx, args) => {
+        const resume = await ctx.db.get(args.resumeId);
+        if (!resume) return;
+        await doUpsertResumeAnalysis(ctx, resume);
     },
 });
 
@@ -1027,6 +1060,35 @@ export const backfillResumeDigestStatuses = mutation({
 
         return {
             processed,
+            isDone: page.isDone,
+            cursor: page.isDone ? null : page.continueCursor,
+        };
+    },
+});
+
+// Idempotent backfill: paginate through all resumes and upsert resume_analyses
+// rows (full analysis blob). Safe to re-run — existing rows are updated in place.
+export const backfillResumeAnalyses = mutation({
+    args: {
+        cursor: v.optional(v.string()),
+        limit: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const numItems = Math.min(args.limit ?? 100, 200);
+        const page = await ctx.db
+            .query("resumes")
+            .order("desc")
+            .paginate({
+                cursor: args.cursor ?? null,
+                numItems,
+                maximumBytesRead: PAGINATE_MAX_BYTES_READ,
+                maximumRowsRead: PAGINATE_MAX_ROWS_READ,
+            });
+        for (const resume of page.page) {
+            await doUpsertResumeAnalysis(ctx, resume);
+        }
+        return {
+            processed: page.page.length,
             isDone: page.isDone,
             cursor: page.isDone ? null : page.continueCursor,
         };

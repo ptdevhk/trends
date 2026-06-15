@@ -3,6 +3,7 @@ import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { ingestDataValidator, relatedExpEvidenceValidator } from "./validators.js";
+import { doUpsertResumeDigest, doUpsertResumeAnalysis } from "./resumes_search.js";
 
 import {
     buildResumeAnalysisStorageKey,
@@ -99,6 +100,13 @@ export const updateAnalysis = internalMutation({
             analysis: args.analysis, // Keep current for backward compat / easy access
             analyses: analyses,      // Store in cache
         });
+
+        // Phase 3: propagate to digest (display fields) + cold analysis table
+        const updated = await ctx.db.get(args.resumeId);
+        if (updated) {
+            await doUpsertResumeDigest(ctx, updated);
+            await doUpsertResumeAnalysis(ctx, updated);
+        }
     },
 });
 
@@ -141,6 +149,13 @@ export const updateAnalysisBatch = internalMutation({
                 analysis: update.analysis,
                 analyses: analyses,
             });
+
+            // Phase 3: propagate to digest + cold analysis table
+            const updated = await ctx.db.get(update.resumeId);
+            if (updated) {
+                await doUpsertResumeDigest(ctx, updated);
+                await doUpsertResumeAnalysis(ctx, updated);
+            }
         }));
     },
 });

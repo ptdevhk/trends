@@ -139,6 +139,18 @@ describe("analysis validator sync (with intentional overrides)", () => {
 
     it("storeConfirmResult accepts all confirm analysis fields", async () => {
         const patch = vi.fn(async () => undefined);
+        const insert = vi.fn(async () => "mock-id");
+        // Mock chainable query for Phase 3 propagation helpers
+        const mockQueryChain = {
+            withIndex: () => mockQueryChain,
+            withSearchIndex: () => mockQueryChain,
+            order: () => mockQueryChain,
+            filter: () => mockQueryChain,
+            first: async () => null,
+            unique: async () => null,
+            take: async () => [],
+            collect: async () => [],
+        };
 
         const ctx = {
             db: {
@@ -147,6 +159,8 @@ describe("analysis validator sync (with intentional overrides)", () => {
                     analyses: {},
                 })),
                 patch,
+                insert,
+                query: vi.fn(() => mockQueryChain),
             },
         };
 

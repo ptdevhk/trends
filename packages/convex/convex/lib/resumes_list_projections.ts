@@ -307,10 +307,9 @@ export function projectResumeListDoc(resume: Doc<"resumes">): ResumeListProjecte
         crawledAt: resume.crawledAt,
         source: resume.source,
         tags: resume.tags,
-        ...(resume.analysis ? { analysis: resume.analysis } : {}),
-        ...(resume.analyses ? { analyses: resume.analyses } : {}),
-        ...(resume.confirmedScore === undefined ? {} : { confirmedScore: resume.confirmedScore }),
-        ...(resume.confirmedAt === undefined ? {} : { confirmedAt: resume.confirmedAt }),
+        // Phase 3: analysis/analyses/confirmedScore stripped from list projection.
+        // Score display fields now come from resume_digests (displayScore etc.).
+        // Detail/expanded view fetches full analysis from resume_analyses on demand.
         ...(resume.primaryRuleScore === undefined ? {} : { primaryRuleScore: resume.primaryRuleScore }),
         ...(resume.isArchived === true ? { isArchived: true, archivedAt: resume.archivedAt } : {}),
         ...(resume.ingestData ? { ingestData: projectResumeListIngestData(resume.ingestData) } : {}),

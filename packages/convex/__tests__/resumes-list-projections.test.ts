@@ -50,14 +50,16 @@ describe("projectResumeListDoc", () => {
     expect(projected.tags).toEqual([]);
   });
 
-  it("includes analysis when present", () => {
+  it("strips analysis from list projection (Phase 3 — moved to resume_analyses)", () => {
     const resume = makeResume({
       analysis: { score: 85, summary: "Good", highlights: [], recommendation: "match" },
     });
     const projected = projectResumeListDoc(resume as any);
 
-    expect(projected.analysis).toBeDefined();
-    expect(projected.analysis!.score).toBe(85);
+    // Analysis is no longer included in the list projection — score display
+    // comes from resume_digests.displayScore instead. Detail view fetches
+    // full analysis from resume_analyses on demand.
+    expect(projected.analysis).toBeUndefined();
   });
 
   it("includes ingestData when present", () => {

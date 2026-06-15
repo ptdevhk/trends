@@ -12,6 +12,7 @@ import { v } from "convex/values";
 import { api, internal } from "./_generated/api";
 import { action, internalMutation, type ActionCtx } from "./_generated/server";
 import { resolveChatCompletionModel } from "./lib/ai_model";
+import { doUpsertResumeDigest, doUpsertResumeAnalysis } from "./resumes_search.js";
 import { computeProtectedAttributeHashes } from "./audit.js";
 import {
     normalizeAnalysisResult,
@@ -455,6 +456,13 @@ export const storeConfirmResult = internalMutation({
                 [confirmKey]: args.analysis,
             },
         });
+
+        // Phase 3: refresh digest display fields (displayConfirmedScore etc.)
+        const updated = await ctx.db.get(args.resumeId);
+        if (updated) {
+            await doUpsertResumeDigest(ctx, updated);
+            await doUpsertResumeAnalysis(ctx, updated);
+        }
     },
 });
 

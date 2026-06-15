@@ -1549,11 +1549,27 @@ export const validateDataConsistency = action({
             statusCursor = result.cursor;
         }
 
+        // Step 5: Backfill resume_analyses cold table from resumes.analysis.
+        // Moves the full analysis blob out of the hot resumes doc so list/search
+        // hydration doesn't transfer 22KB of analysis data per row.
+        let analysisCursor: string | null = null;
+        let analysisProcessed = 0;
+        for (let i = 0; i < 10000; i++) {
+            const result: { processed: number; isDone: boolean; cursor: string | null } = await ctx.runMutation(api.resumes_search.backfillResumeAnalyses, {
+                cursor: analysisCursor ?? undefined,
+                limit: batchSize,
+            });
+            analysisProcessed += result.processed;
+            if (result.isDone) break;
+            analysisCursor = result.cursor;
+        }
+
         return {
             reindexSearchText: { scanned: reindexScanned, updated: reindexUpdated },
             backfillVerifiedRoleYears: { scanned: vryScanned, updated: vryUpdated },
             backfillResumeDigests: { processed: digestProcessed },
             backfillResumeDigestStatuses: { processed: statusProcessed },
+            backfillResumeAnalyses: { processed: analysisProcessed },
         };
     },
 });
