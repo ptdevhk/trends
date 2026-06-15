@@ -709,17 +709,32 @@ export const countResumesByStatus = query({
   handler: async (ctx, args) => {
     const { workspaceSlug, showBlocked, ...rawFilters } = args;
 
-    // 1. Load candidate_status for workspace
-    const statuses = await ctx.db
-      .query("candidate_status")
+    // 1. Load workspace status overlay (resume_digest_statuses) first —
+    //    it's workspace-scoped and populated by propagation hooks.
+    //    Fall back to candidate_status for identities not yet in the overlay
+    //    (e.g., after a restore that hasn't backfilled the overlay).
+    const overlayStatuses = await ctx.db
+      .query("resume_digest_statuses")
       .withIndex("by_workspace_status", (q) =>
         q.eq("workspaceSlug", workspaceSlug)
       )
       .collect();
 
     const statusByIdentity = new Map<string, string>();
-    for (const s of statuses) {
+    for (const s of overlayStatuses) {
       statusByIdentity.set(s.identityKey, s.status);
+    }
+
+    const candidateStatuses = await ctx.db
+      .query("candidate_status")
+      .withIndex("by_workspace_status", (q) =>
+        q.eq("workspaceSlug", workspaceSlug)
+      )
+      .collect();
+    for (const s of candidateStatuses) {
+      if (!statusByIdentity.has(s.identityKey)) {
+        statusByIdentity.set(s.identityKey, s.status);
+      }
     }
 
     const blockedIdentities = new Set<string>();

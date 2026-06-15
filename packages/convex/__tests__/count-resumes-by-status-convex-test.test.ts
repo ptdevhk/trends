@@ -357,4 +357,54 @@ describe("countResumesByStatus", () => {
     expect(result.new).toBe(12);
     expect(result.overflow).toBe(false);
   });
+
+  it("uses the resume_digest_statuses overlay for workspace status counts", async () => {
+    const source = "test-count-overlay";
+    const ws = "test-count-overlay-ws";
+    await test.run(async (ctx) => {
+      for (let i = 0; i < 3; i += 1) {
+        const resumeId = await ctx.db.insert("resumes", {
+          externalId: `ext-overlay-${i}`,
+          identityKey: `ik-overlay-${i}`,
+          content: { name: `Overlay ${i}`, location: "Shanghai, China" },
+          searchText: `cnc overlay ${i}`,
+          hash: `hash-overlay-${i}`,
+          tags: [],
+          crawledAt: Date.now(),
+          source,
+          sourceKey: source,
+        });
+        const resume = await ctx.db.get(resumeId);
+        if (resume) {
+          await ctx.db.insert("resume_digests", buildResumeDigest(resume, Date.now()) as any);
+        }
+      }
+      // Populate overlay directly — one shortlisted, one rejected, one stays "new"
+      await ctx.db.insert("resume_digest_statuses", {
+        resumeId: await ctx.db.query("resume_digests").withIndex("by_identityKey", (q) => q.eq("identityKey", "ik-overlay-0")).first().then((d: any) => d?.resumeId),
+        identityKey: "ik-overlay-0",
+        workspaceSlug: ws,
+        status: "shortlisted",
+        updatedAt: Date.now(),
+      });
+      await ctx.db.insert("resume_digest_statuses", {
+        resumeId: await ctx.db.query("resume_digests").withIndex("by_identityKey", (q) => q.eq("identityKey", "ik-overlay-1")).first().then((d: any) => d?.resumeId),
+        identityKey: "ik-overlay-1",
+        workspaceSlug: ws,
+        status: "rejected",
+        updatedAt: Date.now(),
+      });
+    });
+
+    const result = await test.query(api.resumes.countResumesByStatus, {
+      workspaceSlug: ws,
+      sources: [source],
+    });
+
+    expect(result.total).toBe(3);
+    expect(result.new).toBe(1);
+    expect(result.shortlisted).toBe(1);
+    expect(result.rejected).toBe(1);
+    expect(result.overflow).toBe(false);
+  });
 });
