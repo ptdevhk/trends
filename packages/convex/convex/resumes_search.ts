@@ -923,6 +923,11 @@ export async function doUpsertResumeDigest(
 
 // Upsert the cold resume_analyses row (full analysis blob) for a resume.
 // Called after analysis writes to keep the cold table in sync.
+//
+// Soft-clear interaction (Phase 3 completion bundle): every upsert resets
+// status to "active" and clears archivedAt. This makes re-analyze-after-clear
+// restore the row naturally — clearAnalyses flips to archived, the next
+// analysis write flips it back.
 export async function doUpsertResumeAnalysis(
     ctx: MutationCtx,
     resume: Doc<"resumes">,
@@ -934,6 +939,8 @@ export async function doUpsertResumeAnalysis(
     const patch = {
         analysis: resume.analysis,
         analyses: resume.analyses,
+        status: "active" as const,
+        archivedAt: undefined,
         updatedAt: Date.now(),
     };
     if (existing) {

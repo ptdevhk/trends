@@ -518,10 +518,18 @@ export default defineSchema({
     // hydration overhead on the hot list/search path. The detail/expanded view
     // fetches from here on demand. The list/search path reads scalar display
     // fields from resume_digests instead.
+    //
+    // Soft-clear semantics (added Phase 3 completion bundle):
+    //   status: "active" — visible to detail view (projectResumeDetailDoc)
+    //   status: "archived" — invisible to detail view, retained for audit/undo
+    // clearAnalyses flips active → archived instead of hard-deleting. Matches
+    // repo precedent (resumes.isArchived, candidate_status.status).
     resume_analyses: defineTable({
         resumeId: v.id("resumes"),
         analysis: v.optional(resumeAnalysisValidator),
         analyses: v.optional(v.record(v.string(), analysisResultValidator)),
+        status: v.union(v.literal("active"), v.literal("archived")),
+        archivedAt: v.optional(v.number()),
         updatedAt: v.number(),
     })
         .index("by_resume", ["resumeId"]),

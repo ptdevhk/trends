@@ -1859,3 +1859,46 @@ export const backfillAuditLogActorIdentity = mutation({
         };
     },
 });
+
+/**
+ * Backfill resume_analyses.status for existing rows.
+ *
+ * Added by the Phase 3 completion bundle
+ * (projects/trends/work/2026-06-15-resume-analyses-phase3-completion-cleanup).
+ * Every existing row defaults to status: "active" so the soft-clear semantics
+ * (clearAnalyses flips active → archived) start from a known state.
+ *
+ * Idempotent: rows already carrying status are skipped.
+ */
+export const backfillResumeAnalysesStatus = mutation({
+    args: {
+        cursor: v.optional(v.string()),
+        batchSize: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const rows = await ctx.db
+            .query("resume_analyses")
+            .order("desc")
+            .paginate({
+                cursor: args.cursor ?? null,
+                numItems: resolveResumeScanBatchSize(args.batchSize),
+            });
+
+        let updated = 0;
+        for (const row of rows.page) {
+            if (row.status === undefined) {
+                await ctx.db.patch(row._id, {
+                    status: "active",
+                });
+                updated += 1;
+            }
+        }
+
+        return {
+            scanned: rows.page.length,
+            updated,
+            hasMore: !rows.isDone,
+            cursor: rows.isDone ? null : rows.continueCursor,
+        };
+    },
+});
