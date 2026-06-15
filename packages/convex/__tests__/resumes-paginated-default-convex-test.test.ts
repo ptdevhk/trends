@@ -8,9 +8,10 @@
 import { createTest } from "./test-helpers.js";
 import { describe, expect, it } from "vitest";
 import { api } from "../convex/_generated/api.js";
+import { buildResumeDigest } from "../convex/lib/resume_digests.js";
 
 
-// Helper: insert a minimal resume document
+// Helper: insert a minimal resume document + mirror production digest upsert
 let _counter = 0;
 async function insertResume(
   t: ReturnType<typeof createTest>,
@@ -18,7 +19,7 @@ async function insertResume(
 ) {
   _counter += 1;
   return t.run(async (ctx) => {
-    return ctx.db.insert("resumes", {
+    const resumeId = await ctx.db.insert("resumes", {
       externalId: `ext-${_counter}`,
       content: { name: `User ${_counter}` },
       hash: `hash-${_counter}`,
@@ -28,6 +29,11 @@ async function insertResume(
       sourceKey: "test",
       ...overrides,
     });
+    const resume = await ctx.db.get(resumeId);
+    if (resume) {
+      await ctx.db.insert("resume_digests", buildResumeDigest(resume, Date.now()) as any);
+    }
+    return resumeId;
   });
 }
 

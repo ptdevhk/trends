@@ -52,6 +52,16 @@ import {
 // Private helpers
 // ---------------------------------------------------------------------------
 
+async function getResumeDocsByDigestRows(
+    ctx: QueryCtx,
+    digests: Doc<"resume_digests">[],
+): Promise<Doc<"resumes">[]> {
+    const docs = await Promise.all(digests.map((digest) => ctx.db.get(digest.resumeId)));
+    // Guard against stale digests: the digest search filters .eq("isArchived", undefined)
+    // but the digest row may lag a recent resume archive. Re-check the source doc.
+    return docs.filter((doc): doc is Doc<"resumes"> => doc !== null && doc.isArchived !== true);
+}
+
 function compareResumes(
     left: Doc<"resumes">,
     right: Doc<"resumes">,
@@ -174,12 +184,13 @@ async function runSearchWithTagExpansionPageQuery(
         jobDescriptionId,
     });
 
-    const matches = searchQuery
+    const digestMatches = searchQuery
         ? await ctx.db
-            .query("resumes")
+            .query("resume_digests")
             .withSearchIndex("search_body", (q) => q.search("searchText", searchQuery).eq("isArchived", undefined))
             .take(takeLimit)
         : [];
+    const matches = await getResumeDocsByDigestRows(ctx, digestMatches);
 
     const filteredDocs = matches.filter((doc) => {
         const provenance = resolveSearchWithTagExpansionMatch(
@@ -263,9 +274,9 @@ async function runSearchWithTagExpansionScanPageQuery(
         ? Math.min(requestedPageSize * FILTERED_PAGINATE_OVERFETCH_MULTIPLIER, MAX_SAFE_SEARCH_PAGINATE_SCAN)
         : Math.min(requestedPageSize, MAX_SAFE_SEARCH_PAGINATE_SCAN_UNFILTERED);
 
-    const searchPage = searchQuery
+    const digestPage = searchQuery
         ? await ctx.db
-            .query("resumes")
+            .query("resume_digests")
             .withSearchIndex("search_body", (q) => q.search("searchText", searchQuery).eq("isArchived", undefined))
             .paginate({
                 ...args.paginationOpts,
@@ -274,10 +285,11 @@ async function runSearchWithTagExpansionScanPageQuery(
                 maximumRowsRead: PAGINATE_MAX_ROWS_READ,
             })
         : {
-            page: [] as Doc<"resumes">[],
+            page: [] as Doc<"resume_digests">[],
             continueCursor: "",
             isDone: true,
         };
+    const fullDocs = await getResumeDocsByDigestRows(ctx, digestPage.page);
 
     return {
         expansion: {
@@ -286,7 +298,7 @@ async function runSearchWithTagExpansionScanPageQuery(
             groups: keywordGroups,
             mode,
         },
-        page: searchPage.page.flatMap((doc) => {
+        page: fullDocs.flatMap((doc) => {
             const provenance = resolveSearchWithTagExpansionMatch(
                 doc,
                 keywordGroups,
@@ -302,8 +314,8 @@ async function runSearchWithTagExpansionScanPageQuery(
                 provenance,
             }];
         }),
-        continueCursor: searchPage.continueCursor,
-        isDone: searchPage.isDone,
+        continueCursor: digestPage.continueCursor,
+        isDone: digestPage.isDone,
     };
 }
 
@@ -321,10 +333,11 @@ export const search = query({
         const tokens = splitQueryTokens(args.query);
         const fetchLimit = tokens.length > 1 ? Math.max(limit * 5, 500) : limit;
 
-        const matches = await ctx.db
-            .query("resumes")
+        const digestMatches = await ctx.db
+            .query("resume_digests")
             .withSearchIndex("search_body", (q) => q.search("searchText", args.query).eq("isArchived", undefined))
             .take(fetchLimit);
+        const matches = await getResumeDocsByDigestRows(ctx, digestMatches);
 
         // Convex full-text search uses OR. Post-filter to enforce AND.
         const filtered = tokens.length > 1
@@ -348,10 +361,11 @@ export const searchWithIngestData = query({
         // Over-fetch to compensate for AND post-filtering on OR results
         const fetchLimit = tokens.length > 1 ? Math.max(limit * 5, 500) : Math.max(limit, 200);
 
-        const matches = await ctx.db
-            .query("resumes")
+        const digestMatches = await ctx.db
+            .query("resume_digests")
             .withSearchIndex("search_body", (q) => q.search("searchText", args.query).eq("isArchived", undefined))
             .take(fetchLimit);
+        const matches = await getResumeDocsByDigestRows(ctx, digestMatches);
 
         // Convex full-text search uses OR. Post-filter to enforce AND.
         const filtered = tokens.length > 1
@@ -407,12 +421,13 @@ export const searchWithTagExpansion = query({
         const fetchLimit = overfetchLimit;
         const searchQuery = buildTagExpansionSearchQuery(keywordGroups, mode);
 
-        const matches = searchQuery
+        const digestMatches = searchQuery
             ? await ctx.db
-                .query("resumes")
+                .query("resume_digests")
                 .withSearchIndex("search_body", (q) => q.search("searchText", searchQuery).eq("isArchived", undefined))
                 .take(fetchLimit)
             : [];
+        const matches = await getResumeDocsByDigestRows(ctx, digestMatches);
 
         const filteredDocs = matches.filter((doc) => {
             const normalizedSearchText = (doc.searchText || "").toLowerCase();
@@ -1050,7 +1065,7 @@ export const collectSearchIndexDocIds = internalQuery({
     },
     handler: async (ctx, args) => {
         const page = await ctx.db
-            .query("resumes")
+            .query("resume_digests")
             .withSearchIndex("search_body", (q) => q.search("searchText", args.searchQuery).eq("isArchived", undefined))
             .paginate({
                 cursor: args.cursor ?? null,
@@ -1059,7 +1074,7 @@ export const collectSearchIndexDocIds = internalQuery({
                 maximumRowsRead: PAGINATE_MAX_ROWS_READ,
             });
         return {
-            ids: page.page.map((doc) => String(doc._id)),
+            ids: page.page.map((digest) => String(digest.resumeId)),
             isDone: page.isDone,
             cursor: page.isDone ? null : page.continueCursor,
         };
