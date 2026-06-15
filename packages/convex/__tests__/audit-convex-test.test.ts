@@ -4,7 +4,7 @@
  * Uses edge-runtime environment (configured via environmentMatchGlobs in root vitest.config.ts).
  */
 import { createTest } from "./test-helpers.js";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { api } from "../convex/_generated/api.js";
 import { internal } from "../convex/_generated/api.js";
 import {
@@ -1271,6 +1271,20 @@ describe("audit log retention (EU AI Act / GDPR)", () => {
   });
 
   describe("submitAppeal", () => {
+    const originalWriteSecret = process.env.CONVEX_WRITE_SECRET;
+
+    beforeEach(() => {
+      process.env.CONVEX_WRITE_SECRET = "test-secret";
+    });
+
+    afterEach(() => {
+      if (originalWriteSecret === undefined) {
+        delete process.env.CONVEX_WRITE_SECRET;
+        return;
+      }
+      process.env.CONVEX_WRITE_SECRET = originalWriteSecret;
+    });
+
     it("creates candidate_status with appeal_submitted and sets audit log to appealed", async () => {
       const t = createTest();
 
@@ -1327,6 +1341,7 @@ describe("audit log retention (EU AI Act / GDPR)", () => {
         identityKey: "candidate-2",
         status: "interviewed_reject",
         notes: "Not suitable",
+        writeSecret: "test-secret",
       });
 
       const resumeId = await t.run(async (ctx) => {
@@ -1390,6 +1405,46 @@ describe("audit log retention (EU AI Act / GDPR)", () => {
 
       expect(result.success).toBe(true);
       expect(result.status).toBe("appeal_submitted");
+    });
+
+    it("propagates appeal_submitted into resume_digest_statuses overlay", async () => {
+      const t = createTest();
+
+      const resumeId = await t.run(async (ctx) => {
+        const id = await ctx.db.insert("resumes", {
+          externalId: "appeal-digest-r1",
+          content: { name: "Appeal Digest" },
+          hash: "appeal-digest1",
+          source: "test",
+          tags: [],
+          crawledAt: Date.now(),
+        });
+        await ctx.db.insert("resume_digests", {
+          resumeId: id,
+          identityKey: "appeal-digest-identity",
+          externalId: "appeal-digest-r1",
+          source: "test",
+          sourceKey: "test",
+          searchText: "appeal digest candidate",
+          updatedAt: Date.now(),
+        });
+        return id;
+      });
+
+      await t.mutation(api.audit.submitAppeal, {
+        resumeId,
+        identityKey: "appeal-digest-identity",
+        workspaceSlug: "appeal-ws",
+        reason: "Score should be higher",
+      });
+
+      const rows = await t.run(async (ctx) =>
+        ctx.db.query("resume_digest_statuses").collect()
+      );
+      expect(rows).toHaveLength(1);
+      expect(rows[0].identityKey).toBe("appeal-digest-identity");
+      expect(rows[0].workspaceSlug).toBe("appeal-ws");
+      expect(rows[0].status).toBe("appeal_submitted");
     });
   });
 });

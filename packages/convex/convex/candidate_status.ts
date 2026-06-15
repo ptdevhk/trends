@@ -1,8 +1,60 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, type MutationCtx } from "./_generated/server";
 
 import { DEFAULT_WORKSPACE_SLUG } from "./sessions";
 const DEFAULT_STATUS = "new";
+
+type CandidateStatus =
+    | "new" | "shortlisted" | "rejected" | "contacted"
+    | "interviewing" | "interviewed_pass" | "interviewed_reject"
+    | "appeal_submitted" | "human_review" | "upheld" | "reversed"
+    | "offer" | "hired" | "withdrawn";
+
+/**
+ * Propagate a status change into the hot resume_digest_statuses overlay.
+ * Called from candidate_status.upsert and audit.submitAppeal after writing
+ * candidate_status. Looks up the resume via resume_digests.by_identityKey,
+ * then upserts the workspace-scoped status overlay row.
+ */
+export async function upsertDigestStatusForIdentity(
+    ctx: MutationCtx,
+    args: {
+        workspaceSlug: string;
+        identityKey: string;
+        status: CandidateStatus;
+        updatedAt: number;
+    },
+): Promise<void> {
+    const digest = await ctx.db
+        .query("resume_digests")
+        .withIndex("by_identityKey", (q) => q.eq("identityKey", args.identityKey))
+        .first();
+    if (!digest) {
+        return;
+    }
+
+    const existing = await ctx.db
+        .query("resume_digest_statuses")
+        .withIndex("by_workspace_identity", (q) =>
+            q.eq("workspaceSlug", args.workspaceSlug).eq("identityKey", args.identityKey)
+        )
+        .unique();
+
+    if (existing) {
+        await ctx.db.patch(existing._id, {
+            status: args.status,
+            updatedAt: args.updatedAt,
+        });
+    } else {
+        await ctx.db.insert("resume_digest_statuses", {
+            resumeId: digest.resumeId,
+            identityKey: args.identityKey,
+            workspaceSlug: args.workspaceSlug,
+            status: args.status,
+            updatedAt: args.updatedAt,
+        });
+    }
+}
 
 function normalizeWorkspaceSlug(input: string | undefined): string {
     const normalized = input?.trim();
@@ -134,17 +186,34 @@ export const upsert = mutation({
                 history: nextHistory,
             });
 
+            await upsertDigestStatusForIdentity(ctx, {
+                workspaceSlug,
+                identityKey,
+                status: args.status,
+                updatedAt: now,
+            });
+
             return existing._id;
         }
 
-        return await ctx.db.insert("candidate_status", {
+        const statusValue = args.status ?? DEFAULT_STATUS;
+        const newId = await ctx.db.insert("candidate_status", {
             workspaceSlug,
             identityKey,
-            status: args.status ?? DEFAULT_STATUS,
+            status: statusValue as any,
             notes: args.notes,
             updatedBy: args.updatedBy,
             updatedAt: now,
             history: [],
         });
+
+        await upsertDigestStatusForIdentity(ctx, {
+            workspaceSlug,
+            identityKey,
+            status: statusValue as CandidateStatus,
+            updatedAt: now,
+        });
+
+        return newId;
     },
 });

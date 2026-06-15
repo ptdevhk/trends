@@ -229,4 +229,95 @@ describe("candidate_status: list + listForBackup", () => {
     // Should not include internal fields like _id, _creationTime
     expect(row).not.toHaveProperty("_id");
   });
+
+  // -------------------------------------------------------------------------
+  // Phase 2: digest status propagation
+  // -------------------------------------------------------------------------
+
+  it("propagates status changes into resume_digest_statuses overlay", async () => {
+    const t = createTest();
+    await t.run(async (ctx) => {
+      const resumeId = await ctx.db.insert("resumes", {
+        externalId: "status-digest-resume",
+        identityKey: "status-digest-identity",
+        content: { name: "Status Digest Candidate" },
+        hash: "status-digest-hash",
+        tags: [],
+        crawledAt: Date.now(),
+        source: "test",
+        sourceKey: "test",
+      });
+      await ctx.db.insert("resume_digests", {
+        resumeId,
+        identityKey: "status-digest-identity",
+        externalId: "status-digest-resume",
+        source: "test",
+        sourceKey: "test",
+        searchText: "status digest candidate",
+        updatedAt: Date.now(),
+      });
+    });
+
+    await t.mutation(api.candidate_status.upsert, {
+      workspaceSlug: "status-digest-ws",
+      identityKey: "status-digest-identity",
+      status: "contacted",
+      writeSecret: WRITE_SECRET,
+    });
+
+    const rows = await t.run(async (ctx) =>
+      ctx.db.query("resume_digest_statuses").collect()
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].identityKey).toBe("status-digest-identity");
+    expect(rows[0].workspaceSlug).toBe("status-digest-ws");
+    expect(rows[0].status).toBe("contacted");
+  });
+
+  it("preserves independent workspace statuses in the digest overlay", async () => {
+    const t = createTest();
+    await t.run(async (ctx) => {
+      const resumeId = await ctx.db.insert("resumes", {
+        externalId: "multi-ws-resume",
+        identityKey: "multi-ws-identity",
+        content: { name: "Multi WS Candidate" },
+        hash: "multi-ws-hash",
+        tags: [],
+        crawledAt: Date.now(),
+        source: "test",
+        sourceKey: "test",
+      });
+      await ctx.db.insert("resume_digests", {
+        resumeId,
+        identityKey: "multi-ws-identity",
+        externalId: "multi-ws-resume",
+        source: "test",
+        sourceKey: "test",
+        searchText: "multi ws candidate",
+        updatedAt: Date.now(),
+      });
+    });
+
+    await t.mutation(api.candidate_status.upsert, {
+      workspaceSlug: "ws-a",
+      identityKey: "multi-ws-identity",
+      status: "shortlisted",
+      writeSecret: WRITE_SECRET,
+    });
+    await t.mutation(api.candidate_status.upsert, {
+      workspaceSlug: "ws-b",
+      identityKey: "multi-ws-identity",
+      status: "rejected",
+      writeSecret: WRITE_SECRET,
+    });
+
+    const rows = await t.run(async (ctx) =>
+      ctx.db.query("resume_digest_statuses").collect()
+    );
+    expect(rows).toHaveLength(2);
+    const wsA = rows.find((r) => r.workspaceSlug === "ws-a");
+    const wsB = rows.find((r) => r.workspaceSlug === "ws-b");
+    expect(wsA?.status).toBe("shortlisted");
+    expect(wsB?.status).toBe("rejected");
+  });
 });
