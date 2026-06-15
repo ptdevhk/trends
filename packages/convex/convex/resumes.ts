@@ -16,7 +16,6 @@ import {
     projectResumeListDoc,
     projectResumeDetailDoc,
     normalizeResumeListFilters,
-    matchesResumeListFilters,
     sortResumeDocs,
     sortByIngestRuleScore,
 } from "./lib/resumes_list_projections.js";
@@ -290,7 +289,6 @@ async function runListWithIngestDataPageQuery(
         sortBy: args.sortBy,
         sortOrder: args.sortOrder,
     })
-        .filter((resume) => matchesResumeListFilters(resume, filters))
         .slice(0, scanLimit);
 
     return {
@@ -601,12 +599,9 @@ export const listWithIngestDataPaginated = query({
                 ? page.page.filter((digest) => matchesResumeDigestFilters(digest, filters))
                 : page.page;
             const fullDocs = await getResumeDocsFromDigests(ctx, digestFiltered);
-            const finalFiltered = filters
-                ? fullDocs.filter((resume) => matchesResumeListFilters(resume, filters))
-                : fullDocs;
             const ranked = jobDescriptionId
-                ? sortByIngestRuleScore(finalFiltered, jobDescriptionId)
-                : finalFiltered;
+                ? sortByIngestRuleScore(fullDocs, jobDescriptionId)
+                : fullDocs;
 
             return {
                 page: ranked.map(projectResumeListDoc),
