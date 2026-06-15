@@ -3,6 +3,7 @@ import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { fnvHash, ageToBracket } from "./lib/bias_metrics.js";
+import { upsertDigestStatusForIdentity } from "./candidate_status.js";
 
 // ---------------------------------------------------------------------------
 // Internal mutation: logAnalysisDecision
@@ -173,6 +174,13 @@ export const submitAppeal = mutation({
                 history: [],
             });
         }
+
+        await upsertDigestStatusForIdentity(ctx, {
+            workspaceSlug: args.workspaceSlug,
+            identityKey: args.identityKey,
+            status: "appeal_submitted",
+            updatedAt: now,
+        });
 
         // Set audit log outcome to "appealed"
         const auditLog = await ctx.db

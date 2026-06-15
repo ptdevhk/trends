@@ -510,6 +510,35 @@ export default defineSchema({
             filterFields: ["isArchived", "sourceKey"],
         }),
 
+    // Hot status overlay — workspace-scoped candidate status for server-side
+    // filtering. Separate from resume_digests (which is resume-scoped) to
+    // preserve independent workspace statuses for the same identity.
+    resume_digest_statuses: defineTable({
+        resumeId: v.id("resumes"),
+        identityKey: v.string(),
+        workspaceSlug: v.string(),
+        status: v.union(
+            v.literal("new"),
+            v.literal("shortlisted"),
+            v.literal("rejected"),
+            v.literal("contacted"),
+            v.literal("interviewing"),
+            v.literal("interviewed_pass"),
+            v.literal("interviewed_reject"),
+            v.literal("appeal_submitted"),
+            v.literal("human_review"),
+            v.literal("upheld"),
+            v.literal("reversed"),
+            v.literal("offer"),
+            v.literal("hired"),
+            v.literal("withdrawn")
+        ),
+        updatedAt: v.number(),
+    })
+        .index("by_workspace_status", ["workspaceSlug", "status"])
+        .index("by_workspace_identity", ["workspaceSlug", "identityKey"])
+        .index("by_resume", ["resumeId"]),
+
     // Analysis Audit Log — EU AI Act compliance (Annex III §4a high-risk)
     analysis_audit_log: defineTable({
         resumeId: v.id("resumes"),
