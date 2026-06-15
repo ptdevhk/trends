@@ -3,6 +3,7 @@
  */
 import { convexTest } from "convex-test";
 import schema from "../convex/schema.js";
+import { buildResumeDigest } from "../convex/lib/resume_digests.js";
 
 const modules = (import.meta as any).glob("../**/*.ts", { eager: false });
 
@@ -15,11 +16,13 @@ export function createTest() {
 
 /**
  * Insert a minimal resume document into the database for testing.
+ * Also upserts a resume_digests row to mirror production behavior
+ * (every resume insert triggers a digest upsert via internal mutation).
  * Returns the resume ID.
  */
 export function seedResume(t: ReturnType<typeof convexTest>, overrides: Record<string, unknown> = {}) {
     return t.run(async (ctx) => {
-        return ctx.db.insert("resumes", {
+        const resumeId = await ctx.db.insert("resumes", {
             externalId: "test-resume-1",
             identityKey: "profileUrl:example.com/candidates/1",
             content: { name: "Test Candidate" },
@@ -30,6 +33,12 @@ export function seedResume(t: ReturnType<typeof convexTest>, overrides: Record<s
             crawledAt: Date.now(),
             ...overrides,
         });
+        const resume = await ctx.db.get(resumeId);
+        if (resume) {
+            const digest = buildResumeDigest(resume, Date.now());
+            await ctx.db.insert("resume_digests", digest as any);
+        }
+        return resumeId;
     });
 }
 

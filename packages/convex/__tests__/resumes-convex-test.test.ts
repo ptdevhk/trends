@@ -13,6 +13,7 @@
 import { createTest } from "./test-helpers.js";
 import { describe, expect, it } from "vitest";
 import { api } from "../convex/_generated/api.js";
+import { buildResumeDigest } from "../convex/lib/resume_digests.js";
 
 // Explicitly provide module glob so convex-test can discover Convex functions.
 // Vite transforms import.meta.glob at compile time — works regardless of runtime.
@@ -29,6 +30,19 @@ function seedResume(overrides: Record<string, unknown> = {}) {
     searchText: "test resume",
     ...overrides,
   };
+}
+
+// Insert resume + digest in one step (mirrors production behavior).
+async function insertResumeWithDigest(
+  ctx: { db: any },
+  overrides: Record<string, unknown> = {},
+) {
+  const resumeId = await ctx.db.insert("resumes", seedResume(overrides));
+  const resume = await ctx.db.get(resumeId);
+  if (resume) {
+    await ctx.db.insert("resume_digests", buildResumeDigest(resume, Date.now()) as any);
+  }
+  return resumeId;
 }
 
 describe("resumes.listWithIngestData (convex-test)", () => {
@@ -109,14 +123,16 @@ describe("resumes.search (convex-test)", () => {
     const t = createTest();
 
     await t.run(async (ctx) => {
-      await ctx.db.insert("resumes", seedResume({
+      await insertResumeWithDigest(ctx, {
         externalId: "ext-cnc",
         searchText: "cnc operator with 5 years experience",
-      }));
-      await ctx.db.insert("resumes", seedResume({
+        content: { name: "CNC Operator" },
+      });
+      await insertResumeWithDigest(ctx, {
         externalId: "ext-java",
         searchText: "java developer spring boot",
-      }));
+        content: { name: "Java Developer" },
+      });
     });
 
     const results = await t.query(api.resumes_search.search, {
@@ -134,15 +150,15 @@ describe("resumes.search (convex-test)", () => {
     const t = createTest();
 
     await t.run(async (ctx) => {
-      await ctx.db.insert("resumes", seedResume({
+      await insertResumeWithDigest(ctx, {
         externalId: "ext-active",
         searchText: "cnc operator",
-      }));
-      await ctx.db.insert("resumes", seedResume({
+      });
+      await insertResumeWithDigest(ctx, {
         externalId: "ext-archived",
         searchText: "cnc machinist",
         isArchived: true,
-      }));
+      });
     });
 
     const results = await t.query(api.resumes_search.search, {
@@ -159,14 +175,14 @@ describe("resumes.search (convex-test)", () => {
     const t = createTest();
 
     await t.run(async (ctx) => {
-      await ctx.db.insert("resumes", seedResume({
+      await insertResumeWithDigest(ctx, {
         externalId: "ext-both",
         searchText: "cnc operator sales experience",
-      }));
-      await ctx.db.insert("resumes", seedResume({
+      });
+      await insertResumeWithDigest(ctx, {
         externalId: "ext-cnc-only",
         searchText: "cnc operator manufacturing",
-      }));
+      });
     });
 
     const results = await t.query(api.resumes_search.search, {
