@@ -498,6 +498,13 @@ export default defineSchema({
         experienceYears: v.optional(v.number()),
         roleTypes: v.optional(v.array(v.string())),
         roleYearsByType: v.optional(v.record(v.string(), v.number())),
+        // Phase 3 display fields — denormalized from default analysis for zero-join list/search
+        displayScore: v.optional(v.number()),
+        displayRecommendation: v.optional(v.string()),
+        displayBreakdown: v.optional(v.record(v.string(), v.number())),
+        displaySummary: v.optional(v.string()),
+        displayConfirmedScore: v.optional(v.number()),
+        displayConfirmedAt: v.optional(v.number()),
         updatedAt: v.number(),
     })
         .index("by_resumeId", ["resumeId"])
@@ -509,6 +516,19 @@ export default defineSchema({
             searchField: "searchText",
             filterFields: ["isArchived", "sourceKey"],
         }),
+
+    // Cold analysis storage — full AI analysis blobs (highlights, concerns,
+    // keyFactors, relatedExpEvidence) split out of resumes to avoid 22KB/doc
+    // hydration overhead on the hot list/search path. The detail/expanded view
+    // fetches from here on demand. The list/search path reads scalar display
+    // fields from resume_digests instead.
+    resume_analyses: defineTable({
+        resumeId: v.id("resumes"),
+        analysis: v.optional(resumeAnalysisValidator),
+        analyses: v.optional(v.record(v.string(), analysisResultValidator)),
+        updatedAt: v.number(),
+    })
+        .index("by_resume", ["resumeId"]),
 
     // Hot status overlay — workspace-scoped candidate status for server-side
     // filtering. Separate from resume_digests (which is resume-scoped) to

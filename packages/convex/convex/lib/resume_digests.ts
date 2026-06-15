@@ -46,6 +46,12 @@ export type ResumeDigest = {
     experienceYears?: number;
     roleTypes?: string[];
     roleYearsByType?: Record<string, number>;
+    displayScore?: number;
+    displayRecommendation?: string;
+    displayBreakdown?: Record<string, number>;
+    displaySummary?: string;
+    displayConfirmedScore?: number;
+    displayConfirmedAt?: number;
     updatedAt: number;
 };
 
@@ -85,6 +91,12 @@ export function buildResumeDigest(resume: Doc<"resumes">, now: number): ResumeDi
         experienceYears: resolveExperienceYears(typeof content.experience === "string" ? content.experience : undefined, content.workHistory) ?? undefined,
         roleTypes,
         roleYearsByType,
+        displayScore: resolveDisplayScore(resume),
+        displayRecommendation: resolveDisplayRecommendation(resume),
+        displayBreakdown: resolveDisplayBreakdown(resume),
+        displaySummary: resolveDisplaySummary(resume),
+        displayConfirmedScore: resume.confirmedScore,
+        displayConfirmedAt: resume.confirmedAt,
         updatedAt: now,
     };
 }
@@ -306,4 +318,37 @@ function parseMatchedWorkEntries(value: unknown): AnalysisRoleSignalLike["matche
 
 function toNumber(value: unknown): number | undefined {
     return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+// ---------------------------------------------------------------------------
+// Phase 3 display-field resolvers — extract scalar display data from the
+// default analysis object for zero-join list/search score display.
+// ---------------------------------------------------------------------------
+
+function resolveDisplayScore(resume: Doc<"resumes">): number | undefined {
+    return typeof resume.analysis?.score === "number" ? resume.analysis.score : undefined;
+}
+
+function resolveDisplayRecommendation(resume: Doc<"resumes">): string | undefined {
+    const rec = resume.analysis?.recommendation;
+    return typeof rec === "string" && rec.trim().length > 0 ? rec : undefined;
+}
+
+function resolveDisplayBreakdown(resume: Doc<"resumes">): Record<string, number> | undefined {
+    const breakdown = resume.analysis?.breakdown;
+    if (!isRecord(breakdown)) return undefined;
+    const result: Record<string, number> = {};
+    for (const [key, value] of Object.entries(breakdown)) {
+        if (typeof value === "number" && Number.isFinite(value)) {
+            result[key] = value;
+        }
+    }
+    return Object.keys(result).length > 0 ? result : undefined;
+}
+
+function resolveDisplaySummary(resume: Doc<"resumes">): string | undefined {
+    const summary = resume.analysis?.summary;
+    return typeof summary === "string" && summary.trim().length > 0
+        ? summary.slice(0, 500)
+        : undefined;
 }
