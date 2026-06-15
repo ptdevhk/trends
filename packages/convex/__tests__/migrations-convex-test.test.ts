@@ -1689,6 +1689,46 @@ describe("migration: validateDataConsistency", () => {
     expect(result.backfillVerifiedRoleYears.scanned).toBe(0);
     expect(result.backfillVerifiedRoleYears.updated).toBe(0);
   });
+
+  it("backfills resume_digest_statuses overlay from candidate_status", async () => {
+    const t = createTest();
+
+    const resumeId = await insertResume(t, {
+      identityKey: "ik-status-backfill",
+      content: { name: "Status Backfill Candidate" },
+      searchText: "cnc status backfill",
+      ingestData: {
+        industryTags: ["manufacturing"],
+        synonymHits: ["cnc"],
+        ruleScores: {},
+        experienceLevel: "senior",
+        computedAt: Date.now(),
+        skillsVersion: 2,
+      },
+    });
+
+    await t.run(async (ctx) => {
+      await ctx.db.insert("candidate_status", {
+        workspaceSlug: "backfill-ws",
+        identityKey: "ik-status-backfill",
+        status: "shortlisted",
+        updatedAt: Date.now(),
+      });
+    });
+
+    const result = await t.action(api.migrations.validateDataConsistency, {});
+
+    expect(result.backfillResumeDigests.processed).toBeGreaterThanOrEqual(1);
+    expect(result.backfillResumeDigestStatuses.processed).toBe(1);
+
+    const statusRows = await t.run(async (ctx) =>
+      ctx.db.query("resume_digest_statuses").collect()
+    );
+    expect(statusRows).toHaveLength(1);
+    expect(statusRows[0].identityKey).toBe("ik-status-backfill");
+    expect(statusRows[0].workspaceSlug).toBe("backfill-ws");
+    expect(statusRows[0].status).toBe("shortlisted");
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -1533,10 +1533,27 @@ export const validateDataConsistency = action({
             digestCursor = result.cursor;
         }
 
+        // Step 4: Backfill resume_digest_statuses overlay from candidate_status.
+        // Restores from pre-Phase-2 backups have candidate_status but no overlay.
+        // This step runs after Step 3 (digest rebuild) so resume_digests.by_identityKey
+        // lookups resolve correctly.
+        let statusCursor: string | null = null;
+        let statusProcessed = 0;
+        for (let i = 0; i < 10000; i++) {
+            const result: { processed: number; isDone: boolean; cursor: string | null } = await ctx.runMutation(api.resumes_search.backfillResumeDigestStatuses, {
+                cursor: statusCursor ?? undefined,
+                limit: batchSize,
+            });
+            statusProcessed += result.processed;
+            if (result.isDone) break;
+            statusCursor = result.cursor;
+        }
+
         return {
             reindexSearchText: { scanned: reindexScanned, updated: reindexUpdated },
             backfillVerifiedRoleYears: { scanned: vryScanned, updated: vryUpdated },
             backfillResumeDigests: { processed: digestProcessed },
+            backfillResumeDigestStatuses: { processed: statusProcessed },
         };
     },
 });
