@@ -638,7 +638,7 @@ export const getResumeDetail = query({
             return null;
         }
 
-        return projectResumeDetailDoc(resume);
+        return await projectResumeDetailDoc(ctx, resume);
     },
 });
 

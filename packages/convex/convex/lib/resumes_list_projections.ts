@@ -5,6 +5,7 @@
  * normalizing filter arguments, matching filter criteria, and sorting.
  */
 import type { Doc } from "../_generated/dataModel";
+import type { QueryCtx } from "../_generated/server";
 import {
     isRecord,
     normalizeResumeLocationHierarchy,
@@ -316,8 +317,11 @@ export function projectResumeListDoc(resume: Doc<"resumes">): ResumeListProjecte
     };
 }
 
-export function projectResumeDetailDoc(resume: Doc<"resumes">): ResumeListProjectedDoc {
-    return {
+export async function projectResumeDetailDoc(
+    ctx: QueryCtx,
+    resume: Doc<"resumes">,
+): Promise<ResumeListProjectedDoc> {
+    const base = {
         _id: resume._id,
         externalId: resume.externalId,
         ...(resume.identityKey ? { identityKey: resume.identityKey } : {}),
@@ -326,13 +330,30 @@ export function projectResumeDetailDoc(resume: Doc<"resumes">): ResumeListProjec
         crawledAt: resume.crawledAt,
         source: resume.source,
         tags: resume.tags,
-        ...(resume.analysis ? { analysis: resume.analysis } : {}),
-        ...(resume.analyses ? { analyses: resume.analyses } : {}),
         ...(resume.confirmedScore === undefined ? {} : { confirmedScore: resume.confirmedScore }),
         ...(resume.confirmedAt === undefined ? {} : { confirmedAt: resume.confirmedAt }),
         ...(resume.primaryRuleScore === undefined ? {} : { primaryRuleScore: resume.primaryRuleScore }),
         ...(resume.isArchived === true ? { isArchived: true, archivedAt: resume.archivedAt } : {}),
         ...(resume.ingestData ? { ingestData: projectResumeListIngestData(resume.ingestData) } : {}),
+    };
+
+    // Phase 3 completion: fetch analysis/analyses from the cold resume_analyses
+    // table via by_resume index. Only active rows are visible to the detail
+    // view — archived rows (flipped by clearAnalyses) are invisible but
+    // retained for audit/undo.
+    const coldRow = await ctx.db
+        .query("resume_analyses")
+        .withIndex("by_resume", (q) => q.eq("resumeId", resume._id))
+        .unique();
+
+    if (!coldRow || coldRow.status !== "active") {
+        return base;
+    }
+
+    return {
+        ...base,
+        ...(coldRow.analysis ? { analysis: coldRow.analysis } : {}),
+        ...(coldRow.analyses ? { analyses: coldRow.analyses } : {}),
     };
 }
 

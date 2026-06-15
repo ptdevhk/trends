@@ -204,7 +204,18 @@ describe("Re-ingest pipeline integration", () => {
 
             const ctx = {
                 db: {
-                    query() {
+                    query(table: string) {
+                        if (table === "resume_analyses") {
+                            return {
+                                withIndex() {
+                                    return {
+                                        async unique() {
+                                            return null;
+                                        },
+                                    };
+                                },
+                            };
+                        }
                         return {
                             order(orderDirection: string) {
                                 expect(orderDirection).toBe("desc");
