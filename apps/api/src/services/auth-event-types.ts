@@ -4,6 +4,7 @@ export type AuthEventType =
   | "login_throttled"
   | "logout"
   | "sessions_revoked"
+  | "password_reset_completed"
   | "csrf_reject"
   | "workspace_access_denied"
   | "admin_access_denied"

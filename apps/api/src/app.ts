@@ -40,6 +40,7 @@ import {
   resumesMatchRoutes,
 } from "./routes/index.js";
 import { createAuthRoutes } from "./routes/auth.js";
+import { createAdminUserRoutes } from "./routes/admin_users.js";
 import { config } from "./services/config.js";
 import type { AuthEventStorage } from "./services/auth-event-storage.js";
 import type { AuthStorage } from "./services/auth-storage.js";
@@ -188,6 +189,12 @@ export function createApp(options: CreateAppOptions = {}) {
     storage: options.authStorage,
     eventStorage: options.authEventStorage,
     ttlSeconds: options.authTtlSeconds,
+  }));
+  app.route("/", createAdminUserRoutes({
+    storage: options.authStorage,
+    eventStorage: options.authEventStorage,
+    adminResetEnabled: config.auth.adminResetEnabled,
+    authMiddleware,
   }));
   app.route("/", aiSummaryRoutes);
   app.route("/", taxonomyRoutes);
