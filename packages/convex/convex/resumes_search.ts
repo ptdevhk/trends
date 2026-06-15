@@ -971,7 +971,67 @@ export const backfillResumeDigests = mutation({
     },
 });
 
-// Keep getResumes for backward compatibility
+// Idempotent backfill: paginate through all candidate_status rows and
+// upsert resume_digest_statuses overlay rows. Safe to re-run — existing
+// overlay rows are updated in place. Required after a restore where the
+// overlay table may not exist in the backup (pre-Phase-2 backups).
+export const backfillResumeDigestStatuses = mutation({
+    args: {
+        cursor: v.optional(v.string()),
+        limit: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const numItems = Math.min(args.limit ?? 100, 200);
+        const page = await ctx.db
+            .query("candidate_status")
+            .order("desc")
+            .paginate({
+                cursor: args.cursor ?? null,
+                numItems,
+            });
+
+        let processed = 0;
+        for (const status of page.page) {
+            // Look up the resume via the digest overlay's by_identityKey index.
+            const digest = await ctx.db
+                .query("resume_digests")
+                .withIndex("by_identityKey", (q) => q.eq("identityKey", status.identityKey))
+                .first();
+            if (!digest) {
+                continue;
+            }
+
+            const existing = await ctx.db
+                .query("resume_digest_statuses")
+                .withIndex("by_workspace_identity", (q) =>
+                    q.eq("workspaceSlug", status.workspaceSlug).eq("identityKey", status.identityKey)
+                )
+                .unique();
+
+            if (existing) {
+                await ctx.db.patch(existing._id, {
+                    status: status.status,
+                    updatedAt: status.updatedAt,
+                });
+            } else {
+                await ctx.db.insert("resume_digest_statuses", {
+                    resumeId: digest.resumeId,
+                    identityKey: status.identityKey,
+                    workspaceSlug: status.workspaceSlug,
+                    status: status.status,
+                    updatedAt: status.updatedAt,
+                });
+            }
+            processed += 1;
+        }
+
+        return {
+            processed,
+            isDone: page.isDone,
+            cursor: page.isDone ? null : page.continueCursor,
+        };
+    },
+});
 // These are used by the API resume list for AND-mode search
 // getResumes added to resolve production "function not found" errors
 export const getResumes = query({
