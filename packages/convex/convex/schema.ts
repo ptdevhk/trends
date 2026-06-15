@@ -116,11 +116,7 @@ export default defineSchema({
         .index("by_crawledAt", ["crawledAt"])
         .index("by_primaryRuleScore", ["primaryRuleScore"])
         .index("by_sourceKey", ["sourceKey"])
-        .index("by_needsEmbedding", ["needsEmbedding"])
-        .searchIndex("search_body", {
-            searchField: "searchText",
-            filterFields: ["isArchived"],
-        }),
+        .index("by_needsEmbedding", ["needsEmbedding"]),
 
     // Optional: Search Profiles (if we want to store user configs)
     search_profiles: defineTable({
