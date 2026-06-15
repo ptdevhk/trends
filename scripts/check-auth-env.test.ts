@@ -6,6 +6,7 @@ function makeInput(overrides: Partial<AuthEnvInput> = {}): AuthEnvInput {
     mode: 'local',
     CONVEX_WRITE_SECRET: '',
     AUTH_ALLOWED_ORIGINS: '',
+    AUTH_ADMIN_RESET_ENABLED: '',
     AUTH_OIDC_ENABLED: '',
     AUTH_OIDC_ISSUER: '',
     AUTH_OIDC_CLIENT_ID: '',
@@ -109,6 +110,18 @@ describe('checkAuthEnv', () => {
         AUTH_ALLOWED_ORIGINS: 'https://trends.pt-mes.com',
       }))
       expect(result.errors).toHaveLength(0)
+    })
+
+    it('errors when AUTH_ADMIN_RESET_ENABLED is true in production mode', () => {
+      const result = checkAuthEnv(makeInput({
+        mode: 'production',
+        CONVEX_WRITE_SECRET: 'secret',
+        AUTH_ALLOWED_ORIGINS: 'https://trends.pt-mes.com',
+        AUTH_ADMIN_RESET_ENABLED: 'true',
+      }))
+      expect(result.errors).toEqual(
+        expect.arrayContaining([expect.stringContaining('AUTH_ADMIN_RESET_ENABLED')])
+      )
     })
 
     it('validates OIDC redirect URI host matches an allowed origin host', () => {

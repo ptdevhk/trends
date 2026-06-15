@@ -59,6 +59,10 @@
     "class": "admin",
     "reason": "Resume admin operations use per-route requireAdmin middleware."
   },
+  "admin_users.ts": {
+    "class": "admin",
+    "reason": "Admin password reset uses requireAdmin middleware plus an inline dev-workspace check."
+  },
   "resumes_diagnostics.ts": {
     "class": "admin",
     "reason": "Resume diagnostic routes use requireAdmin middleware."

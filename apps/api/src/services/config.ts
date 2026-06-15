@@ -36,6 +36,7 @@ export const config = {
     csrfCookieName: process.env.AUTH_CSRF_COOKIE_NAME || "trends_csrf",
     sessionTtlSeconds: parseInt(process.env.AUTH_SESSION_TTL_SECONDS || "604800", 10),
     secureCookies: isProduction,
+    adminResetEnabled: process.env.AUTH_ADMIN_RESET_ENABLED === "true",
     allowedOrigins: (process.env.AUTH_ALLOWED_ORIGINS || "")
       .split(",")
       .map((origin) => origin.trim())
