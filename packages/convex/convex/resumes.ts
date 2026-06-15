@@ -20,6 +20,9 @@ import {
     sortResumeDocs,
     sortByIngestRuleScore,
 } from "./lib/resumes_list_projections.js";
+import {
+    matchesResumeDigestFilters,
+} from "./lib/resume_digests.js";
 import type {
     ResumeListPageArgs,
 } from "./lib/resumes_list_projections.js";
@@ -254,6 +257,15 @@ export type {
     ResumeUsageScanRow,
 } from "./resumes_mutations.js";
 
+async function getResumeDocsFromDigests(
+    ctx: QueryCtx,
+    digests: Doc<"resume_digests">[],
+): Promise<Doc<"resumes">[]> {
+    const docs = await Promise.all(digests.map((digest) => ctx.db.get(digest.resumeId)));
+    // Guard against stale digests: the digest row may lag a recent resume archive.
+    return docs.filter((doc): doc is Doc<"resumes"> => doc !== null && doc.isArchived !== true);
+}
+
 async function runListWithIngestDataPageQuery(
     ctx: QueryCtx,
     args: ResumeListPageArgs
@@ -264,12 +276,15 @@ async function runListWithIngestDataPageQuery(
     const { offset, pageLimit, scanLimit, overfetchLimit } = resolveListWithIngestPageWindow(args.limit, args.offset);
     const jobDescriptionId = args.jobDescriptionId?.trim() || undefined;
     const filters = normalizeResumeListFilters(args);
-    const candidates = await ctx.db
-        .query("resumes")
+    const digestCandidates = await ctx.db
+        .query("resume_digests")
         .withIndex("by_primaryRuleScore")
         .order("desc")
-        .filter((q) => q.neq(q.field("isArchived"), true))
         .take(overfetchLimit);
+    const digestFiltered = filters
+        ? digestCandidates.filter((digest) => matchesResumeDigestFilters(digest, filters))
+        : digestCandidates;
+    const candidates = await getResumeDocsFromDigests(ctx, digestFiltered);
     const sorted = sortResumeDocs(candidates, {
         jobDescriptionId,
         sortBy: args.sortBy,
@@ -425,12 +440,12 @@ export const listWithIngestData = query({
     handler: async (ctx, args) => {
         const { limit, overfetchLimit } = resolveListWithIngestWindow(args.limit);
         const jobDescriptionId = args.jobDescriptionId?.trim() || undefined;
-        const candidates = await ctx.db
-            .query("resumes")
+        const digestCandidates = await ctx.db
+            .query("resume_digests")
             .withIndex("by_primaryRuleScore")
             .order("desc")
-            .filter((q) => q.neq(q.field("isArchived"), true))
             .take(overfetchLimit);
+        const candidates = await getResumeDocsFromDigests(ctx, digestCandidates);
         return sortByIngestRuleScore(candidates, jobDescriptionId)
             .slice(0, limit)
             .map(projectResumeListDoc);
@@ -572,10 +587,9 @@ export const listWithIngestDataPaginated = query({
                     ? Math.min(requestedPageSize * FILTERED_PAGINATE_OVERFETCH_MULTIPLIER, MAX_SAFE_LIST_WITH_INGEST_LIMIT)
                     : requestedPageSize;
             const page = await ctx.db
-                .query("resumes")
+                .query("resume_digests")
                 .withIndex("by_primaryRuleScore")
                 .order("desc")
-                .filter((q) => q.neq(q.field("isArchived"), true))
                 .paginate({
                     ...args.paginationOpts,
                     numItems,
@@ -583,12 +597,16 @@ export const listWithIngestDataPaginated = query({
                     maximumRowsRead: PAGINATE_MAX_ROWS_READ,
                 });
 
-            const filtered = filters
-                ? page.page.filter((resume) => matchesResumeListFilters(resume, filters))
+            const digestFiltered = filters
+                ? page.page.filter((digest) => matchesResumeDigestFilters(digest, filters))
                 : page.page;
+            const fullDocs = await getResumeDocsFromDigests(ctx, digestFiltered);
+            const finalFiltered = filters
+                ? fullDocs.filter((resume) => matchesResumeListFilters(resume, filters))
+                : fullDocs;
             const ranked = jobDescriptionId
-                ? sortByIngestRuleScore(filtered, jobDescriptionId)
-                : filtered;
+                ? sortByIngestRuleScore(finalFiltered, jobDescriptionId)
+                : finalFiltered;
 
             return {
                 page: ranked.map(projectResumeListDoc),
@@ -723,40 +741,41 @@ export const countResumesByStatus = query({
       showArchived: false,
     });
 
-    // 3. Fetch non-archived resumes in a single paginated query.
-    // Convex only supports ONE .paginate() call per function (no loops).
+    // 3. Scan digest rows for candidate discovery.
+    // Digest rows are <1KB each, so we can scan far more than the cold
+    // resumes path (~27KB/doc) without hitting the byte limit.
     const MAX_MATCHES = 5000;
     const counts = createCandidateStatusCounts();
     let totalMatched = 0;
     let overflow = false;
 
     const page = await ctx.db
-      .query("resumes")
-      .filter((q) => q.neq(q.field("isArchived"), true))
+      .query("resume_digests")
       .paginate({
         cursor: null,
         numItems: MAX_MATCHES,
         maximumBytesRead: 10 * 1024 * 1024,
       });
 
-    for (const resume of page.page) {
+    for (const digest of page.page) {
       if (totalMatched >= MAX_MATCHES) {
         overflow = true;
         break;
       }
-      if (matchesResumeListFilters(resume, filters)) {
-        const identityKey = resume.identityKey ?? "";
-        if (identityKey && blockedIdentities.has(identityKey)) {
-          continue;
-        }
-        const status = statusByIdentity.get(identityKey) ?? "new";
-        const bucket = resolveCandidateStatus(status);
-        counts[bucket] += 1;
-        totalMatched += 1;
+      if (!matchesResumeDigestFilters(digest, filters)) {
+        continue;
       }
+      const identityKey = digest.identityKey ?? "";
+      if (identityKey && blockedIdentities.has(identityKey)) {
+        continue;
+      }
+      const status = statusByIdentity.get(identityKey) ?? "new";
+      const bucket = resolveCandidateStatus(status);
+      counts[bucket] += 1;
+      totalMatched += 1;
     }
 
-    // If the page isn't done, we hit the byte limit before reading all docs
+    // If the page isn't done, we hit the row limit before reading all digests
     if (!page.isDone) {
       overflow = true;
     }

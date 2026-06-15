@@ -379,3 +379,27 @@ describe("sortResumeDocs", () => {
     expect(sorted[0]._id).toBe("r1");
   });
 });
+
+describe("buildResumeDigest list fields", () => {
+  it("projects list sort fields without copying cold full document payload", () => {
+    const resume = makeResume({
+      identityKey: "identity-list-1",
+      searchText: "cnc ".repeat(2000),
+      primaryRuleScore: 88,
+      crawledAt: 12345,
+      content: {
+        name: "List Candidate",
+        location: "Shanghai, China",
+        expectedSalary: "20000",
+      },
+    });
+
+    const digest = buildResumeDigest(resume as any, 999);
+
+    expect(digest.identityKey).toBe("identity-list-1");
+    expect(digest.primaryRuleScore).toBe(88);
+    expect(digest.crawledAt).toBe(12345);
+    expect(digest.searchText?.length ?? 0).toBeLessThan(1600);
+    expect(digest.updatedAt).toBe(999);
+  });
+});

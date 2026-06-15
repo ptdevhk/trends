@@ -504,6 +504,7 @@ export default defineSchema({
         .index("by_identityKey", ["identityKey"])
         .index("by_sourceKey", ["sourceKey"])
         .index("by_crawledAt", ["crawledAt"])
+        .index("by_primaryRuleScore", ["primaryRuleScore"])
         .searchIndex("search_body", {
             searchField: "searchText",
             filterFields: ["isArchived", "sourceKey"],
