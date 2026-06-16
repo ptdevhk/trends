@@ -928,17 +928,33 @@ export async function doUpsertResumeDigest(
 // status to "active" and clears archivedAt. This makes re-analyze-after-clear
 // restore the row naturally — clearAnalyses flips to archived, the next
 // analysis write flips it back.
+// Upsert the cold resume_analyses row (full analysis blob) for a resume.
+// Called after analysis writes to keep the cold table in sync.
+//
+// Soft-clear interaction (Phase 3 completion bundle): every upsert resets
+// status to "active" and clears archivedAt. This makes re-analyze-after-clear
+// restore the row naturally — clearAnalyses flips to archived, the next
+// analysis write flips it back.
+//
+// Phase 4 prep: analysis/analyses are passed explicitly rather than read off
+// the hot `resumes` doc. This decouples the cold-row write from the hot-doc
+// shape so that a future schema change removing those hot fields only needs to
+// rework call sites (source from args/cold table), not this helper. Hot fields
+// are retained for now — backup, JD-usage matching, and migrations still read
+// them — so behavior is identical.
 export async function doUpsertResumeAnalysis(
     ctx: MutationCtx,
-    resume: Doc<"resumes">,
+    resumeId: Id<"resumes">,
+    analysis: Doc<"resume_analyses">["analysis"],
+    analyses: Doc<"resume_analyses">["analyses"],
 ): Promise<void> {
     const existing = await ctx.db
         .query("resume_analyses")
-        .withIndex("by_resume", (q) => q.eq("resumeId", resume._id))
+        .withIndex("by_resume", (q) => q.eq("resumeId", resumeId))
         .first();
     const patch = {
-        analysis: resume.analysis,
-        analyses: resume.analyses,
+        analysis,
+        analyses,
         status: "active" as const,
         archivedAt: undefined,
         updatedAt: Date.now(),
@@ -946,7 +962,7 @@ export async function doUpsertResumeAnalysis(
     if (existing) {
         await ctx.db.patch(existing._id, patch);
     } else {
-        await ctx.db.insert("resume_analyses", { resumeId: resume._id, ...patch });
+        await ctx.db.insert("resume_analyses", { resumeId, ...patch });
     }
 }
 
@@ -968,7 +984,7 @@ export const upsertResumeAnalysis = internalMutation({
     handler: async (ctx, args) => {
         const resume = await ctx.db.get(args.resumeId);
         if (!resume) return;
-        await doUpsertResumeAnalysis(ctx, resume);
+        await doUpsertResumeAnalysis(ctx, args.resumeId, resume.analysis, resume.analyses);
     },
 });
 
@@ -1092,7 +1108,7 @@ export const backfillResumeAnalyses = mutation({
                 maximumRowsRead: PAGINATE_MAX_ROWS_READ,
             });
         for (const resume of page.page) {
-            await doUpsertResumeAnalysis(ctx, resume);
+            await doUpsertResumeAnalysis(ctx, resume._id, resume.analysis, resume.analyses);
         }
         return {
             processed: page.page.length,

@@ -126,7 +126,7 @@ describe("deleteResumes cleanup", () => {
         });
         await t.run(async (ctx) => {
             const resume = await ctx.db.get(resumeId);
-            await doUpsertResumeAnalysis(ctx, resume!);
+            await doUpsertResumeAnalysis(ctx, resumeId, resume!.analysis, resume!.analyses);
         });
 
         // Confirm cold row exists before delete.
@@ -167,7 +167,7 @@ describe("deleteResumes cleanup", () => {
 
         await t.run(async (ctx) => {
             const resume = await ctx.db.get(resumeId);
-            await doUpsertResumeAnalysis(ctx, resume!);
+            await doUpsertResumeAnalysis(ctx, resumeId, resume!.analysis, resume!.analyses);
         });
 
         await t.mutation(api.resumes.hardResetIngestData, {});
@@ -200,7 +200,7 @@ describe("clearAnalyses soft-clear", () => {
 
         await t.run(async (ctx) => {
             const resume = await ctx.db.get(resumeId);
-            await doUpsertResumeAnalysis(ctx, resume!);
+            await doUpsertResumeAnalysis(ctx, resumeId, resume!.analysis, resume!.analyses);
         });
 
         // Non-surgical clear (no jobDescriptionId) → archive.
@@ -235,7 +235,7 @@ describe("clearAnalyses soft-clear", () => {
         });
         await t.run(async (ctx) => {
             const resume = await ctx.db.get(resumeId);
-            await doUpsertResumeAnalysis(ctx, resume!);
+            await doUpsertResumeAnalysis(ctx, resumeId, resume!.analysis, resume!.analyses);
         });
 
         // Surgical clear of one JD — the other remains.
@@ -274,7 +274,7 @@ describe("clearAnalyses soft-clear", () => {
         });
         await t.run(async (ctx) => {
             const resume = await ctx.db.get(resumeId);
-            await doUpsertResumeAnalysis(ctx, resume!);
+            await doUpsertResumeAnalysis(ctx, resumeId, resume!.analysis, resume!.analyses);
         });
 
         // Surgical clear empties the map AND clears current analysis → archive.

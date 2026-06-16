@@ -461,7 +461,7 @@ export const storeConfirmResult = internalMutation({
         const updated = await ctx.db.get(args.resumeId);
         if (updated) {
             await doUpsertResumeDigest(ctx, updated);
-            await doUpsertResumeAnalysis(ctx, updated);
+            await doUpsertResumeAnalysis(ctx, args.resumeId, updated.analysis, updated.analyses);
         }
     },
 });
