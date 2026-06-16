@@ -15,7 +15,7 @@
  * Each test inserts realistic data, runs the migration, and verifies
  * the database state matches expectations.
  */
-import { createTest } from "./test-helpers.js";
+import { createTest, seedResumeAnalysesColdRow } from "./test-helpers.js";
 import { describe, expect, it } from "vitest";
 import { api } from "../convex/_generated/api.js";
 
@@ -690,6 +690,62 @@ describe("migration: mergeDuplicateResumesByIdentity", () => {
     expect(result.duplicateGroupCount).toBeGreaterThanOrEqual(2);
     // With batchSize=100, both groups should be processed
     expect(result.processedGroupCount).toBeGreaterThanOrEqual(2);
+  });
+
+  it("merges analyses from cold resume_analyses rows into the canonical cold row", async () => {
+    const t = createTest();
+
+    const sharedKey = "cold-analysis-merge-key";
+    // Canonical: cold row with current analysis + one cached analysis.
+    const canonicalId = await insertResume(t, {
+      externalId: "cold-canonical",
+      identityKey: sharedKey,
+      crawledAt: 300,
+      tags: [],
+    });
+    await seedResumeAnalysesColdRow(t, canonicalId, {
+      analysis: { score: 80, summary: "primary", highlights: [], recommendation: "yes" },
+      analyses: { jd1: { score: 80 } },
+    });
+    // Duplicate: cold row with a different cached analysis.
+    const dupId = await insertResume(t, {
+      externalId: "cold-duplicate",
+      identityKey: sharedKey,
+      crawledAt: 200,
+      tags: [],
+    });
+    await seedResumeAnalysesColdRow(t, dupId, {
+      analyses: { jd2: { score: 90 } },
+    });
+
+    const result = await t.mutation(
+      api.migrations.mergeDuplicateResumesByIdentity,
+      { dryRun: false, batchSize: 10 },
+    );
+
+    expect(result.patchedCanonicals).toBe(1);
+    expect(result.deleted).toBe(1);
+    expect(result.groups[0].mergedAnalysisCount).toBe(2);
+
+    // Canonical's cold row now carries both merged analyses + the primary analysis.
+    const canonicalCold = await t.run(async (ctx) => {
+      return ctx.db
+        .query("resume_analyses")
+        .withIndex("by_resume", (q: any) => q.eq("resumeId", canonicalId))
+        .first();
+    });
+    expect(canonicalCold).toBeDefined();
+    expect(Object.keys(canonicalCold!.analyses ?? {}).sort()).toEqual(["jd1", "jd2"]);
+    expect((canonicalCold!.analysis as Record<string, unknown>)?.score).toBe(80);
+
+    // The duplicate's resume is deleted; its cold row must not be orphaned.
+    const dupCold = await t.run(async (ctx) => {
+      return ctx.db
+        .query("resume_analyses")
+        .withIndex("by_resume", (q: any) => q.eq("resumeId", dupId))
+        .first();
+    });
+    expect(dupCold).toBeNull();
   });
 });
 
