@@ -23,7 +23,7 @@
     "json5": "^2.2.3",
     "mammoth": "^1.12.0",
     "node-unrar-js": "^2.0.2",
-    "nodemailer": "^8.0.8",
+    "nodemailer": "^9.0.0",
     "openid-client": "^6.8.4",
     "papaparse": "^5.5.3",
     "pdf-parse": "^2.4.5",
