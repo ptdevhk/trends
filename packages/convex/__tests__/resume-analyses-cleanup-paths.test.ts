@@ -65,6 +65,25 @@ describe("projectResumeDetailDoc (async fetch)", () => {
         expect(projected.analyses).toBeUndefined();
     });
 
+    it("treats rows with undefined status as active (backwards-compat with pre-Phase-1 rows)", async () => {
+        // Pre-existing rows created by PR #1269 before the status field was added
+        // have status: undefined. They must be visible to the detail view.
+        const resume = makeResume();
+        const legacyRow = {
+            _id: "ra1" as any,
+            resumeId: resume._id,
+            analysis: { jobDescriptionId: "jd1", score: 90 } as any,
+            analyses: undefined,
+            status: undefined,
+            archivedAt: undefined,
+            updatedAt: Date.now(),
+        };
+        const projected = await projectResumeDetailDoc(mockCtxWithColdRow(legacyRow), resume);
+
+        expect(projected.analysis).toBeDefined();
+        expect((projected.analysis as any).score).toBe(90);
+    });
+
     it("filters out archived rows — only active rows reach the detail view", async () => {
         const resume = makeResume();
         const archivedRow = {

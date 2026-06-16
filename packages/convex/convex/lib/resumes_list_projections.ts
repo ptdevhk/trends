@@ -346,7 +346,7 @@ export async function projectResumeDetailDoc(
         .withIndex("by_resume", (q) => q.eq("resumeId", resume._id))
         .unique();
 
-    if (!coldRow || coldRow.status !== "active") {
+    if (!coldRow || coldRow.status === "archived") {
         return base;
     }
 
