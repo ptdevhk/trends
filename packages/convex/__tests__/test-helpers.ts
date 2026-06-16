@@ -66,6 +66,24 @@ export function seedResumeAnalysesColdRow(
 }
 
 /**
+ * Read the cold resume_analyses row for a resume (by_resume unique).
+ * Phase 4 Step 3a: analysis/analyses now live here (active = status
+ * undefined or "active"); the hot resume.analysis/analyses are no longer
+ * written. Tests assert on this row instead of the hot doc.
+ */
+export function getResumeAnalysesColdRow(
+    t: ReturnType<typeof convexTest>,
+    resumeId: Id<"resumes">,
+) {
+    return t.run(async (ctx) => {
+        return ctx.db
+            .query("resume_analyses")
+            .withIndex("by_resume", (q) => q.eq("resumeId", resumeId))
+            .unique();
+    });
+}
+
+/**
  * Minimal valid ingestData for test seeding.
  */
 export const MINIMAL_INGEST_DATA = {

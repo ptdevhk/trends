@@ -4,7 +4,7 @@
  * Replaces the hand-crafted mock test (resumes-hard-reset.test.ts)
  * with proper convex-test infrastructure.
  */
-import { createTest } from "./test-helpers.js";
+import { createTest, seedResumeAnalysesColdRow, getResumeAnalysesColdRow } from "./test-helpers.js";
 import { describe, expect, it } from "vitest";
 import { api } from "../convex/_generated/api.js";
 
@@ -38,7 +38,7 @@ describe("resumes: hardResetIngestData", () => {
   it("clears computed ingest and analysis fields while preserving raw data", async () => {
     const t = createTest();
 
-    await insertResume(t, {
+    const resumeId = await insertResume(t, {
       content: { name: "Alice" },
       ingestData: {
         evidenceText: "computed",
@@ -60,6 +60,10 @@ describe("resumes: hardResetIngestData", () => {
       primaryRuleScore: 88,
       searchText: "alice sales",
     });
+    // Phase 4 Step 3a: analysis lives on the cold row; hardReset archives it.
+    await seedResumeAnalysesColdRow(t, resumeId, {
+      analysis: { score: 88, summary: "summary", highlights: [], recommendation: "yes" },
+    });
 
     const result = await t.mutation(api.resumes.hardResetIngestData, {});
 
@@ -74,9 +78,13 @@ describe("resumes: hardResetIngestData", () => {
 
     expect(resumes[0].content).toEqual({ name: "Alice" });
     expect(resumes[0].ingestData).toBeUndefined();
-    expect(resumes[0].analysis).toBeUndefined();
     expect(resumes[0].primaryRuleScore).toBeUndefined();
     expect(resumes[0].searchText).toBeUndefined();
+
+    // Phase 4 Step 3a: analysis is cleared by ARCHIVING the cold row.
+    const coldRow = await getResumeAnalysesColdRow(t, resumeId);
+    expect(coldRow).not.toBeNull();
+    expect(coldRow?.status).toBe("archived");
   });
 
   it("skips resumes without computed fields", async () => {
@@ -189,6 +197,17 @@ describe("resumes: clearAnalyses", () => {
         default: { score: 85 },
       },
     });
+    // Phase 4 Step 3a: clear is cold-authoritative — seed the analysis on the
+    // cold row so clearAnalyses has a row to archive.
+    await seedResumeAnalysesColdRow(t, resumeId, {
+      analysis: {
+        score: 85,
+        summary: "good candidate",
+        highlights: ["experienced"],
+        recommendation: "yes",
+      },
+      analyses: { default: { score: 85 } },
+    });
 
     await t.mutation(api.resumes.clearAnalyses, {
       resumeIds: [resumeId],
@@ -198,8 +217,11 @@ describe("resumes: clearAnalyses", () => {
       return ctx.db.query("resumes").collect();
     });
 
-    expect(resumes[0].analysis).toBeUndefined();
-    expect(resumes[0].analyses).toBeUndefined();
+    // Phase 4 Step 3a: the cold row is archived (hot analysis fields are no
+    // longer cleared — they're no longer authoritative).
+    const coldRow = await getResumeAnalysesColdRow(t, resumeId);
+    expect(coldRow).not.toBeNull();
+    expect(coldRow?.status).toBe("archived");
     // Other fields preserved
     expect(resumes[0].content).toEqual({ name: "Analyzed" });
   });

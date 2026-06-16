@@ -15,6 +15,9 @@ import {
     resolveResumeAge,
 } from "./resumes_list_projections";
 import {
+    type ResumeAnalysisBlob,
+} from "./resume_analysis_read.js";
+import {
     appendMissingSearchTokens,
     buildIngestSearchTokens,
     buildSearchText,
@@ -55,7 +58,11 @@ export type ResumeDigest = {
     updatedAt: number;
 };
 
-export function buildResumeDigest(resume: Doc<"resumes">, now: number): ResumeDigest {
+export function buildResumeDigest(
+    resume: Doc<"resumes">,
+    now: number,
+    activeAnalysis: ResumeAnalysisBlob = {},
+): ResumeDigest {
     const content = isRecord(resume.content) ? resume.content : {};
     const locationHierarchy = normalizeResumeLocationHierarchy(content, resume.source);
     const locationText = formatLocationHierarchySearchText(locationHierarchy) || (typeof content.location === "string" ? content.location : undefined);
@@ -91,10 +98,10 @@ export function buildResumeDigest(resume: Doc<"resumes">, now: number): ResumeDi
         experienceYears: resolveExperienceYears(typeof content.experience === "string" ? content.experience : undefined, content.workHistory) ?? undefined,
         roleTypes,
         roleYearsByType,
-        displayScore: resolveDisplayScore(resume),
-        displayRecommendation: resolveDisplayRecommendation(resume),
-        displayBreakdown: resolveDisplayBreakdown(resume),
-        displaySummary: resolveDisplaySummary(resume),
+        displayScore: resolveDisplayScore(activeAnalysis.analysis),
+        displayRecommendation: resolveDisplayRecommendation(activeAnalysis.analysis),
+        displayBreakdown: resolveDisplayBreakdown(activeAnalysis.analysis),
+        displaySummary: resolveDisplaySummary(activeAnalysis.analysis),
         displayConfirmedScore: resume.confirmedScore,
         displayConfirmedAt: resume.confirmedAt,
         updatedAt: now,
@@ -323,19 +330,24 @@ function toNumber(value: unknown): number | undefined {
 // ---------------------------------------------------------------------------
 // Phase 3 display-field resolvers — extract scalar display data from the
 // default analysis object for zero-join list/search score display.
+//
+// Phase 4 Step 3a: resolvers take the resolved ACTIVE analysis blob
+// (cold row, with legacy hot fallback) rather than reading `resume.analysis`
+// directly. Callers resolve it once via readActiveResumeAnalysis to avoid
+// per-field DB round-trips. See lib/resume_analysis_read.ts.
 // ---------------------------------------------------------------------------
 
-function resolveDisplayScore(resume: Doc<"resumes">): number | undefined {
-    return typeof resume.analysis?.score === "number" ? resume.analysis.score : undefined;
+function resolveDisplayScore(analysis: ResumeAnalysisBlob["analysis"]): number | undefined {
+    return typeof analysis?.score === "number" ? analysis.score : undefined;
 }
 
-function resolveDisplayRecommendation(resume: Doc<"resumes">): string | undefined {
-    const rec = resume.analysis?.recommendation;
+function resolveDisplayRecommendation(analysis: ResumeAnalysisBlob["analysis"]): string | undefined {
+    const rec = analysis?.recommendation;
     return typeof rec === "string" && rec.trim().length > 0 ? rec : undefined;
 }
 
-function resolveDisplayBreakdown(resume: Doc<"resumes">): Record<string, number> | undefined {
-    const breakdown = resume.analysis?.breakdown;
+function resolveDisplayBreakdown(analysis: ResumeAnalysisBlob["analysis"]): Record<string, number> | undefined {
+    const breakdown = analysis?.breakdown;
     if (!isRecord(breakdown)) return undefined;
     const result: Record<string, number> = {};
     for (const [key, value] of Object.entries(breakdown)) {
@@ -346,8 +358,8 @@ function resolveDisplayBreakdown(resume: Doc<"resumes">): Record<string, number>
     return Object.keys(result).length > 0 ? result : undefined;
 }
 
-function resolveDisplaySummary(resume: Doc<"resumes">): string | undefined {
-    const summary = resume.analysis?.summary;
+function resolveDisplaySummary(analysis: ResumeAnalysisBlob["analysis"]): string | undefined {
+    const summary = analysis?.summary;
     return typeof summary === "string" && summary.trim().length > 0
         ? summary.slice(0, 500)
         : undefined;

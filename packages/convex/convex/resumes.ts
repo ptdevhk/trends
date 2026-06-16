@@ -19,6 +19,7 @@ import {
     sortResumeDocs,
     sortByIngestRuleScore,
 } from "./lib/resumes_list_projections.js";
+import { readActiveResumeAnalysis } from "./lib/resume_analysis_read.js";
 import {
     matchesResumeDigestFilters,
 } from "./lib/resume_digests.js";
@@ -520,9 +521,18 @@ export const listNewForWindow = query({
             .order("desc")
             .take(maxResults);
 
-        return rows.map((row) => {
+        // Phase 4 Step 3a: source analysis from the active cold row (archived
+        // filtered, legacy hot fallback) so the new-resume feed shows scores
+        // without depending on the hot doc's analysis field.
+        const resolved = await Promise.all(
+            rows.map(async (row) => ({
+                row,
+                active: await readActiveResumeAnalysis(ctx, row),
+            })),
+        );
+        return resolved.map(({ row, active }) => {
             const content = isRecord(row.content) ? row.content : {};
-            const analysis = isRecord(row.analysis) ? row.analysis : undefined;
+            const analysis = isRecord(active.analysis) ? active.analysis : undefined;
 
             return {
                 resumeId: String(row._id),

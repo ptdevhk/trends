@@ -8,7 +8,7 @@
  * See: projects/trends/work/2026-06-15-resume-analyses-phase3-completion-cleanup/plan.md
  */
 import { describe, expect, it } from "vitest";
-import { createTest, seedResume } from "./test-helpers.js";
+import { createTest, seedResume, seedResumeAnalysesColdRow } from "./test-helpers.js";
 import { internal } from "../convex/_generated/api.js";
 import { doUpsertResumeDigest, doUpsertResumeAnalysis } from "../convex/resumes_search.js";
 
@@ -100,17 +100,26 @@ describe("doUpsertResumeDigest", () => {
 
     it("populates digest fields from a representative resume fixture", async () => {
         const t = createTest();
+        const analysis = {
+            score: 88,
+            summary: "Great candidate",
+            highlights: [],
+            recommendation: "proceed",
+            breakdown: { fit: 90 },
+        };
         const resumeId = await seedResume(t, {
             externalId: "digest-fixture-1",
             identityKey: "profileUrl:example.com/candidates/df1",
-            analysis: {
-                score: 88,
-                summary: "Great candidate",
-                highlights: [],
-                recommendation: "proceed",
-                breakdown: { fit: 90 },
-            },
             primaryRuleScore: 77,
+        });
+
+        // Phase 4 Step 3a: analysis now lives on the cold resume_analyses row.
+        // doUpsertResumeDigest sources display fields from the ACTIVE cold row,
+        // so seed it then re-upsert the digest to populate displayScore etc.
+        await seedResumeAnalysesColdRow(t, resumeId, { analysis });
+        await t.run(async (ctx) => {
+            const resume = await ctx.db.get(resumeId);
+            await doUpsertResumeDigest(ctx, resume!);
         });
 
         const row = await t.run(async (ctx) =>
@@ -178,19 +187,26 @@ describe("doUpsertResumeAnalysis", () => {
     it("inserts a new row with analysis blob", async () => {
         const t = createTest();
         const resumeId = await seedResume(t);
+        const analysis = {
+            score: 85,
+            summary: "Strong candidate",
+            highlights: ["expertise"],
+            recommendation: "proceed",
+        };
         await t.mutation(internal.resumes.updateAnalysis, {
             resumeId,
-            analysis: {
-                score: 85,
-                summary: "Strong candidate",
-                highlights: ["expertise"],
-                recommendation: "proceed",
-            },
+            analysis,
         });
 
+        // Phase 4 Step 3a: updateAnalysis no longer writes analysis onto the
+        // hot doc. Source the blob (and the analyses map it built) from the
+        // cold row so this helper test exercises doUpsertResumeAnalysis directly.
         await t.run(async (ctx) => {
-            const resume = await ctx.db.get(resumeId);
-            await doUpsertResumeAnalysis(ctx, resumeId, resume!.analysis, resume!.analyses);
+            const coldRow = await ctx.db
+                .query("resume_analyses")
+                .withIndex("by_resume", (q) => q.eq("resumeId", resumeId))
+                .unique();
+            await doUpsertResumeAnalysis(ctx, resumeId, analysis, coldRow?.analyses ?? {});
         });
 
         const row = await t.run(async (ctx) =>

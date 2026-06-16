@@ -16,6 +16,7 @@ import {
     shouldScheduleIngest,
     applyRestoreStateFields,
 } from "./lib/resume_task_helpers.js";
+import { doUpsertResumeAnalysis } from "./resumes_search.js";
 
 // Backward-compatible re-exports
 export type { RestoreState } from "./lib/resume_task_helpers.js";
@@ -441,8 +442,6 @@ export const submitResumes = mutation({
                             sourceKey?: string;
                             primaryRuleScore?: number;
                             ingestData?: Doc<"resumes">["ingestData"];
-                            analysis?: Doc<"resumes">["analysis"];
-                            analyses?: Doc<"resumes">["analyses"];
                             age?: number;
                         } = {
                             externalId: resume.externalId,
@@ -455,9 +454,18 @@ export const submitResumes = mutation({
                             searchText: resolveStoredSearchText(resume.content, restoreState),
                             sourceKey: resolveDiagnosticsSourceKeyForResume({ source: resume.source, content: resume.content }),
                         };
-                        applyRestoreStateFields(patch, restoreState);
+                        const restoredAnalysis = applyRestoreStateFields(patch, restoreState);
                         applyParsedAgePatch(patch, parsedAge, existing.age);
                         await ctx.db.patch(existing._id, patch);
+                        // Phase 4 Step 3a: restore analysis to the cold row, not hot.
+                        if (restoredAnalysis.analysis !== undefined || restoredAnalysis.analyses !== undefined) {
+                            await doUpsertResumeAnalysis(
+                                ctx,
+                                existing._id,
+                                restoredAnalysis.analysis,
+                                restoredAnalysis.analyses ?? {},
+                            );
+                        }
                         updated += 1;
                         searchTextRefreshed += 1;
                         if (shouldScheduleIngest(restoreState)) {
@@ -472,8 +480,6 @@ export const submitResumes = mutation({
                         tags?: string[];
                         primaryRuleScore?: number;
                         ingestData?: Doc<"resumes">["ingestData"];
-                        analysis?: Doc<"resumes">["analysis"];
-                        analyses?: Doc<"resumes">["analyses"];
                         age?: number;
                     } = {};
 
@@ -487,11 +493,24 @@ export const submitResumes = mutation({
                     if (tagsChanged) {
                         patch.tags = nextTags;
                     }
-                    applyRestoreStateFields(patch, restoreState);
+                    const restoredAnalysis = applyRestoreStateFields(patch, restoreState);
                     applyParsedAgePatch(patch, parsedAge, existing.age);
 
-                    if (Object.keys(patch).length > 0) {
-                        await ctx.db.patch(existing._id, patch);
+                    const hasRestoredAnalysis = restoredAnalysis.analysis !== undefined
+                        || restoredAnalysis.analyses !== undefined;
+                    if (Object.keys(patch).length > 0 || hasRestoredAnalysis) {
+                        if (Object.keys(patch).length > 0) {
+                            await ctx.db.patch(existing._id, patch);
+                        }
+                        // Phase 4 Step 3a: restore analysis to the cold row, not hot.
+                        if (hasRestoredAnalysis) {
+                            await doUpsertResumeAnalysis(
+                                ctx,
+                                existing._id,
+                                restoredAnalysis.analysis,
+                                restoredAnalysis.analyses ?? {},
+                            );
+                        }
                         updated += 1;
                         if (shouldScheduleIngest(restoreState)) {
                             ingestProcessIds.push(existing._id);
@@ -512,8 +531,6 @@ export const submitResumes = mutation({
                         sourceKey?: string;
                         primaryRuleScore?: number;
                         ingestData?: Doc<"resumes">["ingestData"];
-                        analysis?: Doc<"resumes">["analysis"];
-                        analyses?: Doc<"resumes">["analyses"];
                         age?: number;
                         needsEmbedding?: boolean;
                     } = {
@@ -528,9 +545,18 @@ export const submitResumes = mutation({
                         sourceKey: resolveDiagnosticsSourceKeyForResume({ source: resume.source, content: resume.content }),
                         needsEmbedding: true,
                     };
-                    applyRestoreStateFields(insertPayload, restoreState);
+                    const restoredAnalysis = applyRestoreStateFields(insertPayload, restoreState);
                     applyParsedAgePatch(insertPayload, parsedAge);
                     const newId = await ctx.db.insert("resumes", insertPayload);
+                    // Phase 4 Step 3a: restore analysis to the cold row, not hot.
+                    if (restoredAnalysis.analysis !== undefined || restoredAnalysis.analyses !== undefined) {
+                        await doUpsertResumeAnalysis(
+                            ctx,
+                            newId,
+                            restoredAnalysis.analysis,
+                            restoredAnalysis.analyses ?? {},
+                        );
+                    }
                     inserted += 1;
                     if (shouldScheduleIngest(restoreState)) {
                         ingestProcessIds.push(newId);

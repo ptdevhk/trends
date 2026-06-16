@@ -34,6 +34,7 @@ import type {
     SearchWithTagExpansionScanPageArgs,
 } from "./lib/resumes_list_projections.js";
 import { buildResumeDigest } from "./lib/resume_digests.js";
+import { readActiveResumeAnalysis } from "./lib/resume_analysis_read.js";
 import {
     FILTERED_PAGINATE_OVERFETCH_MULTIPLIER,
     PAGINATE_MAX_BYTES_READ,
@@ -913,7 +914,11 @@ export async function doUpsertResumeDigest(
         .query("resume_digests")
         .withIndex("by_resumeId", (q) => q.eq("resumeId", resume._id))
         .first();
-    const digest = buildResumeDigest(resume, Date.now());
+    // Phase 4 Step 3a: source display fields from the ACTIVE cold analysis
+    // (with legacy hot fallback) rather than the hot doc. Avoids per-resume
+    // over-count of cleared (archived) analyses.
+    const activeAnalysis = await readActiveResumeAnalysis(ctx, resume);
+    const digest = buildResumeDigest(resume, Date.now(), activeAnalysis);
     if (existing) {
         await ctx.db.patch(existing._id, digest as any);
     } else {
@@ -984,7 +989,16 @@ export const upsertResumeAnalysis = internalMutation({
     handler: async (ctx, args) => {
         const resume = await ctx.db.get(args.resumeId);
         if (!resume) return;
-        await doUpsertResumeAnalysis(ctx, args.resumeId, resume.analysis, resume.analyses);
+        // Phase 4 Step 3a: source from the active cold row (legacy hot fallback).
+        // This makes the sync idempotent — re-running on an already-cold resume
+        // is a no-op — and removes the dependency on the hot doc for the active case.
+        const activeAnalysis = await readActiveResumeAnalysis(ctx, resume);
+        await doUpsertResumeAnalysis(
+            ctx,
+            args.resumeId,
+            activeAnalysis.analysis,
+            activeAnalysis.analyses ?? {},
+        );
     },
 });
 
@@ -1139,23 +1153,48 @@ export const getResumeDocsByIds = query({
     },
     handler: async (ctx, args) => {
         const docs = await Promise.all(args.ids.map((id) => ctx.db.get(id)));
-        return docs.filter((doc): doc is Doc<"resumes"> => doc !== null).map((doc) => ({
-            _id: doc._id,
-            _creationTime: doc._creationTime,
-            searchText: doc.searchText,
-            isArchived: doc.isArchived,
-            source: doc.source,
-            primaryRuleScore: doc.primaryRuleScore,
-            age: doc.age,
-            content: doc.content,
-            ingestData: doc.ingestData,
-            analysis: doc.analysis,
-            analyses: doc.analyses,
-            identityKey: doc.identityKey,
-            externalId: doc.externalId,
-            tags: doc.tags,
-            crawledAt: doc.crawledAt,
-        }));
+        // Phase 4 Step 3a: overlay the ACTIVE cold analysis (archived filtered,
+        // legacy hot fallback) so AND-mode search results show scores without
+        // depending on the hot doc's analysis fields. Batched cold fetch avoids N+1.
+        const docsById = new Map<string, Doc<"resumes">>();
+        for (const doc of docs) {
+            if (doc) docsById.set(doc._id, doc);
+        }
+        const coldRows = await Promise.all(
+            [...docsById.keys()].map((id) =>
+                ctx.db
+                    .query("resume_analyses")
+                    .withIndex("by_resume", (q) => q.eq("resumeId", id as Id<"resumes">))
+                    .unique(),
+            ),
+        );
+        const coldById = new Map<string, Doc<"resume_analyses">>();
+        for (const row of coldRows) {
+            if (row && row.status !== "archived") coldById.set(row.resumeId, row);
+        }
+        return [...docsById.values()].map((doc) => {
+            const cold = coldById.get(doc._id);
+            // Active cold row wins; else legacy hot fallback (removed in Step 3c).
+            const analysis = cold ? cold.analysis : doc.analysis;
+            const analyses = cold ? cold.analyses : doc.analyses;
+            return {
+                _id: doc._id,
+                _creationTime: doc._creationTime,
+                searchText: doc.searchText,
+                isArchived: doc.isArchived,
+                source: doc.source,
+                primaryRuleScore: doc.primaryRuleScore,
+                age: doc.age,
+                content: doc.content,
+                ingestData: doc.ingestData,
+                analysis,
+                analyses,
+                identityKey: doc.identityKey,
+                externalId: doc.externalId,
+                tags: doc.tags,
+                crawledAt: doc.crawledAt,
+            };
+        });
     },
 });
 
