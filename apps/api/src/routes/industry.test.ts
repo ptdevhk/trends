@@ -5,6 +5,7 @@ import industryRoutes from './industry'
 import { workspaceMiddleware } from '../middleware/workspace'
 import { IndustryDataService } from '../services/industry-data-service'
 import { BrandDisplayResolver } from '../services/brand-display-resolver'
+import { parseJsonBody } from '../test-utils'
 
 function createTestApp() {
   const app = new OpenAPIHono()
@@ -60,13 +61,13 @@ describe('industry routes', () => {
 
   describe('GET /api/industry/stats', () => {
     it('returns industry data statistics', async () => {
-      vi.spyOn(IndustryDataService.prototype, 'getStats').mockReturnValue(MOCK_STATS as never)
+      vi.spyOn(IndustryDataService.prototype, 'getStats').mockReturnValue(MOCK_STATS)
       const app = createTestApp()
       const response = await app.request('/api/industry/stats', {
         headers: ADMIN_HEADERS,
       })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody<{ success: unknown; stats: Record<string, unknown> }>(response)
       expect(body.success).toBe(true)
       expect(body.stats.companiesCount).toBe(4)
       expect(body.stats.keywordsCount).toBe(4)
@@ -76,74 +77,74 @@ describe('industry routes', () => {
 
   describe('GET /api/industry/companies', () => {
     it('returns all companies', async () => {
-      vi.spyOn(IndustryDataService.prototype, 'loadCompanies').mockReturnValue(MOCK_COMPANIES as never)
+      vi.spyOn(IndustryDataService.prototype, 'loadCompanies').mockReturnValue(MOCK_COMPANIES)
       const app = createTestApp()
       const response = await app.request('/api/industry/companies', {
         headers: ADMIN_HEADERS,
       })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody(response)
       expect(body.success).toBe(true)
       expect(body.count).toBe(4)
       expect(body.data).toHaveLength(4)
     })
 
     it('filters companies by category', async () => {
-      vi.spyOn(IndustryDataService.prototype, 'loadCompanies').mockReturnValue(MOCK_COMPANIES as never)
+      vi.spyOn(IndustryDataService.prototype, 'loadCompanies').mockReturnValue(MOCK_COMPANIES)
       const app = createTestApp()
       const response = await app.request('/api/industry/companies?category=key_company', {
         headers: ADMIN_HEADERS,
       })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody<{ count: number; data: { category: string }[] }>(response)
       expect(body.count).toBe(2)
       expect(body.data.every((c: { category: string }) => c.category === 'key_company')).toBe(true)
     })
 
     it('searches companies by Chinese name', async () => {
-      vi.spyOn(IndustryDataService.prototype, 'loadCompanies').mockReturnValue(MOCK_COMPANIES as never)
+      vi.spyOn(IndustryDataService.prototype, 'loadCompanies').mockReturnValue(MOCK_COMPANIES)
       const app = createTestApp()
       const response = await app.request('/api/industry/companies?q=沈阳', {
         headers: ADMIN_HEADERS,
       })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody<{ count: number; data: { nameCn: string }[] }>(response)
       expect(body.count).toBe(1)
       expect(body.data[0].nameCn).toBe('沈阳机床')
     })
 
     it('searches companies by English name (case-insensitive)', async () => {
-      vi.spyOn(IndustryDataService.prototype, 'loadCompanies').mockReturnValue(MOCK_COMPANIES as never)
+      vi.spyOn(IndustryDataService.prototype, 'loadCompanies').mockReturnValue(MOCK_COMPANIES)
       const app = createTestApp()
       const response = await app.request('/api/industry/companies?q=smtcl', {
         headers: ADMIN_HEADERS,
       })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody<{ count: number; data: { nameEn: string }[] }>(response)
       expect(body.count).toBe(1)
       expect(body.data[0].nameEn).toBe('SMTCL')
     })
 
     it('combines category and search filters', async () => {
-      vi.spyOn(IndustryDataService.prototype, 'loadCompanies').mockReturnValue(MOCK_COMPANIES as never)
+      vi.spyOn(IndustryDataService.prototype, 'loadCompanies').mockReturnValue(MOCK_COMPANIES)
       const app = createTestApp()
       const response = await app.request('/api/industry/companies?category=key_company&q=大连', {
         headers: ADMIN_HEADERS,
       })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody<{ count: number; data: { nameCn: string }[] }>(response)
       expect(body.count).toBe(1)
       expect(body.data[0].nameCn).toBe('大连机床')
     })
 
     it('returns empty when search matches nothing', async () => {
-      vi.spyOn(IndustryDataService.prototype, 'loadCompanies').mockReturnValue(MOCK_COMPANIES as never)
+      vi.spyOn(IndustryDataService.prototype, 'loadCompanies').mockReturnValue(MOCK_COMPANIES)
       const app = createTestApp()
       const response = await app.request('/api/industry/companies?q=nonexistent', {
         headers: ADMIN_HEADERS,
       })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody<{ count: number; data: unknown[] }>(response)
       expect(body.count).toBe(0)
       expect(body.data).toHaveLength(0)
     })
@@ -151,50 +152,50 @@ describe('industry routes', () => {
 
   describe('GET /api/industry/keywords', () => {
     it('returns all keywords', async () => {
-      vi.spyOn(IndustryDataService.prototype, 'loadKeywords').mockReturnValue(MOCK_KEYWORDS as never)
+      vi.spyOn(IndustryDataService.prototype, 'loadKeywords').mockReturnValue(MOCK_KEYWORDS)
       const app = createTestApp()
       const response = await app.request('/api/industry/keywords', {
         headers: ADMIN_HEADERS,
       })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody(response)
       expect(body.success).toBe(true)
       expect(body.count).toBe(4)
     })
 
     it('filters keywords by category', async () => {
-      vi.spyOn(IndustryDataService.prototype, 'loadKeywords').mockReturnValue(MOCK_KEYWORDS as never)
+      vi.spyOn(IndustryDataService.prototype, 'loadKeywords').mockReturnValue(MOCK_KEYWORDS)
       const app = createTestApp()
       const response = await app.request('/api/industry/keywords?category=lathe', {
         headers: ADMIN_HEADERS,
       })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody<{ count: number; data: { keyword: string }[] }>(response)
       expect(body.count).toBe(1)
       expect(body.data[0].keyword).toBe('车削')
     })
 
     it('returns empty when category has no keywords', async () => {
-      vi.spyOn(IndustryDataService.prototype, 'loadKeywords').mockReturnValue(MOCK_KEYWORDS as never)
+      vi.spyOn(IndustryDataService.prototype, 'loadKeywords').mockReturnValue(MOCK_KEYWORDS)
       const app = createTestApp()
       const response = await app.request('/api/industry/keywords?category=smt', {
         headers: ADMIN_HEADERS,
       })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody(response)
       expect(body.count).toBe(0)
     })
   })
 
   describe('GET /api/industry/brand-display-map', () => {
     it('returns brand display map', async () => {
-      vi.spyOn(BrandDisplayResolver.prototype, 'toJSON').mockReturnValue(MOCK_DISPLAY_MAP as never)
+      vi.spyOn(BrandDisplayResolver.prototype, 'toJSON').mockReturnValue(MOCK_DISPLAY_MAP)
       const app = createTestApp()
       const response = await app.request('/api/industry/brand-display-map', {
         headers: ADMIN_HEADERS,
       })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody<{ mazak: Record<string, unknown> }>(response)
       expect(body.mazak).toBeDefined()
       expect(body.mazak.displayName).toBe('Mazak')
       expect(body.mazak.zhHans).toBe('马扎克')
@@ -203,60 +204,60 @@ describe('industry routes', () => {
 
   describe('GET /api/industry/brands', () => {
     it('returns all brands', async () => {
-      vi.spyOn(IndustryDataService.prototype, 'loadBrands').mockReturnValue(MOCK_BRANDS as never)
+      vi.spyOn(IndustryDataService.prototype, 'loadBrands').mockReturnValue(MOCK_BRANDS)
       const app = createTestApp()
       const response = await app.request('/api/industry/brands', {
         headers: ADMIN_HEADERS,
       })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody(response)
       expect(body.success).toBe(true)
       expect(body.count).toBe(3)
     })
 
     it('filters brands by origin', async () => {
-      vi.spyOn(IndustryDataService.prototype, 'loadBrands').mockReturnValue(MOCK_BRANDS as never)
+      vi.spyOn(IndustryDataService.prototype, 'loadBrands').mockReturnValue(MOCK_BRANDS)
       const app = createTestApp()
       const response = await app.request('/api/industry/brands?origin=international', {
         headers: ADMIN_HEADERS,
       })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody<{ count: number; data: { nameEn: string }[] }>(response)
       expect(body.count).toBe(1)
       expect(body.data[0].nameEn).toBe('Mazak')
     })
 
     it('searches brands by Chinese name', async () => {
-      vi.spyOn(IndustryDataService.prototype, 'loadBrands').mockReturnValue(MOCK_BRANDS as never)
+      vi.spyOn(IndustryDataService.prototype, 'loadBrands').mockReturnValue(MOCK_BRANDS)
       const app = createTestApp()
       const response = await app.request('/api/industry/brands?q=马扎克', {
         headers: ADMIN_HEADERS,
       })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody(response)
       expect(body.count).toBe(1)
     })
 
     it('searches brands by English name (case-insensitive)', async () => {
-      vi.spyOn(IndustryDataService.prototype, 'loadBrands').mockReturnValue(MOCK_BRANDS as never)
+      vi.spyOn(IndustryDataService.prototype, 'loadBrands').mockReturnValue(MOCK_BRANDS)
       const app = createTestApp()
       const response = await app.request('/api/industry/brands?q=mazak', {
         headers: ADMIN_HEADERS,
       })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody<{ count: number; data: { nameEn: string }[] }>(response)
       expect(body.count).toBe(1)
       expect(body.data[0].nameEn).toBe('Mazak')
     })
 
     it('combines origin and search filters', async () => {
-      vi.spyOn(IndustryDataService.prototype, 'loadBrands').mockReturnValue(MOCK_BRANDS as never)
+      vi.spyOn(IndustryDataService.prototype, 'loadBrands').mockReturnValue(MOCK_BRANDS)
       const app = createTestApp()
       const response = await app.request('/api/industry/brands?origin=domestic&q=大连', {
         headers: ADMIN_HEADERS,
       })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody<{ count: number; data: { origin: string }[] }>(response)
       expect(body.count).toBe(1)
       expect(body.data[0].origin).toBe('domestic')
     })
@@ -268,7 +269,7 @@ describe('industry routes', () => {
         verified: true,
         confidence: 1.0,
         match: MOCK_COMPANIES[0],
-      } as never)
+      })
       const app = createTestApp()
       const response = await app.request('/api/industry/verify', {
         method: 'POST',
@@ -276,14 +277,14 @@ describe('industry routes', () => {
         body: JSON.stringify({ type: 'company', value: '沈阳机床' }),
       })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody<{ success: unknown; result: Record<string, unknown> }>(response)
       expect(body.success).toBe(true)
       expect(body.result.verified).toBe(true)
       expect(body.result.confidence).toBe(1.0)
     })
 
     it('verifies a keyword with category', async () => {
-      vi.spyOn(IndustryDataService.prototype, 'matchKeywords').mockReturnValue([MOCK_KEYWORDS[0]] as never)
+      vi.spyOn(IndustryDataService.prototype, 'matchKeywords').mockReturnValue([MOCK_KEYWORDS[0]])
       const app = createTestApp()
       const response = await app.request('/api/industry/verify', {
         method: 'POST',
@@ -291,13 +292,13 @@ describe('industry routes', () => {
         body: JSON.stringify({ type: 'keyword', value: '车削', category: 'lathe' }),
       })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody<{ result: Record<string, unknown> }>(response)
       expect(body.result.verified).toBe(true)
       expect(body.result.confidence).toBe(1.0)
     })
 
     it('returns low confidence when keyword has no matches', async () => {
-      vi.spyOn(IndustryDataService.prototype, 'matchKeywords').mockReturnValue([] as never)
+      vi.spyOn(IndustryDataService.prototype, 'matchKeywords').mockReturnValue([])
       const app = createTestApp()
       const response = await app.request('/api/industry/verify', {
         method: 'POST',
@@ -305,13 +306,13 @@ describe('industry routes', () => {
         body: JSON.stringify({ type: 'keyword', value: 'unknown' }),
       })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody<{ result: Record<string, unknown> }>(response)
       expect(body.result.verified).toBe(false)
       expect(body.result.confidence).toBe(0.2)
     })
 
     it('verifies a brand', async () => {
-      vi.spyOn(IndustryDataService.prototype, 'matchBrands').mockReturnValue([MOCK_BRANDS[0]] as never)
+      vi.spyOn(IndustryDataService.prototype, 'matchBrands').mockReturnValue([MOCK_BRANDS[0]])
       const app = createTestApp()
       const response = await app.request('/api/industry/verify', {
         method: 'POST',
@@ -319,7 +320,7 @@ describe('industry routes', () => {
         body: JSON.stringify({ type: 'brand', value: 'Mazak' }),
       })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody<{ result: Record<string, unknown> }>(response)
       expect(body.result.verified).toBe(true)
       expect(body.result.confidence).toBe(1.0)
     })
@@ -337,13 +338,13 @@ describe('industry routes', () => {
 
   describe('GET /api/industry/validate', () => {
     it('returns validation result', async () => {
-      vi.spyOn(IndustryDataService.prototype, 'validateFormat').mockReturnValue(MOCK_VALIDATION as never)
+      vi.spyOn(IndustryDataService.prototype, 'validateFormat').mockReturnValue(MOCK_VALIDATION)
       const app = createTestApp()
       const response = await app.request('/api/industry/validate', {
         headers: ADMIN_HEADERS,
       })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody<{ success: unknown; valid: unknown; issues: unknown[]; stats: Record<string, unknown> }>(response)
       expect(body.success).toBe(true)
       expect(body.valid).toBe(true)
       expect(body.issues).toHaveLength(0)
@@ -355,13 +356,13 @@ describe('industry routes', () => {
         valid: false,
         issues: [{ section: 'companies', row: 5, issue: 'Missing nameCn', severity: 'error' }],
         stats: { totalTables: 3, totalRows: 11, tablesWithIssues: 1 },
-      } as never)
+      })
       const app = createTestApp()
       const response = await app.request('/api/industry/validate', {
         headers: ADMIN_HEADERS,
       })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody<{ valid: unknown; issues: unknown[]; stats: Record<string, unknown> }>(response)
       expect(body.valid).toBe(false)
       expect(body.issues).toHaveLength(1)
       expect(body.stats.tablesWithIssues).toBe(1)
@@ -371,15 +372,19 @@ describe('industry routes', () => {
   describe('POST /api/industry/reload', () => {
     it('reloads industry data and returns stats', async () => {
       vi.spyOn(IndustryDataService.prototype, 'reload').mockReturnValue({
+        companies: [],
+        keywords: [],
+        brands: [],
+        companyUrls: [],
         metadata: MOCK_STATS,
-      } as never)
+      })
       const app = createTestApp()
       const response = await app.request('/api/industry/reload', {
         method: 'POST',
         headers: ADMIN_HEADERS,
       })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody<{ success: unknown; stats: Record<string, unknown> }>(response)
       expect(body.success).toBe(true)
       expect(body.stats.companiesCount).toBe(4)
     })
