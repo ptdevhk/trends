@@ -5,6 +5,7 @@ import resumesSearchRoutes from "./resumes_search";
 import { workspaceMiddleware } from "../middleware/workspace";
 import { ResumeService } from "../services/resume-service";
 import type { AuthContext } from "../services/auth-types";
+import { parseJsonBody } from "../test-utils";
 import { createAuthContext } from "./test-auth-helpers";
 
 function createTestApp(authContext: AuthContext | null = null) {
@@ -35,7 +36,7 @@ describe("resumes_search", () => {
       const response = await app.request("/api/resumes/samples");
 
       expect(response.status).toBe(200);
-      const payload = await response.json();
+      const payload = await parseJsonBody<{ success: unknown; samples: { name: string }[] }>(response);
       expect(payload.success).toBe(true);
       expect(payload.samples).toHaveLength(1);
       expect(payload.samples[0].name).toBe("sample-initial");
@@ -48,6 +49,7 @@ describe("resumes_search", () => {
         groups: [],
         mode: "AND",
         flatTerms: ["CNC", "数控"],
+        originalKeyword: "cnc",
         sourceMapping: {},
       });
 
@@ -55,7 +57,7 @@ describe("resumes_search", () => {
       const response = await app.request("/api/resumes/keyword-expansion?q=cnc");
 
       expect(response.status).toBe(200);
-      const payload = await response.json();
+      const payload = await parseJsonBody<{ success: unknown; summary: Record<string, unknown> }>(response);
       expect(payload.success).toBe(true);
       expect(payload.summary.keyword).toBe("cnc");
       expect(payload.summary.expandedTo).toContain("CNC");
@@ -68,9 +70,9 @@ describe("ResumesQuerySchema semantic search params", () => {
   it("allows anonymous resume list requests for the hr workspace", async () => {
     vi.spyOn(ResumeService.prototype, "loadSample").mockReturnValue({
       items: [],
-      sample: undefined,
+      sample: { name: "sample-initial", filename: "sample-initial.json", size: 0, updatedAt: "2026-04-01" },
       metadata: undefined,
-      indexes: [],
+      indexes: new Map(),
     });
 
     const app = createTestApp();
@@ -84,9 +86,9 @@ describe("ResumesQuerySchema semantic search params", () => {
   it("rejects anonymous resume list requests without an hr workspace header", async () => {
     vi.spyOn(ResumeService.prototype, "loadSample").mockReturnValue({
       items: [],
-      sample: undefined,
+      sample: { name: "sample-initial", filename: "sample-initial.json", size: 0, updatedAt: "2026-04-01" },
       metadata: undefined,
-      indexes: [],
+      indexes: new Map(),
     });
 
     const app = createTestApp();
@@ -98,9 +100,9 @@ describe("ResumesQuerySchema semantic search params", () => {
   it("rejects anonymous resume list requests for the dev workspace", async () => {
     vi.spyOn(ResumeService.prototype, "loadSample").mockReturnValue({
       items: [],
-      sample: undefined,
+      sample: { name: "sample-initial", filename: "sample-initial.json", size: 0, updatedAt: "2026-04-01" },
       metadata: undefined,
-      indexes: [],
+      indexes: new Map(),
     });
 
     const app = createTestApp();
@@ -114,9 +116,9 @@ describe("ResumesQuerySchema semantic search params", () => {
   it("rejects resume list requests from users outside the selected workspace", async () => {
     vi.spyOn(ResumeService.prototype, "loadSample").mockReturnValue({
       items: [],
-      sample: undefined,
+      sample: { name: "sample-initial", filename: "sample-initial.json", size: 0, updatedAt: "2026-04-01" },
       metadata: undefined,
-      indexes: [],
+      indexes: new Map(),
     });
 
     const app = createTestApp(createAuthContext({ workspaceSlug: "hr", role: "user" }));
@@ -130,9 +132,9 @@ describe("ResumesQuerySchema semantic search params", () => {
   it("accepts enableSemantic parameter", async () => {
     vi.spyOn(ResumeService.prototype, "loadSample").mockReturnValue({
       items: [],
-      sample: undefined,
+      sample: { name: "sample-initial", filename: "sample-initial.json", size: 0, updatedAt: "2026-04-01" },
       metadata: undefined,
-      indexes: [],
+      indexes: new Map(),
     });
 
     const app = createTestApp(createAuthContext({ workspaceSlug: "dev", role: "user" }));
@@ -144,9 +146,9 @@ describe("ResumesQuerySchema semantic search params", () => {
   it("accepts semanticWeight parameter", async () => {
     vi.spyOn(ResumeService.prototype, "loadSample").mockReturnValue({
       items: [],
-      sample: undefined,
+      sample: { name: "sample-initial", filename: "sample-initial.json", size: 0, updatedAt: "2026-04-01" },
       metadata: undefined,
-      indexes: [],
+      indexes: new Map(),
     });
 
     const app = createTestApp(createAuthContext({ workspaceSlug: "dev", role: "user" }));
@@ -158,9 +160,9 @@ describe("ResumesQuerySchema semantic search params", () => {
   it("accepts semanticLimit parameter", async () => {
     vi.spyOn(ResumeService.prototype, "loadSample").mockReturnValue({
       items: [],
-      sample: undefined,
+      sample: { name: "sample-initial", filename: "sample-initial.json", size: 0, updatedAt: "2026-04-01" },
       metadata: undefined,
-      indexes: [],
+      indexes: new Map(),
     });
 
     const app = createTestApp(createAuthContext({ workspaceSlug: "dev", role: "user" }));

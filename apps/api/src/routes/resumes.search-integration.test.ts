@@ -19,6 +19,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createApp } from "../app";
+import { parseJsonBody } from "../test-utils";
 import { createAuthContext } from "./test-auth-helpers";
 
 // ── Helpers ────────────────────────────────────────────────────────────
@@ -32,7 +33,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function parseConvexCall(input: RequestInfo | URL, init?: RequestInit): ConvexCall {
+function parseConvexCall(input: Request | string | URL, init?: RequestInit): ConvexCall {
     const requestURL = typeof input === "string"
         ? input
         : input instanceof URL
@@ -185,7 +186,7 @@ describe("BFF search dispatcher integration", () => {
             const response = await app.request("/api/resumes?source=convex&q=CNC%20销售&limit=5");
 
             expect(response.status).toBe(200);
-            const payload = await response.json();
+            const payload = await parseJsonBody<{ success: unknown; summary: Record<string, unknown> }>(response);
             expect(payload.success).toBe(true);
             expect(payload.summary.source).toBe("convex");
 
@@ -273,7 +274,7 @@ describe("BFF search dispatcher integration", () => {
             const response = await app.request("/api/resumes?source=convex&q=CNC%20销售&limit=5");
             expect(response.status).toBe(200);
 
-            const payload = await response.json();
+            const payload = await parseJsonBody<{ success: unknown; data: unknown[] }>(response);
             expect(payload.success).toBe(true);
             expect(payload.data).toHaveLength(0);
         });
@@ -423,7 +424,7 @@ describe("BFF search dispatcher integration", () => {
             );
 
             expect(response.status).toBe(200);
-            const payload = await response.json();
+            const payload = await parseJsonBody<{ success: unknown }>(response);
             expect(payload.success).toBe(true);
 
             expect(calls.some((c) => c.pathName === "resumes_search:scanResumeDigestPage")).toBe(true);
@@ -477,7 +478,7 @@ describe("BFF search dispatcher integration", () => {
             );
 
             expect(response.status).toBe(200);
-            const payload = await response.json();
+            const payload = await parseJsonBody<{ success: unknown; data: { name: string }[] }>(response);
             expect(payload.success).toBe(true);
             expect(payload.data.map((item: { name: string }) => item.name)).toEqual(["r1"]);
         });

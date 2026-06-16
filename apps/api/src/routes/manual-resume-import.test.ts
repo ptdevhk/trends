@@ -3,6 +3,7 @@ import JSZip from "jszip";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { workspaceMiddleware } from "../middleware/workspace";
+import { parseJsonBody } from "../test-utils";
 import { createAuthContext } from "./test-auth-helpers";
 
 type ConvexCall = {
@@ -30,7 +31,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function parseConvexCall(input: RequestInfo | URL, init?: RequestInit): ConvexCall {
+function parseConvexCall(input: Request | string | URL, init?: RequestInit): ConvexCall {
   const requestUrl = typeof input === "string"
     ? input
     : input instanceof URL
@@ -99,7 +100,9 @@ ${paragraphs}
   </w:body>
 </w:document>`);
 
-  const buffer = await zip.generateAsync({ type: "uint8array" });
+  // arraybuffer (not uint8array) so the value is an ArrayBuffer, which is a
+  // valid BlobPart; a Uint8Array<ArrayBufferLike> from @types/node 25 is not.
+  const buffer = await zip.generateAsync({ type: "arraybuffer" });
   return new File([buffer], name, { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
 }
 
@@ -1602,7 +1605,7 @@ describe("manual resume import route", () => {
     const response = await requestManualImport(formData);
 
     expect(response.status).toBe(400);
-    const body = await response.json();
+    const body = await parseJsonBody<{ success: unknown; error: { name?: string } }>(response);
     expect(body.success).toBe(false);
     // zod v4 validation error from OpenAPI layer — handler's safeParse is unreachable
     expect(body.error).toMatchObject({ name: "ZodError" });

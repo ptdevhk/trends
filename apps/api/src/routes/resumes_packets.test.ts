@@ -64,7 +64,7 @@ function makeExportResumePayload() {
 function makeEntryContext(overrides: Record<string, unknown> = {}) {
   return {
     resumeId: "r-1",
-    match: 0.85,
+    match: { score: 0.85, recommendation: "strong_match" as const },
     action: "shortlist" as const,
     status: "contacted" as const,
     ruleScore: 0.7,
@@ -198,7 +198,7 @@ describe("normalizeExportResumePayload", () => {
 describe("toExportEntryFields", () => {
   it("extracts entry fields from context", () => {
     const result = toExportEntryFields(makeEntryContext());
-    expect(result.match).toBe(0.85);
+    expect(result.match?.score).toBe(0.85);
     expect(result.action).toBe("shortlist");
     expect(result.status).toBe("contacted");
     expect(result.ruleScore).toBe(0.7);
@@ -244,7 +244,7 @@ describe("toExportEntry", () => {
     const result = toExportEntry("r-1", resume, fields);
     expect(result.key).toBe("r-1");
     expect(result.resume).toBe(resume);
-    expect(result.match).toBe(0.85);
+    expect(result.match?.score).toBe(0.85);
     expect(result.action).toBe("shortlist");
   });
 
@@ -503,6 +503,7 @@ describe("toPublicReviewPacketRun", () => {
           matchedRows: 8,
           importedRows: 8,
           reviewedCount: 7,
+          reviewedResumeIds: ["r1", "r2", "r3", "r4", "r5", "r6", "r7"],
           statusUpdates: 5,
           actionUpdates: 3,
           noteUpdates: 2,

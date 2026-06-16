@@ -6,6 +6,7 @@ import { createAuthMiddleware } from "../middleware/auth";
 import { workspaceMiddleware } from "../middleware/workspace";
 import type { AuthStorage } from "../services/auth-storage";
 import { resetResumeScreeningDb } from "../services/database";
+import { parseJsonBody } from "../test-utils";
 import { createAuthHeaders } from "./test-auth-helpers";
 
 vi.mock("../services/notification-service", () => ({
@@ -60,7 +61,7 @@ describe("resumes_admin", () => {
       });
 
       expect(response.status).toBe(403);
-      const payload = await response.json();
+      const payload = await parseJsonBody(response);
       expect(payload.error).toContain("Admin access");
     });
   });
@@ -102,7 +103,7 @@ describe("resumes_admin", () => {
       });
 
       expect(response.status).toBe(200);
-      const payload = await response.json();
+      const payload = await parseJsonBody(response);
       expect(payload.success).toBe(true);
       expect(payload.dryRun).toBe(true);
       expect(payload.wouldClear).toBe(42);
@@ -135,7 +136,7 @@ describe("resumes_admin", () => {
       });
 
       expect(response.status).toBe(200);
-      const payload = await response.json();
+      const payload = await parseJsonBody(response);
       expect(payload.success).toBe(true);
       expect(payload.dryRun).toBe(true);
       expect(payload.jobDescriptionId).toBe("jd-1");
@@ -168,7 +169,7 @@ describe("resumes_admin", () => {
       });
 
       expect(response.status).toBe(200);
-      const payload = await response.json();
+      const payload = await parseJsonBody<{ success: boolean; dryRun: boolean; wouldDelete: Record<string, unknown> }>(response);
       expect(payload.success).toBe(true);
       expect(payload.dryRun).toBe(true);
       expect(payload.wouldDelete.resumes).toBe(100);
@@ -194,7 +195,7 @@ describe("resumes_admin", () => {
       });
 
       expect(response.status).toBe(200);
-      const payload = await response.json();
+      const payload = await parseJsonBody(response);
       expect(payload.archived).toBe(2);
       expect(payload.requested).toBe(2);
     });
@@ -217,7 +218,7 @@ describe("resumes_admin", () => {
       });
 
       expect(response.status).toBe(200);
-      const payload = await response.json();
+      const payload = await parseJsonBody(response);
       expect(payload.unarchived).toBe(1);
     });
 
@@ -256,7 +257,7 @@ describe("resumes_admin", () => {
       });
 
       expect(response.status).toBe(200);
-      const payload = await response.json();
+      const payload = await parseJsonBody(response);
       expect(payload.success).toBe(true);
       expect(payload.results).toBeDefined();
     });
@@ -270,7 +271,7 @@ describe("resumes_admin", () => {
       });
 
       expect(response.status).toBe(400);
-      const payload = await response.json();
+      const payload = await parseJsonBody(response);
       expect(payload.success).toBe(false);
     });
   });
@@ -322,7 +323,7 @@ describe("resumes_admin", () => {
       });
 
       expect(response.status).toBe(200);
-      const payload = await response.json();
+      const payload = await parseJsonBody(response);
       expect(payload.success).toBe(true);
       expect(payload.notified).toBe(false);
       expect(payload.reason).toContain("No active anomaly alerts");
@@ -347,7 +348,7 @@ describe("resumes_admin", () => {
       });
 
       expect(response.status).toBe(200);
-      const payload = await response.json();
+      const payload = await parseJsonBody<{ success: boolean; notified: boolean; channels: Record<string, unknown>[] }>(response);
       expect(payload.success).toBe(true);
       expect(payload.notified).toBe(true);
       expect(payload.channels).toHaveLength(1);
