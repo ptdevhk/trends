@@ -528,7 +528,7 @@ export default defineSchema({
         resumeId: v.id("resumes"),
         analysis: v.optional(resumeAnalysisValidator),
         analyses: v.optional(v.record(v.string(), analysisResultValidator)),
-        status: v.union(v.literal("active"), v.literal("archived")),
+        status: v.optional(v.union(v.literal("active"), v.literal("archived"))),
         archivedAt: v.optional(v.number()),
         updatedAt: v.number(),
     })

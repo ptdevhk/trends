@@ -693,7 +693,7 @@ export const hardResetIngestData = mutation({
                 .query("resume_analyses")
                 .withIndex("by_resume", (q) => q.eq("resumeId", resume._id))
                 .unique();
-            if (coldRow && coldRow.status === "active") {
+            if (coldRow && coldRow.status !== "archived") {
                 await ctx.db.patch(coldRow._id, {
                     status: "archived",
                     archivedAt: Date.now(),
