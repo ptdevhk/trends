@@ -116,19 +116,27 @@ export function shouldScheduleIngest(restoreState: RestoreState | undefined): bo
     return restoreState?.ingestData === undefined;
 }
 
+/**
+ * Restored analysis blob captured from restoreState (Phase 4 Step 3a):
+ * applyRestoreStateFields returns it instead of writing it onto the hot
+ * target, so callers can upsert it to the cold resume_analyses table.
+ */
+export type RestoredAnalysisBlob = {
+    analysis?: Doc<"resumes">["analysis"];
+    analyses?: Doc<"resumes">["analyses"];
+};
+
 export function applyRestoreStateFields(
     target: {
         isArchived?: boolean;
         archivedAt?: number;
         primaryRuleScore?: number;
         ingestData?: Doc<"resumes">["ingestData"];
-        analysis?: Doc<"resumes">["analysis"];
-        analyses?: Doc<"resumes">["analyses"];
     },
     restoreState: RestoreState | undefined,
-): void {
+): RestoredAnalysisBlob {
     if (!restoreState) {
-        return;
+        return {};
     }
 
     if (typeof restoreState.isArchived === "boolean") {
@@ -165,10 +173,14 @@ export function applyRestoreStateFields(
             target.ingestData = restoreState.ingestData;
         }
     }
+    // Phase 4 Step 3a: analysis/analyses no longer written to the hot doc.
+    // Returned so the caller upserts them to the cold resume_analyses row.
+    const restoredAnalysis: RestoredAnalysisBlob = {};
     if (restoreState.analysis !== undefined) {
-        target.analysis = restoreState.analysis;
+        restoredAnalysis.analysis = restoreState.analysis;
     }
     if (restoreState.analyses !== undefined) {
-        target.analyses = restoreState.analyses;
+        restoredAnalysis.analyses = restoreState.analyses;
     }
+    return restoredAnalysis;
 }

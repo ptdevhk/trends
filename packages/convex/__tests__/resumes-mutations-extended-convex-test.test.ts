@@ -11,7 +11,7 @@ import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { api, internal } from "../convex/_generated/api.js";
 import schema from "../convex/schema.js";
-import { seedResume, MINIMAL_INGEST_DATA } from "./test-helpers.js";
+import { seedResume, MINIMAL_INGEST_DATA, getResumeAnalysesColdRow } from "./test-helpers.js";
 
 const modules = (import.meta as any).glob("../**/*.ts", { eager: false });
 
@@ -204,9 +204,11 @@ describe("resumes_mutations: clearAnalyses", () => {
         expect(result.cleared).toBe(1);
         expect(result.hasMore).toBe(false);
 
-        const resume = await t.run(async (ctx) => ctx.db.get(resumeId));
-        expect(resume?.analysis).toBeUndefined();
-        expect(resume?.analyses).toBeUndefined();
+        // Phase 4 Step 3a: updateAnalysis wrote cold, so the hot doc never
+        // carried analysis. Assert the clear archived the cold row instead.
+        const coldRow = await getResumeAnalysesColdRow(t, resumeId);
+        expect(coldRow).not.toBeNull();
+        expect(coldRow?.status).toBe("archived");
     });
 
     it("clears only matching JD analyses when jobDescriptionId specified", async () => {
@@ -245,11 +247,13 @@ describe("resumes_mutations: clearAnalyses", () => {
 
         expect(result.cleared).toBe(1);
 
-        const resume = await t.run(async (ctx) => ctx.db.get(resumeId));
-        // jd-2 analysis should remain as current
-        expect(resume?.analysis?.jobDescriptionId).toBe("jd-2");
-        // jd-1 entry should be removed from analyses map
-        const analysesKeys = Object.keys(resume?.analyses ?? {});
+        // Phase 4 Step 3a: surgical clear updates the cold row. jd-2 analysis
+        // should remain as current; the jd-1 entry should be removed from the
+        // cold analyses map.
+        const coldRow = await getResumeAnalysesColdRow(t, resumeId);
+        expect(coldRow).not.toBeNull();
+        expect(coldRow?.analysis?.jobDescriptionId).toBe("jd-2");
+        const analysesKeys = Object.keys(coldRow?.analyses ?? {});
         const jd1Key = analysesKeys.find((k) => k.includes("jd-1"));
         expect(jd1Key).toBeUndefined();
     });
@@ -438,10 +442,13 @@ describe("resumes_mutations: hardResetIngestData", () => {
 
         const resume = await t.run(async (ctx) => ctx.db.get(resumeId));
         expect(resume?.ingestData).toBeUndefined();
-        expect(resume?.analysis).toBeUndefined();
-        expect(resume?.analyses).toBeUndefined();
         expect(resume?.primaryRuleScore).toBeUndefined();
         expect(resume?.searchText).toBeUndefined();
+        // Phase 4 Step 3a: analysis is cleared by ARCHIVING the cold row
+        // (updateAnalysis wrote cold; the hot doc never carried it).
+        const coldRow = await getResumeAnalysesColdRow(t, resumeId);
+        expect(coldRow).not.toBeNull();
+        expect(coldRow?.status).toBe("archived");
     });
 
     it("skips resumes with no computed fields", async () => {

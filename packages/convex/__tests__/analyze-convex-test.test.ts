@@ -4,7 +4,7 @@
  * storeConfirmResult is the only Convex mutation in analyze.ts that can be
  * tested without mocking external LLM APIs.
  */
-import { createTest } from "./test-helpers.js";
+import { createTest, getResumeAnalysesColdRow } from "./test-helpers.js";
 import { describe, expect, it } from "vitest";
 import { internal } from "../convex/_generated/api.js";
 
@@ -61,12 +61,15 @@ describe("analyze: storeConfirmResult", () => {
 
     const resume = await t.run(async (ctx) => ctx.db.get(resumeId));
 
-    // Should set confirmedScore and confirmedAt
+    // confirmedScore/confirmedAt remain hot fields (separate from analysis).
     expect(resume?.confirmedScore).toBe(85);
     expect(resume?.confirmedAt).toBe(confirmTime);
 
-    // Should store in analyses map under confirm: key
-    const analyses = resume?.analyses;
+    // Phase 4 Step 3a: the analyses map now lives on the cold
+    // resume_analyses row — assert there, not on the hot doc.
+    const coldRow = await getResumeAnalysesColdRow(t, resumeId);
+    expect(coldRow).not.toBeNull();
+    const analyses = coldRow!.analyses;
     expect(analyses).toBeDefined();
     const confirmKey = `confirm:${confirmTime}`;
     expect(analyses![confirmKey]).toBeDefined();
@@ -108,8 +111,9 @@ describe("analyze: storeConfirmResult", () => {
       },
     });
 
-    const resume = await t.run(async (ctx) => ctx.db.get(resumeId));
-    const analyses = resume?.analyses;
+    const coldRow = await getResumeAnalysesColdRow(t, resumeId);
+    expect(coldRow).not.toBeNull();
+    const analyses = coldRow!.analyses;
 
     // Original analysis should still exist
     expect(analyses!["source:test|analysis:existing"]).toBeDefined();
@@ -169,9 +173,10 @@ describe("analyze: storeConfirmResult", () => {
       },
     });
 
-    const resume = await t.run(async (ctx) => ctx.db.get(resumeId));
+    const coldRow = await getResumeAnalysesColdRow(t, resumeId);
+    expect(coldRow).not.toBeNull();
     const confirmKey = `confirm:${confirmTime}`;
-    const confirmResult = resume?.analyses![confirmKey];
+    const confirmResult = coldRow!.analyses![confirmKey];
 
     expect(confirmResult.breakdown).toEqual({ related_exp: 60, industry_db: 18 });
     expect(confirmResult.keyFactors).toHaveLength(1);
