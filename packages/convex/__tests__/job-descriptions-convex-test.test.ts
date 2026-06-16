@@ -4,7 +4,7 @@
  * Covers: list, create, update, get, list_all, listAllForWorkspace,
  * delete_jd, delete_batch, list_with_usage (deprecated), list_with_usage_action.
  */
-import { createTest } from "./test-helpers.js";
+import { createTest, seedResume, seedResumeAnalysesColdRow } from "./test-helpers.js";
 import { describe, expect, it } from "vitest";
 import { api } from "../convex/_generated/api.js";
 import { internal } from "../convex/_generated/api.js";
@@ -525,5 +525,64 @@ describe("job_descriptions: list_with_usage (deprecated)", () => {
     await expect(
       t.query(api.job_descriptions.list_with_usage, {}),
     ).rejects.toThrow("no longer available");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// list_with_usage_action (cold-table JD usage — Phase 4 Step 1)
+// ---------------------------------------------------------------------------
+
+describe("job_descriptions: list_with_usage_action (cold-table JD usage)", () => {
+  it("counts resumes per JD from cold resume_analyses rows, excluding archived", async () => {
+    const t = createTest();
+
+    const jdA = await insertSystemJD(t, { title: "JD A" });
+    const jdB = await insertSystemJD(t, { title: "JD B" });
+    const jdAId = String(jdA);
+    const jdBId = String(jdB);
+
+    // Resume 1: active cold row whose current analysis targets JD A.
+    const r1 = await seedResume(t);
+    await seedResumeAnalysesColdRow(t, r1, {
+      analysis: { score: 80, summary: "s1", highlights: [], recommendation: "proceed", jobDescriptionId: jdAId },
+      analyses: {},
+    });
+
+    // Resume 2: active cold row with a cached analysis key matching JD B.
+    const r2 = await seedResume(t);
+    await seedResumeAnalysesColdRow(t, r2, {
+      analyses: { [jdBId]: { score: 70 } },
+    });
+
+    // Resume 3: ARCHIVED cold row with stale analyses matching JD A — must NOT count.
+    // (Mirrors non-surgical clearAnalyses: status flips to archived but fields persist.)
+    const r3 = await seedResume(t);
+    await seedResumeAnalysesColdRow(t, r3, {
+      status: "archived",
+      analysis: { score: 60, summary: "stale", highlights: [], recommendation: "proceed", jobDescriptionId: jdAId },
+      analyses: { [jdAId]: { score: 60 } },
+    });
+
+    // Resume 4: no cold row at all — must NOT count.
+    await seedResume(t);
+
+    const result = await t.action(api.job_descriptions.list_with_usage_action, {});
+
+    const usageByTitle = Object.fromEntries(result.map((jd) => [jd.title, jd.usageCount]));
+    expect(usageByTitle["JD A"]).toBe(1); // only r1; r3 archived excluded
+    expect(usageByTitle["JD B"]).toBe(1); // only r2
+  });
+
+  it("reports zero usage for JDs with no matching analyses", async () => {
+    const t = createTest();
+
+    const jdA = await insertSystemJD(t, { title: "Lonely JD" });
+    await seedResume(t); // resume with no cold row
+
+    const result = await t.action(api.job_descriptions.list_with_usage_action, {});
+
+    const lonely = result.find((jd) => jd.title === "Lonely JD");
+    expect(lonely?.usageCount).toBe(0);
+    expect(String(jdA)).toBeDefined();
   });
 });

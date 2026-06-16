@@ -252,13 +252,32 @@ export const listResumeUsageBatch = internalQuery({
                 maximumRowsRead: PAGINATE_MAX_ROWS_READ,
             });
 
+        // Phase 4 Step 1: source analysis/analyses from the cold resume_analyses
+        // table instead of the hot resume doc, so JD-usage counts survive the
+        // upcoming removal of analysis/analyses from the resumes schema.
+        //
+        // Only ACTIVE rows contribute. A non-surgical clearAnalyses archives the
+        // cold row but leaves its analysis/analyses fields populated (only the
+        // status flips); the hot doc, by contrast, is set to undefined. Reading
+        // without the status guard would therefore over-count archived resumes.
+        // status === undefined is treated as active (pre-Phase-1 rows).
+        const rows = await Promise.all(
+            page.page.map(async (resume): Promise<ResumeUsageScanRow> => {
+                const coldRow = await ctx.db
+                    .query("resume_analyses")
+                    .withIndex("by_resume", (q) => q.eq("resumeId", resume._id))
+                    .unique();
+                if (!coldRow || coldRow.status === "archived") {
+                    return { analysis: undefined, analyses: undefined };
+                }
+                return { analysis: coldRow.analysis, analyses: coldRow.analyses };
+            }),
+        );
+
         return {
             continueCursor: page.continueCursor,
             isDone: page.isDone,
-            page: page.page.map((resume): ResumeUsageScanRow => ({
-                analysis: resume.analysis,
-                analyses: resume.analyses,
-            })),
+            page: rows,
         };
     },
 });

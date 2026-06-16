@@ -4,6 +4,7 @@
 import { convexTest } from "convex-test";
 import schema from "../convex/schema.js";
 import { buildResumeDigest } from "../convex/lib/resume_digests.js";
+import type { Id } from "../convex/_generated/dataModel.js";
 
 const modules = (import.meta as any).glob("../**/*.ts", { eager: false });
 
@@ -39,6 +40,28 @@ export function seedResume(t: ReturnType<typeof convexTest>, overrides: Record<s
             await ctx.db.insert("resume_digests", digest as any);
         }
         return resumeId;
+    });
+}
+
+/**
+ * Insert a resume_analyses (cold-table) row for a resume. Mirrors the Phase 3
+ * cold write path so tests can exercise readers (JD-usage, backup, migration
+ * validators) that have migrated off the hot resume.analysis/analyses fields.
+ *
+ * `status` defaults to omitted (treated as active by readers per the Phase 3
+ * back-compat contract). Pass `{ status: "archived" }` to seed a cleared row.
+ */
+export function seedResumeAnalysesColdRow(
+    t: ReturnType<typeof convexTest>,
+    resumeId: Id<"resumes">,
+    overrides: Record<string, unknown> = {},
+) {
+    return t.run(async (ctx) => {
+        return ctx.db.insert("resume_analyses", {
+            resumeId,
+            updatedAt: Date.now(),
+            ...overrides,
+        });
     });
 }
 
