@@ -197,7 +197,13 @@ describe("non-Docker Convex startup safety", () => {
         encoding: "utf8",
         env: {
           ...process.env,
+          // Randomize BOTH ports so the test reaches the "no local Convex
+          // processes found" branch deterministically regardless of whether a
+          // real dev stack is listening on the default 3210/3211 ports on this
+          // host. Distinct ranges avoid the two randoms colliding with each
+          // other; both sit well clear of the default ports.
           CONVEX_PORT: String(39000 + Math.floor(Math.random() * 10000)),
+          CONVEX_SITE_PORT: String(49000 + Math.floor(Math.random() * 10000)),
           CONVEX_STATE_DIR: tempDir,
         },
       });

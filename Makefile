@@ -97,7 +97,7 @@ dev-convex:
 dev-convex-stop:
 	@project_root="$(CURDIR)"; \
 	convex_port="$${CONVEX_PORT:-3210}"; \
-	site_port="3211"; \
+	site_port="$${CONVEX_SITE_PORT:-3211}"; \
 	tmux_session="$${CONVEX_TMUX_SESSION:-trends-convex}"; \
 	pids="$$( { \
 		lsof -tiTCP:"$$convex_port" -sTCP:LISTEN 2>/dev/null; \
@@ -188,7 +188,7 @@ dev-convex-ensure:
 # Show local Convex listener/process/data status
 dev-convex-status:
 	@convex_port="$${CONVEX_PORT:-3210}"; \
-	site_port="3211"; \
+	site_port="$${CONVEX_SITE_PORT:-3211}"; \
 	state_dir="$${CONVEX_STATE_DIR:-$$HOME/.convex/anonymous-convex-backend-state/anonymous-agent}"; \
 	echo "Local Convex listeners:"; \
 	ss -ltnp "( sport = :$$convex_port or sport = :$$site_port )" || true; \

@@ -82,6 +82,27 @@ function mockWorkspaceExportFieldsConfig(fields: string[], includeDebugWhenEnabl
   });
 }
 
+/**
+ * Mocks the workspace export-fields config fetch to return no stored entry.
+ * With no workspace config, the export service falls back to the default
+ * column set (core fields, plus debug fields when DEBUG is active) — this
+ * keeps the test deterministic instead of hitting a real local Convex backend
+ * that may carry a seeded "dev" workspace config.
+ */
+function mockNoWorkspaceExportFieldsConfig(): void {
+  vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+    const call = parseConvexCall(input, init);
+    expect(call).toMatchObject({
+      pathName: "workspace_config:get",
+      args: {
+        workspaceSlug: "dev",
+        configKey: "export-fields",
+      },
+    });
+    return convexSuccess(null);
+  });
+}
+
 function buildSampleResume(overrides: Partial<ResumeItem> & { resumeId: string; name: string }): ResumeItem {
   return {
     resumeId: overrides.resumeId,
@@ -532,6 +553,7 @@ describe("resume export route", () => {
     const originalDebug = process.env.DEBUG;
     process.env.DEBUG = "true";
     try {
+      mockNoWorkspaceExportFieldsConfig();
       vi.spyOn(ResumeService.prototype, "loadSample").mockReturnValue({
         items: [
           buildSampleResume({

@@ -487,7 +487,14 @@ describe("resumes packets route", () => {
 
   it("exports via form-encoded payload (legacy download endpoint)", async () => {
     root = createFixtureRoot();
-    const { createApp, ResumeService } = await loadModules(root);
+    const { createApp, ResumeService, workspaceConfigService } = await loadModules(root);
+
+    // The legacy download endpoint shares buildResumeExportResponse with the
+    // JSON export route, so it resolves the workspace export-fields config.
+    // Mock it to no stored entry (default core column set, which includes
+    // userComment) so the test is deterministic instead of depending on a
+    // seeded local Convex backend.
+    vi.spyOn(workspaceConfigService, "getExportFieldsConfig").mockResolvedValue(null);
 
     vi.spyOn(ResumeService.prototype, "loadSample").mockReturnValue({
       items: [
