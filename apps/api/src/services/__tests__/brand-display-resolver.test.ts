@@ -72,27 +72,27 @@ describe("pickPreferredZhHansFromAliases", () => {
 
 describe("brandEntryToDisplay", () => {
   it("uses nameEn as displayName when present", () => {
-    const brand: BrandEntry = { nameCn: "精雕", nameEn: "JingDiao" };
+    const brand: BrandEntry = { id: 1, nameCn: "精雕", nameEn: "JingDiao", type: "default", origin: "international" };
     const result = brandEntryToDisplay(brand);
     expect(result.displayName).toBe("JingDiao");
     expect(result.zhHans).toBe("精雕");
   });
 
   it("falls back to nameCn when nameEn is empty", () => {
-    const brand: BrandEntry = { nameCn: "精雕", nameEn: "" };
+    const brand: BrandEntry = { id: 1, nameCn: "精雕", nameEn: "", type: "default", origin: "international" };
     const result = brandEntryToDisplay(brand);
     expect(result.displayName).toBe("精雕");
     expect(result.zhHans).toBe("精雕");
   });
 
   it("falls back to nameCn when nameEn is whitespace", () => {
-    const brand: BrandEntry = { nameCn: "精雕", nameEn: "  " };
+    const brand: BrandEntry = { id: 1, nameCn: "精雕", nameEn: "  ", type: "default", origin: "international" };
     const result = brandEntryToDisplay(brand);
     expect(result.displayName).toBe("精雕");
   });
 
   it("trims nameCn for zhHans", () => {
-    const brand: BrandEntry = { nameCn: "  精雕  ", nameEn: "JingDiao" };
+    const brand: BrandEntry = { id: 1, nameCn: "  精雕  ", nameEn: "JingDiao", type: "default", origin: "international" };
     const result = brandEntryToDisplay(brand);
     expect(result.zhHans).toBe("精雕");
   });

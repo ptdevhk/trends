@@ -141,7 +141,7 @@ describe("PublicShareStorage", () => {
     expect(loadedFirst?.payload.results[0]).not.toHaveProperty("candidateStatus");
     expect(loadedFirst?.payload.results[0]).not.toHaveProperty("actions");
     expect(loadedFirst?.payload.results[0]).not.toHaveProperty("notes");
-    expect(loadedFirst?.payload.search.filters).toEqual({ locations: ["Malaysia"] });
+    expect(loadedFirst?.payload.search?.filters).toEqual({ locations: ["Malaysia"] });
   });
 
   it("stores only token hashes and resolves active public shares by raw token", () => {

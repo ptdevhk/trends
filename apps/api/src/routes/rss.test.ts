@@ -5,6 +5,7 @@ import rssRoutes from './rss'
 import { workspaceMiddleware } from '../middleware/workspace'
 import { DataService } from '../services/data-service'
 import { DataNotFoundError } from '../services/errors'
+import { parseJsonBody } from '../test-utils'
 
 function createTestApp() {
   const app = new OpenAPIHono()
@@ -16,8 +17,8 @@ function createTestApp() {
 const ADMIN_HEADERS = { 'X-Workspace-Slug': 'dev' }
 
 const MOCK_RSS_ITEMS = [
-  { title: 'Industry Update', feed: '36kr', publishedAt: '2026-05-22T10:00:00Z', url: 'https://example.com/1' },
-  { title: 'Tech News', feed: 'ithome', publishedAt: '2026-05-22T09:00:00Z', url: 'https://example.com/2' },
+  { title: 'Industry Update', feed_id: '36kr', feed_name: '36氪', published_at: '2026-05-22T10:00:00Z', url: 'https://example.com/1' },
+  { title: 'Tech News', feed_id: 'ithome', feed_name: 'IT之家', published_at: '2026-05-22T09:00:00Z', url: 'https://example.com/2' },
 ]
 
 describe('rss routes', () => {
@@ -27,18 +28,18 @@ describe('rss routes', () => {
 
   describe('GET /api/rss', () => {
     it('returns RSS items', async () => {
-      vi.spyOn(DataService.prototype, 'getLatestRss').mockReturnValue(MOCK_RSS_ITEMS as never)
+      vi.spyOn(DataService.prototype, 'getLatestRss').mockReturnValue(MOCK_RSS_ITEMS)
       const app = createTestApp()
       const response = await app.request('/api/rss', { headers: ADMIN_HEADERS })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody<{ success: unknown; summary: Record<string, unknown>; data: unknown[] }>(response)
       expect(body.success).toBe(true)
       expect(body.data).toHaveLength(2)
       expect(body.summary.total).toBe(2)
     })
 
     it('passes feed, days, and limit params', async () => {
-      const rssSpy = vi.spyOn(DataService.prototype, 'getLatestRss').mockReturnValue(MOCK_RSS_ITEMS as never)
+      const rssSpy = vi.spyOn(DataService.prototype, 'getLatestRss').mockReturnValue(MOCK_RSS_ITEMS)
       const app = createTestApp()
       await app.request('/api/rss?feed=36kr,ithome&days=7&limit=20', { headers: ADMIN_HEADERS })
       expect(rssSpy).toHaveBeenCalledWith(expect.objectContaining({
@@ -55,17 +56,17 @@ describe('rss routes', () => {
       const app = createTestApp()
       const response = await app.request('/api/rss', { headers: ADMIN_HEADERS })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody<{ success: unknown; summary: Record<string, unknown>; data: unknown[] }>(response)
       expect(body.success).toBe(true)
       expect(body.data).toHaveLength(0)
       expect(body.summary.description).toContain('Run RSS crawler')
     })
 
     it('indicates multi-day range in description', async () => {
-      vi.spyOn(DataService.prototype, 'getLatestRss').mockReturnValue(MOCK_RSS_ITEMS as never)
+      vi.spyOn(DataService.prototype, 'getLatestRss').mockReturnValue(MOCK_RSS_ITEMS)
       const app = createTestApp()
       const response = await app.request('/api/rss?days=7', { headers: ADMIN_HEADERS })
-      const body = await response.json()
+      const body = await parseJsonBody<{ summary: Record<string, unknown> }>(response)
       expect(body.summary.description).toContain('last 7 days')
     })
   })

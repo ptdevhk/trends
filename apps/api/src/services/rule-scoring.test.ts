@@ -79,6 +79,7 @@ function createSalesRoleSignal(years: number, matchedSignals: string[] = ["é”€å”
     signalCount: matchedSignals.length,
     occurrences: 1,
     years,
+    industryVerifiedYears: years,
     verifyIn: "workHistory",
   };
 }
@@ -928,6 +929,7 @@ describe("RuleScoringService", () => {
         signalCount: 1,
         occurrences: 1,
         years: 5,
+        industryVerifiedYears: 3,
         roleRelevantYears: 3,
         verifyIn: "workHistory",
       };

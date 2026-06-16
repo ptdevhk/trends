@@ -16,13 +16,7 @@ type Logger = {
     warn: (message: string) => void;
 };
 
-type SeedResume = {
-    externalId: string;
-    content: Record<string, unknown>;
-    hash: string;
-    source: string;
-    tags: string[];
-};
+type SeedResume = (typeof api.seed.seedResumes)["_args"]["resumes"][number];
 
 export type StageResult = {
     status: VerifyStatus;
@@ -455,13 +449,15 @@ function loadSeedResumes(projectRoot: string): SeedResume[] {
     return resumes.map((resume, index) => {
         const externalId = resolveResumeExternalId(resume, index);
         const hash = createHash("sha256").update(JSON.stringify(resume), "utf8").digest("hex");
+        // `resume` is runtime-parsed JSON from the sample file; trusted to match
+        // the seed mutation's content shape (the script validates behaviorally).
         return {
             externalId,
             content: resume,
             hash,
             source,
             tags: ["sample-initial", "seed"],
-        };
+        } as SeedResume;
     });
 }
 

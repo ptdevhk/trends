@@ -265,7 +265,6 @@ describe("review packet routes", () => {
       totalCount: 2,
       packetFilename: "packet-summary.xlsx",
       exportedAt: "2026-03-20T09:00:00+08:00",
-      feedbackImportedAt: "2026-03-20T10:00:00+08:00",
       items: [
         { resumeId: "resume-1", identityKey: "id-1", name: "Alice" },
         { resumeId: "resume-2", identityKey: "id-2", name: "Bob" },

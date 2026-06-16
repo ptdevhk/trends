@@ -10,6 +10,7 @@ import { workspaceMiddleware } from '../middleware/workspace'
 import type { AuthStorage } from '../services/auth-storage'
 import { resetResumeScreeningDb } from '../services/database'
 import { createAuthHeaders } from './test-auth-helpers'
+import { parseJsonBody } from '../test-utils'
 
 let defaultAuthHeaders: Record<string, string> = {}
 
@@ -61,7 +62,7 @@ describe('notifications routes', () => {
       const app = createTestApp()
       const response = await app.request('/api/notifications/templates')
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody<{ templates: { id: string }[] }>(response)
       expect(body.templates).toHaveLength(2)
       expect(body.templates[0].id).toBe('outreach-email')
     })
@@ -70,7 +71,7 @@ describe('notifications routes', () => {
       vi.spyOn(notificationTemplateService, 'listTemplates').mockReturnValue(MOCK_TEMPLATES as never)
       const app = createTestApp()
       const response = await app.request('/api/notifications/templates')
-      const body = await response.json()
+      const body = await parseJsonBody<{ templates: { id: string }[] }>(response)
       expect(body.templates[0]).not.toHaveProperty('body')
     })
   })
@@ -91,7 +92,7 @@ describe('notifications routes', () => {
         body: JSON.stringify(validDraft),
       })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody(response)
       expect(body.subject).toBe('Opportunity at TestCo')
     })
 
@@ -104,7 +105,7 @@ describe('notifications routes', () => {
         body: JSON.stringify(validDraft),
       })
       expect(response.status).toBe(500)
-      const body = await response.json()
+      const body = await parseJsonBody(response)
       expect(body.error).toBe('AI unavailable')
     })
 
@@ -129,7 +130,7 @@ describe('notifications routes', () => {
         body: JSON.stringify({ channel: 'email', templateId: 'outreach-email', data: {} }),
       })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody(response)
       expect(body.channel).toBe('email')
       expect(body.html).toContain('<pre')
       expect(body.markdown).toContain('New match')
@@ -144,7 +145,7 @@ describe('notifications routes', () => {
         body: JSON.stringify({ channel: 'feishu', templateId: 'outreach-email', data: {} }),
       })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody(response)
       expect(body.channel).toBe('feishu')
       expect(body.content).toContain('New match')
       expect(body).not.toHaveProperty('html')
@@ -174,7 +175,7 @@ describe('notifications routes', () => {
         body: JSON.stringify({ to: 'test@example.com', subject: 'Hello', body: '<p>Hi</p>' }),
       })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody(response)
       expect(body.success).toBe(true)
       expect(body.messageId).toBe('msg-123')
     })
@@ -212,7 +213,7 @@ describe('notifications routes', () => {
         body: JSON.stringify({ channel: 'email', templateId: 'outreach-email', to: 'test@example.com', data: {} }),
       })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody(response)
       expect(body.success).toBe(true)
       expect(body.channel).toBe('email')
       expect(body.messageId).toBe('msg-456')
@@ -228,7 +229,7 @@ describe('notifications routes', () => {
         body: JSON.stringify({ channel: 'wechat_work', templateId: 'match-alert', data: {} }),
       })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody(response)
       expect(body.success).toBe(true)
       expect(body.channel).toBe('wechat_work')
     })
@@ -243,7 +244,7 @@ describe('notifications routes', () => {
         body: JSON.stringify({ channel: 'feishu', templateId: 'match-alert', data: {} }),
       })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody(response)
       expect(body.success).toBe(true)
       expect(body.channel).toBe('feishu')
     })

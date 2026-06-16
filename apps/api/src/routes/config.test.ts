@@ -10,6 +10,7 @@ import { customKeywordService } from '../services/custom-keyword-service'
 import { resetResumeScreeningDb } from '../services/database'
 import { workspaceConfigService } from '../services/workspace-config-service'
 import { createAuthHeaders } from './test-auth-helpers'
+import { parseJsonBody } from '../test-utils'
 
 function createTestApp(storage?: AuthStorage) {
   const app = new OpenAPIHono()
@@ -460,13 +461,26 @@ describe('config route workspace access', () => {
     })
 
     expect(response.status).toBe(200)
-    const payload = await response.json()
+    const payload = await parseJsonBody<{
+      success: boolean
+      metadata: {
+        identity: { appName: string }
+        navigation: {
+          system: unknown[]
+          systemSettings: unknown[]
+        }
+        labels: {
+          aiBreakdown: Array<{ key: string }>
+        }
+        capabilities: Array<{ id: string }>
+      }
+    }>(response)
     expect(payload.success).toBe(true)
     expect(payload.metadata.identity.appName).toBe('Trends')
     expect(payload.metadata.navigation.system.length).toBeGreaterThan(0)
     expect(payload.metadata.navigation.systemSettings.length).toBeGreaterThan(0)
-    expect(payload.metadata.labels.aiBreakdown.some((item: { key: string }) => item.key === 'industry_db')).toBe(true)
-    expect(payload.metadata.capabilities.some((item: { id: string }) => item.id === 'cli-system-inspect')).toBe(true)
+    expect(payload.metadata.labels.aiBreakdown.some((item) => item.key === 'industry_db')).toBe(true)
+    expect(payload.metadata.capabilities.some((item) => item.id === 'cli-system-inspect')).toBe(true)
   })
 
   it('loads resume display limits payload', async () => {

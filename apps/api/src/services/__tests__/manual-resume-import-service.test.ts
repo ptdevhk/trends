@@ -15,6 +15,8 @@ import {
   resolveImportLimit,
 } from "../manual-resume-import-service.js";
 
+type EnumeratedImportFile = Parameters<typeof fileResultBase>[0];
+
 describe("normalizeWhitespace", () => {
   it("replaces carriage returns with newlines", () => {
     expect(normalizeWhitespace("hello\rworld")).toBe("hello\nworld");
@@ -101,7 +103,7 @@ describe("buildBaseMetadata", () => {
     expect(result.keyword).toBe("CNC");
     expect(result.location).toBe("深圳");
     expect(result.searchProfileId).toBe("sp_123");
-    expect(result.collectionContext.captureMode).toBe("manual-upload");
+    expect(result.collectionContext?.captureMode).toBe("manual-upload");
   });
   it("omits optional fields when not provided", () => {
     const result = buildBaseMetadata({ files: [] });
@@ -188,7 +190,7 @@ describe("fileResultBase", () => {
 
 describe("buildImportedResumeCandidate", () => {
   it("builds candidate from file and parsed text", () => {
-    const file = {
+    const file: EnumeratedImportFile = {
       uploadName: "test.zip",
       entryPath: "张三_销售.doc",
       extension: ".doc",
@@ -200,10 +202,10 @@ describe("buildImportedResumeCandidate", () => {
     const result = buildImportedResumeCandidate(file, text, []);
     expect(result.result.status).toBe("imported");
     expect(result.resume).toBeDefined();
-    expect(result.resume.profileType).toBe("51job-manual");
+    expect(result.resume?.profileType).toBe("51job-manual");
   });
   it("uses entryPath basename as fallback name", () => {
-    const file = {
+    const file: EnumeratedImportFile = {
       uploadName: "test.zip",
       entryPath: "unknown.doc",
       extension: ".doc",
@@ -220,7 +222,7 @@ describe("buildSummary", () => {
   it("merges parsed and submit summaries", () => {
     const result = buildSummary(
       { uploadedFiles: 2, discoveredFiles: 5, parsedResumes: 3, imported: 3, skipped: 1, failed: 1 },
-      { submitted: 3, inserted: 2, updated: 1, unchanged: 0, deduped: 0 },
+      { success: true, submitted: 3, inserted: 2, updated: 1, unchanged: 0, deduped: 0 },
     );
     expect(result).toEqual({
       uploadedFiles: 2,

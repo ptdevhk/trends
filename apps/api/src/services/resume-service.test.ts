@@ -687,7 +687,7 @@ describe("ResumeService", () => {
           selfIntro: "",
           jobIntention: "",
           expectedSalary: "",
-          workHistory: [{ company: "ACME", role: "CNC Operator", years: "3" }],
+          workHistory: [{ companyName: "ACME", jobTitle: "CNC Operator", raw: "ACME CNC Operator 3 years" }],
           extractedAt: "2026-03-20T00:00:00.000Z",
           // searchText includes "fanuc" from earlier workHistory not in latest entry
           searchText: "CNC Resume Dongguan ACME CNC Operator 3 years fanuc experience",

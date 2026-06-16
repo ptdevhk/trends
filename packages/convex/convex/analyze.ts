@@ -188,7 +188,10 @@ export async function callLLM(messages: ChatMessage[], apiKey: string) {
         throw new Error(`OpenAI API error: ${response.status} ${response.statusText} - ${text}`);
     }
 
-    const data = await response.json();
+    const data = (await response.json()) as {
+        choices: { message: { content: string } }[];
+        usage: unknown;
+    };
     let content = data.choices[0].message.content;
 
     // Clean markdown code blocks

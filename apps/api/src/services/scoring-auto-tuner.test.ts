@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { resetResumeScreeningDb } from "./database";
 import { MatchStorage } from "./match-storage";
-import { loadRuleWeightsConfig } from "./rule-scoring";
+import { loadRuleWeightsConfig, mergeRuleWeights } from "./rule-scoring";
 import { ScoringAutoTuner } from "./scoring-auto-tuner";
 import { WeightHistoryService } from "./weight-history";
 import { workspaceConfigService } from "./workspace-config-service";
@@ -241,14 +241,7 @@ describe("ScoringAutoTuner", () => {
       let runtimeWeights = loadRuleWeightsConfig(root);
       const getRuleWeightsMock = vi.spyOn(workspaceConfigService, "getRuleWeights").mockImplementation(async () => runtimeWeights);
       const setRuleWeightsMock = vi.spyOn(workspaceConfigService, "setWorkspaceRuleWeights").mockImplementation(async (_workspace, config) => {
-        runtimeWeights = {
-          ...runtimeWeights,
-          ...config,
-          categoryWeights: {
-            ...runtimeWeights.categoryWeights,
-            ...config.categoryWeights,
-          },
-        };
+        runtimeWeights = mergeRuleWeights(config);
       });
       const appendLearningMock = vi.spyOn(workspaceConfigService, "appendLearningLogEntry").mockResolvedValue({
         date: "2026-02-25",

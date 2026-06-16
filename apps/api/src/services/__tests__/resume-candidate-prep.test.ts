@@ -486,6 +486,7 @@ describe("resume-candidate-prep", () => {
         mode: "AND" as const,
         groups: [{ original: "JS", variants: ["javascript", "js"] }],
         sourceMapping: { js: "javascript" },
+        originalKeyword: "javascript",
       };
       const result = buildKeywordExpansionSummary(expansion);
       expect(result).toEqual({
@@ -974,7 +975,7 @@ describe("resume-candidate-prep", () => {
         name: "Alice",
         location: "London",
         education: "Master",
-        workHistory: [{ companyName: "Tech Corp", jobTitle: "Dev", startDate: "2020-01", endDate: "2023-01" }],
+        workHistory: [{ raw: "", companyName: "Tech Corp", jobTitle: "Dev", startDate: "2020-01", endDate: "2023-01" }],
       });
       const result = prepareResumeCandidate({ resume, resumeId: "res-fallback" });
       expect(result.indexData.searchText).toContain("alice");
@@ -1067,7 +1068,7 @@ describe("resume-candidate-prep", () => {
         education: "Master",
         profileType: "seek",
         workHistory: [
-          { companyName: "Tech Corp", jobTitle: "Senior Engineer", startDate: "2020-01", endDate: "2023-01", description: "Built systems" },
+          { raw: "", companyName: "Tech Corp", jobTitle: "Senior Engineer", startDate: "2020-01", endDate: "2023-01", description: "Built systems" },
         ],
       });
       const indexData = makeMinimalIndex({
@@ -1075,7 +1076,7 @@ describe("resume-candidate-prep", () => {
         skills: ["JavaScript", "React"],
         companies: ["Tech Corp"],
       });
-      const item = { resume, resumeId: "res-1", indexData, companyHits: ["Tech Corp"], roleSignals: [{ type: "engineer", matchedSignals: ["problem-solving"], signalCount: 1, occurrences: 1, years: 3, verifyIn: "workHistory" as const }] };
+      const item = { resume, resumeId: "res-1", indexData, companyHits: ["Tech Corp"], roleSignals: [{ type: "engineer", matchedSignals: ["problem-solving"], signalCount: 1, occurrences: 1, years: 3, industryVerifiedYears: 3, verifyIn: "workHistory" as const }] };
       const payload = buildAiResumePayload(item);
       expect(payload.id).toBe("res-1");
       expect(payload.name).toBe("Alice Smith");
@@ -1099,7 +1100,7 @@ describe("resume-candidate-prep", () => {
     it("extracts companies from workHistory when indexData.companies is empty", () => {
       const resume = makeMinimalResume({
         workHistory: [
-          { companyName: "Startup Inc", jobTitle: "Dev", startDate: "2019-01", endDate: "2022-01" },
+          { raw: "", companyName: "Startup Inc", jobTitle: "Dev", startDate: "2019-01", endDate: "2022-01" },
         ],
       });
       const indexData = makeMinimalIndex({ companies: [] });

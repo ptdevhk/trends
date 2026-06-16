@@ -1248,10 +1248,10 @@ check-node:
 # (e.g. Q3's minExperience) that the package tsconfig excludes from `tsc`.
 # Wired into check-node. Adds ~10s (the test program re-typechecks apps/api
 # source; composite project references would dedupe but are a separate
-# initiative). Currently REPORT-ONLY: the baseline of latent test type errors
-# is being cleaned up in batches (T2-T5). When that count hits 0, flip the
-# default below to `hard` so new test-file type errors block make check.
-TESTS_TYPES_GATE ?= report-only
+# initiative). HARD-BLOCKING as of T5: the latent test-type error baseline
+# reached 0 (PRs #1285-#1289), so new test-file type errors now fail make
+# check. Override with TESTS_TYPES_GATE=report-only for a non-blocking run.
+TESTS_TYPES_GATE ?= hard
 check-node-tests-types:
 	@echo "Running apps/api test-file typecheck (gate=$(TESTS_TYPES_GATE))..."
 	@mkdir -p logs
