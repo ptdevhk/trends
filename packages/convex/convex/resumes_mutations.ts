@@ -105,7 +105,8 @@ export const updateAnalysis = internalMutation({
         const updated = await ctx.db.get(args.resumeId);
         if (updated) {
             await doUpsertResumeDigest(ctx, updated);
-            await doUpsertResumeAnalysis(ctx, updated);
+            // Phase 4 prep: pass analysis explicitly (sourced from args) instead of the hot doc.
+            await doUpsertResumeAnalysis(ctx, args.resumeId, args.analysis, analyses);
         }
     },
 });
@@ -154,7 +155,7 @@ export const updateAnalysisBatch = internalMutation({
             const updated = await ctx.db.get(update.resumeId);
             if (updated) {
                 await doUpsertResumeDigest(ctx, updated);
-                await doUpsertResumeAnalysis(ctx, updated);
+                await doUpsertResumeAnalysis(ctx, update.resumeId, update.analysis, analyses);
             }
         }));
     },

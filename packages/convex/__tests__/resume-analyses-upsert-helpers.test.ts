@@ -190,7 +190,7 @@ describe("doUpsertResumeAnalysis", () => {
 
         await t.run(async (ctx) => {
             const resume = await ctx.db.get(resumeId);
-            await doUpsertResumeAnalysis(ctx, resume!);
+            await doUpsertResumeAnalysis(ctx, resumeId, resume!.analysis, resume!.analyses);
         });
 
         const row = await t.run(async (ctx) =>
@@ -237,7 +237,7 @@ describe("doUpsertResumeAnalysis", () => {
 
         await t.run(async (ctx) => {
             const resume = await ctx.db.get(resumeId);
-            await doUpsertResumeAnalysis(ctx, resume!);
+            await doUpsertResumeAnalysis(ctx, resumeId, resume!.analysis, resume!.analyses);
         });
 
         const rows = await t.run(async (ctx) =>
@@ -267,8 +267,8 @@ describe("doUpsertResumeAnalysis", () => {
 
         await t.run(async (ctx) => {
             const resume = await ctx.db.get(resumeId);
-            await doUpsertResumeAnalysis(ctx, resume!);
-            await doUpsertResumeAnalysis(ctx, resume!);
+            await doUpsertResumeAnalysis(ctx, resumeId, resume!.analysis, resume!.analyses);
+            await doUpsertResumeAnalysis(ctx, resumeId, resume!.analysis, resume!.analyses);
         });
 
         const rows = await t.run(async (ctx) =>
@@ -297,7 +297,7 @@ describe("doUpsertResumeAnalysis", () => {
 
         await t.run(async (ctx) => {
             const resume = await ctx.db.get(resumeId);
-            await doUpsertResumeAnalysis(ctx, resume!);
+            await doUpsertResumeAnalysis(ctx, resumeId, resume!.analysis, resume!.analyses);
         });
 
         const resume = await t.run(async (ctx) => ctx.db.get(resumeId));
@@ -327,7 +327,7 @@ describe("doUpsertResumeAnalysis", () => {
         // First upsert creates the row (active).
         await t.run(async (ctx) => {
             const resume = await ctx.db.get(resumeId);
-            await doUpsertResumeAnalysis(ctx, resume!);
+            await doUpsertResumeAnalysis(ctx, resumeId, resume!.analysis, resume!.analyses);
         });
 
         // Archive it (simulating a prior clearAnalyses soft-clear).
@@ -342,7 +342,7 @@ describe("doUpsertResumeAnalysis", () => {
         // Re-upsert resets to active.
         await t.run(async (ctx) => {
             const resume = await ctx.db.get(resumeId);
-            await doUpsertResumeAnalysis(ctx, resume!);
+            await doUpsertResumeAnalysis(ctx, resumeId, resume!.analysis, resume!.analyses);
         });
 
         const row = await t.run(async (ctx) =>
@@ -372,7 +372,7 @@ describe("doUpsertResumeAnalysis", () => {
         });
         await t.run(async (ctx) => {
             const resume = await ctx.db.get(resumeId);
-            await doUpsertResumeAnalysis(ctx, resume!);
+            await doUpsertResumeAnalysis(ctx, resumeId, resume!.analysis, resume!.analyses);
         });
 
         const row = await t.run(async (ctx) =>
