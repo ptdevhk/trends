@@ -13,6 +13,7 @@ import { AuthStorage } from "../services/auth-storage.js";
 import { config } from "../services/config.js";
 import { resetResumeScreeningDb } from "../services/database.js";
 import { hashPassword, verifyPassword } from "../services/local-password-provider.js";
+import { parseJsonBody } from "../test-utils";
 import { createAdminUserRoutes } from "./admin_users.js";
 
 async function seedLocalUser(storage: AuthStorage, overrides: { username?: string; password?: string; email?: string; workspace?: string; role?: "user" | "admin" } = {}) {
@@ -90,7 +91,7 @@ describe("POST /api/admin/reset-password", () => {
   it("returns 404 when AUTH_ADMIN_RESET_ENABLED is false", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "admin-reset-off-"));
     const storage = new AuthStorage(root);
-    const eventStorage = new AuthEventStorage(storage.db);
+    const eventStorage = new AuthEventStorage(root);
     const devAdmin = await seedDevAdmin(storage);
     await seedLocalUser(storage, { username: "target-user" });
     const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
@@ -111,7 +112,7 @@ describe("POST /api/admin/reset-password", () => {
   it("resets password, revokes sessions, and records event when dev-admin resets a local user", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "admin-reset-ok-"));
     const storage = new AuthStorage(root);
-    const eventStorage = new AuthEventStorage(storage.db);
+    const eventStorage = new AuthEventStorage(root);
     const devAdmin = await seedDevAdmin(storage);
     const target = await seedLocalUser(storage, { username: "target-user", password: "old-pass" });
     const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
@@ -127,7 +128,7 @@ describe("POST /api/admin/reset-password", () => {
     });
 
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await parseJsonBody<{ success: unknown; temporaryPassword: string }>(res);
     expect(body.success).toBe(true);
     expect(body.temporaryPassword).toEqual(expect.any(String));
     expect(body.temporaryPassword.length).toBeGreaterThanOrEqual(16);
@@ -156,7 +157,7 @@ describe("POST /api/admin/reset-password", () => {
   it("returns 404 with precise message when username has no local identity", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "admin-reset-noid-"));
     const storage = new AuthStorage(root);
-    const eventStorage = new AuthEventStorage(storage.db);
+    const eventStorage = new AuthEventStorage(root);
     const devAdmin = await seedDevAdmin(storage);
     const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
     const session = sessions.createSession(devAdmin.user.id);
@@ -169,7 +170,7 @@ describe("POST /api/admin/reset-password", () => {
     });
 
     expect(res.status).toBe(404);
-    const body = await res.json();
+    const body = await parseJsonBody(res);
     expect(body.error).toContain("No local password identity found");
     expect(body.error).toContain("ghost-user");
   });
@@ -177,7 +178,7 @@ describe("POST /api/admin/reset-password", () => {
   it("returns 404 when target identity is Casdoor-only (not local)", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "admin-reset-casdoor-"));
     const storage = new AuthStorage(root);
-    const eventStorage = new AuthEventStorage(storage.db);
+    const eventStorage = new AuthEventStorage(root);
     const devAdmin = await seedDevAdmin(storage);
     // Seed a Casdoor-only identity (no local provider identity)
     const casdoorUser = storage.createUser({ email: "casdoor@example.com", displayName: "Casdoor User" });
@@ -200,14 +201,14 @@ describe("POST /api/admin/reset-password", () => {
     });
 
     expect(res.status).toBe(404);
-    const body = await res.json();
+    const body = await parseJsonBody(res);
     expect(body.error).toContain("No local password identity found");
   });
 
   it("returns 403 when caller is hr-admin (non-dev workspace)", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "admin-reset-hradmin-"));
     const storage = new AuthStorage(root);
-    const eventStorage = new AuthEventStorage(storage.db);
+    const eventStorage = new AuthEventStorage(root);
     const hrAdmin = await seedLocalUser(storage, { username: "hr-admin", workspace: "hr", role: "admin" });
     await seedLocalUser(storage, { username: "target-user" });
     const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
@@ -228,7 +229,7 @@ describe("POST /api/admin/reset-password", () => {
   it("returns 403 when caller is dev-user (non-admin role)", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "admin-reset-devuser-"));
     const storage = new AuthStorage(root);
-    const eventStorage = new AuthEventStorage(storage.db);
+    const eventStorage = new AuthEventStorage(root);
     const devUser = await seedLocalUser(storage, { username: "dev-user", workspace: "dev", role: "user" });
     await seedLocalUser(storage, { username: "target-user" });
     const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
@@ -247,7 +248,7 @@ describe("POST /api/admin/reset-password", () => {
   it("returns 401 when caller is unauthenticated", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "admin-reset-unauth-"));
     const storage = new AuthStorage(root);
-    const eventStorage = new AuthEventStorage(storage.db);
+    const eventStorage = new AuthEventStorage(root);
     await seedLocalUser(storage, { username: "target-user" });
     const app = createTestApp(storage, eventStorage);
 
@@ -263,7 +264,7 @@ describe("POST /api/admin/reset-password", () => {
   it("does not leak the temporary password in event metadata", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "admin-reset-noleak-"));
     const storage = new AuthStorage(root);
-    const eventStorage = new AuthEventStorage(storage.db);
+    const eventStorage = new AuthEventStorage(root);
     const devAdmin = await seedDevAdmin(storage);
     const target = await seedLocalUser(storage, { username: "target-user" });
     const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
@@ -275,7 +276,7 @@ describe("POST /api/admin/reset-password", () => {
       headers: authHeaders("dev", session),
       body: JSON.stringify({ username: "target-user" }),
     });
-    const body = await res.json();
+    const body = await parseJsonBody<{ temporaryPassword: string }>(res);
 
     const events = eventStorage.listRecent({ limit: 50 });
     const resetEvent = events.find((e) => e.type === "password_reset_completed");
@@ -290,7 +291,7 @@ describe("POST /api/admin/reset-password", () => {
   it("rotates the credential so the old password fails and the temp password works", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "admin-reset-rotate-"));
     const storage = new AuthStorage(root);
-    const eventStorage = new AuthEventStorage(storage.db);
+    const eventStorage = new AuthEventStorage(root);
     const devAdmin = await seedDevAdmin(storage);
     const target = await seedLocalUser(storage, { username: "target-user", password: "old-pass-123" });
     const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
@@ -302,7 +303,7 @@ describe("POST /api/admin/reset-password", () => {
       headers: authHeaders("dev", session),
       body: JSON.stringify({ username: "target-user" }),
     });
-    const body = await res.json();
+    const body = await parseJsonBody<{ temporaryPassword: string }>(res);
     const updated = storage.findPasswordCredential(target.user.id);
 
     expect(await verifyPassword(body.temporaryPassword, updated!)).toBe(true);
@@ -312,7 +313,7 @@ describe("POST /api/admin/reset-password", () => {
   it("returns 400 when dev-admin attempts to reset own password", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "admin-reset-self-"));
     const storage = new AuthStorage(root);
-    const eventStorage = new AuthEventStorage(storage.db);
+    const eventStorage = new AuthEventStorage(root);
     const devAdmin = await seedDevAdmin(storage);
     const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
     const session = sessions.createSession(devAdmin.user.id);
@@ -325,7 +326,7 @@ describe("POST /api/admin/reset-password", () => {
     });
 
     expect(res.status).toBe(400);
-    const body = await res.json();
+    const body = await parseJsonBody(res);
     expect(body.error).toMatch(/change-password/i);
     // No reset happened
     const events = eventStorage.listRecent({ limit: 50 });

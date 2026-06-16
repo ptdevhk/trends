@@ -15,6 +15,7 @@ import { config } from "../services/config.js";
 import { getResumeScreeningDb, resetResumeScreeningDb } from "../services/database.js";
 import { hashPassword } from "../services/local-password-provider.js";
 import { CasdoorOidcProvider } from "../services/oidc-provider.js";
+import { parseJsonBody } from "../test-utils";
 import { createAuthRoutes } from "./auth.js";
 
 // Helper to create app with event storage for event logging tests
@@ -494,7 +495,7 @@ describe("auth routes", () => {
   it("locks out login after 5 rapid failures for the same username from one IP", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "trends-auth-bruteforce-"));
     const storage = new AuthStorage(root);
-    const eventStorage = new AuthEventStorage(storage.db);
+    const eventStorage = new AuthEventStorage(root);
     await seedLocalUser(storage);
     const app = createTestApp(storage, eventStorage);
 
@@ -594,7 +595,7 @@ describe("auth routes", () => {
   it("changePassword revokes all other sessions for the user", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "trends-auth-cp-revoke-"));
     const storage = new AuthStorage(root);
-    const eventStorage = new AuthEventStorage(storage.db);
+    const eventStorage = new AuthEventStorage(root);
     const user = await seedLocalUser(storage);
     const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
 
@@ -629,7 +630,7 @@ describe("auth routes", () => {
   it("revoke-all endpoint revokes all sessions except the caller's current one", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "trends-auth-revoke-all-"));
     const storage = new AuthStorage(root);
-    const eventStorage = new AuthEventStorage(storage.db);
+    const eventStorage = new AuthEventStorage(root);
     const user = await seedLocalUser(storage);
     const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
 
@@ -778,7 +779,7 @@ describe("GET /api/auth/events", () => {
     });
 
     expect(response.status).toBe(200);
-    const body = await response.json();
+    const body = await parseJsonBody<{ success: unknown; events: unknown[] }>(response);
     expect(body.success).toBe(true);
     expect(body.events).toHaveLength(2);
   });
