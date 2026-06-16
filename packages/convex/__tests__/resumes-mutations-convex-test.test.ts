@@ -9,7 +9,7 @@ import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { api, internal } from "../convex/_generated/api.js";
 import schema from "../convex/schema.js";
-import { seedResume } from "./test-helpers.js";
+import { seedResume, seedResumeAnalysesColdRow } from "./test-helpers.js";
 
 const modules = (import.meta as any).glob("../**/*.ts", { eager: false });
 
@@ -349,9 +349,10 @@ describe("resumes: listResumeScanBatch", () => {
 // ---------------------------------------------------------------------------
 
 describe("resumes: listResumeUsageBatch", () => {
-    it("returns analysis and analyses fields for each resume", async () => {
+    it("sources analysis/analyses from the cold resume_analyses row", async () => {
         const t = convexTest(schema, modules);
-        await seedResume(t, {
+        const resumeId = await seedResume(t);
+        await seedResumeAnalysesColdRow(t, resumeId, {
             analysis: { score: 70, summary: "ok", highlights: [], recommendation: "proceed" },
             analyses: { "jd:test": { score: 70 } },
         });
@@ -359,8 +360,37 @@ describe("resumes: listResumeUsageBatch", () => {
         const result = await t.query(internal.resumes.listResumeUsageBatch, { limit: 10 });
 
         expect(result.page.length).toBeGreaterThanOrEqual(1);
-        expect(result.page[0]).toHaveProperty("analysis");
-        expect(result.page[0]).toHaveProperty("analyses");
+        expect(result.page[0].analysis).toEqual({ score: 70, summary: "ok", highlights: [], recommendation: "proceed" });
+        expect(result.page[0].analyses).toEqual({ "jd:test": { score: 70 } });
+    });
+
+    it("excludes analysis/analyses from archived cold rows (active-only)", async () => {
+        const t = convexTest(schema, modules);
+        const resumeId = await seedResume(t);
+        // An archived row retains stale analysis/analyses (mirrors non-surgical
+        // clearAnalyses), but must NOT contribute — reading without the active
+        // guard would over-count cleared resumes.
+        await seedResumeAnalysesColdRow(t, resumeId, {
+            status: "archived",
+            analysis: { score: 70, summary: "stale", highlights: [], recommendation: "proceed" },
+            analyses: { "jd:test": { score: 70 } },
+        });
+
+        const result = await t.query(internal.resumes.listResumeUsageBatch, { limit: 10 });
+
+        expect(result.page[0].analysis).toBeUndefined();
+        expect(result.page[0].analyses).toBeUndefined();
+    });
+
+    it("returns undefined analysis/analyses for resumes with no cold row", async () => {
+        const t = convexTest(schema, modules);
+        await seedResume(t);
+
+        const result = await t.query(internal.resumes.listResumeUsageBatch, { limit: 10 });
+
+        expect(result.page.length).toBeGreaterThanOrEqual(1);
+        expect(result.page[0].analysis).toBeUndefined();
+        expect(result.page[0].analyses).toBeUndefined();
     });
 
     it("returns empty page when no resumes exist", async () => {
