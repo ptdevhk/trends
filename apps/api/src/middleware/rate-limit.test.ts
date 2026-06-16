@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { parseJsonBody } from "../test-utils";
 import { rateLimit } from "./rate-limit.js";
 
 function createRateLimitedApp(limit: number = 5, windowMs: number = 10_000) {
@@ -31,7 +32,7 @@ describe("rateLimit middleware", () => {
     await app.request("/test");
     const res = await app.request("/test");
     expect(res.status).toBe(429);
-    const body = await res.json();
+    const body = await parseJsonBody(res);
     expect(body.success).toBe(false);
     expect(body.error).toContain("Too many requests");
   });

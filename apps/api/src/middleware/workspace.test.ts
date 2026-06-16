@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { describe, expect, it } from "vitest";
 import { formatWorkspaceSlugList, listWorkspaceSlugs } from "@trends/shared";
 
+import { parseJsonBody } from "../test-utils";
 import { workspaceMiddleware } from "./workspace.js";
 import { serverTimingMiddleware } from "./server-timing.js";
 
@@ -25,7 +26,7 @@ describe("workspaceMiddleware", () => {
     const app = createTestApp();
     const res = await app.request("/test");
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await parseJsonBody(res);
     expect(body.workspaceSlug).toBe("dev");
   });
 
@@ -35,7 +36,7 @@ describe("workspaceMiddleware", () => {
       headers: { "X-Workspace-Slug": "hr" },
     });
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await parseJsonBody(res);
     expect(body.workspaceSlug).toBe("hr");
   });
 
@@ -43,7 +44,7 @@ describe("workspaceMiddleware", () => {
     const app = createTestApp();
     const res = await app.request("/test?workspaceSlug=hr");
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await parseJsonBody(res);
     expect(body.workspaceSlug).toBe("hr");
   });
 
@@ -53,7 +54,7 @@ describe("workspaceMiddleware", () => {
       headers: { "X-Workspace-Slug": "dev" },
     });
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await parseJsonBody(res);
     expect(body.workspaceSlug).toBe("dev");
   });
 
@@ -63,7 +64,7 @@ describe("workspaceMiddleware", () => {
       headers: { "X-Workspace-Slug": "  hr  " },
     });
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await parseJsonBody(res);
     expect(body.workspaceSlug).toBe("hr");
   });
 
@@ -71,7 +72,7 @@ describe("workspaceMiddleware", () => {
     const app = createTestApp();
     const res = await app.request("/test?workspaceSlug=%20hr%20");
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await parseJsonBody(res);
     expect(body.workspaceSlug).toBe("hr");
   });
 
@@ -81,7 +82,7 @@ describe("workspaceMiddleware", () => {
       headers: { "X-Workspace-Slug": "invalid-workspace" },
     });
     expect(res.status).toBe(400);
-    const body = await res.json();
+    const body = await parseJsonBody(res);
     expect(body.success).toBe(false);
     expect(body.error).toContain("Invalid workspace slug");
     expect(body.error).toContain(`Allowed: ${formatWorkspaceSlugList()}`);
@@ -93,7 +94,7 @@ describe("workspaceMiddleware", () => {
       headers: { "X-Workspace-Slug": slug },
     });
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await parseJsonBody(res);
     expect(body.workspaceSlug).toBe(slug);
   });
 });
