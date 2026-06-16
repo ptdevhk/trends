@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createApp } from "../app";
 import { config } from "../services/config";
+import { parseJsonBody } from "../test-utils";
 
 type ConvexCall = {
   pathName: string;
@@ -15,7 +16,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function parseConvexCall(input: RequestInfo | URL, init?: RequestInit): ConvexCall {
+function parseConvexCall(input: Request | string | URL, init?: RequestInit): ConvexCall {
   const requestUrl = typeof input === "string"
     ? input
     : input instanceof URL
@@ -371,7 +372,10 @@ describe("resume submit route", () => {
 
       const statusResponse = await app.request("/api/search-profiles/51job-cn-cnc-sales/status");
       expect(statusResponse.status).toBe(200);
-      const statusBody = await statusResponse.json();
+      const statusBody = await parseJsonBody<{
+        success: unknown;
+        status: { taskId: string; completedAt: string };
+      }>(statusResponse);
       expect(statusBody).toMatchObject({
         success: true,
         status: {

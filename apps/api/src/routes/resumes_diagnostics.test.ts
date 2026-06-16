@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import resumesDiagnosticsRoutes from "./resumes_diagnostics";
 import { workspaceMiddleware } from "../middleware/workspace";
 import { createAuthContext } from "./test-auth-helpers";
+import { parseJsonBody } from "../test-utils";
 
 function createTestApp() {
   const app = new OpenAPIHono();
@@ -67,7 +68,7 @@ describe("resumes_diagnostics", () => {
       const response = await app.request("/api/resumes/analysis-tasks");
 
       expect(response.status).toBe(200);
-      const payload = await response.json();
+      const payload = await parseJsonBody<{ success: unknown; tasks: { _id: string; status: string }[] }>(response);
       expect(payload.success).toBe(true);
       expect(payload.tasks).toHaveLength(2);
       expect(payload.tasks[0]._id).toBe("task-1");
@@ -82,7 +83,7 @@ describe("resumes_diagnostics", () => {
       const response = await app.request("/api/resumes/analysis-tasks");
 
       expect(response.status).toBe(500);
-      const payload = await response.json();
+      const payload = await parseJsonBody<{ success: unknown; error: string }>(response);
       expect(payload.success).toBe(false);
       expect(payload.error).toContain("Convex timeout");
     });
@@ -94,7 +95,7 @@ describe("resumes_diagnostics", () => {
       const response = await app.request("/api/resumes/skills-version");
 
       expect(response.status).toBe(200);
-      const payload = await response.json();
+      const payload = await parseJsonBody<{ success: unknown; version: number }>(response);
       expect(payload.success).toBe(true);
       expect(typeof payload.version).toBe("number");
     });
@@ -117,7 +118,7 @@ describe("resumes_diagnostics", () => {
       const response = await app.request("/api/resumes/field-coverage");
 
       expect(response.status).toBe(200);
-      const payload = await response.json();
+      const payload = await parseJsonBody<{ success: unknown; scanned: number; missingSearchText: number }>(response);
       expect(payload.success).toBe(true);
       expect(payload.scanned).toBe(200);
       expect(payload.missingSearchText).toBe(10);
@@ -151,7 +152,7 @@ describe("resumes_diagnostics", () => {
       const response = await app.request("/api/resumes/field-coverage");
 
       expect(response.status).toBe(200);
-      const payload = await response.json();
+      const payload = await parseJsonBody<{ scanned: number; missingSearchText: number }>(response);
       expect(payload.scanned).toBe(300);
       expect(payload.missingSearchText).toBe(12);
       expect(callCount).toBe(2);
@@ -172,7 +173,7 @@ describe("resumes_diagnostics", () => {
       const response = await app.request("/api/resumes/diagnostics");
 
       expect(response.status).toBe(200);
-      const payload = await response.json();
+      const payload = await parseJsonBody<{ success: unknown; summary: Record<string, unknown>; data: { resumeId: string }[] }>(response);
       expect(payload.success).toBe(true);
       expect(payload.summary.archived).toBe(false);
       expect(payload.data).toHaveLength(1);
@@ -195,7 +196,7 @@ describe("resumes_diagnostics", () => {
       const response = await app.request("/api/resumes/diagnostics?archived=true&sourceKey=seek");
 
       expect(response.status).toBe(200);
-      const payload = await response.json();
+      const payload = await parseJsonBody<{ success: unknown }>(response);
       expect(payload.success).toBe(true);
       expect(calls[0].path).toBe("resumes_diagnostics:listArchivedDiagnostics");
     });

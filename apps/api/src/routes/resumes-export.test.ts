@@ -16,7 +16,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function parseConvexCall(input: RequestInfo | URL, init?: RequestInit): ConvexCall {
+function parseConvexCall(input: Request | string | URL, init?: RequestInit): ConvexCall {
   const requestUrl = typeof input === "string"
     ? input
     : input instanceof URL
@@ -481,7 +481,10 @@ describe("resume export route", () => {
     });
 
     const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(Buffer.from(await response.arrayBuffer()));
+    // exceljs load() accepts the ArrayBuffer directly (same as production
+    // feedback-import-service.ts); avoids the @types/node-25 Buffer-generic
+    // mismatch that Buffer.from() introduces.
+    await workbook.xlsx.load(await response.arrayBuffer());
     const sheet = workbook.getWorksheet("Resumes");
     const brandHitsColumn = findColumnIndex(sheet, "Brand Hits");
     const aiScoreColumn = findColumnIndex(sheet, "AI Score");

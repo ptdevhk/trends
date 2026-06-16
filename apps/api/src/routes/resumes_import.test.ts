@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import resumesImportRoutes from "./resumes_import";
 import { workspaceMiddleware } from "../middleware/workspace";
 import { createAuthContext } from "./test-auth-helpers";
+import { parseJsonBody } from "../test-utils";
 
 function createTestApp(input: { workspaceSlug?: string; role?: "user" | "admin" } = {}) {
   const app = new OpenAPIHono();
@@ -50,7 +51,7 @@ describe("resumes_import", () => {
       });
 
       expect(response.status).toBe(200);
-      const payload = await response.json();
+      const payload = await parseJsonBody<{ success: unknown }>(response);
       expect(payload.success).toBe(true);
     });
 
@@ -69,7 +70,7 @@ describe("resumes_import", () => {
       });
 
       expect(response.status).toBe(403);
-      const payload = await response.json();
+      const payload = await parseJsonBody<{ error: unknown }>(response);
       expect(payload.error).toContain("Admin access");
     });
   });
@@ -84,7 +85,7 @@ describe("resumes_import", () => {
       });
 
       expect(response.status).toBe(400);
-      const payload = await response.json();
+      const payload = await parseJsonBody<{ success: unknown }>(response);
       expect(payload.success).toBe(false);
     });
   });
@@ -108,7 +109,7 @@ describe("resumes_import", () => {
       });
 
       expect(response.status).toBe(200);
-      const payload = await response.json();
+      const payload = await parseJsonBody<{ metadata: Record<string, unknown>; resumes: unknown[] }>(response);
       expect(payload.metadata).toBeDefined();
       expect(payload.metadata.version).toBe("2");
       expect(Array.isArray(payload.resumes)).toBe(true);

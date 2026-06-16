@@ -6,7 +6,7 @@ import Papa from "papaparse";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createAuthContext } from "../test-auth-helpers";
-import type { ResumeItem } from "../types/resume.js";
+import type { ResumeItem } from "../../types/resume";
 
 function createFixtureRoot(): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "resumes-packets-route-"));

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createApp } from "../app";
+import { parseJsonBody } from "../test-utils";
 import { createAuthContext } from "./test-auth-helpers";
 
 type ConvexCall = {
@@ -13,7 +14,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function parseConvexCall(input: RequestInfo | URL, init?: RequestInit): ConvexCall {
+function parseConvexCall(input: Request | string | URL, init?: RequestInit): ConvexCall {
   const requestUrl = typeof input === "string"
     ? input
     : input instanceof URL
@@ -150,7 +151,7 @@ describe("resume backup and reset routes", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("content-disposition")).toMatch(/^attachment; filename="resume-backup-.+\.json"$/);
-    const payload = await response.json();
+    const payload = await parseJsonBody<{ metadata: Record<string, unknown>; resumes: unknown[] }>(response);
     expect(payload.metadata.generatedBy).toBe("trends-api backup");
     expect(payload.metadata.totalResumes).toBe(1);
     expect(payload.resumes).toHaveLength(1);
@@ -288,9 +289,9 @@ describe("resume backup and reset routes", () => {
     });
 
     expect(response.status).toBe(200);
-    const payload = await response.json();
+    const payload = await parseJsonBody<{ metadata: Record<string, unknown>; resumes: { name: string }[] }>(response);
     expect(payload.metadata.totalResumes).toBe(2);
-    expect(payload.resumes.map((item: { name: string }) => item.name)).toEqual(["Alice", "Bob"]);
+    expect(payload.resumes.map((item) => item.name)).toEqual(["Alice", "Bob"]);
     expect(calls).toHaveLength(3);
   });
 

@@ -5,6 +5,7 @@ import { MatchStorage, type StoredMatch } from "../services/match-storage";
 import { ResumeService } from "../services/resume-service";
 import { SessionManager } from "../services/session-manager";
 import { logger } from "../services/logger";
+import { parseJsonBody } from "../test-utils";
 import { createAuthContext } from "./test-auth-helpers";
 
 type ConvexCall = {
@@ -17,7 +18,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function parseConvexCall(
-  input: RequestInfo | URL,
+  input: Request | string | URL,
   init?: RequestInit,
   expectedEndpoint?: "/api/query" | "/api/mutation" | "/api/action",
 ): ConvexCall {
@@ -66,9 +67,11 @@ function convexSuccess(value: unknown): Response {
   );
 }
 
-function createTestApp(authContext = createAuthContext({ workspaceSlug: "dev", role: "admin" })) {
+function createTestApp(
+  authContext: ReturnType<typeof createAuthContext> | null = createAuthContext({ workspaceSlug: "dev", role: "admin" }),
+) {
   return createApp({
-    authContext,
+    authContext: authContext ?? undefined,
   });
 }
 
@@ -352,7 +355,7 @@ describe("resume routes", () => {
     const response = await app.request("/api/resumes?source=convex&q=CNC%20%E9%94%80%E5%94%AE&limit=5");
 
     expect(response.status).toBe(200);
-    const payload = await response.json();
+    const payload = await parseJsonBody<{ success: unknown; summary: Record<string, unknown>; data: unknown[] }>(response);
     expect(payload.success).toBe(true);
     expect(payload.summary.source).toBe("convex");
     expect(payload.summary.keywordGroups).toEqual(
@@ -453,7 +456,7 @@ describe("resume routes", () => {
     });
 
     expect(response.status).toBe(200);
-    const payload = await response.json();
+    const payload = await parseJsonBody<{ summary: Record<string, unknown> }>(response);
     expect(payload.summary.statusCounts).toMatchObject({
       new: 1,
       shortlisted: 0,
@@ -546,7 +549,7 @@ describe("resume routes", () => {
     });
 
     expect(response.status).toBe(200);
-    const payload = await response.json();
+    const payload = await parseJsonBody<{ summary: Record<string, unknown>; data: unknown[] }>(response);
     expect(payload.summary.total).toBe(1);
     expect(payload.summary.returned).toBe(1);
     expect(payload.summary.statusCounts).toMatchObject({
@@ -594,7 +597,7 @@ describe("resume routes", () => {
     });
 
     expect(response.status).toBe(200);
-    const payload = await response.json();
+    const payload = await parseJsonBody<{ summary: Record<string, unknown> }>(response);
     expect(payload.summary.statusCounts).toBeUndefined();
     expect(calls).toEqual([
       expect.objectContaining({
@@ -674,7 +677,7 @@ describe("resume routes", () => {
     );
 
     expect(response.status).toBe(200);
-    const payload = await response.json();
+    const payload = await parseJsonBody<{ success: unknown; summary: Record<string, unknown> }>(response);
     expect(payload.success).toBe(true);
     expect(payload.summary.statusCounts).toBeUndefined();
     expect(calls.map((call) => call.pathName)).toEqual([
@@ -838,7 +841,7 @@ describe("resume routes", () => {
     });
 
     expect(response.status).toBe(200);
-    const payload = await response.json();
+    const payload = await parseJsonBody<{ query: Record<string, unknown>; results: unknown[] }>(response);
     expect(payload.query).toEqual(
       expect.objectContaining({
         source: "convex",
@@ -904,7 +907,7 @@ describe("resume routes", () => {
     const response = await app.request("/api/resumes?source=convex&limit=2&offset=2");
 
     expect(response.status).toBe(200);
-    const payload = await response.json();
+    const payload = await parseJsonBody<{ success: unknown; summary: Record<string, unknown>; data: { name: string; ingestData?: unknown }[] }>(response);
     expect(payload.success).toBe(true);
     expect(payload.summary).toEqual(expect.objectContaining({
       total: 4,
@@ -964,7 +967,7 @@ describe("resume routes", () => {
     const response = await app.request("/api/resumes?source=convex&q=cnc%20sales&limit=2&offset=2");
 
     expect(response.status).toBe(200);
-    const payload = await response.json();
+    const payload = await parseJsonBody<{ success: unknown; summary: Record<string, unknown>; data: { name: string }[] }>(response);
     expect(payload.success).toBe(true);
     expect(payload.summary).toEqual(expect.objectContaining({
       total: 4,
@@ -1014,7 +1017,7 @@ describe("resume routes", () => {
     const response = await app.request("/api/resumes?source=convex&q=cnc%20sales&limit=2&offset=2&sortBy=name&sortOrder=desc");
 
     expect(response.status).toBe(200);
-    const payload = await response.json();
+    const payload = await parseJsonBody(response);
     expect(payload.success).toBe(true);
     expect(calls[0]).toEqual(expect.objectContaining({
       pathName: "resumes_search:scanResumeDigestPage",
@@ -1094,7 +1097,7 @@ describe("resume routes", () => {
     );
 
     expect(response.status).toBe(200);
-    const payload = await response.json();
+    const payload = await parseJsonBody<{ success: unknown; summary: Record<string, unknown>; data: { name: string }[] }>(response);
     expect(payload.success).toBe(true);
     expect(payload.summary).toEqual(expect.objectContaining({
       total: 2,
@@ -1160,7 +1163,7 @@ describe("resume routes", () => {
     // AND-mode now uses scanResumeDigestPage instead of the action
     expect(calls.some((c) => c.pathName === "resumes_search:scanResumeDigestPage")).toBe(true);
     // Required keywords are applied as local filters in BFF AND-mode path
-    const payload = await response.json();
+    const payload = await parseJsonBody(response);
     expect(payload.success).toBe(true);
   });
 
@@ -1188,7 +1191,7 @@ describe("resume routes", () => {
     const response = await app.request("/api/resumes?source=convex&limit=2&offset=2&locations=%E4%B8%9C%E8%8E%9E&requiredKeywords=CNC");
 
     expect(response.status).toBe(200);
-    const payload = await response.json();
+    const payload = await parseJsonBody<{ success: unknown; data: { name: string }[] }>(response);
     expect(payload.success).toBe(true);
     expect(payload.data.map((item: { name: string }) => item.name)).toEqual(["Carla", "Dylan"]);
     expect(calls[0]).toEqual(expect.objectContaining({
@@ -1221,7 +1224,7 @@ describe("resume routes", () => {
     const response = await app.request("/api/resumes?source=convex&limit=2&offset=2&sortBy=experience");
 
     expect(response.status).toBe(200);
-    const payload = await response.json();
+    const payload = await parseJsonBody(response);
     expect(payload.success).toBe(true);
     expect(calls[0]).toEqual(expect.objectContaining({
       pathName: "resumes:listWithIngestDataPage",
@@ -1277,7 +1280,7 @@ describe("resume routes", () => {
     );
 
     expect(response.status).toBe(200);
-    const payload = await response.json();
+    const payload = await parseJsonBody<{ success: unknown; summary: Record<string, unknown>; data: { name: string }[] }>(response);
     expect(payload.success).toBe(true);
     expect(payload.summary).toEqual(expect.objectContaining({
       total: 2,
@@ -1350,7 +1353,7 @@ describe("resume routes", () => {
     );
 
     expect(response.status).toBe(200);
-    const payload = await response.json();
+    const payload = await parseJsonBody<{ success: unknown; summary: Record<string, unknown>; data: { name: string }[] }>(response);
     expect(payload.success).toBe(true);
     expect(payload.summary).toEqual(expect.objectContaining({
       total: 2,
@@ -1403,7 +1406,7 @@ describe("resume routes", () => {
     const response = await app.request("/api/resumes?source=convex&limit=1&offset=1&sortBy=score&jobDescriptionId=jd-1&q=cnc%20sales");
 
     expect(response.status).toBe(200);
-    const payload = await response.json();
+    const payload = await parseJsonBody<{ success: unknown; summary: Record<string, unknown>; data: { name: string }[] }>(response);
     expect(payload.success).toBe(true);
     expect(payload.summary).toEqual(expect.objectContaining({
       total: 2,
@@ -1460,7 +1463,7 @@ describe("resume routes", () => {
     const response = await app.request("/api/resumes?source=convex&limit=2&sortBy=score&jobDescriptionId=jd-1&q=cnc%20sales");
 
     expect(response.status).toBe(200);
-    const payload = await response.json();
+    const payload = await parseJsonBody<{ success: unknown; data: { name: string }[] }>(response);
     expect(payload.success).toBe(true);
     expect(payload.data.map((item: { name: string }) => item.name)).toEqual(["Carla", "Alice"]);
     expect(getMatchesPageSpy).not.toHaveBeenCalled();
@@ -1576,7 +1579,7 @@ describe("resume routes", () => {
     const response = await app.request("/api/resumes?source=convex&limit=2&sortBy=score&jobDescriptionId=jd-1&q=cnc%20sales");
 
     expect(response.status).toBe(200);
-    const payload = await response.json();
+    const payload = await parseJsonBody<{ success: unknown; summary: Record<string, unknown>; data: { name: string }[] }>(response);
     expect(payload.success).toBe(true);
     expect(payload.summary).toEqual(expect.objectContaining({
       total: 2,
@@ -1635,7 +1638,7 @@ describe("resume routes", () => {
     );
 
     expect(response.status).toBe(200);
-    const payload = await response.json();
+    const payload = await parseJsonBody<{ success: unknown; summary: Record<string, unknown>; data: { name: string }[] }>(response);
     expect(payload.success).toBe(true);
     expect(payload.summary).toEqual(expect.objectContaining({
       total: 3,
@@ -1688,7 +1691,7 @@ describe("resume routes", () => {
     const response = await app.request("/api/resumes?source=convex&limit=2&offset=2&sortBy=score&jobDescriptionId=jd-1");
 
     expect(response.status).toBe(200);
-    const payload = await response.json();
+    const payload = await parseJsonBody<{ success: unknown; summary: Record<string, unknown>; data: { name: string }[] }>(response);
     expect(payload.success).toBe(true);
     expect(payload.summary).toEqual(expect.objectContaining({
       total: 4,
@@ -1743,7 +1746,7 @@ describe("resume routes", () => {
     const response = await app.request("/api/resumes?source=convex&limit=2&jobDescriptionId=jd-1&minMatchScore=70");
 
     expect(response.status).toBe(200);
-    const payload = await response.json();
+    const payload = await parseJsonBody<{ success: unknown; summary: Record<string, unknown>; data: { name: string }[] }>(response);
     expect(payload.success).toBe(true);
     expect(payload.summary).toEqual(expect.objectContaining({
       total: 2,
@@ -1806,7 +1809,7 @@ describe("resume routes", () => {
     );
 
     expect(response.status).toBe(200);
-    const payload = await response.json();
+    const payload = await parseJsonBody<{ success: unknown; summary: Record<string, unknown>; data: { name: string }[] }>(response);
     expect(payload.success).toBe(true);
     expect(payload.summary).toEqual(expect.objectContaining({
       total: 2,
@@ -2102,7 +2105,7 @@ describe("resume routes", () => {
       });
 
       expect(response.status).toBe(200);
-      const payload = await response.json();
+      const payload = await parseJsonBody<{ success: unknown; data: { summary?: string; keyFactors: unknown[]; scrubbedFields?: unknown[]; protectedAttributesExcluded?: unknown } }>(response);
       expect(payload.success).toBe(true);
       expect(payload.data.summary).toBe("Candidate scored 85/100 for CNC operator role.");
       expect(payload.data.keyFactors.length).toBe(2);
@@ -2124,7 +2127,7 @@ describe("resume routes", () => {
       });
 
       expect(response.status).toBe(200);
-      const payload = await response.json();
+      const payload = await parseJsonBody(response);
       expect(payload.success).toBe(true);
       expect(payload.data).toBeNull();
     });
@@ -2155,7 +2158,7 @@ describe("resume routes", () => {
       });
 
       expect(response.status).toBe(200);
-      const payload = await response.json();
+      const payload = await parseJsonBody(response);
       expect(payload.success).toBe(true);
       expect(payload.data).toBeNull();
       expect(loggerWarnSpy).toHaveBeenCalledWith(
@@ -2173,7 +2176,7 @@ describe("resume routes", () => {
       });
 
       expect(response.status).toBe(400);
-      const payload = await response.json();
+      const payload = await parseJsonBody(response);
       expect(payload.success).toBe(false);
     });
 
@@ -2186,7 +2189,7 @@ describe("resume routes", () => {
       });
 
       expect(response.status).toBe(400);
-      const payload = await response.json();
+      const payload = await parseJsonBody(response);
       expect(payload.success).toBe(false);
     });
 
@@ -2237,7 +2240,7 @@ describe("resume routes", () => {
       });
 
       expect(response.status).toBe(200);
-      const payload = await response.json();
+      const payload = await parseJsonBody<{ success: unknown; data: unknown[] }>(response);
       expect(payload.success).toBe(true);
       expect(payload.data.length).toBe(2);
     });
@@ -2259,7 +2262,7 @@ describe("resume routes", () => {
       });
 
       expect(response.status).toBe(200);
-      const payload = await response.json();
+      const payload = await parseJsonBody<{ data: unknown[] }>(response);
       expect(payload.data.length).toBe(1);
     });
 
@@ -2302,7 +2305,7 @@ describe("resume routes", () => {
       });
 
       expect(response.status).toBe(200);
-      const payload = await response.json();
+      const payload = await parseJsonBody<{ data: unknown[] }>(response);
       expect(payload.data.length).toBe(1);
     });
 
@@ -2335,7 +2338,7 @@ describe("resume routes", () => {
       });
 
       expect(response.status).toBe(200);
-      const payload = await response.json();
+      const payload = await parseJsonBody(response);
       expect(payload.success).toBe(true);
     });
 
