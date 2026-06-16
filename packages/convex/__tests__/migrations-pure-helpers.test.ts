@@ -492,6 +492,61 @@ describe("mergeAnalyses", () => {
 });
 
 // ---------------------------------------------------------------------------
+// analysisRichness / sortForCanonical / mergeAnalyses — cold-table views
+// (Phase 4 Step 2: cold view overrides hot fields; hot is the fallback)
+// ---------------------------------------------------------------------------
+
+describe("analysis helpers — cold-table viewsById", () => {
+  function makeResume(id: string, analysis?: unknown, analyses?: Record<string, unknown>) {
+    return { _id: id, crawledAt: 100, analysis, analyses, content: {}, externalId: id, source: "test", tags: [] } as never;
+  }
+
+  it("analysisRichness prefers the cold view over hot fields", () => {
+    const resume = makeResume("r1", { score: 5 }, { a: 1 }); // hot richness = 2
+    const views = new Map([["r1", { analysis: undefined, analyses: { a: 1, b: 2, c: 3 } }]]);
+    expect(analysisRichness(resume, views)).toBe(3);
+  });
+
+  it("analysisRichness falls back to hot fields when no cold view is present", () => {
+    const resume = makeResume("r1", { score: 5 }, { a: 1 });
+    expect(analysisRichness(resume)).toBe(2);
+    expect(analysisRichness(resume, new Map())).toBe(2);
+  });
+
+  it("sortForCanonical breaks ties by cold-view richness", () => {
+    const a = makeResume("a", undefined, { x: 1 }); // hot richness 1
+    const b = makeResume("b", undefined, undefined); // hot richness 0
+    // Invert richness via cold views: b is richer than a.
+    const views = new Map([
+      ["a", { analyses: undefined }],
+      ["b", { analyses: { x: 1, y: 2 } }],
+    ]);
+    expect(sortForCanonical([a, b], views)).toEqual([b, a]);
+  });
+
+  it("mergeAnalyses merges from cold views; resumes without a view fall back to hot", () => {
+    const r1 = makeResume("r1", undefined, { hot: 1 });
+    const r2 = makeResume("r2", undefined, { cold: 2 });
+    const views = new Map([
+      ["r1", { analyses: { coldView: 9 } }], // r1: cold overrides hot → {coldView:9}, hot:{hot:1} ignored
+      // r2 has no view → falls back to hot { cold: 2 }
+    ]);
+    const result = mergeAnalyses([r1, r2], views);
+    expect(result.analyses).toEqual({ coldView: 9, cold: 2 });
+  });
+
+  it("mergeAnalyses picks primary analysis from the cold view", () => {
+    const r1 = makeResume("r1", undefined, undefined);
+    const r2 = makeResume("r2", undefined, undefined);
+    const views = new Map([
+      ["r2", { analysis: { score: 7 } }],
+    ]);
+    const result = mergeAnalyses([r1, r2], views);
+    expect(result.analysis).toEqual({ score: 7 });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // groupDuplicatesByIdentity
 // ---------------------------------------------------------------------------
 

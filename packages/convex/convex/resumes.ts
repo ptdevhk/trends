@@ -422,8 +422,27 @@ export const listForBackup = query({
 
         const filtered = applyResumeBackupFilters(page.page, filterSets).sort(compareResumeBackupRows);
 
+        // Phase 4 Step 2: source analysis/analyses from the cold resume_analyses
+        // table (joined per resume via by_resume) so backups stay complete after
+        // the hot fields are removed. Only ACTIVE rows contribute — archived rows
+        // retain stale fields (non-surgical clear flips status only), so reading
+        // without the guard would snapshot analyses that are no longer live.
+        // Mirrors the active-only contract in listResumeUsageBatch.
+        const backupRows = await Promise.all(
+            filtered.map(async (row) => {
+                const coldRow = await ctx.db
+                    .query("resume_analyses")
+                    .withIndex("by_resume", (q) => q.eq("resumeId", row._id))
+                    .unique();
+                if (!coldRow || coldRow.status === "archived") {
+                    return { ...row, analysis: undefined, analyses: undefined };
+                }
+                return { ...row, analysis: coldRow.analysis, analyses: coldRow.analyses };
+            }),
+        );
+
         return {
-            page: filtered,
+            page: backupRows,
             continueCursor: page.continueCursor,
             isDone: page.isDone,
         };
