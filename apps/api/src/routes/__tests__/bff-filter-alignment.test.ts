@@ -31,11 +31,9 @@ describe("bffMatchesResumeFilters", () => {
   });
 
   describe("experience filter — graceful degradation", () => {
-    it("resumes with empty experience pass minExperience filter", () => {
-      const doc = makeDoc({ content: { experience: "" } });
-      expect(bffMatchesResumeFilters(doc, "", { minExperience: 1 })).toBe(true);
-    });
-
+    // NOTE: only `maxExperience` is a supported resume-list filter. `minExperience`
+    // is a JD/search-profile/rule-scoring concept and intentionally NOT enforced
+    // here (not present on BffResumeFilters / ResumeListFilterArgs / ResumeFilters).
     it("resumes with unknown experience are excluded by maxExperience", () => {
       const doc = makeDoc({ content: { experience: "" } });
       expect(bffMatchesResumeFilters(doc, "", { maxExperience: 5 })).toBe(false);

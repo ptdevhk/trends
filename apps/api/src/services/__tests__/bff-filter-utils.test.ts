@@ -138,10 +138,6 @@ describe("bff-filter-utils", () => {
       it("excludes doc with unknown experience when maxExperience is set", () => {
         expect(bffMatchesResumeFilters(docNoExp, loweredSearchText, { maxExperience: 5 })).toBe(false);
       });
-
-      it("includes doc with unknown experience when only minExperience is set", () => {
-        expect(bffMatchesResumeFilters(docNoExp, loweredSearchText, { minExperience: 3 })).toBe(true);
-      });
     });
 
     describe("education filter", () => {
