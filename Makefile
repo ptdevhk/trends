@@ -4,7 +4,7 @@
 		local-run-crawler local-run-mcp local-run-mcp-http local-run-worker local-run-worker-once run crawl mcp mcp-http worker worker-once \
 		on-prod-install on-prod-deploy on-prod-deploy-check on-prod-uninstall on-prod-refresh-env on-prod-preview-restore-full-state prod-install prod-deploy prod-deploy-check install deploy deploy-check uninstall refresh-env preview-restore-full-state restore-preview-full-state \
 		install-deps fetch-docs clean check help docker docker-build docker-down \
-		check-python check-node check-build \
+		check-python check-node check-node-tests-types check-build \
 		test test-python test-node test-resume test-extension-keyword-mode test-api-search-profiles test-worker-resume-tasks test-collect-url-smoke \
 		migration-test migration-test-fresh-sandbox \
 		build-static build-static-fresh build-extension-zip serve-static \
@@ -1241,6 +1241,39 @@ check-node:
 		npm run --workspaces --if-present typecheck; \
 		npm run --workspace @trends/web lint; \
 		npm run --workspace @trends/browser-extension lint; \
+	fi
+	@$(MAKE) check-node-tests-types
+
+# Test-file typecheck gate (apps/api). Catches phantom-type test assertions
+# (e.g. Q3's minExperience) that the package tsconfig excludes from `tsc`.
+# Wired into check-node. Adds ~10s (the test program re-typechecks apps/api
+# source; composite project references would dedupe but are a separate
+# initiative). Currently REPORT-ONLY: the baseline of latent test type errors
+# is being cleaned up in batches (T2-T5). When that count hits 0, flip the
+# default below to `hard` so new test-file type errors block make check.
+TESTS_TYPES_GATE ?= report-only
+check-node-tests-types:
+	@echo "Running apps/api test-file typecheck (gate=$(TESTS_TYPES_GATE))..."
+	@mkdir -p logs
+	@if npm run --workspace @trends/api typecheck:tests > logs/tests-types.log 2>&1; then \
+		echo "  apps/api test-file types: 0 errors"; \
+	elif [ "$(TESTS_TYPES_GATE)" = "hard" ]; then \
+		ERRS=$$(grep -cE "error TS[0-9]+" logs/tests-types.log || true); \
+		if [ "$$ERRS" -gt 0 ]; then \
+			echo "  apps/api test-file typecheck FAILED ($$ERRS errors):"; \
+			grep -E "error TS[0-9]+" logs/tests-types.log | head -n 10 | sed 's/^/    /'; \
+			[ "$$ERRS" -gt 10 ] && echo "    ... ($$((ERRS - 10)) more in logs/tests-types.log)"; \
+		else \
+			echo "  apps/api test-file typecheck FAILED (no TS errors — likely a tooling/infra failure):"; \
+			tail -n 20 logs/tests-types.log | sed 's/^/    /'; \
+		fi; \
+		echo "  Run 'npm --workspace @trends/api run typecheck:tests' for full output."; \
+		exit 1; \
+	else \
+		ERRS=$$(grep -cE "error TS[0-9]+" logs/tests-types.log || true); \
+		echo "  apps/api test-file typecheck: $$ERRS errors (report-only — cleanup in progress, T2-T5)"; \
+		grep -E "error TS[0-9]+" logs/tests-types.log | head -n 10 | sed 's/^/    /'; \
+		[ "$$ERRS" -gt 10 ] && echo "    ... ($$((ERRS - 10)) more in logs/tests-types.log)"; \
 	fi
 
 # Build validation (for CI)

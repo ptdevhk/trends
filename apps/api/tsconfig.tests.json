@@ -1,0 +1,14 @@
+// Test-file typecheck gate. Extends the package tsconfig but widens rootDir to
+// null so the no-emit typecheck can follow test-only deep imports into sibling
+// packages (packages/convex/convex/*) without TS6059 rootDir violations.
+// rootDir: "./src" is build-output layout; it does not apply to a no-emit gate.
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "declaration": false,
+    "rootDir": null
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "exclude": ["node_modules", "dist"]
+}
