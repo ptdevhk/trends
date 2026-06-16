@@ -1,8 +1,10 @@
 import ExcelJS from "exceljs";
 import Papa from "papaparse";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { ExportService } from "./export-service";
+import { BrandDisplayResolver } from "./brand-display-resolver";
+import { config } from "./config";
 
 import type { ResumeExportEntry, ExportBatchMeta } from "./export-service";
 import {
@@ -14,6 +16,10 @@ import {
 
 // Helper: export with all known fields to preserve old test expectations
 const fullFieldsConfig = { fields: [...EXPORT_FIELD_KEYS] };
+
+function bufferToArrayBuffer(content: Buffer): ArrayBuffer {
+  return new Uint8Array(content).buffer;
+}
 
 function buildEntry(age: string | undefined): ResumeExportEntry {
   return {
@@ -51,10 +57,13 @@ function buildEntry(age: string | undefined): ResumeExportEntry {
           {
             type: "sales",
             matchedSignals: ["销售工程师"],
+            signalCount: 1,
+            occurrences: 1,
             years: 4.5,
             industryVerifiedYears: 3.5,
             roleRelevantYears: 4.5,
             industryVerifiedRelevantYears: 3.5,
+            verifyIn: "workHistory",
             matchedWorkEntries: [
               {
                 companyName: "Example Co.",
@@ -98,7 +107,7 @@ describe("ExportService", () => {
     const file = await service.exportResumes("xlsx", [buildEntry("31"), buildEntry("abc")]);
     const workbook = new ExcelJS.Workbook();
 
-    await workbook.xlsx.load(file.content);
+    await workbook.xlsx.load(bufferToArrayBuffer(file.content));
     const sheet = workbook.getWorksheet("Resumes");
 
     expect(file.extension).toBe("xlsx");
@@ -302,7 +311,7 @@ describe("ExportService", () => {
     };
     const file = await service.exportResumes("xlsx", [entry], undefined, undefined, false, fullFieldsConfig);
     const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(file.content);
+    await workbook.xlsx.load(bufferToArrayBuffer(file.content));
     const sheet = workbook.getWorksheet("Resumes");
 
     expect(sheet).toBeDefined();
@@ -388,10 +397,9 @@ describe("ExportService", () => {
   });
 
   it("formats brand hits into a dedicated export column", async () => {
-    const service = new ExportService({
-      resolveZhHans: (brandId: string) => `zh-${brandId.toLowerCase()}`,
-      toJSON: () => ({}),
-    });
+    const resolver = new BrandDisplayResolver(config.projectRoot);
+    vi.spyOn(resolver, "resolveZhHans").mockImplementation((brandId: string) => `zh-${brandId.toLowerCase()}`);
+    const service = new ExportService(resolver);
     const file = await service.exportResumes("csv", [buildEntry("27")], undefined, undefined, false, fullFieldsConfig);
     const csv = file.content.toString("utf8");
     const parsed = Papa.parse<Record<string, string>>(csv, { header: true });
@@ -401,15 +409,14 @@ describe("ExportService", () => {
   });
 
   it("summarizes brand hits as deduped names-only evidence with alias expansion", async () => {
+    const resolver = new BrandDisplayResolver(config.projectRoot);
+    vi.spyOn(resolver, "resolveZhHans").mockImplementation((brandId: string) => {
+      if (brandId.toLowerCase() === "fanuc") return "发那科";
+      if (brandId.toLowerCase() === "mitsubishi") return "三菱";
+      return brandId.toUpperCase();
+    });
     const service = new ExportService(
-      {
-        resolveZhHans: (brandId: string) => {
-          if (brandId.toLowerCase() === "fanuc") return "发那科";
-          if (brandId.toLowerCase() === "mitsubishi") return "三菱";
-          return brandId.toUpperCase();
-        },
-        toJSON: () => ({}),
-      },
+      resolver,
       [
         {
           name: "fanuc",
@@ -458,7 +465,7 @@ describe("ExportService", () => {
     const csvHeaders = csvParsed.meta.fields ?? [];
 
     const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(xlsxFile.content);
+    await workbook.xlsx.load(bufferToArrayBuffer(xlsxFile.content));
     const sheet = workbook.getWorksheet("Resumes");
     const xlsxHeaders = ((sheet?.getRow(1).values as unknown[]) ?? [])
       .filter((value): value is string => typeof value === "string");
@@ -612,7 +619,7 @@ describe("export fields production defaults — core/detail/debug tiers", () => 
     const service = new ExportService();
     const file = await service.exportResumes("xlsx", [buildEntry("25")]);
     const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(file.content);
+    await workbook.xlsx.load(bufferToArrayBuffer(file.content));
     const sheet = workbook.getWorksheet("Resumes");
     const headers = ((sheet?.getRow(1).values as unknown[]) ?? [])
       .filter((v): v is string => typeof v === "string");
@@ -686,7 +693,7 @@ describe("export fields — userRating wiring", () => {
     };
     const file = await service.exportResumes("xlsx", [entry]);
     const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(file.content);
+    await workbook.xlsx.load(bufferToArrayBuffer(file.content));
     const sheet = workbook.getWorksheet("Resumes");
     const headers = ((sheet?.getRow(1).values as unknown[]) ?? [])
       .filter((v): v is string => typeof v === "string");

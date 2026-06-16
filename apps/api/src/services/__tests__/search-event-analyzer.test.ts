@@ -110,9 +110,10 @@ describe("scoreFromBreakdown", () => {
       educationMatch: 15,
       locationMatch: 15,
       industryMatch: 10,
+      brandRelevance: 0,
     };
-    const result = scoreFromBreakdown(noBrand as Record<string, number>, defaultWeights, defaultWeights);
-    expect(result).toBe(90); // brandRelevance defaults to 0, so 10% missing
+    const result = scoreFromBreakdown(noBrand, defaultWeights, defaultWeights);
+    expect(result).toBe(90); // brandRelevance contributes 0, so 10% missing
   });
 
   it("handles missing roleMatch in breakdown (defaults to 0)", () => {
@@ -124,7 +125,7 @@ describe("scoreFromBreakdown", () => {
       industryMatch: 10,
       brandRelevance: 10,
     };
-    const result = scoreFromBreakdown(noRole as Record<string, number>, defaultWeights, defaultWeights);
+    const result = scoreFromBreakdown(noRole, defaultWeights, defaultWeights);
     expect(result).toBe(90); // roleMatch defaults to 0, so 10% missing
   });
 

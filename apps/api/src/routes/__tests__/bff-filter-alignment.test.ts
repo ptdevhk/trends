@@ -424,7 +424,7 @@ describe("bffMatchesResumeFilters", () => {
       };
 
       expect(matchesResumeDigestFilters(digest, filters)).toBe(true);
-      expect(bffMatchesResumeFilters(doc, digest.searchText, filters)).toBe(true);
+      expect(bffMatchesResumeFilters(doc, digest.searchText ?? "", filters)).toBe(true);
     });
 
     it("normalizes digest roleFilterType before checking verified role years", () => {

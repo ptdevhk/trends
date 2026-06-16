@@ -5,6 +5,7 @@ import searchRoutes from './search'
 import { workspaceMiddleware } from '../middleware/workspace'
 import { DataService } from '../services/data-service'
 import { DataNotFoundError } from '../services/errors'
+import { parseJsonBody } from '../test-utils'
 
 function createTestApp() {
   const app = new OpenAPIHono()
@@ -36,7 +37,7 @@ describe('search routes', () => {
       const app = createTestApp()
       const response = await app.request('/api/search?q=CNC', { headers: ADMIN_HEADERS })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody(response)
       expect(body.success).toBe(true)
       expect(body.results).toHaveLength(2)
       expect(body.total).toBe(2)
@@ -72,7 +73,7 @@ describe('search routes', () => {
       const app = createTestApp()
       const response = await app.request('/api/search?q=nonexistent', { headers: ADMIN_HEADERS })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody(response)
       expect(body.success).toBe(true)
       expect(body.results).toHaveLength(0)
       expect(body.total).toBe(0)

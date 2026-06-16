@@ -63,7 +63,7 @@ describe("CasdoorOidcProvider", () => {
       access_token: "access-token",
       claims: () => ({ sub: "casdoor-user-1", email: "hr@example.com" }),
       expiresIn: () => 3600,
-    } as Awaited<ReturnType<typeof client.authorizationCodeGrant>>);
+    } as unknown as Awaited<ReturnType<typeof client.authorizationCodeGrant>>);
     vi.mocked(client.fetchUserInfo).mockResolvedValue({
       sub: "casdoor-user-1",
       name: "HR Manager",

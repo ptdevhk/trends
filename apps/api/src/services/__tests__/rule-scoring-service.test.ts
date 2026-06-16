@@ -50,19 +50,14 @@ function makeService(): RuleScoringService {
 function makeIndex(overrides: Partial<ResumeIndex> = {}): ResumeIndex {
   return {
     resumeId: "r_001",
-    externalId: "ext_001",
-    sourceKey: "seek",
-    hash: "abc",
-    tags: [],
-    crawledAt: Date.now(),
-    content: "",
-    searchText: "",
-    evidenceText: "",
     experienceYears: null,
     educationLevel: "",
     locationCity: "",
+    searchText: "",
     skills: [],
     companies: [],
+    industryTags: [],
+    salaryRange: null,
     ...overrides,
   };
 }

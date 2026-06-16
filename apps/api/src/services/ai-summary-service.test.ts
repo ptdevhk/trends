@@ -145,7 +145,7 @@ Strong overlap around machine tools and CNC sales backgrounds.
   it("fails before the AI call when the runtime has no API key", async () => {
     loadAIConfigMock.mockReturnValue(createAIConfig({ apiKey: "" }));
     getWorkspaceConfigValueMock.mockResolvedValue(undefined);
-    logger.error.mockClear();
+    vi.mocked(logger.error).mockClear();
 
     const service = new AiSummaryService();
     const result = await service.generateSummary({
@@ -181,7 +181,7 @@ Strong overlap around machine tools and CNC sales backgrounds.
     loadAIConfigMock.mockReturnValue(createAIConfig());
     getWorkspaceConfigValueMock.mockResolvedValue("anthropic/claude-3-5-haiku-20241022");
     callChatCompletionMock.mockRejectedValue(new Error("provider timeout"));
-    logger.error.mockClear();
+    vi.mocked(logger.error).mockClear();
 
     const service = new AiSummaryService();
     const result = await service.generateSummary({

@@ -38,7 +38,7 @@ async function buildXlsxBuffer(rows: string[][]): Promise<Uint8Array> {
   const sheet = workbook.addWorksheet("Feedback");
   rows.forEach((row) => sheet.addRow(row));
   const buffer = await workbook.xlsx.writeBuffer();
-  return new Uint8Array(buffer instanceof ArrayBuffer ? buffer : buffer.buffer);
+  return new Uint8Array(buffer);
 }
 
 describe("FeedbackImportService", () => {

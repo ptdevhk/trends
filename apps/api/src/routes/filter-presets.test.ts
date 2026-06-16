@@ -5,6 +5,7 @@ import filterPresetsRoutes from './filter-presets'
 import { workspaceMiddleware } from '../middleware/workspace'
 import { workspaceConfigService } from '../services/workspace-config-service'
 import { createAuthContext } from './test-auth-helpers'
+import { parseJsonBody } from '../test-utils'
 
 // dev workspace = admin, hr workspace = user
 function createTestApp() {
@@ -55,42 +56,42 @@ describe('filter-presets routes', () => {
 
   describe('GET /api/filter-presets', () => {
     it('returns all presets', async () => {
-      vi.spyOn(workspaceConfigService, 'getFilterPresets').mockResolvedValue(MOCK_PRESETS as never)
+      vi.spyOn(workspaceConfigService, 'getFilterPresets').mockResolvedValue(MOCK_PRESETS)
       const app = createTestApp()
       const response = await app.request('/api/filter-presets', { headers: ADMIN_HEADERS })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody<{ success: unknown; presets: unknown[] }>(response)
       expect(body.success).toBe(true)
       expect(body.presets).toHaveLength(3)
     })
 
     it('filters by category', async () => {
-      vi.spyOn(workspaceConfigService, 'getFilterPresets').mockResolvedValue(MOCK_PRESETS as never)
+      vi.spyOn(workspaceConfigService, 'getFilterPresets').mockResolvedValue(MOCK_PRESETS)
       const app = createTestApp()
       const response = await app.request('/api/filter-presets?category=engineering', { headers: ADMIN_HEADERS })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody<{ presets: { category: string }[] }>(response)
       expect(body.presets).toHaveLength(2)
       expect(body.presets.every((p: { category: string }) => p.category === 'engineering')).toBe(true)
     })
 
     it('returns empty when category has no presets', async () => {
-      vi.spyOn(workspaceConfigService, 'getFilterPresets').mockResolvedValue(MOCK_PRESETS as never)
+      vi.spyOn(workspaceConfigService, 'getFilterPresets').mockResolvedValue(MOCK_PRESETS)
       const app = createTestApp()
       const response = await app.request('/api/filter-presets?category=marketing', { headers: ADMIN_HEADERS })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody<{ presets: unknown[] }>(response)
       expect(body.presets).toHaveLength(0)
     })
   })
 
   describe('GET /api/filter-presets/categories', () => {
     it('returns categories', async () => {
-      vi.spyOn(workspaceConfigService, 'getFilterPresets').mockResolvedValue(MOCK_PRESETS as never)
+      vi.spyOn(workspaceConfigService, 'getFilterPresets').mockResolvedValue(MOCK_PRESETS)
       const app = createTestApp()
       const response = await app.request('/api/filter-presets/categories', { headers: ADMIN_HEADERS })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody<{ success: unknown; categories: unknown[] }>(response)
       expect(body.success).toBe(true)
       expect(body.categories).toHaveLength(2)
     })
@@ -98,11 +99,11 @@ describe('filter-presets routes', () => {
 
   describe('GET /api/filter-presets/stats', () => {
     it('returns stats with byCategory counts', async () => {
-      vi.spyOn(workspaceConfigService, 'getFilterPresets').mockResolvedValue(MOCK_PRESETS as never)
+      vi.spyOn(workspaceConfigService, 'getFilterPresets').mockResolvedValue(MOCK_PRESETS)
       const app = createTestApp()
       const response = await app.request('/api/filter-presets/stats', { headers: ADMIN_HEADERS })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody<{ success: unknown; stats: { total: unknown; byCategory: Record<string, unknown> } }>(response)
       expect(body.success).toBe(true)
       expect(body.stats.total).toBe(3)
       expect(body.stats.byCategory.engineering).toBe(2)
@@ -112,17 +113,17 @@ describe('filter-presets routes', () => {
 
   describe('GET /api/filter-presets/:id', () => {
     it('returns preset by id', async () => {
-      vi.spyOn(workspaceConfigService, 'getFilterPresets').mockResolvedValue(MOCK_PRESETS as never)
+      vi.spyOn(workspaceConfigService, 'getFilterPresets').mockResolvedValue(MOCK_PRESETS)
       const app = createTestApp()
       const response = await app.request('/api/filter-presets/senior-engineer', { headers: ADMIN_HEADERS })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody<{ success: unknown; preset: { id: string } }>(response)
       expect(body.success).toBe(true)
       expect(body.preset.id).toBe('senior-engineer')
     })
 
     it('returns 404 for unknown id', async () => {
-      vi.spyOn(workspaceConfigService, 'getFilterPresets').mockResolvedValue(MOCK_PRESETS as never)
+      vi.spyOn(workspaceConfigService, 'getFilterPresets').mockResolvedValue(MOCK_PRESETS)
       const app = createTestApp()
       const response = await app.request('/api/filter-presets/nonexistent', { headers: ADMIN_HEADERS })
       expect(response.status).toBe(404)
@@ -135,8 +136,8 @@ describe('filter-presets routes', () => {
         presets: [...MOCK_PRESETS.presets],
         categories: [...MOCK_PRESETS.categories],
       }
-      vi.spyOn(workspaceConfigService, 'getWorkspaceFilterPresets').mockResolvedValue(workspaceConfig as never)
-      vi.spyOn(workspaceConfigService, 'setWorkspaceFilterPresets').mockResolvedValue(undefined as never)
+      vi.spyOn(workspaceConfigService, 'getWorkspaceFilterPresets').mockResolvedValue(workspaceConfig)
+      vi.spyOn(workspaceConfigService, 'setWorkspaceFilterPresets').mockResolvedValue(undefined)
       const app = createTestApp()
       const response = await app.request('/api/filter-presets', {
         method: 'POST',
@@ -149,7 +150,7 @@ describe('filter-presets routes', () => {
         }),
       })
       expect(response.status).toBe(201)
-      const body = await response.json()
+      const body = await parseJsonBody<{ success: unknown; preset: { id: string } }>(response)
       expect(body.success).toBe(true)
       expect(body.preset.id).toBe('lead-engineer')
     })
@@ -174,7 +175,7 @@ describe('filter-presets routes', () => {
         presets: [...MOCK_PRESETS.presets],
         categories: [...MOCK_PRESETS.categories],
       }
-      vi.spyOn(workspaceConfigService, 'getWorkspaceFilterPresets').mockResolvedValue(workspaceConfig as never)
+      vi.spyOn(workspaceConfigService, 'getWorkspaceFilterPresets').mockResolvedValue(workspaceConfig)
       const app = createTestApp()
       const response = await app.request('/api/filter-presets', {
         method: 'POST',
@@ -194,8 +195,8 @@ describe('filter-presets routes', () => {
         presets: [...MOCK_PRESETS.presets],
         categories: [...MOCK_PRESETS.categories],
       }
-      const setSpy = vi.spyOn(workspaceConfigService, 'setWorkspaceFilterPresets').mockResolvedValue(undefined as never)
-      vi.spyOn(workspaceConfigService, 'getWorkspaceFilterPresets').mockResolvedValue(workspaceConfig as never)
+      const setSpy = vi.spyOn(workspaceConfigService, 'setWorkspaceFilterPresets').mockResolvedValue(undefined)
+      vi.spyOn(workspaceConfigService, 'getWorkspaceFilterPresets').mockResolvedValue(workspaceConfig)
       const app = createTestApp()
       const response = await app.request('/api/filter-presets', {
         method: 'POST',
@@ -219,8 +220,8 @@ describe('filter-presets routes', () => {
         presets: [...MOCK_PRESETS.presets],
         categories: [...MOCK_PRESETS.categories],
       }
-      vi.spyOn(workspaceConfigService, 'getWorkspaceFilterPresets').mockResolvedValue(workspaceConfig as never)
-      vi.spyOn(workspaceConfigService, 'setWorkspaceFilterPresets').mockResolvedValue(undefined as never)
+      vi.spyOn(workspaceConfigService, 'getWorkspaceFilterPresets').mockResolvedValue(workspaceConfig)
+      vi.spyOn(workspaceConfigService, 'setWorkspaceFilterPresets').mockResolvedValue(undefined)
       const app = createTestApp()
       const response = await app.request('/api/filter-presets/senior-engineer', {
         method: 'PUT',
@@ -231,7 +232,7 @@ describe('filter-presets routes', () => {
         }),
       })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody<{ success: unknown; preset: { name: string; id: string } }>(response)
       expect(body.success).toBe(true)
       expect(body.preset.name).toBe('Senior Engineer (Updated)')
       expect(body.preset.id).toBe('senior-engineer')
@@ -252,7 +253,7 @@ describe('filter-presets routes', () => {
         presets: [...MOCK_PRESETS.presets],
         categories: [...MOCK_PRESETS.categories],
       }
-      vi.spyOn(workspaceConfigService, 'getWorkspaceFilterPresets').mockResolvedValue(workspaceConfig as never)
+      vi.spyOn(workspaceConfigService, 'getWorkspaceFilterPresets').mockResolvedValue(workspaceConfig)
       const app = createTestApp()
       const response = await app.request('/api/filter-presets/nonexistent', {
         method: 'PUT',
@@ -269,8 +270,8 @@ describe('filter-presets routes', () => {
         presets: [...MOCK_PRESETS.presets],
         categories: [...MOCK_PRESETS.categories],
       }
-      vi.spyOn(workspaceConfigService, 'getWorkspaceFilterPresets').mockResolvedValue(workspaceConfig as never)
-      const setSpy = vi.spyOn(workspaceConfigService, 'setWorkspaceFilterPresets').mockResolvedValue(undefined as never)
+      vi.spyOn(workspaceConfigService, 'getWorkspaceFilterPresets').mockResolvedValue(workspaceConfig)
+      const setSpy = vi.spyOn(workspaceConfigService, 'setWorkspaceFilterPresets').mockResolvedValue(undefined)
       const app = createTestApp()
       const response = await app.request('/api/filter-presets/senior-engineer', {
         method: 'DELETE',
@@ -295,7 +296,7 @@ describe('filter-presets routes', () => {
         presets: [...MOCK_PRESETS.presets],
         categories: [...MOCK_PRESETS.categories],
       }
-      vi.spyOn(workspaceConfigService, 'getWorkspaceFilterPresets').mockResolvedValue(workspaceConfig as never)
+      vi.spyOn(workspaceConfigService, 'getWorkspaceFilterPresets').mockResolvedValue(workspaceConfig)
       const app = createTestApp()
       const response = await app.request('/api/filter-presets/nonexistent', {
         method: 'DELETE',

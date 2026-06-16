@@ -8,6 +8,7 @@ import {
   toJsonOutput,
   type StageResult,
 } from "../../../../../scripts/verify-critical-path";
+import type { Id } from "../../../../../packages/convex/convex/_generated/dataModel.js";
 
 function stage(status: StageResult["status"], fallbackUsed: boolean = false): StageResult {
   return {
@@ -116,10 +117,10 @@ describe("verify-critical-path json report schema", () => {
 describe("verify-critical-path search evidence helpers", () => {
   it("computes identity-distinct counts with identityKey/externalId fallback", () => {
     const count = countIdentityDistinctHits([
-      { _id: "resume:1", identityKey: "profileUrl:a", externalId: "ext-a" },
-      { _id: "resume:2", identityKey: "profileUrl:a", externalId: "ext-b" },
-      { _id: "resume:3", externalId: "EXT-C" },
-      { _id: "resume:4", externalId: "ext-c" },
+      { _id: "resume:1" as Id<"resumes">, identityKey: "profileUrl:a", externalId: "ext-a" },
+      { _id: "resume:2" as Id<"resumes">, identityKey: "profileUrl:a", externalId: "ext-b" },
+      { _id: "resume:3" as Id<"resumes">, externalId: "EXT-C" },
+      { _id: "resume:4" as Id<"resumes">, externalId: "ext-c" },
     ]);
 
     expect(count).toBe(2);

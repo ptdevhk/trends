@@ -5,6 +5,7 @@ import searchAlertsRoutes from './search-alerts'
 import { workspaceMiddleware } from '../middleware/workspace'
 import type { AuthContext } from '../services/auth-types'
 import { createAuthContext } from './test-auth-helpers'
+import { parseJsonBody } from '../test-utils'
 
 // search-alerts uses a local convexQuery/convexMutation that calls resolveConvexUrl + fetch.
 // We mock the global fetch to intercept Convex HTTP API calls.
@@ -97,7 +98,7 @@ describe('search-alerts routes', () => {
       const app = createTestApp()
       const response = await app.request('/', { headers: ADMIN_HEADERS })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody<{ success: unknown; alerts: { _id: string }[] }>(response)
       expect(body.success).toBe(true)
       expect(body.alerts).toHaveLength(2)
       expect(body.alerts[0]._id).toBe('alert-1')
@@ -117,7 +118,7 @@ describe('search-alerts routes', () => {
       const app = createTestApp()
       const response = await app.request('/', { headers: ADMIN_HEADERS })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody<{ alerts: unknown[] }>(response)
       expect(body.alerts).toHaveLength(0)
     })
   })
@@ -137,7 +138,7 @@ describe('search-alerts routes', () => {
         }),
       })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody(response)
       expect(body.success).toBe(true)
       expect(body.alertId).toBe('alert-new-1')
     })
@@ -197,7 +198,7 @@ describe('search-alerts routes', () => {
         body: JSON.stringify({ enabled: false }),
       })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody(response)
       expect(body.success).toBe(true)
     })
 
@@ -236,7 +237,7 @@ describe('search-alerts routes', () => {
         headers: ADMIN_HEADERS,
       })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody(response)
       expect(body.success).toBe(true)
     })
 

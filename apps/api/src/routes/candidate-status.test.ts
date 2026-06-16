@@ -5,6 +5,7 @@ import { AuthEventStorage } from "../services/auth-event-storage";
 import { config } from "../services/config";
 import { resetResumeScreeningDb } from "../services/database";
 import { workspaceConfigService } from "../services/workspace-config-service";
+import { parseJsonBody } from "../test-utils";
 import { createAuthHeaders } from "./test-auth-helpers";
 
 type ConvexCall = {
@@ -17,7 +18,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function parseConvexCall(input: RequestInfo | URL, init?: RequestInit): ConvexCall {
+function parseConvexCall(input: Request | string | URL, init?: RequestInit): ConvexCall {
   const requestUrl = typeof input === "string"
     ? input
     : input instanceof URL
@@ -164,7 +165,7 @@ describe("candidate-status route", () => {
     });
 
     expect(response.status).toBe(200);
-    const payload = await response.json();
+    const payload = await parseJsonBody<{ success: boolean; item: Record<string, unknown>; learningEntry?: { date: string; observation: string } }>(response);
     expect(payload).toMatchObject({
       success: true,
       item: {
@@ -239,7 +240,7 @@ describe("candidate-status route", () => {
     });
 
     expect(response.status).toBe(200);
-    const payload = await response.json();
+    const payload = await parseJsonBody<{ learningEntry?: { date: string; observation: string } }>(response);
     expect(payload.learningEntry).toEqual({
       date: "2026-03-03",
       observation: "reject_pattern: 经验不匹配 -> interviewed_reject",
@@ -332,7 +333,7 @@ describe("candidate-status route", () => {
       });
 
       expect(response.status).toBe(200);
-      const payload = await response.json();
+      const payload = await parseJsonBody(response);
       expect(payload).toMatchObject({
         success: true,
         status: "appeal_submitted",
@@ -391,7 +392,7 @@ describe("candidate-status route", () => {
       });
 
       expect(response.status).toBe(400);
-      const payload = await response.json();
+      const payload = await parseJsonBody<{ success: boolean }>(response);
       expect(payload.success).toBe(false);
     });
   });

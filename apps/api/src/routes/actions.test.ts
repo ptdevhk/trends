@@ -9,6 +9,7 @@ import { ActionStorage } from '../services/action-storage'
 import type { AuthStorage } from '../services/auth-storage'
 import { resetResumeScreeningDb } from '../services/database'
 import { createAuthHeaders } from './test-auth-helpers'
+import { parseJsonBody } from '../test-utils'
 
 function createTestApp(options: { storage?: AuthStorage; eventStorage?: AuthEventStorage } = {}) {
   const app = new OpenAPIHono()
@@ -120,7 +121,7 @@ describe('actions routes', () => {
         }),
       })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody<{ success: boolean; action: { actionType: string } }>(response)
       expect(body.success).toBe(true)
       expect(body.action.actionType).toBe('star')
       expect(saveSpy).toHaveBeenCalledWith(
@@ -184,7 +185,7 @@ describe('actions routes', () => {
         headers: { 'X-Workspace-Slug': 'dev' },
       })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody<{ success: boolean; actions: unknown[] }>(response)
       expect(body.success).toBe(true)
       expect(body.actions).toHaveLength(2)
     })

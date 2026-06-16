@@ -11,7 +11,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function parseConvexCall(input: RequestInfo | URL, init?: RequestInit): ConvexCall {
+function parseConvexCall(input: string | URL | Request, init?: RequestInit): ConvexCall {
   const requestUrl = typeof input === "string"
     ? input
     : input instanceof URL
@@ -69,8 +69,8 @@ describe("resume-import-service", () => {
       },
       data: [
         {
-          resumeId: 1079188,
-          perUserId: 1079188,
+          resumeId: "1079188",
+          perUserId: "1079188",
           name: "骆先生",
           profileUrl: "javascript:;",
           activityStatus: "在线中",
@@ -123,7 +123,7 @@ describe("resume-import-service", () => {
       },
       resumes: [
         {
-          resumeId: 555555,
+          resumeId: "555555",
           name: "空位置候选人",
           profileUrl: "https://hr.job5156.com/resume/view/555555",
           activityStatus: "在线中",
@@ -267,8 +267,8 @@ describe("resume-import-service", () => {
       },
       resumes: [
         {
-          resumeId: 987654,
-          perUserId: 123456,
+          resumeId: "987654",
+          perUserId: "123456",
           name: "李先生",
           profileUrl: "https://hr.job5156.com/resume/view/987654",
           activityStatus: "在线中",
@@ -434,7 +434,7 @@ describe("resume-import-service", () => {
         collectionContext: {
           captureMode: "json-upload",
           operation: "manual-import",
-          jobId: 90842915,
+          jobId: "90842915",
           pageNumber: 2,
           language: "en",
           profileType: "seek",
@@ -442,7 +442,7 @@ describe("resume-import-service", () => {
       },
       resumes: [
         {
-          profileId: 503033454,
+          profileId: "503033454",
           profileType: "seek",
           name: "yap kae wen",
           profileUrl: "https://hk.employer.seek.com/candidates/503033454",

@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import { isFiniteNumber, parseCategoryWeights, parseEntry } from "../weight-history.js";
 
-import type { RuleCategoryWeights } from "../rule-scoring.js";
+import type { RuleWeightsConfig } from "../rule-scoring.js";
 
-const VALID_WEIGHTS: RuleCategoryWeights = {
+const VALID_WEIGHTS: RuleWeightsConfig["categoryWeights"] = {
   skillMatch: 15,
   roleMatch: 10,
   experienceMatch: 25,
