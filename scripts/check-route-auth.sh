@@ -16,6 +16,7 @@ SKIP_FILES=(
   # Health/version — public endpoints
   "health.ts"
   "version.ts"
+  "system.ts"
   # Public read-only data endpoints
   "search.ts"
   "rss.ts"
