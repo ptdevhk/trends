@@ -10,7 +10,7 @@ Group=trends
 WorkingDirectory=/opt/trends
 EnvironmentFile=-/etc/trends/env
 Environment=NODE_ENV=production
-ExecStart=/usr/bin/node apps/api/dist/index.js
+ExecStart=/usr/bin/npx tsx apps/api/src/index.ts
 Restart=on-failure
 RestartSec=5
 StandardOutput=journal
