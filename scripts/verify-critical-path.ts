@@ -614,7 +614,7 @@ async function runLiveCollectionStage(
         return stageFail(
             {
                 mode: "live",
-                taskId: String(taskId),
+                taskId,
                 timeoutSec: options.collectionTimeoutSec,
                 elapsedMs: pollResult.elapsedMs,
                 lastStatus: pollResult.task?.status,
@@ -635,7 +635,7 @@ async function runLiveCollectionStage(
         return stageFail(
             {
                 mode: "live",
-                taskId: String(taskId),
+                taskId,
                 preflight: {
                     stalePending,
                     workerHealth,
@@ -651,7 +651,7 @@ async function runLiveCollectionStage(
         return stageFail(
             {
                 mode: "live",
-                taskId: String(taskId),
+                taskId,
                 taskStatus: task.status,
                 taskError: task.error ?? null,
                 taskLastStatus: task.lastStatus ?? null,
@@ -671,7 +671,7 @@ async function runLiveCollectionStage(
         return stageFail(
             {
                 mode: "live",
-                taskId: String(taskId),
+                taskId,
                 taskStatus: task.status,
                 progress: task.progress,
                 preflight: {
@@ -908,14 +908,27 @@ async function runAnalysisStage(
         );
     }
 
-    const taskId = await client.mutation(api.analysis_tasks.dispatch, {
+    const dispatchResult = await client.mutation(api.analysis_tasks.dispatch, {
         keywords: [keyword],
         resumeIds,
     });
 
+    if (!dispatchResult.queued) {
+        return stageFail(
+            {
+                keyword,
+                candidateCount: resumeIds.length,
+                reason: dispatchResult.reason,
+            },
+            `Analysis dispatch refused: ${dispatchResult.reason}`
+        );
+    }
+
+    const taskId = dispatchResult.taskId;
+
     const pollResult = await pollTaskById(
         () => client.query(api.analysis_tasks.list, {}),
-        String(taskId),
+        taskId,
         timeoutSec,
         isAnalysisTerminal
     );
@@ -923,7 +936,7 @@ async function runAnalysisStage(
     if (pollResult.timedOut) {
         return stageFail(
             {
-                taskId: String(taskId),
+                taskId,
                 timeoutSec,
                 elapsedMs: pollResult.elapsedMs,
                 taskStatus: pollResult.task?.status ?? null,
@@ -938,7 +951,7 @@ async function runAnalysisStage(
     if (!task) {
         return stageFail(
             {
-                taskId: String(taskId),
+                taskId,
                 candidateCount: resumeIds.length,
             },
             "Analysis task could not be found in analysis_tasks.list."
@@ -948,7 +961,7 @@ async function runAnalysisStage(
     if (task.status !== "completed") {
         return stageFail(
             {
-                taskId: String(taskId),
+                taskId,
                 taskStatus: task.status,
                 taskError: task.error ?? null,
                 lastStatus: task.lastStatus ?? null,
@@ -962,7 +975,7 @@ async function runAnalysisStage(
     if (analyzed <= 0) {
         return stageFail(
             {
-                taskId: String(taskId),
+                taskId,
                 taskStatus: task.status,
                 taskResults: task.results ?? null,
                 candidateCount: resumeIds.length,
