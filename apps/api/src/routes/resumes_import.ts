@@ -7,7 +7,7 @@ import { submitResumeImport } from "../services/resume-import-service.js";
 import { getManualResumeImportMaxUploadBytes, importManualResumes } from "../services/manual-resume-import-service.js";
 import { config } from "../services/config.js";
 import { logger } from "../services/logger.js";
-import { requireAdmin } from "../middleware/workspace.js";
+import { requireAdmin } from "../middleware/auth.js";
 import {
   ResumeBackupRequestSchema,
   ResumeImportRequestSchema,

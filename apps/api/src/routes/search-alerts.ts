@@ -1,7 +1,9 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
+import { requireWorkspaceUser } from "../middleware/auth.js";
 import { resolveConvexUrl } from "../services/resume-import-service.js";
 
 const app = new OpenAPIHono();
+app.use("*", requireWorkspaceUser);
 
 const SearchAlertSchema = z.object({
     _id: z.string(),
@@ -71,7 +73,7 @@ const listRoute = createRoute({
 });
 
 app.openapi(listRoute, async (c) => {
-    const workspace = c.req.header("X-Workspace-Slug") ?? "default";
+    const workspace = c.var.workspaceSlug;
     const alerts = await convexQuery("search_alerts:list", {
         workspaceSlug: workspace,
     }) as z.infer<typeof SearchAlertSchema>[];
@@ -114,7 +116,7 @@ const createRoute_ = createRoute({
 
 app.openapi(createRoute_, async (c) => {
     const body = c.req.valid("json");
-    const workspace = c.req.header("X-Workspace-Slug") ?? "default";
+    const workspace = c.var.workspaceSlug;
     const alertId = await convexMutation("search_alerts:create", {
         workspaceSlug: workspace,
         searchProfileId: body.searchProfileId,
@@ -161,6 +163,7 @@ app.openapi(toggleRoute, async (c) => {
     const body = c.req.valid("json");
     await convexMutation("search_alerts:toggle", {
         alertId: id,
+        workspaceSlug: c.var.workspaceSlug,
         enabled: body.enabled,
     });
     return c.json({ success: true as const }, 200);
@@ -192,6 +195,7 @@ app.openapi(deleteRoute, async (c) => {
     const { id } = c.req.valid("param");
     await convexMutation("search_alerts:remove", {
         alertId: id,
+        workspaceSlug: c.var.workspaceSlug,
     });
     return c.json({ success: true as const }, 200);
 });

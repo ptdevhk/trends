@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const makefile = readFileSync(new URL("../Makefile", import.meta.url), "utf8");
 const migrationTestRunner = readFileSync(new URL("./migration-test-run.sh", import.meta.url), "utf8");
+const migrationTestVerifier = readFileSync(new URL("./migration-test-verify.sh", import.meta.url), "utf8");
 const packageJson = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as {
   scripts?: Record<string, string>;
 };
@@ -25,6 +26,12 @@ describe("workflow verifier repo entrypoints", () => {
 
   it("exposes the workspace-demo cleanup script through package.json", () => {
     expect(packageJson.scripts?.["clear:workspace-demo-resumes"]).toBe("tsx scripts/resume/clear-workspace-demo-resumes.ts");
+  });
+
+  it("exposes the reusable local demo auth bootstrap script through package.json", () => {
+    expect(packageJson.scripts?.["auth:bootstrap-demo"]).toBe(
+      'tsx scripts/auth/manage-user.ts --username demo-admin --email demo-admin@example.com --display-name "Demo Admin" --workspace dev --role admin --replace-memberships --password-env AUTH_BOOTSTRAP_PASSWORD --output json',
+    );
   });
 
   it("exposes a Make target with the expected forwarding flags", () => {
@@ -62,10 +69,22 @@ describe("workflow verifier repo entrypoints", () => {
     expect(makefile).toContain('migration-test-fresh-sandbox Run migration-test after a guarded full local app-state reset');
     expect(migrationTestRunner).toContain('git ls-files -z -o -i --exclude-standard output/');
     expect(migrationTestRunner).toContain('output/resume-backups|output/resume-backups/*');
+    expect(migrationTestRunner).toContain('packages/convex/.convex/local');
     expect(migrationTestRunner).toContain('cp scripts/migration-test-verify.sh "$VERIFY_SCRIPT"');
     expect(migrationTestRunner).toContain('ORIGINAL_BRANCH=$(git branch --show-current');
     expect(migrationTestRunner).toContain("clear_resumes_until_complete()");
+    expect(migrationTestRunner).toContain('CLEAR_RESUMES_MAX_ATTEMPTS:-150');
     expect(migrationTestRunner).toContain('"partial"[[:space:]]*:[[:space:]]*true');
     expect(migrationTestRunner).toContain("clear-resumes returned partial:true");
+  });
+
+  it("fails migration test when post-upgrade count differs from the baseline", () => {
+    expect(migrationTestRunner).toMatch(/FAIL: Resume count mismatch![\s\S]*return 1/);
+  });
+
+  it("authenticates migration verifier API checks when resume routes are protected", () => {
+    expect(migrationTestVerifier).toContain("scripts/auth/manage-user.ts");
+    expect(migrationTestVerifier).toContain("/api/auth/login");
+    expect(migrationTestVerifier).toContain("api_get()");
   });
 });

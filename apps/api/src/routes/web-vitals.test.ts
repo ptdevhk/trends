@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import webVitalsRoutes from './web-vitals'
 import { workspaceMiddleware } from '../middleware/workspace'
 import { WebVitalsLogger } from '../services/web-vitals-logger'
+import { parseJsonBody } from '../test-utils'
 
 function createTestApp() {
   const app = new OpenAPIHono()
@@ -43,7 +44,7 @@ describe('web-vitals routes', () => {
         }),
       })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody<{ success: boolean }>(response)
       expect(body.success).toBe(true)
       expect(logSpy).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -88,7 +89,15 @@ describe('web-vitals routes', () => {
       const app = createTestApp()
       const response = await app.request('/api/web-vitals/summary', { headers: ADMIN_HEADERS })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody<{
+        success: boolean
+        summary: {
+          totalReports: number
+          metrics: {
+            LCP: { p50: number; p75: number; p95: number; good: number; needsImprovement: number; poor: number }
+          }
+        }
+      }>(response)
       expect(body.success).toBe(true)
       expect(body.summary.totalReports).toBe(42)
       expect(body.summary.metrics.LCP.p50).toBe(1.2)

@@ -20,20 +20,20 @@ const baseReport: SummaryReport = {
   },
   breakdowns: {
     resumesBySource: [
-      { label: "51job", count: 10 },
-      { label: "Seek", count: 2 },
+      { key: "51job", label: "51job", count: 10 },
+      { key: "Seek", label: "Seek", count: 2 },
     ],
     collectionTasksByStatus: [
-      { label: "completed", count: 8 },
-      { label: "failed", count: 1 },
+      { key: "completed", label: "completed", count: 8 },
+      { key: "failed", label: "failed", count: 1 },
     ],
     candidateStatusByValue: [
-      { label: "shortlisted", count: 3 },
-      { label: "rejected", count: 1 },
+      { key: "shortlisted", label: "shortlisted", count: 3 },
+      { key: "rejected", label: "rejected", count: 1 },
     ],
     actionsByType: [
-      { label: "shortlist", count: 3 },
-      { label: "reject", count: 1 },
+      { key: "shortlist", label: "shortlist", count: 3 },
+      { key: "reject", label: "reject", count: 1 },
     ],
   },
   notes: ["No critical incidents."],
@@ -86,7 +86,7 @@ describe("SummaryRenderer", () => {
       const report: SummaryReport = {
         ...baseReport,
         comparison: {
-          previousWindow: { startAt: "2026-05-23T00:00:00Z", endAt: "2026-05-24T00:00:00Z" },
+          previousWindow: { startAt: "2026-05-23T00:00:00Z", endAt: "2026-05-24T00:00:00Z", timezone: "Asia/Hong_Kong" },
           totalsDelta: {
             sharedIngest: { newResumes: 5, collectionTasksCompleted: -2, collectionTasksFailed: 0 },
             workspaceActivity: { candidateStatusUpdates: 1, shortlistActions: 0, rejectActions: -1, contactActions: 3 },
@@ -106,8 +106,8 @@ describe("SummaryRenderer", () => {
       const report: SummaryReport = {
         ...baseReport,
         newCandidates: [
-          { resumeId: "r1", name: "Alice", source: "51job", location: "Dongguan", experience: 5, score: 85 },
-          { resumeId: "r2", name: "Bob", source: "Seek" },
+          { resumeId: "r1", name: "Alice", source: "51job", location: "Dongguan", experience: "5", score: 85, crawledAt: "2026-05-24T10:00:00Z" },
+          { resumeId: "r2", name: "Bob", source: "Seek", crawledAt: "2026-05-24T11:00:00Z" },
         ],
       };
 
@@ -137,15 +137,15 @@ describe("SummaryRenderer", () => {
           sharedIngest: {
             totals: { newResumes: 20, collectionTasksCompleted: 15, collectionTasksFailed: 2 },
             breakdowns: {
-              resumesBySource: [{ label: "51job", count: 20 }],
-              collectionTasksByStatus: [{ label: "completed", count: 15 }],
+              resumesBySource: [{ key: "51job", label: "51job", count: 20 }],
+              collectionTasksByStatus: [{ key: "completed", label: "completed", count: 15 }],
             },
           },
           workspaceActivity: {
             totals: { candidateStatusUpdates: 10, shortlistActions: 5, rejectActions: 3, contactActions: 2 },
             breakdowns: {
-              candidateStatusByValue: [{ label: "shortlisted", count: 5 }],
-              actionsByType: [{ label: "shortlist", count: 5 }],
+              candidateStatusByValue: [{ key: "shortlisted", label: "shortlisted", count: 5 }],
+              actionsByType: [{ key: "shortlist", label: "shortlist", count: 5 }],
             },
           },
         },
@@ -162,7 +162,7 @@ describe("SummaryRenderer", () => {
       const report: SummaryReport = {
         ...baseReport,
         newCandidates: [
-          { resumeId: "r-unknown", source: "51job", score: 70 },
+          { resumeId: "r-unknown", source: "51job", score: 70, crawledAt: "2026-05-24T12:00:00Z" },
         ],
       };
 

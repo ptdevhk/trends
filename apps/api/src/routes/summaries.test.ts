@@ -86,7 +86,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function parseConvexCall(input: RequestInfo | URL, init?: RequestInit): {
+function parseConvexCall(input: Request | string | URL, init?: RequestInit): {
   pathName: string;
   args: Record<string, unknown>;
 } {
@@ -138,8 +138,11 @@ async function loadSummaryModules(root: string) {
   const { summaryTelegramBridge } = await import("../services/summaries/summary-telegram-bridge");
   const { workspaceConfigService } = await import("../services/workspace-config-service");
   const { resetResumeScreeningDb } = await import("../services/database");
+  const { createAuthContext } = await import("./test-auth-helpers");
   return {
-    createApp,
+    createApp: () => createApp({
+      authContext: createAuthContext({ workspaceSlug: "dev", role: "admin" }),
+    }),
     SessionManager,
     ActionStorage,
     ReviewPacketStorage,
@@ -776,7 +779,7 @@ describe("summary preview route", () => {
     expect(listResponse.status).toBe(200);
     const listPayload = await listResponse.json() as {
       success: boolean;
-      items: Array<{ id: string; workspaceSlug: string; status: string }>;
+      items: Array<{ id: string; workspaceSlug: string; status: string; period: string }>;
     };
     expect(listPayload.success).toBe(true);
     expect(listPayload.items).toHaveLength(2);

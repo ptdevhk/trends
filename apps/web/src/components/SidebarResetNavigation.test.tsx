@@ -8,6 +8,7 @@ const mockState = vi.hoisted(() => ({
   pathname: '/dev/settings/blocks',
   slug: 'dev',
   appVersion: '1.2.3',
+  isSystemSurface: false,
 }))
 
 function renderMockLink(
@@ -58,6 +59,7 @@ vi.mock('react-i18next', () => ({
 vi.mock('@/contexts/WorkspaceContext', () => ({
   useWorkspace: () => ({
     slug: mockState.slug,
+    isSystemSurface: mockState.isSystemSurface,
   }),
 }))
 
@@ -102,6 +104,7 @@ describe('Sidebar reset navigation', () => {
     mockState.pathname = '/dev/settings/blocks'
     mockState.slug = 'dev'
     mockState.appVersion = '1.2.3'
+    mockState.isSystemSurface = false
   })
 
   it('attaches resume reset state to settings sidebar home links only', () => {
@@ -112,12 +115,14 @@ describe('Sidebar reset navigation', () => {
   })
 
   it('attaches resume reset state to system sidebar home links only', () => {
-    mockState.pathname = '/dev/system/settings'
+    mockState.pathname = '/admin/system/settings'
+    mockState.slug = 'dev'
+    mockState.isSystemSurface = true
 
     const { container } = render(<SystemSidebar />)
 
     expectResetLinks(container, '/dev/resumes', 2)
-    expectPlainLink(container, '/dev/system/settings')
-    expectPlainLink(container, '/dev/system/jds')
+    expectPlainLink(container, '/admin/system/settings')
+    expectPlainLink(container, '/admin/system/jds')
   })
 })

@@ -1,21 +1,27 @@
 import { OpenAPIHono } from "@hono/zod-openapi";
 import JSZip from "jszip";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { workspaceMiddleware } from "../middleware/workspace";
+import { parseJsonBody } from "../test-utils";
+import { createAuthContext } from "./test-auth-helpers";
 
 type ConvexCall = {
   pathName: string;
   args: Record<string, unknown>;
 };
 
-async function createTestApp() {
+async function createTestApp(role: "user" | "admin" = "admin") {
   const [{ default: resumesRoutes }, { default: resumesImportRoutes }] = await Promise.all([
     import("./resumes"),
     import("./resumes_import"),
   ]);
   const app = new OpenAPIHono();
   app.use("*", workspaceMiddleware);
+  app.use("*", async (c, next) => {
+    c.set("auth", createAuthContext({ workspaceSlug: "hr", role }));
+    await next();
+  });
   app.route("/", resumesImportRoutes);
   app.route("/", resumesRoutes);
   return app;
@@ -25,7 +31,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function parseConvexCall(input: RequestInfo | URL, init?: RequestInit): ConvexCall {
+function parseConvexCall(input: Request | string | URL, init?: RequestInit): ConvexCall {
   const requestUrl = typeof input === "string"
     ? input
     : input instanceof URL
@@ -94,8 +100,41 @@ ${paragraphs}
   </w:body>
 </w:document>`);
 
-  const buffer = await zip.generateAsync({ type: "uint8array" });
+  // arraybuffer (not uint8array) so the value is an ArrayBuffer, which is a
+  // valid BlobPart; a Uint8Array<ArrayBufferLike> from @types/node 25 is not.
+  const buffer = await zip.generateAsync({ type: "arraybuffer" });
   return new File([buffer], name, { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
+}
+
+function decodeTestDocxXml(value: string): string {
+  return value
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, "&");
+}
+
+async function extractGeneratedDocxText(buffer: Buffer): Promise<string> {
+  const zip = await JSZip.loadAsync(buffer);
+  const documentXml = await zip.file("word/document.xml")?.async("string");
+  if (!documentXml) {
+    return "";
+  }
+
+  return Array.from(documentXml.matchAll(/<w:t[^>]*>([\s\S]*?)<\/w:t>/g))
+    .map((match) => decodeTestDocxXml(match[1] ?? "").trim())
+    .filter(Boolean)
+    .join("\n");
+}
+
+function mockMammothDocxExtraction() {
+  vi.doMock("mammoth", () => ({
+    extractRawText: vi.fn(async ({ buffer }: { buffer: Buffer }) => ({
+      value: await extractGeneratedDocxText(buffer),
+      messages: [],
+    })),
+  }));
 }
 
 const DEFAULT_CONVEX_SUBMIT_RESULT = {
@@ -178,6 +217,10 @@ async function expectUnreadablePdfUploadFailure(options: {
 }
 
 describe("manual resume import route", () => {
+  beforeEach(() => {
+    mockMammothDocxExtraction();
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
     vi.doUnmock("mammoth");
@@ -1562,7 +1605,7 @@ describe("manual resume import route", () => {
     const response = await requestManualImport(formData);
 
     expect(response.status).toBe(400);
-    const body = await response.json();
+    const body = await parseJsonBody<{ success: unknown; error: { name?: string } }>(response);
     expect(body.success).toBe(false);
     // zod v4 validation error from OpenAPI layer — handler's safeParse is unreachable
     expect(body.error).toMatchObject({ name: "ZodError" });
@@ -1571,7 +1614,7 @@ describe("manual resume import route", () => {
 
   it("keeps the legacy JSON import route admin-only", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
-    const app = await createTestApp();
+    const app = await createTestApp("user");
 
     const response = await app.request("/api/resumes/import", {
       method: "POST",

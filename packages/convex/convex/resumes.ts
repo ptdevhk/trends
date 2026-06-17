@@ -16,10 +16,13 @@ import {
     projectResumeListDoc,
     projectResumeDetailDoc,
     normalizeResumeListFilters,
-    matchesResumeListFilters,
     sortResumeDocs,
     sortByIngestRuleScore,
 } from "./lib/resumes_list_projections.js";
+import { readActiveResumeAnalysis } from "./lib/resume_analysis_read.js";
+import {
+    matchesResumeDigestFilters,
+} from "./lib/resume_digests.js";
 import type {
     ResumeListPageArgs,
 } from "./lib/resumes_list_projections.js";
@@ -231,6 +234,7 @@ export {
     scanResumePageSlim,
     getResumes,
     getResumeDocsByIds,
+    getResumeDocsByIdentityKeys,
     collectSearchIndexDocIds,
     getResumesByIds,
 } from "./resumes_search.js";
@@ -253,6 +257,15 @@ export type {
     ResumeUsageScanRow,
 } from "./resumes_mutations.js";
 
+async function getResumeDocsFromDigests(
+    ctx: QueryCtx,
+    digests: Doc<"resume_digests">[],
+): Promise<Doc<"resumes">[]> {
+    const docs = await Promise.all(digests.map((digest) => ctx.db.get(digest.resumeId)));
+    // Guard against stale digests: the digest row may lag a recent resume archive.
+    return docs.filter((doc): doc is Doc<"resumes"> => doc !== null && doc.isArchived !== true);
+}
+
 async function runListWithIngestDataPageQuery(
     ctx: QueryCtx,
     args: ResumeListPageArgs
@@ -263,18 +276,20 @@ async function runListWithIngestDataPageQuery(
     const { offset, pageLimit, scanLimit, overfetchLimit } = resolveListWithIngestPageWindow(args.limit, args.offset);
     const jobDescriptionId = args.jobDescriptionId?.trim() || undefined;
     const filters = normalizeResumeListFilters(args);
-    const candidates = await ctx.db
-        .query("resumes")
+    const digestCandidates = await ctx.db
+        .query("resume_digests")
         .withIndex("by_primaryRuleScore")
         .order("desc")
-        .filter((q) => q.neq(q.field("isArchived"), true))
         .take(overfetchLimit);
+    const digestFiltered = filters
+        ? digestCandidates.filter((digest) => matchesResumeDigestFilters(digest, filters))
+        : digestCandidates;
+    const candidates = await getResumeDocsFromDigests(ctx, digestFiltered);
     const sorted = sortResumeDocs(candidates, {
         jobDescriptionId,
         sortBy: args.sortBy,
         sortOrder: args.sortOrder,
     })
-        .filter((resume) => matchesResumeListFilters(resume, filters))
         .slice(0, scanLimit);
 
     return {
@@ -408,8 +423,27 @@ export const listForBackup = query({
 
         const filtered = applyResumeBackupFilters(page.page, filterSets).sort(compareResumeBackupRows);
 
+        // Phase 4 Step 2: source analysis/analyses from the cold resume_analyses
+        // table (joined per resume via by_resume) so backups stay complete after
+        // the hot fields are removed. Only ACTIVE rows contribute — archived rows
+        // retain stale fields (non-surgical clear flips status only), so reading
+        // without the guard would snapshot analyses that are no longer live.
+        // Mirrors the active-only contract in listResumeUsageBatch.
+        const backupRows = await Promise.all(
+            filtered.map(async (row) => {
+                const coldRow = await ctx.db
+                    .query("resume_analyses")
+                    .withIndex("by_resume", (q) => q.eq("resumeId", row._id))
+                    .unique();
+                if (!coldRow || coldRow.status === "archived") {
+                    return { ...row, analysis: undefined, analyses: undefined };
+                }
+                return { ...row, analysis: coldRow.analysis, analyses: coldRow.analyses };
+            }),
+        );
+
         return {
-            page: filtered,
+            page: backupRows,
             continueCursor: page.continueCursor,
             isDone: page.isDone,
         };
@@ -424,12 +458,12 @@ export const listWithIngestData = query({
     handler: async (ctx, args) => {
         const { limit, overfetchLimit } = resolveListWithIngestWindow(args.limit);
         const jobDescriptionId = args.jobDescriptionId?.trim() || undefined;
-        const candidates = await ctx.db
-            .query("resumes")
+        const digestCandidates = await ctx.db
+            .query("resume_digests")
             .withIndex("by_primaryRuleScore")
             .order("desc")
-            .filter((q) => q.neq(q.field("isArchived"), true))
             .take(overfetchLimit);
+        const candidates = await getResumeDocsFromDigests(ctx, digestCandidates);
         return sortByIngestRuleScore(candidates, jobDescriptionId)
             .slice(0, limit)
             .map(projectResumeListDoc);
@@ -487,9 +521,18 @@ export const listNewForWindow = query({
             .order("desc")
             .take(maxResults);
 
-        return rows.map((row) => {
+        // Phase 4 Step 3a: source analysis from the active cold row (archived
+        // filtered, legacy hot fallback) so the new-resume feed shows scores
+        // without depending on the hot doc's analysis field.
+        const resolved = await Promise.all(
+            rows.map(async (row) => ({
+                row,
+                active: await readActiveResumeAnalysis(ctx, row),
+            })),
+        );
+        return resolved.map(({ row, active }) => {
             const content = isRecord(row.content) ? row.content : {};
-            const analysis = isRecord(row.analysis) ? row.analysis : undefined;
+            const analysis = isRecord(active.analysis) ? active.analysis : undefined;
 
             return {
                 resumeId: String(row._id),
@@ -571,10 +614,9 @@ export const listWithIngestDataPaginated = query({
                     ? Math.min(requestedPageSize * FILTERED_PAGINATE_OVERFETCH_MULTIPLIER, MAX_SAFE_LIST_WITH_INGEST_LIMIT)
                     : requestedPageSize;
             const page = await ctx.db
-                .query("resumes")
+                .query("resume_digests")
                 .withIndex("by_primaryRuleScore")
                 .order("desc")
-                .filter((q) => q.neq(q.field("isArchived"), true))
                 .paginate({
                     ...args.paginationOpts,
                     numItems,
@@ -582,12 +624,13 @@ export const listWithIngestDataPaginated = query({
                     maximumRowsRead: PAGINATE_MAX_ROWS_READ,
                 });
 
-            const filtered = filters
-                ? page.page.filter((resume) => matchesResumeListFilters(resume, filters))
+            const digestFiltered = filters
+                ? page.page.filter((digest) => matchesResumeDigestFilters(digest, filters))
                 : page.page;
+            const fullDocs = await getResumeDocsFromDigests(ctx, digestFiltered);
             const ranked = jobDescriptionId
-                ? sortByIngestRuleScore(filtered, jobDescriptionId)
-                : filtered;
+                ? sortByIngestRuleScore(fullDocs, jobDescriptionId)
+                : fullDocs;
 
             return {
                 page: ranked.map(projectResumeListDoc),
@@ -624,7 +667,7 @@ export const getResumeDetail = query({
             return null;
         }
 
-        return projectResumeDetailDoc(resume);
+        return await projectResumeDetailDoc(ctx, resume);
     },
 });
 
@@ -690,17 +733,32 @@ export const countResumesByStatus = query({
   handler: async (ctx, args) => {
     const { workspaceSlug, showBlocked, ...rawFilters } = args;
 
-    // 1. Load candidate_status for workspace
-    const statuses = await ctx.db
-      .query("candidate_status")
+    // 1. Load workspace status overlay (resume_digest_statuses) first —
+    //    it's workspace-scoped and populated by propagation hooks.
+    //    Fall back to candidate_status for identities not yet in the overlay
+    //    (e.g., after a restore that hasn't backfilled the overlay).
+    const overlayStatuses = await ctx.db
+      .query("resume_digest_statuses")
       .withIndex("by_workspace_status", (q) =>
         q.eq("workspaceSlug", workspaceSlug)
       )
       .collect();
 
     const statusByIdentity = new Map<string, string>();
-    for (const s of statuses) {
+    for (const s of overlayStatuses) {
       statusByIdentity.set(s.identityKey, s.status);
+    }
+
+    const candidateStatuses = await ctx.db
+      .query("candidate_status")
+      .withIndex("by_workspace_status", (q) =>
+        q.eq("workspaceSlug", workspaceSlug)
+      )
+      .collect();
+    for (const s of candidateStatuses) {
+      if (!statusByIdentity.has(s.identityKey)) {
+        statusByIdentity.set(s.identityKey, s.status);
+      }
     }
 
     const blockedIdentities = new Set<string>();
@@ -722,40 +780,41 @@ export const countResumesByStatus = query({
       showArchived: false,
     });
 
-    // 3. Fetch non-archived resumes in a single paginated query.
-    // Convex only supports ONE .paginate() call per function (no loops).
+    // 3. Scan digest rows for candidate discovery.
+    // Digest rows are <1KB each, so we can scan far more than the cold
+    // resumes path (~27KB/doc) without hitting the byte limit.
     const MAX_MATCHES = 5000;
     const counts = createCandidateStatusCounts();
     let totalMatched = 0;
     let overflow = false;
 
     const page = await ctx.db
-      .query("resumes")
-      .filter((q) => q.neq(q.field("isArchived"), true))
+      .query("resume_digests")
       .paginate({
         cursor: null,
         numItems: MAX_MATCHES,
         maximumBytesRead: 10 * 1024 * 1024,
       });
 
-    for (const resume of page.page) {
+    for (const digest of page.page) {
       if (totalMatched >= MAX_MATCHES) {
         overflow = true;
         break;
       }
-      if (matchesResumeListFilters(resume, filters)) {
-        const identityKey = resume.identityKey ?? "";
-        if (identityKey && blockedIdentities.has(identityKey)) {
-          continue;
-        }
-        const status = statusByIdentity.get(identityKey) ?? "new";
-        const bucket = resolveCandidateStatus(status);
-        counts[bucket] += 1;
-        totalMatched += 1;
+      if (!matchesResumeDigestFilters(digest, filters)) {
+        continue;
       }
+      const identityKey = digest.identityKey ?? "";
+      if (identityKey && blockedIdentities.has(identityKey)) {
+        continue;
+      }
+      const status = statusByIdentity.get(identityKey) ?? "new";
+      const bucket = resolveCandidateStatus(status);
+      counts[bucket] += 1;
+      totalMatched += 1;
     }
 
-    // If the page isn't done, we hit the byte limit before reading all docs
+    // If the page isn't done, we hit the row limit before reading all digests
     if (!page.isDone) {
       overflow = true;
     }

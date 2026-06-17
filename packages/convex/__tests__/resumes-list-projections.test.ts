@@ -50,14 +50,16 @@ describe("projectResumeListDoc", () => {
     expect(projected.tags).toEqual([]);
   });
 
-  it("includes analysis when present", () => {
+  it("strips analysis from list projection (Phase 3 — moved to resume_analyses)", () => {
     const resume = makeResume({
       analysis: { score: 85, summary: "Good", highlights: [], recommendation: "match" },
     });
     const projected = projectResumeListDoc(resume as any);
 
-    expect(projected.analysis).toBeDefined();
-    expect(projected.analysis!.score).toBe(85);
+    // Analysis is no longer included in the list projection — score display
+    // comes from resume_digests.displayScore instead. Detail view fetches
+    // full analysis from resume_analyses on demand.
+    expect(projected.analysis).toBeUndefined();
   });
 
   it("includes ingestData when present", () => {
@@ -98,11 +100,23 @@ describe("projectResumeListDoc", () => {
 // ---------------------------------------------------------------------------
 
 describe("projectResumeDetailDoc", () => {
-  it("projects detail content with work history", () => {
+  it("projects detail content with work history", async () => {
     const resume = makeResume({
       content: { name: "Alice", workHistory: [{ companyName: "Acme", jobTitle: "Engineer", raw: "Acme - Engineer (2020-2023)" }] },
     });
-    const projected = projectResumeDetailDoc(resume as any);
+    // Phase 3 completion: projectResumeDetailDoc is now async and fetches
+    // analysis from resume_analyses via by_resume index. Mock ctx.db.query
+    // chain to return no cold row (resume has no analysis in this fixture).
+    const mockCtx = {
+      db: {
+        query: () => ({
+          withIndex: () => ({
+            unique: async () => null,
+          }),
+        }),
+      },
+    } as any;
+    const projected = await projectResumeDetailDoc(mockCtx, resume as any);
 
     expect(projected.content).toBeDefined();
     expect(projected.externalId).toBe("ext-1");
@@ -377,5 +391,29 @@ describe("sortResumeDocs", () => {
 
     const sorted = sortResumeDocs([r2 as any, r1 as any], { sortBy: "name", sortOrder: "asc" });
     expect(sorted[0]._id).toBe("r1");
+  });
+});
+
+describe("buildResumeDigest list fields", () => {
+  it("projects list sort fields without copying cold full document payload", () => {
+    const resume = makeResume({
+      identityKey: "identity-list-1",
+      searchText: "cnc ".repeat(2000),
+      primaryRuleScore: 88,
+      crawledAt: 12345,
+      content: {
+        name: "List Candidate",
+        location: "Shanghai, China",
+        expectedSalary: "20000",
+      },
+    });
+
+    const digest = buildResumeDigest(resume as any, 999);
+
+    expect(digest.identityKey).toBe("identity-list-1");
+    expect(digest.primaryRuleScore).toBe(88);
+    expect(digest.crawledAt).toBe(12345);
+    expect(digest.searchText?.length ?? 0).toBeLessThan(1600);
+    expect(digest.updatedAt).toBe(999);
   });
 });

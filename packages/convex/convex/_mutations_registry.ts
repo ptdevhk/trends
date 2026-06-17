@@ -54,9 +54,12 @@ export const MUTATIONS_REGISTRY: MutationRegistryEntry[] = [
     { file: "migrations.ts", name: "backfillSeekNameSearchUrls", quiesceAware: false, reason: "Migration — must run during restore" },
     { file: "migrations.ts", name: "backfillAnalysesValidator", quiesceAware: false, reason: "Migration — must run during restore" },
     { file: "migrations.ts", name: "backfillAuditLogActorIdentity", quiesceAware: false, reason: "Migration — must run during restore" },
+    { file: "migrations.ts", name: "backfillResumeAnalysesStatus", quiesceAware: false, reason: "Migration — must run during restore" },
 
     // Backfill in resumes_search.ts — same migration semantics as migrations.ts entries.
     { file: "resumes_search.ts", name: "backfillResumeDigests", quiesceAware: false, reason: "Migration — must run during restore" },
+    { file: "resumes_search.ts", name: "backfillResumeDigestStatuses", quiesceAware: false, reason: "Migration backfill — must run during restore" },
+    { file: "resumes_search.ts", name: "backfillResumeAnalyses", quiesceAware: false, reason: "Migration backfill — must run during restore" },
 
     // ---------------------------------------------------------------------
     // Scheduler dispatch + submit — direct guards in the handler (Task 3).

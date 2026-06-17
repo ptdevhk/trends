@@ -36,8 +36,8 @@ describe('SystemSettingsLayout', () => {
     mockUseSystemMetadata.mockReturnValue({
       navigation: {
         systemSettings: [
-          { id: 'overview', titleKey: 'tabs.overview', defaultTitle: 'Overview', href: '/dev/system' },
-          { id: 'config', titleKey: 'tabs.config', defaultTitle: 'Config Sources', href: '/dev/system/config' },
+          { id: 'overview', titleKey: 'tabs.overview', defaultTitle: 'Overview', href: '/admin/system' },
+          { id: 'config', titleKey: 'tabs.config', defaultTitle: 'Config Sources', href: '/admin/system/config' },
         ],
       },
     })
@@ -65,7 +65,7 @@ describe('SystemSettingsLayout', () => {
     expect(links).toHaveLength(2)
     expect(links[0]).toHaveTextContent('Overview')
     expect(links[1]).toHaveTextContent('Config Sources')
-    expect(links[0]).toHaveAttribute('href', '/dev/system')
+    expect(links[0]).toHaveAttribute('href', '/admin/system')
   })
 
   it('renders outlet for child routes', () => {

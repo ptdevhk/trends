@@ -1,7 +1,9 @@
 import { Hono } from "hono";
 import { describe, expect, it } from "vitest";
+import { formatWorkspaceSlugList, listWorkspaceSlugs } from "@trends/shared";
 
-import { workspaceMiddleware, requireAdmin, denyIfNotAdmin } from "./workspace.js";
+import { parseJsonBody } from "../test-utils";
+import { workspaceMiddleware } from "./workspace.js";
 import { serverTimingMiddleware } from "./server-timing.js";
 
 function createTestApp() {
@@ -10,18 +12,7 @@ function createTestApp() {
   app.get("/test", (c) => {
     return c.json({
       workspaceSlug: c.var.workspaceSlug,
-      accessLevel: c.var.accessLevel,
     });
-  });
-  return app;
-}
-
-function createAdminApp() {
-  const app = new Hono();
-  app.use("*", workspaceMiddleware);
-  app.use("*", requireAdmin);
-  app.get("/admin", (c) => {
-    return c.json({ ok: true, workspaceSlug: c.var.workspaceSlug });
   });
   return app;
 }
@@ -35,7 +26,7 @@ describe("workspaceMiddleware", () => {
     const app = createTestApp();
     const res = await app.request("/test");
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await parseJsonBody(res);
     expect(body.workspaceSlug).toBe("dev");
   });
 
@@ -45,7 +36,7 @@ describe("workspaceMiddleware", () => {
       headers: { "X-Workspace-Slug": "hr" },
     });
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await parseJsonBody(res);
     expect(body.workspaceSlug).toBe("hr");
   });
 
@@ -53,7 +44,7 @@ describe("workspaceMiddleware", () => {
     const app = createTestApp();
     const res = await app.request("/test?workspaceSlug=hr");
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await parseJsonBody(res);
     expect(body.workspaceSlug).toBe("hr");
   });
 
@@ -63,7 +54,7 @@ describe("workspaceMiddleware", () => {
       headers: { "X-Workspace-Slug": "dev" },
     });
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await parseJsonBody(res);
     expect(body.workspaceSlug).toBe("dev");
   });
 
@@ -73,7 +64,7 @@ describe("workspaceMiddleware", () => {
       headers: { "X-Workspace-Slug": "  hr  " },
     });
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await parseJsonBody(res);
     expect(body.workspaceSlug).toBe("hr");
   });
 
@@ -81,7 +72,7 @@ describe("workspaceMiddleware", () => {
     const app = createTestApp();
     const res = await app.request("/test?workspaceSlug=%20hr%20");
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await parseJsonBody(res);
     expect(body.workspaceSlug).toBe("hr");
   });
 
@@ -91,83 +82,20 @@ describe("workspaceMiddleware", () => {
       headers: { "X-Workspace-Slug": "invalid-workspace" },
     });
     expect(res.status).toBe(400);
-    const body = await res.json();
+    const body = await parseJsonBody(res);
     expect(body.success).toBe(false);
     expect(body.error).toContain("Invalid workspace slug");
+    expect(body.error).toContain(`Allowed: ${formatWorkspaceSlugList()}`);
   });
 
-  it("sets accessLevel based on workspace", async () => {
+  it.each(listWorkspaceSlugs())("accepts registered workspace %s", async (slug) => {
     const app = createTestApp();
     const res = await app.request("/test", {
-      headers: { "X-Workspace-Slug": "dev" },
+      headers: { "X-Workspace-Slug": slug },
     });
     expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.accessLevel).toBe("admin");
-  });
-
-  it("sets user accessLevel for hr workspace", async () => {
-    const app = createTestApp();
-    const res = await app.request("/test", {
-      headers: { "X-Workspace-Slug": "hr" },
-    });
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.accessLevel).toBe("user");
-  });
-});
-
-// ---------------------------------------------------------------------------
-// requireAdmin
-// ---------------------------------------------------------------------------
-
-describe("requireAdmin", () => {
-  it("allows admin workspace (dev)", async () => {
-    const app = createAdminApp();
-    const res = await app.request("/admin", {
-      headers: { "X-Workspace-Slug": "dev" },
-    });
-    expect(res.status).toBe(200);
-  });
-
-  it("rejects non-admin workspace (hr)", async () => {
-    const app = createAdminApp();
-    const res = await app.request("/admin", {
-      headers: { "X-Workspace-Slug": "hr" },
-    });
-    expect(res.status).toBe(403);
-    const body = await res.json();
-    expect(body.success).toBe(false);
-    expect(body.error).toContain("Admin access required");
-  });
-
-  it("rejects request without workspace middleware (undefined accessLevel)", async () => {
-    const app = createAdminApp();
-    const res = await app.request("/admin");
-    // Default workspace is dev (admin), so this should pass
-    expect(res.status).toBe(200);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// denyIfNotAdmin
-// ---------------------------------------------------------------------------
-
-describe("denyIfNotAdmin", () => {
-  it("returns false for admin access level", () => {
-    expect(denyIfNotAdmin("admin")).toBe(false);
-  });
-
-  it("returns true for user access level", () => {
-    expect(denyIfNotAdmin("user")).toBe(true);
-  });
-
-  it("returns true for undefined access level", () => {
-    expect(denyIfNotAdmin(undefined)).toBe(true);
-  });
-
-  it("returns true for empty string", () => {
-    expect(denyIfNotAdmin("")).toBe(true);
+    const body = await parseJsonBody(res);
+    expect(body.workspaceSlug).toBe(slug);
   });
 });
 

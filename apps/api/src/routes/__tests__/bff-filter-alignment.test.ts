@@ -31,11 +31,9 @@ describe("bffMatchesResumeFilters", () => {
   });
 
   describe("experience filter — graceful degradation", () => {
-    it("resumes with empty experience pass minExperience filter", () => {
-      const doc = makeDoc({ content: { experience: "" } });
-      expect(bffMatchesResumeFilters(doc, "", { minExperience: 1 })).toBe(true);
-    });
-
+    // NOTE: only `maxExperience` is a supported resume-list filter. `minExperience`
+    // is a JD/search-profile/rule-scoring concept and intentionally NOT enforced
+    // here (not present on BffResumeFilters / ResumeListFilterArgs / ResumeFilters).
     it("resumes with unknown experience are excluded by maxExperience", () => {
       const doc = makeDoc({ content: { experience: "" } });
       expect(bffMatchesResumeFilters(doc, "", { maxExperience: 5 })).toBe(false);
@@ -426,7 +424,33 @@ describe("bffMatchesResumeFilters", () => {
       };
 
       expect(matchesResumeDigestFilters(digest, filters)).toBe(true);
-      expect(bffMatchesResumeFilters(doc, digest.searchText, filters)).toBe(true);
+      expect(bffMatchesResumeFilters(doc, digest.searchText ?? "", filters)).toBe(true);
+    });
+
+    it("normalizes digest roleFilterType before checking verified role years", () => {
+      const digest: DigestRecord = {
+        isArchived: false,
+        source: "job5156",
+        sourceKey: "job5156",
+        roleTypes: ["sales"],
+        roleYearsByType: { sales: 2 },
+        searchText: "cnc 销售",
+      };
+
+      expect(matchesResumeDigestFilters(digest, { roleFilterType: " Sales ", minRoleYears: 1 })).toBe(true);
+    });
+
+    it("lets China-source digest rows match a country-wide China filter when locationText is missing", () => {
+      const digest: DigestRecord = {
+        isArchived: false,
+        source: "ehire.51job.com",
+        sourceKey: "51job",
+        locationText: "",
+        searchText: "cnc 销售",
+      };
+
+      expect(matchesResumeDigestFilters(digest, { locations: ["China"], sources: ["51job"] })).toBe(true);
+      expect(matchesResumeDigestFilters(digest, { locations: ["广东"], sources: ["51job"] })).toBe(false);
     });
 
     it("normalizes digest roleFilterType before checking verified role years", () => {

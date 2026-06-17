@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import resumesRoutes from "./resumes";
 import resumesImportRoutes from "./resumes_import";
 import { workspaceMiddleware } from "../middleware/workspace";
+import { createAuthContext } from "./test-auth-helpers";
 
 type ConvexCall = {
   pathName: string;
@@ -13,6 +14,10 @@ type ConvexCall = {
 function createTestApp() {
   const app = new OpenAPIHono();
   app.use("*", workspaceMiddleware);
+  app.use("*", async (c, next) => {
+    c.set("auth", createAuthContext({ workspaceSlug: "dev", role: "admin" }));
+    await next();
+  });
   app.route("/", resumesImportRoutes);
   app.route("/", resumesRoutes);
   return app;
@@ -22,7 +27,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function parseConvexCall(input: RequestInfo | URL, init?: RequestInit): ConvexCall {
+function parseConvexCall(input: Request | string | URL, init?: RequestInit): ConvexCall {
   const requestUrl = typeof input === "string"
     ? input
     : input instanceof URL

@@ -138,10 +138,6 @@ describe("bff-filter-utils", () => {
       it("excludes doc with unknown experience when maxExperience is set", () => {
         expect(bffMatchesResumeFilters(docNoExp, loweredSearchText, { maxExperience: 5 })).toBe(false);
       });
-
-      it("includes doc with unknown experience when only minExperience is set", () => {
-        expect(bffMatchesResumeFilters(docNoExp, loweredSearchText, { minExperience: 3 })).toBe(true);
-      });
     });
 
     describe("education filter", () => {
@@ -176,12 +172,14 @@ describe("bff-filter-utils", () => {
     });
 
     describe("location filter", () => {
+      const locationDoc = { ...baseDoc, source: "manual" };
+
       it("includes doc when location matches", () => {
-        expect(bffMatchesResumeFilters(baseDoc, loweredSearchText, { locations: ["New York"] })).toBe(true);
+        expect(bffMatchesResumeFilters(locationDoc, loweredSearchText, { locations: ["New York"] })).toBe(true);
       });
 
       it("excludes doc when location does not match", () => {
-        expect(bffMatchesResumeFilters(baseDoc, loweredSearchText, { locations: ["London"] })).toBe(false);
+        expect(bffMatchesResumeFilters(locationDoc, loweredSearchText, { locations: ["London"] })).toBe(false);
       });
     });
 

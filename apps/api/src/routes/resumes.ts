@@ -60,7 +60,7 @@ import { formatIsoOffsetInTimezone } from "../services/timezone.js";
 import { workspaceConfigService } from "../services/workspace-config-service.js";
 import { BrandDisplayResolver } from "../services/brand-display-resolver.js";
 import { logger } from "../services/logger.js";
-import { requireAdmin } from "../middleware/workspace.js";
+import { requireAdmin } from "../middleware/auth.js";
 
 import { isRecord } from "@trends/shared";
 import type { ResumeItem } from "../types/resume.js";
@@ -123,6 +123,11 @@ const actionStorage = new ActionStorage(config.projectRoot);
 
 const DEFAULT_AI_TOP_N = 20;
 const DEFAULT_CONVEX_RESUME_PAGE_SIZE = 50;
+
+function isConvexResumeIdValidationError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.includes("Path: .resumeId") && message.includes('v.id("resumes")');
+}
 const MAX_SAFE_CONVEX_POST_FILTER_SCAN = 250;
 
 type MatchMode = "rules_only" | "hybrid" | "ai_only";
@@ -1370,6 +1375,12 @@ app.openapi(explanationRoute, async (c) => {
 
     return c.json({ success: true as const, data: explanation as z.infer<typeof ExplanationDataSchema> | null }, 200);
   } catch (error) {
+    if (isConvexResumeIdValidationError(error)) {
+      logger.warn("Candidate explanation requested with a non-Convex resume id", { route: "resumes" });
+      return c.json({ success: true as const, data: null }, 200);
+    }
+
+    logger.error("Failed to load candidate explanation", error, { route: "resumes" });
     const message = error instanceof Error ? error.message : String(error);
     return c.json({ success: false, error: message }, 500);
   }

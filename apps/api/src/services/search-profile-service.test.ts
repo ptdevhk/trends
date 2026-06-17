@@ -465,7 +465,7 @@ describe('SearchProfileService validateProfile', () => {
   })
 
   it('throws when keywords is empty', () => {
-    expect(() => svc.validateProfile({ id: 'p1', name: 'Test', keywords: [] } as SearchProfile)).toThrow(/keywords/)
+    expect(() => svc.validateProfile({ id: 'p1', name: 'Test', status: 'active', location: '', keywords: [] })).toThrow(/keywords/)
   })
 
   it('does not throw for valid profile', () => {
@@ -872,7 +872,7 @@ describe('matchSearchProfilesByKeywords', () => {
 
   it('caps confidence at 1.0 even with high keyword overlap + location bonus', () => {
     const result = matchSearchProfilesByKeywords(
-      [{ id: 'p1', name: 'Test', status: 'active', keywords: ['a', 'b', 'c'] }],
+      [{ id: 'p1', name: 'Test', status: 'active', location: '', keywords: ['a', 'b', 'c'] }],
       ['a', 'b', 'c'],
       'any',
     )
@@ -881,7 +881,7 @@ describe('matchSearchProfilesByKeywords', () => {
 
   it('handles substring keyword matching (input contains profile keyword)', () => {
     const localProfiles: SearchProfile[] = [
-      { id: 'p1', name: 'Test', status: 'active', keywords: ['CNC'] },
+      { id: 'p1', name: 'Test', status: 'active', location: '', keywords: ['CNC'] },
     ]
     const result = matchSearchProfilesByKeywords(localProfiles, ['CNC机床'])
     expect(result.profile?.id).toBe('p1')
@@ -890,7 +890,7 @@ describe('matchSearchProfilesByKeywords', () => {
 
   it('handles substring keyword matching (profile keyword contains input)', () => {
     const localProfiles: SearchProfile[] = [
-      { id: 'p1', name: 'Test', status: 'active', keywords: ['CNC机床'] },
+      { id: 'p1', name: 'Test', status: 'active', location: '', keywords: ['CNC机床'] },
     ]
     const result = matchSearchProfilesByKeywords(localProfiles, ['CNC'])
     expect(result.profile?.id).toBe('p1')
@@ -903,6 +903,7 @@ describe('matchSearchProfilesByKeywords', () => {
         id: 'p1',
         name: 'Test',
         status: 'active',
+        location: '',
         keywords: ['CNC'],
         jobDescription: 'jd-abc123',
         filterPreset: 'machinery-sales',

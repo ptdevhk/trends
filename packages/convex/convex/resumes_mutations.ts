@@ -3,6 +3,7 @@ import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { ingestDataValidator, relatedExpEvidenceValidator } from "./validators.js";
+import { doUpsertResumeDigest, doUpsertResumeAnalysis } from "./resumes_search.js";
 
 import {
     buildResumeAnalysisStorageKey,
@@ -13,6 +14,7 @@ import { buildSearchText, mergeSearchTextWithIngestData } from "./search_text";
 import type {
     DeleteResumesResult,
 } from "./lib/resumes_list_projections.js";
+import { readActiveResumeAnalysis } from "./lib/resume_analysis_read.js";
 import {
     PAGINATE_MAX_BYTES_READ,
     PAGINATE_MAX_ROWS_READ,
@@ -87,7 +89,12 @@ export const updateAnalysis = internalMutation({
         const resume = await ctx.db.get(args.resumeId);
         if (!resume) throw new Error("Resume not found");
 
-        const analyses = resume.analyses || {};
+        // Phase 4 Step 3a: source the cached analyses map from the ACTIVE cold
+        // row (with legacy hot fallback) instead of the hot doc. Stop writing
+        // analysis/analyses onto the hot resumes doc — the cold table is now
+        // authoritative; the digest upsert reads display fields from it.
+        const activeAnalysis = await readActiveResumeAnalysis(ctx, resume);
+        const analyses = { ...(activeAnalysis.analyses ?? {}) };
         const analysisKey = buildResumeAnalysisStorageKey(args.analysis.jobDescriptionId, {
             sourceKey: resolveResumeAnalysisSourceKey({ source: resume.source }),
             locale: args.analysis.locale,
@@ -95,10 +102,13 @@ export const updateAnalysis = internalMutation({
 
         analyses[analysisKey] = args.analysis;
 
-        await ctx.db.patch(args.resumeId, {
-            analysis: args.analysis, // Keep current for backward compat / easy access
-            analyses: analyses,      // Store in cache
-        });
+        // Phase 3: propagate to digest (display fields) + cold analysis table.
+        // doUpsertResumeAnalysis makes the cold row active and authoritative.
+        const updated = await ctx.db.get(args.resumeId);
+        if (updated) {
+            await doUpsertResumeAnalysis(ctx, args.resumeId, args.analysis, analyses);
+            await doUpsertResumeDigest(ctx, updated);
+        }
     },
 });
 
@@ -130,17 +140,21 @@ export const updateAnalysisBatch = internalMutation({
             const resume = await ctx.db.get(update.resumeId);
             if (!resume) return;
 
-            const analyses = resume.analyses || {};
+            // Phase 4 Step 3a: cold-only. Source the cached map from the active
+            // cold row (legacy hot fallback); do not write analysis/analyses hot.
+            const activeAnalysis = await readActiveResumeAnalysis(ctx, resume);
+            const analyses = { ...(activeAnalysis.analyses ?? {}) };
             const analysisKey = buildResumeAnalysisStorageKey(update.analysis.jobDescriptionId, {
                 sourceKey: resolveResumeAnalysisSourceKey({ source: resume.source }),
                 locale: update.analysis.locale,
             });
             analyses[analysisKey] = update.analysis;
 
-            await ctx.db.patch(update.resumeId, {
-                analysis: update.analysis,
-                analyses: analyses,
-            });
+            const updated = await ctx.db.get(update.resumeId);
+            if (updated) {
+                await doUpsertResumeAnalysis(ctx, update.resumeId, update.analysis, analyses);
+                await doUpsertResumeDigest(ctx, updated);
+            }
         }));
     },
 });
@@ -236,13 +250,32 @@ export const listResumeUsageBatch = internalQuery({
                 maximumRowsRead: PAGINATE_MAX_ROWS_READ,
             });
 
+        // Phase 4 Step 1: source analysis/analyses from the cold resume_analyses
+        // table instead of the hot resume doc, so JD-usage counts survive the
+        // upcoming removal of analysis/analyses from the resumes schema.
+        //
+        // Only ACTIVE rows contribute. A non-surgical clearAnalyses archives the
+        // cold row but leaves its analysis/analyses fields populated (only the
+        // status flips); the hot doc, by contrast, is set to undefined. Reading
+        // without the status guard would therefore over-count archived resumes.
+        // status === undefined is treated as active (pre-Phase-1 rows).
+        const rows = await Promise.all(
+            page.page.map(async (resume): Promise<ResumeUsageScanRow> => {
+                const coldRow = await ctx.db
+                    .query("resume_analyses")
+                    .withIndex("by_resume", (q) => q.eq("resumeId", resume._id))
+                    .unique();
+                if (!coldRow || coldRow.status === "archived") {
+                    return { analysis: undefined, analyses: undefined };
+                }
+                return { analysis: coldRow.analysis, analyses: coldRow.analyses };
+            }),
+        );
+
         return {
             continueCursor: page.continueCursor,
             isDone: page.isDone,
-            page: page.page.map((resume): ResumeUsageScanRow => ({
-                analysis: resume.analysis,
-                analyses: resume.analyses,
-            })),
+            page: rows,
         };
     },
 });
@@ -277,10 +310,25 @@ export const clearAnalyses = mutation({
         let cleared = 0;
         for (const resume of resumes) {
             if (!resume) continue;
-            if (!resume.analysis && !resume.analyses) continue;
 
-            if (args.jobDescriptionId && resume.analyses) {
-                const analyses = { ...resume.analyses };
+            // Phase 4 Step 3a: clear is cold-authoritative. Resolve the active
+            // cold analysis (legacy hot fallback) to decide skip + surgical
+            // matching; the cold row is the only thing we patch.
+            const coldRow = await ctx.db
+                .query("resume_analyses")
+                .withIndex("by_resume", (q) => q.eq("resumeId", resume._id))
+                .unique();
+            const activeAnalysis = coldRow && coldRow.status !== "archived"
+                ? { analysis: coldRow.analysis, analyses: coldRow.analyses }
+                : { analysis: resume.analysis, analyses: resume.analyses };
+            const hasAnalysis = activeAnalysis.analysis !== undefined
+                || (activeAnalysis.analyses !== undefined && Object.keys(activeAnalysis.analyses).length > 0);
+            if (!hasAnalysis) continue;
+
+            // Surgical (jobDescriptionId) clear → remove matching keys from the
+            // cold map; archive only if the map is empty AND no current analysis.
+            if (args.jobDescriptionId && activeAnalysis.analyses) {
+                const analyses = { ...activeAnalysis.analyses };
                 const matchingKeys = Object.keys(analyses).filter((key) =>
                     isResumeAnalysisKeyForJobDescription(key, args.jobDescriptionId)
                 );
@@ -288,20 +336,43 @@ export const clearAnalyses = mutation({
                     for (const key of matchingKeys) {
                         delete analyses[key];
                     }
-                    const isCurrentAnalysis = resume.analysis?.jobDescriptionId === args.jobDescriptionId;
-                    await ctx.db.patch(resume._id, {
-                        analyses,
-                        ...(isCurrentAnalysis ? { analysis: undefined } : {}),
-                    });
+                    const isCurrentAnalysis = activeAnalysis.analysis?.jobDescriptionId === args.jobDescriptionId;
+                    // Sync cold row: archive only if map is now empty AND no current analysis.
+                    if (coldRow) {
+                        const remainingKeys = Object.keys(analyses).length;
+                        const hasCurrent = isCurrentAnalysis ? false : activeAnalysis.analysis !== undefined;
+                        if (remainingKeys === 0 && !hasCurrent) {
+                            await ctx.db.patch(coldRow._id, {
+                                status: "archived",
+                                archivedAt: Date.now(),
+                                analysis: undefined,
+                                analyses: {},
+                                updatedAt: Date.now(),
+                            });
+                        } else {
+                            await ctx.db.patch(coldRow._id, {
+                                analysis: isCurrentAnalysis ? undefined : coldRow.analysis,
+                                analyses,
+                                updatedAt: Date.now(),
+                            });
+                        }
+                    }
                     cleared += 1;
                 }
             } else {
-                await ctx.db.patch(resume._id, {
-                    analysis: undefined,
-                    analyses: undefined,
-                });
+                // Non-surgical clear: always archive the cold row.
+                if (coldRow) {
+                    await ctx.db.patch(coldRow._id, {
+                        status: "archived",
+                        archivedAt: Date.now(),
+                        updatedAt: Date.now(),
+                    });
+                }
                 cleared += 1;
             }
+            // After a cold-authoritative clear, re-sync the digest so display
+            // fields drop (the archived cold row is now filtered on read).
+            await doUpsertResumeDigest(ctx, resume);
         }
 
         if (args.resumeIds) {
@@ -442,6 +513,30 @@ export const deleteResumes = mutation({
         }
         for (const digestId of digestBatches) {
             await ctx.db.delete(digestId);
+        }
+
+        // Phase 3 completion: hard-delete resume_analyses rows for deleted
+        // resumes. Resume is gone — no audit value in orphan cold-table rows.
+        // Same batched by_resume lookup pattern as digest cleanup above.
+        const analysesBatches: Array<Id<"resume_analyses">> = [];
+        for (let i = 0; i < existingResumeIds.length; i += DIGEST_LOOKUP_BATCH) {
+            const batchIds = existingResumeIds.slice(i, i + DIGEST_LOOKUP_BATCH);
+            const analysesResults = await Promise.all(
+                batchIds.map((resumeId) =>
+                    ctx.db
+                        .query("resume_analyses")
+                        .withIndex("by_resume", (q) => q.eq("resumeId", resumeId))
+                        .collect()
+                )
+            );
+            for (const batch of analysesResults) {
+                for (const row of batch) {
+                    analysesBatches.push(row._id);
+                }
+            }
+        }
+        for (const rowId of analysesBatches) {
+            await ctx.db.delete(rowId);
         }
 
         for (const resume of existingResumes) {
@@ -594,8 +689,6 @@ export const hardResetIngestData = mutation({
 
         for (const resume of resumes.page) {
             const hasComputedFields = resume.ingestData !== undefined
-                || resume.analysis !== undefined
-                || resume.analyses !== undefined
                 || resume.primaryRuleScore !== undefined
                 || resume.searchText !== undefined;
 
@@ -603,13 +696,27 @@ export const hardResetIngestData = mutation({
                 continue;
             }
 
+            // Phase 4 Step 3a: stop clearing analysis/analyses from the hot doc
+            // (cold-authoritative). ingestData/score/searchText still cleared hot.
             await ctx.db.patch(resume._id, {
                 ingestData: undefined,
-                analysis: undefined,
-                analyses: undefined,
                 primaryRuleScore: undefined,
                 searchText: undefined,
             });
+            // Phase 3 completion: archive the cold resume_analyses row to
+            // keep it in sync with the cleared hot doc. Soft-clear preserves
+            // the analysis blob for audit/undo.
+            const coldRow = await ctx.db
+                .query("resume_analyses")
+                .withIndex("by_resume", (q) => q.eq("resumeId", resume._id))
+                .unique();
+            if (coldRow && coldRow.status !== "archived") {
+                await ctx.db.patch(coldRow._id, {
+                    status: "archived",
+                    archivedAt: Date.now(),
+                    updatedAt: Date.now(),
+                });
+            }
             await ctx.runMutation(internal.resumes_search.upsertResumeDigest, { resumeId: resume._id });
             cleared += 1;
         }

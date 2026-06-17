@@ -4,6 +4,8 @@ import path from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { createAuthContext } from "./test-auth-helpers";
+
 function createFixtureRoot(): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "sessions-route-"));
   fs.mkdirSync(path.join(root, "output"), { recursive: true });
@@ -40,6 +42,32 @@ async function loadSessionModules(root: string) {
   };
 }
 
+async function createStoredAuthContext(root: string, input: {
+  workspaceSlug: string;
+  role: "user" | "admin";
+}) {
+  const { AuthStorage } = await import("../services/auth-storage");
+  const authStorage = new AuthStorage(root);
+  const user = authStorage.createUser({
+    email: `${input.role}-${input.workspaceSlug}@example.com`,
+    displayName: `${input.role} ${input.workspaceSlug}`,
+  });
+  authStorage.upsertMembership({
+    userId: user.id,
+    workspaceSlug: input.workspaceSlug,
+    role: input.role,
+  });
+
+  return {
+    authContext: createAuthContext({
+      workspaceSlug: input.workspaceSlug,
+      role: input.role,
+      userId: user.id,
+    }),
+    userId: user.id,
+  };
+}
+
 describe("session routes", () => {
   let root = "";
 
@@ -57,7 +85,8 @@ describe("session routes", () => {
   it("creates and rehydrates persisted share session state", async () => {
     root = createFixtureRoot();
     const { createApp } = await loadSessionModules(root);
-    const app = createApp();
+    const { authContext } = await createStoredAuthContext(root, { workspaceSlug: "hr", role: "user" });
+    const app = createApp({ authContext });
 
     const createResponse = await app.request("/api/sessions", {
       method: "POST",
@@ -164,7 +193,8 @@ describe("session routes", () => {
   it("updates and clears persisted share metadata within the workspace scope", async () => {
     root = createFixtureRoot();
     const { createApp } = await loadSessionModules(root);
-    const app = createApp();
+    const { authContext } = await createStoredAuthContext(root, { workspaceSlug: "hr", role: "user" });
+    const app = createApp({ authContext });
 
     const createResponse = await app.request("/api/sessions", {
       method: "POST",
@@ -229,6 +259,98 @@ describe("session routes", () => {
       },
     });
 
-    expect(missingWorkspaceResponse.status).toBe(404);
+    expect(missingWorkspaceResponse.status).toBe(403);
+  });
+
+  it("binds created sessions to the authenticated user instead of client-supplied user ids", async () => {
+    root = createFixtureRoot();
+    const { createApp } = await loadSessionModules(root);
+    const { authContext, userId } = await createStoredAuthContext(root, { workspaceSlug: "hr", role: "user" });
+    const app = createApp({
+      authContext,
+    });
+
+    const createResponse = await app.request("/api/sessions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Workspace-Slug": "hr",
+      },
+      body: JSON.stringify({
+        userId: "spoofed-user",
+        shareTitle: "Manager review snapshot",
+      }),
+    });
+
+    expect(createResponse.status).toBe(200);
+    const createdPayload = await createResponse.json() as {
+      success: boolean;
+      session: {
+        id: string;
+        userId?: string;
+      };
+    };
+
+    expect(createdPayload.success).toBe(true);
+    expect(createdPayload.session.userId).toBe(userId);
+
+    const updateResponse = await app.request(`/api/sessions/${createdPayload.session.id}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Workspace-Slug": "hr",
+      },
+      body: JSON.stringify({
+        userId: "other-manager",
+        shareTitle: "Updated manager review snapshot",
+      }),
+    });
+
+    expect(updateResponse.status).toBe(200);
+    const updatedPayload = await updateResponse.json() as {
+      success: boolean;
+      session: {
+        userId?: string;
+        shareTitle?: string;
+      };
+    };
+
+    expect(updatedPayload.success).toBe(true);
+    expect(updatedPayload.session.userId).toBe(userId);
+    expect(updatedPayload.session.shareTitle).toBe("Updated manager review snapshot");
+  });
+
+  it("rejects anonymous session reads", async () => {
+    root = createFixtureRoot();
+    const { createApp } = await loadSessionModules(root);
+    const app = createApp();
+
+    const response = await app.request("/api/sessions/session-1", {
+      headers: {
+        "X-Workspace-Slug": "hr",
+      },
+    });
+
+    expect(response.status).toBe(401);
+  });
+
+  it("rejects session creation from users outside the selected workspace", async () => {
+    root = createFixtureRoot();
+    const { createApp } = await loadSessionModules(root);
+    const { authContext } = await createStoredAuthContext(root, { workspaceSlug: "hr", role: "user" });
+    const app = createApp({ authContext });
+
+    const response = await app.request("/api/sessions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Workspace-Slug": "dev",
+      },
+      body: JSON.stringify({
+        shareTitle: "Wrong workspace",
+      }),
+    });
+
+    expect(response.status).toBe(403);
   });
 });

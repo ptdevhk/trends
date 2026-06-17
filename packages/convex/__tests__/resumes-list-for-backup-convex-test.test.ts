@@ -4,7 +4,7 @@
  * Replaces resumes-list-for-backup.test.ts (hand-crafted mocks)
  * with proper convex-test infrastructure.
  */
-import { createTest } from "./test-helpers.js";
+import { createTest, seedResumeAnalysesColdRow } from "./test-helpers.js";
 import { describe, expect, it } from "vitest";
 import { api } from "../convex/_generated/api.js";
 
@@ -112,5 +112,62 @@ describe("resumes: listForBackup", () => {
     // Should only include the resume matching profileId "2002"
     expect(result.page).toHaveLength(1);
     expect((result.page[0] as Record<string, unknown>).externalId).toBe("seek:profile:2002");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// listForBackup — cold-table analysis projection (Phase 4 Step 2)
+// ---------------------------------------------------------------------------
+
+describe("resumes: listForBackup — analysis projection from cold resume_analyses", () => {
+  it("snapshots analysis/analyses from the active cold row", async () => {
+    const t = createTest();
+    const resumeId = await insertResume(t, { externalId: "cold-active", crawledAt: 100 });
+    await seedResumeAnalysesColdRow(t, resumeId, {
+      analysis: { score: 82, summary: "s", highlights: [], recommendation: "proceed" },
+      analyses: { "jd-1": { score: 82 } },
+    });
+
+    const result = await t.query(api.resumes.listForBackup, {
+      paginationOpts: { cursor: null, numItems: 50 },
+    });
+
+    expect(result.page).toHaveLength(1);
+    const row = result.page[0] as Record<string, unknown>;
+    expect((row.analysis as Record<string, unknown>).score).toBe(82);
+    expect(row.analyses).toEqual({ "jd-1": { score: 82 } });
+  });
+
+  it("excludes analysis/analyses from archived cold rows", async () => {
+    const t = createTest();
+    const resumeId = await insertResume(t, { externalId: "cold-archived", crawledAt: 100 });
+    // Archived rows retain stale analysis/analyses (mirrors non-surgical clear),
+    // but must NOT be snapshotted — the data is no longer live.
+    await seedResumeAnalysesColdRow(t, resumeId, {
+      status: "archived",
+      analysis: { score: 60, summary: "stale", highlights: [], recommendation: "proceed" },
+      analyses: { "jd-1": { score: 60 } },
+    });
+
+    const result = await t.query(api.resumes.listForBackup, {
+      paginationOpts: { cursor: null, numItems: 50 },
+    });
+
+    const row = result.page[0] as Record<string, unknown>;
+    expect(row.analysis).toBeUndefined();
+    expect(row.analyses).toBeUndefined();
+  });
+
+  it("returns undefined analysis/analyses when no cold row exists", async () => {
+    const t = createTest();
+    await insertResume(t, { externalId: "no-cold", crawledAt: 100 });
+
+    const result = await t.query(api.resumes.listForBackup, {
+      paginationOpts: { cursor: null, numItems: 50 },
+    });
+
+    const row = result.page[0] as Record<string, unknown>;
+    expect(row.analysis).toBeUndefined();
+    expect(row.analyses).toBeUndefined();
   });
 });

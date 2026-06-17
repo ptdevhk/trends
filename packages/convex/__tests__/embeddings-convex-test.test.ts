@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { api } from "../convex/_generated/api.js";
 import { internal } from "../convex/_generated/api.js";
 import type { Doc, Id } from "../convex/_generated/dataModel.js";
-import { rrfMerge, isEmbeddingEnabled } from "../convex/embeddings.js";
+import { rrfMerge, isEmbeddingEnabled, resolveBm25OnlySearchMode } from "../convex/embeddings.js";
 
 
 describe("embeddings (convex-test)", () => {
@@ -504,6 +504,23 @@ describe("embeddings (convex-test)", () => {
       vi.unstubAllEnvs();
     });
   });
+
+  describe("hybridSearchResumes — BM25 fallback contract", () => {
+    it("reports bm25_only_no_vectors when semantic search is requested but EMBEDDING_ENABLED is false", async () => {
+      const t = createTest();
+      vi.stubEnv("EMBEDDING_ENABLED", "false");
+
+      const result = await t.action(api.embeddings.hybridSearchResumes, {
+        query: "CNC 销售",
+        keywordGroups: [],
+        enableSemantic: true,
+      });
+
+      expect(result.searchMode).toBe("bm25_only_no_vectors");
+
+      vi.unstubAllEnvs();
+    });
+  });
 });
 
 describe("isEmbeddingEnabled (unit)", () => {
@@ -534,6 +551,32 @@ describe("isEmbeddingEnabled (unit)", () => {
   it("returns false when EMBEDDING_ENABLED is '0'", () => {
     vi.stubEnv("EMBEDDING_ENABLED", "0");
     expect(isEmbeddingEnabled()).toBe(false);
+  });
+});
+
+describe("resolveBm25OnlySearchMode (unit)", () => {
+  it("reports bm25_only_no_vectors when semantic search was requested but embeddings are disabled", () => {
+    expect(resolveBm25OnlySearchMode({
+      embeddingEnabled: false,
+      enableSemanticRequested: true,
+      hasQuery: true,
+    })).toBe("bm25_only_no_vectors");
+  });
+
+  it("reports bm25 when semantic search was not requested", () => {
+    expect(resolveBm25OnlySearchMode({
+      embeddingEnabled: false,
+      enableSemanticRequested: false,
+      hasQuery: true,
+    })).toBe("bm25");
+  });
+
+  it("reports bm25 when there is no keyword query", () => {
+    expect(resolveBm25OnlySearchMode({
+      embeddingEnabled: false,
+      enableSemanticRequested: true,
+      hasQuery: false,
+    })).toBe("bm25");
   });
 });
 

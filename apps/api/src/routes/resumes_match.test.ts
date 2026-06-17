@@ -3,27 +3,35 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import resumesMatchRoutes from "./resumes_match";
 import { workspaceMiddleware } from "../middleware/workspace";
-import { MatchStorage } from "../services/match-storage";
+import { MatchStorage, type StoredMatch } from "../services/match-storage";
 import { SessionManager } from "../services/session-manager";
+import type { AuthContext } from "../services/auth-types";
+import { createAuthContext } from "./test-auth-helpers";
+import { parseJsonBody } from "../test-utils";
 
-function createTestApp() {
+function createTestApp(authContext: AuthContext | null = createAuthContext({ workspaceSlug: "dev", role: "user" })) {
   const app = new OpenAPIHono();
   app.use("*", workspaceMiddleware);
+  if (authContext) {
+    app.use("*", async (c, next) => {
+      c.set("auth", authContext);
+      await next();
+    });
+  }
   app.route("/", resumesMatchRoutes);
   return app;
 }
 
-function makeStoredMatch(overrides: Partial<{ resumeId: string; score: number; scoreSource: "rule" | "ai"; jobDescriptionId: string }> = {}) {
+function makeStoredMatch(overrides: Partial<{ resumeId: string; score: number; scoreSource: "rule" | "ai"; jobDescriptionId: string }> = {}): StoredMatch {
   return {
     id: 1,
     resumeId: overrides.resumeId ?? "r1",
     jobDescriptionId: overrides.jobDescriptionId ?? "jd1",
     score: overrides.score ?? 85,
-    recommendation: "strong" as const,
+    recommendation: "strong_match",
     highlights: ["5 years CNC experience"],
     concerns: [],
     summary: "Strong candidate",
-    breakdown: undefined,
     scoreSource: overrides.scoreSource ?? "rule",
     matchedAt: "2026-05-26T12:00:00Z",
   };
@@ -53,6 +61,33 @@ describe("resumes_match", () => {
     vi.restoreAllMocks();
   });
 
+  describe("workspace membership", () => {
+    it("rejects anonymous match run reads", async () => {
+      const app = createTestApp(null);
+      const response = await app.request("/api/resumes/match-runs");
+
+      expect(response.status).toBe(401);
+    });
+
+    it("rejects match run reads from users outside the selected workspace", async () => {
+      const app = createTestApp(createAuthContext({ workspaceSlug: "hr", role: "user" }));
+      const response = await app.request("/api/resumes/match-runs", {
+        headers: { "X-Workspace-Slug": "dev" },
+      });
+
+      expect(response.status).toBe(403);
+    });
+
+    it("allows workspace members to read match runs", async () => {
+      vi.spyOn(MatchStorage.prototype, "listMatchRuns").mockReturnValue([makeStoredMatchRun()]);
+
+      const app = createTestApp();
+      const response = await app.request("/api/resumes/match-runs");
+
+      expect(response.status).toBe(200);
+    });
+  });
+
   describe("POST /api/resumes/match", () => {
     it("rejects request without jobDescriptionId or keywords", async () => {
       const app = createTestApp();
@@ -63,7 +98,7 @@ describe("resumes_match", () => {
       });
 
       expect(response.status).toBe(400);
-      const payload = await response.json();
+      const payload = await parseJsonBody(response);
       expect(payload.error).toContain("jobDescriptionId or keywords is required");
     });
 
@@ -80,7 +115,7 @@ describe("resumes_match", () => {
       });
 
       expect(response.status).toBe(400);
-      const payload = await response.json();
+      const payload = await parseJsonBody(response);
       expect(payload.error).toContain("persist=false only supports rules_only mode");
     });
 
@@ -96,7 +131,7 @@ describe("resumes_match", () => {
       });
 
       expect(response.status).toBe(400);
-      const payload = await response.json();
+      const payload = await parseJsonBody(response);
       expect(payload.error).toContain("source=convex only supports persist=false");
     });
 
@@ -116,7 +151,7 @@ describe("resumes_match", () => {
       });
 
       expect(response.status).toBe(404);
-      const payload = await response.json();
+      const payload = await parseJsonBody(response);
       expect(payload.error).toContain("Session not found");
     });
   });
@@ -134,7 +169,7 @@ describe("resumes_match", () => {
       });
 
       expect(response.status).toBe(400);
-      const payload = await response.json();
+      const payload = await parseJsonBody(response);
       expect(payload.error).toContain("match-stream does not support source=convex");
     });
 
@@ -150,7 +185,7 @@ describe("resumes_match", () => {
       });
 
       expect(response.status).toBe(400);
-      const payload = await response.json();
+      const payload = await parseJsonBody(response);
       expect(payload.error).toContain("match-stream does not support persist=false");
     });
 
@@ -163,7 +198,7 @@ describe("resumes_match", () => {
       });
 
       expect(response.status).toBe(400);
-      const payload = await response.json();
+      const payload = await parseJsonBody(response);
       expect(payload.error).toContain("jobDescriptionId or keywords is required");
     });
 
@@ -190,7 +225,7 @@ describe("resumes_match", () => {
       const response = await app.request("/api/resumes/matches");
 
       expect(response.status).toBe(400);
-      const payload = await response.json();
+      const payload = await parseJsonBody(response);
       expect(payload.error).toContain("sessionId or jobDescriptionId is required");
     });
 
@@ -202,7 +237,7 @@ describe("resumes_match", () => {
       const response = await app.request("/api/resumes/matches?sessionId=sess-1");
 
       expect(response.status).toBe(200);
-      const payload = await response.json();
+      const payload = await parseJsonBody<{ success: boolean; results: { resumeId: string; score: number }[] }>(response);
       expect(payload.success).toBe(true);
       expect(payload.results).toHaveLength(1);
       expect(payload.results[0].resumeId).toBe("r1");
@@ -217,7 +252,7 @@ describe("resumes_match", () => {
       const response = await app.request("/api/resumes/matches?jobDescriptionId=jd-sales");
 
       expect(response.status).toBe(200);
-      const payload = await response.json();
+      const payload = await parseJsonBody<{ success: boolean; results: { jobDescriptionId: string }[] }>(response);
       expect(payload.success).toBe(true);
       expect(payload.results).toHaveLength(1);
       expect(payload.results[0].jobDescriptionId).toBe("jd-sales");
@@ -233,7 +268,7 @@ describe("resumes_match", () => {
       const response = await app.request("/api/resumes/match-runs");
 
       expect(response.status).toBe(200);
-      const payload = await response.json();
+      const payload = await parseJsonBody<{ success: boolean; runs: { id: string; status: string }[] }>(response);
       expect(payload.success).toBe(true);
       expect(payload.runs).toHaveLength(1);
       expect(payload.runs[0].id).toBe("run-1");
@@ -261,7 +296,7 @@ describe("resumes_match", () => {
       });
 
       expect(response.status).toBe(200);
-      const payload = await response.json();
+      const payload = await parseJsonBody(response);
       expect(payload.success).toBe(true);
       expect(payload.deleted).toBe(15);
     });
@@ -276,7 +311,7 @@ describe("resumes_match", () => {
 
       expect(response.status).toBe(200);
       expect(clearSpy).toHaveBeenCalledWith("jd1");
-      const payload = await response.json();
+      const payload = await parseJsonBody(response);
       expect(payload.jobDescriptionId).toBe("jd1");
     });
   });

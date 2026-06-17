@@ -81,8 +81,11 @@ async function loadReviewPacketModules(root: string) {
   const { ActionStorage } = await import("../services/action-storage");
   const { resetResumeScreeningDb } = await import("../services/database");
   const { notificationService } = await import("../services/notification-service");
+  const { createAuthContext } = await import("./test-auth-helpers");
   return {
-    createApp,
+    createApp: () => createApp({
+      authContext: createAuthContext({ workspaceSlug: "dev", role: "admin" }),
+    }),
     ResumeService,
     ReviewPacketStorage,
     ActionStorage,
@@ -269,7 +272,6 @@ describe("review packet routes", () => {
       totalCount: 2,
       packetFilename: "packet-summary.xlsx",
       exportedAt: "2026-03-20T09:00:00+08:00",
-      feedbackImportedAt: "2026-03-20T10:00:00+08:00",
       items: [
         { resumeId: "resume-1", identityKey: "id-1", name: "Alice" },
         { resumeId: "resume-2", identityKey: "id-2", name: "Bob" },

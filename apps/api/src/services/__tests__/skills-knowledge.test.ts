@@ -23,7 +23,7 @@ describe("normalizeCompanyPatternIdentifier", () => {
 describe("buildCompanyPatternAliasLookup", () => {
     it("maps canonical name to itself", () => {
         const patterns: CompanyPattern[] = [
-            { name: "Fanuc", allNames: ["Fanuc"], category: "cnc", role: "equipment" },
+            { name: "Fanuc", allNames: ["Fanuc"], displayName: "Fanuc-style", aliases: [], displayAliases: [], role: "equipment" },
         ];
         const lookup = buildCompanyPatternAliasLookup(patterns);
         expect(lookup.get("fanuc")).toBe("fanuc");
@@ -31,7 +31,7 @@ describe("buildCompanyPatternAliasLookup", () => {
 
     it("maps aliases to canonical name", () => {
         const patterns: CompanyPattern[] = [
-            { name: "Fanuc", allNames: ["Fanuc", "FANUC", "发那科"], category: "cnc", role: "equipment" },
+            { name: "Fanuc", allNames: ["Fanuc", "FANUC", "发那科"], displayName: "Fanuc-style", aliases: [], displayAliases: [], role: "equipment" },
         ];
         const lookup = buildCompanyPatternAliasLookup(patterns);
         expect(lookup.get("fanuc")).toBe("fanuc");
@@ -40,7 +40,7 @@ describe("buildCompanyPatternAliasLookup", () => {
 
     it("skips empty names", () => {
         const patterns: CompanyPattern[] = [
-            { name: "  ", allNames: ["Fanuc"], category: "cnc", role: "equipment" },
+            { name: "  ", allNames: ["Fanuc"], displayName: "Fanuc-style", aliases: [], displayAliases: [], role: "equipment" },
         ];
         const lookup = buildCompanyPatternAliasLookup(patterns);
         expect(lookup.has("")).toBe(false);
@@ -49,8 +49,8 @@ describe("buildCompanyPatternAliasLookup", () => {
 
     it("handles multiple patterns without collision", () => {
         const patterns: CompanyPattern[] = [
-            { name: "Fanuc", allNames: ["Fanuc"], category: "cnc", role: "equipment" },
-            { name: "Mazak", allNames: ["Mazak", "山崎马扎克"], category: "cnc", role: "equipment" },
+            { name: "Fanuc", allNames: ["Fanuc"], displayName: "Fanuc-style", aliases: [], displayAliases: [], role: "equipment" },
+            { name: "Mazak", allNames: ["Mazak", "山崎马扎克"], displayName: "Fanuc-style", aliases: [], displayAliases: [], role: "equipment" },
         ];
         const lookup = buildCompanyPatternAliasLookup(patterns);
         expect(lookup.get("fanuc")).toBe("fanuc");

@@ -71,6 +71,7 @@ describe("getResumeScreeningDb", () => {
           all: vi.fn(() => [
             { name: "resume_matches" },
             { name: "search_sessions" },
+            { name: "auth_provider_membership_grants" },
           ]),
         };
       }
@@ -94,5 +95,6 @@ describe("getResumeScreeningDb", () => {
     const { getResumeScreeningDb } = await import("./database");
 
     expect(() => getResumeScreeningDb(process.cwd())).not.toThrow();
+    expect(execMock).toHaveBeenCalledWith("ALTER TABLE auth_provider_membership_grants ADD COLUMN membership_created INTEGER NOT NULL DEFAULT 1");
   });
 });

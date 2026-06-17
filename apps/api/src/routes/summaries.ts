@@ -2,8 +2,9 @@ import { randomUUID } from "node:crypto";
 
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import {
-  WORKSPACE_TEAMS,
+  formatWorkspaceSlugList,
   isValidWorkspace,
+  listWorkspaceSlugs,
   type SummaryProfileRecord as SummaryProfileRecordType,
   type SummaryProfileRuntimeItem as SummaryProfileRuntimeItemType,
   type SummaryProfilesConfig as SummaryProfilesConfigType,
@@ -15,7 +16,7 @@ import { summaryDispatcher } from "../services/summaries/summary-dispatcher.js";
 import { SummaryRenderer } from "../services/summaries/summary-renderer.js";
 import { workspaceConfigService } from "../services/workspace-config-service.js";
 import { logger } from "../services/logger.js";
-import { denyIfNotAdmin } from "../middleware/workspace.js";
+import { getAdminAccessError } from "../middleware/auth.js";
 import {
   WorkspaceSummaryRunStorage,
   type StoredWorkspaceSummaryRun,
@@ -25,7 +26,7 @@ const app = new OpenAPIHono();
 const summaryDataService = new SummaryDataService();
 const summaryRenderer = new SummaryRenderer();
 const workspaceSummaryRunStorage = new WorkspaceSummaryRunStorage();
-const KNOWN_WORKSPACE_SLUGS = Object.keys(WORKSPACE_TEAMS).filter(isValidWorkspace);
+const KNOWN_WORKSPACE_SLUGS = listWorkspaceSlugs();
 const SummaryPeriodSchema = z.enum(["daily", "weekly", "monthly"]);
 const WorkspaceSlugSchema = z.string().min(1);
 
@@ -344,7 +345,7 @@ function resolveWorkspaceSlug(value: string | undefined, fallback: WorkspaceSlug
     return fallback;
   }
   if (!isValidWorkspace(candidate)) {
-    throw new Error(`Invalid workspace slug: ${candidate}. Allowed: dev, hr`);
+    throw new Error(`Invalid workspace slug: ${candidate}. Allowed: ${formatWorkspaceSlugList()}`);
   }
   return candidate;
 }
@@ -416,6 +417,14 @@ const listProfilesRoute = createRoute({
         },
       },
     },
+    401: {
+      description: "Authentication required",
+      content: {
+        "application/json": {
+          schema: ErrorSchema,
+        },
+      },
+    },
     403: {
       description: "Forbidden",
       content: {
@@ -428,8 +437,9 @@ const listProfilesRoute = createRoute({
 });
 
 app.openapi(listProfilesRoute, async (c) => {
-  if (denyIfNotAdmin(c.var.accessLevel)) {
-    return c.json({ success: false as const, error: "Admin access required" }, 403);
+  const adminError = getAdminAccessError(c);
+  if (adminError) {
+    return c.json(adminError.body, adminError.status);
   }
 
   const config = await workspaceConfigService.getWorkspaceSummaryProfiles(c.var.workspaceSlug);
@@ -470,6 +480,14 @@ const createProfileRoute = createRoute({
         },
       },
     },
+    401: {
+      description: "Authentication required",
+      content: {
+        "application/json": {
+          schema: ErrorSchema,
+        },
+      },
+    },
     403: {
       description: "Forbidden",
       content: {
@@ -490,8 +508,9 @@ const createProfileRoute = createRoute({
 });
 
 app.openapi(createProfileRoute, async (c) => {
-  if (denyIfNotAdmin(c.var.accessLevel)) {
-    return c.json({ success: false as const, error: "Admin access required" }, 403);
+  const adminError = getAdminAccessError(c);
+  if (adminError) {
+    return c.json(adminError.body, adminError.status);
   }
 
   const payload = c.req.valid("json");
@@ -575,6 +594,14 @@ const getProfileRoute = createRoute({
         },
       },
     },
+    401: {
+      description: "Authentication required",
+      content: {
+        "application/json": {
+          schema: ErrorSchema,
+        },
+      },
+    },
     403: {
       description: "Forbidden",
       content: {
@@ -595,8 +622,9 @@ const getProfileRoute = createRoute({
 });
 
 app.openapi(getProfileRoute, async (c) => {
-  if (denyIfNotAdmin(c.var.accessLevel)) {
-    return c.json({ success: false as const, error: "Admin access required" }, 403);
+  const adminError = getAdminAccessError(c);
+  if (adminError) {
+    return c.json(adminError.body, adminError.status);
   }
 
   const { profileId } = c.req.valid("param");
@@ -649,6 +677,14 @@ const updateProfileRoute = createRoute({
         },
       },
     },
+    401: {
+      description: "Authentication required",
+      content: {
+        "application/json": {
+          schema: ErrorSchema,
+        },
+      },
+    },
     403: {
       description: "Forbidden",
       content: {
@@ -669,8 +705,9 @@ const updateProfileRoute = createRoute({
 });
 
 app.openapi(updateProfileRoute, async (c) => {
-  if (denyIfNotAdmin(c.var.accessLevel)) {
-    return c.json({ success: false as const, error: "Admin access required" }, 403);
+  const adminError = getAdminAccessError(c);
+  if (adminError) {
+    return c.json(adminError.body, adminError.status);
   }
 
   const { profileId } = c.req.valid("param");
@@ -729,6 +766,14 @@ const deleteProfileRoute = createRoute({
         },
       },
     },
+    401: {
+      description: "Authentication required",
+      content: {
+        "application/json": {
+          schema: ErrorSchema,
+        },
+      },
+    },
     403: {
       description: "Forbidden",
       content: {
@@ -749,8 +794,9 @@ const deleteProfileRoute = createRoute({
 });
 
 app.openapi(deleteProfileRoute, async (c) => {
-  if (denyIfNotAdmin(c.var.accessLevel)) {
-    return c.json({ success: false as const, error: "Admin access required" }, 403);
+  const adminError = getAdminAccessError(c);
+  if (adminError) {
+    return c.json(adminError.body, adminError.status);
   }
 
   const { profileId } = c.req.valid("param");

@@ -5,6 +5,7 @@ import searchAnalyticsRoutes from './search-analytics'
 import { workspaceMiddleware } from '../middleware/workspace'
 import { SearchEventLogger } from '../services/search-event-logger'
 import { SkillsKnowledgeService } from '../services/skills-knowledge'
+import { parseJsonBody } from '../test-utils'
 
 function createTestApp() {
   const app = new OpenAPIHono()
@@ -44,7 +45,7 @@ describe('search-analytics routes', () => {
       const app = createTestApp()
       const response = await app.request('/api/search-analytics/zero-results', { headers: ADMIN_HEADERS })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody<{ success: unknown; items: { query: string }[] }>(response)
       expect(body.success).toBe(true)
       expect(body.items).toHaveLength(2)
       expect(body.items[0].query).toBe('5轴加工中心')
@@ -71,7 +72,7 @@ describe('search-analytics routes', () => {
       const app = createTestApp()
       const response = await app.request('/api/search-analytics/summary', { headers: ADMIN_HEADERS })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody<{ success: unknown; summary: Record<string, unknown> }>(response)
       expect(body.success).toBe(true)
       expect(body.summary.totalSearches).toBe(150)
       expect(body.summary.zeroResultRate).toBe(0.2)
@@ -101,7 +102,7 @@ describe('search-analytics routes', () => {
       const app = createTestApp()
       const response = await app.request('/api/search-analytics/synonym-suggestions', { headers: ADMIN_HEADERS })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody<{ success: unknown; suggestions: { canonical: string }[] }>(response)
       expect(body.success).toBe(true)
       expect(body.suggestions).toHaveLength(1)
       expect(body.suggestions[0].canonical).toBe('五轴加工')
@@ -129,7 +130,7 @@ describe('search-analytics routes', () => {
       const app = createTestApp()
       const response = await app.request('/api/search-analytics/synonym-suggestions', { headers: ADMIN_HEADERS })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody<{ suggestions: unknown[] }>(response)
       expect(body.suggestions).toHaveLength(0)
     })
   })
@@ -144,7 +145,7 @@ describe('search-analytics routes', () => {
         body: JSON.stringify({ query: 'CNC operator', resultCount: 25, topScore: 92.5 }),
       })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody(response)
       expect(body.success).toBe(true)
       expect(logSpy).toHaveBeenCalledWith({
         query: 'CNC operator',

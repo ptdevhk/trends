@@ -461,31 +461,8 @@ describe("ResumeService", () => {
   });
 
   describe("experience filter graceful degradation", () => {
-    it("resumes with empty experience pass minExperience filter", () => {
-      const root = createFixtureRoot();
-      roots.push(root);
-      const service = new ResumeService(root);
-      const items = [
-        {
-          name: "Seek MY",
-          profileUrl: "https://example.com/seek-my",
-          activityStatus: "Active",
-          age: "",
-          experience: "",
-          education: "",
-          location: "Malaysia",
-          selfIntro: "",
-          jobIntention: "Sales",
-          expectedSalary: "",
-          workHistory: [],
-          extractedAt: "2026-03-20T00:00:00.000Z",
-        },
-      ];
-
-      const filtered = service.filterResumes(items, { minExperience: 1 });
-      expect(filtered).toHaveLength(1);
-    });
-
+    // NOTE: only `maxExperience` is a supported resume-list filter; `minExperience`
+    // is a JD/search-profile concept, not enforced by ResumeService.filterResumes.
     it("resumes with unknown experience are excluded by maxExperience", () => {
       const root = createFixtureRoot();
       roots.push(root);
@@ -710,7 +687,7 @@ describe("ResumeService", () => {
           selfIntro: "",
           jobIntention: "",
           expectedSalary: "",
-          workHistory: [{ company: "ACME", role: "CNC Operator", years: "3" }],
+          workHistory: [{ companyName: "ACME", jobTitle: "CNC Operator", raw: "ACME CNC Operator 3 years" }],
           extractedAt: "2026-03-20T00:00:00.000Z",
           // searchText includes "fanuc" from earlier workHistory not in latest entry
           searchText: "CNC Resume Dongguan ACME CNC Operator 3 years fanuc experience",

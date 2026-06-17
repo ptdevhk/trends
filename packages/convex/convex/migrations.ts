@@ -1,5 +1,6 @@
 import { api, internal } from "./_generated/api";
 import { action, mutation } from "./_generated/server";
+import type { MutationCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
 import {
@@ -26,6 +27,7 @@ import { deriveResumeIdentityKey } from "./lib/resume_identity";
 import { parseAgeFromContent } from "./lib/age";
 import { DEFAULT_WORKSPACE_SLUG } from "./sessions";
 import { resolveResumeScanBatchSize, resolveDiagnosticsSourceKeyForResume } from "./resumes";
+import { doUpsertResumeAnalysis } from "./resumes_search";
 
 const JOB5156_HOST = "hr.job5156.com";
 const MANUAL_51JOB_SOURCE = "51job-manual";
@@ -420,13 +422,39 @@ export function rewrite51jobManualContent(content: unknown, source: string): {
     };
 }
 
-export function analysisRichness(resume: Doc<"resumes">): number {
+/**
+ * Effective analysis view for a resume — cold-sourced when a cold row exists.
+ * Used to thread Phase 4 cold-table reads through the merge/audit helpers
+ * without changing their hot-field fallback (which keeps legacy callers and
+ * hot-seeded tests working until Step 3 removes the hot fields).
+ */
+export type ResumeAnalysisView = {
+    analysis?: Doc<"resumes">["analysis"];
+    analyses?: Doc<"resumes">["analyses"];
+};
+
+/** Map of resume _id (string) → cold-sourced analysis view. */
+export type ResumeAnalysisViewById = Map<string, ResumeAnalysisView>;
+
+function resolveAnalysis(resume: Doc<"resumes">, viewsById?: ResumeAnalysisViewById): ResumeAnalysisView {
+    const view = viewsById?.get(String(resume._id));
+    if (view) {
+        // A cold row exists → it is authoritative (Phase 4 source of truth).
+        // An explicit undefined means "no analysis/analyses", NOT "fall back to
+        // hot" — otherwise cleared cold rows would resurrect stale hot data.
+        return { analysis: view.analysis, analyses: view.analyses };
+    }
+    return { analysis: resume.analysis, analyses: resume.analyses };
+}
+
+export function analysisRichness(resume: Doc<"resumes">, viewsById?: ResumeAnalysisViewById): number {
+    const { analysis, analyses } = resolveAnalysis(resume, viewsById);
     let richness = 0;
-    if (resume.analysis !== undefined) {
+    if (analysis !== undefined) {
         richness += 1;
     }
-    if (isRecord(resume.analyses)) {
-        richness += Object.keys(resume.analyses).length;
+    if (isRecord(analyses)) {
+        richness += Object.keys(analyses).length;
     }
     return richness;
 }
@@ -439,12 +467,12 @@ export function resumeIdentityKey(resume: Doc<"resumes">): string {
     });
 }
 
-export function sortForCanonical(resumes: Doc<"resumes">[]): Doc<"resumes">[] {
+export function sortForCanonical(resumes: Doc<"resumes">[], viewsById?: ResumeAnalysisViewById): Doc<"resumes">[] {
     return [...resumes].sort((left, right) => {
         if (left.crawledAt !== right.crawledAt) {
             return right.crawledAt - left.crawledAt;
         }
-        const richnessDiff = analysisRichness(right) - analysisRichness(left);
+        const richnessDiff = analysisRichness(right, viewsById) - analysisRichness(left, viewsById);
         if (richnessDiff !== 0) {
             return richnessDiff;
         }
@@ -452,7 +480,7 @@ export function sortForCanonical(resumes: Doc<"resumes">[]): Doc<"resumes">[] {
     });
 }
 
-export function mergeAnalyses(resumes: Doc<"resumes">[]): {
+export function mergeAnalyses(resumes: Doc<"resumes">[], viewsById?: ResumeAnalysisViewById): {
     analyses: Doc<"resumes">["analyses"];
     analysis: Doc<"resumes">["analysis"];
 } {
@@ -460,14 +488,15 @@ export function mergeAnalyses(resumes: Doc<"resumes">[]): {
     let primaryAnalysis: Doc<"resumes">["analysis"] = undefined;
 
     for (const resume of resumes) {
-        if (primaryAnalysis === undefined && resume.analysis !== undefined) {
-            primaryAnalysis = resume.analysis;
+        const { analysis, analyses } = resolveAnalysis(resume, viewsById);
+        if (primaryAnalysis === undefined && analysis !== undefined) {
+            primaryAnalysis = analysis;
         }
 
-        if (!isRecord(resume.analyses)) {
+        if (!isRecord(analyses)) {
             continue;
         }
-        for (const [key, value] of Object.entries(resume.analyses)) {
+        for (const [key, value] of Object.entries(analyses)) {
             if (!(key in mergedAnalyses)) {
                 mergedAnalyses[key] = value as NonNullable<Doc<"resumes">["analyses"]>[string];
             }
@@ -478,6 +507,32 @@ export function mergeAnalyses(resumes: Doc<"resumes">[]): {
         analyses: mergedAnalyses,
         analysis: primaryAnalysis,
     };
+}
+
+/**
+ * Build a resumeId → active cold analysis-view map for a set of resumes.
+ * Only resumes with an ACTIVE cold row (status !== "archived") get an entry,
+ * so resumes without a cold row fall back to their hot fields via
+ * {@link resolveAnalysis}. Used by the merge/audit migrations to read analyses
+ * from the cold table (Phase 4 Step 2) without breaking hot-field callers.
+ */
+export async function fetchActiveAnalysisViews(
+    ctx: MutationCtx,
+    resumes: Doc<"resumes">[],
+): Promise<ResumeAnalysisViewById> {
+    const views: ResumeAnalysisViewById = new Map();
+    await Promise.all(
+        resumes.map(async (resume) => {
+            const coldRow = await ctx.db
+                .query("resume_analyses")
+                .withIndex("by_resume", (q) => q.eq("resumeId", resume._id))
+                .unique();
+            if (coldRow && coldRow.status !== "archived") {
+                views.set(String(resume._id), { analysis: coldRow.analysis, analyses: coldRow.analyses });
+            }
+        }),
+    );
+    return views;
 }
 
 export function groupDuplicatesByIdentity(resumes: Doc<"resumes">[]): Array<{
@@ -1210,9 +1265,12 @@ export const auditDuplicateResumesByIdentity = mutation({
                 numItems: resolveResumeScanBatchSize(args.batchSize),
             });
         const duplicateGroups = groupDuplicatesByIdentity(resumes.page);
+        // Phase 4 Step 2: read analysis richness from the cold table so canonical
+        // selection stays correct after the hot fields are removed.
+        const viewsById = await fetchActiveAnalysisViews(ctx, resumes.page);
 
         const groups = duplicateGroups.map((group) => {
-            const ordered = sortForCanonical(group.resumes);
+            const ordered = sortForCanonical(group.resumes, viewsById);
             const canonical = ordered[0];
             const duplicates = ordered.slice(1);
             return {
@@ -1306,6 +1364,9 @@ export const mergeDuplicateResumesByIdentity = mutation({
                 numItems: resolveResumeScanBatchSize(args.batchSize),
             });
         const duplicateGroups = groupDuplicatesByIdentity(resumes.page);
+        // Phase 4 Step 2: read analyses from the cold table so merge consolidates
+        // the correct data after the hot fields are removed.
+        const viewsById = await fetchActiveAnalysisViews(ctx, resumes.page);
         const effectiveBatchSize = Math.max(1, Math.trunc(args.batchSize));
         const targetGroups = duplicateGroups.slice(0, effectiveBatchSize);
 
@@ -1321,12 +1382,12 @@ export const mergeDuplicateResumesByIdentity = mutation({
             mergedAnalysisCount: number;
         }> = [];
         for (const group of targetGroups) {
-            const ordered = sortForCanonical(group.resumes);
+            const ordered = sortForCanonical(group.resumes, viewsById);
             const canonical = ordered[0];
             const duplicates = ordered.slice(1);
 
             const mergedTags = Array.from(new Set(ordered.flatMap((resume) => resume.tags)));
-            const mergedAnalysis = mergeAnalyses(ordered);
+            const mergedAnalysis = mergeAnalyses(ordered, viewsById);
 
             if (!args.dryRun) {
                 const patch: {
@@ -1347,9 +1408,29 @@ export const mergeDuplicateResumesByIdentity = mutation({
                 }
 
                 await ctx.db.patch(canonical._id, patch);
+                // Phase 4 Step 2: sync the canonical's cold resume_analyses row
+                // with the merged analyses (dual-write; hot patch above is retained
+                // until Step 3 removes the hot fields). Status resets to active.
+                await doUpsertResumeAnalysis(
+                    ctx,
+                    canonical._id,
+                    mergedAnalysis.analysis,
+                    mergedAnalysis.analyses && Object.keys(mergedAnalysis.analyses).length > 0
+                        ? mergedAnalysis.analyses
+                        : undefined,
+                );
                 patchedCanonicals += 1;
 
                 for (const duplicate of duplicates) {
+                    // Delete the duplicate's cold row so it does not orphan after
+                    // the resume itself is deleted (its analyses were merged above).
+                    const dupColdRow = await ctx.db
+                        .query("resume_analyses")
+                        .withIndex("by_resume", (q) => q.eq("resumeId", duplicate._id))
+                        .first();
+                    if (dupColdRow) {
+                        await ctx.db.delete(dupColdRow._id);
+                    }
                     await ctx.db.delete(duplicate._id);
                     deleted += 1;
                 }
@@ -1533,10 +1614,43 @@ export const validateDataConsistency = action({
             digestCursor = result.cursor;
         }
 
+        // Step 4: Backfill resume_digest_statuses overlay from candidate_status.
+        // Restores from pre-Phase-2 backups have candidate_status but no overlay.
+        // This step runs after Step 3 (digest rebuild) so resume_digests.by_identityKey
+        // lookups resolve correctly.
+        let statusCursor: string | null = null;
+        let statusProcessed = 0;
+        for (let i = 0; i < 10000; i++) {
+            const result: { processed: number; isDone: boolean; cursor: string | null } = await ctx.runMutation(api.resumes_search.backfillResumeDigestStatuses, {
+                cursor: statusCursor ?? undefined,
+                limit: batchSize,
+            });
+            statusProcessed += result.processed;
+            if (result.isDone) break;
+            statusCursor = result.cursor;
+        }
+
+        // Step 5: Backfill resume_analyses cold table from resumes.analysis.
+        // Moves the full analysis blob out of the hot resumes doc so list/search
+        // hydration doesn't transfer 22KB of analysis data per row.
+        let analysisCursor: string | null = null;
+        let analysisProcessed = 0;
+        for (let i = 0; i < 10000; i++) {
+            const result: { processed: number; isDone: boolean; cursor: string | null } = await ctx.runMutation(api.resumes_search.backfillResumeAnalyses, {
+                cursor: analysisCursor ?? undefined,
+                limit: batchSize,
+            });
+            analysisProcessed += result.processed;
+            if (result.isDone) break;
+            analysisCursor = result.cursor;
+        }
+
         return {
             reindexSearchText: { scanned: reindexScanned, updated: reindexUpdated },
             backfillVerifiedRoleYears: { scanned: vryScanned, updated: vryUpdated },
             backfillResumeDigests: { processed: digestProcessed },
+            backfillResumeDigestStatuses: { processed: statusProcessed },
+            backfillResumeAnalyses: { processed: analysisProcessed },
         };
     },
 });
@@ -1823,6 +1937,49 @@ export const backfillAuditLogActorIdentity = mutation({
             updated,
             hasMore: !logs.isDone,
             cursor: logs.isDone ? null : logs.continueCursor,
+        };
+    },
+});
+
+/**
+ * Backfill resume_analyses.status for existing rows.
+ *
+ * Added by the Phase 3 completion bundle
+ * (projects/trends/work/2026-06-15-resume-analyses-phase3-completion-cleanup).
+ * Every existing row defaults to status: "active" so the soft-clear semantics
+ * (clearAnalyses flips active → archived) start from a known state.
+ *
+ * Idempotent: rows already carrying status are skipped.
+ */
+export const backfillResumeAnalysesStatus = mutation({
+    args: {
+        cursor: v.optional(v.string()),
+        batchSize: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const rows = await ctx.db
+            .query("resume_analyses")
+            .order("desc")
+            .paginate({
+                cursor: args.cursor ?? null,
+                numItems: resolveResumeScanBatchSize(args.batchSize),
+            });
+
+        let updated = 0;
+        for (const row of rows.page) {
+            if (row.status === undefined) {
+                await ctx.db.patch(row._id, {
+                    status: "active",
+                });
+                updated += 1;
+            }
+        }
+
+        return {
+            scanned: rows.page.length,
+            updated,
+            hasMore: !rows.isDone,
+            cursor: rows.isDone ? null : rows.continueCursor,
         };
     },
 });

@@ -1,11 +1,11 @@
 #!/bin/bash
 # Preview environment health check + auto-recovery for preview.pt-mes.com.
 #
-# Run on ptcloud (any user with sudo). Reports on:
+# Run on the preview host (any user with sudo). Reports on:
 #   - Caddy reachability (preview.pt-mes.com)
 #   - Convex container health + memory headroom
 #   - Convex /version + sync HTTP upgrade
-#   - Preview API systemd status + /api/blocks /api/search-profiles
+#   - Preview API systemd status + /api/blocks and a public resume query
 #   - MCP container status
 #   - Recent dmesg OOM kills affecting any preview container
 #
@@ -21,6 +21,7 @@ COMPOSE_FILE="$PREVIEW_DIR/docker-compose.preview.yml"
 CONVEX_PORT=4210
 API_PORT=3002
 PUBLIC_HOST=preview.pt-mes.com
+RESUME_SMOKE_PATH="/api/resumes?source=convex&paged=true&limit=1"
 
 RECOVER=0
 FULL=0
@@ -89,9 +90,9 @@ if systemctl is-active --quiet trends-preview-api 2>/dev/null; then
 else
     fail "trends-preview-api is NOT active"
 fi
-SP=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 "http://127.0.0.1:$API_PORT/api/search-profiles" || echo 000)
+RS=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 "http://127.0.0.1:$API_PORT$RESUME_SMOKE_PATH" || echo 000)
 BL=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 "http://127.0.0.1:$API_PORT/api/blocks" || echo 000)
-[ "$SP" = "200" ] && ok "/api/search-profiles → $SP" || fail "/api/search-profiles → $SP"
+[ "$RS" = "200" ] && ok "$RESUME_SMOKE_PATH → $RS" || fail "$RESUME_SMOKE_PATH → $RS"
 [ "$BL" = "200" ] && ok "/api/blocks → $BL"          || fail "/api/blocks → $BL"
 
 echo
@@ -145,9 +146,9 @@ if [ $FAIL -gt 0 ] && [ $RECOVER -eq 1 ]; then
     echo "→ Restarting trends-preview-api…"
     $SUDO systemctl restart trends-preview-api
     sleep 4
-    SP2=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 "http://127.0.0.1:$API_PORT/api/search-profiles" || echo 000)
+    RS2=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 "http://127.0.0.1:$API_PORT$RESUME_SMOKE_PATH" || echo 000)
     BL2=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 "http://127.0.0.1:$API_PORT/api/blocks" || echo 000)
-    info "post-recovery /api/search-profiles → $SP2"
+    info "post-recovery $RESUME_SMOKE_PATH → $RS2"
     info "post-recovery /api/blocks → $BL2"
 fi
 

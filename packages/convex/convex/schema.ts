@@ -116,11 +116,7 @@ export default defineSchema({
         .index("by_crawledAt", ["crawledAt"])
         .index("by_primaryRuleScore", ["primaryRuleScore"])
         .index("by_sourceKey", ["sourceKey"])
-        .index("by_needsEmbedding", ["needsEmbedding"])
-        .searchIndex("search_body", {
-            searchField: "searchText",
-            filterFields: ["isArchived"],
-        }),
+        .index("by_needsEmbedding", ["needsEmbedding"]),
 
     // Optional: Search Profiles (if we want to store user configs)
     search_profiles: defineTable({
@@ -507,16 +503,74 @@ export default defineSchema({
         experienceYears: v.optional(v.number()),
         roleTypes: v.optional(v.array(v.string())),
         roleYearsByType: v.optional(v.record(v.string(), v.number())),
+        // Phase 3 display fields — denormalized from default analysis for zero-join list/search
+        displayScore: v.optional(v.number()),
+        displayRecommendation: v.optional(v.string()),
+        displayBreakdown: v.optional(v.record(v.string(), v.number())),
+        displaySummary: v.optional(v.string()),
+        displayConfirmedScore: v.optional(v.number()),
+        displayConfirmedAt: v.optional(v.number()),
         updatedAt: v.number(),
     })
         .index("by_resumeId", ["resumeId"])
         .index("by_identityKey", ["identityKey"])
         .index("by_sourceKey", ["sourceKey"])
         .index("by_crawledAt", ["crawledAt"])
+        .index("by_primaryRuleScore", ["primaryRuleScore"])
         .searchIndex("search_body", {
             searchField: "searchText",
             filterFields: ["isArchived", "sourceKey"],
         }),
+
+    // Cold analysis storage — full AI analysis blobs (highlights, concerns,
+    // keyFactors, relatedExpEvidence) split out of resumes to avoid 22KB/doc
+    // hydration overhead on the hot list/search path. The detail/expanded view
+    // fetches from here on demand. The list/search path reads scalar display
+    // fields from resume_digests instead.
+    //
+    // Soft-clear semantics (added Phase 3 completion bundle):
+    //   status: "active" — visible to detail view (projectResumeDetailDoc)
+    //   status: "archived" — invisible to detail view, retained for audit/undo
+    // clearAnalyses flips active → archived instead of hard-deleting. Matches
+    // repo precedent (resumes.isArchived, candidate_status.status).
+    resume_analyses: defineTable({
+        resumeId: v.id("resumes"),
+        analysis: v.optional(resumeAnalysisValidator),
+        analyses: v.optional(v.record(v.string(), analysisResultValidator)),
+        status: v.optional(v.union(v.literal("active"), v.literal("archived"))),
+        archivedAt: v.optional(v.number()),
+        updatedAt: v.number(),
+    })
+        .index("by_resume", ["resumeId"]),
+
+    // Hot status overlay — workspace-scoped candidate status for server-side
+    // filtering. Separate from resume_digests (which is resume-scoped) to
+    // preserve independent workspace statuses for the same identity.
+    resume_digest_statuses: defineTable({
+        resumeId: v.id("resumes"),
+        identityKey: v.string(),
+        workspaceSlug: v.string(),
+        status: v.union(
+            v.literal("new"),
+            v.literal("shortlisted"),
+            v.literal("rejected"),
+            v.literal("contacted"),
+            v.literal("interviewing"),
+            v.literal("interviewed_pass"),
+            v.literal("interviewed_reject"),
+            v.literal("appeal_submitted"),
+            v.literal("human_review"),
+            v.literal("upheld"),
+            v.literal("reversed"),
+            v.literal("offer"),
+            v.literal("hired"),
+            v.literal("withdrawn")
+        ),
+        updatedAt: v.number(),
+    })
+        .index("by_workspace_status", ["workspaceSlug", "status"])
+        .index("by_workspace_identity", ["workspaceSlug", "identityKey"])
+        .index("by_resume", ["resumeId"]),
 
     // Analysis Audit Log — EU AI Act compliance (Annex III §4a high-risk)
     analysis_audit_log: defineTable({

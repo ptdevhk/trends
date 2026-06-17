@@ -257,7 +257,7 @@ async function runCollectionTest(page: Page) {
     // Set up CWV observers before navigation
     const vitals = await measureWebVitals(page);
 
-    await page.goto(`${DEFAULT_OPTIONS.baseUrl}/dev/system/settings/operations`);
+    await page.goto(`${DEFAULT_OPTIONS.baseUrl}/admin/system/settings/operations`);
 
     const keywordInput = await preferVisibleLocator(
         page.getByTestId('ops-collection-keyword'),

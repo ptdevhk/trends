@@ -3,14 +3,23 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import scoringEvalRoutes from './scoring-evaluation'
 import { workspaceMiddleware } from '../middleware/workspace'
+import { parseJsonBody } from '../test-utils'
 import { SearchEventAnalyzer } from '../services/search-event-analyzer'
 import { ScoringAutoTuner } from '../services/scoring-auto-tuner'
+import type { AuthContext } from '../services/auth-types'
 import { WeightHistoryService } from '../services/weight-history'
 import { workspaceConfigService } from '../services/workspace-config-service'
+import { createAuthContext } from './test-auth-helpers'
 
-function createTestApp() {
+function createTestApp(authContext: AuthContext | null = createAuthContext({ workspaceSlug: 'dev', role: 'user' })) {
   const app = new OpenAPIHono()
   app.use('*', workspaceMiddleware)
+  if (authContext) {
+    app.use('*', async (c, next) => {
+      c.set('auth', authContext)
+      await next()
+    })
+  }
   app.route('/api/scoring-evaluation', scoringEvalRoutes)
   return app
 }
@@ -87,6 +96,36 @@ describe('scoring-evaluation routes', () => {
     vi.restoreAllMocks()
   })
 
+  describe('workspace membership', () => {
+    it('rejects anonymous scoring report reads', async () => {
+      const app = createTestApp(null)
+      const response = await app.request('/api/scoring-evaluation/report', {
+        headers: ADMIN_HEADERS,
+      })
+
+      expect(response.status).toBe(401)
+    })
+
+    it('rejects scoring report reads from users outside the selected workspace', async () => {
+      const app = createTestApp(createAuthContext({ workspaceSlug: 'hr', role: 'user' }))
+      const response = await app.request('/api/scoring-evaluation/report', {
+        headers: ADMIN_HEADERS,
+      })
+
+      expect(response.status).toBe(403)
+    })
+
+    it('allows workspace members to read scoring reports', async () => {
+      vi.spyOn(SearchEventAnalyzer.prototype, 'analyze').mockReturnValue(MOCK_REPORT as never)
+      const app = createTestApp()
+      const response = await app.request('/api/scoring-evaluation/report', {
+        headers: ADMIN_HEADERS,
+      })
+
+      expect(response.status).toBe(200)
+    })
+  })
+
   describe('GET /api/scoring-evaluation/report', () => {
     it('returns scoring analysis report', async () => {
       vi.spyOn(SearchEventAnalyzer.prototype, 'analyze').mockReturnValue(MOCK_REPORT as never)
@@ -95,7 +134,7 @@ describe('scoring-evaluation routes', () => {
         headers: ADMIN_HEADERS,
       })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody<{ success: unknown; report: Record<string, unknown> }>(response)
       expect(body.success).toBe(true)
       expect(body.report.periodDays).toBe(14)
     })
@@ -127,7 +166,7 @@ describe('scoring-evaluation routes', () => {
         headers: ADMIN_HEADERS,
       })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody<{ success: unknown; metrics: Record<string, unknown> }>(response)
       expect(body.success).toBe(true)
       expect(body.metrics.jobDescriptionId).toBe('jd-1')
       expect(body.metrics.ndcgAtK).toBe(0.85)
@@ -168,7 +207,7 @@ describe('scoring-evaluation routes', () => {
         }),
       })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody<{ success: unknown; validation: Record<string, unknown> }>(response)
       expect(body.success).toBe(true)
       expect(body.validation.projectedNdcgAtK).toBe(0.9)
     })
@@ -208,7 +247,7 @@ describe('scoring-evaluation routes', () => {
         }),
       })
       expect(response.status).toBe(500)
-      const body = await response.json()
+      const body = await parseJsonBody<{ success: unknown; error: unknown }>(response)
       expect(body.success).toBe(false)
       expect(body.error).toBe('No labeled data for jd-1')
     })
@@ -234,7 +273,7 @@ describe('scoring-evaluation routes', () => {
         body: JSON.stringify({ dryRun: true }),
       })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody<{ success: unknown; result: unknown }>(response)
       expect(body.success).toBe(true)
       expect(body.result).toBeDefined()
     })
@@ -288,7 +327,7 @@ describe('scoring-evaluation routes', () => {
         body: JSON.stringify({}),
       })
       expect(response.status).toBe(500)
-      const body = await response.json()
+      const body = await parseJsonBody<{ success: unknown; error: unknown }>(response)
       expect(body.success).toBe(false)
       expect(body.error).toBe('Insufficient data')
     })
@@ -302,7 +341,7 @@ describe('scoring-evaluation routes', () => {
         headers: ADMIN_HEADERS,
       })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody<{ success: unknown; items: unknown[] }>(response)
       expect(body.success).toBe(true)
       expect(body.items).toHaveLength(2)
     })
@@ -332,7 +371,7 @@ describe('scoring-evaluation routes', () => {
         headers: ADMIN_HEADERS,
       })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody<{ items: unknown[] }>(response)
       expect(body.items).toHaveLength(0)
     })
   })
@@ -362,7 +401,12 @@ describe('scoring-evaluation routes', () => {
         body: JSON.stringify({ entryTs: '2026-05-22T10:00:00.000Z' }),
       })
       expect(response.status).toBe(200)
-      const body = await response.json()
+      const body = await parseJsonBody<{
+        success: unknown
+        restored: Record<string, unknown>
+        rollbackEntry: Record<string, unknown>
+        currentCategoryWeights: unknown
+      }>(response)
       expect(body.success).toBe(true)
       expect(body.restored.ts).toBe('2026-05-22T10:00:00.000Z')
       expect(body.rollbackEntry.reason).toContain('rollback')
@@ -394,7 +438,7 @@ describe('scoring-evaluation routes', () => {
         body: JSON.stringify({ entryTs: 'missing-ts' }),
       })
       expect(response.status).toBe(500)
-      const body = await response.json()
+      const body = await parseJsonBody<{ success: unknown; error: unknown }>(response)
       expect(body.success).toBe(false)
       expect(body.error).toContain('not found')
     })

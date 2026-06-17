@@ -758,6 +758,126 @@ describe("resumes_search: getResumesByIds", () => {
 // ---------------------------------------------------------------------------
 
 describe("resumes_search: scanResumeDigestPage", () => {
+    it("builds compact digest search text without copying cold resume searchText", async () => {
+        const t = convexTest(schema, modules);
+        const coldSearchText = [
+            "cnc 销售",
+            "coldblob ".repeat(6000),
+        ].join(" ");
+        const resumeId = await seedResume(t, {
+            externalId: "digest-compact",
+            identityKey: "profileUrl:example.com/candidates/digest-compact",
+            source: "job5156",
+            sourceKey: "job5156",
+            searchText: coldSearchText,
+            content: {
+                name: "Compact Candidate",
+                desiredPosition: "CNC销售工程师",
+                education: "本科",
+                expectedSalary: "15-25K",
+                locationHierarchy: { country: "中国", province: "广东", city: "东莞" },
+                skills: ["CNC", "销售"],
+                workHistory: [{
+                    companyName: "制造有限公司",
+                    jobTitle: "CNC销售工程师",
+                    description: "负责数控机床销售",
+                    startDate: "2021-01",
+                    endDate: "至今",
+                }],
+            },
+            age: 30,
+            ingestData: {
+                ...MINIMAL_INGEST_DATA,
+                synonymHits: ["数控", "销售"],
+                verifiedRoleYears: { sales: 3 },
+            },
+        });
+
+        await t.mutation(api.resumes_search.upsertResumeDigestForTest, { resumeId });
+        const result = await t.query(api.resumes_search.scanResumeDigestPage, { numItems: 1000 });
+
+        expect(result.docs).toHaveLength(1);
+        const row = result.docs[0];
+        expect(row.searchText).toContain("cnc");
+        expect(row.searchText).toContain("销售");
+        expect(row.searchText).not.toContain("coldblob");
+        expect(JSON.stringify(row).length).toBeLessThan(2048);
+    });
+
+    it("preserves domain keyword tokens from cold searchText without copying it", async () => {
+        const t = convexTest(schema, modules);
+        const resumeId = await seedResume(t, {
+            externalId: "digest-domain-token",
+            identityKey: "profileUrl:example.com/candidates/digest-domain-token",
+            source: "job5156",
+            sourceKey: "job5156",
+            searchText: [
+                "profile education included 数控 原理 and 销售 context",
+                "coldblob ".repeat(6000),
+            ].join(" "),
+            content: {
+                name: "Domain Token Candidate",
+                education: "本科",
+                expectedSalary: "15-25K",
+                locationHierarchy: { country: "中国" },
+            },
+            age: 30,
+        });
+
+        await t.mutation(api.resumes_search.upsertResumeDigestForTest, { resumeId });
+        const result = await t.query(api.resumes_search.scanResumeDigestPage, { numItems: 1000 });
+
+        const row = result.docs[0];
+        expect(row.searchText).toContain("cnc");
+        expect(row.searchText).toContain("数控");
+        expect(row.searchText).toContain("销售");
+        expect(row.searchText).not.toContain("coldblob");
+        expect(JSON.stringify(row).length).toBeLessThan(2048);
+    });
+
+    it("derives digest role years from roleSignals when verifiedRoleYears is absent", async () => {
+        const t = convexTest(schema, modules);
+        const resumeId = await seedResume(t, {
+            externalId: "digest-role-signals",
+            identityKey: "profileUrl:example.com/candidates/digest-role-signals",
+            searchText: "cnc 销售",
+            content: {
+                name: "Role Signal Candidate",
+                workHistory: [{ raw: "2021-2024 销售工程师" }],
+            },
+            ingestData: {
+                ...MINIMAL_INGEST_DATA,
+                verifiedRoleYears: {},
+                roleSignals: [{
+                    type: "sales",
+                    matchedSignals: ["销售"],
+                    signalCount: 1,
+                    occurrences: 1,
+                    years: 3,
+                    industryVerifiedYears: 3,
+                    industryVerifiedRelevantYears: 3,
+                    roleRelevantYears: 3,
+                    matchedWorkEntries: [{
+                        companyName: "测试公司",
+                        jobTitle: "销售工程师",
+                        years: 3,
+                        directRoleMatch: true,
+                        industryVerified: true,
+                        matchedSignals: ["销售"],
+                    }],
+                    verifyIn: "workHistory",
+                }],
+            },
+        });
+
+        await t.mutation(api.resumes_search.upsertResumeDigestForTest, { resumeId });
+        const result = await t.query(api.resumes_search.scanResumeDigestPage, { numItems: 1000 });
+
+        const row = result.docs[0];
+        expect(row.roleTypes).toEqual(["sales"]);
+        expect(row.roleYearsByType).toEqual({ sales: 3 });
+    });
+
     it("returns digest projection without cold resume content or full ingestData", async () => {
         const t = convexTest(schema, modules);
         const resumeId = await seedResume(t, {
@@ -844,5 +964,163 @@ describe("resumes_search: searchWithTagExpansionAndMode", () => {
 
         expect(result.expansion.original).toBe("cnc");
         expect(result.expansion.expanded).toContain("cnc");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// digest-first parity gates (Phase 1A)
+// ---------------------------------------------------------------------------
+
+async function seedSearchParityRows(t: ReturnType<typeof convexTest>) {
+    await seedResume(t, {
+        externalId: "parity-cnc-sales",
+        identityKey: "profileUrl:example.com/candidates/parity-cnc-sales",
+        searchText: "cnc sales machine tools shanghai",
+        content: {
+            name: "CNC Sales",
+            location: "Shanghai, China",
+            education: "Bachelor",
+            expectedSalary: "20000",
+            experience: "6 years",
+            workHistory: [{ companyName: "Machine Tools Co", jobTitle: "Sales Manager" }],
+        },
+        source: "ehire.51job.com",
+        sourceKey: "51job",
+        primaryRuleScore: 91,
+        ingestData: {
+            ...MINIMAL_INGEST_DATA,
+            roleSignals: [{
+                type: "sales",
+                matchedSignals: ["Sales Manager"],
+                signalCount: 1,
+                occurrences: 1,
+                years: 5,
+                verifyIn: "workHistory",
+            }],
+            verifiedRoleYears: { sales: 5 },
+        },
+    });
+    await seedResume(t, {
+        externalId: "parity-cnc-engineer",
+        identityKey: "profileUrl:example.com/candidates/parity-cnc-engineer",
+        searchText: "cnc machining engineer guangzhou",
+        content: {
+            name: "CNC Engineer",
+            location: "Guangzhou, China",
+            education: "College",
+            expectedSalary: "15000",
+            experience: "4 years",
+            workHistory: [{ companyName: "Factory", jobTitle: "CNC Engineer" }],
+        },
+        source: "hr.job5156.com",
+        sourceKey: "job5156",
+        primaryRuleScore: 73,
+        ingestData: {
+            ...MINIMAL_INGEST_DATA,
+            roleSignals: [{
+                type: "manufacturing",
+                matchedSignals: ["CNC Engineer"],
+                signalCount: 1,
+                occurrences: 1,
+                years: 4,
+                verifyIn: "workHistory",
+            }],
+            verifiedRoleYears: { manufacturing: 4 },
+        },
+    });
+    await seedResume(t, {
+        externalId: "parity-java",
+        identityKey: "profileUrl:example.com/candidates/parity-java",
+        searchText: "java developer spring",
+        content: { name: "Java Developer", location: "Kuala Lumpur, Malaysia" },
+        source: "my.seek.com",
+        sourceKey: "seek",
+        primaryRuleScore: 55,
+    });
+}
+
+describe("resumes_search digest parity gates", () => {
+    const cncGroup = { original: "cnc", variants: ["cnc"] };
+    const salesGroup = { original: "sales", variants: ["sales", "销售"] };
+
+    it("returns the same matching externalIds across keyword search entrypoints", async () => {
+        const t = convexTest(schema, modules);
+        await seedSearchParityRows(t);
+
+        const simple = await t.query(api.resumes_search.search, {
+            query: "cnc",
+            limit: 20,
+        });
+        const ingest = await t.query(api.resumes_search.searchWithIngestData, {
+            query: "cnc",
+            limit: 20,
+        });
+        const tagged = await t.query(api.resumes_search.searchWithTagExpansion, {
+            query: "cnc",
+            keywordGroups: [cncGroup],
+            limit: 20,
+        });
+        const page = await t.query(api.resumes_search.searchWithTagExpansionPage, {
+            query: "cnc",
+            keywordGroups: [cncGroup],
+            limit: 20,
+        });
+        const paginated = await t.query(api.resumes_search.searchWithTagExpansionPaginated, {
+            query: "cnc",
+            keywordGroups: [cncGroup],
+            paginationOpts: { cursor: null, numItems: 20 },
+        });
+        const scan = await t.query(api.resumes_search.searchWithTagExpansionScanPage, {
+            query: "cnc",
+            keywordGroups: [cncGroup],
+            paginationOpts: { cursor: null, numItems: 20 },
+        });
+
+        expect(simple.map((row) => row.externalId).sort()).toEqual([
+            "parity-cnc-engineer",
+            "parity-cnc-sales",
+        ]);
+        expect(ingest.map((row) => row.externalId).sort()).toEqual([
+            "parity-cnc-engineer",
+            "parity-cnc-sales",
+        ]);
+        expect(tagged.results.map((entry) => entry.resume.externalId).sort()).toEqual([
+            "parity-cnc-engineer",
+            "parity-cnc-sales",
+        ]);
+        expect(page.results.map((entry) => entry.resume.externalId).sort()).toEqual([
+            "parity-cnc-engineer",
+            "parity-cnc-sales",
+        ]);
+        expect(paginated.page.map((entry) => entry.resume.externalId).sort()).toEqual([
+            "parity-cnc-engineer",
+            "parity-cnc-sales",
+        ]);
+        expect(scan.page.map((entry) => entry.resume.externalId).sort()).toEqual([
+            "parity-cnc-engineer",
+            "parity-cnc-sales",
+        ]);
+    });
+
+    it("keeps digest-side filters equivalent for the CNC sales cohort", async () => {
+        const t = convexTest(schema, modules);
+        await seedSearchParityRows(t);
+
+        const result = await t.query(api.resumes_search.searchWithTagExpansionScanPage, {
+            query: "cnc sales",
+            keywordGroups: [cncGroup, salesGroup],
+            mode: "AND",
+            locations: ["China"],
+            minRoleYears: 3,
+            roleFilterType: "sales",
+            minAge: 20,
+            maxAge: 60,
+            sources: ["51job"],
+            paginationOpts: { cursor: null, numItems: 20 },
+        });
+
+        expect(result.page.map((entry) => entry.resume.externalId)).toEqual([
+            "parity-cnc-sales",
+        ]);
     });
 });

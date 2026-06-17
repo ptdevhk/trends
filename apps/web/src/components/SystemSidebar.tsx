@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/button'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { useSystemMetadata } from '@/hooks/useSystemMetadata'
 import { RESUME_HOME_RESET_STATE } from '@/lib/resume-home-navigation'
+import { SYSTEM_AUTH_WORKSPACE, SYSTEM_ROUTE_PREFIX } from '@/lib/workspace-access'
 import { cn } from '@/lib/utils'
 import { useTranslation } from 'react-i18next'
 
@@ -51,26 +52,36 @@ interface SystemSidebarProps {
 
 export function SystemSidebar({ onClose }: SystemSidebarProps) {
   const location = useLocation()
-  const { slug } = useWorkspace()
+  const { isSystemSurface, slug } = useWorkspace()
   const { t } = useTranslation()
   const metadata = useSystemMetadata()
   const appVersion = metadata?.identity?.appVersion ?? 'unknown'
+  const homeWorkspace = isSystemSurface ? SYSTEM_AUTH_WORKSPACE : slug
 
   const navItems = useMemo<NavItem[]>(() => {
+    const resolveHref = (suffix: string) => {
+      if (!isSystemSurface) {
+        return `/${slug}${suffix}`
+      }
+      if (suffix === '/resumes') {
+        return `/${homeWorkspace}/resumes`
+      }
+      return `${SYSTEM_ROUTE_PREFIX}${suffix.replace(/^\/system/, '')}`
+    }
     return SYSTEM_NAV_ITEMS.map((item) => ({
       ...item,
       title: t(item.titleKey, { defaultValue: item.defaultTitle }),
-      href: `/${slug}${item.hrefSuffix}`,
-      matches: item.matchesSuffixes.map((suffix) => `/${slug}${suffix}`),
+      href: resolveHref(item.hrefSuffix),
+      matches: item.matchesSuffixes.map((suffix) => resolveHref(suffix)),
       icon: NAV_ICONS[item.id] ?? FileText,
     }))
-  }, [slug, t])
+  }, [homeWorkspace, isSystemSurface, slug, t])
 
   return (
     <div className="flex flex-col h-full bg-muted/30">
       <div className="flex-1 overflow-y-auto py-4">
         <div className="px-5 mb-6 flex items-center justify-between">
-          <Link to={`/${slug}/resumes`} state={RESUME_HOME_RESET_STATE} className="flex items-center gap-2">
+          <Link to={`/${homeWorkspace}/resumes`} state={RESUME_HOME_RESET_STATE} className="flex items-center gap-2">
             <span className="bg-primary text-primary-foreground text-[10px] px-1.5 py-0.5 rounded font-medium">
               {APP_SURFACE_IDENTITY.adminBadgeLabel}
             </span>

@@ -4,9 +4,23 @@
  * Covers: list, listForBackup, getByIdentity, upsert (insert + update + history).
  */
 import { createTest } from "./test-helpers.js";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { api } from "../convex/_generated/api.js";
 
+const WRITE_SECRET = "test-secret";
+const originalWriteSecret = process.env.CONVEX_WRITE_SECRET;
+
+beforeEach(() => {
+  process.env.CONVEX_WRITE_SECRET = WRITE_SECRET;
+});
+
+afterEach(() => {
+  if (originalWriteSecret === undefined) {
+    delete process.env.CONVEX_WRITE_SECRET;
+    return;
+  }
+  process.env.CONVEX_WRITE_SECRET = originalWriteSecret;
+});
 
 // ---------------------------------------------------------------------------
 // upsert + getByIdentity
@@ -21,6 +35,7 @@ describe("candidate_status: upsert + getByIdentity", () => {
       status: "new",
       notes: "Initial entry",
       updatedBy: "recruiter@example.com",
+      writeSecret: WRITE_SECRET,
     });
 
     expect(id).toBeDefined();
@@ -43,14 +58,15 @@ describe("candidate_status: upsert + getByIdentity", () => {
     await t.mutation(api.candidate_status.upsert, {
       identityKey: "candidate-2",
       status: "new",
+      writeSecret: WRITE_SECRET,
     });
 
-    const now = Date.now();
     await t.mutation(api.candidate_status.upsert, {
       identityKey: "candidate-2",
       status: "contacted",
       notes: "Reached out via email",
       updatedBy: "recruiter@example.com",
+      writeSecret: WRITE_SECRET,
     });
 
     const result = await t.query(api.candidate_status.getByIdentity, {
@@ -70,12 +86,14 @@ describe("candidate_status: upsert + getByIdentity", () => {
     await t.mutation(api.candidate_status.upsert, {
       identityKey: "candidate-3",
       status: "new",
+      writeSecret: WRITE_SECRET,
     });
 
     await t.mutation(api.candidate_status.upsert, {
       identityKey: "candidate-3",
       status: "new",
       notes: "Updated notes only",
+      writeSecret: WRITE_SECRET,
     });
 
     const result = await t.query(api.candidate_status.getByIdentity, {
@@ -105,6 +123,7 @@ describe("candidate_status: upsert + getByIdentity", () => {
       t.mutation(api.candidate_status.upsert, {
         identityKey: "  ",
         status: "new",
+        writeSecret: WRITE_SECRET,
       }),
     ).rejects.toThrow("identityKey is required");
   });
@@ -116,6 +135,7 @@ describe("candidate_status: upsert + getByIdentity", () => {
       workspaceSlug: "",
       identityKey: "candidate-empty-ws",
       status: "new",
+      writeSecret: WRITE_SECRET,
     });
 
     const result = await t.query(api.candidate_status.getByIdentity, {
@@ -160,16 +180,19 @@ describe("candidate_status: list + listForBackup", () => {
       workspaceSlug: "ws-list",
       identityKey: "c-1",
       status: "new",
+      writeSecret: WRITE_SECRET,
     });
     await t.mutation(api.candidate_status.upsert, {
       workspaceSlug: "ws-list",
       identityKey: "c-2",
       status: "contacted",
+      writeSecret: WRITE_SECRET,
     });
     await t.mutation(api.candidate_status.upsert, {
       workspaceSlug: "ws-other",
       identityKey: "c-3",
       status: "interviewing",
+      writeSecret: WRITE_SECRET,
     });
 
     const list = await t.query(api.candidate_status.list, {
@@ -190,6 +213,7 @@ describe("candidate_status: list + listForBackup", () => {
       status: "interviewed_pass",
       notes: "Strong candidate",
       updatedBy: "reviewer",
+      writeSecret: WRITE_SECRET,
     });
 
     const rows = await t.query(api.candidate_status.listForBackup, {
@@ -204,5 +228,96 @@ describe("candidate_status: list + listForBackup", () => {
     expect(row.updatedBy).toBe("reviewer");
     // Should not include internal fields like _id, _creationTime
     expect(row).not.toHaveProperty("_id");
+  });
+
+  // -------------------------------------------------------------------------
+  // Phase 2: digest status propagation
+  // -------------------------------------------------------------------------
+
+  it("propagates status changes into resume_digest_statuses overlay", async () => {
+    const t = createTest();
+    await t.run(async (ctx) => {
+      const resumeId = await ctx.db.insert("resumes", {
+        externalId: "status-digest-resume",
+        identityKey: "status-digest-identity",
+        content: { name: "Status Digest Candidate" },
+        hash: "status-digest-hash",
+        tags: [],
+        crawledAt: Date.now(),
+        source: "test",
+        sourceKey: "test",
+      });
+      await ctx.db.insert("resume_digests", {
+        resumeId,
+        identityKey: "status-digest-identity",
+        externalId: "status-digest-resume",
+        source: "test",
+        sourceKey: "test",
+        searchText: "status digest candidate",
+        updatedAt: Date.now(),
+      });
+    });
+
+    await t.mutation(api.candidate_status.upsert, {
+      workspaceSlug: "status-digest-ws",
+      identityKey: "status-digest-identity",
+      status: "contacted",
+      writeSecret: WRITE_SECRET,
+    });
+
+    const rows = await t.run(async (ctx) =>
+      ctx.db.query("resume_digest_statuses").collect()
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].identityKey).toBe("status-digest-identity");
+    expect(rows[0].workspaceSlug).toBe("status-digest-ws");
+    expect(rows[0].status).toBe("contacted");
+  });
+
+  it("preserves independent workspace statuses in the digest overlay", async () => {
+    const t = createTest();
+    await t.run(async (ctx) => {
+      const resumeId = await ctx.db.insert("resumes", {
+        externalId: "multi-ws-resume",
+        identityKey: "multi-ws-identity",
+        content: { name: "Multi WS Candidate" },
+        hash: "multi-ws-hash",
+        tags: [],
+        crawledAt: Date.now(),
+        source: "test",
+        sourceKey: "test",
+      });
+      await ctx.db.insert("resume_digests", {
+        resumeId,
+        identityKey: "multi-ws-identity",
+        externalId: "multi-ws-resume",
+        source: "test",
+        sourceKey: "test",
+        searchText: "multi ws candidate",
+        updatedAt: Date.now(),
+      });
+    });
+
+    await t.mutation(api.candidate_status.upsert, {
+      workspaceSlug: "ws-a",
+      identityKey: "multi-ws-identity",
+      status: "shortlisted",
+      writeSecret: WRITE_SECRET,
+    });
+    await t.mutation(api.candidate_status.upsert, {
+      workspaceSlug: "ws-b",
+      identityKey: "multi-ws-identity",
+      status: "rejected",
+      writeSecret: WRITE_SECRET,
+    });
+
+    const rows = await t.run(async (ctx) =>
+      ctx.db.query("resume_digest_statuses").collect()
+    );
+    expect(rows).toHaveLength(2);
+    const wsA = rows.find((r) => r.workspaceSlug === "ws-a");
+    const wsB = rows.find((r) => r.workspaceSlug === "ws-b");
+    expect(wsA?.status).toBe("shortlisted");
+    expect(wsB?.status).toBe("rejected");
   });
 });

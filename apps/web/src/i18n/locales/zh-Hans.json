@@ -104,6 +104,7 @@
     "reviewPacket": "评审包",
     "blocked": "屏蔽",
     "manageBlocked": "管理",
+    "statusAll": "全部状态",
     "exportFormat": "导出格式",
     "export": "导出"
   },
@@ -449,6 +450,9 @@
         "exporting": "导出中...",
         "export": "导出 {{count}} 条",
         "loading": "加载中...",
+        "allStatuses": "全部状态 {{count}}",
+        "collectedToday": "今日采集 {{count}}",
+        "processedStatuses": "已处理 {{count}}",
         "linkCopied": "链接已复制",
         "copyFailed": "复制失败",
         "copyLink": "复制链接"
@@ -466,6 +470,9 @@
         "analyzing": "分析中...",
         "analyzeLoaded": "分析已加载的 {{count}} 份",
         "analyzeLoadedResults": "分析已加载结果"
+      },
+      "readOnly": {
+        "loginRequired": "登录后可评分、更新状态、添加备注、屏蔽、导出或执行批量操作。"
       },
       "aiSummary": {
         "title": "AI 结果摘要",
@@ -693,6 +700,7 @@
     "configSourceRaw": "原始内容",
     "resumeDataCollection": "简历数据采集",
     "settingsNavOperations": "执行操作",
+    "settingsNavAuth": "认证访问",
     "brandKeywordType": "类型",
     "keyword": "关键词",
     "systemLocationProvince": "省级",
@@ -708,6 +716,26 @@
     "systemDiagnostics": "系统诊断",
     "brandKeywordsDescription": "设备品牌数据（只读，来源：brands.json）",
     "operationsPageDescription": "查看即时诊断信息，并手动触发采集操作。",
+    "authAccessPageDescription": "管理来自身份提供方的工作区访问，并查看相关认证事件。",
+    "authAccessPolicyTitle": "工作区访问策略",
+    "authAccessPolicyDescription": "查看此工作区当前生效的角色与权限默认值。",
+    "authAccessCurrentRoleTitle": "当前用户角色",
+    "authAccessCurrentRoleDescription": "当前会话生效的工作区角色。",
+    "authAccessRoleEditorDescription": "角色变更后端接口尚未接入；下方仍可使用提供方预批准。",
+    "authAccessRequiredFields": "必须填写提供方主体、租户和工作区",
+    "authAccessGrantFailed": "授予提供方访问失败",
+    "authAccessGrantSaved": "已保存提供方访问",
+    "authAccessRevokeConfirm": "确认撤销此提供方派生的工作区访问？",
+    "authAccessRevokeFailed": "撤销提供方访问失败",
+    "authAccessRevoked": "已撤销提供方访问",
+    "authAccessAdminRequired": "需要管理员权限",
+    "authAccessGrantTitle": "授予提供方访问",
+    "authAccessGrantDescription": "为当前工作区预批准 Casdoor 提供方主体。",
+    "authAccessIdentities": "提供方身份",
+    "authAccessPreapprovals": "预批准",
+    "authAccessGrants": "提供方派生授权",
+    "authAccessEvents": "最近认证事件",
+    "authAccessEventsDescription": "当前工作区的最新事件。",
     "editCustomKeyword": "编辑",
     "maxPages": "最大页数",
     "notConfigured": "未设置",
@@ -1606,10 +1634,13 @@
   },
   "shareLink": {
     "button": "分享",
+    "publicButton": "公开分享",
     "copiedSearch": "已复制分享链接",
     "copiedSession": "已复制会话链接",
+    "copiedPublic": "已复制公开分享链接",
     "copyPreparedFailed": "自动复制失败，请手动复制下方链接。",
     "copyUrlFailed": "复制链接失败，请手动复制地址栏 URL。",
+    "createPublicFailed": "创建公开分享失败。",
     "retryCopyFailed": "自动复制仍然失败，请手动复制下方链接。",
     "dialog": {
       "title": "手动复制分享链接",
@@ -1617,6 +1648,24 @@
       "titleLabel": "分享标题",
       "urlLabel": "分享链接",
       "retryCopy": "再试一次复制"
+    },
+    "publicDialog": {
+      "title": "创建公开分享？",
+      "description": "创建不可变的公开快照链接。",
+      "cancel": "取消",
+      "confirm": "创建公开分享"
     }
+  },
+  "auth": {
+    "loginTitle": "登录",
+    "loginSubtitle": "请输入凭证以继续",
+    "username": "用户名",
+    "password": "密码",
+    "signIn": "登录",
+    "signingIn": "登录中...",
+    "loginFailed": "用户名或密码错误",
+    "logout": "退出登录",
+    "loginRequired": "请先登录",
+    "workspaceAccessRequired": "您没有此工作区的访问权限"
   }
 }

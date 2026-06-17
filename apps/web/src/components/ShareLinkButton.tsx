@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link2 } from 'lucide-react'
+import { Globe2, Link2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -19,11 +19,21 @@ type ShareLinkButtonProps = {
   shareTitle: string
   state: ResumeSearchShareState
   ensureApiSession: (options?: EnsureApiSessionOptions) => Promise<string | undefined>
+  createPublicShare?: (options: CreatePublicShareOptions) => Promise<PublicShareCreateResult | undefined>
   onCopyState?: (payload: {
     shareUrl: string
     sessionId?: string
     usedSessionLink: boolean
   }) => void
+}
+
+export type CreatePublicShareOptions = {
+  shareTitle: string
+  searchState: ResumeSearchShareState
+}
+
+export type PublicShareCreateResult = {
+  publicPath: string
 }
 
 type ShareLinkPayload = {
@@ -81,6 +91,10 @@ function buildSessionShareUrl(sessionId: string): string {
   return shareUrl.toString()
 }
 
+function buildPublicShareUrl(publicPath: string): string {
+  return new URL(publicPath, window.location.origin).toString()
+}
+
 async function copyText(text: string): Promise<void> {
   if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
     try {
@@ -109,9 +123,17 @@ async function copyText(text: string): Promise<void> {
   }
 }
 
-export function ShareLinkButton({ shareTitle, state, ensureApiSession, onCopyState }: ShareLinkButtonProps) {
+export function ShareLinkButton({
+  shareTitle,
+  state,
+  ensureApiSession,
+  createPublicShare,
+  onCopyState,
+}: ShareLinkButtonProps) {
   const { t } = useTranslation()
   const [fallbackPayload, setFallbackPayload] = useState<ShareLinkPayload | null>(null)
+  const [publicConfirmOpen, setPublicConfirmOpen] = useState(false)
+  const [creatingPublicShare, setCreatingPublicShare] = useState(false)
   const fallbackTextareaRef = useRef<HTMLTextAreaElement | null>(null)
   const selectFallbackText = useCallback(() => {
     fallbackTextareaRef.current?.focus()
@@ -200,19 +222,104 @@ export function ShareLinkButton({ shareTitle, state, ensureApiSession, onCopySta
     }
   }, [fallbackPayload, onCopyState, selectFallbackText, t])
 
+  const handleCreatePublicShare = useCallback(async () => {
+    if (!createPublicShare) {
+      return
+    }
+
+    setCreatingPublicShare(true)
+    try {
+      const result = await createPublicShare({
+        shareTitle,
+        searchState: state,
+      })
+      if (!result?.publicPath) {
+        throw new Error('Public share was not created')
+      }
+
+      const publicUrl = buildPublicShareUrl(result.publicPath)
+      await copyText(publicUrl)
+      setPublicConfirmOpen(false)
+      toast.success(t('shareLink.copiedPublic', { defaultValue: 'Public share copied' }))
+    } catch (error) {
+      reportUiError('Failed to create public share', error)
+      toast.error(t('shareLink.createPublicFailed', {
+        defaultValue: 'Failed to create public share.',
+      }))
+    } finally {
+      setCreatingPublicShare(false)
+    }
+  }, [createPublicShare, shareTitle, state, t])
+
   return (
     <>
-      <Button
-        size="sm"
-        variant="ghost"
-        className="h-10 gap-1.5 px-3"
-        onClick={() => {
-          void handleCopy()
-        }}
-      >
-        <Link2 className="h-3.5 w-3.5" />
-        {t('shareLink.button', { defaultValue: 'Share' })}
-      </Button>
+      <div className="flex flex-wrap items-center gap-1">
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-10 gap-1.5 px-3"
+          onClick={() => {
+            void handleCopy()
+          }}
+        >
+          <Link2 className="h-3.5 w-3.5" />
+          {t('shareLink.button', { defaultValue: 'Share' })}
+        </Button>
+
+        {createPublicShare && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-10 gap-1.5 px-3"
+            onClick={() => setPublicConfirmOpen(true)}
+          >
+            <Globe2 className="h-3.5 w-3.5" />
+            {t('shareLink.publicButton', { defaultValue: 'Public share' })}
+          </Button>
+        )}
+      </div>
+
+      <Dialog open={publicConfirmOpen} onOpenChange={(open: boolean) => setPublicConfirmOpen(open)}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{t('shareLink.publicDialog.title', { defaultValue: 'Create public share?' })}</DialogTitle>
+            <DialogDescription>
+              {t('shareLink.publicDialog.description', {
+                defaultValue: 'Create an immutable public snapshot link.',
+              })}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="rounded-lg border border-border/70 bg-muted/20 px-3 py-2">
+            <div className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+              {t('shareLink.dialog.titleLabel', { defaultValue: 'Share title' })}
+            </div>
+            <div className="mt-1 text-sm font-medium text-foreground">
+              {shareTitle}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setPublicConfirmOpen(false)}
+              disabled={creatingPublicShare}
+            >
+              {t('shareLink.publicDialog.cancel', { defaultValue: 'Cancel' })}
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                void handleCreatePublicShare()
+              }}
+              disabled={creatingPublicShare}
+            >
+              {t('shareLink.publicDialog.confirm', { defaultValue: 'Create public share' })}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={fallbackPayload !== null} onOpenChange={(open: boolean) => {
         if (!open) {

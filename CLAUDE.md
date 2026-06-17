@@ -131,7 +131,7 @@ make local-restore-from-prod FILE=output/resume-backups/resumes-prod-<...>.tar.g
 # Go CLI: trends resume full-restore <path>
 ```
 
-### On prod host (after `ssh ptcloud && cd /opt/trends`)
+### On prod host (SSH via `${SSH_HOST:-ptcloud}`; `SSH_HOST` defaults to `ptcloud` if unset)
 ```bash
 make on-prod-deploy-check        # dry run (alias: prod-deploy-check / deploy-check)
 make on-prod-deploy              # full upgrade (alias: prod-deploy / deploy)
@@ -139,11 +139,11 @@ make on-prod-install             # first-time systemd install (alias: prod-insta
 make on-prod-refresh-env         # refresh env + rebuild web bundle (alias: refresh-env)
 ```
 
-### Preview deployment (preview.pt-mes.com on ptcloud)
+### Preview deployment (preview.pt-mes.com; uses `${SSH_HOST:-ptcloud}`)
 Preview runs in parallel with production on different ports — Convex `4210/4211`, API `3002`, MCP `3334`, web at `/home/ubuntu/trends-preview/apps/web/dist`. See `deploy/restore-preview-from-prod.sh` and the compound entry `projects/trends/compound/2026-05-29-preview-deployment-lessons.md` for the full postmortem.
 
 ```bash
-# On ptcloud as root
+# On the preview host as root (SSH_HOST)
 bash /opt/trends/deploy/setup-preview.sh           # rsync code, build API+web (~6m)
 cd /home/ubuntu/trends-preview && \
   docker compose -f docker-compose.preview.yml up -d   # Convex + MCP
@@ -199,6 +199,7 @@ TARGET=all make sync-agent-governance  # Optional: run policy sync + governance 
 - When `config/search-profiles/*.yaml` templates change (new fields, renamed fields, new defaults), the local DB profile won't update automatically unless `SEARCH_PROFILES_RESEED_ON_DRIFT=true` is set — the API logs a "template drift detected" warning but skips the update otherwise. `.env.example` sets this flag for local dev. For production, enable it temporarily in `.env.production` when deploying a profile-template upgrade, then remove it.
 - When adding a new Convex mutation that writes data, register it in `packages/convex/convex/_mutations_registry.ts` with `quiesceAware: true` (or `false` if explicitly excluded with a comment explaining why). `make check` validates the registry via `scripts/check-mutation-entry-points.sh`.
 - Convex `import --replace-all` preserves `_id` fields from the export zip. The restore scripts' pre-flight audit (`deploy/quiesce.sh` + `verify_id_preservation`) enforces that prod's existing resume IDs survive the restore — if not, the script fails unless `RESTORE_ALLOW_ID_LOSS=1`. The SQLite `candidate_actions.resume_id` values depend on this preservation. Never restore the SQLite DB from preview (it's empty) — always leave prod's SQLite untouched.
+- When adding new fields to existing Convex tables, always use `v.optional(...)` for the first deploy. Existing rows don't have the field — Convex rejects them on schema push with "Object is missing the required field". After a backfill migration confirms all rows carry the field, you can tighten to required. Readers should default to the "active" equivalent when the field is `undefined` (e.g. `coldRow.status === "archived"` not `coldRow.status !== "active"`).
 
 ## Browser Testing & Debugging
 

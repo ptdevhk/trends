@@ -1,4 +1,5 @@
 export { default as healthRoutes } from "./health.js";
+export { default as authRoutes } from "./auth.js";
 export { default as aiSummaryRoutes } from "./ai-summary.js";
 export { default as taxonomyRoutes } from "./taxonomy.js";
 export { default as trendsRoutes } from "./trends.js";
@@ -10,6 +11,7 @@ export { default as resumeSubmitRoutes } from "./resume-submit.js";
 export { default as industryRoutes } from "./industry.js";
 export { default as jobDescriptionsRoutes } from "./job-descriptions.js";
 export { default as sessionsRoutes } from "./sessions.js";
+export { default as publicSharesRoutes } from "./public-shares.js";
 export { default as actionsRoutes } from "./actions.js";
 export { default as blocksRoutes } from "./blocks.js";
 export { default as candidateStatusRoutes } from "./candidate-status.js";

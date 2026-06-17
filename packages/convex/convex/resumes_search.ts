@@ -34,6 +34,7 @@ import type {
     SearchWithTagExpansionScanPageArgs,
 } from "./lib/resumes_list_projections.js";
 import { buildResumeDigest } from "./lib/resume_digests.js";
+import { readActiveResumeAnalysis } from "./lib/resume_analysis_read.js";
 import {
     FILTERED_PAGINATE_OVERFETCH_MULTIPLIER,
     PAGINATE_MAX_BYTES_READ,
@@ -51,6 +52,16 @@ import {
 // ---------------------------------------------------------------------------
 // Private helpers
 // ---------------------------------------------------------------------------
+
+async function getResumeDocsByDigestRows(
+    ctx: QueryCtx,
+    digests: Doc<"resume_digests">[],
+): Promise<Doc<"resumes">[]> {
+    const docs = await Promise.all(digests.map((digest) => ctx.db.get(digest.resumeId)));
+    // Guard against stale digests: the digest search filters .eq("isArchived", undefined)
+    // but the digest row may lag a recent resume archive. Re-check the source doc.
+    return docs.filter((doc): doc is Doc<"resumes"> => doc !== null && doc.isArchived !== true);
+}
 
 function compareResumes(
     left: Doc<"resumes">,
@@ -174,12 +185,13 @@ async function runSearchWithTagExpansionPageQuery(
         jobDescriptionId,
     });
 
-    const matches = searchQuery
+    const digestMatches = searchQuery
         ? await ctx.db
-            .query("resumes")
+            .query("resume_digests")
             .withSearchIndex("search_body", (q) => q.search("searchText", searchQuery).eq("isArchived", undefined))
             .take(takeLimit)
         : [];
+    const matches = await getResumeDocsByDigestRows(ctx, digestMatches);
 
     const filteredDocs = matches.filter((doc) => {
         const provenance = resolveSearchWithTagExpansionMatch(
@@ -263,9 +275,9 @@ async function runSearchWithTagExpansionScanPageQuery(
         ? Math.min(requestedPageSize * FILTERED_PAGINATE_OVERFETCH_MULTIPLIER, MAX_SAFE_SEARCH_PAGINATE_SCAN)
         : Math.min(requestedPageSize, MAX_SAFE_SEARCH_PAGINATE_SCAN_UNFILTERED);
 
-    const searchPage = searchQuery
+    const digestPage = searchQuery
         ? await ctx.db
-            .query("resumes")
+            .query("resume_digests")
             .withSearchIndex("search_body", (q) => q.search("searchText", searchQuery).eq("isArchived", undefined))
             .paginate({
                 ...args.paginationOpts,
@@ -274,10 +286,11 @@ async function runSearchWithTagExpansionScanPageQuery(
                 maximumRowsRead: PAGINATE_MAX_ROWS_READ,
             })
         : {
-            page: [] as Doc<"resumes">[],
+            page: [] as Doc<"resume_digests">[],
             continueCursor: "",
             isDone: true,
         };
+    const fullDocs = await getResumeDocsByDigestRows(ctx, digestPage.page);
 
     return {
         expansion: {
@@ -286,7 +299,7 @@ async function runSearchWithTagExpansionScanPageQuery(
             groups: keywordGroups,
             mode,
         },
-        page: searchPage.page.flatMap((doc) => {
+        page: fullDocs.flatMap((doc) => {
             const provenance = resolveSearchWithTagExpansionMatch(
                 doc,
                 keywordGroups,
@@ -302,8 +315,8 @@ async function runSearchWithTagExpansionScanPageQuery(
                 provenance,
             }];
         }),
-        continueCursor: searchPage.continueCursor,
-        isDone: searchPage.isDone,
+        continueCursor: digestPage.continueCursor,
+        isDone: digestPage.isDone,
     };
 }
 
@@ -321,10 +334,11 @@ export const search = query({
         const tokens = splitQueryTokens(args.query);
         const fetchLimit = tokens.length > 1 ? Math.max(limit * 5, 500) : limit;
 
-        const matches = await ctx.db
-            .query("resumes")
+        const digestMatches = await ctx.db
+            .query("resume_digests")
             .withSearchIndex("search_body", (q) => q.search("searchText", args.query).eq("isArchived", undefined))
             .take(fetchLimit);
+        const matches = await getResumeDocsByDigestRows(ctx, digestMatches);
 
         // Convex full-text search uses OR. Post-filter to enforce AND.
         const filtered = tokens.length > 1
@@ -348,10 +362,11 @@ export const searchWithIngestData = query({
         // Over-fetch to compensate for AND post-filtering on OR results
         const fetchLimit = tokens.length > 1 ? Math.max(limit * 5, 500) : Math.max(limit, 200);
 
-        const matches = await ctx.db
-            .query("resumes")
+        const digestMatches = await ctx.db
+            .query("resume_digests")
             .withSearchIndex("search_body", (q) => q.search("searchText", args.query).eq("isArchived", undefined))
             .take(fetchLimit);
+        const matches = await getResumeDocsByDigestRows(ctx, digestMatches);
 
         // Convex full-text search uses OR. Post-filter to enforce AND.
         const filtered = tokens.length > 1
@@ -407,12 +422,13 @@ export const searchWithTagExpansion = query({
         const fetchLimit = overfetchLimit;
         const searchQuery = buildTagExpansionSearchQuery(keywordGroups, mode);
 
-        const matches = searchQuery
+        const digestMatches = searchQuery
             ? await ctx.db
-                .query("resumes")
+                .query("resume_digests")
                 .withSearchIndex("search_body", (q) => q.search("searchText", searchQuery).eq("isArchived", undefined))
                 .take(fetchLimit)
             : [];
+        const matches = await getResumeDocsByDigestRows(ctx, digestMatches);
 
         const filteredDocs = matches.filter((doc) => {
             const normalizedSearchText = (doc.searchText || "").toLowerCase();
@@ -890,7 +906,7 @@ export const scanResumeDigestPage = query({
 
 // ── Digest helpers ────────────────────────────────────────────────────────
 
-async function doUpsertResumeDigest(
+export async function doUpsertResumeDigest(
     ctx: MutationCtx,
     resume: Doc<"resumes">,
 ): Promise<void> {
@@ -898,11 +914,60 @@ async function doUpsertResumeDigest(
         .query("resume_digests")
         .withIndex("by_resumeId", (q) => q.eq("resumeId", resume._id))
         .first();
-    const digest = buildResumeDigest(resume, Date.now());
+    // Phase 4 Step 3a: source display fields from the ACTIVE cold analysis
+    // (with legacy hot fallback) rather than the hot doc. Avoids per-resume
+    // over-count of cleared (archived) analyses.
+    const activeAnalysis = await readActiveResumeAnalysis(ctx, resume);
+    const digest = buildResumeDigest(resume, Date.now(), activeAnalysis);
     if (existing) {
         await ctx.db.patch(existing._id, digest as any);
     } else {
         await ctx.db.insert("resume_digests", digest as any);
+    }
+}
+
+// Upsert the cold resume_analyses row (full analysis blob) for a resume.
+// Called after analysis writes to keep the cold table in sync.
+//
+// Soft-clear interaction (Phase 3 completion bundle): every upsert resets
+// status to "active" and clears archivedAt. This makes re-analyze-after-clear
+// restore the row naturally — clearAnalyses flips to archived, the next
+// analysis write flips it back.
+// Upsert the cold resume_analyses row (full analysis blob) for a resume.
+// Called after analysis writes to keep the cold table in sync.
+//
+// Soft-clear interaction (Phase 3 completion bundle): every upsert resets
+// status to "active" and clears archivedAt. This makes re-analyze-after-clear
+// restore the row naturally — clearAnalyses flips to archived, the next
+// analysis write flips it back.
+//
+// Phase 4 prep: analysis/analyses are passed explicitly rather than read off
+// the hot `resumes` doc. This decouples the cold-row write from the hot-doc
+// shape so that a future schema change removing those hot fields only needs to
+// rework call sites (source from args/cold table), not this helper. Hot fields
+// are retained for now — backup, JD-usage matching, and migrations still read
+// them — so behavior is identical.
+export async function doUpsertResumeAnalysis(
+    ctx: MutationCtx,
+    resumeId: Id<"resumes">,
+    analysis: Doc<"resume_analyses">["analysis"],
+    analyses: Doc<"resume_analyses">["analyses"],
+): Promise<void> {
+    const existing = await ctx.db
+        .query("resume_analyses")
+        .withIndex("by_resume", (q) => q.eq("resumeId", resumeId))
+        .first();
+    const patch = {
+        analysis,
+        analyses,
+        status: "active" as const,
+        archivedAt: undefined,
+        updatedAt: Date.now(),
+    };
+    if (existing) {
+        await ctx.db.patch(existing._id, patch);
+    } else {
+        await ctx.db.insert("resume_analyses", { resumeId, ...patch });
     }
 }
 
@@ -914,6 +979,26 @@ export const upsertResumeDigest = internalMutation({
         const resume = await ctx.db.get(args.resumeId);
         if (!resume) return; // deleted — digest already removed or will be GC'd
         await doUpsertResumeDigest(ctx, resume);
+    },
+});
+
+// Internal mutation — called after analysis writes to keep the cold
+// resume_analyses table in sync.
+export const upsertResumeAnalysis = internalMutation({
+    args: { resumeId: v.id("resumes") },
+    handler: async (ctx, args) => {
+        const resume = await ctx.db.get(args.resumeId);
+        if (!resume) return;
+        // Phase 4 Step 3a: source from the active cold row (legacy hot fallback).
+        // This makes the sync idempotent — re-running on an already-cold resume
+        // is a no-op — and removes the dependency on the hot doc for the active case.
+        const activeAnalysis = await readActiveResumeAnalysis(ctx, resume);
+        await doUpsertResumeAnalysis(
+            ctx,
+            args.resumeId,
+            activeAnalysis.analysis,
+            activeAnalysis.analyses ?? {},
+        );
     },
 });
 
@@ -956,7 +1041,96 @@ export const backfillResumeDigests = mutation({
     },
 });
 
-// Keep getResumes for backward compatibility
+// Idempotent backfill: paginate through all candidate_status rows and
+// upsert resume_digest_statuses overlay rows. Safe to re-run — existing
+// overlay rows are updated in place. Required after a restore where the
+// overlay table may not exist in the backup (pre-Phase-2 backups).
+export const backfillResumeDigestStatuses = mutation({
+    args: {
+        cursor: v.optional(v.string()),
+        limit: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const numItems = Math.min(args.limit ?? 100, 200);
+        const page = await ctx.db
+            .query("candidate_status")
+            .order("desc")
+            .paginate({
+                cursor: args.cursor ?? null,
+                numItems,
+            });
+
+        let processed = 0;
+        for (const status of page.page) {
+            // Look up the resume via the digest overlay's by_identityKey index.
+            const digest = await ctx.db
+                .query("resume_digests")
+                .withIndex("by_identityKey", (q) => q.eq("identityKey", status.identityKey))
+                .first();
+            if (!digest) {
+                continue;
+            }
+
+            const existing = await ctx.db
+                .query("resume_digest_statuses")
+                .withIndex("by_workspace_identity", (q) =>
+                    q.eq("workspaceSlug", status.workspaceSlug).eq("identityKey", status.identityKey)
+                )
+                .unique();
+
+            if (existing) {
+                await ctx.db.patch(existing._id, {
+                    status: status.status,
+                    updatedAt: status.updatedAt,
+                });
+            } else {
+                await ctx.db.insert("resume_digest_statuses", {
+                    resumeId: digest.resumeId,
+                    identityKey: status.identityKey,
+                    workspaceSlug: status.workspaceSlug,
+                    status: status.status,
+                    updatedAt: status.updatedAt,
+                });
+            }
+            processed += 1;
+        }
+
+        return {
+            processed,
+            isDone: page.isDone,
+            cursor: page.isDone ? null : page.continueCursor,
+        };
+    },
+});
+
+// Idempotent backfill: paginate through all resumes and upsert resume_analyses
+// rows (full analysis blob). Safe to re-run — existing rows are updated in place.
+export const backfillResumeAnalyses = mutation({
+    args: {
+        cursor: v.optional(v.string()),
+        limit: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const numItems = Math.min(args.limit ?? 100, 200);
+        const page = await ctx.db
+            .query("resumes")
+            .order("desc")
+            .paginate({
+                cursor: args.cursor ?? null,
+                numItems,
+                maximumBytesRead: PAGINATE_MAX_BYTES_READ,
+                maximumRowsRead: PAGINATE_MAX_ROWS_READ,
+            });
+        for (const resume of page.page) {
+            await doUpsertResumeAnalysis(ctx, resume._id, resume.analysis, resume.analyses);
+        }
+        return {
+            processed: page.page.length,
+            isDone: page.isDone,
+            cursor: page.isDone ? null : page.continueCursor,
+        };
+    },
+});
 // These are used by the API resume list for AND-mode search
 // getResumes added to resolve production "function not found" errors
 export const getResumes = query({
@@ -979,23 +1153,87 @@ export const getResumeDocsByIds = query({
     },
     handler: async (ctx, args) => {
         const docs = await Promise.all(args.ids.map((id) => ctx.db.get(id)));
-        return docs.filter((doc): doc is Doc<"resumes"> => doc !== null).map((doc) => ({
-            _id: doc._id,
-            _creationTime: doc._creationTime,
-            searchText: doc.searchText,
-            isArchived: doc.isArchived,
-            source: doc.source,
-            primaryRuleScore: doc.primaryRuleScore,
-            age: doc.age,
-            content: doc.content,
-            ingestData: doc.ingestData,
-            analysis: doc.analysis,
-            analyses: doc.analyses,
-            identityKey: doc.identityKey,
-            externalId: doc.externalId,
-            tags: doc.tags,
-            crawledAt: doc.crawledAt,
-        }));
+        // Phase 4 Step 3a: overlay the ACTIVE cold analysis (archived filtered,
+        // legacy hot fallback) so AND-mode search results show scores without
+        // depending on the hot doc's analysis fields. Batched cold fetch avoids N+1.
+        const docsById = new Map<string, Doc<"resumes">>();
+        for (const doc of docs) {
+            if (doc) docsById.set(doc._id, doc);
+        }
+        const coldRows = await Promise.all(
+            [...docsById.keys()].map((id) =>
+                ctx.db
+                    .query("resume_analyses")
+                    .withIndex("by_resume", (q) => q.eq("resumeId", id as Id<"resumes">))
+                    .unique(),
+            ),
+        );
+        const coldById = new Map<string, Doc<"resume_analyses">>();
+        for (const row of coldRows) {
+            if (row && row.status !== "archived") coldById.set(row.resumeId, row);
+        }
+        return [...docsById.values()].map((doc) => {
+            const cold = coldById.get(doc._id);
+            // Active cold row wins; else legacy hot fallback (removed in Step 3c).
+            const analysis = cold ? cold.analysis : doc.analysis;
+            const analyses = cold ? cold.analyses : doc.analyses;
+            return {
+                _id: doc._id,
+                _creationTime: doc._creationTime,
+                searchText: doc.searchText,
+                isArchived: doc.isArchived,
+                source: doc.source,
+                primaryRuleScore: doc.primaryRuleScore,
+                age: doc.age,
+                content: doc.content,
+                ingestData: doc.ingestData,
+                analysis,
+                analyses,
+                identityKey: doc.identityKey,
+                externalId: doc.externalId,
+                tags: doc.tags,
+                crawledAt: doc.crawledAt,
+            };
+        });
+    },
+});
+
+export const getResumeDocsByIdentityKeys = query({
+    args: {
+        identityKeys: v.array(v.string()),
+    },
+    handler: async (ctx, args) => {
+        const keys = Array.from(
+            new Set(
+                args.identityKeys
+                    .map((key) => key.trim())
+                    .filter((key) => key.length > 0)
+            )
+        ).slice(0, 2000);
+        const docs: Doc<"resumes">[] = [];
+        const seenDocIds = new Set<string>();
+
+        for (const key of keys) {
+            let doc = await ctx.db
+                .query("resumes")
+                .withIndex("by_identityKey", (q) => q.eq("identityKey", key))
+                .order("desc")
+                .first();
+
+            if (!doc) {
+                const resumeId = ctx.db.normalizeId("resumes", key);
+                doc = resumeId ? await ctx.db.get(resumeId) : null;
+            }
+
+            if (!doc || doc.isArchived === true || seenDocIds.has(String(doc._id))) {
+                continue;
+            }
+
+            seenDocIds.add(String(doc._id));
+            docs.push(doc);
+        }
+
+        return docs.map((doc) => projectResumeListDoc(doc));
     },
 });
 
@@ -1011,7 +1249,7 @@ export const collectSearchIndexDocIds = internalQuery({
     },
     handler: async (ctx, args) => {
         const page = await ctx.db
-            .query("resumes")
+            .query("resume_digests")
             .withSearchIndex("search_body", (q) => q.search("searchText", args.searchQuery).eq("isArchived", undefined))
             .paginate({
                 cursor: args.cursor ?? null,
@@ -1020,7 +1258,7 @@ export const collectSearchIndexDocIds = internalQuery({
                 maximumRowsRead: PAGINATE_MAX_ROWS_READ,
             });
         return {
-            ids: page.page.map((doc) => String(doc._id)),
+            ids: page.page.map((digest) => String(digest.resumeId)),
             isDone: page.isDone,
             cursor: page.isDone ? null : page.continueCursor,
         };

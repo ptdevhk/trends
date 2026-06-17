@@ -1,5 +1,5 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { requireAdmin } from "../middleware/workspace.js";
+import { requireAdmin } from "../middleware/auth.js";
 import { callConvexQuery, callConvexMutation } from "../services/convex-utils.js";
 import { isRecord } from "@trends/shared";
 import { logger } from "../services/logger.js";

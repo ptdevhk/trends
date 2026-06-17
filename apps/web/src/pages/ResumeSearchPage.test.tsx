@@ -6,7 +6,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ResumeSearchPage } from './ResumeSearchPage'
 import type { ResumeSearchResultItem } from '@/components/search/search-types'
 import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
+import type { AuthUser, WorkspaceRole } from '@/lib/auth'
 import type { UrlSearchState } from '@/hooks/useUrlSearchState'
+
+type AuthMockValue = {
+  user: AuthUser | null
+  workspaceRole: WorkspaceRole | null
+  isAuthenticated: boolean
+  isLoading: boolean
+  login: (username: string, password: string) => Promise<boolean>
+  logout: () => Promise<void>
+  refresh: () => Promise<void>
+}
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -31,6 +42,7 @@ vi.mock('react-i18next', () => ({
         'resumes.searchPage.analysis.analyzeLoaded': 'Analyze loaded {{count}}',
         'resumes.searchPage.analysis.analyzeLoadedResults': 'Analyze loaded results',
         'resumes.searchPage.analysis.analyzing': 'Analyzing...',
+        'resumes.searchPage.readOnly.loginRequired': 'Sign in to rate, update status, add notes, block, export, or run bulk actions.',
       }
       const text = englishTexts[key] ?? key
       return text.replace(/\{\{(\w+)\}\}/g, (_, token: string) => {
@@ -42,10 +54,14 @@ vi.mock('react-i18next', () => ({
 }))
 
 const {
+  apiPostMock,
+  shareLinkButtonPropsMock,
   useIndustryKeywordsMock,
   useAiSearchSummaryMock,
   useResumeSearchStateMock,
 } = vi.hoisted(() => ({
+  apiPostMock: vi.fn(),
+  shareLinkButtonPropsMock: vi.fn(),
   useIndustryKeywordsMock: vi.fn(),
   useAiSearchSummaryMock: vi.fn(),
   useResumeSearchStateMock: vi.fn(),
@@ -55,8 +71,56 @@ const featureFlagsMock = vi.hoisted(() => ({
   resumeAiSummaryEnabled: false,
 }))
 
+const authMock = vi.hoisted((): { value: AuthMockValue } => ({
+  value: {
+    user: { id: 'user-1', displayName: 'Tester', status: 'active' },
+    workspaceRole: 'user',
+    isAuthenticated: true,
+    isLoading: false,
+    login: vi.fn(async () => true),
+    logout: vi.fn(async () => {}),
+    refresh: vi.fn(async () => {}),
+  },
+}))
+
 vi.mock('@/lib/feature-flags', () => ({
   isResumeAiSummaryEnabled: () => featureFlagsMock.resumeAiSummaryEnabled,
+}))
+
+vi.mock('@/contexts/AuthContext', () => ({
+  useAuth: () => authMock.value,
+}))
+
+vi.mock('@/lib/api-helpers', () => ({
+  rawApiClient: {
+    POST: (...args: unknown[]) => apiPostMock(...args),
+  },
+}))
+
+vi.mock('@/components/ShareLinkButton', () => ({
+  ShareLinkButton: (props: {
+    shareTitle: string
+    state: unknown
+    createPublicShare?: (options: {
+      shareTitle: string
+      searchState: unknown
+    }) => Promise<unknown>
+  }) => {
+    shareLinkButtonPropsMock(props)
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          void props.createPublicShare?.({
+            shareTitle: props.shareTitle,
+            searchState: props.state,
+          })
+        }}
+      >
+        Create public share
+      </button>
+    )
+  },
 }))
 
 vi.mock('@/hooks/useAiSearchSummary', () => ({
@@ -284,8 +348,13 @@ vi.mock('@/components/search/SearchResultsList', () => ({
     loading,
     loadingMore,
     showAiScore,
+    onAction,
+    onCandidateStatusChange,
     onLoadMore,
+    onRating,
     onToggleExpanded,
+    onToggleSelect,
+    onToggleBlock,
   }: {
     expandedIds: Set<string>
     hasMore: boolean
@@ -293,14 +362,26 @@ vi.mock('@/components/search/SearchResultsList', () => ({
     loading?: boolean
     loadingMore?: boolean
     showAiScore?: boolean
+    onAction?: () => void
+    onCandidateStatusChange?: () => void
     onLoadMore: () => void
+    onRating?: () => void
     onToggleExpanded: (key: string) => void
+    onToggleSelect?: () => void
+    onToggleBlock?: () => void
   }) => (
     <div>
       <div>
         Results List {items.length} hasMore:{String(hasMore)} loading:
         {String(loading)} loadingMore:{String(loadingMore)} showAiScore:
         {String(showAiScore)} expanded:{Array.from(expandedIds).join('|') || 'none'}
+      </div>
+      <div>
+        Result controls action:{String(Boolean(onAction))} rating:
+        {String(Boolean(onRating))} status:
+        {String(Boolean(onCandidateStatusChange))} block:
+        {String(Boolean(onToggleBlock))} select:
+        {String(Boolean(onToggleSelect))}
       </div>
       {items[0] ? (
         <button type="button" onClick={() => onToggleExpanded(items[0].key)}>
@@ -355,6 +436,7 @@ vi.mock('@/components/BulkActionBar', () => ({
     onBulkAction,
     exportFormat,
     highScoreCount,
+    disabled,
     selectedCount,
     totalCount,
     totalCountIsLowerBound,
@@ -363,19 +445,20 @@ vi.mock('@/components/BulkActionBar', () => ({
     onBulkAction?: (action: string, format?: string) => void
     exportFormat?: string
     highScoreCount?: number
+    disabled?: boolean
     selectedCount?: number
     totalCount?: number
     totalCountIsLowerBound?: boolean
   }) => (
     <div>
-      <div>BulkActionBar {selectedCount}/{totalCount}{totalCountIsLowerBound ? '+' : ''} high:{highScoreCount} fmt:{exportFormat}</div>
+      <div>BulkActionBar {selectedCount}/{totalCount}{totalCountIsLowerBound ? '+' : ''} high:{highScoreCount} fmt:{exportFormat} disabled:{String(Boolean(disabled))}</div>
       {onExportFormatChange && (
-        <button type="button" onClick={() => onExportFormatChange('xlsx')}>
+        <button type="button" disabled={disabled} onClick={() => onExportFormatChange('xlsx')}>
           Change Export Format
         </button>
       )}
       {onBulkAction && (
-        <button type="button" onClick={() => onBulkAction('export', exportFormat)}>
+        <button type="button" disabled={disabled} onClick={() => onBulkAction('export', exportFormat)}>
           Bulk Export
         </button>
       )}
@@ -485,6 +568,7 @@ function createResumeSearchState(overrides: Record<string, unknown> = {}) {
     queryInput: '',
     recentSearches: [],
     searchHistoryLoading: false,
+    sessionKey: 'search-session-1',
     selectedClusterTags: [] as string[],
     selectedRawTags: [] as string[],
     setAiModeEnabled: vi.fn(),
@@ -527,7 +611,24 @@ function createResumeSearchState(overrides: Record<string, unknown> = {}) {
 describe('ResumeSearchPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    apiPostMock.mockResolvedValue({
+      data: {
+        success: true,
+        share: {
+          publicPath: '/s/public-token-1',
+        },
+      },
+    })
     featureFlagsMock.resumeAiSummaryEnabled = false
+    authMock.value = {
+      user: { id: 'user-1', displayName: 'Tester', status: 'active' },
+      workspaceRole: 'user',
+      isAuthenticated: true,
+      isLoading: false,
+      login: vi.fn(async () => true),
+      logout: vi.fn(async () => {}),
+      refresh: vi.fn(async () => {}),
+    }
     useIndustryKeywordsMock.mockReturnValue({
       hotKeywords: [],
       quickStartProfiles: [],
@@ -893,6 +994,59 @@ describe('ResumeSearchPage', () => {
     expect(state.handleBulkAction).toHaveBeenCalledWith('export', 'csv')
   })
 
+  it('keeps anonymous search results read-only and blocks bulk/export candidate operations', async () => {
+    const user = userEvent.setup()
+    authMock.value = {
+      user: null,
+      workspaceRole: null,
+      isAuthenticated: false,
+      isLoading: false,
+      login: vi.fn(async () => false),
+      logout: vi.fn(async () => {}),
+      refresh: vi.fn(async () => {}),
+    }
+    const state = createResumeSearchState({
+      activeQuery: 'CNC Sales',
+      analysisCandidateCount: 1,
+      disableAnalyzeResults: false,
+      filteredResults: [createResult(1)],
+      highScoreCount: 1,
+      isLanding: false,
+      selectedIds: new Set<string>(['resume-1']),
+    })
+    useResumeSearchStateMock.mockReturnValue(state)
+
+    render(<ResumeSearchPage />)
+
+    expect(
+      screen.getByRole('status', {
+        name: 'Sign in to rate, update status, add notes, block, export, or run bulk actions.',
+      }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Result controls action:false rating:false status:false block:false select:false',
+      ),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/BulkActionBar 1\/1 high:1 fmt:csv disabled:true/),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Change Export Format' }),
+    ).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Bulk Export' })).toBeDisabled()
+    expect(
+      screen.getByRole('button', { name: /Analyze loaded 1/i }),
+    ).toBeDisabled()
+
+    await user.click(screen.getByRole('button', { name: 'Bulk Export' }))
+    await user.click(screen.getByRole('button', { name: /Analyze loaded 1/i }))
+
+    expect(state.setExportFormat).not.toHaveBeenCalled()
+    expect(state.handleBulkAction).not.toHaveBeenCalled()
+    expect(state.analyzeResults).not.toHaveBeenCalled()
+  })
+
   it('wires the search-first analyze action into the page controls', async () => {
     const user = userEvent.setup()
     const state = createResumeSearchState({
@@ -911,6 +1065,79 @@ describe('ResumeSearchPage', () => {
     await user.click(screen.getByRole('button', { name: /Analyze loaded 2/i }))
 
     expect(state.analyzeResults).toHaveBeenCalledTimes(1)
+  })
+
+  it('creates a public share from all loaded filtered search results', async () => {
+    const user = userEvent.setup()
+    const filteredResults = Array.from({ length: 101 }, (_, index) => createResult(index + 1))
+    const state = createResumeSearchState({
+      activeQuery: 'CNC 销售',
+      filteredResults,
+      isLanding: false,
+      parsedState: createParsedState({
+        query: 'CNC 销售',
+        location: 'China',
+        keywords: ['CNC', '销售'],
+        filters: {
+          minRoleYears: 1,
+          roleFilterType: 'sales',
+          minAge: 25,
+          maxAge: 40,
+        },
+      }),
+      queryInput: 'CNC 销售',
+      sessionKey: 'session-china-cnc',
+    })
+    useResumeSearchStateMock.mockReturnValue(state)
+
+    render(<ResumeSearchPage />)
+
+    expect(shareLinkButtonPropsMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        shareTitle: 'China · CNC 销售',
+        state: expect.objectContaining({
+          location: 'China',
+          keywords: ['CNC', '销售'],
+          filters: expect.objectContaining({
+            minRoleYears: 1,
+            roleFilterType: 'sales',
+            minAge: 25,
+            maxAge: 40,
+          }),
+        }),
+        createPublicShare: expect.any(Function),
+      }),
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Create public share' }))
+
+    expect(apiPostMock).toHaveBeenCalledWith('/api/public-shares', {
+      body: expect.objectContaining({
+        title: 'China · CNC 销售',
+        sessionId: 'session-china-cnc',
+        search: {
+          query: 'CNC 销售 China',
+          filters: {
+            locations: ['China'],
+            minRoleYears: 1,
+            roleFilterType: 'sales',
+            minAge: 25,
+            maxAge: 40,
+          },
+        },
+        results: expect.any(Array),
+      }),
+    })
+    const request = apiPostMock.mock.calls[0]?.[1] as { body: { results: Array<Record<string, unknown>> } } | undefined
+    expect(request?.body.results).toHaveLength(101)
+    expect(request?.body.results[0]).toMatchObject({
+      resumeKey: 'identity-1',
+      displayName: 'Candidate 1',
+    })
+    expect(request?.body.results[100]).toMatchObject({
+      resumeKey: 'identity-101',
+      displayName: 'Candidate 101',
+    })
   })
 
   it('wires the AI mode toggle and keeps the analyze button disabled while original mode is selected', async () => {

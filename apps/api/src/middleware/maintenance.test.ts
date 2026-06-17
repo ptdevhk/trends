@@ -8,6 +8,7 @@ vi.mock("../services/convex-utils.js", () => ({
 
 import { maintenanceGuard, _resetMaintenanceCache } from "./maintenance.js";
 import { callConvexQuery } from "../services/convex-utils.js";
+import { parseJsonBody } from "../test-utils";
 
 const mockedCallConvexQuery = vi.mocked(callConvexQuery);
 
@@ -51,7 +52,7 @@ describe("maintenanceGuard middleware", () => {
     const app = createApp();
     const res = await app.request("/api/test", { method: "POST" });
     expect(res.status).toBe(503);
-    const body = await res.json();
+    const body = await parseJsonBody<{ success: boolean; error: string }>(res);
     expect(body.success).toBe(false);
     expect(body.error).toContain("Maintenance");
   });

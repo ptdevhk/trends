@@ -1,6 +1,6 @@
 #!/bin/bash
 # Hydrate preview AI runtime env from production env and sync it into preview Convex.
-# Run on ptcloud as root after the preview Convex container is running.
+# Run on the preview host as root after the preview Convex container is running.
 set -euo pipefail
 
 PREVIEW_DIR="${PREVIEW_DIR:-/home/ubuntu/trends-preview}"

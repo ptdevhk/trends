@@ -417,29 +417,35 @@ export const SnippetCard = memo(function SnippetCard({
           showAiScore={showAiScore}
           onViewDetails={onViewDetails ? () => onViewDetails(item) : undefined}
           candidateStatus={candidateStatus}
-          onCandidateStatusChange={(identityKey, nextStatus) => {
-            if (nextStatus === 'interviewed_reject' || nextStatus === 'withdrawn') {
-              setPendingStatus(nextStatus)
-              setNoteInput(statusNotes)
-              setPromptDialogOpen(true)
-              return
+          onCandidateStatusChange={onCandidateStatusChange
+            ? (identityKey, nextStatus) => {
+              if (nextStatus === 'interviewed_reject' || nextStatus === 'withdrawn') {
+                setPendingStatus(nextStatus)
+                setNoteInput(statusNotes)
+                setPromptDialogOpen(true)
+                return
+              }
+              onCandidateStatusChange(identityKey, nextStatus)
             }
-            onCandidateStatusChange?.(identityKey, nextStatus)
-          }}
+            : undefined}
           statusOptions={STATUS_OPTIONS}
           userRating={userRating}
-          onBlockTrigger={() => {
-            if (item.blocked) {
-              onToggleBlock?.(item.identityKey, true)
-            } else {
-              setBlockNoteInput('')
-              setBlockDialogOpen(true)
+          onBlockTrigger={onToggleBlock
+            ? () => {
+              if (item.blocked) {
+                onToggleBlock(item.identityKey, true)
+              } else {
+                setBlockNoteInput('')
+                setBlockDialogOpen(true)
+              }
             }
-          }}
-          onNoteTrigger={() => {
-            setCommentNoteInput(statusNotes)
-            setCommentDialogOpen(true)
-          }}
+            : undefined}
+          onNoteTrigger={onCandidateStatusChange
+            ? () => {
+              setCommentNoteInput(statusNotes)
+              setCommentDialogOpen(true)
+            }
+            : undefined}
         />
         </div>
       ) : null}

@@ -7,7 +7,7 @@ import {
   parseRoleYears,
 } from './work-history.js'
 
-import type { ResumeWorkHistoryItem } from './ingest-compute-service.js'
+import type { ResumeWorkHistoryItem } from '../types/resume.js'
 
 describe('parseRoleYears', () => {
   it('extracts years from a date range string', () => {
@@ -55,6 +55,7 @@ describe('parseRoleYears', () => {
 describe('computeEntryRoleYears', () => {
   it('computes years from structured date range', () => {
     const entry: ResumeWorkHistoryItem = {
+      raw: '',
       companyName: 'Example Co',
       jobTitle: 'Sales Engineer',
       startDate: '2021-03',
@@ -72,7 +73,7 @@ describe('computeEntryRoleYears', () => {
   })
 
   it('returns 0 for empty entry', () => {
-    expect(computeEntryRoleYears({})).toBe(0)
+    expect(computeEntryRoleYears({ raw: '' })).toBe(0)
   })
 
   it('falls back to raw text when structured dates are absent', () => {
@@ -113,8 +114,8 @@ describe('computeWorkHistoryYears', () => {
 
   it('sums years across non-overlapping entries', () => {
     const entries: ResumeWorkHistoryItem[] = [
-      { companyName: 'A', jobTitle: 'Engineer', startDate: '2018-01', endDate: '2020-01' },
-      { companyName: 'B', jobTitle: 'Sales', startDate: '2021-01', endDate: '2024-01' },
+      { raw: '', companyName: 'A', jobTitle: 'Engineer', startDate: '2018-01', endDate: '2020-01' },
+      { raw: '', companyName: 'B', jobTitle: 'Sales', startDate: '2021-01', endDate: '2024-01' },
     ]
     const result = computeWorkHistoryYears(entries)
     expect(result).not.toBeNull()
@@ -123,8 +124,8 @@ describe('computeWorkHistoryYears', () => {
 
   it('merges overlapping date ranges instead of overcounting', () => {
     const entries: ResumeWorkHistoryItem[] = [
-      { companyName: 'A', jobTitle: 'Engineer', startDate: '2020-01', endDate: '2024-01' },
-      { companyName: 'B', jobTitle: 'Sales', startDate: '2022-01', endDate: '2024-06' },
+      { raw: '', companyName: 'A', jobTitle: 'Engineer', startDate: '2020-01', endDate: '2024-01' },
+      { raw: '', companyName: 'B', jobTitle: 'Sales', startDate: '2022-01', endDate: '2024-06' },
     ]
     // True span: 2020-01 to 2024-06 = ~4.4 years
     // Naive sum would be 4 + 2.5 = 6.5 years (overcounts ~2 years of overlap)
@@ -135,8 +136,8 @@ describe('computeWorkHistoryYears', () => {
 
   it('merges fully nested date ranges', () => {
     const entries: ResumeWorkHistoryItem[] = [
-      { companyName: 'A', jobTitle: 'Engineer', startDate: '2018-01', endDate: '2024-01' },
-      { companyName: 'B', jobTitle: 'Sales', startDate: '2020-01', endDate: '2022-01' },
+      { raw: '', companyName: 'A', jobTitle: 'Engineer', startDate: '2018-01', endDate: '2024-01' },
+      { raw: '', companyName: 'B', jobTitle: 'Sales', startDate: '2020-01', endDate: '2022-01' },
     ]
     // B is fully nested inside A; total span is just A = 6 years
     const result = computeWorkHistoryYears(entries)
@@ -146,8 +147,8 @@ describe('computeWorkHistoryYears', () => {
 
   it('merges adjacent but non-overlapping entries without dedup', () => {
     const entries: ResumeWorkHistoryItem[] = [
-      { companyName: 'A', jobTitle: 'Engineer', startDate: '2018-01', endDate: '2020-01' },
-      { companyName: 'B', jobTitle: 'Sales', startDate: '2021-01', endDate: '2024-01' },
+      { raw: '', companyName: 'A', jobTitle: 'Engineer', startDate: '2018-01', endDate: '2020-01' },
+      { raw: '', companyName: 'B', jobTitle: 'Sales', startDate: '2021-01', endDate: '2024-01' },
     ]
     // No overlap: 2 + 3 = 5 years
     const result = computeWorkHistoryYears(entries)
@@ -164,7 +165,7 @@ describe('computeWorkHistoryYears', () => {
 
   it('computes single entry correctly', () => {
     const entries: ResumeWorkHistoryItem[] = [
-      { companyName: 'A', jobTitle: 'Engineer', startDate: '2020-01', endDate: '2024-01' },
+      { raw: '', companyName: 'A', jobTitle: 'Engineer', startDate: '2020-01', endDate: '2024-01' },
     ]
     const result = computeWorkHistoryYears(entries)
     expect(result).not.toBeNull()
@@ -174,7 +175,7 @@ describe('computeWorkHistoryYears', () => {
   it('resolves 至今 (present) end date against anchorDate', () => {
     const anchor = new Date('2026-04-01')
     const entries: ResumeWorkHistoryItem[] = [
-      { companyName: 'A', jobTitle: 'Engineer', startDate: '2023-06', endDate: '至今' },
+      { raw: '', companyName: 'A', jobTitle: 'Engineer', startDate: '2023-06', endDate: '至今' },
     ]
     const result = computeWorkHistoryYears(entries, anchor)
     expect(result).not.toBeNull()
@@ -185,7 +186,7 @@ describe('computeWorkHistoryYears', () => {
   it('treats missing endDate as ongoing via anchorDate', () => {
     const anchor = new Date('2026-01-01')
     const entries: ResumeWorkHistoryItem[] = [
-      { companyName: 'A', jobTitle: 'Engineer', startDate: '2022-01' },
+      { raw: '', companyName: 'A', jobTitle: 'Engineer', startDate: '2022-01' },
     ]
     const result = computeWorkHistoryYears(entries, anchor)
     expect(result).not.toBeNull()
@@ -205,9 +206,9 @@ describe('computeWorkHistoryYears', () => {
 
   it('merges 3+ overlapping intervals correctly', () => {
     const entries: ResumeWorkHistoryItem[] = [
-      { companyName: 'A', jobTitle: 'Engineer', startDate: '2018-01', endDate: '2024-01' },
-      { companyName: 'B', jobTitle: 'Sales', startDate: '2020-01', endDate: '2023-01' },
-      { companyName: 'C', jobTitle: 'Manager', startDate: '2022-01', endDate: '2024-06' },
+      { raw: '', companyName: 'A', jobTitle: 'Engineer', startDate: '2018-01', endDate: '2024-01' },
+      { raw: '', companyName: 'B', jobTitle: 'Sales', startDate: '2020-01', endDate: '2023-01' },
+      { raw: '', companyName: 'C', jobTitle: 'Manager', startDate: '2022-01', endDate: '2024-06' },
     ]
     // A spans 2018-01..2024-01; C extends to 2024-06; B is nested inside A
     // Merged: 2018-01 to 2024-06 = 6.5 years
@@ -218,7 +219,7 @@ describe('computeWorkHistoryYears', () => {
 
   it('rounds result to one decimal place', () => {
     const entries: ResumeWorkHistoryItem[] = [
-      { companyName: 'A', jobTitle: 'Engineer', startDate: '2020-01', endDate: '2020-07' },
+      { raw: '', companyName: 'A', jobTitle: 'Engineer', startDate: '2020-01', endDate: '2020-07' },
     ]
     // 6 months = 0.5 years — already one decimal
     const result = computeWorkHistoryYears(entries)
@@ -241,8 +242,8 @@ describe('computeWorkHistoryYears', () => {
     // start of B (2023-01 = 24133) <= end of A (2023-01 = 24133)
     // → merged into 2020-01..2026-01 = 6 years (continuous employment)
     const entries: ResumeWorkHistoryItem[] = [
-      { companyName: 'A', jobTitle: 'Engineer', startDate: '2020-01', endDate: '2023-01' },
-      { companyName: 'B', jobTitle: 'Manager', startDate: '2023-01', endDate: '2026-01' },
+      { raw: '', companyName: 'A', jobTitle: 'Engineer', startDate: '2020-01', endDate: '2023-01' },
+      { raw: '', companyName: 'B', jobTitle: 'Manager', startDate: '2023-01', endDate: '2026-01' },
     ]
     const result = computeWorkHistoryYears(entries)
     expect(result).not.toBeNull()
@@ -253,8 +254,8 @@ describe('computeWorkHistoryYears', () => {
     // A: 2020-01 to 2022-01, B: 2024-01 to 2026-01
     // 2-year gap between them → total = 2 + 2 = 4 years
     const entries: ResumeWorkHistoryItem[] = [
-      { companyName: 'A', jobTitle: 'Engineer', startDate: '2020-01', endDate: '2022-01' },
-      { companyName: 'B', jobTitle: 'Engineer', startDate: '2024-01', endDate: '2026-01' },
+      { raw: '', companyName: 'A', jobTitle: 'Engineer', startDate: '2020-01', endDate: '2022-01' },
+      { raw: '', companyName: 'B', jobTitle: 'Engineer', startDate: '2024-01', endDate: '2026-01' },
     ]
     const result = computeWorkHistoryYears(entries)
     expect(result).not.toBeNull()
@@ -265,6 +266,7 @@ describe('computeWorkHistoryYears', () => {
 describe('extractCompanyFromWorkHistory', () => {
   it('extracts company name from companyName field', () => {
     const entry: ResumeWorkHistoryItem = {
+      raw: '',
       companyName: '苏州美科生贸易有限公司',
       jobTitle: 'Sales Engineer',
       startDate: '2020-01',
@@ -281,7 +283,7 @@ describe('extractCompanyFromWorkHistory', () => {
   })
 
   it('returns empty string when no company pattern is found', () => {
-    expect(extractCompanyFromWorkHistory({})).toBe('')
+    expect(extractCompanyFromWorkHistory({ raw: '' })).toBe('')
   })
 
   it('extracts company with 集团 suffix', () => {

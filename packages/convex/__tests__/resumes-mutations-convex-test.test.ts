@@ -9,7 +9,7 @@ import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { api, internal } from "../convex/_generated/api.js";
 import schema from "../convex/schema.js";
-import { seedResume } from "./test-helpers.js";
+import { seedResume, seedResumeAnalysesColdRow, getResumeAnalysesColdRow } from "./test-helpers.js";
 
 const modules = (import.meta as any).glob("../**/*.ts", { eager: false });
 
@@ -29,11 +29,12 @@ describe("resumes: updateAnalysis", () => {
             },
         });
 
-        const resume = await t.run(async (ctx) => ctx.db.get(resumeId));
-        expect(resume?.analysis?.score).toBe(85);
-        expect(resume?.analysis?.summary).toBe("Strong candidate");
-        expect(resume?.analysis?.recommendation).toBe("proceed");
-        expect(resume?.analyses).toBeDefined();
+        const coldRow = await getResumeAnalysesColdRow(t, resumeId);
+        expect(coldRow).not.toBeNull();
+        expect(coldRow?.analysis?.score).toBe(85);
+        expect(coldRow?.analysis?.summary).toBe("Strong candidate");
+        expect(coldRow?.analysis?.recommendation).toBe("proceed");
+        expect(coldRow?.analyses).toBeDefined();
     });
 
     it("throws for non-existent resume ID", async () => {
@@ -83,10 +84,10 @@ describe("resumes: updateAnalysisBatch", () => {
             ],
         });
 
-        const r1 = await t.run(async (ctx) => ctx.db.get(id1));
-        const r2 = await t.run(async (ctx) => ctx.db.get(id2));
-        expect(r1?.analysis?.score).toBe(90);
-        expect(r2?.analysis?.score).toBe(40);
+        const cold1 = await getResumeAnalysesColdRow(t, id1);
+        const cold2 = await getResumeAnalysesColdRow(t, id2);
+        expect(cold1?.analysis?.score).toBe(90);
+        expect(cold2?.analysis?.score).toBe(40);
     });
 
     it("skips non-existent resume IDs gracefully", async () => {
@@ -120,8 +121,8 @@ describe("resumes: updateAnalysisBatch", () => {
             ],
         });
 
-        const r1 = await t.run(async (ctx) => ctx.db.get(id1));
-        expect(r1?.analysis?.score).toBe(75);
+        const cold1 = await getResumeAnalysesColdRow(t, id1);
+        expect(cold1?.analysis?.score).toBe(75);
     });
 });
 
@@ -349,9 +350,10 @@ describe("resumes: listResumeScanBatch", () => {
 // ---------------------------------------------------------------------------
 
 describe("resumes: listResumeUsageBatch", () => {
-    it("returns analysis and analyses fields for each resume", async () => {
+    it("sources analysis/analyses from the cold resume_analyses row", async () => {
         const t = convexTest(schema, modules);
-        await seedResume(t, {
+        const resumeId = await seedResume(t);
+        await seedResumeAnalysesColdRow(t, resumeId, {
             analysis: { score: 70, summary: "ok", highlights: [], recommendation: "proceed" },
             analyses: { "jd:test": { score: 70 } },
         });
@@ -359,8 +361,37 @@ describe("resumes: listResumeUsageBatch", () => {
         const result = await t.query(internal.resumes.listResumeUsageBatch, { limit: 10 });
 
         expect(result.page.length).toBeGreaterThanOrEqual(1);
-        expect(result.page[0]).toHaveProperty("analysis");
-        expect(result.page[0]).toHaveProperty("analyses");
+        expect(result.page[0].analysis).toEqual({ score: 70, summary: "ok", highlights: [], recommendation: "proceed" });
+        expect(result.page[0].analyses).toEqual({ "jd:test": { score: 70 } });
+    });
+
+    it("excludes analysis/analyses from archived cold rows (active-only)", async () => {
+        const t = convexTest(schema, modules);
+        const resumeId = await seedResume(t);
+        // An archived row retains stale analysis/analyses (mirrors non-surgical
+        // clearAnalyses), but must NOT contribute — reading without the active
+        // guard would over-count cleared resumes.
+        await seedResumeAnalysesColdRow(t, resumeId, {
+            status: "archived",
+            analysis: { score: 70, summary: "stale", highlights: [], recommendation: "proceed" },
+            analyses: { "jd:test": { score: 70 } },
+        });
+
+        const result = await t.query(internal.resumes.listResumeUsageBatch, { limit: 10 });
+
+        expect(result.page[0].analysis).toBeUndefined();
+        expect(result.page[0].analyses).toBeUndefined();
+    });
+
+    it("returns undefined analysis/analyses for resumes with no cold row", async () => {
+        const t = convexTest(schema, modules);
+        await seedResume(t);
+
+        const result = await t.query(internal.resumes.listResumeUsageBatch, { limit: 10 });
+
+        expect(result.page.length).toBeGreaterThanOrEqual(1);
+        expect(result.page[0].analysis).toBeUndefined();
+        expect(result.page[0].analyses).toBeUndefined();
     });
 
     it("returns empty page when no resumes exist", async () => {
@@ -379,10 +410,12 @@ describe("resumes: listResumeUsageBatch", () => {
 describe("resumes: clearAnalyses", () => {
     it("clears all analysis data for specified resume IDs", async () => {
         const t = convexTest(schema, modules);
-        const resumeId = await seedResume(t, {
-            analysis: { score: 80, summary: "good", highlights: [], recommendation: "proceed" },
-            analyses: { "jd:1": { score: 80 } },
-        });
+        const analysis = { score: 80, summary: "good", highlights: [] as string[], recommendation: "proceed" };
+        const analyses = { "jd:1": { score: 80 } };
+        const resumeId = await seedResume(t, { analysis, analyses });
+        // Phase 4 Step 3a: clear is cold-authoritative — seed the analysis on
+        // the cold row so clearAnalyses has a row to archive.
+        await seedResumeAnalysesColdRow(t, resumeId, { analysis, analyses });
 
         const result = await t.mutation(api.resumes.clearAnalyses, {
             resumeIds: [String(resumeId)],
@@ -391,9 +424,10 @@ describe("resumes: clearAnalyses", () => {
         expect(result.cleared).toBe(1);
         expect(result.hasMore).toBe(false);
 
-        const resume = await t.run(async (ctx) => ctx.db.get(resumeId));
-        expect(resume?.analysis).toBeUndefined();
-        expect(resume?.analyses).toBeUndefined();
+        // Phase 4 Step 3a: a non-surgical clear archives the cold row.
+        const coldRow = await getResumeAnalysesColdRow(t, resumeId);
+        expect(coldRow).not.toBeNull();
+        expect(coldRow?.status).toBe("archived");
     });
 
     it("skips resumes without analysis data", async () => {
@@ -488,6 +522,9 @@ describe("resumes: hardResetIngestData", () => {
             },
             primaryRuleScore: 75,
             searchText: "some search text",
+        });
+        // Phase 4 Step 3a: analysis lives on the cold row; hardReset archives it.
+        await seedResumeAnalysesColdRow(t, resumeId, {
             analysis: { score: 80, summary: "", highlights: [], recommendation: "proceed" },
         });
 
@@ -499,8 +536,11 @@ describe("resumes: hardResetIngestData", () => {
         expect(resume?.ingestData).toBeUndefined();
         expect(resume?.primaryRuleScore).toBeUndefined();
         expect(resume?.searchText).toBeUndefined();
-        expect(resume?.analysis).toBeUndefined();
-        expect(resume?.analyses).toBeUndefined();
+
+        // Phase 4 Step 3a: analysis is cleared by ARCHIVING the cold row.
+        const coldRow = await getResumeAnalysesColdRow(t, resumeId);
+        expect(coldRow).not.toBeNull();
+        expect(coldRow?.status).toBe("archived");
     });
 
     it("skips resumes with no computed fields", async () => {

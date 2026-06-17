@@ -104,6 +104,7 @@
     "reviewPacket": "Review packet",
     "blocked": "Blocked",
     "manageBlocked": "Manage",
+    "statusAll": "All statuses",
     "exportFormat": "Export format",
     "export": "Export"
   },
@@ -450,6 +451,9 @@
         "copyLink": "Copy link",
         "linkCopied": "Link copied",
         "loading": "Loading...",
+        "allStatuses": "All statuses {{count}}",
+        "collectedToday": "Collected today {{count}}",
+        "processedStatuses": "Processed {{count}}",
         "exportFormat": "Export format",
         "exporting": "Exporting...",
         "export": "Export {{count}}"
@@ -467,6 +471,9 @@
         "analyzing": "Analyzing...",
         "analyzeLoaded": "Analyze loaded {{count}}",
         "analyzeLoadedResults": "Analyze loaded results"
+      },
+      "readOnly": {
+        "loginRequired": "Sign in to rate, update status, add notes, block, export, or run bulk actions."
       },
       "aiSummary": {
         "title": "AI result summary",
@@ -943,6 +950,7 @@
     "settingsNavOverview": "Overview",
     "settingsNavOperations": "Operations",
     "settingsNavRuntime": "AI review runtime",
+    "settingsNavAuth": "Auth access",
     "settingsNavConfigSources": "Config sources",
     "settingsNavKeywords": "Keywords",
     "settingsNavLocations": "Locations",
@@ -952,6 +960,26 @@
     "settingsOverviewPageDescription": "Use the local settings navigation above to move directly to runtime, config, keyword, or location management without scrolling through one giant page.",
     "operationsPageDescription": "Live diagnostics and manual collection controls.",
     "runtimePageDescription": "Inspect AI connectivity and review-stage runtime tuning.",
+    "authAccessPageDescription": "Manage provider-derived workspace access and review related auth events.",
+    "authAccessPolicyTitle": "Workspace access policy",
+    "authAccessPolicyDescription": "Review the effective role and permission defaults for this workspace.",
+    "authAccessCurrentRoleTitle": "Current user role",
+    "authAccessCurrentRoleDescription": "Effective workspace role from the active session.",
+    "authAccessRoleEditorDescription": "Backend role mutation APIs are pending; provider preapproval remains available below.",
+    "authAccessRequiredFields": "Provider subject, tenant, and workspace are required",
+    "authAccessGrantFailed": "Failed to grant provider access",
+    "authAccessGrantSaved": "Provider access saved",
+    "authAccessRevokeConfirm": "Revoke this provider-derived workspace access?",
+    "authAccessRevokeFailed": "Failed to revoke provider access",
+    "authAccessRevoked": "Provider access revoked",
+    "authAccessAdminRequired": "Admin access required",
+    "authAccessGrantTitle": "Grant provider access",
+    "authAccessGrantDescription": "Preapprove a Casdoor provider subject for the current workspace.",
+    "authAccessIdentities": "Provider identities",
+    "authAccessPreapprovals": "Preapprovals",
+    "authAccessGrants": "Provider-derived grants",
+    "authAccessEvents": "Recent auth events",
+    "authAccessEventsDescription": "Latest events for the current workspace.",
     "runtimePageMeta": "{{count}} review stages",
     "configSourcesPageDescription": "Inspect read-only prompt and configuration sources.",
     "keywordsPageDescription": "Manage editable keywords and review derived brand data.",
@@ -1579,10 +1607,13 @@
   },
   "shareLink": {
     "button": "Share",
+    "publicButton": "Public share",
     "copiedSearch": "Share link copied",
     "copiedSession": "Session link copied",
+    "copiedPublic": "Public share copied",
     "copyPreparedFailed": "Automatic copy failed. Copy the link below manually.",
     "copyUrlFailed": "Failed to copy link. Copy the URL from the address bar manually.",
+    "createPublicFailed": "Failed to create public share.",
     "retryCopyFailed": "Copy still failed. Copy the link below manually.",
     "dialog": {
       "title": "Copy share link manually",
@@ -1590,6 +1621,24 @@
       "titleLabel": "Share title",
       "urlLabel": "Share link",
       "retryCopy": "Try copying again"
+    },
+    "publicDialog": {
+      "title": "Create public share?",
+      "description": "Create an immutable public snapshot link.",
+      "cancel": "Cancel",
+      "confirm": "Create public share"
     }
+  },
+  "auth": {
+    "loginTitle": "Sign in",
+    "loginSubtitle": "Enter your credentials to continue",
+    "username": "Username",
+    "password": "Password",
+    "signIn": "Sign in",
+    "signingIn": "Signing in...",
+    "loginFailed": "Invalid username or password",
+    "logout": "Sign out",
+    "loginRequired": "Please sign in to continue",
+    "workspaceAccessRequired": "You do not have access to this workspace"
   }
 }

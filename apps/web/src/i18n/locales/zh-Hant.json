@@ -104,6 +104,7 @@
     "reviewPacket": "評審包",
     "blocked": "封鎖",
     "manageBlocked": "管理",
+    "statusAll": "全部狀態",
     "exportFormat": "匯出格式",
     "export": "匯出"
   },
@@ -449,6 +450,9 @@
         "exporting": "匯出中...",
         "export": "匯出 {{count}} 條",
         "loading": "載入中...",
+        "allStatuses": "全部狀態 {{count}}",
+        "collectedToday": "今日採集 {{count}}",
+        "processedStatuses": "已處理 {{count}}",
         "linkCopied": "鏈接已複製",
         "copyFailed": "複製失敗",
         "copyLink": "複製鏈接"
@@ -466,6 +470,9 @@
         "analyzing": "分析中...",
         "analyzeLoaded": "分析已載入的 {{count}} 份",
         "analyzeLoadedResults": "分析已載入結果"
+      },
+      "readOnly": {
+        "loginRequired": "登入後可評分、更新狀態、加入備註、屏蔽、匯出或執行批量操作。"
       },
       "aiSummary": {
         "title": "AI 結果摘要",
@@ -943,6 +950,7 @@
     "settingsNavOverview": "概覽",
     "settingsNavOperations": "執行操作",
     "settingsNavRuntime": "AI 審核執行設定",
+    "settingsNavAuth": "認證訪問",
     "settingsNavConfigSources": "配置來源",
     "settingsNavKeywords": "關鍵詞",
     "settingsNavLocations": "地區配置",
@@ -952,6 +960,26 @@
     "settingsOverviewPageDescription": "使用上方的本地設定導覽，直接進入執行狀態、配置來源、關鍵詞或地區配置頁面，不必再在超長頁面中來回捲動。",
     "operationsPageDescription": "查看即時診斷資訊，並手動觸發採集操作。",
     "runtimePageDescription": "查看 AI 連線狀態與審核階段執行設定。",
+    "authAccessPageDescription": "管理來自身份提供方的工作區訪問，並查看相關認證事件。",
+    "authAccessPolicyTitle": "工作區訪問策略",
+    "authAccessPolicyDescription": "查看此工作區目前生效的角色與權限預設值。",
+    "authAccessCurrentRoleTitle": "目前使用者角色",
+    "authAccessCurrentRoleDescription": "目前工作階段生效的工作區角色。",
+    "authAccessRoleEditorDescription": "角色變更後端介面尚未接入；下方仍可使用提供方預先批准。",
+    "authAccessRequiredFields": "必須填寫提供方主體、租戶和工作區",
+    "authAccessGrantFailed": "授予提供方訪問失敗",
+    "authAccessGrantSaved": "已儲存提供方訪問",
+    "authAccessRevokeConfirm": "確認撤銷此提供方衍生的工作區訪問？",
+    "authAccessRevokeFailed": "撤銷提供方訪問失敗",
+    "authAccessRevoked": "已撤銷提供方訪問",
+    "authAccessAdminRequired": "需要管理員權限",
+    "authAccessGrantTitle": "授予提供方訪問",
+    "authAccessGrantDescription": "為目前工作區預先批准 Casdoor 提供方主體。",
+    "authAccessIdentities": "提供方身份",
+    "authAccessPreapprovals": "預先批准",
+    "authAccessGrants": "提供方衍生授權",
+    "authAccessEvents": "最近認證事件",
+    "authAccessEventsDescription": "目前工作區的最新事件。",
     "runtimePageMeta": "審核階段：{{count}} 個",
     "configSourcesPageDescription": "查看唯讀的提示詞與配置來源。",
     "keywordsPageDescription": "管理可編輯關鍵詞，並查看衍生出的品牌資料。",
@@ -1579,10 +1607,13 @@
   },
   "shareLink": {
     "button": "分享",
+    "publicButton": "公開分享",
     "copiedSearch": "已複製分享連結",
     "copiedSession": "已複製會話連結",
+    "copiedPublic": "已複製公開分享連結",
     "copyPreparedFailed": "自動複製失敗，請手動複製下方連結。",
     "copyUrlFailed": "複製連結失敗，請手動複製地址列 URL。",
+    "createPublicFailed": "建立公開分享失敗。",
     "retryCopyFailed": "自動複製仍然失敗，請手動複製下方連結。",
     "dialog": {
       "title": "手動複製分享連結",
@@ -1590,6 +1621,24 @@
       "titleLabel": "分享標題",
       "urlLabel": "分享連結",
       "retryCopy": "再試一次複製"
+    },
+    "publicDialog": {
+      "title": "建立公開分享？",
+      "description": "建立不可變的公開快照連結。",
+      "cancel": "取消",
+      "confirm": "建立公開分享"
     }
+  },
+  "auth": {
+    "loginTitle": "登入",
+    "loginSubtitle": "請輸入憑證以繼續",
+    "username": "使用者名稱",
+    "password": "密碼",
+    "signIn": "登入",
+    "signingIn": "登入中...",
+    "loginFailed": "使用者名稱或密碼錯誤",
+    "logout": "登出",
+    "loginRequired": "請先登入",
+    "workspaceAccessRequired": "您沒有此工作區的存取權限"
   }
 }

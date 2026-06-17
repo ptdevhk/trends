@@ -1228,7 +1228,7 @@ start_convex() {
     local root_env_local="$PROJECT_ROOT/.env.local"
     local selected_backend_version=""
     local cached_backend_version=""
-    local force_upgrade_raw="${CONVEX_LOCAL_FORCE_UPGRADE:-true}"
+    local force_upgrade_raw="${CONVEX_LOCAL_FORCE_UPGRADE:-false}"
     local force_upgrade_enabled="false"
     local prefetch_script="$SCRIPT_DIR/prefetch-convex-backend.sh"
     local startup_retries_raw="${CONVEX_STARTUP_RETRIES:-1}"
@@ -1238,7 +1238,7 @@ start_convex() {
     local total_attempts=2
     local attempt=1
     local use_force_upgrade_for_attempt="false"
-    local local_mode_requested="false"
+    local local_mode_requested="true"
     local command_str=""
     local timeout="${CONVEX_STARTUP_TIMEOUT:-120}"
     local convex_log=""
@@ -1369,8 +1369,8 @@ start_convex() {
             force_upgrade_enabled="false"
             ;;
         *)
-            log "CONVEX" "$YELLOW" "Invalid CONVEX_LOCAL_FORCE_UPGRADE='$force_upgrade_raw'. Expected true or false; defaulting to true."
-            force_upgrade_enabled="true"
+            log "CONVEX" "$YELLOW" "Invalid CONVEX_LOCAL_FORCE_UPGRADE='$force_upgrade_raw'. Expected true or false; defaulting to false."
+            force_upgrade_enabled="false"
             ;;
     esac
 
@@ -1644,6 +1644,7 @@ print_usage() {
     echo "Usage: $0 [OPTIONS]"
     echo ""
     echo "Options:"
+    echo "  --convex-only Start only local Convex dev backend"
     echo "  --mcp-only    Start only MCP server"
     echo "  --crawl-only  Run crawler only (no long-running services)"
     echo "  --skip-crawl  Skip initial crawl and start servers immediately (default)"
@@ -1672,7 +1673,7 @@ print_usage() {
     echo "  CONVEX_STARTUP_RETRIES Additional Convex startup retries after first failure (default: 1)"
     echo "  CONVEX_RETRY_DELAY_SECS Delay between Convex startup attempts in seconds (default: 2)"
     echo "  CONVEX_LOCAL_BACKEND_VERSION Explicit Convex local backend version override"
-    echo "  CONVEX_LOCAL_FORCE_UPGRADE Enable --local-force-upgrade on first attempt: true|false (default: true)"
+    echo "  CONVEX_LOCAL_FORCE_UPGRADE Enable --local-force-upgrade on first attempt: true|false (default: false)"
     echo "  CONVEX_SKIP_PREWARM  Skip the pre-startup backend prewarm step (true|1 to opt out; auto-skipped when CONVEX_LOCAL_BACKEND_STARTUP_TIMEOUT_SECS >= 120)"
     echo "  CONVEX_PREWARM_TIMEOUT Max seconds prewarm waits for port 3210 to bind (default: 120)"
     echo "  GITHUB_TOKEN / GH_TOKEN Optional GitHub token for Convex startup and prefetch metadata requests"
@@ -1699,6 +1700,10 @@ main() {
 
     while [[ $# -gt 0 ]]; do
         case $1 in
+            --convex-only)
+                services=("convex")
+                shift
+                ;;
             --mcp-only)
                 services=("mcp")
                 shift

@@ -514,6 +514,7 @@ export async function replayCandidateState(params: {
               status: entry.status,
               notes: entry.notes,
               updatedBy: entry.updatedBy,
+              writeSecret: config.auth.convexWriteSecret,
             },
           }),
         });

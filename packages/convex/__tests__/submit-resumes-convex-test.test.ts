@@ -10,7 +10,7 @@
  *
  * Uses convex-test with real schema validation — no mocks.
  */
-import { createTest } from "./test-helpers.js";
+import { createTest, getResumeAnalysesColdRow } from "./test-helpers.js";
 import { describe, expect, it } from "vitest";
 import { api } from "../convex/_generated/api.js";
 
@@ -250,9 +250,12 @@ describe("resume_tasks: submitResumes — restoreState", () => {
     const resumes = await t.run(async (ctx) => {
       return ctx.db.query("resumes").collect();
     });
-    expect(resumes[0].analysis).toBeDefined();
-    expect(resumes[0].analysis!.score).toBe(85);
-    expect(resumes[0].analysis!.summary).toBe("Strong candidate with relevant experience");
+    // Phase 4 Step 3a: restoreState analysis is written to the cold row, not hot.
+    const coldRow = await getResumeAnalysesColdRow(t, resumes[0]._id);
+    expect(coldRow).not.toBeNull();
+    expect(coldRow?.analysis).toBeDefined();
+    expect(coldRow?.analysis?.score).toBe(85);
+    expect(coldRow?.analysis?.summary).toBe("Strong candidate with relevant experience");
   });
 
   it("applies analyses from restoreState with typed validator", async () => {
@@ -289,7 +292,11 @@ describe("resume_tasks: submitResumes — restoreState", () => {
     const resumes = await t.run(async (ctx) => {
       return ctx.db.query("resumes").collect();
     });
-    expect(resumes[0].analyses).toBeDefined();
+    // Phase 4 Step 3a: restoreState analyses are written to the cold row, not hot.
+    const coldRow = await getResumeAnalysesColdRow(t, resumes[0]._id);
+    expect(coldRow).not.toBeNull();
+    expect(coldRow?.analyses).toBeDefined();
+    expect(Object.keys(coldRow?.analyses ?? {})).toContain("source:test|analysis:jd-1");
   });
 
   it("rejects restoreState with invalid analysis shape", async () => {

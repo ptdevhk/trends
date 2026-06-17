@@ -4,6 +4,9 @@ import { createApp } from "../app";
 import { MatchStorage, type StoredMatch } from "../services/match-storage";
 import { ResumeService } from "../services/resume-service";
 import { SessionManager } from "../services/session-manager";
+import { logger } from "../services/logger";
+import { parseJsonBody } from "../test-utils";
+import { createAuthContext } from "./test-auth-helpers";
 
 type ConvexCall = {
   pathName: string;
@@ -15,7 +18,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function parseConvexCall(
-  input: RequestInfo | URL,
+  input: Request | string | URL,
   init?: RequestInit,
   expectedEndpoint?: "/api/query" | "/api/mutation" | "/api/action",
 ): ConvexCall {
@@ -62,6 +65,14 @@ function convexSuccess(value: unknown): Response {
       },
     }
   );
+}
+
+function createTestApp(
+  authContext: ReturnType<typeof createAuthContext> | null = createAuthContext({ workspaceSlug: "dev", role: "admin" }),
+) {
+  return createApp({
+    authContext: authContext ?? undefined,
+  });
 }
 
 function buildConvexResumeRecord(
@@ -188,7 +199,7 @@ describe("resume routes", () => {
       indexes: new Map(),
     });
 
-    const app = createApp();
+    const app = createTestApp();
     const response = await app.request("/api/resumes/sample-resume-1?source=sample");
 
     expect(response.status).toBe(200);
@@ -253,7 +264,7 @@ describe("resume routes", () => {
       });
     });
 
-    const app = createApp();
+    const app = createTestApp();
     const response = await app.request("/api/resumes/resume-live-1?source=convex");
 
     expect(response.status).toBe(200);
@@ -340,11 +351,11 @@ describe("resume routes", () => {
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
-    const app = createApp();
+    const app = createTestApp();
     const response = await app.request("/api/resumes?source=convex&q=CNC%20%E9%94%80%E5%94%AE&limit=5");
 
     expect(response.status).toBe(200);
-    const payload = await response.json();
+    const payload = await parseJsonBody<{ success: unknown; summary: Record<string, unknown>; data: unknown[] }>(response);
     expect(payload.success).toBe(true);
     expect(payload.summary.source).toBe("convex");
     expect(payload.summary.keywordGroups).toEqual(
@@ -437,7 +448,7 @@ describe("resume routes", () => {
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
-    const app = createApp();
+    const app = createTestApp(createAuthContext({ workspaceSlug: "hr", role: "admin" }));
     const response = await app.request("/api/resumes?source=convex&q=cnc%20sales&limit=5", {
       headers: {
         "X-Workspace-Slug": "hr",
@@ -445,7 +456,7 @@ describe("resume routes", () => {
     });
 
     expect(response.status).toBe(200);
-    const payload = await response.json();
+    const payload = await parseJsonBody<{ summary: Record<string, unknown> }>(response);
     expect(payload.summary.statusCounts).toMatchObject({
       new: 1,
       shortlisted: 0,
@@ -456,8 +467,11 @@ describe("resume routes", () => {
   });
 
   it("filters convex resume results by requested candidate status", async () => {
+    const calls: ConvexCall[] = [];
+
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const call = parseConvexCall(input, init);
+      calls.push(call);
 
       if (call.pathName === "resumes_search:scanResumeDigestPage") {
         return convexSuccess({
@@ -465,6 +479,7 @@ describe("resume routes", () => {
             { _id: "d1", resumeId: "resume-visible-new", source: "seek", sourceKey: "seek", searchText: "cnc sales", isArchived: false },
             { _id: "d2", resumeId: "resume-blocked-new", source: "seek", sourceKey: "seek", searchText: "cnc sales", isArchived: false },
             { _id: "d3", resumeId: "resume-visible-rejected", source: "seek", sourceKey: "seek", searchText: "cnc sales", isArchived: false },
+            { _id: "d4", resumeId: "k172rcvmvqj4hhn98r74r3brps82v28b", source: "seek", sourceKey: "seek", searchText: "cnc sales", isArchived: false },
           ],
           isDone: true,
           cursor: null,
@@ -497,16 +512,27 @@ describe("resume routes", () => {
             searchText: "cnc sales",
             isArchived: false,
           },
+          {
+            ...buildConvexResumeRecord("k172rcvmvqj4hhn98r74r3brps82v28b", {
+              identityKey: "ik-interviewed-pass",
+              name: "周先生",
+            }),
+            searchText: "cnc sales",
+            isArchived: false,
+          },
         ]);
       }
 
       if (call.pathName === "candidate_status:list") {
+        expect(call.args).toEqual(expect.objectContaining({ workspaceSlug: "hr" }));
         return convexSuccess([
           { identityKey: "ik-visible-rejected", status: "rejected" },
+          { identityKey: "ik-interviewed-pass", status: "interviewed_pass" },
         ]);
       }
 
       if (call.pathName === "candidate_blocks:list") {
+        expect(call.args).toEqual(expect.objectContaining({ workspaceSlug: "hr" }));
         return convexSuccess([
           { identityKey: "ik-blocked-new" },
         ]);
@@ -515,7 +541,7 @@ describe("resume routes", () => {
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
-    const app = createApp();
+    const app = createTestApp(createAuthContext({ workspaceSlug: "hr", role: "admin" }));
     const response = await app.request("/api/resumes?source=convex&q=cnc%20sales&limit=5&status=new", {
       headers: {
         "X-Workspace-Slug": "hr",
@@ -523,20 +549,162 @@ describe("resume routes", () => {
     });
 
     expect(response.status).toBe(200);
-    const payload = await response.json();
+    const payload = await parseJsonBody<{ summary: Record<string, unknown>; data: unknown[] }>(response);
     expect(payload.summary.total).toBe(1);
     expect(payload.summary.returned).toBe(1);
     expect(payload.summary.statusCounts).toMatchObject({
       new: 1,
       shortlisted: 0,
       rejected: 1,
+      interviewed_pass: 1,
     });
     expect(payload.data).toHaveLength(1);
     expect(payload.data[0]).toEqual(expect.objectContaining({ name: "Visible New" }));
+    expect(calls.some((call) => call.pathName === "candidate_blocks:list")).toBe(true);
+  });
+
+  it("omits operational statusCounts for anonymous hr convex search", async () => {
+    const calls: ConvexCall[] = [];
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+
+      if (call.pathName === "resumes:listWithIngestDataPage") {
+        return convexSuccess({
+          results: [
+            buildConvexResumeRecord("resume-live-1", {
+              identityKey: "ik-live-1",
+              name: "Anonymous Visible",
+            }),
+          ],
+          total: 1,
+        });
+      }
+
+      if (call.pathName === "candidate_status:list" || call.pathName === "candidate_blocks:list") {
+        return convexSuccess([]);
+      }
+
+      throw new Error(`Unexpected convex path: ${call.pathName}`);
+    });
+
+    const app = createTestApp(null);
+    const response = await app.request("/api/resumes?source=convex&limit=1", {
+      headers: {
+        "X-Workspace-Slug": "hr",
+      },
+    });
+
+    expect(response.status).toBe(200);
+    const payload = await parseJsonBody<{ summary: Record<string, unknown> }>(response);
+    expect(payload.summary.statusCounts).toBeUndefined();
+    expect(calls).toEqual([
+      expect.objectContaining({
+        pathName: "resumes:listWithIngestDataPage",
+      }),
+    ]);
+  });
+
+  it("allows anonymous hr convex search with BFF AND-mode filters", async () => {
+    const calls: ConvexCall[] = [];
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+
+      if (call.pathName === "resumes_search:scanResumeDigestPage") {
+        return convexSuccess({
+          docs: [
+            {
+              _id: "d1",
+              resumeId: "resume-live-1",
+              source: "seek",
+              sourceKey: "seek",
+              searchText: "cnc sales",
+              locationText: "China",
+              roleSignals: [{ type: "sales", years: 3 }],
+              isArchived: false,
+            },
+          ],
+          isDone: true,
+          cursor: null,
+        });
+      }
+
+      if (call.pathName === "resumes_search:getResumeDocsByIds") {
+        return convexSuccess([
+          {
+            ...buildConvexResumeRecord("resume-live-1", {
+              identityKey: "ik-live-1",
+              name: "Anonymous Search Result",
+              location: "China",
+              ingestData: {
+                roleSignals: [
+                  {
+                    type: "sales",
+                    matchedSignals: ["sales"],
+                    years: 3,
+                    industryVerifiedYears: 3,
+                    signalCount: 1,
+                    occurrences: 1,
+                    verifyIn: "workHistory",
+                  },
+                ],
+              },
+            }),
+            searchText: "cnc sales",
+            isArchived: false,
+          },
+        ]);
+      }
+
+      if (call.pathName === "candidate_status:list" || call.pathName === "candidate_blocks:list") {
+        throw new Error(`Anonymous search should not load operational overlays: ${call.pathName}`);
+      }
+
+      throw new Error(`Unexpected convex path: ${call.pathName}`);
+    });
+
+    const app = createTestApp(null);
+    const response = await app.request(
+      "/api/resumes?q=cnc%20sales&source=convex&paged=true&minRoleYears=1&roleFilterType=sales&locations=China",
+      {
+        headers: {
+          "X-Workspace-Slug": "hr",
+        },
+      },
+    );
+
+    expect(response.status).toBe(200);
+    const payload = await parseJsonBody<{ success: unknown; summary: Record<string, unknown> }>(response);
+    expect(payload.success).toBe(true);
+    expect(payload.summary.statusCounts).toBeUndefined();
+    expect(calls.map((call) => call.pathName)).toEqual([
+      "resumes_search:scanResumeDigestPage",
+      "resumes_search:getResumeDocsByIds",
+    ]);
+  });
+
+  it("rejects anonymous dev convex search with BFF AND-mode filters", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("Convex should not be called"));
+
+    const app = createTestApp(null);
+    const response = await app.request(
+      "/api/resumes?q=cnc%20sales&source=convex&paged=true&minRoleYears=1&roleFilterType=sales&locations=China",
+      {
+        headers: {
+          "X-Workspace-Slug": "dev",
+        },
+      },
+    );
+
+    expect(response.status).toBe(401);
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it("keeps the static skills-version route from being shadowed by resume detail lookup", async () => {
-    const app = createApp();
+    const app = createTestApp();
     const response = await app.request("/api/resumes/skills-version");
 
     expect(response.status).toBe(200);
@@ -582,7 +750,7 @@ describe("resume routes", () => {
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
-    const app = createApp();
+    const app = createTestApp();
     const response = await app.request(
       "/api/resumes/diagnostics?archived=true&sourceKey=51job-manual&sourceKey=seek&limit=25"
     );
@@ -656,7 +824,7 @@ describe("resume routes", () => {
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
-    const app = createApp();
+    const app = createTestApp();
     const response = await app.request("/api/resumes/match", {
       method: "POST",
       headers: {
@@ -673,7 +841,7 @@ describe("resume routes", () => {
     });
 
     expect(response.status).toBe(200);
-    const payload = await response.json();
+    const payload = await parseJsonBody<{ query: Record<string, unknown>; results: unknown[] }>(response);
     expect(payload.query).toEqual(
       expect.objectContaining({
         source: "convex",
@@ -735,11 +903,11 @@ describe("resume routes", () => {
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
-    const app = createApp();
+    const app = createTestApp();
     const response = await app.request("/api/resumes?source=convex&limit=2&offset=2");
 
     expect(response.status).toBe(200);
-    const payload = await response.json();
+    const payload = await parseJsonBody<{ success: unknown; summary: Record<string, unknown>; data: { name: string; ingestData?: unknown }[] }>(response);
     expect(payload.success).toBe(true);
     expect(payload.summary).toEqual(expect.objectContaining({
       total: 4,
@@ -795,11 +963,11 @@ describe("resume routes", () => {
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
-    const app = createApp();
+    const app = createTestApp();
     const response = await app.request("/api/resumes?source=convex&q=cnc%20sales&limit=2&offset=2");
 
     expect(response.status).toBe(200);
-    const payload = await response.json();
+    const payload = await parseJsonBody<{ success: unknown; summary: Record<string, unknown>; data: { name: string }[] }>(response);
     expect(payload.success).toBe(true);
     expect(payload.summary).toEqual(expect.objectContaining({
       total: 4,
@@ -845,11 +1013,11 @@ describe("resume routes", () => {
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
-    const app = createApp();
+    const app = createTestApp();
     const response = await app.request("/api/resumes?source=convex&q=cnc%20sales&limit=2&offset=2&sortBy=name&sortOrder=desc");
 
     expect(response.status).toBe(200);
-    const payload = await response.json();
+    const payload = await parseJsonBody(response);
     expect(payload.success).toBe(true);
     expect(calls[0]).toEqual(expect.objectContaining({
       pathName: "resumes_search:scanResumeDigestPage",
@@ -923,13 +1091,13 @@ describe("resume routes", () => {
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
-    const app = createApp();
+    const app = createTestApp();
     const response = await app.request(
       "/api/resumes?source=convex&q=%22machine%20tools%22&locations=Kuala%20Lumpur%20MY&jobDescriptionId=seek-malaysia-sales&limit=5"
     );
 
     expect(response.status).toBe(200);
-    const payload = await response.json();
+    const payload = await parseJsonBody<{ success: unknown; summary: Record<string, unknown>; data: { name: string }[] }>(response);
     expect(payload.success).toBe(true);
     expect(payload.summary).toEqual(expect.objectContaining({
       total: 2,
@@ -988,14 +1156,14 @@ describe("resume routes", () => {
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
-    const app = createApp();
+    const app = createTestApp();
     const response = await app.request("/api/resumes?source=convex&q=cnc%20sales&limit=2&requiredKeywords=machine%20tools,CNC");
 
     expect(response.status).toBe(200);
     // AND-mode now uses scanResumeDigestPage instead of the action
     expect(calls.some((c) => c.pathName === "resumes_search:scanResumeDigestPage")).toBe(true);
     // Required keywords are applied as local filters in BFF AND-mode path
-    const payload = await response.json();
+    const payload = await parseJsonBody(response);
     expect(payload.success).toBe(true);
   });
 
@@ -1019,11 +1187,11 @@ describe("resume routes", () => {
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
-    const app = createApp();
+    const app = createTestApp();
     const response = await app.request("/api/resumes?source=convex&limit=2&offset=2&locations=%E4%B8%9C%E8%8E%9E&requiredKeywords=CNC");
 
     expect(response.status).toBe(200);
-    const payload = await response.json();
+    const payload = await parseJsonBody<{ success: unknown; data: { name: string }[] }>(response);
     expect(payload.success).toBe(true);
     expect(payload.data.map((item: { name: string }) => item.name)).toEqual(["Carla", "Dylan"]);
     expect(calls[0]).toEqual(expect.objectContaining({
@@ -1052,11 +1220,11 @@ describe("resume routes", () => {
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
-    const app = createApp();
+    const app = createTestApp();
     const response = await app.request("/api/resumes?source=convex&limit=2&offset=2&sortBy=experience");
 
     expect(response.status).toBe(200);
-    const payload = await response.json();
+    const payload = await parseJsonBody(response);
     expect(payload.success).toBe(true);
     expect(calls[0]).toEqual(expect.objectContaining({
       pathName: "resumes:listWithIngestDataPage",
@@ -1106,13 +1274,13 @@ describe("resume routes", () => {
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
-    const app = createApp();
+    const app = createTestApp();
     const response = await app.request(
       "/api/resumes?source=convex&limit=1&offset=1&sortBy=score&jobDescriptionId=jd-1&locations=%E4%B8%9C%E8%8E%9E"
     );
 
     expect(response.status).toBe(200);
-    const payload = await response.json();
+    const payload = await parseJsonBody<{ success: unknown; summary: Record<string, unknown>; data: { name: string }[] }>(response);
     expect(payload.success).toBe(true);
     expect(payload.summary).toEqual(expect.objectContaining({
       total: 2,
@@ -1179,13 +1347,13 @@ describe("resume routes", () => {
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
-    const app = createApp();
+    const app = createTestApp();
     const response = await app.request(
       "/api/resumes?source=convex&limit=1&offset=1&sortBy=score&jobDescriptionId=jd-1&q=cnc%20sales&locations=%E4%B8%9C%E8%8E%9E"
     );
 
     expect(response.status).toBe(200);
-    const payload = await response.json();
+    const payload = await parseJsonBody<{ success: unknown; summary: Record<string, unknown>; data: { name: string }[] }>(response);
     expect(payload.success).toBe(true);
     expect(payload.summary).toEqual(expect.objectContaining({
       total: 2,
@@ -1234,11 +1402,11 @@ describe("resume routes", () => {
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
-    const app = createApp();
+    const app = createTestApp();
     const response = await app.request("/api/resumes?source=convex&limit=1&offset=1&sortBy=score&jobDescriptionId=jd-1&q=cnc%20sales");
 
     expect(response.status).toBe(200);
-    const payload = await response.json();
+    const payload = await parseJsonBody<{ success: unknown; summary: Record<string, unknown>; data: { name: string }[] }>(response);
     expect(payload.success).toBe(true);
     expect(payload.summary).toEqual(expect.objectContaining({
       total: 2,
@@ -1291,11 +1459,11 @@ describe("resume routes", () => {
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
-    const app = createApp();
+    const app = createTestApp();
     const response = await app.request("/api/resumes?source=convex&limit=2&sortBy=score&jobDescriptionId=jd-1&q=cnc%20sales");
 
     expect(response.status).toBe(200);
-    const payload = await response.json();
+    const payload = await parseJsonBody<{ success: unknown; data: { name: string }[] }>(response);
     expect(payload.success).toBe(true);
     expect(payload.data.map((item: { name: string }) => item.name)).toEqual(["Carla", "Alice"]);
     expect(getMatchesPageSpy).not.toHaveBeenCalled();
@@ -1407,11 +1575,11 @@ describe("resume routes", () => {
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
-    const app = createApp();
+    const app = createTestApp();
     const response = await app.request("/api/resumes?source=convex&limit=2&sortBy=score&jobDescriptionId=jd-1&q=cnc%20sales");
 
     expect(response.status).toBe(200);
-    const payload = await response.json();
+    const payload = await parseJsonBody<{ success: unknown; summary: Record<string, unknown>; data: { name: string }[] }>(response);
     expect(payload.success).toBe(true);
     expect(payload.summary).toEqual(expect.objectContaining({
       total: 2,
@@ -1464,13 +1632,13 @@ describe("resume routes", () => {
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
-    const app = createApp();
+    const app = createTestApp();
     const response = await app.request(
       "/api/resumes?source=convex&limit=2&jobDescriptionId=jd-1&q=cnc%20sales&minMatchScore=70&sortBy=name&sortOrder=desc"
     );
 
     expect(response.status).toBe(200);
-    const payload = await response.json();
+    const payload = await parseJsonBody<{ success: unknown; summary: Record<string, unknown>; data: { name: string }[] }>(response);
     expect(payload.success).toBe(true);
     expect(payload.summary).toEqual(expect.objectContaining({
       total: 3,
@@ -1519,11 +1687,11 @@ describe("resume routes", () => {
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
-    const app = createApp();
+    const app = createTestApp();
     const response = await app.request("/api/resumes?source=convex&limit=2&offset=2&sortBy=score&jobDescriptionId=jd-1");
 
     expect(response.status).toBe(200);
-    const payload = await response.json();
+    const payload = await parseJsonBody<{ success: unknown; summary: Record<string, unknown>; data: { name: string }[] }>(response);
     expect(payload.success).toBe(true);
     expect(payload.summary).toEqual(expect.objectContaining({
       total: 4,
@@ -1574,11 +1742,11 @@ describe("resume routes", () => {
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
-    const app = createApp();
+    const app = createTestApp();
     const response = await app.request("/api/resumes?source=convex&limit=2&jobDescriptionId=jd-1&minMatchScore=70");
 
     expect(response.status).toBe(200);
-    const payload = await response.json();
+    const payload = await parseJsonBody<{ success: unknown; summary: Record<string, unknown>; data: { name: string }[] }>(response);
     expect(payload.success).toBe(true);
     expect(payload.summary).toEqual(expect.objectContaining({
       total: 2,
@@ -1635,13 +1803,13 @@ describe("resume routes", () => {
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
-    const app = createApp();
+    const app = createTestApp();
     const response = await app.request(
       "/api/resumes?source=convex&limit=2&jobDescriptionId=jd-1&recommendation=strong_match,match"
     );
 
     expect(response.status).toBe(200);
-    const payload = await response.json();
+    const payload = await parseJsonBody<{ success: unknown; summary: Record<string, unknown>; data: { name: string }[] }>(response);
     expect(payload.success).toBe(true);
     expect(payload.summary).toEqual(expect.objectContaining({
       total: 2,
@@ -1690,7 +1858,7 @@ describe("resume routes", () => {
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
-    const app = createApp();
+    const app = createTestApp();
     const response = await app.request("/api/resumes/analyze", {
       method: "POST",
       headers: {
@@ -1757,7 +1925,7 @@ describe("resume routes", () => {
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
-    const app = createApp();
+    const app = createTestApp();
     const response = await app.request("/api/resumes/analyze", {
       method: "POST",
       headers: {
@@ -1811,7 +1979,7 @@ describe("resume routes", () => {
       return convexSuccess({ cleared: 1, hasMore: false, cursor: null });
     });
 
-    const app = createApp();
+    const app = createTestApp();
     const response = await app.request("/api/resumes/clear-analyses", {
       method: "POST",
       headers: {
@@ -1860,7 +2028,7 @@ describe("resume routes", () => {
       return convexSuccess({ cleared: 1, hasMore: false, cursor: null });
     });
 
-    const app = createApp();
+    const app = createTestApp();
     const response = await app.request("/api/resumes/clear-analyses", {
       method: "POST",
       headers: {
@@ -1881,7 +2049,7 @@ describe("resume routes", () => {
   });
 
   it("rejects convex or read-only match-stream requests", async () => {
-    const app = createApp();
+    const app = createTestApp();
 
     const convexResponse = await app.request("/api/resumes/match-stream", {
       method: "POST",
@@ -1929,7 +2097,7 @@ describe("resume routes", () => {
         });
       });
 
-      const app = createApp();
+      const app = createTestApp();
       const response = await app.request("/api/resumes/explanation", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1937,7 +2105,7 @@ describe("resume routes", () => {
       });
 
       expect(response.status).toBe(200);
-      const payload = await response.json();
+      const payload = await parseJsonBody<{ success: unknown; data: { summary?: string; keyFactors: unknown[]; scrubbedFields?: unknown[]; protectedAttributesExcluded?: unknown } }>(response);
       expect(payload.success).toBe(true);
       expect(payload.data.summary).toBe("Candidate scored 85/100 for CNC operator role.");
       expect(payload.data.keyFactors.length).toBe(2);
@@ -1951,7 +2119,7 @@ describe("resume routes", () => {
         return convexSuccess(null);
       });
 
-      const app = createApp();
+      const app = createTestApp();
       const response = await app.request("/api/resumes/explanation", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1959,13 +2127,48 @@ describe("resume routes", () => {
       });
 
       expect(response.status).toBe(200);
-      const payload = await response.json();
+      const payload = await parseJsonBody(response);
       expect(payload.success).toBe(true);
       expect(payload.data).toBeNull();
     });
 
+    it("returns null data when Convex rejects an invalid resume id", async () => {
+      const loggerWarnSpy = vi.spyOn(logger, "warn").mockImplementation(() => {});
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+        const call = parseConvexCall(input, init);
+        expect(call.pathName).toBe("audit:getExplanationForCandidate");
+        expect(call.args).toEqual({ resumeId: "seek-profile-001", workspaceSlug: "dev" });
+        return new Response(
+          JSON.stringify({
+            status: "error",
+            errorMessage: 'Value does not match validator. Path: .resumeId Validator: v.id("resumes")',
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        );
+      });
+
+      const app = createTestApp();
+      const response = await app.request("/api/resumes/explanation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ resumeId: "seek-profile-001", workspaceSlug: "dev" }),
+      });
+
+      expect(response.status).toBe(200);
+      const payload = await parseJsonBody(response);
+      expect(payload.success).toBe(true);
+      expect(payload.data).toBeNull();
+      expect(loggerWarnSpy).toHaveBeenCalledWith(
+        "Candidate explanation requested with a non-Convex resume id",
+        { route: "resumes" },
+      );
+    });
+
     it("returns 400 when resumeId is missing", async () => {
-      const app = createApp();
+      const app = createTestApp();
       const response = await app.request("/api/resumes/explanation", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1973,12 +2176,12 @@ describe("resume routes", () => {
       });
 
       expect(response.status).toBe(400);
-      const payload = await response.json();
+      const payload = await parseJsonBody(response);
       expect(payload.success).toBe(false);
     });
 
     it("returns 400 when workspaceSlug is missing", async () => {
-      const app = createApp();
+      const app = createTestApp();
       const response = await app.request("/api/resumes/explanation", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1986,11 +2189,12 @@ describe("resume routes", () => {
       });
 
       expect(response.status).toBe(400);
-      const payload = await response.json();
+      const payload = await parseJsonBody(response);
       expect(payload.success).toBe(false);
     });
 
     it("returns 500 when Convex call fails", async () => {
+      const loggerErrorSpy = vi.spyOn(logger, "error").mockImplementation(() => {});
       vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
         return new Response(JSON.stringify({ status: "error", errorMessage: "Not found" }), {
           status: 200,
@@ -1998,7 +2202,7 @@ describe("resume routes", () => {
         });
       });
 
-      const app = createApp();
+      const app = createTestApp();
       const response = await app.request("/api/resumes/explanation", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -2006,6 +2210,11 @@ describe("resume routes", () => {
       });
 
       expect(response.status).toBe(500);
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        "Failed to load candidate explanation",
+        expect.any(Error),
+        { route: "resumes" },
+      );
     });
   });
 
@@ -2023,7 +2232,7 @@ describe("resume routes", () => {
         ]);
       });
 
-      const app = createApp();
+      const app = createTestApp();
       const response = await app.request("/api/resumes/audit-logs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -2031,7 +2240,7 @@ describe("resume routes", () => {
       });
 
       expect(response.status).toBe(200);
-      const payload = await response.json();
+      const payload = await parseJsonBody<{ success: unknown; data: unknown[] }>(response);
       expect(payload.success).toBe(true);
       expect(payload.data.length).toBe(2);
     });
@@ -2045,7 +2254,7 @@ describe("resume routes", () => {
         ]);
       });
 
-      const app = createApp();
+      const app = createTestApp();
       const response = await app.request("/api/resumes/audit-logs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -2053,12 +2262,12 @@ describe("resume routes", () => {
       });
 
       expect(response.status).toBe(200);
-      const payload = await response.json();
+      const payload = await parseJsonBody<{ data: unknown[] }>(response);
       expect(payload.data.length).toBe(1);
     });
 
     it("returns 400 when workspaceSlug is missing", async () => {
-      const app = createApp();
+      const app = createTestApp();
       const response = await app.request("/api/resumes/audit-logs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -2069,7 +2278,7 @@ describe("resume routes", () => {
     });
 
     it("returns 400 for invalid decisionType", async () => {
-      const app = createApp();
+      const app = createTestApp();
       const response = await app.request("/api/resumes/audit-logs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -2088,7 +2297,7 @@ describe("resume routes", () => {
         ]);
       });
 
-      const app = createApp();
+      const app = createTestApp();
       const response = await app.request("/api/resumes/audit-logs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -2096,12 +2305,12 @@ describe("resume routes", () => {
       });
 
       expect(response.status).toBe(200);
-      const payload = await response.json();
+      const payload = await parseJsonBody<{ data: unknown[] }>(response);
       expect(payload.data.length).toBe(1);
     });
 
     it("returns 400 for invalid outcome", async () => {
-      const app = createApp();
+      const app = createTestApp();
       const response = await app.request("/api/resumes/audit-logs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -2121,7 +2330,7 @@ describe("resume routes", () => {
         return convexSuccess(null);
       });
 
-      const app = createApp();
+      const app = createTestApp();
       const response = await app.request("/api/resumes/audit-outcome", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -2129,7 +2338,7 @@ describe("resume routes", () => {
       });
 
       expect(response.status).toBe(200);
-      const payload = await response.json();
+      const payload = await parseJsonBody(response);
       expect(payload.success).toBe(true);
     });
 
@@ -2140,7 +2349,7 @@ describe("resume routes", () => {
         return convexSuccess(null);
       });
 
-      const app = createApp();
+      const app = createTestApp();
       const response = await app.request("/api/resumes/audit-outcome", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -2157,7 +2366,7 @@ describe("resume routes", () => {
         return convexSuccess(null);
       });
 
-      const app = createApp();
+      const app = createTestApp();
       const response = await app.request("/api/resumes/audit-outcome", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -2168,7 +2377,7 @@ describe("resume routes", () => {
     });
 
     it("returns 400 when auditLogId is missing", async () => {
-      const app = createApp();
+      const app = createTestApp();
       const response = await app.request("/api/resumes/audit-outcome", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -2179,7 +2388,7 @@ describe("resume routes", () => {
     });
 
     it("returns 400 for invalid outcome", async () => {
-      const app = createApp();
+      const app = createTestApp();
       const response = await app.request("/api/resumes/audit-outcome", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -2197,7 +2406,7 @@ describe("resume routes", () => {
         });
       });
 
-      const app = createApp();
+      const app = createTestApp();
       const response = await app.request("/api/resumes/audit-outcome", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

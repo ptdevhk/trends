@@ -17,17 +17,17 @@ vi.mock('react-router-dom', () => ({
 
 vi.mock('@trends/shared', () => ({
   WORKSPACE_TEAMS: {
-    dev: { name: 'Development', accessLevel: 'admin' },
-    prod: { name: 'Production', accessLevel: 'member' },
+    dev: { name: 'Development' },
+    hr: { name: 'HR Team' },
   },
-  isValidWorkspace: (s: string) => s === 'dev' || s === 'prod',
+  isValidWorkspace: (s: string) => s === 'dev' || s === 'hr',
 }))
 
 import { WorkspaceProvider, useWorkspace } from '@/contexts/WorkspaceContext'
 
 function TestConsumer() {
   const ws = useWorkspace()
-  return <div data-testid="ws">{ws.slug}:{ws.name}:{ws.accessLevel}:{String(ws.isAdmin)}</div>
+  return <div data-testid="ws">{ws.slug}:{ws.name}:{String(ws.isAdmin)}</div>
 }
 
 function renderWithProvider(slug: string | undefined, children: ReactNode) {
@@ -39,14 +39,27 @@ function renderWithProvider(slug: string | undefined, children: ReactNode) {
 describe('WorkspaceProvider', () => {
   beforeEach(() => { vi.clearAllMocks() })
 
-  it('provides context for valid dev slug', () => {
-    renderWithProvider('dev', <TestConsumer />)
-    expect(screen.getByTestId('ws')).toHaveTextContent('dev:Development:admin:true')
+  it('redirects for admin because it is a system namespace, not a workspace', () => {
+    renderWithProvider('admin', <TestConsumer />)
+    expect(mockNavigate).toHaveBeenCalledWith({ pathname: '/dev/resumes', search: '' })
   })
 
-  it('provides context for valid prod slug', () => {
-    renderWithProvider('prod', <TestConsumer />)
-    expect(screen.getByTestId('ws')).toHaveTextContent('prod:Production:member:false')
+  it('provides context for valid dev slug', () => {
+    renderWithProvider('dev', <TestConsumer />)
+    expect(screen.getByTestId('ws')).toHaveTextContent('dev:Development:false')
+  })
+
+  it('supports fixed backing workspaces for public and system surfaces', () => {
+    mockUseParams.mockReturnValue({ teamSlug: undefined })
+    mockUseLocation.mockReturnValue({ search: '' })
+
+    render(
+      <WorkspaceProvider workspaceSlug="hr" surface="public">
+        <TestConsumer />
+      </WorkspaceProvider>,
+    )
+
+    expect(screen.getByTestId('ws')).toHaveTextContent('hr:HR Team:false')
   })
 
   it('redirects for invalid slug', () => {

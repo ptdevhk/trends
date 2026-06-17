@@ -13,6 +13,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e:blacklist": "npm --prefix ../.. --workspace @trends/shared run build && playwright test -c playwright.config.ts e2e/blacklist.spec.ts",
+    "test:e2e:provider-membership-admin": "npm --prefix ../.. --workspace @trends/shared run build && playwright test -c playwright.config.ts e2e/provider-membership-admin.spec.ts",
     "test:e2e:resume-role-filter": "npm --prefix ../.. --workspace @trends/shared run build && playwright test -c playwright.config.ts e2e/resume-role-filter.spec.ts",
     "lint": "eslint ."
   },

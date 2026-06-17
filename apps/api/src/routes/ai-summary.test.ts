@@ -44,7 +44,7 @@ function convexSuccess(value: unknown): Response {
   )
 }
 
-function parseConvexCall(input: RequestInfo | URL, init?: RequestInit): {
+function parseConvexCall(input: Request | string | URL, init?: RequestInit): {
   method: "query" | "mutation"
   pathName: string
   args: Record<string, unknown>

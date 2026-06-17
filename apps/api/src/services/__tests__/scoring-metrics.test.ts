@@ -13,17 +13,17 @@ describe("ndcgAtK", () => {
     });
 
     it("returns 1 for perfect ranking", () => {
-        const labels = { a: "shortlist", b: "shortlist", c: "reject" };
+        const labels = { a: "shortlist", b: "shortlist", c: "reject" } as const;
         expect(ndcgAtK(["a", "b", "c"], labels, 3)).toBe(1);
     });
 
     it("returns 0 when no positives in top-k", () => {
-        const labels = { a: "reject", b: "reject", c: "shortlist" };
+        const labels = { a: "reject", b: "reject", c: "shortlist" } as const;
         expect(ndcgAtK(["a", "b"], labels, 2)).toBe(0);
     });
 
     it("penalizes imperfect ranking", () => {
-        const labels = { a: "reject", b: "shortlist", c: "shortlist" };
+        const labels = { a: "reject", b: "shortlist", c: "shortlist" } as const;
         const score = ndcgAtK(["a", "b", "c"], labels, 3);
         expect(score).toBeGreaterThan(0);
         expect(score).toBeLessThan(1);
@@ -41,12 +41,12 @@ describe("shortlistAtK", () => {
     });
 
     it("returns 1 when all top-k are shortlisted", () => {
-        const labels = { a: "shortlist", b: "shortlist", c: "reject" };
+        const labels = { a: "shortlist", b: "shortlist", c: "reject" } as const;
         expect(shortlistAtK(["a", "b"], labels, 2)).toBe(1);
     });
 
     it("returns 0.5 when half are shortlisted", () => {
-        const labels = { a: "shortlist", b: "reject" };
+        const labels = { a: "shortlist", b: "reject" } as const;
         expect(shortlistAtK(["a", "b"], labels, 2)).toBe(0.5);
     });
 

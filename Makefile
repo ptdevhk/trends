@@ -2,9 +2,9 @@
 
 .PHONY: dev dev-samples dev-fast dev-critical dev-backend dev-clean dev-mcp dev-crawl dev-convex dev-convex-stop dev-convex-restart dev-convex-refresh dev-convex-ensure dev-convex-status dev-web dev-api dev-worker dev-api-worker \
 		local-run-crawler local-run-mcp local-run-mcp-http local-run-worker local-run-worker-once run crawl mcp mcp-http worker worker-once \
-		on-prod-install on-prod-deploy on-prod-deploy-check on-prod-uninstall on-prod-refresh-env prod-install prod-deploy prod-deploy-check install deploy deploy-check uninstall refresh-env \
+		on-prod-install on-prod-deploy on-prod-deploy-check on-prod-uninstall on-prod-refresh-env on-prod-preview-restore-full-state prod-install prod-deploy prod-deploy-check install deploy deploy-check uninstall refresh-env preview-restore-full-state restore-preview-full-state \
 		install-deps fetch-docs clean check help docker docker-build docker-down \
-		check-python check-node check-build \
+		check-python check-node check-node-tests-types check-build \
 		test test-python test-node test-resume test-extension-keyword-mode test-api-search-profiles test-worker-resume-tasks test-collect-url-smoke \
 		migration-test migration-test-fresh-sandbox \
 		build-static build-static-fresh build-extension-zip serve-static \
@@ -19,7 +19,7 @@
 		clear-resumes \
 		cli-build cli-install cli-test \
 		sync-agent-policy check-agent-policy sync-project-skills check-project-skills install-global-skills install-agent-skill check-agent-skill sync-agent-governance \
-		check-route-auth check-mutation-entry-points \
+		check-route-auth check-mutation-entry-points auth-workspace-smoke auth-provider-membership \
 		install-skill validate-skill check-skill-install install-test-plan-skill check-test-plan-skill \
 		install-browser-ext-skill check-browser-ext-skill \
 		sync-resume-ai-prompts check-resume-ai-prompts \
@@ -91,22 +91,13 @@ dev-crawl:
 
 # Start only local Convex dev backend
 dev-convex:
-	@if [ -d "packages/convex" ]; then \
-		if command -v bun >/dev/null 2>&1; then \
-			cd packages/convex && bun run dev; \
-		else \
-			cd packages/convex && npm run dev; \
-		fi; \
-	else \
-		echo "packages/convex not found."; \
-		exit 1; \
-	fi
+	@./scripts/dev.sh --convex-only --no-seed $(ARGS)
 
 # Stop only local Convex dev backend listeners
 dev-convex-stop:
 	@project_root="$(CURDIR)"; \
 	convex_port="$${CONVEX_PORT:-3210}"; \
-	site_port="3211"; \
+	site_port="$${CONVEX_SITE_PORT:-3211}"; \
 	tmux_session="$${CONVEX_TMUX_SESSION:-trends-convex}"; \
 	pids="$$( { \
 		lsof -tiTCP:"$$convex_port" -sTCP:LISTEN 2>/dev/null; \
@@ -172,7 +163,7 @@ dev-convex-refresh:
 	if tmux has-session -t "$$tmux_session" 2>/dev/null; then \
 		tmux kill-session -t "$$tmux_session" 2>/dev/null || true; \
 	fi; \
-	tmux new-session -d -s "$$tmux_session" "cd '$$project_root/packages/convex' && if command -v bun >/dev/null 2>&1; then bun run dev; else npm run dev; fi"; \
+	tmux new-session -d -s "$$tmux_session" "cd '$$project_root' && $(MAKE) dev-convex"; \
 	echo "Waiting up to $$refresh_wait_secs seconds for local Convex to become ready..."; \
 	for _ in $$(seq 1 "$$refresh_wait_secs"); do \
 		if curl -fsS "http://127.0.0.1:$$convex_port/version" >/dev/null 2>&1; then \
@@ -197,7 +188,7 @@ dev-convex-ensure:
 # Show local Convex listener/process/data status
 dev-convex-status:
 	@convex_port="$${CONVEX_PORT:-3210}"; \
-	site_port="3211"; \
+	site_port="$${CONVEX_SITE_PORT:-3211}"; \
 	state_dir="$${CONVEX_STATE_DIR:-$$HOME/.convex/anonymous-convex-backend-state/anonymous-agent}"; \
 	echo "Local Convex listeners:"; \
 	ss -ltnp "( sport = :$$convex_port or sport = :$$site_port )" || true; \
@@ -220,7 +211,7 @@ dev-convex-status:
 				current="$$parent"; \
 			done; \
 		done; \
-	} | sort -u | tr '\n' ' ' )"; \
+	} | sed '/^[[:space:]]*$$/d' | sort -u | tr '\n' ' ' | xargs )"; \
 	if [ -n "$$pids" ]; then \
 		ps -o pid,ppid,pgid,rss,%mem,etime,cmd -p $$pids; \
 	else \
@@ -374,6 +365,13 @@ on-prod-refresh-env:
 
 refresh-env: on-prod-refresh-env
 
+# Runs on prod host ONLY. Restore production Convex + SQLite candidate-action state into preview
+on-prod-preview-restore-full-state:
+	sudo ./deploy/restore-preview-full-state-from-prod.sh $(ARGS)
+
+preview-restore-full-state: on-prod-preview-restore-full-state
+restore-preview-full-state: on-prod-preview-restore-full-state
+
 # Dual-target: follows $API_URL. Defaults to http://localhost:3000 (local).
 # Backup live resume records to a portable JSON or .tar.gz file
 backup-resumes:
@@ -400,6 +398,18 @@ restore-resumes:
 		bun run scripts/resume/restore-resumes.ts; \
 	else \
 		npx tsx scripts/resume/restore-resumes.ts; \
+	fi
+
+# Derive a small restore-compatible backup from a full portable resume backup
+resume-lite-backup:
+	@COUNT="$${COUNT:-20}" \
+	FILE="$${FILE:-output/resume-backups/resumes-prod-dev-20260512-111129.tar.gz}" \
+	OUT="$${OUT:-output/resume-backups/resumes-prod-dev-lite-top$${COUNT}.tar.gz}"; \
+	export COUNT FILE OUT; \
+	if command -v bun >/dev/null 2>&1; then \
+		bun run scripts/resume/create-lite-backup.ts; \
+	else \
+		npx tsx scripts/resume/create-lite-backup.ts; \
 	fi
 
 # One-liner: SSH tunnel → backup prod workspace → close tunnel
@@ -1237,6 +1247,39 @@ check-node:
 		npm run --workspace @trends/web lint; \
 		npm run --workspace @trends/browser-extension lint; \
 	fi
+	@$(MAKE) check-node-tests-types
+
+# Test-file typecheck gate (apps/api). Catches phantom-type test assertions
+# (e.g. Q3's minExperience) that the package tsconfig excludes from `tsc`.
+# Wired into check-node. Adds ~10s (the test program re-typechecks apps/api
+# source; composite project references would dedupe but are a separate
+# initiative). HARD-BLOCKING as of T5: the latent test-type error baseline
+# reached 0 (PRs #1285-#1289), so new test-file type errors now fail make
+# check. Override with TESTS_TYPES_GATE=report-only for a non-blocking run.
+TESTS_TYPES_GATE ?= hard
+check-node-tests-types:
+	@echo "Running apps/api test-file typecheck (gate=$(TESTS_TYPES_GATE))..."
+	@mkdir -p logs
+	@if npm run --workspace @trends/api typecheck:tests > logs/tests-types.log 2>&1; then \
+		echo "  apps/api test-file types: 0 errors"; \
+	elif [ "$(TESTS_TYPES_GATE)" = "hard" ]; then \
+		ERRS=$$(grep -cE "error TS[0-9]+" logs/tests-types.log || true); \
+		if [ "$$ERRS" -gt 0 ]; then \
+			echo "  apps/api test-file typecheck FAILED ($$ERRS errors):"; \
+			grep -E "error TS[0-9]+" logs/tests-types.log | head -n 10 | sed 's/^/    /'; \
+			[ "$$ERRS" -gt 10 ] && echo "    ... ($$((ERRS - 10)) more in logs/tests-types.log)"; \
+		else \
+			echo "  apps/api test-file typecheck FAILED (no TS errors — likely a tooling/infra failure):"; \
+			tail -n 20 logs/tests-types.log | sed 's/^/    /'; \
+		fi; \
+		echo "  Run 'npm --workspace @trends/api run typecheck:tests' for full output."; \
+		exit 1; \
+	else \
+		ERRS=$$(grep -cE "error TS[0-9]+" logs/tests-types.log || true); \
+		echo "  apps/api test-file typecheck: $$ERRS errors (report-only — cleanup in progress, T2-T5)"; \
+		grep -E "error TS[0-9]+" logs/tests-types.log | head -n 10 | sed 's/^/    /'; \
+		[ "$$ERRS" -gt 10 ] && echo "    ... ($$((ERRS - 10)) more in logs/tests-types.log)"; \
+	fi
 
 # Build validation (for CI)
 check-build: check
@@ -1259,7 +1302,7 @@ test: test-python test-node                ## Run all tests (Python + TypeScript
 
 test-python:                               ## Run Python tests
 	@echo "Running Python tests..."
-	@uv run pytest tests/ -v
+	@uv run pytest apps/worker/tests tests/ -v
 
 test-node:                                 ## Run TypeScript tests (bun locally, npm in CI)
 	@echo "Running Node.js tests..."
@@ -1287,7 +1330,7 @@ test-api-search-profiles:                  ## Run search-profiles dispatch keywo
 
 test-worker-resume-tasks:                  ## Run worker resume task keyword assembly tests
 	@echo "Running worker resume task tests..."
-	@uv run pytest tests/test_resume_tasks.py -q
+	@uv run pytest apps/worker/tests/test_resume_tasks.py tests/test_resume_tasks.py -q
 
 test-collect-url-smoke:                    ## Run quick smoke for Collect URL keyword concatenation
 	@echo "Running Collect URL smoke check..."
@@ -1296,6 +1339,16 @@ test-collect-url-smoke:                    ## Run quick smoke for Collect URL ke
 	else \
 		npm run test:e2e:collect-url; \
 	fi
+
+auth-workspace-smoke:                      ## Run auth/session/CSRF workspace smoke (requires AUTH_SMOKE_EMAIL/PASSWORD)
+	@echo "Running auth workspace smoke check..."
+	@bunx tsx scripts/auth-workspace-smoke.ts
+
+auth-provider-membership:                  ## Manage provider membership preapprovals (ARGS="list-identities --provider casdoor")
+	@bunx tsx scripts/auth/manage-provider-membership.ts $(ARGS)
+
+auth-provider-claims-smoke:                ## Run fixture-driven Casdoor/WeCom provider claims smoke
+	@bunx tsx scripts/auth/casdoor-wecom-claims-smoke.ts
 
 test-coverage:                             ## Run Node.js tests with coverage
 	@echo "Running Node.js tests with coverage..."
@@ -1363,6 +1416,9 @@ help:
 	@echo "  on-prod-deploy         Preflight + snapshot + upgrade, requires sudo (alias: prod-deploy/deploy)"
 	@echo "  on-prod-deploy-check   Dry run deploy precheck (alias: prod-deploy-check/deploy-check)"
 	@echo "  on-prod-refresh-env    Refresh env + rebuild web bundle (alias: refresh-env)"
+	@echo "  on-prod-preview-restore-full-state"
+	@echo "                         Restore prod Convex + SQLite candidate actions into preview"
+	@echo "                         (alias: preview-restore-full-state/restore-preview-full-state)"
 	@echo "  on-prod-uninstall      Remove systemd services, requires sudo (alias: uninstall)"
 	@echo "                         See ./scripts/install.sh --help for branch preflight, rollback backups, CI=true/1"
 	@echo ""
@@ -1420,6 +1476,8 @@ help:
 	@echo "  test-api-search-profiles Run API route test for profile-run keyword dispatch"
 	@echo "  test-worker-resume-tasks Run worker keyword assembly tests"
 	@echo "  test-collect-url-smoke Run Collect button URL smoke check"
+	@echo "  auth-workspace-smoke Run auth/session/CSRF workspace smoke (requires AUTH_SMOKE_EMAIL/PASSWORD)"
+	@echo "  auth-provider-membership Manage provider membership preapprovals (ARGS='list-identities --provider casdoor')"
 	@echo "  test-resume    Validate resume fixtures"
 	@echo "  clean-db       Clean local databases and environment (Convex state + SQLite)"
 	@echo "  fresh-env      Wipe everything and reinstall dependencies (nuclear option)"

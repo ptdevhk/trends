@@ -19,6 +19,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createApp } from "../app";
+import { parseJsonBody } from "../test-utils";
+import { createAuthContext } from "./test-auth-helpers";
 
 // ── Helpers ────────────────────────────────────────────────────────────
 
@@ -31,7 +33,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function parseConvexCall(input: RequestInfo | URL, init?: RequestInit): ConvexCall {
+function parseConvexCall(input: Request | string | URL, init?: RequestInit): ConvexCall {
     const requestURL = typeof input === "string"
         ? input
         : input instanceof URL
@@ -148,6 +150,12 @@ function buildFilterableConvexResumeRecord(
     };
 }
 
+function createAuthenticatedApp() {
+    return createApp({
+        authContext: createAuthContext({ workspaceSlug: "dev", role: "user" }),
+    });
+}
+
 // ── Tests ──────────────────────────────────────────────────────────────
 
 describe("BFF search dispatcher integration", () => {
@@ -174,11 +182,11 @@ describe("BFF search dispatcher integration", () => {
                 throw new Error(`Unexpected convex path: ${call.pathName}`);
             });
 
-            const app = createApp();
+            const app = createAuthenticatedApp();
             const response = await app.request("/api/resumes?source=convex&q=CNC%20销售&limit=5");
 
             expect(response.status).toBe(200);
-            const payload = await response.json();
+            const payload = await parseJsonBody<{ success: unknown; summary: Record<string, unknown> }>(response);
             expect(payload.success).toBe(true);
             expect(payload.summary.source).toBe("convex");
 
@@ -213,7 +221,7 @@ describe("BFF search dispatcher integration", () => {
                 throw new Error(`Unexpected convex path: ${call.pathName}`);
             });
 
-            const app = createApp();
+            const app = createAuthenticatedApp();
             const response = await app.request("/api/resumes?source=convex&q=CNC%20销售&limit=5");
             expect(response.status).toBe(200);
 
@@ -238,7 +246,7 @@ describe("BFF search dispatcher integration", () => {
                 throw new Error(`Unexpected convex path: ${call.pathName}`);
             });
 
-            const app = createApp();
+            const app = createAuthenticatedApp();
             await app.request("/api/resumes?source=convex&q=CNC%20销售&limit=5");
 
             const digestCall = calls.find((c) => c.pathName === "resumes_search:scanResumeDigestPage");
@@ -262,11 +270,11 @@ describe("BFF search dispatcher integration", () => {
                 throw new Error(`Unexpected convex path: ${call.pathName}`);
             });
 
-            const app = createApp();
+            const app = createAuthenticatedApp();
             const response = await app.request("/api/resumes?source=convex&q=CNC%20销售&limit=5");
             expect(response.status).toBe(200);
 
-            const payload = await response.json();
+            const payload = await parseJsonBody<{ success: unknown; data: unknown[] }>(response);
             expect(payload.success).toBe(true);
             expect(payload.data).toHaveLength(0);
         });
@@ -287,7 +295,7 @@ describe("BFF search dispatcher integration", () => {
                 throw new Error(`Unexpected convex path: ${call.pathName}`);
             });
 
-            const app = createApp();
+            const app = createAuthenticatedApp();
             await app.request("/api/resumes?source=convex&q=CNC%20销售&minAge=25&maxAge=40");
 
             // Filters are applied BFF-side after scanResumeDigestPage
@@ -297,6 +305,71 @@ describe("BFF search dispatcher integration", () => {
     });
 
     describe("AND-mode digest-first path (scanResumeDigestPage → getResumeDocsByIds)", () => {
+        it("applies digest-supported filters before fetching full records", async () => {
+            const calls: ConvexCall[] = [];
+            vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+                const call = parseConvexCall(input, init);
+                calls.push(call);
+                if (call.pathName === "resumes_search:scanResumeDigestPage") {
+                    return convexSuccess({
+                        docs: [
+                            buildDigestRow("r1", {
+                                searchText: "cnc 销售 数控 销售工程师",
+                                age: 30,
+                                locationText: "中国 广东 东莞",
+                                roleTypes: ["sales"],
+                                roleYearsByType: { sales: 3 },
+                            }),
+                            buildDigestRow("r2", {
+                                searchText: "cnc 销售 数控 工程师",
+                                age: 30,
+                                locationText: "中国 广东 东莞",
+                                roleTypes: ["engineer"],
+                                roleYearsByType: { engineer: 3 },
+                            }),
+                            buildDigestRow("r3", {
+                                searchText: "cnc 销售 数控 销售工程师",
+                                age: 30,
+                                locationText: "马来西亚 吉隆坡",
+                                roleTypes: ["sales"],
+                                roleYearsByType: { sales: 3 },
+                            }),
+                            buildDigestRow("r4", {
+                                searchText: "cnc 销售 数控 销售工程师",
+                                age: 45,
+                                locationText: "中国 广东 东莞",
+                                roleTypes: ["sales"],
+                                roleYearsByType: { sales: 3 },
+                            }),
+                        ],
+                        isDone: true,
+                        cursor: null,
+                    });
+                }
+                if (call.pathName === "resumes_search:getResumeDocsByIds") {
+                    const ids = Array.isArray(call.args.ids) ? call.args.ids : [];
+                    return convexSuccess(ids.map((id) => buildFilterableConvexResumeRecord(String(id), {
+                        location: id === "r3" ? "Kuala Lumpur MY" : "东莞",
+                        verifiedRoleYears: id === "r2" ? { engineer: 3 } : { sales: 3 },
+                    })));
+                }
+                if (call.pathName === "resumes_search:scanResumePageSlim") {
+                    throw new Error("AND-mode must not scan monolithic resume searchText pages");
+                }
+                throw new Error(`Unexpected convex path: ${call.pathName}`);
+            });
+
+            const app = createAuthenticatedApp();
+            const response = await app.request(
+                "/api/resumes?source=convex&q=CNC%20销售&limit=5&minRoleYears=1&roleFilterType=sales&minAge=25&maxAge=40&locations=China",
+            );
+
+            expect(response.status).toBe(200);
+            const docCall = calls.find((c) => c.pathName === "resumes_search:getResumeDocsByIds");
+            expect(docCall?.args.ids).toEqual(["r1"]);
+            expect(calls.some((c) => c.pathName === "resumes_search:scanResumePageSlim")).toBe(false);
+        });
+
         it("uses resume digest pages for multi-keyword AND search before fetching full records", async () => {
             const calls: ConvexCall[] = [];
             vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
@@ -345,13 +418,13 @@ describe("BFF search dispatcher integration", () => {
                 throw new Error(`Unexpected convex path: ${call.pathName}`);
             });
 
-            const app = createApp();
+            const app = createAuthenticatedApp();
             const response = await app.request(
                 "/api/resumes?source=convex&q=CNC%20销售&limit=5&minRoleYears=1&roleFilterType=sales&minAge=25&maxAge=40&locations=China",
             );
 
             expect(response.status).toBe(200);
-            const payload = await response.json();
+            const payload = await parseJsonBody<{ success: unknown }>(response);
             expect(payload.success).toBe(true);
 
             expect(calls.some((c) => c.pathName === "resumes_search:scanResumeDigestPage")).toBe(true);
@@ -366,40 +439,46 @@ describe("BFF search dispatcher integration", () => {
                 if (call.pathName === "resumes_search:scanResumeDigestPage") {
                     return convexSuccess({
                         docs: [
-                            buildDigestRow("r1", { searchText: "cnc 销售 数控 销售工程师" }),
-                            buildDigestRow("r2", { searchText: "cnc 销售 数控 销售工程师" }),
-                            buildDigestRow("r3", { searchText: "cnc 销售 数控 销售工程师" }),
+                            buildDigestRow("r1", {
+                                searchText: "cnc 销售 数控 销售工程师",
+                                locationText: "中国 广东 东莞",
+                                roleTypes: ["sales"],
+                                roleYearsByType: { sales: 3 },
+                            }),
+                            buildDigestRow("r2", {
+                                searchText: "cnc 销售 数控 销售工程师",
+                                locationText: "马来西亚 吉隆坡",
+                                roleTypes: ["sales"],
+                                roleYearsByType: { sales: 3 },
+                            }),
+                            buildDigestRow("r3", {
+                                searchText: "cnc 销售 数控 销售工程师",
+                                locationText: "中国 广东 东莞",
+                                roleTypes: ["engineer"],
+                                roleYearsByType: { engineer: 3 },
+                            }),
                         ],
                         isDone: true,
                         cursor: null,
                     });
                 }
                 if (call.pathName === "resumes_search:getResumeDocsByIds") {
-                    return convexSuccess([
-                        buildFilterableConvexResumeRecord("r1", {
-                            location: "东莞",
-                            verifiedRoleYears: { sales: 3 },
-                        }),
-                        buildFilterableConvexResumeRecord("r2", {
-                            location: "Kuala Lumpur MY",
-                            verifiedRoleYears: { sales: 3 },
-                        }),
-                        buildFilterableConvexResumeRecord("r3", {
-                            location: "东莞",
-                            verifiedRoleYears: { engineer: 3 },
-                        }),
-                    ]);
+                    const ids = Array.isArray(call.args.ids) ? call.args.ids : [];
+                    return convexSuccess(ids.map((id) => buildFilterableConvexResumeRecord(String(id), {
+                        location: id === "r2" ? "Kuala Lumpur MY" : "东莞",
+                        verifiedRoleYears: id === "r3" ? { engineer: 3 } : { sales: 3 },
+                    })));
                 }
                 throw new Error(`Unexpected convex path: ${call.pathName}`);
             });
 
-            const app = createApp();
+            const app = createAuthenticatedApp();
             const response = await app.request(
                 "/api/resumes?source=convex&q=CNC%20销售&limit=5&minRoleYears=1&roleType=sales&location=China",
             );
 
             expect(response.status).toBe(200);
-            const payload = await response.json();
+            const payload = await parseJsonBody<{ success: unknown; data: { name: string }[] }>(response);
             expect(payload.success).toBe(true);
             expect(payload.data.map((item: { name: string }) => item.name)).toEqual(["r1"]);
         });
@@ -421,7 +500,7 @@ describe("BFF search dispatcher integration", () => {
                 throw new Error(`Unexpected convex path: ${call.pathName}`);
             });
 
-            const app = createApp();
+            const app = createAuthenticatedApp();
             await app.request("/api/resumes?source=convex&q=CNC%20销售&limit=100");
 
             for (const batchSize of batchSizes) {

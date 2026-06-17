@@ -18,7 +18,12 @@ vi.mock('@/lib/api-helpers', () => ({
 }))
 
 vi.mock('@/contexts/WorkspaceContext', () => ({
-  useWorkspace: () => ({ slug: 'dev', name: 'Dev', accessLevel: 'admin', isAdmin: true }),
+  useWorkspace: () => ({
+    slug: 'dev',
+    name: 'Development',
+    isAdmin: false,
+    isSystemSurface: true,
+  }),
 }))
 
 import { JobDescriptionSelect } from '@/components/JobDescriptionSelect'
@@ -93,7 +98,7 @@ describe('JobDescriptionSelect', () => {
     renderWithRouter(<JobDescriptionSelect {...defaultProps} value="jd-1" />)
 
     const link = screen.getByRole('link')
-    expect(link).toHaveAttribute('href', '/dev/system/jds')
+    expect(link).toHaveAttribute('href', '/admin/system/jds')
   })
 
   it('does not show external link when no value', () => {

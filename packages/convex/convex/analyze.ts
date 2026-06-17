@@ -12,6 +12,8 @@ import { v } from "convex/values";
 import { api, internal } from "./_generated/api";
 import { action, internalMutation, type ActionCtx } from "./_generated/server";
 import { resolveChatCompletionModel } from "./lib/ai_model";
+import { doUpsertResumeDigest, doUpsertResumeAnalysis } from "./resumes_search.js";
+import { readActiveResumeAnalysis } from "./lib/resume_analysis_read.js";
 import { computeProtectedAttributeHashes } from "./audit.js";
 import {
     normalizeAnalysisResult,
@@ -187,7 +189,10 @@ export async function callLLM(messages: ChatMessage[], apiKey: string) {
         throw new Error(`OpenAI API error: ${response.status} ${response.statusText} - ${text}`);
     }
 
-    const data = await response.json();
+    const data = (await response.json()) as {
+        choices: { message: { content: string } }[];
+        usage: unknown;
+    };
     let content = data.choices[0].message.content;
 
     // Clean markdown code blocks
@@ -447,14 +452,30 @@ export const storeConfirmResult = internalMutation({
         const resume = await ctx.db.get(args.resumeId);
         if (!resume) throw new Error("Resume not found");
         const confirmKey = `confirm:${args.analysis.analyzedAt}`;
+        // Phase 4 Step 3a: source the cached analyses map from the active cold
+        // row (legacy hot fallback); stop writing analyses onto the hot doc.
+        // confirmedScore/confirmedAt are separate hot fields and stay.
+        const activeAnalysis = await readActiveResumeAnalysis(ctx, resume);
+        const analyses = {
+            ...(activeAnalysis.analyses ?? {}),
+            [confirmKey]: args.analysis,
+        };
         await ctx.db.patch(args.resumeId, {
             confirmedScore: args.analysis.score,
             confirmedAt: args.analysis.analyzedAt,
-            analyses: {
-                ...(resume.analyses ?? {}),
-                [confirmKey]: args.analysis,
-            },
         });
+        // Cold row authoritative. Preserve the existing primary `analysis`
+        // (the JD-based result) — do NOT overwrite it with the confirm result,
+        // which carries keyFactors not allowed by resumeAnalysisValidator and
+        // would clobber the primary analysis. The confirm entry lives in the
+        // `analyses` map under confirmKey. Matches the pre-3a contract.
+        await doUpsertResumeAnalysis(ctx, args.resumeId, activeAnalysis.analysis, analyses);
+
+        // Phase 3: refresh digest display fields (displayConfirmedScore etc.)
+        const updated = await ctx.db.get(args.resumeId);
+        if (updated) {
+            await doUpsertResumeDigest(ctx, updated);
+        }
     },
 });
 

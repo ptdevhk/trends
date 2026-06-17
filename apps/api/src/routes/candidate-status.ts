@@ -5,36 +5,27 @@ import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 
 
 import { callConvexQuery, callConvexMutation } from "../services/convex-utils.js";
+import { config } from "../services/config.js";
 import { workspaceConfigService } from "../services/workspace-config-service.js";
 import { logger } from "../services/logger.js";
-import { requireAdmin } from "../middleware/workspace.js";
+import { getAuthenticatedActorId, requireWorkspaceUser } from "../middleware/auth.js";
+import { CandidateStatusEnumSchema } from "../schemas/index.js";
 
 const app = new OpenAPIHono();
-app.use("/api/candidate-status", requireAdmin);
 
+app.use("/api/candidate-status", async (c, next) => {
+  if (c.req.method === "POST") {
+    return requireWorkspaceUser(c, next);
+  }
+  await next();
+});
 
-const CandidateStatusEnum = z.enum([
-  "new",
-  "shortlisted",
-  "rejected",
-  "contacted",
-  "interviewing",
-  "interviewed_pass",
-  "interviewed_reject",
-  "appeal_submitted",
-  "human_review",
-  "upheld",
-  "reversed",
-  "offer",
-  "hired",
-  "withdrawn",
-]);
 
 const CandidateStatusSchema = z.object({
   _id: z.string(),
   identityKey: z.string(),
   workspaceSlug: z.string(),
-  status: CandidateStatusEnum,
+  status: CandidateStatusEnumSchema,
   notes: z.string().optional(),
   updatedBy: z.string().optional(),
   updatedAt: z.number(),
@@ -52,7 +43,7 @@ const ListResponseSchema = z.object({
 
 const UpdateRequestSchema = z.object({
   identityKey: z.string(),
-  status: CandidateStatusEnum,
+  status: CandidateStatusEnumSchema,
   notes: z.string().optional(),
   updatedBy: z.string().optional(),
 });
@@ -144,7 +135,8 @@ app.openapi(updateRoute, async (c) => {
     identityKey: body.identityKey,
     status: body.status,
     notes: body.notes,
-    updatedBy: body.updatedBy,
+    updatedBy: getAuthenticatedActorId(c),
+    writeSecret: config.auth.convexWriteSecret,
   });
 
   const item = await callConvexQuery( "candidate_status:getByIdentity", {

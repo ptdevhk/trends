@@ -45,18 +45,26 @@ vi.mock('@/components/search/SnippetCardExpanded', () => ({
   }) => (
     <div>
       <div>Expanded card for {item.resume.name ?? 'Unnamed resume'}</div>
-      <button data-testid="block-trigger" onClick={() => onBlockTrigger?.()}>
-        Block
-      </button>
-      <button data-testid="note-trigger" onClick={() => onNoteTrigger?.()}>
-        Add Note
-      </button>
-      <button data-testid="status-reject" onClick={() => onCandidateStatusChange?.(item.identityKey, 'interviewed_reject')}>
-        Mark Rejected
-      </button>
-      <button data-testid="status-hired" onClick={() => onCandidateStatusChange?.(item.identityKey, 'hired')}>
-        Mark Hired
-      </button>
+      {onBlockTrigger ? (
+        <button data-testid="block-trigger" onClick={() => onBlockTrigger()}>
+          Block
+        </button>
+      ) : null}
+      {onNoteTrigger ? (
+        <button data-testid="note-trigger" onClick={() => onNoteTrigger()}>
+          Add Note
+        </button>
+      ) : null}
+      {onCandidateStatusChange ? (
+        <>
+          <button data-testid="status-reject" onClick={() => onCandidateStatusChange(item.identityKey, 'interviewed_reject')}>
+            Mark Rejected
+          </button>
+          <button data-testid="status-hired" onClick={() => onCandidateStatusChange(item.identityKey, 'hired')}>
+            Mark Hired
+          </button>
+        </>
+      ) : null}
     </div>
   ),
 }))
@@ -360,6 +368,22 @@ describe('SnippetCard', () => {
     expect(screen.getByText('Candidate 1')).toBeInTheDocument()
   })
 
+  it('keeps star rating read-only when onRating is not provided', () => {
+    render(
+      <SnippetCard
+        expanded={false}
+        item={createResult(1)}
+        itemKey="result-1"
+        onToggleExpanded={vi.fn()}
+        userRating={3}
+      />
+    )
+
+    screen.getAllByRole('button', { name: /stars?$/ }).forEach((button) => {
+      expect(button).toBeDisabled()
+    })
+  })
+
   it('shows work history column when work history exists', () => {
     render(
       <SnippetCard
@@ -388,6 +412,22 @@ describe('SnippetCard', () => {
     expect(screen.queryByTitle('Led machine tools growth across Malaysia.')).not.toBeInTheDocument()
   })
 
+  it('hides expanded mutation triggers when callbacks are not provided', () => {
+    render(
+      <SnippetCard
+        expanded
+        item={createResult(1, { blocked: false })}
+        itemKey="result-1"
+        onToggleExpanded={vi.fn()}
+      />
+    )
+
+    expect(screen.queryByTestId('block-trigger')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('note-trigger')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('status-reject')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('status-hired')).not.toBeInTheDocument()
+  })
+
   it('opens block dialog when block trigger is clicked from expanded card', async () => {
     const user = userEvent.setup()
 
@@ -397,6 +437,7 @@ describe('SnippetCard', () => {
         item={createResult(1, { blocked: false })}
         itemKey="result-1"
         onToggleExpanded={vi.fn()}
+        onToggleBlock={vi.fn()}
       />
     )
 
@@ -415,6 +456,7 @@ describe('SnippetCard', () => {
         item={createResult(1)}
         itemKey="result-1"
         onToggleExpanded={vi.fn()}
+        onCandidateStatusChange={vi.fn()}
       />
     )
 
@@ -433,6 +475,7 @@ describe('SnippetCard', () => {
         item={createResult(1)}
         itemKey="result-1"
         onToggleExpanded={vi.fn()}
+        onCandidateStatusChange={vi.fn()}
       />
     )
 
@@ -463,6 +506,7 @@ describe('SnippetCard', () => {
 
   it('dismisses block dialog on cancel', async () => {
     const user = userEvent.setup()
+    const onToggleBlock = vi.fn()
 
     render(
       <SnippetCard
@@ -470,6 +514,7 @@ describe('SnippetCard', () => {
         item={createResult(1, { blocked: false })}
         itemKey="result-1"
         onToggleExpanded={vi.fn()}
+        onToggleBlock={onToggleBlock}
       />
     )
 

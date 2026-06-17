@@ -417,8 +417,8 @@ export function mergeItemsById<T extends { id: string }>(base: T[], overrides: T
   return Array.from(mergedById.values());
 }
 
-export function mergeResolvedItemsById<T extends { id: string; source?: ConfigSourceOrigin }>(base: T[], overrides: T[]): T[] {
-  const mergedById = new Map<string, T>();
+export function mergeResolvedItemsById<T extends { id: string; source?: ConfigSourceOrigin }>(base: T[], overrides: T[]): (T & { source: ConfigSourceOrigin })[] {
+  const mergedById = new Map<string, T & { source: ConfigSourceOrigin }>();
 
   for (const item of base) {
     mergedById.set(item.id, {

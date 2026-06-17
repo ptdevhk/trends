@@ -14,14 +14,29 @@ import { MobileFilterSheet } from '@/components/search/MobileFilterSheet'
 import { SearchHeader } from '@/components/search/SearchHeader'
 import { SearchHero } from '@/components/search/SearchHero'
 import { SearchResultsList } from '@/components/search/SearchResultsList'
+import {
+  ShareLinkButton,
+  type CreatePublicShareOptions,
+  type PublicShareCreateResult,
+} from '@/components/ShareLinkButton'
 import { Button } from '@/components/ui/button'
 import { useAiSearchSummary } from '@/hooks/useAiSearchSummary'
 import { useIndustryKeywords } from '@/hooks/useIndustryKeywords'
 import { useResumeSearchState } from '@/hooks/useResumeSearchState'
+import { useAuth } from '@/contexts/AuthContext'
+import { rawApiClient } from '@/lib/api-helpers'
 import { isResumeAiSummaryEnabled } from '@/lib/feature-flags'
+
+type PublicShareCreateResponse = {
+  success: boolean
+  share?: {
+    publicPath?: string
+  }
+}
 
 export function ResumeSearchPage() {
   const { t } = useTranslation()
+  const { isAuthenticated, isLoading: authLoading } = useAuth()
   const resumeAiSummaryEnabled = isResumeAiSummaryEnabled()
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
   const [filtersOpen, setFiltersOpen] = useState(false)
@@ -52,6 +67,7 @@ export function ResumeSearchPage() {
     parsedState,
     queryInput,
     recentSearches,
+    sessionKey,
     searchHistoryLoading,
     selectedClusterTags,
     selectedRawTags,
@@ -121,6 +137,88 @@ export function ResumeSearchPage() {
     selectedExperienceLevel: parsedState.selectedExperienceLevel,
     results: filteredResults,
   })
+  const shareState = useMemo(() => ({
+    location: parsedState.location,
+    keywords: parsedState.keywords,
+    requiredKeywords: parsedState.requiredKeywords,
+    filters: parsedState.filters,
+    selectedTags: parsedState.selectedTags,
+    selectedCompanies: parsedState.selectedCompanies,
+    selectedExperienceLevel: parsedState.selectedExperienceLevel,
+    jobDescriptionId: parsedState.jobDescriptionId,
+  }), [parsedState])
+  const shareTitle = useMemo(() => {
+    const normalizedLocation = parsedState.location?.trim()
+    const normalizedQuery = (activeQuery ?? queryInput).trim()
+    const title = [normalizedLocation, normalizedQuery]
+      .filter((value): value is string => Boolean(value))
+      .join(' · ')
+    return title || 'Resume search snapshot'
+  }, [activeQuery, parsedState.location, queryInput])
+  const ensureShareSession = useCallback(async () => undefined, [])
+  const createPublicShare = useCallback(async (
+    options: CreatePublicShareOptions,
+  ): Promise<PublicShareCreateResult | undefined> => {
+    if (filteredResults.length === 0) {
+      return undefined
+    }
+
+    const filters = {
+      ...(options.searchState.filters ?? {}),
+      ...(options.searchState.location
+        ? { locations: [options.searchState.location] }
+        : {}),
+    }
+    const query = [
+      ...(options.searchState.keywords ?? []),
+      ...(options.searchState.requiredKeywords ?? []),
+      options.searchState.location,
+    ]
+      .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+      .join(' ')
+
+    const results = filteredResults.map((item) => {
+      const analysis = item.analysis ?? item.resume.analysis
+      return {
+        resumeKey: item.identityKey || item.key || String(item.resume.resumeId),
+        displayName: item.resume.name,
+        headline: item.resume.jobIntention || item.resume.experience,
+        location: item.resume.location,
+        summary: analysis?.summary || item.resume.selfIntro,
+        score: item.score ?? analysis?.score,
+        recommendation: analysis?.recommendation,
+        highlights: analysis?.highlights ?? [],
+        concerns: analysis?.concerns ?? [],
+        skills: item.resume.skills ?? item.resume.tags ?? [],
+      }
+    })
+
+    const { data, error } = await rawApiClient.POST<PublicShareCreateResponse>('/api/public-shares', {
+      body: {
+        title: options.shareTitle,
+        sessionId: sessionKey,
+        search: {
+          query,
+          filters,
+        },
+        analysis: {
+          scoringMode: aiModeEnabled ? 'hybrid' : 'rules_only',
+          promptVersion: 'current',
+          skillConfigVersion: 'current',
+          modelProvider: 'trends',
+          modelName: 'workspace-analysis',
+        },
+        results,
+      },
+    })
+
+    if (error || !data?.success || !data.share?.publicPath) {
+      console.error('Failed to create public share', error ?? data)
+      return undefined
+    }
+
+    return { publicPath: data.share.publicPath }
+  }, [aiModeEnabled, filteredResults, sessionKey])
   const applyExtractedKeywords = (keywords: string[]) => {
     collapseExpandedCards()
     const query = formatKeywordQuery(keywords)
@@ -305,6 +403,11 @@ export function ResumeSearchPage() {
   const reloadPageLabel = t('resumes.searchPage.error.reloadPage', {
     defaultValue: 'Reload page',
   })
+  const readOnlyLoginRequiredLabel = t('resumes.searchPage.readOnly.loginRequired', {
+    defaultValue: 'Sign in to rate, update status, add notes, block, export, or run bulk actions.',
+  })
+  const canManageCandidateData = isAuthenticated
+  const showReadOnlyLoginRequired = !authLoading && !canManageCandidateData
 
   return (
     <div className="space-y-6">
@@ -393,7 +496,7 @@ export function ResumeSearchPage() {
                     size="sm"
                     data-testid="resume-analyze-button"
                     className="h-10 gap-2 rounded-full px-4"
-                    disabled={disableAnalyzeResults || !aiModeEnabled}
+                    disabled={disableAnalyzeResults || !aiModeEnabled || !canManageCandidateData}
                     onClick={() => {
                       void analyzeResults()
                     }}
@@ -413,8 +516,24 @@ export function ResumeSearchPage() {
                     )}
                   </Button>
                   <AnalysisTaskMonitor />
+                  <ShareLinkButton
+                    shareTitle={shareTitle}
+                    state={shareState}
+                    ensureApiSession={ensureShareSession}
+                    createPublicShare={canManageCandidateData ? createPublicShare : undefined}
+                  />
                 </div>
               </div>
+
+              {showReadOnlyLoginRequired ? (
+                <div
+                  role="status"
+                  aria-label={readOnlyLoginRequiredLabel}
+                  className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900"
+                >
+                  {readOnlyLoginRequiredLabel}
+                </div>
+              ) : null}
 
               {resumeAiSummaryEnabled && (
                 <ErrorBoundary fallback={<InlineErrorFallback message={errorAiSummaryLabel} />}>
@@ -433,6 +552,7 @@ export function ResumeSearchPage() {
                   selectedCount={selectedIds.size}
                   highScoreCount={highScoreCount}
                   exportFormat={exportFormat}
+                  disabled={!canManageCandidateData}
                   onExportFormatChange={setExportFormat}
                   onSelectAll={selectAll}
                   onSelectHighScore={() => selectHighScore()}
@@ -458,11 +578,11 @@ export function ResumeSearchPage() {
                   selectedIds={selectedIds}
                   actionsByResume={actionsByResume}
                   ratingsByResume={ratingsByResume}
-                  onToggleSelect={toggleSelectItem}
-                  onAction={handleCandidateAction}
-                  onRating={handleRating}
-                  onCandidateStatusChange={handleCandidateStatusChange}
-                  onToggleBlock={handleToggleBlock}
+                  onToggleSelect={canManageCandidateData ? toggleSelectItem : undefined}
+                  onAction={canManageCandidateData ? handleCandidateAction : undefined}
+                  onRating={canManageCandidateData ? handleRating : undefined}
+                  onCandidateStatusChange={canManageCandidateData ? handleCandidateStatusChange : undefined}
+                  onToggleBlock={canManageCandidateData ? handleToggleBlock : undefined}
                   searchQuery={queryInput}
                 />
               </ErrorBoundary>

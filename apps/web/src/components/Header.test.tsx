@@ -6,7 +6,14 @@ import { Header } from './Header'
 const mockState = vi.hoisted(() => ({
   slug: 'dev',
   name: 'Development',
-  isAdmin: true,
+  isAdmin: false,
+  isPublicSurface: false,
+}))
+
+const mockAuthState = vi.hoisted(() => ({
+  memberships: [] as Array<{ userId: string; workspaceSlug: string; role: 'user' | 'admin' }>,
+  user: null as null | { id: string; status: 'active'; displayName?: string },
+  isAuthenticated: false,
 }))
 
 function renderMockLink(
@@ -75,6 +82,15 @@ vi.mock('@/contexts/WorkspaceContext', () => ({
   useWorkspace: () => mockState,
 }))
 
+vi.mock('@/contexts/AuthContext', () => ({
+  useAuth: () => ({
+    memberships: mockAuthState.memberships,
+    user: mockAuthState.user,
+    isAuthenticated: mockAuthState.isAuthenticated,
+    logout: async () => {},
+  }),
+}))
+
 vi.mock('./LanguageSwitcher', () => ({
   LanguageSwitcher: () => <div>Language Switcher</div>,
 }))
@@ -95,7 +111,11 @@ describe('Header', () => {
   beforeEach(() => {
     mockState.slug = 'dev'
     mockState.name = 'Development'
-    mockState.isAdmin = true
+    mockState.isAdmin = false
+    mockState.isPublicSurface = false
+    mockAuthState.memberships = []
+    mockAuthState.user = null
+    mockAuthState.isAuthenticated = false
     featureFlagsMock.reviewPacketsEnabled = true
   })
 
@@ -115,6 +135,10 @@ describe('Header', () => {
   })
 
   it('does not attach resume reset state to review packets, settings, or system links', () => {
+    mockAuthState.memberships = [{ userId: 'demo-admin', workspaceSlug: 'dev', role: 'admin' }]
+    mockAuthState.user = { id: 'demo-admin', status: 'active', displayName: 'Demo Admin' }
+    mockAuthState.isAuthenticated = true
+
     render(<Header />)
 
     const reviewPacketLinks = screen.getAllByRole('link', { name: 'Review packets' })
@@ -134,7 +158,7 @@ describe('Header', () => {
     const systemLinks = screen.getAllByRole('link', { name: 'System from i18n' })
     expect(systemLinks).toHaveLength(2)
     systemLinks.forEach((link) => {
-      expect(link).toHaveAttribute('href', '/dev/system')
+      expect(link).toHaveAttribute('href', '/admin/system')
       expect(link).toHaveAttribute('data-reset', 'false')
     })
   })

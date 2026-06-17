@@ -1,6 +1,6 @@
 # SSH Server Inspector
 
-Inspect a remote Ubuntu server over SSH to validate and troubleshoot deployments (especially Caddy reverse proxy). Use when you need OS/disk/memory info, listening ports, key folders, and Caddy service status/config/logs for a host alias like "ptcloud" or "root@ptcloud".
+Inspect a remote Ubuntu server over SSH to validate and troubleshoot deployments (especially Caddy reverse proxy). Use when you need OS/disk/memory info, listening ports, key folders, and Caddy service status/config/logs for an SSH host alias like "myserver" or "user@myserver".
 
 ## How to run
 
@@ -18,8 +18,8 @@ Options:
 
 Examples:
 ```bash
-~/.codex/skills/ssh-server-inspector/scripts/inspect_host.sh ptcloud
-~/.codex/skills/ssh-server-inspector/scripts/inspect_host.sh root@ptcloud --ports 80,443,3000 --paths /etc/caddy,/var/www
+~/.codex/skills/ssh-server-inspector/scripts/inspect_host.sh <ssh_target>
+~/.codex/skills/ssh-server-inspector/scripts/inspect_host.sh root@<ssh_target> --ports 80,443,3000 --paths /etc/caddy,/var/www
 ```
 
 ## How to use the report
