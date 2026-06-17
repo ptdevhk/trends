@@ -93,7 +93,15 @@ export const dispatch = mutation({
         analysisTopN: v.optional(v.number()),
         idempotencyKey: v.optional(v.string()),
     },
-    handler: async (ctx, args) => {
+    handler: async (ctx, args): Promise<
+        | { queued: true; taskId: Id<"collection_tasks"> }
+        | { queued: false; reason: "maintenance" }
+    > => {
+        // Refuse to queue new tasks during maintenance mode (restore quiesce)
+        if (await ctx.runQuery(internal.system_settings.isMaintenanceModeInternal, {})) {
+            return { queued: false, reason: "maintenance" as const };
+        }
+
         const minAge = normalizeOptionalPositiveInt(args.minAge);
         const maxAge = normalizeOptionalPositiveInt(args.maxAge);
         if (typeof minAge === "number" && typeof maxAge === "number" && minAge > maxAge) {
@@ -110,7 +118,7 @@ export const dispatch = mutation({
                     .withIndex("by_idempotency_status", (q) => q.eq("idempotencyKey", idempotencyKey).eq("status", status))
                     .first();
                 if (existing) {
-                    return existing._id;
+                    return { queued: true, taskId: existing._id };
                 }
             }
 
@@ -125,7 +133,7 @@ export const dispatch = mutation({
                 && now - task.completedAt <= RECENT_IDEMPOTENT_COMPLETED_MS
             );
             if (reusableCompleted) {
-                return reusableCompleted._id;
+                return { queued: true, taskId: reusableCompleted._id };
             }
         }
 
@@ -149,7 +157,7 @@ export const dispatch = mutation({
                 page: 0,
             },
         });
-        return taskId;
+        return { queued: true, taskId };
     },
 });
 
