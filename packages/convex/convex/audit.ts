@@ -303,6 +303,12 @@ export const cleanupExpiredAuditLogs = internalAction({
         maxDeletes: v.optional(v.number()),
     },
     handler: async (ctx, args): Promise<{ deleted: number; checked: number; hasMore: boolean }> => {
+        // Skip during maintenance mode (restore quiesce)
+        if (await ctx.runQuery(internal.system_settings.isMaintenanceModeInternal, {})) {
+            console.log("[Cron] Skipping — maintenance mode active");
+            return { deleted: 0, checked: 0, hasMore: false };
+        }
+
         const maxDeletes = Math.min(args.maxDeletes ?? 500, 2000);
         const now = Date.now();
 

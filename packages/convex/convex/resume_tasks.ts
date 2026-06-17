@@ -740,6 +740,12 @@ export const resetDatabase = mutation({
 export const sweepStuckTasks = internalMutation({
     args: {},
     handler: async (ctx) => {
+        // Skip during maintenance mode (restore quiesce)
+        if (await ctx.runQuery(internal.system_settings.isMaintenanceModeInternal, {})) {
+            console.log("[Cron] Skipping — maintenance mode active");
+            return { swept: 0 };
+        }
+
         const cutoff = Date.now() - 24 * 60 * 60 * 1000;
         const stuck = await ctx.db
             .query("collection_tasks")

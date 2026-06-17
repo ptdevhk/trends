@@ -348,6 +348,12 @@ export const batchGenerateEmbeddings = internalAction({
 export const scheduledBackfill = internalAction({
     args: {},
     handler: async (ctx): Promise<{ generated: number; apiErrors: number; batches: number }> => {
+        // Skip during maintenance mode (restore quiesce)
+        if (await ctx.runQuery(internal.system_settings.isMaintenanceModeInternal, {})) {
+            console.log("[Cron] Skipping — maintenance mode active");
+            return { generated: 0, apiErrors: 0, batches: 0 };
+        }
+
         if (!isEmbeddingEnabled()) {
             return { generated: 0, apiErrors: 0, batches: 0 };
         }
