@@ -55,6 +55,21 @@ export const list = query({
     },
 });
 
+/**
+ * Count collection_tasks currently in "processing" status.
+ * Used by the restore quiesce helper to detect drain completion.
+ */
+export const countProcessing = query({
+    args: {},
+    handler: async (ctx) => {
+        const processing = await ctx.db
+            .query("collection_tasks")
+            .withIndex("by_status", (q) => q.eq("status", "processing"))
+            .collect();
+        return processing.length;
+    },
+});
+
 export const getById = query({
     args: {
         taskId: v.id("collection_tasks"),
@@ -364,7 +379,25 @@ export const submitResumes = mutation({
             })
         ),
     },
-    handler: async (ctx, args) => {
+    handler: async (ctx, args): Promise<
+        | {
+            queued: true;
+            input: number;
+            submitted: number;
+            deduped: number;
+            identityDeduped: number;
+            identityMatched: number;
+            inserted: number;
+            updated: number;
+            unchanged: number;
+        }
+        | { queued: false; reason: "maintenance" }
+    > => {
+        // Refuse to submit resumes during maintenance mode (restore quiesce)
+        if (await ctx.runQuery(internal.system_settings.isMaintenanceModeInternal, {})) {
+            return { queued: false, reason: "maintenance" };
+        }
+
         const totalInput = args.resumes.length;
         const dedupedResumes = new Map<string, {
             resume: (typeof args.resumes)[number];
@@ -574,6 +607,7 @@ export const submitResumes = mutation({
         }
 
         return {
+            queued: true as const,
             input: totalInput,
             submitted: resumes.length,
             deduped,

@@ -1,5 +1,5 @@
 import { internal } from "./_generated/api";
-import type { Doc } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 import { internalAction, internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { api } from "./_generated/api";
@@ -291,6 +291,21 @@ export const list = query({
     },
 });
 
+/**
+ * Count analysis_tasks currently in "processing" status.
+ * Used by the restore quiesce helper to detect drain completion.
+ */
+export const countProcessing = query({
+    args: {},
+    handler: async (ctx) => {
+        const processing = await ctx.db
+            .query("analysis_tasks")
+            .withIndex("by_status", (q) => q.eq("status", "processing"))
+            .collect();
+        return processing.length;
+    },
+});
+
 export const getSummary = query({
     args: {},
     handler: async (ctx) => {
@@ -325,7 +340,15 @@ export const dispatch = mutation({
         /** P1: context for evidence ceiling evaluator — optional for backward compat */
         relatedExpContext: v.optional(relatedExpContextValidator),
     },
-    handler: async (ctx, args) => {
+    handler: async (ctx, args): Promise<
+        | { queued: true; taskId: Id<"analysis_tasks"> }
+        | { queued: false; reason: "maintenance" }
+    > => {
+        // Refuse to queue new tasks during maintenance mode (restore quiesce)
+        if (await ctx.runQuery(internal.system_settings.isMaintenanceModeInternal, {})) {
+            return { queued: false, reason: "maintenance" };
+        }
+
         const normalizedKeywords = normalizeKeywords(args.keywords ?? []);
         const normalizedLocation = args.location?.trim() || undefined;
         const promptVersion = args.promptVersion ?? getCurrentResumeAiPromptVersion();
@@ -372,7 +395,7 @@ export const dispatch = mutation({
             )
             .first();
         if (existingProcessingTask) {
-            return existingProcessingTask._id;
+            return { queued: true, taskId: existingProcessingTask._id };
         }
 
         const existingPendingTask = await ctx.db
@@ -382,7 +405,7 @@ export const dispatch = mutation({
             )
             .first();
         if (existingPendingTask) {
-            return existingPendingTask._id;
+            return { queued: true, taskId: existingPendingTask._id };
         }
 
         const existingProcessingTaskByJobKey = await ctx.db
@@ -392,7 +415,7 @@ export const dispatch = mutation({
             )
             .first();
         if (existingProcessingTaskByJobKey) {
-            return existingProcessingTaskByJobKey._id;
+            return { queued: true, taskId: existingProcessingTaskByJobKey._id };
         }
 
         const existingPendingTaskByJobKey = await ctx.db
@@ -402,7 +425,7 @@ export const dispatch = mutation({
             )
             .first();
         if (existingPendingTaskByJobKey) {
-            return existingPendingTaskByJobKey._id;
+            return { queued: true, taskId: existingPendingTaskByJobKey._id };
         }
 
         const taskId = await ctx.db.insert("analysis_tasks", {
@@ -432,7 +455,7 @@ export const dispatch = mutation({
             resumeIds: uniqueResumeIds,
         });
 
-        return taskId;
+        return { queued: true, taskId };
     },
 });
 
@@ -560,6 +583,13 @@ export const processAnalysisTask = internalAction({
         resumeIds: v.array(v.id("resumes")),
     },
     handler: async (ctx, args) => {
+        // Defer during maintenance mode — re-schedule for 60s later with the same args.
+        // Prevents in-flight analysis jobs from mutating resumes mid-restore.
+        if (await ctx.runQuery(internal.system_settings.isMaintenanceModeInternal, {})) {
+            await ctx.scheduler.runAfter(60, internal.analysis_tasks.processAnalysisTask, args);
+            return { status: "deferred" as const };
+        }
+
         let analyzedCount = 0;
         let failedCount = 0;
         let highScoreCount = 0;

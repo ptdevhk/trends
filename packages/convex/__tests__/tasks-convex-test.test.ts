@@ -126,15 +126,21 @@ describe("analysis_tasks: dispatch", () => {
       location: "Beijing",
       resumeIds: [resumeId],
     });
+    if (!first.queued) {
+      throw new Error("dispatch did not queue (maintenance mode?)");
+    }
 
     const second = await t.mutation(api.analysis_tasks.dispatch, {
       keywords: ["python"],
       location: "Beijing",
       resumeIds: [resumeId],
     });
+    if (!second.queued) {
+      throw new Error("dispatch did not queue (maintenance mode?)");
+    }
 
     // Same idempotency key → same task returned
-    expect(second).toBe(first);
+    expect(second.taskId).toBe(first.taskId);
 
     const tasks = await t.run(async (ctx) => {
       return ctx.db.query("analysis_tasks").collect();
@@ -152,10 +158,14 @@ describe("analysis_tasks: cancel", () => {
     const t = createTest();
 
     const resumeId = await insertResume(t);
-    const taskId = await t.mutation(api.analysis_tasks.dispatch, {
+    const dispatchResult = await t.mutation(api.analysis_tasks.dispatch, {
       keywords: ["test"],
       resumeIds: [resumeId],
     });
+    if (!dispatchResult.queued) {
+      throw new Error("dispatch did not queue (maintenance mode?)");
+    }
+    const taskId = dispatchResult.taskId;
 
     await t.mutation(api.analysis_tasks.cancel, { taskId });
 
@@ -170,14 +180,18 @@ describe("analysis_tasks: cancel", () => {
     const t = createTest();
 
     const resumeId = await insertResume(t);
-    const taskId = await t.mutation(api.analysis_tasks.dispatch, {
+    const dispatchResult = await t.mutation(api.analysis_tasks.dispatch, {
       keywords: ["test"],
       resumeIds: [resumeId],
     });
+    if (!dispatchResult.queued) {
+      throw new Error("dispatch did not queue (maintenance mode?)");
+    }
+    const taskId = dispatchResult.taskId;
 
     // Manually complete the task
     await t.run(async (ctx) => {
-      await ctx.db.patch(taskId as any, {
+      await ctx.db.patch(taskId, {
         status: "completed",
         completedAt: Date.now(),
       });
