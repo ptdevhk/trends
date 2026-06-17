@@ -42,6 +42,10 @@ wait_for_prod_api() {
     echo "Prod API ready after ${waited}s"
 }
 
+echo "=== Pre-flight: quiesce PREVIEW (source) before export ==="
+quiesce_writers "$SOURCE_CONVEX_DIR" "$SOURCE_CONVEX_URL" "preview-to-prod-restore"
+
+echo ""
 echo "=== Step 1: Export PREVIEW Convex data ==="
 # Preview Convex runs in Docker. Export inside the container where port 3210 is correct.
 # Host-side export fails because the host workspace .env.local points at container-internal ports.
@@ -120,8 +124,7 @@ rm -rf "$FIX_DIR"
 ls -lh "$EXPORT_PATH"
 
 echo ""
-echo "=== Pre-flight: quiesce both environments ==="
-quiesce_writers "$SOURCE_CONVEX_DIR" "$SOURCE_CONVEX_URL" "preview-to-prod-restore"
+echo "=== Pre-flight: quiesce PROD (target) before import ==="
 quiesce_writers "$TARGET_CONVEX_DIR" "$TARGET_CONVEX_URL" "preview-to-prod-restore-target"
 
 echo ""
