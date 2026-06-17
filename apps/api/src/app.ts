@@ -132,7 +132,7 @@ export function createApp() {
   // Maintenance mode guard — block write methods (POST/PUT/PATCH/DELETE) on API
   // routes when the Convex `maintenanceMode` system flag is active.
   // Registered before route mounts so it runs first; GETs pass through.
-  app.use("/api/*", maintenanceGuard);
+  app.use("*", maintenanceGuard);
 
   // Mount routes
   app.route("/", healthRoutes);

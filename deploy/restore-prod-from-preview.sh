@@ -19,6 +19,64 @@ TARGET_CONVEX_URL=http://127.0.0.1:3210
 
 trap 'release_writers "$SOURCE_CONVEX_DIR" "$SOURCE_CONVEX_URL"; release_writers "$TARGET_CONVEX_DIR" "$TARGET_CONVEX_URL"' EXIT
 
+PREFLIGHT_EXPORT=/tmp/prod-preflight-export.zip
+
+extract_resume_ids_from_zip() {
+    local zip_path="$1"
+    local tmp; tmp=$(mktemp -d)
+    (cd "$tmp" && unzip -q "$zip_path" 'resumes/documents.jsonl' 2>/dev/null) || { rm -rf "$tmp"; return 0; }
+    if [ -f "$tmp/resumes/documents.jsonl" ]; then
+        python3 -c "import json,sys; [print(json.loads(l)['_id']) for l in open('$tmp/resumes/documents.jsonl') if l.strip()]"
+    fi
+    rm -rf "$tmp"
+}
+
+audit_resume_ids() {
+    local preview_zip="$1"
+    local allow_loss="${RESTORE_ALLOW_ID_LOSS:-}"
+
+    echo "=== Pre-flight: resume-ID audit ==="
+    echo "Exporting current prod Convex for ID comparison..."
+    rm -f "$PREFLIGHT_EXPORT"
+    sudo -u trends bash -c "
+        cd $TARGET_CONVEX_DIR && \
+        CONVEX_URL=$TARGET_CONVEX_URL \
+        npx convex export --path $PREFLIGHT_EXPORT --include-file-storage
+    " > /dev/null 2>&1
+    ls -lh "$PREFLIGHT_EXPORT"
+
+    echo "Extracting ID sets..."
+    local preview_ids prod_ids orphans orphan_count
+    prod_ids=$(mktemp)
+    preview_ids=$(mktemp)
+    extract_resume_ids_from_zip "$PREFLIGHT_EXPORT" | sort > "$prod_ids"
+    extract_resume_ids_from_zip "$preview_zip"     | sort > "$preview_ids"
+
+    echo "  prod IDs: $(wc -l < "$prod_ids")"
+    echo "  preview IDs: $(wc -l < "$preview_ids")"
+
+    orphans=$(comm -23 "$prod_ids" "$preview_ids")
+    orphan_count=$(echo "$orphans" | grep -c . || true)
+    rm -f "$prod_ids" "$preview_ids" "$PREFLIGHT_EXPORT"
+
+    if [ "$orphan_count" -gt 0 ]; then
+        echo "" >&2
+        echo "WARNING: $orphan_count prod resume(s) NOT in preview export." >&2
+        echo "These would be DELETED by --replace-all, orphaning SQLite candidate_actions." >&2
+        echo "First 10 orphans:" >&2
+        echo "$orphans" | head -10 >&2
+        if [ "$allow_loss" = "1" ]; then
+            echo "RESTORE_ALLOW_ID_LOSS=1 — proceeding with acknowledged data loss." >&2
+        else
+            echo "" >&2
+            echo "To proceed anyway: RESTORE_ALLOW_ID_LOSS=1 bash $0" >&2
+            exit 1
+        fi
+    else
+        echo "OK: all prod resume IDs present in preview export — no orphan risk."
+    fi
+}
+
 EXPORT_PATH=/tmp/preview-convex-export.zip
 # Clean up stale exports from previous runs
 rm -f "$EXPORT_PATH" /tmp/preview-convex-export-fixed.zip
@@ -126,6 +184,8 @@ ls -lh "$EXPORT_PATH"
 echo ""
 echo "=== Pre-flight: quiesce PROD (target) before import ==="
 quiesce_writers "$TARGET_CONVEX_DIR" "$TARGET_CONVEX_URL" "preview-to-prod-restore-target"
+
+audit_resume_ids "$EXPORT_PATH"
 
 echo ""
 echo "=== Step 2: Import into PROD Convex (replace-all) ==="
