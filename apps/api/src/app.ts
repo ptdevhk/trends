@@ -37,11 +37,13 @@ import {
   resumesAdminRoutes,
   resumesSearchRoutes,
   resumesMatchRoutes,
+  systemRoutes,
 } from "./routes/index.js";
 import { config } from "./services/config.js";
 import { workspaceMiddleware } from "./middleware/workspace.js";
 import { serverTimingMiddleware } from "./middleware/server-timing.js";
 import { rateLimit } from "./middleware/rate-limit.js";
+import { maintenanceGuard } from "./middleware/maintenance.js";
 
 export const openApiConfig = {
   openapi: "3.1.0",
@@ -127,6 +129,11 @@ export function createApp() {
     },
   );
 
+  // Maintenance mode guard — block write methods (POST/PUT/PATCH/DELETE) on API
+  // routes when the Convex `maintenanceMode` system flag is active.
+  // Registered before route mounts so it runs first; GETs pass through.
+  app.use("/api/*", maintenanceGuard);
+
   // Mount routes
   app.route("/", healthRoutes);
   app.route("/", aiSummaryRoutes);
@@ -160,6 +167,7 @@ export function createApp() {
   app.route("/api/summaries", summariesRoutes);
   app.route("/api/web-vitals", webVitalsRoutes);
   app.route("/api/search-alerts", searchAlertsRoutes);
+  app.route("/", systemRoutes);
 
   // OpenAPI documentation endpoint
   app.doc("/doc", openApiConfig);

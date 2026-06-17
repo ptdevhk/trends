@@ -3,6 +3,13 @@ import path from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+// Maintenance middleware is unit-tested separately; route tests bypass it.
+vi.mock("../middleware/maintenance.js", () => ({
+  maintenanceGuard: async (_c: unknown, next: () => Promise<void>) => {
+    await next();
+  },
+}));
+
 import { createApp } from "../app";
 import { config } from "../services/config";
 
