@@ -82,6 +82,7 @@ EXPORT_PATH=/tmp/preview-convex-export.zip
 rm -f "$EXPORT_PATH" /tmp/preview-convex-export-fixed.zip
 PROD_DIR=/opt/trends
 PREVIEW_DIR=/home/ubuntu/trends-preview
+DIGEST_BACKFILL_BATCH_SIZE="${DIGEST_BACKFILL_BATCH_SIZE:-50}"
 
 wait_for_prod_api() {
     local max_wait=120
@@ -205,11 +206,11 @@ digest_cursor=""
 digest_total=0
 digest_iteration=1
 while true; do
-    call_args="$(CURSOR="$digest_cursor" python3 <<'PYEOF'
+    call_args="$(CURSOR="$digest_cursor" DIGEST_BACKFILL_BATCH_SIZE="$DIGEST_BACKFILL_BATCH_SIZE" python3 <<'PYEOF'
 import json
 import os
 
-args = {"limit": 200}
+args = {"limit": int(os.environ["DIGEST_BACKFILL_BATCH_SIZE"])}
 cursor = os.environ.get("CURSOR")
 if cursor:
     args["cursor"] = cursor

@@ -26,6 +26,7 @@ PREVIEW_DIR="${PREVIEW_DIR:-/home/ubuntu/trends-preview}"
 PREVIEW_API_URL="${PREVIEW_API_URL:-http://127.0.0.1:3002}"
 PREVIEW_RESUME_SMOKE_PATH="/api/resumes?source=convex&paged=true&limit=1"
 PREVIEW_CONVEX_URL="${PREVIEW_CONVEX_URL:-http://127.0.0.1:4210}"
+DIGEST_BACKFILL_BATCH_SIZE="${DIGEST_BACKFILL_BATCH_SIZE:-50}"
 
 wait_for_preview_api() {
     local max_wait=120
@@ -209,11 +210,11 @@ digest_cursor=""
 digest_total=0
 digest_iteration=1
 while true; do
-    call_args="$(CURSOR="$digest_cursor" python3 <<'PYEOF'
+    call_args="$(CURSOR="$digest_cursor" DIGEST_BACKFILL_BATCH_SIZE="$DIGEST_BACKFILL_BATCH_SIZE" python3 <<'PYEOF'
 import json
 import os
 
-args = {"limit": 200}
+args = {"limit": int(os.environ["DIGEST_BACKFILL_BATCH_SIZE"])}
 cursor = os.environ.get("CURSOR")
 if cursor:
     args["cursor"] = cursor
