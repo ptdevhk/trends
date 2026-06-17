@@ -41,6 +41,11 @@ def run_crawl_analyze(config_overrides: Optional[Dict[str, Any]] = None) -> bool
     Returns:
         True if the task completed successfully, False otherwise
     """
+    # Skip during maintenance mode (restore quiesce)
+    if _is_maintenance_mode():
+        logger.info("[Task] Skipping crawl cycle — maintenance mode active")
+        return True
+
     timezone = resolve_worker_timezone()
     start_time = get_configured_time(timezone)
     logger.info(f"[Task] Starting crawl_analyze at {start_time.isoformat()}")
@@ -131,6 +136,27 @@ def health_check() -> bool:
 def _worker_api_base_url(override: Optional[str] = None) -> str:
     base_url = override or os.environ.get("TRENDS_API_URL", "http://localhost:3000")
     return base_url.rstrip("/")
+
+
+def _is_maintenance_mode(api_base_url: Optional[str] = None) -> bool:
+    """
+    Check if the API reports maintenance mode active.
+
+    Fail-open: any network/parse error returns False so the worker is not
+    blocked indefinitely by an unreachable API.
+    """
+    base_url = _worker_api_base_url(api_base_url)
+    try:
+        req = Request(
+            f"{base_url}/api/system/maintenance",
+            headers={"Accept": "application/json"},
+        )
+        with urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        return bool(data.get("maintenanceMode", False))
+    except (HTTPError, URLError, TimeoutError, json.JSONDecodeError) as err:
+        logger.warning("[Task] Failed to check maintenance mode, defaulting to off: %s", err)
+        return False
 
 
 def normalize_summary_period(period: Optional[str]) -> str:

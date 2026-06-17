@@ -39,11 +39,15 @@ async function dispatchAnalysisTask(
   overrides: Record<string, unknown> = {},
 ) {
   const resumeId = await insertResume(t);
-  return t.mutation(api.analysis_tasks.dispatch, {
+  const result = await t.mutation(api.analysis_tasks.dispatch, {
     keywords: ["test"],
     resumeIds: [resumeId],
     ...overrides,
   });
+  if (!result.queued) {
+    throw new Error("dispatch did not queue (maintenance mode?)");
+  }
+  return result.taskId;
 }
 
 // ---------------------------------------------------------------------------
@@ -89,10 +93,14 @@ describe("analysis_tasks: markProcessing", () => {
 
     // Create and delete a task to get a valid-format ID that no longer exists
     const tempResumeId = await insertResume(t);
-    const tempTaskId = await t.mutation(api.analysis_tasks.dispatch, {
+    const tempResult = await t.mutation(api.analysis_tasks.dispatch, {
       keywords: ["temp"],
       resumeIds: [tempResumeId],
     });
+    if (!tempResult.queued) {
+      throw new Error("dispatch did not queue (maintenance mode?)");
+    }
+    const tempTaskId = tempResult.taskId;
     await t.run(async (ctx) => {
       await ctx.db.delete(tempTaskId);
     });

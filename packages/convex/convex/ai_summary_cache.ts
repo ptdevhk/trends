@@ -1,4 +1,5 @@
 import { internalMutation, mutation, query } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { v } from "convex/values";
 
 export const get = query({
@@ -54,6 +55,12 @@ export const cleanupExpired = internalMutation({
         now: v.optional(v.number()),
     },
     handler: async (ctx, args) => {
+        // Skip during maintenance mode (restore quiesce)
+        if (await ctx.runQuery(internal.system_settings.isMaintenanceModeInternal, {})) {
+            console.log("[Cron] Skipping — maintenance mode active");
+            return { deleted: 0 };
+        }
+
         const now = args.now ?? Date.now();
         let deleted = 0;
 
@@ -77,5 +84,13 @@ export const cleanupExpired = internalMutation({
         return {
             deleted,
         };
+    },
+});
+
+export const count = query({
+    args: {},
+    handler: async (ctx) => {
+        const all = await ctx.db.query("ai_summary_cache").collect();
+        return all.length;
     },
 });

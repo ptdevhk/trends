@@ -115,6 +115,10 @@
     "class": "admin",
     "reason": "Summary administration and runtime configuration use getAdminAccessError checks."
   },
+  "system.ts": {
+    "class": "public",
+    "reason": "System maintenance status is a read-only health-style endpoint used by workers and deploy scripts before authenticated app flows are available."
+  },
   "taxonomy.ts": {
     "class": "admin",
     "reason": "Taxonomy routes use requireAdmin middleware."

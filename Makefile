@@ -19,7 +19,7 @@
 		clear-resumes \
 		cli-build cli-install cli-test \
 		sync-agent-policy check-agent-policy sync-project-skills check-project-skills install-global-skills install-agent-skill check-agent-skill sync-agent-governance \
-		check-route-auth auth-workspace-smoke auth-provider-membership \
+		check-route-auth check-mutation-entry-points auth-workspace-smoke auth-provider-membership \
 		install-skill validate-skill check-skill-install install-test-plan-skill check-test-plan-skill \
 		install-browser-ext-skill check-browser-ext-skill \
 		sync-resume-ai-prompts check-resume-ai-prompts \
@@ -1185,12 +1185,17 @@ fresh-env: clean clean-db
 	@echo "Fresh environment ready."
 
 # Run all validation checks (Python + Node.js + project skill sync + governance skill validation; honors TARGET=all)
-check: check-python check-node check-project-skills check-agent-policy check-agent-skill check-concept-drift check-route-auth
+check: check-python check-node check-project-skills check-agent-policy check-agent-skill check-concept-drift check-route-auth check-mutation-entry-points
 	@echo "All checks passed"
 
 # Auth gating lint — verify API route files have auth middleware
 check-route-auth:
 	@bash scripts/check-route-auth.sh
+
+# Mutation registry lint — verify every public Convex mutation is registered
+# in packages/convex/convex/_mutations_registry.ts (quiesce-coverage audit).
+check-mutation-entry-points:
+	@bash scripts/check-mutation-entry-points.sh
 
 # Concept drift check — flags vault concept pages that may need review after code changes
 check-concept-drift:

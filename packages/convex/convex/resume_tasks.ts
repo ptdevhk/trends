@@ -56,6 +56,21 @@ export const list = query({
     },
 });
 
+/**
+ * Count collection_tasks currently in "processing" status.
+ * Used by the restore quiesce helper to detect drain completion.
+ */
+export const countProcessing = query({
+    args: {},
+    handler: async (ctx) => {
+        const processing = await ctx.db
+            .query("collection_tasks")
+            .withIndex("by_status", (q) => q.eq("status", "processing"))
+            .collect();
+        return processing.length;
+    },
+});
+
 export const getById = query({
     args: {
         taskId: v.id("collection_tasks"),
@@ -79,7 +94,15 @@ export const dispatch = mutation({
         analysisTopN: v.optional(v.number()),
         idempotencyKey: v.optional(v.string()),
     },
-    handler: async (ctx, args) => {
+    handler: async (ctx, args): Promise<
+        | { queued: true; taskId: Id<"collection_tasks"> }
+        | { queued: false; reason: "maintenance" }
+    > => {
+        // Refuse to queue new tasks during maintenance mode (restore quiesce)
+        if (await ctx.runQuery(internal.system_settings.isMaintenanceModeInternal, {})) {
+            return { queued: false, reason: "maintenance" as const };
+        }
+
         const minAge = normalizeOptionalPositiveInt(args.minAge);
         const maxAge = normalizeOptionalPositiveInt(args.maxAge);
         if (typeof minAge === "number" && typeof maxAge === "number" && minAge > maxAge) {
@@ -96,7 +119,7 @@ export const dispatch = mutation({
                     .withIndex("by_idempotency_status", (q) => q.eq("idempotencyKey", idempotencyKey).eq("status", status))
                     .first();
                 if (existing) {
-                    return existing._id;
+                    return { queued: true, taskId: existing._id };
                 }
             }
 
@@ -111,7 +134,7 @@ export const dispatch = mutation({
                 && now - task.completedAt <= RECENT_IDEMPOTENT_COMPLETED_MS
             );
             if (reusableCompleted) {
-                return reusableCompleted._id;
+                return { queued: true, taskId: reusableCompleted._id };
             }
         }
 
@@ -135,7 +158,7 @@ export const dispatch = mutation({
                 page: 0,
             },
         });
-        return taskId;
+        return { queued: true, taskId };
     },
 });
 
@@ -365,7 +388,25 @@ export const submitResumes = mutation({
             })
         ),
     },
-    handler: async (ctx, args) => {
+    handler: async (ctx, args): Promise<
+        | {
+            queued: true;
+            input: number;
+            submitted: number;
+            deduped: number;
+            identityDeduped: number;
+            identityMatched: number;
+            inserted: number;
+            updated: number;
+            unchanged: number;
+        }
+        | { queued: false; reason: "maintenance" }
+    > => {
+        // Refuse to submit resumes during maintenance mode (restore quiesce)
+        if (await ctx.runQuery(internal.system_settings.isMaintenanceModeInternal, {})) {
+            return { queued: false, reason: "maintenance" };
+        }
+
         const totalInput = args.resumes.length;
         const dedupedResumes = new Map<string, {
             resume: (typeof args.resumes)[number];
@@ -600,6 +641,7 @@ export const submitResumes = mutation({
         }
 
         return {
+            queued: true as const,
             input: totalInput,
             submitted: resumes.length,
             deduped,
@@ -766,6 +808,12 @@ export const resetDatabase = mutation({
 export const sweepStuckTasks = internalMutation({
     args: {},
     handler: async (ctx) => {
+        // Skip during maintenance mode (restore quiesce)
+        if (await ctx.runQuery(internal.system_settings.isMaintenanceModeInternal, {})) {
+            console.log("[Cron] Skipping — maintenance mode active");
+            return { swept: 0 };
+        }
+
         const cutoff = Date.now() - 24 * 60 * 60 * 1000;
         const stuck = await ctx.db
             .query("collection_tasks")

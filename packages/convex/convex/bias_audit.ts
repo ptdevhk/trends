@@ -38,6 +38,12 @@ export const listWorkspaceSlugsWithAuditLogs = internalQuery({
 export const computeBiasMetricsForAllWorkspaces = internalAction({
     args: {},
     handler: async (ctx) => {
+        // Skip during maintenance mode (restore quiesce)
+        if (await ctx.runQuery(internal.system_settings.isMaintenanceModeInternal, {})) {
+            console.log("[Cron] Skipping — maintenance mode active");
+            return [];
+        }
+
         const workspaceSlugs = await ctx.runQuery(internal.bias_audit.listWorkspaceSlugsWithAuditLogs) as string[];
         const results: Array<{ workspaceSlug: string; status: string; anomalyDetected?: boolean }> = [];
 

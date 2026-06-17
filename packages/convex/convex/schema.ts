@@ -378,6 +378,15 @@ export default defineSchema({
         .index("by_workspace_key", ["workspaceSlug", "configKey"])
         .index("by_workspace", ["workspaceSlug"]),
 
+    system_settings: defineTable({
+        key: v.string(),
+        value: jsonValueValidator,
+        reason: v.optional(v.string()),
+        updatedAt: v.number(),
+        updatedBy: v.string(),
+    })
+        .index("by_key", ["key"]),
+
     candidate_blocks: defineTable({
         identityKey: v.string(),
         workspaceSlug: v.string(),

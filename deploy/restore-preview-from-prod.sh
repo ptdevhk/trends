@@ -6,6 +6,17 @@
 # DO NOT use raw SQLite file copy — binary version mismatch breaks schema push.
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/quiesce.sh"
+
+TARGET_CONVEX_DIR=/home/ubuntu/trends-preview/packages/convex
+SOURCE_CONVEX_DIR=/opt/trends/packages/convex
+SOURCE_CONVEX_URL=http://127.0.0.1:3210
+# Target (preview) runs in Docker — import happens inside container, see Step 3
+TARGET_CONVEX_URL=http://127.0.0.1:4210
+
+trap 'release_writers "$SOURCE_CONVEX_DIR" "$SOURCE_CONVEX_URL"; release_writers "$TARGET_CONVEX_DIR" "$TARGET_CONVEX_URL"' EXIT
+
 EXPORT_PATH=/tmp/prod-convex-export.zip
 # Clean up stale exports from previous runs
 rm -f "$EXPORT_PATH" /tmp/prod-convex-export-fixed.zip
@@ -80,6 +91,9 @@ run_preview_ai_smoke() {
             --json
 }
 
+echo "=== Quiesce source (prod) before export ==="
+quiesce_writers "$SOURCE_CONVEX_DIR" "$SOURCE_CONVEX_URL" "prod-to-preview-restore"
+
 echo "=== Step 1: Export production Convex data ==="
 sudo -u trends bash -c "cd '$PROD_CONVEX_DIR' && \
     CONVEX_URL=http://127.0.0.1:3210 \
@@ -111,6 +125,13 @@ if os.path.exists(path):
     with open(path, 'w') as f:
         f.write('\n'.join(json.dumps(d, ensure_ascii=False) for d in docs) + '\n')
     print(f"Stripped showBlocked from {changed}/{len(docs)} screening_sessions documents")
+
+# Exclude system_settings table — it carries the source's maintenance flag
+# and should not propagate to the target environment
+import shutil
+if os.path.exists('system_settings'):
+    shutil.rmtree('system_settings')
+    print("Excluded system_settings/ from import (maintenance flag is environment-local)")
 
 schema_path = pathlib.Path(sys.argv[1])
 if not schema_path.exists():

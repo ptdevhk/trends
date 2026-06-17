@@ -164,8 +164,14 @@ async function dispatchCollectionTask(args: {
     analysisTopN: number;
 }): Promise<{ taskId: string; convexUrl: string }> {
     const value = await callConvexMutation("resume_tasks:dispatch", args);
+    if (isRecord(value) && value.queued === false) {
+        throw new Error("Maintenance mode active — collection dispatch refused");
+    }
+    const taskId = isRecord(value) && typeof value.taskId !== "undefined"
+        ? String(value.taskId)
+        : String(value);
     return {
-        taskId: String(value),
+        taskId,
         convexUrl: resolveConvexUrl().replace(/\/$/, ""),
     };
 }

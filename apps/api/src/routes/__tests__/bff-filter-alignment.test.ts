@@ -452,5 +452,31 @@ describe("bffMatchesResumeFilters", () => {
       expect(matchesResumeDigestFilters(digest, { locations: ["China"], sources: ["51job"] })).toBe(true);
       expect(matchesResumeDigestFilters(digest, { locations: ["广东"], sources: ["51job"] })).toBe(false);
     });
+
+    it("normalizes digest roleFilterType before checking verified role years", () => {
+      const digest: DigestRecord = {
+        isArchived: false,
+        source: "job5156",
+        sourceKey: "job5156",
+        roleTypes: ["sales"],
+        roleYearsByType: { sales: 2 },
+        searchText: "cnc 销售",
+      };
+
+      expect(matchesResumeDigestFilters(digest, { roleFilterType: " Sales ", minRoleYears: 1 })).toBe(true);
+    });
+
+    it("lets China-source digest rows match a country-wide China filter when locationText is missing", () => {
+      const digest: DigestRecord = {
+        isArchived: false,
+        source: "ehire.51job.com",
+        sourceKey: "51job",
+        locationText: "",
+        searchText: "cnc 销售",
+      };
+
+      expect(matchesResumeDigestFilters(digest, { locations: ["China"], sources: ["51job"] })).toBe(true);
+      expect(matchesResumeDigestFilters(digest, { locations: ["广东"], sources: ["51job"] })).toBe(false);
+    });
   });
 });
