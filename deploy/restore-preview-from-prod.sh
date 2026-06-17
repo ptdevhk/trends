@@ -24,7 +24,6 @@ PROD_DIR="${PROD_DIR:-/opt/trends}"
 PROD_CONVEX_DIR="$PROD_DIR/packages/convex"
 PREVIEW_DIR="${PREVIEW_DIR:-/home/ubuntu/trends-preview}"
 PREVIEW_API_URL="${PREVIEW_API_URL:-http://127.0.0.1:3002}"
-PREVIEW_RESUME_SMOKE_PATH="/api/resumes?source=convex&paged=true&limit=1"
 PREVIEW_CONVEX_URL="${PREVIEW_CONVEX_URL:-http://127.0.0.1:4210}"
 DIGEST_BACKFILL_BATCH_SIZE="${DIGEST_BACKFILL_BATCH_SIZE:-50}"
 
@@ -53,6 +52,19 @@ check_preview_endpoint() {
     printf '%s: %s\n' "$path" "$status"
     if [ "$status" != "200" ]; then
         echo "Preview endpoint failed: $path returned $status" >&2
+        exit 1
+    fi
+}
+
+check_preview_resume_count() {
+    local output count
+
+    output="$(docker exec trends-preview-convex bash -c "cd /app/packages/convex && npx convex run resumes:count '{}'" 2>&1)"
+    count="$(printf '%s\n' "$output" | grep -E '^[0-9]+$' | tail -1)"
+    printf 'preview resumes: %s\n' "${count:-unavailable}"
+    if [ -z "$count" ] || [ "$count" -le 0 ]; then
+        printf '%s\n' "$output" >&2
+        echo "Preview resume count check failed" >&2
         exit 1
     fi
 }
@@ -270,7 +282,8 @@ wait_for_preview_api
 echo ""
 echo "=== Verification ==="
 check_preview_endpoint "/api/blocks"
-check_preview_endpoint "$PREVIEW_RESUME_SMOKE_PATH"
+check_preview_endpoint "/api/search-profiles/stats"
+check_preview_resume_count
 run_preview_ai_smoke
 
 echo ""
