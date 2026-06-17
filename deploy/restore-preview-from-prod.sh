@@ -56,15 +56,27 @@ check_preview_endpoint() {
     fi
 }
 
-check_preview_resume_count() {
+check_preview_resume_page() {
     local output count
 
-    output="$(docker exec trends-preview-convex bash -c "cd /app/packages/convex && npx convex run resumes:count '{}'" 2>&1)"
-    count="$(printf '%s\n' "$output" | grep -E '^[0-9]+$' | tail -1)"
-    printf 'preview resumes: %s\n' "${count:-unavailable}"
+    output="$(docker exec trends-preview-convex bash -c "cd /app/packages/convex && npx convex run resumes_search:scanResumePageSlim '{\"numItems\":1}'" 2>&1)"
+    count="$(OUTPUT="$output" python3 <<'PYEOF'
+import json
+import os
+
+source = os.environ["OUTPUT"]
+start = source.find("{")
+end = source.rfind("}")
+if start == -1 or end == -1 or end < start:
+    raise SystemExit(0)
+value = json.loads(source[start : end + 1])
+print(len(value.get("docs") or []))
+PYEOF
+)"
+    printf 'preview resume page size: %s\n' "${count:-unavailable}"
     if [ -z "$count" ] || [ "$count" -le 0 ]; then
         printf '%s\n' "$output" >&2
-        echo "Preview resume count check failed" >&2
+        echo "Preview resume page check failed" >&2
         exit 1
     fi
 }
@@ -283,7 +295,7 @@ echo ""
 echo "=== Verification ==="
 check_preview_endpoint "/api/blocks"
 check_preview_endpoint "/api/search-profiles/stats"
-check_preview_resume_count
+check_preview_resume_page
 run_preview_ai_smoke
 
 echo ""
