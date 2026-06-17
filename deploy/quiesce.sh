@@ -14,6 +14,36 @@ DRAIN_MAX_WAIT=90
 DRAIN_POLL_INTERVAL=5
 DRAIN_THRESHOLD=1  # tolerate 1 stuck task
 
+uses_preview_container() {
+    local convex_dir="$1"
+    local convex_url="$2"
+
+    [ "$convex_url" = "http://127.0.0.1:4210" ] || return 1
+    [[ "$convex_dir" == *"/trends-preview/packages/convex" ]] || return 1
+    docker inspect trends-preview-convex >/dev/null 2>&1
+}
+
+convex_run() {
+    local convex_dir="$1"
+    local convex_url="$2"
+    local function_name="$3"
+    local args="$4"
+
+    if uses_preview_container "$convex_dir" "$convex_url"; then
+        docker exec \
+            -e CONVEX_DEPLOYMENT=anonymous:anonymous-convex \
+            -e CONVEX_URL=http://127.0.0.1:3210 \
+            trends-preview-convex \
+            bash -lc 'cd /app/packages/convex && npx convex run "$1" "$2" 2>&1' \
+            bash "$function_name" "$args"
+        return
+    fi
+
+    sudo -u trends env CONVEX_URL="$convex_url" bash -c \
+        'cd "$1" && npx convex run "$2" "$3" 2>&1' \
+        bash "$convex_dir" "$function_name" "$args"
+}
+
 quiesce_writers() {
     local convex_dir="$1"
     local convex_url="$2"
@@ -22,27 +52,15 @@ quiesce_writers() {
     echo "=== Quiescing writers (reason: $reason) ==="
 
     # Set maintenance flag
-    sudo -u trends bash -c "
-        cd '$convex_dir' && \
-        CONVEX_URL='$convex_url' \
-        npx convex run system_settings:set '{\"key\":\"maintenanceMode\",\"value\":true,\"updatedBy\":\"restore-script\",\"reason\":\"$reason\"}' 2>&1
-    " | tail -3
+    convex_run "$convex_dir" "$convex_url" system_settings:set "{\"key\":\"maintenanceMode\",\"value\":true,\"updatedBy\":\"restore-script\",\"reason\":\"$reason\"}" | tail -3
 
     # Wait for in-flight analysis + resume tasks to drain
     echo "Waiting for in-flight writers to drain (max ${DRAIN_MAX_WAIT}s)..."
     local waited=0
     while [ "$waited" -lt "$DRAIN_MAX_WAIT" ]; do
         local analysis_pending resume_pending
-        analysis_pending=$(sudo -u trends bash -c "
-            cd '$convex_dir' && \
-            CONVEX_URL='$convex_url' \
-            npx convex run analysis_tasks:countProcessing '{}' 2>&1
-        " | grep -E '^[0-9]+$' | tail -1)
-        resume_pending=$(sudo -u trends bash -c "
-            cd '$convex_dir' && \
-            CONVEX_URL='$convex_url' \
-            npx convex run resume_tasks:countProcessing '{}' 2>&1
-        " | grep -E '^[0-9]+$' | tail -1)
+        analysis_pending=$(convex_run "$convex_dir" "$convex_url" analysis_tasks:countProcessing '{}' | grep -E '^[0-9]+$' | tail -1)
+        resume_pending=$(convex_run "$convex_dir" "$convex_url" resume_tasks:countProcessing '{}' | grep -E '^[0-9]+$' | tail -1)
 
         analysis_pending="${analysis_pending:-0}"
         resume_pending="${resume_pending:-0}"
@@ -66,10 +84,6 @@ release_writers() {
     local convex_url="$2"
 
     echo "=== Releasing writers ==="
-    sudo -u trends bash -c "
-        cd '$convex_dir' && \
-        CONVEX_URL='$convex_url' \
-        npx convex run system_settings:set '{\"key\":\"maintenanceMode\",\"value\":false,\"updatedBy\":\"restore-script\"}' 2>&1
-    " | tail -3
+    convex_run "$convex_dir" "$convex_url" system_settings:set '{"key":"maintenanceMode","value":false,"updatedBy":"restore-script"}' | tail -3
     echo "Writers released."
 }
