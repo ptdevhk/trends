@@ -79,6 +79,7 @@ apps/web/public/extension/
 
 # Production env
 .env.production
+.env.preview
 /.codex/environments
 
 .env.local
