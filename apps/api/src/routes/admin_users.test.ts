@@ -6,6 +6,12 @@ import { OpenAPIHono } from "@hono/zod-openapi";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createAuthMiddleware } from "../middleware/auth.js";
+import {
+  __resetLoginRateLimiterForTests,
+  recordLoginFailure,
+  LOGIN_MAX_FAILURES,
+  checkLoginAttempt,
+} from "../middleware/login-rate-limit.js";
 import { workspaceMiddleware } from "../middleware/workspace.js";
 import { AuthSessionService } from "../services/auth-session-service.js";
 import { AuthEventStorage } from "../services/auth-event-storage.js";
@@ -331,5 +337,179 @@ describe("POST /api/admin/reset-password", () => {
     // No reset happened
     const events = eventStorage.listRecent({ limit: 50 });
     expect(events.some((e) => e.type === "password_reset_completed")).toBe(false);
+  });
+});
+
+describe("POST /api/admin/auth/unlock", () => {
+  beforeEach(() => {
+    __resetLoginRateLimiterForTests();
+  });
+
+  afterEach(() => {
+    __resetLoginRateLimiterForTests();
+    resetResumeScreeningDb();
+    vi.restoreAllMocks();
+  });
+
+  it("returns 401 when caller has no session", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "admin-unlock-401-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const app = createTestApp(storage, eventStorage);
+
+    const res = await app.request("/api/admin/auth/unlock", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Workspace-Slug": "dev",
+        "X-CSRF-Token": "irrelevant-no-session",
+      },
+      body: JSON.stringify({ username: "victim" }),
+    });
+
+    expect([401, 403]).toContain(res.status);
+    const events = eventStorage.listRecent({ limit: 50 });
+    expect(events.some((e) => e.type === "login_lockout_cleared")).toBe(false);
+  });
+
+  it("returns 403 when caller is not in the dev workspace", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "admin-unlock-403-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    // hr-admin is admin in 'hr', not 'dev' — must be denied at the workspace gate.
+    const hrAdmin = await seedLocalUser(storage, { username: "hr-admin", workspace: "hr", role: "admin" });
+    const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
+    const session = sessions.createSession(hrAdmin.user.id);
+    const app = createTestApp(storage, eventStorage);
+
+    const res = await app.request("/api/admin/auth/unlock", {
+      method: "POST",
+      headers: authHeaders("hr", session),
+      body: JSON.stringify({ username: "victim" }),
+    });
+
+    expect(res.status).toBe(403);
+  });
+
+  it("clears lockout for a locked username and emits an audit event", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "admin-unlock-ok-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const devAdmin = await seedDevAdmin(storage);
+    const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
+    const session = sessions.createSession(devAdmin.user.id);
+    const app = createTestApp(storage, eventStorage);
+
+    // Drive a real lockout via the public API so the test exercises the same
+    // path production hits — fake state via __resetLoginRateLimiterForTests
+    // would not assert that the unlock actually maps to the keyed entries.
+    for (let i = 0; i < LOGIN_MAX_FAILURES; i += 1) {
+      recordLoginFailure("locked-user", "203.0.113.7");
+    }
+    expect(checkLoginAttempt("locked-user", "203.0.113.7").allowed).toBe(false);
+
+    const res = await app.request("/api/admin/auth/unlock", {
+      method: "POST",
+      headers: authHeaders("dev", session),
+      body: JSON.stringify({ username: "locked-user" }),
+    });
+
+    expect(res.status).toBe(200);
+    const body = await parseJsonBody<{ success: unknown; cleared: boolean; removedCount: number }>(res);
+    expect(body.success).toBe(true);
+    expect(body.cleared).toBe(true);
+    expect(body.removedCount).toBe(1);
+
+    // Lockout actually cleared.
+    expect(checkLoginAttempt("locked-user", "203.0.113.7").allowed).toBe(true);
+
+    // Audit event recorded with admin attribution.
+    const events = eventStorage.listRecent({ limit: 50 });
+    const evt = events.find((e) => e.type === "login_lockout_cleared");
+    expect(evt).toBeDefined();
+    expect(evt!.workspaceSlug).toBe("dev");
+    expect(evt!.metadata?.targetUsername).toBe("locked-user");
+    expect(evt!.metadata?.clearedByUserId).toBe(devAdmin.user.id);
+    expect(evt!.metadata?.cleared).toBe(true);
+    expect(evt!.metadata?.removedCount).toBe(1);
+  });
+
+  it("clears every IP-keyed entry for the username (multi-NAT recovery)", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "admin-unlock-multi-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const devAdmin = await seedDevAdmin(storage);
+    const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
+    const session = sessions.createSession(devAdmin.user.id);
+    const app = createTestApp(storage, eventStorage);
+
+    // Same user fat-fingered from laptop AND phone hotspot — two keyed entries.
+    for (let i = 0; i < LOGIN_MAX_FAILURES; i += 1) recordLoginFailure("dual-locked", "1.1.1.1");
+    for (let i = 0; i < LOGIN_MAX_FAILURES; i += 1) recordLoginFailure("dual-locked", "2.2.2.2");
+
+    const res = await app.request("/api/admin/auth/unlock", {
+      method: "POST",
+      headers: authHeaders("dev", session),
+      body: JSON.stringify({ username: "dual-locked" }),
+    });
+
+    expect(res.status).toBe(200);
+    const body = await parseJsonBody<{ removedCount: number }>(res);
+    expect(body.removedCount).toBe(2);
+    expect(checkLoginAttempt("dual-locked", "1.1.1.1").allowed).toBe(true);
+    expect(checkLoginAttempt("dual-locked", "2.2.2.2").allowed).toBe(true);
+  });
+
+  it("returns success with cleared=false when the username has no active lockout", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "admin-unlock-noop-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const devAdmin = await seedDevAdmin(storage);
+    const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
+    const session = sessions.createSession(devAdmin.user.id);
+    const app = createTestApp(storage, eventStorage);
+
+    const res = await app.request("/api/admin/auth/unlock", {
+      method: "POST",
+      headers: authHeaders("dev", session),
+      body: JSON.stringify({ username: "never-locked" }),
+    });
+
+    expect(res.status).toBe(200);
+    const body = await parseJsonBody<{ cleared: boolean; removedCount: number }>(res);
+    expect(body.cleared).toBe(false);
+    expect(body.removedCount).toBe(0);
+
+    // Audit event still emitted — operators need to see "unlock attempted, no-op".
+    const events = eventStorage.listRecent({ limit: 50 });
+    const evt = events.find((e) => e.type === "login_lockout_cleared");
+    expect(evt).toBeDefined();
+    expect(evt!.metadata?.cleared).toBe(false);
+    expect(evt!.metadata?.removedCount).toBe(0);
+  });
+
+  it("normalises the username (case-insensitive, trimmed) when matching keys", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "admin-unlock-norm-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const devAdmin = await seedDevAdmin(storage);
+    const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
+    const session = sessions.createSession(devAdmin.user.id);
+    const app = createTestApp(storage, eventStorage);
+
+    // Lockout was recorded as "alice" (the rate-limiter normalises on input).
+    for (let i = 0; i < LOGIN_MAX_FAILURES; i += 1) recordLoginFailure("alice", "9.9.9.9");
+
+    // Admin types "  ALICE  " — should still match.
+    const res = await app.request("/api/admin/auth/unlock", {
+      method: "POST",
+      headers: authHeaders("dev", session),
+      body: JSON.stringify({ username: "  ALICE  " }),
+    });
+
+    expect(res.status).toBe(200);
+    const body = await parseJsonBody<{ cleared: boolean }>(res);
+    expect(body.cleared).toBe(true);
+    expect(checkLoginAttempt("alice", "9.9.9.9").allowed).toBe(true);
   });
 });

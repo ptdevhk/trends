@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 
+import { clearLoginLockout } from "../middleware/login-rate-limit.js";
 import { AuthEventStorage } from "../services/auth-event-storage.js";
 import { AuthStorage } from "../services/auth-storage.js";
 import { config } from "../services/config.js";
@@ -15,6 +16,16 @@ const ResetPasswordRequestSchema = z.object({
 const ResetPasswordResponseSchema = z.object({
   success: z.literal(true),
   temporaryPassword: z.string(),
+});
+
+const UnlockRequestSchema = z.object({
+  username: z.string().min(1),
+});
+
+const UnlockResponseSchema = z.object({
+  success: z.literal(true),
+  cleared: z.boolean(),
+  removedCount: z.number().int().nonnegative(),
 });
 
 const ErrorResponseSchema = z.object({
@@ -174,6 +185,84 @@ export function createAdminUserRoutes(options: AdminUserRoutesOptions) {
     });
 
     return c.json({ success: true as const, temporaryPassword }, 200);
+  });
+
+  // POST /api/admin/auth/unlock — clear login lockout for a username.
+  // Required because PR #1259's in-memory rate limiter has no auto-recovery
+  // path other than waiting 15 minutes or restarting the API. For a small-team
+  // product the realistic failure is the only admin fat-fingering their password
+  // — this endpoint exists so a second admin can unlock them without SSH.
+  const unlockRoute = createRoute({
+    method: "post",
+    path: "/api/admin/auth/unlock",
+    tags: ["admin"],
+    request: {
+      body: {
+        content: {
+          "application/json": {
+            schema: UnlockRequestSchema,
+          },
+        },
+      },
+    },
+    responses: {
+      200: {
+        description: "Lockout cleared (or no lockout was active)",
+        content: {
+          "application/json": {
+            schema: UnlockResponseSchema,
+          },
+        },
+      },
+      401: {
+        description: "Authentication required",
+        content: {
+          "application/json": {
+            schema: ErrorResponseSchema,
+          },
+        },
+      },
+      403: {
+        description: "Admin access required",
+        content: {
+          "application/json": {
+            schema: ErrorResponseSchema,
+          },
+        },
+      },
+    },
+  });
+
+  app.openapi(unlockRoute, async (c) => {
+    const auth = c.var.auth;
+    if (!auth) {
+      return c.json({ success: false as const, error: "Authentication required" }, 401);
+    }
+
+    // Same system-admin gate as reset-password (ADR D4): dev-workspace only.
+    if (c.var.workspaceSlug !== "dev") {
+      return c.json({ success: false as const, error: "Admin access required" }, 403);
+    }
+
+    const { username } = c.req.valid("json");
+    const removedCount = clearLoginLockout(username);
+    const cleared = removedCount > 0;
+
+    // Audit trail. We always emit so a successful no-op (already-unlocked user)
+    // is still attributable — useful when investigating "did the unlock fire?"
+    getEventStorage().append({
+      type: "login_lockout_cleared",
+      workspaceSlug: c.var.workspaceSlug,
+      sessionId: auth.sessionId,
+      metadata: {
+        targetUsername: username.trim().toLowerCase(),
+        clearedByUserId: auth.user.id,
+        removedCount,
+        cleared,
+      },
+    });
+
+    return c.json({ success: true as const, cleared, removedCount }, 200);
   });
 
   return app;
