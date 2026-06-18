@@ -127,3 +127,22 @@ export function resetOnSuccess(username: string, clientIp: string): void {
 export function __resetLoginRateLimiterForTests(): void {
   store.clear();
 }
+
+/**
+ * Clear all lockout entries for a username across every IP. Returns the
+ * number of entries removed. Use from the admin-unlock route so a locked-out
+ * user (typically the only admin who fat-fingered their password) can recover
+ * without waiting 15 minutes or restarting the API.
+ */
+export function clearLoginLockout(username: string): number {
+  const normalized = normalize(username);
+  const prefix = `${normalized}:`;
+  let removed = 0;
+  for (const key of store.keys()) {
+    if (key.startsWith(prefix)) {
+      store.delete(key);
+      removed += 1;
+    }
+  }
+  return removed;
+}
