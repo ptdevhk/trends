@@ -1185,7 +1185,7 @@ fresh-env: clean clean-db
 	@echo "Fresh environment ready."
 
 # Run all validation checks (Python + Node.js + project skill sync + governance skill validation; honors TARGET=all)
-check: check-python check-node check-project-skills check-agent-policy check-agent-skill check-concept-drift check-route-auth check-mutation-entry-points
+check: check-python check-node check-project-skills check-agent-policy check-agent-skill check-concept-drift check-route-auth check-mutation-entry-points check-seed-bootstrap-admins
 	@echo "All checks passed"
 
 # Auth gating lint — verify API route files have auth middleware
@@ -1196,6 +1196,11 @@ check-route-auth:
 # in packages/convex/convex/_mutations_registry.ts (quiesce-coverage audit).
 check-mutation-entry-points:
 	@bash scripts/check-mutation-entry-points.sh
+
+# Bootstrap admin seeding — verify seed_bootstrap_admins() parsing/no-op logic
+# in scripts/install.sh (deploy-time admin seeding for the auth refactor).
+check-seed-bootstrap-admins:
+	@bash scripts/seed-bootstrap-admins.test.sh
 
 # Concept drift check — flags vault concept pages that may need review after code changes
 check-concept-drift:

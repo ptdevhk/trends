@@ -1444,6 +1444,67 @@ validate_auth_env() {
     fi
 }
 
+# Seed bootstrap admin(s) into workspace_memberships so the auth refactor's
+# requireAdmin gate (PR #1261) does not lock every admin out of admin routes
+# on first deploy. Idempotent: manage-user.ts upserts, so safe on every upgrade.
+#
+# Env vars (read from the deployed env file / runtime env):
+#   BOOTSTRAP_ADMIN_USERS         comma-separated usernames (required to enable)
+#   BOOTSTRAP_ADMIN_WORKSPACE     workspace slug to grant admin in (default: dev)
+#   BOOTSTRAP_ADMIN_PASSWORD_ENV  env var name holding each user's password
+#                                 (default: AUTH_BOOTSTRAP_PASSWORD). The named
+#                                 var must be exported in the service env.
+#
+# No-op when BOOTSTRAP_ADMIN_USERS is unset/empty — existing deploys without
+# the var are unaffected. Runs AFTER start_services so the SQLite DB + schema
+# exist; the API itself is not required for the direct storage write.
+seed_bootstrap_admins() {
+    local bootstrap_users="${BOOTSTRAP_ADMIN_USERS:-}"
+    if [[ -z "$bootstrap_users" ]]; then
+        return 0
+    fi
+
+    local workspace="${BOOTSTRAP_ADMIN_WORKSPACE:-dev}"
+    local password_env="${BOOTSTRAP_ADMIN_PASSWORD_ENV:-AUTH_BOOTSTRAP_PASSWORD}"
+    local manage_script="$INSTALL_DIR/scripts/auth/manage-user.ts"
+
+    if [[ ! -f "$manage_script" ]]; then
+        log_warn "BOOTSTRAP_ADMIN_USERS set but $manage_script not found — skipping admin seeding."
+        return 0
+    fi
+
+    # The password env var must be visible to the service user. We re-source
+    # the deployed env so the seeding run sees it exactly as the API will.
+    local env_source=""
+    if [[ -f "$CONFIG_DIR/env" ]]; then
+        env_source="set -a && source '$CONFIG_DIR/env' && set +a"
+    fi
+
+    log_info "Seeding bootstrap admin(s) into workspace '$workspace'..."
+
+    local IFS=','
+    local user
+    local failures=0
+    for user in $bootstrap_users; do
+        # Trim whitespace.
+        user="$(echo "$user" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+        [[ -z "$user" ]] && continue
+
+        log_info "  → seeding admin '$user'"
+        if ! run_as_service_user "$env_source && cd '$INSTALL_DIR' && run_tsx_script scripts/auth/manage-user.ts --username '$user' --workspace '$workspace' --role admin --password-env '$password_env' --output agent"; then
+            log_warn "  → failed to seed admin '$user' (see output above). Continuing."
+            failures=$((failures + 1))
+        fi
+    done
+    # `local IFS` scopes the change to this function — no need to restore.
+
+    if [[ "$failures" -gt 0 ]]; then
+        log_warn "Bootstrap admin seeding completed with $failures failure(s). Verify workspace_memberships manually: SELECT user_id, workspace_slug, role FROM workspace_memberships;"
+    else
+        log_info "Bootstrap admin seeding complete."
+    fi
+}
+
 copy_file_if_exists() {
     local source_path="$1"
     local target_path="$2"
@@ -1914,6 +1975,7 @@ install_flow() {
     enable_units
     start_services
     wait_for_api_health
+    seed_bootstrap_admins
 
     echo ""
     log_info "Installation completed."
@@ -1948,6 +2010,7 @@ full_upgrade_steps() {
     install_systemd_units
     restart_units
     wait_for_api_health
+    seed_bootstrap_admins
 }
 
 upgrade_flow() {
