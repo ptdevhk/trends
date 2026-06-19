@@ -408,6 +408,14 @@ export function createAdminUserRoutes(options: AdminUserRoutesOptions) {
   const DisableResponseSchema = z.object({ success: z.literal(true), sessionsRevoked: z.number().int().nonnegative() });
   const EnableResponseSchema = z.object({ success: z.literal(true) });
 
+  const AddMembershipBodySchema = z.object({
+    workspaceSlug: z.enum(["dev", "hr"]),
+    role: z.enum(["user", "admin"]),
+  });
+  const AddMembershipResponseSchema = z.object({ success: z.literal(true), created: z.boolean() });
+  const DeleteMembershipResponseSchema = z.object({ success: z.literal(true), deleted: z.boolean() });
+  const DeleteMembershipParamsSchema = z.object({ id: z.string().min(1), slug: z.string().min(1) });
+
   const disableUserRoute = createRoute({
     method: "post",
     path: "/api/admin/users/{id}/disable",
@@ -476,6 +484,94 @@ export function createAdminUserRoutes(options: AdminUserRoutesOptions) {
       metadata: { operatorId: auth.user.id },
     });
     return c.json({ success: true as const }, 200);
+  });
+
+  const addMembershipRoute = createRoute({
+    method: "post",
+    path: "/api/admin/users/{id}/memberships",
+    tags: ["admin"],
+    request: {
+      params: UserIdParamSchema,
+      body: {
+        content: {
+          "application/json": {
+            schema: AddMembershipBodySchema,
+          },
+        },
+      },
+    },
+    responses: {
+      200: { description: "Membership upserted", content: { "application/json": { schema: AddMembershipResponseSchema } } },
+      401: { description: "Auth required", content: { "application/json": { schema: ErrorResponseSchema } } },
+      403: { description: "Admin access required", content: { "application/json": { schema: ErrorResponseSchema } } },
+      404: { description: "User not found", content: { "application/json": { schema: ErrorResponseSchema } } },
+    },
+  });
+
+  app.openapi(addMembershipRoute, async (c) => {
+    const gate = assertSystemAdmin(c);
+    if (!gate.ok) return gate.response;
+    const auth = c.var.auth!;
+    const { id } = c.req.valid("param");
+    const body = c.req.valid("json");
+    const exists = getStorage().listUsers().some((u) => u.id === id);
+    if (!exists) {
+      return c.json({ success: false as const, error: "User not found" }, 404);
+    }
+
+    const before = getStorage().listMemberships(id).some((m) => m.workspaceSlug === body.workspaceSlug);
+    getStorage().upsertMembership({ userId: id, workspaceSlug: body.workspaceSlug, role: body.role });
+    getEventStorage().append({
+      type: "membership_granted_by_admin",
+      userId: id,
+      workspaceSlug: body.workspaceSlug,
+      sessionId: auth.sessionId,
+      metadata: { operatorId: auth.user.id, role: body.role },
+    });
+    return c.json({ success: true as const, created: !before }, 200);
+  });
+
+  const deleteMembershipRoute = createRoute({
+    method: "delete",
+    path: "/api/admin/users/{id}/memberships/{slug}",
+    tags: ["admin"],
+    request: { params: DeleteMembershipParamsSchema },
+    responses: {
+      200: { description: "Membership removed", content: { "application/json": { schema: DeleteMembershipResponseSchema } } },
+      400: { description: "Self-demotion blocked", content: { "application/json": { schema: ErrorResponseSchema } } },
+      401: { description: "Auth required", content: { "application/json": { schema: ErrorResponseSchema } } },
+      403: { description: "Admin access required", content: { "application/json": { schema: ErrorResponseSchema } } },
+      404: { description: "User not found", content: { "application/json": { schema: ErrorResponseSchema } } },
+    },
+  });
+
+  app.openapi(deleteMembershipRoute, async (c) => {
+    const gate = assertSystemAdmin(c);
+    if (!gate.ok) return gate.response;
+    const auth = c.var.auth!;
+    const { id, slug } = c.req.valid("param");
+
+    // Self-demotion guard: prevent admin from removing their own dev workspace membership
+    if (id === auth.user.id && slug === "dev") {
+      return c.json({ success: false as const, error: "Cannot remove your own dev/admin membership" }, 400);
+    }
+
+    const exists = getStorage().listUsers().some((u) => u.id === id);
+    if (!exists) {
+      return c.json({ success: false as const, error: "User not found" }, 404);
+    }
+
+    const { deleted } = getStorage().deleteMembership(id, slug);
+    if (deleted) {
+      getEventStorage().append({
+        type: "membership_revoked_by_admin",
+        userId: id,
+        workspaceSlug: slug,
+        sessionId: auth.sessionId,
+        metadata: { operatorId: auth.user.id },
+      });
+    }
+    return c.json({ success: true as const, deleted }, 200);
   });
 
   return app;
