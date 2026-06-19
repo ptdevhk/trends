@@ -16,7 +16,12 @@ export type AuthEventType =
   | "workspace_membership_revoked"
   | "public_share_created"
   | "public_share_read"
-  | "public_share_unavailable";
+  | "public_share_unavailable"
+  | "user_created"
+  | "user_disabled"
+  | "user_enabled"
+  | "membership_granted_by_admin"
+  | "membership_revoked_by_admin";
 
 export type AuthEventInput = {
   type: AuthEventType;

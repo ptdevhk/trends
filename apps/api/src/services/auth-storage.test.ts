@@ -408,3 +408,106 @@ describe("auth session revocation by user", () => {
     expect(storage.listSessionsByUser(userB.id)).toHaveLength(1);
   });
 });
+
+describe("listUsers", () => {
+  afterEach(() => {
+    resetResumeScreeningDb();
+  });
+
+  it("returns all users including disabled, with identities and memberships", () => {
+    const root = mkdtempSync(path.join(tmpdir(), "list-users-"));
+    const storage = new AuthStorage(root);
+
+    const u1 = storage.createUser({ email: "a@x.com", displayName: "Alice" });
+    storage.linkIdentity({ userId: u1.id, provider: "local", providerSubject: "alice", providerTenant: "local" });
+    storage.upsertMembership({ userId: u1.id, workspaceSlug: "dev", role: "admin" });
+
+    const u2 = storage.createUser({ email: "b@x.com", displayName: "Bob" });
+    storage.setUserStatus(u2.id, "disabled");
+
+    const users = storage.listUsers();
+    expect(users).toHaveLength(2);
+    const alice = users.find((u) => u.id === u1.id);
+    expect(alice?.status).toBe("active");
+    expect(alice?.identities).toEqual([
+      { provider: "local", providerSubject: "alice", providerTenant: "local" },
+    ]);
+    expect(alice?.memberships).toEqual([{ workspaceSlug: "dev", role: "admin" }]);
+    const bob = users.find((u) => u.id === u2.id);
+    expect(bob?.status).toBe("disabled");
+    expect(bob?.identities).toEqual([]);
+    expect(bob?.memberships).toEqual([]);
+  });
+
+  it("returns empty array when users table is empty", () => {
+    const root = mkdtempSync(path.join(tmpdir(), "list-users-empty-"));
+    const storage = new AuthStorage(root);
+    expect(storage.listUsers()).toEqual([]);
+  });
+});
+
+describe("setUserStatus", () => {
+  afterEach(() => {
+    resetResumeScreeningDb();
+  });
+
+  it("updates status and reports changed=true", () => {
+    const root = mkdtempSync(path.join(tmpdir(), "set-status-"));
+    const storage = new AuthStorage(root);
+    const u = storage.createUser({});
+    expect(storage.setUserStatus(u.id, "disabled")).toEqual({ changed: true });
+  });
+
+  it("reports changed=false when target status equals current", () => {
+    const root = mkdtempSync(path.join(tmpdir(), "set-status-same-"));
+    const storage = new AuthStorage(root);
+    const u = storage.createUser({}); // active by default
+    expect(storage.setUserStatus(u.id, "active")).toEqual({ changed: false });
+  });
+
+  it("returns changed=false on unknown userId", () => {
+    const root = mkdtempSync(path.join(tmpdir(), "set-status-missing-"));
+    const storage = new AuthStorage(root);
+    expect(storage.setUserStatus("does-not-exist", "disabled")).toEqual({ changed: false });
+  });
+});
+
+describe("deleteMembership", () => {
+  afterEach(() => {
+    resetResumeScreeningDb();
+  });
+
+  it("deletes the row and returns deleted=true", () => {
+    const root = mkdtempSync(path.join(tmpdir(), "delete-mem-"));
+    const storage = new AuthStorage(root);
+    const u = storage.createUser({});
+    storage.upsertMembership({ userId: u.id, workspaceSlug: "hr", role: "user" });
+    expect(storage.deleteMembership(u.id, "hr")).toEqual({ deleted: true });
+    expect(storage.listMemberships(u.id)).toEqual([]);
+  });
+
+  it("returns deleted=false when row absent", () => {
+    const root = mkdtempSync(path.join(tmpdir(), "delete-mem-absent-"));
+    const storage = new AuthStorage(root);
+    const u = storage.createUser({});
+    expect(storage.deleteMembership(u.id, "hr")).toEqual({ deleted: false });
+  });
+});
+
+describe("listIdentities", () => {
+  afterEach(() => {
+    resetResumeScreeningDb();
+  });
+
+  it("returns rows for the given user only", () => {
+    const root = mkdtempSync(path.join(tmpdir(), "list-ident-"));
+    const storage = new AuthStorage(root);
+    const u1 = storage.createUser({});
+    const u2 = storage.createUser({});
+    storage.linkIdentity({ userId: u1.id, provider: "local", providerSubject: "u1", providerTenant: "local" });
+    storage.linkIdentity({ userId: u2.id, provider: "casdoor", providerSubject: "u2", providerTenant: "tenant-1" });
+    expect(storage.listIdentities(u1.id)).toEqual([
+      { provider: "local", providerSubject: "u1", providerTenant: "local" },
+    ]);
+  });
+});

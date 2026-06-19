@@ -198,4 +198,26 @@ describe("AuthEventStorage", () => {
     const events = storage.listRecent({ limit: 10 });
     expect(events[0].metadata).toEqual({ username: "test", reason: "bad_password", count: 3 });
   });
+
+  it("round-trips new admin user-management event types", () => {
+    const root = mkdtempSync(path.join(tmpdir(), "events-admin-"));
+    const events = new AuthEventStorage(root);
+    for (const type of [
+      "user_created",
+      "user_disabled",
+      "user_enabled",
+      "membership_granted_by_admin",
+      "membership_revoked_by_admin",
+    ] as const) {
+      events.append({ type, userId: "uuid-x", workspaceSlug: "dev", metadata: { operatorId: "uuid-op" } });
+    }
+    const recent = events.listRecent({ limit: 10 });
+    expect(recent.map((e) => e.type).sort()).toEqual([
+      "membership_granted_by_admin",
+      "membership_revoked_by_admin",
+      "user_created",
+      "user_disabled",
+      "user_enabled",
+    ]);
+  });
 });

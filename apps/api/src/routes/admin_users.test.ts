@@ -513,3 +513,564 @@ describe("POST /api/admin/auth/unlock", () => {
     expect(checkLoginAttempt("alice", "9.9.9.9").allowed).toBe(true);
   });
 });
+
+describe("assertSystemAdmin shared helper", () => {
+  afterEach(() => {
+    resetResumeScreeningDb();
+    vi.restoreAllMocks();
+  });
+
+  it("returns 403 from a non-dev workspace even when caller is admin there", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "system-admin-gate-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const hrAdmin = await seedLocalUser(storage, { username: "hr-only-admin", workspace: "hr", role: "admin" });
+    const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
+    const session = sessions.createSession(hrAdmin.user.id);
+    const app = createTestApp(storage, eventStorage);
+
+    const res = await app.request("/api/admin/reset-password", {
+      method: "POST",
+      headers: authHeaders("hr", session),
+      body: JSON.stringify({ username: "anyone" }),
+    });
+
+    expect(res.status).toBe(403);
+  });
+});
+
+describe("POST /api/admin/users", () => {
+  afterEach(() => {
+    resetResumeScreeningDb();
+    vi.restoreAllMocks();
+  });
+
+  it("creates user with local identity, returns temp password, audits event", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "create-user-ok-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const devAdmin = await seedDevAdmin(storage);
+    const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
+    const session = sessions.createSession(devAdmin.user.id);
+    const app = createTestApp(storage, eventStorage);
+
+    const res = await app.request("/api/admin/users", {
+      method: "POST",
+      headers: authHeaders("dev", session),
+      body: JSON.stringify({
+        username: "new-hr-user",
+        email: "new@x.com",
+        displayName: "New HR",
+        initialMembership: { workspaceSlug: "hr", role: "user" },
+      }),
+    });
+
+    expect(res.status).toBe(201);
+    const body = await parseJsonBody<{ success: true; user: { id: string }; temporaryPassword: string }>(res);
+    expect(body.success).toBe(true);
+    expect(body.temporaryPassword).toMatch(/^[A-Za-z0-9_-]{20,}$/);
+
+    // Verify identity + membership + password were persisted
+    const identity = storage.findIdentity("local", "new-hr-user", "local");
+    expect(identity?.userId).toBe(body.user.id);
+    expect(storage.listMemberships(body.user.id)).toEqual([
+      { userId: body.user.id, workspaceSlug: "hr", role: "user" },
+    ]);
+    // Login with returned temp password should succeed (verifies hash round-trip)
+    const cred = storage.findPasswordCredential(body.user.id);
+    expect(cred).not.toBeNull();
+    expect(await verifyPassword(body.temporaryPassword, cred!)).toBe(true);
+
+    // Audit
+    const events = eventStorage.listRecent({ limit: 10 });
+    expect(events.some((e) => e.type === "user_created" && e.userId === body.user.id)).toBe(true);
+    expect(events.some((e) => e.type === "membership_granted_by_admin" && e.userId === body.user.id)).toBe(true);
+  });
+
+  it("returns 409 when local username already exists", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "create-user-409-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const devAdmin = await seedDevAdmin(storage);
+    await seedLocalUser(storage, { username: "taken" });
+    const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
+    const session = sessions.createSession(devAdmin.user.id);
+    const app = createTestApp(storage, eventStorage);
+
+    const res = await app.request("/api/admin/users", {
+      method: "POST",
+      headers: authHeaders("dev", session),
+      body: JSON.stringify({ username: "taken" }),
+    });
+    expect(res.status).toBe(409);
+  });
+
+  it("creates user with no membership when initialMembership omitted", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "create-user-no-mem-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const devAdmin = await seedDevAdmin(storage);
+    const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
+    const session = sessions.createSession(devAdmin.user.id);
+    const app = createTestApp(storage, eventStorage);
+
+    const res = await app.request("/api/admin/users", {
+      method: "POST",
+      headers: authHeaders("dev", session),
+      body: JSON.stringify({ username: "orphan" }),
+    });
+    expect(res.status).toBe(201);
+    const body = await parseJsonBody<{ user: { id: string } }>(res);
+    expect(storage.listMemberships(body.user.id)).toEqual([]);
+  });
+
+  it("returns 403 from hr workspace", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "create-user-403-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const hrAdmin = await seedLocalUser(storage, { workspace: "hr", role: "admin" });
+    const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
+    const session = sessions.createSession(hrAdmin.user.id);
+    const app = createTestApp(storage, eventStorage);
+
+    const res = await app.request("/api/admin/users", {
+      method: "POST",
+      headers: authHeaders("hr", session),
+      body: JSON.stringify({ username: "someone" }),
+    });
+    expect(res.status).toBe(403);
+  });
+});
+
+describe("POST /api/admin/users/:id/disable", () => {
+  afterEach(() => {
+    resetResumeScreeningDb();
+    vi.restoreAllMocks();
+  });
+
+  it("disables target, revokes all their sessions, audits", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "disable-ok-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const devAdmin = await seedDevAdmin(storage);
+    const target = await seedLocalUser(storage, { username: "target" });
+    const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
+    const adminSession = sessions.createSession(devAdmin.user.id);
+    const targetSession = sessions.createSession(target.user.id);
+    const app = createTestApp(storage, eventStorage);
+
+    const res = await app.request(`/api/admin/users/${target.user.id}/disable`, {
+      method: "POST",
+      headers: authHeaders("dev", adminSession),
+    });
+    expect(res.status).toBe(200);
+    const body = await parseJsonBody<{ success: true; sessionsRevoked: number }>(res);
+    expect(body.sessionsRevoked).toBeGreaterThanOrEqual(1);
+
+    // Re-resolving the target session should now fail (status filter in findUser -> null)
+    expect(sessions.resolveSession(targetSession.token)).toBeNull();
+    expect(eventStorage.listRecent({ limit: 5 }).some((e) => e.type === "user_disabled" && e.userId === target.user.id)).toBe(true);
+  });
+
+  it("rejects self-disable with 400", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "disable-self-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const devAdmin = await seedDevAdmin(storage);
+    const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
+    const session = sessions.createSession(devAdmin.user.id);
+    const app = createTestApp(storage, eventStorage);
+
+    const res = await app.request(`/api/admin/users/${devAdmin.user.id}/disable`, {
+      method: "POST",
+      headers: authHeaders("dev", session),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 404 when userId unknown", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "disable-404-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const devAdmin = await seedDevAdmin(storage);
+    const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
+    const session = sessions.createSession(devAdmin.user.id);
+    const app = createTestApp(storage, eventStorage);
+
+    const res = await app.request("/api/admin/users/does-not-exist/disable", {
+      method: "POST",
+      headers: authHeaders("dev", session),
+    });
+    expect(res.status).toBe(404);
+  });
+});
+
+describe("POST /api/admin/users/:id/enable", () => {
+  afterEach(() => {
+    resetResumeScreeningDb();
+    vi.restoreAllMocks();
+  });
+
+  it("re-enables a disabled user", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "enable-ok-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const devAdmin = await seedDevAdmin(storage);
+    const target = await seedLocalUser(storage, { username: "target" });
+    storage.setUserStatus(target.user.id, "disabled");
+    const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
+    const session = sessions.createSession(devAdmin.user.id);
+    const app = createTestApp(storage, eventStorage);
+
+    const res = await app.request(`/api/admin/users/${target.user.id}/enable`, {
+      method: "POST",
+      headers: authHeaders("dev", session),
+    });
+    expect(res.status).toBe(200);
+    expect(storage.findUser(target.user.id)?.status).toBe("active");
+    expect(eventStorage.listRecent({ limit: 5 }).some((e) => e.type === "user_enabled" && e.userId === target.user.id)).toBe(true);
+  });
+});
+
+describe("GET /api/admin/users", () => {
+  afterEach(() => {
+    resetResumeScreeningDb();
+    vi.restoreAllMocks();
+  });
+
+  it("returns 401 when unauthenticated", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "list-users-401-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const app = createTestApp(storage, eventStorage);
+    const res = await app.request("/api/admin/users", {
+      method: "GET",
+      headers: { "X-Workspace-Slug": "dev" },
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 403 from hr workspace even with admin role there", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "list-users-403-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const hrAdmin = await seedLocalUser(storage, { workspace: "hr", role: "admin" });
+    const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
+    const session = sessions.createSession(hrAdmin.user.id);
+    const app = createTestApp(storage, eventStorage);
+    const res = await app.request("/api/admin/users", {
+      method: "GET",
+      headers: authHeaders("hr", session),
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("lists all users with identities and memberships when called by dev-admin", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "list-users-200-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const devAdmin = await seedDevAdmin(storage);
+    await seedLocalUser(storage, { username: "hr-1", email: "hr1@x.com", workspace: "hr", role: "user" });
+    const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
+    const session = sessions.createSession(devAdmin.user.id);
+    const app = createTestApp(storage, eventStorage);
+
+    const res = await app.request("/api/admin/users", {
+      method: "GET",
+      headers: authHeaders("dev", session),
+    });
+    expect(res.status).toBe(200);
+    const body = await parseJsonBody<{
+      success: true;
+      users: Array<{
+        id: string;
+        email?: string;
+        status: string;
+        identities: Array<{ provider: string; providerSubject: string; providerTenant: string | null }>;
+        memberships: Array<{ workspaceSlug: string; role: string }>;
+      }>;
+    }>(res);
+    expect(body.success).toBe(true);
+    expect(body.users).toHaveLength(2);
+
+    // Verify returned records carry populated identities/memberships (not just empty arrays)
+    const hr1 = body.users.find((u) => u.email === "hr1@x.com");
+    expect(hr1).toBeDefined();
+    expect(hr1!.memberships).toEqual(
+      expect.arrayContaining([expect.objectContaining({ workspaceSlug: "hr", role: "user" })]),
+    );
+    expect(hr1!.identities).toEqual(
+      expect.arrayContaining([expect.objectContaining({ provider: "local", providerSubject: "hr-1" })]),
+    );
+  });
+});
+
+describe("POST /api/admin/users/:id/memberships", () => {
+  afterEach(() => {
+    resetResumeScreeningDb();
+    vi.restoreAllMocks();
+  });
+
+  it("adds a new membership and audits", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "add-mem-ok-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const devAdmin = await seedDevAdmin(storage);
+    const target = await seedLocalUser(storage, { username: "target", workspace: "dev", role: "user" });
+    const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
+    const session = sessions.createSession(devAdmin.user.id);
+    const app = createTestApp(storage, eventStorage);
+
+    const res = await app.request(`/api/admin/users/${target.user.id}/memberships`, {
+      method: "POST",
+      headers: authHeaders("dev", session),
+      body: JSON.stringify({ workspaceSlug: "hr", role: "admin" }),
+    });
+    expect(res.status).toBe(200);
+    const body = await parseJsonBody<{ success: true; created: boolean }>(res);
+    expect(body.created).toBe(true);
+    expect(storage.listMemberships(target.user.id)).toEqual(
+      expect.arrayContaining([
+        { userId: target.user.id, workspaceSlug: "hr", role: "admin" },
+      ]),
+    );
+    // Audit event recorded
+    const events = eventStorage.listRecent({ limit: 10 });
+    const evt = events.find((e) => e.type === "membership_granted_by_admin" && e.userId === target.user.id);
+    expect(evt).toBeDefined();
+    expect(evt!.metadata?.operatorId).toBe(devAdmin.user.id);
+    expect(evt!.metadata?.role).toBe("admin");
+  });
+
+  it("upserts existing membership row when role changes", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "upsert-role-change-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const devAdmin = await seedDevAdmin(storage);
+    // Seed target already has dev/user membership
+    const target = await seedLocalUser(storage, { username: "target", workspace: "dev", role: "user" });
+    const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
+    const session = sessions.createSession(devAdmin.user.id);
+    const app = createTestApp(storage, eventStorage);
+
+    // Upsert the dev membership from user -> admin
+    const res = await app.request(`/api/admin/users/${target.user.id}/memberships`, {
+      method: "POST",
+      headers: authHeaders("dev", session),
+      body: JSON.stringify({ workspaceSlug: "dev", role: "admin" }),
+    });
+    expect(res.status).toBe(200);
+    const body = await parseJsonBody<{ success: true; created: boolean }>(res);
+    expect(body.created).toBe(false);
+    // Role was updated
+    const memberships = storage.listMemberships(target.user.id);
+    const devMem = memberships.find((m) => m.workspaceSlug === "dev");
+    expect(devMem?.role).toBe("admin");
+  });
+
+  it("returns 404 when userId unknown", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "add-mem-404-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const devAdmin = await seedDevAdmin(storage);
+    const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
+    const session = sessions.createSession(devAdmin.user.id);
+    const app = createTestApp(storage, eventStorage);
+
+    const res = await app.request("/api/admin/users/does-not-exist/memberships", {
+      method: "POST",
+      headers: authHeaders("dev", session),
+      body: JSON.stringify({ workspaceSlug: "hr", role: "user" }),
+    });
+    expect(res.status).toBe(404);
+  });
+});
+
+describe("DELETE /api/admin/users/:id/memberships/:slug", () => {
+  afterEach(() => {
+    resetResumeScreeningDb();
+    vi.restoreAllMocks();
+  });
+
+  it("blocks self-removal of dev/admin with 400", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "self-demote-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const devAdmin = await seedDevAdmin(storage);
+    const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
+    const session = sessions.createSession(devAdmin.user.id);
+    const app = createTestApp(storage, eventStorage);
+
+    const res = await app.request(`/api/admin/users/${devAdmin.user.id}/memberships/dev`, {
+      method: "DELETE",
+      headers: authHeaders("dev", session),
+    });
+    expect(res.status).toBe(400);
+    const body = await parseJsonBody<{ success: false; error: string }>(res);
+    expect(body.error).toContain("Cannot remove");
+  });
+
+  it("returns deleted=true when row removed", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "delete-mem-ok-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const devAdmin = await seedDevAdmin(storage);
+    const hrUser = await seedLocalUser(storage, { username: "hr-user", workspace: "hr", role: "user" });
+    const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
+    const session = sessions.createSession(devAdmin.user.id);
+    const app = createTestApp(storage, eventStorage);
+
+    // Confirm hr membership exists
+    expect(storage.listMemberships(hrUser.user.id)).toEqual(
+      expect.arrayContaining([{ userId: hrUser.user.id, workspaceSlug: "hr", role: "user" }]),
+    );
+
+    const res = await app.request(`/api/admin/users/${hrUser.user.id}/memberships/hr`, {
+      method: "DELETE",
+      headers: authHeaders("dev", session),
+    });
+    expect(res.status).toBe(200);
+    const body = await parseJsonBody<{ success: true; deleted: boolean }>(res);
+    expect(body.deleted).toBe(true);
+
+    // Membership row removed
+    expect(storage.listMemberships(hrUser.user.id)).toEqual([]);
+
+    // Audit event recorded
+    const events = eventStorage.listRecent({ limit: 10 });
+    const evt = events.find((e) => e.type === "membership_revoked_by_admin" && e.userId === hrUser.user.id);
+    expect(evt).toBeDefined();
+    expect(evt!.metadata?.operatorId).toBe(devAdmin.user.id);
+  });
+
+  it("returns deleted=false when row absent", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "delete-mem-absent-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const devAdmin = await seedDevAdmin(storage);
+    // Seed user with dev membership only (no hr membership)
+    const devUser = await seedLocalUser(storage, { username: "dev-only", workspace: "dev", role: "user" });
+    const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
+    const session = sessions.createSession(devAdmin.user.id);
+    const app = createTestApp(storage, eventStorage);
+
+    // Confirm no hr membership
+    expect(storage.listMemberships(devUser.user.id).some((m) => m.workspaceSlug === "hr")).toBe(false);
+
+    const res = await app.request(`/api/admin/users/${devUser.user.id}/memberships/hr`, {
+      method: "DELETE",
+      headers: authHeaders("dev", session),
+    });
+    expect(res.status).toBe(200);
+    const body = await parseJsonBody<{ success: true; deleted: boolean }>(res);
+    expect(body.deleted).toBe(false);
+
+    // No audit event for no-op delete
+    const events = eventStorage.listRecent({ limit: 10 });
+    expect(events.some((e) => e.type === "membership_revoked_by_admin" && e.userId === devUser.user.id)).toBe(false);
+  });
+
+  it("returns 404 when userId unknown", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "delete-mem-404-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const devAdmin = await seedDevAdmin(storage);
+    const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
+    const session = sessions.createSession(devAdmin.user.id);
+    const app = createTestApp(storage, eventStorage);
+
+    const res = await app.request("/api/admin/users/does-not-exist/memberships/hr", {
+      method: "DELETE",
+      headers: authHeaders("dev", session),
+    });
+    expect(res.status).toBe(404);
+  });
+});
+
+describe("GET /api/admin/users/:id/auth-events", () => {
+  afterEach(() => {
+    resetResumeScreeningDb();
+    vi.restoreAllMocks();
+  });
+
+  it("returns 401 when unauthenticated", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "auth-events-401-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const app = createTestApp(storage, eventStorage);
+
+    const res = await app.request("/api/admin/users/some-user-id/auth-events", {
+      method: "GET",
+      headers: { "X-Workspace-Slug": "dev" },
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 403 from hr workspace even with admin role there", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "auth-events-403-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const hrAdmin = await seedLocalUser(storage, { workspace: "hr", role: "admin" });
+    const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
+    const session = sessions.createSession(hrAdmin.user.id);
+    const app = createTestApp(storage, eventStorage);
+
+    const res = await app.request("/api/admin/users/some-user-id/auth-events", {
+      method: "GET",
+      headers: authHeaders("hr", session),
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("returns events filtered to the target user", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "auth-events-200-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const devAdmin = await seedDevAdmin(storage);
+    const target = await seedLocalUser(storage, { username: "audit-target", workspace: "hr", role: "user" });
+    const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
+    const adminSession = sessions.createSession(devAdmin.user.id);
+    const app = createTestApp(storage, eventStorage);
+
+    // Seed events for the target user
+    eventStorage.append({ type: "user_disabled", userId: target.user.id, metadata: { operatorId: devAdmin.user.id } });
+    eventStorage.append({ type: "user_enabled", userId: target.user.id, metadata: { operatorId: devAdmin.user.id } });
+    // Seed an event for a different user (should not appear)
+    eventStorage.append({ type: "user_disabled", userId: devAdmin.user.id, metadata: { operatorId: devAdmin.user.id } });
+
+    const res = await app.request(`/api/admin/users/${target.user.id}/auth-events`, {
+      method: "GET",
+      headers: authHeaders("dev", adminSession),
+    });
+    expect(res.status).toBe(200);
+    const body = await parseJsonBody<{ success: true; events: Array<{ type: string; userId?: string }> }>(res);
+    expect(body.success).toBe(true);
+    expect(body.events).toHaveLength(2);
+    expect(body.events.every((e) => e.userId === target.user.id)).toBe(true);
+  });
+
+  it("honors the limit query parameter", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "auth-events-limit-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const devAdmin = await seedDevAdmin(storage);
+    const target = await seedLocalUser(storage, { username: "limit-target", workspace: "hr", role: "user" });
+    const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
+    const adminSession = sessions.createSession(devAdmin.user.id);
+    const app = createTestApp(storage, eventStorage);
+
+    // Append 3 events for the target user
+    eventStorage.append({ type: "user_disabled", userId: target.user.id });
+    eventStorage.append({ type: "user_enabled", userId: target.user.id });
+    eventStorage.append({ type: "membership_granted_by_admin", userId: target.user.id, workspaceSlug: "dev" });
+
+    const res = await app.request(`/api/admin/users/${target.user.id}/auth-events?limit=2`, {
+      method: "GET",
+      headers: authHeaders("dev", adminSession),
+    });
+    expect(res.status).toBe(200);
+    const body = await parseJsonBody<{ success: true; events: unknown[] }>(res);
+    expect(body.success).toBe(true);
+    expect(body.events).toHaveLength(2);
+  });
+});
