@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Ban, Lock, RefreshCw, ShieldCheck } from 'lucide-react'
+import { Ban, RefreshCw, ShieldCheck } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
@@ -18,6 +18,7 @@ import {
 import { reportUiError } from '@/lib/ui-error-reporting'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { useAuth } from '@/contexts/AuthContext'
+import { UsersPanel } from './admin-users/UsersPanel'
 
 type FormState = {
   provider: AuthProvider
@@ -283,24 +284,7 @@ export function SystemSettingsAuthPage() {
                 <Pill active={auth.workspaceRole !== null}>{currentRoleLabel}</Pill>
               </div>
             </div>
-            <div className="rounded-md border border-dashed p-3">
-              <div className="text-sm font-medium">Role editor</div>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {t('debugConfig.authAccessRoleEditorDescription', {
-                  defaultValue: 'Backend role mutation APIs are pending; provider preapproval remains available below.',
-                })}
-              </p>
-              <Button
-                type="button"
-                variant="outline"
-                className="mt-3 w-full justify-start"
-                data-testid="workspace-role-editor-placeholder"
-                disabled
-              >
-                <Lock className="mr-2 h-4 w-4" />
-                Role editor backend pending
-              </Button>
-            </div>
+            <UsersPanel operatorId={auth.user?.id ?? null} />
           </CardContent>
         </Card>
       </div>

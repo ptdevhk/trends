@@ -36,6 +36,14 @@ vi.mock('sonner', () => ({
   toast: mockToast,
 }))
 
+vi.mock('@/pages/system-settings/admin-users/UsersPanel', () => ({
+  UsersPanel: ({ operatorId }: { operatorId: string | null }) => (
+    <div data-testid="users-panel" data-operator-id={operatorId ?? ''}>
+      UsersPanel
+    </div>
+  ),
+}))
+
 import { SystemSettingsAuthPage } from './SystemSettingsAuthPage'
 
 const providerMemberships = {
@@ -111,7 +119,7 @@ describe('SystemSettingsAuthPage', () => {
     expect(screen.getByTestId('auth-revoke-sub-1-hr')).toBeInTheDocument()
   })
 
-  it('renders workspace role policy and disabled role editor controls', async () => {
+  it('renders workspace role policy and the UsersPanel', async () => {
     render(<SystemSettingsAuthPage />)
 
     expect(await screen.findByText('Workspace access policy')).toBeInTheDocument()
@@ -119,10 +127,8 @@ describe('SystemSettingsAuthPage', () => {
     expect(screen.getAllByText('resume:search').length).toBeGreaterThan(0)
     expect(screen.getByText('Current user role')).toBeInTheDocument()
     expect(screen.getByText('Admin User')).toBeInTheDocument()
-    expect(screen.getByText('admin@example.com')).toBeInTheDocument()
-    expect(screen.getByText('Workspace admin')).toBeInTheDocument()
-    expect(screen.getByText('Role editor backend pending')).toBeInTheDocument()
-    expect(screen.getByTestId('workspace-role-editor-placeholder')).toBeDisabled()
+    expect(screen.getByTestId('users-panel')).toBeInTheDocument()
+    expect(screen.getByTestId('users-panel')).toHaveAttribute('data-operator-id', 'admin-1')
     expect(screen.getByText('Provider-derived grants')).toBeInTheDocument()
   })
 
