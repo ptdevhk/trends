@@ -91,4 +91,46 @@ describe('MembershipsDrawer', () => {
       expect(mockToast.error).toHaveBeenCalledWith('Cannot remove your own admin membership')
     })
   })
+
+  it('sends selected role (not default) when adding a membership', async () => {
+    mockAddAdminUserMembership.mockResolvedValue({ success: true, created: true })
+    const user = userEvent.setup()
+    render(
+      <MembershipsDrawer
+        open={true}
+        onOpenChange={vi.fn()}
+        user={sampleUser}
+      />,
+    )
+
+    await user.selectOptions(screen.getByTestId('membership-workspace-select'), 'hr')
+    await user.selectOptions(screen.getByTestId('membership-role-select'), 'admin')
+    await user.click(screen.getByTestId('add-membership-submit'))
+
+    expect(mockAddAdminUserMembership).toHaveBeenCalledWith('user-1', {
+      workspaceSlug: 'hr',
+      role: 'admin',
+    })
+  })
+
+  it('calls onChanged after successful add', async () => {
+    mockAddAdminUserMembership.mockResolvedValue({ success: true, created: true })
+    const onChanged = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <MembershipsDrawer
+        open={true}
+        onOpenChange={vi.fn()}
+        user={sampleUser}
+        onChanged={onChanged}
+      />,
+    )
+
+    await user.selectOptions(screen.getByTestId('membership-workspace-select'), 'hr')
+    await user.click(screen.getByTestId('add-membership-submit'))
+
+    await waitFor(() => {
+      expect(onChanged).toHaveBeenCalledTimes(1)
+    })
+  })
 })

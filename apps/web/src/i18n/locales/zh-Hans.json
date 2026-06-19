@@ -822,7 +822,7 @@
     "adminUsersUnlock": "解除锁定",
     "adminUsersUnlockConfirm": "要解除此用户账户的锁定吗？",
     "adminUsersUnlocked": "用户已解除锁定",
-    "adminUsersViewAudit": "审计记录",
+    "adminUsersViewAudit": "查看审计记录",
     "adminUsersAuditDescription": "此用户的验证与授权事件记录。",
     "adminUsersAuditLoading": "正在加载事件...",
     "adminUsersAuditEmpty": "无事件记录。",

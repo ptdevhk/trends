@@ -7,6 +7,7 @@ const mockDisableAdminUser = vi.hoisted(() => vi.fn())
 const mockEnableAdminUser = vi.hoisted(() => vi.fn())
 const mockResetAdminUserPassword = vi.hoisted(() => vi.fn())
 const mockUnlockAdminUser = vi.hoisted(() => vi.fn())
+const mockListAdminUserAuthEvents = vi.hoisted(() => vi.fn())
 const mockToast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }))
 const mockReportUiError = vi.hoisted(() => vi.fn())
 
@@ -16,6 +17,7 @@ vi.mock('@/lib/admin-users', () => ({
   enableAdminUser: mockEnableAdminUser,
   resetAdminUserPassword: mockResetAdminUserPassword,
   unlockAdminUser: mockUnlockAdminUser,
+  listAdminUserAuthEvents: mockListAdminUserAuthEvents,
 }))
 
 vi.mock('@/lib/ui-error-reporting', () => ({
@@ -116,5 +118,21 @@ describe('UsersPanel', () => {
 
     expect(await screen.findByText('Admin access required (403)')).toBeInTheDocument()
     expect(screen.queryByText('New user')).not.toBeInTheDocument()
+  })
+
+  it('opens the audit drawer when View audit is clicked', async () => {
+    mockListAdminUserAuthEvents.mockResolvedValue({ success: true, events: [] })
+    const user = userEvent.setup()
+    render(<UsersPanel operatorId="admin-1" />)
+
+    await screen.findByText('Alice')
+
+    await user.click(screen.getByTestId('admin-view-audit-user-1'))
+
+    await waitFor(() => {
+      expect(mockListAdminUserAuthEvents).toHaveBeenCalledWith('user-1')
+    })
+
+    expect(await screen.findByTestId('user-audit-drawer')).toBeInTheDocument()
   })
 })

@@ -1158,7 +1158,7 @@
     "adminUsersUnlock": "解除鎖定",
     "adminUsersUnlockConfirm": "要解除此用戶帳戶的鎖定嗎？",
     "adminUsersUnlocked": "用戶已解除鎖定",
-    "adminUsersViewAudit": "稽核記錄",
+    "adminUsersViewAudit": "查看審計記錄",
     "adminUsersAuditDescription": "此用戶的驗證與授權事件記錄。",
     "adminUsersAuditLoading": "正在載入事件...",
     "adminUsersAuditEmpty": "無事件記錄。",

@@ -21,9 +21,10 @@ type Props = {
   open: boolean
   onOpenChange: (open: boolean) => void
   user: AdminUserRecord | null
+  onChanged?: () => void
 }
 
-export function MembershipsDrawer({ open, onOpenChange, user }: Props) {
+export function MembershipsDrawer({ open, onOpenChange, user, onChanged }: Props) {
   const { t } = useTranslation()
   const [addWorkspaceSlug, setAddWorkspaceSlug] = useState<WorkspaceSlug | ''>('')
   const [addRole, setAddRole] = useState<WorkspaceRole>('user')
@@ -53,6 +54,7 @@ export function MembershipsDrawer({ open, onOpenChange, user }: Props) {
       toast.success(
         t('debugConfig.adminUsersMembershipAdded', { defaultValue: 'Membership added' }),
       )
+      onChanged?.()
       handleClose()
       // Trigger parent reload by re-opening with same user will not work;
       // instead the parent should reload users. Close and let UsersPanel re-fetch.
@@ -76,6 +78,7 @@ export function MembershipsDrawer({ open, onOpenChange, user }: Props) {
       toast.success(
         t('debugConfig.adminUsersMembershipRemoved', { defaultValue: 'Membership removed' }),
       )
+      onChanged?.()
       handleClose()
     } catch (err) {
       console.error(err)

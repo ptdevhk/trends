@@ -387,6 +387,9 @@ export function UsersPanel({ operatorId }: Props) {
           if (!open) setMembershipsUser(null)
         }}
         user={membershipsUser}
+        onChanged={() => {
+          void load()
+        }}
       />
 
       <UserAuditDrawer
