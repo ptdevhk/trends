@@ -642,6 +642,96 @@ describe("POST /api/admin/users", () => {
   });
 });
 
+describe("POST /api/admin/users/:id/disable", () => {
+  afterEach(() => {
+    resetResumeScreeningDb();
+    vi.restoreAllMocks();
+  });
+
+  it("disables target, revokes all their sessions, audits", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "disable-ok-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const devAdmin = await seedDevAdmin(storage);
+    const target = await seedLocalUser(storage, { username: "target" });
+    const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
+    const adminSession = sessions.createSession(devAdmin.user.id);
+    const targetSession = sessions.createSession(target.user.id);
+    const app = createTestApp(storage, eventStorage);
+
+    const res = await app.request(`/api/admin/users/${target.user.id}/disable`, {
+      method: "POST",
+      headers: authHeaders("dev", adminSession),
+    });
+    expect(res.status).toBe(200);
+    const body = await parseJsonBody<{ success: true; sessionsRevoked: number }>(res);
+    expect(body.sessionsRevoked).toBeGreaterThanOrEqual(1);
+
+    // Re-resolving the target session should now fail (status filter in findUser -> null)
+    expect(sessions.resolveSession(targetSession.token)).toBeNull();
+    expect(eventStorage.listRecent({ limit: 5 }).some((e) => e.type === "user_disabled" && e.userId === target.user.id)).toBe(true);
+  });
+
+  it("rejects self-disable with 400", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "disable-self-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const devAdmin = await seedDevAdmin(storage);
+    const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
+    const session = sessions.createSession(devAdmin.user.id);
+    const app = createTestApp(storage, eventStorage);
+
+    const res = await app.request(`/api/admin/users/${devAdmin.user.id}/disable`, {
+      method: "POST",
+      headers: authHeaders("dev", session),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 404 when userId unknown", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "disable-404-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const devAdmin = await seedDevAdmin(storage);
+    const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
+    const session = sessions.createSession(devAdmin.user.id);
+    const app = createTestApp(storage, eventStorage);
+
+    const res = await app.request("/api/admin/users/does-not-exist/disable", {
+      method: "POST",
+      headers: authHeaders("dev", session),
+    });
+    expect(res.status).toBe(404);
+  });
+});
+
+describe("POST /api/admin/users/:id/enable", () => {
+  afterEach(() => {
+    resetResumeScreeningDb();
+    vi.restoreAllMocks();
+  });
+
+  it("re-enables a disabled user", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "enable-ok-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const devAdmin = await seedDevAdmin(storage);
+    const target = await seedLocalUser(storage, { username: "target" });
+    storage.setUserStatus(target.user.id, "disabled");
+    const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
+    const session = sessions.createSession(devAdmin.user.id);
+    const app = createTestApp(storage, eventStorage);
+
+    const res = await app.request(`/api/admin/users/${target.user.id}/enable`, {
+      method: "POST",
+      headers: authHeaders("dev", session),
+    });
+    expect(res.status).toBe(200);
+    expect(storage.findUser(target.user.id)?.status).toBe("active");
+    expect(eventStorage.listRecent({ limit: 5 }).some((e) => e.type === "user_enabled" && e.userId === target.user.id)).toBe(true);
+  });
+});
+
 describe("GET /api/admin/users", () => {
   afterEach(() => {
     resetResumeScreeningDb();

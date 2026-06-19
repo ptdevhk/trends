@@ -404,5 +404,79 @@ export function createAdminUserRoutes(options: AdminUserRoutesOptions) {
     return c.json({ success: true as const, user: record, temporaryPassword }, 201);
   });
 
+  const UserIdParamSchema = z.object({ id: z.string().min(1) });
+  const DisableResponseSchema = z.object({ success: z.literal(true), sessionsRevoked: z.number().int().nonnegative() });
+  const EnableResponseSchema = z.object({ success: z.literal(true) });
+
+  const disableUserRoute = createRoute({
+    method: "post",
+    path: "/api/admin/users/{id}/disable",
+    tags: ["admin"],
+    request: { params: UserIdParamSchema },
+    responses: {
+      200: { description: "Disabled", content: { "application/json": { schema: DisableResponseSchema } } },
+      400: { description: "Self-disable blocked", content: { "application/json": { schema: ErrorResponseSchema } } },
+      401: { description: "Auth required", content: { "application/json": { schema: ErrorResponseSchema } } },
+      403: { description: "Admin access required", content: { "application/json": { schema: ErrorResponseSchema } } },
+      404: { description: "User not found", content: { "application/json": { schema: ErrorResponseSchema } } },
+    },
+  });
+
+  app.openapi(disableUserRoute, async (c) => {
+    const gate = assertSystemAdmin(c);
+    if (!gate.ok) return gate.response;
+    const auth = c.var.auth!;
+    const { id } = c.req.valid("param");
+    if (id === auth.user.id) {
+      return c.json({ success: false as const, error: "Cannot disable your own account" }, 400);
+    }
+    // Verify the row exists (findUser returns null for disabled users — use direct row query)
+    const exists = getStorage().listUsers().some((u) => u.id === id);
+    if (!exists) {
+      return c.json({ success: false as const, error: "User not found" }, 404);
+    }
+    const { changed } = getStorage().setUserStatus(id, "disabled");
+    const sessionsRevoked = changed ? getStorage().revokeAllSessionsByUser(id) : 0;
+    getEventStorage().append({
+      type: "user_disabled",
+      userId: id,
+      sessionId: auth.sessionId,
+      metadata: { operatorId: auth.user.id, sessionsRevoked },
+    });
+    return c.json({ success: true as const, sessionsRevoked }, 200);
+  });
+
+  const enableUserRoute = createRoute({
+    method: "post",
+    path: "/api/admin/users/{id}/enable",
+    tags: ["admin"],
+    request: { params: UserIdParamSchema },
+    responses: {
+      200: { description: "Enabled", content: { "application/json": { schema: EnableResponseSchema } } },
+      401: { description: "Auth required", content: { "application/json": { schema: ErrorResponseSchema } } },
+      403: { description: "Admin access required", content: { "application/json": { schema: ErrorResponseSchema } } },
+      404: { description: "User not found", content: { "application/json": { schema: ErrorResponseSchema } } },
+    },
+  });
+
+  app.openapi(enableUserRoute, async (c) => {
+    const gate = assertSystemAdmin(c);
+    if (!gate.ok) return gate.response;
+    const auth = c.var.auth!;
+    const { id } = c.req.valid("param");
+    const exists = getStorage().listUsers().some((u) => u.id === id);
+    if (!exists) {
+      return c.json({ success: false as const, error: "User not found" }, 404);
+    }
+    getStorage().setUserStatus(id, "active");
+    getEventStorage().append({
+      type: "user_enabled",
+      userId: id,
+      sessionId: auth.sessionId,
+      metadata: { operatorId: auth.user.id },
+    });
+    return c.json({ success: true as const }, 200);
+  });
+
   return app;
 }
