@@ -127,6 +127,17 @@ export function createAuthMiddleware(options: AuthMiddlewareOptions = {}) {
       return;
     }
 
+    // Stale-cookie guard: if the cookie is present but resolves to no valid
+    // session, skip CSRF and let the downstream route handle it (e.g. the
+    // login route starts a fresh session).  Without this, a stale session
+    // cookie blocks login with 403 because the login POST carries no CSRF
+    // header — the user must manually clear browser data to recover.
+    const session = getSessions().resolveSession(token);
+    if (!session) {
+      await next();
+      return;
+    }
+
     const csrf = c.req.header(csrfHeaderName);
     if (!csrf || !getSessions().verifyCsrf(token, csrf)) {
       const auth = c.var.auth;
