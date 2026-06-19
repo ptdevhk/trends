@@ -538,3 +538,57 @@ describe("assertSystemAdmin shared helper", () => {
     expect(res.status).toBe(403);
   });
 });
+
+describe("GET /api/admin/users", () => {
+  afterEach(() => {
+    resetResumeScreeningDb();
+    vi.restoreAllMocks();
+  });
+
+  it("returns 401 when unauthenticated", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "list-users-401-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const app = createTestApp(storage, eventStorage);
+    const res = await app.request("/api/admin/users", {
+      method: "GET",
+      headers: { "X-Workspace-Slug": "dev" },
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 403 from hr workspace even with admin role there", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "list-users-403-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const hrAdmin = await seedLocalUser(storage, { workspace: "hr", role: "admin" });
+    const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
+    const session = sessions.createSession(hrAdmin.user.id);
+    const app = createTestApp(storage, eventStorage);
+    const res = await app.request("/api/admin/users", {
+      method: "GET",
+      headers: authHeaders("hr", session),
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("lists all users with identities and memberships when called by dev-admin", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "list-users-200-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const devAdmin = await seedDevAdmin(storage);
+    await seedLocalUser(storage, { username: "hr-1", email: "hr1@x.com", workspace: "hr", role: "user" });
+    const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
+    const session = sessions.createSession(devAdmin.user.id);
+    const app = createTestApp(storage, eventStorage);
+
+    const res = await app.request("/api/admin/users", {
+      method: "GET",
+      headers: authHeaders("dev", session),
+    });
+    expect(res.status).toBe(200);
+    const body = await parseJsonBody<{ success: true; users: Array<{ id: string; email?: string; status: string; identities: unknown[]; memberships: unknown[] }> }>(res);
+    expect(body.success).toBe(true);
+    expect(body.users).toHaveLength(2);
+  });
+});

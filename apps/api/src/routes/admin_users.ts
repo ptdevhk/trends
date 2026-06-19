@@ -59,6 +59,28 @@ const ErrorResponseSchema = z.object({
   error: z.string(),
 });
 
+const AdminUserRecordSchema = z.object({
+  id: z.string(),
+  email: z.string().optional(),
+  displayName: z.string().optional(),
+  status: z.enum(["active", "disabled"]),
+  createdAt: z.string(),
+  identities: z.array(z.object({
+    provider: z.enum(["local", "casdoor"]),
+    providerSubject: z.string(),
+    providerTenant: z.string().nullable(),
+  })),
+  memberships: z.array(z.object({
+    workspaceSlug: z.string(),
+    role: z.enum(["user", "admin"]),
+  })),
+});
+
+const ListUsersResponseSchema = z.object({
+  success: z.literal(true),
+  users: z.array(AdminUserRecordSchema),
+});
+
 type AdminUserRoutesOptions = {
   storage?: AuthStorage;
   eventStorage?: AuthEventStorage;
@@ -277,6 +299,24 @@ export function createAdminUserRoutes(options: AdminUserRoutesOptions) {
     });
 
     return c.json({ success: true as const, cleared, removedCount }, 200);
+  });
+
+  const listUsersRoute = createRoute({
+    method: "get",
+    path: "/api/admin/users",
+    tags: ["admin"],
+    responses: {
+      200: { description: "Users list", content: { "application/json": { schema: ListUsersResponseSchema } } },
+      401: { description: "Auth required", content: { "application/json": { schema: ErrorResponseSchema } } },
+      403: { description: "Admin access required", content: { "application/json": { schema: ErrorResponseSchema } } },
+    },
+  });
+
+  app.openapi(listUsersRoute, async (c) => {
+    const gate = assertSystemAdmin(c);
+    if (!gate.ok) return gate.response;
+    const users = getStorage().listUsers();
+    return c.json({ success: true as const, users }, 200);
   });
 
   return app;

@@ -1089,6 +1089,89 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Users list */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            users: {
+                                id: string;
+                                email?: string;
+                                displayName?: string;
+                                /** @enum {string} */
+                                status: "active" | "disabled";
+                                createdAt: string;
+                                identities: {
+                                    /** @enum {string} */
+                                    provider: "local" | "casdoor";
+                                    providerSubject: string;
+                                    providerTenant: string | null;
+                                }[];
+                                memberships: {
+                                    workspaceSlug: string;
+                                    /** @enum {string} */
+                                    role: "user" | "admin";
+                                }[];
+                            }[];
+                        };
+                    };
+                };
+                /** @description Auth required */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Admin access required */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/resumes/search-summary": {
         parameters: {
             query?: never;
