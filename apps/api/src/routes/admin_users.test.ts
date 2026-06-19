@@ -587,8 +587,27 @@ describe("GET /api/admin/users", () => {
       headers: authHeaders("dev", session),
     });
     expect(res.status).toBe(200);
-    const body = await parseJsonBody<{ success: true; users: Array<{ id: string; email?: string; status: string; identities: unknown[]; memberships: unknown[] }> }>(res);
+    const body = await parseJsonBody<{
+      success: true;
+      users: Array<{
+        id: string;
+        email?: string;
+        status: string;
+        identities: Array<{ provider: string; providerSubject: string; providerTenant: string | null }>;
+        memberships: Array<{ workspaceSlug: string; role: string }>;
+      }>;
+    }>(res);
     expect(body.success).toBe(true);
     expect(body.users).toHaveLength(2);
+
+    // Verify returned records carry populated identities/memberships (not just empty arrays)
+    const hr1 = body.users.find((u) => u.email === "hr1@x.com");
+    expect(hr1).toBeDefined();
+    expect(hr1!.memberships).toEqual(
+      expect.arrayContaining([expect.objectContaining({ workspaceSlug: "hr", role: "user" })]),
+    );
+    expect(hr1!.identities).toEqual(
+      expect.arrayContaining([expect.objectContaining({ provider: "local", providerSubject: "hr-1" })]),
+    );
   });
 });
