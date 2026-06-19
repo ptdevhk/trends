@@ -180,6 +180,16 @@ export type ProviderMembershipGrantRecord = {
   revokedAt?: string;
 };
 
+export type AdminUserRecord = {
+  id: string;
+  email?: string;
+  displayName?: string;
+  status: "active" | "disabled";
+  createdAt: string;
+  identities: Array<{ provider: AuthProvider; providerSubject: string; providerTenant: string | null }>;
+  memberships: Array<{ workspaceSlug: string; role: WorkspaceRole }>;
+};
+
 export type ProviderIdentityListInput = {
   provider?: AuthProvider;
 };
@@ -717,6 +727,107 @@ export class AuthStorage {
       workspaceSlug: row.workspace_slug,
       role: row.role,
     }));
+  }
+
+  listUsers(): AdminUserRecord[] {
+    const userRows = this.db.prepare(`
+      SELECT id, email, name, display_name, status, created_at
+      FROM users
+      ORDER BY created_at DESC, id ASC
+    `).all() as Array<{
+      id: unknown;
+      email: unknown;
+      name: unknown;
+      display_name: unknown;
+      status: unknown;
+      created_at: unknown;
+    }>;
+
+    const identityRows = this.db.prepare(`
+      SELECT user_id, provider, provider_subject, provider_tenant
+      FROM auth_identities
+      ORDER BY user_id, provider, provider_subject
+    `).all() as Array<{
+      user_id: unknown;
+      provider: unknown;
+      provider_subject: unknown;
+      provider_tenant: unknown;
+    }>;
+
+    const membershipRows = this.db.prepare(`
+      SELECT user_id, workspace_slug, role
+      FROM workspace_memberships
+      ORDER BY user_id, workspace_slug
+    `).all() as Array<{ user_id: unknown; workspace_slug: unknown; role: unknown }>;
+
+    const identitiesByUser = new Map<string, AdminUserRecord["identities"]>();
+    for (const row of identityRows) {
+      if (typeof row.user_id !== "string" || !isAuthProvider(row.provider) || typeof row.provider_subject !== "string") continue;
+      const list = identitiesByUser.get(row.user_id) ?? [];
+      list.push({
+        provider: row.provider,
+        providerSubject: row.provider_subject,
+        providerTenant: typeof row.provider_tenant === "string" ? row.provider_tenant : null,
+      });
+      identitiesByUser.set(row.user_id, list);
+    }
+
+    const membershipsByUser = new Map<string, AdminUserRecord["memberships"]>();
+    for (const row of membershipRows) {
+      if (typeof row.user_id !== "string" || typeof row.workspace_slug !== "string" || !isWorkspaceRole(row.role)) continue;
+      const list = membershipsByUser.get(row.user_id) ?? [];
+      list.push({ workspaceSlug: row.workspace_slug, role: row.role });
+      membershipsByUser.set(row.user_id, list);
+    }
+
+    return userRows.flatMap((row) => {
+      if (typeof row.id !== "string" || typeof row.created_at !== "string") return [];
+      const status = row.status === "disabled" ? "disabled" : "active";
+      const displayName = typeof row.display_name === "string"
+        ? row.display_name
+        : typeof row.name === "string" ? row.name : undefined;
+      return [{
+        id: row.id,
+        email: typeof row.email === "string" ? row.email : undefined,
+        displayName,
+        status,
+        createdAt: row.created_at,
+        identities: identitiesByUser.get(row.id) ?? [],
+        memberships: membershipsByUser.get(row.id) ?? [],
+      }];
+    });
+  }
+
+  setUserStatus(userId: string, status: "active" | "disabled"): { changed: boolean } {
+    const result = this.db
+      .prepare("UPDATE users SET status = ? WHERE id = ? AND status != ?")
+      .run(status, userId, status);
+    return { changed: result.changes > 0 };
+  }
+
+  deleteMembership(userId: string, workspaceSlug: string): { deleted: boolean } {
+    const result = this.db
+      .prepare("DELETE FROM workspace_memberships WHERE user_id = ? AND workspace_slug = ?")
+      .run(userId, workspaceSlug);
+    return { deleted: result.changes > 0 };
+  }
+
+  listIdentities(userId: string): Array<{ provider: AuthProvider; providerSubject: string; providerTenant: string | null }> {
+    const rows = this.db.prepare(`
+      SELECT provider, provider_subject, provider_tenant
+      FROM auth_identities
+      WHERE user_id = ?
+      ORDER BY provider, provider_subject
+    `).all(userId) as Array<{ provider: unknown; provider_subject: unknown; provider_tenant: unknown }>;
+
+    return rows.flatMap((row) => {
+      if (!isAuthProvider(row.provider) || typeof row.provider_subject !== "string") return [];
+      return [{
+        provider: row.provider,
+        providerSubject: row.provider_subject,
+        providerTenant: typeof row.provider_tenant === "string" ? row.provider_tenant : null,
+      }];
+    });
   }
 
   private findMembership(userId: string, workspaceSlug: string): WorkspaceMembership | null {
