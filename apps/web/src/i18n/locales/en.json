@@ -842,6 +842,23 @@
         "bulkUnblockSuccess": "Unblocked {{count}} candidate(s)",
         "bulkUnblockFailed": "Failed to unblock selected candidates"
       }
+    },
+    "account": {
+      "nav": "Account",
+      "title": "Account",
+      "description": "Manage your account settings and change your password.",
+      "changePassword": "Change password",
+      "changePasswordDescription": "Update your password. You will stay logged in after changing it.",
+      "currentPassword": "Current password",
+      "newPassword": "New password",
+      "confirmPassword": "Confirm new password",
+      "changePasswordButton": "Change password",
+      "changing": "Changing...",
+      "passwordChanged": "Password changed successfully",
+      "currentPasswordIncorrect": "Current password is incorrect",
+      "passwordTooShort": "Password must be at least 6 characters",
+      "passwordsDoNotMatch": "Passwords do not match",
+      "changeFailed": "Failed to change password"
     }
   },
   "debug": {

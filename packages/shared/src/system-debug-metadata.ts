@@ -321,6 +321,13 @@ export const SETTINGS_NAV_ITEMS: SurfaceNavDefinition[] = [
     hrefSuffix: "/settings/export-fields",
     matchesSuffixes: ["/settings/export-fields"],
   },
+  {
+    id: "account",
+    titleKey: "settings.account.nav",
+    defaultTitle: "Account",
+    hrefSuffix: "/settings/account",
+    matchesSuffixes: ["/settings/account"],
+  },
 ];
 
 export const SYSTEM_SETTINGS_NAV_ITEMS: SurfaceNavDefinition[] = [

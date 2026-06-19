@@ -105,6 +105,11 @@ const LazySystemSettingsExportFieldsPage = lazy(async () => {
   return { default: module.SystemSettingsExportFieldsPage }
 })
 
+const LazyAccountPage = lazy(async () => {
+  const module = await import('@/pages/AccountPage')
+  return { default: module.AccountPage }
+})
+
 function MainShell({ children }: { children?: ReactNode }) {
   return (
     <div className="min-h-screen bg-background">
@@ -468,6 +473,14 @@ function App() {
                 element={(
                   <RouteSuspense>
                     <LazySystemSettingsExportFieldsPage />
+                  </RouteSuspense>
+                )}
+              />
+              <Route
+                path="account"
+                element={(
+                  <RouteSuspense>
+                    <LazyAccountPage />
                   </RouteSuspense>
                 )}
               />

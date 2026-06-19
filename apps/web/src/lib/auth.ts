@@ -282,3 +282,27 @@ export function getCasdoorLoginUrl(redirectTo: string = getCurrentRedirectPath()
 export function redirectToCasdoorLogin(redirectTo?: string): void {
   window.location.assign(getCasdoorLoginUrl(redirectTo))
 }
+
+export type ChangePasswordResult =
+  | { success: true }
+  | { success: false; error: string; status?: number }
+
+export async function changePassword(
+  currentPassword: string,
+  newPassword: string,
+): Promise<ChangePasswordResult> {
+  const { data, error, response } = await rawApiClient.POST<{ success: true }>(
+    '/api/auth/change-password',
+    { body: { currentPassword, newPassword } },
+  )
+  if (data?.success === true) {
+    return data
+  }
+  const status = response?.status ?? readStatus(error) ?? readStatus(data)
+  const message = readErrorMessage(data) ?? readErrorMessage(error) ?? defaultErrorForStatus(status, 'Failed to change password')
+  const result: ChangePasswordResult = { success: false, error: message }
+  if (status !== undefined) {
+    result.status = status
+  }
+  return result
+}
