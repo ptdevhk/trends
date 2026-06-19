@@ -295,4 +295,32 @@ describe("auth middleware event logging", () => {
     expect(events[0].type).toBe("csrf_reject");
     expect(events[0].userId).toBe(user.id);
   });
+
+  it("skips CSRF check when session cookie is stale (invalid token)", async () => {
+    resetResumeScreeningDb();
+    const root = mkdtempSync(path.join(tmpdir(), "trends-auth-mw-stale-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const middleware = createAuthMiddleware({ storage, ttlSeconds: 3600, eventStorage });
+
+    const app = new Hono();
+    app.use("*", workspaceMiddleware);
+    app.use("*", middleware.optionalAuth);
+    app.use("*", middleware.requireCsrf);
+    app.post("/mutate", (c) => c.json({ ok: true }));
+
+    // Stale cookie — a token that doesn't resolve to any session.
+    const res = await app.request("/mutate", {
+      method: "POST",
+      headers: {
+        "X-Workspace-Slug": "dev",
+        Cookie: `${config.auth.sessionCookieName}=stale-nonexistent-token`,
+      },
+    });
+
+    // Should pass through (not 403) — downstream route handles the unauthenticated request.
+    expect(res.status).toBe(200);
+    const events = eventStorage.listRecent({ limit: 10 });
+    expect(events.some((e) => e.type === "csrf_reject")).toBe(false);
+  });
 });
