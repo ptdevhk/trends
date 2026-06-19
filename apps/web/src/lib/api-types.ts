@@ -1165,7 +1165,116 @@ export interface paths {
             };
         };
         put?: never;
-        post?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        username: string;
+                        /** Format: email */
+                        email?: string;
+                        displayName?: string;
+                        initialMembership?: {
+                            /** @enum {string} */
+                            workspaceSlug: "dev" | "hr";
+                            /** @enum {string} */
+                            role: "user" | "admin";
+                        };
+                    };
+                };
+            };
+            responses: {
+                /** @description User created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            user: {
+                                id: string;
+                                email?: string;
+                                displayName?: string;
+                                /** @enum {string} */
+                                status: "active" | "disabled";
+                                createdAt: string;
+                                identities: {
+                                    /** @enum {string} */
+                                    provider: "local" | "casdoor";
+                                    providerSubject: string;
+                                    providerTenant: string | null;
+                                }[];
+                                memberships: {
+                                    workspaceSlug: string;
+                                    /** @enum {string} */
+                                    role: "user" | "admin";
+                                }[];
+                            };
+                            temporaryPassword: string;
+                        };
+                    };
+                };
+                /** @description Auth required */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Admin access required */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Username taken */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Internal error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;

@@ -539,6 +539,109 @@ describe("assertSystemAdmin shared helper", () => {
   });
 });
 
+describe("POST /api/admin/users", () => {
+  afterEach(() => {
+    resetResumeScreeningDb();
+    vi.restoreAllMocks();
+  });
+
+  it("creates user with local identity, returns temp password, audits event", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "create-user-ok-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const devAdmin = await seedDevAdmin(storage);
+    const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
+    const session = sessions.createSession(devAdmin.user.id);
+    const app = createTestApp(storage, eventStorage);
+
+    const res = await app.request("/api/admin/users", {
+      method: "POST",
+      headers: authHeaders("dev", session),
+      body: JSON.stringify({
+        username: "new-hr-user",
+        email: "new@x.com",
+        displayName: "New HR",
+        initialMembership: { workspaceSlug: "hr", role: "user" },
+      }),
+    });
+
+    expect(res.status).toBe(201);
+    const body = await parseJsonBody<{ success: true; user: { id: string }; temporaryPassword: string }>(res);
+    expect(body.success).toBe(true);
+    expect(body.temporaryPassword).toMatch(/^[A-Za-z0-9_-]{20,}$/);
+
+    // Verify identity + membership + password were persisted
+    const identity = storage.findIdentity("local", "new-hr-user", "local");
+    expect(identity?.userId).toBe(body.user.id);
+    expect(storage.listMemberships(body.user.id)).toEqual([
+      { userId: body.user.id, workspaceSlug: "hr", role: "user" },
+    ]);
+    // Login with returned temp password should succeed (verifies hash round-trip)
+    const cred = storage.findPasswordCredential(body.user.id);
+    expect(cred).not.toBeNull();
+    expect(await verifyPassword(body.temporaryPassword, cred!)).toBe(true);
+
+    // Audit
+    const events = eventStorage.listRecent({ limit: 10 });
+    expect(events.some((e) => e.type === "user_created" && e.userId === body.user.id)).toBe(true);
+    expect(events.some((e) => e.type === "membership_granted_by_admin" && e.userId === body.user.id)).toBe(true);
+  });
+
+  it("returns 409 when local username already exists", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "create-user-409-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const devAdmin = await seedDevAdmin(storage);
+    await seedLocalUser(storage, { username: "taken" });
+    const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
+    const session = sessions.createSession(devAdmin.user.id);
+    const app = createTestApp(storage, eventStorage);
+
+    const res = await app.request("/api/admin/users", {
+      method: "POST",
+      headers: authHeaders("dev", session),
+      body: JSON.stringify({ username: "taken" }),
+    });
+    expect(res.status).toBe(409);
+  });
+
+  it("creates user with no membership when initialMembership omitted", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "create-user-no-mem-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const devAdmin = await seedDevAdmin(storage);
+    const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
+    const session = sessions.createSession(devAdmin.user.id);
+    const app = createTestApp(storage, eventStorage);
+
+    const res = await app.request("/api/admin/users", {
+      method: "POST",
+      headers: authHeaders("dev", session),
+      body: JSON.stringify({ username: "orphan" }),
+    });
+    expect(res.status).toBe(201);
+    const body = await parseJsonBody<{ user: { id: string } }>(res);
+    expect(storage.listMemberships(body.user.id)).toEqual([]);
+  });
+
+  it("returns 403 from hr workspace", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "create-user-403-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const hrAdmin = await seedLocalUser(storage, { workspace: "hr", role: "admin" });
+    const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
+    const session = sessions.createSession(hrAdmin.user.id);
+    const app = createTestApp(storage, eventStorage);
+
+    const res = await app.request("/api/admin/users", {
+      method: "POST",
+      headers: authHeaders("hr", session),
+      body: JSON.stringify({ username: "someone" }),
+    });
+    expect(res.status).toBe(403);
+  });
+});
+
 describe("GET /api/admin/users", () => {
   afterEach(() => {
     resetResumeScreeningDb();

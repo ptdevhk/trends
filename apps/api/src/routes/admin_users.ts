@@ -319,5 +319,90 @@ export function createAdminUserRoutes(options: AdminUserRoutesOptions) {
     return c.json({ success: true as const, users }, 200);
   });
 
+  const CreateUserRequestSchema = z.object({
+    username: z.string().min(1).max(64),
+    email: z.string().email().optional(),
+    displayName: z.string().min(1).max(120).optional(),
+    initialMembership: z.object({
+      workspaceSlug: z.enum(["dev", "hr"]),
+      role: z.enum(["user", "admin"]),
+    }).optional(),
+  });
+
+  const CreateUserResponseSchema = z.object({
+    success: z.literal(true),
+    user: AdminUserRecordSchema,
+    temporaryPassword: z.string(),
+  });
+
+  const createUserRoute = createRoute({
+    method: "post",
+    path: "/api/admin/users",
+    tags: ["admin"],
+    request: { body: { content: { "application/json": { schema: CreateUserRequestSchema } } } },
+    responses: {
+      201: { description: "User created", content: { "application/json": { schema: CreateUserResponseSchema } } },
+      401: { description: "Auth required", content: { "application/json": { schema: ErrorResponseSchema } } },
+      403: { description: "Admin access required", content: { "application/json": { schema: ErrorResponseSchema } } },
+      409: { description: "Username taken", content: { "application/json": { schema: ErrorResponseSchema } } },
+      500: { description: "Internal error", content: { "application/json": { schema: ErrorResponseSchema } } },
+    },
+  });
+
+  app.openapi(createUserRoute, async (c) => {
+    const gate = assertSystemAdmin(c);
+    if (!gate.ok) return gate.response;
+    const auth = c.var.auth!;
+    const input = c.req.valid("json");
+
+    if (getStorage().findIdentity("local", input.username, "local")) {
+      return c.json({ success: false as const, error: "Username already exists" }, 409);
+    }
+
+    const user = getStorage().createUser({ email: input.email, displayName: input.displayName });
+    getStorage().linkIdentity({
+      userId: user.id,
+      provider: "local",
+      providerSubject: input.username,
+      providerTenant: "local",
+      email: input.email,
+      displayName: input.displayName,
+    });
+    const temporaryPassword = randomBytes(16).toString("base64url");
+    getStorage().savePasswordCredential({
+      userId: user.id,
+      ...(await hashPassword(temporaryPassword)),
+      mustChangePassword: false,
+    });
+    if (input.initialMembership) {
+      getStorage().upsertMembership({
+        userId: user.id,
+        workspaceSlug: input.initialMembership.workspaceSlug,
+        role: input.initialMembership.role,
+      });
+      getEventStorage().append({
+        type: "membership_granted_by_admin",
+        userId: user.id,
+        workspaceSlug: input.initialMembership.workspaceSlug,
+        sessionId: auth.sessionId,
+        metadata: { operatorId: auth.user.id, role: input.initialMembership.role },
+      });
+    }
+    getEventStorage().append({
+      type: "user_created",
+      userId: user.id,
+      sessionId: auth.sessionId,
+      metadata: { operatorId: auth.user.id, username: input.username },
+    });
+
+    const record = getStorage().listUsers().find((u) => u.id === user.id);
+    if (!record) {
+      // Should not happen -- user was just inserted in same transaction context.
+      console.error("[admin/users:create] freshly created user not found in listUsers", user.id);
+      return c.json({ success: false as const, error: "Internal error" }, 500);
+    }
+    return c.json({ success: true as const, user: record, temporaryPassword }, 201);
+  });
+
   return app;
 }
