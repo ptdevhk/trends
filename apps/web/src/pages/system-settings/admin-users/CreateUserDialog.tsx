@@ -20,7 +20,7 @@ import type { WorkspaceRole } from '@/lib/auth'
 type Props = {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onCreated: () => void
+  onCreated: (temporaryPassword: string) => void
 }
 
 export function CreateUserDialog({ open, onOpenChange, onCreated }: Props) {
@@ -79,7 +79,7 @@ export function CreateUserDialog({ open, onOpenChange, onCreated }: Props) {
       setTempPassword(result.temporaryPassword)
       setCreatedUsername(result.user.displayName ?? username.trim())
       toast.success(t('debugConfig.adminUsersCreated', { defaultValue: 'User created' }))
-      onCreated()
+      onCreated(result.temporaryPassword)
     } catch (err) {
       console.error(err)
       setError(t('debugConfig.adminUsersCreateFailed', { defaultValue: 'Failed to create user' }))

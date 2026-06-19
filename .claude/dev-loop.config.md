@@ -269,9 +269,10 @@ reactive_debugging:
 
 ## Code review
 
-> v1.15.0: simplify-worker always runs (base). Codex second-opinion is
-> opt-in per intensity. Currently OFF — toggle `enabled_in_high: true`
-> if you want a parallel reviewer on /dev-loop high cycles.
+> REVIEW always runs `simplify:simplify` as the base code-review skill for
+> code changes. Codex second-opinion is opt-in per intensity. Currently OFF —
+> toggle `enabled_in_high: true` if you want a parallel reviewer on
+> /dev-loop high cycles.
 
 ```yaml
 code_review:
