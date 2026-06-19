@@ -61,7 +61,7 @@ describe('admin-users client wrappers', () => {
 
     it('returns an error object on 401', async () => {
       mockApiClient.GET.mockResolvedValueOnce({
-        data: { success: false as const, error: 'Authentication required' },
+        error: { success: false as const, error: 'Authentication required' },
         response: { status: 401 },
       })
 
@@ -76,7 +76,7 @@ describe('admin-users client wrappers', () => {
 
     it('returns an error object on 403', async () => {
       mockApiClient.GET.mockResolvedValueOnce({
-        data: { success: false as const, error: 'Admin access required' },
+        error: { success: false as const, error: 'Admin access required' },
         response: { status: 403 },
       })
 
@@ -117,7 +117,7 @@ describe('admin-users client wrappers', () => {
 
     it('returns an error object on 409 username taken', async () => {
       mockApiClient.POST.mockResolvedValueOnce({
-        data: { success: false as const, error: 'Username already exists' },
+        error: { success: false as const, error: 'Username already exists' },
         response: { status: 409 },
       })
 
@@ -145,7 +145,7 @@ describe('admin-users client wrappers', () => {
 
     it('returns an error object on 400 self-disable', async () => {
       mockApiClient.POST.mockResolvedValueOnce({
-        data: { success: false as const, error: 'Cannot disable yourself' },
+        error: { success: false as const, error: 'Cannot disable yourself' },
         response: { status: 400 },
       })
 
@@ -178,7 +178,7 @@ describe('admin-users client wrappers', () => {
 
     it('returns an error object on 404', async () => {
       mockApiClient.POST.mockResolvedValueOnce({
-        data: { success: false as const, error: 'User not found' },
+        error: { success: false as const, error: 'User not found' },
         response: { status: 404 },
       })
 
@@ -209,7 +209,7 @@ describe('admin-users client wrappers', () => {
 
     it('returns an error object on 400 self-demotion', async () => {
       mockApiClient.DELETE.mockResolvedValueOnce({
-        data: { success: false as const, error: 'Cannot remove your own last admin membership' },
+        error: { success: false as const, error: 'Cannot remove your own last admin membership' },
         response: { status: 400 },
       })
 
@@ -300,6 +300,21 @@ describe('admin-users client wrappers', () => {
 
       expect(result).toEqual({ success: true })
       expect(mockApiClient.POST).toHaveBeenCalledWith('/api/admin/users/user-1/enable')
+    })
+
+    it('returns an error object on 403', async () => {
+      mockApiClient.POST.mockResolvedValueOnce({
+        error: { success: false as const, error: 'Admin access required' },
+        response: { status: 403 },
+      })
+
+      const result = await enableAdminUser('user-1')
+
+      expect(result).toEqual({
+        success: false,
+        error: 'Admin access required',
+        status: 403,
+      })
     })
   })
 })
