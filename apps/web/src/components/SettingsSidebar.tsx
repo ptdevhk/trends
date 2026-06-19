@@ -5,7 +5,7 @@ import {
   type SurfaceNavDefinition,
 } from '@trends/shared'
 import { Link, useLocation } from 'react-router-dom'
-import { Ban, Home, Search, SlidersHorizontal, X } from 'lucide-react'
+import { Ban, Home, Key, Search, SlidersHorizontal, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
@@ -25,6 +25,7 @@ const NAV_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   blocks: Ban,
   profiles: Search,
   'export-fields': SlidersHorizontal,
+  account: Key,
 }
 
 interface SettingsSidebarProps {

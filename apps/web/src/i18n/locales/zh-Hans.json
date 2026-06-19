@@ -1061,6 +1061,23 @@
       "searchPlaceholder": "依候选人识别键或原因搜索...",
       "empty": "目前没有已屏蔽候选人。",
       "nav": "黑名单"
+    },
+    "account": {
+      "nav": "账号",
+      "title": "账号",
+      "description": "管理您的账号设置并更改密码。",
+      "changePassword": "更改密码",
+      "changePasswordDescription": "更新您的密码。更改后您将保持登录状态。",
+      "currentPassword": "当前密码",
+      "newPassword": "新密码",
+      "confirmPassword": "确认新密码",
+      "changePasswordButton": "更改密码",
+      "changing": "更改中...",
+      "passwordChanged": "密码已成功更改",
+      "currentPasswordIncorrect": "当前密码不正确",
+      "passwordTooShort": "密码至少需要 6 个字符",
+      "passwordsDoNotMatch": "密码不匹配",
+      "changeFailed": "更改密码失败"
     }
   },
   "searchAnalytics": {
