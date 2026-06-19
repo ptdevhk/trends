@@ -574,5 +574,73 @@ export function createAdminUserRoutes(options: AdminUserRoutesOptions) {
     return c.json({ success: true as const, deleted }, 200);
   });
 
+  // --- GET /api/admin/users/:id/auth-events (per-user audit feed) ---
+
+  const AuthEventSchema = z.object({
+    id: z.string(),
+    type: z.string(),
+    userId: z.string().optional(),
+    provider: z.string().optional(),
+    workspaceSlug: z.string().optional(),
+    sessionId: z.string().optional(),
+    reason: z.string().optional(),
+    metadata: z.record(z.string(), z.unknown()).optional(),
+    createdAt: z.string(),
+  });
+
+  const ListAuthEventsResponseSchema = z.object({
+    success: z.literal(true),
+    events: z.array(AuthEventSchema),
+  });
+
+  const ListAuthEventsQuerySchema = z.object({
+    limit: z.coerce.number().int().positive().max(200).optional(),
+  });
+
+  const listUserAuthEventsRoute = createRoute({
+    method: "get",
+    path: "/api/admin/users/{id}/auth-events",
+    tags: ["admin"],
+    request: {
+      params: UserIdParamSchema,
+      query: ListAuthEventsQuerySchema,
+    },
+    responses: {
+      200: {
+        description: "User auth events",
+        content: {
+          "application/json": {
+            schema: ListAuthEventsResponseSchema,
+          },
+        },
+      },
+      401: {
+        description: "Auth required",
+        content: {
+          "application/json": {
+            schema: ErrorResponseSchema,
+          },
+        },
+      },
+      403: {
+        description: "Admin access required",
+        content: {
+          "application/json": {
+            schema: ErrorResponseSchema,
+          },
+        },
+      },
+    },
+  });
+
+  app.openapi(listUserAuthEventsRoute, async (c) => {
+    const gate = assertSystemAdmin(c);
+    if (!gate.ok) return gate.response;
+    const { id } = c.req.valid("param");
+    const { limit } = c.req.valid("query");
+    const events = getEventStorage().listRecent({ userId: id, limit: limit ?? 50 });
+    return c.json({ success: true as const, events }, 200);
+  });
+
   return app;
 }

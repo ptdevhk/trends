@@ -986,3 +986,91 @@ describe("DELETE /api/admin/users/:id/memberships/:slug", () => {
     expect(res.status).toBe(404);
   });
 });
+
+describe("GET /api/admin/users/:id/auth-events", () => {
+  afterEach(() => {
+    resetResumeScreeningDb();
+    vi.restoreAllMocks();
+  });
+
+  it("returns 401 when unauthenticated", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "auth-events-401-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const app = createTestApp(storage, eventStorage);
+
+    const res = await app.request("/api/admin/users/some-user-id/auth-events", {
+      method: "GET",
+      headers: { "X-Workspace-Slug": "dev" },
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 403 from hr workspace even with admin role there", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "auth-events-403-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const hrAdmin = await seedLocalUser(storage, { workspace: "hr", role: "admin" });
+    const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
+    const session = sessions.createSession(hrAdmin.user.id);
+    const app = createTestApp(storage, eventStorage);
+
+    const res = await app.request("/api/admin/users/some-user-id/auth-events", {
+      method: "GET",
+      headers: authHeaders("hr", session),
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("returns events filtered to the target user", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "auth-events-200-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const devAdmin = await seedDevAdmin(storage);
+    const target = await seedLocalUser(storage, { username: "audit-target", workspace: "hr", role: "user" });
+    const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
+    const adminSession = sessions.createSession(devAdmin.user.id);
+    const app = createTestApp(storage, eventStorage);
+
+    // Seed events for the target user
+    eventStorage.append({ type: "user_disabled", userId: target.user.id, metadata: { operatorId: devAdmin.user.id } });
+    eventStorage.append({ type: "user_enabled", userId: target.user.id, metadata: { operatorId: devAdmin.user.id } });
+    // Seed an event for a different user (should not appear)
+    eventStorage.append({ type: "user_disabled", userId: devAdmin.user.id, metadata: { operatorId: devAdmin.user.id } });
+
+    const res = await app.request(`/api/admin/users/${target.user.id}/auth-events`, {
+      method: "GET",
+      headers: authHeaders("dev", adminSession),
+    });
+    expect(res.status).toBe(200);
+    const body = await parseJsonBody<{ success: true; events: Array<{ type: string; userId?: string }> }>(res);
+    expect(body.success).toBe(true);
+    expect(body.events).toHaveLength(2);
+    expect(body.events.every((e) => e.userId === target.user.id)).toBe(true);
+  });
+
+  it("honors the limit query parameter", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "auth-events-limit-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const devAdmin = await seedDevAdmin(storage);
+    const target = await seedLocalUser(storage, { username: "limit-target", workspace: "hr", role: "user" });
+    const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
+    const adminSession = sessions.createSession(devAdmin.user.id);
+    const app = createTestApp(storage, eventStorage);
+
+    // Append 3 events for the target user
+    eventStorage.append({ type: "user_disabled", userId: target.user.id });
+    eventStorage.append({ type: "user_enabled", userId: target.user.id });
+    eventStorage.append({ type: "membership_granted_by_admin", userId: target.user.id, workspaceSlug: "dev" });
+
+    const res = await app.request(`/api/admin/users/${target.user.id}/auth-events?limit=2`, {
+      method: "GET",
+      headers: authHeaders("dev", adminSession),
+    });
+    expect(res.status).toBe(200);
+    const body = await parseJsonBody<{ success: true; events: unknown[] }>(res);
+    expect(body.success).toBe(true);
+    expect(body.events).toHaveLength(2);
+  });
+});
