@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
+import type { Context } from "hono";
 
 import { clearLoginLockout } from "../middleware/login-rate-limit.js";
 import { AuthEventStorage } from "../services/auth-event-storage.js";
@@ -8,6 +9,31 @@ import { AuthStorage } from "../services/auth-storage.js";
 import { config } from "../services/config.js";
 import { hashPassword } from "../services/local-password-provider.js";
 import type { createAuthMiddleware } from "../middleware/auth.js";
+
+// Layered system-admin gate (ADR D4): combine with `requireAdmin` middleware to
+// enforce "admin role AND in the dev workspace". `requireAdmin` covers the
+// admin-role check; this helper pins the workspace to `dev`.
+//
+// The return type is deliberately inferred (not annotated as `{ ok: false;
+// response: Response }`) so the `TypedResponse` shape from `c.json` is
+// preserved — `@hono/zod-openapi` handlers reject bare `Response` returns when
+// the route declares typed responses.
+function assertSystemAdmin(c: Context) {
+  const auth = c.var.auth;
+  if (!auth) {
+    return {
+      ok: false as const,
+      response: c.json({ success: false as const, error: "Authentication required" }, 401),
+    };
+  }
+  if (c.var.workspaceSlug !== "dev") {
+    return {
+      ok: false as const,
+      response: c.json({ success: false as const, error: "Admin access required" }, 403),
+    };
+  }
+  return { ok: true as const };
+}
 
 const ResetPasswordRequestSchema = z.object({
   username: z.string().min(1),
@@ -122,15 +148,9 @@ export function createAdminUserRoutes(options: AdminUserRoutesOptions) {
       return c.json({ success: false as const, error: "Not found" }, 404);
     }
 
-    const auth = c.var.auth;
-    if (!auth) {
-      return c.json({ success: false as const, error: "Authentication required" }, 401);
-    }
-
-    // System-admin gate: must be called from the dev workspace (ADR D4).
-    if (c.var.workspaceSlug !== "dev") {
-      return c.json({ success: false as const, error: "Admin access required" }, 403);
-    }
+    const gate = assertSystemAdmin(c);
+    if (!gate.ok) return gate.response;
+    const auth = c.var.auth!; // safe: gate.ok implies auth present
 
     const { username } = c.req.valid("json");
 
@@ -234,15 +254,9 @@ export function createAdminUserRoutes(options: AdminUserRoutesOptions) {
   });
 
   app.openapi(unlockRoute, async (c) => {
-    const auth = c.var.auth;
-    if (!auth) {
-      return c.json({ success: false as const, error: "Authentication required" }, 401);
-    }
-
-    // Same system-admin gate as reset-password (ADR D4): dev-workspace only.
-    if (c.var.workspaceSlug !== "dev") {
-      return c.json({ success: false as const, error: "Admin access required" }, 403);
-    }
+    const gate = assertSystemAdmin(c);
+    if (!gate.ok) return gate.response;
+    const auth = c.var.auth!; // safe: gate.ok implies auth present
 
     const { username } = c.req.valid("json");
     const removedCount = clearLoginLockout(username);

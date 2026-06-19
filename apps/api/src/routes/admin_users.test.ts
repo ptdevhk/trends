@@ -513,3 +513,28 @@ describe("POST /api/admin/auth/unlock", () => {
     expect(checkLoginAttempt("alice", "9.9.9.9").allowed).toBe(true);
   });
 });
+
+describe("assertSystemAdmin shared helper", () => {
+  afterEach(() => {
+    resetResumeScreeningDb();
+    vi.restoreAllMocks();
+  });
+
+  it("returns 403 from a non-dev workspace even when caller is admin there", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "system-admin-gate-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const hrAdmin = await seedLocalUser(storage, { username: "hr-only-admin", workspace: "hr", role: "admin" });
+    const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
+    const session = sessions.createSession(hrAdmin.user.id);
+    const app = createTestApp(storage, eventStorage);
+
+    const res = await app.request("/api/admin/reset-password", {
+      method: "POST",
+      headers: authHeaders("hr", session),
+      body: JSON.stringify({ username: "anyone" }),
+    });
+
+    expect(res.status).toBe(403);
+  });
+});
