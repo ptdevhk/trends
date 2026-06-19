@@ -23,6 +23,10 @@ type Props = {
   operatorId: string | null
 }
 
+type LoadOptions = {
+  showLoading?: boolean
+}
+
 function formatApiError(error: AdminUsersError): string {
   return error.status === undefined ? error.error : `${error.error} (${error.status})`
 }
@@ -38,8 +42,11 @@ export function UsersPanel({ operatorId }: Props) {
   const [membershipsUser, setMembershipsUser] = useState<AdminUserRecord | null>(null)
   const [auditUser, setAuditUser] = useState<AdminUserRecord | null>(null)
 
-  const load = useCallback(async () => {
-    setLoading(true)
+  const load = useCallback(async (options: LoadOptions = {}) => {
+    const showLoading = options.showLoading ?? true
+    if (showLoading) {
+      setLoading(true)
+    }
     try {
       const result = await listAdminUsers()
       if (result.success === false) {
@@ -57,7 +64,9 @@ export function UsersPanel({ operatorId }: Props) {
       setAccessError(null)
       setAccessDenied(true)
     } finally {
-      setLoading(false)
+      if (showLoading) {
+        setLoading(false)
+      }
     }
   }, [])
 
@@ -329,12 +338,10 @@ export function UsersPanel({ operatorId }: Props) {
         open={createDialogOpen}
         onOpenChange={(open) => {
           setCreateDialogOpen(open)
-          if (!open) {
-            setTempPassword(null)
-          }
         }}
-        onCreated={() => {
-          void load()
+        onCreated={(temporaryPassword) => {
+          setTempPassword(temporaryPassword)
+          void load({ showLoading: false })
         }}
       />
 

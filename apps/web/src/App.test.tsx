@@ -211,7 +211,7 @@ describe('App routes', () => {
     })
   })
 
-  it('does not enter system UI from hr system routes', async () => {
+  it('shows access denied for hr system routes without entering system UI', async () => {
     authState.user = { id: 'hr-admin', status: 'active', displayName: 'HR Admin' }
     authState.memberships = [{ userId: 'hr-admin', workspaceSlug: 'hr', role: 'admin' }]
     authState.workspaceRole = 'admin'
@@ -220,7 +220,8 @@ describe('App routes', () => {
 
     render(<App />)
 
-    expect(await screen.findByRole('heading', { name: 'Page not found' })).toBeInTheDocument()
+    expect(await screen.findByText('Admin access required')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Page not found' })).not.toBeInTheDocument()
     expect(screen.queryByText('System layout rendered')).not.toBeInTheDocument()
   })
 

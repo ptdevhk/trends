@@ -251,6 +251,35 @@ function SystemAccessGate({ children }: { children: ReactNode }) {
   return <>{children}</>
 }
 
+function WorkspaceSystemAccessDeniedRoute() {
+  const auth = useAuth()
+  const location = useLocation()
+
+  if (!auth.isAuthenticated) {
+    const redirectTo = `${location.pathname}${location.search}`
+    const search = new URLSearchParams({ redirectTo }).toString()
+    return <Navigate to={{ pathname: `/${SYSTEM_AUTH_WORKSPACE}/login`, search: `?${search}` }} replace />
+  }
+
+  if (hasSystemAdminAccess(auth.memberships)) {
+    const suffix = location.pathname.replace(/^\/[^/]+\/system/, '')
+    return <Navigate to={{ pathname: `${SYSTEM_ROUTE_PREFIX}${suffix}`, search: location.search }} replace />
+  }
+
+  return (
+    <MainShell>
+      <section className="mx-auto max-w-xl py-12">
+        <div className="rounded-md border border-destructive/30 p-6">
+          <h1 className="text-xl font-semibold tracking-tight">Admin access required</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            System settings require a dev workspace admin account.
+          </p>
+        </div>
+      </section>
+    </MainShell>
+  )
+}
+
 function LegacyDevSystemRedirect() {
   const location = useLocation()
   const suffix = location.pathname.replace(/^\/dev\/system/, '')
@@ -438,6 +467,7 @@ function App() {
 
           <Route path="/:teamSlug" element={<WorkspaceShell />}>
             <Route index element={<PreserveSearchNavigate pathname="resumes" />} />
+            <Route path="system/*" element={<WorkspaceSystemAccessDeniedRoute />} />
 
             <Route element={<MainShell />}>
               <Route path="login" element={<LoginPage />} />

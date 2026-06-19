@@ -55,6 +55,31 @@ describe('CreateUserDialog', () => {
     expect(screen.getByTestId('copy-temp-password')).toBeInTheDocument()
   })
 
+  it('reports the temporary password to the parent on success', async () => {
+    mockCreateAdminUser.mockResolvedValue({
+      success: true,
+      user: {
+        id: 'user-new',
+        displayName: 'newuser',
+        status: 'active' as const,
+        createdAt: '2026-06-19T00:00:00.000Z',
+        identities: [],
+        memberships: [],
+      },
+      temporaryPassword: 'abc123',
+    })
+    const onCreated = vi.fn()
+    const user = userEvent.setup()
+    render(<CreateUserDialog open={true} onOpenChange={vi.fn()} onCreated={onCreated} />)
+
+    await user.type(screen.getByTestId('create-user-username'), 'newuser')
+    await user.click(screen.getByTestId('create-user-submit'))
+
+    await waitFor(() => {
+      expect(onCreated).toHaveBeenCalledWith('abc123')
+    })
+  })
+
   it('keeps password discoverable after close button is clicked', async () => {
     mockCreateAdminUser.mockResolvedValue({
       success: true,
