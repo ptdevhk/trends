@@ -101,6 +101,32 @@ export type CandidateActionWindowSummary = {
   }>;
 };
 
+const VALID_ACTION_TYPES = new Set<CandidateActionType>([
+  "star",
+  "shortlist",
+  "reject",
+  "archive",
+  "note",
+  "contact",
+  "rating",
+  "ai_score_like",
+  "ai_score_unlike",
+  "ai_summary_like",
+  "ai_summary_unlike",
+]);
+
+function parseActionType(raw: unknown, rowId?: unknown): CandidateActionType | null {
+  const value = String(raw);
+  if (!VALID_ACTION_TYPES.has(value as CandidateActionType)) {
+    console.error(
+      `Invalid action_type in DB: ${JSON.stringify(value)}` +
+      (rowId !== undefined ? `, row id=${String(rowId)}` : ""),
+    );
+    return null;
+  }
+  return value as CandidateActionType;
+}
+
 function parseJson(value: unknown): Record<string, unknown> | undefined {
   if (typeof value !== "string" || !value.trim()) return undefined;
   try {
@@ -110,13 +136,15 @@ function parseJson(value: unknown): Record<string, unknown> | undefined {
   }
 }
 
-function normalizeAction(row: Record<string, unknown>): CandidateAction {
+function normalizeAction(row: Record<string, unknown>): CandidateAction | null {
+  const actionType = parseActionType(row.action_type, row.id);
+  if (actionType === null) return null;
   return {
     id: Number(row.id),
     userId: row.user_id ? String(row.user_id) : undefined,
     sessionId: row.session_id ? String(row.session_id) : undefined,
     resumeId: String(row.resume_id),
-    actionType: String(row.action_type) as CandidateActionType,
+    actionType,
     actionData: parseJson(row.action_data),
     createdAt: String(row.created_at),
   };
@@ -211,7 +239,9 @@ export class ActionStorage {
           )
           .all(sessionId, sessionId) as Record<string, unknown>[]);
 
-    return rows.map((row) => normalizeAction(row));
+    return rows
+      .map((row) => normalizeAction(row))
+      .filter((action): action is CandidateAction => action !== null);
   }
 
   getLatestActionsForSession(sessionId: string, jobDescriptionId?: string): CandidateAction[] {
@@ -264,7 +294,9 @@ export class ActionStorage {
             .all(sessionId, sessionId, sessionId, sessionId) as Record<string, unknown>[]
         );
 
-    return rows.map((row) => normalizeAction(row));
+    return rows
+      .map((row) => normalizeAction(row))
+      .filter((action): action is CandidateAction => action !== null);
   }
 
   getLatestRatingsForSession(params: {
@@ -344,10 +376,10 @@ export class ActionStorage {
 
     const breakdown = rows
       .map((row) => ({
-        actionType: String(row.action_type) as CandidateActionType,
+        actionType: parseActionType(row.action_type),
         count: Number(row.count ?? 0),
       }))
-      .filter((row) => row.count > 0);
+      .filter((row): row is { actionType: CandidateActionType; count: number } => row.actionType !== null && row.count > 0);
 
     return {
       total: breakdown.reduce((sum, item) => sum + item.count, 0),
@@ -383,7 +415,9 @@ export class ActionStorage {
         )
         .all(workspaceSlug, ...resumeIds) as Record<string, unknown>[];
 
-      return rows.map((row) => normalizeBackupRow(row));
+      return rows
+        .map((row) => normalizeBackupRow(row))
+        .filter((row): row is CandidateActionBackupRow => row !== null);
     }
 
     const rows = this.db
@@ -398,7 +432,9 @@ export class ActionStorage {
       )
       .all(workspaceSlug) as Record<string, unknown>[];
 
-    return rows.map((row) => normalizeBackupRow(row));
+    return rows
+      .map((row) => normalizeBackupRow(row))
+      .filter((row): row is CandidateActionBackupRow => row !== null);
   }
 
   replayActions(params: {
@@ -481,7 +517,9 @@ export type CandidateActionBackupRow = {
   createdAt: string;
 };
 
-function normalizeBackupRow(row: Record<string, unknown>): CandidateActionBackupRow {
+function normalizeBackupRow(row: Record<string, unknown>): CandidateActionBackupRow | null {
+  const actionType = parseActionType(row.action_type, row.resume_id);
+  if (actionType === null) return null;
   const sessionId = typeof row.session_id === "string" ? row.session_id : undefined;
   const actionDataRaw = row.action_data;
   let actionData: Record<string, unknown> | undefined;
@@ -500,7 +538,7 @@ function normalizeBackupRow(row: Record<string, unknown>): CandidateActionBackup
 
   return {
     resumeId: String(row.resume_id),
-    actionType: String(row.action_type) as CandidateActionType,
+    actionType,
     ...(actionData ? { actionData } : {}),
     ...(scopeId ? { scopeId } : {}),
     createdAt: String(row.created_at),
