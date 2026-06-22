@@ -55,12 +55,16 @@ async function dispatchCollectionTask(
   t: ReturnType<typeof createTest>,
   overrides: Record<string, unknown> = {},
 ) {
-  return t.mutation(api.resume_tasks.dispatch, {
+  const result = await t.mutation(api.resume_tasks.dispatch, {
     keyword: "test",
     location: "test",
     limit: 10,
     ...overrides,
   });
+  if (!result.queued) {
+    throw new Error("dispatch did not queue (maintenance mode?)");
+  }
+  return result.taskId;
 }
 
 // ---------------------------------------------------------------------------
