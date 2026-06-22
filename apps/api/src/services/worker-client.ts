@@ -118,8 +118,18 @@ class WorkerClient {
         };
       }
 
-      const data = await response.json() as T;
-      return { success: true, data };
+      const parsed: unknown = await response.json();
+      if (parsed === null || typeof parsed !== "object") {
+        console.error(`Worker ${url.toString()} returned non-object body`);
+        return {
+          success: false,
+          error: {
+            code: "INVALID_RESPONSE",
+            message: `Worker returned non-object body (type: ${parsed === null ? "null" : typeof parsed})`,
+          },
+        };
+      }
+      return { success: true, data: parsed as T };
     } catch (error) {
       if (error instanceof Error) {
         if (error.name === "AbortError") {
@@ -239,8 +249,18 @@ class WorkerClient {
         };
       }
 
-      const data = await response.json() as T;
-      return { success: true, data };
+      const parsed: unknown = await response.json();
+      if (parsed === null || typeof parsed !== "object") {
+        console.error(`Worker ${url.toString()} returned non-object body`);
+        return {
+          success: false,
+          error: {
+            code: "INVALID_RESPONSE",
+            message: `Worker returned non-object body (type: ${parsed === null ? "null" : typeof parsed})`,
+          },
+        };
+      }
+      return { success: true, data: parsed as T };
     } catch (error) {
       if (error instanceof Error) {
         if (error.name === "AbortError") {
