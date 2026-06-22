@@ -10,6 +10,32 @@ describe("createApp auth event storage wiring", () => {
     resetResumeScreeningDb();
   });
 
+  it("accepts web vitals telemetry from an authenticated browser without CSRF", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "dev", role: "user" });
+    const app = createApp({
+      authStorage: auth.storage,
+      authTtlSeconds: 3600,
+    });
+
+    const response = await app.request("/api/web-vitals/report", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Workspace-Slug": "dev",
+        Cookie: auth.headers.Cookie,
+      },
+      body: JSON.stringify({
+        name: "LCP",
+        value: 2.5,
+        rating: "good",
+        id: "v5-preview-smoke",
+        navigationType: "navigate",
+      }),
+    });
+
+    expect(response.status).toBe(200);
+  });
+
   it("uses injected auth event storage for CSRF and workspace denials", async () => {
     const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
     const eventStorage = new AuthEventStorage(auth.root);

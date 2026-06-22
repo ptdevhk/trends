@@ -183,7 +183,12 @@ export function createApp(options: CreateAppOptions = {}) {
       })(c, next);
     },
   );
-  app.use("/api/*", authMiddleware.requireCsrf);
+  app.use("/api/*", async (c, next) => {
+    if (c.req.path === "/api/web-vitals/report") {
+      return next();
+    }
+    return authMiddleware.requireCsrf(c, next);
+  });
 
   // Maintenance mode guard — block write methods (POST/PUT/PATCH/DELETE) on API
   // routes when the Convex `maintenanceMode` system flag is active.
