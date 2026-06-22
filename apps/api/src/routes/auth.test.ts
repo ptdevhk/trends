@@ -627,6 +627,106 @@ describe("auth routes", () => {
     expect(events.some((e) => e.type === "sessions_revoked" && e.reason === "password_change")).toBe(true);
   });
 
+  it("changePassword throttles after 5 failed attempts with wrong current password", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "trends-auth-cp-throttle-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const user = await seedLocalUser(storage);
+    const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
+
+    const currentSession = sessions.createSession(user.id);
+    const app = createTestApp(storage, eventStorage);
+
+    const baseHeaders = {
+      "Content-Type": "application/json",
+      "X-Workspace-Slug": "hr",
+      "X-CSRF-Token": currentSession.csrfToken,
+      Cookie: `${config.auth.sessionCookieName}=${currentSession.token}`,
+    };
+    const wrongBody = JSON.stringify({
+      currentPassword: "WRONG-PASSWORD",
+      newPassword: "new-secret-pass-99",
+    });
+
+    // First 5 attempts: each returns 403 (current password is incorrect).
+    for (let i = 0; i < 5; i += 1) {
+      const response = await app.request("/api/auth/change-password", {
+        method: "POST",
+        headers: baseHeaders,
+        body: wrongBody,
+      });
+      expect(response.status).toBe(403);
+    }
+
+    // 6th attempt is throttled — 429 + Retry-After header.
+    const throttled = await app.request("/api/auth/change-password", {
+      method: "POST",
+      headers: baseHeaders,
+      body: wrongBody,
+    });
+    expect(throttled.status).toBe(429);
+    expect(throttled.headers.get("Retry-After")).toMatch(/^\d+$/);
+
+    // password_change_throttled event recorded for this user.
+    const events = eventStorage.listRecent({ limit: 50 });
+    expect(events.some(
+      (e) => e.type === "password_change_throttled" && e.userId === user.id,
+    )).toBe(true);
+  });
+
+  it("changePassword resets failure counter on success", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "trends-auth-cp-reset-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const user = await seedLocalUser(storage);
+    const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
+
+    const currentSession = sessions.createSession(user.id);
+    const app = createTestApp(storage, eventStorage);
+
+    const baseHeaders = {
+      "Content-Type": "application/json",
+      "X-Workspace-Slug": "hr",
+      "X-CSRF-Token": currentSession.csrfToken,
+      Cookie: `${config.auth.sessionCookieName}=${currentSession.token}`,
+    };
+
+    // 3 failed attempts (below the 5 threshold).
+    for (let i = 0; i < 3; i += 1) {
+      await app.request("/api/auth/change-password", {
+        method: "POST",
+        headers: baseHeaders,
+        body: JSON.stringify({ currentPassword: "WRONG", newPassword: "new-pass-1" }),
+      });
+    }
+
+    // Successful change clears the counter.
+    const success = await app.request("/api/auth/change-password", {
+      method: "POST",
+      headers: baseHeaders,
+      body: JSON.stringify({ currentPassword: "secret-pass", newPassword: "new-secret-pass-3" }),
+    });
+    expect(success.status).toBe(200);
+
+    // Five more failed attempts (with the new password) must reach the
+    // threshold cleanly — confirming the counter restarted from zero.
+    for (let i = 0; i < 5; i += 1) {
+      const r = await app.request("/api/auth/change-password", {
+        method: "POST",
+        headers: baseHeaders,
+        body: JSON.stringify({ currentPassword: "WRONG-AGAIN", newPassword: "new-pass-2" }),
+      });
+      expect(r.status).toBe(403);
+    }
+
+    const throttled = await app.request("/api/auth/change-password", {
+      method: "POST",
+      headers: baseHeaders,
+      body: JSON.stringify({ currentPassword: "WRONG-AGAIN", newPassword: "new-pass-2" }),
+    });
+    expect(throttled.status).toBe(429);
+  });
+
   it("revoke-all endpoint revokes all sessions except the caller's current one", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "trends-auth-revoke-all-"));
     const storage = new AuthStorage(root);

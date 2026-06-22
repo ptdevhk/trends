@@ -296,6 +296,19 @@ export interface paths {
                         };
                     };
                 };
+                /** @description Too many failed change-password attempts */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
             };
         };
         delete?: never;

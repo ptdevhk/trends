@@ -565,6 +565,14 @@ export function createAuthRoutes(options: AuthRoutesOptions = {}) {
           },
         },
       },
+      429: {
+        description: "Too many failed change-password attempts",
+        content: {
+          "application/json": {
+            schema: ErrorResponseSchema,
+          },
+        },
+      },
     },
   });
 
@@ -574,13 +582,37 @@ export function createAuthRoutes(options: AuthRoutesOptions = {}) {
       return c.json({ success: false as const, error: "Authentication required" }, 401);
     }
 
+    const clientIp = extractClientIp(c.req);
+    const attempt = checkLoginAttempt(auth.user.id, clientIp);
+    if (!attempt.allowed) {
+      getEventStorage().append({
+        type: "password_change_throttled",
+        userId: auth.user.id,
+        workspaceSlug: c.var.workspaceSlug,
+        reason: "account_lockout",
+        metadata: {
+          retryAfterSeconds: attempt.retryAfterSeconds,
+        },
+      });
+      c.header("Retry-After", String(attempt.retryAfterSeconds));
+      return c.json(
+        {
+          success: false as const,
+          error: `Too many failed attempts. Try again in ${attempt.retryAfterSeconds}s.`,
+        },
+        429,
+      );
+    }
+
     const { currentPassword, newPassword } = c.req.valid("json");
     const authStorage = getStorage();
     const credential = authStorage.findPasswordCredential(auth.user.id);
     if (!credential || !(await verifyPassword(currentPassword, credential))) {
+      recordLoginFailure(auth.user.id, clientIp);
       return c.json({ success: false as const, error: "Current password is incorrect" }, 403);
     }
 
+    resetOnSuccess(auth.user.id, clientIp);
     authStorage.savePasswordCredential({
       userId: auth.user.id,
       ...(await hashPassword(newPassword)),

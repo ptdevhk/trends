@@ -5,6 +5,7 @@ export type AuthEventType =
   | "logout"
   | "sessions_revoked"
   | "password_reset_completed"
+  | "password_change_throttled"
   | "login_lockout_cleared"
   | "csrf_reject"
   | "workspace_access_denied"
