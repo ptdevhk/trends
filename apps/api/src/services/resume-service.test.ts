@@ -460,60 +460,6 @@ describe("ResumeService", () => {
     expect(filtered.map((item) => item.name)).toEqual(["Verified Sales"]);
   });
 
-  describe("experience filter graceful degradation", () => {
-    // NOTE: only `maxExperience` is a supported resume-list filter; `minExperience`
-    // is a JD/search-profile concept, not enforced by ResumeService.filterResumes.
-    it("resumes with unknown experience are excluded by maxExperience", () => {
-      const root = createFixtureRoot();
-      roots.push(root);
-      const service = new ResumeService(root);
-      const items = [
-        {
-          name: "Seek MY",
-          profileUrl: "https://example.com/seek-my",
-          activityStatus: "Active",
-          age: "",
-          experience: "",
-          education: "",
-          location: "Malaysia",
-          selfIntro: "",
-          jobIntention: "Sales",
-          expectedSalary: "",
-          workHistory: [],
-          extractedAt: "2026-03-20T00:00:00.000Z",
-        },
-      ];
-
-      const filtered = service.filterResumes(items, { maxExperience: 5 });
-      expect(filtered).toHaveLength(0);
-    });
-
-    it("resumes with known experience are excluded by maxExperience cap", () => {
-      const root = createFixtureRoot();
-      roots.push(root);
-      const service = new ResumeService(root);
-      const items = [
-        {
-          name: "51job Senior",
-          profileUrl: "https://example.com/51job",
-          activityStatus: "Active",
-          age: "30岁",
-          experience: "5年",
-          education: "本科",
-          location: "东莞",
-          selfIntro: "",
-          jobIntention: "销售",
-          expectedSalary: "",
-          workHistory: [],
-          extractedAt: "2026-03-20T00:00:00.000Z",
-        },
-      ];
-
-      const filtered = service.filterResumes(items, { maxExperience: 3 });
-      expect(filtered).toHaveLength(0);
-    });
-  });
-
   describe("salary filter graceful degradation", () => {
     it("resumes with empty salary pass minSalary filter", () => {
       const root = createFixtureRoot();

@@ -359,50 +359,6 @@ describe("RuleScoringService", () => {
     }
   });
 
-  it("uses softer experience gap penalty", () => {
-    const root = createFixtureRoot();
-
-    try {
-      const service = new RuleScoringService(root);
-      const context = {
-        ...service.buildContextFromKeywords(["cnc"], "东莞"),
-        minExperience: 5,
-      };
-
-      const baseIndex: Omit<ResumeIndex, "experienceYears" | "resumeId"> = {
-        educationLevel: "bachelor",
-        locationCity: "东莞",
-        skills: ["cnc"],
-        companies: [],
-        industryTags: ["machinery"],
-        salaryRange: { min: 8000, max: 15000 },
-        searchText: "cnc 销售",
-      };
-
-      const oneYearShort = service.scoreResume(
-        {
-          ...baseIndex,
-          resumeId: "R-gap-1",
-          experienceYears: 4,
-        },
-        context
-      );
-      expect(oneYearShort.breakdown.experienceMatch).toBe(20);
-
-      const twoYearsShort = service.scoreResume(
-        {
-          ...baseIndex,
-          resumeId: "R-gap-2",
-          experienceYears: 3,
-        },
-        context
-      );
-      expect(twoYearsShort.breakdown.experienceMatch).toBe(15);
-    } finally {
-      cleanupFixtureRoot(root);
-    }
-  });
-
   it("matches skills and industry keywords through synonyms", () => {
     const root = createFixtureRoot();
 
@@ -804,7 +760,7 @@ describe("RuleScoringService", () => {
     }
   });
 
-  it("gives 80% experience weight when experienceYears is null and no minExperience set", () => {
+  it("gives 80% experience weight when experienceYears is null and no requiredRoles set", () => {
     const root = createFixtureRoot();
 
     try {

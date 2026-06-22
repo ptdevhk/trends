@@ -38,37 +38,6 @@ async function insertResume(
   });
 }
 
-describe("maxExperience filter graceful degradation", () => {
-  it("resumes with unknown experience are excluded by maxExperience", async () => {
-    const t = createTest();
-
-    await insertResume(t, {
-      content: { name: "Carol", experience: "" },
-      searchText: "cnc sales malaysia",
-      ingestData: {
-        industryTags: ["cnc", "sales"],
-        synonymHits: [],
-        brandHits: [],
-        companyHits: [],
-        experienceLevel: "mid",
-        computedAt: 1,
-        skillsVersion: 1,
-        ruleScores: {},
-      },
-    });
-
-    const result = await t.query(api.resumes_search.searchWithTagExpansionPaginated, {
-      paginationOpts: { cursor: null, numItems: 10 },
-      query: "cnc sales",
-      keywordGroups: [{ original: "cnc", variants: ["cnc"] }],
-      maxExperience: 5,
-    });
-
-    // Unknown experience + maxExperience → excluded (cannot guarantee cap)
-    expect(result.page).toHaveLength(0);
-  });
-});
-
 describe("skills filter uses full searchText", () => {
   it("matches skills from full searchText", async () => {
     const t = createTest();

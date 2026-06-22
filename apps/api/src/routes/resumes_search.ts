@@ -755,7 +755,6 @@ app.openapi(getResumesRoute, (c) => {
     q,
     limit,
     offset,
-    maxExperience,
     education,
     skills,
     requiredKeywords,
@@ -804,7 +803,6 @@ app.openapi(getResumesRoute, (c) => {
         const normalizedStatusFilters = normalizeStatusFilters(status);
         const hasLocalMatchFilters = minMatchScore !== undefined || (normalizedRecommendations?.length ?? 0) > 0;
         const hasLocalResumeFilters = hasResumeListFilters({
-          maxExperience,
           education,
           skills,
           requiredKeywords: normalizedRequiredKeywords,
@@ -819,7 +817,6 @@ app.openapi(getResumesRoute, (c) => {
         });
         const requiresMatchPagination = sortBy === "score" || hasLocalMatchFilters;
         const localResumeFilters: ResumeFilters = {
-          maxExperience,
           education,
           skills,
           requiredKeywords: normalizedRequiredKeywords,
@@ -873,7 +870,6 @@ app.openapi(getResumesRoute, (c) => {
                 term,
                 expandedFrom,
               })),
-              maxExperience,
               minRoleYears,
               roleFilterType: effectiveRoleFilterType,
               minAge,
@@ -1162,7 +1158,6 @@ app.openapi(getResumesRoute, (c) => {
 
     let filtered = resumeService.searchResumes(items, keyword, indexes, ruleScoreMap);
     filtered = resumeService.filterResumes(filtered, {
-      maxExperience,
       education,
       skills,
       requiredKeywords: normalizeKeywords(requiredKeywords),

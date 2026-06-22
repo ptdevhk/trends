@@ -12,7 +12,6 @@ import {
   normalizeResumeLocationHierarchy,
   parseRawSalaryRange,
   resolveResumeAnalysisSourceKey,
-  resolveExperienceYears,
 } from "@trends/shared";
 import { normalizeEducationLevel } from "./resume-service.js";
 
@@ -39,7 +38,6 @@ export function parseAgeFromContentField(content: Record<string, unknown>): numb
 // ---------------------------------------------------------------------------
 
 export type BffResumeFilters = {
-  maxExperience?: number;
   education?: string[];
   skills?: string[];
   requiredKeywords?: string[];
@@ -68,17 +66,6 @@ export function bffMatchesResumeFilters(
 
   const content = isRecord(doc.content) ? doc.content : {};
   const ingestData = isRecord(doc.ingestData) ? doc.ingestData : {};
-
-  if (typeof filters.maxExperience === "number") {
-    const expStr = toStringValue(content.experience) ?? "";
-    const expYears = resolveExperienceYears(expStr, content.workHistory);
-    if (expYears === null) {
-      // Unknown experience — exclude if maxExperience is set (cannot guarantee cap)
-      return false;
-    } else {
-      if (expYears > filters.maxExperience) return false;
-    }
-  }
 
   if (filters.education?.length) {
     const edu = toStringValue(content.education) ?? "";

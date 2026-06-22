@@ -68,7 +68,6 @@ function makeContext(overrides: Partial<RuleScoringContext> = {}): RuleScoringCo
     title: "Test JD",
     keywords: [],
     targetLocations: [],
-    minExperience: undefined,
     educationRequirements: [],
     industryKeywords: [],
     industryTags: [],
@@ -108,9 +107,8 @@ describe("RuleScoringService", () => {
       expect(ctx.targetLocations).toEqual([]);
     });
 
-    it("sets minExperience undefined and educationRequirements empty", () => {
+    it("leaves educationRequirements empty for keyword-only context", () => {
       const ctx = service.buildContextFromKeywords(["销售"]);
-      expect(ctx.minExperience).toBeUndefined();
       expect(ctx.educationRequirements).toEqual([]);
     });
 
@@ -160,32 +158,64 @@ describe("RuleScoringService", () => {
       expect(result.breakdown.skillMatch).toBeLessThan(15);
     });
 
-    it("scores experience match when experienceYears meets minExperience", () => {
+    it("scores experience match when role signal years meets requiredRoles minYears", () => {
       const index = makeIndex({ experienceYears: 5 });
-      const ctx = makeContext({ minExperience: 3 });
-      const result = service.scoreResume(index, ctx);
+      const ctx = makeContext({
+        requiredRoles: [{
+          type: "sales",
+          minYears: 3,
+          signals: ["销售"],
+          verifyIn: "workHistory",
+        }],
+      });
+      const roleSignals: RoleSignalSummary[] = [{
+        type: "sales",
+        matchedSignals: ["销售"],
+        signalCount: 1,
+        occurrences: 1,
+        years: 5,
+        industryVerifiedYears: 5,
+        verifyIn: "workHistory",
+      }];
+      const result = service.scoreResume(index, ctx, [], roleSignals);
       expect(result.breakdown.experienceMatch).toBe(25); // full weight
     });
 
-    it("penalizes experience match when years below minimum", () => {
+    it("penalizes experience match when role signal years below requiredRoles minYears", () => {
       const index = makeIndex({ experienceYears: 2 });
-      const ctx = makeContext({ minExperience: 5 });
-      const result = service.scoreResume(index, ctx);
+      const ctx = makeContext({
+        requiredRoles: [{
+          type: "sales",
+          minYears: 5,
+          signals: ["销售"],
+          verifyIn: "workHistory",
+        }],
+      });
+      const roleSignals: RoleSignalSummary[] = [{
+        type: "sales",
+        matchedSignals: ["销售"],
+        signalCount: 1,
+        occurrences: 1,
+        years: 2,
+        industryVerifiedYears: 2,
+        verifyIn: "workHistory",
+      }];
+      const result = service.scoreResume(index, ctx, [], roleSignals);
       expect(result.breakdown.experienceMatch).toBeGreaterThan(0);
       expect(result.breakdown.experienceMatch).toBeLessThan(25);
     });
 
-    it("gives default experience when minExperience is undefined and years null", () => {
+    it("gives default experience when no requiredRoles and years null", () => {
       const index = makeIndex({ experienceYears: null });
-      const ctx = makeContext({ minExperience: undefined });
+      const ctx = makeContext();
       const result = service.scoreResume(index, ctx);
-      // When no minExperience and years null: round((25 * 8) / 25) = 8
+      // When no requiredRoles and years null: round((25 * 8) / 25) = 8
       expect(result.breakdown.experienceMatch).toBe(8);
     });
 
-    it("gives full experience when minExperience undefined and years present", () => {
+    it("gives full experience when no requiredRoles and years present", () => {
       const index = makeIndex({ experienceYears: 10 });
-      const ctx = makeContext({ minExperience: undefined });
+      const ctx = makeContext();
       const result = service.scoreResume(index, ctx);
       expect(result.breakdown.experienceMatch).toBe(25);
     });
@@ -262,7 +292,12 @@ describe("RuleScoringService", () => {
         keywords: ["销售", "CNC", "数控"],
         targetLocations: ["东莞"],
         educationRequirements: ["本科及以上"],
-        minExperience: 3,
+        requiredRoles: [{
+          type: "sales",
+          minYears: 3,
+          signals: ["销售"],
+          verifyIn: "workHistory",
+        }],
         industryKeywords: ["销售", "CNC", "数控"],
         industryTags: [],
       });
@@ -273,7 +308,14 @@ describe("RuleScoringService", () => {
     it("produces correct recommendation thresholds", () => {
       // strong_match >= 85, match >= 70, potential >= 50
       const index = makeIndex({ experienceYears: 20 });
-      const ctx = makeContext({ minExperience: 5 });
+      const ctx = makeContext({
+        requiredRoles: [{
+          type: "sales",
+          minYears: 5,
+          signals: ["销售"],
+          verifyIn: "workHistory",
+        }],
+      });
       const result = service.scoreResume(index, ctx);
       // Verify recommendation matches score range
       if (result.score >= 85) {
