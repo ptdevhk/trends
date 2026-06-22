@@ -24,14 +24,14 @@ trap cleanup EXIT
 
 api_status() {
     local path="$1"
-    curl -s -o /dev/null -w "%{http_code}" "${AUTH_CURL_ARGS[@]}" "$BASE_URL$path" || true
+    curl -s -o /dev/null -w "%{http_code}" ${AUTH_CURL_ARGS[@]+"${AUTH_CURL_ARGS[@]}"} "$BASE_URL$path" || true
 }
 
 api_get() {
     local path="$1"
     local body_file status
     body_file="$(mktemp "${TMPDIR:-/tmp}/trends-migration-api.XXXXXX")"
-    status="$(curl -s -o "$body_file" -w "%{http_code}" "${AUTH_CURL_ARGS[@]}" "$BASE_URL$path" || true)"
+    status="$(curl -s -o "$body_file" -w "%{http_code}" ${AUTH_CURL_ARGS[@]+"${AUTH_CURL_ARGS[@]}"} "$BASE_URL$path" || true)"
     if [ "${status#2}" = "$status" ]; then
         log "  API request failed: $path (HTTP $status)"
         rm -f "$body_file"

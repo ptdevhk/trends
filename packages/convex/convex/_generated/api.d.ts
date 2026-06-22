@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as _mutations_registry from "../_mutations_registry.js";
 import type * as ai_summary_cache from "../ai_summary_cache.js";
 import type * as ai_tagging_results from "../ai_tagging_results.js";
 import type * as analysis_tasks from "../analysis_tasks.js";
@@ -63,6 +64,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  _mutations_registry: typeof _mutations_registry;
   ai_summary_cache: typeof ai_summary_cache;
   ai_tagging_results: typeof ai_tagging_results;
   analysis_tasks: typeof analysis_tasks;

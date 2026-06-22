@@ -119,7 +119,7 @@
       "version": "0.4.6",
       "dependencies": {
         "@trends/shared": "*",
-        "convex": "^1.39.1",
+        "convex": "~1.39.1",
       },
       "devDependencies": {
         "@edge-runtime/vm": "^5.0.0",
