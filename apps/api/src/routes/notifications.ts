@@ -214,7 +214,12 @@ app.openapi(draftRoute, async (c) => {
     const { resume, jobDescription, analysis } = c.req.valid("json");
     try {
         const draft = await aiMatchingService.generateOutreach(resume, jobDescription, analysis);
-        return c.json({ subject: (draft as Record<string, unknown>).subject ?? "", body: (draft as Record<string, unknown>).body ?? "" } as z.infer<typeof DraftResponseSchema>, 200);
+        const parsed = DraftResponseSchema.safeParse(draft);
+        if (!parsed.success) {
+            console.error("Draft response validation failed:", parsed.error);
+            return c.json({ error: "Draft generation failed" }, 500);
+        }
+        return c.json(parsed.data, 200);
     } catch (e: unknown) {
         return c.json({ error: getErrorMessage(e) }, 500);
     }
