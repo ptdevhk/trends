@@ -174,9 +174,6 @@ function digestFiltersForAvailableFields(digest: DigestFilterRecord, filters: Re
 
   const availableFilters: ResumeFilters = { ...filters };
 
-  if (filters.maxExperience !== undefined && digest.experienceYears === undefined) {
-    delete availableFilters.maxExperience;
-  }
   if (filters.education?.length && !digest.educationLevel) {
     delete availableFilters.education;
   }
@@ -248,8 +245,6 @@ export function normalizeMatchRecommendations(
 }
 
 export function hasResumeListFilters(params: {
-  minExperience?: number;
-  maxExperience?: number;
   education?: string[];
   skills?: string[];
   requiredKeywords?: string[];
@@ -263,9 +258,7 @@ export function hasResumeListFilters(params: {
   sources?: string[];
   showArchived?: boolean;
 }): boolean {
-  return typeof params.minExperience === "number"
-    || typeof params.maxExperience === "number"
-    || (params.education?.length ?? 0) > 0
+  return (params.education?.length ?? 0) > 0
     || (params.skills?.length ?? 0) > 0
     || (params.requiredKeywords?.length ?? 0) > 0
     || (params.locations?.length ?? 0) > 0
@@ -519,8 +512,6 @@ export async function prepareConvexCandidates(params: {
   sortBy?: "name" | "experience" | "extractedAt";
   sortOrder?: "asc" | "desc";
   filters?: {
-    minExperience?: number;
-    maxExperience?: number;
     education?: string[];
     skills?: string[];
     requiredKeywords?: string[];

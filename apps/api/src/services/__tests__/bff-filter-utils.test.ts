@@ -120,26 +120,6 @@ describe("bff-filter-utils", () => {
       });
     });
 
-    describe("experience filter", () => {
-      const docNoExp = { ...baseDoc, content: { ...baseDoc.content, experience: "" } };
-
-      it("excludes doc above maxExperience", () => {
-        expect(bffMatchesResumeFilters(baseDoc, loweredSearchText, { maxExperience: 1 })).toBe(false);
-      });
-
-      it("includes doc within maxExperience", () => {
-        expect(bffMatchesResumeFilters(baseDoc, loweredSearchText, { maxExperience: 10 })).toBe(true);
-      });
-
-      it("excludes doc above maxExperience", () => {
-        expect(bffMatchesResumeFilters(baseDoc, loweredSearchText, { maxExperience: 3 })).toBe(false);
-      });
-
-      it("excludes doc with unknown experience when maxExperience is set", () => {
-        expect(bffMatchesResumeFilters(docNoExp, loweredSearchText, { maxExperience: 5 })).toBe(false);
-      });
-    });
-
     describe("education filter", () => {
       it("excludes doc with non-matching education", () => {
         expect(bffMatchesResumeFilters(baseDoc, loweredSearchText, { education: ["Master"] })).toBe(false);

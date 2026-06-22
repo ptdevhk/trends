@@ -196,7 +196,6 @@ export interface RuleScoringContext {
   title: string;
   keywords: string[];
   targetLocations: string[];
-  minExperience?: number;
   educationRequirements: string[];
   industryKeywords: string[];
   industryTags: string[];
@@ -524,8 +523,6 @@ export class RuleScoringService {
     const presetId = jd.filterPreset;
     const preset = presetId ? this.filterPresetService.getPreset(presetId) : undefined;
 
-    const minExperience = jd.suggestedFilters?.minExperience
-      ?? requiredRoles.map((role) => role.minYears).find((value): value is number => typeof value === "number");
     const educationRequirements = [
       ...(jd.suggestedFilters?.education ?? []),
       ...(preset?.filters.education ?? []),
@@ -546,7 +543,6 @@ export class RuleScoringService {
       title: jd.title || jd.name,
       keywords,
       targetLocations,
-      minExperience,
       educationRequirements,
       industryKeywords,
       industryTags,
@@ -571,7 +567,6 @@ export class RuleScoringService {
       title: cleanKeywords.join(", "),
       keywords: cleanKeywords,
       targetLocations,
-      minExperience: undefined,
       educationRequirements: [],
       industryKeywords: cleanKeywords,
       industryTags,
@@ -860,30 +855,22 @@ export class RuleScoringService {
     let experienceMatch = 0;
     if (hasRequiredRoles) {
       const relevantRoleYears = this.computeRelevantRoleYears(context.requiredRoles, roleSignals);
-      const effectiveMinExperience = context.minExperience ?? context.requiredRoles[0]?.minYears;
+      const effectiveMinYears = context.requiredRoles[0]?.minYears;
 
-      if (effectiveMinExperience === undefined || effectiveMinExperience <= 0) {
+      if (effectiveMinYears === undefined || effectiveMinYears <= 0) {
         experienceMatch = relevantRoleYears > 0 ? categoryWeights.experienceMatch : 0;
-      } else if (relevantRoleYears >= effectiveMinExperience) {
+      } else if (relevantRoleYears >= effectiveMinYears) {
         experienceMatch = categoryWeights.experienceMatch;
       } else if (relevantRoleYears > 0) {
-        const ratio = relevantRoleYears / Math.max(1, effectiveMinExperience);
+        const ratio = relevantRoleYears / Math.max(1, effectiveMinYears);
         experienceMatch = Math.round(categoryWeights.experienceMatch * Math.min(1, ratio));
       } else {
         experienceMatch = 0;
       }
-    } else if (context.minExperience === undefined) {
+    } else {
       experienceMatch = index.experienceYears === null
         ? Math.round((categoryWeights.experienceMatch * 8) / DEFAULT_WEIGHTS.categoryWeights.experienceMatch)
         : categoryWeights.experienceMatch;
-    } else if (index.experienceYears !== null) {
-      if (index.experienceYears >= context.minExperience) {
-        experienceMatch = categoryWeights.experienceMatch;
-      } else {
-        const gap = context.minExperience - index.experienceYears;
-        const perYearPenalty = Math.round((categoryWeights.experienceMatch * 5) / DEFAULT_WEIGHTS.categoryWeights.experienceMatch);
-        experienceMatch = Math.max(0, categoryWeights.experienceMatch - Math.round(gap * perYearPenalty));
-      }
     }
     const roleMatch = this.applyRoleContext(rawRoleMatch, index, context, skillMatch, experienceMatch);
 

@@ -289,10 +289,6 @@ describe("resume-candidate-prep", () => {
       expect(hasResumeListFilters({})).toBe(false);
     });
 
-    it("detects maxExperience", () => {
-      expect(hasResumeListFilters({ maxExperience: 10 })).toBe(true);
-    });
-
     it("detects education list", () => {
       expect(hasResumeListFilters({ education: ["Bachelor"] })).toBe(true);
     });

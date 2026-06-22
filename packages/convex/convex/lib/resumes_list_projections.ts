@@ -89,7 +89,6 @@ export type ResumeListProjectedDoc = {
 };
 
 export type ResumeListFilterArgs = {
-    maxExperience?: number;
     minRoleYears?: number;
     roleFilterType?: string;
     minAge?: number;
@@ -383,7 +382,6 @@ export function normalizeResumeListFilters(filters: ResumeListFilterArgs | undef
         : undefined;
 
     const normalized: ResumeListFilterArgs = {
-        ...(filters.maxExperience === undefined ? {} : { maxExperience: filters.maxExperience }),
         ...((filters.minRoleYears ?? 0) > 0 ? { minRoleYears: filters.minRoleYears } : {}),
         ...(roleFilterType ? { roleFilterType } : {}),
         ...(minAge === undefined ? {} : { minAge }),
@@ -517,18 +515,6 @@ export function matchesResumeListFilters(resume: Doc<"resumes">, filters: Resume
     }
 
     const content = isRecord(resume.content) ? resume.content : {};
-
-    if (filters.maxExperience !== undefined) {
-        const experience = resolveExperienceYears(toStringValue(content.experience), content.workHistory);
-        if (experience === null) {
-            // Unknown experience — exclude if maxExperience is set (cannot guarantee cap)
-            return false;
-        } else {
-            if (experience > filters.maxExperience) {
-                return false;
-            }
-        }
-    }
 
     if (filters.roleFilterType) {
         if (!hasMatchingRoleSignal(resume, filters.roleFilterType)) {

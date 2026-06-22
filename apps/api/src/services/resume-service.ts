@@ -45,7 +45,6 @@ import type {
 import type { ResumeIndex } from "./resume-index.js";
 
 export type ResumeFilters = {
-  maxExperience?: number;
   education?: string[];
   skills?: string[];
   requiredKeywords?: string[];
@@ -653,16 +652,6 @@ export class ResumeService {
   filterResumes<T extends ResumeItem>(items: T[], filters?: ResumeFilters): T[] {
     if (!filters) return items;
     return items.filter((item) => {
-      if (filters.maxExperience !== undefined) {
-        const experience = parseExperienceYears(item.experience);
-        if (experience === null) {
-          // Unknown experience — exclude if maxExperience is set (cannot guarantee cap)
-          return false;
-        } else {
-          if (experience > filters.maxExperience) return false;
-        }
-      }
-
       if (filters.education?.length) {
         const level = normalizeEducationLevel(item.education);
         if (!level || !filters.education.includes(level)) return false;

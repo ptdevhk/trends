@@ -81,28 +81,6 @@ describe("bffMatchesResumeFilters — archived", () => {
 // bffMatchesResumeFilters — experience filter
 // ---------------------------------------------------------------------------
 
-describe("bffMatchesResumeFilters — experience", () => {
-  it("passes when maxExperience is not exceeded", () => {
-    const doc = makeDoc();
-    expect(bffMatchesResumeFilters(doc, BASE_TEXT, { maxExperience: 7 })).toBe(true);
-  });
-
-  it("fails when maxExperience is exceeded", () => {
-    const doc = makeDoc();
-    expect(bffMatchesResumeFilters(doc, BASE_TEXT, { maxExperience: 3 })).toBe(false);
-  });
-
-  it("excludes unknown experience when maxExperience is set", () => {
-    const doc = makeDoc({ content: { experience: undefined } });
-    expect(bffMatchesResumeFilters(doc, BASE_TEXT, { maxExperience: 10 })).toBe(false);
-  });
-
-});
-
-// ---------------------------------------------------------------------------
-// bffMatchesResumeFilters — education filter
-// ---------------------------------------------------------------------------
-
 describe("bffMatchesResumeFilters — education", () => {
   it("passes when education matches", () => {
     const doc = makeDoc();
@@ -292,7 +270,6 @@ describe("bffMatchesResumeFilters — combined", () => {
   it("passes with multiple matching filters", () => {
     const doc = makeDoc();
     expect(bffMatchesResumeFilters(doc, BASE_TEXT, {
-      maxExperience: 7,
       skills: ["cnc"],
       sources: ["job5156"],
     })).toBe(true);
@@ -301,7 +278,6 @@ describe("bffMatchesResumeFilters — combined", () => {
   it("fails when any single filter fails", () => {
     const doc = makeDoc();
     expect(bffMatchesResumeFilters(doc, BASE_TEXT, {
-      maxExperience: 7,
       skills: ["python"],
       sources: ["job5156"],
     })).toBe(false);
