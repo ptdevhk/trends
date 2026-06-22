@@ -215,7 +215,7 @@ describe("resume_tasks: dispatch", () => {
   it("creates a collection task", async () => {
     const t = createTest();
 
-    const taskId = await t.mutation(api.resume_tasks.dispatch, {
+    const { taskId } = await t.mutation(api.resume_tasks.dispatch, {
       keyword: "python developer",
       location: "Shanghai",
       limit: 50,
@@ -249,7 +249,7 @@ describe("resume_tasks: dispatch", () => {
   it("accepts optional fields", async () => {
     const t = createTest();
 
-    const taskId = await t.mutation(api.resume_tasks.dispatch, {
+    const { taskId } = await t.mutation(api.resume_tasks.dispatch, {
       keyword: "test",
       location: "test",
       limit: 10,
@@ -284,7 +284,7 @@ describe("resume_tasks: dispatch", () => {
       idempotencyKey: "profile:hr:cnc-sales:2026-06-05",
     });
 
-    expect(second).toBe(first);
+    expect(second.taskId).toBe(first.taskId);
 
     const tasks = await t.run(async (ctx) => {
       return ctx.db.query("collection_tasks").collect();
@@ -309,7 +309,7 @@ describe("resume_tasks: dispatch", () => {
       idempotencyKey: "profile:hr:cnc-sales:2026-06-06",
     });
 
-    expect(second).not.toBe(first);
+    expect(second.taskId).not.toBe(first.taskId);
 
     const tasks = await t.run(async (ctx) => {
       return ctx.db.query("collection_tasks").collect();
@@ -331,7 +331,7 @@ describe("resume_tasks: dispatch", () => {
       limit: 50,
     });
 
-    expect(second).not.toBe(first);
+    expect(second.taskId).not.toBe(first.taskId);
 
     const tasks = await t.run(async (ctx) => {
       return ctx.db.query("collection_tasks").collect();
@@ -348,7 +348,7 @@ describe("resume_tasks: cancel", () => {
   it("cancels a pending collection task", async () => {
     const t = createTest();
 
-    const taskId = await t.mutation(api.resume_tasks.dispatch, {
+    const { taskId } = await t.mutation(api.resume_tasks.dispatch, {
       keyword: "test",
       location: "test",
       limit: 10,
@@ -366,7 +366,7 @@ describe("resume_tasks: cancel", () => {
   it("is a no-op for completed tasks", async () => {
     const t = createTest();
 
-    const taskId = await t.mutation(api.resume_tasks.dispatch, {
+    const { taskId } = await t.mutation(api.resume_tasks.dispatch, {
       keyword: "test",
       location: "test",
       limit: 10,
@@ -433,7 +433,7 @@ describe("resume_tasks: claim", () => {
   it("claims the oldest pending task", async () => {
     const t = createTest();
 
-    const taskId = await t.mutation(api.resume_tasks.dispatch, {
+    const { taskId } = await t.mutation(api.resume_tasks.dispatch, {
       keyword: "test",
       location: "test",
       limit: 10,
@@ -511,7 +511,7 @@ describe("resume_tasks: heartbeat", () => {
   it("stores activeTaskId and lastError", async () => {
     const t = createTest();
 
-    const taskId = await t.mutation(api.resume_tasks.dispatch, {
+    const { taskId } = await t.mutation(api.resume_tasks.dispatch, {
       keyword: "test",
       location: "test",
       limit: 10,
@@ -589,7 +589,7 @@ describe("resume_tasks: complete", () => {
   it("completes a processing task", async () => {
     const t = createTest();
 
-    const taskId = await t.mutation(api.resume_tasks.dispatch, {
+    const { taskId } = await t.mutation(api.resume_tasks.dispatch, {
       keyword: "test",
       location: "test",
       limit: 10,
@@ -612,7 +612,7 @@ describe("resume_tasks: complete", () => {
   it("fails a processing task with error", async () => {
     const t = createTest();
 
-    const taskId = await t.mutation(api.resume_tasks.dispatch, {
+    const { taskId } = await t.mutation(api.resume_tasks.dispatch, {
       keyword: "test",
       location: "test",
       limit: 10,
@@ -636,7 +636,7 @@ describe("resume_tasks: complete", () => {
   it("is a no-op for cancelled tasks", async () => {
     const t = createTest();
 
-    const taskId = await t.mutation(api.resume_tasks.dispatch, {
+    const { taskId } = await t.mutation(api.resume_tasks.dispatch, {
       keyword: "test",
       location: "test",
       limit: 10,
@@ -665,7 +665,7 @@ describe("resume_tasks: updateProgress", () => {
   it("updates progress on a processing task", async () => {
     const t = createTest();
 
-    const taskId = await t.mutation(api.resume_tasks.dispatch, {
+    const { taskId } = await t.mutation(api.resume_tasks.dispatch, {
       keyword: "test",
       location: "test",
       limit: 10,
@@ -693,7 +693,7 @@ describe("resume_tasks: updateProgress", () => {
   it("returns cancelled status for cancelled tasks", async () => {
     const t = createTest();
 
-    const taskId = await t.mutation(api.resume_tasks.dispatch, {
+    const { taskId } = await t.mutation(api.resume_tasks.dispatch, {
       keyword: "test",
       location: "test",
       limit: 10,
