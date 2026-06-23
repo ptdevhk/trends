@@ -1,4 +1,4 @@
-import { internalMutation, internalQuery, mutation } from "./_generated/server";
+import { internalMutation, internalQuery, mutation, type MutationCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
@@ -20,6 +20,32 @@ import {
     PAGINATE_MAX_ROWS_READ,
     resolveResumeScanBatchSize,
 } from "./lib/resumes_pagination.js";
+
+// ---------------------------------------------------------------------------
+// Workspace access guard (defense-in-depth)
+// ---------------------------------------------------------------------------
+
+/**
+ * Verify that requested resume IDs belong to the given workspace.
+ * When workspaceSlug is absent, the guard is skipped (backward compat with
+ * existing BFF-only auth path).
+ *
+ * Throws on first mismatch to prevent partial execution.
+ */
+async function requireWorkspaceAccess(ctx: MutationCtx, resumeIds: string[], workspaceSlug?: string): Promise<void> {
+    if (!workspaceSlug) return;
+    for (const id of resumeIds) {
+        const normalizedId = ctx.db.normalizeId("resumes", id);
+        if (!normalizedId) continue;
+        const resume = await ctx.db.get(normalizedId);
+        const resumeWs = resume?.workspaceSlug;
+        if (typeof resumeWs === "string" && resumeWs !== workspaceSlug) {
+            throw new Error(
+                `Workspace access denied: resume ${id} belongs to workspace "${resumeWs}", not "${workspaceSlug}"`,
+            );
+        }
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -290,8 +316,12 @@ export const clearAnalyses = mutation({
         jobDescriptionId: v.optional(v.string()),
         cursor: v.optional(v.string()),
         batchSize: v.optional(v.number()),
+        workspaceSlug: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
+        if (args.resumeIds) {
+            await requireWorkspaceAccess(ctx, args.resumeIds.map(String), args.workspaceSlug);
+        }
         const page = args.resumeIds
             ? undefined
             : await ctx.db
@@ -390,6 +420,7 @@ export const clearAnalyses = mutation({
 export const deleteResumes = mutation({
     args: {
         resumeIds: v.array(v.string()),
+        workspaceSlug: v.optional(v.string()),
     },
     returns: v.object({
         requested: v.number(),
@@ -399,6 +430,7 @@ export const deleteResumes = mutation({
         patchedScreeningSessions: v.number(),
     }),
     handler: async (ctx, args): Promise<DeleteResumesResult> => {
+        await requireWorkspaceAccess(ctx, args.resumeIds, args.workspaceSlug);
         const requestedResumeIds = normalizeRequestedResumeIds(args.resumeIds);
         if (requestedResumeIds.length === 0) {
             return {
@@ -556,6 +588,7 @@ export const deleteResumes = mutation({
 export const archiveResumes = mutation({
     args: {
         resumeIds: v.array(v.string()),
+        workspaceSlug: v.optional(v.string()),
     },
     returns: v.object({
         requested: v.number(),
@@ -564,6 +597,7 @@ export const archiveResumes = mutation({
         missingResumeIds: v.array(v.string()),
     }),
     handler: async (ctx, args) => {
+        await requireWorkspaceAccess(ctx, args.resumeIds, args.workspaceSlug);
         const requestedResumeIds = normalizeRequestedResumeIds(args.resumeIds);
         if (requestedResumeIds.length === 0) {
             return { requested: 0, archived: 0, alreadyArchived: 0, missingResumeIds: [] };
@@ -615,6 +649,7 @@ export const archiveResumes = mutation({
 export const unarchiveResumes = mutation({
     args: {
         resumeIds: v.array(v.string()),
+        workspaceSlug: v.optional(v.string()),
     },
     returns: v.object({
         requested: v.number(),
@@ -623,6 +658,7 @@ export const unarchiveResumes = mutation({
         missingResumeIds: v.array(v.string()),
     }),
     handler: async (ctx, args) => {
+        await requireWorkspaceAccess(ctx, args.resumeIds, args.workspaceSlug);
         const requestedResumeIds = normalizeRequestedResumeIds(args.resumeIds);
         if (requestedResumeIds.length === 0) {
             return { requested: 0, unarchived: 0, notArchived: 0, missingResumeIds: [] };

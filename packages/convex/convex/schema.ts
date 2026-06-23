@@ -102,6 +102,9 @@ export default defineSchema({
 
         sourceKey: v.optional(v.string()),
 
+        // Workspace scoping (defense-in-depth for mutations)
+        workspaceSlug: v.optional(v.string()),
+
         // Pre-computed Ingest Data (M3)
         ingestData: v.optional(ingestDataValidator),
 
