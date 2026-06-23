@@ -482,20 +482,25 @@ async function runBulkActionsTest(page: Page) {
 async function runErrorStateTest(page: Page) {
     console.log('Testing Error State & Recovery...');
 
-    // 1. Mock API failure for resumes
+    // 1. Navigate to search page with a query that triggers BFF AND-mode (HTTP path)
+    //    so route-level interception catches the request.
+    await page.goto(SEARCH_WITH_QUERY_URL(DEFAULT_OPTIONS.baseUrl));
+    await page.setViewportSize(SMOKE_VIEWPORT);
+
+    // 2. Mock API failure for resumes
     await page.route('**/api/resumes*', route => route.abort('failed'));
     await page.reload();
 
-    // 2. Verify EmptyState with Error icon renders
+    // 3. Verify EmptyState with Error icon renders
     // Focus on the Retry button which is specific to this state
     const retryBtn = page.getByRole('button', { name: /Retry|重试|common\.retry/i });
     await expect(retryBtn).toBeVisible();
 
-    // 3. Unmock and retry
+    // 4. Unmock and retry
     await page.unroute('**/api/resumes*');
     await retryBtn.click();
 
-    // 4. Verify recovery
+    // 5. Verify recovery
     // Wait for resumes to load after retry
     await page.getByRole('checkbox', { name: /选择|Select/i }).first().waitFor({ state: 'visible' });
     await expect(page.getByText(/共 \d+ 份|returned|resumes/i)).toBeVisible();
@@ -520,7 +525,7 @@ async function main() {
         await runSearchTest(page);
         await runAnalysisTest(page);
         await runBulkActionsTest(page);
-        // await runErrorStateTest(page); // Skip due to Convex mocking complexity in smoke test
+        await runErrorStateTest(page);
 
         if (liveJob5156Detail) {
             await runJob5156DetailLiveSmoke(page, liveJob5156Detail);
