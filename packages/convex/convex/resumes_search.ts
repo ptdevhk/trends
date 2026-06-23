@@ -1058,6 +1058,8 @@ export const backfillResumeDigestStatuses = mutation({
             .paginate({
                 cursor: args.cursor ?? null,
                 numItems,
+                maximumBytesRead: PAGINATE_MAX_BYTES_READ,
+                maximumRowsRead: PAGINATE_MAX_ROWS_READ,
             });
 
         let processed = 0;

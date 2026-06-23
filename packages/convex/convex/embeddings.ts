@@ -2,6 +2,7 @@ import { action, internalAction, internalMutation, internalQuery, query } from "
 import { api, internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
+import { PAGINATE_MAX_BYTES_READ, PAGINATE_MAX_ROWS_READ } from "./lib/resumes_pagination.js";
 
 // ---------------------------------------------------------------------------
 // Embedding staleness detection
@@ -415,7 +416,7 @@ export const getResumesWithoutEmbeddings = internalQuery({
         const results = await ctx.db
             .query("resumes")
             .withIndex("by_needsEmbedding", (q) => q.eq("needsEmbedding", true))
-            .paginate({ cursor: args.cursor ?? null, numItems: args.numItems });
+            .paginate({ cursor: args.cursor ?? null, numItems: args.numItems, maximumBytesRead: PAGINATE_MAX_BYTES_READ, maximumRowsRead: PAGINATE_MAX_ROWS_READ });
 
         return {
             resumes: results.page,
