@@ -170,7 +170,9 @@ describe("production deploy readiness checks", () => {
     expect(restorePreviewFullStateScript).not.toContain("/api/search-profiles");
     expect(previewDoctorScript).not.toContain("/api/search-profiles");
 
-    expect(restorePreviewScript).toContain("/api/resumes?source=convex&paged=true&limit=1");
+    // restore-preview-from-prod uses Convex CLI direct (check_preview_resume_page)
+    expect(restorePreviewScript).toContain("check_preview_resume_page");
+    // restore-preview-full-state and preview-doctor use public HTTP API endpoint
     expect(restorePreviewFullStateScript).toContain("/api/resumes?source=convex&paged=true&limit=1");
     expect(previewDoctorScript).toContain("/api/resumes?source=convex&paged=true&limit=1");
   });
@@ -294,7 +296,8 @@ describe("preview restore export compatibility", () => {
   it("rebuilds resume digests in bounded batches after the replace-all preview import", () => {
     expect(restorePreviewScript).toContain("Rebuild resume digests");
     expect(restorePreviewScript).toContain("resumes_search:backfillResumeDigests");
-    expect(restorePreviewScript).toContain('"limit": 200');
+    expect(restorePreviewScript).toContain('"limit":');
+    expect(restorePreviewScript).toContain("DIGEST_BACKFILL_BATCH_SIZE");
   });
 
   it("syncs preview AI env into Convex before importing production data", () => {
