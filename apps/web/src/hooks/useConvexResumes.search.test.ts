@@ -293,12 +293,16 @@ describe('useConvexResumes AND-mode search', () => {
     const bffResumes = Array.from({ length: 450 }, (_, index) =>
       buildResumeDoc(`resume-${index}`, `Candidate ${index}`))
 
-    rawApiGetMock.mockImplementation(async (path?: unknown): Promise<KeywordExpansionResponse> => {
+    rawApiGetMock.mockImplementation(async (path?: unknown, options?: unknown): Promise<KeywordExpansionResponse> => {
       if (path === '/api/resumes') {
+        const params = (options as { params?: { query?: Record<string, unknown> } })?.params?.query
+        const offset = typeof params?.offset === 'number' ? params.offset : 0
+        const pageLimit = typeof params?.limit === 'number' ? params.limit : 200
+        const page = bffResumes.slice(offset, offset + pageLimit)
         return {
           data: {
             success: true,
-            data: bffResumes,
+            data: page,
             summary: { total: bffResumes.length },
           },
         } as unknown as KeywordExpansionResponse

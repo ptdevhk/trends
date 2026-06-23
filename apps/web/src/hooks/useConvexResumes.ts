@@ -813,14 +813,24 @@ function useBffAndModeSearch(
   showBlocked: boolean,
   jobDescriptionId: string | undefined,
   refetchTrigger?: number,
-): BffAndModeResult {
-  const [result, setResult] = useState<BffAndModeResult>({ resumes: [], total: 0, expansion: null, loading: false })
+  limit?: number,
+): BffAndModeResult & { loadingMore: boolean } {
+  const [total, setTotal] = useState(0)
+  const [accumulatedResumes, setAccumulatedResumes] = useState<ConvexResumeItem[]>([])
+  const [loadingFirstPage, setLoadingFirstPage] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [statusCounts, setStatusCounts] = useState<Partial<Record<CandidateStatus, number>>>()
+  // Track how many pages have been fetched (state-based to satisfy linter)
+  const [fetchedPageCount, setFetchedPageCount] = useState(0)
   const prevBffActive = useRef(false)
   const bffNowActive = enabled && !!normalizedQuery && !!keywordExpansion && keywordExpansion.mode === 'AND' && !expansionLoading
 
   useEffect(() => {
     if (bffNowActive && !prevBffActive.current) {
-      setResult({ resumes: [], total: 0, expansion: null, loading: true })
+      setAccumulatedResumes([])
+      setTotal(0)
+      setFetchedPageCount(0)
+      setLoadingFirstPage(true)
     }
     prevBffActive.current = bffNowActive
   }, [bffNowActive])
@@ -832,19 +842,53 @@ function useBffAndModeSearch(
     [filters],
   )
 
+  // Reset page to 0 when query or filters change
+  const pageResetKey = useMemo(
+    () => `${normalizedQuery ?? ''}|${filtersKey}|${showBlocked === true}`,
+    [normalizedQuery, filtersKey, showBlocked],
+  )
+
+  // Compute the target page from limit
+  const targetPage = limit != null
+    ? Math.ceil(limit / CONVEX_RESUME_PAGE_SIZE) - 1
+    : 0
+
+  useEffect(() => {
+    setAccumulatedResumes([])
+    setTotal(0)
+    setFetchedPageCount(0)
+  }, [pageResetKey])
+
   useEffect(() => {
     let active = true
 
     if (!enabled || !normalizedQuery || !keywordExpansion || keywordExpansion.mode !== 'AND' || expansionLoading) {
-      setResult({ resumes: [], total: 0, expansion: null, loading: false })
+      setAccumulatedResumes([])
+      setTotal(0)
+      setFetchedPageCount(0)
+      setLoadingFirstPage(false)
+      setLoadingMore(false)
       return () => { active = false }
     }
 
-    setResult((prev) => ({ ...prev, loading: true }))
+    // Don't fetch if we already have enough data
+    if (accumulatedResumes.length >= (limit ?? CONVEX_RESUME_PAGE_SIZE) && total > 0) {
+      return () => { active = false }
+    }
+
+    // Don't fetch if all required pages are already fetched
+    if (fetchedPageCount > targetPage) {
+      return () => { active = false }
+    }
+
+    const pageIndex = fetchedPageCount
+
     const queryParams: Record<string, string | number | boolean | undefined> = {
       q: normalizedQuery,
       source: 'convex',
       paged: 'true',
+      limit: CONVEX_RESUME_PAGE_SIZE,
+      offset: pageIndex * CONVEX_RESUME_PAGE_SIZE,
       ...(filters?.maxExperience != null ? { maxExperience: filters.maxExperience } : {}),
       ...(filters?.minRoleYears != null ? { minRoleYears: filters.minRoleYears } : {}),
       ...(filters?.roleFilterType ? { roleFilterType: filters.roleFilterType } : {}),
@@ -861,6 +905,12 @@ function useBffAndModeSearch(
       ...(sortBy && sortOrder ? { sortOrder } : {}),
       ...(showBlocked ? { showBlocked: 'true' } : {}),
       ...(jobDescriptionId ? { jobDescriptionId } : {}),
+    }
+
+    if (pageIndex === 0) {
+      setLoadingFirstPage(true)
+    } else {
+      setLoadingMore(true)
     }
 
     void withRetry(
@@ -884,19 +934,16 @@ function useBffAndModeSearch(
       .then(({ data, error }) => {
         if (!active) return
         if (error || !data?.success || !Array.isArray(data.data)) {
-          setResult({ resumes: [], total: 0, expansion: keywordExpansion, loading: false })
+          setAccumulatedResumes([])
+          setTotal(0)
+          setFetchedPageCount(0)
+          setLoadingFirstPage(false)
+          setLoadingMore(false)
           return
         }
 
-        const resumes: ConvexResumeItem[] = data.data.map((item) => {
+        const pageResumes: ConvexResumeItem[] = data.data.map((item) => {
           const record = item as Record<string, unknown>
-          // BFF API returns flat ResumeItem with doc-level fields
-          // (analysis, analyses, identityKey, tags, crawledAt, etc.)
-          // mixed in alongside content fields. Wrap into Convex doc
-          // shape ({_id, content, ...}) that mapResumeDoc expects.
-          // Content gets the full record so normalizeSharedResumeFields
-          // can find all content keys; doc-level fields override the
-          // content key so mapResumeDoc reads them at doc level.
           const doc = {
             analysis: record.analysis,
             analyses: record.analyses,
@@ -918,30 +965,39 @@ function useBffAndModeSearch(
           return { ...mapped, _provenance: provenance }
         })
 
-        setResult({
-          resumes,
-          total: data.summary?.total ?? resumes.length,
-          expansion: keywordExpansion,
-          loading: false,
-          statusCounts: data.summary?.statusCounts,
-        })
+        const newTotal = data.summary?.total ?? pageResumes.length
+
+        setAccumulatedResumes((prev) =>
+          pageIndex === 0 ? pageResumes : [...prev, ...pageResumes],
+        )
+        setTotal(newTotal)
+        setFetchedPageCount(pageIndex + 1)
+        setStatusCounts(data.summary?.statusCounts)
+        setLoadingFirstPage(false)
+        setLoadingMore(false)
       })
       .catch((err: unknown) => {
         console.error('BFF AND-mode search failed', err)
         if (active) {
-          setResult({ resumes: [], total: 0, expansion: keywordExpansion, loading: false })
+          setAccumulatedResumes([])
+          setTotal(0)
+          setFetchedPageCount(0)
+          setLoadingFirstPage(false)
+          setLoadingMore(false)
         }
       })
 
     return () => { active = false }
   // eslint-disable-next-line react-hooks/exhaustive-deps -- filtersKey captures all filter fields via JSON.stringify
-  }, [enabled, expansionLoading, filtersKey, jobDescriptionId, keywordExpansion, normalizedQuery, refetchTrigger, showBlocked, sortBy, sortOrder])
+  }, [fetchedPageCount, targetPage, enabled, expansionLoading, filtersKey, jobDescriptionId, keywordExpansion, normalizedQuery, refetchTrigger, showBlocked, sortBy, sortOrder])
 
   return {
-    ...(result.loading && result.resumes.length === 0
-      ? { resumes: [], total: 0, expansion: keywordExpansion }
-      : result),
-    loading: result.loading,
+    resumes: accumulatedResumes,
+    total,
+    expansion: keywordExpansion,
+    loading: loadingFirstPage && accumulatedResumes.length === 0,
+    statusCounts,
+    loadingMore,
   }
 }
 
@@ -972,16 +1028,7 @@ export function useConvexResumes(
   const [keywordExpansion, setKeywordExpansion] = useState<KeywordExpansionSummary | null>(null)
   const [expansionLoading, setExpansionLoading] = useState(false)
 
-  // BFF path: track how many results to show (client-side pagination since all data is pre-loaded)
-  const [bffDisplayCount, setBffDisplayCount] = useState(CONVEX_RESUME_PAGE_SIZE)
-  // Reset BFF display count when query or filters change
-  const bffResetKey = useMemo(
-    () => `${normalizedQuery ?? ''}|${JSON.stringify(options?.filters ?? {})}|${options?.showBlocked === true}`,
-    [normalizedQuery, options?.filters, options?.showBlocked],
-  )
-  useEffect(() => {
-    setBffDisplayCount(CONVEX_RESUME_PAGE_SIZE)
-  }, [bffResetKey])
+  // BFF path: server-side pagination handled by useBffAndModeSearch
 
   useEffect(() => {
     let active = true
@@ -1090,14 +1137,8 @@ export function useConvexResumes(
     options?.showBlocked === true,
     normalizedJobDescriptionId,
     bffRefetchTrigger,
+    limit,
   )
-
-  // Sync BFF display count when limit increases (driven by loadMore in parent)
-  useEffect(() => {
-    if (isAndModeBffActive && limit > bffDisplayCount) {
-      setBffDisplayCount(Math.min(limit, bffAndModeResult.resumes.length))
-    }
-  }, [isAndModeBffActive, limit, bffDisplayCount, bffAndModeResult.resumes.length])
 
   const paginatedSearchResults = useStablePaginatedQuery(
     api.resumes_search.searchWithTagExpansionPaginated,
@@ -1348,7 +1389,7 @@ export function useConvexResumes(
           })))
         : (mockPayload.list ?? []).slice(0, limit).map(mapResumeDoc)
       : isAndModeBffActive
-        ? bffAndModeResult.resumes.slice(0, bffDisplayCount)
+        ? bffAndModeResult.resumes
         : normalizedQuery
           ? useJobDescriptionFallback
             ? visibleListResults.map(mapResumeDoc)
@@ -1364,7 +1405,6 @@ export function useConvexResumes(
           : visibleListResults.map(mapResumeDoc)
   ), [
     bffAndModeResult.resumes,
-    bffDisplayCount,
     isAndModeBffActive,
     limit,
     mockKeywordExpansion,
@@ -1399,11 +1439,11 @@ export function useConvexResumes(
     }
 
     if (isAndModeBffActive) {
-      return bffDisplayCount < bffAndModeResult.resumes.length
+      return bffAndModeResult.resumes.length < bffAndModeResult.total
     }
 
     return activePaginatedResultsLength > limit || activePaginatedStatus === 'CanLoadMore' || activePaginatedStatus === 'LoadingMore'
-  }, [activePaginatedResultsLength, activePaginatedStatus, bffAndModeResult.resumes.length, bffDisplayCount, enabled, isAndModeBffActive, limit, mockPayload, normalizedQuery])
+  }, [activePaginatedResultsLength, activePaginatedStatus, bffAndModeResult.resumes.length, bffAndModeResult.total, enabled, isAndModeBffActive, limit, mockPayload, normalizedQuery])
 
   const resolvedExpansion = mockPayload
     ? (mockPayload.search?.expansion ?? mockKeywordExpansion)
@@ -1414,7 +1454,7 @@ export function useConvexResumes(
   const loadingMore = enabled
     && !mockPayload
     && (isAndModeBffActive
-      ? bffDisplayCount < Math.min(limit, bffAndModeResult.resumes.length)
+      ? bffAndModeResult.loadingMore
       : activePaginatedStatus === 'LoadingMore')
 
   return {
