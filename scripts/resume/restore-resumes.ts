@@ -19,6 +19,11 @@ type RestorePayload = {
 
 type RestoreMode = "replace" | "merge";
 
+type RestoreAuth = {
+  cookie: string;
+  csrfToken: string;
+};
+
 type RestoreRuntime = {
   fetch: typeof fetch;
 };
@@ -69,6 +74,51 @@ function readResumeArray(payload: RestorePayload): unknown[] {
   return [];
 }
 
+function extractSessionCookie(response: Response): string | undefined {
+  const setCookie = response.headers.get("set-cookie");
+  if (!setCookie) {
+    return undefined;
+  }
+  const match = /(?:^|,\s*)(trends_session=[^;]+)/i.exec(setCookie);
+  return match?.[1]?.trim() || undefined;
+}
+
+async function loginToApi(
+  apiUrl: string,
+  runtime: RestoreRuntime,
+): Promise<RestoreAuth> {
+  const username = process.env.TRENDS_AUTH_USERNAME?.trim();
+  const password = process.env.TRENDS_AUTH_PASSWORD?.trim();
+  if (!username || !password) {
+    throw new Error("TRENDS_AUTH_USERNAME and TRENDS_AUTH_PASSWORD are required for authenticated restore");
+  }
+
+  const loginUrl = `${apiUrl.replace(/\/$/, "")}/api/auth/login`;
+  const response = await runtime.fetch(loginUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password }),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`auth login failed (${response.status}): ${text.trim() || "no response body"}`);
+  }
+
+  const body = (await response.json()) as Record<string, unknown>;
+  const csrfToken = typeof body.csrfToken === "string" ? body.csrfToken : undefined;
+  if (!csrfToken) {
+    throw new Error("auth login response missing csrfToken");
+  }
+
+  const cookie = extractSessionCookie(response);
+  if (!cookie) {
+    throw new Error("auth login response missing session cookie");
+  }
+
+  return { cookie, csrfToken };
+}
+
 function resolveMode(value: string | undefined): RestoreMode {
   const normalized = value?.trim().toLowerCase() || "replace";
   if (normalized === "upsert") {
@@ -97,6 +147,8 @@ function usage(): string {
     "  RECOMPUTE_DERIVED_FIELDS  Optional; set to 1 to drop preserved computed fields and force current ingest recomputation",
     "  WORKSPACE   Optional workspace slug (default: dev)",
     "  API_URL     Optional API URL (default: http://localhost:3000)",
+    "  TRENDS_AUTH_USERNAME  Optional; when set with TRENDS_AUTH_PASSWORD, logs in to API before restore",
+    "  TRENDS_AUTH_PASSWORD  Optional; password for authenticated restore (paired with TRENDS_AUTH_USERNAME)",
   ].join("\n");
 }
 
@@ -183,13 +235,19 @@ async function postJson(
   pathName: string,
   body: unknown,
   runtime: RestoreRuntime,
+  auth?: RestoreAuth,
 ): Promise<Response> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "X-Workspace-Slug": workspace,
+  };
+  if (auth) {
+    headers.Cookie = auth.cookie;
+    headers["X-CSRF-Token"] = auth.csrfToken;
+  }
   return await runtime.fetch(`${apiUrl.replace(/\/$/, "")}${pathName}`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Workspace-Slug": workspace,
-    },
+    headers,
     body: JSON.stringify(body),
   });
 }
@@ -235,6 +293,7 @@ async function resetResumesFully(
   apiUrl: string,
   workspace: string,
   runtime: RestoreRuntime,
+  auth?: RestoreAuth,
 ): Promise<RestoreResetSummary> {
   let totalCount = 0;
   const deleted: Record<string, number> = {};
@@ -246,6 +305,7 @@ async function resetResumesFully(
       "/api/resumes/reset",
       {},
       runtime,
+      auth,
     );
     if (!resetResponse.ok) {
       const text = await resetResponse.text();
@@ -263,6 +323,7 @@ async function resetResumesFully(
             "/api/resumes/reset",
             {},
             runtime,
+            auth,
           );
           if (retryResponse.ok) {
             const retryResult = await parseJsonRecord(retryResponse, "reset request failed");
@@ -301,6 +362,7 @@ async function autoBackupBeforeReplace(
   apiUrl: string,
   workspace: string,
   runtime: RestoreRuntime,
+  auth?: RestoreAuth,
 ): Promise<string> {
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
   const autoBackupPath = `output/resume-backups/auto-pre-restore-${workspace}-${timestamp}.json`;
@@ -311,6 +373,7 @@ async function autoBackupBeforeReplace(
     "/api/resumes/backup",
     {},
     runtime,
+    auth,
   );
 
   if (!backupResponse.ok) {
@@ -329,6 +392,7 @@ async function resetCandidateActions(
   apiUrl: string,
   workspace: string,
   runtime: RestoreRuntime,
+  auth?: RestoreAuth,
 ): Promise<number> {
   const response = await postJson(
     apiUrl,
@@ -336,6 +400,7 @@ async function resetCandidateActions(
     "/api/resumes/candidate-actions/reset",
     { workspaceSlug: workspace },
     runtime,
+    auth,
   );
   const result = await parseJsonRecord(response, "candidate-actions reset failed");
   return typeof result.deleted === "number" ? result.deleted : 0;
@@ -357,6 +422,12 @@ export async function runRestoreResumes(
     throw usageError("MODE=replace requires YES=1");
   }
 
+  let auth: RestoreAuth | undefined;
+  if (process.env.TRENDS_AUTH_USERNAME?.trim()) {
+    auth = await loginToApi(params.apiUrl, runtime);
+    console.log(`  authenticated as ${process.env.TRENDS_AUTH_USERNAME.trim()}`);
+  }
+
   const restorePaths = await resolveRestorePaths(params.filePath);
 
   let autoBackupPath: string | undefined;
@@ -367,6 +438,7 @@ export async function runRestoreResumes(
         params.apiUrl,
         params.workspace,
         runtime,
+        auth,
       );
     }
 
@@ -374,12 +446,14 @@ export async function runRestoreResumes(
       params.apiUrl,
       params.workspace,
       runtime,
+      auth,
     );
 
     await resetCandidateActions(
       params.apiUrl,
       params.workspace,
       runtime,
+      auth,
     );
   }
 
@@ -399,6 +473,7 @@ export async function runRestoreResumes(
           ...(params.recomputeDerivedFields ? { options: { recomputeDerivedFields: true } } : {}),
         },
         runtime,
+        auth,
       );
       const importResult = await parseJsonRecord(
         importResponse,
@@ -436,6 +511,7 @@ export async function runRestoreResumes(
             "/api/resumes/import",
             chunkPayload,
             runtime,
+            auth,
           );
           const importResult = await parseJsonRecord(
             importResponse,

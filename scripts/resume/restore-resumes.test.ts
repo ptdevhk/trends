@@ -211,4 +211,81 @@ describe("restore-resumes", () => {
       }),
     ).rejects.toThrow("no restore backup files found in directory");
   });
+
+  it("authenticates via /api/auth/login and sends Cookie+X-CSRF-Token on subsequent requests", async () => {
+    const dir = await createTempDir();
+    tempDirs.push(dir);
+
+    await writeBackupFile({
+      dir,
+      name: "resume-backup-job5156-top5-20260321-015304.json",
+      count: 5,
+    });
+
+    const originalUsername = process.env.TRENDS_AUTH_USERNAME;
+    const originalPassword = process.env.TRENDS_AUTH_PASSWORD;
+    process.env.TRENDS_AUTH_USERNAME = "admin";
+    process.env.TRENDS_AUTH_PASSWORD = "secret-pass";
+
+    try {
+      const requests: Array<{ pathName: string; headers: Record<string, string> }> = [];
+      await runRestoreResumes(
+        {
+          apiUrl: "http://localhost:3000",
+          workspace: "dev",
+          filePath: dir,
+          mode: "upsert",
+          confirm: false,
+          recomputeDerivedFields: false,
+        },
+        {
+          fetch: vi.fn(async (input, init) => {
+            const url = typeof input === "string" ? input : input.toString();
+            const pathName = new URL(url).pathname;
+            const headers = Object.fromEntries(
+              init?.headers instanceof Headers
+                ? init.headers.entries()
+                : typeof init?.headers === "object" && init.headers !== null
+                  ? Object.entries(init.headers as Record<string, string>)
+                  : [],
+            );
+            requests.push({ pathName, headers });
+
+            if (pathName === "/api/auth/login") {
+              return new Response(
+                JSON.stringify({ success: true, csrfToken: "test-csrf-token-abc", expiresAt: "2099-01-01T00:00:00Z" }),
+                {
+                  status: 200,
+                  headers: {
+                    "Content-Type": "application/json",
+                    "Set-Cookie": "trends_session=sess-123; Path=/; HttpOnly",
+                  },
+                },
+              );
+            }
+            return new Response(
+              JSON.stringify({ success: true, inserted: 5 }),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            );
+          }) as typeof fetch,
+        },
+      );
+
+      expect(requests[0].pathName).toBe("/api/auth/login");
+      expect(requests[1].pathName).toBe("/api/resumes/import");
+      expect(requests[1].headers.Cookie).toBe("trends_session=sess-123");
+      expect(requests[1].headers["X-CSRF-Token"]).toBe("test-csrf-token-abc");
+    } finally {
+      if (originalUsername === undefined) {
+        delete process.env.TRENDS_AUTH_USERNAME;
+      } else {
+        process.env.TRENDS_AUTH_USERNAME = originalUsername;
+      }
+      if (originalPassword === undefined) {
+        delete process.env.TRENDS_AUTH_PASSWORD;
+      } else {
+        process.env.TRENDS_AUTH_PASSWORD = originalPassword;
+      }
+    }
+  });
 });

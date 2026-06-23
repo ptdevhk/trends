@@ -459,6 +459,12 @@ preview-deploy:
 	ssh "$$SSH_HOST" "sudo bash /home/ubuntu/trends/deploy/setup-preview.sh"; \
 	echo "→ restarting API"; \
 	ssh "$$SSH_HOST" "sudo systemctl restart trends-preview-api"; \
+	echo "→ waiting for API readiness"; \
+	ssh "$$SSH_HOST" "for i in 1 2 3 4 5 6 7 8 9 10; do \
+		curl -sf --max-time 5 http://127.0.0.1:3002/api/blocks >/dev/null 2>&1 && break; \
+		echo \"  API not ready yet (\$$i/10), waiting 3s…\"; \
+		sleep 3; \
+	done"; \
 	echo "→ verifying endpoints"; \
 	ssh "$$SSH_HOST" "curl -s -o /dev/null -w 'Web: %{http_code}\n' https://preview.pt-mes.com/ && \
 		curl -s -o /dev/null -w 'API: %{http_code}\n' http://127.0.0.1:3002/api/blocks"
