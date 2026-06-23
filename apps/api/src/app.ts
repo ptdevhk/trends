@@ -161,8 +161,20 @@ export function createApp(options: CreateAppOptions = {}) {
   }
   app.use("*", authMiddleware.optionalAuth);
 
-  // Rate limiting on API routes (100 req/min per IP in production).
-  // In development, localhost requests share key "unknown" and exhaust the budget quickly.
+  // Rate limiting on public API routes.
+  // Search endpoints: 30 req/min (expensive backend operations)
+  // Other public routes: 100 req/min (standard protection)
+  // All environments — localhost dev uses "unknown" key which is fine for low-traffic dev.
+  // Use /* only: in Hono, use("/api/search/*") matches both "/api/search" and "/api/search/sub",
+  // while use("/api/search") matches the exact path only. Using /* avoids double-counting.
+  app.use("/api/search/*", rateLimit({ limit: 30, windowMs: 60_000 }));
+  app.use("/api/trends/*", rateLimit({ limit: 100, windowMs: 60_000 }));
+  app.use("/api/topics/*", rateLimit({ limit: 100, windowMs: 60_000 }));
+  app.use("/api/rss/*", rateLimit({ limit: 100, windowMs: 60_000 }));
+  app.use("/api/industry/*", rateLimit({ limit: 100, windowMs: 60_000 }));
+  app.use("/api/system/*", rateLimit({ limit: 100, windowMs: 60_000 }));
+
+  // General rate limit for all other API routes (100 req/min, production only)
   if (process.env.NODE_ENV === "production") {
     app.use("/api/*", rateLimit({ limit: 100, windowMs: 60_000 }));
   }
