@@ -394,11 +394,11 @@ async function runSearchTest(page: Page) {
         .analyze();
 
     if (a11yResults.violations.length > 0) {
-        console.warn(`⚠️ ${a11yResults.violations.length} accessibility violations found:`);
+        console.error(`❌ ${a11yResults.violations.length} accessibility violations found:`);
         for (const violation of a11yResults.violations) {
-            console.warn(`  [${violation.impact}] ${violation.id}: ${violation.description} (${violation.nodes.length} elements)`);
+            console.error(`  [${violation.impact}] ${violation.id}: ${violation.description} (${violation.nodes.length} elements)`);
         }
-        // Don't fail the build on a11y warnings — just report
+        throw new Error(`Accessibility audit failed: ${a11yResults.violations.length} WCAG 2.1 AA violations`);
     } else {
         console.log('  ✓ No WCAG 2.1 AA accessibility violations');
     }
