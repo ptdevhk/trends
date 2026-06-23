@@ -27,6 +27,9 @@ export function getFirstAuthorizedWorkspaceSlug(
 }
 
 export function getDefaultAuthenticatedPath(auth: CurrentAuth, fallbackWorkspaceSlug: WorkspaceSlug): string {
+  if (auth.success !== true) {
+    return `/${fallbackWorkspaceSlug}/resumes`
+  }
   if (hasSystemAdminAccess(auth.memberships)) {
     return `${SYSTEM_ROUTE_PREFIX}/settings/auth`
   }
@@ -41,7 +44,7 @@ export function getDefaultAuthenticatedPath(auth: CurrentAuth, fallbackWorkspace
 
 export function canUseExplicitRedirect(auth: CurrentAuth, redirectTo: string): boolean {
   if (redirectTo.startsWith(`${SYSTEM_ROUTE_PREFIX}/`) || redirectTo === SYSTEM_ROUTE_PREFIX) {
-    return hasSystemAdminAccess(auth.memberships)
+    return auth.success === true && hasSystemAdminAccess(auth.memberships)
   }
 
   return true

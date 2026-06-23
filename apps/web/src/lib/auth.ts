@@ -17,12 +17,17 @@ export type WorkspaceMembership = {
   role: WorkspaceRole
 }
 
-export type CurrentAuth = {
-  success: true
-  user: AuthUser
-  memberships: WorkspaceMembership[]
-  workspaceRole: WorkspaceRole | null
-}
+export type CurrentAuth =
+  | {
+      success: true
+      user: AuthUser
+      memberships: WorkspaceMembership[]
+      workspaceRole: WorkspaceRole | null
+    }
+  | {
+      success: false
+      error: string
+    }
 
 export type LocalLoginResponse = {
   success: true
@@ -219,7 +224,7 @@ export async function fetchCurrentAuth(): Promise<CurrentAuth | null> {
     return null
   }
   const { data, error } = await rawApiClient.GET<CurrentAuth>('/api/auth/me')
-  if (error || data?.success !== true) {
+  if (error || !data || data.success !== true) {
     return null
   }
   return data

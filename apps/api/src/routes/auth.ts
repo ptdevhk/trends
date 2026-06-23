@@ -134,12 +134,18 @@ const LoginResponseSchema = z.object({
   expiresAt: z.string(),
 });
 
-const MeResponseSchema = z.object({
-  success: z.literal(true),
-  user: AuthUserSchema,
-  memberships: z.array(MembershipSchema),
-  workspaceRole: z.enum(["user", "admin"]).nullable(),
-});
+const MeResponseSchema = z.discriminatedUnion("success", [
+  z.object({
+    success: z.literal(true),
+    user: AuthUserSchema,
+    memberships: z.array(MembershipSchema),
+    workspaceRole: z.enum(["user", "admin"]).nullable(),
+  }),
+  z.object({
+    success: z.literal(false),
+    error: z.string(),
+  }),
+]);
 
 const ChangePasswordRequestSchema = z.object({
   currentPassword: z.string().min(1),
@@ -461,18 +467,10 @@ export function createAuthRoutes(options: AuthRoutesOptions = {}) {
     tags: ["auth"],
     responses: {
       200: {
-        description: "Current authenticated user",
+        description: "Current auth state (authenticated or not)",
         content: {
           "application/json": {
             schema: MeResponseSchema,
-          },
-        },
-      },
-      401: {
-        description: "Authentication required",
-        content: {
-          "application/json": {
-            schema: ErrorResponseSchema,
           },
         },
       },
@@ -482,7 +480,7 @@ export function createAuthRoutes(options: AuthRoutesOptions = {}) {
   app.openapi(meRoute, (c) => {
     const auth = c.var.auth;
     if (!auth) {
-      return c.json({ success: false as const, error: "Authentication required" }, 401);
+      return c.json({ success: false as const, error: "Not authenticated" }, 200);
     }
 
     return c.json({
