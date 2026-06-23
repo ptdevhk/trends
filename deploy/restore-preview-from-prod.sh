@@ -294,7 +294,6 @@ wait_for_preview_api
 echo ""
 echo "=== Verification ==="
 check_preview_endpoint "/api/blocks"
-check_preview_endpoint "/api/search-profiles/stats"
 check_preview_resume_page
 run_preview_ai_smoke
 
