@@ -22,7 +22,7 @@ export const listWorkspaceSlugsWithAuditLogs = internalQuery({
         // workspace count is small. Extract distinct slugs from audit logs.
         const logs = await ctx.db
             .query("analysis_audit_log")
-            .take(10000);
+            .take(1000); // Reduced from 10000 — workspace count is inherently small
         const slugs = new Set<string>();
         for (const log of logs) {
             slugs.add(log.workspaceSlug);
