@@ -393,7 +393,7 @@ function shallowEqualNumberRecord(
 export const list = query({
     args: { limit: v.optional(v.number()) },
     handler: async (ctx, args) => {
-        const limit = args.limit || DEFAULT_RESUME_LIMIT;
+        const limit = Math.min(args.limit || DEFAULT_RESUME_LIMIT, 200);
         return await ctx.db.query("resumes").order("desc").filter((q) => q.neq(q.field("isArchived"), true)).take(limit);
     },
 });
@@ -476,22 +476,35 @@ export const getSummaryWindow = query({
         toTimestamp: v.number(),
     },
     handler: async (ctx, args) => {
-        const rows = await ctx.db
-            .query("resumes")
-            .withIndex("by_crawledAt", (q) =>
-                q.gte("crawledAt", args.fromTimestamp).lt("crawledAt", args.toTimestamp)
-            )
-            .filter((q) => q.neq(q.field("isArchived"), true))
-            .take(10000);
+        const allRows: Doc<"resumes">[] = [];
+        let cursor: string | null = null;
+        let hasMore = true;
+        while (hasMore) {
+            const page = await ctx.db
+                .query("resumes")
+                .withIndex("by_crawledAt", (q) =>
+                    q.gte("crawledAt", args.fromTimestamp).lt("crawledAt", args.toTimestamp)
+                )
+                .filter((q) => q.neq(q.field("isArchived"), true))
+                .paginate({
+                    cursor,
+                    numItems: 1000,
+                    maximumBytesRead: PAGINATE_MAX_BYTES_READ,
+                    maximumRowsRead: PAGINATE_MAX_ROWS_READ,
+                });
+            allRows.push(...page.page);
+            cursor = page.continueCursor;
+            hasMore = page.isDone === false;
+        }
 
         const bySource = new Map<string, number>();
-        for (const row of rows) {
+        for (const row of allRows) {
             const sourceKey = row.source.trim() || "unknown";
             bySource.set(sourceKey, (bySource.get(sourceKey) ?? 0) + 1);
         }
 
         return {
-            total: rows.length,
+            total: allRows.length,
             bySource: Array.from(bySource.entries())
                 .map(([key, count]) => ({ key, count }))
                 .sort((left, right) => {
