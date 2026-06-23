@@ -103,18 +103,19 @@ const INITIAL_URL_CAPTURED_PARAMS = (() => {
   try {
     const url = new URL(window.location.href);
     const val = url.searchParams.get(AUTO_SYNC_PARAM);
+    // Always persist SEEK-specific search params that SEEK's SPA may strip
+    // via history.replaceState. These are needed for the correct search context
+    // and for page-hook.js to inject roleTitles into GraphQL requests.
+    const seekParams = ["keywords", "roleTitles", "matchAll", "tr_max_age"];
+    for (const p of seekParams) {
+      const v = url.searchParams.get(p);
+      if (v !== null) {
+        sessionStorage.setItem(`tr_seek_param_${p}`, v);
+      }
+    }
     if (val) {
       sessionStorage.setItem("tr_auto_sync_captured", val);
       sessionStorage.setItem("tr_auto_sync_initial_url", window.location.href);
-      // Also persist SEEK-specific search params that SEEK's SPA may strip
-      // via history.replaceState. These are needed for the correct search context.
-      const seekParams = ["keywords", "roleTitles", "matchAll", "tr_max_age"];
-      for (const p of seekParams) {
-        const v = url.searchParams.get(p);
-        if (v !== null) {
-          sessionStorage.setItem(`tr_seek_param_${p}`, v);
-        }
-      }
     }
     return { autoSync: val, initialUrl: window.location.href };
   } catch {

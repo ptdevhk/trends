@@ -9,6 +9,41 @@
     console.warn("[tr-page-hook] setAttribute failed", e?.message || e);
   }
 
+  // Hook history.replaceState to restore SEEK params (roleTitles, keywords, etc.)
+  // immediately when SEEK's SPA strips them via replaceState. This runs in the
+  // MAIN world BEFORE SEEK's SPA reads the URL for GraphQL requests.
+  try {
+    const seekParamNames = ["keywords", "roleTitles", "matchAll", "tr_max_age"];
+    const savedParams = {};
+    for (const p of seekParamNames) {
+      const v = sessionStorage.getItem(`tr_seek_param_${p}`);
+      if (v !== null) savedParams[p] = v;
+    }
+    if (Object.keys(savedParams).length > 0) {
+      const origReplaceState = history.replaceState.bind(history);
+      history.replaceState = function (state, unused, url) {
+        if (url != null) {
+          try {
+            const patched = new URL(url, window.location.href);
+            let changed = false;
+            for (const [k, v] of Object.entries(savedParams)) {
+              if (!patched.searchParams.has(k)) {
+                patched.searchParams.set(k, v);
+                changed = true;
+              }
+            }
+            if (changed) {
+              return origReplaceState(state, unused, patched.toString());
+            }
+          } catch { /* ignore parse errors */ }
+        }
+        return origReplaceState(state, unused, url);
+      };
+    }
+  } catch (e) {
+    console.warn("[tr-page-hook] replaceState hook failed", e?.message || e);
+  }
+
   const SOURCE = "tr-resume-api";
   const EXTERNAL_ACCESS_KEY = "__TR_RESUME_DATA__";
   const PAGE_BRIDGE_REQUEST_EVENT = "trResumeBridgeRequest";
@@ -345,6 +380,53 @@
     };
   };
 
+  /**
+   * Inject roleTitles from sessionStorage into a SearchProfilesByNaturalLanguage
+   * request body when SEEK's SPA strips the URL parameter before the first
+   * GraphQL request fires. Reads `tr_seek_param_roleTitles` (comma-separated)
+   * saved by the content script at document_start.
+   *
+   * Returns a NEW object when injection is needed (so callers can detect via !==).
+   * Returns the original body unchanged when no injection is needed.
+   */
+  const injectSeekRoleTitles = (body) => {
+    try {
+      if (!body || typeof body !== "object") return body;
+      if (body.operationName !== "SearchProfilesByNaturalLanguage") return body;
+      const input = body.variables?.input;
+      if (!input || typeof input !== "object") return body;
+      const hasRoleTitles =
+        input.roleTitles &&
+        typeof input.roleTitles === "object" &&
+        Array.isArray(input.roleTitles.values) &&
+        input.roleTitles.values.length > 0;
+      if (hasRoleTitles) return body;
+
+      const stored = sessionStorage.getItem("tr_seek_param_roleTitles");
+      if (!stored) return body;
+      const values = stored
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      if (values.length === 0) return body;
+
+      // Return a NEW object so the caller can detect the change via !==.
+      const patched = JSON.parse(JSON.stringify(body));
+      patched.variables.input.roleTitles = {
+        values,
+        matchLatestOnly:
+          input.roleTitles && typeof input.roleTitles.matchLatestOnly === "boolean"
+            ? input.roleTitles.matchLatestOnly
+            : false,
+      };
+      console.log("[tr-page-hook] Injected roleTitles:", values);
+      return patched;
+    } catch (e) {
+      console.warn("[tr-page-hook] injectSeekRoleTitles failed", e?.message || e);
+    }
+    return body;
+  };
+
   const capture = (classification, url, payload, requestHeaders, request) => {
     if (!classification || !payload) return;
     post({
@@ -629,6 +711,18 @@
             : undefined,
           typeof args[1] === "object" && args[1] !== null ? args[1].headers : undefined,
         );
+        // Inject roleTitles from sessionStorage before SEEK's SPA sends the
+        // first GraphQL request (which fires before the content script can
+        // restore stripped URL params).
+        const patchedBody = injectSeekRoleTitles(requestBody);
+        if (patchedBody !== requestBody) {
+          const patched = JSON.stringify(patchedBody);
+          if (typeof Request !== "undefined" && args[0] instanceof Request) {
+            args = [new Request(args[0], { body: patched }), args[1]];
+          } else if (typeof args[1] === "object" && args[1] !== null) {
+            args[1] = { ...args[1], body: patched };
+          }
+        }
           return originalFetch.apply(this, args).then((res) => {
             try {
               const classification = classify(requestUrl, requestBody);
@@ -706,9 +800,14 @@
   });
 
   XMLHttpRequest.prototype.send = function (...args) {
-    const body = args[0];
+    const body = parseJsonString(args[0]);
+    // Inject roleTitles from sessionStorage for SEEK GraphQL requests sent via XHR.
+    const patchedBody = injectSeekRoleTitles(body);
+    if (patchedBody !== body) {
+      args[0] = JSON.stringify(patchedBody);
+    }
     /** @type {XMLHttpRequest & { __tr_body?: unknown }} */ (this).__tr_body =
-      parseJsonString(body);
+      patchedBody;
 
     this.addEventListener("load", function () {
       try {

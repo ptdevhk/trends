@@ -329,7 +329,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
           "type": "seek",
           "enabled": true,
           "priority": 2,
-          "jobUrl": "https://hk.employer.seek.com/talentsearch?searchQuery=CNC+Sales&market=MY&pageNumber=1&roleTitles=Sales&salaryType=MONTHLY&minSalary=0&salaryUnspecified=true&keywords=CNC&matchAll=false&sortBy=RELEVANCE",
+          "jobUrl": "https://hk.employer.seek.com/talentsearch?searchQuery=CNC&market=MY&pageNumber=1&roleTitles=Sales+and+Marketing+Staff%2CSales+Supervisor%2CSales+Consultant%2CSales+Engineer%2CSales+Representative%2CSales+Associate%2CSales+Assistant%2CSales+Manager%2CSales+Executive%2CSales+Role&salaryType=MONTHLY&minSalary=0&salaryUnspecified=true&keywords=CNC&matchAll=false&sortBy=RELEVANCE",
           "collectLimit": 500,
           "maxPages": 25,
           "mode": "talentsearch"
@@ -397,7 +397,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
           "type": "seek",
           "enabled": true,
           "priority": 2,
-          "jobUrl": "https://hk.employer.seek.com/talentsearch?searchQuery=CNC+Sales&market=MY&pageNumber=1&roleTitles=Sales&salaryType=MONTHLY&minSalary=0&salaryUnspecified=true&keywords=CNC&matchAll=false&sortBy=RELEVANCE",
+          "jobUrl": "https://hk.employer.seek.com/talentsearch?searchQuery=CNC&market=MY&pageNumber=1&roleTitles=Sales+and+Marketing+Staff%2CSales+Supervisor%2CSales+Consultant%2CSales+Engineer%2CSales+Representative%2CSales+Associate%2CSales+Assistant%2CSales+Manager%2CSales+Executive%2CSales+Role&salaryType=MONTHLY&minSalary=0&salaryUnspecified=true&keywords=CNC&matchAll=false&sortBy=RELEVANCE",
           "collectLimit": 500,
           "maxPages": 25,
           "mode": "talentsearch"
@@ -456,7 +456,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
           "type": "seek",
           "enabled": true,
           "priority": 1,
-          "jobUrl": "https://hk.employer.seek.com/talentsearch?searchQuery=CNC+Sales&market=MY&pageNumber=1&roleTitles=Sales&salaryType=MONTHLY&minSalary=0&salaryUnspecified=true&keywords=CNC&matchAll=false&sortBy=RELEVANCE",
+          "jobUrl": "https://hk.employer.seek.com/talentsearch?searchQuery=CNC&market=MY&pageNumber=1&roleTitles=Sales+and+Marketing+Staff%2CSales+Supervisor%2CSales+Consultant%2CSales+Engineer%2CSales+Representative%2CSales+Associate%2CSales+Assistant%2CSales+Manager%2CSales+Executive%2CSales+Role&salaryType=MONTHLY&minSalary=0&salaryUnspecified=true&keywords=CNC&matchAll=false&sortBy=RELEVANCE",
           "collectLimit": 500,
           "maxPages": 25,
           "mode": "talentsearch"
@@ -510,7 +510,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
           "type": "seek",
           "enabled": true,
           "priority": 1,
-          "jobUrl": "https://hk.employer.seek.com/talentsearch?searchQuery=CNC+Sales&market=MY&pageNumber=1&roleTitles=Sales&salaryType=MONTHLY&minSalary=0&salaryUnspecified=true&keywords=CNC&matchAll=false&sortBy=RELEVANCE",
+          "jobUrl": "https://hk.employer.seek.com/talentsearch?searchQuery=CNC&market=MY&pageNumber=1&roleTitles=Sales+and+Marketing+Staff%2CSales+Supervisor%2CSales+Consultant%2CSales+Engineer%2CSales+Representative%2CSales+Associate%2CSales+Assistant%2CSales+Manager%2CSales+Executive%2CSales+Role&salaryType=MONTHLY&minSalary=0&salaryUnspecified=true&keywords=CNC&matchAll=false&sortBy=RELEVANCE",
           "collectLimit": 500,
           "maxPages": 25,
           "mode": "talentsearch"
