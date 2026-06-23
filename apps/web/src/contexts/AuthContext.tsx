@@ -70,12 +70,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAuth(null)
   }, [])
 
+  const authenticated = auth?.success === true ? auth : null
   return (
     <AuthContext.Provider value={{
-      user: auth?.user ?? null,
-      memberships: auth?.memberships ?? [],
-      workspaceRole: auth?.workspaceRole ?? null,
-      isAuthenticated: auth?.success === true,
+      user: authenticated?.user ?? null,
+      memberships: authenticated?.memberships ?? [],
+      workspaceRole: authenticated?.workspaceRole ?? null,
+      isAuthenticated: authenticated !== null,
       isLoading,
       login,
       logout,

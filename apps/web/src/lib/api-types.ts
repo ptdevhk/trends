@@ -145,7 +145,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Current authenticated user */
+                /** @description Current auth state (authenticated or not) */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -169,16 +169,7 @@ export interface paths {
                             }[];
                             /** @enum {string|null} */
                             workspaceRole: "user" | "admin" | null;
-                        };
-                    };
-                };
-                /** @description Authentication required */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
+                        } | {
                             /** @enum {boolean} */
                             success: false;
                             error: string;
