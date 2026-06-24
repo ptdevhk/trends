@@ -56,6 +56,37 @@ check_preview_endpoint() {
     fi
 }
 
+verify_preview_admin_login() {
+    # Verify the bootstrap admin can authenticate.
+    # Catches setup-preview.sh step 8 failures that would otherwise leave
+    # the preview instance with no usable admin account.
+    local password="${AUTH_BOOTSTRAP_PASSWORD:-}"
+    local username="${BOOTSTRAP_ADMIN_USERS%%,*}"
+    username="${username:-admin}"
+
+    if [ -z "$password" ]; then
+        echo "  -> AUTH_BOOTSTRAP_PASSWORD not set; skipping admin login check"
+        return 0
+    fi
+
+    local body
+    body="$(curl -s -X POST "$PREVIEW_API_URL/api/auth/login" \
+        -H 'Content-Type: application/json' \
+        -d "{\"username\":\"$username\",\"password\":\"$password\"}" 2>&1)"
+
+    if echo "$body" | grep -q '"success":true'; then
+        printf '  admin login (%s): OK\n' "$username"
+        return 0
+    fi
+
+    echo "  admin login ($username): FAILED" >&2
+    echo "  Response: $body" >&2
+    echo "  Hint: re-seed with:" >&2
+    echo "    cd $PREVIEW_DIR && set -a; source .env.preview; set +a \\" >&2
+    echo "      && bunx tsx scripts/auth/manage-user.ts --username $username --workspace dev --role admin --password-env AUTH_BOOTSTRAP_PASSWORD --output agent" >&2
+    exit 1
+}
+
 check_preview_resume_page() {
     local output count
 
@@ -293,8 +324,11 @@ wait_for_preview_api
 
 echo ""
 echo "=== Verification ==="
+# Source .env.preview for auth credentials (available after systemd restart)
+set -a; source "$PREVIEW_DIR/.env.preview" 2>/dev/null || true; set +a
 check_preview_endpoint "/api/blocks"
 check_preview_resume_page
+verify_preview_admin_login
 run_preview_ai_smoke
 
 echo ""
