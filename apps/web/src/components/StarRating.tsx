@@ -8,12 +8,14 @@ export function StarRating({
   value,
   onChange,
   onRatingComment,
+  initialComment,
   disabled = false,
   size = 16,
 }: {
   value?: number
   onChange?: (rating: number) => void
   onRatingComment?: (comment: string) => void
+  initialComment?: string
   disabled?: boolean
   size?: number
 }) {
@@ -55,7 +57,7 @@ export function StarRating({
               onChange?.(isClearing ? 0 : star)
               if (!isClearing && onRatingComment) {
                 setCommentOpen(true)
-                setCommentText('')
+                setCommentText(initialComment ?? '')
                 justOpenedRef.current = true
                 requestAnimationFrame(() => { justOpenedRef.current = false })
               } else if (isClearing) {

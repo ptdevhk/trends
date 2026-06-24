@@ -776,7 +776,7 @@ export function useResumeSearchState() {
   })
   const { statusByIdentity, updateStatus: updateCandidateStatus } = useCandidateStatus(canLoadOperationalState)
   const { blocksByIdentity, blockCandidates, unblockCandidate } = useCandidateBlocks(canLoadOperationalState)
-  const { actions: actionsByResume, ratingsByResume, saveAction, getAiFeedback } = useCandidateActions(
+  const { actions: actionsByResume, ratingsByResume, commentsByResume, saveAction, getAiFeedback } = useCandidateActions(
     sessionKey,
     parsedState.jobDescriptionId,
     canLoadOperationalState,
@@ -2020,6 +2020,7 @@ export function useResumeSearchState() {
     // Candidate management
     actionsByResume,
     ratingsByResume,
+    commentsByResume,
     getAiFeedback,
     handleBulkAction,
     handleCandidateAction,

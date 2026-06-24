@@ -702,7 +702,7 @@ function MemberPublicShareResults({
     identityKeys: member.searchRun.resumeKeys,
   })
   const { statusByIdentity, updateStatus } = useCandidateStatus(canReview)
-  const { actionsByResume, ratingsByResume, saveAction } = useCandidateActions(
+  const { actionsByResume, ratingsByResume, commentsByResume, saveAction } = useCandidateActions(
     reviewSessionId,
     undefined,
     canReview,
@@ -1212,6 +1212,7 @@ function MemberPublicShareResults({
             selectedIds={selectedIds}
             actionsByResume={actionsByResume}
             ratingsByResume={ratingsByResume}
+            commentsByResume={commentsByResume}
             onToggleSelect={canReview ? handleToggleSelect : undefined}
             onAction={canReview ? handleAction : undefined}
             onRating={canReview ? handleRating : undefined}

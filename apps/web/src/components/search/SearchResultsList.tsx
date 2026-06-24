@@ -37,6 +37,7 @@ type SearchResultsListProps = {
   selectedIds?: Set<string>
   actionsByResume?: Record<string, CandidateActionType>
   ratingsByResume?: Record<string, number>
+  commentsByResume?: Record<string, string>
   onToggleSelect?: (key: string) => void
   onAction?: (resumeId: string, actionType: CandidateActionType) => void
   onRating?: (resumeId: string, rating: number) => void
@@ -78,6 +79,7 @@ export function SearchResultsList({
   selectedIds,
   actionsByResume,
   ratingsByResume,
+  commentsByResume,
   onToggleSelect,
   onAction,
   onRating,
@@ -251,6 +253,7 @@ export function SearchResultsList({
     actionType: actionsByResume?.[item.resume.resumeId],
     onAction,
     userRating: ratingsByResume?.[item.resume.resumeId],
+    initialComment: commentsByResume?.[item.resume.resumeId],
     onRating,
     onRatingComment,
     onCandidateStatusChange,
@@ -350,6 +353,7 @@ export function SearchResultsList({
             }}
             loading={detailResumeLoading}
             userRating={ratingsByResume?.[detailItem.resume.resumeId]}
+            initialComment={commentsByResume?.[detailItem.resume.resumeId]}
             onRating={onRating ? (rating) => onRating(detailItem.resume.resumeId, rating) : undefined}
             onRatingComment={onRatingComment ? (comment) => onRatingComment(detailItem.resume.resumeId, comment) : undefined}
           />

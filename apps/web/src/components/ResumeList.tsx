@@ -137,6 +137,7 @@ export function ResumeList() {
     handleRatingComment,
     getAiFeedback,
     ratingsByResume,
+    commentsByResume,
   } = useResumeListState(historyRequested)
   useEffect(() => {
     if (!activeLoading) {
@@ -316,6 +317,7 @@ export function ResumeList() {
         actionType={entry.action}
         onAction={(action) => handleCardAction(entry.key, action)}
         userRating={entry.userRating}
+        initialComment={commentsByResume[entry.key]}
         onRating={(rating) => handleRating(entry.key, rating)}
         onRatingComment={(comment) => handleRatingComment(entry.key, comment)}
         blocked={entry.blocked}

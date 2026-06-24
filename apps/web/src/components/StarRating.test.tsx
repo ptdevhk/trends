@@ -153,5 +153,29 @@ describe('StarRating', () => {
       expect(onRatingComment).not.toHaveBeenCalled()
       expect(screen.queryByTestId('rating-comment-popover')).not.toBeInTheDocument()
     })
+
+    it('loads initialComment into textarea when popover opens', async () => {
+      const user = userEvent.setup()
+      const onRatingComment = vi.fn()
+      render(<StarRating value={3} onChange={vi.fn()} onRatingComment={onRatingComment} initialComment="previous note" />)
+      await user.click(screen.getByRole('button', { name: '4 stars' }))
+      const input = screen.getByTestId('rating-comment-input') as HTMLTextAreaElement
+      expect(input.value).toBe('previous note')
+    })
+
+    it('updates initialComment when prop changes between renders', async () => {
+      const user = userEvent.setup()
+      const onRatingComment = vi.fn()
+      const { rerender } = render(<StarRating value={3} onChange={vi.fn()} onRatingComment={onRatingComment} initialComment="old note" />)
+      await user.click(screen.getByRole('button', { name: '4 stars' }))
+      let input = screen.getByTestId('rating-comment-input') as HTMLTextAreaElement
+      expect(input.value).toBe('old note')
+      // Close and reopen with new initialComment
+      await user.click(screen.getByTestId('rating-comment-cancel'))
+      rerender(<StarRating value={3} onChange={vi.fn()} onRatingComment={onRatingComment} initialComment="new note" />)
+      await user.click(screen.getByRole('button', { name: '4 stars' }))
+      input = screen.getByTestId('rating-comment-input') as HTMLTextAreaElement
+      expect(input.value).toBe('new note')
+    })
   })
 })
