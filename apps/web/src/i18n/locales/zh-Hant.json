@@ -41,6 +41,7 @@
     "archive": "歸檔",
     "delete": "刪除",
     "edit": "編輯",
+    "save": "儲存",
     "saving": "儲存中...",
     "deleting": "刪除中..."
   },
@@ -314,6 +315,10 @@
       "shortlist": "入選",
       "reject": "淘汰",
       "contact": "聯絡"
+    },
+    "ratingComment": {
+      "title": "新增評價備註",
+      "placeholder": "寫下你對這個候選人的評價..."
     },
     "status": {
       "reviewed": "已查閱",

@@ -100,6 +100,7 @@ export function ResumeSearchPage() {
     handleBulkAction,
     handleCandidateAction,
     handleRating,
+    handleRatingComment,
     handleCandidateStatusChange,
     handleToggleBlock,
     highScoreCount,
@@ -581,6 +582,7 @@ export function ResumeSearchPage() {
                   onToggleSelect={canManageCandidateData ? toggleSelectItem : undefined}
                   onAction={canManageCandidateData ? handleCandidateAction : undefined}
                   onRating={canManageCandidateData ? handleRating : undefined}
+                  onRatingComment={canManageCandidateData ? handleRatingComment : undefined}
                   onCandidateStatusChange={canManageCandidateData ? handleCandidateStatusChange : undefined}
                   onToggleBlock={canManageCandidateData ? handleToggleBlock : undefined}
                   searchQuery={queryInput}

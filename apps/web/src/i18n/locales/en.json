@@ -41,6 +41,7 @@
     "archive": "Archive",
     "delete": "Delete",
     "edit": "Edit",
+    "save": "Save",
     "saving": "Saving...",
     "deleting": "Deleting..."
   },
@@ -315,6 +316,10 @@
       "shortlist": "Shortlist",
       "reject": "Reject",
       "contact": "Contact"
+    },
+    "ratingComment": {
+      "title": "Add Rating Note",
+      "placeholder": "Write your thoughts about this candidate..."
     },
     "status": {
       "reviewed": "Reviewed",

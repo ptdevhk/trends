@@ -1879,6 +1879,28 @@ export function useResumeSearchState() {
     [saveAction],
   )
 
+  const handleRatingComment = useCallback(
+    (resumeId: string, comment: string) => {
+      void saveAction({
+        resumeId,
+        actionType: 'note',
+        actionData: { text: comment, context: 'rating' },
+      })
+        .then((result) => {
+          if (result) {
+            toast.success('备注已保存')
+            return
+          }
+          toast.error('备注保存失败')
+        })
+        .catch((error: unknown) => {
+          console.error('Rating comment save failed', error)
+          toast.error('备注保存失败')
+        })
+    },
+    [saveAction],
+  )
+
   const handleCandidateStatusChange = useCallback(
     async (identityKey: string, status: CandidateStatus, notes?: string) => {
       await updateCandidateStatus(identityKey, status, notes)
@@ -2002,6 +2024,7 @@ export function useResumeSearchState() {
     handleBulkAction,
     handleCandidateAction,
     handleRating,
+    handleRatingComment,
     handleCandidateStatusChange,
     handleToggleBlock,
     highScoreCount,

@@ -384,6 +384,31 @@ describe('SnippetCard', () => {
     })
   })
 
+  it('passes onRatingComment through to StarRating with correct resumeId', async () => {
+    const onRatingComment = vi.fn()
+    const onRating = vi.fn()
+    const user = userEvent.setup()
+
+    render(
+      <SnippetCard
+        expanded={false}
+        item={createResult(1)}
+        itemKey="result-1"
+        onToggleExpanded={vi.fn()}
+        userRating={2}
+        onRating={onRating}
+        onRatingComment={onRatingComment}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: '4 stars' }))
+    const input = screen.getByTestId('rating-comment-input') as HTMLTextAreaElement
+    await user.type(input, 'great fit')
+    await user.click(screen.getByTestId('rating-comment-save'))
+
+    expect(onRatingComment).toHaveBeenCalledWith('resume-1', 'great fit')
+  })
+
   it('shows work history column when work history exists', () => {
     render(
       <SnippetCard

@@ -34,6 +34,7 @@ interface ResumeDetailProps {
   onAiFeedback?: (target: AiFeedbackTarget, sentiment: AiFeedbackSentiment) => void
   userRating?: number
   onRating?: (rating: number) => void
+  onRatingComment?: (comment: string) => void
 }
 
 function normalizeEvidenceValue(value: string | undefined): string {
@@ -100,6 +101,7 @@ export function ResumeDetail({
   onAiFeedback,
   userRating,
   onRating,
+  onRatingComment,
 }: ResumeDetailProps) {
   const { t } = useTranslation()
   const fieldUsagePolicy = useResumeFieldUsagePolicy()
@@ -382,7 +384,7 @@ export function ResumeDetail({
                       onSelect={(sentiment) => onAiFeedback('ai_score', sentiment)}
                     />
                   ) : null}
-                  <StarRating value={userRating} onChange={onRating} size={14} />
+                  <StarRating value={userRating} onChange={onRating} onRatingComment={onRatingComment} size={14} />
                 </h3>
               </div>
               {(matchResult.promptVersion != null || matchResult.locale) && (
