@@ -40,6 +40,7 @@ type SearchResultsListProps = {
   onToggleSelect?: (key: string) => void
   onAction?: (resumeId: string, actionType: CandidateActionType) => void
   onRating?: (resumeId: string, rating: number) => void
+  onRatingComment?: (resumeId: string, comment: string) => void
   onCandidateStatusChange?: (identityKey: string, status: CandidateStatus, notes?: string) => void
   onToggleBlock?: (identityKey: string, blocked: boolean, reason?: string) => void
   onAiFeedback?: (target: AiFeedbackTarget, sentiment: AiFeedbackSentiment) => void
@@ -80,6 +81,7 @@ export function SearchResultsList({
   onToggleSelect,
   onAction,
   onRating,
+  onRatingComment,
   onCandidateStatusChange,
   onToggleBlock,
   searchQuery,
@@ -250,6 +252,7 @@ export function SearchResultsList({
     onAction,
     userRating: ratingsByResume?.[item.resume.resumeId],
     onRating,
+    onRatingComment,
     onCandidateStatusChange,
     onToggleBlock,
   })
@@ -348,6 +351,7 @@ export function SearchResultsList({
             loading={detailResumeLoading}
             userRating={ratingsByResume?.[detailItem.resume.resumeId]}
             onRating={onRating ? (rating) => onRating(detailItem.resume.resumeId, rating) : undefined}
+            onRatingComment={onRatingComment ? (comment) => onRatingComment(detailItem.resume.resumeId, comment) : undefined}
           />
         </Suspense>
       ) : null}

@@ -82,4 +82,76 @@ describe('StarRating', () => {
     const unfilledStars = buttons.filter(btn => btn.querySelector('.text-slate-300'))
     expect(unfilledStars).toHaveLength(3)
   })
+
+  describe('comment popover', () => {
+    it('opens popover when a star is clicked and onRatingComment is provided', async () => {
+      const onChange = vi.fn()
+      const onRatingComment = vi.fn()
+      render(<StarRating value={2} onChange={onChange} onRatingComment={onRatingComment} />)
+      await userEvent.setup().click(screen.getByRole('button', { name: '4 stars' }))
+      expect(screen.getByTestId('rating-comment-popover')).toBeInTheDocument()
+      expect(onChange).toHaveBeenCalledWith(4)
+    })
+
+    it('does not open popover when onRatingComment is not provided', async () => {
+      const onChange = vi.fn()
+      render(<StarRating value={2} onChange={onChange} />)
+      await userEvent.setup().click(screen.getByRole('button', { name: '4 stars' }))
+      expect(screen.queryByTestId('rating-comment-popover')).not.toBeInTheDocument()
+    })
+
+    it('does not open popover when clearing the current rating', async () => {
+      const onChange = vi.fn()
+      const onRatingComment = vi.fn()
+      render(<StarRating value={3} onChange={onChange} onRatingComment={onRatingComment} />)
+      await userEvent.setup().click(screen.getByRole('button', { name: '3 stars' }))
+      expect(screen.queryByTestId('rating-comment-popover')).not.toBeInTheDocument()
+      expect(onChange).toHaveBeenCalledWith(0)
+    })
+
+    it('calls onRatingComment with trimmed text and closes popover on Save click', async () => {
+      const user = userEvent.setup()
+      const onRatingComment = vi.fn()
+      render(<StarRating value={2} onChange={vi.fn()} onRatingComment={onRatingComment} />)
+      await user.click(screen.getByRole('button', { name: '4 stars' }))
+      const input = screen.getByTestId('rating-comment-input') as HTMLTextAreaElement
+      await user.type(input, '  strong candidate  ')
+      await user.click(screen.getByTestId('rating-comment-save'))
+      expect(onRatingComment).toHaveBeenCalledWith('strong candidate')
+      expect(screen.queryByTestId('rating-comment-popover')).not.toBeInTheDocument()
+    })
+
+    it('calls onRatingComment on Enter key and dismisses on Escape without saving', async () => {
+      const user = userEvent.setup()
+      const onRatingComment = vi.fn()
+      render(<StarRating value={1} onChange={vi.fn()} onRatingComment={onRatingComment} />)
+      await user.click(screen.getByRole('button', { name: '5 stars' }))
+      const input = screen.getByTestId('rating-comment-input') as HTMLTextAreaElement
+      await user.type(input, 'top pick')
+      await user.keyboard('{Enter}')
+      expect(onRatingComment).toHaveBeenCalledWith('top pick')
+    })
+
+    it('dismisses popover on Escape without calling onRatingComment', async () => {
+      const user = userEvent.setup()
+      const onRatingComment = vi.fn()
+      render(<StarRating value={1} onChange={vi.fn()} onRatingComment={onRatingComment} />)
+      await user.click(screen.getByRole('button', { name: '5 stars' }))
+      const input = screen.getByTestId('rating-comment-input') as HTMLTextAreaElement
+      await user.type(input, 'draft note')
+      await user.keyboard('{Escape}')
+      expect(onRatingComment).not.toHaveBeenCalled()
+      expect(screen.queryByTestId('rating-comment-popover')).not.toBeInTheDocument()
+    })
+
+    it('does not call onRatingComment when Save is clicked with empty input', async () => {
+      const user = userEvent.setup()
+      const onRatingComment = vi.fn()
+      render(<StarRating value={1} onChange={vi.fn()} onRatingComment={onRatingComment} />)
+      await user.click(screen.getByRole('button', { name: '5 stars' }))
+      await user.click(screen.getByTestId('rating-comment-save'))
+      expect(onRatingComment).not.toHaveBeenCalled()
+      expect(screen.queryByTestId('rating-comment-popover')).not.toBeInTheDocument()
+    })
+  })
 })

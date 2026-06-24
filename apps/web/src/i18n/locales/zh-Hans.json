@@ -41,6 +41,7 @@
     "archive": "归档",
     "delete": "删除",
     "edit": "编辑",
+    "save": "保存",
     "saving": "保存中...",
     "deleting": "删除中..."
   },
@@ -314,6 +315,10 @@
       "shortlist": "入选",
       "reject": "淘汰",
       "contact": "联系"
+    },
+    "ratingComment": {
+      "title": "添加评价备注",
+      "placeholder": "写一下你对这个候选人的评价..."
     },
     "status": {
       "reviewed": "已查阅",

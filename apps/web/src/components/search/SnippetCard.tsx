@@ -44,6 +44,7 @@ type SnippetCardProps = {
   onAction?: (resumeId: string, actionType: CandidateActionType) => void
   userRating?: number
   onRating?: (resumeId: string, rating: number) => void
+  onRatingComment?: (resumeId: string, comment: string) => void
   onCandidateStatusChange?: (identityKey: string, status: CandidateStatus, notes?: string) => void
   onToggleBlock?: (identityKey: string, blocked: boolean, reason?: string) => void
   aiScoreFeedback?: AiFeedbackSentiment
@@ -110,6 +111,7 @@ export const SnippetCard = memo(function SnippetCard({
   /* eslint-enable @typescript-eslint/no-unused-vars */
   userRating,
   onRating,
+  onRatingComment,
   onCandidateStatusChange,
   onToggleBlock,
   searchQuery,
@@ -336,7 +338,7 @@ export const SnippetCard = memo(function SnippetCard({
 
             {/* Action buttons - pushed to the right */}
             <div className="ml-auto flex items-center gap-1">
-              <StarRating value={userRating} onChange={onRating ? (rating) => onRating(item.resume.resumeId, rating) : undefined} size={14} />
+              <StarRating value={userRating} onChange={onRating ? (rating) => onRating(item.resume.resumeId, rating) : undefined} onRatingComment={onRatingComment ? (comment) => onRatingComment(item.resume.resumeId, comment) : undefined} size={14} />
               {/* Star action button disabled — replaced by StarRating (5-star rating) */}
               {/* <Button
                 variant={actionType === 'star' ? 'default' : 'ghost'}
