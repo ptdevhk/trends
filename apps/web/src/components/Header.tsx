@@ -164,12 +164,11 @@ export function Header({ leftAction }: HeaderProps = {}) {
 function AuthChip() {
   const { t } = useTranslation()
   const { user, isAuthenticated, logout } = useAuth()
-  const { slug } = useWorkspace()
 
   if (!isAuthenticated || !user) {
     return (
       <NavLink
-        to={`/${slug}/login`}
+        to="/login"
         className={({ isActive }: { isActive: boolean }) =>
           cn(
             'transition-colors hover:text-foreground text-sm',

@@ -18,7 +18,9 @@ import { BrandDisplayMapProvider } from '@/contexts/BrandDisplayMapContext'
 import { ResumeFieldUsagePolicyProvider } from '@/contexts/ResumeFieldUsagePolicyContext'
 import { isReviewPacketsEnabled } from '@/lib/feature-flags'
 import {
+  canUseExplicitRedirect,
   getFirstAuthorizedWorkspaceSlug,
+  getDefaultAuthenticatedPath,
   hasSystemAdminAccess,
   hasWorkspaceMembership,
   PUBLIC_RESUME_WORKSPACE,
@@ -286,6 +288,31 @@ function LegacyDevSystemRedirect() {
   return <Navigate to={{ pathname: `${SYSTEM_ROUTE_PREFIX}${suffix}`, search: location.search }} replace />
 }
 
+function LoginRedirect() {
+  const auth = useAuth()
+  const location = useLocation()
+  const redirectTo = new URLSearchParams(location.search).get('redirectTo')
+
+  if (auth.isLoading) {
+    return <div className="py-6 text-sm text-muted-foreground">Loading...</div>
+  }
+
+  if (auth.isAuthenticated) {
+    const currentAuth = auth.user
+      ? { success: true as const, user: auth.user, memberships: auth.memberships, workspaceRole: auth.workspaceRole }
+      : null
+    if (currentAuth) {
+      const target = redirectTo && canUseExplicitRedirect(currentAuth, redirectTo)
+        ? redirectTo
+        : getDefaultAuthenticatedPath(currentAuth, SYSTEM_AUTH_WORKSPACE)
+      return <Navigate to={target} replace />
+    }
+  }
+
+  const search = redirectTo ? `?redirectTo=${encodeURIComponent(redirectTo)}` : ''
+  return <Navigate to={`/${SYSTEM_AUTH_WORKSPACE}/login${search}`} replace />
+}
+
 function WorkspaceResumeRoute() {
   const auth = useAuth()
   const { slug } = useWorkspace()
@@ -314,6 +341,7 @@ function App() {
           <Route path="/resumes" element={<PublicResumeRoute />} />
           <Route path="/s/:token" element={<PublicShareRoute />} />
           <Route path="/dev/system/*" element={<LegacyDevSystemRedirect />} />
+          <Route path="/login" element={<AppProviders workspaceSlug="dev"><LoginRedirect /></AppProviders>} />
           <Route path="/admin/system" element={<SystemWorkspaceShell />}>
             <Route
               element={(
