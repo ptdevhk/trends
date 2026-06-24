@@ -1694,5 +1694,22 @@
     "logout": "登出",
     "loginRequired": "請先登入",
     "workspaceAccessRequired": "您沒有此工作區的存取權限"
+  },
+  "setup": {
+    "title": "設置嚮導",
+    "description": "3 步開始：安裝擴展、配置搜索、執行首次爬取。",
+    "step1Title": "安裝擴展",
+    "step1Description": "安裝瀏覽器擴展以從招聘網站收集簡歷。",
+    "step1InstallHint": "安裝瀏覽器擴展以開始收集簡歷。擴展構建完成後將顯示下載鏈接。",
+    "step1Instructions": "下載後，打開 chrome://extensions，啟用開發者模式，然後將 zip 文件拖放以安裝。",
+    "step2Title": "配置搜索",
+    "step2Description": "設置關鍵詞和位置以定位合適的候選人。",
+    "step2Hint": "添加與您招聘職位相關的關鍵詞，並設置目標位置。",
+    "step3Title": "首次爬取",
+    "step3Description": "觸發首次簡歷收集並驗證結果。",
+    "step3Hint": "前往操作頁面使用已配置的關鍵詞開始爬取。收集完成後檢查簡歷頁面。",
+    "goToKeywords": "前往關鍵詞",
+    "goToOperations": "前往操作",
+    "markDone": "標記完成"
   }
 }
