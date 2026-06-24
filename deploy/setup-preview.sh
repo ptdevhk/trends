@@ -103,15 +103,11 @@ sudo -u ubuntu bash -c "
         [ -z \"\$u\" ] && continue
         echo \"  -> seeding admin '\$u' in workspace '\$workspace'\"
         if ! bunx tsx scripts/auth/manage-user.ts --username \"\$u\" --workspace \"\$workspace\" --role admin --password-env \"\$password_env\" --output agent; then
-            echo \"  -> WARNING: failed to seed admin '\$u' (see output above). Continuing.\"
-            failures=\$((failures + 1))
+            echo \"  -> ERROR: failed to seed admin '\$u'. Deploy cannot continue without a usable admin account.\" >&2
+            exit 1
         fi
     done
-    if [ \"\$failures\" -gt 0 ]; then
-        echo \"Bootstrap admin seeding completed with \$failures failure(s).\"
-    else
-        echo 'Bootstrap admin seeding complete.'
-    fi
+    echo 'Bootstrap admin seeding complete.'
 "
 
 echo ""
@@ -123,4 +119,9 @@ echo "  3. Sync AI env to Convex: PREVIEW_DIR=$DST bash deploy/sync-preview-conv
 echo "  4. Restart preview API systemd: systemctl restart trends-preview-api"
 echo "  5. (Optional) Restore prod data: bash deploy/restore-preview-from-prod.sh"
 echo ""
-echo "  Smoke check: curl https://preview.pt-mes.com/api/blocks -> 200"
+echo "  Smoke checks:"
+echo "    curl https://preview.pt-mes.com/api/blocks -> 200"
+echo "    # After API restart, verify admin login (replace password if different):"
+echo "    curl -s -X POST https://preview.pt-mes.com/api/auth/login \\"
+echo "      -H 'Content-Type: application/json' \\"
+echo "      -d '{\"username\":\"admin\",\"password\":\"admin123\"}' | grep -q '\"success\":true && echo OK"
