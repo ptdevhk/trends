@@ -72,6 +72,10 @@ sudo -u ubuntu bash -c "cd '$DST' && npm install --no-audit --no-fund 2>&1 | tai
 echo "[6/8] Rebuilding better-sqlite3 for host Node version..."
 sudo -u ubuntu bash -c "cd '$DST' && npm rebuild better-sqlite3 2>&1 | tail -3"
 
+# 6b. Build extension zip (gitignored — must be built before web so Vite copies it to dist/)
+echo "[6b/8] Building browser extension zip..."
+sudo -u ubuntu bash -c "cd '$DST' && bash scripts/build-extension-zip.sh 2>&1 | tail -3"
+
 # 7. Build (web only — API runs via tsx, see deploy/systemd/trends-preview-api.service)
 # Vite bakes import.meta.env.VITE_* values into the bundle at BUILD time, not runtime.
 # Without this file, the web bundle prints "Warning: VITE_CONVEX_URL not set in .env"
