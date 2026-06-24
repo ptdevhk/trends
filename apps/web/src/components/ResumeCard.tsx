@@ -84,6 +84,7 @@ interface ResumeCardProps {
   onAiFeedback?: (target: AiFeedbackTarget, sentiment: AiFeedbackSentiment) => void
   userRating?: number
   onRating?: (rating: number) => void
+  onRatingComment?: (comment: string) => void
   confirmedScore?: number
 }
 
@@ -181,6 +182,7 @@ export const ResumeCard = memo(function ResumeCard({
   onAiFeedback,
   userRating,
   onRating,
+  onRatingComment,
   confirmedScore,
   industryTags,
   companyHits,
@@ -565,7 +567,7 @@ export const ResumeCard = memo(function ResumeCard({
               </TooltipProvider>
             ) : null}
             <div className="ml-auto flex items-center gap-2">
-              <StarRating value={userRating} onChange={onRating} size={14} />
+              <StarRating value={userRating} onChange={onRating} onRatingComment={onRatingComment} size={14} />
               <div className="flex items-center gap-1">
                 {/* Star action button disabled — replaced by StarRating (5-star rating) */}
                 {/* <Button

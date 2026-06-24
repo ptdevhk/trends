@@ -134,6 +134,7 @@ export function ResumeList() {
     handleShareSessionCopied,
     handleAiFeedback,
     handleRating,
+    handleRatingComment,
     getAiFeedback,
     ratingsByResume,
   } = useResumeListState(historyRequested)
@@ -316,6 +317,7 @@ export function ResumeList() {
         onAction={(action) => handleCardAction(entry.key, action)}
         userRating={entry.userRating}
         onRating={(rating) => handleRating(entry.key, rating)}
+        onRatingComment={(comment) => handleRatingComment(entry.key, comment)}
         blocked={entry.blocked}
         candidateStatus={entry.status}
         candidateStatusMeta={entry.statusMeta ? {
