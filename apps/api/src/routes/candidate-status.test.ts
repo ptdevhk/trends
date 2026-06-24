@@ -126,6 +126,62 @@ describe("candidate-status route", () => {
     });
   });
 
+  it("allows hr status updates without admin access and stamps server-side write metadata", async () => {
+    const calls: ConvexCall[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+
+      if (call.pathName === "candidate_status:upsert") {
+        return convexSuccess("status-id-hr");
+      }
+      if (call.pathName === "candidate_status:getByIdentity") {
+        return convexSuccess({
+          _id: "status-id-hr",
+          identityKey: "resume-hr",
+          workspaceSlug: "hr",
+          status: "rejected",
+          notes: "HR reviewed",
+          updatedBy: "hr-no-auth-status-hotfix",
+          updatedAt: 1_700_000_000_002,
+        });
+      }
+
+      throw new Error(`Unexpected convex path: ${call.pathName}`);
+    });
+
+    const app = createApp();
+    const response = await app.request("/api/candidate-status", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Workspace-Slug": "hr",
+      },
+      body: JSON.stringify({
+        identityKey: "resume-hr",
+        status: "rejected",
+        notes: "HR reviewed",
+        updatedBy: "forged-client-actor",
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(calls).toHaveLength(2);
+    expect(calls[0]).toMatchObject({
+      type: "mutation",
+      pathName: "candidate_status:upsert",
+      args: {
+        workspaceSlug: "hr",
+        identityKey: "resume-hr",
+        status: "rejected",
+        notes: "HR reviewed",
+        updatedBy: "hr-no-auth-status-hotfix",
+      },
+    });
+    expect(calls[0]?.args.updatedBy).not.toBe("forged-client-actor");
+    expect(calls[0]?.args).toHaveProperty("writeSecret");
+  });
+
   it("appends learning log entry for interviewed_reject updates", async () => {
     const appendSpy = vi
       .spyOn(workspaceConfigService, "appendLearningLogEntry")

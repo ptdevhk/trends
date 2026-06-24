@@ -29,4 +29,7 @@ export const config = {
   projectRoot,
   timezone,
   version: "0.4.6",
+  auth: {
+    convexWriteSecret: process.env.CONVEX_WRITE_SECRET || "",
+  },
 };
