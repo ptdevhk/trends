@@ -228,6 +228,13 @@ export const SYSTEM_NAV_ITEMS: SurfaceNavDefinition[] = [
     matchesSuffixes: ["/system/settings"],
   },
   {
+    id: "setup",
+    titleKey: "nav.setup",
+    defaultTitle: "Setup Wizard",
+    hrefSuffix: "/system/setup",
+    matchesSuffixes: ["/system/setup"],
+  },
+  {
     id: "jds",
     titleKey: "nav.jds",
     defaultTitle: "Job Descriptions",

@@ -60,6 +60,11 @@ const LazyAuditCompliancePage = lazy(async () => {
   return { default: module.AuditCompliancePage }
 })
 
+const LazySystemSetupPage = lazy(async () => {
+  const module = await import('@/pages/system-setup/SystemSetupPage')
+  return { default: module.SystemSetupPage }
+})
+
 const LazyCandidateExplanationPage = lazy(async () => {
   const module = await import('@/pages/CandidateExplanationPage')
   return { default: module.CandidateExplanationPage }
@@ -397,6 +402,14 @@ function App() {
                   )}
                 />
               </Route>
+              <Route
+                path="setup"
+                element={(
+                  <RouteSuspense>
+                    <LazySystemSetupPage />
+                  </RouteSuspense>
+                )}
+              />
               <Route
                 path="jds"
                 element={(

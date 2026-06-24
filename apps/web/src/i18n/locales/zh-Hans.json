@@ -1721,5 +1721,22 @@
     "logout": "退出登录",
     "loginRequired": "请先登录",
     "workspaceAccessRequired": "您没有此工作区的访问权限"
+  },
+  "setup": {
+    "step1Instructions": "[TODO: Translate to zh-Hans] 下載後，打開 chrome://extensions，啟用開發者模式，然後將 zip 文件拖放以安裝。",
+    "step2Title": "[TODO: Translate to zh-Hans] 配置搜索",
+    "step2Hint": "[TODO: Translate to zh-Hans] 添加與您招聘職位相關的關鍵詞，並設置目標位置。",
+    "step3Hint": "[TODO: Translate to zh-Hans] 前往操作頁面使用已配置的關鍵詞開始爬取。收集完成後檢查簡歷頁面。",
+    "markDone": "[TODO: Translate to zh-Hans] 標記完成",
+    "goToKeywords": "[TODO: Translate to zh-Hans] 前往關鍵詞",
+    "step1Description": "[TODO: Translate to zh-Hans] 安裝瀏覽器擴展以從招聘網站收集簡歷。",
+    "goToOperations": "[TODO: Translate to zh-Hans] 前往操作",
+    "step1Title": "[TODO: Translate to zh-Hans] 安裝擴展",
+    "step1InstallHint": "[TODO: Translate to zh-Hans] 安裝瀏覽器擴展以開始收集簡歷。擴展構建完成後將顯示下載鏈接。",
+    "step3Title": "[TODO: Translate to zh-Hans] 首次爬取",
+    "description": "[TODO: Translate to zh-Hans] 3 步開始：安裝擴展、配置搜索、執行首次爬取。",
+    "title": "[TODO: Translate to zh-Hans] 設置嚮導",
+    "step3Description": "[TODO: Translate to zh-Hans] 觸發首次簡歷收集並驗證結果。",
+    "step2Description": "[TODO: Translate to zh-Hans] 設置關鍵詞和位置以定位合適的候選人。"
   }
 }
