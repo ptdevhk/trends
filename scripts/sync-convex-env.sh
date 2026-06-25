@@ -1,5 +1,6 @@
 #!/bin/bash
 # Syncs CONVEX_URL from Convex .env.local to apps/web/.env.local
+# Also syncs AI env vars into Convex deployment env (AI_API_KEY etc.)
 set -euo pipefail
 
 echo "Syncing Convex environment variables..."
@@ -74,4 +75,72 @@ elif [ -n "$CONVEX_ENV" ]; then
     echo "Synced VITE_CONVEX_URL=$WEB_CONVEX_URL to $WEB_ENV (from $CONVEX_ENV)"
 else
     echo "Synced VITE_CONVEX_URL=$WEB_CONVEX_URL to $WEB_ENV (from system environment)"
+fi
+
+# ---------------------------------------------------------------------------
+# Sync AI env vars into Convex deployment env
+# ---------------------------------------------------------------------------
+# These keys are read by Convex functions via process.env (analysis_config.ts,
+# embeddings.ts, ai_tagging_results.ts, analyze.ts, analysis_tasks.ts).
+# The Convex local backend does NOT inherit system env for function runtime —
+# keys must be pushed via `npx convex env set`.
+# ---------------------------------------------------------------------------
+
+AI_ENV_KEYS=(
+    AI_ANALYSIS_ENABLED
+    AI_ANALYSIS_RESUMES_ENABLED
+    AI_MODEL
+    AI_API_KEY
+    AI_API_BASE
+    AI_OUTPUT_LOCALE
+    AI_ANALYSIS_PARALLELISM
+)
+
+CONVEX_DIR="$PROJECT_ROOT/packages/convex"
+CONVEX_ENV_FILE="$CONVEX_DIR/.env.local"
+
+if [ ! -d "$CONVEX_DIR" ]; then
+    echo "Skipping AI env sync: $CONVEX_DIR not found."
+    exit 0
+fi
+
+synced=0
+failed=0
+
+for key in "${AI_ENV_KEYS[@]}"; do
+    value="${!key:-}"
+    if [ -z "$value" ]; then
+        continue
+    fi
+
+    # Escape value for safe shell interpolation
+    escaped_value="$(printf '%s' "$value" | sed "s/'/'\\\\''/g")"
+
+    if [ -f "$CONVEX_ENV_FILE" ]; then
+        if (cd "$CONVEX_DIR" && npx convex env set --env-file "$CONVEX_ENV_FILE" "$key" "$escaped_value" >/dev/null 2>&1); then
+            synced=$((synced + 1))
+            echo "  Synced $key to Convex"
+        else
+            echo "  WARNING: Failed to sync $key to Convex"
+            failed=$((failed + 1))
+        fi
+    else
+        if (cd "$CONVEX_DIR" && npx convex env set "$key" "$escaped_value" >/dev/null 2>&1); then
+            synced=$((synced + 1))
+            echo "  Synced $key to Convex"
+        else
+            echo "  WARNING: Failed to sync $key to Convex"
+            failed=$((failed + 1))
+        fi
+    fi
+done
+
+if [ "$synced" -gt 0 ]; then
+    echo "Synced $synced AI env var(s) to Convex deployment."
+elif [ "$failed" -eq 0 ]; then
+    echo "No AI env vars found in environment (expected AI_API_KEY, AI_MODEL, etc.)."
+fi
+
+if [ "$failed" -gt 0 ]; then
+    echo "WARNING: $failed Convex env var(s) failed to sync."
 fi
