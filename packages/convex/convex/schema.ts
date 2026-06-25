@@ -498,6 +498,11 @@ export default defineSchema({
         experienceYears: v.optional(v.number()),
         roleTypes: v.optional(v.array(v.string())),
         roleYearsByType: v.optional(v.record(v.string(), v.number())),
+        // Phase 3 display fields — denormalized from default analysis
+        displayScore: v.optional(v.number()),
+        displayRecommendation: v.optional(v.string()),
+        displayBreakdown: v.optional(v.record(v.string(), v.number())),
+        displaySummary: v.optional(v.string()),
         updatedAt: v.number(),
     })
         .index("by_resumeId", ["resumeId"])

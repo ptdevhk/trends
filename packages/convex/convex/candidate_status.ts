@@ -90,6 +90,7 @@ export const upsert = mutation({
         ),
         notes: v.optional(v.string()),
         updatedBy: v.optional(v.string()),
+        writeSecret: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
         const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
