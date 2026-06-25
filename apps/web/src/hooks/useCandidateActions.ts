@@ -49,6 +49,7 @@ export function useCandidateActions(sessionId?: string, jobDescriptionId?: strin
   const [actionsByResume, setActionsByResume] = useState<Record<string, CandidateActionType>>({})
   const [aiFeedbackByResume, setAiFeedbackByResume] = useState<Record<string, AiFeedbackState>>({})
   const [ratingsByResume, setRatingsByResume] = useState<Record<string, number>>({})
+  const [commentsByResume, setCommentsByResume] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [authError, setAuthError] = useState<AuthErrorType>(null)
@@ -80,6 +81,7 @@ export function useCandidateActions(sessionId?: string, jobDescriptionId?: strin
     const nextActionsByResume: Record<string, CandidateActionType> = {}
     let nextAiFeedbackByResume: Record<string, AiFeedbackState> = {}
     const nextRatingsByResume: Record<string, number> = {}
+    const nextCommentsByResume: Record<string, string> = {}
 
     ;(data.actions ?? []).forEach((action) => {
       const rating = extractRating(action)
@@ -101,12 +103,19 @@ export function useCandidateActions(sessionId?: string, jobDescriptionId?: strin
         return
       }
 
+      if (action.actionType === 'note') {
+        const text = action.actionData?.text
+        if (typeof text === 'string' && text.length > 0) {
+          nextCommentsByResume[action.resumeId] = text
+        }
+      }
       nextActionsByResume[action.resumeId] = action.actionType
     })
 
     setActionsByResume(nextActionsByResume)
     setAiFeedbackByResume(nextAiFeedbackByResume)
     setRatingsByResume(nextRatingsByResume)
+    setCommentsByResume(nextCommentsByResume)
     setLoading(false)
   }, [enabled, jobDescriptionId, sessionId])
 
@@ -119,6 +128,7 @@ export function useCandidateActions(sessionId?: string, jobDescriptionId?: strin
       const previousRating = ratingsByResume[payload.resumeId]
       const previousAction = actionsByResume[payload.resumeId]
       const previousFeedback = aiFeedbackByResume[payload.resumeId]
+      const previousComment = commentsByResume[payload.resumeId]
 
       if (rating !== undefined) {
         if (rating === 0) {
@@ -141,6 +151,12 @@ export function useCandidateActions(sessionId?: string, jobDescriptionId?: strin
             ...prev,
             [payload.resumeId]: payload.actionType,
           }))
+          if (payload.actionType === 'note') {
+            const text = payload.actionData?.text
+            if (typeof text === 'string' && text.length > 0) {
+              setCommentsByResume((prev) => ({ ...prev, [payload.resumeId]: text }))
+            }
+          }
         }
       }
 
@@ -190,6 +206,17 @@ export function useCandidateActions(sessionId?: string, jobDescriptionId?: strin
               }
               return next
             })
+            if (payload.actionType === 'note') {
+              setCommentsByResume((prev) => {
+                const next = { ...prev }
+                if (previousComment) {
+                  next[payload.resumeId] = previousComment
+                } else {
+                  delete next[payload.resumeId]
+                }
+                return next
+              })
+            }
           }
         }
 
@@ -207,7 +234,7 @@ export function useCandidateActions(sessionId?: string, jobDescriptionId?: strin
       return data.action ?? null
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps -- setAiFeedbackByResume uses functional update; aiFeedbackByResume not read directly
-    [sessionId, ratingsByResume, actionsByResume]
+    [sessionId, ratingsByResume, actionsByResume, commentsByResume]
   )
 
   const getAiFeedback = useCallback(
@@ -243,6 +270,7 @@ export function useCandidateActions(sessionId?: string, jobDescriptionId?: strin
     actionsByResume,
     aiFeedbackByResume,
     ratingsByResume,
+    commentsByResume,
     loading,
     error,
     authError,

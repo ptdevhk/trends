@@ -185,6 +185,7 @@ describe('PublicSharePage', () => {
       ratingsByResume: {
         'resume-1': 4,
       },
+      commentsByResume: {},
       saveAction: saveActionMock,
     })
     useQueryMock.mockReset()

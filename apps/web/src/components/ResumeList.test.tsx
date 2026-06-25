@@ -218,6 +218,7 @@ const baseMockState = {
   handleRating: vi.fn(),
   getAiFeedback: vi.fn(() => undefined),
   ratingsByResume: {},
+  commentsByResume: {},
 }
 
 let mockResumeListState = { ...baseMockState }

@@ -175,6 +175,7 @@ function createCandidateActionsHookValue() {
     actionsByResume: {},
     aiFeedbackByResume: {},
     ratingsByResume: ratingsByResumeMock,
+    commentsByResume: {},
     loading: false,
     error: null,
     reload: vi.fn(),

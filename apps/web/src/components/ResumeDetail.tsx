@@ -33,6 +33,7 @@ interface ResumeDetailProps {
   aiSummaryFeedback?: AiFeedbackSentiment
   onAiFeedback?: (target: AiFeedbackTarget, sentiment: AiFeedbackSentiment) => void
   userRating?: number
+  initialComment?: string
   onRating?: (rating: number) => void
   onRatingComment?: (comment: string) => void
 }
@@ -100,6 +101,7 @@ export function ResumeDetail({
   aiSummaryFeedback,
   onAiFeedback,
   userRating,
+  initialComment,
   onRating,
   onRatingComment,
 }: ResumeDetailProps) {
@@ -384,7 +386,7 @@ export function ResumeDetail({
                       onSelect={(sentiment) => onAiFeedback('ai_score', sentiment)}
                     />
                   ) : null}
-                  <StarRating value={userRating} onChange={onRating} onRatingComment={onRatingComment} size={14} />
+                  <StarRating value={userRating} initialComment={initialComment} onChange={onRating} onRatingComment={onRatingComment} size={14} />
                 </h3>
               </div>
               {(matchResult.promptVersion != null || matchResult.locale) && (

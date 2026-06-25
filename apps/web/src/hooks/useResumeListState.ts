@@ -347,7 +347,7 @@ export function useResumeListState(loadSearchHistory = false) {
   }, [convexLoading, mode])
 
   const auxiliaryResumeDataEnabled = mode !== 'ai' || hasCompletedInitialConvexLoad
-  const { actions, ratingsByResume, saveAction, getAiFeedback } = useCandidateActions(
+  const { actions, ratingsByResume, commentsByResume, saveAction, getAiFeedback } = useCandidateActions(
     sessionActionScope,
     jobDescriptionId,
     auxiliaryResumeDataEnabled,
@@ -2116,6 +2116,7 @@ export function useResumeListState(loadSearchHistory = false) {
     handleRatingComment,
     getAiFeedback,
     ratingsByResume,
+    commentsByResume,
     handleToggleBlock,
     handleCandidateStatusChange,
     handleResetAll,

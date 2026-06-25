@@ -97,6 +97,7 @@ export function ResumeSearchPage() {
     // Candidate management
     actionsByResume,
     ratingsByResume,
+    commentsByResume,
     handleBulkAction,
     handleCandidateAction,
     handleRating,
@@ -579,6 +580,7 @@ export function ResumeSearchPage() {
                   selectedIds={selectedIds}
                   actionsByResume={actionsByResume}
                   ratingsByResume={ratingsByResume}
+                  commentsByResume={commentsByResume}
                   onToggleSelect={canManageCandidateData ? toggleSelectItem : undefined}
                   onAction={canManageCandidateData ? handleCandidateAction : undefined}
                   onRating={canManageCandidateData ? handleRating : undefined}
