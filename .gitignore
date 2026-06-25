@@ -47,6 +47,8 @@ output/*
 !output/resumes/
 !output/resumes/samples/
 !output/resumes/samples/**
+# Local-only batch resync output
+output/resumes/batch-resync/
 !output/benchmarks/
 output/benchmarks/*
 !output/benchmarks/.gitkeep
