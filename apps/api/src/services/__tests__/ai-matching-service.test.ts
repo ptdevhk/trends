@@ -353,6 +353,96 @@ describe("AIMatchingService", () => {
       const result = await service.matchResume(makeRequest());
       expect(result.rawResponse!.length).toBeLessThanOrEqual(4000);
     });
+
+    it("recomputes MY final score from related_exp and source-derived industry_db floor", async () => {
+      const llmResponse = JSON.stringify({
+        score: 30,
+        recommendation: "potential",
+        highlights: ["机械行业经验"],
+        concerns: [],
+        summary: "候选人具备相关经验",
+        breakdown: {
+          related_exp: 78,
+          industry_db: 0,
+        },
+      });
+      vi.spyOn(service, "callLLM" as keyof AIMatchingService).mockResolvedValueOnce(llmResponse);
+
+      const result = await service.matchResume(makeRequest({
+        sourceKey: "seek",
+        companyHits: [],
+      }));
+
+      expect(result).toMatchObject({
+        score: 70,
+        recommendation: "match",
+        breakdown: {
+          related_exp: 60,
+          industry_db: 40,
+        },
+      });
+    });
+
+    it("applies the MY unverified-sales evidence ceiling before computing the final score", async () => {
+      const llmResponse = JSON.stringify({
+        score: 86,
+        recommendation: "strong_match",
+        highlights: ["长期CNC销售经验"],
+        concerns: [],
+        summary: "候选人具备直接销售经验",
+        breakdown: {
+          related_exp: 86,
+          industry_db: 0,
+        },
+      });
+      vi.spyOn(service, "callLLM" as keyof AIMatchingService).mockResolvedValueOnce(llmResponse);
+
+      const result = await service.matchResume({
+        resume: {
+          id: "r_my_sales",
+          name: "MY Sales Candidate",
+          sourceKey: "seek",
+          companyHits: [],
+          roleSignals: [
+            {
+              type: "sales",
+              matchedSignals: ["CNC sales", "key account"],
+              signalCount: 2,
+              occurrences: 2,
+              years: 11,
+              industryVerifiedYears: 0,
+              roleRelevantYears: 11,
+              industryVerifiedRelevantYears: 0,
+              matchedWorkEntries: [
+                {
+                  companyName: "XYZ CNC Machinery Sdn Bhd",
+                  jobTitle: "Sales Engineer",
+                  years: 11,
+                  industryVerified: false,
+                  matchedSignals: ["CNC sales", "machine tools"],
+                  directRoleMatch: true,
+                },
+              ],
+              verifyIn: "workHistory",
+            },
+          ],
+        },
+        jobDescription: {
+          title: "Sales Engineer",
+          requirements: "At least 3 years of CNC sales experience",
+          responsibilities: "Sales, customer development, key account management",
+        },
+      });
+
+      expect(result).toMatchObject({
+        score: 73,
+        recommendation: "match",
+        breakdown: {
+          related_exp: 65,
+          industry_db: 40,
+        },
+      });
+    });
   });
 
   describe("matchBatch", () => {

@@ -874,15 +874,7 @@ export const ResumeResultSourceSchema = z
   .openapi("ResumeResultSource");
 
 export const MatchBreakdownSchema = z
-  .object({
-    skillMatch: z.number().int().openapi({ example: 20 }),
-    roleMatch: z.number().int().optional().openapi({ example: 8 }),
-    experienceMatch: z.number().int().openapi({ example: 18 }),
-    educationMatch: z.number().int().openapi({ example: 12 }),
-    locationMatch: z.number().int().openapi({ example: 15 }),
-    industryMatch: z.number().int().openapi({ example: 10 }),
-    brandRelevance: z.number().int().openapi({ example: 7 }),
-  })
+  .record(z.string(), z.number())
   .openapi("MatchBreakdown");
 
 export const ResumeMatchSchema = z

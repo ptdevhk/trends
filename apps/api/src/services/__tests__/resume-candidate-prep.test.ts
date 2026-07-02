@@ -1123,5 +1123,73 @@ describe("resume-candidate-prep", () => {
       // resolveResumeAnalysisSourceKey returns undefined for unrecognized source keys
       expect(payload.sourceKey).toBeUndefined();
     });
+
+    it("preserves market, direct industry_db inputs, and direct-role evidence for AI normalization", () => {
+      const resume = makeMinimalResume({
+        source: "seek",
+        profileType: undefined,
+        ingestData: {
+          market: "MY",
+          industryDbV2Raw: 27,
+          brandHits: [
+            {
+              brand: "FANUC",
+              role: "equipment",
+              source: "workHistory",
+              context: "equipment",
+            },
+          ],
+          roleSignals: [
+            {
+              type: "sales",
+              years: 5,
+              industryVerifiedYears: 0,
+              matchedSignals: ["CNC sales"],
+              signalCount: 1,
+              occurrences: 1,
+              verifyIn: "workHistory",
+              matchedWorkEntries: [
+                {
+                  companyName: "XYZ CNC Machinery Sdn Bhd",
+                  jobTitle: "Sales Engineer",
+                  years: 5,
+                  industryVerified: false,
+                  matchedSignals: ["CNC sales"],
+                  directRoleMatch: true,
+                },
+              ],
+            },
+          ],
+        },
+      });
+      const prepared = prepareResumeCandidate({
+        resume,
+        resumeId: "res-1",
+        indexData: makeMinimalIndex(),
+      });
+
+      const payload = buildAiResumePayload(prepared);
+
+      expect(payload).toMatchObject({
+        sourceKey: "seek",
+        market: "MY",
+        industryDbV2Raw: 27,
+        brandHits: [
+          {
+            brand: "FANUC",
+            context: "equipment",
+          },
+        ],
+        roleSignals: [
+          {
+            matchedWorkEntries: [
+              {
+                directRoleMatch: true,
+              },
+            ],
+          },
+        ],
+      });
+    });
   });
 });

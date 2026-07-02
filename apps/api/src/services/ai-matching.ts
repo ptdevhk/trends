@@ -11,14 +11,21 @@ import path from "node:path";
 import JSON5 from "json5";
 
 import {
+    FALLBACK_INDUSTRY_KEYWORDS,
+    computeFinalAiScore,
+    deriveMarketFromSourceKey,
+    evaluateRelatedExpEvidence,
     getResumeAiLocaleText,
+    recommendationFromFinalAiScore,
     sanitizeResumeRecordForSurface,
+    type RelatedExpContextInput,
     type ResumeFieldUsagePolicy,
     type ResumeFieldUsagePolicyOverrides,
 } from "@trends/shared";
 import { logger } from "./logger.js";
 import { aiConfig, validateResumeAIConfig, getMaskedApiKey } from "./ai-config.js";
 import { findProjectRoot } from "./db.js";
+import { computeDirectIndustryDbScore } from "./industry-db-batch-stats.js";
 import { localeToNaturalLanguage, resolveAIOutputLocale } from "./locale-utils.js";
 import { resumeAiPromptService, type ResumeAiPromptDocument } from "./resume-ai-prompt-service.js";
 
@@ -31,7 +38,15 @@ export interface MatchingRequest {
         education?: string;
         skills?: string[];
         companies?: string[];
+        brandHits?: Array<{
+            brand?: string;
+            role?: string;
+            source?: string;
+            context?: string;
+        }>;
         companyHits?: string[];
+        market?: string;
+        industryDbV2Raw?: number;
         roleSignals?: Array<{
             type: string;
             matchedSignals: string[];
@@ -62,21 +77,15 @@ export interface MatchingRequest {
     };
 }
 
+export type MatchingBreakdown = Record<string, number>;
+
 export interface MatchingResult {
     score: number; // 0-100
     recommendation: "strong_match" | "match" | "potential" | "no_match";
     highlights: string[]; // Matching points
     concerns: string[]; // Missing or concerning points
     summary: string; // AI-generated summary
-    breakdown?: {
-        skillMatch: number;
-        roleMatch?: number;
-        experienceMatch: number;
-        educationMatch: number;
-        locationMatch: number;
-        industryMatch: number;
-        brandRelevance: number;
-    };
+    breakdown?: MatchingBreakdown;
     matchedSkills?: string[];
     matchedCompanies?: string[];
     scoreSource?: "rule" | "ai";
@@ -173,6 +182,33 @@ const SCORE_WORD_MAP: Record<string, number> = {
 
 const MAX_ERROR_TEXT_LENGTH = 320;
 const MAX_RAW_RESPONSE_LENGTH = 4000;
+const MY_INDUSTRY_DB_FLOOR = 40;
+const RELATED_EXP_CEILING_BY_RECOMMENDATION: Record<MatchingResult["recommendation"], number> = {
+    strong_match: 100,
+    match: 100,
+    potential: 60,
+    no_match: 30,
+};
+const SALES_ROLE_KEYWORDS = [
+    "sales",
+    "sale",
+    "business development",
+    "account manager",
+    "客户开发",
+    "销售",
+    "业务",
+    "商务",
+];
+const DOMAIN_IRRELEVANT_SALES_KEYWORDS = [
+    "保险", "人寿", "金融", "投资", "证券", "银行", "理财",
+    "房地产", "地产", "置业", "房产",
+    "教育", "培训", "学校",
+    "医疗", "医院", "医药",
+    "insurance", "assurance", "takaful",
+    "finance", "financial", "investment", "bank",
+    "real estate", "property",
+];
+const MACHINERY_DOMAIN_KEYWORDS = FALLBACK_INDUSTRY_KEYWORDS.machinery.map((keyword) => keyword.toLowerCase());
 
 function compactWhitespace(value: string): string {
     return value.replace(/\s+/g, " ").trim();
@@ -194,7 +230,204 @@ function toStoredRawResponse(value: string): string {
     return trimText(compact, MAX_RAW_RESPONSE_LENGTH);
 }
 
+function clamp(value: number, min: number, max: number): number {
+    return Math.min(max, Math.max(min, value));
+}
+
+function parseNumericBreakdown(value: unknown): MatchingBreakdown | undefined {
+    const record = toObject(value);
+    if (!record) return undefined;
+
+    const numericEntries = Object.entries(record).flatMap(([key, item]) => {
+        if (typeof item === "number" && Number.isFinite(item)) {
+            return [[key, item] as const];
+        }
+        if (typeof item === "string") {
+            const parsed = Number(item);
+            if (Number.isFinite(parsed)) {
+                return [[key, parsed] as const];
+            }
+        }
+        return [];
+    });
+
+    return numericEntries.length > 0 ? Object.fromEntries(numericEntries) : undefined;
+}
+
 type MatchingResumeRoleSignal = NonNullable<MatchingRequest["resume"]["roleSignals"]>[number];
+type MatchingResumeWorkEntry = NonNullable<MatchingResumeRoleSignal["matchedWorkEntries"]>[number];
+
+function resolveResumeMarket(resume: MatchingRequest["resume"]): "CN" | "MY" {
+    const explicitMarket = resume.market?.trim().toUpperCase();
+    if (explicitMarket === "MY") {
+        return "MY";
+    }
+    if (explicitMarket === "CN") {
+        return "CN";
+    }
+
+    return deriveMarketFromSourceKey(resume.sourceKey);
+}
+
+function computeDeterministicIndustryDb(resume: MatchingRequest["resume"]): number {
+    const directIndustryDb = computeDirectIndustryDbScore({
+        brandHits: resume.brandHits,
+        companyHits: resume.companyHits,
+        industryDbV2Raw: resume.industryDbV2Raw,
+    });
+    const market = resolveResumeMarket(resume);
+    return market === "MY" ? Math.max(MY_INDUSTRY_DB_FLOOR, directIndustryDb) : directIndustryDb;
+}
+
+function inferRoleFilterType(jobDescription: MatchingRequest["jobDescription"]): string | undefined {
+    const haystack = [
+        jobDescription.title,
+        jobDescription.requirements,
+        jobDescription.responsibilities,
+    ].filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+        .join(" ")
+        .toLowerCase();
+
+    return SALES_ROLE_KEYWORDS.some((keyword) => haystack.includes(keyword)) ? "sales" : undefined;
+}
+
+function inferMinRoleYears(jobDescription: MatchingRequest["jobDescription"]): number | undefined {
+    const haystack = [
+        jobDescription.requirements,
+        jobDescription.responsibilities,
+    ].filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+        .join(" ");
+
+    const match = haystack.match(/(\d+(?:\.\d+)?)\s*(?:\+)?\s*(?:years?|yrs?|年)(?:以上|经验|of experience)?/i);
+    if (!match) return undefined;
+    const parsed = Number(match[1]);
+    return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function roleTypeMatches(signalType: string, roleFilterType: string | undefined): boolean {
+    if (!roleFilterType || roleFilterType.trim().toLowerCase() === "any") {
+        return true;
+    }
+    return signalType.trim().toLowerCase() === roleFilterType.trim().toLowerCase();
+}
+
+function formatMatchedWorkEntry(entry: MatchingResumeWorkEntry): string | undefined {
+    const parts = [
+        entry.jobTitle?.trim(),
+        entry.companyName?.trim() ? `@ ${entry.companyName.trim()}` : undefined,
+        Number.isFinite(entry.years) ? `(${entry.years}y)` : undefined,
+    ].filter((item): item is string => Boolean(item));
+
+    return parts.length > 0 ? parts.join(" ") : undefined;
+}
+
+function buildSalesEntryDomainText(signal: MatchingResumeRoleSignal, entries: MatchingResumeWorkEntry[]): string {
+    const signalMatchedSignals = signal.matchedSignals.filter((value) => value.trim().length > 0);
+    const entryParts = entries.flatMap((entry) => {
+        const parts: string[] = [];
+        if (entry.companyName?.trim()) {
+            parts.push(entry.companyName.trim());
+        }
+        if (entry.jobTitle?.trim()) {
+            parts.push(entry.jobTitle.trim());
+        }
+        parts.push(...entry.matchedSignals.filter((value) => value.trim().length > 0));
+        return parts;
+    });
+
+    return [...signalMatchedSignals, ...entryParts].join(" ").toLowerCase();
+}
+
+function isDomainIrrelevantSalesEntry(entry: MatchingResumeWorkEntry): boolean {
+    const text = [
+        entry.companyName?.trim(),
+        entry.jobTitle?.trim(),
+        ...entry.matchedSignals.filter((value) => value.trim().length > 0),
+    ].filter((item): item is string => Boolean(item)).join(" ").toLowerCase();
+
+    return DOMAIN_IRRELEVANT_SALES_KEYWORDS.some((keyword) => text.includes(keyword));
+}
+
+function hasMachineryDomainText(text: string): boolean {
+    return MACHINERY_DOMAIN_KEYWORDS.some((keyword) => text.includes(keyword));
+}
+
+function buildRelatedExpNormalizeArg(
+    resume: MatchingRequest["resume"],
+    jobDescription: MatchingRequest["jobDescription"],
+    locale?: string,
+): { context: RelatedExpContextInput; ingestEvidence: Parameters<typeof evaluateRelatedExpEvidence>[0]["ingestEvidence"] } | undefined {
+    const roleFilterType = inferRoleFilterType(jobDescription);
+    if (!roleFilterType) {
+        return undefined;
+    }
+
+    const minRoleYears = inferMinRoleYears(jobDescription);
+    const relatedExpContext: RelatedExpContextInput = {
+        roleFilterType,
+        ...(minRoleYears === undefined ? {} : { minRoleYears }),
+        market: resolveResumeMarket(resume),
+        ...(locale ? { locale } : {}),
+    };
+
+    const roleSignals = Array.isArray(resume.roleSignals) ? resume.roleSignals : [];
+    const matchingSignals = roleSignals.filter((signal) => roleTypeMatches(signal.type, relatedExpContext.roleFilterType));
+    let directRoleMatch = false;
+    let industryVerifiedRelevantYears = 0;
+    const matchedWorkEntries: string[] = [];
+    const myMarketContext = relatedExpContext.market === "MY";
+    let domainRelevantUnverified = false;
+
+    for (const signal of matchingSignals) {
+        if (typeof signal.industryVerifiedRelevantYears === "number" && Number.isFinite(signal.industryVerifiedRelevantYears)) {
+            industryVerifiedRelevantYears = Math.max(
+                industryVerifiedRelevantYears,
+                Math.max(0, signal.industryVerifiedRelevantYears),
+            );
+        }
+
+        if (!Array.isArray(signal.matchedWorkEntries)) {
+            continue;
+        }
+
+        const rawEntries = signal.matchedWorkEntries.filter(
+            (entry): entry is MatchingResumeWorkEntry => typeof entry.years === "number" && Number.isFinite(entry.years),
+        );
+
+        for (const entry of rawEntries) {
+            directRoleMatch = directRoleMatch || entry.directRoleMatch === true;
+            const formatted = formatMatchedWorkEntry(entry);
+            if (formatted) {
+                matchedWorkEntries.push(formatted);
+            }
+        }
+
+        if (!myMarketContext || industryVerifiedRelevantYears > 0) {
+            continue;
+        }
+
+        const hasDirectSalesEntry = rawEntries.some((entry) => entry.directRoleMatch === true);
+        const hasDomainIrrelevantEntry = rawEntries.some((entry) => isDomainIrrelevantSalesEntry(entry));
+        const salesEntryText = buildSalesEntryDomainText(signal, rawEntries);
+        const hasMachineryEvidence = hasMachineryDomainText(salesEntryText);
+        domainRelevantUnverified = domainRelevantUnverified || (
+            hasDirectSalesEntry
+            && hasMachineryEvidence
+            && !hasDomainIrrelevantEntry
+        );
+    }
+
+    return {
+        context: relatedExpContext,
+        ingestEvidence: {
+            directRoleMatch,
+            industryVerifiedRelevantYears,
+            matchedWorkEntries,
+            ...(myMarketContext ? { domainRelevantUnverified } : {}),
+        },
+    };
+}
+
 
 function formatRoleSignals(
     roleSignals: MatchingResumeRoleSignal[] | undefined,
@@ -325,7 +558,7 @@ export class AIMatchingService {
 
         try {
             const response = await this.callLLM(messages);
-            const parsed = this.parseResponse(response, prompt);
+            const parsed = this.parseResponse(response, request, prompt);
             return parsed;
         } catch (error) {
             const errorMessage = toCompactErrorMessage(error);
@@ -615,7 +848,11 @@ Return strictly valid JSON:
     /**
      * Parse the LLM response into MatchingResult
      */
-    private parseResponse(response: string, prompt?: ResumeAiPromptDocument): MatchingResult {
+    private parseResponse(
+        response: string,
+        request: MatchingRequest,
+        prompt?: ResumeAiPromptDocument,
+    ): MatchingResult {
         try {
             // Extract JSON from response (handle markdown code blocks)
             let jsonText = response.trim();
@@ -650,12 +887,53 @@ Return strictly valid JSON:
                 typeof parsed.recommendation === "string" ? parsed.recommendation : undefined,
                 score
             );
-
             const localeText = getResumeAiLocaleText(prompt?.normalized.locale);
+            const breakdown = parseNumericBreakdown(parsed.breakdown);
+            const market = resolveResumeMarket(request.resume);
+            const llmRelatedExp = typeof breakdown?.related_exp === "number" ? breakdown.related_exp : undefined;
+            const normalizedBreakdown = breakdown ? { ...breakdown } : undefined;
+
+            let effectiveScore = score;
+            let effectiveRecommendation = recommendation;
+
+            if (market === "MY" && llmRelatedExp !== undefined) {
+                const industryDb = computeDeterministicIndustryDb(request.resume);
+                let effectiveRelatedExp = clamp(
+                    llmRelatedExp,
+                    0,
+                    RELATED_EXP_CEILING_BY_RECOMMENDATION[recommendation],
+                );
+                const relatedExpArg = buildRelatedExpNormalizeArg(
+                    request.resume,
+                    request.jobDescription,
+                    prompt?.normalized.locale,
+                );
+
+                if (relatedExpArg) {
+                    const relatedExpEvidence = evaluateRelatedExpEvidence({
+                        context: relatedExpArg.context,
+                        llmRaw: llmRelatedExp,
+                        llmRecommendation: recommendation,
+                        ingestEvidence: relatedExpArg.ingestEvidence,
+                    });
+                    effectiveRelatedExp = relatedExpEvidence.effectiveRaw;
+                }
+
+                effectiveScore = computeFinalAiScore(effectiveRelatedExp, industryDb);
+                if (recommendation === "no_match") {
+                    effectiveScore = Math.min(effectiveScore, 39);
+                }
+                effectiveRecommendation = recommendationFromFinalAiScore(effectiveScore);
+
+                if (normalizedBreakdown) {
+                    normalizedBreakdown.related_exp = effectiveRelatedExp;
+                    normalizedBreakdown.industry_db = industryDb;
+                }
+            }
 
             return {
-                score,
-                recommendation,
+                score: effectiveScore,
+                recommendation: effectiveRecommendation,
                 highlights: Array.isArray(parsed.highlights)
                     ? parsed.highlights.map((item) => String(item))
                     : [],
@@ -663,6 +941,7 @@ Return strictly valid JSON:
                     ? parsed.concerns.map((item) => String(item))
                     : [],
                 summary: typeof parsed.summary === "string" ? parsed.summary : localeText.noAnalysisResult,
+                ...(normalizedBreakdown ? { breakdown: normalizedBreakdown } : {}),
                 rawResponse: toStoredRawResponse(response),
                 scoreSource: "ai",
             };
