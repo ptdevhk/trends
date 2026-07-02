@@ -1,4 +1,4 @@
-import { formatKeywordQuery, isSalesRequiredContext, parseKeywordQuery, resolveLocationHierarchy } from '@trends/shared'
+import { deriveMarketFromSourceKey, formatKeywordQuery, isSalesRequiredContext, parseKeywordQuery, resolveLocationHierarchy } from '@trends/shared'
 import { matchesSalaryFilter } from '@/hooks/resume-filter-helpers'
 import { useMutation, useQuery } from 'convex/react'
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, useTransition } from 'react'
@@ -942,7 +942,12 @@ export function useResumeSearchState() {
             hasBrandHits,
             hasCompanyHits,
           ),
-          resume.ingestData?.market,
+          resume.ingestData?.market
+            ?? deriveMarketFromSourceKey(
+              resolveResumeAnalysisSourceKey({
+                source: resume.source,
+              }),
+            ),
         )
         : undefined
       const score = resolveScore(

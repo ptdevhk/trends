@@ -5,6 +5,7 @@ import { v } from "convex/values";
 import { api } from "./_generated/api";
 import {
     getCurrentResumeAiPromptVersion,
+    FALLBACK_INDUSTRY_KEYWORDS,
     type RelatedExpContextInput,
     type RelatedExpIngestEvidence,
 } from "@trends/shared";
@@ -103,6 +104,57 @@ function formatMatchedWorkEntry(entry: Record<string, unknown>): string | undefi
     return `${titlePart}${companyPart}${yearsPart}`;
 }
 
+const DOMAIN_IRRELEVANT_SALES_KEYWORDS = [
+    "保险", "人寿", "金融", "投资", "证券", "银行", "理财",
+    "房地产", "地产", "置业", "房产",
+    "教育", "培训", "学校",
+    "医疗", "医院", "医药",
+    "insurance", "assurance", "takaful",
+    "finance", "financial", "investment", "bank",
+    "real estate", "property",
+];
+
+const MACHINERY_DOMAIN_KEYWORDS = FALLBACK_INDUSTRY_KEYWORDS.machinery.map((keyword) => keyword.toLowerCase());
+
+function buildSalesEntryDomainText(
+    signal: Record<string, unknown>,
+    entries: Record<string, unknown>[],
+): string {
+    const signalMatchedSignals = Array.isArray(signal.matchedSignals)
+        ? signal.matchedSignals.filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+        : [];
+    const entryParts = entries.flatMap((entry) => {
+        const parts: string[] = [];
+        if (typeof entry.companyName === "string" && entry.companyName.trim().length > 0) {
+            parts.push(entry.companyName.trim());
+        }
+        if (typeof entry.jobTitle === "string" && entry.jobTitle.trim().length > 0) {
+            parts.push(entry.jobTitle.trim());
+        }
+        if (Array.isArray(entry.matchedSignals)) {
+            parts.push(...entry.matchedSignals.filter((value): value is string => typeof value === "string" && value.trim().length > 0));
+        }
+        return parts;
+    });
+
+    return [...signalMatchedSignals, ...entryParts].join(" ").toLowerCase();
+}
+
+function isDomainIrrelevantSalesEntry(entry: Record<string, unknown>): boolean {
+    const companyName = typeof entry.companyName === "string" ? entry.companyName.trim() : "";
+    const jobTitle = typeof entry.jobTitle === "string" ? entry.jobTitle.trim() : "";
+    const matchedSignals = Array.isArray(entry.matchedSignals)
+        ? entry.matchedSignals.filter((value): value is string => typeof value === "string" && value.trim().length > 0).join(" ")
+        : "";
+    const text = `${companyName} ${jobTitle} ${matchedSignals}`.toLowerCase();
+
+    return DOMAIN_IRRELEVANT_SALES_KEYWORDS.some((keyword) => text.includes(keyword));
+}
+
+function hasMachineryDomainText(text: string): boolean {
+    return MACHINERY_DOMAIN_KEYWORDS.some((keyword) => text.includes(keyword));
+}
+
 export function buildRelatedExpCtxArg(
     resume: unknown,
     relatedExpContext: RelatedExpContextInput | undefined,
@@ -123,6 +175,9 @@ export function buildRelatedExpCtxArg(
     let directRoleMatch = false;
     let industryVerifiedRelevantYears = 0;
     const matchedWorkEntries: string[] = [];
+    const salesRoleContext = relatedExpContext.roleFilterType?.trim().toLowerCase() === "sales";
+    const myMarketContext = relatedExpContext.market?.trim().toUpperCase() === "MY";
+    let domainRelevantUnverified = false;
 
     for (const signal of matchingSignals) {
         const signalYears = readFiniteNumber(signal.industryVerifiedRelevantYears);
@@ -134,6 +189,7 @@ export function buildRelatedExpCtxArg(
             continue;
         }
 
+        const rawEntries = signal.matchedWorkEntries.filter(isObject);
         for (const rawEntry of signal.matchedWorkEntries) {
             if (!isObject(rawEntry)) {
                 continue;
@@ -144,6 +200,21 @@ export function buildRelatedExpCtxArg(
                 matchedWorkEntries.push(formatted);
             }
         }
+
+        if (!salesRoleContext || !myMarketContext || industryVerifiedRelevantYears > 0) {
+            continue;
+        }
+
+        const hasDirectSalesEntry = rawEntries.some((entry) => entry.directRoleMatch === true);
+        const hasDomainIrrelevantEntry = rawEntries.some((entry) => isDomainIrrelevantSalesEntry(entry));
+        const salesEntryText = buildSalesEntryDomainText(signal, rawEntries);
+        const hasMachineryEvidence = hasMachineryDomainText(salesEntryText);
+
+        domainRelevantUnverified = domainRelevantUnverified || (
+            hasDirectSalesEntry
+            && hasMachineryEvidence
+            && !hasDomainIrrelevantEntry
+        );
     }
 
     return {
@@ -152,6 +223,7 @@ export function buildRelatedExpCtxArg(
             directRoleMatch,
             industryVerifiedRelevantYears,
             matchedWorkEntries,
+            ...(salesRoleContext && myMarketContext ? { domainRelevantUnverified } : {}),
         },
     };
 }

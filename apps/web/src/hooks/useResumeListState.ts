@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery } from 'convex/react'
 import {
   buildWorkHistoryEntryText,
+  deriveMarketFromSourceKey,
   formatKeywordQuery,
   isLocationMatch,
   selectLatestWorkHistory,
@@ -1228,10 +1229,11 @@ export function useResumeListState(loadSearchHistory = false) {
       return filteredConvexResumes.map((resume: ScoredConvexResume, index: number) => {
         const resumeKey = buildResumeKey(resume, index)
         const identityKey = getResumeIdentityKey(resume, resumeKey)
+        const analysisSourceKey = resolveAnalysisSourceKeyForResume(resume, sessionCollectionSource)
         const analysis = getAnalysisForJob(resume, jobDescriptionId, sessionKeywords, {
           location: sessionLocation,
           promptVersion: currentPromptVersion,
-          sourceKey: resolveAnalysisSourceKeyForResume(resume, sessionCollectionSource),
+          sourceKey: analysisSourceKey,
         })
         const isAnalysisValid = !jobDescriptionId || analysis?.jobDescriptionId === jobDescriptionId
         const ingestData = resume.ingestData
@@ -1245,7 +1247,7 @@ export function useResumeListState(loadSearchHistory = false) {
                 hasBrandHits,
                 hasCompanyHits,
               ),
-              ingestData?.market,
+              ingestData?.market ?? deriveMarketFromSourceKey(analysisSourceKey),
             )
           : undefined
 

@@ -5,10 +5,12 @@
  * signals, computing industry DB scores, and ensuring summary consistency.
  */
 import {
+    deriveMarketFromSourceKey,
     isRecord,
     evaluateRelatedExpEvidence,
     computeFinalAiScore,
     recommendationFromFinalAiScore,
+    resolveResumeAnalysisSourceKey,
     type RelatedExpContextInput,
     type RelatedExpIngestEvidence,
     type RelatedExpEvidenceResult,
@@ -69,6 +71,7 @@ export const RELATED_EXP_WEIGHT = INDUSTRY_DB_SCORE_CAP / 100;
 // computeDirectIndustryDb() in apps/web/src/lib/resume-scoring.ts.
 const INDUSTRY_DB_SINGLE_HIT_SCORE = 40;
 const INDUSTRY_DB_BOTH_HIT_BOOST = 10;
+const MY_INDUSTRY_DB_FLOOR = 40;
 
 export const RELATED_EXP_CEILING_BY_RECOMMENDATION: Record<AnalysisRecommendation, number> = {
     strong_match: 100,
@@ -278,6 +281,28 @@ export function computeDirectIndustryDbScoreFromResume(resume: unknown): number 
     return clamp(Math.max(raw, directHitScore), 0, INDUSTRY_DB_SCORE_CAP);
 }
 
+function resolveResumeMarket(resume: unknown): "CN" | "MY" {
+    const ingestData = getResumeIngestData(resume);
+    const explicitMarket = typeof ingestData.market === "string" ? ingestData.market.trim().toUpperCase() : "";
+    if (explicitMarket === "MY") {
+        return "MY";
+    }
+    if (explicitMarket === "CN") {
+        return "CN";
+    }
+
+    const root = isRecord(resume) ? resume : {};
+    const content = isRecord(root.content) ? root.content : {};
+    const sourceKey = typeof root.sourceKey === "string"
+        ? root.sourceKey
+        : (typeof content.profileType === "string" ? content.profileType : undefined);
+    const source = typeof root.source === "string"
+        ? root.source
+        : (typeof content.source === "string" ? content.source : undefined);
+    const canonicalSourceKey = resolveResumeAnalysisSourceKey({ sourceKey, source });
+    return deriveMarketFromSourceKey(canonicalSourceKey);
+}
+
 // ---------------------------------------------------------------------------
 // Normalization
 // ---------------------------------------------------------------------------
@@ -364,7 +389,9 @@ export function normalizeAnalysisResult(
 } {
     const breakdown = parseNumericBreakdown(result.breakdown);
     const llmRelatedExp = toNumber(breakdown?.related_exp);
-    const industryDb = computeDirectIndustryDbScoreFromResume(resume);
+    const directIndustryDb = computeDirectIndustryDbScoreFromResume(resume);
+    const market = resolveResumeMarket(resume);
+    const industryDb = market === "MY" ? Math.max(MY_INDUSTRY_DB_FLOOR, directIndustryDb) : directIndustryDb;
 
     if (llmRelatedExp === undefined) {
         console.warn("LLM related_exp invalid, falling back to related_exp=0");

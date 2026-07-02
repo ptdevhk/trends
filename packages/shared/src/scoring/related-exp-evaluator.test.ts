@@ -64,6 +64,39 @@ describe("evaluateRelatedExpEvidence: coverage bands", () => {
         expect(result.evidenceBandMax).toBe(30);
         expect(result.missingReasons.length).toBeGreaterThan(0);
     });
+
+    it("MY domain-relevant unverified direct-sales resumes are treated as partial coverage instead of none", () => {
+        const result = evaluateRelatedExpEvidence({
+            context: { roleFilterType: "sales", minRoleYears: 1, market: "MY" },
+            llmRaw: 84,
+            llmRecommendation: "match",
+            ingestEvidence: {
+                directRoleMatch: true,
+                industryVerifiedRelevantYears: 0,
+                matchedWorkEntries: ["Sales Engineer @ XYZ CNC Machinery Sdn Bhd (6y)"],
+                domainRelevantUnverified: true,
+            },
+        });
+        expect(result.coverage).toBe("partial");
+        expect(result.evidenceBandMax).toBe(65);
+        expect(result.missingReasons).toContain("zero domain-verified relevant years");
+    });
+
+    it("MY unverified direct-sales resumes stay at none coverage when domain relevance is absent", () => {
+        const result = evaluateRelatedExpEvidence({
+            context: { roleFilterType: "sales", minRoleYears: 1, market: "MY" },
+            llmRaw: 84,
+            llmRecommendation: "match",
+            ingestEvidence: {
+                directRoleMatch: true,
+                industryVerifiedRelevantYears: 0,
+                matchedWorkEntries: ["Sales Manager @ Great Insurance Life (6y)"],
+                domainRelevantUnverified: false,
+            },
+        });
+        expect(result.coverage).toBe("none");
+        expect(result.evidenceBandMax).toBe(30);
+    });
 });
 
 // ---------------------------------------------------------------------------

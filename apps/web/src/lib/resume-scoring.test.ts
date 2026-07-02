@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { deriveMarketFromSourceKey } from '@trends/shared'
 import { buildKeywordAnalysisId } from './analysis-utils'
 import {
   buildLearningObservation,
@@ -553,6 +554,12 @@ describe('getResumeContentLocale', () => {
 
   it('returns undefined when source is missing', () => {
     expect(getResumeContentLocale({})).toBeUndefined()
+  })
+})
+
+describe('deriveMarketFromSourceKey', () => {
+  it('derives MY for seek source keys used by UI fallback logic', () => {
+    expect(deriveMarketFromSourceKey('seek')).toBe('MY')
   })
 })
 
