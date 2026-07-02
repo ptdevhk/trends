@@ -168,6 +168,110 @@ describe("buildRelatedExpCtxArg", () => {
       },
     });
   });
+
+  it("flags narrow MY domain-relevant unverified direct-sales evidence", () => {
+    const result = buildRelatedExpCtxArg(
+      {
+        ingestData: {
+          industryTags: ["机械", "销售"],
+          roleSignals: [
+            {
+              type: "sales",
+              matchedSignals: ["sales engineer", "cnc"],
+              signalCount: 2,
+              occurrences: 2,
+              years: 6,
+              industryVerifiedRelevantYears: 0,
+              matchedWorkEntries: [
+                {
+                  companyName: "XYZ CNC Machinery Sdn Bhd",
+                  jobTitle: "Sales Engineer",
+                  years: 6,
+                  industryVerified: false,
+                  matchedSignals: ["sales engineer", "cnc"],
+                  directRoleMatch: true,
+                },
+              ],
+              verifyIn: "workHistory",
+            },
+          ],
+        },
+      },
+      {
+        roleFilterType: "sales",
+        minRoleYears: 1,
+        market: "MY",
+        locale: "en",
+      },
+    );
+
+    expect(result).toEqual({
+      context: {
+        roleFilterType: "sales",
+        minRoleYears: 1,
+        market: "MY",
+        locale: "en",
+      },
+      ingestEvidence: {
+        directRoleMatch: true,
+        industryVerifiedRelevantYears: 0,
+        matchedWorkEntries: ["Sales Engineer @ XYZ CNC Machinery Sdn Bhd (6y)"],
+        domainRelevantUnverified: true,
+      },
+    });
+  });
+
+  it("does not flag MY domain-relevant unverified evidence for cross-industry sales companies", () => {
+    const result = buildRelatedExpCtxArg(
+      {
+        ingestData: {
+          industryTags: ["机械", "销售"],
+          roleSignals: [
+            {
+              type: "sales",
+              matchedSignals: ["sales manager"],
+              signalCount: 1,
+              occurrences: 1,
+              years: 6,
+              industryVerifiedRelevantYears: 0,
+              matchedWorkEntries: [
+                {
+                  companyName: "Great Insurance Life Sdn Bhd",
+                  jobTitle: "Sales Manager",
+                  years: 6,
+                  industryVerified: false,
+                  matchedSignals: ["sales manager"],
+                  directRoleMatch: true,
+                },
+              ],
+              verifyIn: "workHistory",
+            },
+          ],
+        },
+      },
+      {
+        roleFilterType: "sales",
+        minRoleYears: 1,
+        market: "MY",
+        locale: "en",
+      },
+    );
+
+    expect(result).toEqual({
+      context: {
+        roleFilterType: "sales",
+        minRoleYears: 1,
+        market: "MY",
+        locale: "en",
+      },
+      ingestEvidence: {
+        directRoleMatch: true,
+        industryVerifiedRelevantYears: 0,
+        matchedWorkEntries: ["Sales Manager @ Great Insurance Life Sdn Bhd (6y)"],
+        domainRelevantUnverified: false,
+      },
+    });
+  });
 });
 
 // Test extractKeywords logic (duplicated as pure function for unit testing)

@@ -1654,6 +1654,47 @@ describe('useResumeSearchState', () => {
     expect(result.current.disableAnalyzeResults).toBe(true)
   })
 
+  it('derives MY floor from seek source when ingestData.market is missing', () => {
+    Object.assign(parsedStateMock, createParsedState({
+      query: 'machine tools',
+      keywords: ['machine tools'],
+      location: 'Malaysia',
+    }))
+
+    resumesMock.push(
+      createResume(1, {
+        source: 'seek',
+        ingestData: {
+          industryTags: ['Machine Tools'],
+          synonymHits: [],
+          brandHits: [],
+          companyHits: [],
+          industryDbV2Raw: 0,
+          ruleScores: {},
+          experienceLevel: 'senior',
+          computedAt: Date.now(),
+          skillsVersion: 1,
+        },
+        analysis: {
+          score: 15,
+          summary: 'legacy backend row',
+          highlights: [],
+          recommendation: 'match',
+          promptVersion: CURRENT_PROMPT_VERSION,
+          breakdown: {
+            related_exp: 30,
+            industry_db: 0,
+          },
+        },
+      }),
+    )
+
+    const { result } = renderHook(() => useResumeSearchState())
+
+    expect(result.current.results[0]?.analysis?.breakdown?.industry_db).toBe(40)
+    expect(result.current.results[0]?.analysis?.score).toBe(55)
+  })
+
   it('re-enables AI mode and auto-analyzes when a search is submitted from original mode', async () => {
     vi.stubEnv('VITE_ANALYSIS_TOP_N', '10')
 

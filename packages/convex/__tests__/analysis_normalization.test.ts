@@ -375,6 +375,13 @@ describe("computeDirectIndustryDbScoreFromResume", () => {
             ingestData: { brandHits: [{ context: "client" }], companyHits: ["Acme"], industryDbV2Raw: 10 },
         })).toBe(50);
     });
+
+    it("keeps the direct score raw-only for MY resumes before market floor normalization", () => {
+        expect(computeDirectIndustryDbScoreFromResume({
+            sourceKey: "seek",
+            ingestData: { market: "MY", industryDbV2Raw: 0, brandHits: [], companyHits: [] },
+        })).toBe(0);
+    });
 });
 
 // ---------------------------------------------------------------------------
@@ -470,6 +477,33 @@ describe("normalizeAnalysisResult", () => {
             {},
         );
         expect(result.summary).toBe("No summary provided.");
+    });
+
+    it("applies authoritative MY industry_db floor when ingestData.market is MY", () => {
+        const result = normalizeAnalysisResult(
+            { recommendation: "match", breakdown: { related_exp: 30 } },
+            { sourceKey: "seek", ingestData: { market: "MY", industryDbV2Raw: 0, brandHits: [], companyHits: [] } },
+        );
+        expect(result.breakdown.industry_db).toBe(40);
+        expect(result.score).toBe(55);
+    });
+
+    it("applies authoritative MY industry_db floor when market is missing but source resolves to seek", () => {
+        const result = normalizeAnalysisResult(
+            { recommendation: "match", breakdown: { related_exp: 30 } },
+            { sourceKey: "seek", ingestData: { industryDbV2Raw: 0, brandHits: [], companyHits: [] } },
+        );
+        expect(result.breakdown.industry_db).toBe(40);
+        expect(result.score).toBe(55);
+    });
+
+    it("does not apply MY floor to CN resumes with missing hits", () => {
+        const result = normalizeAnalysisResult(
+            { recommendation: "match", breakdown: { related_exp: 30 } },
+            { sourceKey: "job5156", ingestData: { market: "CN", industryDbV2Raw: 0, brandHits: [], companyHits: [] } },
+        );
+        expect(result.breakdown.industry_db).toBe(0);
+        expect(result.score).toBe(15);
     });
 
     it("filters highlights and concerns to strings", () => {

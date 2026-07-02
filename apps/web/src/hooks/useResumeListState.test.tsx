@@ -1606,6 +1606,61 @@ describe('useResumeListState role filter regression', () => {
     expect(result.current.displayedResumes[0]?.match?.score).toBe(35)  // round(30*0.5)+20
   })
 
+  it('derives MY floor from seek profileType when ingestData.market is missing', async () => {
+    mockState.convexResumes = [
+      buildResume({
+        id: 'resume-my-fallback-1',
+        name: 'MY Fallback Resume',
+        source: 'my.employer.seek.com',
+        profileType: 'seek',
+        industryDbV2Raw: 0,
+        analysis: {
+          score: 15,
+          summary: 'Legacy backend row',
+          highlights: ['summary'],
+          recommendation: 'match',
+          breakdown: {
+            related_exp: 30,
+            industry_db: 0,
+          },
+          jobDescriptionId: 'lathe-sales',
+        },
+        roleSignals: [],
+      }),
+    ]
+    mockState.searchHistory = [
+      {
+        id: 'history-my-fallback',
+        sessionKey: 'session-1',
+        title: 'MY fallback test',
+        location: 'Malaysia',
+        keywords: ['CNC'],
+        jobDescriptionId: 'lathe-sales',
+        filters: {},
+        selectedTags: [],
+        selectedCompanies: [],
+        selectedExperienceLevel: undefined,
+        collectionSource: { type: 'seek' },
+        industryDbV2Stats: {
+          size: 50,
+          p80: 20,
+          histogram50: Array.from({ length: 51 }, (_, index) => (index === 20 ? 50 : 0)),
+        },
+        createdAt: 1,
+        lastOpenedAt: 2,
+      },
+    ]
+
+    const { result } = renderHook(() => useResumeListState())
+
+    await act(async () => {
+      await result.current.handleApplySearchHistory(mockState.searchHistory[0] as never)
+    })
+
+    expect(result.current.displayedResumes[0]?.match?.breakdown?.industry_db).toBe(40)
+    expect(result.current.displayedResumes[0]?.match?.score).toBe(55)
+  })
+
   it('bumps industry_db to brand section max when resume has brand hits', async () => {
     mockState.convexResumes = [
       buildResume({

@@ -35,6 +35,11 @@ export interface RelatedExpIngestEvidence {
     industryVerifiedRelevantYears?: number;
     /** Text evidence snippets from matched work entries (for missingReasons) */
     matchedWorkEntries?: string[];
+    /**
+     * Narrow MY-market escape hatch for direct-sales resumes whose company/title
+     * text is domain-relevant even though industry verification years are zero.
+     */
+    domainRelevantUnverified?: boolean;
 }
 
 export interface RelatedExpEvidenceInput {
@@ -64,7 +69,7 @@ export interface RelatedExpEvidenceResult {
 // Constants
 // ---------------------------------------------------------------------------
 
-const RUBRIC_VERSION = "1.0.0";
+const RUBRIC_VERSION = "1.1.0";
 
 const RECOMMENDATION_MAX: Record<string, number> = {
     strong_match: 100,
@@ -115,6 +120,10 @@ function classifyCoverage(
     directRoleMatch: boolean,
     domainYears: number,
     minRoleYears: number,
+    options?: {
+        market?: string;
+        domainRelevantUnverified?: boolean;
+    },
 ): { coverage: RelatedExpCoverage; missingReasons: string[] } {
     const missingReasons: string[] = [];
 
@@ -129,6 +138,13 @@ function classifyCoverage(
     // none: no domain evidence at all
     if (domainYears === 0) {
         missingReasons.push("zero domain-verified relevant years");
+        if (
+            options?.market === "MY"
+            && directRoleMatch
+            && options.domainRelevantUnverified === true
+        ) {
+            return { coverage: "partial", missingReasons };
+        }
         return { coverage: "none", missingReasons };
     }
 
@@ -163,6 +179,7 @@ export function evaluateRelatedExpEvidence(
     const { context, llmRaw, llmRecommendation, ingestEvidence } = input;
 
     const directRoleMatch = ingestEvidence.directRoleMatch ?? false;
+    const domainRelevantUnverified = ingestEvidence.domainRelevantUnverified === true;
     const domainYears = typeof ingestEvidence.industryVerifiedRelevantYears === "number"
         && Number.isFinite(ingestEvidence.industryVerifiedRelevantYears)
         ? Math.max(0, ingestEvidence.industryVerifiedRelevantYears)
@@ -173,7 +190,10 @@ export function evaluateRelatedExpEvidence(
         : 0;
 
     const recommendationMax = RECOMMENDATION_MAX[llmRecommendation] ?? 30;
-    const { coverage, missingReasons } = classifyCoverage(directRoleMatch, domainYears, minRoleYears);
+    const { coverage, missingReasons } = classifyCoverage(directRoleMatch, domainYears, minRoleYears, {
+        market: context.market,
+        domainRelevantUnverified,
+    });
     const evidenceBandMax = EVIDENCE_BAND_MAX[coverage];
 
     const safeRaw = clamp(typeof llmRaw === "number" && Number.isFinite(llmRaw) ? llmRaw : 0, 0, 100);
