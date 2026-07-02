@@ -933,10 +933,12 @@ export function buildAiResumePayload(item: {
   resume: ResumeItem;
   resumeId: string;
   indexData: ResumeIndex;
+  brandHits?: PreparedResumeCandidate["brandHits"];
   companyHits: string[];
   roleSignals: PreparedResumeCandidate["roleSignals"];
 }): import("./ai-matching.js").MatchingRequest["resume"] {
   const latestWorkHistory = getLatestWorkHistory(item.resume.workHistory);
+  const ingestData = item.resume.ingestData;
   return {
     id: item.resumeId,
     name: item.resume.name || "未命名",
@@ -944,10 +946,16 @@ export function buildAiResumePayload(item: {
     education: item.resume.education || undefined,
     skills: item.indexData.skills,
     companies: item.indexData.companies.length > 0 ? item.indexData.companies : extractCompanies(latestWorkHistory),
+    brandHits: item.brandHits && item.brandHits.length > 0 ? item.brandHits : undefined,
     companyHits: item.companyHits,
     roleSignals: item.roleSignals,
     workHistory: buildLatestWorkHistoryEvidence(latestWorkHistory).lines.join("\n") || undefined,
-    sourceKey: resolveResumeAnalysisSourceKey({ sourceKey: item.resume.profileType }),
+    sourceKey: resolveResumeAnalysisSourceKey({
+      sourceKey: item.resume.profileType,
+      source: item.resume.source,
+    }),
+    market: ingestData?.market,
+    industryDbV2Raw: ingestData?.industryDbV2Raw,
   };
 }
 

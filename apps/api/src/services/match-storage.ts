@@ -63,6 +63,10 @@ export function parseJsonObject(
   if (typeof value !== "string" || !value.trim()) return undefined;
   try {
     const parsed = JSON.parse(value) as Record<string, unknown>;
+    const numericBreakdown = Object.fromEntries(
+      Object.entries(parsed)
+        .filter((entry): entry is [string, number] => typeof entry[1] === "number" && Number.isFinite(entry[1])),
+    );
     const requiredKeys = [
       "skillMatch",
       "experienceMatch",
@@ -70,20 +74,20 @@ export function parseJsonObject(
       "locationMatch",
       "industryMatch",
     ];
-    const hasAllKeys = requiredKeys.every((key) => typeof parsed[key] === "number");
-    if (!hasAllKeys) return undefined;
-    const brandRelevance = typeof parsed.brandRelevance === "number"
-      ? Number(parsed.brandRelevance)
-      : 0;
-    return {
-      skillMatch: Number(parsed.skillMatch),
-      roleMatch: typeof parsed.roleMatch === "number" ? Number(parsed.roleMatch) : 0,
-      experienceMatch: Number(parsed.experienceMatch),
-      educationMatch: Number(parsed.educationMatch),
-      locationMatch: Number(parsed.locationMatch),
-      industryMatch: Number(parsed.industryMatch),
-      brandRelevance,
-    };
+    const hasLegacyBreakdown = requiredKeys.every((key) => typeof parsed[key] === "number");
+    const hasAiNormalizedBreakdown = typeof parsed.related_exp === "number"
+      || typeof parsed.industry_db === "number";
+    if (hasLegacyBreakdown) {
+      return {
+        ...numericBreakdown,
+        ...(typeof numericBreakdown.roleMatch === "number" ? {} : { roleMatch: 0 }),
+        ...(typeof numericBreakdown.brandRelevance === "number" ? {} : { brandRelevance: 0 }),
+      };
+    }
+    if (hasAiNormalizedBreakdown) {
+      return Object.keys(numericBreakdown).length > 0 ? numericBreakdown : undefined;
+    }
+    return undefined;
   } catch {
     return undefined;
   }

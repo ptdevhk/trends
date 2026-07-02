@@ -6,6 +6,7 @@
 > **autonomous long-running cycles**, **CI-gated auto-merge** (4 required checks),
 > **Playwright-CLI against `make dev`** for browser-facing changes,
 > **resume search · collection · AI scoring** as critical paths.
+> Merge-bound work defaults to **`/dev-loop` as the cycle driver**; manual branch/PR/merge flow is exception-only.
 
 ## Identity
 
@@ -375,6 +376,7 @@ notes:
   gotcha: BFF and Convex search filters MUST stay in lockstep (3 paths) — see concepts/bff-convex-filter-path-alignment
   gotcha: Resume backups live at output/resume-backups/ — restore via `make local-restore-from-prod FILE=...`
   gotcha: cmux task sandboxes (CMUX_TASK_RUN_JWT set, CMUX_IS_ORCHESTRATION_HEAD unset) MUST NOT run gh pr create — cmux handles it
+  merge_policy: Merge-bound work defaults to /dev-loop; manual branch/PR/merge sequencing is allowed only when the user explicitly asks for it or the task is local-only
   gotcha: preview deploys MUST verify admin login after setup-preview.sh or restore-preview-from-prod.sh — if AUTH_BOOTSTRAP_PASSWORD is set in .env.preview, run: curl -s -X POST https://preview.pt-mes.com/api/auth/login -H 'Content-Type: application/json' -d '{"username":"admin","password":"<pw>"}' | grep -q '"success":true'; setup-preview.sh now fails hard on seeding errors; restore-preview-from-prod.sh auto-verifies in its verification block
   vault_drift: scoring + search concept pages drift fastest — re-check after PRs touching resumes.ts or aiScoring.ts
   cron: "7,22,37,52 * * * *" durable, runs `/loop /dev-loop high` — auto-expires 7d, renew with CronCreate

@@ -138,6 +138,9 @@ export function parseRoleSignals(value: unknown): RoleSignalSummary[] {
             years: entryYears,
             industryVerified: entry.industryVerified === true,
             matchedSignals: toStringArray(entry.matchedSignals),
+            ...(typeof entry.directRoleMatch === "boolean"
+              ? { directRoleMatch: entry.directRoleMatch }
+              : {}),
           }];
         })
       : undefined;

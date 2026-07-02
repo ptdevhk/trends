@@ -14998,20 +14998,7 @@ export interface components {
             };
         };
         MatchBreakdown: {
-            /** @example 20 */
-            skillMatch: number;
-            /** @example 8 */
-            roleMatch?: number;
-            /** @example 18 */
-            experienceMatch: number;
-            /** @example 12 */
-            educationMatch: number;
-            /** @example 15 */
-            locationMatch: number;
-            /** @example 10 */
-            industryMatch: number;
-            /** @example 7 */
-            brandRelevance: number;
+            [key: string]: number;
         };
         MatchStats: {
             processed: number;

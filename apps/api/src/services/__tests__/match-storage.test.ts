@@ -187,6 +187,20 @@ describe("normalizeMatch", () => {
     expect(result.breakdown).toBeDefined();
     expect(result.breakdown?.skillMatch).toBe(15);
   });
+
+  it("parses AI normalized breakdown JSON with related_exp and industry_db", () => {
+    const result = normalizeMatch({
+      ...baseRow,
+      breakdown: JSON.stringify({
+        related_exp: 65,
+        industry_db: 40,
+      }),
+    });
+    expect(result.breakdown).toMatchObject({
+      related_exp: 65,
+      industry_db: 40,
+    });
+  });
 });
 
 describe("normalizeMatchRun", () => {
