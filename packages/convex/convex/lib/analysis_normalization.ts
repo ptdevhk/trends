@@ -5,7 +5,10 @@
  * signals, computing industry DB scores, and ensuring summary consistency.
  */
 import {
+    applyMarketIndustryDbFloor,
+    computeIndustryDbDirectHitScore,
     deriveMarketFromSourceKey,
+    INDUSTRY_DB_DISPLAY_CAP,
     isRecord,
     evaluateRelatedExpEvidence,
     computeFinalAiScore,
@@ -57,21 +60,13 @@ export type NormalizedRoleSignal = {
 // Constants
 // ---------------------------------------------------------------------------
 
-export const INDUSTRY_DB_SCORE_CAP = 50;
+export const INDUSTRY_DB_SCORE_CAP = INDUSTRY_DB_DISPLAY_CAP;
 /**
  * @deprecated No longer part of the score formula. `score = related_exp` (the factor)
  * as of the P0.5 refactor; industry_db is a display/sort signal only. Kept for legacy
  * display compatibility and downstream consumers.
  */
 export const RELATED_EXP_WEIGHT = INDUSTRY_DB_SCORE_CAP / 100;
-
-// Direct-hit baseline for brand/company hits — must stay in sync with
-// INDUSTRY_DB_V2_SINGLE_HIT_SCORE / INDUSTRY_DB_V2_BOTH_HIT_BOOST
-// in apps/api/src/services/industry-db-batch-stats.ts and
-// computeDirectIndustryDb() in apps/web/src/lib/resume-scoring.ts.
-const INDUSTRY_DB_SINGLE_HIT_SCORE = 40;
-const INDUSTRY_DB_BOTH_HIT_BOOST = 10;
-const MY_INDUSTRY_DB_FLOOR = 40;
 
 export const RELATED_EXP_CEILING_BY_RECOMMENDATION: Record<AnalysisRecommendation, number> = {
     strong_match: 100,
@@ -264,13 +259,6 @@ export function getResumeIngestData(resume: unknown): Record<string, unknown> {
     return {};
 }
 
-function computeIndustryDbDirectHitScore(brandHits: boolean, companyHits: boolean): number {
-    const hasAnyHit = brandHits || companyHits;
-    const hasBoth = brandHits && companyHits;
-    return (hasAnyHit ? INDUSTRY_DB_SINGLE_HIT_SCORE : 0)
-        + (hasBoth ? INDUSTRY_DB_BOTH_HIT_BOOST : 0);
-}
-
 export function computeDirectIndustryDbScoreFromResume(resume: unknown): number {
     const ingestData = getResumeIngestData(resume);
     const brandHits = hasNonEmployerBrandHits(ingestData.brandHits);
@@ -391,7 +379,7 @@ export function normalizeAnalysisResult(
     const llmRelatedExp = toNumber(breakdown?.related_exp);
     const directIndustryDb = computeDirectIndustryDbScoreFromResume(resume);
     const market = resolveResumeMarket(resume);
-    const industryDb = market === "MY" ? Math.max(MY_INDUSTRY_DB_FLOOR, directIndustryDb) : directIndustryDb;
+    const industryDb = applyMarketIndustryDbFloor(market, directIndustryDb);
 
     if (llmRelatedExp === undefined) {
         console.warn("LLM related_exp invalid, falling back to related_exp=0");
@@ -431,7 +419,7 @@ export function normalizeAnalysisResult(
     // Gate: preserve LLM no_match — prevent industryDb from overriding a semantic rejection.
     // A candidate explicitly rejected by the LLM must not be elevated to potential/match
     // even when they have recognized employer brand hits.
-    if (llmRecommendation === "no_match") {
+    if (llmRecommendation === "no_match" && market !== "MY") {
         score = Math.min(score, 39);
     }
 

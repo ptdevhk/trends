@@ -97,6 +97,10 @@ describe('App routes', () => {
   })
 
   it('shows a workspace-aware not found page for unknown workspace routes', async () => {
+    authState.user = { id: 'dev-user', status: 'active', displayName: 'Dev User' }
+    authState.memberships = [{ userId: 'dev-user', workspaceSlug: 'dev', role: 'user' }]
+    authState.workspaceRole = 'user'
+    authState.isAuthenticated = true
     window.history.pushState({}, '', '/dev/missing-route')
 
     render(<App />)
@@ -109,6 +113,10 @@ describe('App routes', () => {
   it('keeps the app shell visible when a non-search route render fails', async () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
     routeTestState.reviewPacketsShouldThrow = true
+    authState.user = { id: 'dev-user', status: 'active', displayName: 'Dev User' }
+    authState.memberships = [{ userId: 'dev-user', workspaceSlug: 'dev', role: 'user' }]
+    authState.workspaceRole = 'user'
+    authState.isAuthenticated = true
     window.history.pushState({}, '', '/dev/review-packets')
 
     render(<App />)
@@ -171,6 +179,17 @@ describe('App routes', () => {
     await waitFor(() => {
       expect(window.location.pathname).toBe('/dev/login')
       expect(window.location.search).toBe('?redirectTo=%2Fadmin%2Fsystem%2Fsettings%2Fauth%3Ftab%3Dusers')
+    })
+  })
+
+  it('redirects anonymous protected workspace resume routes through workspace login', async () => {
+    window.history.pushState({}, '', '/dev/resumes?q=CNC+Sales')
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(window.location.pathname).toBe('/dev/login')
+      expect(window.location.search).toBe('?redirectTo=%2Fdev%2Fresumes%3Fq%3DCNC%2BSales')
     })
   })
 

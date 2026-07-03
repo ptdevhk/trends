@@ -1140,6 +1140,18 @@ describe("IngestComputeService", () => {
   });
 
   describe("MY market graceful degradation", () => {
+    const internationalHitResume = {
+      data: [
+        {
+          ...SAMPLE_RESUME_JUNIOR.data[0],
+          workHistory: [
+            { raw: "2020-01~2024-12(4年11月)上海发那科机器人有限公司销售工程师，负责STAR车床销售、FANUC系统调试。" },
+            { raw: "2018-01~2019-12(1年11月)北京精雕科技集团有限公司销售工程师，负责STAR设备销售。" },
+          ],
+        },
+      ],
+    };
+
     it("should set market to CN by default (no sourceKey)", () => {
       const result = service.computeOne("resume-default", SAMPLE_RESUME_CNC_SALES);
       expect(result.market).toBe("CN");
@@ -1155,14 +1167,11 @@ describe("IngestComputeService", () => {
       expect(result.market).toBe("MY");
     });
 
-    it("should skip company/brand verification for MY market", () => {
-      const cnResult = service.computeOne("resume-cn", SAMPLE_RESUME_CNC_SALES, "job5156");
+    it("should gracefully return zero MY hits when no verified employer or brand matches exist", () => {
       const myResult = service.computeOne("resume-my", SAMPLE_RESUME_CNC_SALES, "seek");
 
-      // CN market should have some industry DB data
-      expect(cnResult.industryDbV2Raw).toBeGreaterThanOrEqual(0);
-
-      // MY market should always have zero industry DB scores
+      // This fixture has no qualifying international employer/brand evidence,
+      // so zero hits are expected — not because MY verification is skipped.
       expect(myResult.industryDbV2Raw).toBe(0);
       expect(myResult.brandHits).toEqual([]);
       expect(myResult.companyHits).toEqual([]);
@@ -1175,6 +1184,17 @@ describe("IngestComputeService", () => {
       });
     });
 
+    it("should keep international employer and brand verification active for MY resumes", () => {
+      const cnResult = service.computeOne("resume-cn-hit", internationalHitResume, "job5156");
+      const myResult = service.computeOne("resume-my-hit", internationalHitResume, "seek");
+
+      expect(myResult.companyHits).toEqual(cnResult.companyHits);
+      expect(myResult.brandHits).toEqual(cnResult.brandHits);
+      expect(myResult.industryDbV2RawComponents).toEqual(cnResult.industryDbV2RawComponents);
+      expect(myResult.industryDbV2Raw).toBe(cnResult.industryDbV2Raw);
+      expect(myResult.industryDbV2Raw).toBeGreaterThan(0);
+    });
+
     it("should still compute industryTags for MY market (keyword-based)", () => {
       const result = service.computeOne("resume-my", SAMPLE_RESUME_CNC_SALES, "seek");
 
@@ -1182,12 +1202,10 @@ describe("IngestComputeService", () => {
       expect(result.industryTags.length).toBeGreaterThan(0);
     });
 
-    it("should zero brandRelevance in rule scores for MY market", () => {
-      const cnResult = service.computeOne("resume-cn", SAMPLE_RESUME_CNC_SALES, "job5156");
+    it("should keep MY rule scoring active even when the resume has no direct hits", () => {
       const myResult = service.computeOne("resume-my", SAMPLE_RESUME_CNC_SALES, "seek");
 
-      // MY market scores should be <= CN scores (missing 10 brandRelevance pts)
-      expect(myResult.primaryRuleScore).toBeLessThanOrEqual(cnResult.primaryRuleScore);
+      expect(myResult.primaryRuleScore).toBeGreaterThan(0);
     });
   });
 });

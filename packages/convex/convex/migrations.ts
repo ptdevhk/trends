@@ -1736,8 +1736,8 @@ export const removeScreeningSessionCollectUrl = mutation({
 
 /**
  * Backfill `ingestData.market` on existing Seek resumes.
- * The `market` field was added for MY market graceful degradation —
- * Seek resumes need `market: "MY"` so the UI can suppress industry_db scoring.
+ * The `market` field was added for MY market scoring normalization —
+ * Seek resumes need `market: "MY"` so runtime can apply the MY 40-floor / 50-hit rule.
  */
 export const backfillMarketField = mutation({
     args: {
@@ -1763,7 +1763,7 @@ export const backfillMarketField = mutation({
                 ingestData: {
                     ...resume.ingestData,
                     market: "MY",
-                    // CN industry DB data doesn't apply to MY market — zero it out
+                    // Legacy CN-normalized raw values should not survive onto MY rows.
                     ...(resume.ingestData.industryDbV2Raw ? { industryDbV2Raw: 0 } : {}),
                 } as typeof resume.ingestData,
             });

@@ -1691,6 +1691,7 @@
   "auth": {
     "loginTitle": "登入",
     "loginSubtitle": "請輸入憑證以繼續",
+    "localDevBootstrap": "本機開發認證：先執行 bun run auth:bootstrap-demo，然後使用 demo-admin 與 AUTH_BOOTSTRAP_PASSWORD 登入（.env.example 預設值：demo-admin）。",
     "username": "使用者名稱",
     "password": "密碼",
     "signIn": "登入",

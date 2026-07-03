@@ -1,3 +1,8 @@
+import {
+  computeIndustryDbDirectHitScore,
+  INDUSTRY_DB_DISPLAY_CAP,
+} from "@trends/shared";
+
 export type IndustryDbV2BatchStats = {
   size: number;
   p80: number;
@@ -16,12 +21,10 @@ export type NormalizedIndustryDbScore = {
   guardRailApplied: boolean;
 };
 
-const INDUSTRY_DB_V2_SCORE_CAP = 50;
+const INDUSTRY_DB_V2_SCORE_CAP = INDUSTRY_DB_DISPLAY_CAP;
 const INDUSTRY_DB_V2_HISTOGRAM_SIZE = 51;
 const INDUSTRY_DB_V2_MIN_NORMALIZATION_SAMPLE_SIZE = 30;
 const INDUSTRY_DB_V2_MIN_NONZERO_SAMPLE_SIZE = 5;
-const INDUSTRY_DB_V2_SINGLE_HIT_SCORE = 40;
-const INDUSTRY_DB_V2_BOTH_HIT_BOOST = 10;
 
 function roundTo2(value: number): number {
   return Number(value.toFixed(2));
@@ -66,16 +69,6 @@ function normalizeHistogram50(histogram50: number[]): number[] {
 
 function countHistogramSamples(histogram50: number[]): number {
   return histogram50.reduce((total, count) => total + count, 0);
-}
-
-function computeIndustryDbDirectHitScore(
-  hasBrandHits: boolean,
-  hasCompanyHits: boolean
-): number {
-  const hasAnyHit = hasBrandHits || hasCompanyHits;
-  const hasBoth = hasBrandHits && hasCompanyHits;
-  return (hasAnyHit ? INDUSTRY_DB_V2_SINGLE_HIT_SCORE : 0)
-    + (hasBoth ? INDUSTRY_DB_V2_BOTH_HIT_BOOST : 0);
 }
 
 export function bumpIndustryDbV2Raw(

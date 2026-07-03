@@ -9,11 +9,15 @@
  */
 import { describe, expect, it } from "vitest";
 import {
+  applyMarketIndustryDbFloor,
+  computeIndustryDbDirectHitScore,
   computeRelatedExpContribution,
   computeFinalAiScore,
   recommendationFromFinalAiScore,
+  MY_INDUSTRY_DB_FLOOR,
   RELATED_EXP_DISPLAY_WEIGHT,
   INDUSTRY_DB_DISPLAY_CAP,
+  summarizeNonEmployerBrandHits,
 } from "./resume-score-semantics.js";
 
 // ---------------------------------------------------------------------------
@@ -26,6 +30,64 @@ describe("constants", () => {
 
   it("INDUSTRY_DB_DISPLAY_CAP is 50", () => {
     expect(INDUSTRY_DB_DISPLAY_CAP).toBe(50);
+  });
+
+  it("MY_INDUSTRY_DB_FLOOR is 40", () => {
+    expect(MY_INDUSTRY_DB_FLOOR).toBe(40);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// deterministic industry_db helpers
+// ---------------------------------------------------------------------------
+describe("computeIndustryDbDirectHitScore", () => {
+  it("returns 50 for a brand hit", () => {
+    expect(computeIndustryDbDirectHitScore(true, false)).toBe(50);
+  });
+
+  it("returns 50 for a company hit", () => {
+    expect(computeIndustryDbDirectHitScore(false, true)).toBe(50);
+  });
+
+  it("returns 50 when both hit types exist", () => {
+    expect(computeIndustryDbDirectHitScore(true, true)).toBe(50);
+  });
+
+  it("returns 0 when no hit exists", () => {
+    expect(computeIndustryDbDirectHitScore(false, false)).toBe(0);
+  });
+});
+
+describe("applyMarketIndustryDbFloor", () => {
+  it("applies the MY floor when no hits exist", () => {
+    expect(applyMarketIndustryDbFloor("MY", 0)).toBe(40);
+  });
+
+  it("preserves the 50-point hit score for MY resumes", () => {
+    expect(applyMarketIndustryDbFloor("MY", 50)).toBe(50);
+  });
+
+  it("leaves CN scores untouched", () => {
+    expect(applyMarketIndustryDbFloor("CN", 0)).toBe(0);
+  });
+});
+
+describe("summarizeNonEmployerBrandHits", () => {
+  it("returns only non-employer brand names", () => {
+    expect(summarizeNonEmployerBrandHits([
+      { brand: "FANUC", context: "employer" },
+      { brand: "STAR", context: "industry" },
+      { brand: "OKK", context: "client" },
+    ])).toEqual(["STAR", "OKK"]);
+  });
+
+  it("deduplicates empty or repeated brand hits", () => {
+    expect(summarizeNonEmployerBrandHits([
+      { brand: "STAR", context: "industry" },
+      { brand: "STAR", context: "client" },
+      { brand: " ", context: "industry" },
+      null,
+    ])).toEqual(["STAR"]);
   });
 });
 

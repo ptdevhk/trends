@@ -1718,6 +1718,7 @@
   "auth": {
     "loginTitle": "登录",
     "loginSubtitle": "请输入凭证以继续",
+    "localDevBootstrap": "本地开发认证：先运行 bun run auth:bootstrap-demo，然后使用 demo-admin 和 AUTH_BOOTSTRAP_PASSWORD 登录（.env.example 默认值：demo-admin）。",
     "username": "用户名",
     "password": "密码",
     "signIn": "登录",

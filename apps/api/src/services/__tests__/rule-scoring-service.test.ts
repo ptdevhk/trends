@@ -272,7 +272,7 @@ describe("RuleScoringService", () => {
       expect(result.breakdown.educationMatch).toBe(0);
     });
 
-    it("returns brandRelevance 0 for MY market", () => {
+    it("returns brandRelevance 0 for MY market when no brand hits are present", () => {
       const index = makeIndex();
       const ctx = makeContext();
       const result = service.scoreResume(index, ctx, [], [], "MY");

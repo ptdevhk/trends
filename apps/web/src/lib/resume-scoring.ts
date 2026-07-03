@@ -1,10 +1,14 @@
 import {
+  applyMarketIndustryDbFloor,
+  computeIndustryDbDirectHitScore,
   buildLatestWorkHistoryEvidence,
   computeFinalAiScore,
   computeRelatedExpContribution,
   getCurrentResumeAiPromptVersion,
+  INDUSTRY_DB_DISPLAY_CAP,
   isRecord,
   normalizeOptionalString,
+  recommendationFromFinalAiScore,
   resolveResumeId,
 } from '@trends/shared'
 import type { ResumeItem } from '@/hooks/useResumes'
@@ -147,19 +151,7 @@ export function recommendationFromScore(score: number): Recommendation {
     return 'no_match'
   }
 
-  if (score >= 85) {
-    return 'strong_match'
-  }
-
-  if (score >= 70) {
-    return 'match'
-  }
-
-  if (score >= 50) {
-    return 'potential'
-  }
-
-  return 'no_match'
+  return recommendationFromFinalAiScore(score)
 }
 
 export function getRoleLabel(type: string): string {
@@ -410,8 +402,7 @@ function countHistogramSamples(histogram50: number[]): number {
   return histogram50.reduce((total, count) => total + count, 0)
 }
 
-const INDUSTRY_DB_V2_SCORE_CAP = 50
-const MY_INDUSTRY_DB_FLOOR = 40
+const INDUSTRY_DB_V2_SCORE_CAP = INDUSTRY_DB_DISPLAY_CAP
 
 const RELATED_EXP_CEILING_BY_RECOMMENDATION: Record<string, number> = {
   strong_match: 100,
@@ -420,19 +411,6 @@ const RELATED_EXP_CEILING_BY_RECOMMENDATION: Record<string, number> = {
   no_match: 30,
 }
 const INDUSTRY_DB_V2_MIN_NONZERO_SAMPLE_SIZE = 5
-
-const INDUSTRY_DB_V2_SINGLE_HIT_SCORE = 40
-const INDUSTRY_DB_V2_BOTH_HIT_BOOST = 10
-
-function computeIndustryDbDirectHitScore(
-  hasBrandHits: boolean,
-  hasCompanyHits: boolean,
-): number {
-  const hasAnyHit = hasBrandHits || hasCompanyHits
-  const hasBoth = hasBrandHits && hasCompanyHits
-  return (hasAnyHit ? INDUSTRY_DB_V2_SINGLE_HIT_SCORE : 0)
-    + (hasBoth ? INDUSTRY_DB_V2_BOTH_HIT_BOOST : 0)
-}
 
 export function computeDirectIndustryDb(
   raw: number | undefined,
@@ -566,7 +544,7 @@ export function overrideIndustryDbBreakdown(
   industryDb: number,
   market?: string,
 ): ConvexResumeAnalysis {
-  const effectiveIndustryDb = market === 'MY' ? Math.max(MY_INDUSTRY_DB_FLOOR, industryDb) : industryDb
+  const effectiveIndustryDb = applyMarketIndustryDbFloor(market, industryDb)
   const recommendationCeiling = RELATED_EXP_CEILING_BY_RECOMMENDATION[analysis.recommendation ?? ''] ?? 30
   const rawRelatedExp = typeof analysis.breakdown?.related_exp === 'number' ? analysis.breakdown.related_exp : 0
   // effectiveRelatedExp = factor after recommendation ceiling (and evidence ceiling if stored)
@@ -580,9 +558,14 @@ export function overrideIndustryDbBreakdown(
     industry_db: effectiveIndustryDb,
   }
 
+  let score = computeFinalAiScore(cappedRelatedExp, effectiveIndustryDb)
+  if (analysis.recommendation === 'no_match' && market !== 'MY') {
+    score = Math.min(score, 39)
+  }
+
   return {
     ...analysis,
-    score: computeFinalAiScore(cappedRelatedExp, effectiveIndustryDb),
+    score,
     breakdown: nextBreakdown,
   }
 }

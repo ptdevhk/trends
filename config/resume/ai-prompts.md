@@ -1,6 +1,6 @@
 ---
-version: 11
-updated_at: '2026-06-02'
+version: 12
+updated_at: '2026-07-03'
 description: >
   Canonical zh-Hans resume AI prompts for summary and screening analysis.
   This markdown file is the authoring source for the generated shared prompt runtime.
@@ -43,16 +43,19 @@ description: >
 
 ## 候选人信息
 **姓名**: {candidateName}
+**市场**: {market}
 **行业数据库验证公司**: {verifiedCompanies}
+**行业数据库品牌命中**: {brandHits}
 **工作经历证据**:
 {evidenceText}
 **岗位信号**:
 {roleSignals}
 
 ## industry_db 评分规则 (重要)
-- `breakdown.industry_db` 分数必须且只能基于"行业数据库验证公司"字段。
-- 如果"行业数据库验证公司"为"无"，则 `industry_db` 必须为 0。
-- 不要根据公司名称自行推测是否属于行业数据库，只以上方提供的验证结果为准。
+- 运行时会用确定性系统分数替换 AI 输出的 `breakdown.industry_db`，你给出的值仅用于审计一致性。
+- 只能使用上方提供的`市场`、`行业数据库验证公司`、`行业数据库品牌命中`字段；不要根据公司名称自行猜测隐藏命中。
+- 当 `市场 = MY` 时：如果验证公司和品牌命中都为“无”，则 `industry_db` 设为 `40`（MY floor）；如果任一字段存在命中，则 `industry_db` 设为 `50`。
+- 对于非 `MY` 市场：如果验证公司或品牌命中任一存在命中，则 `industry_db` 设为 `50`；如果两者都为“无”，则 `industry_db` 可以为 `0`。
 
 ## 关键词联合满足规则（重要）
 - 当职位要求包含多个关键词时（如 “CNC 销售”），候选人必须同时满足各关键词所描述的领域和角色，而不是单独匹配其中某一个。
@@ -123,9 +126,11 @@ description: >
 - `{requirements}`: 当前职位要求或关键词构造出的要求文本。
 - `{matchingRules}`: 评分规则说明，可能是默认规则或关键词匹配规则。
 - `{candidateName}`: 候选人姓名。
+- `{market}`: 候选人所属市场，用于确定性 MY 评分规则。
 - `{evidenceText}`: 从工作经历提取出的严格证据文本。
 - `{roleSignals}`: 从工作经历抽取出的结构化岗位信号，优先显示销售/工程/技术支持等实际岗位角色。
 - `{verifiedCompanies}`: 行业数据库验证通过的公司列表；无匹配时显示"无"。
+- `{brandHits}`: 非 employer 场景的行业品牌命中；无匹配时显示"无"。
 - `{workExperience}`: (保留于替换链路，模板不展示) 候选人总工作年限。
 - `{education}`: (保留于替换链路，模板不展示) 候选人学历。
 - `{companies}`: (保留于替换链路，模板不展示) 候选人公司名汇总。

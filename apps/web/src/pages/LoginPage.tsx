@@ -14,6 +14,7 @@ export function LoginPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const explicitRedirectTo = searchParams.get('redirectTo')
+  const showLocalDevAuthHint = import.meta.env.DEV && slug === 'dev'
 
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -47,6 +48,15 @@ export function LoginPage() {
             {t('auth.loginSubtitle', { defaultValue: 'Enter your credentials to continue' })}
           </p>
         </div>
+
+        {showLocalDevAuthHint ? (
+          <div className="rounded-md border border-amber-300/70 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+            {t('auth.localDevBootstrap', {
+              defaultValue:
+                'Local dev auth: run bun run auth:bootstrap-demo, then sign in as demo-admin with AUTH_BOOTSTRAP_PASSWORD (default .env.example: demo-admin).',
+            })}
+          </div>
+        ) : null}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
