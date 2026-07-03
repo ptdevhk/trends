@@ -21,7 +21,8 @@ cron_schedule: "7,22,37,52 * * * *"
 
 ```yaml
 prd_layer: tdd
-prd_pipeline: tdd-first         # plan → execute (TDD) → review → merge; no brainstorm/spec step
+prd_pipeline: tdd-first
+# plan → execute (TDD) → review → merge; no brainstorm/spec step
 ```
 
 ### PRD backends registry
