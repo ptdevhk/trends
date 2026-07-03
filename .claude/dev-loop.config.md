@@ -12,7 +12,7 @@
 
 ```yaml
 slug: trends
-vault: ~/wiki
+vault: auto
 release_branch: main
 project_filter: trends
 cron_schedule: "7,22,37,52 * * * *"
@@ -22,7 +22,8 @@ cron_schedule: "7,22,37,52 * * * *"
 
 ```yaml
 prd_layer: tdd
-prd_pipeline: tdd-first         # plan → execute (TDD) → review → merge; no brainstorm/spec step
+prd_pipeline: tdd-first
+# plan → execute (TDD) → review → merge; no brainstorm/spec step
 ```
 
 ### PRD backends registry
@@ -295,7 +296,7 @@ knowledge_layer: skillwiki
 ```yaml
 knowledge_backends:
   skillwiki:
-    vault: ~/wiki
+    vault: auto
     cli_entry: skillwiki
 ```
 
