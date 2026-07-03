@@ -11,7 +11,7 @@
 
 ```yaml
 slug: trends
-vault: ~/wiki
+vault: auto
 release_branch: main
 project_filter: trends
 cron_schedule: "7,22,37,52 * * * *"
@@ -294,7 +294,7 @@ knowledge_layer: skillwiki
 ```yaml
 knowledge_backends:
   skillwiki:
-    vault: ~/wiki
+    vault: auto
     cli_entry: skillwiki
 ```
 
