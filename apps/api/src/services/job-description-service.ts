@@ -9,6 +9,7 @@ import path from "node:path";
 import { parse as parseYaml } from "yaml";
 import { findProjectRoot } from "./db.js";
 import { DataNotFoundError } from "./errors.js";
+import { logger } from "./logger.js";
 import { isRecord } from "@trends/shared";
 
 // Types
@@ -214,7 +215,7 @@ export class JobDescriptionService {
   /**
    * Parse YAML frontmatter from markdown content
    */
-  private parseFrontmatter(content: string): Record<string, unknown> {
+  private parseFrontmatter(content: string, source?: string): Record<string, unknown> {
     const lines = content.split("\n");
     if (lines[0]?.trim() !== "---") return {};
 
@@ -231,7 +232,11 @@ export class JobDescriptionService {
     const frontmatterYaml = lines.slice(1, frontmatterEnd).join("\n");
     try {
       return parseYaml(frontmatterYaml) as Record<string, unknown>;
-    } catch {
+    } catch (error) {
+      logger.error("Failed to parse job description frontmatter", error, {
+        service: "job-description-service",
+        ...(source ? { source } : {}),
+      });
       return {};
     }
   }
@@ -267,7 +272,7 @@ export class JobDescriptionService {
         const filePath = path.join(dir, filename);
         const stat = fs.statSync(filePath);
         const content = fs.readFileSync(filePath, "utf8");
-        const fm = this.parseFrontmatter(content);
+        const fm = this.parseFrontmatter(content, filename);
 
         return {
           id: (fm.id as string) || filename.replace(/\.md$/i, ""),
@@ -313,7 +318,7 @@ export class JobDescriptionService {
 
     const content = fs.readFileSync(filePath, "utf8");
     const stat = fs.statSync(filePath);
-    const fm = this.parseFrontmatter(content);
+    const fm = this.parseFrontmatter(content, filename);
 
     const jd: JobDescriptionFull = {
       id: (fm.id as string) || normalizedName,
