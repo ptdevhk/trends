@@ -154,7 +154,8 @@ class WorkerClient {
     try {
       const result = await this.get<WorkerHealthResponse>("/health");
       return result.success && result.data?.status === "ok";
-    } catch {
+    } catch (error) {
+      console.error("[worker-client] Worker health check failed", error);
       return false;
     }
   }
