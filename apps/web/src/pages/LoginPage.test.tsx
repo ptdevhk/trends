@@ -53,6 +53,14 @@ describe('LoginPage', () => {
     expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument()
   })
 
+  it('shows local dev auth bootstrap guidance on the dev workspace login page', () => {
+    render(<LoginPage />)
+
+    expect(screen.getByText(/bun run auth:bootstrap-demo/i)).toBeInTheDocument()
+    expect(screen.getByText(/demo-admin/i)).toBeInTheDocument()
+    expect(screen.getByText(/AUTH_BOOTSTRAP_PASSWORD/i)).toBeInTheDocument()
+  })
+
   it('submits credentials and navigates to default path on success', async () => {
     mockLogin.mockResolvedValueOnce(loginResult('dev', 'user'))
     const user = userEvent.setup()

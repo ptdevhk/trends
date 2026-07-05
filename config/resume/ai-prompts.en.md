@@ -1,6 +1,6 @@
 ---
-version: 11
-updated_at: '2026-06-02'
+version: 12
+updated_at: '2026-07-03'
 description: >
   English locale variant for the resume AI prompts.
   Falls back to the zh-Hans master prompt when this file is absent.
@@ -43,16 +43,19 @@ Please analyze how well the following candidate matches the job:
 
 ## Candidate Information
 **Name**: {candidateName}
+**Market**: {market}
 **Industry Database Verified Companies**: {verifiedCompanies}
+**Industry Database Brand Hits**: {brandHits}
 **Work-History Evidence**:
 {evidenceText}
 **Role Signals**:
 {roleSignals}
 
 ## industry_db Scoring Rule (Important)
-- The `breakdown.industry_db` score must be based solely on the "Industry Database Verified Companies" field above.
-- If "Industry Database Verified Companies" is "none", then `industry_db` must be 0.
-- Do not guess whether a company belongs to the industry database based on its name alone; use only the verification result provided above.
+- The runtime replaces the AI-provided `breakdown.industry_db` with a deterministic system score. Your output is for audit consistency only.
+- Use ONLY the provided `Market`, `Industry Database Verified Companies`, and `Industry Database Brand Hits` fields above. Do not guess hidden hits from company names.
+- For `Market = MY`: if both verified companies and brand hits are `none`, set `industry_db` to `40` (MY floor). If only verified companies or only brand hits contain a hit, set `industry_db` to `40`; if both contain hits, set `industry_db` to `50`.
+- For markets other than `MY`: if only verified companies or only brand hits contain a hit, set `industry_db` to `40`; if both contain hits, set `industry_db` to `50`; if both are `none`, `industry_db` may be `0`.
 
 ## Keyword Joint-Satisfaction Rule (Important)
 - When job requirements contain multiple keywords (e.g. "CNC sales"), the candidate must satisfy ALL keywords' domain AND role simultaneously, not just one of them in isolation.
@@ -123,9 +126,11 @@ Return the analysis as JSON and ensure score is numeric:
 - `{requirements}`: Current job requirements or keyword-derived requirement text.
 - `{matchingRules}`: Scoring rules, either default scoring guidance or keyword-specific guidance.
 - `{candidateName}`: Candidate name.
+- `{market}`: Candidate market used by the deterministic MY scoring rule.
 - `{evidenceText}`: Strict work-history evidence extracted from resume history.
 - `{roleSignals}`: Structured role signals extracted from work history, prioritizing actual sales/engineering/technical-support roles.
 - `{verifiedCompanies}`: Companies verified against the industry database; shows "none" when no matches exist.
+- `{brandHits}`: Non-employer industry brand hits; shows "none" when no matches exist.
 - `{workExperience}`: (kept in hydration chain, not in template) Candidate total years of work experience.
 - `{education}`: (kept in hydration chain, not in template) Candidate education level.
 - `{companies}`: (kept in hydration chain, not in template) Candidate company summary.

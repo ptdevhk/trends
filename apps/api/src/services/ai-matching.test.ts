@@ -71,7 +71,9 @@ describe("AIMatchingService", () => {
 
         expect(service.lastMessages).toHaveLength(2);
         const promptContent = service.lastMessages[1]?.content ?? "";
+        expect(promptContent).toContain("**市场**: CN");
         expect(promptContent).toContain("行业数据库验证公司**: FANUC, 三菱");
+        expect(promptContent).toContain("**行业数据库品牌命中**: 无");
         expect(promptContent).toContain("岗位信号");
         expect(promptContent.match(/行业数据库验证公司\*\*: ([^\n]+)/)?.[1]).toBe("FANUC, 三菱");
         expect(result.score).toBe(86);
@@ -115,7 +117,9 @@ describe("AIMatchingService", () => {
         });
 
         const promptContent = service.lastMessages[1]?.content ?? "";
+        expect(promptContent).toContain("**Market**: MY");
         expect(promptContent).toContain("**Industry Database Verified Companies**: none");
+        expect(promptContent).toContain("**Industry Database Brand Hits**: none");
         expect(promptContent).toContain("**Work-History Evidence**:\nNo work history provided");
         expect(promptContent).toContain("**Role Signals**:");
         expect(promptContent).toContain("2 years verified");

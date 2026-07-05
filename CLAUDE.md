@@ -181,6 +181,7 @@ TARGET=all make sync-agent-governance  # Optional: run policy sync + governance 
 
 ### Known Gotchas
 - `EMBEDDING_ENABLED` env var gates all embedding/vector operations (default: OFF). Do not build features that depend on embeddings until a compatible API is configured. `hybridSearchResumes` falls back to BM25-only when disabled.
+- Protected workspace dev routes such as `/dev/resumes` are authenticated. For fresh clones, reset DBs, or browser automation on the dev server, first run `bun run auth:bootstrap-demo`, then sign in at `/dev/login` as `demo-admin` using `AUTH_BOOTSTRAP_PASSWORD` (default in `.env.example`: `demo-admin`). Use `/resumes` only for anonymous public-surface checks; do not treat anonymous `401` responses on `/dev/*` as valid browser verification.
 - After editing `apps/api/src/schemas/*.ts`, stage `apps/web/src/lib/api-types.ts` too — `make check` regenerates it and fails `git diff --exit-code` otherwise.
 - After changing `packages/shared/src/generated/search-profile-templates.ts` or YAML profiles, run `npm --workspace @trends/shared run build` — the compiled `dist/` is what `@trends/shared` resolves to at runtime/test time, not the TypeScript source.
 - `make clear-resumes` may raise `OptimisticConcurrencyControlFailure` when scheduled Convex jobs overlap; just re-run until `partial:false`.

@@ -11,6 +11,7 @@ import path from "node:path";
 import JSON5 from "json5";
 
 import {
+    applyMarketIndustryDbFloor,
     FALLBACK_INDUSTRY_KEYWORDS,
     computeFinalAiScore,
     deriveMarketFromSourceKey,
@@ -18,6 +19,7 @@ import {
     getResumeAiLocaleText,
     recommendationFromFinalAiScore,
     sanitizeResumeRecordForSurface,
+    summarizeNonEmployerBrandHits,
     type RelatedExpContextInput,
     type ResumeFieldUsagePolicy,
     type ResumeFieldUsagePolicyOverrides,
@@ -182,7 +184,6 @@ const SCORE_WORD_MAP: Record<string, number> = {
 
 const MAX_ERROR_TEXT_LENGTH = 320;
 const MAX_RAW_RESPONSE_LENGTH = 4000;
-const MY_INDUSTRY_DB_FLOOR = 40;
 const RELATED_EXP_CEILING_BY_RECOMMENDATION: Record<MatchingResult["recommendation"], number> = {
     strong_match: 100,
     match: 100,
@@ -276,7 +277,7 @@ function computeDeterministicIndustryDb(resume: MatchingRequest["resume"]): numb
         industryDbV2Raw: resume.industryDbV2Raw,
     });
     const market = resolveResumeMarket(resume);
-    return market === "MY" ? Math.max(MY_INDUSTRY_DB_FLOOR, directIndustryDb) : directIndustryDb;
+    return applyMarketIndustryDbFloor(market, directIndustryDb);
 }
 
 function inferRoleFilterType(jobDescription: MatchingRequest["jobDescription"]): string | undefined {
@@ -740,6 +741,9 @@ Return strictly valid JSON:
         const verifiedCompanies = Array.isArray(resume.companyHits) && analysisResume.companyHits !== undefined && resume.companyHits.length > 0
             ? resume.companyHits.join(", ")
             : localeText.noneLabel;
+        const brandHits = analysisResume.brandHits !== undefined
+            ? summarizeNonEmployerBrandHits(resume.brandHits)
+            : [];
         const evidenceText = typeof resume.workHistory === "string" && analysisResume.workHistory !== undefined && resume.workHistory.trim().length > 0
             ? resume.workHistory
             : localeText.noWorkHistoryLabel;
@@ -747,6 +751,7 @@ Return strictly valid JSON:
             Array.isArray(resume.roleSignals) && analysisResume.roleSignals !== undefined ? resume.roleSignals : undefined,
             localeText,
         );
+        const market = resolveResumeMarket(resume);
 
         return resumeAiPromptService.renderUserPromptTemplate(prompt.normalized.userPromptTemplate, {
             jobTitle: jobDescription.title,
@@ -756,6 +761,8 @@ Return strictly valid JSON:
                 ? resume.name
                 : localeText.emptyFieldLabel,
             verifiedCompanies,
+            brandHits: brandHits.length > 0 ? brandHits.join(", ") : localeText.noneLabel,
+            market,
             evidenceText,
             roleSignals,
             workExperience: String(typeof resume.workExperience === "number" && analysisResume.workExperience !== undefined ? resume.workExperience : 0),
@@ -920,7 +927,7 @@ Return strictly valid JSON:
                 }
 
                 effectiveScore = computeFinalAiScore(effectiveRelatedExp, industryDb);
-                if (recommendation === "no_match") {
+                if (recommendation === "no_match" && market !== "MY") {
                     effectiveScore = Math.min(effectiveScore, 39);
                 }
                 effectiveRecommendation = recommendationFromFinalAiScore(effectiveScore);

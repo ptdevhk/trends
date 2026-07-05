@@ -383,6 +383,64 @@ describe("AIMatchingService", () => {
       });
     });
 
+    it("recomputes MY final score with the 40-point single-hit baseline", async () => {
+      const llmResponse = JSON.stringify({
+        score: 30,
+        recommendation: "potential",
+        highlights: ["机械行业经验"],
+        concerns: [],
+        summary: "候选人具备相关经验",
+        breakdown: {
+          related_exp: 78,
+          industry_db: 0,
+        },
+      });
+      vi.spyOn(service, "callLLM" as keyof AIMatchingService).mockResolvedValueOnce(llmResponse);
+
+      const result = await service.matchResume(makeRequest({
+        sourceKey: "seek",
+        companyHits: ["fanuc"],
+      }));
+
+      expect(result).toMatchObject({
+        score: 70,
+        recommendation: "match",
+        breakdown: {
+          related_exp: 60,
+          industry_db: 40,
+        },
+      });
+    });
+
+    it("lets the MY floor lift legacy no_match outputs into the canonical 40+ range", async () => {
+      const llmResponse = JSON.stringify({
+        score: 18,
+        recommendation: "no_match",
+        highlights: [],
+        concerns: ["跨市场相关性偏弱"],
+        summary: "候选人与岗位相关性较弱",
+        breakdown: {
+          related_exp: 35,
+          industry_db: 0,
+        },
+      });
+      vi.spyOn(service, "callLLM" as keyof AIMatchingService).mockResolvedValueOnce(llmResponse);
+
+      const result = await service.matchResume(makeRequest({
+        sourceKey: "seek",
+        companyHits: [],
+      }));
+
+      expect(result).toMatchObject({
+        score: 55,
+        recommendation: "potential",
+        breakdown: {
+          related_exp: 30,
+          industry_db: 40,
+        },
+      });
+    });
+
     it("applies the MY unverified-sales evidence ceiling before computing the final score", async () => {
       const llmResponse = JSON.stringify({
         score: 86,

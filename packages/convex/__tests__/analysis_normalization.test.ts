@@ -343,14 +343,14 @@ describe("computeDirectIndustryDbScoreFromResume", () => {
         expect(computeDirectIndustryDbScoreFromResume({})).toBe(0);
     });
 
-    // Phase 1: default direct-hit rule — brand-only = 40, company-only = 40, both = 50
-    it("brand hit only → exactly 40 (single-hit baseline)", () => {
+    // Default direct-hit rule — brand-only = 40, company-only = 40, both = 50
+    it("brand hit only → exactly 40", () => {
         expect(computeDirectIndustryDbScoreFromResume({
             ingestData: { brandHits: [{ context: "client" }], companyHits: [], industryDbV2Raw: 0 },
         })).toBe(40);
     });
 
-    it("company hit only → exactly 40 (single-hit baseline)", () => {
+    it("company hit only → exactly 40", () => {
         expect(computeDirectIndustryDbScoreFromResume({
             ingestData: { companyHits: ["Acme"], brandHits: [], industryDbV2Raw: 0 },
         })).toBe(40);
@@ -363,7 +363,6 @@ describe("computeDirectIndustryDbScoreFromResume", () => {
     });
 
     it("high raw industryDbV2Raw wins over direct-hit baseline when raw > baseline", () => {
-        // brand-only baseline = 40, but raw = 45 > 40; raw wins, clamped to cap
         expect(computeDirectIndustryDbScoreFromResume({
             ingestData: { brandHits: [{ context: "client" }], companyHits: [], industryDbV2Raw: 45 },
         })).toBe(45);
@@ -607,6 +606,19 @@ describe("normalizeAnalysisResult", () => {
             expect(result.recommendation).toBe("no_match");
         });
 
+        it("does not apply the legacy no_match cap to MY floor-scored resumes", () => {
+            const result = normalizeAnalysisResult(
+                { recommendation: "no_match", breakdown: { related_exp: 35 } },
+                { ingestData: { market: "MY", brandHits: [], companyHits: [], industryDbV2Raw: 0 } },
+            );
+            expect(result.score).toBe(55);
+            expect(result.recommendation).toBe("potential");
+            expect(result.breakdown).toMatchObject({
+                related_exp: 30,
+                industry_db: 40,
+            });
+        });
+
         it("LLM match recommendation is not affected by the no_match gate", () => {
             const result = normalizeAnalysisResult(
                 { recommendation: "match", breakdown: { related_exp: 60 } },
@@ -743,8 +755,6 @@ describe("full-score audit integration — final AI score (RED)", () => {
                 },
             },
         );
-        // RED: currently score = 78 (related_exp factor only)
-        // EXPECTED after fix: score = round(78*0.5) + 40 = 79
         expect(result.score).toBe(79);
     });
 

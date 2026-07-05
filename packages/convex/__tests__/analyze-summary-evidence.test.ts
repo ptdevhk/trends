@@ -116,11 +116,15 @@ describe("analyze summary evidence lane", () => {
     expect(normalized.verifiedCompanies).toEqual(["\u5927\u8FDE\u673A\u5E8A", "\u6C88\u9633\u673A\u5E8A"]);
   });
 
-  it("prompt template contains {verifiedCompanies} and industry_db rule", () => {
+  it("prompt template contains MY market industry_db context placeholders", () => {
     expect(USER_PROMPT_TEMPLATE).toContain("{verifiedCompanies}");
+    expect(USER_PROMPT_TEMPLATE).toContain("{brandHits}");
+    expect(USER_PROMPT_TEMPLATE).toContain("{market}");
     expect(USER_PROMPT_TEMPLATE).toContain("{roleSignals}");
     expect(USER_PROMPT_TEMPLATE).toContain("industry_db");
     expect(USER_PROMPT_TEMPLATE).toContain("\u884C\u4E1A\u6570\u636E\u5E93\u9A8C\u8BC1\u516C\u53F8");
+    expect(USER_PROMPT_TEMPLATE).toContain("\u884C\u4E1A\u6570\u636E\u5E93\u54C1\u724C\u547D\u4E2D");
+    expect(USER_PROMPT_TEMPLATE).toContain("MY");
     expect(USER_PROMPT_TEMPLATE).toContain("\u9500\u552E\u7ECF\u9A8C\u5224\u5B9A\u89C4\u5219");
   });
 });

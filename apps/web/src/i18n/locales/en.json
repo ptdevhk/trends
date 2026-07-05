@@ -1691,6 +1691,7 @@
   "auth": {
     "loginTitle": "Sign in",
     "loginSubtitle": "Enter your credentials to continue",
+    "localDevBootstrap": "Local dev auth: run bun run auth:bootstrap-demo, then sign in as demo-admin with AUTH_BOOTSTRAP_PASSWORD (default in .env.example: demo-admin).",
     "username": "Username",
     "password": "Password",
     "signIn": "Sign in",

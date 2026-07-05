@@ -233,6 +233,11 @@ function WorkspaceMembershipGate({ children }: { children: ReactNode }) {
   if (auth.isLoading) {
     return <div className="py-6 text-sm text-muted-foreground">Loading...</div>
   }
+  if (!auth.isAuthenticated && slug !== PUBLIC_RESUME_WORKSPACE && location.pathname !== `/${slug}/login`) {
+    const redirectTo = `${location.pathname}${location.search}`
+    const search = new URLSearchParams({ redirectTo }).toString()
+    return <Navigate to={{ pathname: `/${slug}/login`, search: `?${search}` }} replace />
+  }
   if (auth.isAuthenticated && !hasWorkspaceMembership(auth.memberships, slug)) {
     const fallbackSlug = getFirstAuthorizedWorkspaceSlug(auth.memberships) ?? SYSTEM_AUTH_WORKSPACE
     return <Navigate to={{ pathname: `/${fallbackSlug}/resumes`, search: location.search }} replace />

@@ -31,7 +31,7 @@ describe("isEnglishResumeAiLocale", () => {
 // hydrateUserPrompt
 // ---------------------------------------------------------------------------
 describe("hydrateUserPrompt", () => {
-    const template = "{jobTitle} | {requirements} | {matchingRules} | {candidateName} | {workExperience} | {education} | {evidenceText} | {roleSignals} | {companies} | {verifiedCompanies}";
+    const template = "{jobTitle} | {requirements} | {matchingRules} | {candidateName} | {workExperience} | {education} | {evidenceText} | {roleSignals} | {companies} | {verifiedCompanies} | {brandHits} | {market}";
 
     it("replaces all template placeholders", () => {
         const result = hydrateUserPrompt(
@@ -45,17 +45,21 @@ describe("hydrateUserPrompt", () => {
                 roleSignalsText: "CNC(3yr)",
                 companies: "Acme",
                 verifiedCompanies: ["Acme"],
+                brandHits: ["Fanuc"],
+                market: "MY",
             },
             "en",
         );
         expect(result).toContain("CNC Operator");
         expect(result).toContain("John");
         expect(result).toContain("Acme");
+        expect(result).toContain("Fanuc");
+        expect(result).toContain("MY");
     });
 
     it("shows noneLabel for empty verifiedCompanies", () => {
         const result = hydrateUserPrompt(
-            "{verifiedCompanies}",
+            "{verifiedCompanies} | {brandHits} | {market}",
             { title: "T", requirements: "R", matchingRules: "M" },
             {
                 name: "N",
@@ -65,10 +69,12 @@ describe("hydrateUserPrompt", () => {
                 roleSignalsText: "",
                 companies: "",
                 verifiedCompanies: [],
+                brandHits: [],
+                market: "CN",
             },
             "en",
         );
-        expect(result).toBe("none");
+        expect(result).toBe("none | none | CN");
     });
 });
 

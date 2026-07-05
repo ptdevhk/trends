@@ -1,7 +1,10 @@
 /// <reference path="./convex-env.d.ts" />
 import {
+    deriveMarketFromSourceKey,
     getResumeAiLocaleText,
     getResumeAiPromptDefinition,
+    summarizeNonEmployerBrandHits,
+    resolveResumeAnalysisSourceKey,
     sanitizeResumeRecordForSurface,
     isRecord,
     selectLatestWorkHistory,
@@ -126,7 +129,18 @@ export function normalizeResume(
             (item: unknown): item is string => typeof item === "string" && item.length > 0
         )
         : [];
+    const brandHits = summarizeNonEmployerBrandHits(ingestData?.brandHits);
     const roleSignals = parseRoleSignals(ingestData?.roleSignals);
+    const explicitMarket = typeof ingestData?.market === "string" ? ingestData.market.trim().toUpperCase() : "";
+    const sourceKey = typeof root.sourceKey === "string"
+        ? root.sourceKey
+        : (typeof content.profileType === "string" ? content.profileType : undefined);
+    const source = typeof root.source === "string"
+        ? root.source
+        : (typeof content.source === "string" ? content.source : undefined);
+    const market = explicitMarket === "MY" || explicitMarket === "CN"
+        ? explicitMarket
+        : deriveMarketFromSourceKey(resolveResumeAnalysisSourceKey({ sourceKey, source }));
 
     return {
         name: typeof content.name === "string" ? content.name : localeText.emptyFieldLabel,
@@ -136,8 +150,10 @@ export function normalizeResume(
             : (typeof content.degree === "string" ? content.degree : localeText.emptyFieldLabel),
         companies: allCompanies.length > 0 ? allCompanies.slice(0, 8).join(", ") : localeText.emptyFieldLabel,
         evidenceText: evidenceText.trim() || localeText.emptyFieldLabel,
+        market,
         roleSignals,
         roleSignalsText: formatRoleSignals(roleSignals, localeText),
+        brandHits,
         verifiedCompanies: companyHits,
     };
 }

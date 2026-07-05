@@ -75,6 +75,8 @@ export function hydrateUserPrompt(
         roleSignalsText: string;
         companies: string;
         verifiedCompanies: string[];
+        brandHits: string[];
+        market: string;
     },
     locale?: string,
 ): string {
@@ -91,7 +93,11 @@ export function hydrateUserPrompt(
         .replace("{companies}", resume.companies)
         .replace("{verifiedCompanies}", resume.verifiedCompanies.length > 0
             ? resume.verifiedCompanies.join(", ")
-            : localeText.noneLabel);
+            : localeText.noneLabel)
+        .replace("{brandHits}", resume.brandHits.length > 0
+            ? resume.brandHits.join(", ")
+            : localeText.noneLabel)
+        .replace("{market}", resume.market);
 }
 
 export function buildKeywordRequirements(keywords: string[], locale?: string): string {

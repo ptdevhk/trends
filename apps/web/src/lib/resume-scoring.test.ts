@@ -86,8 +86,8 @@ describe('resume-scoring', () => {
   it.each([
     { score: 85, expected: 'strong_match' },
     { score: 70, expected: 'match' },
-    { score: 50, expected: 'potential' },
-    { score: 49, expected: 'no_match' },
+    { score: 40, expected: 'potential' },
+    { score: 39, expected: 'no_match' },
   ])('derives recommendation from normalized score $score', ({ score, expected }) => {
     expect(recommendationFromScore(score)).toBe(expected)
   })
@@ -309,7 +309,7 @@ describe('resume-scoring', () => {
   it.each([
     { label: 'brand-only hit uses 40-point single-hit baseline', raw: 0, hasBrandHits: true, hasCompanyHits: false, expected: 40 },
     { label: 'company-only hit uses 40-point single-hit baseline', raw: 0, hasBrandHits: false, hasCompanyHits: true, expected: 40 },
-    { label: 'both brand and company hits use 50-point cap', raw: 0, hasBrandHits: true, hasCompanyHits: true, expected: 50 },
+    { label: 'both brand and company hits stay at the 50-point cap', raw: 0, hasBrandHits: true, hasCompanyHits: true, expected: 50 },
     { label: 'no hits keeps raw score', raw: 20, hasBrandHits: false, hasCompanyHits: false, expected: 20 },
     { label: 'no hits defaults missing raw to zero', raw: undefined, hasBrandHits: false, hasCompanyHits: false, expected: 0 },
     { label: 'raw wins over single-hit baseline when raw is higher', raw: 45, hasBrandHits: true, hasCompanyHits: false, expected: 45 },
@@ -618,6 +618,23 @@ describe('overrideIndustryDbBreakdown — score/recommendation coherence', () =>
     }
     const result = overrideIndustryDbBreakdown(analysis, 50)
     expect(result.score).toBeLessThan(85)
+  })
+
+  it('lets the MY floor lift no_match analyses into the canonical 40+ range', () => {
+    const analysis = {
+      score: 18,
+      recommendation: 'no_match' as const,
+      breakdown: { related_exp: 35, industry_db: 0 },
+      summary: 'Weak cross-market fit',
+      highlights: [],
+      concerns: [],
+    }
+    const result = overrideIndustryDbBreakdown(analysis, 0, 'MY')
+    expect(result.score).toBe(55)
+    expect(result.breakdown).toEqual({
+      related_exp: 30,
+      industry_db: 40,
+    })
   })
 
   it('verified strong match candidate retains score >= 85', () => {
