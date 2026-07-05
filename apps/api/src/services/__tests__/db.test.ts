@@ -1,5 +1,20 @@
-import { describe, it, expect } from "vitest";
-import { formatDate, formatChineseDate, parseIsoDate } from "../db.js";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+
+import { afterEach, describe, it, expect, vi } from "vitest";
+
+import { formatDate, formatChineseDate, openDatabase, parseIsoDate } from "../db.js";
+
+let fixtureRoot: string | undefined;
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  if (fixtureRoot) {
+    fs.rmSync(fixtureRoot, { recursive: true, force: true });
+    fixtureRoot = undefined;
+  }
+});
 
 describe("formatDate", () => {
   it("formats a date in ISO format", () => {
@@ -78,5 +93,22 @@ describe("parseIsoDate", () => {
     const formatted = formatDate(original);
     const parsed = parseIsoDate(formatted);
     expect(formatDate(parsed)).toBe(formatted);
+  });
+});
+
+describe("openDatabase", () => {
+  it("logs open failures before returning null", () => {
+    fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "trends-db-"));
+    const outputDir = path.join(fixtureRoot, "output", "news");
+    fs.mkdirSync(outputDir, { recursive: true });
+    fs.mkdirSync(path.join(outputDir, "2026-05-22.db"));
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    expect(openDatabase(fixtureRoot, new Date(2026, 4, 22), "news")).toBeNull();
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+    expect(errorSpy).toHaveBeenCalledWith(
+      "[db] Failed to open database",
+      expect.any(Error),
+    );
   });
 });
