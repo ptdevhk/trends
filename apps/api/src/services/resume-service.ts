@@ -21,6 +21,7 @@ import { IndustryDataService } from "./industry-data-service.js";
 import { parseSearchQuery } from "./query-parser.js";
 import { resolveResumeId } from "./resume-id.js";
 import { ResumeIndexService } from "./resume-index.js";
+import { logger } from "./logger.js";
 import { extractCompanyFromWorkHistory } from "./work-history.js";
 import { SkillsKnowledgeService } from "./skills-knowledge.js";
 import { UnifiedSearchService, type UnifiedKeywordExpansion } from "./unified-search-service.js";
@@ -321,8 +322,11 @@ export function inferResumeSource(metadata?: ResumeMetadata): string | undefined
   if (sourceUrl) {
     try {
       return new URL(sourceUrl).hostname.toLowerCase();
-    } catch {
-      // ignore
+    } catch (error) {
+      logger.error("Failed to parse resume source URL", error, {
+        service: "resume-service",
+        sourceUrl,
+      });
     }
   }
 
