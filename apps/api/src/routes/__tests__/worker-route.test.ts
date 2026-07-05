@@ -1,7 +1,14 @@
 import { OpenAPIHono } from "@hono/zod-openapi";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("../../services/logger.js", () => ({
+  logger: {
+    error: vi.fn(),
+  },
+}));
+
 import workerRoutes from "../worker";
+import { logger } from "../../services/logger.js";
 
 function createTestApp() {
   const app = new OpenAPIHono();
@@ -19,6 +26,7 @@ function workerSuccess(data: unknown, contentType = "application/json"): Respons
 describe("worker routes", () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.mocked(logger.error).mockClear();
   });
 
   describe("GET /status", () => {
@@ -44,6 +52,26 @@ describe("worker routes", () => {
       expect(response.status).toBe(503);
       const payload = await response.json() as { error: string };
       expect(payload.error).toContain("Failed to connect");
+    });
+
+    it("logs non-JSON worker responses while preserving text fallback", async () => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        new Response("worker warming up", {
+          status: 200,
+          headers: { "Content-Type": "text/plain" },
+        }),
+      );
+
+      const app = createTestApp();
+      const response = await app.request("/status");
+
+      expect(response.status).toBe(200);
+      expect(await response.json()).toBe("worker warming up");
+      expect(logger.error).toHaveBeenCalledWith(
+        "Failed to parse worker proxy JSON response",
+        expect.any(Error),
+        { route: "worker", path: "/worker/status", status: 200 },
+      );
     });
   });
 
