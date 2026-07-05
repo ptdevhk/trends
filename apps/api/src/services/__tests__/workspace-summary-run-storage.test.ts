@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   parseJsonObject,
   normalizeTriggerSource,
@@ -9,6 +9,10 @@ import {
 } from "../workspace-summary-run-storage.js";
 
 describe("parseJsonObject", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("parses valid JSON object", () => {
     const result = parseJsonObject('{"key":"value"}');
     expect(result).toEqual({ key: "value" });
@@ -26,6 +30,16 @@ describe("parseJsonObject", () => {
 
   it("returns undefined for invalid JSON", () => {
     expect(parseJsonObject("not json")).toBeUndefined();
+  });
+
+  it("logs invalid JSON parse failures", () => {
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    expect(parseJsonObject("not json")).toBeUndefined();
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      "workspace-summary-run-storage parse failed:",
+      expect.any(SyntaxError),
+    );
   });
 
   it("returns undefined for JSON array", () => {

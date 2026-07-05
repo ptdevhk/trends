@@ -41,7 +41,8 @@ export function parseJsonObject(value: unknown): Record<string, unknown> | undef
     return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
       ? parsed as Record<string, unknown>
       : undefined;
-  } catch {
+  } catch (error) {
+    console.error("workspace-summary-run-storage parse failed:", error);
     return undefined;
   }
 }
