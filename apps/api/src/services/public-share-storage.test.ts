@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { getResumeScreeningDb, resetResumeScreeningDb } from "./database.js";
 import {
@@ -22,6 +22,7 @@ describe("PublicShareStorage", () => {
   let root = "";
 
   afterEach(() => {
+    vi.restoreAllMocks();
     resetResumeScreeningDb();
     if (root) {
       fs.rmSync(root, { recursive: true, force: true });
@@ -260,5 +261,61 @@ describe("PublicShareStorage", () => {
     expect(storage.lookupPublicShareByToken(expired.token, {
       now: "2026-06-12T10:01:00.000Z",
     })?.status).toBe("expired");
+  });
+
+  it("logs malformed search run JSON records and falls back to an empty query", () => {
+    root = createFixtureRoot();
+    const storage = new PublicShareStorage(root);
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const run = storage.createSearchRun({
+      workspaceSlug: "hr",
+      sessionId: "session-1",
+      query: { text: "CNC sales" },
+      safeFilters: {},
+      resultSetHash: "hash-cnc",
+      resumeKeys: ["resume-1"],
+      createdBy: "admin-1",
+    });
+
+    getResumeScreeningDb(root)
+      .prepare("UPDATE search_runs SET query_json = ? WHERE id = ?")
+      .run("not json", run.id);
+
+    const loaded = storage.getSearchRun(run.id);
+
+    expect(loaded?.query).toEqual({});
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      "public-share-storage JSON record parse failed:",
+      expect.any(SyntaxError),
+    );
+  });
+
+  it("logs malformed search run JSON arrays and falls back to empty resume keys", () => {
+    root = createFixtureRoot();
+    const storage = new PublicShareStorage(root);
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const run = storage.createSearchRun({
+      workspaceSlug: "hr",
+      sessionId: "session-1",
+      query: { text: "CNC sales" },
+      safeFilters: {},
+      resultSetHash: "hash-cnc",
+      resumeKeys: ["resume-1"],
+      createdBy: "admin-1",
+    });
+
+    getResumeScreeningDb(root)
+      .prepare("UPDATE search_runs SET resume_keys_json = ? WHERE id = ?")
+      .run("not json", run.id);
+
+    const loaded = storage.getSearchRun(run.id);
+
+    expect(loaded?.resumeKeys).toEqual([]);
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      "public-share-storage JSON array parse failed:",
+      expect.any(SyntaxError),
+    );
   });
 });

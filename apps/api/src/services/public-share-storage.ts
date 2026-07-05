@@ -148,7 +148,8 @@ function parseJsonRecord(value: unknown): JsonRecord {
   try {
     const parsed: unknown = JSON.parse(value);
     return isRecord(parsed) ? parsed : {};
-  } catch {
+  } catch (error) {
+    console.error("public-share-storage JSON record parse failed:", error);
     return {};
   }
 }
@@ -163,7 +164,8 @@ function parseJsonStringArray(value: unknown): string[] {
     return Array.isArray(parsed)
       ? parsed.map((item) => String(item)).filter((item) => item.length > 0)
       : [];
-  } catch {
+  } catch (error) {
+    console.error("public-share-storage JSON array parse failed:", error);
     return [];
   }
 }
