@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock config to avoid reading env vars
 vi.mock("../config.js", () => ({
@@ -14,6 +14,14 @@ import { workerClient } from "../worker-client.js";
 describe("workerClient", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  afterAll(() => {
+    vi.unstubAllGlobals();
   });
 
   // --- getHealth() ---
@@ -77,6 +85,22 @@ describe("workerClient", () => {
     it("returns false when request fails", async () => {
       mockFetch.mockRejectedValueOnce(new Error("ECONNREFUSED"));
       expect(await workerClient.isHealthy()).toBe(false);
+    });
+
+    it("logs unexpected health check exceptions before returning false", async () => {
+      const getSpy = vi.spyOn(
+        workerClient as unknown as { get: (path: string) => Promise<unknown> },
+        "get",
+      );
+      getSpy.mockRejectedValueOnce(new Error("boom"));
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      expect(await workerClient.isHealthy()).toBe(false);
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+      expect(errorSpy).toHaveBeenCalledWith(
+        "[worker-client] Worker health check failed",
+        expect.any(Error),
+      );
     });
   });
 
