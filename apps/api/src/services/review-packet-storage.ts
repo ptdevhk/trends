@@ -74,7 +74,8 @@ function parseJsonArray<T>(value: unknown): T[] {
   try {
     const parsed = JSON.parse(value);
     return Array.isArray(parsed) ? (parsed as T[]) : [];
-  } catch {
+  } catch (error) {
+    console.error("review-packet-storage items_json parse failed:", error);
     return [];
   }
 }
@@ -86,7 +87,8 @@ function parseJsonObject<T>(value: unknown): T | undefined {
   try {
     const parsed = JSON.parse(value) as T;
     return typeof parsed === "object" && parsed !== null ? parsed : undefined;
-  } catch {
+  } catch (error) {
+    console.error("review-packet-storage stats_json parse failed:", error);
     return undefined;
   }
 }
