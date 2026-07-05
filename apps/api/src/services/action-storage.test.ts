@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ActionStorage, actionTypeGroup } from "./action-storage";
 import { getResumeScreeningDb, resetResumeScreeningDb } from "./database";
@@ -41,6 +41,7 @@ describe("ActionStorage", () => {
   let storage: ActionStorage;
 
   afterEach(() => {
+    vi.restoreAllMocks();
     resetResumeScreeningDb();
     if (root) {
       fs.rmSync(root, { recursive: true, force: true });
@@ -56,6 +57,18 @@ describe("ActionStorage", () => {
     db.prepare(
       "INSERT INTO search_sessions (id, status, created_at, updated_at) VALUES (?, ?, ?, ?)"
     ).run("s1", "active", now, now);
+  }
+
+  function insertMalformedActionData(params: { sessionId?: string; resumeId?: string } = {}): string {
+    const now = new Date().toISOString();
+    const db = getResumeScreeningDb(root);
+    db.prepare(
+      `
+      INSERT INTO candidate_actions (session_id, resume_id, action_type, action_data, created_at)
+      VALUES (?, ?, ?, ?, ?)
+      `
+    ).run(params.sessionId ?? null, params.resumeId ?? "r1", "star", "{bad json", now);
+    return now;
   }
 
   it("saves and retrieves new AI feedback action types", () => {
@@ -87,6 +100,21 @@ describe("ActionStorage", () => {
     expect(scoped).toHaveLength(1);
     expect(scoped[0]?.resumeId).toBe("r1");
     expect(scoped[0]?.actionData).toEqual({ scopeId: "scope:lathe-sales" });
+  });
+
+  it("logs malformed action_data JSON while returning the action without data", () => {
+    setup();
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    insertMalformedActionData({ sessionId: "s1" });
+
+    const actions = storage.getActionsForSession("s1");
+
+    expect(actions).toHaveLength(1);
+    expect(actions[0]?.actionData).toBeUndefined();
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Failed to parse candidate action_data JSON"),
+      expect.any(SyntaxError),
+    );
   });
 
   describe("getLatestActionsForSession grouped retrieval", () => {
@@ -240,5 +268,43 @@ describe("ActionStorage", () => {
       { actionType: "contact", count: 1 },
       { actionType: "shortlist", count: 1 },
     ]);
+  });
+
+  it("ignores malformed scoped action_data JSON when summarizing a workspace window", () => {
+    root = createFixtureRoot();
+    storage = new ActionStorage(root);
+    insertMalformedActionData();
+
+    const summary = storage.summarizeActionsInWindow({
+      workspaceSlug: "hr",
+      startAt: "2000-01-01T00:00:00.000Z",
+      endAt: "2999-01-01T00:00:00.000Z",
+    });
+
+    expect(summary).toEqual({
+      total: 0,
+      breakdown: [],
+    });
+  });
+
+  it("logs malformed backup action_data JSON while keeping the backup row", () => {
+    root = createFixtureRoot();
+    storage = new ActionStorage(root);
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const now = insertMalformedActionData();
+
+    const rows = storage.listActionsForBackup({ workspaceSlug: "hr", resumeIds: ["r1"] });
+
+    expect(rows).toEqual([
+      {
+        resumeId: "r1",
+        actionType: "star",
+        createdAt: now,
+      },
+    ]);
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Failed to parse candidate action backup action_data JSON"),
+      expect.any(SyntaxError),
+    );
   });
 });

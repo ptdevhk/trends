@@ -28,6 +28,12 @@ const AI_FEEDBACK_TYPES = [...AI_SCORE_TYPES, ...AI_SUMMARY_TYPES] as const;
 const AI_SCORE_TYPE_SET: ReadonlySet<string> = new Set(AI_SCORE_TYPES);
 const AI_SUMMARY_TYPE_SET: ReadonlySet<string> = new Set(AI_SUMMARY_TYPES);
 const AI_FEEDBACK_TYPES_SQL = AI_FEEDBACK_TYPES.map((actionType) => `'${actionType}'`).join(", ");
+function jsonExtractSql(column: string, path: string): string {
+  return `CASE WHEN json_valid(${column}) THEN json_extract(${column}, '${path}') ELSE NULL END`;
+}
+const ACTION_DATA_SCOPE_ID_SQL = jsonExtractSql("action_data", "$.scopeId");
+const ACTION_DATA_JOB_DESCRIPTION_ID_SQL = jsonExtractSql("action_data", "$.jobDescriptionId");
+const CA_ACTION_DATA_SCOPE_ID_SQL = jsonExtractSql("ca.action_data", "$.scopeId");
 const ACTION_GROUP_CASE_SQL = `
   CASE
     WHEN action_type = 'rating' THEN 'rating'
@@ -39,14 +45,14 @@ const ACTION_GROUP_CASE_SQL = `
 const SESSION_SCOPE_WHERE_SQL = `
   (
     session_id = ?
-    OR json_extract(action_data, '$.scopeId') = ?
+    OR ${ACTION_DATA_SCOPE_ID_SQL} = ?
   )
 `;
 const AI_JOB_DESCRIPTION_WHERE_SQL = `
   (
     action_type NOT IN (${AI_FEEDBACK_TYPES_SQL})
-    OR json_extract(action_data, '$.jobDescriptionId') IS NULL
-    OR json_extract(action_data, '$.jobDescriptionId') = ?
+    OR ${ACTION_DATA_JOB_DESCRIPTION_ID_SQL} IS NULL
+    OR ${ACTION_DATA_JOB_DESCRIPTION_ID_SQL} = ?
   )
 `;
 
@@ -54,7 +60,7 @@ const WORKSPACE_JOIN_SQL = `
   LEFT JOIN search_sessions persisted_session
     ON persisted_session.id = ca.session_id
   LEFT JOIN search_sessions scoped_session
-    ON scoped_session.id = json_extract(ca.action_data, '$.scopeId')
+    ON scoped_session.id = ${CA_ACTION_DATA_SCOPE_ID_SQL}
   LEFT JOIN review_packet_runs persisted_packet
     ON persisted_packet.id = CASE
       WHEN ca.session_id LIKE 'review-packet:%' THEN substr(ca.session_id, 15)
@@ -62,8 +68,8 @@ const WORKSPACE_JOIN_SQL = `
     END
   LEFT JOIN review_packet_runs scoped_packet
     ON scoped_packet.id = CASE
-      WHEN json_extract(ca.action_data, '$.scopeId') LIKE 'review-packet:%'
-        THEN substr(json_extract(ca.action_data, '$.scopeId'), 15)
+      WHEN ${CA_ACTION_DATA_SCOPE_ID_SQL} LIKE 'review-packet:%'
+        THEN substr(${CA_ACTION_DATA_SCOPE_ID_SQL}, 15)
       ELSE NULL
     END`;
 
@@ -127,11 +133,12 @@ function parseActionType(raw: unknown, rowId?: unknown): CandidateActionType | n
   return value as CandidateActionType;
 }
 
-function parseJson(value: unknown): Record<string, unknown> | undefined {
+function parseJson(value: unknown, context: string): Record<string, unknown> | undefined {
   if (typeof value !== "string" || !value.trim()) return undefined;
   try {
     return JSON.parse(value) as Record<string, unknown>;
-  } catch {
+  } catch (error) {
+    console.error(`Failed to parse ${context}`, error);
     return undefined;
   }
 }
@@ -145,7 +152,7 @@ function normalizeAction(row: Record<string, unknown>): CandidateAction | null {
     sessionId: row.session_id ? String(row.session_id) : undefined,
     resumeId: String(row.resume_id),
     actionType,
-    actionData: parseJson(row.action_data),
+    actionData: parseJson(row.action_data, `candidate action_data JSON for row id=${String(row.id)}`),
     createdAt: String(row.created_at),
   };
 }
@@ -345,7 +352,7 @@ export class ActionStorage {
         LEFT JOIN search_sessions persisted_session
           ON persisted_session.id = ca.session_id
         LEFT JOIN search_sessions scoped_session
-          ON scoped_session.id = json_extract(ca.action_data, '$.scopeId')
+          ON scoped_session.id = ${CA_ACTION_DATA_SCOPE_ID_SQL}
         LEFT JOIN review_packet_runs persisted_packet
           ON persisted_packet.id = CASE
             WHEN ca.session_id LIKE 'review-packet:%' THEN substr(ca.session_id, 15)
@@ -353,8 +360,8 @@ export class ActionStorage {
           END
         LEFT JOIN review_packet_runs scoped_packet
           ON scoped_packet.id = CASE
-            WHEN json_extract(ca.action_data, '$.scopeId') LIKE 'review-packet:%'
-              THEN substr(json_extract(ca.action_data, '$.scopeId'), 15)
+            WHEN ${CA_ACTION_DATA_SCOPE_ID_SQL} LIKE 'review-packet:%'
+              THEN substr(${CA_ACTION_DATA_SCOPE_ID_SQL}, 15)
             ELSE NULL
           END
         WHERE ca.created_at >= ?
@@ -524,11 +531,10 @@ function normalizeBackupRow(row: Record<string, unknown>): CandidateActionBackup
   const actionDataRaw = row.action_data;
   let actionData: Record<string, unknown> | undefined;
   if (typeof actionDataRaw === "string" && actionDataRaw.trim()) {
-    try {
-      actionData = JSON.parse(actionDataRaw) as Record<string, unknown>;
-    } catch {
-      actionData = undefined;
-    }
+    actionData = parseJson(
+      actionDataRaw,
+      `candidate action backup action_data JSON for resume_id=${String(row.resume_id)}`,
+    );
   } else if (typeof actionDataRaw === "object" && actionDataRaw !== null) {
     actionData = actionDataRaw as Record<string, unknown>;
   }
