@@ -45,7 +45,8 @@ function readTimezoneFromConfig(projectRoot?: string): string | undefined {
     const timezone = app.timezone;
     if (typeof timezone !== "string") return undefined;
     return timezone.trim() || undefined;
-  } catch {
+  } catch (error) {
+    console.error("[timezone] Failed to read timezone from config", error);
     return undefined;
   }
 }
