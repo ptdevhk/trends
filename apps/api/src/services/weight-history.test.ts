@@ -85,6 +85,55 @@ describe("WeightHistoryService", () => {
     }
   });
 
+  it("logs malformed JSONL lines while reading valid history entries", () => {
+    const root = createFixtureRoot();
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    try {
+      fs.writeFileSync(
+        path.join(root, "output", "weight-history.jsonl"),
+        "{bad json\n",
+        "utf8"
+      );
+
+      const service = new WeightHistoryService(root);
+      service.appendEntry({
+        ts: "2026-02-25T00:00:00.000Z",
+        reason: "auto_tune",
+        before: {
+          skillMatch: 15,
+          roleMatch: 10,
+          experienceMatch: 25,
+          educationMatch: 15,
+          locationMatch: 15,
+          industryMatch: 10,
+          brandRelevance: 10,
+        },
+        after: {
+          skillMatch: 17,
+          roleMatch: 9,
+          experienceMatch: 24,
+          educationMatch: 14,
+          locationMatch: 14,
+          industryMatch: 12,
+          brandRelevance: 9,
+        },
+      });
+
+      const history = service.getHistory();
+
+      expect(history).toHaveLength(1);
+      expect(history[0].reason).toBe("auto_tune");
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining("Failed to parse weight history line"),
+        expect.any(SyntaxError)
+      );
+    } finally {
+      errorSpy.mockRestore();
+      cleanupFixtureRoot(root);
+    }
+  });
+
   it("rolls back weights to a previous entry", async () => {
     const root = createFixtureRoot();
 
