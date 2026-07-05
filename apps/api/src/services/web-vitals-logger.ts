@@ -131,7 +131,8 @@ export class WebVitalsLogger {
             metrics.push(metric);
           }
         }
-      } catch {
+      } catch (error) {
+        console.error("Failed to parse web vitals log line", error);
         // Skip malformed lines.
       }
     }

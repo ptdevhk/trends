@@ -1,5 +1,10 @@
-import { describe, it, expect } from "vitest";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+
+import { describe, it, expect, vi } from "vitest";
 import {
+  WebVitalsLogger,
   readString,
   readNumber,
   parseMetric,
@@ -132,5 +137,44 @@ describe("percentile", () => {
   it("handles p0 and p100", () => {
     expect(percentile([1, 2, 3], 0)).toBe(1);
     expect(percentile([1, 2, 3], 100)).toBe(3);
+  });
+});
+
+describe("WebVitalsLogger", () => {
+  it("logs malformed JSONL lines while summarizing valid metrics", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "web-vitals-logger-"));
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    try {
+      fs.mkdirSync(path.join(root, "output"), { recursive: true });
+      fs.writeFileSync(
+        path.join(root, "output", "web-vitals.jsonl"),
+        [
+          "{bad json",
+          JSON.stringify({
+            name: "LCP",
+            value: 1.5,
+            rating: "good",
+            id: "v3-abc123",
+            navigationType: "navigate",
+            workspace: "default",
+            timestamp: Date.now(),
+          }),
+        ].join("\n"),
+        "utf8",
+      );
+
+      const summary = new WebVitalsLogger(root).getSummary(24);
+
+      expect(summary.totalReports).toBe(1);
+      expect(summary.metrics.LCP).toMatchObject({ p50: 1.5, good: 1 });
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining("Failed to parse web vitals log line"),
+        expect.any(SyntaxError),
+      );
+    } finally {
+      errorSpy.mockRestore();
+      fs.rmSync(root, { recursive: true, force: true });
+    }
   });
 });
