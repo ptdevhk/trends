@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { buildLatestWorkHistoryEvidence } from "@trends/shared";
 
@@ -171,6 +171,61 @@ describe("ResumeIndexService", () => {
       expect(entry?.salaryRange?.min).toBe(12000);
       expect(entry?.salaryRange?.max).toBe(18000);
     } finally {
+      cleanupFixtureRoot(root);
+    }
+  });
+
+  it("logs canonical skills vocabulary load failures while falling back to legacy vocabulary", () => {
+    const root = createFixtureRoot();
+    const writeSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+
+    try {
+      fs.writeFileSync(
+        path.join(root, "config", "resume", "skills.md"),
+        "---\nversion: 1\n# missing closing frontmatter\n",
+        "utf8"
+      );
+
+      const service = new ResumeIndexService(root);
+      const resumes: ResumeItem[] = [
+        {
+          name: "Alex Tan",
+          profileUrl: "https://my.employer.seek.com/candidates/legacy-vocab",
+          activityStatus: "Active",
+          age: "33",
+          experience: "8 years",
+          education: "Bachelor",
+          location: "Selangor, Malaysia",
+          selfIntro: "",
+          jobIntention: "",
+          expectedSalary: "",
+          workHistory: [
+            {
+              raw: "2020-01~2024-12 Precision Motion Sdn Bhd CNC lathe sales",
+              companyName: "Precision Motion Sdn Bhd",
+              jobTitle: "Sales Manager",
+              description: "CNC lathe sales",
+              startDate: "2020-01",
+              endDate: "2024-12",
+            },
+          ],
+          extractedAt: "2026-03-27T00:00:00.000Z",
+          resumeId: "R4001",
+          profileType: "seek",
+        },
+      ];
+
+      const index = service.buildIndex("sample:legacy-vocab-fallback", resumes);
+      const loggedMessages = writeSpy.mock.calls.map((call) => String(call[0]));
+
+      expect(index.get("R4001")?.skills).toEqual(
+        expect.arrayContaining(["cnc", "lathe", "sales"])
+      );
+      expect(
+        loggedMessages.some((message) => message.includes("Failed to load skills vocabulary"))
+      ).toBe(true);
+    } finally {
+      writeSpy.mockRestore();
       cleanupFixtureRoot(root);
     }
   });
