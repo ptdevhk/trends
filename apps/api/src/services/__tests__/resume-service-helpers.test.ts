@@ -1,4 +1,5 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
+import { logger } from "../logger.js";
 import {
   toStringArray,
   normalizeIngestBrandHits,
@@ -9,6 +10,16 @@ import {
   inferResumeSource,
   matchesAllRequiredKeywords,
 } from "../resume-service.js";
+
+vi.mock("../logger.js", () => ({
+  logger: {
+    error: vi.fn(),
+  },
+}));
+
+afterEach(() => {
+  vi.mocked(logger.error).mockClear();
+});
 
 // --- toStringArray ---
 
@@ -401,6 +412,15 @@ describe("inferResumeSource", () => {
 
   it("handles invalid URL gracefully", () => {
     expect(inferResumeSource({ sourceUrl: "not-a-url" })).toBeUndefined();
+  });
+
+  it("logs invalid sourceUrl before falling back to sourceKey", () => {
+    expect(inferResumeSource({ sourceUrl: "not a valid url", sourceKey: "seek" })).toBe("seek");
+    expect(logger.error).toHaveBeenCalledWith(
+      "Failed to parse resume source URL",
+      expect.any(Error),
+      { service: "resume-service", sourceUrl: "not a valid url" },
+    );
   });
 });
 
