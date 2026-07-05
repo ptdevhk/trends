@@ -101,7 +101,12 @@ export class ResumeIndexService {
       if (this.skillVocabulary.size > 0) {
         return;
       }
-    } catch {
+    } catch (error) {
+      logger.error(
+        "Failed to load skills vocabulary, falling back to legacy file",
+        error,
+        { service: "resume-index" }
+      );
       // Fall through to legacy file
     }
 
