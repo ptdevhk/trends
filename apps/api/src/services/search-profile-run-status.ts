@@ -42,7 +42,8 @@ export function readRunStatusStore(projectRoot: string = config.projectRoot): Re
       store[key] = validated.data;
     }
     return store;
-  } catch {
+  } catch (error) {
+    console.error("search-profile-run-status read failed:", error);
     return {};
   }
 }
