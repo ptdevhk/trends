@@ -10,6 +10,55 @@ type BlockItem = {
   blockedAt: number
 }
 
+async function mockAuthenticatedDevShell(page: Page) {
+  await page.addInitScript(() => {
+    document.cookie = 'trends_csrf=csrf-e2e; path=/; SameSite=Lax'
+    localStorage.setItem('i18nextLng', 'en')
+  })
+
+  await page.route('**/api/auth/me', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        user: {
+          id: 'dev-admin-e2e',
+          email: 'dev-admin-e2e@example.com',
+          displayName: 'Dev Admin E2E',
+          status: 'active',
+        },
+        memberships: [{ userId: 'dev-admin-e2e', workspaceSlug: 'dev', role: 'admin' }],
+        workspaceRole: 'admin',
+      }),
+    })
+  })
+
+  await page.route('**/api/config/resume-field-usage-policy', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        source: 'system',
+        policy: {
+          version: 1,
+          fields: {},
+          updatedAt: '2026-07-05T00:00:00.000Z',
+        },
+      }),
+    })
+  })
+
+  await page.route('**/api/industry/brand-display-map', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({}),
+    })
+  })
+}
+
 
 async function mockBlocksApi(page: Page, initialItems: BlockItem[]) {
   let items = [...initialItems]
@@ -96,6 +145,7 @@ async function mockBlocksApi(page: Page, initialItems: BlockItem[]) {
 
 test.describe('Blacklist page', () => {
   test('inline reason edit sends PATCH and updates row', async ({ page }) => {
+    await mockAuthenticatedDevShell(page)
     const { patchPayloads, getListRequestCount } = await mockBlocksApi(page, [
       {
         _id: 'block-1',
@@ -128,6 +178,7 @@ test.describe('Blacklist page', () => {
   })
 
   test('bulk unblock sends DELETE per selected row and removes rows', async ({ page }) => {
+    await mockAuthenticatedDevShell(page)
     const { deletedIdentityKeys, getItems, getListRequestCount } = await mockBlocksApi(page, [
       {
         _id: 'block-1',
