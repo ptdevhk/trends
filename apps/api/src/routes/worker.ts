@@ -10,7 +10,12 @@ async function proxyToJson(path: string, init: RequestInit): Promise<{ data: unk
     let data: unknown;
     try {
         data = JSON.parse(text);
-    } catch {
+    } catch (error) {
+        logger.error("Failed to parse worker proxy JSON response", error, {
+            route: "worker",
+            path,
+            status: response.status,
+        });
         data = text;
     }
     return { data, status: response.status };
