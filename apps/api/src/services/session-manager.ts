@@ -97,7 +97,8 @@ export function parseJson<T>(value: unknown): T | undefined {
   if (typeof value !== "string" || !value.trim()) return undefined;
   try {
     return JSON.parse(value) as T;
-  } catch {
+  } catch (error) {
+    console.error("[session-manager] Failed to parse JSON", error);
     return undefined;
   }
 }

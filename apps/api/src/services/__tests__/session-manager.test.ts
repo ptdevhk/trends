@@ -1,6 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { parseJson, normalizeSession } from "../session-manager.js";
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe("parseJson", () => {
   it("parses valid JSON string into typed object", () => {
@@ -24,6 +28,18 @@ describe("parseJson", () => {
   it("returns undefined for invalid JSON", () => {
     expect(parseJson("{broken")).toBeUndefined();
     expect(parseJson("not json")).toBeUndefined();
+  });
+
+  it("logs invalid JSON before returning undefined", () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    expect(parseJson("{broken")).toBeUndefined();
+
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+    expect(errorSpy).toHaveBeenCalledWith(
+      "[session-manager] Failed to parse JSON",
+      expect.any(SyntaxError),
+    );
   });
 
   it("parses JSON array", () => {
