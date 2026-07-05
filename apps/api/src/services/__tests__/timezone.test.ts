@@ -26,6 +26,14 @@ function createProjectConfig(timezone: string): string {
   return projectRoot;
 }
 
+function createMalformedProjectConfig(): string {
+  const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), "trends-timezone-"));
+  const configDir = path.join(projectRoot, "config");
+  fs.mkdirSync(configDir, { recursive: true });
+  fs.writeFileSync(path.join(configDir, "config.yaml"), "app:\n  timezone: [", "utf8");
+  return projectRoot;
+}
+
 afterEach(() => {
   vi.restoreAllMocks();
 });
@@ -71,6 +79,22 @@ describe("resolveTimezone", () => {
 
       expect(resolved).toBe("Asia/Hong_Kong");
       expect(warnSpy).toHaveBeenCalled();
+    } finally {
+      fs.rmSync(projectRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("logs malformed config before falling back to default timezone", () => {
+    const projectRoot = createMalformedProjectConfig();
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    try {
+      expect(resolveTimezone({ projectRoot })).toBe("Asia/Hong_Kong");
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+      expect(errorSpy).toHaveBeenCalledWith(
+        "[timezone] Failed to read timezone from config",
+        expect.any(Error),
+      );
     } finally {
       fs.rmSync(projectRoot, { recursive: true, force: true });
     }
