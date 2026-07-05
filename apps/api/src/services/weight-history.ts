@@ -135,7 +135,8 @@ export class WeightHistoryService {
         if (parsed) {
           entries.push(parsed);
         }
-      } catch {
+      } catch (error) {
+        console.error("Failed to parse weight history line", error);
         // Ignore malformed lines to preserve append-only behavior.
       }
     }
