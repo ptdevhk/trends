@@ -59,7 +59,8 @@ export function openDatabase(projectRoot: string, date: Date, dbType: DbType): D
   if (!dbPath) return null;
   try {
     return new Database(dbPath, { readonly: true, fileMustExist: true });
-  } catch {
+  } catch (error) {
+    console.error("[db] Failed to open database", error);
     return null;
   }
 }
@@ -91,4 +92,3 @@ export function getLatestAvailableDate(projectRoot: string, dbType: DbType): Dat
   if (available.length === 0) return null;
   return parseIsoDate(available[0]);
 }
-
