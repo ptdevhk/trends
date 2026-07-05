@@ -177,7 +177,8 @@ export class SearchEventLogger {
         if (event) {
           events.push(event);
         }
-      } catch {
+      } catch (error) {
+        console.error("Failed to parse search event log line", error);
         // Skip malformed lines to keep the log append-only.
       }
     }
