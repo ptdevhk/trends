@@ -383,7 +383,7 @@ describe("AIMatchingService", () => {
       });
     });
 
-    it("recomputes MY final score to the 50-point hit cap when MY has a qualifying company hit", async () => {
+    it("recomputes MY final score with the 40-point single-hit baseline", async () => {
       const llmResponse = JSON.stringify({
         score: 30,
         recommendation: "potential",
@@ -403,11 +403,11 @@ describe("AIMatchingService", () => {
       }));
 
       expect(result).toMatchObject({
-        score: 80,
+        score: 70,
         recommendation: "match",
         breakdown: {
           related_exp: 60,
-          industry_db: 50,
+          industry_db: 40,
         },
       });
     });

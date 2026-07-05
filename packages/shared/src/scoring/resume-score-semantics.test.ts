@@ -17,6 +17,7 @@ import {
   MY_INDUSTRY_DB_FLOOR,
   RELATED_EXP_DISPLAY_WEIGHT,
   INDUSTRY_DB_DISPLAY_CAP,
+  INDUSTRY_DB_SINGLE_HIT_SCORE,
   summarizeNonEmployerBrandHits,
 } from "./resume-score-semantics.js";
 
@@ -32,6 +33,10 @@ describe("constants", () => {
     expect(INDUSTRY_DB_DISPLAY_CAP).toBe(50);
   });
 
+  it("INDUSTRY_DB_SINGLE_HIT_SCORE is 40", () => {
+    expect(INDUSTRY_DB_SINGLE_HIT_SCORE).toBe(40);
+  });
+
   it("MY_INDUSTRY_DB_FLOOR is 40", () => {
     expect(MY_INDUSTRY_DB_FLOOR).toBe(40);
   });
@@ -41,12 +46,12 @@ describe("constants", () => {
 // deterministic industry_db helpers
 // ---------------------------------------------------------------------------
 describe("computeIndustryDbDirectHitScore", () => {
-  it("returns 50 for a brand hit", () => {
-    expect(computeIndustryDbDirectHitScore(true, false)).toBe(50);
+  it("returns 40 for a brand-only hit", () => {
+    expect(computeIndustryDbDirectHitScore(true, false)).toBe(40);
   });
 
-  it("returns 50 for a company hit", () => {
-    expect(computeIndustryDbDirectHitScore(false, true)).toBe(50);
+  it("returns 40 for a company-only hit", () => {
+    expect(computeIndustryDbDirectHitScore(false, true)).toBe(40);
   });
 
   it("returns 50 when both hit types exist", () => {

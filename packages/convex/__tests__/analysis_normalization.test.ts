@@ -315,16 +315,16 @@ describe("getResumeIngestData", () => {
 // computeDirectIndustryDbScoreFromResume
 // ---------------------------------------------------------------------------
 describe("computeDirectIndustryDbScoreFromResume", () => {
-    it("returns 50 when brand hits exist", () => {
+    it("returns 40 when brand hits exist", () => {
         expect(computeDirectIndustryDbScoreFromResume({
             ingestData: { brandHits: [{ context: "client" }] },
-        })).toBe(50);
+        })).toBe(40);
     });
 
-    it("returns 50 when company hits exist", () => {
+    it("returns 40 when company hits exist", () => {
         expect(computeDirectIndustryDbScoreFromResume({
             ingestData: { companyHits: ["Acme"] },
-        })).toBe(50);
+        })).toBe(40);
     });
 
     it("returns clamped industryDbV2Raw", () => {
@@ -343,17 +343,17 @@ describe("computeDirectIndustryDbScoreFromResume", () => {
         expect(computeDirectIndustryDbScoreFromResume({})).toBe(0);
     });
 
-    // Canonical MY direct-hit rule — any qualifying hit = 50
-    it("brand hit only → exactly 50", () => {
+    // Default direct-hit rule — brand-only = 40, company-only = 40, both = 50
+    it("brand hit only → exactly 40", () => {
         expect(computeDirectIndustryDbScoreFromResume({
             ingestData: { brandHits: [{ context: "client" }], companyHits: [], industryDbV2Raw: 0 },
-        })).toBe(50);
+        })).toBe(40);
     });
 
-    it("company hit only → exactly 50", () => {
+    it("company hit only → exactly 40", () => {
         expect(computeDirectIndustryDbScoreFromResume({
             ingestData: { companyHits: ["Acme"], brandHits: [], industryDbV2Raw: 0 },
-        })).toBe(50);
+        })).toBe(40);
     });
 
     it("both brand and company hits → exactly 50 (full cap)", () => {
@@ -362,10 +362,10 @@ describe("computeDirectIndustryDbScoreFromResume", () => {
         })).toBe(50);
     });
 
-    it("direct-hit cap wins when raw is lower than 50", () => {
+    it("high raw industryDbV2Raw wins over direct-hit baseline when raw > baseline", () => {
         expect(computeDirectIndustryDbScoreFromResume({
             ingestData: { brandHits: [{ context: "client" }], companyHits: [], industryDbV2Raw: 45 },
-        })).toBe(50);
+        })).toBe(45);
     });
 
     it("low raw is superseded by both-hit baseline (Math.max semantics)", () => {
@@ -755,7 +755,7 @@ describe("full-score audit integration — final AI score (RED)", () => {
                 },
             },
         );
-        expect(result.score).toBe(89);
+        expect(result.score).toBe(79);
     });
 
     it("stored breakdown.related_exp remains the audit factor, not the contribution", () => {

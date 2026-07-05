@@ -307,12 +307,12 @@ describe('resume-scoring', () => {
   })
 
   it.each([
-    { label: 'brand-only hit uses the 50-point MY direct-hit cap', raw: 0, hasBrandHits: true, hasCompanyHits: false, expected: 50 },
-    { label: 'company-only hit uses the 50-point MY direct-hit cap', raw: 0, hasBrandHits: false, hasCompanyHits: true, expected: 50 },
+    { label: 'brand-only hit uses 40-point single-hit baseline', raw: 0, hasBrandHits: true, hasCompanyHits: false, expected: 40 },
+    { label: 'company-only hit uses 40-point single-hit baseline', raw: 0, hasBrandHits: false, hasCompanyHits: true, expected: 40 },
     { label: 'both brand and company hits stay at the 50-point cap', raw: 0, hasBrandHits: true, hasCompanyHits: true, expected: 50 },
     { label: 'no hits keeps raw score', raw: 20, hasBrandHits: false, hasCompanyHits: false, expected: 20 },
     { label: 'no hits defaults missing raw to zero', raw: undefined, hasBrandHits: false, hasCompanyHits: false, expected: 0 },
-    { label: 'hit score wins over lower raw values', raw: 45, hasBrandHits: true, hasCompanyHits: false, expected: 50 },
+    { label: 'raw wins over single-hit baseline when raw is higher', raw: 45, hasBrandHits: true, hasCompanyHits: false, expected: 45 },
     { label: 'raw is clamped to cap with no hits', raw: 60, hasBrandHits: false, hasCompanyHits: false, expected: 50 },
   ])('$label', ({ raw, hasBrandHits, hasCompanyHits, expected }) => {
     expect(computeDirectIndustryDb(raw, hasBrandHits, hasCompanyHits)).toBe(expected)

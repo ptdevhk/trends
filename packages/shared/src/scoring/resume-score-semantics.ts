@@ -12,13 +12,16 @@
 
 export const RELATED_EXP_DISPLAY_WEIGHT = 0.5;
 export const INDUSTRY_DB_DISPLAY_CAP = 50;
+export const INDUSTRY_DB_SINGLE_HIT_SCORE = 40;
 export const MY_INDUSTRY_DB_FLOOR = 40;
 
 export function computeIndustryDbDirectHitScore(
   hasBrandHits: boolean,
   hasCompanyHits: boolean,
 ): number {
-  return hasBrandHits || hasCompanyHits ? INDUSTRY_DB_DISPLAY_CAP : 0;
+  const hasAnyHit = hasBrandHits || hasCompanyHits;
+  const hasBothHits = hasBrandHits && hasCompanyHits;
+  return (hasAnyHit ? INDUSTRY_DB_SINGLE_HIT_SCORE : 0) + (hasBothHits ? 10 : 0);
 }
 
 export function summarizeNonEmployerBrandHits(value: unknown): string[] {

@@ -54,8 +54,8 @@ Please analyze how well the following candidate matches the job:
 ## industry_db Scoring Rule (Important)
 - The runtime replaces the AI-provided `breakdown.industry_db` with a deterministic system score. Your output is for audit consistency only.
 - Use ONLY the provided `Market`, `Industry Database Verified Companies`, and `Industry Database Brand Hits` fields above. Do not guess hidden hits from company names.
-- For `Market = MY`: if both verified companies and brand hits are `none`, set `industry_db` to `40` (MY floor). If either field contains any hit, set `industry_db` to `50`.
-- For markets other than `MY`: if either verified companies or brand hits contains a hit, set `industry_db` to `50`; if both are `none`, `industry_db` may be `0`.
+- For `Market = MY`: if both verified companies and brand hits are `none`, set `industry_db` to `40` (MY floor). If only verified companies or only brand hits contain a hit, set `industry_db` to `40`; if both contain hits, set `industry_db` to `50`.
+- For markets other than `MY`: if only verified companies or only brand hits contain a hit, set `industry_db` to `40`; if both contain hits, set `industry_db` to `50`; if both are `none`, `industry_db` may be `0`.
 
 ## Keyword Joint-Satisfaction Rule (Important)
 - When job requirements contain multiple keywords (e.g. "CNC sales"), the candidate must satisfy ALL keywords' domain AND role simultaneously, not just one of them in isolation.
