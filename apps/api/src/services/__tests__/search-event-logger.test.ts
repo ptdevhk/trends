@@ -1,5 +1,10 @@
-import { describe, it, expect } from "vitest";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+
+import { describe, it, expect, vi } from "vitest";
 import {
+  SearchEventLogger,
   normalizeQuery,
   readString,
   readNumber,
@@ -191,5 +196,41 @@ describe("parseSearchEvent", () => {
       type: "search_zero_results",
       ts: "2026-05-22T10:00:00Z",
     })).toBeNull();
+  });
+});
+
+describe("SearchEventLogger", () => {
+  it("logs malformed JSONL lines while returning valid search events", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "search-event-logger-"));
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    try {
+      fs.mkdirSync(path.join(root, "output"), { recursive: true });
+      fs.writeFileSync(
+        path.join(root, "output", "search-events.jsonl"),
+        [
+          "{bad json",
+          JSON.stringify({
+            type: "search_query",
+            query: "CNC operator",
+            resultCount: 2,
+            ts: "2026-05-22T10:00:00Z",
+          }),
+        ].join("\n"),
+        "utf8",
+      );
+
+      const events = new SearchEventLogger(root).getEvents();
+
+      expect(events).toHaveLength(1);
+      expect(events[0]?.type).toBe("search_query");
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining("Failed to parse search event log line"),
+        expect.any(SyntaxError),
+      );
+    } finally {
+      errorSpy.mockRestore();
+      fs.rmSync(root, { recursive: true, force: true });
+    }
   });
 });
