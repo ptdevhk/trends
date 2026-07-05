@@ -52,7 +52,8 @@ export function parseJsonArray(value: unknown): string[] {
   try {
     const parsed = JSON.parse(value);
     return Array.isArray(parsed) ? parsed.map((item) => String(item)) : [];
-  } catch {
+  } catch (error) {
+    console.error("[match-storage] Failed to parse JSON array", error);
     return [];
   }
 }
@@ -88,7 +89,8 @@ export function parseJsonObject(
       return Object.keys(numericBreakdown).length > 0 ? numericBreakdown : undefined;
     }
     return undefined;
-  } catch {
+  } catch (error) {
+    console.error("[match-storage] Failed to parse JSON object", error);
     return undefined;
   }
 }

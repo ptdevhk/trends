@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   parseJsonArray,
@@ -6,6 +6,10 @@ import {
   normalizeMatch,
   normalizeMatchRun,
 } from "./match-storage.js";
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 // ---------------------------------------------------------------------------
 // parseJsonArray
@@ -30,6 +34,18 @@ describe("parseJsonArray", () => {
 
   it("returns empty array for invalid JSON", () => {
     expect(parseJsonArray("not json")).toEqual([]);
+  });
+
+  it("logs invalid JSON before returning empty array", () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    expect(parseJsonArray("not json")).toEqual([]);
+
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+    expect(errorSpy).toHaveBeenCalledWith(
+      "[match-storage] Failed to parse JSON array",
+      expect.any(SyntaxError),
+    );
   });
 
   it("returns empty array for valid JSON that is not an array", () => {
@@ -92,6 +108,18 @@ describe("parseJsonObject", () => {
 
   it("returns undefined for invalid JSON", () => {
     expect(parseJsonObject("not json")).toBeUndefined();
+  });
+
+  it("logs invalid JSON before returning undefined", () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    expect(parseJsonObject("not json")).toBeUndefined();
+
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+    expect(errorSpy).toHaveBeenCalledWith(
+      "[match-storage] Failed to parse JSON object",
+      expect.any(SyntaxError),
+    );
   });
 
   it("returns undefined when required keys are missing", () => {
