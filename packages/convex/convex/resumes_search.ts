@@ -920,9 +920,9 @@ export async function doUpsertResumeDigest(
     const activeAnalysis = await readActiveResumeAnalysis(ctx, resume);
     const digest = buildResumeDigest(resume, Date.now(), activeAnalysis);
     if (existing) {
-        await ctx.db.patch(existing._id, digest as any);
+        await ctx.db.patch(existing._id, digest);
     } else {
-        await ctx.db.insert("resume_digests", digest as any);
+        await ctx.db.insert("resume_digests", digest);
     }
 }
 
