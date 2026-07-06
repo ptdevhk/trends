@@ -2,7 +2,6 @@ import { v } from "convex/values";
 import { mutation, query, type MutationCtx } from "./_generated/server";
 
 import { DEFAULT_WORKSPACE_SLUG } from "./sessions";
-const DEFAULT_STATUS = "new";
 
 type CandidateStatus =
     | "new" | "shortlisted" | "rejected" | "contacted"
@@ -196,11 +195,11 @@ export const upsert = mutation({
             return existing._id;
         }
 
-        const statusValue = args.status ?? DEFAULT_STATUS;
+        const statusValue: CandidateStatus = args.status;
         const newId = await ctx.db.insert("candidate_status", {
             workspaceSlug,
             identityKey,
-            status: statusValue as any,
+            status: statusValue,
             notes: args.notes,
             updatedBy: args.updatedBy,
             updatedAt: now,
@@ -210,7 +209,7 @@ export const upsert = mutation({
         await upsertDigestStatusForIdentity(ctx, {
             workspaceSlug,
             identityKey,
-            status: statusValue as CandidateStatus,
+            status: statusValue,
             updatedAt: now,
         });
 
