@@ -10,7 +10,7 @@ import {
     parseRawSalaryRange,
     resolveExperienceYears,
 } from "@trends/shared";
-import type { Doc, Id } from "../_generated/dataModel";
+import type { Doc } from "../_generated/dataModel";
 import {
     resolveResumeAge,
 } from "./resumes_list_projections";
@@ -30,33 +30,7 @@ export { matchesResumeDigestFilters };
 const MAX_DIGEST_FRAGMENT_LENGTH = 160;
 const MAX_DIGEST_SEARCH_TEXT_LENGTH = 1500;
 
-export type ResumeDigest = {
-    resumeId: Id<"resumes">;
-    identityKey?: string;
-    externalId?: string;
-    source?: string;
-    sourceKey?: string;
-    searchText?: string;
-    isArchived?: boolean;
-    archivedAt?: number;
-    primaryRuleScore?: number;
-    crawledAt?: number;
-    age?: number;
-    locationText?: string;
-    educationLevel?: string;
-    salaryMin?: number;
-    salaryMax?: number;
-    experienceYears?: number;
-    roleTypes?: string[];
-    roleYearsByType?: Record<string, number>;
-    displayScore?: number;
-    displayRecommendation?: string;
-    displayBreakdown?: Record<string, number>;
-    displaySummary?: string;
-    displayConfirmedScore?: number;
-    displayConfirmedAt?: number;
-    updatedAt: number;
-};
+export type ResumeDigest = Omit<Doc<"resume_digests">, "_creationTime" | "_id">;
 
 export function buildResumeDigest(
     resume: Doc<"resumes">,
