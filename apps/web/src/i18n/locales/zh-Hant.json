@@ -242,6 +242,31 @@
     "empty": "暫無簡歷數據",
     "loading": "載入中...",
     "error": "載入失敗",
+    "hrFeedbackImport": {
+      "trigger": "匯入 HR 回饋",
+      "title": "匯入 HR 回饋",
+      "description": "貼上 id、姓名、備註列，建立候選人備註。",
+      "parse": "解析",
+      "confirm": "確認匯入",
+      "importing": "匯入中...",
+      "noRows": "未找到回饋列",
+      "parsed": "已解析 {{count}} 列",
+      "parseFailed": "解析回饋列失敗",
+      "importFailed": "匯入回饋失敗",
+      "imported": "已匯入 {{imported}} 條備註 · {{notFound}} 個未找到",
+      "columns": {
+        "id": "ID",
+        "name": "姓名",
+        "comment": "備註",
+        "status": "狀態"
+      },
+      "status": {
+        "ready": "待匯入",
+        "imported": "已匯入",
+        "skipped": "已跳過",
+        "notFound": "未找到"
+      }
+    },
     "mode": {
       "ai": "AI 模式",
       "original": "原始模式"

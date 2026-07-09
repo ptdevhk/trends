@@ -3329,6 +3329,81 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/resumes/feedback-batch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Import HR feedback comments as candidate notes */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        items: {
+                            resumeId: string;
+                            name?: string;
+                            comments: string;
+                        }[];
+                    };
+                };
+            };
+            responses: {
+                /** @description Batch feedback import result */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            total: number;
+                            imported: number;
+                            skipped: number;
+                            notFound: string[];
+                            results: {
+                                resumeId: string;
+                                name?: string;
+                                comments: string;
+                                /** @enum {string} */
+                                status: "imported" | "skipped" | "notFound";
+                                actionId?: number;
+                                reason?: string;
+                            }[];
+                        };
+                    };
+                };
+                /** @description Feedback import failed */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/resumes/samples": {
         parameters: {
             query?: never;

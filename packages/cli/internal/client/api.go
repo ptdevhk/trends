@@ -535,14 +535,14 @@ type ClearAnalysesAPIRequest struct {
 }
 
 type ClearAnalysesAPIResponse struct {
-	Success         bool     `json:"success"`
-	DryRun          bool     `json:"dryRun,omitempty"`
-	Cleared         int      `json:"cleared"`
-	WouldClear      int      `json:"wouldClear,omitempty"`
-	Batches         int      `json:"batches,omitempty"`
-	Targeted        bool     `json:"targeted"`
-	JobDescriptionID string  `json:"jobDescriptionId,omitempty"`
-	ResumeIDs       []string `json:"resumeIds,omitempty"`
+	Success          bool     `json:"success"`
+	DryRun           bool     `json:"dryRun,omitempty"`
+	Cleared          int      `json:"cleared"`
+	WouldClear       int      `json:"wouldClear,omitempty"`
+	Batches          int      `json:"batches,omitempty"`
+	Targeted         bool     `json:"targeted"`
+	JobDescriptionID string   `json:"jobDescriptionId,omitempty"`
+	ResumeIDs        []string `json:"resumeIds,omitempty"`
 }
 
 func (c *Client) ClearAnalysesViaAPI(ctx context.Context, request ClearAnalysesAPIRequest) (*ClearAnalysesAPIResponse, error) {
@@ -562,12 +562,12 @@ type ResetDatabaseRequest struct {
 }
 
 type ResetDatabaseResponse struct {
-	Success    bool              `json:"success"`
-	DryRun     bool              `json:"dryRun,omitempty"`
-	Count      int               `json:"count,omitempty"`
-	WouldDelete map[string]int   `json:"wouldDelete,omitempty"`
-	Partial    bool              `json:"partial,omitempty"`
-	Deleted    map[string]int    `json:"deleted,omitempty"`
+	Success     bool           `json:"success"`
+	DryRun      bool           `json:"dryRun,omitempty"`
+	Count       int            `json:"count,omitempty"`
+	WouldDelete map[string]int `json:"wouldDelete,omitempty"`
+	Partial     bool           `json:"partial,omitempty"`
+	Deleted     map[string]int `json:"deleted,omitempty"`
 }
 
 func (c *Client) ResetDatabase(ctx context.Context, request ResetDatabaseRequest) (*ResetDatabaseResponse, error) {
@@ -588,13 +588,53 @@ type ArchiveResumesRequest struct {
 }
 
 type ArchiveResumesResponse struct {
-	Success        bool     `json:"success"`
-	Requested      int      `json:"requested"`
-	Archived       int      `json:"archived,omitempty"`
-	AlreadyArchived int     `json:"alreadyArchived,omitempty"`
-	Unarchived     int      `json:"unarchived,omitempty"`
-	NotArchived    int      `json:"notArchived,omitempty"`
-	MissingIDs     []string `json:"missingResumeIds,omitempty"`
+	Success         bool     `json:"success"`
+	Requested       int      `json:"requested"`
+	Archived        int      `json:"archived,omitempty"`
+	AlreadyArchived int      `json:"alreadyArchived,omitempty"`
+	Unarchived      int      `json:"unarchived,omitempty"`
+	NotArchived     int      `json:"notArchived,omitempty"`
+	MissingIDs      []string `json:"missingResumeIds,omitempty"`
+}
+
+type ResumeFeedbackBatchItem struct {
+	ResumeID string `json:"resumeId"`
+	Name     string `json:"name,omitempty"`
+	Comments string `json:"comments"`
+}
+
+type ResumeFeedbackBatchRequest struct {
+	Items []ResumeFeedbackBatchItem `json:"items"`
+}
+
+type ResumeFeedbackBatchResult struct {
+	ResumeID string `json:"resumeId"`
+	Name     string `json:"name,omitempty"`
+	Comments string `json:"comments"`
+	Status   string `json:"status"`
+	ActionID int    `json:"actionId,omitempty"`
+	Reason   string `json:"reason,omitempty"`
+}
+
+type ResumeFeedbackBatchResponse struct {
+	Success  bool                        `json:"success"`
+	Total    int                         `json:"total"`
+	Imported int                         `json:"imported"`
+	Skipped  int                         `json:"skipped"`
+	NotFound []string                    `json:"notFound"`
+	Results  []ResumeFeedbackBatchResult `json:"results"`
+}
+
+func (c *Client) ImportResumeFeedbackBatch(ctx context.Context, items []ResumeFeedbackBatchItem) (*ResumeFeedbackBatchResponse, error) {
+	endpoint := fmt.Sprintf("%s/api/resumes/feedback-batch", c.APIURL)
+	var response ResumeFeedbackBatchResponse
+	if err := c.doJSON(ctx, http.MethodPost, endpoint, ResumeFeedbackBatchRequest{Items: items}, &response); err != nil {
+		return nil, err
+	}
+	if !response.Success {
+		return nil, fmt.Errorf("resume feedback batch import was not successful")
+	}
+	return &response, nil
 }
 
 func (c *Client) ArchiveResumes(ctx context.Context, resumeIDs []string) (*ArchiveResumesResponse, error) {
@@ -624,7 +664,7 @@ type AnalyzeRequest struct {
 	Education        []string `json:"education,omitempty"`
 	Skills           []string `json:"skills,omitempty"`
 	RequiredKeywords []string `json:"requiredKeywords,omitempty"`
-	Locations       []string `json:"locations,omitempty"`
+	Locations        []string `json:"locations,omitempty"`
 	MinSalary        int      `json:"minSalary,omitempty"`
 	MaxSalary        int      `json:"maxSalary,omitempty"`
 	Limit            int      `json:"limit,omitempty"`
@@ -641,11 +681,11 @@ type AnalyzeConfig struct {
 }
 
 type AnalyzeResponse struct {
-	Success      bool          `json:"success"`
-	DryRun       bool          `json:"dryRun,omitempty"`
-	TaskID       string        `json:"taskId,omitempty"`
-	ResumeCount  int           `json:"resumeCount"`
-	SkippedCount int           `json:"skippedCount,omitempty"`
+	Success      bool           `json:"success"`
+	DryRun       bool           `json:"dryRun,omitempty"`
+	TaskID       string         `json:"taskId,omitempty"`
+	ResumeCount  int            `json:"resumeCount"`
+	SkippedCount int            `json:"skippedCount,omitempty"`
 	Config       *AnalyzeConfig `json:"config,omitempty"`
 }
 
@@ -668,10 +708,10 @@ type AnalysisTaskProgress struct {
 }
 
 type AnalysisTaskResults struct {
-	Analyzed      int     `json:"analyzed,omitempty"`
-	Failed       int     `json:"failed,omitempty"`
-	AvgScore      float64 `json:"avgScore,omitempty"`
-	HighScoreCount int    `json:"highScoreCount,omitempty"`
+	Analyzed       int     `json:"analyzed,omitempty"`
+	Failed         int     `json:"failed,omitempty"`
+	AvgScore       float64 `json:"avgScore,omitempty"`
+	HighScoreCount int     `json:"highScoreCount,omitempty"`
 }
 
 type AnalysisTaskConfig struct {
@@ -684,14 +724,14 @@ type AnalysisTaskConfig struct {
 }
 
 type AnalysisTask struct {
-	ID           string               `json:"_id"`
-	Status       string               `json:"status"`
-	CreatedAt    float64              `json:"_creationTime"`
-	Config       *AnalysisTaskConfig  `json:"config,omitempty"`
-	Progress     *AnalysisTaskProgress `json:"progress,omitempty"`
-	Results      *AnalysisTaskResults  `json:"results,omitempty"`
-	LastStatus   string               `json:"lastStatus,omitempty"`
-	Error        string               `json:"error,omitempty"`
+	ID         string                `json:"_id"`
+	Status     string                `json:"status"`
+	CreatedAt  float64               `json:"_creationTime"`
+	Config     *AnalysisTaskConfig   `json:"config,omitempty"`
+	Progress   *AnalysisTaskProgress `json:"progress,omitempty"`
+	Results    *AnalysisTaskResults  `json:"results,omitempty"`
+	LastStatus string                `json:"lastStatus,omitempty"`
+	Error      string                `json:"error,omitempty"`
 }
 
 type AnalysisTasksResponse struct {

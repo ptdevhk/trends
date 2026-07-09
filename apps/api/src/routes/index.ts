@@ -31,4 +31,5 @@ export { default as resumesMatchRoutes } from "./resumes_match.js";
 export { default as resumesDiagnosticsRoutes } from "./resumes_diagnostics.js";
 export { default as resumesImportRoutes } from "./resumes_import.js";
 export { default as resumesPacketsRoutes } from "./resumes_packets.js";
+export { default as resumesFeedbackBatchRoutes } from "./resumes_feedback_batch.js";
 export { default as systemRoutes } from "./system.js";

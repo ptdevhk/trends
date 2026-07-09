@@ -242,6 +242,31 @@
     "empty": "暂无简历数据",
     "loading": "加载中...",
     "error": "加载失败",
+    "hrFeedbackImport": {
+      "trigger": "导入 HR 反馈",
+      "title": "导入 HR 反馈",
+      "description": "粘贴 id、姓名、备注列，创建候选人备注。",
+      "parse": "解析",
+      "confirm": "确认导入",
+      "importing": "导入中...",
+      "noRows": "未找到反馈行",
+      "parsed": "已解析 {{count}} 行",
+      "parseFailed": "解析反馈行失败",
+      "importFailed": "导入反馈失败",
+      "imported": "已导入 {{imported}} 条备注 · {{notFound}} 个未找到",
+      "columns": {
+        "id": "ID",
+        "name": "姓名",
+        "comment": "备注",
+        "status": "状态"
+      },
+      "status": {
+        "ready": "待导入",
+        "imported": "已导入",
+        "skipped": "已跳过",
+        "notFound": "未找到"
+      }
+    },
     "mode": {
       "ai": "AI 模式",
       "original": "原始模式"
