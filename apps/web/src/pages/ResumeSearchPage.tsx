@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { AnalysisTaskMonitor } from '@/components/AnalysisTaskMonitor'
 import { BulkActionBar } from '@/components/BulkActionBar'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
+import { HrFeedbackImportDialog } from '@/components/HrFeedbackImportDialog'
 import { InlineErrorFallback } from '@/components/InlineErrorFallback'
 import { ModeToggle } from '@/components/ModeToggle'
 import { AiSummaryPanel } from '@/components/search/AiSummaryPanel'
@@ -524,6 +525,7 @@ export function ResumeSearchPage() {
                     ensureApiSession={ensureShareSession}
                     createPublicShare={canManageCandidateData ? createPublicShare : undefined}
                   />
+                  <HrFeedbackImportDialog disabled={!canManageCandidateData} />
                 </div>
               </div>
 

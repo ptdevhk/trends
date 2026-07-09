@@ -35,6 +35,7 @@ import {
   resumesDiagnosticsRoutes,
   resumesImportRoutes,
   resumesPacketsRoutes,
+  resumesFeedbackBatchRoutes,
   resumesAdminRoutes,
   resumesSearchRoutes,
   resumesMatchRoutes,
@@ -229,6 +230,7 @@ export function createApp(options: CreateAppOptions = {}) {
   app.route("/", resumesDiagnosticsRoutes);
   app.route("/", resumesImportRoutes);
   app.route("/", resumesPacketsRoutes);
+  app.route("/", resumesFeedbackBatchRoutes);
   app.route("/", resumesSearchRoutes);
   app.route("/", resumesMatchRoutes);
   app.route("/", resumesRoutes);

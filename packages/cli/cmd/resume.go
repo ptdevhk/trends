@@ -37,6 +37,7 @@ func newResumeCmd() *cobra.Command {
 		newResumeDeployBackupCmd(),
 		newResumeExportCmd(),
 		newResumeDebugCmd(),
+		newResumeNoteCmd(),
 		newResumeArchiveCmd(),
 		newResumeUnarchiveCmd(),
 	)
@@ -309,7 +310,7 @@ func newResumeAnalyzeCmd() *cobra.Command {
 				Education:        educationSlice,
 				Skills:           skillsSlice,
 				RequiredKeywords: requiredKeywordsSlice,
-				Locations:       locationsSlice,
+				Locations:        locationsSlice,
 				MinSalary:        minSalary,
 				MaxSalary:        maxSalary,
 				Limit:            limit,

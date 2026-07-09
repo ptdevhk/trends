@@ -67,6 +67,10 @@
     "class": "admin",
     "reason": "Resume diagnostic routes use requireAdmin middleware."
   },
+  "resumes_feedback_batch.ts": {
+    "class": "workspace-write",
+    "reason": "Free-form HR feedback batch imports write candidate action notes and require authenticated workspace membership through requireWorkspaceUser."
+  },
   "resumes_import.ts": {
     "class": "admin",
     "reason": "Resume import, backup, and reset routes use requireAdmin middleware."

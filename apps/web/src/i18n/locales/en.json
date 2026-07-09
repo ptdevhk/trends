@@ -243,6 +243,31 @@
     "empty": "No resume data available",
     "loading": "Loading...",
     "error": "Failed to load",
+    "hrFeedbackImport": {
+      "trigger": "Import HR feedback",
+      "title": "Import HR feedback",
+      "description": "Paste id, name, comments rows to create candidate notes.",
+      "parse": "Parse",
+      "confirm": "Confirm import",
+      "importing": "Importing...",
+      "noRows": "No feedback rows found",
+      "parsed": "Parsed {{count}} rows",
+      "parseFailed": "Failed to parse feedback rows",
+      "importFailed": "Failed to import feedback",
+      "imported": "Imported {{imported}} notes · {{notFound}} not found",
+      "columns": {
+        "id": "ID",
+        "name": "Name",
+        "comment": "Comment",
+        "status": "Status"
+      },
+      "status": {
+        "ready": "Ready",
+        "imported": "Imported",
+        "skipped": "Skipped",
+        "notFound": "Not found"
+      }
+    },
     "mode": {
       "ai": "AI Mode",
       "original": "Original Mode"
