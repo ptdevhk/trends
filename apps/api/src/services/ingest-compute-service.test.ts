@@ -1208,4 +1208,148 @@ describe("IngestComputeService", () => {
       expect(myResult.primaryRuleScore).toBeGreaterThan(0);
     });
   });
+
+  describe("JTEKT / TOYODA alias regression (CN HR feedback 宋先生 case)", () => {
+    // Regression for the 2026-07-09 CN HR feedback audit: 宋先生 worked at
+    // 捷太格特机床(大连)有限公司 (JTEKT) but scored 15 because the employer
+    // string was not seeded as a known company and 捷太格特/JTEKT were not
+    // aliased to the TOYODA brand pattern. These fixtures mirror the real
+    // config changes in skills.md/skills.en.md/brands.json/keywords-structured.md.
+    const JTEKT_SKILLS_MD = `---
+version: 42
+updated_at: '2026-07-10'
+description: JTEKT alias regression fixture
+---
+
+# Skills Knowledge
+
+## Domain Taxonomy
+
+### machinery
+- displayName: 机械
+- keywords: 机床, 车床, lathe, machining
+
+### sales
+- displayName: 销售
+- keywords: 销售, sales, account
+
+## Company Patterns
+
+- TOYODA [role: both] (aliases: 丰田工机, ジェイテクト, 捷太格特, JTEKT, JTEKT机床, 捷太格特机床)
+- 蕙勒 [role: both] (aliases: 蕙勒智能, 蕙勒智能科技, Huile)
+- 唯思凌科 [role: both] (aliases: 湖北唯思凌科, 唯思凌科装备, WSLK)
+
+## Industry Context
+
+JTEKT alias cluster regression.
+
+## Exclusion Patterns
+
+- exclude: 测试, test, demo
+
+## Learning Log
+
+- 2026-07-10: JTEKT/捷太格特 aliased to TOYODA brand cluster
+`;
+
+    const JTEKT_KEYWORDS_STRUCTURED_MD = `
+## 重点企业 (Key Companies)
+
+| ID | 公司名称 (Company Name) | 英文名称 (English Name) | 类型 (Type) |
+| --- | --- | --- | --- |
+| 1 | 捷太格特机床(大连)有限公司 | JTEKT Machine (Dalian) | key_company |
+`;
+
+    const JTEKT_BRANDS_JSON = JSON.stringify([
+      { id: 16, nameCn: "丰田工机", nameEn: "TOYODA", type: "加工中心/数控车床", origin: "international" },
+      { id: 80, nameCn: "蕙勒", nameEn: "HUILE", type: "加工中心/数控车床", origin: "domestic" },
+      { id: 81, nameCn: "唯思凌科", nameEn: "WSLK", type: "加工中心/数控车床", origin: "domestic" },
+    ], null, 2);
+
+    let jtektDir: string;
+    let jtektService: IngestComputeService;
+
+    beforeEach(() => {
+      jtektDir = fs.mkdtempSync(path.join(os.tmpdir(), "ingest-jtekt-"));
+      const resumeDir = path.join(jtektDir, "config", "resume");
+      const industryDir = path.join(jtektDir, "config", "industry-data");
+      fs.mkdirSync(resumeDir, { recursive: true });
+      fs.mkdirSync(industryDir, { recursive: true });
+      fs.writeFileSync(path.join(resumeDir, "skills.md"), JTEKT_SKILLS_MD);
+      fs.writeFileSync(path.join(industryDir, "keywords-structured.md"), JTEKT_KEYWORDS_STRUCTURED_MD);
+      fs.writeFileSync(path.join(industryDir, "brands.json"), JTEKT_BRANDS_JSON);
+      jtektService = new IngestComputeService(jtektDir);
+    });
+
+    afterEach(() => {
+      fs.rmSync(jtektDir, { recursive: true, force: true });
+    });
+
+    it("should seed 捷太格特机床(大连)有限公司 as a verified company hit (宋先生 case)", () => {
+      // 宋先生-style work history: 捷太格特机床(大连)有限公司 sales manager.
+      // Before the fix this employer was unknown -> 0 companyHits -> industry_db 0.
+      // After the keywords-structured.md seed it verifies as a Tier-1 company.
+      const result = jtektService.computeOne("resume-song", {
+        data: [
+          {
+            ...SAMPLE_RESUME_JUNIOR.data[0],
+            workHistory: [
+              { raw: "2024-04~2026-04(2年)捷太格特机床(大连)有限公司销售经理，负责四川重庆区域机床销售全流程" },
+            ],
+          },
+        ],
+      });
+
+      expect(result.companyHits.length).toBeGreaterThan(0);
+      // Industry DB must no longer be zero after the company seed.
+      expect(result.industryDbV2Raw).toBeGreaterThan(0);
+    });
+
+    it("should resolve the 捷太格特 alias to a TOYODA brand hit when mentioned outside an employer name", () => {
+      // When 捷太格特 appears in a non-employer context (equipment/description),
+      // the skills.md alias cluster must resolve it to the toyoda brand.
+      const result = jtektService.computeOne("resume-jtekt-brand", {
+        data: [
+          {
+            ...SAMPLE_RESUME_JUNIOR.data[0],
+            workHistory: [
+              { raw: "2024-04~2026-04(2年)某设备公司销售工程师，负责捷太格特机床销售与JTEKT设备推广" },
+            ],
+          },
+        ],
+      });
+
+      expect(result.brandHits.map((hit) => hit.brand)).toContain("toyoda");
+      expect(result.industryDbV2Raw).toBeGreaterThan(0);
+    });
+
+    it("should classify 蕙勒 and 唯思凌科 as domestic-origin brands", () => {
+      // 蕙勒 (李铛 employer) - domestic CNC machine company
+      const huileResult = jtektService.computeOne("resume-li-dang", {
+        data: [
+          {
+            ...SAMPLE_RESUME_JUNIOR.data[0],
+            workHistory: [
+              { raw: "2020-01~2024-12(4年11月)蕙勒智能科技销售经理，负责蕙勒数控机床销售" },
+            ],
+          },
+        ],
+      });
+      expect(huileResult.brandHits.map((hit) => hit.brand)).toContain("蕙勒");
+      expect(huileResult.industryDbV2Raw).toBeGreaterThan(0);
+      // 唯思凌科 (张武汉 employer) - domestic CNC machine company
+      const wslkResult = jtektService.computeOne("resume-zhang-wuhan", {
+        data: [
+          {
+            ...SAMPLE_RESUME_JUNIOR.data[0],
+            workHistory: [
+              { raw: "2025-03~至今 荆州唯思凌科销售工程师，负责唯思凌科数控机床工装业务" },
+            ],
+          },
+        ],
+      });
+      expect(wslkResult.brandHits.map((hit) => hit.brand)).toContain("唯思凌科");
+      expect(wslkResult.industryDbV2Raw).toBeGreaterThan(0);
+    });
+  });
 });

@@ -77,5 +77,7 @@
   { "id": 76, "nameCn": "雄群数控", "nameEn": "XIONGQUN", "type": "加工中心/数控车床", "origin": "domestic" },
   { "id": 77, "nameCn": "精雕", "nameEn": "JINGDIAO", "type": "加工中心/数控车床", "origin": "domestic" },
   { "id": 78, "nameCn": "不二越", "nameEn": "NACHI", "type": "工业机器人/刀具", "origin": "international" },
-  { "id": 79, "nameCn": "法如", "nameEn": "FARO", "type": "测量扫描", "origin": "international" }
+  { "id": 79, "nameCn": "法如", "nameEn": "FARO", "type": "测量扫描", "origin": "international" },
+  { "id": 80, "nameCn": "蕙勒", "nameEn": "HUILE", "type": "加工中心/数控车床", "origin": "domestic" },
+  { "id": 81, "nameCn": "唯思凌科", "nameEn": "WSLK", "type": "加工中心/数控车床", "origin": "domestic" }
 ]
