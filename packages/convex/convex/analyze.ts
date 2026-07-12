@@ -1,9 +1,9 @@
 /// <reference path="./convex-env.d.ts" />
 import {
+    buildBrandHitsPromptSegments,
     deriveMarketFromSourceKey,
     getResumeAiLocaleText,
     getResumeAiPromptDefinition,
-    summarizeNonEmployerBrandHits,
     resolveResumeAnalysisSourceKey,
     sanitizeResumeRecordForSurface,
     isRecord,
@@ -129,7 +129,11 @@ export function normalizeResume(
             (item: unknown): item is string => typeof item === "string" && item.length > 0
         )
         : [];
-    const brandHits = summarizeNonEmployerBrandHits(ingestData?.brandHits);
+    const brandHits = buildBrandHitsPromptSegments({
+        brandHits: ingestData?.brandHits,
+        brandOrigin: typeof ingestData?.brandOrigin === "string" ? ingestData.brandOrigin : undefined,
+        productClass: typeof ingestData?.productClass === "string" ? ingestData.productClass : undefined,
+    });
     const roleSignals = parseRoleSignals(ingestData?.roleSignals);
     const explicitMarket = typeof ingestData?.market === "string" ? ingestData.market.trim().toUpperCase() : "";
     const sourceKey = typeof root.sourceKey === "string"

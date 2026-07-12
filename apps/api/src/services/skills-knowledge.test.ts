@@ -649,4 +649,70 @@ description: 测试技能知识文件
       fs.rmSync(root, { recursive: true, force: true });
     }
   });
+
+  describe("canonical repo config regression (CN HR feedback 2026-07-09)", () => {
+    // Guards the alias/brand fixes in the real config/resume/skills.md and
+    // skills.en.md against accidental removal. The repo root is resolved via
+    // findProjectRoot so this works from the package dir or the workspace root.
+    function resolveRepoRoot(): string {
+      let dir = path.resolve(__dirname);
+      while (true) {
+        if (
+          fs.existsSync(path.join(dir, "output")) &&
+          fs.existsSync(path.join(dir, "config")) &&
+          fs.existsSync(path.join(dir, "pyproject.toml"))
+        ) {
+          return dir;
+        }
+        const parent = path.dirname(dir);
+        if (parent === dir) throw new Error("repo root not found");
+        dir = parent;
+      }
+    }
+
+    it("canonical skills.md aliases 捷太格特/JTEKT under TOYODA", () => {
+      const root = resolveRepoRoot();
+      const skills = fs.readFileSync(path.join(root, "config", "resume", "skills.md"), "utf8");
+      const toyodaLine = skills.split("\n").find((l) => /^\s*- TOYODA\s*\[/.test(l));
+      expect(toyodaLine).toBeDefined();
+      expect(toyodaLine).toContain("捷太格特");
+      expect(toyodaLine).toContain("JTEKT");
+    });
+
+    it("canonical skills.en.md aliases 捷太格特/JTEKT under TOYODA", () => {
+      const root = resolveRepoRoot();
+      const skills = fs.readFileSync(path.join(root, "config", "resume", "skills.en.md"), "utf8");
+      const toyodaLine = skills.split("\n").find((l) => /^\s*- TOYODA\s*\[/.test(l));
+      expect(toyodaLine).toBeDefined();
+      expect(toyodaLine).toContain("捷太格特");
+      expect(toyodaLine).toContain("JTEKT");
+    });
+
+    it("canonical skills.md domestic tier includes 蕙勒 and 唯思凌科", () => {
+      const root = resolveRepoRoot();
+      const skills = fs.readFileSync(path.join(root, "config", "resume", "skills.md"), "utf8");
+      expect(skills).toMatch(/^- 蕙勒 \[role: both\]/m);
+      expect(skills).toMatch(/^- 唯思凌科 \[role: both\]/m);
+    });
+
+    it("canonical brands.json includes 蕙勒 and 唯思凌科 as domestic", () => {
+      const root = resolveRepoRoot();
+      const brands = JSON.parse(
+        fs.readFileSync(path.join(root, "config", "industry-data", "brands.json"), "utf8"),
+      ) as Array<{ nameCn: string; origin: string }>;
+      const huile = brands.find((b) => b.nameCn === "蕙勒");
+      expect(huile?.origin).toBe("domestic");
+      const wslk = brands.find((b) => b.nameCn === "唯思凌科");
+      expect(wslk?.origin).toBe("domestic");
+    });
+
+    it("canonical keywords-structured.md seeds 捷太格特机床(大连)有限公司", () => {
+      const root = resolveRepoRoot();
+      const md = fs.readFileSync(
+        path.join(root, "config", "industry-data", "keywords-structured.md"),
+        "utf8",
+      );
+      expect(md).toContain("捷太格特机床(大连)有限公司");
+    });
+  });
 });

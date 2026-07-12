@@ -14,6 +14,12 @@ import {
     computeFinalAiScore,
     recommendationFromFinalAiScore,
     resolveResumeAnalysisSourceKey,
+    parseBrandOrigin,
+    parseProductClass,
+    stripForbiddenStrongMatchProse,
+    structuredBrandConcerns,
+    type BrandOrigin,
+    type ProductClass,
     type RelatedExpContextInput,
     type RelatedExpIngestEvidence,
     type RelatedExpEvidenceResult,
@@ -347,6 +353,47 @@ export function normalizeSummaryConsistency(
         }
     }
 
+    // Phase 2: forbid strong-match prose on low score bands (e.g. 刘先生 刀具 summary).
+    next = stripForbiddenStrongMatchProse(next, normalized.score);
+
+    return next;
+}
+
+function resolveStructuredBrandSignals(resume: unknown): {
+    brandOrigin?: BrandOrigin;
+    productClass?: ProductClass;
+} {
+    const ingestData = getResumeIngestData(resume);
+    return {
+        brandOrigin: parseBrandOrigin(ingestData.brandOrigin),
+        productClass: parseProductClass(ingestData.productClass),
+    };
+}
+
+/**
+ * Merge deterministic structured brand concerns into LLM concerns without
+ * duplicating already-present phrases.
+ */
+export function enrichConcernsWithBrandSignals(
+    concerns: string[],
+    resume: unknown,
+    locale?: string,
+): string[] {
+    const signals = resolveStructuredBrandSignals(resume);
+    const extras = structuredBrandConcerns({
+        brandOrigin: signals.brandOrigin,
+        productClass: signals.productClass,
+        locale,
+    });
+    if (extras.length === 0) {
+        return concerns;
+    }
+    const next = [...concerns];
+    for (const extra of extras) {
+        if (!next.some((item) => item.includes(extra) || extra.includes(item))) {
+            next.push(extra);
+        }
+    }
     return next;
 }
 
@@ -427,6 +474,10 @@ export function normalizeAnalysisResult(
     const rawSummary = typeof result.summary === "string" && result.summary.trim().length > 0
         ? result.summary
         : "No summary provided.";
+    const baseConcerns = Array.isArray(result.concerns)
+        ? result.concerns.filter((item): item is string => typeof item === "string")
+        : [];
+    const localeHint = hasHanText(rawSummary) ? "zh" : "en";
 
     return {
         score,
@@ -438,9 +489,7 @@ export function normalizeAnalysisResult(
         highlights: Array.isArray(result.highlights)
             ? result.highlights.filter((item): item is string => typeof item === "string")
             : [],
-        concerns: Array.isArray(result.concerns)
-            ? result.concerns.filter((item): item is string => typeof item === "string")
-            : [],
+        concerns: enrichConcernsWithBrandSignals(baseConcerns, resume, localeHint),
         breakdown: {
             ...(breakdown ?? {}),
             related_exp: relatedExpAuditFactor,

@@ -10,7 +10,9 @@ import {
   normalizeKeywordPhrases,
   normalizeProfileUrlForDisplay,
   normalizeSharedResumeFields,
+  parseBrandOrigin,
   parseExperienceYears,
+  parseProductClass,
   parseRawSalaryRange,
   selectLatestWorkHistory,
 } from "@trends/shared";
@@ -133,6 +135,8 @@ export function normalizeIngestBrandHits(value: unknown): ResumeIngestBrandHit[]
       const source = toStringValue(item.source);
       const context = toStringValue(item.context);
       const companyId = toOptionalNumber(item.companyId);
+      const origin = parseBrandOrigin(item.origin);
+      const productClass = parseProductClass(item.productClass);
 
       if (!brand || !role || !source || !context) {
         return null;
@@ -144,6 +148,8 @@ export function normalizeIngestBrandHits(value: unknown): ResumeIngestBrandHit[]
         source,
         context,
         ...(companyId === undefined ? {} : { companyId }),
+        ...(origin ? { origin } : {}),
+        ...(productClass ? { productClass } : {}),
       } satisfies ResumeIngestBrandHit;
     })
     .filter((item): item is ResumeIngestBrandHit => item !== null);
@@ -239,6 +245,8 @@ export function normalizeIngestData(value: unknown): ResumeIngestData | undefine
   const companyHits = toStringArray(value.companyHits);
   const roleSignals = normalizeRoleSignals(value.roleSignals);
   const verifiedRoleYears = normalizeNumberRecord(value.verifiedRoleYears);
+  const brandOrigin = parseBrandOrigin(value.brandOrigin);
+  const productClass = parseProductClass(value.productClass);
 
   if (
     industryTags.length === 0
@@ -246,6 +254,8 @@ export function normalizeIngestData(value: unknown): ResumeIngestData | undefine
     && companyHits.length === 0
     && roleSignals === undefined
     && verifiedRoleYears === undefined
+    && brandOrigin === undefined
+    && productClass === undefined
   ) {
     return undefined;
   }
@@ -253,6 +263,8 @@ export function normalizeIngestData(value: unknown): ResumeIngestData | undefine
   return {
     ...(industryTags.length > 0 ? { industryTags } : {}),
     ...(brandHits ? { brandHits } : {}),
+    ...(brandOrigin ? { brandOrigin } : {}),
+    ...(productClass ? { productClass } : {}),
     ...(companyHits.length > 0 ? { companyHits } : {}),
     ...(roleSignals ? { roleSignals } : {}),
     ...(verifiedRoleYears ? { verifiedRoleYears } : {}),

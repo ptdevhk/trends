@@ -102,7 +102,7 @@ Tier 1 - CNC / Machining
 - HARDINGE [role: both] (aliases: 哈挺, Hardinge)
 - YASDA [role: both] (aliases: 安田, ヤスダ)
 - HERMLE [role: both] (aliases: 哈默, 赫姆勒)
-- TOYODA [role: both] (aliases: 丰田工机, ジェイテクト)
+- TOYODA [role: both] (aliases: 丰田工机, ジェイテクト, 捷太格特, JTEKT, JTEKT机床, 捷太格特机床)
 - RENISHAW [role: equipment] (aliases: 雷尼绍, レニショー)
 - TORNOS [role: both] (aliases: 特纳斯, Tornos Swiss)
 - GF MACHINING [role: both] (aliases: 乔治费歇尔, 米科朗, 阿奇, Mikron, AgieCharmilles)
@@ -151,6 +151,8 @@ Tier 5 - Domestic / Pearl River Delta
 - 纽威 [role: both] (aliases: 纽威数控, Neway)
 - 程泰 [role: both] (aliases: 程泰机械, Goodway)
 - 乔锋 [role: both] (aliases: 乔锋智能, Qiaofeng)
+- 蕙勒 [role: both] (aliases: 蕙勒智能, 蕙勒智能科技, Huile)
+- 唯思凌科 [role: both] (aliases: 湖北唯思凌科, 唯思凌科装备, WSLK)
 
 ## Industry Context
 

@@ -5,7 +5,7 @@ import type {
   RoleSignalSummary,
 } from "./rule-scoring.js";
 import type { ResumeItem } from "../types/resume.js";
-import { isRecord } from "@trends/shared";
+import { isRecord, parseBrandOrigin, parseProductClass } from "@trends/shared";
 
 // ── Shared helpers for resume ingest data parsing ────────────────────────
 // These functions handle type-safe extraction of ingest-data fields from
@@ -91,11 +91,16 @@ export function parseBrandHits(value: unknown): BrandHit[] {
       return [];
     }
 
+    const origin = parseBrandOrigin(item.origin);
+    const productClass = parseProductClass(item.productClass);
+
     return [{
       brand,
       role,
       source,
       context,
+      ...(origin ? { origin } : {}),
+      ...(productClass ? { productClass } : {}),
     }];
   });
 }

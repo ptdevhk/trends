@@ -1,4 +1,6 @@
 import type {
+  BrandOrigin,
+  ProductClass,
   ResumeDigitalIdentity,
   ResumeIndustry,
   ResumeLanguageDetail,
@@ -29,6 +31,8 @@ export type ResumeIngestBrandHit = {
   source: string;
   context: string;
   companyId?: number;
+  origin?: BrandOrigin;
+  productClass?: ProductClass;
 };
 
 export type ResumeIngestMatchedWorkEntry = {
@@ -58,6 +62,10 @@ export type ResumeIngestData = {
   synonymHits?: string[];
   evidenceText?: string;
   brandHits?: ResumeIngestBrandHit[];
+  /** Candidate-level brand origin aggregate; analysis/debug signal only */
+  brandOrigin?: BrandOrigin;
+  /** Candidate-level product class aggregate; analysis/debug signal only */
+  productClass?: ProductClass;
   companyHits?: string[];
   industryDbV2Raw?: number;
   roleSignals?: ResumeIngestRoleSignal[];
