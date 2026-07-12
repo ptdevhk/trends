@@ -91,11 +91,25 @@ export function parseBrandHits(value: unknown): BrandHit[] {
       return [];
     }
 
+    const origin =
+      item.origin === "international" || item.origin === "domestic" || item.origin === "unknown"
+        ? item.origin
+        : undefined;
+    const productClass =
+      item.productClass === "complete_machine"
+      || item.productClass === "tool_accessory"
+      || item.productClass === "industrial_component"
+      || item.productClass === "other"
+        ? item.productClass
+        : undefined;
+
     return [{
       brand,
       role,
       source,
       context,
+      ...(origin ? { origin } : {}),
+      ...(productClass ? { productClass } : {}),
     }];
   });
 }

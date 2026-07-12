@@ -172,6 +172,10 @@ export interface BrandHit {
   role: BrandRole;
   source: "workHistory" | "selfIntro" | "jobIntention";
   context: BrandContext;
+  /** brands.json origin when known; analysis/debug signal only */
+  origin?: "international" | "domestic" | "unknown";
+  /** product-class code derived from brand type; analysis/debug signal only */
+  productClass?: "complete_machine" | "tool_accessory" | "industrial_component" | "other";
 }
 
 export interface RuleScoringResult {

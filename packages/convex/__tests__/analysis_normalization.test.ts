@@ -11,6 +11,7 @@ import {
     hasCompanyHits,
     hasHanText,
     hasNonEmployerBrandHits,
+    enrichConcernsWithBrandSignals,
     normalizeAnalysisResult,
     normalizeSummaryConsistency,
     parseKeyFactors,
@@ -423,6 +424,37 @@ describe("normalizeSummaryConsistency", () => {
         });
         expect(result).toContain("系统归一化结果");
     });
+
+    it("strips strong-match prose on low score bands (刘先生刀具 regression)", () => {
+        const result = normalizeSummaryConsistency("刀具销售，较强匹配，建议重点推进", {
+            score: 30,
+            recommendation: "no_match",
+        });
+        expect(result).not.toMatch(/较强匹配/);
+        expect(result).not.toMatch(/重点推进/);
+        expect(result).toMatch(/匹配有限/);
+    });
+
+    it("keeps strong-match prose on high score bands", () => {
+        const result = normalizeSummaryConsistency("较强匹配的机床销售", {
+            score: 86,
+            recommendation: "strong_match",
+        });
+        expect(result).toContain("较强匹配");
+    });
+});
+
+describe("enrichConcernsWithBrandSignals", () => {
+    it("appends domestic and tool concerns from ingest signals", () => {
+        const concerns = enrichConcernsWithBrandSignals(
+            ["电话未接通"],
+            { ingestData: { brandOrigin: "domestic", productClass: "tool_accessory" } },
+            "zh",
+        );
+        expect(concerns[0]).toBe("电话未接通");
+        expect(concerns.some((c) => c.includes("国产"))).toBe(true);
+        expect(concerns.some((c) => c.includes("刀具"))).toBe(true);
+    });
 });
 
 // ---------------------------------------------------------------------------
@@ -476,6 +508,29 @@ describe("normalizeAnalysisResult", () => {
             {},
         );
         expect(result.summary).toBe("No summary provided.");
+    });
+
+    it("enriches concerns from brandOrigin/productClass without changing formula", () => {
+        const result = normalizeAnalysisResult(
+            {
+                recommendation: "potential",
+                summary: "刀具销售，较强匹配",
+                breakdown: { related_exp: 30 },
+                concerns: ["行业相关性不足"],
+            },
+            {
+                ingestData: {
+                    brandOrigin: "domestic",
+                    productClass: "tool_accessory",
+                    industryDbV2Raw: 0,
+                },
+            },
+        );
+        // formula: round(30*0.5)+0 = 15
+        expect(result.score).toBe(15);
+        expect(result.summary).not.toMatch(/较强匹配/);
+        expect(result.concerns.some((c) => c.includes("国产") || c.includes("刀具") || c.includes("行业相关性不足"))).toBe(true);
+        expect(result.concerns.length).toBeGreaterThanOrEqual(2);
     });
 
     it("applies authoritative MY industry_db floor when ingestData.market is MY", () => {

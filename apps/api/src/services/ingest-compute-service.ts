@@ -1,15 +1,21 @@
 import {
+  aggregateBrandOrigin,
+  aggregateProductClass,
   buildLatestWorkHistoryEvidence,
   buildWorkHistoryEntryText,
+  classifyBrandProductClass,
   computeVerifiedRoleYears,
   formatLocationHierarchySearchText,
   isRecord,
+  normalizeBrandOrigin,
   normalizeEducationLevel,
   normalizeResumeLocationHierarchy,
   normalizeWorkHistoryEntry,
   parseSalaryRange,
   selectLatestWorkHistory,
+  type BrandOrigin,
   type KeywordMarket,
+  type ProductClass,
   deriveMarketFromSourceKey,
 } from "@trends/shared";
 
@@ -37,6 +43,10 @@ export interface BrandHit {
   source: "workHistory" | "selfIntro" | "jobIntention";
   context: BrandContext;
   companyId?: number;
+  /** brands.json origin when known; analysis/debug signal only */
+  origin?: BrandOrigin;
+  /** product-class code derived from brand type; analysis/debug signal only */
+  productClass?: ProductClass;
 }
 
 export interface IndustryDbV2RawComponents {
@@ -54,6 +64,10 @@ export interface IngestResult {
   industryTags: string[];
   synonymHits: string[];
   brandHits: BrandHit[];
+  /** Candidate-level brand origin aggregate (international wins; domestic-only when no intl). */
+  brandOrigin: BrandOrigin;
+  /** Candidate-level product class aggregate from brand hits. */
+  productClass: ProductClass;
   companyHits: string[];
   industryDbV2Raw: number;
   industryDbV2RawComponents: IndustryDbV2RawComponents;
@@ -479,6 +493,8 @@ export class IngestComputeService {
     const latestWorkHistory = getLatestWorkHistory(item.workHistory);
     const verifiedEmployers = this.collectVerifiedEmployerMatches(latestWorkHistory);
     const brandHits = this.computeBrandHits(latestWorkHistory, index.companies, searchText, verifiedEmployers);
+    const brandOrigin = aggregateBrandOrigin(brandHits);
+    const productClass = aggregateProductClass(brandHits);
     const companyHits = verifiedEmployers.map((m) => m.key);
     const { raw: industryDbV2Raw, components: industryDbV2RawComponents } = computeIndustryDbV2Raw(companyHits, brandHits);
     const roleYearsAnchor = resolveRoleYearsAnchor(item);
@@ -519,6 +535,8 @@ export class IngestComputeService {
       industryTags,
       synonymHits,
       brandHits,
+      brandOrigin,
+      productClass,
       companyHits,
       industryDbV2Raw,
       industryDbV2RawComponents,
@@ -1178,6 +1196,7 @@ export class IngestComputeService {
    */
   private computeBrandHits(workHistory: ResumeWorkHistoryItem[], companies: string[], searchText: string, verifiedEmployers: VerifiedEmployerMatch[]): BrandHit[] {
     const patterns = this.skillsKnowledgeService.getCompanyPatterns();
+    const brandMetaById = this.buildBrandMetaLookup();
     const normalizedSearchText = searchText.toLowerCase();
     const normalizedCompanies = companies
       .map((company) => company.trim().toLowerCase())
@@ -1185,6 +1204,14 @@ export class IngestComputeService {
 
     const hits: BrandHit[] = [];
     const dedupe = new Set<string>();
+
+    const resolveBrandMeta = (brandKey: string): { origin: BrandOrigin; productClass: ProductClass } => {
+      const meta = brandMetaById.get(normalizeCompanyPatternIdentifier(brandKey));
+      if (!meta) {
+        return { origin: "unknown", productClass: "other" };
+      }
+      return meta;
+    };
 
     const collectFromSource = (
       source: BrandHit["source"],
@@ -1255,11 +1282,14 @@ export class IngestComputeService {
             const key = `${patternName}|${source}|${context}`;
             if (!dedupe.has(key)) {
               dedupe.add(key);
+              const meta = resolveBrandMeta(patternName);
               hits.push({
                 brand: patternName,
                 role,
                 source,
                 context,
+                origin: meta.origin,
+                productClass: meta.productClass,
               });
             }
           }
@@ -1308,16 +1338,63 @@ export class IngestComputeService {
         continue;
       }
       dedupe.add(key);
+      const meta = resolveBrandMeta(employerMatch.key);
       hits.push({
         brand: employerMatch.key,
         source: "workHistory",
         context: "employer",
         role: "employer",
         companyId: employerMatch.companyId,
+        origin: meta.origin,
+        productClass: meta.productClass,
       });
     }
 
     return hits;
+  }
+
+  /**
+   * Build brandId → {origin, productClass} from brands.json + skills company patterns.
+   * Keys are normalized via normalizeCompanyPatternIdentifier (lowercase trim).
+   */
+  private buildBrandMetaLookup(): Map<string, { origin: BrandOrigin; productClass: ProductClass }> {
+    const lookup = new Map<string, { origin: BrandOrigin; productClass: ProductClass }>();
+    const brands = this.industryDataService.loadBrands();
+    const patterns = this.skillsKnowledgeService.getCompanyPatterns();
+
+    for (const brand of brands) {
+      const origin = normalizeBrandOrigin(brand.origin);
+      const productClass = classifyBrandProductClass(brand.type);
+      const keys = [
+        brand.nameEn,
+        brand.nameCn,
+      ]
+        .map((value) => (typeof value === "string" ? normalizeCompanyPatternIdentifier(value) : ""))
+        .filter((value) => value.length > 0);
+      for (const key of keys) {
+        lookup.set(key, { origin, productClass });
+      }
+    }
+
+    // Overlay skills pattern names/aliases onto the same brand meta when a
+    // brands.json entry already exists under the English/display name.
+    for (const pattern of patterns) {
+      const patternId = normalizeCompanyPatternIdentifier(pattern.name);
+      const displayId = normalizeCompanyPatternIdentifier(pattern.displayName || pattern.name);
+      const meta = lookup.get(patternId) ?? lookup.get(displayId);
+      if (!meta) {
+        continue;
+      }
+      lookup.set(patternId, meta);
+      for (const alias of pattern.allNames) {
+        const aliasId = normalizeCompanyPatternIdentifier(alias);
+        if (aliasId) {
+          lookup.set(aliasId, meta);
+        }
+      }
+    }
+
+    return lookup;
   }
 
   private collectVerifiedEmployerMatches(workHistory: ResumeWorkHistoryItem[]): VerifiedEmployerMatch[] {

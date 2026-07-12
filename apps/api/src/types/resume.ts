@@ -29,6 +29,8 @@ export type ResumeIngestBrandHit = {
   source: string;
   context: string;
   companyId?: number;
+  origin?: "international" | "domestic" | "unknown";
+  productClass?: "complete_machine" | "tool_accessory" | "industrial_component" | "other";
 };
 
 export type ResumeIngestMatchedWorkEntry = {
@@ -58,6 +60,10 @@ export type ResumeIngestData = {
   synonymHits?: string[];
   evidenceText?: string;
   brandHits?: ResumeIngestBrandHit[];
+  /** Candidate-level brand origin aggregate; analysis/debug signal only */
+  brandOrigin?: "international" | "domestic" | "unknown";
+  /** Candidate-level product class aggregate; analysis/debug signal only */
+  productClass?: "complete_machine" | "tool_accessory" | "industrial_component" | "other";
   companyHits?: string[];
   industryDbV2Raw?: number;
   roleSignals?: ResumeIngestRoleSignal[];

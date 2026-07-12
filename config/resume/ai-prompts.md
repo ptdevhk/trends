@@ -1,6 +1,6 @@
 ---
-version: 12
-updated_at: '2026-07-03'
+version: 13
+updated_at: '2026-07-13'
 description: >
   Canonical zh-Hans resume AI prompts for summary and screening analysis.
   This markdown file is the authoring source for the generated shared prompt runtime.
@@ -85,6 +85,11 @@ description: >
 - 不要只重复总工作年限、学历，除非这些信息直接影响岗位匹配判断。
 - 只要工作经历证据里已经有岗位或公司信息，就不要写“未提供具体工作经历”或类似表述。
 - summary 不要直接输出 `strong_match` / `match` / `potential` / `no_match` 这些标签词，推荐结论只放在 recommendation 字段。
+- **低分禁强匹配措辞**：当最终分档偏低（约 <70，或 recommendation 为 potential/no_match）时，summary 禁止写“较强匹配 / 高度匹配 / 重点推进”等强推进措辞；应如实描述证据不足或产品类偏差。
+- **结构化品牌信号**：`行业数据库品牌命中` 可能带 `brandOrigin`（international|domestic|unknown）与 `productClass`（complete_machine|tool_accessory|industrial_component|other）。这些是分析输入，不改变公式；请在 concerns 中显式反映：
+  - 仅 domestic 品牌命中且职位为高端进口机床销售 → 写明国产机销售经验风险；
+  - productClass=tool_accessory → 写明刀具/配件销售，非整机；
+  - productClass=industrial_component → 写明工业零部件/非整机产品销售。
 ```
 
 ## Output Contract

@@ -1,6 +1,6 @@
 ---
-version: 12
-updated_at: '2026-07-03'
+version: 13
+updated_at: '2026-07-13'
 description: >
   English locale variant for the resume AI prompts.
   Falls back to the zh-Hans master prompt when this file is absent.
@@ -85,6 +85,11 @@ Please analyze how well the following candidate matches the job:
 - Do not simply restate total years of work or education unless those details directly affect the match decision.
 - If work-history evidence already contains role or company information, do not say that specific work experience was missing.
 - Do not output literal labels like `strong_match`, `match`, `potential`, or `no_match` inside summary text; keep the verdict in the recommendation field only.
+- **No strong-match prose on low bands**: when the final band is low (about <70, or recommendation is potential/no_match), summary must not claim "strong match", "highly matched", or "priority hire"; describe the evidence gap honestly.
+- **Structured brand signals**: Industry-DB brand hits may include `brandOrigin` (international|domestic|unknown) and `productClass` (complete_machine|tool_accessory|industrial_component|other). These are analysis inputs and do not change the score formula; reflect them in concerns:
+  - domestic-only brand hits for a premium imported machine-tool sales JD → call out domestic-brand risk;
+  - productClass=tool_accessory → cutting tools / accessories, not complete machines;
+  - productClass=industrial_component → industrial components / non-machine product sales.
 ```
 
 ## Output Contract

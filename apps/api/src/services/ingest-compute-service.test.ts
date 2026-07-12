@@ -713,6 +713,8 @@ describe("IngestComputeService", () => {
       source: "workHistory",
       context: "employer",
       companyId: 3,
+      origin: "international",
+      productClass: "complete_machine",
     });
   });
 
@@ -766,6 +768,8 @@ describe("IngestComputeService", () => {
       source: "workHistory",
       context: "employer",
       companyId: 1,
+      origin: "domestic",
+      productClass: "complete_machine",
     });
   });
 
@@ -805,6 +809,8 @@ describe("IngestComputeService", () => {
       source: "workHistory",
       context: "employer",
       companyId: 4,
+      origin: "domestic",
+      productClass: "complete_machine",
     });
   });
 
@@ -1120,6 +1126,8 @@ describe("IngestComputeService", () => {
       source: "workHistory",
       context: "employer",
       companyId: 1,
+      origin: "domestic",
+      productClass: "complete_machine",
     });
   });
 
@@ -1336,6 +1344,10 @@ JTEKT alias cluster regression.
         ],
       });
       expect(huileResult.brandHits.map((hit) => hit.brand)).toContain("蕙勒");
+      expect(huileResult.brandHits.find((hit) => hit.brand === "蕙勒")?.origin).toBe("domestic");
+      expect(huileResult.brandHits.find((hit) => hit.brand === "蕙勒")?.productClass).toBe("complete_machine");
+      expect(huileResult.brandOrigin).toBe("domestic");
+      expect(huileResult.productClass).toBe("complete_machine");
       expect(huileResult.industryDbV2Raw).toBeGreaterThan(0);
       // 唯思凌科 (张武汉 employer) - domestic CNC machine company
       const wslkResult = jtektService.computeOne("resume-zhang-wuhan", {
@@ -1349,7 +1361,27 @@ JTEKT alias cluster regression.
         ],
       });
       expect(wslkResult.brandHits.map((hit) => hit.brand)).toContain("唯思凌科");
+      expect(wslkResult.brandHits.find((hit) => hit.brand === "唯思凌科")?.origin).toBe("domestic");
+      expect(wslkResult.brandOrigin).toBe("domestic");
       expect(wslkResult.industryDbV2Raw).toBeGreaterThan(0);
+    });
+
+    it("should classify TOYODA/JTEKT brand hits as international complete_machine", () => {
+      const result = jtektService.computeOne("resume-jtekt-intl", {
+        data: [
+          {
+            ...SAMPLE_RESUME_JUNIOR.data[0],
+            workHistory: [
+              { raw: "2024-04~2026-04(2年)某设备公司销售工程师，负责捷太格特机床销售与JTEKT设备推广" },
+            ],
+          },
+        ],
+      });
+      const toyoda = result.brandHits.find((hit) => hit.brand === "toyoda");
+      expect(toyoda?.origin).toBe("international");
+      expect(toyoda?.productClass).toBe("complete_machine");
+      expect(result.brandOrigin).toBe("international");
+      expect(result.productClass).toBe("complete_machine");
     });
   });
 });

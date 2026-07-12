@@ -19,7 +19,7 @@ import {
     getResumeAiLocaleText,
     recommendationFromFinalAiScore,
     sanitizeResumeRecordForSurface,
-    summarizeNonEmployerBrandHits,
+    summarizeNonEmployerBrandHitLabels,
     type RelatedExpContextInput,
     type ResumeFieldUsagePolicy,
     type ResumeFieldUsagePolicyOverrides,
@@ -45,8 +45,12 @@ export interface MatchingRequest {
             role?: string;
             source?: string;
             context?: string;
+            origin?: string;
+            productClass?: string;
         }>;
         companyHits?: string[];
+        brandOrigin?: string;
+        productClass?: string;
         market?: string;
         industryDbV2Raw?: number;
         roleSignals?: Array<{
@@ -742,8 +746,19 @@ Return strictly valid JSON:
             ? resume.companyHits.join(", ")
             : localeText.noneLabel;
         const brandHits = analysisResume.brandHits !== undefined
-            ? summarizeNonEmployerBrandHits(resume.brandHits)
+            ? summarizeNonEmployerBrandHitLabels(resume.brandHits)
             : [];
+        const brandSignalParts: string[] = [];
+        if (typeof resume.brandOrigin === "string" && resume.brandOrigin.trim().length > 0) {
+            brandSignalParts.push(`brandOrigin=${resume.brandOrigin.trim()}`);
+        }
+        if (typeof resume.productClass === "string" && resume.productClass.trim().length > 0) {
+            brandSignalParts.push(`productClass=${resume.productClass.trim()}`);
+        }
+        const brandHitsText = [
+            brandHits.length > 0 ? brandHits.join(", ") : "",
+            brandSignalParts.length > 0 ? brandSignalParts.join(", ") : "",
+        ].filter((part) => part.length > 0).join(" | ");
         const evidenceText = typeof resume.workHistory === "string" && analysisResume.workHistory !== undefined && resume.workHistory.trim().length > 0
             ? resume.workHistory
             : localeText.noWorkHistoryLabel;
@@ -761,7 +776,7 @@ Return strictly valid JSON:
                 ? resume.name
                 : localeText.emptyFieldLabel,
             verifiedCompanies,
-            brandHits: brandHits.length > 0 ? brandHits.join(", ") : localeText.noneLabel,
+            brandHits: brandHitsText.length > 0 ? brandHitsText : localeText.noneLabel,
             market,
             evidenceText,
             roleSignals,

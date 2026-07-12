@@ -3,7 +3,7 @@ import {
     deriveMarketFromSourceKey,
     getResumeAiLocaleText,
     getResumeAiPromptDefinition,
-    summarizeNonEmployerBrandHits,
+    summarizeNonEmployerBrandHitLabels,
     resolveResumeAnalysisSourceKey,
     sanitizeResumeRecordForSurface,
     isRecord,
@@ -129,7 +129,18 @@ export function normalizeResume(
             (item: unknown): item is string => typeof item === "string" && item.length > 0
         )
         : [];
-    const brandHits = summarizeNonEmployerBrandHits(ingestData?.brandHits);
+    const brandHits = summarizeNonEmployerBrandHitLabels(ingestData?.brandHits);
+    const brandSignalParts: string[] = [];
+    if (typeof ingestData?.brandOrigin === "string" && ingestData.brandOrigin.trim().length > 0) {
+        brandSignalParts.push(`brandOrigin=${ingestData.brandOrigin.trim()}`);
+    }
+    if (typeof ingestData?.productClass === "string" && ingestData.productClass.trim().length > 0) {
+        brandSignalParts.push(`productClass=${ingestData.productClass.trim()}`);
+    }
+    const brandHitsWithSignals = [
+        ...brandHits,
+        ...(brandSignalParts.length > 0 ? [brandSignalParts.join(", ")] : []),
+    ];
     const roleSignals = parseRoleSignals(ingestData?.roleSignals);
     const explicitMarket = typeof ingestData?.market === "string" ? ingestData.market.trim().toUpperCase() : "";
     const sourceKey = typeof root.sourceKey === "string"
@@ -153,7 +164,7 @@ export function normalizeResume(
         market,
         roleSignals,
         roleSignalsText: formatRoleSignals(roleSignals, localeText),
-        brandHits,
+        brandHits: brandHitsWithSignals,
         verifiedCompanies: companyHits,
     };
 }
