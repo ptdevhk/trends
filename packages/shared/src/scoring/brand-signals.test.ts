@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   aggregateBrandOrigin,
   aggregateProductClass,
+  buildBrandHitsPromptSegments,
   classifyBrandProductClass,
   formatBrandHitLabel,
   normalizeBrandOrigin,
+  parseBrandOrigin,
+  parseProductClass,
   stripForbiddenStrongMatchProse,
   structuredBrandConcerns,
   summarizeNonEmployerBrandHitLabels,
@@ -77,6 +80,15 @@ describe("aggregateProductClass", () => {
   });
 });
 
+describe("parseBrandOrigin / parseProductClass", () => {
+  it("accepts known enum values and rejects others", () => {
+    expect(parseBrandOrigin("domestic")).toBe("domestic");
+    expect(parseBrandOrigin("agent")).toBeUndefined();
+    expect(parseProductClass("tool_accessory")).toBe("tool_accessory");
+    expect(parseProductClass("widget")).toBeUndefined();
+  });
+});
+
 describe("formatBrandHitLabel / summarizeNonEmployerBrandHitLabels", () => {
   it("formats origin and product class tags", () => {
     expect(
@@ -95,6 +107,16 @@ describe("formatBrandHitLabel / summarizeNonEmployerBrandHitLabels", () => {
         { brand: "蕙勒", context: "sales", origin: "domestic", productClass: "complete_machine" },
       ]),
     ).toEqual(["蕙勒 (domestic/complete_machine)"]);
+  });
+
+  it("appends candidate-level brandOrigin/productClass as a prompt segment", () => {
+    expect(
+      buildBrandHitsPromptSegments({
+        brandHits: [{ brand: "蕙勒", context: "sales", origin: "domestic", productClass: "complete_machine" }],
+        brandOrigin: "domestic",
+        productClass: "complete_machine",
+      }),
+    ).toEqual(["蕙勒 (domestic/complete_machine)", "brandOrigin=domestic, productClass=complete_machine"]);
   });
 });
 

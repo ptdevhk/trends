@@ -10,7 +10,9 @@ import {
   normalizeKeywordPhrases,
   normalizeProfileUrlForDisplay,
   normalizeSharedResumeFields,
+  parseBrandOrigin,
   parseExperienceYears,
+  parseProductClass,
   parseRawSalaryRange,
   selectLatestWorkHistory,
 } from "@trends/shared";
@@ -133,17 +135,8 @@ export function normalizeIngestBrandHits(value: unknown): ResumeIngestBrandHit[]
       const source = toStringValue(item.source);
       const context = toStringValue(item.context);
       const companyId = toOptionalNumber(item.companyId);
-      const origin =
-        item.origin === "international" || item.origin === "domestic" || item.origin === "unknown"
-          ? item.origin
-          : undefined;
-      const productClass =
-        item.productClass === "complete_machine"
-        || item.productClass === "tool_accessory"
-        || item.productClass === "industrial_component"
-        || item.productClass === "other"
-          ? item.productClass
-          : undefined;
+      const origin = parseBrandOrigin(item.origin);
+      const productClass = parseProductClass(item.productClass);
 
       if (!brand || !role || !source || !context) {
         return null;
@@ -252,19 +245,8 @@ export function normalizeIngestData(value: unknown): ResumeIngestData | undefine
   const companyHits = toStringArray(value.companyHits);
   const roleSignals = normalizeRoleSignals(value.roleSignals);
   const verifiedRoleYears = normalizeNumberRecord(value.verifiedRoleYears);
-  const brandOrigin =
-    value.brandOrigin === "international"
-    || value.brandOrigin === "domestic"
-    || value.brandOrigin === "unknown"
-      ? value.brandOrigin
-      : undefined;
-  const productClass =
-    value.productClass === "complete_machine"
-    || value.productClass === "tool_accessory"
-    || value.productClass === "industrial_component"
-    || value.productClass === "other"
-      ? value.productClass
-      : undefined;
+  const brandOrigin = parseBrandOrigin(value.brandOrigin);
+  const productClass = parseProductClass(value.productClass);
 
   if (
     industryTags.length === 0

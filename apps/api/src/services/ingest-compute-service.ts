@@ -456,6 +456,7 @@ export class IngestComputeService {
   private readonly jobDescriptionService: JobDescriptionService;
   private readonly industryDataService: IndustryDataService;
   private readonly projectRoot?: string;
+  private brandMetaLookup: Map<string, { origin: BrandOrigin; productClass: ProductClass }> | null = null;
 
   constructor(projectRoot?: string) {
     this.projectRoot = projectRoot;
@@ -1196,7 +1197,7 @@ export class IngestComputeService {
    */
   private computeBrandHits(workHistory: ResumeWorkHistoryItem[], companies: string[], searchText: string, verifiedEmployers: VerifiedEmployerMatch[]): BrandHit[] {
     const patterns = this.skillsKnowledgeService.getCompanyPatterns();
-    const brandMetaById = this.buildBrandMetaLookup();
+    const brandMetaById = this.getBrandMetaLookup();
     const normalizedSearchText = searchText.toLowerCase();
     const normalizedCompanies = companies
       .map((company) => company.trim().toLowerCase())
@@ -1354,10 +1355,14 @@ export class IngestComputeService {
   }
 
   /**
-   * Build brandId → {origin, productClass} from brands.json + skills company patterns.
-   * Keys are normalized via normalizeCompanyPatternIdentifier (lowercase trim).
+   * brandId → {origin, productClass} from brands.json + skills company patterns.
+   * Cached per service instance; keys use normalizeCompanyPatternIdentifier.
    */
-  private buildBrandMetaLookup(): Map<string, { origin: BrandOrigin; productClass: ProductClass }> {
+  private getBrandMetaLookup(): Map<string, { origin: BrandOrigin; productClass: ProductClass }> {
+    if (this.brandMetaLookup) {
+      return this.brandMetaLookup;
+    }
+
     const lookup = new Map<string, { origin: BrandOrigin; productClass: ProductClass }>();
     const brands = this.industryDataService.loadBrands();
     const patterns = this.skillsKnowledgeService.getCompanyPatterns();
@@ -1394,6 +1399,7 @@ export class IngestComputeService {
       }
     }
 
+    this.brandMetaLookup = lookup;
     return lookup;
   }
 

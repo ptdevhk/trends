@@ -15,11 +15,30 @@ export type ProductClass =
 
 export type BrandOriginSource = "international" | "domestic" | "agent" | string | undefined;
 
-const TOOL_ACCESSORY_RE = /刀具|刀柄|砂轮|量具|工具| consumable|cutting\s*tool|tooling/i;
+const TOOL_ACCESSORY_RE = /刀具|刀柄|砂轮|量具|工具|consumable|cutting\s*tool|tooling/i;
 const COMPLETE_MACHINE_RE =
   /加工中心|数控|车床|机床|火花|走心|磨床|machining\s*center|lathe|machine\s*tool|cnc/i;
 const INDUSTRIAL_COMPONENT_RE =
   /传感器|空压|测量|扫描|机器人|减速|温控|仪表|sensor|robot|compressor|metrology|controller/i;
+
+/**
+ * Strict ingest/analysis parsers: keep only known enum values, else undefined.
+ * Distinct from normalizeBrandOrigin which collapses unknowns to "unknown".
+ */
+export function parseBrandOrigin(value: unknown): BrandOrigin | undefined {
+  return value === "international" || value === "domestic" || value === "unknown"
+    ? value
+    : undefined;
+}
+
+export function parseProductClass(value: unknown): ProductClass | undefined {
+  return value === "complete_machine"
+    || value === "tool_accessory"
+    || value === "industrial_component"
+    || value === "other"
+    ? value
+    : undefined;
+}
 
 /**
  * Map brands.json `type` (or similar free text) onto a product-class code.
@@ -30,13 +49,10 @@ export function classifyBrandProductClass(type: string | undefined | null): Prod
     return "other";
   }
 
-  // Tool/accessory wins when the type is tooling-first (e.g. "工业机器人/刀具"
-  // still mentions tools; prefer complete_machine only when machine terms dominate).
+  // Prefer complete_machine when machine terms are present (even alongside tools);
+  // otherwise tool/accessory, then industrial component.
   const hasTool = TOOL_ACCESSORY_RE.test(text);
   const hasMachine = COMPLETE_MACHINE_RE.test(text);
-  if (hasTool && !hasMachine) {
-    return "tool_accessory";
-  }
   if (hasMachine) {
     return "complete_machine";
   }
@@ -167,6 +183,29 @@ export function summarizeNonEmployerBrandHitLabels(value: unknown): string[] {
     }
   }
   return [...labels];
+}
+
+/**
+ * Prompt segments for brandHits: labeled non-employer hits plus optional
+ * candidate-level brandOrigin/productClass summary as a final segment.
+ */
+export function buildBrandHitsPromptSegments(input: {
+  brandHits?: unknown;
+  brandOrigin?: string | null;
+  productClass?: string | null;
+}): string[] {
+  const labels = summarizeNonEmployerBrandHitLabels(input.brandHits);
+  const signalParts: string[] = [];
+  if (typeof input.brandOrigin === "string" && input.brandOrigin.trim().length > 0) {
+    signalParts.push(`brandOrigin=${input.brandOrigin.trim()}`);
+  }
+  if (typeof input.productClass === "string" && input.productClass.trim().length > 0) {
+    signalParts.push(`productClass=${input.productClass.trim()}`);
+  }
+  if (signalParts.length === 0) {
+    return labels;
+  }
+  return [...labels, signalParts.join(", ")];
 }
 
 /**

@@ -2,7 +2,14 @@ import fs from "node:fs";
 import path from "node:path";
 
 import JSON5 from "json5";
-import { FALLBACK_INDUSTRY_KEYWORDS, normalizeEducationLevel, normalizeIndustryTags, type KeywordMarket } from "@trends/shared";
+import {
+  FALLBACK_INDUSTRY_KEYWORDS,
+  normalizeEducationLevel,
+  normalizeIndustryTags,
+  type BrandOrigin,
+  type KeywordMarket,
+  type ProductClass,
+} from "@trends/shared";
 import { z } from "zod";
 
 import { findProjectRoot } from "./db.js";
@@ -173,9 +180,9 @@ export interface BrandHit {
   source: "workHistory" | "selfIntro" | "jobIntention";
   context: BrandContext;
   /** brands.json origin when known; analysis/debug signal only */
-  origin?: "international" | "domestic" | "unknown";
+  origin?: BrandOrigin;
   /** product-class code derived from brand type; analysis/debug signal only */
-  productClass?: "complete_machine" | "tool_accessory" | "industrial_component" | "other";
+  productClass?: ProductClass;
 }
 
 export interface RuleScoringResult {

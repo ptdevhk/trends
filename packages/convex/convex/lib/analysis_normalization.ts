@@ -14,6 +14,8 @@ import {
     computeFinalAiScore,
     recommendationFromFinalAiScore,
     resolveResumeAnalysisSourceKey,
+    parseBrandOrigin,
+    parseProductClass,
     stripForbiddenStrongMatchProse,
     structuredBrandConcerns,
     type BrandOrigin,
@@ -362,20 +364,10 @@ function resolveStructuredBrandSignals(resume: unknown): {
     productClass?: ProductClass;
 } {
     const ingestData = getResumeIngestData(resume);
-    const brandOrigin =
-        ingestData.brandOrigin === "international"
-        || ingestData.brandOrigin === "domestic"
-        || ingestData.brandOrigin === "unknown"
-            ? ingestData.brandOrigin
-            : undefined;
-    const productClass =
-        ingestData.productClass === "complete_machine"
-        || ingestData.productClass === "tool_accessory"
-        || ingestData.productClass === "industrial_component"
-        || ingestData.productClass === "other"
-            ? ingestData.productClass
-            : undefined;
-    return { brandOrigin, productClass };
+    return {
+        brandOrigin: parseBrandOrigin(ingestData.brandOrigin),
+        productClass: parseProductClass(ingestData.productClass),
+    };
 }
 
 /**
