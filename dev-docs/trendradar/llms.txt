@@ -1,8 +1,117 @@
+### Start Web Server
+
+Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
+
+Start the web server for accessing generated reports.
+
+```bash
+docker exec -it trendradar python manage.py start_webserver
+```
+
+--------------------------------
+
+### Combined Configuration Example
+
+Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
+
+An example showing how to set both sorting priority and global display count limits in the configuration file.
+
+```yaml
+# config.yaml
+report:
+  sort_by_position_first: true   # Config order priority
+  max_news_per_keyword: 10       # Global default max 10 per keyword
+```
+
+--------------------------------
+
+### Install Project Dependencies
+
+Source: https://github.com/sansan0/trendradar/blob/master/README.md
+
+Run the appropriate script to install project dependencies based on your operating system.
+
+```bash
+# Windows: setup-windows.bat or setup-windows-en.bat
+# Mac/Linux: ./setup-mac.sh
+```
+
+--------------------------------
+
+### Build and Start All Services
+
+Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
+
+Build all TrendRadar services and start them in detached mode.
+
+```bash
+docker compose build
+docker compose up -d
+```
+
+--------------------------------
+
+### Regex Start of String Matching
+
+Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
+
+Example of using regex to match titles that start with a specific pattern (`^pattern`).
+
+```txt
+/^breaking/
+```
+
+--------------------------------
+
+### Build and Start News Push Service
+
+Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
+
+Build and start only the news push service (trendradar).
+
+```bash
+docker compose build trendradar
+docker compose up -d trendradar
+```
+
+--------------------------------
+
+### Clone Project and Start Services
+
+Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
+
+Clone the project repository and use docker compose to start both the news push and MCP services. Ensure you are in the 'docker' directory after cloning.
+
+```bash
+# Clone project (Recommended)
+git clone https://github.com/sansan0/TrendRadar.git
+cd TrendRadar/docker
+docker compose up -d
+
+# Check running status
+docker ps | grep trendradar
+```
+
+--------------------------------
+
+### Clone Project and Navigate Directory
+
+Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
+
+Clone the TrendRadar repository and change into the project directory to begin setup.
+
+```bash
+git clone https://github.com/sansan0/TrendRadar.git
+cd TrendRadar
+```
+
+--------------------------------
+
 ### Start MCP Inspector
 
 Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
 
-Command to start the MCP Inspector using npx, which is used to interact with MCP-compatible services.
+Run this command to start the MCP Inspector, a debug tool for testing MCP connections. It is recommended to run this after starting the TrendRadar HTTP service.
 
 ```bash
 npx @modelcontextprotocol/inspector
@@ -10,146 +119,53 @@ npx @modelcontextprotocol/inspector
 
 --------------------------------
 
-### Start TrendRadar Services with Docker Compose
+### LiteLLM Model Format Examples
 
 Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
 
-This set of commands demonstrates how to start the TrendRadar services using Docker Compose. It includes pulling the latest images and starting all services, or specific services like the news push or AI analysis components.
+Examples of how to specify AI models using the 'provider/model_name' format with LiteLLM integration. This replaces the older 'provider' field and simplifies configuration.
 
-```bash
-# Pull latest images
-docker compose pull
+```text
+model: "openai/gpt-4o"
+# DeepSeek: model: "deepseek/deepseek-chat"
+# Gemini: model: "gemini/gemini-2.5-flash"
+# Anthropic: model: "anthropic/claude-3-5-sonnet"
 
-# Start all services (trendradar + trendradar-mcp)
-docker compose up -d
-```
-
-```bash
-# Start trendradar only (scheduled crawling and push)
-docker compose pull trendradar
-docker compose up -d trendradar
-```
-
-```bash
-# Start trendradar-mcp only (AI analysis interface)
-docker compose pull trendradar-mcp
-docker compose up -d trendradar-mcp
 ```
 
 --------------------------------
 
-### Build and Start TrendRadar Services Locally
+### Keyword Grouping Example
 
 Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
 
-This section provides instructions for developers who need to build the TrendRadar project from source. It covers cloning the repository, modifying configuration files, and then building and starting the services using Docker Compose.
-
-```bash
-# Clone project
-git clone https://github.com/sansan0/TrendRadar.git
-cd TrendRadar
-
-# Modify config files
-vim config/config.yaml
-vim config/frequency_words.txt
-
-# Use build version docker compose
-cd docker
-cp docker-compose-build.yml docker-compose.yml
-```
-
-```bash
-# Option A: Build and start all services
-docker compose build
-docker compose up -d
-
-# Option B: Build and start news push service only
-docker compose build trendradar
-docker compose up -d trendradar
-```
-
---------------------------------
-
-### Download Docker Compose Separately and Configure
-
-Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
-
-This method allows for a more manual setup by downloading the docker-compose.yml and .env files separately. It requires creating directories for configuration and output, downloading config files, and modifying volume paths in the docker-compose.yml before running.
-
-```bash
-mkdir trendradar && cd trendradar
-wget https://raw.githubusercontent.com/sansan0/TrendRadar/master/docker/docker-compose.yml
-wget https://raw.githubusercontent.com/sansan0/TrendRadar/master/docker/.env
-mkdir -p config output
-# Download config files
-wget https://raw.githubusercontent.com/sansan0/TrendRadar/master/config/config.yaml -P config/
-wget https://raw.githubusercontent.com/sansan0/TrendRadar/master/config/frequency_words.txt -P config/
-# Modify volume paths in docker-compose.yml: ../config -> ./config, ../output -> ./output
-docker compose up -d
-```
-
---------------------------------
-
-### Start MCP Service Separately (Linux/Mac)
-
-Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
-
-This command starts the MCP (Message Communication Protocol) service as a detached Docker container on Linux or macOS. It maps local configuration and output directories into the container and sets the timezone.
-
-```bash
-# Linux/Mac
-docker run -d --name trendradar-mcp \
-  -p 127.0.0.1:3333:3333 \
-  -v $(pwd)/config:/app/config:ro \
-  -v $(pwd)/output:/app/output:ro \
-  -e TZ=Asia/Shanghai \
-  wantcat/trendradar-mcp:latest
-```
-
---------------------------------
-
-### Basic Keyword Syntax Examples (Text)
-
-Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
-
-Illustrates basic keyword configuration for TrendRadar using plain text files. It covers normal keywords, required words, and filter words to control news matching and exclusion.
+Demonstrates how to define groups of keywords with required and filter words. Empty lines separate distinct groups.
 
 ```txt
+iPhone
 Huawei
 OPPO
-Apple
++launch
 
-```
+A-shares
+Shanghai Index
+Shenzhen Index
++fluctuation
+!prediction
 
-```txt
-Huawei
-OPPO
-+phone
-
-```
-
-```txt
-Apple
-Huawei
-!fruit
-!price
-
-```
-
-```txt
-Tesla
-Musk
-@5
-
+World Cup
+Euro Cup
+Asian Cup
++match
 ```
 
 --------------------------------
 
-### Start TrendRadar HTTP Service (Bash/Batch)
+### Start TrendRadar HTTP Service
 
 Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
 
-Scripts to start the TrendRadar HTTP service for MCP communication. These scripts are platform-specific, with one for Windows and another for Mac/Linux.
+Use these commands to start the TrendRadar HTTP service for MCP integration. Ensure you are in the project directory.
 
 ```bash
 # Windows
@@ -163,31 +179,242 @@ start-http.bat
 
 --------------------------------
 
-### Check UV Path
+### Global Filter Example
 
 Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
 
-Commands to check the installation path of the 'uv' executable on Mac/Linux and Windows systems.
+Example demonstrating the effect of global filters on news content. Global filter words are excluded regardless of other matches.
 
-```bash
-# Mac/Linux
-which uv
-```
+```txt
+[GLOBAL_FILTER]
+advertisement
 
-```bash
-# Windows
-where uv
+[WORD_GROUPS]
+technology
+AI
 ```
 
 --------------------------------
 
-### Configuration Strategy Example
+### Run HTTP Server with Custom Port
+
+Source: https://github.com/sansan0/trendradar/blob/master/README.md
+
+Start the MCP server using HTTP transport on a custom port, useful for troubleshooting port conflicts.
+
+```bash
+uv run python -m mcp_server.server --transport http --port 33333
+```
+
+--------------------------------
+
+### Run HTTP Server
+
+Source: https://github.com/sansan0/trendradar/blob/master/README.md
+
+Start the MCP server using HTTP transport on the default port 3333. This is used for viewing detailed error logs.
+
+```bash
+uv run python -m mcp_server.server --transport http --port 3333
+```
+
+--------------------------------
+
+### Start MCP Service Separately (Linux/Mac)
 
 Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
 
-Illustrates a step-by-step approach to refining keyword configurations from broad to strict. It shows how to add required and filter words incrementally to achieve more precise matching, avoiding over-complexity by splitting large groups into smaller, focused ones.
+Deploy the MCP service as a standalone container on Linux or macOS. Mounts the local 'config' and 'output' directories as read-only volumes and sets the timezone.
+
+```bash
+# Linux/Mac
+docker run -d --name trendradar-mcp \
+  -p 127.0.0.1:3333:3333 \
+  -v $(pwd)/config:/app/config:ro \
+  -v $(pwd)/output:/app/output:ro \
+  -e TZ=Asia/Shanghai \
+  wantcat/trendradar-mcp:latest
+```
+
+--------------------------------
+
+### Start Trendradar MCP Service
+
+Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
+
+Use this command to pull the latest image and start only the `trendradar-mcp` service for AI dialogue analysis.
+
+```bash
+docker compose pull trendradar-mcp
+docker compose up -d trendradar-mcp
+```
+
+--------------------------------
+
+### Build and Start MCP AI Analysis Service
+
+Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
+
+Build and start only the MCP AI analysis service (trendradar-mcp).
+
+```bash
+docker compose build trendradar-mcp
+docker compose up -d trendradar-mcp
+```
+
+--------------------------------
+
+### Required Word Syntax Example
+
+Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
+
+Demonstrates the syntax for specifying required words in the frequency_words.txt file. Both 'Tang Monk' and 'Pig' must appear in the title for the news to be included.
 
 ```text
++Tang Monk
++Pig
+```
+
+--------------------------------
+
+### Start All TrendRadar Services with Docker Compose
+
+Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
+
+Pull the latest Docker images and start all TrendRadar services, including push and AI analysis, in detached mode.
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+--------------------------------
+
+### Regex Multiple Options Matching
+
+Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
+
+Example of using regex to match any one of several options using the pipe symbol (`|`). Note the escaped pipe `\|`.
+
+```txt
+/apple\|huawei\|xiaomi/
+```
+
+--------------------------------
+
+### Start MCP Service Separately (Windows PowerShell)
+
+Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
+
+Deploy the MCP service as a standalone container on Windows using PowerShell. Mounts the current directory's 'config' and 'output' folders as read-only volumes and sets the timezone.
+
+```powershell
+# Windows PowerShell
+docker run -d --name trendradar-mcp `
+  -p 127.0.0.1:3333:3333 `
+  -v ${PWD}/config:/app/config:ro `
+  -v ${PWD}/output:/app/output:ro `
+  -e TZ=Asia/Shanghai `
+  wantcat/trendradar-mcp:latest
+```
+
+--------------------------------
+
+### Start Only TrendRadar News Push Service with Docker Compose
+
+Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
+
+Pull the latest image for the TrendRadar service and start only the news push functionality in detached mode.
+
+```bash
+docker compose pull trendradar
+docker compose up -d trendradar
+```
+
+--------------------------------
+
+### Configure Timezone Settings
+
+Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
+
+Set the application's timezone to ensure correct push times. Examples for Los Angeles and London are provided.
+
+```yaml
+app:
+  timezone: "Asia/Shanghai"  # Default is China Standard Time
+```
+
+--------------------------------
+
+### Slack Message Format Preview
+
+Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
+
+This is an example of the message format sent to Slack. It includes batch information and trending topic details.
+
+```text
+*[Batch 1/2]*
+
+📊 *Trending Topics Statistics*
+
+🔥 *[1/3] AI ChatGPT* : 2 articles
+
+  1. [Baidu Hot] 🆕 ChatGPT-5 Official Release *[1]* - 09:15 (1 time)
+
+  2. [Toutiao] AI Chip Stocks Surge *[3]* - [08:30 ~ 10:45] (3 times)
+```
+
+--------------------------------
+
+### Custom Message Template
+
+Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
+
+An example of a custom JSON template that includes a 'text' field for content and a 'username' field.
+
+```json
+{"text": "{content}", "username": "TrendRadar"}
+```
+
+--------------------------------
+
+### ntfy Push Notification - Free Usage Test
+
+Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
+
+Test your ntfy free usage setup by sending a message to your subscribed topic. Ensure the topic name is hard-to-guess.
+
+```bash
+curl -d "Test message" ntfy.sh/your-topic-name
+```
+
+--------------------------------
+
+### Configure Region Display Order
+
+Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
+
+Adjust the order of sections in push messages by modifying the `display.region_order` list. This example places 'AI Analysis' at the top.
+
+```yaml
+display:
+  region_order:
+    - ai_analysis                  # Move to first line
+    - new_items
+    - hotlist
+    - rss
+    - standalone
+```
+
+--------------------------------
+
+### Configuration Strategy: Broad to Strict
+
+Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
+
+Illustrates a step-by-step approach to refining keyword configurations from broad terms to more specific ones using required and filter words.
+
+```txt
 # Step 1: Start with broad keywords for testing
 Artificial Intelligence
 AI
@@ -208,8 +435,31 @@ ChatGPT
 !training
 ```
 
-```text
-# Recommended: Split into precise groups
+--------------------------------
+
+### Configuration Strategy: Avoid Over-Complexity
+
+Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
+
+Shows a recommended approach to split complex keyword groups into smaller, more precise groups for better management.
+
+```txt
+Huawei
+OPPO
+Apple
+Samsung
+vivo
+OnePlus
+Meizu
++phone
++launch
++sales
+!fake
+!repair
+!second-hand
+```
+
+```txt
 Huawei
 OPPO
 +new product
@@ -225,60 +475,361 @@ sales
 
 --------------------------------
 
-### Combined Configuration Example
+### Enable and Configure Monitoring Platforms
 
 Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
 
-Presents a combined `config.yaml` file that sets both the keyword sorting priority and the global maximum news count per keyword. This configuration ensures that results are sorted by config position first and limits the number of items shown per keyword.
+Enable trending platform crawling and specify sources in the `config/config.yaml` file. Suggest choosing 10-15 core platforms to avoid information overload.
 
 ```yaml
-# config.yaml
-report:
-  sort_by_position_first: true   # Config order priority
-  max_news_per_keyword: 10       # Global default max 10 per keyword
+platforms:
+  enabled: true                       # Enable trending platform crawling
+  sources:
+    - id: "toutiao"
+      name: "Toutiao"
+    - id: "baidu"
+      name: "Baidu Hot Search"
+    - id: "wallstreetcn-hot"
+      name: "Wallstreetcn"
+    # Add more platforms...
 ```
 
 --------------------------------
 
-### Clone TrendRadar Project and Run Docker
+### Keyword vs. Platform Display Mode Comparison
 
 Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
 
-This method involves cloning the TrendRadar repository and using Docker Compose to set up and run the project. It's the recommended approach for a quick setup.
+Illustrates the difference in output formatting between 'keyword' mode and 'platform' mode for push messages. 'Keyword' mode groups by topic, while 'platform' mode groups by source.
+
+```text
+# keyword mode (group by keyword)
+📊 Trending Keywords Stats
+🔥 [1/3] AI : 12 items
+  1. [Weibo] OpenAI releases GPT-5 #1-#3 - 08:30 (5 times)
+  2. [Zhihu] How to view AI replacing programmers #2 - 09:15 (3 times)
+
+# platform mode (group by platform)
+📊 Trending News Stats
+🔥 [1/4] Weibo : 12 items
+  1. [AI] OpenAI releases GPT-5 #1-#3 - 08:30 (5 times)
+  2. [Trump] Trump announces major policy #2 - 09:15 (3 times)
+```
+
+--------------------------------
+
+### Clone Project and Configure
+
+Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
+
+Clone the TrendRadar repository and modify configuration files before building the Docker image.
 
 ```bash
 git clone https://github.com/sansan0/TrendRadar.git
-cd TrendRadar/docker
+cd TrendRadar
+
+# Modify config files
+vim config/config.yaml
+vim config/frequency_words.txt
+
+# Use build version docker compose
+cd docker
+cp docker-compose-build.yml docker-compose.yml
+```
+
+--------------------------------
+
+### Regex End of String Matching
+
+Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
+
+Example of using regex to match titles that end with a specific pattern (`pattern$`).
+
+```txt
+/release$/
+```
+
+--------------------------------
+
+### Regex Word Boundary Matching
+
+Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
+
+Example of using regex with word boundaries (`\bword\b`) to match standalone words.
+
+```txt
+/\bword\b/
+```
+
+--------------------------------
+
+### Manually Update Images and Restart
+
+Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
+
+Manually pull the latest Crawler and MCP images, then restart the services.
+
+```bash
+docker pull wantcat/trendradar:latest
+docker pull wantcat/trendradar-mcp:latest
+docker compose down
 docker compose up -d
 ```
 
 --------------------------------
 
-### Start MCP Service Separately (Windows PowerShell)
+### Docker Deployment for Bark Server
 
 Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
 
-This command starts the MCP service as a detached Docker container on Windows using PowerShell. It maps local configuration and output directories into the container and sets the timezone.
+Use this Docker command to deploy a self-hosted Bark server. Ensure ports are correctly mapped.
 
-```powershell
-# Windows PowerShell
-docker run -d --name trendradar-mcp `
-  -p 127.0.0.1:3333:3333 `
-  -v ${PWD}/config:/app/config:ro `
-  -v ${PWD}/output:/app/output:ro `
-  -e TZ=Asia/Shanghai `
-  wantcat/trendradar-mcp:latest
+```bash
+docker run -d \
+  --name bark-server \
+  -p 8080:8080 \
+  finab/bark-server
 ```
 
 --------------------------------
 
-### Keyword-Specific Display Count Example
+### View Help Information
 
 Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
 
-Shows how to specify a custom display count for individual keywords within a `frequency_words.txt` file. The '@' symbol is used to denote the desired count, overriding the global `max_news_per_keyword` setting for that specific keyword.
+Display help information for TrendRadar management commands.
+
+```bash
+docker exec -it trendradar python manage.py help
+```
+
+--------------------------------
+
+### Regex Non-Letter Boundary Matching
+
+Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
+
+Example of using regex with non-letter boundaries (`(?<![a-z])ai(?![a-z])`) for looser matching, suitable for mixed languages.
+
+```txt
+/(?<![a-z])ai(?![a-z])/
+```
+
+--------------------------------
+
+### Combined Regex, Normal Keywords, and Filter
+
+Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
+
+Shows how to combine regex for precise matching with normal keywords and a filter word (`!`) in a single configuration.
+
+```txt
+/\bai\b/
+artificial intelligence
+machine learning
+!advertisement
+```
+
+--------------------------------
+
+### Configure Standalone Display
+
+Source: https://github.com/sansan0/trendradar/blob/master/README.md
+
+Set up the standalone display for specific platforms and RSS feeds to show their complete content in push notifications. Also configures the maximum number of items to display.
+
+```yaml
+display:
+  regions:
+    standalone: true                  # 推送中展示独立展示区（关闭不影响 AI 分析）
+
+  standalone:
+    platforms: ["zhihu", "weibo"]     # 这些平台的热榜给我完整显示
+    rss_feeds: ["hacker-news"]        # 这些RSS源的内容给我完整显示
+    max_items: 20                     # 最多显示多少条
+```
+
+--------------------------------
+
+### Enter Container for Debugging
+
+Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
+
+Gain interactive shell access to a running container for debugging purposes.
+
+```bash
+docker exec -it trendradar /bin/bash
+```
+
+--------------------------------
+
+### Build for ARM64 Architecture
+
+Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
+
+Set the DOCKER_ARCH environment variable to build images for ARM64 architecture.
+
+```bash
+export DOCKER_ARCH=arm64
+docker compose build
+```
+
+--------------------------------
+
+### Unified Scheduling System Configuration
+
+Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
+
+Control crawling, pushing, and AI analysis timing with the timeline.yaml file. Supports preset templates like 'always_on', 'morning_evening', 'office_hours', 'night_owl', and 'custom'.
+
+```yaml
+schedule:
+  preset: "always_on"
+  # custom template example:
+  # presets:
+  #   my_custom_template:
+  #     crawl:
+  #       - "08:00-09:00"
+  #     push:
+  #       - "09:00-09:30"
+  #     ai_analyze:
+  #       - "09:30-10:00"
+
+```
+
+--------------------------------
+
+### Filter Word Priority Example
+
+Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
+
+Illustrates how filter words take precedence over required words. Even if 'Tang Monk' is a required word, news containing 'Tang Monk reciting sutras' will be filtered out.
 
 ```text
++Tang Monk
+!Tang Monk reciting sutras
+```
+
+--------------------------------
+
+### Read Article Tool Usage
+
+Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
+
+Demonstrates the recommended workflow for reading article bodies using the new Jina AI Reader tools. First search for news, then read the article body via its URL.
+
+```python
+from jina.serve.runtimes.gateway.tool import search_news, read_article
+
+# Search for news articles
+results = search_news(query="keyword", include_url=True)
+
+# Read the body of a specific article
+article_body = read_article(url=results[0].url)
+
+```
+
+--------------------------------
+
+### Set Push Notification Schedule (Preset)
+
+Source: https://github.com/sansan0/trendradar/blob/master/README.md
+
+Enable the scheduling system and select a preset for push notification timing. The 'morning_evening' preset is recommended for a balance of real-time updates and daily summaries.
+
+```yaml
+schedule:
+  enabled: true
+  preset: "morning_evening"     # 改这里就行
+```
+
+--------------------------------
+
+### LiteLLM Configuration Changes
+
+Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
+
+Illustrates the configuration changes required for migrating to LiteLLM, including the removal of 'provider' and 'AI_PROVIDER' and the renaming of 'base_url' and 'AI_BASE_URL'.
+
+```yaml
+ai:
+  # ai.provider is removed
+  api_base: "http://localhost:11434/v1" # Renamed from ai.base_url
+
+# Environment variables:
+# AI_PROVIDER is removed
+# AI_API_BASE is renamed from AI_BASE_URL
+
+```
+
+--------------------------------
+
+### Batch Read Articles Tool Usage
+
+Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
+
+Shows how to use the `read_articles_batch` tool to read multiple article bodies efficiently. This tool supports up to 5 articles and includes auto rate-limiting.
+
+```python
+from jina.serve.runtimes.gateway.tool import read_articles_batch
+
+article_urls = ["url1", "url2", "url3"]
+article_bodies = read_articles_batch(urls=article_urls)
+
+```
+
+--------------------------------
+
+### Real-Time Trending Hotness Algorithm Configuration
+
+Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
+
+Configuration for the 'Real-Time Trending Type' scenario, prioritizing ranking weight. Suitable for users who need to quickly understand current hot topics.
+
+```yaml
+advanced:
+  weight:
+    rank: 0.8
+    frequency: 0.1
+    hotness: 0.1
+```
+
+--------------------------------
+
+### Enable AI Analysis with Environment Variables
+
+Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
+
+Configure AI analysis by setting environment variables for the API key, model, and enabling the feature.
+
+```env
+AI_ANALYSIS_ENABLED=true
+AI_API_KEY=sk-xxxxxx
+AI_MODEL=deepseek/deepseek-chat
+```
+
+--------------------------------
+
+### Docker Environment Variables for Reporting
+
+Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
+
+Sets reporting behavior using environment variables, including sorting priority and maximum news per keyword.
+
+```bash
+SORT_BY_POSITION_FIRST=true
+MAX_NEWS_PER_KEYWORD=10
+```
+
+--------------------------------
+
+### Keyword-Specific Display Count
+
+Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
+
+Demonstrates how to override the global display count limit for specific keywords using a special syntax in the frequency words file.
+
+```txt
 # frequency_words.txt
 Tesla
 Musk
@@ -292,36 +843,30 @@ BYD
 
 --------------------------------
 
-### Configure Cursor with TrendRadar MCP (JSON)
+### Display Current Configuration
 
 Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
 
-Configuration examples for integrating TrendRadar MCP with the Cursor editor. Supports both HTTP and STDIO modes. STDIO mode is recommended for its one-time configuration.
+Show the current configuration settings of the TrendRadar service.
 
-```json
-{
-  "mcpServers": {
-    "trendradar": {
-      "url": "http://localhost:3333/mcp",
-      "description": "TrendRadar News Trending Aggregation Analysis"
-    }
-  }
-}
+```bash
+docker exec -it trendradar python manage.py config
 ```
 
+--------------------------------
+
+### Configure MCP Server in Claude Desktop/Cline
+
+Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
+
+Configure the MCP server settings for Claude Desktop or Cline using a JSON configuration file. This specifies the URL and type of the MCP server.
+
 ```json
 {
   "mcpServers": {
     "trendradar": {
-      "command": "uv",
-      "args": [
-        "--directory",
-        "/path/to/TrendRadar",
-        "run",
-        "python",
-        "-m",
-        "mcp_server.server"
-      ]
+      "url": "http://127.0.0.1:3333/mcp",
+      "type": "streamableHttp"
     }
   }
 }
@@ -329,111 +874,106 @@ Configuration examples for integrating TrendRadar MCP with the Cursor editor. Su
 
 --------------------------------
 
-### Group Feature Configuration Example
+### Verify Config Files Inside Container
 
 Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
 
-Demonstrates how to configure groups of keywords with required and filtered terms. Each group is separated by an empty line and uses '+' for required terms and '!' for filters. This configuration is used to categorize and match news or data points based on specific criteria.
-
-```text
-iPhone
-Huawei
-OPPO
-+launch
-
-A-shares
-Shanghai Index
-Shenzhen Index
-+fluctuation
-!prediction
-
-World Cup
-Euro Cup
-Asian Cup
-+match
-```
-
---------------------------------
-
-### Build and Start MCP AI Analysis Service
-
-Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
-
-Builds and starts the trendradar-mcp service using Docker Compose. This command is used to deploy the optional AI analysis features.
+List the contents of the configuration directory inside the TrendRadar container.
 
 ```bash
-docker compose build trendradar-mcp
-docker compose up -d trendradar-mcp
+docker exec -it trendradar ls -la /app/config/
 ```
 
 --------------------------------
 
-### Configure Notification URLs (Bash)
+### Configure AI Translation Settings
 
 Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
 
-This bash snippet shows examples of how to set environment variables for notification webhook URLs and tokens, typically used in GitHub Secrets or a .env file. It illustrates separating multiple endpoints with a semicolon for services like Feishu, DingTalk, and Telegram.
+Enable AI translation and specify the target language for translated content.
 
-```bash
-# Send to 3 Feishu groups
-FEISHU_WEBHOOK_URL=https://hook1...;https://hook2...;https://hook3...
-
-# Send to 2 DingTalk groups
-DINGTALK_WEBHOOK_URL=https://oapi...;https://oapi...
-
-# Send to 2 Telegram users (Match one-to-one)
-TELEGRAM_BOT_TOKEN=tokenA;tokenB
-TELEGRAM_CHAT_ID=userA;userB
-
+```yaml
+ai_translation:
+  enabled: true          # Enable translation
+  language: "Chinese"    # Target language (Chinese, English, Japanese...)
 ```
 
 --------------------------------
 
-### Docker Environment Variables for Reporting
+### In-Depth Topic Hotness Algorithm Configuration
 
 Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
 
-Provides examples of Docker environment variables used to configure reporting settings, specifically `SORT_BY_POSITION_FIRST` and `MAX_NEWS_PER_KEYWORD`. These variables allow runtime configuration of the Trendradar application.
+Configuration for the 'In-Depth Topic Type' scenario, emphasizing frequency weight for sustained heat analysis. Ideal for investors and researchers needing deep trend analysis.
 
-```bash
-SORT_BY_POSITION_FIRST=true
-MAX_NEWS_PER_KEYWORD=10
+```yaml
+advanced:
+  weight:
+    rank: 0.4
+    frequency: 0.5
+    hotness: 0.1
 ```
 
 --------------------------------
 
-### Start MCP Server
-
-Source: https://context7.com/sansan0/trendradar/llms.txt
-
-Launch the MCP server to expose news data via a standardized API, allowing AI assistants to query and analyze trending news. The server can be started with a default or custom project root.
-
-```bash
-# Start the MCP server
-python -m mcp_server
-
-# Or specify a custom project root
-python -m mcp_server --project-root /path/to/trendradar
-```
-
---------------------------------
-
-### Configure VSCode Cline with TrendRadar MCP (JSON)
+### GitHub Actions Workflow Configuration
 
 Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
 
-Configuration settings for VSCode's Cline extension to connect with TrendRadar MCP. Provides examples for both HTTP and STDIO connection types.
+This is a link to the GitHub Actions workflow file for the crawler. It is mentioned as needing copy replacement in older versions.
 
-```json
-{
-  "trendradar": {
-    "url": "http://localhost:3333/mcp",
-    "type": "streamableHttp",
-    "autoApprove": [],
-    "disabled": false
-  }
-}
+```link
+https://github.com/sansan0/TrendRadar/blob/master/.github/workflows/crawler.yml
 ```
+
+--------------------------------
+
+### Manually Execute Crawler
+
+Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
+
+Manually trigger a single run of the news crawler.
+
+```bash
+docker exec -it trendradar python manage.py run
+```
+
+--------------------------------
+
+### ntfy Push Notification - Self-Hosting Docker Deploy
+
+Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
+
+Deploy ntfy for self-hosting using Docker. This command sets up the ntfy service, maps port 80, and persists cache data.
+
+```bash
+docker run -d \
+  --name ntfy \
+  -p 80:80 \
+  -v /var/cache/ntfy:/var/cache/ntfy \
+  binwiederhier/ntfy \
+  serve --cache-file /var/cache/ntfy/cache.db
+```
+
+--------------------------------
+
+### View Container Logs
+
+Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
+
+Retrieve the last 100 lines of logs from a Docker container.
+
+```bash
+docker logs --tail 100 trendradar
+```
+
+--------------------------------
+
+### Configure VSCode (Cline/Continue) with TrendRadar STDIO Mode
+
+Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
+
+Configure Cline/Continue in VSCode to connect to TrendRadar's MCP service using STDIO. This is the recommended method and involves specifying the command and arguments.
 
 ```json
 {
@@ -455,384 +995,23 @@ Configuration settings for VSCode's Cline extension to connect with TrendRadar M
 
 --------------------------------
 
-### Configure Push Time Window with Docker Environment Variables
+### Display Output Files
 
 Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
 
-Set the push notification time window using Docker environment variables. These variables allow you to control the enablement, start time, end time, and the 'once per day' behavior of the push window.
+List the output files generated by the TrendRadar service.
 
 ```bash
-PUSH_WINDOW_ENABLED=true
-PUSH_WINDOW_START=09:00
-PUSH_WINDOW_END=18:00
-PUSH_WINDOW_ONCE_PER_DAY=false
+docker exec -it trendradar python manage.py files
 ```
 
 --------------------------------
 
-### Configure Custom Monitoring Platforms (YAML)
+### Configure Email Push in config.yaml
 
 Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
 
-This snippet shows how to enable and configure custom news monitoring platforms within the TrendRadar application. It specifies the 'platforms' section in 'config/config.yaml' and lists example sources like Toutiao and Baidu.
-
-```yaml
-platforms:
-  enabled: true                       # Enable trending platform crawling
-  sources:
-    - id: "toutiao"
-      name: "Toutiao"
-    - id: "baidu"
-      name: "Baidu Hot Search"
-    - id: "wallstreetcn-hot"
-      name: "Wallstreetcn"
-    # Add more platforms...
-
-```
-
---------------------------------
-
-### Configure Push Time Window in YAML
-
-Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
-
-Control when push notifications are sent by configuring the `notification.push_window` section in `config/config.yaml`. You can enable or disable the time window, set the start and end times (in Beijing time), and specify if pushes should occur only once per day within that window.
-
-```yaml
-notification:
-  push_window:
-    enabled: false                    # Whether to enable
-    start: "20:00"                    # Start time (Beijing time)
-    end: "22:00"                      # End time (Beijing time)
-    once_per_day: true                # Push only once per day
-```
-
-```yaml
-notification:
-  push_window:
-    enabled: true
-    start: "20:00"
-    end: "22:00"
-    once_per_day: true
-```
-
-```yaml
-notification:
-  push_window:
-    enabled: true
-    start: "09:00"
-    end: "18:00"
-    once_per_day: false
-```
-
---------------------------------
-
-### Configure AI Client for MCP Server (Cherry Studio)
-
-Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
-
-Instructions for configuring the Cherry Studio GUI client to connect to the TrendRadar MCP service. It involves adding a new server entry with the streamableHttp type and the correct URL.
-
-```text
-Settings → MCP Server → Add
-Type: streamableHttp
-URL: http://127.0.0.1:3333/mcp
-```
-
---------------------------------
-
-### TrendRadar HTTP Service
-
-Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
-
-Information on starting the TrendRadar HTTP service and connecting to it via a browser.
-
-```APIDOC
-## TrendRadar HTTP Service
-
-### Description
-
-This section details how to start the TrendRadar HTTP service and access its functionalities through a web browser. It also lists the available tools and their respective functions.
-
-### Method
-
-N/A (Service Start)
-
-### Endpoint
-
-`http://localhost:3333/mcp`
-
-### Parameters
-
-N/A
-
-### Request Example
-
-N/A
-
-### Response
-
-#### Success Response (200)
-
-- **Ping Server**: Verifies server connection.
-- **List Tools**: Returns a list of available tools:
-  - **Date Parsing**: `resolve_date_range`
-  - **Basic Query**: `get_latest_news`, `get_news_by_date`, `get_trending_topics`
-  - **Smart Search**: `search_news`, `search_related_news_history`
-  - **Advanced Analysis**: `analyze_topic_trend`, `analyze_data_insights`, `analyze_sentiment`, `find_similar_news`, `generate_summary_report`
-  - **System Management**: `get_current_config`, `get_system_status`, `trigger_crawl`
-
-#### Response Example
-
-```json
-{
-  "tools": [
-    "resolve_date_range",
-    "get_latest_news",
-    "get_news_by_date",
-    "get_trending_topics",
-    "search_news",
-    "search_related_news_history",
-    "analyze_topic_trend",
-    "analyze_data_insights",
-    "analyze_sentiment",
-    "find_similar_news",
-    "generate_summary_report",
-    "get_current_config",
-    "get_system_status",
-    "trigger_crawl"
-  ]
-}
-```
-```
-
---------------------------------
-
-### AI Analysis Push Configuration
-
-Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
-
-This snippet illustrates how to customize the AI analysis perspective using a prompt file. It points to `config/ai_analysis_prompt.txt` for custom prompt configurations, allowing users to define the analysis viewpoint.
-
-```text
-config/ai_analysis_prompt.txt
-```
-
---------------------------------
-
-### Configure Timezone Settings
-
-Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
-
-Adjust the timezone for push notifications to match your local time. The configuration is located in `config/config.yaml`. Examples for Los Angeles and London are provided.
-
-```yaml
-app:
-  timezone: "Asia/Shanghai"  # Default is China Standard Time
-```
-
---------------------------------
-
-### Configure Multi-Platform Notifications (YAML)
-
-Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
-
-This snippet demonstrates how to configure the `notification` section in `config/config.yaml` to send alerts to multiple platforms. It shows how to separate multiple URLs or tokens with a semicolon ';'. Sensitive information like passwords or tokens should not be directly written in this file but managed via GitHub Secrets or .env files.
-
-```yaml
-notification:
-  feishu_webhook_url: "https://hook1...;https://hook2...;https://hook3..."
-  dingtalk_webhook_url: "https://oapi...;https://oapi..."
-  telegram_bot_token: "tokenA;tokenB"
-  telegram_chat_id: "userA;userB"
-  ntfy_topic: "topic1;topic2;topic3"
-  ntfy_token: "token1;;token3"
-
-```
-
---------------------------------
-
-### Set Auto-Run Frequency in GitHub Actions Workflow
-
-Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
-
-Configure the auto-run frequency of the crawler in GitHub Actions by defining a cron schedule in the `.github/workflows/crawler.yml` file. The example provided sets the crawler to run every hour.
-
-```yaml
-on:
-  schedule:
-    - cron: "0 * * * *"  # Run every hour
-```
-
---------------------------------
-
-### Enable AI Smart Analysis via Environment Variables
-
-Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
-
-Enable AI analysis features by setting environment variables. This includes enabling the feature, providing an API key, and specifying the AI model. It supports various AI providers through LiteLLM.
-
-```env
-AI_ANALYSIS_ENABLED=true
-AI_API_KEY=sk-xxxxxx
-AI_MODEL=deepseek/deepseek-chat
-```
-
---------------------------------
-
-### Deploy ntfy Server using Docker
-
-Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
-
-This snippet shows how to deploy an ntfy notification server using Docker. It maps port 80 and mounts a volume for cache persistence. This is useful for users who want to self-host ntfy for complete privacy control.
-
-```bash
-docker run -d \
-  --name ntfy \
-  -p 80:80 \
-  -v /var/cache/ntfy:/var/cache/ntfy \
-  binwiederhier/ntfy \
-  serve --cache-file /var/cache/ntfy/cache.db
-```
-
---------------------------------
-
-### Configure Personal WeChat Push
-
-Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
-
-This setup allows pushing plain text notifications directly to your personal WeChat account using a WeWork webhook. It requires configuring GitHub secrets for the webhook URL and message type.
-
-```text
-WEWORK_WEBHOOK_URL: Your WeWork app Webhook address
-WEWORK_MSG_TYPE: text
-```
-
---------------------------------
-
-### Configure Hotness Algorithm Weights in YAML
-
-Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
-
-This snippet shows how to adjust the weights for ranking, frequency, and hotness in the `config/config.yaml` file to customize the hotness algorithm. The weights must sum to 1.0. Adjustments should be made incrementally (0.1-0.2) to observe effects.
-
-```yaml
-advanced:
-  weight:
-    rank: 0.6           # Ranking weight
-    frequency: 0.3      # Frequency weight
-    hotness: 0.1        # Hotness weight
-```
-
-```yaml
-advanced:
-  weight:
-    rank: 0.8           # Mainly focus on ranking
-    frequency: 0.1      # Less concern about continuity
-    hotness: 0.1
-```
-
-```yaml
-advanced:
-  weight:
-    rank: 0.4           # Moderate ranking focus
-    frequency: 0.5      # Emphasize sustained heat within the day
-    hotness: 0.1
-```
-
---------------------------------
-
-### Download TrendRadar Configuration Files using Wget
-
-Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
-
-This snippet shows how to download essential configuration files for TrendRadar using wget. It includes configuration files for the application, frequency words, AI analysis prompts, and Docker environment variables.
-
-```bash
-# Create directory structure
-mkdir -p trendradar/{config,docker}
-cd trendradar
-
-# Download config file templates
-wget https://raw.githubusercontent.com/sansan0/TrendRadar/master/config/config.yaml -P config/
-wget https://raw.githubusercontent.com/sansan0/TrendRadar/master/config/frequency_words.txt -P config/
-wget https://raw.githubusercontent.com/sansan0/TrendRadar/master/config/ai_analysis_prompt.txt -P config/
-
-# Download docker compose config
-wget https://raw.githubusercontent.com/sansan0/TrendRadar/master/docker/.env -P docker/
-wget https://raw.githubusercontent.com/sansan0/TrendRadar/master/docker/docker-compose.yml -P docker/
-```
-
---------------------------------
-
-### Configure DingTalk Bot
-
-Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
-
-This setup configures a DingTalk bot to receive notifications. It involves creating a custom bot within a DingTalk group, setting custom keywords for triggering, and then storing the obtained DingTalk webhook URL as a GitHub secret.
-
-```text
-DINGTALK_WEBHOOK_URL: Your DingTalk bot Webhook address
-```
-
---------------------------------
-
-### Custom Display Names with Regex
-
-Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
-
-Allows setting custom display names for regex patterns to improve readability in push notifications and HTML pages. The syntax is `/pattern/ => Display Name`. Flags in the pattern are ignored as case-insensitivity is always enabled.
-
-```txt
-/(?<![a-zA-Z])ai(?![a-zA-Z])/ => AI Related
-artificial intelligence
-```
-
-```txt
-# Config
-/(?<![a-zA-Z])ai(?![a-zA-Z])/ => AI Related
-artificial intelligence
-```
-
---------------------------------
-
-### Configure AI Client for MCP Server (Claude Desktop/Cline)
-
-Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
-
-This JSON configuration snippet shows how to set up the Claude Desktop or Cline client to connect to the TrendRadar MCP service. It defines the server URL and type within the mcpServers configuration.
-
-```json
-{
-  "mcpServers": {
-    "trendradar": {
-      "url": "http://127.0.0.1:3333/mcp",
-      "type": "streamableHttp"
-    }
-  }
-}
-```
-
---------------------------------
-
-### Global Display Count Limit Configuration
-
-Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
-
-Demonstrates how to set a global limit for the number of news items displayed per keyword using `max_news_per_keyword` in `config.yaml`. A value of 0 means unlimited. This setting can be overridden by specific keyword configurations.
-
-```yaml
-report:
-  max_news_per_keyword: 10  # Max 10 per keyword (0=unlimited)
-```
-
---------------------------------
-
-### Enable HTML Report Generation in config.yaml
-
-Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
-
-This YAML snippet demonstrates how to enable HTML report generation, a prerequisite for the Email Push functionality. Ensure `storage.formats.html` is set to `true` to avoid errors related to missing HTML files.
+Ensure HTML report generation is enabled in the configuration file for email push functionality to work correctly. If disabled, email push will fail with an error.
 
 ```yaml
 storage:
@@ -844,158 +1023,224 @@ storage:
 
 --------------------------------
 
-### Initialize and Run NewsAnalyzer (Python)
+### Basic Keyword Matching
 
-Source: https://context7.com/sansan0/trendradar/llms.txt
+Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
 
-Initializes the NewsAnalyzer class, which orchestrates the news crawling, analysis, and notification pipeline. Can be initialized with default configuration or a custom configuration object, and then executed using the run() method.
+Capture news containing any of the specified normal keywords.
+
+```txt
+Huawei
+OPPO
+Apple
+```
+
+--------------------------------
+
+### Enable Incremental Push
+
+Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
+
+Shows how to enable incremental push notifications by setting the FOCUS_NEW_ONLY switch to True in main.py. This feature only sends notifications for new topics.
 
 ```python
-from trendradar.__main__ import NewsAnalyzer
-from trendradar.core import load_config
-
-# Initialize with default config
-analyzer = NewsAnalyzer()
-
-# Or with custom config
-config = load_config()
-config['REPORT_MODE'] = 'incremental'  # Options: incremental, current, daily
-analyzer = NewsAnalyzer(config=config)
-
-# Run the complete analysis pipeline
-analyzer.run()
+FOCUS_NEW_ONLY = True
 ```
 
 --------------------------------
 
-### Get Trending Topics Statistics with DataQueryTools (Python)
-
-Source: https://context7.com/sansan0/trendradar/llms.txt
-
-Analyze and retrieve trending topic statistics using `DataQueryTools`. This function supports different modes ('current', 'daily') and extraction methods ('keywords', 'auto_extract') for identifying hot topics.
-
-```python
-from mcp_server.tools.data_query import DataQueryTools
-
-tools = DataQueryTools()
-
-# Get top 10 trending topics using preset keywords
-result = tools.get_trending_topics(
-    top_n=10,
-    mode="current",      # "current" or "daily"
-    extract_mode="keywords"  # "keywords" or "auto_extract"
-)
-
-# Auto-extract high-frequency words from titles
-result = tools.get_trending_topics(
-    top_n=20,
-    mode="daily",
-    extract_mode="auto_extract"
-)
-
-# Example response:
-# {
-#     "success": True,
-#     "topics": [
-#         {"keyword": "人工智能", "frequency": 45, "matched_news": 38, "trend": "stable"},
-#         {"keyword": "特斯拉", "frequency": 32, "matched_news": 28, "trend": "rising"}
-#     ],
-#     "mode": "daily",
-#     "extract_mode": "keywords"
-# }
-```
-
---------------------------------
-
-### Check Port Occupancy
+### Configure Email Password
 
 Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
 
-Commands to check if a specific port (e.g., 3333) is already in use on Windows or Mac/Linux systems.
+When configuring email notifications, use the generated authorization code for QQ Mail and 163/126 Mail, or an app-specific password for Gmail. Do not use your regular account password.
+
+```text
+EMAIL_PASSWORD fill authorization code, not QQ password
+```
+
+```text
+EMAIL_PASSWORD fill app-specific password
+```
+
+```text
+EMAIL_PASSWORD fill authorization code
+```
+
+--------------------------------
+
+### View Real-time Logs
+
+Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
+
+Display real-time logs from the TrendRadar service.
 
 ```bash
-# Windows
-netstat -ano | findstr :3333
+docker exec -it trendradar python manage.py logs
+```
+
+--------------------------------
+
+### Configure Multiple Notification Recipients
+
+Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
+
+In config/config.yaml, separate multiple notification URLs or tokens with a semicolon (;). This applies to platforms like Feishu, DingTalk, Telegram, and ntfy.
+
+```bash
+# Send to 3 Feishu groups
+FEISHU_WEBHOOK_URL=https://hook1...;https://hook2...;https://hook3...
 ```
 
 ```bash
-# Mac/Linux
-lsof -i :3333
+# Send to 2 DingTalk groups
+DINGTALK_WEBHOOK_URL=https://oapi...;https://oapi...
 ```
-
---------------------------------
-
-### Build Docker Images for Specific Architecture
-
-Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
-
-Builds Docker images for a specified architecture (e.g., arm64). By default, it builds amd64 images. Set the DOCKER_ARCH environment variable to change the target architecture.
 
 ```bash
-export DOCKER_ARCH=arm64
-docker compose build
+# Send to 2 Telegram users (Match one-to-one)
+TELEGRAM_BOT_TOKEN=tokenA;tokenB
+TELEGRAM_CHAT_ID=userA;userB
 ```
 
 --------------------------------
 
-### Keyword Sorting Priority Configuration
+### Normal Word with Display Name Alias
 
 Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
 
-Shows how to configure keyword sorting priority in the `config.yaml` file. Setting `sort_by_position_first` to `true` prioritizes configuration order, while `false` (default) prioritizes news count. This affects how results are displayed when multiple keywords match.
+Assign a custom display name to a normal keyword using the `=> alias` syntax.
 
-```yaml
-report:
-  sort_by_position_first: false  # Sorting priority config
-```
-
-```yaml
-report:
-  sort_by_position_first: true   # Config order priority
+```txt
+deepseek => DeepSeek News
 ```
 
 --------------------------------
 
-### Configure VSCode Continue with TrendRadar MCP (JSON)
+### TrendRadar STDIO Mode Client Configuration
 
 Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
 
-Configuration for VSCode's Continue extension to integrate with TrendRadar MCP using the STDIO transport method. This allows for smart analysis directly within the VSCode environment.
+A basic configuration template for connecting a STDIO client to the TrendRadar MCP service. Replace `/path/to/TrendRadar` with the actual project path. This mode is recommended.
 
 ```json
 {
-  "experimental": {
-    "modelContextProtocolServers": [
-      {
-        "transport": {
-          "type": "stdio",
-          "command": "uv",
-          "args": [
-            "--directory",
-            "/path/to/TrendRadar",
-            "run",
-            "python",
-            "-m",
-            "mcp_server.server"
-          ]
-        }
-      }
-    ]
-  }
+  "name": "trendradar",
+  "command": "uv",
+  "args": [
+    "--directory",
+    "/path/to/TrendRadar",
+    "run",
+    "python",
+    "-m",
+    "mcp_server.server"
+  ],
+  "type": "stdio"
 }
 ```
 
 --------------------------------
 
-### Deploy Bark Server using Docker
+### Configure Push Content and Style
 
 Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
 
-This snippet demonstrates deploying a Bark notification server using Docker. It maps port 8080 and is suitable for users seeking complete privacy control for iOS notifications.
+Customize push message display and content by modifying the `report` and `display` sections in `config/config.yaml`. This includes setting display modes, ranking thresholds, and regional order.
 
-```bash
-docker run -d \
-  --name bark-server \
-  -p 8080:8080 \
-  finab/bark-server
+```yaml
+report:
+  mode: "daily"                    # Push mode
+  display_mode: "keyword"          # Display mode (v4.6.0 new)
+  rank_threshold: 5                # Ranking highlight threshold
+  sort_by_position_first: false    # Sorting priority
+  max_news_per_keyword: 0          # Maximum display count per keyword
+
+display:
+  region_order:
+    - new_items                    # New trending section
+    - hotlist                      # Hotlist section
+    - rss                          # RSS subscription section
+    - standalone                   # Independent display section
+    - ai_analysis                  # AI analysis section
+```
+
+--------------------------------
+
+### Global Display Count Limit Configuration
+
+Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
+
+Sets a maximum number of news items to display per keyword globally. A value of 0 means unlimited.
+
+```yaml
+report:
+  max_news_per_keyword: 10  # Max 10 per keyword (0=unlimited)
+```
+
+--------------------------------
+
+### Global Filter Configuration
+
+Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
+
+Globally exclude content by listing keywords under the [GLOBAL_FILTER] region. This filter has the highest priority.
+
+```txt
+[GLOBAL_FILTER]
+advertisement
+promotion
+marketing
+shocking
+clickbait
+
+[WORD_GROUPS]
+technology
+AI
+
+Huawei
+HarmonyOS
+!car
+```
+
+--------------------------------
+
+### AI Analysis Mode and Time Window Configuration
+
+Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
+
+Configure AI analysis behavior with independent control over the mode and time window. Supports custom execution periods and daily frequency limits.
+
+```yaml
+ai_analysis:
+  mode: "follow_report" # Options: follow_report | daily | current | incremental
+  time_window:
+    execution_period: "08:00-18:00"
+    daily_frequency_limit: 3
+
+```
+
+--------------------------------
+
+### Configure Cursor with TrendRadar STDIO Mode
+
+Source: https://github.com/sansan0/trendradar/blob/master/README-EN.md
+
+Configure Cursor to use TrendRadar's MCP service via STDIO. This is the recommended method and requires specifying the command to run the MCP server.
+
+```json
+{
+  "mcpServers": {
+    "trendradar": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/path/to/TrendRadar",
+        "run",
+        "python",
+        "-m",
+        "mcp_server.server"
+      ]
+    }
+  }
+}
 ```
