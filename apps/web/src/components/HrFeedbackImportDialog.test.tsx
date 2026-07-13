@@ -73,7 +73,7 @@ describe('HrFeedbackImportDialog', () => {
     expect(within(dialog).getByText('imported')).toBeInTheDocument()
 
     const closeButtons = within(dialog).getAllByRole('button', { name: 'Close' })
-    await user.click(closeButtons.at(-1) as HTMLButtonElement)
+    await user.click(closeButtons[closeButtons.length - 1] as HTMLButtonElement)
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
 
     const reopened = await openDialog(user)
