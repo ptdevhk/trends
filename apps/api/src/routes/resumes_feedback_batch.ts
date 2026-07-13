@@ -1,10 +1,9 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { isRecord } from "@trends/shared";
 
 import { requireWorkspaceUser, getAuthenticatedActorId } from "../middleware/auth.js";
 import { ActionStorage } from "../services/action-storage.js";
 import { config } from "../services/config.js";
-import { callConvexQuery } from "../services/convex-utils.js";
+import { callConvexMutation } from "../services/convex-utils.js";
 import { logger } from "../services/logger.js";
 import { formatIsoOffsetInTimezone } from "../services/timezone.js";
 
@@ -50,36 +49,60 @@ type NormalizedFeedbackBatchItem = z.infer<typeof FeedbackBatchItemSchema> & {
   comments: string;
 };
 
-function looksLikeConvexResumeId(value: string): boolean {
-  return /^[a-z0-9]{20,}$/.test(value);
-}
+const ConvexImportNoteResultSchema = z.object({
+  resumeId: z.string(),
+  identityKey: z.string().optional(),
+  outcome: z.enum(["applied", "unchanged", "notFound", "skipped"]),
+  reason: z.enum([
+    "empty_comments",
+    "superseded_by_later_duplicate",
+    "resume_not_found",
+  ]).optional(),
+});
 
-function readResolvedResumeId(value: unknown): string | null {
-  if (!isRecord(value) || typeof value.resumeId !== "string") {
-    return null;
-  }
-  const trimmed = value.resumeId.trim();
-  return trimmed.length > 0 ? trimmed : null;
-}
+const ConvexImportNotesBatchSchema = z.object({
+  requested: z.number().int().nonnegative(),
+  applied: z.number().int().nonnegative(),
+  unchanged: z.number().int().nonnegative(),
+  notFound: z.number().int().nonnegative(),
+  skipped: z.number().int().nonnegative(),
+  results: z.array(ConvexImportNoteResultSchema),
+});
 
-async function resolveExistingResumeIds(resumeIds: string[]): Promise<Set<string>> {
-  if (resumeIds.length === 0) {
-    return new Set();
+type ConvexImportNoteResult = z.infer<typeof ConvexImportNoteResultSchema>;
+
+function parseConvexImportBatch(
+  value: unknown,
+  requestedItems: Array<{ resumeId: string; comments: string }>,
+): ConvexImportNoteResult[] {
+  const parsed = ConvexImportNotesBatchSchema.safeParse(value);
+  if (!parsed.success) {
+    throw new Error("Invalid candidate note import response from Convex");
   }
 
-  const value = await callConvexQuery("resumes:getByIdsForExport", { resumeIds });
-  if (!Array.isArray(value)) {
-    throw new Error("Invalid resume lookup response from Convex");
+  const batch = parsed.data;
+  const outcomeCounts = {
+    applied: batch.results.filter((result) => result.outcome === "applied").length,
+    unchanged: batch.results.filter((result) => result.outcome === "unchanged").length,
+    notFound: batch.results.filter((result) => result.outcome === "notFound").length,
+    skipped: batch.results.filter((result) => result.outcome === "skipped").length,
+  };
+  const responseMatchesRequest = batch.requested === requestedItems.length
+    && batch.results.length === requestedItems.length
+    && batch.results.every((result, index) => result.resumeId === requestedItems[index]?.resumeId)
+    && batch.applied === outcomeCounts.applied
+    && batch.unchanged === outcomeCounts.unchanged
+    && batch.notFound === outcomeCounts.notFound
+    && batch.skipped === outcomeCounts.skipped
+    && batch.skipped === 0
+    && batch.results.every((result) =>
+      result.outcome !== "notFound" || result.reason === "resume_not_found"
+    );
+  if (!responseMatchesRequest) {
+    throw new Error("Candidate note import response did not match the requested batch");
   }
 
-  const resolved = new Set<string>();
-  for (const item of value) {
-    const resumeId = readResolvedResumeId(item);
-    if (resumeId) {
-      resolved.add(resumeId);
-    }
-  }
-  return resolved;
+  return batch.results;
 }
 
 const importFeedbackBatchRoute = createRoute({
@@ -112,21 +135,51 @@ app.openapi(importFeedbackBatchRoute, async (c) => {
     ...item,
     comments: item.comments.trim(),
   }));
-  const uniqueResumeIds = Array.from(new Set(
-    normalizedItems
-      .filter((item) => item.comments && looksLikeConvexResumeId(item.resumeId))
-      .map((item) => item.resumeId),
-  ));
   const importedAt = formatIsoOffsetInTimezone(new Date(), config.timezone);
 
   try {
-    const existingResumeIds = await resolveExistingResumeIds(uniqueResumeIds);
+    const workspaceSlug = c.var.workspaceSlug;
+    const updatedBy = getAuthenticatedActorId(c);
+    const lastNonemptyIndex = new Map<string, number>();
+    normalizedItems.forEach((item, index) => {
+      if (item.comments) {
+        lastNonemptyIndex.set(item.resumeId, index);
+      }
+    });
+    const winners = normalizedItems
+      .map((item, index) => ({ item, index }))
+      .filter(({ item, index }) => item.comments && lastNonemptyIndex.get(item.resumeId) === index);
+    const outcomesByIndex = new Map<number, ConvexImportNoteResult>();
+
+    for (let offset = 0; offset < winners.length; offset += 100) {
+      const batch = winners.slice(offset, offset + 100);
+      const mutationItems = batch.map(({ item }) => ({
+        resumeId: item.resumeId,
+        comments: item.comments,
+      }));
+      const value = await callConvexMutation("candidate_status:importNotesBatch", {
+        workspaceSlug,
+        items: mutationItems,
+        updatedBy,
+        writeSecret: config.auth.convexWriteSecret,
+      });
+      const mutationResults = parseConvexImportBatch(value, mutationItems);
+      mutationResults.forEach((result, index) => {
+        const winner = batch[index];
+        if (!winner) {
+          throw new Error("Candidate note import response contained an unexpected result");
+        }
+        outcomesByIndex.set(winner.index, result);
+      });
+    }
+
     let imported = 0;
     let skipped = 0;
     const notFound: string[] = [];
     const results: z.infer<typeof FeedbackBatchResultSchema>[] = [];
 
-    for (const item of normalizedItems) {
+    for (let index = 0; index < normalizedItems.length; index += 1) {
+      const item = normalizedItems[index];
       const comments = item.comments;
       if (!comments) {
         skipped += 1;
@@ -140,7 +193,23 @@ app.openapi(importFeedbackBatchRoute, async (c) => {
         continue;
       }
 
-      if (!looksLikeConvexResumeId(item.resumeId) || !existingResumeIds.has(item.resumeId)) {
+      if (lastNonemptyIndex.get(item.resumeId) !== index) {
+        skipped += 1;
+        results.push({
+          resumeId: item.resumeId,
+          name: item.name,
+          comments,
+          status: "skipped",
+          reason: "superseded_by_later_duplicate",
+        });
+        continue;
+      }
+
+      const outcome = outcomesByIndex.get(index);
+      if (!outcome) {
+        throw new Error("Candidate note import response was incomplete");
+      }
+      if (outcome.outcome === "notFound") {
         notFound.push(item.resumeId);
         results.push({
           resumeId: item.resumeId,
@@ -151,17 +220,32 @@ app.openapi(importFeedbackBatchRoute, async (c) => {
         });
         continue;
       }
+      if (outcome.outcome === "unchanged") {
+        skipped += 1;
+        results.push({
+          resumeId: item.resumeId,
+          name: item.name,
+          comments,
+          status: "skipped",
+          reason: "unchanged",
+        });
+        continue;
+      }
+      if (outcome.outcome !== "applied") {
+        throw new Error(`Unexpected candidate note outcome: ${outcome.outcome}`);
+      }
 
       const actionData: Record<string, unknown> = {
         text: comments,
         context: "hr_feedback",
+        workspaceSlug,
         importedAt,
       };
       if (item.name) {
         actionData.sourceName = item.name;
       }
       const action = actionStorage.saveAction({
-        userId: getAuthenticatedActorId(c),
+        userId: updatedBy,
         resumeId: item.resumeId,
         actionType: "note",
         actionData,

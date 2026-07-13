@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { isDeepStrictEqual } from "node:util";
 
 import { z } from "@hono/zod-openapi";
 
@@ -28,6 +29,7 @@ import { recordSearchProfileSubmitRunStatus } from "./search-profile-run-status.
 const JOB5156_HOST = "hr.job5156.com";
 const EHIRE_51JOB_HOST = "ehire.51job.com";
 const RESUME_IMPORT_CONVEX_BATCH_SIZE = 200;
+const CANDIDATE_STATUS_RESTORE_BATCH_SIZE = 100;
 
 type ResumeImportMetadata = z.infer<typeof ResumeImportMetadataSchema>;
 export type ResumeImportItem = z.infer<typeof ResumeImportItemSchema>;
@@ -327,7 +329,6 @@ async function submitResumesToConvex(args: { resumes: ConvexResumeSubmitItem[] }
   updated: number;
   unchanged: number;
 }> {
-  const convexUrl = resolveConvexUrl().replace(/\/$/, "");
   const totals = {
     submitted: 0,
     deduped: 0,
@@ -339,40 +340,13 @@ async function submitResumesToConvex(args: { resumes: ConvexResumeSubmitItem[] }
   for (let index = 0; index < args.resumes.length; index += RESUME_IMPORT_CONVEX_BATCH_SIZE) {
     const batch = args.resumes.slice(index, index + RESUME_IMPORT_CONVEX_BATCH_SIZE);
     // Keep each Convex mutation comfortably below the per-execution read limit.
-    const response = await fetch(`${convexUrl}/api/mutation`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify({
-        path: "resume_tasks:submitResumes",
-        args: {
-          resumes: batch,
-        },
-      }),
+    const value = await callConvexFunction("mutation", "resume_tasks:submitResumes", {
+      resumes: batch,
     });
-
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`Convex mutation failed (${response.status}): ${text}`);
-    }
-
-    const payload = (await response.json()) as {
-      status?: string;
-      value?: unknown;
-      errorMessage?: string;
-    };
-
-    if (payload.status !== "success") {
-      throw new Error(payload.errorMessage || "Convex mutation failed");
-    }
-
-    if (!isRecord(payload.value)) {
+    if (!isRecord(value)) {
       throw new Error("Invalid submitResumes response from Convex");
     }
 
-    const value = payload.value;
     totals.submitted += typeof value.submitted === "number" ? value.submitted : 0;
     totals.deduped += typeof value.deduped === "number" ? value.deduped : 0;
     totals.inserted += typeof value.inserted === "number" ? value.inserted : 0;
@@ -476,15 +450,143 @@ export type CandidateStateReplayResult = {
   actionsDeduped: number;
 };
 
+type CandidateStatusBackupEntry = {
+  identityKey: string;
+  status: string;
+  notes?: string;
+  updatedBy?: string;
+  updatedAt: number;
+  history?: Array<{ status: string; updatedAt: number; notes?: string }>;
+};
+
+async function callConvexFunction(
+  endpoint: "mutation" | "query",
+  pathName: string,
+  args: Record<string, unknown>,
+): Promise<unknown> {
+  const convexUrl = resolveConvexUrl().replace(/\/$/, "");
+  const response = await fetch(`${convexUrl}/api/${endpoint}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({ path: pathName, args }),
+  });
+
+  if (!response.ok) {
+    const text = typeof response.text === "function" ? await response.text() : "";
+    throw new Error(`Convex ${endpoint} failed (${response.status}): ${text}`);
+  }
+
+  const payload = await response.json() as unknown;
+  if (!isRecord(payload)) {
+    throw new Error(`Invalid ${pathName} response from Convex`);
+  }
+  if (payload.status !== "success") {
+    throw new Error(typeof payload.errorMessage === "string"
+      ? payload.errorMessage
+      : `Convex ${endpoint} failed for ${pathName}`);
+  }
+  return payload.value;
+}
+
+function requireCompleteRestoreResult(value: unknown, requested: number): number {
+  if (!isRecord(value)) {
+    throw new Error("Invalid candidate_status:restoreBatch response from Convex");
+  }
+  const unresolved = Array.isArray(value.unresolvedIdentityKeys)
+    && value.unresolvedIdentityKeys.every((identityKey) => typeof identityKey === "string")
+    ? value.unresolvedIdentityKeys as string[]
+    : null;
+  const restored = value.restored;
+  const inserted = value.inserted;
+  const updated = value.updated;
+  const responseRequested = value.requested;
+  if (
+    unresolved === null
+    || typeof restored !== "number"
+    || typeof inserted !== "number"
+    || typeof updated !== "number"
+    || typeof responseRequested !== "number"
+  ) {
+    throw new Error("Invalid candidate_status:restoreBatch response from Convex");
+  }
+  if (
+    responseRequested !== requested
+    || restored !== requested
+    || inserted + updated !== restored
+    || unresolved.length > 0
+  ) {
+    throw new Error(
+      `Candidate status restore was partial or unresolved: requested=${requested} restored=${restored} unresolved=${unresolved.join(",")}`,
+    );
+  }
+  return restored;
+}
+
+function exactCandidateState(entry: CandidateStatusBackupEntry): Record<string, unknown> {
+  return {
+    status: entry.status,
+    ...(entry.notes !== undefined ? { notes: entry.notes } : {}),
+    ...(entry.updatedBy !== undefined ? { updatedBy: entry.updatedBy } : {}),
+    updatedAt: entry.updatedAt,
+    ...(entry.history !== undefined ? { history: entry.history } : {}),
+  };
+}
+
+async function reconcileCandidateStatus(
+  candidateStatus: CandidateStatusBackupEntry[],
+  workspaceSlug: string,
+): Promise<void> {
+  const expectedByIdentity = new Map<string, CandidateStatusBackupEntry>();
+  for (const entry of candidateStatus) {
+    expectedByIdentity.set(entry.identityKey.trim(), entry);
+  }
+  const identityKeys = Array.from(expectedByIdentity.keys());
+  const actualByIdentity = new Map<string, CandidateStatusBackupEntry>();
+
+  for (let offset = 0; offset < identityKeys.length; offset += CANDIDATE_STATUS_RESTORE_BATCH_SIZE) {
+    const batch = identityKeys.slice(offset, offset + CANDIDATE_STATUS_RESTORE_BATCH_SIZE);
+    const value = await callConvexFunction("query", "candidate_status:getByIdentities", {
+      workspaceSlug,
+      identityKeys: batch,
+      writeSecret: config.auth.convexWriteSecret,
+    });
+    if (!Array.isArray(value)) {
+      throw new Error("Invalid candidate_status:getByIdentities response from Convex");
+    }
+    for (const row of value) {
+      if (!isRecord(row) || typeof row.identityKey !== "string") {
+        throw new Error("Invalid candidate status row during reconciliation");
+      }
+      const identityKey = row.identityKey.trim();
+      if (!batch.includes(identityKey) || actualByIdentity.has(identityKey)) {
+        throw new Error(`Candidate status reconciliation returned an unexpected identity: ${identityKey}`);
+      }
+      actualByIdentity.set(identityKey, {
+        identityKey,
+        status: typeof row.status === "string" ? row.status : "",
+        ...(typeof row.notes === "string" ? { notes: row.notes } : {}),
+        ...(typeof row.updatedBy === "string" ? { updatedBy: row.updatedBy } : {}),
+        updatedAt: typeof row.updatedAt === "number" ? row.updatedAt : Number.NaN,
+        ...(Array.isArray(row.history) ? {
+          history: row.history as CandidateStatusBackupEntry["history"],
+        } : {}),
+      });
+    }
+  }
+
+  for (const [identityKey, expected] of expectedByIdentity) {
+    const actual = actualByIdentity.get(identityKey);
+    if (!actual || !isDeepStrictEqual(exactCandidateState(actual), exactCandidateState(expected))) {
+      throw new Error(`Candidate status reconciliation failed for ${identityKey}`);
+    }
+  }
+}
+
 export async function replayCandidateState(params: {
-  candidateStatus?: Array<{
-    identityKey: string;
-    status: string;
-    notes?: string;
-    updatedBy?: string;
-    updatedAt: number;
-    history?: Array<{ status: string; updatedAt: number; notes?: string }>;
-  }>;
+  candidateStatus?: CandidateStatusBackupEntry[];
   candidateActions?: CandidateActionBackupRow[];
   workspaceSlug: string;
   mode: "replace" | "merge";
@@ -497,37 +599,16 @@ export async function replayCandidateState(params: {
   };
 
   if (candidateStatus && candidateStatus.length > 0) {
-    const convexUrl = resolveConvexUrl().replace(/\/$/, "");
-    for (const entry of candidateStatus) {
-      try {
-        const response = await fetch(`${convexUrl}/api/mutation`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json",
-          },
-          body: JSON.stringify({
-            path: "candidate_status:upsert",
-            args: {
-              workspaceSlug,
-              identityKey: entry.identityKey,
-              status: entry.status,
-              notes: entry.notes,
-              updatedBy: entry.updatedBy,
-              writeSecret: config.auth.convexWriteSecret,
-            },
-          }),
-        });
-
-        if (response.ok) {
-          result.statusReplayed++;
-        } else {
-          logger.error("candidate_status:upsert failed", "no error object", { service: "resume-import-service", identityKey: entry.identityKey, status: response.status });
-        }
-      } catch (error) {
-        logger.error("candidate_status:upsert error", error, { service: "resume-import-service", identityKey: entry.identityKey });
-      }
+    for (let offset = 0; offset < candidateStatus.length; offset += CANDIDATE_STATUS_RESTORE_BATCH_SIZE) {
+      const batch = candidateStatus.slice(offset, offset + CANDIDATE_STATUS_RESTORE_BATCH_SIZE);
+      const value = await callConvexFunction("mutation", "candidate_status:restoreBatch", {
+        workspaceSlug,
+        items: batch,
+        writeSecret: config.auth.convexWriteSecret,
+      });
+      result.statusReplayed += requireCompleteRestoreResult(value, batch.length);
     }
+    await reconcileCandidateStatus(candidateStatus, workspaceSlug);
   }
 
   if (candidateActions && candidateActions.length > 0) {
@@ -538,6 +619,11 @@ export async function replayCandidateState(params: {
     });
     result.actionsReplayed = replayResult.replayed;
     result.actionsDeduped = replayResult.deduped;
+    if (result.actionsReplayed + result.actionsDeduped !== candidateActions.length) {
+      throw new Error(
+        `Candidate action replay count mismatch: expected=${candidateActions.length} replayed=${result.actionsReplayed} deduped=${result.actionsDeduped}`,
+      );
+    }
   }
 
   return result;
@@ -558,7 +644,7 @@ export async function submitResumeImport(input: ResumeImportRequest, workspaceSl
   const resumeResult = await submitNormalizedResumeImport(normalized);
 
   const resolvedWorkspace = workspaceSlug ?? "dev";
-  if (normalized.metadata.searchProfileId) {
+  if (normalized.metadata.searchProfileId && normalized.convexResumes.length > 0) {
     recordSearchProfileSubmitRunStatus({
       workspaceSlug: resolvedWorkspace,
       profileId: normalized.metadata.searchProfileId,

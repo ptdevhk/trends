@@ -20,6 +20,7 @@ import {
   replayCandidateState,
   submitResumeImport,
 } from "../resume-import-service.js";
+import { config } from "../config.js";
 
 function makeMetadata(overrides: Record<string, unknown> = {}) {
   return {
@@ -584,50 +585,184 @@ describe("resume-import-service", () => {
       expect(result).toEqual({ statusReplayed: 0, actionsReplayed: 0, actionsDeduped: 0 });
     });
 
-    it("replays candidate status via Convex mutations", async () => {
-      mockFetch.mockResolvedValue({ ok: true, json: async () => ({}) });
+    it("restores and reconciles exact candidate status in 100-row batches before replaying actions", async () => {
+      const candidateStatus = Array.from({ length: 101 }, (_, index) => ({
+        identityKey: `candidate-${index}`,
+        status: index % 2 === 0 ? "shortlisted" : "withdrawn",
+        ...(index % 3 === 0 ? { notes: `Note ${index}` } : {}),
+        ...(index % 5 === 0 ? { updatedBy: `user-${index}` } : {}),
+        updatedAt: 1_700_000_000_000 + index,
+        history: index % 7 === 0
+          ? [{ status: "new", updatedAt: 1_600_000_000_000 + index }]
+          : [],
+      }));
+      const byIdentity = new Map(candidateStatus.map((entry) => [entry.identityKey, entry]));
+      const events: string[] = [];
+      mockFetch.mockImplementation(async (_url, init) => {
+        const body = JSON.parse(String(init?.body));
+        if (body.path === "candidate_status:restoreBatch") {
+          events.push(`restore:${body.args.items.length}`);
+          expect(body.args).toMatchObject({
+            workspaceSlug: "dev",
+            writeSecret: config.auth.convexWriteSecret,
+          });
+          return {
+            ok: true,
+            json: async () => ({
+              status: "success",
+              value: {
+                requested: body.args.items.length,
+                restored: body.args.items.length,
+                inserted: body.args.items.length,
+                updated: 0,
+                unresolvedIdentityKeys: [],
+              },
+            }),
+          };
+        }
+        if (body.path === "candidate_status:getByIdentities") {
+          events.push(`read:${body.args.identityKeys.length}`);
+          expect(body.args).toMatchObject({
+            workspaceSlug: "dev",
+            writeSecret: config.auth.convexWriteSecret,
+          });
+          return {
+            ok: true,
+            json: async () => ({
+              status: "success",
+              value: body.args.identityKeys.map((identityKey: string) => ({
+                _id: `status:${identityKey}`,
+                workspaceSlug: "dev",
+                ...byIdentity.get(identityKey),
+              })),
+            }),
+          };
+        }
+        throw new Error(`Unexpected Convex path: ${body.path}`);
+      });
+      mockReplayActions.mockImplementationOnce(({ actions }) => {
+        events.push("actions");
+        return { replayed: actions.length, deduped: 0 };
+      });
+      const candidateActions = [{ resumeId: "resume-1", actionType: "note", createdAt: "2026-01-01" }];
 
       const result = await replayCandidateState({
-        candidateStatus: [
-          { identityKey: "candidate-1", status: "shortlisted", updatedAt: Date.now() },
-          { identityKey: "candidate-2", status: "archived", updatedAt: Date.now() },
-        ],
+        candidateStatus,
+        candidateActions: candidateActions as Parameters<typeof replayCandidateState>[0]["candidateActions"],
         workspaceSlug: "dev",
         mode: "merge",
       });
-      expect(result.statusReplayed).toBe(2);
-      expect(mockFetch).toHaveBeenCalledTimes(2);
+
+      expect(result).toEqual({ statusReplayed: 101, actionsReplayed: 1, actionsDeduped: 0 });
+      expect(events).toEqual(["restore:100", "restore:1", "read:100", "read:1", "actions"]);
     });
 
-    it("continues on individual status replay failure", async () => {
-      mockFetch
-        .mockResolvedValueOnce({ ok: false, status: 500, text: async () => "err" })
-        .mockResolvedValueOnce({ ok: true, json: async () => ({}) });
+    it("fails closed on a successful HTTP response with a Convex error envelope", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ status: "error", errorMessage: "restore denied" }),
+      });
 
-      const result = await replayCandidateState({
-        candidateStatus: [
-          { identityKey: "bad-one", status: "shortlisted", updatedAt: Date.now() },
-          { identityKey: "good-one", status: "archived", updatedAt: Date.now() },
-        ],
+      await expect(replayCandidateState({
+        candidateStatus: [{ identityKey: "candidate-1", status: "shortlisted", updatedAt: 1 }],
+        candidateActions: [{ resumeId: "resume-1" }] as Parameters<typeof replayCandidateState>[0]["candidateActions"],
         workspaceSlug: "dev",
         mode: "merge",
+      })).rejects.toThrow("restore denied");
+      expect(mockReplayActions).not.toHaveBeenCalled();
+    });
+
+    it("rejects partial or unresolved restore results before reconciliation and action replay", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          status: "success",
+          value: {
+            requested: 2,
+            restored: 1,
+            inserted: 1,
+            updated: 0,
+            unresolvedIdentityKeys: ["candidate-2"],
+          },
+        }),
       });
-      // First fails, second succeeds
-      expect(result.statusReplayed).toBe(1);
+
+      await expect(replayCandidateState({
+        candidateStatus: [
+          { identityKey: "candidate-1", status: "shortlisted", updatedAt: 1 },
+          { identityKey: "candidate-2", status: "withdrawn", updatedAt: 2 },
+        ],
+        candidateActions: [{ resumeId: "resume-1" }] as Parameters<typeof replayCandidateState>[0]["candidateActions"],
+        workspaceSlug: "dev",
+        mode: "replace",
+      })).rejects.toThrow(/partial|unresolved/i);
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      expect(mockReplayActions).not.toHaveBeenCalled();
+    });
+
+    it("rejects exact-state reconciliation mismatches before action replay", async () => {
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            status: "success",
+            value: { requested: 1, restored: 1, inserted: 1, updated: 0, unresolvedIdentityKeys: [] },
+          }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            status: "success",
+            value: [{
+              identityKey: "candidate-1",
+              workspaceSlug: "dev",
+              status: "shortlisted",
+              notes: "wrong note",
+              updatedAt: 1,
+              history: [],
+            }],
+          }),
+        });
+
+      await expect(replayCandidateState({
+        candidateStatus: [{
+          identityKey: "candidate-1",
+          status: "shortlisted",
+          notes: "expected note",
+          updatedAt: 1,
+          history: [],
+        }],
+        candidateActions: [{ resumeId: "resume-1" }] as Parameters<typeof replayCandidateState>[0]["candidateActions"],
+        workspaceSlug: "dev",
+        mode: "merge",
+      })).rejects.toThrow(/reconciliation/i);
+      expect(mockReplayActions).not.toHaveBeenCalled();
     });
 
     it("replays candidate actions via ActionStorage", async () => {
       const actions = [
         { candidateId: "c1", action: "star" as const, createdAt: "2026-01-01" },
       ];
+      mockReplayActions.mockReturnValueOnce({ replayed: 1, deduped: 0 });
       const result = await replayCandidateState({
         candidateActions: actions as unknown as Parameters<typeof replayCandidateState>[0]["candidateActions"],
         workspaceSlug: "dev",
         mode: "merge",
       });
       expect(mockReplayActions).toHaveBeenCalledWith({ actions, mode: "merge" });
-      expect(result.actionsReplayed).toBe(0);
+      expect(result.actionsReplayed).toBe(1);
       expect(result.actionsDeduped).toBe(0);
+    });
+
+    it("rejects candidate action replay count mismatches", async () => {
+      const actions = [{ resumeId: "r1" }, { resumeId: "r2" }];
+      mockReplayActions.mockReturnValueOnce({ replayed: 1, deduped: 0 });
+
+      await expect(replayCandidateState({
+        candidateActions: actions as Parameters<typeof replayCandidateState>[0]["candidateActions"],
+        workspaceSlug: "dev",
+        mode: "merge",
+      })).rejects.toThrow(/candidate action replay count/i);
     });
   });
 
@@ -662,18 +797,23 @@ describe("resume-import-service", () => {
     });
 
     it("uses default workspace 'dev' when not specified", async () => {
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: async () => ({
-          status: "success",
-          value: { submitted: 0, deduped: 0, inserted: 0, updated: 0, unchanged: 0 },
-        }),
+      mockFetch.mockImplementation(async (_url, init) => {
+        const body = JSON.parse(String(init?.body));
+        return {
+          ok: true,
+          json: async () => ({
+            status: "success",
+            value: body.path === "candidate_status:restoreBatch"
+              ? { requested: 1, restored: 1, inserted: 1, updated: 0, unresolvedIdentityKeys: [] }
+              : [{ identityKey: "c1", workspaceSlug: "dev", status: "shortlisted", updatedAt: 1 }],
+          }),
+        };
       });
 
       await submitResumeImport({
         metadata: makeMetadata(),
         candidateStatus: [
-          { identityKey: "c1", status: "shortlisted", updatedAt: Date.now() },
+          { identityKey: "c1", status: "shortlisted", updatedAt: 1 },
         ],
       });
 
@@ -687,19 +827,24 @@ describe("resume-import-service", () => {
     });
 
     it("uses provided workspaceSlug", async () => {
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: async () => ({
-          status: "success",
-          value: { submitted: 0, deduped: 0, inserted: 0, updated: 0, unchanged: 0 },
-        }),
+      mockFetch.mockImplementation(async (_url, init) => {
+        const body = JSON.parse(String(init?.body));
+        return {
+          ok: true,
+          json: async () => ({
+            status: "success",
+            value: body.path === "candidate_status:restoreBatch"
+              ? { requested: 1, restored: 1, inserted: 1, updated: 0, unresolvedIdentityKeys: [] }
+              : [{ identityKey: "c1", workspaceSlug: "custom-workspace", status: "shortlisted", updatedAt: 1 }],
+          }),
+        };
       });
 
       await submitResumeImport(
         {
           metadata: makeMetadata(),
           candidateStatus: [
-            { identityKey: "c1", status: "shortlisted", updatedAt: Date.now() },
+            { identityKey: "c1", status: "shortlisted", updatedAt: 1 },
           ],
         },
         "custom-workspace",

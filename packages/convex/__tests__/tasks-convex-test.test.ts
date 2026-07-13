@@ -412,6 +412,7 @@ describe("resume_tasks: resetDatabase", () => {
       collection_workers: await ctx.db.query("collection_workers").collect(),
       candidate_blocks: await ctx.db.query("candidate_blocks").collect(),
       candidate_status: await ctx.db.query("candidate_status").collect(),
+      resume_digest_statuses: await ctx.db.query("resume_digest_statuses").collect(),
       analysis_tasks: await ctx.db.query("analysis_tasks").collect(),
       screening_sessions: await ctx.db.query("screening_sessions").collect(),
       search_history: await ctx.db.query("search_history").collect(),
@@ -469,6 +470,34 @@ describe("resume_tasks: resetDatabase", () => {
     expect(result.success).toBe(true);
     expect(result.partial).toBe(false);
     expect(result.count).toBe(0);
+  });
+
+  it("clears resume digest status overlays with the reset tables", async () => {
+    const t = createTest();
+    await t.run(async (ctx) => {
+      const resumeId = await ctx.db.insert("resumes", {
+        externalId: "reset-status-resume",
+        identityKey: "reset-status-identity",
+        content: { name: "Reset Status Candidate" },
+        hash: "reset-status-hash",
+        tags: [],
+        crawledAt: 1_700_000_000_000,
+        source: "test",
+      });
+      await ctx.db.insert("resume_digest_statuses", {
+        resumeId,
+        identityKey: "reset-status-identity",
+        workspaceSlug: "hr",
+        status: "rejected",
+        updatedAt: 1_700_000_000_000,
+      });
+    });
+
+    const result = await t.mutation(api.resume_tasks.resetDatabase, {});
+
+    expect(result.deleted.resume_digest_statuses).toBe(1);
+    const remaining = await t.run(async (ctx) => ctx.db.query("resume_digest_statuses").collect());
+    expect(remaining).toEqual([]);
   });
 });
 

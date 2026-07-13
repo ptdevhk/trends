@@ -108,6 +108,145 @@ describe("restore-resumes", () => {
     expect(summary.files.map((entry) => entry.count)).toEqual([20, 20, 20]);
   });
 
+  it("imports every resume chunk before replaying candidate state", async () => {
+    const dir = await createTempDir();
+    tempDirs.push(dir);
+    const filePath = path.join(dir, "resume-backup-job5156-state.json");
+    await writePortableBackupFile(filePath, {
+      metadata: {
+        sourceUrl: "https://example.com/state",
+        generatedBy: "test",
+        totalResumes: 51,
+      },
+      resumes: Array.from({ length: 51 }, (_, index) => ({ resumeId: `resume-${index}` })),
+      candidateStatus: [{ identityKey: "candidate-1", status: "shortlisted", updatedAt: 1 }],
+      candidateActions: [
+        { resumeId: "resume-1", actionType: "note", createdAt: "2026-01-01" },
+        { resumeId: "resume-2", actionType: "note", createdAt: "2026-01-02" },
+      ],
+    });
+    const requestBodies: Array<Record<string, unknown>> = [];
+
+    const summary = await runRestoreResumes(
+      {
+        apiUrl: "http://localhost:3000",
+        workspace: "dev",
+        filePath,
+        mode: "merge",
+        confirm: false,
+        recomputeDerivedFields: false,
+      },
+      {
+        fetch: vi.fn(async (_input, init) => {
+          const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+          requestBodies.push(body);
+          const isStateReplay = Array.isArray(body.candidateStatus) || Array.isArray(body.candidateActions);
+          return new Response(JSON.stringify(isStateReplay
+            ? {
+                success: true,
+                submitted: 0,
+                statusReplayed: 1,
+                actionsReplayed: 1,
+                actionsDeduped: 1,
+              }
+            : {
+                success: true,
+                submitted: Array.isArray(body.resumes) ? body.resumes.length : 0,
+                inserted: Array.isArray(body.resumes) ? body.resumes.length : 0,
+                updated: 0,
+                unchanged: 0,
+                deduped: 0,
+                statusReplayed: 0,
+                actionsReplayed: 0,
+                actionsDeduped: 0,
+              }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          });
+        }) as typeof fetch,
+      },
+    );
+
+    expect(requestBodies).toHaveLength(3);
+    expect(requestBodies.slice(0, 2)).toEqual([
+      expect.objectContaining({ resumes: expect.arrayContaining([expect.any(Object)]) }),
+      expect.objectContaining({ resumes: [expect.any(Object)] }),
+    ]);
+    expect(requestBodies.slice(0, 2).every((body) =>
+      body.candidateStatus === undefined && body.candidateActions === undefined
+    )).toBe(true);
+    expect(requestBodies[2]).toMatchObject({
+      candidateStatus: [{ identityKey: "candidate-1" }],
+      candidateActions: [{ resumeId: "resume-1" }, { resumeId: "resume-2" }],
+    });
+    expect(requestBodies[2].resumes).toBeUndefined();
+    expect(summary.files[0]?.importResult).toMatchObject({
+      success: true,
+      submitted: 51,
+      statusReplayed: 1,
+      actionsReplayed: 1,
+      actionsDeduped: 1,
+    });
+  });
+
+  it("rejects HTTP-success import responses whose body reports failure", async () => {
+    const dir = await createTempDir();
+    tempDirs.push(dir);
+    const filePath = await writeBackupFile({ dir, name: "resume-backup-job5156-failed.json", count: 1 });
+
+    await expect(runRestoreResumes(
+      {
+        apiUrl: "http://localhost:3000",
+        workspace: "dev",
+        filePath,
+        mode: "merge",
+        confirm: false,
+        recomputeDerivedFields: false,
+      },
+      {
+        fetch: vi.fn(async () => new Response(JSON.stringify({ success: false, error: "restore failed" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })) as typeof fetch,
+      },
+    )).rejects.toThrow(/restore failed|success/i);
+  });
+
+  it("rejects candidate state replay count mismatches", async () => {
+    const dir = await createTempDir();
+    tempDirs.push(dir);
+    const filePath = path.join(dir, "resume-backup-job5156-partial-state.json");
+    await writePortableBackupFile(filePath, {
+      metadata: { sourceUrl: "https://example.com/state", generatedBy: "test", totalResumes: 1 },
+      resumes: [{ resumeId: "resume-1" }],
+      candidateStatus: [{ identityKey: "candidate-1", status: "shortlisted", updatedAt: 1 }],
+      candidateActions: [{ resumeId: "resume-1", actionType: "note", createdAt: "2026-01-01" }],
+    });
+
+    await expect(runRestoreResumes(
+      {
+        apiUrl: "http://localhost:3000",
+        workspace: "dev",
+        filePath,
+        mode: "merge",
+        confirm: false,
+        recomputeDerivedFields: false,
+      },
+      {
+        fetch: vi.fn(async (_input, init) => {
+          const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+          const isStateReplay = Array.isArray(body.candidateStatus) || Array.isArray(body.candidateActions);
+          return new Response(JSON.stringify(isStateReplay
+            ? { success: true, statusReplayed: 0, actionsReplayed: 1, actionsDeduped: 0 }
+            : { success: true, submitted: 1, inserted: 1, updated: 0, unchanged: 0, deduped: 0 }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          });
+        }) as typeof fetch,
+      },
+    )).rejects.toThrow(/candidate status replay count/i);
+  });
+
   it("resets until the API reports the workspace is fully cleared before importing", async () => {
     const dir = await createTempDir();
     tempDirs.push(dir);
@@ -264,7 +403,7 @@ describe("restore-resumes", () => {
               );
             }
             return new Response(
-              JSON.stringify({ success: true, inserted: 5 }),
+              JSON.stringify({ success: true, submitted: 5, inserted: 5 }),
               { status: 200, headers: { "Content-Type": "application/json" } },
             );
           }) as typeof fetch,

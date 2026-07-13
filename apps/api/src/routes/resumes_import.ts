@@ -18,6 +18,7 @@ import {
   ResumeSubmitSummarySchema,
   SimpleErrorSchema,
   ResumeResetResponseSchema,
+  CandidateStatusBackupSchema,
 } from "../schemas/index.js";
 import { resolveResumeId } from "../services/resume-id.js";
 import { isRecord } from "@trends/shared";
@@ -27,6 +28,7 @@ import {
   toStringValue,
 } from "../services/resume-ingest-utils.js";
 import { toResumeItemFromRecord } from "../services/resume-candidate-prep.js";
+import { listCandidateStatuses } from "../services/candidate-status-service.js";
 
 const app = new OpenAPIHono();
 app.use("/api/resumes/import", requireAdmin);
@@ -299,6 +301,7 @@ app.openapi(backupResumesRoute, async (c) => {
 
     type BackupResumeEntry = {
       resumeId: string;
+      identityKey: string;
       sourceHost: string;
       tags: string[];
       crawledAt: number;
@@ -337,6 +340,7 @@ app.openapi(backupResumesRoute, async (c) => {
 
         entries.push({
           resumeId,
+          identityKey: toStringValue(item.identityKey) || toStringValue(item._id),
           sourceHost,
           tags,
           crawledAt: typeof item.crawledAt === "number" && Number.isFinite(item.crawledAt) ? item.crawledAt : 0,
@@ -401,24 +405,10 @@ app.openapi(backupResumesRoute, async (c) => {
       resumeIds,
     });
 
-    let candidateStatus: Array<{
-      identityKey: string;
-      status: string;
-      notes?: string;
-      updatedBy?: string;
-      updatedAt: number;
-      history?: Array<{ status: string; updatedAt: number; notes?: string }>;
-    }> = [];
-    try {
-      const statusResponse = await callConvexQuery("candidate_status:listForBackup", {
-        workspaceSlug: c.var.workspaceSlug,
-      });
-      if (Array.isArray(statusResponse)) {
-        candidateStatus = statusResponse;
-      }
-    } catch (error) {
-      logger.error("Failed to query candidate_status for backup", error, { route: "resumes_import" });
-    }
+    const exportedIdentityKeys = new Set(limited.map((entry) => entry.identityKey).filter(Boolean));
+    const candidateStatus = (await listCandidateStatuses(c.var.workspaceSlug))
+      .map((status) => CandidateStatusBackupSchema.parse(status))
+      .filter((status) => exportedIdentityKeys.has(status.identityKey));
 
     c.header("Content-Disposition", `attachment; filename="resume-backup-${generatedAt.replace(/[:.]/g, "-")}.json"`);
     c.header("Cache-Control", "no-store");

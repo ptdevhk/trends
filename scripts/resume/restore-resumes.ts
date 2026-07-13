@@ -268,6 +268,40 @@ async function parseJsonRecord(
   return decoded;
 }
 
+class RestoreResponseValidationError extends Error {}
+
+function requireSuccessfulResponse(
+  result: Record<string, unknown>,
+  context: string,
+): void {
+  if (result.success === true) {
+    return;
+  }
+  const detail = typeof result.error === "string" && result.error.trim()
+    ? `: ${result.error.trim()}`
+    : "";
+  throw new RestoreResponseValidationError(`${context} did not report success${detail}`);
+}
+
+function readResultCount(result: Record<string, unknown>, key: string): number {
+  const value = result[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function requireExpectedCount(
+  result: Record<string, unknown>,
+  key: string,
+  expected: number,
+  context: string,
+): void {
+  const actual = result[key];
+  if (typeof actual !== "number" || !Number.isFinite(actual) || actual !== expected) {
+    throw new RestoreResponseValidationError(
+      `${context} ${key} count mismatch: expected=${expected} actual=${String(actual)}`,
+    );
+  }
+}
+
 function readResetCount(result: Record<string, unknown>): number {
   const count = result.count;
   return typeof count === "number" && Number.isFinite(count) ? count : 0;
@@ -457,53 +491,50 @@ export async function runRestoreResumes(
     );
   }
 
-  const files: RestoreFileSummary[] = [];
+  const preparedFiles: Array<{
+    restorePath: string;
+    payload: RestorePayload;
+    resumes: unknown[];
+    importResult: Record<string, unknown>;
+  }> = [];
   for (const restorePath of restorePaths) {
     const payload = await readRestorePayload(restorePath);
     const resumes = readResumeArray(payload);
-    const totalResumes = resumes.length;
+    preparedFiles.push({
+      restorePath,
+      payload,
+      resumes,
+      importResult: {
+        success: true,
+        submitted: 0,
+        inserted: 0,
+        updated: 0,
+        unchanged: 0,
+        deduped: 0,
+        statusReplayed: 0,
+        actionsReplayed: 0,
+        actionsDeduped: 0,
+      },
+    });
+  }
 
-    if (totalResumes <= IMPORT_CHUNK_SIZE) {
-      const importResponse = await postJson(
-        params.apiUrl,
-        params.workspace,
-        "/api/resumes/import",
-        {
-          ...payload,
-          ...(params.recomputeDerivedFields ? { options: { recomputeDerivedFields: true } } : {}),
-        },
-        runtime,
-        auth,
-      );
-      const importResult = await parseJsonRecord(
-        importResponse,
-        `import request failed for ${path.basename(restorePath)}`,
-      );
-      files.push({ file: restorePath, count: totalResumes, importResult });
-      continue;
-    }
-
-    // Chunked import for large payloads to avoid Convex write limits and timeouts
-    let inserted = 0;
-    let updated = 0;
-    let unchanged = 0;
-    let deduped = 0;
-    let chunkFailed = false;
-
+  // Restore every resume first. Candidate state depends on stable identities
+  // created by these imports, including identities from later chunks/files.
+  for (const prepared of preparedFiles) {
+    const totalResumes = prepared.resumes.length;
     for (let offset = 0; offset < totalResumes; offset += IMPORT_CHUNK_SIZE) {
-      const chunk = resumes.slice(offset, offset + IMPORT_CHUNK_SIZE);
+      const chunk = prepared.resumes.slice(offset, offset + IMPORT_CHUNK_SIZE);
       const chunkPayload = {
-        metadata: payload.metadata,
+        metadata: prepared.payload.metadata,
         resumes: chunk,
-        ...(payload.candidateActions && offset === 0 ? { candidateActions: payload.candidateActions } : {}),
-        ...(payload.candidateStatus && offset === 0 ? { candidateStatus: payload.candidateStatus } : {}),
         ...(params.recomputeDerivedFields ? { options: { recomputeDerivedFields: true } } : {}),
       };
 
       let lastError: string | undefined;
       let succeeded = false;
+      const maxAttempts = totalResumes > IMPORT_CHUNK_SIZE ? IMPORT_MAX_RETRIES : 1;
 
-      for (let attempt = 1; attempt <= IMPORT_MAX_RETRIES; attempt++) {
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
           const importResponse = await postJson(
             params.apiUrl,
@@ -515,17 +546,23 @@ export async function runRestoreResumes(
           );
           const importResult = await parseJsonRecord(
             importResponse,
-            `import chunk ${offset} failed for ${path.basename(restorePath)}`,
+            `import chunk ${offset} failed for ${path.basename(prepared.restorePath)}`,
           );
-          inserted += typeof importResult.inserted === "number" ? importResult.inserted : 0;
-          updated += typeof importResult.updated === "number" ? importResult.updated : 0;
-          unchanged += typeof importResult.unchanged === "number" ? importResult.unchanged : 0;
-          deduped += typeof importResult.deduped === "number" ? importResult.deduped : 0;
+          const context = `import chunk ${offset} for ${path.basename(prepared.restorePath)}`;
+          requireSuccessfulResponse(importResult, context);
+          requireExpectedCount(importResult, "submitted", chunk.length, context);
+          for (const key of ["submitted", "inserted", "updated", "unchanged", "deduped"]) {
+            prepared.importResult[key] = readResultCount(prepared.importResult, key)
+              + readResultCount(importResult, key);
+          }
           succeeded = true;
           break;
         } catch (error) {
           lastError = error instanceof Error ? error.message : String(error);
-          if (attempt < IMPORT_MAX_RETRIES) {
+          if (error instanceof RestoreResponseValidationError) {
+            break;
+          }
+          if (attempt < maxAttempts) {
             console.log(`  import chunk ${offset} attempt ${attempt} failed, retrying in ${IMPORT_RETRY_DELAY_MS / 1000}s…`);
             await new Promise((resolve) => setTimeout(resolve, IMPORT_RETRY_DELAY_MS));
           }
@@ -533,25 +570,79 @@ export async function runRestoreResumes(
       }
 
       if (!succeeded) {
-        console.error(`  import chunk ${offset} failed after ${IMPORT_MAX_RETRIES} retries: ${lastError}`);
-        chunkFailed = true;
-        break;
+        throw new Error(
+          `import chunk ${offset} failed for ${path.basename(prepared.restorePath)} after ${maxAttempts} attempt(s): ${lastError}`,
+        );
       }
 
       const progress = Math.min(offset + chunk.length, totalResumes);
       if (progress % 500 < IMPORT_CHUNK_SIZE || progress === totalResumes) {
-        console.log(`  ${path.basename(restorePath)}: ${progress}/${totalResumes} (inserted:${inserted} updated:${updated})`);
+        console.log(
+          `  ${path.basename(prepared.restorePath)}: ${progress}/${totalResumes} `
+          + `(inserted:${readResultCount(prepared.importResult, "inserted")} updated:${readResultCount(prepared.importResult, "updated")})`,
+        );
       }
     }
-
-    files.push({
-      file: restorePath,
-      count: totalResumes,
-      importResult: chunkFailed
-        ? { success: false, inserted, updated, unchanged, deduped, error: "one or more chunks failed" }
-        : { success: true, inserted, updated, unchanged, deduped },
-    });
   }
+
+  // Replay status/actions only after every resume chunk has succeeded.
+  for (const prepared of preparedFiles) {
+    const candidateStatus = Array.isArray(prepared.payload.candidateStatus)
+      ? prepared.payload.candidateStatus
+      : [];
+    const candidateActions = Array.isArray(prepared.payload.candidateActions)
+      ? prepared.payload.candidateActions
+      : [];
+    if (candidateStatus.length === 0 && candidateActions.length === 0) {
+      continue;
+    }
+
+    const stateResponse = await postJson(
+      params.apiUrl,
+      params.workspace,
+      "/api/resumes/import",
+      {
+        metadata: prepared.payload.metadata,
+        ...(candidateStatus.length > 0 ? { candidateStatus } : {}),
+        ...(candidateActions.length > 0 ? { candidateActions } : {}),
+      },
+      runtime,
+      auth,
+    );
+    const stateResult = await parseJsonRecord(
+      stateResponse,
+      `candidate state replay failed for ${path.basename(prepared.restorePath)}`,
+    );
+    const context = `candidate state replay for ${path.basename(prepared.restorePath)}`;
+    requireSuccessfulResponse(stateResult, context);
+    const statusReplayed = stateResult.statusReplayed;
+    if (
+      typeof statusReplayed !== "number"
+      || !Number.isFinite(statusReplayed)
+      || statusReplayed !== candidateStatus.length
+    ) {
+      throw new RestoreResponseValidationError(
+        `${context} candidate status replay count mismatch: expected=${candidateStatus.length} actual=${String(statusReplayed)}`,
+      );
+    }
+    const actionsReplayed = readResultCount(stateResult, "actionsReplayed");
+    const actionsDeduped = readResultCount(stateResult, "actionsDeduped");
+    if (actionsReplayed + actionsDeduped !== candidateActions.length) {
+      throw new RestoreResponseValidationError(
+        `${context} candidate action replay count mismatch: expected=${candidateActions.length} `
+        + `replayed=${actionsReplayed} deduped=${actionsDeduped}`,
+      );
+    }
+    prepared.importResult.statusReplayed = candidateStatus.length;
+    prepared.importResult.actionsReplayed = actionsReplayed;
+    prepared.importResult.actionsDeduped = actionsDeduped;
+  }
+
+  const files: RestoreFileSummary[] = preparedFiles.map((prepared) => ({
+    file: prepared.restorePath,
+    count: prepared.resumes.length,
+    importResult: prepared.importResult,
+  }));
 
   return {
     success: true,

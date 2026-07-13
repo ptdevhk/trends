@@ -8,6 +8,7 @@ vi.mock("../middleware/maintenance.js", () => ({
 }));
 
 import { createApp } from "../app";
+import { config } from "../services/config";
 import { parseJsonBody } from "../test-utils";
 import { createAuthContext } from "./test-auth-helpers";
 
@@ -79,8 +80,13 @@ describe("resume backup and reset routes", () => {
       const call = parseConvexCall(input, init);
       calls.push(call);
 
-      if (call.endpoint === "query" && call.pathName === "candidate_status:listForBackup") {
-        return convexSuccess([]);
+      if (call.endpoint === "query" && call.pathName === "candidate_status:listPage") {
+        expect(call.args).toEqual({
+          workspaceSlug: "dev",
+          paginationOpts: { cursor: null, numItems: 500 },
+          writeSecret: config.auth.convexWriteSecret,
+        });
+        return convexSuccess({ page: [], continueCursor: "status:done", isDone: true });
       }
 
       if (call.endpoint === "query" && call.pathName === "resumes:listForBackup") {
@@ -201,8 +207,43 @@ describe("resume backup and reset routes", () => {
       const call = parseConvexCall(input, init);
       calls.push(call);
 
-      if (call.endpoint === "query" && call.pathName === "candidate_status:listForBackup") {
-        return convexSuccess([]);
+      if (call.endpoint === "query" && call.pathName === "candidate_status:listPage") {
+        const paginationOpts = isRecord(call.args.paginationOpts) ? call.args.paginationOpts : {};
+        expect(call.args.writeSecret).toBe(config.auth.convexWriteSecret);
+        if (paginationOpts.cursor === null) {
+          return convexSuccess({
+            page: [{
+              _id: "status-1",
+              identityKey: "candidate-1",
+              workspaceSlug: "dev",
+              status: "new",
+              updatedAt: 1,
+              history: [],
+            }],
+            continueCursor: "status:page-2",
+            isDone: false,
+          });
+        }
+        return convexSuccess({
+          page: [{
+            _id: "status-2",
+            identityKey: "candidate-2",
+            workspaceSlug: "dev",
+            status: "shortlisted",
+            notes: "Second page",
+            updatedAt: 2,
+            history: [],
+          }, {
+            _id: "status-orphan",
+            identityKey: "candidate-not-in-backup",
+            workspaceSlug: "dev",
+            status: "rejected",
+            updatedAt: 3,
+            history: [],
+          }],
+          continueCursor: "status:done",
+          isDone: true,
+        });
       }
 
       if (call.endpoint === "query" && call.pathName === "resumes:listForBackup") {
@@ -218,6 +259,7 @@ describe("resume backup and reset routes", () => {
             page: [
               {
                 _id: "resume-1",
+                identityKey: "candidate-1",
                 externalId: "hr.job5156.com:resume:1001",
                 source: "hr.job5156.com",
                 tags: ["sales"],
@@ -255,6 +297,7 @@ describe("resume backup and reset routes", () => {
           page: [
             {
               _id: "resume-2",
+              identityKey: "candidate-2",
               externalId: "hk.employer.seek.com:profile:2002",
               source: "hk.employer.seek.com",
               tags: ["seek"],
@@ -296,10 +339,15 @@ describe("resume backup and reset routes", () => {
     });
 
     expect(response.status).toBe(200);
-    const payload = await parseJsonBody<{ metadata: Record<string, unknown>; resumes: { name: string }[] }>(response);
+    const payload = await parseJsonBody<{
+      metadata: Record<string, unknown>;
+      resumes: { name: string }[];
+      candidateStatus: Array<{ identityKey: string }>;
+    }>(response);
     expect(payload.metadata.totalResumes).toBe(2);
     expect(payload.resumes.map((item) => item.name)).toEqual(["Alice", "Bob"]);
-    expect(calls).toHaveLength(3);
+    expect(payload.candidateStatus.map((item) => item.identityKey)).toEqual(["candidate-1", "candidate-2"]);
+    expect(calls).toHaveLength(4);
   });
 
   it("blocks resume backup for non-admin workspaces", async () => {

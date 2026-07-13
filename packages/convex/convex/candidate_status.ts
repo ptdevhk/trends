@@ -1,5 +1,7 @@
 import { v } from "convex/values";
+import { paginationOptsValidator } from "convex/server";
 import { mutation, query, type MutationCtx } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
 
 import { DEFAULT_WORKSPACE_SLUG } from "./sessions";
 
@@ -8,6 +10,58 @@ type CandidateStatus =
     | "interviewing" | "interviewed_pass" | "interviewed_reject"
     | "appeal_submitted" | "human_review" | "upheld" | "reversed"
     | "offer" | "hired" | "withdrawn";
+
+const candidateStatusValidator = v.union(
+    v.literal("new"),
+    v.literal("shortlisted"),
+    v.literal("rejected"),
+    v.literal("contacted"),
+    v.literal("interviewing"),
+    v.literal("interviewed_pass"),
+    v.literal("interviewed_reject"),
+    v.literal("appeal_submitted"),
+    v.literal("human_review"),
+    v.literal("upheld"),
+    v.literal("reversed"),
+    v.literal("offer"),
+    v.literal("hired"),
+    v.literal("withdrawn"),
+);
+
+const candidateStatusHistoryValidator = v.array(v.object({
+    status: v.string(),
+    updatedAt: v.number(),
+    notes: v.optional(v.string()),
+}));
+
+async function upsertDigestStatusForResume(
+    ctx: MutationCtx,
+    args: {
+        resumeId: Id<"resumes">;
+        workspaceSlug: string;
+        identityKey: string;
+        status: CandidateStatus;
+        updatedAt: number;
+    },
+): Promise<void> {
+    const existing = await ctx.db
+        .query("resume_digest_statuses")
+        .withIndex("by_workspace_identity", (q) =>
+            q.eq("workspaceSlug", args.workspaceSlug).eq("identityKey", args.identityKey)
+        )
+        .unique();
+
+    if (existing) {
+        await ctx.db.patch(existing._id, {
+            resumeId: args.resumeId,
+            status: args.status,
+            updatedAt: args.updatedAt,
+        });
+        return;
+    }
+
+    await ctx.db.insert("resume_digest_statuses", args);
+}
 
 /**
  * Propagate a status change into the hot resume_digest_statuses overlay.
@@ -28,31 +82,18 @@ export async function upsertDigestStatusForIdentity(
         .query("resume_digests")
         .withIndex("by_identityKey", (q) => q.eq("identityKey", args.identityKey))
         .first();
-    if (!digest) {
+    const resume = digest
+        ? null
+        : await ctx.db
+            .query("resumes")
+            .withIndex("by_identityKey", (q) => q.eq("identityKey", args.identityKey))
+            .first();
+    const resumeId = digest?.resumeId ?? resume?._id;
+    if (!resumeId) {
         return;
     }
 
-    const existing = await ctx.db
-        .query("resume_digest_statuses")
-        .withIndex("by_workspace_identity", (q) =>
-            q.eq("workspaceSlug", args.workspaceSlug).eq("identityKey", args.identityKey)
-        )
-        .unique();
-
-    if (existing) {
-        await ctx.db.patch(existing._id, {
-            status: args.status,
-            updatedAt: args.updatedAt,
-        });
-    } else {
-        await ctx.db.insert("resume_digest_statuses", {
-            resumeId: digest.resumeId,
-            identityKey: args.identityKey,
-            workspaceSlug: args.workspaceSlug,
-            status: args.status,
-            updatedAt: args.updatedAt,
-        });
-    }
+    await upsertDigestStatusForResume(ctx, { ...args, resumeId });
 }
 
 function normalizeWorkspaceSlug(input: string | undefined): string {
@@ -70,6 +111,56 @@ function requireWriteSecret(writeSecret: string | undefined): void {
         throw new Error("Unauthorized Convex write");
     }
 }
+
+function requireReadSecret(writeSecret: string | undefined): void {
+    const expected = process.env.CONVEX_WRITE_SECRET;
+    if (!expected || writeSecret !== expected) {
+        throw new Error("Unauthorized Convex read");
+    }
+}
+
+export const listPage = query({
+    args: {
+        workspaceSlug: v.optional(v.string()),
+        paginationOpts: paginationOptsValidator,
+        writeSecret: v.optional(v.string()),
+    },
+    handler: async (ctx, args) => {
+        requireReadSecret(args.writeSecret);
+        const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
+        return await ctx.db
+            .query("candidate_status")
+            .withIndex("by_workspace_status", (q) => q.eq("workspaceSlug", workspaceSlug))
+            .paginate(args.paginationOpts);
+    },
+});
+
+export const getByIdentities = query({
+    args: {
+        workspaceSlug: v.optional(v.string()),
+        identityKeys: v.array(v.string()),
+        writeSecret: v.optional(v.string()),
+    },
+    handler: async (ctx, args) => {
+        requireReadSecret(args.writeSecret);
+        if (args.identityKeys.length > 100) {
+            throw new Error("getByIdentities supports at most 100 identities");
+        }
+        const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
+        const identityKeys = Array.from(new Set(
+            args.identityKeys.map((identityKey) => normalizeIdentityKey(identityKey)).filter(Boolean),
+        ));
+        const rows = await Promise.all(identityKeys.map(async (identityKey) =>
+            await ctx.db
+                .query("candidate_status")
+                .withIndex("by_workspace_identity", (q) =>
+                    q.eq("workspaceSlug", workspaceSlug).eq("identityKey", identityKey)
+                )
+                .unique()
+        ));
+        return rows.filter((row) => row !== null);
+    },
+});
 
 export const listForBackup = query({
     args: {
@@ -130,22 +221,7 @@ export const upsert = mutation({
     args: {
         workspaceSlug: v.optional(v.string()),
         identityKey: v.string(),
-        status: v.union(
-            v.literal("new"),
-            v.literal("shortlisted"),
-            v.literal("rejected"),
-            v.literal("contacted"),
-            v.literal("interviewing"),
-            v.literal("interviewed_pass"),
-            v.literal("interviewed_reject"),
-            v.literal("appeal_submitted"),
-            v.literal("human_review"),
-            v.literal("upheld"),
-            v.literal("reversed"),
-            v.literal("offer"),
-            v.literal("hired"),
-            v.literal("withdrawn")
-        ),
+        status: candidateStatusValidator,
         notes: v.optional(v.string()),
         updatedBy: v.optional(v.string()),
         writeSecret: v.optional(v.string()),
@@ -214,5 +290,206 @@ export const upsert = mutation({
         });
 
         return newId;
+    },
+});
+
+export const importNotesBatch = mutation({
+    args: {
+        workspaceSlug: v.optional(v.string()),
+        items: v.array(v.object({
+            resumeId: v.string(),
+            comments: v.string(),
+        })),
+        updatedBy: v.optional(v.string()),
+        writeSecret: v.optional(v.string()),
+    },
+    handler: async (ctx, args) => {
+        requireWriteSecret(args.writeSecret);
+        if (args.items.length > 100) {
+            throw new Error("importNotesBatch supports at most 100 items");
+        }
+        const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
+        const normalizedItems = args.items.map((item) => ({
+            resumeId: item.resumeId.trim(),
+            comments: item.comments.trim(),
+        }));
+        const lastNonemptyIndex = new Map<string, number>();
+        normalizedItems.forEach((item, index) => {
+            if (item.comments) {
+                lastNonemptyIndex.set(item.resumeId, index);
+            }
+        });
+
+        let applied = 0;
+        let unchanged = 0;
+        let notFound = 0;
+        let skipped = 0;
+        const results: Array<{
+            resumeId: string;
+            identityKey?: string;
+            outcome: "applied" | "unchanged" | "notFound" | "skipped";
+            reason?: "empty_comments" | "superseded_by_later_duplicate" | "resume_not_found";
+        }> = [];
+        const now = Date.now();
+
+        for (let index = 0; index < normalizedItems.length; index += 1) {
+            const item = normalizedItems[index];
+            if (!item.comments) {
+                skipped += 1;
+                results.push({ resumeId: item.resumeId, outcome: "skipped", reason: "empty_comments" });
+                continue;
+            }
+            if (lastNonemptyIndex.get(item.resumeId) !== index) {
+                skipped += 1;
+                results.push({
+                    resumeId: item.resumeId,
+                    outcome: "skipped",
+                    reason: "superseded_by_later_duplicate",
+                });
+                continue;
+            }
+
+            const normalizedResumeId = ctx.db.normalizeId("resumes", item.resumeId);
+            const resume = normalizedResumeId ? await ctx.db.get(normalizedResumeId) : null;
+            if (!resume) {
+                notFound += 1;
+                results.push({ resumeId: item.resumeId, outcome: "notFound", reason: "resume_not_found" });
+                continue;
+            }
+
+            const identityKey = resume.identityKey?.trim() || String(resume._id);
+            const existing = await ctx.db
+                .query("candidate_status")
+                .withIndex("by_workspace_identity", (q) =>
+                    q.eq("workspaceSlug", workspaceSlug).eq("identityKey", identityKey)
+                )
+                .unique();
+
+            if (existing?.notes === item.comments) {
+                unchanged += 1;
+                results.push({ resumeId: item.resumeId, identityKey, outcome: "unchanged" });
+                continue;
+            }
+
+            const status: CandidateStatus = existing?.status ?? "new";
+            if (existing) {
+                await ctx.db.patch(existing._id, {
+                    notes: item.comments,
+                    updatedBy: args.updatedBy,
+                    updatedAt: now,
+                });
+            } else {
+                await ctx.db.insert("candidate_status", {
+                    workspaceSlug,
+                    identityKey,
+                    status,
+                    notes: item.comments,
+                    updatedBy: args.updatedBy,
+                    updatedAt: now,
+                    history: [],
+                });
+            }
+            await upsertDigestStatusForResume(ctx, {
+                resumeId: resume._id,
+                workspaceSlug,
+                identityKey,
+                status,
+                updatedAt: now,
+            });
+            applied += 1;
+            results.push({ resumeId: item.resumeId, identityKey, outcome: "applied" });
+        }
+
+        return {
+            requested: normalizedItems.length,
+            applied,
+            unchanged,
+            notFound,
+            skipped,
+            results,
+        };
+    },
+});
+
+export const restoreBatch = mutation({
+    args: {
+        workspaceSlug: v.optional(v.string()),
+        items: v.array(v.object({
+            identityKey: v.string(),
+            status: candidateStatusValidator,
+            notes: v.optional(v.string()),
+            updatedBy: v.optional(v.string()),
+            updatedAt: v.number(),
+            history: v.optional(candidateStatusHistoryValidator),
+        })),
+        writeSecret: v.optional(v.string()),
+    },
+    handler: async (ctx, args) => {
+        requireWriteSecret(args.writeSecret);
+        if (args.items.length > 100) {
+            throw new Error("restoreBatch supports at most 100 items");
+        }
+        const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
+        let restored = 0;
+        let inserted = 0;
+        let updated = 0;
+        const unresolvedIdentityKeys: string[] = [];
+
+        for (const item of args.items) {
+            const identityKey = normalizeIdentityKey(item.identityKey);
+            if (!identityKey) {
+                unresolvedIdentityKeys.push(identityKey);
+                continue;
+            }
+            const resume = await ctx.db
+                .query("resumes")
+                .withIndex("by_identityKey", (q) => q.eq("identityKey", identityKey))
+                .unique();
+            if (!resume) {
+                unresolvedIdentityKeys.push(identityKey);
+                continue;
+            }
+
+            const existing = await ctx.db
+                .query("candidate_status")
+                .withIndex("by_workspace_identity", (q) =>
+                    q.eq("workspaceSlug", workspaceSlug).eq("identityKey", identityKey)
+                )
+                .unique();
+            const restoredFields = {
+                status: item.status,
+                notes: item.notes,
+                updatedBy: item.updatedBy,
+                updatedAt: item.updatedAt,
+                history: item.history,
+            };
+            if (existing) {
+                await ctx.db.patch(existing._id, restoredFields);
+                updated += 1;
+            } else {
+                await ctx.db.insert("candidate_status", {
+                    workspaceSlug,
+                    identityKey,
+                    ...restoredFields,
+                });
+                inserted += 1;
+            }
+            await upsertDigestStatusForResume(ctx, {
+                resumeId: resume._id,
+                workspaceSlug,
+                identityKey,
+                status: item.status,
+                updatedAt: item.updatedAt,
+            });
+            restored += 1;
+        }
+
+        return {
+            requested: args.items.length,
+            restored,
+            inserted,
+            updated,
+            unresolvedIdentityKeys,
+        };
     },
 });

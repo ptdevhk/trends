@@ -290,8 +290,40 @@ describe("candidate-status route", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const call = parseConvexCall(input, init);
       calls.push(call);
-      if (call.pathName === "candidate_status:list") {
-        return convexSuccess([]);
+      if (call.pathName === "candidate_status:listPage") {
+        const workspaceSlug = String(call.args.workspaceSlug);
+        expect(call.args.writeSecret).toBe(config.auth.convexWriteSecret);
+        expect(call.args.paginationOpts).toEqual({
+          cursor: call.args.paginationOpts && isRecord(call.args.paginationOpts)
+            ? call.args.paginationOpts.cursor
+            : undefined,
+          numItems: 500,
+        });
+        const cursor = isRecord(call.args.paginationOpts) ? call.args.paginationOpts.cursor : undefined;
+        if (cursor === null) {
+          return convexSuccess({
+            page: [{
+              _id: `${workspaceSlug}-status-1`,
+              identityKey: `${workspaceSlug}-candidate-1`,
+              workspaceSlug,
+              status: "new",
+              updatedAt: 1,
+            }],
+            continueCursor: `${workspaceSlug}:next`,
+            isDone: false,
+          });
+        }
+        return convexSuccess({
+          page: [{
+            _id: `${workspaceSlug}-status-2`,
+            identityKey: `${workspaceSlug}-candidate-2`,
+            workspaceSlug,
+            status: "shortlisted",
+            updatedAt: 2,
+          }],
+          continueCursor: `${workspaceSlug}:done`,
+          isDone: true,
+        });
       }
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
@@ -306,9 +338,13 @@ describe("candidate-status route", () => {
 
     expect(hrResponse.status).toBe(200);
     expect(devResponse.status).toBe(200);
-    expect(calls).toHaveLength(2);
+    expect((await parseJsonBody<{ items: unknown[] }>(hrResponse)).items).toHaveLength(2);
+    expect((await parseJsonBody<{ items: unknown[] }>(devResponse)).items).toHaveLength(2);
+    expect(calls).toHaveLength(4);
     expect(calls[0]?.args.workspaceSlug).toBe("hr");
-    expect(calls[1]?.args.workspaceSlug).toBe("dev");
+    expect(calls[1]?.args.workspaceSlug).toBe("hr");
+    expect(calls[2]?.args.workspaceSlug).toBe("dev");
+    expect(calls[3]?.args.workspaceSlug).toBe("dev");
   });
 
   describe("POST /api/candidate-appeal", () => {

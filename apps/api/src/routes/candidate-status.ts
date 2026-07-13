@@ -1,6 +1,3 @@
-import { isRecord } from "@trends/shared";
-
-
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 
 
@@ -10,6 +7,7 @@ import { workspaceConfigService } from "../services/workspace-config-service.js"
 import { logger } from "../services/logger.js";
 import { getAuthenticatedActorId, requireWorkspaceUser } from "../middleware/auth.js";
 import { CandidateStatusEnumSchema } from "../schemas/index.js";
+import { listCandidateStatuses } from "../services/candidate-status-service.js";
 
 const app = new OpenAPIHono();
 
@@ -97,14 +95,10 @@ const listRoute = createRoute({
 });
 
 app.openapi(listRoute, async (c) => {
-  const value = await callConvexQuery( "candidate_status:list", {
-    workspaceSlug: c.var.workspaceSlug,
-  });
-  const items = Array.isArray(value)
-    ? value
-        .map((item) => toCandidateStatusItem(item))
-        .filter((item): item is CandidateStatusItem => item !== undefined)
-    : [];
+  const value = await listCandidateStatuses(c.var.workspaceSlug);
+  const items = value
+    .map((item) => toCandidateStatusItem(item))
+    .filter((item): item is CandidateStatusItem => item !== undefined);
   return c.json({ success: true as const, items }, 200);
 });
 
