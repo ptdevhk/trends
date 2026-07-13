@@ -73,6 +73,73 @@ type ResumeTriggerReingestResponse struct {
 	HasMore        bool `json:"hasMore"`
 }
 
+type ExactReingestTarget struct {
+	ReferenceResumeID string `json:"referenceResumeId,omitempty"`
+	CurrentResumeID   string `json:"currentResumeId,omitempty"`
+	ProfileResumeID   string `json:"profileResumeId,omitempty"`
+	ProfileURL        string `json:"profileUrl,omitempty"`
+	ExternalID        string `json:"externalId,omitempty"`
+	IdentityKey       string `json:"identityKey,omitempty"`
+	Source            string `json:"source,omitempty"`
+}
+
+type ExactReingestRequest struct {
+	Targets []ExactReingestTarget `json:"targets"`
+	DryRun  bool                  `json:"dryRun"`
+}
+
+type ExactReingestResolvedTarget struct {
+	ReferenceResumeID    string `json:"referenceResumeId,omitempty"`
+	CurrentResumeID      string `json:"currentResumeId"`
+	ProfileResumeID      string `json:"profileResumeId,omitempty"`
+	ProfileURL           string `json:"profileUrl,omitempty"`
+	ExternalID           string `json:"externalId"`
+	Source               string `json:"source"`
+	CanonicalIdentityKey string `json:"canonicalIdentityKey"`
+}
+
+type ExactReingestResponse struct {
+	Success               bool                            `json:"success"`
+	DryRun                bool                            `json:"dryRun"`
+	ManifestVersion       int                             `json:"manifestVersion"`
+	ExpectedSkillsVersion int                             `json:"expectedSkillsVersion"`
+	Requested             int                             `json:"requested"`
+	Resolved              int                             `json:"resolved"`
+	Scheduled             int                             `json:"scheduled"`
+	Batches               int                             `json:"batches"`
+	DispatchedAt          int64                           `json:"dispatchedAt,omitempty"`
+	ResumeIDs             []string                        `json:"resumeIds"`
+	Targets               []ExactReingestResolvedTarget   `json:"targets"`
+	Readiness             *ExactReingestReadinessResponse `json:"readiness,omitempty"`
+}
+
+type ExactReingestReadinessRequest struct {
+	ResumeIDs             []string `json:"resumeIds"`
+	DispatchedAt          int64    `json:"dispatchedAt"`
+	ExpectedSkillsVersion int      `json:"expectedSkillsVersion"`
+}
+
+type ExactReingestReadinessTarget struct {
+	CurrentResumeID     string   `json:"currentResumeId"`
+	State               string   `json:"state"`
+	ComputedAt          int64    `json:"computedAt,omitempty"`
+	SkillsVersion       int      `json:"skillsVersion,omitempty"`
+	Phase2FieldsPresent bool     `json:"phase2FieldsPresent"`
+	Reasons             []string `json:"reasons"`
+}
+
+type ExactReingestReadinessResponse struct {
+	Success               bool                           `json:"success"`
+	AllReady              bool                           `json:"allReady"`
+	Ready                 int                            `json:"ready"`
+	Pending               int                            `json:"pending"`
+	Invalid               int                            `json:"invalid"`
+	CheckedAt             int64                          `json:"checkedAt"`
+	DispatchedAt          int64                          `json:"dispatchedAt"`
+	ExpectedSkillsVersion int                            `json:"expectedSkillsVersion"`
+	Targets               []ExactReingestReadinessTarget `json:"targets"`
+}
+
 type ResumeDiagnosticsQuery struct {
 	Archived   bool
 	SourceKeys []string
@@ -87,15 +154,15 @@ type ResumeDiagnosticsSummary struct {
 }
 
 type ResumeDiagnosticsItem struct {
-	ResumeID    string `json:"resumeId"`
-	ExternalID  string `json:"externalId"`
-	Source      string `json:"source"`
-	SourceKey   string `json:"sourceKey"`
-	Name        string `json:"name"`
+	ResumeID     string `json:"resumeId"`
+	ExternalID   string `json:"externalId"`
+	Source       string `json:"source"`
+	SourceKey    string `json:"sourceKey"`
+	Name         string `json:"name"`
 	JobIntention string `json:"jobIntention"`
-	Location    string `json:"location"`
-	IsArchived  bool   `json:"isArchived,omitempty"`
-	ArchivedAt  int64  `json:"archivedAt,omitempty"`
+	Location     string `json:"location"`
+	IsArchived   bool   `json:"isArchived,omitempty"`
+	ArchivedAt   int64  `json:"archivedAt,omitempty"`
 }
 
 type ResumeDiagnosticsResponse struct {
@@ -234,6 +301,33 @@ func (c *Client) TriggerResumeReingest(ctx context.Context, limit int) (*ResumeT
 	}
 	if !response.Success {
 		return nil, fmt.Errorf("resume trigger reingest request was not successful")
+	}
+	return &response, nil
+}
+
+func (c *Client) ExactResumeReingest(ctx context.Context, request ExactReingestRequest) (*ExactReingestResponse, error) {
+	endpoint := fmt.Sprintf("%s/api/resumes/exact-reingest", c.APIURL)
+	var response ExactReingestResponse
+	if err := c.doJSON(ctx, http.MethodPost, endpoint, request, &response); err != nil {
+		return nil, err
+	}
+	if !response.Success {
+		return nil, fmt.Errorf("exact resume reingest request was not successful")
+	}
+	return &response, nil
+}
+
+func (c *Client) GetExactResumeReingestReadiness(
+	ctx context.Context,
+	request ExactReingestReadinessRequest,
+) (*ExactReingestReadinessResponse, error) {
+	endpoint := fmt.Sprintf("%s/api/resumes/exact-reingest/readiness", c.APIURL)
+	var response ExactReingestReadinessResponse
+	if err := c.doJSON(ctx, http.MethodPost, endpoint, request, &response); err != nil {
+		return nil, err
+	}
+	if !response.Success {
+		return nil, fmt.Errorf("exact resume reingest readiness request was not successful")
 	}
 	return &response, nil
 }

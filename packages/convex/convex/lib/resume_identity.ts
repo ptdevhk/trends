@@ -17,13 +17,29 @@ export type ResumeIdentity = {
 
 const PROFILE_URL_KEYS = ["profileUrl", "profile_url", "profileURL", "url"];
 const RESUME_ID_KEYS = ["resumeId", "resume_id"];
+const PROFILE_RESUME_ID_KEYS = ["profileResumeId", "profile_resume_id"];
+const PROFILE_ID_KEYS = ["profileId", "profile_id"];
 const PER_USER_ID_KEYS = ["perUserId", "per_user_id"];
 const EXTERNAL_ID_KEYS = ["externalId", "external_id"];
 const JOB5156_HOST = "hr.job5156.com";
 export const SEEK_HOST_SUFFIX = ".employer.seek.com";
+const PROFILE_RESUME_ID_QUERY_KEYS = new Set(["resumeid", "resume_id", "profileresumeid"]);
+const PROFILE_RESUME_ID_RE = /(?<!\d)(\d{6,12})(?!\d)/;
+
+export type ResumeIdentityAliases = {
+    profileUrl?: string;
+    profileResumeId?: string;
+    profileUrlKeys: string[];
+    profileResumeIds: string[];
+    externalIds: string[];
+    identityKeys: string[];
+};
 
 
 function readString(value: unknown): string | null {
+    if (typeof value === "number" && Number.isFinite(value)) {
+        return String(value);
+    }
     if (typeof value !== "string") {
         return null;
     }
@@ -31,7 +47,7 @@ function readString(value: unknown): string | null {
     return trimmed.length > 0 ? trimmed : null;
 }
 
-function normalizeToken(value: string): string | null {
+export function normalizeResumeIdentityToken(value: string): string | null {
     const trimmed = value.trim();
     if (!trimmed) {
         return null;
@@ -103,6 +119,16 @@ function parseUrlLike(value: string): URL | null {
     }
 }
 
+function readQueryParamCaseInsensitive(parsed: URL, key: string): string | null {
+    const normalizedKey = key.toLowerCase();
+    for (const [candidateKey, value] of parsed.searchParams.entries()) {
+        if (candidateKey.toLowerCase() === normalizedKey) {
+            return value;
+        }
+    }
+    return null;
+}
+
 function normalizeUrlForIdentity(parsed: URL): string {
     const path = parsed.pathname.replace(/\/+$/, "") || "/";
     const sortedParams = Array.from(parsed.searchParams.entries())
@@ -136,7 +162,7 @@ function normalizeSeekProfileUrlForIdentity(value: string, source: string | unde
         return null;
     }
 
-    const openProfileIdParam = parsed.searchParams.get("openProfileId");
+    const openProfileIdParam = readQueryParamCaseInsensitive(parsed, "openProfileId");
     if (openProfileIdParam && /^\d+$/.test(openProfileIdParam)) {
         return `${hostname}/candidates/${openProfileIdParam}`.toLowerCase();
     }
@@ -156,7 +182,7 @@ function normalizeSeekProfileUrlForIdentity(value: string, source: string | unde
     return normalizeUrlForIdentity(parsed);
 }
 
-function normalizeProfileUrl(value: string, source?: string): string | null {
+export function normalizeResumeProfileUrl(value: string, source?: string): string | null {
     const trimmed = value.trim();
     if (!trimmed) {
         return null;
@@ -202,6 +228,8 @@ function readCandidate(record: Record<string, unknown>, keys: string[]): string 
 function readIdentityCandidates(content: unknown): {
     profileUrl: string | null;
     resumeId: string | null;
+    profileResumeId: string | null;
+    profileId: string | null;
     perUserId: string | null;
     externalId: string | null;
 } {
@@ -209,6 +237,8 @@ function readIdentityCandidates(content: unknown): {
         return {
             profileUrl: null,
             resumeId: null,
+            profileResumeId: null,
+            profileId: null,
             perUserId: null,
             externalId: null,
         };
@@ -217,15 +247,140 @@ function readIdentityCandidates(content: unknown): {
     return {
         profileUrl: readCandidate(content, PROFILE_URL_KEYS),
         resumeId: readCandidate(content, RESUME_ID_KEYS),
+        profileResumeId: readCandidate(content, PROFILE_RESUME_ID_KEYS),
+        profileId: readCandidate(content, PROFILE_ID_KEYS),
         perUserId: readCandidate(content, PER_USER_ID_KEYS),
         externalId: readCandidate(content, EXTERNAL_ID_KEYS),
+    };
+}
+
+function uniqueStrings(values: Array<string | null | undefined>): string[] {
+    const seen = new Set<string>();
+    const result: string[] = [];
+    for (const value of values) {
+        if (!value || seen.has(value)) {
+            continue;
+        }
+        seen.add(value);
+        result.push(value);
+    }
+    return result;
+}
+
+function extractProfileResumeIdFromUrl(value: string): string | null {
+    const directJob5156Id = extractJob5156ResumeId(value);
+    if (directJob5156Id) {
+        return normalizeResumeIdentityToken(directJob5156Id);
+    }
+
+    const parsed = parseUrlLike(value);
+    if (parsed) {
+        for (const [key, paramValue] of parsed.searchParams.entries()) {
+            if (PROFILE_RESUME_ID_QUERY_KEYS.has(key.toLowerCase())) {
+                const normalized = normalizeResumeIdentityToken(paramValue);
+                if (normalized) {
+                    return normalized;
+                }
+            }
+        }
+
+        const seekProfileId = readQueryParamCaseInsensitive(parsed, "openProfileId");
+        if (seekProfileId) {
+            const normalized = normalizeResumeIdentityToken(seekProfileId);
+            if (normalized) {
+                return normalized;
+            }
+        }
+
+        const candidatePathId = parsed.pathname.match(/\/candidates\/(?:profiles\/)?([^/?#]+)(?:\/|$)/i)?.[1];
+        if (candidatePathId) {
+            const normalized = normalizeResumeIdentityToken(decodeURIComponentSafe(candidatePathId));
+            if (normalized) {
+                return normalized;
+            }
+        }
+    }
+
+    const numericMatch = value.match(PROFILE_RESUME_ID_RE)?.[1];
+    return numericMatch ? normalizeResumeIdentityToken(numericMatch) : null;
+}
+
+export function normalizeResumeIdentityKey(value: string, source?: string): string | null {
+    const separator = value.indexOf(":");
+    if (separator <= 0) {
+        return null;
+    }
+
+    const prefix = value.slice(0, separator).trim().toLowerCase();
+    const rawValue = value.slice(separator + 1).trim();
+    if (!rawValue) {
+        return null;
+    }
+
+    if (prefix === "profileurl") {
+        const normalized = normalizeResumeProfileUrl(rawValue, source);
+        return normalized ? `profileUrl:${normalized}` : null;
+    }
+
+    const normalized = normalizeResumeIdentityToken(rawValue);
+    if (!normalized || (prefix === "externalid" && normalized === "unknown")) {
+        return null;
+    }
+
+    switch (prefix) {
+        case "resumeid":
+            return `resumeId:${normalized}`;
+        case "peruserid":
+            return `perUserId:${normalized}`;
+        case "externalid":
+            return `externalId:${normalized}`;
+        default:
+            return null;
+    }
+}
+
+export function collectResumeIdentityAliases(input: ResumeIdentityInput): ResumeIdentityAliases {
+    const candidates = readIdentityCandidates(input.content);
+    const normalizedProfileUrl = candidates.profileUrl
+        ? normalizeResumeProfileUrl(candidates.profileUrl, input.source)
+        : null;
+    const normalizedResumeId = candidates.resumeId
+        ? normalizeResumeIdentityToken(candidates.resumeId)
+        : null;
+    const normalizedPerUserId = candidates.perUserId
+        ? normalizeResumeIdentityToken(candidates.perUserId)
+        : null;
+    const externalIds = uniqueStrings([
+        candidates.externalId ? normalizeResumeIdentityToken(candidates.externalId) : null,
+        normalizeResumeIdentityToken(input.externalId),
+    ]);
+    const profileResumeIds = uniqueStrings([
+        candidates.profileResumeId ? normalizeResumeIdentityToken(candidates.profileResumeId) : null,
+        normalizedResumeId,
+        candidates.profileId ? normalizeResumeIdentityToken(candidates.profileId) : null,
+        candidates.profileUrl ? extractProfileResumeIdFromUrl(candidates.profileUrl) : null,
+    ]);
+    const identityKeys = uniqueStrings([
+        normalizedProfileUrl ? `profileUrl:${normalizedProfileUrl}` : null,
+        normalizedResumeId ? `resumeId:${normalizedResumeId}` : null,
+        normalizedPerUserId ? `perUserId:${normalizedPerUserId}` : null,
+        ...externalIds.map((externalId) => `externalId:${externalId}`),
+    ]);
+
+    return {
+        profileUrl: candidates.profileUrl ?? undefined,
+        profileResumeId: profileResumeIds[0],
+        profileUrlKeys: normalizedProfileUrl ? [`profileUrl:${normalizedProfileUrl}`] : [],
+        profileResumeIds,
+        externalIds,
+        identityKeys,
     };
 }
 
 export function deriveResumeIdentity(input: ResumeIdentityInput): ResumeIdentity {
     const candidates = readIdentityCandidates(input.content);
 
-    const normalizedProfileUrl = candidates.profileUrl ? normalizeProfileUrl(candidates.profileUrl, input.source) : null;
+    const normalizedProfileUrl = candidates.profileUrl ? normalizeResumeProfileUrl(candidates.profileUrl, input.source) : null;
     if (normalizedProfileUrl) {
         return {
             identityKey: `profileUrl:${normalizedProfileUrl}`,
@@ -235,7 +390,7 @@ export function deriveResumeIdentity(input: ResumeIdentityInput): ResumeIdentity
         };
     }
 
-    const normalizedResumeId = candidates.resumeId ? normalizeToken(candidates.resumeId) : null;
+    const normalizedResumeId = candidates.resumeId ? normalizeResumeIdentityToken(candidates.resumeId) : null;
     if (normalizedResumeId) {
         return {
             identityKey: `resumeId:${normalizedResumeId}`,
@@ -245,7 +400,7 @@ export function deriveResumeIdentity(input: ResumeIdentityInput): ResumeIdentity
         };
     }
 
-    const normalizedPerUserId = candidates.perUserId ? normalizeToken(candidates.perUserId) : null;
+    const normalizedPerUserId = candidates.perUserId ? normalizeResumeIdentityToken(candidates.perUserId) : null;
     if (normalizedPerUserId) {
         return {
             identityKey: `perUserId:${normalizedPerUserId}`,
@@ -256,7 +411,7 @@ export function deriveResumeIdentity(input: ResumeIdentityInput): ResumeIdentity
     }
 
     const externalIdCandidate = candidates.externalId ?? input.externalId;
-    const normalizedExternalId = normalizeToken(externalIdCandidate);
+    const normalizedExternalId = normalizeResumeIdentityToken(externalIdCandidate);
     if (normalizedExternalId) {
         return {
             identityKey: `externalId:${normalizedExternalId}`,

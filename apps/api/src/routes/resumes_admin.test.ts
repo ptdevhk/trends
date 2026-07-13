@@ -5,6 +5,7 @@ import resumesAdminRoutes from "./resumes_admin";
 import { createAuthMiddleware } from "../middleware/auth";
 import { workspaceMiddleware } from "../middleware/workspace";
 import type { AuthStorage } from "../services/auth-storage";
+import { config } from "../services/config";
 import { resetResumeScreeningDb } from "../services/database";
 import { parseJsonBody } from "../test-utils";
 import { createAuthHeaders } from "./test-auth-helpers";
@@ -35,6 +36,13 @@ function createTestApp(storage?: AuthStorage) {
 function convexSuccess(value: unknown): Response {
   return new Response(
     JSON.stringify({ status: "success", value }),
+    { status: 200, headers: { "Content-Type": "application/json" } },
+  );
+}
+
+function convexError(errorMessage: string): Response {
+  return new Response(
+    JSON.stringify({ status: "error", errorMessage }),
     { status: 200, headers: { "Content-Type": "application/json" } },
   );
 }
@@ -130,6 +138,257 @@ describe("resumes_admin", () => {
       });
 
       expect(response.status).toBe(400);
+    });
+  });
+
+  describe("POST /api/resumes/exact-reingest", () => {
+    const resolvedTargets = [
+      {
+        referenceResumeId: "old-2",
+        currentResumeId: "current-2",
+        profileResumeId: "100002",
+        profileUrl: "https://example.com/candidates/2?resumeId=100002",
+        externalId: "external-2",
+        source: "example.com",
+        canonicalIdentityKey: "profileUrl:example.com/candidates/2?resumeid=100002",
+      },
+      {
+        referenceResumeId: "old-1",
+        currentResumeId: "current-1",
+        profileResumeId: "100001",
+        externalId: "external-1",
+        source: "example.com",
+        canonicalIdentityKey: "externalId:external-1",
+      },
+      {
+        referenceResumeId: "old-2-duplicate",
+        currentResumeId: "current-2",
+        profileResumeId: "100002",
+        externalId: "external-2",
+        source: "example.com",
+        canonicalIdentityKey: "profileUrl:example.com/candidates/2?resumeid=100002",
+      },
+    ];
+
+    it("resolves and previews targets without dispatching a mutation", async () => {
+      const requests: Array<{ url: string; body: Record<string, unknown> }> = [];
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+        requests.push({
+          url: String(input),
+          body: JSON.parse(init?.body as string) as Record<string, unknown>,
+        });
+        return convexSuccess({
+          requested: 3,
+          resolved: 2,
+          resumeIds: ["current-2", "current-1"],
+          targets: resolvedTargets,
+        });
+      });
+
+      const app = createTestApp();
+      const response = await app.request("/api/resumes/exact-reingest", {
+        method: "POST",
+        headers: jsonHeaders(),
+        body: JSON.stringify({
+          dryRun: true,
+          targets: [
+            { referenceResumeId: "old-2", profileResumeId: "100002" },
+            { referenceResumeId: "old-1", externalId: "external-1" },
+            { referenceResumeId: "old-2-duplicate", currentResumeId: "current-2" },
+          ],
+        }),
+      });
+
+      expect(response.status).toBe(200);
+      expect(await parseJsonBody(response)).toEqual(expect.objectContaining({
+        success: true,
+        dryRun: true,
+        manifestVersion: 1,
+        expectedSkillsVersion: expect.any(Number),
+        requested: 3,
+        resolved: 2,
+        scheduled: 0,
+        batches: 0,
+        resumeIds: ["current-2", "current-1"],
+        targets: resolvedTargets,
+      }));
+      expect(requests).toHaveLength(1);
+      expect(requests[0].url).toContain("/api/action");
+      expect(requests[0].body).toEqual({
+        path: "ingest_agent:resolveExactReingestTargets",
+        args: {
+          workspaceSlug: "dev",
+          writeSecret: config.auth.convexWriteSecret,
+          targets: [
+            { referenceResumeId: "old-2", profileResumeId: "100002" },
+            { referenceResumeId: "old-1", externalId: "external-1" },
+            { referenceResumeId: "old-2-duplicate", currentResumeId: "current-2" },
+          ],
+        },
+      });
+    });
+
+    it("dispatches only the fully resolved deduplicated ID set", async () => {
+      const requests: Array<{ url: string; body: Record<string, unknown> }> = [];
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+        const request = {
+          url: String(input),
+          body: JSON.parse(init?.body as string) as Record<string, unknown>,
+        };
+        requests.push(request);
+        if (request.body.path === "ingest_agent:resolveExactReingestTargets") {
+          return convexSuccess({
+            requested: 3,
+            resolved: 2,
+            resumeIds: ["current-2", "current-1"],
+            targets: resolvedTargets,
+          });
+        }
+        return convexSuccess({
+          requested: 2,
+          resolved: 2,
+          scheduled: 2,
+          batches: 1,
+          resumeIds: ["current-2", "current-1"],
+          dispatchedAt: 1_750_000_000_000,
+        });
+      });
+
+      const app = createTestApp();
+      const response = await app.request("/api/resumes/exact-reingest", {
+        method: "POST",
+        headers: jsonHeaders(),
+        body: JSON.stringify({
+          targets: [
+            { referenceResumeId: "old-2", profileResumeId: "100002" },
+            { referenceResumeId: "old-1", externalId: "external-1" },
+            { referenceResumeId: "old-2-duplicate", currentResumeId: "current-2" },
+          ],
+        }),
+      });
+
+      expect(response.status).toBe(200);
+      expect(await parseJsonBody(response)).toEqual(expect.objectContaining({
+        success: true,
+        dryRun: false,
+        requested: 3,
+        resolved: 2,
+        scheduled: 2,
+        batches: 1,
+        dispatchedAt: 1_750_000_000_000,
+        resumeIds: ["current-2", "current-1"],
+        targets: resolvedTargets,
+      }));
+      expect(requests).toHaveLength(2);
+      expect(requests[1].url).toContain("/api/mutation");
+      expect(requests[1].body).toEqual({
+        path: "ingest_agent:scheduleExactReingest",
+        args: {
+          workspaceSlug: "dev",
+          writeSecret: config.auth.convexWriteSecret,
+          resumeIds: ["current-2", "current-1"],
+        },
+      });
+    });
+
+    it("returns a validation error without scheduling when selectors conflict", async () => {
+      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        convexError("Exact re-ingest target 1 selectors conflict: profileUrl and externalId resolve to different resumes"),
+      );
+
+      const app = createTestApp();
+      const response = await app.request("/api/resumes/exact-reingest", {
+        method: "POST",
+        headers: jsonHeaders(),
+        body: JSON.stringify({
+          targets: [{ profileUrl: "https://example.com/a", externalId: "external-b" }],
+          dryRun: false,
+        }),
+      });
+
+      expect(response.status).toBe(400);
+      expect((await parseJsonBody(response)).error).toMatch(/selectors conflict/i);
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it("rejects non-admin access", async () => {
+      const app = createTestApp();
+      const response = await app.request("/api/resumes/exact-reingest", {
+        method: "POST",
+        headers: jsonHeaders({ "X-Workspace-Slug": "hr" }),
+        body: JSON.stringify({ targets: [{ externalId: "external-1" }], dryRun: true }),
+      });
+
+      expect(response.status).toBe(403);
+    });
+
+    it("returns authenticated target readiness evidence", async () => {
+      const requests: Array<{ url: string; body: Record<string, unknown> }> = [];
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+        requests.push({
+          url: String(input),
+          body: JSON.parse(init?.body as string) as Record<string, unknown>,
+        });
+        return convexSuccess({
+          allReady: false,
+          ready: 1,
+          pending: 1,
+          invalid: 0,
+          checkedAt: 1_750_000_000_100,
+          dispatchedAt: 1_750_000_000_000,
+          expectedSkillsVersion: 3,
+          targets: [
+            {
+              currentResumeId: "current-2",
+              state: "ready",
+              computedAt: 1_750_000_000_050,
+              skillsVersion: 3,
+              phase2FieldsPresent: true,
+              reasons: [],
+            },
+            {
+              currentResumeId: "current-1",
+              state: "pending",
+              computedAt: 1_749_999_999_999,
+              skillsVersion: 2,
+              phase2FieldsPresent: false,
+              reasons: ["computed_before_dispatch", "skills_version_mismatch", "phase_2_fields_missing"],
+            },
+          ],
+        });
+      });
+
+      const app = createTestApp();
+      const response = await app.request("/api/resumes/exact-reingest/readiness", {
+        method: "POST",
+        headers: jsonHeaders(),
+        body: JSON.stringify({
+          resumeIds: ["current-2", "current-1"],
+          dispatchedAt: 1_750_000_000_000,
+          expectedSkillsVersion: 3,
+        }),
+      });
+
+      expect(response.status).toBe(200);
+      expect(await parseJsonBody(response)).toEqual(expect.objectContaining({
+        success: true,
+        allReady: false,
+        ready: 1,
+        pending: 1,
+        invalid: 0,
+      }));
+      expect(requests).toHaveLength(1);
+      expect(requests[0].url).toContain("/api/query");
+      expect(requests[0].body).toEqual({
+        path: "ingest_agent:getExactReingestReadiness",
+        args: {
+          workspaceSlug: "dev",
+          writeSecret: config.auth.convexWriteSecret,
+          resumeIds: ["current-2", "current-1"],
+          dispatchedAt: 1_750_000_000_000,
+          expectedSkillsVersion: 3,
+        },
+      });
     });
   });
 

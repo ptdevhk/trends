@@ -4474,6 +4474,194 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/resumes/exact-reingest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Resolve and schedule an exact stable-identity resume cohort (admin only) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        targets: {
+                            referenceResumeId?: string;
+                            currentResumeId?: string;
+                            profileResumeId?: string;
+                            profileUrl?: string;
+                            externalId?: string;
+                            identityKey?: string;
+                            source?: string;
+                        }[];
+                        dryRun?: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description Exact target resolution or dispatch result */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            dryRun: boolean;
+                            /** @enum {number} */
+                            manifestVersion: 1;
+                            expectedSkillsVersion: number;
+                            requested: number;
+                            resolved: number;
+                            scheduled: number;
+                            batches: number;
+                            dispatchedAt?: number;
+                            resumeIds: string[];
+                            targets: {
+                                referenceResumeId?: string;
+                                currentResumeId: string;
+                                profileResumeId?: string;
+                                profileUrl?: string;
+                                externalId: string;
+                                source: string;
+                                canonicalIdentityKey: string;
+                            }[];
+                        };
+                    };
+                };
+                /** @description Invalid or conflicting target manifest */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Internal error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/resumes/exact-reingest/readiness": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Check persisted readiness for an exact re-ingest dispatch (admin only) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        resumeIds: string[];
+                        dispatchedAt: number;
+                        expectedSkillsVersion: number;
+                    };
+                };
+            };
+            responses: {
+                /** @description Exact re-ingest readiness */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            allReady: boolean;
+                            ready: number;
+                            pending: number;
+                            invalid: number;
+                            checkedAt: number;
+                            dispatchedAt: number;
+                            expectedSkillsVersion: number;
+                            targets: {
+                                currentResumeId: string;
+                                /** @enum {string} */
+                                state: "ready" | "pending" | "invalid";
+                                computedAt?: number;
+                                skillsVersion?: number;
+                                phase2FieldsPresent: boolean;
+                                reasons: string[];
+                            }[];
+                        };
+                    };
+                };
+                /** @description Invalid request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Internal error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/resumes/clear-analyses": {
         parameters: {
             query?: never;

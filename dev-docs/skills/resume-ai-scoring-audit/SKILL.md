@@ -87,12 +87,21 @@ CURRENT_EXPORT="$HOME/Documents/resumes-export-current-db-${STAMP}.csv"
 REFERENCE_CSV="$HOME/Documents/resumes-export-v0.3.0-hr-feedback-42-2026-06-01T02-44-02-472699Z.csv"
 AUDIT_CSV="$HOME/Documents/resumes-export-current-db-hr-feedback-42-${STAMP}.csv"
 AUDIT_JSON="${AUDIT_CSV%.csv}.audit.json"
+TARGET_MANIFEST="${AUDIT_CSV%.csv}.targets.json"
 python3 .agents/skills/resume-ai-scoring-audit/scripts/audit_hr_feedback_export.py \
   --reference-csv "$REFERENCE_CSV" \
   --current-export "$CURRENT_EXPORT" \
   --out-csv "$AUDIT_CSV" \
   --out-json "$AUDIT_JSON" \
+  --out-manifest "$TARGET_MANIFEST" \
   --expected-count 42
+```
+
+The target manifest preserves reference order and carries stable profile/external selectors plus the current Convex ID when available. Resolve it before any live target-scoped operation:
+
+```bash
+./bin/trends resume debug reingest --manifest "$TARGET_MANIFEST" --dry-run --api-url http://localhost:3000 --workspace dev --output json
+./bin/trends resume debug reingest --manifest "$TARGET_MANIFEST" --yes --wait --api-url http://localhost:3000 --workspace dev --output json
 ```
 
 8. Report audit facts.
@@ -101,6 +110,6 @@ Include cohort size, missing current resumes, missing AI scores, high-score coun
 
 ## Script
 
-- `scripts/audit_hr_feedback_export.py`: joins an HR reference CSV to a current Trends export by profile resume ID and writes audit CSV plus summary JSON.
+- `scripts/audit_hr_feedback_export.py`: joins an HR reference CSV to a current Trends export by profile resume ID and writes audit CSV, summary JSON, and an optional versioned exact-target manifest.
 
 The script accepts exports from both older custom audit files and the standard `trends resume export` output.

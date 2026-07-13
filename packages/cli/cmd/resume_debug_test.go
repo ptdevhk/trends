@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -369,15 +371,15 @@ func TestResumeDebugDiagnosticsCommandWritesTable(t *testing.T) {
 			Success: true,
 			Data: []client.ResumeDiagnosticsItem{
 				{
-					ResumeID:    "resume-1",
-					ExternalID:  "external-1",
-					Name:        "张三",
-					JobIntention:"销售工程师",
-					Location:    "东莞",
-					Source:      "51job-manual",
-					SourceKey:   "51job-manual",
-					IsArchived:  true,
-					ArchivedAt:  1700000000000,
+					ResumeID:     "resume-1",
+					ExternalID:   "external-1",
+					Name:         "张三",
+					JobIntention: "销售工程师",
+					Location:     "东莞",
+					Source:       "51job-manual",
+					SourceKey:    "51job-manual",
+					IsArchived:   true,
+					ArchivedAt:   1700000000000,
 				},
 			},
 			Summary: client.ResumeDiagnosticsSummary{
@@ -552,10 +554,10 @@ func TestResumeDebugClearAnalysesCommandWritesJSON(t *testing.T) {
 			t.Fatalf("unexpected method: %s", r.Method)
 		}
 		_ = json.NewEncoder(w).Encode(client.ClearAnalysesAPIResponse{
-			Success:         true,
-			Cleared:         2,
-			Batches:         1,
-			Targeted:        true,
+			Success:          true,
+			Cleared:          2,
+			Batches:          1,
+			Targeted:         true,
 			JobDescriptionID: "lathe-sales",
 		})
 	}))
@@ -649,6 +651,241 @@ func TestResumeDebugHardResetReingestRequiresConfirmation(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "destructive") {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestResumeDebugExactReingestRequiresConfirmation(t *testing.T) {
+	cmd := newResumeDebugExactReingestCmd()
+	cmd.SetArgs([]string{"--resume-id", "current-1"})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected confirmation-required error")
+	}
+	if !strings.Contains(err.Error(), "--yes") || !strings.Contains(err.Error(), "--dry-run") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestResumeDebugExactReingestDryRunPreservesRepeatableResumeIDOrder(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/resumes/exact-reingest" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		var request client.ExactReingestRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatalf("failed to decode body: %v", err)
+		}
+		if !request.DryRun {
+			t.Fatal("expected dryRun=true")
+		}
+		if len(request.Targets) != 2 || request.Targets[0].CurrentResumeID != "current-2" || request.Targets[1].CurrentResumeID != "current-1" {
+			t.Fatalf("unexpected target order: %+v", request.Targets)
+		}
+
+		_ = json.NewEncoder(w).Encode(client.ExactReingestResponse{
+			Success:               true,
+			DryRun:                true,
+			ManifestVersion:       1,
+			ExpectedSkillsVersion: 2,
+			Requested:             2,
+			Resolved:              2,
+			ResumeIDs:             []string{"current-2", "current-1"},
+			Targets: []client.ExactReingestResolvedTarget{
+				{CurrentResumeID: "current-2", CanonicalIdentityKey: "externalId:external-2"},
+				{CurrentResumeID: "current-1", CanonicalIdentityKey: "externalId:external-1"},
+			},
+		})
+	}))
+	defer server.Close()
+
+	setResumeCLIConfig(t, server.URL, "dev")
+	setCLIOutput(t, "json")
+
+	cmd := newResumeDebugExactReingestCmd()
+	var output bytes.Buffer
+	cmd.SetOut(&output)
+	cmd.SetErr(&output)
+	cmd.SetArgs([]string{
+		"--resume-id", "current-2",
+		"--resume-id", "current-1",
+		"--dry-run",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("resume debug reingest --dry-run failed: %v", err)
+	}
+	payload := decodeCommandJSON(t, output)
+	if payload["requested"] != float64(2) || payload["resolved"] != float64(2) || payload["dryRun"] != true {
+		t.Fatalf("unexpected output: %+v", payload)
+	}
+}
+
+func TestResumeDebugExactReingestReadsOrderedManifestAndSchedulesWithYes(t *testing.T) {
+	manifestPath := filepath.Join(t.TempDir(), "cohort.json")
+	manifest := `{
+  "version": 1,
+  "targets": [
+    {"referenceResumeId":"old-2","profileResumeId":"100002","profileUrl":"https://example.com/2"},
+    {"referenceResumeId":"old-1","externalId":"external-1"},
+    {"referenceResumeId":"old-2-duplicate","currentResumeId":"current-2"}
+  ]
+}`
+	if err := os.WriteFile(manifestPath, []byte(manifest), 0o600); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request client.ExactReingestRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatalf("failed to decode body: %v", err)
+		}
+		if request.DryRun {
+			t.Fatal("expected live request")
+		}
+		if got := []string{
+			request.Targets[0].ReferenceResumeID,
+			request.Targets[1].ReferenceResumeID,
+			request.Targets[2].ReferenceResumeID,
+		}; strings.Join(got, ",") != "old-2,old-1,old-2-duplicate" {
+			t.Fatalf("manifest order was not preserved: %+v", got)
+		}
+
+		_ = json.NewEncoder(w).Encode(client.ExactReingestResponse{
+			Success:               true,
+			ManifestVersion:       1,
+			ExpectedSkillsVersion: 2,
+			Requested:             3,
+			Resolved:              2,
+			Scheduled:             2,
+			Batches:               1,
+			DispatchedAt:          1_750_000_000_000,
+			ResumeIDs:             []string{"current-2", "current-1"},
+			Targets: []client.ExactReingestResolvedTarget{
+				{ReferenceResumeID: "old-2", CurrentResumeID: "current-2", CanonicalIdentityKey: "profileUrl:example.com/2"},
+				{ReferenceResumeID: "old-1", CurrentResumeID: "current-1", CanonicalIdentityKey: "externalId:external-1"},
+				{ReferenceResumeID: "old-2-duplicate", CurrentResumeID: "current-2", CanonicalIdentityKey: "profileUrl:example.com/2"},
+			},
+		})
+	}))
+	defer server.Close()
+
+	setResumeCLIConfig(t, server.URL, "dev")
+	setCLIOutput(t, "table")
+
+	cmd := newResumeDebugExactReingestCmd()
+	var output bytes.Buffer
+	cmd.SetOut(&output)
+	cmd.SetErr(&output)
+	cmd.SetArgs([]string{"--manifest", manifestPath, "--yes"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("resume debug reingest --manifest --yes failed: %v", err)
+	}
+	text := output.String()
+	if !strings.Contains(text, "old-2") || !strings.Contains(text, "current-2") || !strings.Contains(text, "old-1") {
+		t.Fatalf("unexpected table output: %s", text)
+	}
+}
+
+func TestResumeDebugExactReingestReturnsAPIConflictAsCommandFailure(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"success": false,
+			"error":   "Exact re-ingest target 1 selectors conflict",
+		})
+	}))
+	defer server.Close()
+
+	setResumeCLIConfig(t, server.URL, "dev")
+	cmd := newResumeDebugExactReingestCmd()
+	cmd.SetArgs([]string{"--resume-id", "current-1", "--dry-run"})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected API conflict to fail the command")
+	}
+	if !strings.Contains(err.Error(), "selectors conflict") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestResumeDebugExactReingestWaitsForPersistedTargetReadiness(t *testing.T) {
+	readinessCalls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/resumes/exact-reingest":
+			_ = json.NewEncoder(w).Encode(client.ExactReingestResponse{
+				Success:               true,
+				ManifestVersion:       1,
+				ExpectedSkillsVersion: 3,
+				Requested:             1,
+				Resolved:              1,
+				Scheduled:             1,
+				Batches:               1,
+				DispatchedAt:          1_750_000_000_000,
+				ResumeIDs:             []string{"current-1"},
+				Targets: []client.ExactReingestResolvedTarget{
+					{CurrentResumeID: "current-1", ExternalID: "external-1", Source: "51job", CanonicalIdentityKey: "externalId:external-1"},
+				},
+			})
+		case "/api/resumes/exact-reingest/readiness":
+			readinessCalls++
+			var request client.ExactReingestReadinessRequest
+			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+				t.Fatalf("decode readiness request: %v", err)
+			}
+			if request.DispatchedAt != 1_750_000_000_000 || request.ExpectedSkillsVersion != 3 {
+				t.Fatalf("unexpected readiness request: %+v", request)
+			}
+			allReady := readinessCalls >= 2
+			state := "pending"
+			if allReady {
+				state = "ready"
+			}
+			_ = json.NewEncoder(w).Encode(client.ExactReingestReadinessResponse{
+				Success:               true,
+				AllReady:              allReady,
+				Ready:                 map[bool]int{true: 1, false: 0}[allReady],
+				Pending:               map[bool]int{true: 0, false: 1}[allReady],
+				CheckedAt:             1_750_000_000_100,
+				DispatchedAt:          request.DispatchedAt,
+				ExpectedSkillsVersion: request.ExpectedSkillsVersion,
+				Targets: []client.ExactReingestReadinessTarget{
+					{CurrentResumeID: "current-1", State: state},
+				},
+			})
+		default:
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	setResumeCLIConfig(t, server.URL, "dev")
+	setCLIOutput(t, "json")
+	cmd := newResumeDebugExactReingestCmd()
+	var output bytes.Buffer
+	cmd.SetOut(&output)
+	cmd.SetErr(&output)
+	cmd.SetArgs([]string{
+		"--resume-id", "current-1",
+		"--yes",
+		"--wait",
+		"--wait-timeout", "1s",
+		"--poll-interval", "1ms",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("resume debug reingest --wait failed: %v", err)
+	}
+	if readinessCalls != 2 {
+		t.Fatalf("expected two readiness polls, got %d", readinessCalls)
+	}
+	payload := decodeCommandJSON(t, output)
+	readiness, ok := payload["readiness"].(map[string]any)
+	if !ok || readiness["allReady"] != true {
+		t.Fatalf("unexpected readiness output: %+v", payload)
 	}
 }
 
@@ -809,13 +1046,13 @@ func TestResumeDebugAnalysisTasksCommandAcceptsFractionalCreationTime(t *testing
 			"success": true,
 			"tasks": []any{
 				map[string]any{
-					"_id":            "task-1",
-					"status":         "completed",
-					"_creationTime":  1776146211690.003,
-					"config":         map[string]any{"jobDescriptionTitle": "CNC Sales"},
-					"results":        map[string]any{"analyzed": 3, "avgScore": 81.5, "highScoreCount": 1},
-					"lastStatus":     "completed",
-					"error":          "",
+					"_id":           "task-1",
+					"status":        "completed",
+					"_creationTime": 1776146211690.003,
+					"config":        map[string]any{"jobDescriptionTitle": "CNC Sales"},
+					"results":       map[string]any{"analyzed": 3, "avgScore": 81.5, "highScoreCount": 1},
+					"lastStatus":    "completed",
+					"error":         "",
 				},
 			},
 		})
@@ -857,8 +1094,8 @@ func TestResumeDebugAnalysisTasksCommandWritesTable(t *testing.T) {
 						ResumeCount:         25,
 					},
 					Results: &client.AnalysisTaskResults{
-						Analyzed:  25,
-						AvgScore:  82.5,
+						Analyzed:       25,
+						AvgScore:       82.5,
 						HighScoreCount: 5,
 					},
 				},
@@ -915,7 +1152,7 @@ func TestResumeDebugResetDatabaseDryRunWritesTable(t *testing.T) {
 			DryRun:  true,
 			Count:   100,
 			WouldDelete: map[string]int{
-				"resumes": 80,
+				"resumes":            80,
 				"ai_tagging_results": 20,
 			},
 		})

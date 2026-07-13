@@ -1,12 +1,23 @@
 /// <reference path="./convex-env.d.ts" />
 import { internal } from "./_generated/api";
 import { api } from "./_generated/api";
-import type { Id } from "./_generated/dataModel";
-import { internalAction } from "./_generated/server";
+import type { Doc, Id } from "./_generated/dataModel";
+import { action, internalAction, internalQuery, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import type { ResumeScanRow } from "./resumes";
 import { isRecord, type BrandOrigin, type ProductClass } from "@trends/shared";
 import { computeProtectedAttributeHashes } from "./audit.js";
+import {
+  collectResumeIdentityAliases,
+  deriveResumeIdentityKey,
+  normalizeResumeIdentityKey,
+  normalizeResumeIdentityToken,
+  normalizeResumeProfileUrl,
+} from "./lib/resume_identity.js";
+import {
+  PAGINATE_MAX_BYTES_READ,
+  PAGINATE_MAX_ROWS_READ,
+} from "./lib/resumes_pagination.js";
 
 interface BrandHit {
   brand: string;
@@ -80,6 +91,526 @@ function isStaleSkillsVersion(resume: ResumeScanRow, currentVersion: number): bo
   const version = resume.ingestData?.skillsVersion;
   return typeof version !== "number" || version < currentVersion;
 }
+
+const EXACT_REINGEST_BATCH_SIZE = 50;
+const EXACT_REINGEST_SCAN_BATCH_SIZE = 50;
+const MAX_EXACT_REINGEST_TARGETS = 500;
+const MAX_EXACT_REINGEST_SCAN_PAGES = 10_000;
+
+const exactReingestTargetValidator = v.object({
+  referenceResumeId: v.optional(v.string()),
+  currentResumeId: v.optional(v.string()),
+  profileResumeId: v.optional(v.string()),
+  profileUrl: v.optional(v.string()),
+  externalId: v.optional(v.string()),
+  identityKey: v.optional(v.string()),
+  source: v.optional(v.string()),
+});
+
+type ExactReingestTargetInput = {
+  referenceResumeId?: string;
+  currentResumeId?: string;
+  profileResumeId?: string;
+  profileUrl?: string;
+  externalId?: string;
+  identityKey?: string;
+  source?: string;
+};
+
+type ExactReingestSelectorKind =
+  | "currentResumeId"
+  | "profileUrl"
+  | "profileResumeId"
+  | "externalId"
+  | "identityKey";
+
+type NormalizedExactReingestTarget = {
+  targetIndex: number;
+  referenceResumeId?: string;
+  currentResumeId?: string;
+  profileResumeId?: string;
+  profileUrlKey?: string;
+  externalId?: string;
+  identityKey?: string;
+  source?: string;
+};
+
+type ExactReingestCandidateMatch = {
+  targetIndex: number;
+  resumeId: string;
+  matchedSelectors: ExactReingestSelectorKind[];
+  canonicalIdentityKey: string;
+  externalId: string;
+  profileUrl?: string;
+  profileResumeId?: string;
+  source: string;
+  workspaceSlug?: string;
+  isArchived: boolean;
+};
+
+type ExactReingestResolvedTarget = {
+  referenceResumeId?: string;
+  currentResumeId: string;
+  profileResumeId?: string;
+  profileUrl?: string;
+  externalId: string;
+  source: string;
+  canonicalIdentityKey: string;
+};
+
+type ExactReingestResolutionResult = {
+  requested: number;
+  resolved: number;
+  resumeIds: string[];
+  targets: ExactReingestResolvedTarget[];
+};
+
+function readOptionalString(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+function requireExactReingestWriteSecret(writeSecret: string | undefined): void {
+  const expected = process.env.CONVEX_WRITE_SECRET;
+  if (!expected || writeSecret !== expected) {
+    throw new Error("Unauthorized Convex write");
+  }
+}
+
+function exactTargetError(targetIndex: number, message: string): Error {
+  return new Error(`Exact re-ingest target ${targetIndex + 1} ${message}`);
+}
+
+function normalizeExactReingestTarget(
+  target: ExactReingestTargetInput,
+  targetIndex: number,
+): NormalizedExactReingestTarget {
+  const referenceResumeId = readOptionalString(target.referenceResumeId);
+  const currentResumeId = readOptionalString(target.currentResumeId);
+  const source = readOptionalString(target.source);
+  const profileResumeId = target.profileResumeId
+    ? normalizeResumeIdentityToken(target.profileResumeId) ?? undefined
+    : undefined;
+  const externalId = target.externalId
+    ? normalizeResumeIdentityToken(target.externalId) ?? undefined
+    : undefined;
+  const profileUrl = readOptionalString(target.profileUrl);
+  const normalizedProfileUrl = profileUrl
+    ? normalizeResumeProfileUrl(profileUrl, source)
+    : undefined;
+  const profileUrlKey = normalizedProfileUrl
+    ? `profileUrl:${normalizedProfileUrl}`
+    : undefined;
+  const identityKey = target.identityKey
+    ? normalizeResumeIdentityKey(target.identityKey, source) ?? undefined
+    : undefined;
+
+  if (target.profileResumeId && !profileResumeId) {
+    throw exactTargetError(targetIndex, "has an invalid profileResumeId selector");
+  }
+  if (target.externalId && !externalId) {
+    throw exactTargetError(targetIndex, "has an invalid externalId selector");
+  }
+  if (profileUrl && !profileUrlKey) {
+    throw exactTargetError(targetIndex, "has an invalid profileUrl selector");
+  }
+  if (target.identityKey && !identityKey) {
+    throw exactTargetError(targetIndex, "has an invalid identityKey selector");
+  }
+  if (!currentResumeId && !profileUrlKey && !profileResumeId && !externalId && !identityKey) {
+    throw exactTargetError(targetIndex, "is missing a stable selector or current resume ID");
+  }
+
+  return {
+    targetIndex,
+    referenceResumeId,
+    currentResumeId,
+    profileResumeId,
+    profileUrlKey,
+    externalId,
+    identityKey,
+    source,
+  };
+}
+
+function targetSelectors(target: NormalizedExactReingestTarget): Array<{
+  kind: ExactReingestSelectorKind;
+  value: string;
+}> {
+  const selectors: Array<{ kind: ExactReingestSelectorKind; value: string }> = [];
+  if (target.currentResumeId) selectors.push({ kind: "currentResumeId", value: target.currentResumeId });
+  if (target.profileUrlKey) selectors.push({ kind: "profileUrl", value: target.profileUrlKey });
+  if (target.profileResumeId) selectors.push({ kind: "profileResumeId", value: target.profileResumeId });
+  if (target.externalId) selectors.push({ kind: "externalId", value: target.externalId });
+  if (target.identityKey) selectors.push({ kind: "identityKey", value: target.identityKey });
+  return selectors;
+}
+
+export const scanExactReingestCandidates = internalQuery({
+  args: {
+    cursor: v.optional(v.string()),
+    targets: v.array(v.object({
+      targetIndex: v.number(),
+      currentResumeId: v.optional(v.string()),
+      profileResumeId: v.optional(v.string()),
+      profileUrlKey: v.optional(v.string()),
+      externalId: v.optional(v.string()),
+      identityKey: v.optional(v.string()),
+    })),
+  },
+  handler: async (ctx, args): Promise<{
+    continueCursor: string;
+    isDone: boolean;
+    matches: ExactReingestCandidateMatch[];
+  }> => {
+    const page = await ctx.db.query("resumes").order("desc").paginate({
+      cursor: args.cursor ?? null,
+      numItems: EXACT_REINGEST_SCAN_BATCH_SIZE,
+      maximumBytesRead: PAGINATE_MAX_BYTES_READ,
+      maximumRowsRead: PAGINATE_MAX_ROWS_READ,
+    });
+    const matches: ExactReingestCandidateMatch[] = [];
+
+    for (const resume of page.page) {
+      const aliases = collectResumeIdentityAliases({
+        content: resume.content,
+        externalId: resume.externalId,
+        source: resume.source,
+      });
+      const profileUrlKeys = new Set(aliases.profileUrlKeys);
+      const profileResumeIds = new Set(aliases.profileResumeIds);
+      const externalIds = new Set(aliases.externalIds);
+      const identityKeys = new Set(aliases.identityKeys);
+      const storedIdentityKey = resume.identityKey
+        ? normalizeResumeIdentityKey(resume.identityKey, resume.source)
+        : null;
+      if (storedIdentityKey) {
+        identityKeys.add(storedIdentityKey);
+      }
+
+      for (const target of args.targets) {
+        const matchedSelectors: ExactReingestSelectorKind[] = [];
+        if (target.currentResumeId === String(resume._id)) matchedSelectors.push("currentResumeId");
+        if (target.profileUrlKey && profileUrlKeys.has(target.profileUrlKey)) matchedSelectors.push("profileUrl");
+        if (target.profileResumeId && profileResumeIds.has(target.profileResumeId)) matchedSelectors.push("profileResumeId");
+        if (target.externalId && externalIds.has(target.externalId)) matchedSelectors.push("externalId");
+        if (target.identityKey && identityKeys.has(target.identityKey)) matchedSelectors.push("identityKey");
+        if (matchedSelectors.length === 0) {
+          continue;
+        }
+
+        matches.push({
+          targetIndex: target.targetIndex,
+          resumeId: String(resume._id),
+          matchedSelectors,
+          canonicalIdentityKey: storedIdentityKey ?? deriveResumeIdentityKey({
+            content: resume.content,
+            externalId: resume.externalId,
+            source: resume.source,
+          }),
+          externalId: resume.externalId,
+          profileUrl: aliases.profileUrl,
+          profileResumeId: aliases.profileResumeId,
+          source: resume.source,
+          workspaceSlug: resume.workspaceSlug,
+          isArchived: resume.isArchived === true,
+        });
+      }
+    }
+
+    return {
+      continueCursor: page.continueCursor,
+      isDone: page.isDone,
+      matches,
+    };
+  },
+});
+
+export const resolveExactReingestTargets = action({
+  args: {
+    workspaceSlug: v.string(),
+    writeSecret: v.optional(v.string()),
+    targets: v.array(exactReingestTargetValidator),
+  },
+  handler: async (ctx, args): Promise<ExactReingestResolutionResult> => {
+    requireExactReingestWriteSecret(args.writeSecret);
+    if (args.targets.length === 0) {
+      throw new Error("Exact re-ingest requires at least one target");
+    }
+    if (args.targets.length > MAX_EXACT_REINGEST_TARGETS) {
+      throw new Error(`Exact re-ingest supports at most ${MAX_EXACT_REINGEST_TARGETS} targets`);
+    }
+
+    const workspaceSlug = args.workspaceSlug.trim();
+    if (!workspaceSlug) {
+      throw new Error("Exact re-ingest requires a workspaceSlug");
+    }
+    const targets = args.targets.map(normalizeExactReingestTarget);
+    const scanTargets = targets.map((target) => ({
+      targetIndex: target.targetIndex,
+      currentResumeId: target.currentResumeId,
+      profileResumeId: target.profileResumeId,
+      profileUrlKey: target.profileUrlKey,
+      externalId: target.externalId,
+      identityKey: target.identityKey,
+    }));
+    const matchesByTarget = targets.map(() => new Map<ExactReingestSelectorKind, Set<string>>());
+    const candidatesById = new Map<string, ExactReingestCandidateMatch>();
+    let cursor: string | undefined;
+    let isDone = false;
+
+    for (let pageIndex = 0; pageIndex < MAX_EXACT_REINGEST_SCAN_PAGES && !isDone; pageIndex += 1) {
+      const page: {
+        continueCursor: string;
+        isDone: boolean;
+        matches: ExactReingestCandidateMatch[];
+      } = await ctx.runQuery(internal.ingest_agent.scanExactReingestCandidates, {
+        cursor,
+        targets: scanTargets,
+      });
+
+      for (const match of page.matches) {
+        candidatesById.set(match.resumeId, match);
+        const selectorMatches = matchesByTarget[match.targetIndex];
+        for (const selector of match.matchedSelectors) {
+          const resumeIds = selectorMatches.get(selector) ?? new Set<string>();
+          resumeIds.add(match.resumeId);
+          selectorMatches.set(selector, resumeIds);
+        }
+      }
+
+      isDone = page.isDone;
+      cursor = page.continueCursor || undefined;
+    }
+    if (!isDone) {
+      throw new Error("Exact re-ingest target resolution exceeded the scan page limit");
+    }
+
+    const resolvedTargets: ExactReingestResolvedTarget[] = [];
+    const orderedResumeIds: string[] = [];
+    const seenResumeIds = new Set<string>();
+
+    for (const target of targets) {
+      const resolvedBySelector = matchesByTarget[target.targetIndex];
+      const resolvedIds = new Set<string>();
+      for (const selector of targetSelectors(target)) {
+        const matchingIds = resolvedBySelector.get(selector.kind) ?? new Set<string>();
+        if (matchingIds.size === 0) {
+          throw exactTargetError(target.targetIndex, `selector ${selector.kind} did not match any resume`);
+        }
+        if (matchingIds.size > 1) {
+          throw exactTargetError(
+            target.targetIndex,
+            `selector ${selector.kind} matched multiple resumes: ${Array.from(matchingIds).join(", ")}`,
+          );
+        }
+        resolvedIds.add(Array.from(matchingIds)[0]);
+      }
+      if (resolvedIds.size !== 1) {
+        throw exactTargetError(target.targetIndex, "selectors conflict and resolve to different resumes");
+      }
+
+      const currentResumeId = Array.from(resolvedIds)[0];
+      const candidate = candidatesById.get(currentResumeId);
+      if (!candidate) {
+        throw exactTargetError(target.targetIndex, "could not load the resolved resume");
+      }
+      if (candidate.isArchived) {
+        throw exactTargetError(target.targetIndex, `resolved to archived resume ${currentResumeId}`);
+      }
+      if (candidate.workspaceSlug && candidate.workspaceSlug !== workspaceSlug) {
+        throw exactTargetError(
+          target.targetIndex,
+          `resolved to workspace ${candidate.workspaceSlug}, not ${workspaceSlug}`,
+        );
+      }
+
+      resolvedTargets.push({
+        referenceResumeId: target.referenceResumeId,
+        currentResumeId,
+        profileResumeId: candidate.profileResumeId ?? target.profileResumeId,
+        profileUrl: candidate.profileUrl,
+        externalId: candidate.externalId,
+        source: candidate.source,
+        canonicalIdentityKey: candidate.canonicalIdentityKey,
+      });
+      if (!seenResumeIds.has(currentResumeId)) {
+        seenResumeIds.add(currentResumeId);
+        orderedResumeIds.push(currentResumeId);
+      }
+    }
+
+    return {
+      requested: targets.length,
+      resolved: orderedResumeIds.length,
+      resumeIds: orderedResumeIds,
+      targets: resolvedTargets,
+    };
+  },
+});
+
+export const scheduleExactReingest = mutation({
+  args: {
+    workspaceSlug: v.string(),
+    writeSecret: v.optional(v.string()),
+    resumeIds: v.array(v.id("resumes")),
+  },
+  handler: async (ctx, args): Promise<{
+    requested: number;
+    resolved: number;
+    scheduled: number;
+    batches: number;
+    resumeIds: Id<"resumes">[];
+    dispatchedAt: number;
+  }> => {
+    requireExactReingestWriteSecret(args.writeSecret);
+    if (args.resumeIds.length === 0) {
+      throw new Error("Exact re-ingest requires at least one resolved resume ID");
+    }
+    if (args.resumeIds.length > MAX_EXACT_REINGEST_TARGETS) {
+      throw new Error(`Exact re-ingest supports at most ${MAX_EXACT_REINGEST_TARGETS} targets`);
+    }
+
+    const workspaceSlug = args.workspaceSlug.trim();
+    if (!workspaceSlug) {
+      throw new Error("Exact re-ingest requires a workspaceSlug");
+    }
+    const resumeIds = Array.from(new Set(args.resumeIds));
+    const resumes: Array<Doc<"resumes"> | null> = await Promise.all(
+      resumeIds.map((resumeId) => ctx.db.get(resumeId)),
+    );
+
+    for (let index = 0; index < resumeIds.length; index += 1) {
+      const resume = resumes[index];
+      if (!resume) {
+        throw new Error(`Exact re-ingest resume ${String(resumeIds[index])} no longer exists`);
+      }
+      if (resume.isArchived === true) {
+        throw new Error(`Exact re-ingest resume ${String(resume._id)} is archived`);
+      }
+      if (resume.workspaceSlug && resume.workspaceSlug !== workspaceSlug) {
+        throw new Error(
+          `Exact re-ingest resume ${String(resume._id)} belongs to workspace ${resume.workspaceSlug}, not ${workspaceSlug}`,
+        );
+      }
+    }
+
+    const dispatchedAt = Date.now();
+    let batches = 0;
+    for (let index = 0; index < resumeIds.length; index += EXACT_REINGEST_BATCH_SIZE) {
+      await ctx.scheduler.runAfter(0, internal.ingest_agent.processNewResumes, {
+        resumeIds: resumeIds.slice(index, index + EXACT_REINGEST_BATCH_SIZE),
+      });
+      batches += 1;
+    }
+
+    return {
+      requested: args.resumeIds.length,
+      resolved: resumeIds.length,
+      scheduled: resumeIds.length,
+      batches,
+      resumeIds,
+      dispatchedAt,
+    };
+  },
+});
+
+export const getExactReingestReadiness = query({
+  args: {
+    workspaceSlug: v.string(),
+    writeSecret: v.optional(v.string()),
+    resumeIds: v.array(v.id("resumes")),
+    dispatchedAt: v.number(),
+    expectedSkillsVersion: v.number(),
+  },
+  handler: async (ctx, args) => {
+    requireExactReingestWriteSecret(args.writeSecret);
+    if (args.resumeIds.length === 0) {
+      throw new Error("Exact re-ingest readiness requires at least one resume ID");
+    }
+    if (args.resumeIds.length > MAX_EXACT_REINGEST_TARGETS) {
+      throw new Error(`Exact re-ingest readiness supports at most ${MAX_EXACT_REINGEST_TARGETS} targets`);
+    }
+
+    const workspaceSlug = args.workspaceSlug.trim();
+    if (!workspaceSlug) {
+      throw new Error("Exact re-ingest readiness requires a workspaceSlug");
+    }
+    const resumeIds = Array.from(new Set(args.resumeIds));
+    const resumes = await Promise.all(resumeIds.map((resumeId) => ctx.db.get(resumeId)));
+    const targets = resumes.map((resume, index) => {
+      const currentResumeId = String(resumeIds[index]);
+      if (!resume) {
+        return {
+          currentResumeId,
+          state: "invalid" as const,
+          phase2FieldsPresent: false,
+          reasons: ["resume_missing"],
+        };
+      }
+      if (resume.isArchived === true) {
+        return {
+          currentResumeId,
+          state: "invalid" as const,
+          computedAt: resume.ingestData?.computedAt,
+          skillsVersion: resume.ingestData?.skillsVersion,
+          phase2FieldsPresent: false,
+          reasons: ["resume_archived"],
+        };
+      }
+      if (resume.workspaceSlug && resume.workspaceSlug !== workspaceSlug) {
+        return {
+          currentResumeId,
+          state: "invalid" as const,
+          computedAt: resume.ingestData?.computedAt,
+          skillsVersion: resume.ingestData?.skillsVersion,
+          phase2FieldsPresent: false,
+          reasons: ["workspace_mismatch"],
+        };
+      }
+
+      const computedAt = resume.ingestData?.computedAt;
+      const skillsVersion = resume.ingestData?.skillsVersion;
+      const phase2FieldsPresent = typeof resume.ingestData?.brandOrigin === "string"
+        && typeof resume.ingestData?.productClass === "string";
+      const reasons: string[] = [];
+      if (typeof computedAt !== "number") {
+        reasons.push("computed_at_missing");
+      } else if (computedAt < args.dispatchedAt) {
+        reasons.push("computed_before_dispatch");
+      }
+      if (skillsVersion !== args.expectedSkillsVersion) {
+        reasons.push("skills_version_mismatch");
+      }
+      if (!phase2FieldsPresent) {
+        reasons.push("phase_2_fields_missing");
+      }
+
+      return {
+        currentResumeId,
+        state: reasons.length === 0 ? "ready" as const : "pending" as const,
+        computedAt,
+        skillsVersion,
+        phase2FieldsPresent,
+        reasons,
+      };
+    });
+    const ready = targets.filter((target) => target.state === "ready").length;
+    const pending = targets.filter((target) => target.state === "pending").length;
+    const invalid = targets.filter((target) => target.state === "invalid").length;
+
+    return {
+      allReady: ready === targets.length,
+      ready,
+      pending,
+      invalid,
+      checkedAt: Date.now(),
+      dispatchedAt: args.dispatchedAt,
+      expectedSkillsVersion: args.expectedSkillsVersion,
+      targets,
+    };
+  },
+});
 
 export const processNewResumes = internalAction({
   args: {

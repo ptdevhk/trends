@@ -5,12 +5,14 @@ import { config } from "../services/config.js";
 import { logger } from "../services/logger.js";
 import { requireAdmin } from "../middleware/auth.js";
 import { notificationService } from "../services/notification-service.js";
+import { SkillsKnowledgeService } from "../services/skills-knowledge.js";
 
 const app = new OpenAPIHono();
 // Per-route requireAdmin — do NOT use app.use("*", requireAdmin) here
 // because that would apply to ALL routes in the parent app, not just
 // this sub-app's routes (Hono mounts sub-apps at / with wildcard).
 const ingestComputeService = new IngestComputeService(config.projectRoot);
+const skillsKnowledgeService = new SkillsKnowledgeService(config.projectRoot);
 
 const SimpleErrorSchema = z.object({ success: z.literal(false), error: z.string() });
 
@@ -27,6 +29,88 @@ const HardResetReingestResponseSchema = z.object({
   batches: z.number().int().optional(),
   phase: z.enum(["dry_run", "cleared", "scheduled", "failed_scheduling"]).optional(),
   error: z.string().optional(),
+});
+
+const ExactReingestTargetSchema = z.object({
+  referenceResumeId: z.string().trim().min(1).optional(),
+  currentResumeId: z.string().trim().min(1).optional(),
+  profileResumeId: z.string().trim().min(1).optional(),
+  profileUrl: z.string().trim().min(1).optional(),
+  externalId: z.string().trim().min(1).optional(),
+  identityKey: z.string().trim().min(1).optional(),
+  source: z.string().trim().min(1).optional(),
+});
+
+const ExactReingestRequestSchema = z.object({
+  targets: z.array(ExactReingestTargetSchema).min(1).max(500),
+  dryRun: z.boolean().optional(),
+});
+
+const ExactReingestResolvedTargetSchema = z.object({
+  referenceResumeId: z.string().optional(),
+  currentResumeId: z.string().min(1),
+  profileResumeId: z.string().optional(),
+  profileUrl: z.string().optional(),
+  externalId: z.string(),
+  source: z.string(),
+  canonicalIdentityKey: z.string().min(1),
+});
+
+const ExactReingestResolutionSchema = z.object({
+  requested: z.number().int().positive(),
+  resolved: z.number().int().positive(),
+  resumeIds: z.array(z.string().min(1)).min(1),
+  targets: z.array(ExactReingestResolvedTargetSchema).min(1),
+});
+
+const ExactReingestDispatchSchema = z.object({
+  requested: z.number().int().positive(),
+  resolved: z.number().int().positive(),
+  scheduled: z.number().int().positive(),
+  batches: z.number().int().positive(),
+  resumeIds: z.array(z.string().min(1)).min(1),
+  dispatchedAt: z.number(),
+});
+
+const ExactReingestResponseSchema = z.object({
+  success: z.literal(true),
+  dryRun: z.boolean(),
+  manifestVersion: z.literal(1),
+  expectedSkillsVersion: z.number().int(),
+  requested: z.number().int().positive(),
+  resolved: z.number().int().positive(),
+  scheduled: z.number().int().nonnegative(),
+  batches: z.number().int().nonnegative(),
+  dispatchedAt: z.number().optional(),
+  resumeIds: z.array(z.string().min(1)).min(1),
+  targets: z.array(ExactReingestResolvedTargetSchema).min(1),
+});
+
+const ExactReingestReadinessRequestSchema = z.object({
+  resumeIds: z.array(z.string().trim().min(1)).min(1).max(500),
+  dispatchedAt: z.number(),
+  expectedSkillsVersion: z.number().int(),
+});
+
+const ExactReingestReadinessTargetSchema = z.object({
+  currentResumeId: z.string().min(1),
+  state: z.enum(["ready", "pending", "invalid"]),
+  computedAt: z.number().optional(),
+  skillsVersion: z.number().optional(),
+  phase2FieldsPresent: z.boolean(),
+  reasons: z.array(z.string()),
+});
+
+const ExactReingestReadinessResponseSchema = z.object({
+  success: z.literal(true),
+  allReady: z.boolean(),
+  ready: z.number().int().nonnegative(),
+  pending: z.number().int().nonnegative(),
+  invalid: z.number().int().nonnegative(),
+  checkedAt: z.number(),
+  dispatchedAt: z.number(),
+  expectedSkillsVersion: z.number().int(),
+  targets: z.array(ExactReingestReadinessTargetSchema).min(1),
 });
 
 const ClearAnalysesRequestSchema = z.object({
@@ -260,6 +344,135 @@ app.openapi(hardResetReingestRoute, async (c) => {
     logger.error("Failed to hard reset ingest data", error, { route: "resumes_admin" });
     const message = error instanceof Error ? error.message : String(error);
     return c.json({ success: false, error: message }, 500);
+  }
+});
+
+const exactReingestRoute = createRoute({
+  method: "post",
+  path: "/api/resumes/exact-reingest",
+  tags: ["admin"],
+  summary: "Resolve and schedule an exact stable-identity resume cohort (admin only)",
+  middleware: [requireAdmin] as const,
+  request: {
+    body: { content: { "application/json": { schema: ExactReingestRequestSchema } } },
+  },
+  responses: {
+    200: { content: { "application/json": { schema: ExactReingestResponseSchema } }, description: "Exact target resolution or dispatch result" },
+    400: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Invalid or conflicting target manifest" },
+    500: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Internal error" },
+  },
+});
+app.openapi(exactReingestRoute, async (c) => {
+  const { targets, dryRun = false } = c.req.valid("json");
+  const workspaceSlug = c.var.workspaceSlug;
+
+  try {
+    const resolution = ExactReingestResolutionSchema.parse(
+      await callConvexAction("ingest_agent:resolveExactReingestTargets", {
+        workspaceSlug,
+        writeSecret: config.auth.convexWriteSecret,
+        targets,
+      }),
+    );
+    if (resolution.requested !== targets.length
+      || resolution.targets.length !== targets.length
+      || resolution.resolved !== resolution.resumeIds.length) {
+      throw new Error("Exact re-ingest resolution returned inconsistent target counts");
+    }
+
+    const expectedSkillsVersion = skillsKnowledgeService.getVersion();
+    if (dryRun) {
+      return c.json(ExactReingestResponseSchema.parse({
+        success: true as const,
+        dryRun: true,
+        manifestVersion: 1 as const,
+        expectedSkillsVersion,
+        requested: resolution.requested,
+        resolved: resolution.resolved,
+        scheduled: 0,
+        batches: 0,
+        resumeIds: resolution.resumeIds,
+        targets: resolution.targets,
+      }), 200);
+    }
+
+    const dispatch = ExactReingestDispatchSchema.parse(
+      await callConvexMutation("ingest_agent:scheduleExactReingest", {
+        workspaceSlug,
+        writeSecret: config.auth.convexWriteSecret,
+        resumeIds: resolution.resumeIds,
+      }),
+    );
+    if (dispatch.resolved !== resolution.resolved
+      || dispatch.scheduled !== resolution.resolved
+      || dispatch.requested !== resolution.resolved
+      || dispatch.resumeIds.length !== resolution.resumeIds.length
+      || dispatch.resumeIds.some((resumeId, index) => resumeId !== resolution.resumeIds[index])) {
+      throw new Error("Exact re-ingest dispatch returned inconsistent target IDs");
+    }
+
+    return c.json(ExactReingestResponseSchema.parse({
+      success: true as const,
+      dryRun: false,
+      manifestVersion: 1 as const,
+      expectedSkillsVersion,
+      requested: resolution.requested,
+      resolved: resolution.resolved,
+      scheduled: dispatch.scheduled,
+      batches: dispatch.batches,
+      dispatchedAt: dispatch.dispatchedAt,
+      resumeIds: dispatch.resumeIds,
+      targets: resolution.targets,
+    }), 200);
+  } catch (error) {
+    logger.error("Failed to resolve or schedule exact resume re-ingest", error, { route: "resumes_admin" });
+    const message = error instanceof Error ? error.message : String(error);
+    const status = message.includes("Exact re-ingest target") ? 400 : 500;
+    return c.json({ success: false as const, error: message }, status);
+  }
+});
+
+const exactReingestReadinessRoute = createRoute({
+  method: "post",
+  path: "/api/resumes/exact-reingest/readiness",
+  tags: ["admin"],
+  summary: "Check persisted readiness for an exact re-ingest dispatch (admin only)",
+  middleware: [requireAdmin] as const,
+  request: {
+    body: { content: { "application/json": { schema: ExactReingestReadinessRequestSchema } } },
+  },
+  responses: {
+    200: { content: { "application/json": { schema: ExactReingestReadinessResponseSchema } }, description: "Exact re-ingest readiness" },
+    400: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Invalid request" },
+    500: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Internal error" },
+  },
+});
+app.openapi(exactReingestReadinessRoute, async (c) => {
+  const { resumeIds, dispatchedAt, expectedSkillsVersion } = c.req.valid("json");
+  const targetResumeIds = Array.from(new Set(resumeIds));
+
+  try {
+    const readiness = ExactReingestReadinessResponseSchema.omit({ success: true }).parse(
+      await callConvexQuery("ingest_agent:getExactReingestReadiness", {
+        workspaceSlug: c.var.workspaceSlug,
+        writeSecret: config.auth.convexWriteSecret,
+        resumeIds: targetResumeIds,
+        dispatchedAt,
+        expectedSkillsVersion,
+      }),
+    );
+    if (readiness.targets.length !== targetResumeIds.length
+      || readiness.ready + readiness.pending + readiness.invalid !== readiness.targets.length) {
+      throw new Error("Exact re-ingest readiness returned inconsistent target counts");
+    }
+    return c.json(ExactReingestReadinessResponseSchema.parse({
+      success: true as const,
+      ...readiness,
+    }), 200);
+  } catch (error) {
+    logger.error("Failed to check exact resume re-ingest readiness", error, { route: "resumes_admin" });
+    const message = error instanceof Error ? error.message : String(error);
+    return c.json({ success: false as const, error: message }, 500);
   }
 });
 

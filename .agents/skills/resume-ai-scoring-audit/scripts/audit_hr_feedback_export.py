@@ -170,6 +170,62 @@ def build_current_index(rows: list[dict[str, str]]) -> tuple[dict[str, dict[str,
     return index, duplicates
 
 
+def build_target_manifest(
+    reference_rows: list[dict[str, str]],
+    current_index: dict[str, dict[str, str]],
+    duplicates: dict[str, int],
+    excluded: set[str],
+) -> dict[str, Any]:
+    targets: list[dict[str, str]] = []
+    for row_number, reference in enumerate(reference_rows, start=1):
+        pid = profile_id(reference)
+        if pid in excluded:
+            continue
+        if pid and duplicates.get(pid, 0) > 1:
+            raise ValueError(
+                f"profile resume ID {pid} matches multiple current resumes ({duplicates[pid]})"
+            )
+
+        current = current_index.get(pid, {}) if pid else {}
+        target = {
+            "referenceResumeId": first_value(
+                reference,
+                ["Old Resume ID", "Reference Resume ID", "Resume ID", "resumeId"],
+            ),
+            "currentResumeId": first_value(
+                current,
+                ["Current Convex Resume ID", "Current Resume ID", "Resume ID", "resumeId"],
+            ),
+            "profileResumeId": pid,
+            "profileUrl": first_value(current, ["Profile URL", "profileUrl", "profile_url"])
+            or first_value(reference, ["Profile URL", "profileUrl", "profile_url"]),
+            "externalId": first_value(current, ["External ID", "externalId"])
+            or first_value(reference, ["External ID", "externalId"]),
+            "identityKey": first_value(
+                current,
+                ["Canonical Identity Key", "Identity Key", "identityKey"],
+            )
+            or first_value(
+                reference,
+                ["Canonical Identity Key", "Identity Key", "identityKey"],
+            ),
+            "source": first_value(current, ["Source", "source"])
+            or first_value(reference, ["Source", "source"]),
+        }
+        target = {key: value for key, value in target.items() if value}
+        if not any(target.get(key) for key in ("profileResumeId", "profileUrl", "externalId", "identityKey")):
+            raise ValueError(f"reference row {row_number} is missing stable identity")
+        targets.append(target)
+
+    if not targets:
+        raise ValueError("target manifest contains no resolvable rows")
+    return {
+        "version": 1,
+        "generatedBy": "resume-ai-scoring-audit",
+        "targets": targets,
+    }
+
+
 def output_row(reference: dict[str, str], current: dict[str, str] | None, threshold: float) -> dict[str, str]:
     pid = profile_id(reference)
     old = old_score(reference)
@@ -328,6 +384,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--current-export", type=Path, required=True)
     parser.add_argument("--out-csv", type=Path, required=True)
     parser.add_argument("--out-json", type=Path, required=True)
+    parser.add_argument("--out-manifest", type=Path)
     parser.add_argument("--expected-count", type=int)
     parser.add_argument("--score-threshold", type=float, default=80.0)
     parser.add_argument("--exclude-profile-id", action="append", default=[])
@@ -340,6 +397,14 @@ def main() -> int:
     current_rows = read_csv(args.current_export)
     current_index, duplicates = build_current_index(current_rows)
     excluded = set(args.exclude_profile_id)
+
+    manifest: dict[str, Any] | None = None
+    if args.out_manifest is not None:
+        try:
+            manifest = build_target_manifest(reference_rows, current_index, duplicates, excluded)
+        except ValueError as error:
+            print(json.dumps({"error": str(error)}, ensure_ascii=False, indent=2))
+            return 3
 
     joined: list[dict[str, str]] = []
     skipped: list[dict[str, str]] = []
@@ -363,6 +428,13 @@ def main() -> int:
 
     summary = summarize(joined, duplicates, args)
     summary["skippedReferenceRows"] = skipped
+    if manifest is not None and args.out_manifest is not None:
+        args.out_manifest.parent.mkdir(parents=True, exist_ok=True)
+        with args.out_manifest.open("w", encoding="utf-8") as handle:
+            json.dump(manifest, handle, ensure_ascii=False, indent=2)
+            handle.write("\n")
+        summary["targetManifest"] = str(args.out_manifest)
+        summary["targetManifestCount"] = len(manifest["targets"])
     with args.out_json.open("w", encoding="utf-8") as handle:
         json.dump(summary, handle, ensure_ascii=False, indent=2)
         handle.write("\n")

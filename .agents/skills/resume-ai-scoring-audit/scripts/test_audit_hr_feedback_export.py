@@ -24,6 +24,7 @@ REPO_ROOT = SKILL_DIR.parent.parent.parent.parent.parent
 sys.path.insert(0, str(SKILL_DIR))
 
 from audit_hr_feedback_export import (
+    build_target_manifest,
     classify_alignment,
     first_value,
     format_number,
@@ -31,6 +32,67 @@ from audit_hr_feedback_export import (
     output_row,
     summarize,
 )
+
+
+class TestTargetManifest:
+    def test_preserves_reference_order_and_carries_stable_selectors(self):
+        references = [
+            {
+                "Old Resume ID": "old-2",
+                "Profile Resume ID": "100002",
+                "Profile URL": "https://example.com/candidate/2?resumeId=100002",
+            },
+            {
+                "Old Resume ID": "old-1",
+                "Profile Resume ID": "100001",
+            },
+        ]
+        current = {
+            "100002": {
+                "Resume ID": "current-2",
+                "External ID": "external-2",
+                "Profile URL": "https://example.com/candidate/2?resumeId=100002",
+                "Source": "51job",
+            },
+            "100001": {
+                "Resume ID": "current-1",
+                "External ID": "external-1",
+                "Profile URL": "https://example.com/candidate/1?resumeId=100001",
+                "Source": "51job",
+            },
+        }
+
+        manifest = build_target_manifest(references, current, duplicates={}, excluded=set())
+
+        assert manifest["version"] == 1
+        assert [target["referenceResumeId"] for target in manifest["targets"]] == ["old-2", "old-1"]
+        assert manifest["targets"][0] == {
+            "referenceResumeId": "old-2",
+            "currentResumeId": "current-2",
+            "profileResumeId": "100002",
+            "profileUrl": "https://example.com/candidate/2?resumeId=100002",
+            "externalId": "external-2",
+            "source": "51job",
+        }
+        assert "name" not in manifest["targets"][0]
+
+    def test_rejects_missing_stable_identity(self):
+        with pytest.raises(ValueError, match="missing stable identity"):
+            build_target_manifest(
+                [{"Old Resume ID": "old-only"}],
+                current_index={},
+                duplicates={},
+                excluded=set(),
+            )
+
+    def test_rejects_ambiguous_current_profile_resume_id(self):
+        with pytest.raises(ValueError, match="multiple current resumes"):
+            build_target_manifest(
+                [{"Old Resume ID": "old-1", "Profile Resume ID": "100001"}],
+                current_index={"100001": {"Resume ID": "current-1"}},
+                duplicates={"100001": 2},
+                excluded=set(),
+            )
 
 
 # ---------------------------------------------------------------------------

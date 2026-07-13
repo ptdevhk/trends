@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/ptdevhk/trends/packages/cli/internal/client"
 	"github.com/ptdevhk/trends/packages/cli/internal/output"
@@ -262,6 +264,7 @@ func newResumeDebugCmd() *cobra.Command {
 		newResumeDebugRescoreCmd(),
 		newResumeDebugSkillsVersionCmd(),
 		newResumeDebugTriggerReingestCmd(),
+		newResumeDebugExactReingestCmd(),
 		newResumeDebugAIScoreCmd(),
 		newResumeDebugWorkflowDatasetCmd(),
 		newResumeDebugDiagnosticsCmd(),
@@ -532,6 +535,206 @@ func newResumeDebugTriggerReingestCmd() *cobra.Command {
 	}
 
 	cmd.Flags().IntVar(&limit, "limit", 200, "Maximum stale resumes to schedule")
+	return cmd
+}
+
+type exactReingestManifest struct {
+	Version int                          `json:"version"`
+	Targets []client.ExactReingestTarget `json:"targets"`
+}
+
+func hasExactReingestSelector(target client.ExactReingestTarget) bool {
+	return strings.TrimSpace(target.CurrentResumeID) != "" ||
+		strings.TrimSpace(target.ProfileResumeID) != "" ||
+		strings.TrimSpace(target.ProfileURL) != "" ||
+		strings.TrimSpace(target.ExternalID) != "" ||
+		strings.TrimSpace(target.IdentityKey) != ""
+}
+
+func readExactReingestManifest(path string) ([]client.ExactReingestTarget, error) {
+	resolvedPath, err := filepath.Abs(strings.TrimSpace(path))
+	if err != nil {
+		return nil, fmt.Errorf("resolve exact reingest manifest path: %w", err)
+	}
+	content, err := os.ReadFile(resolvedPath)
+	if err != nil {
+		return nil, fmt.Errorf("read exact reingest manifest: %w", err)
+	}
+
+	var manifest exactReingestManifest
+	if err := json.Unmarshal(content, &manifest); err != nil {
+		var targets []client.ExactReingestTarget
+		if arrayErr := json.Unmarshal(content, &targets); arrayErr != nil {
+			return nil, fmt.Errorf("decode exact reingest manifest: %w", err)
+		}
+		manifest = exactReingestManifest{Version: 1, Targets: targets}
+	}
+	if manifest.Version != 0 && manifest.Version != 1 {
+		return nil, fmt.Errorf("unsupported exact reingest manifest version %d", manifest.Version)
+	}
+	if len(manifest.Targets) == 0 {
+		return nil, fmt.Errorf("exact reingest manifest contains no targets")
+	}
+	for index, target := range manifest.Targets {
+		if !hasExactReingestSelector(target) {
+			return nil, fmt.Errorf("exact reingest manifest target %d is missing a stable selector or current resume ID", index+1)
+		}
+	}
+	return manifest.Targets, nil
+}
+
+func waitForExactReingestReadiness(
+	ctx context.Context,
+	apiClient *client.Client,
+	response *client.ExactReingestResponse,
+	timeout time.Duration,
+	pollInterval time.Duration,
+) (*client.ExactReingestReadinessResponse, error) {
+	if response.DispatchedAt <= 0 {
+		return nil, fmt.Errorf("exact reingest response is missing dispatchedAt")
+	}
+	if timeout <= 0 || pollInterval <= 0 {
+		return nil, fmt.Errorf("wait-timeout and poll-interval must be positive")
+	}
+
+	waitCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	request := client.ExactReingestReadinessRequest{
+		ResumeIDs:             response.ResumeIDs,
+		DispatchedAt:          response.DispatchedAt,
+		ExpectedSkillsVersion: response.ExpectedSkillsVersion,
+	}
+	for {
+		readiness, err := apiClient.GetExactResumeReingestReadiness(waitCtx, request)
+		if err != nil {
+			return nil, err
+		}
+		if readiness.Invalid > 0 {
+			return nil, fmt.Errorf("exact reingest readiness found %d invalid targets", readiness.Invalid)
+		}
+		if readiness.AllReady {
+			return readiness, nil
+		}
+
+		timer := time.NewTimer(pollInterval)
+		select {
+		case <-waitCtx.Done():
+			timer.Stop()
+			return nil, fmt.Errorf(
+				"exact reingest readiness timed out with %d ready and %d pending targets: %w",
+				readiness.Ready,
+				readiness.Pending,
+				waitCtx.Err(),
+			)
+		case <-timer.C:
+		}
+	}
+}
+
+func newResumeDebugExactReingestCmd() *cobra.Command {
+	var (
+		resumeIDs    []string
+		manifestPath string
+		yes          bool
+		dryRun       bool
+		wait         bool
+		waitTimeout  time.Duration
+		pollInterval time.Duration
+	)
+
+	cmd := &cobra.Command{
+		Use:   "reingest",
+		Short: "Resolve and re-ingest an exact resume cohort",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if !yes && !dryRun {
+				return fmt.Errorf("live exact reingest requires --yes; use --dry-run to resolve and preview")
+			}
+			if wait && dryRun {
+				return fmt.Errorf("--wait requires a live exact reingest; it cannot be used with --dry-run")
+			}
+
+			targets := make([]client.ExactReingestTarget, 0, len(resumeIDs))
+			if strings.TrimSpace(manifestPath) != "" {
+				manifestTargets, err := readExactReingestManifest(manifestPath)
+				if err != nil {
+					return err
+				}
+				targets = append(targets, manifestTargets...)
+			}
+			for _, resumeID := range resumeIDs {
+				trimmed := strings.TrimSpace(resumeID)
+				if trimmed != "" {
+					targets = append(targets, client.ExactReingestTarget{CurrentResumeID: trimmed})
+				}
+			}
+			if len(targets) == 0 {
+				return fmt.Errorf("exact reingest requires --manifest and/or at least one --resume-id")
+			}
+
+			apiClient := newAPIClient()
+			response, err := apiClient.ExactResumeReingest(cmd.Context(), client.ExactReingestRequest{
+				Targets: targets,
+				DryRun:  dryRun,
+			})
+			if err != nil {
+				return err
+			}
+			if wait {
+				readiness, err := waitForExactReingestReadiness(
+					cmd.Context(),
+					apiClient,
+					response,
+					waitTimeout,
+					pollInterval,
+				)
+				if err != nil {
+					return err
+				}
+				response.Readiness = readiness
+			}
+
+			headers := []string{
+				"reference_id",
+				"current_id",
+				"profile_resume_id",
+				"external_id",
+				"identity_key",
+				"scheduled",
+				"batches",
+				"skills_version",
+				"readiness",
+			}
+			readinessByResumeID := make(map[string]string)
+			if response.Readiness != nil {
+				for _, target := range response.Readiness.Targets {
+					readinessByResumeID[target.CurrentResumeID] = target.State
+				}
+			}
+			rows := make([][]string, 0, len(response.Targets))
+			for _, target := range response.Targets {
+				rows = append(rows, []string{
+					target.ReferenceResumeID,
+					target.CurrentResumeID,
+					target.ProfileResumeID,
+					target.ExternalID,
+					target.CanonicalIdentityKey,
+					strconv.Itoa(response.Scheduled),
+					strconv.Itoa(response.Batches),
+					strconv.Itoa(response.ExpectedSkillsVersion),
+					readinessByResumeID[target.CurrentResumeID],
+				})
+			}
+			return writeOutput(cmd, headers, rows, response)
+		},
+	}
+
+	cmd.Flags().StringArrayVar(&resumeIDs, "resume-id", nil, "Current Convex resume ID to include (repeatable)")
+	cmd.Flags().StringVar(&manifestPath, "manifest", "", "Path to a version-1 exact reingest JSON manifest")
+	cmd.Flags().BoolVar(&yes, "yes", false, "Confirm live exact reingest scheduling")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Resolve and preview targets without scheduling")
+	cmd.Flags().BoolVar(&wait, "wait", false, "Wait for every scheduled target to persist the expected ingest evidence")
+	cmd.Flags().DurationVar(&waitTimeout, "wait-timeout", 10*time.Minute, "Maximum time to wait for target readiness")
+	cmd.Flags().DurationVar(&pollInterval, "poll-interval", 2*time.Second, "Interval between target readiness checks")
 	return cmd
 }
 

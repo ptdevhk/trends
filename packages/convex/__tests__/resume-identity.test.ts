@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { deriveResumeIdentity, deriveResumeIdentityKey } from "../convex/lib/resume_identity.js";
+import {
+    collectResumeIdentityAliases,
+    deriveResumeIdentity,
+    deriveResumeIdentityKey,
+    normalizeResumeIdentityKey,
+    normalizeResumeProfileUrl,
+} from "../convex/lib/resume_identity.js";
 
 // ---------------------------------------------------------------------------
 // deriveResumeIdentityKey tests
@@ -131,6 +137,18 @@ describe("deriveResumeIdentityKey", () => {
 
         expect(recommendedUrl).toBe("profileUrl:hk.employer.seek.com/candidates/503033454");
         expect(recommendedUrl).toBe(pathUrl);
+    });
+
+    it("normalizes Seek openProfileId query keys case-insensitively", () => {
+        const recommendedUrl = deriveResumeIdentityKey({
+            externalId: "hk.employer.seek.com:profile:503033454",
+            source: "hk.employer.seek.com",
+            content: {
+                profileUrl: "https://hk.employer.seek.com/candidates/recommended?OPENPROFILEID=503033454",
+            },
+        });
+
+        expect(recommendedUrl).toBe("profileUrl:hk.employer.seek.com/candidates/503033454");
     });
 
     it("keeps same numeric ids distinct across different sources", () => {
@@ -395,5 +413,39 @@ describe("deriveResumeIdentity — Job5156 canonical form detail", () => {
             content: { profileURL: "https://example.com/prof", resumeId: "R-1" },
         });
         expect(key).toBe("profileUrl:example.com/prof");
+    });
+});
+
+describe("resume identity selector normalization", () => {
+    it("normalizes equivalent profile URLs with the canonical URL rules", () => {
+        expect(normalizeResumeProfileUrl(
+            "https://ehire.51job.com/Revision/talent/resume/detail?utm_source=a&resumeId=123456&contentType=",
+        )).toBe("ehire.51job.com/revision/talent/resume/detail?contenttype=&resumeid=123456");
+    });
+
+    it("normalizes supported identity-key prefixes and rejects unknown keys", () => {
+        expect(normalizeResumeIdentityKey(" ResumeId:ABC-123 ")).toBe("resumeId:abc-123");
+        expect(normalizeResumeIdentityKey("profileUrl:https://example.com/candidate/1/"))
+            .toBe("profileUrl:example.com/candidate/1");
+        expect(normalizeResumeIdentityKey("name:alice")).toBeNull();
+    });
+
+    it("collects profile resume IDs from explicit fields and profile URLs", () => {
+        const aliases = collectResumeIdentityAliases({
+            content: {
+                profileUrl: "https://ehire.51job.com/Revision/talent/resume/detail?contentType=&resumeId=123456",
+                resumeId: "123456",
+                profileId: "seek-profile-7",
+            },
+            externalId: "51job:resume:123456",
+            source: "ehire.51job.com",
+        });
+
+        expect(aliases.profileResumeIds).toEqual(["123456", "seek-profile-7"]);
+        expect(aliases.profileUrlKeys).toEqual([
+            "profileUrl:ehire.51job.com/revision/talent/resume/detail?contenttype=&resumeid=123456",
+        ]);
+        expect(aliases.externalIds).toEqual(["51job:resume:123456"]);
+        expect(aliases.identityKeys).toContain("resumeId:123456");
     });
 });
