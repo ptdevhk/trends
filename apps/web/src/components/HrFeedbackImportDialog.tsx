@@ -30,7 +30,6 @@ type FeedbackBatchResult = {
   name?: string
   comments: string
   status: 'imported' | 'skipped' | 'notFound'
-  actionId?: number
   reason?: string
 }
 

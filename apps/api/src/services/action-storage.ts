@@ -34,7 +34,6 @@ function jsonExtractSql(column: string, path: string): string {
 const ACTION_DATA_SCOPE_ID_SQL = jsonExtractSql("action_data", "$.scopeId");
 const ACTION_DATA_JOB_DESCRIPTION_ID_SQL = jsonExtractSql("action_data", "$.jobDescriptionId");
 const CA_ACTION_DATA_SCOPE_ID_SQL = jsonExtractSql("ca.action_data", "$.scopeId");
-const CA_ACTION_DATA_WORKSPACE_SLUG_SQL = jsonExtractSql("ca.action_data", "$.workspaceSlug");
 const ACTION_GROUP_CASE_SQL = `
   CASE
     WHEN action_type = 'rating' THEN 'rating'
@@ -78,8 +77,7 @@ const WORKSPACE_COALESCE_SQL = `COALESCE(
   persisted_session.workspace_slug,
   scoped_session.workspace_slug,
   persisted_packet.workspace_slug,
-  scoped_packet.workspace_slug,
-  ${CA_ACTION_DATA_WORKSPACE_SLUG_SQL}
+  scoped_packet.workspace_slug
 )`;
 
 const WORKSPACE_MATCH_OR_ORPHAN_SQL = `(${WORKSPACE_COALESCE_SQL} = ? OR ${WORKSPACE_COALESCE_SQL} IS NULL)`;

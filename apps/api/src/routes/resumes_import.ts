@@ -301,6 +301,7 @@ app.openapi(backupResumesRoute, async (c) => {
 
     type BackupResumeEntry = {
       resumeId: string;
+      convexResumeId: string;
       identityKey: string;
       sourceHost: string;
       tags: string[];
@@ -333,6 +334,11 @@ app.openapi(backupResumesRoute, async (c) => {
         }
 
         const sourceHost = toStringValue(item.source).toLowerCase();
+        const convexResumeId = toStringValue(item._id);
+        const identityKey = toStringValue(item.identityKey);
+        if (!convexResumeId || !identityKey) {
+          throw new Error("Resume backup row is missing its portable identity");
+        }
         const content = isRecord(item.content) ? item.content : {};
         const resume = toResumeItemFromRecord(content, sourceHost);
         const resumeId = resolveResumeId(resume, entries.length);
@@ -340,7 +346,8 @@ app.openapi(backupResumesRoute, async (c) => {
 
         entries.push({
           resumeId,
-          identityKey: toStringValue(item.identityKey) || toStringValue(item._id),
+          convexResumeId,
+          identityKey,
           sourceHost,
           tags,
           crawledAt: typeof item.crawledAt === "number" && Number.isFinite(item.crawledAt) ? item.crawledAt : 0,
@@ -405,10 +412,22 @@ app.openapi(backupResumesRoute, async (c) => {
       resumeIds,
     });
 
-    const exportedIdentityKeys = new Set(limited.map((entry) => entry.identityKey).filter(Boolean));
-    const candidateStatus = (await listCandidateStatuses(c.var.workspaceSlug))
-      .map((status) => CandidateStatusBackupSchema.parse(status))
-      .filter((status) => exportedIdentityKeys.has(status.identityKey));
+    const exportedIdentityKeys = new Set(limited.map((entry) => entry.identityKey));
+    const legacyIdentityRemap = new Map(limited.map((entry) => [entry.convexResumeId, entry.identityKey]));
+    const statusByIdentity = new Map<string, z.infer<typeof CandidateStatusBackupSchema>>();
+    for (const rawStatus of await listCandidateStatuses(c.var.workspaceSlug)) {
+      const parsed = CandidateStatusBackupSchema.parse(rawStatus);
+      const identityKey = legacyIdentityRemap.get(parsed.identityKey) ?? parsed.identityKey;
+      if (!exportedIdentityKeys.has(identityKey)) {
+        continue;
+      }
+      const status = identityKey === parsed.identityKey ? parsed : { ...parsed, identityKey };
+      const existing = statusByIdentity.get(identityKey);
+      if (!existing || status.updatedAt >= existing.updatedAt) {
+        statusByIdentity.set(identityKey, status);
+      }
+    }
+    const candidateStatus = Array.from(statusByIdentity.values());
 
     c.header("Content-Disposition", `attachment; filename="resume-backup-${generatedAt.replace(/[:.]/g, "-")}.json"`);
     c.header("Cache-Control", "no-store");

@@ -26,6 +26,7 @@ afterEach(() => {
 async function insertResumeWithIdentity(
   t: ReturnType<typeof createTest>,
   identityKey: string,
+  workspaceSlug: string | null = "hr",
 ): Promise<string> {
   return await t.run(async (ctx) => {
     const resumeId = await ctx.db.insert("resumes", {
@@ -37,6 +38,7 @@ async function insertResumeWithIdentity(
       crawledAt: 1_700_000_000_000,
       source: "test",
       sourceKey: "test",
+      ...(workspaceSlug ? { workspaceSlug } : {}),
     });
     return String(resumeId);
   });
@@ -343,9 +345,9 @@ describe("candidate_status: list + listForBackup", () => {
 });
 
 describe("candidate_status: importNotesBatch", () => {
-  it("uses the resume document id for legacy rows without a stored identity", async () => {
+  it("round-trips legacy rows through a portable derived identity after resume ids change", async () => {
     const t = createTest();
-    const resumeId = await t.run(async (ctx) => String(await ctx.db.insert("resumes", {
+    const legacyResumeId = await t.run(async (ctx) => await ctx.db.insert("resumes", {
       externalId: "legacy-external-id",
       content: { name: "Legacy Candidate" },
       hash: "legacy-hash",
@@ -353,23 +355,101 @@ describe("candidate_status: importNotesBatch", () => {
       crawledAt: 1_700_000_000_000,
       source: "test",
       sourceKey: "test",
-    })));
+      workspaceSlug: "dev",
+    }));
+    const resumeId = String(legacyResumeId);
+    const portableIdentityKey = "externalId:legacy-external-id";
 
     const result = await t.mutation(api.candidate_status.importNotesBatch, {
-      workspaceSlug: "hr",
+      workspaceSlug: "dev",
       items: [{ resumeId, comments: "Legacy note" }],
       writeSecret: WRITE_SECRET,
     });
 
     expect(result.results).toEqual([{
       resumeId,
-      identityKey: resumeId,
+      identityKey: portableIdentityKey,
       outcome: "applied",
     }]);
+    const resumeBackup = await t.query(api.resumes.listForBackup, {
+      paginationOpts: { cursor: null, numItems: 50 },
+    });
+    expect((resumeBackup.page[0] as Record<string, unknown>).identityKey).toBe(portableIdentityKey);
+    const statusBackup = await t.query(api.candidate_status.getByIdentity, {
+      workspaceSlug: "dev",
+      identityKey: portableIdentityKey,
+    });
+    expect(statusBackup).toMatchObject({ notes: "Legacy note" });
+
+    await t.run(async (ctx) => {
+      const statuses = await ctx.db.query("candidate_status").collect();
+      const overlays = await ctx.db.query("resume_digest_statuses").collect();
+      for (const status of statuses) await ctx.db.delete(status._id);
+      for (const overlay of overlays) await ctx.db.delete(overlay._id);
+      await ctx.db.delete(legacyResumeId);
+    });
+    const reimportedResumeId = await t.run(async (ctx) => await ctx.db.insert("resumes", {
+      externalId: "legacy-external-id",
+      identityKey: portableIdentityKey,
+      content: { name: "Legacy Candidate" },
+      hash: "legacy-hash",
+      tags: [],
+      crawledAt: 1_800_000_000_000,
+      source: "test",
+      sourceKey: "test",
+      workspaceSlug: "dev",
+    }));
+    expect(String(reimportedResumeId)).not.toBe(resumeId);
+
+    await expect(t.mutation(api.candidate_status.restoreBatch, {
+      workspaceSlug: "dev",
+      items: [{
+        identityKey: portableIdentityKey,
+        status: statusBackup!.status,
+        notes: statusBackup!.notes,
+        updatedBy: statusBackup!.updatedBy,
+        updatedAt: statusBackup!.updatedAt,
+        history: statusBackup!.history,
+      }],
+      writeSecret: WRITE_SECRET,
+    })).resolves.toMatchObject({ requested: 1, restored: 1, unresolvedIdentityKeys: [] });
     expect(await t.query(api.candidate_status.getByIdentity, {
-      workspaceSlug: "hr",
-      identityKey: resumeId,
+      workspaceSlug: "dev",
+      identityKey: portableIdentityKey,
     })).toMatchObject({ notes: "Legacy note" });
+  });
+
+  it("treats cross-workspace and non-dev unscoped resume ids as not found", async () => {
+    const t = createTest();
+    const hrResumeId = await insertResumeWithIdentity(t, "hr-identity", "hr");
+    const otherResumeId = await insertResumeWithIdentity(t, "other-identity", "other");
+    const unscopedResumeId = await insertResumeWithIdentity(t, "legacy-unscoped", null);
+
+    const result = await t.mutation(api.candidate_status.importNotesBatch, {
+      workspaceSlug: "hr",
+      items: [
+        { resumeId: hrResumeId, comments: "Allowed" },
+        { resumeId: otherResumeId, comments: "Must not leak" },
+        { resumeId: unscopedResumeId, comments: "Dev only" },
+      ],
+      writeSecret: WRITE_SECRET,
+    });
+
+    expect(result).toMatchObject({ requested: 3, applied: 1, notFound: 2 });
+    expect(result.results).toEqual([
+      { resumeId: hrResumeId, identityKey: "hr-identity", outcome: "applied" },
+      { resumeId: otherResumeId, outcome: "notFound", reason: "resume_not_found" },
+      { resumeId: unscopedResumeId, outcome: "notFound", reason: "resume_not_found" },
+    ]);
+    expect(await t.run(async (ctx) => ctx.db.query("candidate_status").collect())).toHaveLength(1);
+    expect(await t.run(async (ctx) => ctx.db.query("resume_digest_statuses").collect())).toHaveLength(1);
+
+    const devResult = await t.mutation(api.candidate_status.importNotesBatch, {
+      workspaceSlug: "dev",
+      items: [{ resumeId: unscopedResumeId, comments: "Legacy dev note" }],
+      writeSecret: WRITE_SECRET,
+    });
+    expect(devResult).toMatchObject({ applied: 1, notFound: 0 });
   });
 
   it("resolves raw resume ids to stored identities and inserts new candidate notes", async () => {
@@ -505,6 +585,31 @@ describe("candidate_status: importNotesBatch", () => {
     });
     expect(status?.notes).toBe("Final note");
   });
+
+  it("rejects 101 note items atomically without changing status or overlays", async () => {
+    const t = createTest();
+    const resumeId = await insertResumeWithIdentity(t, "atomic-import-identity");
+    await t.mutation(api.candidate_status.importNotesBatch, {
+      workspaceSlug: "hr",
+      items: [{ resumeId, comments: "Original note" }],
+      writeSecret: WRITE_SECRET,
+    });
+    const before = await t.run(async (ctx) => ({
+      statuses: await ctx.db.query("candidate_status").collect(),
+      overlays: await ctx.db.query("resume_digest_statuses").collect(),
+    }));
+
+    await expect(t.mutation(api.candidate_status.importNotesBatch, {
+      workspaceSlug: "hr",
+      items: Array.from({ length: 101 }, () => ({ resumeId, comments: "Replacement" })),
+      writeSecret: WRITE_SECRET,
+    })).rejects.toThrow("at most 100");
+
+    expect(await t.run(async (ctx) => ({
+      statuses: await ctx.db.query("candidate_status").collect(),
+      overlays: await ctx.db.query("resume_digest_statuses").collect(),
+    }))).toEqual(before);
+  });
 });
 
 describe("candidate_status: restoreBatch", () => {
@@ -630,6 +735,37 @@ describe("candidate_status: restoreBatch", () => {
         updatedAt: 1_700_000_000_001,
       }),
     ]));
+  });
+
+  it("rejects 101 restore items atomically without changing status or overlays", async () => {
+    const t = createTest();
+    const resumeId = await insertResumeWithIdentity(t, "atomic-restore-identity");
+    await t.mutation(api.candidate_status.importNotesBatch, {
+      workspaceSlug: "hr",
+      items: [{ resumeId, comments: "Original note" }],
+      writeSecret: WRITE_SECRET,
+    });
+    const before = await t.run(async (ctx) => ({
+      statuses: await ctx.db.query("candidate_status").collect(),
+      overlays: await ctx.db.query("resume_digest_statuses").collect(),
+    }));
+
+    await expect(t.mutation(api.candidate_status.restoreBatch, {
+      workspaceSlug: "hr",
+      items: Array.from({ length: 101 }, () => ({
+        identityKey: "atomic-restore-identity",
+        status: "withdrawn" as const,
+        notes: "Replacement",
+        updatedAt: 2_000_000_000_000,
+        history: [],
+      })),
+      writeSecret: WRITE_SECRET,
+    })).rejects.toThrow("at most 100");
+
+    expect(await t.run(async (ctx) => ({
+      statuses: await ctx.db.query("candidate_status").collect(),
+      overlays: await ctx.db.query("resume_digest_statuses").collect(),
+    }))).toEqual(before);
   });
 });
 

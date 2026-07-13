@@ -1,14 +1,11 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 
 import { requireWorkspaceUser, getAuthenticatedActorId } from "../middleware/auth.js";
-import { ActionStorage } from "../services/action-storage.js";
 import { config } from "../services/config.js";
 import { callConvexMutation } from "../services/convex-utils.js";
 import { logger } from "../services/logger.js";
-import { formatIsoOffsetInTimezone } from "../services/timezone.js";
 
 const app = new OpenAPIHono();
-const actionStorage = new ActionStorage(config.projectRoot);
 
 app.use("/api/resumes/feedback-batch", requireWorkspaceUser);
 
@@ -27,7 +24,6 @@ const FeedbackBatchResultSchema = z.object({
   name: z.string().optional(),
   comments: z.string(),
   status: z.enum(["imported", "skipped", "notFound"]),
-  actionId: z.number().int().optional(),
   reason: z.string().optional(),
 });
 
@@ -135,8 +131,6 @@ app.openapi(importFeedbackBatchRoute, async (c) => {
     ...item,
     comments: item.comments.trim(),
   }));
-  const importedAt = formatIsoOffsetInTimezone(new Date(), config.timezone);
-
   try {
     const workspaceSlug = c.var.workspaceSlug;
     const updatedBy = getAuthenticatedActorId(c);
@@ -235,28 +229,12 @@ app.openapi(importFeedbackBatchRoute, async (c) => {
         throw new Error(`Unexpected candidate note outcome: ${outcome.outcome}`);
       }
 
-      const actionData: Record<string, unknown> = {
-        text: comments,
-        context: "hr_feedback",
-        workspaceSlug,
-        importedAt,
-      };
-      if (item.name) {
-        actionData.sourceName = item.name;
-      }
-      const action = actionStorage.saveAction({
-        userId: updatedBy,
-        resumeId: item.resumeId,
-        actionType: "note",
-        actionData,
-      });
       imported += 1;
       results.push({
         resumeId: item.resumeId,
         name: item.name,
         comments,
         status: "imported",
-        actionId: action.id,
       });
     }
 

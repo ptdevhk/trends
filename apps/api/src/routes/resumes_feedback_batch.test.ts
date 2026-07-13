@@ -113,19 +113,7 @@ describe("resume feedback batch routes", () => {
       updatedBy: auth.userId,
       writeSecret: config.auth.convexWriteSecret,
     });
-    expect(saveSpy).toHaveBeenCalledTimes(1);
-    expect(saveSpy).toHaveBeenCalledWith({
-      userId: auth.userId,
-      resumeId: validResumeId,
-      actionType: "note",
-      actionData: {
-        text: "半导体，行业不匹配",
-        context: "hr_feedback",
-        workspaceSlug: "hr",
-        sourceName: "Alice",
-        importedAt: expect.any(String),
-      },
-    });
+    expect(saveSpy).not.toHaveBeenCalled();
 
     const body = await parseJsonBody<{
       success: boolean;
@@ -202,7 +190,7 @@ describe("resume feedback batch routes", () => {
       updatedBy: auth.userId,
       writeSecret: config.auth.convexWriteSecret,
     });
-    expect(saveSpy).toHaveBeenCalledTimes(1);
+    expect(saveSpy).not.toHaveBeenCalled();
 
     const body = await parseJsonBody<{
       success: boolean;
@@ -262,11 +250,7 @@ describe("resume feedback batch routes", () => {
     expect(callConvexMutation).toHaveBeenCalledWith("candidate_status:importNotesBatch", expect.objectContaining({
       items: [{ resumeId, comments: "Final note" }],
     }));
-    expect(saveSpy).toHaveBeenCalledTimes(1);
-    expect(saveSpy).toHaveBeenCalledWith(expect.objectContaining({
-      resumeId,
-      actionData: expect.objectContaining({ text: "Final note", sourceName: "Final" }),
-    }));
+    expect(saveSpy).not.toHaveBeenCalled();
     const body = await parseJsonBody<{
       imported: number;
       skipped: number;
@@ -306,7 +290,7 @@ describe("resume feedback batch routes", () => {
       resumeId: item.resumeId,
       resume: { name: item.name },
     })));
-    vi.spyOn(ActionStorage.prototype, "saveAction").mockImplementation((params) => ({
+    const saveSpy = vi.spyOn(ActionStorage.prototype, "saveAction").mockImplementation((params) => ({
       id: Number(params.resumeId.slice(1)) + 1,
       userId: params.userId,
       resumeId: params.resumeId,
@@ -336,9 +320,10 @@ describe("resume feedback batch routes", () => {
     const body = await parseJsonBody<{ imported: number; results: unknown[] }>(response);
     expect(body.imported).toBe(101);
     expect(body.results).toHaveLength(101);
+    expect(saveSpy).not.toHaveBeenCalled();
   });
 
-  it("does not create another SQLite action when the durable note is unchanged", async () => {
+  it("uses only the candidate-status sink when the durable note is unchanged", async () => {
     const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
     const resumeId = "k976q0n1pse4dsfker1sk15rz9897m8v";
     vi.mocked(callConvexMutation).mockResolvedValue({
@@ -405,7 +390,7 @@ describe("resume feedback batch routes", () => {
     expect(saveSpy).not.toHaveBeenCalled();
   });
 
-  it("defers every SQLite action until all Convex chunks succeed", async () => {
+  it("writes no SQLite action when a later Convex chunk fails", async () => {
     const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
     const items = Array.from({ length: 101 }, (_, index) => ({
       resumeId: `k${String(index).padStart(31, "0")}`,

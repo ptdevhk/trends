@@ -13,6 +13,7 @@ import { toOptionalStringValue } from "../resume_helpers.js";
 
 export type ResumeBackupRow = {
     _id: Doc<"resumes">["_id"];
+    identityKey: string;
     externalId: string;
     source: string;
     tags: string[];
@@ -41,8 +42,14 @@ type ResumeBackupFilterSets = {
 // --- Projection ---
 
 export function projectResumeBackupRow(resume: Doc<"resumes">): ResumeBackupRow {
+    const identityKey = resume.identityKey?.trim() || deriveResumeIdentity({
+        content: resume.content,
+        externalId: resume.externalId,
+        source: resume.source,
+    }).identityKey;
     return {
         _id: resume._id,
+        identityKey,
         externalId: resume.externalId,
         source: resume.source,
         tags: resume.tags,

@@ -4,6 +4,8 @@ import { mutation, query, type MutationCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 
 import { DEFAULT_WORKSPACE_SLUG } from "./sessions";
+import { belongsToWorkspace } from "./search_profiles";
+import { deriveResumeIdentityKey } from "./lib/resume_identity";
 
 type CandidateStatus =
     | "new" | "shortlisted" | "rejected" | "contacted"
@@ -351,13 +353,17 @@ export const importNotesBatch = mutation({
 
             const normalizedResumeId = ctx.db.normalizeId("resumes", item.resumeId);
             const resume = normalizedResumeId ? await ctx.db.get(normalizedResumeId) : null;
-            if (!resume) {
+            if (!resume || !belongsToWorkspace(resume.workspaceSlug, workspaceSlug)) {
                 notFound += 1;
                 results.push({ resumeId: item.resumeId, outcome: "notFound", reason: "resume_not_found" });
                 continue;
             }
 
-            const identityKey = resume.identityKey?.trim() || String(resume._id);
+            const identityKey = resume.identityKey?.trim() || deriveResumeIdentityKey({
+                content: resume.content,
+                externalId: resume.externalId,
+                source: resume.source,
+            });
             const existing = await ctx.db
                 .query("candidate_status")
                 .withIndex("by_workspace_identity", (q) =>

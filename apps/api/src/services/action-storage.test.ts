@@ -102,21 +102,6 @@ describe("ActionStorage", () => {
     expect(scoped[0]?.actionData).toEqual({ scopeId: "scope:lathe-sales" });
   });
 
-  it("resolves candidate-wide actions to their stored workspace instead of treating them as orphans", () => {
-    setup();
-
-    storage.saveAction({
-      resumeId: "r-workspace",
-      actionType: "note",
-      actionData: { text: "Candidate-wide note", workspaceSlug: "hr" },
-    });
-
-    expect(storage.listActionsForBackup({ workspaceSlug: "hr" })).toHaveLength(1);
-    expect(storage.listActionsForBackup({ workspaceSlug: "dev" })).toEqual([]);
-    expect(storage.clearActionsForWorkspace("dev", false)).toBe(0);
-    expect(storage.clearActionsForWorkspace("hr", false)).toBe(1);
-  });
-
   it("logs malformed action_data JSON while returning the action without data", () => {
     setup();
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);

@@ -102,6 +102,7 @@ describe("resume backup and reset routes", () => {
           page: [
             {
               _id: "resume-1",
+              identityKey: "profileUrl:hr.job5156.com/api/com/resume/1001",
               externalId: "hr.job5156.com:resume:1001",
               source: "hr.job5156.com",
               tags: ["sales", "job5156"],
@@ -214,7 +215,7 @@ describe("resume backup and reset routes", () => {
           return convexSuccess({
             page: [{
               _id: "status-1",
-              identityKey: "candidate-1",
+              identityKey: "resume-1",
               workspaceSlug: "dev",
               status: "new",
               updatedAt: 1,
