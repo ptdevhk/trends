@@ -698,6 +698,33 @@ func TestReadExactReingestManifestRejectsUnknownFields(t *testing.T) {
 	}
 }
 
+func TestReadExactReingestManifestAcceptsAuditGeneratorFixture(t *testing.T) {
+	targets, err := readExactReingestManifest(filepath.Join("testdata", "exact-reingest-manifest.audit-generator.json"))
+	if err != nil {
+		t.Fatalf("read audit-generator manifest fixture: %v", err)
+	}
+	if len(targets) != 1 {
+		t.Fatalf("expected one target, got %d", len(targets))
+	}
+	target := targets[0]
+	if target.ReferenceResumeID != "old-1" || target.CurrentResumeID != "current-1" || target.ProfileResumeID != "100001" || target.ExternalID != "external-1" {
+		t.Fatalf("unexpected generated manifest target: %+v", target)
+	}
+}
+
+func TestReadExactReingestManifestRejectsUnknownGenerator(t *testing.T) {
+	manifestPath := filepath.Join(t.TempDir(), "cohort.json")
+	manifest := `{"version":1,"generatedBy":"different-generator","targets":[{"externalId":"external-1"}]}`
+	if err := os.WriteFile(manifestPath, []byte(manifest), 0o600); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+
+	_, err := readExactReingestManifest(manifestPath)
+	if err == nil || !strings.Contains(err.Error(), "unsupported exact reingest manifest generator") {
+		t.Fatalf("expected unsupported-generator error, got %v", err)
+	}
+}
+
 func TestReadExactReingestManifestRejectsPlaceholderExternalIdentity(t *testing.T) {
 	for _, externalID := range []string{"unknown", "EXTERNALID:UNKNOWN"} {
 		t.Run(externalID, func(t *testing.T) {

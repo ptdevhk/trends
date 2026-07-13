@@ -20,7 +20,7 @@ import pytest
 
 # Allow running from repo root or skill directory
 SKILL_DIR = Path(__file__).resolve().parent
-REPO_ROOT = SKILL_DIR.parent.parent.parent.parent.parent
+REPO_ROOT = SKILL_DIR.parent.parent.parent.parent
 sys.path.insert(0, str(SKILL_DIR))
 
 from audit_hr_feedback_export import (
@@ -37,6 +37,35 @@ from audit_hr_feedback_export import (
 
 
 class TestTargetManifest:
+    def test_matches_go_reader_contract_fixture(self):
+        reference = {
+            "Old Resume ID": "old-1",
+            "Profile Resume ID": "100001",
+            "Profile URL": "https://example.com/candidate/1?resumeId=100001",
+            "External ID": "external-1",
+        }
+        current = {
+            "Resume ID": "current-1",
+            "Profile Resume ID": "100001",
+            "Profile URL": "https://example.com/candidate/1?resumeId=100001",
+            "External ID": "external-1",
+            "Source": "51job",
+        }
+        generated = build_target_manifest(
+            [reference],
+            current_index={"100001": current},
+            duplicates={},
+            excluded=set(),
+            external_index={"external-1": current},
+            external_duplicates={},
+        )
+        fixture = json.loads(
+            (REPO_ROOT / "packages/cli/cmd/testdata/exact-reingest-manifest.audit-generator.json")
+            .read_text(encoding="utf-8")
+        )
+
+        assert generated == fixture
+
     def test_preserves_reference_order_and_carries_stable_selectors(self):
         references = [
             {

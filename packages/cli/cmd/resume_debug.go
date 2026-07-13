@@ -540,9 +540,12 @@ func newResumeDebugTriggerReingestCmd() *cobra.Command {
 	return cmd
 }
 
+const exactReingestAuditGenerator = "resume-ai-scoring-audit"
+
 type exactReingestManifest struct {
-	Version int                          `json:"version"`
-	Targets []client.ExactReingestTarget `json:"targets"`
+	Version     int                          `json:"version"`
+	GeneratedBy string                       `json:"generatedBy,omitempty"`
+	Targets     []client.ExactReingestTarget `json:"targets"`
 }
 
 func hasExactReingestSelector(target client.ExactReingestTarget) bool {
@@ -613,6 +616,9 @@ func readExactReingestManifest(path string) ([]client.ExactReingestTarget, error
 	}
 	if manifest.Version != 1 {
 		return nil, fmt.Errorf("unsupported exact reingest manifest version %d", manifest.Version)
+	}
+	if generatedBy := strings.TrimSpace(manifest.GeneratedBy); generatedBy != "" && generatedBy != exactReingestAuditGenerator {
+		return nil, fmt.Errorf("unsupported exact reingest manifest generator %q", generatedBy)
 	}
 	if len(manifest.Targets) == 0 {
 		return nil, fmt.Errorf("exact reingest manifest contains no targets")

@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "generatedBy": "resume-ai-scoring-audit",
+  "targets": [
+    {
+      "referenceResumeId": "old-1",
+      "currentResumeId": "current-1",
+      "profileResumeId": "100001",
+      "profileUrl": "https://example.com/candidate/1?resumeId=100001",
+      "externalId": "external-1",
+      "source": "51job"
+    }
+  ]
+}
