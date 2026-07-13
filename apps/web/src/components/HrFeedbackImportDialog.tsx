@@ -1,5 +1,5 @@
 import { Check, ClipboardList, FileUp, RefreshCw } from 'lucide-react'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
@@ -65,13 +65,47 @@ export function HrFeedbackImportDialog({ disabled = false }: { disabled?: boolea
   const [rows, setRows] = useState<HrFeedbackRow[]>([])
   const [results, setResults] = useState<FeedbackBatchResult[]>([])
   const [isImporting, setIsImporting] = useState(false)
+  const [importCompleted, setImportCompleted] = useState(false)
+  const pendingRequestRef = useRef(false)
+  const stateVersionRef = useRef(0)
+
+  const resetImportState = () => {
+    stateVersionRef.current += 1
+    pendingRequestRef.current = false
+    setRawText('')
+    setRows([])
+    setResults([])
+    setIsImporting(false)
+    setImportCompleted(false)
+  }
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen) {
+      resetImportState()
+    }
+    setOpen(nextOpen)
+  }
+
+  const handleRawTextChange = (value: string) => {
+    stateVersionRef.current += 1
+    setRawText(value)
+    setRows([])
+    setResults([])
+    setImportCompleted(false)
+  }
 
   const handleParse = () => {
+    if (pendingRequestRef.current) {
+      return
+    }
+
+    setRows([])
+    setResults([])
+    setImportCompleted(false)
     try {
       const parsedRows = parseHrFeedbackRows(rawText)
       const validRows = parsedRows.filter((row) => row.resumeId.trim().length > 0)
       setRows(validRows)
-      setResults([])
       if (validRows.length === 0) {
         toast.error(t('resumes.hrFeedbackImport.noRows', { defaultValue: 'No feedback rows found' }))
         return
@@ -84,11 +118,17 @@ export function HrFeedbackImportDialog({ disabled = false }: { disabled?: boolea
   }
 
   const handleImport = async () => {
+    if (pendingRequestRef.current || importCompleted) {
+      return
+    }
+
     if (rows.length === 0) {
       handleParse()
       return
     }
 
+    pendingRequestRef.current = true
+    const requestStateVersion = stateVersionRef.current
     setIsImporting(true)
     try {
       const { data, error } = await rawApiClient.POST<FeedbackBatchResponse>('/api/resumes/feedback-batch', {
@@ -107,22 +147,33 @@ export function HrFeedbackImportDialog({ disabled = false }: { disabled?: boolea
         return
       }
 
+      if (requestStateVersion !== stateVersionRef.current) {
+        return
+      }
+
       setResults(data.results)
+      setImportCompleted(true)
       toast.success(t('resumes.hrFeedbackImport.imported', {
         imported: data.imported,
         notFound: data.notFound.length,
         defaultValue: 'Imported {{imported}} notes · {{notFound}} not found',
       }))
     } catch (error) {
+      if (requestStateVersion !== stateVersionRef.current) {
+        return
+      }
       console.error('Failed to import HR feedback batch', error)
       toast.error(t('resumes.hrFeedbackImport.importFailed', { defaultValue: 'Failed to import feedback' }))
     } finally {
-      setIsImporting(false)
+      if (requestStateVersion === stateVersionRef.current) {
+        pendingRequestRef.current = false
+        setIsImporting(false)
+      }
     }
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button
           type="button"
@@ -146,20 +197,21 @@ export function HrFeedbackImportDialog({ disabled = false }: { disabled?: boolea
         <div className="space-y-4">
           <Textarea
             value={rawText}
-            onChange={(event) => setRawText(event.target.value)}
+            onChange={(event) => handleRawTextChange(event.target.value)}
             placeholder={sampleInput}
             className="min-h-40 font-mono text-sm"
+            disabled={isImporting}
           />
 
           <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" variant="outline" className="gap-2" onClick={handleParse}>
+            <Button type="button" variant="outline" className="gap-2" onClick={handleParse} disabled={isImporting}>
               <ClipboardList className="h-4 w-4" />
               {t('resumes.hrFeedbackImport.parse', { defaultValue: 'Parse' })}
             </Button>
             <Button
               type="button"
               className="gap-2"
-              disabled={rows.length === 0 || isImporting}
+              disabled={rows.length === 0 || isImporting || importCompleted}
               onClick={() => {
                 void handleImport()
               }}
@@ -206,7 +258,7 @@ export function HrFeedbackImportDialog({ disabled = false }: { disabled?: boolea
         </div>
 
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+          <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
             {t('common.close', { defaultValue: 'Close' })}
           </Button>
         </DialogFooter>
