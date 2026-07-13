@@ -91,9 +91,14 @@ describe("resumes_admin", () => {
     });
 
     it("dry-run returns wouldClear count", async () => {
-      vi.spyOn(globalThis, "fetch").mockResolvedValue(
-        convexSuccess({ cleared: 42, hasMore: false, cursor: null }),
-      );
+      const requests: Array<{ url: string; body: Record<string, unknown> }> = [];
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+        requests.push({
+          url: String(input),
+          body: JSON.parse(init?.body as string) as Record<string, unknown>,
+        });
+        return convexSuccess({ cleared: 42, hasMore: false, cursor: null });
+      });
 
       const app = createTestApp();
       const response = await app.request("/api/resumes/hard-reset-reingest", {
@@ -108,6 +113,12 @@ describe("resumes_admin", () => {
       expect(payload.dryRun).toBe(true);
       expect(payload.wouldClear).toBe(42);
       expect(payload.phase).toBe("dry_run");
+      expect(requests).toHaveLength(1);
+      expect(requests[0].url).toContain("/api/mutation");
+      expect(requests[0].body).toMatchObject({
+        path: "resumes_mutations:hardResetIngestData",
+        args: { batchSize: 50, dryRun: true },
+      });
     });
 
     it("rejects invalid body", async () => {
@@ -124,15 +135,24 @@ describe("resumes_admin", () => {
 
   describe("POST /api/resumes/clear-analyses", () => {
     it("dry-run with jobDescriptionId returns targeted estimate", async () => {
-      vi.spyOn(globalThis, "fetch").mockResolvedValue(
-        convexSuccess({ cleared: 5, hasMore: false }),
-      );
+      const requests: Array<{ url: string; body: Record<string, unknown> }> = [];
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+        requests.push({
+          url: String(input),
+          body: JSON.parse(init?.body as string) as Record<string, unknown>,
+        });
+        return convexSuccess({ cleared: 5, hasMore: false });
+      });
 
       const app = createTestApp();
       const response = await app.request("/api/resumes/clear-analyses", {
         method: "POST",
         headers: jsonHeaders(),
-        body: JSON.stringify({ jobDescriptionId: "jd-1", dryRun: true }),
+        body: JSON.stringify({
+          jobDescriptionId: "jd-1",
+          resumeIds: ["resume-1"],
+          dryRun: true,
+        }),
       });
 
       expect(response.status).toBe(200);
@@ -141,6 +161,17 @@ describe("resumes_admin", () => {
       expect(payload.dryRun).toBe(true);
       expect(payload.jobDescriptionId).toBe("jd-1");
       expect(payload.targeted).toBe(true);
+      expect(requests).toHaveLength(1);
+      expect(requests[0].url).toContain("/api/mutation");
+      expect(requests[0].body).toMatchObject({
+        path: "resumes_mutations:clearAnalyses",
+        args: {
+          batchSize: 50,
+          jobDescriptionId: "jd-1",
+          resumeIds: ["resume-1"],
+          dryRun: true,
+        },
+      });
     });
 
     it("rejects non-admin access with 403", async () => {
@@ -157,9 +188,37 @@ describe("resumes_admin", () => {
 
   describe("POST /api/resumes/reset-database", () => {
     it("dry-run returns wouldDelete counts", async () => {
-      vi.spyOn(globalThis, "fetch").mockResolvedValue(
-        convexSuccess({ success: true, count: 100, partial: false, deleted: { resumes: 100 } }),
-      );
+      const requests: Array<{ url: string; body: Record<string, unknown> }> = [];
+      const pages = [
+        {
+          tableName: "collection_tasks",
+          count: 50,
+          nextTableIndex: 0,
+          cursor: "collection-tasks-next",
+          done: false,
+        },
+        {
+          tableName: "collection_tasks",
+          count: 10,
+          nextTableIndex: 1,
+          cursor: null,
+          done: false,
+        },
+        {
+          tableName: "resume_digests",
+          count: 2,
+          nextTableIndex: 11,
+          cursor: null,
+          done: true,
+        },
+      ];
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+        requests.push({
+          url: String(input),
+          body: JSON.parse(init?.body as string) as Record<string, unknown>,
+        });
+        return convexSuccess(pages[requests.length - 1]);
+      });
 
       const app = createTestApp();
       const response = await app.request("/api/resumes/reset-database", {
@@ -172,7 +231,22 @@ describe("resumes_admin", () => {
       const payload = await parseJsonBody<{ success: boolean; dryRun: boolean; wouldDelete: Record<string, unknown> }>(response);
       expect(payload.success).toBe(true);
       expect(payload.dryRun).toBe(true);
-      expect(payload.wouldDelete.resumes).toBe(100);
+      expect(payload.wouldDelete.collection_tasks).toBe(60);
+      expect(payload.wouldDelete.resume_digests).toBe(2);
+      expect(requests).toHaveLength(3);
+      expect(requests[0].url).toContain("/api/query");
+      expect(requests[0].body).toMatchObject({
+        path: "resume_tasks:previewResetDatabase",
+        args: { tableIndex: 0 },
+      });
+      expect(requests[1].body).toMatchObject({
+        path: "resume_tasks:previewResetDatabase",
+        args: { tableIndex: 0, cursor: "collection-tasks-next" },
+      });
+      expect(requests[2].body).toMatchObject({
+        path: "resume_tasks:previewResetDatabase",
+        args: { tableIndex: 1 },
+      });
     });
   });
 

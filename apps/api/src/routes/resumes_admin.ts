@@ -74,6 +74,14 @@ const ResetDatabaseV2ResponseSchema = z.object({
   deleted: z.record(z.string(), z.number().int()).optional(),
 });
 
+const ResetDatabasePreviewPageSchema = z.object({
+  tableName: z.string().min(1),
+  count: z.number().int().nonnegative(),
+  nextTableIndex: z.number().int().nonnegative(),
+  cursor: z.string().nullable(),
+  done: z.boolean(),
+});
+
 const IngestComputeRequestSchema = z.object({
   resumes: z.array(z.object({
     resumeId: z.string(),
@@ -186,6 +194,7 @@ app.openapi(hardResetReingestRoute, async (c) => {
     if (dryRun) {
       const firstPage = await callConvexMutation("resumes_mutations:hardResetIngestData", {
         batchSize: 50,
+        dryRun: true,
       }) as { cleared: number; hasMore: boolean; cursor?: string };
 
       let wouldClear = firstPage.cleared;
@@ -193,7 +202,10 @@ app.openapi(hardResetReingestRoute, async (c) => {
       let hasMore = firstPage.hasMore;
 
       for (let i = 0; i < 10000 && hasMore; i++) {
-        const pageArgs: { batchSize: number; cursor?: string } = { batchSize: 50 };
+        const pageArgs: { batchSize: number; dryRun: true; cursor?: string } = {
+          batchSize: 50,
+          dryRun: true,
+        };
         if (cursor) pageArgs.cursor = cursor;
         const page = await callConvexMutation("resumes_mutations:hardResetIngestData", pageArgs) as { cleared: number; hasMore: boolean; cursor?: string };
         wouldClear += page.cleared;
@@ -289,7 +301,7 @@ app.openapi(clearAnalysesRoute, async (c) => {
 
   try {
     if (dryRun) {
-      const args = buildClearAnalysesArgs();
+      const args = { ...buildClearAnalysesArgs(), dryRun: true };
 
       const firstPage = await callConvexMutation("resumes_mutations:clearAnalyses", args) as {
         cleared: number;
@@ -302,7 +314,7 @@ app.openapi(clearAnalysesRoute, async (c) => {
       let hasMore = firstPage.hasMore;
 
       for (let i = 0; i < 10000 && hasMore && !isTargeted; i++) {
-        const pageArgs = buildClearAnalysesArgs(cursor);
+        const pageArgs = { ...buildClearAnalysesArgs(cursor), dryRun: true };
         const page = await callConvexMutation("resumes_mutations:clearAnalyses", pageArgs) as {
           cleared: number;
           hasMore: boolean;
@@ -378,17 +390,36 @@ app.openapi(resetDatabaseRoute, async (c) => {
 
   try {
     if (dryRun) {
-      const result = await callConvexMutation("resume_tasks:resetDatabase", {}) as {
-        success: boolean;
-        count: number;
-        partial: boolean;
-        deleted: Record<string, number>;
-      };
+      const wouldDelete: Record<string, number> = {};
+      let count = 0;
+      let tableIndex = 0;
+      let cursor: string | undefined;
+      let done = false;
+
+      for (let iteration = 0; iteration < 10000 && !done; iteration += 1) {
+        const args: { tableIndex: number; cursor?: string } = { tableIndex };
+        if (cursor) {
+          args.cursor = cursor;
+        }
+        const page = ResetDatabasePreviewPageSchema.parse(
+          await callConvexQuery("resume_tasks:previewResetDatabase", args),
+        );
+        wouldDelete[page.tableName] = (wouldDelete[page.tableName] ?? 0) + page.count;
+        count += page.count;
+        tableIndex = page.nextTableIndex;
+        cursor = page.cursor ?? undefined;
+        done = page.done;
+      }
+
+      if (!done) {
+        throw new Error("Reset database preview exceeded maximum pagination iterations");
+      }
+
       return c.json(ResetDatabaseV2ResponseSchema.parse({
         success: true as const,
         dryRun: true,
-        wouldDelete: result.deleted,
-        count: result.count,
+        wouldDelete,
+        count,
       }), 200);
     }
 

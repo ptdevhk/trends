@@ -728,6 +728,35 @@ type ResetTableName = (typeof RESET_TABLES)[number];
 
 const RESET_BATCH_SIZE = 50;
 
+export const previewResetDatabase = query({
+    args: {
+        tableIndex: v.number(),
+        cursor: v.optional(v.string()),
+    },
+    handler: async (ctx, args) => {
+        if (!Number.isInteger(args.tableIndex)
+            || args.tableIndex < 0
+            || args.tableIndex >= RESET_TABLES.length) {
+            throw new Error("Invalid reset table index");
+        }
+
+        const tableName = RESET_TABLES[args.tableIndex] as ResetTableName;
+        const page = await ctx.db.query(tableName).paginate({
+            cursor: args.cursor ?? null,
+            numItems: RESET_BATCH_SIZE,
+        });
+        const nextTableIndex = page.isDone ? args.tableIndex + 1 : args.tableIndex;
+
+        return {
+            tableName,
+            count: page.page.length,
+            nextTableIndex,
+            cursor: page.isDone ? null : page.continueCursor,
+            done: page.isDone && nextTableIndex >= RESET_TABLES.length,
+        };
+    },
+});
+
 export const resetDatabaseBatch = internalMutation({
     args: {
         tableIndex: v.number(),

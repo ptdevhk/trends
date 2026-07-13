@@ -217,6 +217,42 @@ describe("resumes_mutations: listResumeUsageBatch", () => {
 // ---------------------------------------------------------------------------
 
 describe("resumes_mutations: clearAnalyses", () => {
+    it("dry-run counts targeted analyses without changing persisted state", async () => {
+        const t = convexTest(schema, modules);
+        const resumeId = await seedResume(t);
+
+        await t.mutation(internal.resumes.updateAnalysis, {
+            resumeId,
+            analysis: {
+                score: 80,
+                summary: "For JD1",
+                highlights: [],
+                recommendation: "proceed",
+                jobDescriptionId: "jd-1",
+            },
+        });
+
+        const before = await t.run(async (ctx) => ({
+            resumes: await ctx.db.query("resumes").collect(),
+            analyses: await ctx.db.query("resume_analyses").collect(),
+            digests: await ctx.db.query("resume_digests").collect(),
+        }));
+
+        const result = await t.mutation(api.resumes_mutations.clearAnalyses, {
+            resumeIds: [resumeId],
+            jobDescriptionId: "jd-1",
+            dryRun: true,
+        });
+
+        const after = await t.run(async (ctx) => ({
+            resumes: await ctx.db.query("resumes").collect(),
+            analyses: await ctx.db.query("resume_analyses").collect(),
+            digests: await ctx.db.query("resume_digests").collect(),
+        }));
+        expect(result).toEqual({ cleared: 1, hasMore: false, cursor: null });
+        expect(after).toEqual(before);
+    });
+
     it("clears all analyses when no jobDescriptionId specified", async () => {
         const t = convexTest(schema, modules);
         const resumeId = await seedResume(t);
@@ -453,6 +489,42 @@ describe("resumes_mutations: deleteResumes", () => {
 // ---------------------------------------------------------------------------
 
 describe("resumes_mutations: hardResetIngestData", () => {
+    it("dry-run counts computed resumes without patching, archiving, or rebuilding digests", async () => {
+        const t = convexTest(schema, modules);
+        const resumeId = await seedResume(t, {
+            ingestData: MINIMAL_INGEST_DATA,
+            searchText: "engineer cnc",
+            primaryRuleScore: 42,
+        });
+        await t.mutation(internal.resumes.updateAnalysis, {
+            resumeId,
+            analysis: {
+                score: 80,
+                summary: "Test",
+                highlights: [],
+                recommendation: "proceed",
+            },
+        });
+
+        const before = await t.run(async (ctx) => ({
+            resumes: await ctx.db.query("resumes").collect(),
+            analyses: await ctx.db.query("resume_analyses").collect(),
+            digests: await ctx.db.query("resume_digests").collect(),
+        }));
+
+        const result = await t.mutation(api.resumes_mutations.hardResetIngestData, {
+            dryRun: true,
+        });
+
+        const after = await t.run(async (ctx) => ({
+            resumes: await ctx.db.query("resumes").collect(),
+            analyses: await ctx.db.query("resume_analyses").collect(),
+            digests: await ctx.db.query("resume_digests").collect(),
+        }));
+        expect(result).toEqual({ cleared: 1, hasMore: false, cursor: null });
+        expect(after).toEqual(before);
+    });
+
     it("clears ingestData, analysis, analyses, primaryRuleScore, and searchText", async () => {
         const t = convexTest(schema, modules);
         const resumeId = await seedResume(t, {

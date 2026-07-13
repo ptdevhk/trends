@@ -317,6 +317,7 @@ export const clearAnalyses = mutation({
         cursor: v.optional(v.string()),
         batchSize: v.optional(v.number()),
         workspaceSlug: v.optional(v.string()),
+        dryRun: v.optional(v.boolean()),
     },
     handler: async (ctx, args) => {
         if (args.resumeIds) {
@@ -368,7 +369,7 @@ export const clearAnalyses = mutation({
                     }
                     const isCurrentAnalysis = activeAnalysis.analysis?.jobDescriptionId === args.jobDescriptionId;
                     // Sync cold row: archive only if map is now empty AND no current analysis.
-                    if (coldRow) {
+                    if (coldRow && !args.dryRun) {
                         const remainingKeys = Object.keys(analyses).length;
                         const hasCurrent = isCurrentAnalysis ? false : activeAnalysis.analysis !== undefined;
                         if (remainingKeys === 0 && !hasCurrent) {
@@ -391,7 +392,7 @@ export const clearAnalyses = mutation({
                 }
             } else {
                 // Non-surgical clear: always archive the cold row.
-                if (coldRow) {
+                if (coldRow && !args.dryRun) {
                     await ctx.db.patch(coldRow._id, {
                         status: "archived",
                         archivedAt: Date.now(),
@@ -402,7 +403,9 @@ export const clearAnalyses = mutation({
             }
             // After a cold-authoritative clear, re-sync the digest so display
             // fields drop (the archived cold row is now filtered on read).
-            await doUpsertResumeDigest(ctx, resume);
+            if (!args.dryRun) {
+                await doUpsertResumeDigest(ctx, resume);
+            }
         }
 
         if (args.resumeIds) {
@@ -710,6 +713,7 @@ export const hardResetIngestData = mutation({
     args: {
         cursor: v.optional(v.string()),
         batchSize: v.optional(v.number()),
+        dryRun: v.optional(v.boolean()),
     },
     handler: async (ctx, args) => {
         const resumes = await ctx.db
@@ -729,6 +733,11 @@ export const hardResetIngestData = mutation({
                 || resume.searchText !== undefined;
 
             if (!hasComputedFields) {
+                continue;
+            }
+
+            cleared += 1;
+            if (args.dryRun) {
                 continue;
             }
 
@@ -754,7 +763,6 @@ export const hardResetIngestData = mutation({
                 });
             }
             await ctx.runMutation(internal.resumes_search.upsertResumeDigest, { resumeId: resume._id });
-            cleared += 1;
         }
 
         return {

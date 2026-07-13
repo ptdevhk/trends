@@ -394,6 +394,53 @@ describe("resume_tasks: cancel", () => {
 // ---------------------------------------------------------------------------
 
 describe("resume_tasks: resetDatabase", () => {
+  it("previews exact table counts without deleting rows or scheduling work", async () => {
+    const t = createTest();
+    for (let index = 0; index < 55; index += 1) {
+      await insertResume(t);
+    }
+    await t.mutation(api.resume_tasks.dispatch, {
+      keyword: "preview",
+      location: "test",
+      limit: 10,
+    });
+
+    const snapshot = async () => t.run(async (ctx) => ({
+      collection_tasks: await ctx.db.query("collection_tasks").collect(),
+      resume_digests: await ctx.db.query("resume_digests").collect(),
+      resumes: await ctx.db.query("resumes").collect(),
+      collection_workers: await ctx.db.query("collection_workers").collect(),
+      candidate_blocks: await ctx.db.query("candidate_blocks").collect(),
+      candidate_status: await ctx.db.query("candidate_status").collect(),
+      analysis_tasks: await ctx.db.query("analysis_tasks").collect(),
+      screening_sessions: await ctx.db.query("screening_sessions").collect(),
+      search_history: await ctx.db.query("search_history").collect(),
+      sync_events: await ctx.db.query("sync_events").collect(),
+      industry_db_cohorts: await ctx.db.query("industry_db_cohorts").collect(),
+    }));
+    const before = await snapshot();
+    const counts: Record<string, number> = {};
+    let tableIndex = 0;
+    let cursor: string | undefined;
+    let done = false;
+
+    for (let iteration = 0; iteration < 100 && !done; iteration += 1) {
+      const page = await t.query(api.resume_tasks.previewResetDatabase, {
+        tableIndex,
+        cursor,
+      });
+      counts[page.tableName] = (counts[page.tableName] ?? 0) + page.count;
+      tableIndex = page.nextTableIndex;
+      cursor = page.cursor ?? undefined;
+      done = page.done;
+    }
+
+    expect(done).toBe(true);
+    expect(counts.resumes).toBe(55);
+    expect(counts.collection_tasks).toBe(1);
+    expect(await snapshot()).toEqual(before);
+  });
+
   it("deletes all data from reset tables when under batch size", async () => {
     const t = createTest();
 
