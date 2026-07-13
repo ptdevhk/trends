@@ -1105,7 +1105,7 @@
       "changing": "更改中...",
       "passwordChanged": "密码已成功更改",
       "currentPasswordIncorrect": "当前密码不正确",
-      "passwordTooShort": "密码至少需要 6 个字符",
+      "passwordTooShort": "密码至少需要 8 个字符",
       "passwordsDoNotMatch": "密码不匹配",
       "changeFailed": "更改密码失败"
     }

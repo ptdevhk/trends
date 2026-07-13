@@ -886,7 +886,7 @@
       "changing": "變更中...",
       "passwordChanged": "密碼已成功變更",
       "currentPasswordIncorrect": "目前密碼不正確",
-      "passwordTooShort": "密碼至少需要 6 個字元",
+      "passwordTooShort": "密碼至少需要 8 個字元",
       "passwordsDoNotMatch": "密碼不相符",
       "changeFailed": "變更密碼失敗"
     }

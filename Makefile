@@ -1370,7 +1370,7 @@ test-coverage:                             ## Run Node.js tests with coverage
 	@echo "Running Node.js tests with coverage..."
 	@npm run --workspace @trends/shared build
 	@cd apps/web && npm run test -- --coverage
-	@npx vitest run --coverage apps/api/src packages/convex/convex packages/shared/src
+	@npx vitest run --coverage apps/api/src packages/convex/convex packages/shared/src scripts/extension-zip-integrity.test.ts
 
 test-resume:                               ## Validate resume fixtures
 	@echo "Validating resume fixtures..."

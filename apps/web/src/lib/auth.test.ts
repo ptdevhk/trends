@@ -14,6 +14,7 @@ vi.mock('./api-client', () => ({
 }))
 
 import {
+  changePassword,
   fetchCurrentAuth,
   fetchProviderMemberships,
   getCasdoorLoginUrl,
@@ -88,6 +89,32 @@ describe('auth helpers', () => {
     await expect(logout()).resolves.toBe(true)
 
     expect(mockApiClient.POST).toHaveBeenCalledWith('/api/auth/logout')
+  })
+
+  it('changes the current user password through the authenticated endpoint', async () => {
+    mockApiClient.POST.mockResolvedValueOnce({ data: { success: true } })
+
+    await expect(changePassword('old-password', 'new-password')).resolves.toEqual({ success: true })
+
+    expect(mockApiClient.POST).toHaveBeenCalledWith('/api/auth/change-password', {
+      body: {
+        currentPassword: 'old-password',
+        newPassword: 'new-password',
+      },
+    })
+  })
+
+  it('preserves the API status and message when changing a password fails', async () => {
+    mockApiClient.POST.mockResolvedValueOnce({
+      error: { success: false, error: 'Current password invalid' },
+      response: { status: 403 },
+    })
+
+    await expect(changePassword('wrong-password', 'new-password')).resolves.toEqual({
+      success: false,
+      error: 'Current password invalid',
+      status: 403,
+    })
   })
 
   it('builds a Casdoor login URL with a safe redirect path', () => {

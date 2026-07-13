@@ -1109,20 +1109,20 @@ start_web() {
 
         local extension_manifest="$PROJECT_ROOT/apps/browser-extension/manifest.json"
         local extension_meta="$PROJECT_ROOT/apps/web/public/extension/extension-meta.json"
+        local extension_output_dir="$PROJECT_ROOT/apps/web/public/extension"
+        local extension_integrity_checker="$PROJECT_ROOT/scripts/check-extension-zip-integrity.sh"
         if [ -f "$extension_manifest" ] && command -v zip >/dev/null 2>&1 && command -v node >/dev/null 2>&1; then
             local extension_manifest_version
             extension_manifest_version="$(
                 node -e "const fs=require('node:fs'); console.log(JSON.parse(fs.readFileSync(process.argv[1],'utf8')).version)" "$extension_manifest" 2>/dev/null || true
             )"
-            local extension_meta_version=""
-            if [ -f "$extension_meta" ]; then
-                extension_meta_version="$(
-                    node -e "const fs=require('node:fs'); const v=JSON.parse(fs.readFileSync(process.argv[1],'utf8')).version; console.log(typeof v==='string' ? v : '')" "$extension_meta" 2>/dev/null || true
-                )"
-            fi
 
-            if [ -n "$extension_manifest_version" ] && [ "$extension_manifest_version" != "$extension_meta_version" ]; then
-                log "WEB" "$BLUE" "Building browser extension zip (v$extension_manifest_version) for /extension download..."
+            if ! "$extension_integrity_checker" "$extension_manifest" "$extension_meta" "$extension_output_dir"; then
+                local extension_version_label=""
+                if [ -n "$extension_manifest_version" ]; then
+                    extension_version_label=" (v$extension_manifest_version)"
+                fi
+                log "WEB" "$BLUE" "Building browser extension zip${extension_version_label} for /extension download..."
                 if ! "$PROJECT_ROOT/scripts/build-extension-zip.sh"; then
                     log "WEB" "$YELLOW" "Failed to build extension zip; download link may be stale. (Run: make build-extension-zip)"
                 fi

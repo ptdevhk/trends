@@ -886,7 +886,7 @@
       "changing": "Changing...",
       "passwordChanged": "Password changed successfully",
       "currentPasswordIncorrect": "Current password is incorrect",
-      "passwordTooShort": "Password must be at least 6 characters",
+      "passwordTooShort": "Password must be at least 8 characters",
       "passwordsDoNotMatch": "Passwords do not match",
       "changeFailed": "Failed to change password"
     }

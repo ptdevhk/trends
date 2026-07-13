@@ -7,6 +7,8 @@ import { Input } from '@/components/ui/input'
 import { changePassword } from '@/lib/auth'
 import { Key } from 'lucide-react'
 
+const MIN_PASSWORD_LENGTH = 8
+
 export function AccountPage() {
   const { t } = useTranslation()
   const [currentPassword, setCurrentPassword] = useState('')
@@ -16,8 +18,8 @@ export function AccountPage() {
   const [currentPasswordError, setCurrentPasswordError] = useState<string | null>(null)
 
   const mismatch = newPassword.length > 0 && confirmPassword.length > 0 && newPassword !== confirmPassword
-  const tooShort = newPassword.length > 0 && newPassword.length < 6
-  const canSubmit = currentPassword.length > 0 && newPassword.length >= 6 && newPassword === confirmPassword && !submitting
+  const tooShort = newPassword.length > 0 && newPassword.length < MIN_PASSWORD_LENGTH
+  const canSubmit = currentPassword.length > 0 && newPassword.length >= MIN_PASSWORD_LENGTH && newPassword === confirmPassword && !submitting
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -100,7 +102,7 @@ export function AccountPage() {
               />
               {tooShort && (
                 <p className="text-sm text-destructive">
-                  {t('settings.account.passwordTooShort', { defaultValue: 'Password must be at least 6 characters' })}
+                  {t('settings.account.passwordTooShort', { defaultValue: 'Password must be at least 8 characters' })}
                 </p>
               )}
             </div>
