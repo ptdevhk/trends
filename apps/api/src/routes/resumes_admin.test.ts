@@ -151,6 +151,8 @@ describe("resumes_admin", () => {
         externalId: "external-2",
         source: "example.com",
         canonicalIdentityKey: "profileUrl:example.com/candidates/2?resumeid=100002",
+        outcome: "resolved",
+        selectors: [{ kind: "profileResumeId", value: "100002" }],
       },
       {
         referenceResumeId: "old-1",
@@ -159,6 +161,8 @@ describe("resumes_admin", () => {
         externalId: "external-1",
         source: "example.com",
         canonicalIdentityKey: "externalId:external-1",
+        outcome: "resolved",
+        selectors: [{ kind: "externalId", value: "external-1" }],
       },
       {
         referenceResumeId: "old-2-duplicate",
@@ -167,6 +171,8 @@ describe("resumes_admin", () => {
         externalId: "external-2",
         source: "example.com",
         canonicalIdentityKey: "profileUrl:example.com/candidates/2?resumeid=100002",
+        outcome: "resolved",
+        selectors: [{ kind: "currentResumeId", value: "current-2" }],
       },
     ];
 
@@ -320,6 +326,64 @@ describe("resumes_admin", () => {
       });
 
       expect(response.status).toBe(403);
+    });
+
+    it.each([
+      {
+        label: "unknown request field",
+        body: {
+          targets: [{ externalId: "external-1" }],
+          dryRun: true,
+          candidateName: "must-not-be-accepted",
+        },
+      },
+      {
+        label: "unknown target field",
+        body: {
+          targets: [{ externalId: "external-1", candidateName: "must-not-be-accepted" }],
+          dryRun: true,
+        },
+      },
+    ])("rejects $label before any Convex call", async ({ body }) => {
+      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(convexSuccess({
+        requested: 1,
+        resolved: 1,
+        resumeIds: ["current-1"],
+        targets: [resolvedTargets[1]],
+      }));
+
+      const app = createTestApp();
+      const response = await app.request("/api/resumes/exact-reingest", {
+        method: "POST",
+        headers: jsonHeaders(),
+        body: JSON.stringify(body),
+      });
+
+      expect(response.status).toBe(400);
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      { externalId: "unknown" },
+      { externalId: "EXTERNALID:UNKNOWN" },
+      { identityKey: "externalId:unknown" },
+    ])("rejects placeholder stable selector before any Convex call: %j", async (target) => {
+      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(convexSuccess({
+        requested: 1,
+        resolved: 1,
+        resumeIds: ["current-1"],
+        targets: [resolvedTargets[1]],
+      }));
+
+      const app = createTestApp();
+      const response = await app.request("/api/resumes/exact-reingest", {
+        method: "POST",
+        headers: jsonHeaders(),
+        body: JSON.stringify({ targets: [target], dryRun: true }),
+      });
+
+      expect(response.status).toBe(400);
+      expect(fetchSpy).not.toHaveBeenCalled();
     });
 
     it("returns authenticated target readiness evidence", async () => {

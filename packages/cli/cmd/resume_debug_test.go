@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -667,6 +668,53 @@ func TestResumeDebugExactReingestRequiresConfirmation(t *testing.T) {
 	}
 }
 
+func TestReadExactReingestManifestRejectsUnknownFields(t *testing.T) {
+	tests := []struct {
+		name     string
+		manifest string
+	}{
+		{
+			name:     "unknown top-level field",
+			manifest: `{"version":1,"targets":[{"externalId":"external-1"}],"candidateName":"not-allowed"}`,
+		},
+		{
+			name:     "unknown target field",
+			manifest: `{"version":1,"targets":[{"externalId":"external-1","candidateName":"not-allowed"}]}`,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			manifestPath := filepath.Join(t.TempDir(), "cohort.json")
+			if err := os.WriteFile(manifestPath, []byte(test.manifest), 0o600); err != nil {
+				t.Fatalf("write manifest: %v", err)
+			}
+
+			_, err := readExactReingestManifest(manifestPath)
+			if err == nil || !strings.Contains(err.Error(), "unknown field") {
+				t.Fatalf("expected strict unknown-field error, got %v", err)
+			}
+		})
+	}
+}
+
+func TestReadExactReingestManifestRejectsPlaceholderExternalIdentity(t *testing.T) {
+	for _, externalID := range []string{"unknown", "EXTERNALID:UNKNOWN"} {
+		t.Run(externalID, func(t *testing.T) {
+			manifestPath := filepath.Join(t.TempDir(), "cohort.json")
+			manifest := fmt.Sprintf(`{"version":1,"targets":[{"externalId":%q}]}`, externalID)
+			if err := os.WriteFile(manifestPath, []byte(manifest), 0o600); err != nil {
+				t.Fatalf("write manifest: %v", err)
+			}
+
+			_, err := readExactReingestManifest(manifestPath)
+			if err == nil || !strings.Contains(err.Error(), "placeholder") {
+				t.Fatalf("expected placeholder identity error, got %v", err)
+			}
+		})
+	}
+}
+
 func TestResumeDebugExactReingestDryRunPreservesRepeatableResumeIDOrder(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/resumes/exact-reingest" {
@@ -718,6 +766,63 @@ func TestResumeDebugExactReingestDryRunPreservesRepeatableResumeIDOrder(t *testi
 	payload := decodeCommandJSON(t, output)
 	if payload["requested"] != float64(2) || payload["resolved"] != float64(2) || payload["dryRun"] != true {
 		t.Fatalf("unexpected output: %+v", payload)
+	}
+}
+
+func TestResumeDebugExactReingestJSONIncludesResolutionEvidence(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/resumes/exact-reingest" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"success":               true,
+			"dryRun":                true,
+			"manifestVersion":       1,
+			"expectedSkillsVersion": 3,
+			"requested":             1,
+			"resolved":              1,
+			"scheduled":             0,
+			"batches":               0,
+			"resumeIds":             []string{"current-1"},
+			"targets": []map[string]any{
+				{
+					"currentResumeId":      "current-1",
+					"externalId":           "external-1",
+					"source":               "51job",
+					"canonicalIdentityKey": "externalId:external-1",
+					"outcome":              "resolved",
+					"selectors": []map[string]string{
+						{"kind": "externalId", "value": "external-1"},
+					},
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	setResumeCLIConfig(t, server.URL, "dev")
+	setCLIOutput(t, "json")
+	cmd := newResumeDebugExactReingestCmd()
+	var output bytes.Buffer
+	cmd.SetOut(&output)
+	cmd.SetErr(&output)
+	cmd.SetArgs([]string{"--resume-id", "current-1", "--dry-run"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("resume debug reingest evidence output failed: %v", err)
+	}
+	payload := decodeCommandJSON(t, output)
+	targets, ok := payload["targets"].([]any)
+	if !ok || len(targets) != 1 {
+		t.Fatalf("unexpected target output: %+v", payload)
+	}
+	target, ok := targets[0].(map[string]any)
+	if !ok || target["outcome"] != "resolved" {
+		t.Fatalf("missing resolution outcome: %+v", target)
+	}
+	selectors, ok := target["selectors"].([]any)
+	if !ok || len(selectors) != 1 {
+		t.Fatalf("missing normalized selector evidence: %+v", target)
 	}
 }
 

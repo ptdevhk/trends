@@ -1,9 +1,11 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -551,6 +553,39 @@ func hasExactReingestSelector(target client.ExactReingestTarget) bool {
 		strings.TrimSpace(target.IdentityKey) != ""
 }
 
+func isPlaceholderExactReingestExternalIdentity(value string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(value))
+	return normalized == "unknown" || normalized == "externalid:unknown"
+}
+
+func validateExactReingestTarget(target client.ExactReingestTarget, index int) error {
+	if isPlaceholderExactReingestExternalIdentity(target.ExternalID) {
+		return fmt.Errorf("exact reingest manifest target %d has a placeholder external ID", index+1)
+	}
+	if isPlaceholderExactReingestExternalIdentity(target.IdentityKey) {
+		return fmt.Errorf("exact reingest manifest target %d has a placeholder external identity key", index+1)
+	}
+	if !hasExactReingestSelector(target) {
+		return fmt.Errorf("exact reingest manifest target %d is missing a stable selector or current resume ID", index+1)
+	}
+	return nil
+}
+
+func decodeStrictExactReingestJSON(content []byte, destination any) error {
+	decoder := json.NewDecoder(bytes.NewReader(content))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(destination); err != nil {
+		return err
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		if err == nil {
+			return fmt.Errorf("multiple JSON values are not allowed")
+		}
+		return err
+	}
+	return nil
+}
+
 func readExactReingestManifest(path string) ([]client.ExactReingestTarget, error) {
 	resolvedPath, err := filepath.Abs(strings.TrimSpace(path))
 	if err != nil {
@@ -561,23 +596,30 @@ func readExactReingestManifest(path string) ([]client.ExactReingestTarget, error
 		return nil, fmt.Errorf("read exact reingest manifest: %w", err)
 	}
 
+	trimmed := bytes.TrimSpace(content)
+	if len(trimmed) == 0 {
+		return nil, fmt.Errorf("decode exact reingest manifest: empty document")
+	}
+
 	var manifest exactReingestManifest
-	if err := json.Unmarshal(content, &manifest); err != nil {
+	if trimmed[0] == '[' {
 		var targets []client.ExactReingestTarget
-		if arrayErr := json.Unmarshal(content, &targets); arrayErr != nil {
+		if err := decodeStrictExactReingestJSON(trimmed, &targets); err != nil {
 			return nil, fmt.Errorf("decode exact reingest manifest: %w", err)
 		}
 		manifest = exactReingestManifest{Version: 1, Targets: targets}
+	} else if err := decodeStrictExactReingestJSON(trimmed, &manifest); err != nil {
+		return nil, fmt.Errorf("decode exact reingest manifest: %w", err)
 	}
-	if manifest.Version != 0 && manifest.Version != 1 {
+	if manifest.Version != 1 {
 		return nil, fmt.Errorf("unsupported exact reingest manifest version %d", manifest.Version)
 	}
 	if len(manifest.Targets) == 0 {
 		return nil, fmt.Errorf("exact reingest manifest contains no targets")
 	}
 	for index, target := range manifest.Targets {
-		if !hasExactReingestSelector(target) {
-			return nil, fmt.Errorf("exact reingest manifest target %d is missing a stable selector or current resume ID", index+1)
+		if err := validateExactReingestTarget(target, index); err != nil {
+			return nil, err
 		}
 	}
 	return manifest.Targets, nil

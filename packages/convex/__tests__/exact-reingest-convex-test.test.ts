@@ -56,6 +56,19 @@ describe("exact target re-ingest", () => {
         profileResumeId: "123456",
         externalId: "51job:resume:123456",
         canonicalIdentityKey: "profileUrl:ehire.51job.com/revision/talent/resume/detail?contenttype=&resumeid=123456",
+        outcome: "resolved",
+        selectors: [
+          {
+            kind: "profileUrl",
+            value: "profileUrl:ehire.51job.com/revision/talent/resume/detail?contenttype=&resumeid=123456",
+          },
+          { kind: "profileResumeId", value: "123456" },
+          { kind: "externalId", value: "51job:resume:123456" },
+          {
+            kind: "identityKey",
+            value: "profileUrl:ehire.51job.com/revision/talent/resume/detail?contenttype=&resumeid=123456",
+          },
+        ],
       }),
     ]);
   });
@@ -183,6 +196,65 @@ describe("exact target re-ingest", () => {
       targets: [target({ externalId: "hr-target" })],
     })).rejects.toThrow(/workspace/i);
   });
+
+  it("treats an unscoped legacy resume as dev-only during resolution", async () => {
+    const t = createTest();
+    await seedResume(t, { externalId: "legacy-unscoped-resolution" });
+
+    await expect(t.action(api.ingest_agent.resolveExactReingestTargets, {
+      workspaceSlug: "hr",
+      writeSecret: WRITE_SECRET,
+      targets: [target({ externalId: "legacy-unscoped-resolution" })],
+    })).rejects.toThrow(/workspace/i);
+  });
+
+  it("treats an unscoped legacy resume as dev-only during scheduling", async () => {
+    const t = createTest();
+    const resumeId = await seedResume(t, { externalId: "legacy-unscoped-schedule" });
+
+    await expect(t.mutation(api.ingest_agent.scheduleExactReingest, {
+      workspaceSlug: "hr",
+      writeSecret: WRITE_SECRET,
+      resumeIds: [resumeId],
+    })).rejects.toThrow(/workspace/i);
+
+    const scheduled = await t.run((ctx) => ctx.db.system.query("_scheduled_functions").collect());
+    expect(scheduled).toEqual([]);
+  });
+
+  it("treats an unscoped legacy resume as dev-only during readiness", async () => {
+    const t = createTest();
+    const resumeId = await seedResume(t, { externalId: "legacy-unscoped-readiness" });
+
+    const result = await t.query(api.ingest_agent.getExactReingestReadiness, {
+      workspaceSlug: "hr",
+      writeSecret: WRITE_SECRET,
+      resumeIds: [resumeId],
+      dispatchedAt: 1_000,
+      expectedSkillsVersion: 3,
+    });
+
+    expect(result).toMatchObject({ allReady: false, ready: 0, pending: 0, invalid: 1 });
+    expect(result.targets[0]).toMatchObject({
+      currentResumeId: String(resumeId),
+      state: "invalid",
+      reasons: ["workspace_mismatch"],
+    });
+  });
+
+  it.each(["unknown", "EXTERNALID:UNKNOWN"])(
+    "rejects placeholder external ID selector %s",
+    async (externalId) => {
+      const t = createTest();
+      await seedResume(t, { externalId });
+
+      await expect(t.action(api.ingest_agent.resolveExactReingestTargets, {
+        workspaceSlug: "dev",
+        writeSecret: WRITE_SECRET,
+        targets: [target({ externalId })],
+      })).rejects.toThrow(/invalid externalId selector/i);
+    },
+  );
 
   it("requires the configured write secret for resolution and scheduling", async () => {
     const t = createTest();

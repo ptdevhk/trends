@@ -88,14 +88,21 @@ type ExactReingestRequest struct {
 	DryRun  bool                  `json:"dryRun"`
 }
 
+type ExactReingestResolvedSelector struct {
+	Kind  string `json:"kind"`
+	Value string `json:"value"`
+}
+
 type ExactReingestResolvedTarget struct {
-	ReferenceResumeID    string `json:"referenceResumeId,omitempty"`
-	CurrentResumeID      string `json:"currentResumeId"`
-	ProfileResumeID      string `json:"profileResumeId,omitempty"`
-	ProfileURL           string `json:"profileUrl,omitempty"`
-	ExternalID           string `json:"externalId"`
-	Source               string `json:"source"`
-	CanonicalIdentityKey string `json:"canonicalIdentityKey"`
+	ReferenceResumeID    string                          `json:"referenceResumeId,omitempty"`
+	CurrentResumeID      string                          `json:"currentResumeId"`
+	ProfileResumeID      string                          `json:"profileResumeId,omitempty"`
+	ProfileURL           string                          `json:"profileUrl,omitempty"`
+	ExternalID           string                          `json:"externalId"`
+	Source               string                          `json:"source"`
+	CanonicalIdentityKey string                          `json:"canonicalIdentityKey"`
+	Outcome              string                          `json:"outcome"`
+	Selectors            []ExactReingestResolvedSelector `json:"selectors"`
 }
 
 type ExactReingestResponse struct {

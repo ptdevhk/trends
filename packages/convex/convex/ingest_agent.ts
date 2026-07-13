@@ -10,6 +10,7 @@ import { computeProtectedAttributeHashes } from "./audit.js";
 import {
   collectResumeIdentityAliases,
   deriveResumeIdentityKey,
+  isPlaceholderResumeExternalId,
   normalizeResumeIdentityKey,
   normalizeResumeIdentityToken,
   normalizeResumeProfileUrl,
@@ -18,6 +19,7 @@ import {
   PAGINATE_MAX_BYTES_READ,
   PAGINATE_MAX_ROWS_READ,
 } from "./lib/resumes_pagination.js";
+import { belongsToWorkspace } from "./search_profiles.js";
 
 interface BrandHit {
   brand: string;
@@ -156,6 +158,8 @@ type ExactReingestResolvedTarget = {
   externalId: string;
   source: string;
   canonicalIdentityKey: string;
+  outcome: "resolved";
+  selectors: Array<{ kind: ExactReingestSelectorKind; value: string }>;
 };
 
 type ExactReingestResolutionResult = {
@@ -191,7 +195,7 @@ function normalizeExactReingestTarget(
   const profileResumeId = target.profileResumeId
     ? normalizeResumeIdentityToken(target.profileResumeId) ?? undefined
     : undefined;
-  const externalId = target.externalId
+  const externalId = target.externalId && !isPlaceholderResumeExternalId(target.externalId)
     ? normalizeResumeIdentityToken(target.externalId) ?? undefined
     : undefined;
   const profileUrl = readOptionalString(target.profileUrl);
@@ -418,10 +422,10 @@ export const resolveExactReingestTargets = action({
       if (candidate.isArchived) {
         throw exactTargetError(target.targetIndex, `resolved to archived resume ${currentResumeId}`);
       }
-      if (candidate.workspaceSlug && candidate.workspaceSlug !== workspaceSlug) {
+      if (!belongsToWorkspace(candidate.workspaceSlug, workspaceSlug)) {
         throw exactTargetError(
           target.targetIndex,
-          `resolved to workspace ${candidate.workspaceSlug}, not ${workspaceSlug}`,
+          `resolved to workspace ${candidate.workspaceSlug ?? "dev"}, not ${workspaceSlug}`,
         );
       }
 
@@ -433,6 +437,8 @@ export const resolveExactReingestTargets = action({
         externalId: candidate.externalId,
         source: candidate.source,
         canonicalIdentityKey: candidate.canonicalIdentityKey,
+        outcome: "resolved",
+        selectors: targetSelectors(target),
       });
       if (!seenResumeIds.has(currentResumeId)) {
         seenResumeIds.add(currentResumeId);
@@ -488,9 +494,9 @@ export const scheduleExactReingest = mutation({
       if (resume.isArchived === true) {
         throw new Error(`Exact re-ingest resume ${String(resume._id)} is archived`);
       }
-      if (resume.workspaceSlug && resume.workspaceSlug !== workspaceSlug) {
+      if (!belongsToWorkspace(resume.workspaceSlug, workspaceSlug)) {
         throw new Error(
-          `Exact re-ingest resume ${String(resume._id)} belongs to workspace ${resume.workspaceSlug}, not ${workspaceSlug}`,
+          `Exact re-ingest resume ${String(resume._id)} belongs to workspace ${resume.workspaceSlug ?? "dev"}, not ${workspaceSlug}`,
         );
       }
     }
@@ -558,7 +564,7 @@ export const getExactReingestReadiness = query({
           reasons: ["resume_archived"],
         };
       }
-      if (resume.workspaceSlug && resume.workspaceSlug !== workspaceSlug) {
+      if (!belongsToWorkspace(resume.workspaceSlug, workspaceSlug)) {
         return {
           currentResumeId,
           state: "invalid" as const,

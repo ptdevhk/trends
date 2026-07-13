@@ -31,19 +31,33 @@ const HardResetReingestResponseSchema = z.object({
   error: z.string().optional(),
 });
 
+function isPlaceholderExternalIdentity(value: string): boolean {
+  const normalized = value.trim().toLowerCase();
+  return normalized === "unknown" || normalized === "externalid:unknown";
+}
+
 const ExactReingestTargetSchema = z.object({
   referenceResumeId: z.string().trim().min(1).optional(),
   currentResumeId: z.string().trim().min(1).optional(),
   profileResumeId: z.string().trim().min(1).optional(),
   profileUrl: z.string().trim().min(1).optional(),
-  externalId: z.string().trim().min(1).optional(),
-  identityKey: z.string().trim().min(1).optional(),
+  externalId: z.string().trim().min(1)
+    .refine((value) => !isPlaceholderExternalIdentity(value), "Placeholder external IDs are not stable selectors")
+    .optional(),
+  identityKey: z.string().trim().min(1)
+    .refine((value) => !isPlaceholderExternalIdentity(value), "Placeholder external identity keys are not stable selectors")
+    .optional(),
   source: z.string().trim().min(1).optional(),
-});
+}).strict();
 
 const ExactReingestRequestSchema = z.object({
   targets: z.array(ExactReingestTargetSchema).min(1).max(500),
   dryRun: z.boolean().optional(),
+}).strict();
+
+const ExactReingestResolvedSelectorSchema = z.object({
+  kind: z.enum(["currentResumeId", "profileUrl", "profileResumeId", "externalId", "identityKey"]),
+  value: z.string().min(1),
 });
 
 const ExactReingestResolvedTargetSchema = z.object({
@@ -54,6 +68,8 @@ const ExactReingestResolvedTargetSchema = z.object({
   externalId: z.string(),
   source: z.string(),
   canonicalIdentityKey: z.string().min(1),
+  outcome: z.literal("resolved"),
+  selectors: z.array(ExactReingestResolvedSelectorSchema).min(1),
 });
 
 const ExactReingestResolutionSchema = z.object({

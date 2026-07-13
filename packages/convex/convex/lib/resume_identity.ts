@@ -55,6 +55,11 @@ export function normalizeResumeIdentityToken(value: string): string | null {
     return trimmed.toLowerCase();
 }
 
+export function isPlaceholderResumeExternalId(value: string): boolean {
+    const normalized = normalizeResumeIdentityToken(value);
+    return normalized === "unknown" || normalized === "externalid:unknown";
+}
+
 function decodeURIComponentSafe(value: string): string {
     try {
         return decodeURIComponent(value);

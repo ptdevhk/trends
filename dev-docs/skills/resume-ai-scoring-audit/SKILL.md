@@ -84,8 +84,8 @@ CURRENT_EXPORT="$HOME/Documents/resumes-export-current-db-${STAMP}.csv"
 7. Extract the HR cohort audit CSV/JSON.
 
 ```bash
-REFERENCE_CSV="$HOME/Documents/resumes-export-v0.3.0-hr-feedback-42-2026-06-01T02-44-02-472699Z.csv"
-AUDIT_CSV="$HOME/Documents/resumes-export-current-db-hr-feedback-42-${STAMP}.csv"
+REFERENCE_CSV="${REFERENCE_CSV:-$HOME/Documents/resumes-export-reference-hr-feedback-34.csv}"
+AUDIT_CSV="$HOME/Documents/resumes-export-current-db-hr-feedback-34-${STAMP}.csv"
 AUDIT_JSON="${AUDIT_CSV%.csv}.audit.json"
 TARGET_MANIFEST="${AUDIT_CSV%.csv}.targets.json"
 python3 .agents/skills/resume-ai-scoring-audit/scripts/audit_hr_feedback_export.py \
@@ -94,7 +94,7 @@ python3 .agents/skills/resume-ai-scoring-audit/scripts/audit_hr_feedback_export.
   --out-csv "$AUDIT_CSV" \
   --out-json "$AUDIT_JSON" \
   --out-manifest "$TARGET_MANIFEST" \
-  --expected-count 42
+  --expected-count 34
 ```
 
 The target manifest preserves reference order and carries stable profile/external selectors plus the current Convex ID when available. Resolve it before any live target-scoped operation:

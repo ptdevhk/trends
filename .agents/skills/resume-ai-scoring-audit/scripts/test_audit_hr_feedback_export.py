@@ -28,8 +28,10 @@ from audit_hr_feedback_export import (
     classify_alignment,
     first_value,
     format_number,
+    main,
     parse_float,
     output_row,
+    read_csv,
     summarize,
 )
 
@@ -94,6 +96,161 @@ class TestTargetManifest:
                 excluded=set(),
             )
 
+    def test_resolves_external_only_reference_to_current_row(self):
+        current = {"Resume ID": "current-external", "External ID": "external-only"}
+
+        manifest = build_target_manifest(
+            [{"Old Resume ID": "old-external", "External ID": "external-only"}],
+            current_index={},
+            duplicates={},
+            excluded=set(),
+            external_index={"external-only": current},
+            external_duplicates={},
+        )
+
+        assert manifest["targets"] == [
+            {
+                "referenceResumeId": "old-external",
+                "currentResumeId": "current-external",
+                "externalId": "external-only",
+            }
+        ]
+
+    def test_rejects_ambiguous_current_external_id(self):
+        with pytest.raises(ValueError, match="external ID external-1 matches multiple"):
+            build_target_manifest(
+                [{"Old Resume ID": "old-1", "External ID": "external-1"}],
+                current_index={},
+                duplicates={},
+                excluded=set(),
+                external_index={"external-1": {"Resume ID": "current-1"}},
+                external_duplicates={"external-1": 2},
+            )
+
+    def test_rejects_conflicting_profile_and_external_matches(self):
+        with pytest.raises(ValueError, match="stable selectors conflict"):
+            build_target_manifest(
+                [{
+                    "Old Resume ID": "old-1",
+                    "Profile Resume ID": "100001",
+                    "External ID": "external-2",
+                }],
+                current_index={"100001": {"Resume ID": "current-1"}},
+                duplicates={},
+                excluded=set(),
+                external_index={"external-2": {"Resume ID": "current-2"}},
+                external_duplicates={},
+            )
+
+    def test_rejects_placeholder_external_identity(self):
+        with pytest.raises(ValueError, match="placeholder external ID"):
+            build_target_manifest(
+                [{"Old Resume ID": "old-1", "External ID": "UNKNOWN"}],
+                current_index={},
+                duplicates={},
+                excluded=set(),
+                external_index={},
+                external_duplicates={},
+            )
+
+    def test_builds_ordered_34_target_contract(self):
+        references = [
+            {
+                "Old Resume ID": f"old-{index:02d}",
+                "Profile Resume ID": str(100000 + index),
+                "External ID": f"external-{index:02d}",
+            }
+            for index in range(34)
+        ]
+        current_rows = [
+            {
+                "Resume ID": f"current-{index:02d}",
+                "Profile Resume ID": str(100000 + index),
+                "External ID": f"external-{index:02d}",
+            }
+            for index in range(34)
+        ]
+
+        manifest = build_target_manifest(
+            references,
+            current_index={row["Profile Resume ID"]: row for row in current_rows},
+            duplicates={},
+            excluded=set(),
+            external_index={row["External ID"]: row for row in current_rows},
+            external_duplicates={},
+        )
+
+        assert len(manifest["targets"]) == 34
+        assert [target["referenceResumeId"] for target in manifest["targets"]] == [
+            f"old-{index:02d}" for index in range(34)
+        ]
+        assert [target["currentResumeId"] for target in manifest["targets"]] == [
+            f"current-{index:02d}" for index in range(34)
+        ]
+
+    def test_skill_documents_current_34_row_contract(self):
+        skill_text = (SKILL_DIR.parent / "SKILL.md").read_text(encoding="utf-8")
+
+        assert "--expected-count 34" in skill_text
+        assert "hr-feedback-42" not in skill_text
+
+
+class TestManifestPublication:
+    def test_expected_count_failure_leaves_no_runnable_manifest(self, tmp_path, monkeypatch):
+        reference_csv = tmp_path / "reference.csv"
+        current_csv = tmp_path / "current.csv"
+        out_csv = tmp_path / "audit.csv"
+        out_json = tmp_path / "audit.json"
+        out_manifest = tmp_path / "targets.json"
+        _write_csv(reference_csv, [{
+            "Old Resume ID": "old-1",
+            "Profile Resume ID": "100001",
+            "External ID": "external-1",
+        }])
+        _write_csv(current_csv, [{
+            "Resume ID": "current-1",
+            "Profile Resume ID": "100001",
+            "External ID": "external-1",
+        }])
+        monkeypatch.setattr(sys, "argv", [
+            "audit_hr_feedback_export.py",
+            "--reference-csv", str(reference_csv),
+            "--current-export", str(current_csv),
+            "--out-csv", str(out_csv),
+            "--out-json", str(out_json),
+            "--out-manifest", str(out_manifest),
+            "--expected-count", "2",
+        ])
+
+        assert main() == 2
+        assert not out_manifest.exists()
+
+    def test_main_joins_external_only_reference(self, tmp_path, monkeypatch):
+        reference_csv = tmp_path / "reference.csv"
+        current_csv = tmp_path / "current.csv"
+        out_csv = tmp_path / "audit.csv"
+        out_json = tmp_path / "audit.json"
+        _write_csv(reference_csv, [{
+            "Old Resume ID": "old-1",
+            "External ID": "external-only",
+        }])
+        _write_csv(current_csv, [{
+            "Resume ID": "current-external",
+            "External ID": "external-only",
+        }])
+        monkeypatch.setattr(sys, "argv", [
+            "audit_hr_feedback_export.py",
+            "--reference-csv", str(reference_csv),
+            "--current-export", str(current_csv),
+            "--out-csv", str(out_csv),
+            "--out-json", str(out_json),
+            "--expected-count", "1",
+        ])
+
+        assert main() == 0
+        rows = read_csv(out_csv)
+        assert rows[0]["Current Resume ID"] == "current-external"
+
 
 # ---------------------------------------------------------------------------
 # Helpers to build minimal CSV rows for testing
@@ -108,6 +265,14 @@ def _csv_rows(fields: list[str], data: list[dict[str, str]]) -> list[dict[str, s
         writer.writerow({k: row.get(k, "") for k in fields})
     output.seek(0)
     return list(csv.DictReader(output))
+
+
+def _write_csv(path: Path, rows: list[dict[str, str]]) -> None:
+    fieldnames = list(rows[0].keys())
+    with path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
 
 
 # ---------------------------------------------------------------------------

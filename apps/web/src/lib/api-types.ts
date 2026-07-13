@@ -4535,6 +4535,13 @@ export interface paths {
                                 externalId: string;
                                 source: string;
                                 canonicalIdentityKey: string;
+                                /** @enum {string} */
+                                outcome: "resolved";
+                                selectors: {
+                                    /** @enum {string} */
+                                    kind: "currentResumeId" | "profileUrl" | "profileResumeId" | "externalId" | "identityKey";
+                                    value: string;
+                                }[];
                             }[];
                         };
                     };

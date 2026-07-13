@@ -37,8 +37,8 @@ def profile_id_from_url(value: str) -> str:
     if not value:
         return ""
     parsed = urlparse(value)
-    query = parse_qs(parsed.query)
-    for key in ("resumeId", "resume_id", "profileResumeId"):
+    query = {key.lower(): values for key, values in parse_qs(parsed.query).items()}
+    for key in ("resumeid", "resume_id", "profileresumeid", "openprofileid"):
         values = query.get(key)
         if values and values[0].strip():
             return values[0].strip()
@@ -53,8 +53,6 @@ def profile_id(row: dict[str, str]) -> str:
             "Profile Resume ID",
             "profileResumeId",
             "profile_resume_id",
-            "External ID",
-            "externalId",
         ],
     )
     if direct and direct.isdigit():
@@ -70,6 +68,15 @@ def profile_id(row: dict[str, str]) -> str:
         if match:
             return match.group(1)
     return ""
+
+
+def external_id(row: dict[str, str]) -> str:
+    value = first_value(row, ["External ID", "externalId", "external_id"])
+    return value.lower()
+
+
+def is_placeholder_external_id(value: str) -> bool:
+    return value.strip().lower() in {"unknown", "externalid:unknown"}
 
 
 def parse_float(value: str) -> float | None:
@@ -170,23 +177,117 @@ def build_current_index(rows: list[dict[str, str]]) -> tuple[dict[str, dict[str,
     return index, duplicates
 
 
+def build_external_index(rows: list[dict[str, str]]) -> tuple[dict[str, dict[str, str]], dict[str, int]]:
+    buckets: dict[str, list[dict[str, str]]] = defaultdict(list)
+    for row in rows:
+        value = external_id(row)
+        if value and not is_placeholder_external_id(value):
+            buckets[value].append(row)
+    index = {value: rows_for_value[0] for value, rows_for_value in buckets.items()}
+    duplicates = {
+        value: len(rows_for_value)
+        for value, rows_for_value in buckets.items()
+        if len(rows_for_value) > 1
+    }
+    return index, duplicates
+
+
+def current_row_id(row: dict[str, str]) -> str:
+    return first_value(
+        row,
+        ["Current Convex Resume ID", "Current Resume ID", "Resume ID", "resumeId"],
+    )
+
+
+def resolve_current_row(
+    reference: dict[str, str],
+    current_index: dict[str, dict[str, str]],
+    duplicates: dict[str, int],
+    external_index: dict[str, dict[str, str]],
+    external_duplicates: dict[str, int],
+    row_number: int,
+    *,
+    require_match: bool,
+) -> dict[str, str] | None:
+    pid = profile_id(reference)
+    external = external_id(reference)
+    if external and is_placeholder_external_id(external):
+        raise ValueError(f"reference row {row_number} has placeholder external ID {external}")
+
+    matched: list[tuple[str, dict[str, str]]] = []
+    missing: list[str] = []
+    if pid:
+        if duplicates.get(pid, 0) > 1:
+            raise ValueError(
+                f"profile resume ID {pid} matches multiple current resumes ({duplicates[pid]})"
+            )
+        current = current_index.get(pid)
+        if current is None:
+            missing.append(f"profile resume ID {pid}")
+        else:
+            matched.append((f"profile resume ID {pid}", current))
+
+    if external:
+        if external_duplicates.get(external, 0) > 1:
+            raise ValueError(
+                f"external ID {external} matches multiple current resumes ({external_duplicates[external]})"
+            )
+        current = external_index.get(external)
+        if current is None:
+            missing.append(f"external ID {external}")
+        else:
+            matched.append((f"external ID {external}", current))
+
+    if matched and missing:
+        raise ValueError(
+            f"reference row {row_number} stable selectors do not converge: "
+            f"{', '.join(missing)} did not match"
+        )
+    if len(matched) > 1:
+        first_label, first_row = matched[0]
+        first_id = current_row_id(first_row)
+        for label, row in matched[1:]:
+            row_id = current_row_id(row)
+            same_row = row is first_row or (first_id and row_id and first_id == row_id)
+            if not same_row:
+                raise ValueError(
+                    f"reference row {row_number} stable selectors conflict: "
+                    f"{first_label} resolves to {first_id or '<unknown>'}, "
+                    f"but {label} resolves to {row_id or '<unknown>'}"
+                )
+    if matched:
+        return matched[0][1]
+    if require_match and (pid or external):
+        raise ValueError(
+            f"reference row {row_number} stable selectors did not match any current resume"
+        )
+    return None
+
+
 def build_target_manifest(
     reference_rows: list[dict[str, str]],
     current_index: dict[str, dict[str, str]],
     duplicates: dict[str, int],
     excluded: set[str],
+    external_index: dict[str, dict[str, str]] | None = None,
+    external_duplicates: dict[str, int] | None = None,
 ) -> dict[str, Any]:
+    external_index = external_index or {}
+    external_duplicates = external_duplicates or {}
     targets: list[dict[str, str]] = []
     for row_number, reference in enumerate(reference_rows, start=1):
         pid = profile_id(reference)
         if pid in excluded:
             continue
-        if pid and duplicates.get(pid, 0) > 1:
-            raise ValueError(
-                f"profile resume ID {pid} matches multiple current resumes ({duplicates[pid]})"
-            )
-
-        current = current_index.get(pid, {}) if pid else {}
+        current = resolve_current_row(
+            reference,
+            current_index,
+            duplicates,
+            external_index,
+            external_duplicates,
+            row_number,
+            require_match=True,
+        ) or {}
         target = {
             "referenceResumeId": first_value(
                 reference,
@@ -304,7 +405,12 @@ def output_row(reference: dict[str, str], current: dict[str, str] | None, thresh
     }
 
 
-def summarize(rows: list[dict[str, str]], duplicates: dict[str, int], args: argparse.Namespace) -> dict[str, Any]:
+def summarize(
+    rows: list[dict[str, str]],
+    duplicates: dict[str, int],
+    args: argparse.Namespace,
+    external_duplicates: dict[str, int] | None = None,
+) -> dict[str, Any]:
     by_category: dict[str, list[dict[str, str]]] = defaultdict(list)
     for row in rows:
         by_category[row["HR Category"] or "unknown"].append(row)
@@ -370,6 +476,7 @@ def summarize(rows: list[dict[str, str]], duplicates: dict[str, int], args: argp
         "actualCount": len(rows),
         "countMatchesExpected": args.expected_count is None or len(rows) == args.expected_count,
         "duplicateCurrentProfileIds": duplicates,
+        "duplicateCurrentExternalIds": external_duplicates or {},
         # Full-score audit integration: explicit scoring model declaration
         "scoringModel": "final=round(related_exp*0.5)+industry_db; auditFactor=related_exp",
         "finalScoreMetric": "Final AI Score",
@@ -391,32 +498,75 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary_path = path.with_name(f".{path.name}.tmp")
+    try:
+        with temporary_path.open("w", encoding="utf-8") as handle:
+            json.dump(payload, handle, ensure_ascii=False, indent=2)
+            handle.write("\n")
+        temporary_path.replace(path)
+    finally:
+        temporary_path.unlink(missing_ok=True)
+
+
 def main() -> int:
     args = parse_args()
     reference_rows = read_csv(args.reference_csv)
     current_rows = read_csv(args.current_export)
     current_index, duplicates = build_current_index(current_rows)
+    external_index, external_duplicates = build_external_index(current_rows)
     excluded = set(args.exclude_profile_id)
+
+    if args.out_manifest is not None:
+        args.out_manifest.unlink(missing_ok=True)
 
     manifest: dict[str, Any] | None = None
     if args.out_manifest is not None:
         try:
-            manifest = build_target_manifest(reference_rows, current_index, duplicates, excluded)
+            manifest = build_target_manifest(
+                reference_rows,
+                current_index,
+                duplicates,
+                excluded,
+                external_index=external_index,
+                external_duplicates=external_duplicates,
+            )
         except ValueError as error:
             print(json.dumps({"error": str(error)}, ensure_ascii=False, indent=2))
             return 3
 
     joined: list[dict[str, str]] = []
     skipped: list[dict[str, str]] = []
-    for reference in reference_rows:
+    for row_number, reference in enumerate(reference_rows, start=1):
         pid = profile_id(reference)
-        if not pid:
-            skipped.append({"reason": "missing_profile_id", "row": str(reference)})
-            continue
         if pid in excluded:
             skipped.append({"reason": "excluded_profile_id", "profileResumeId": pid})
             continue
-        joined.append(output_row(reference, current_index.get(pid), args.score_threshold))
+        reference_external_id = external_id(reference)
+        has_stable_identity = bool(
+            pid
+            or reference_external_id
+            or first_value(reference, ["Profile URL", "profileUrl", "profile_url"])
+            or first_value(reference, ["Canonical Identity Key", "Identity Key", "identityKey"])
+        )
+        if not has_stable_identity:
+            skipped.append({"reason": "missing_stable_identity", "row": str(reference)})
+            continue
+        try:
+            current = resolve_current_row(
+                reference,
+                current_index,
+                duplicates,
+                external_index,
+                external_duplicates,
+                row_number,
+                require_match=False,
+            )
+        except ValueError as error:
+            print(json.dumps({"error": str(error)}, ensure_ascii=False, indent=2))
+            return 3
+        joined.append(output_row(reference, current, args.score_threshold))
 
     args.out_csv.parent.mkdir(parents=True, exist_ok=True)
     args.out_json.parent.mkdir(parents=True, exist_ok=True)
@@ -426,13 +576,11 @@ def main() -> int:
         writer.writeheader()
         writer.writerows(joined)
 
-    summary = summarize(joined, duplicates, args)
+    summary = summarize(joined, duplicates, args, external_duplicates)
     summary["skippedReferenceRows"] = skipped
-    if manifest is not None and args.out_manifest is not None:
-        args.out_manifest.parent.mkdir(parents=True, exist_ok=True)
-        with args.out_manifest.open("w", encoding="utf-8") as handle:
-            json.dump(manifest, handle, ensure_ascii=False, indent=2)
-            handle.write("\n")
+    count_matches_expected = args.expected_count is None or len(joined) == args.expected_count
+    if count_matches_expected and manifest is not None and args.out_manifest is not None:
+        write_json_atomic(args.out_manifest, manifest)
         summary["targetManifest"] = str(args.out_manifest)
         summary["targetManifestCount"] = len(manifest["targets"])
     with args.out_json.open("w", encoding="utf-8") as handle:
@@ -440,7 +588,7 @@ def main() -> int:
         handle.write("\n")
 
     print(json.dumps(summary, ensure_ascii=False, indent=2))
-    if args.expected_count is not None and len(joined) != args.expected_count:
+    if not count_matches_expected:
         return 2
     return 0
 
