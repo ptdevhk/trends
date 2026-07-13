@@ -14,6 +14,8 @@ import {
     computeFinalAiScore,
     recommendationFromFinalAiScore,
     resolveResumeAnalysisSourceKey,
+    aggregateBrandOrigin,
+    aggregateProductClass,
     parseBrandOrigin,
     parseProductClass,
     stripForbiddenStrongMatchProse,
@@ -364,9 +366,25 @@ function resolveStructuredBrandSignals(resume: unknown): {
     productClass?: ProductClass;
 } {
     const ingestData = getResumeIngestData(resume);
+    const hits = Array.isArray(ingestData.brandHits)
+        ? ingestData.brandHits.flatMap((item) => {
+            if (!isRecord(item)) {
+                return [];
+            }
+            const origin = parseBrandOrigin(item.origin);
+            const productClass = parseProductClass(item.productClass);
+            return origin === undefined && productClass === undefined
+                ? []
+                : [{ origin, productClass }];
+        })
+        : [];
+    const hasHitOrigin = hits.some((hit) => hit.origin !== undefined);
+    const hasHitProductClass = hits.some((hit) => hit.productClass !== undefined);
     return {
-        brandOrigin: parseBrandOrigin(ingestData.brandOrigin),
-        productClass: parseProductClass(ingestData.productClass),
+        brandOrigin: parseBrandOrigin(ingestData.brandOrigin)
+            ?? (hasHitOrigin ? aggregateBrandOrigin(hits) : undefined),
+        productClass: parseProductClass(ingestData.productClass)
+            ?? (hasHitProductClass ? aggregateProductClass(hits) : undefined),
     };
 }
 

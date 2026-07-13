@@ -20,6 +20,41 @@ const modules = (import.meta as any).glob("../**/*.ts", { eager: false });
 // ---------------------------------------------------------------------------
 
 describe("resumes_mutations: updateIngestDataBatch", () => {
+    it("persists Phase 2 brand signals through Convex validation", async () => {
+        const t = convexTest(schema, modules);
+        const resumeId = await seedResume(t);
+
+        await t.mutation(internal.resumes_mutations.updateIngestDataBatch, {
+            updates: [{
+                resumeId,
+                ingestData: {
+                    ...MINIMAL_INGEST_DATA,
+                    brandHits: [{
+                        brand: "蕙勒",
+                        role: "sales",
+                        source: "workHistory",
+                        context: "employer",
+                        origin: "domestic",
+                        productClass: "complete_machine",
+                    }],
+                    brandOrigin: "domestic",
+                    productClass: "complete_machine",
+                },
+            }],
+        });
+
+        const resume = await t.run(async (ctx) => ctx.db.get(resumeId));
+        expect(resume?.ingestData).toMatchObject({
+            brandOrigin: "domestic",
+            productClass: "complete_machine",
+            brandHits: [{
+                brand: "蕙勒",
+                origin: "domestic",
+                productClass: "complete_machine",
+            }],
+        });
+    });
+
     it("updates ingestData and rebuilds searchText", async () => {
         const t = convexTest(schema, modules);
         const resumeId = await seedResume(t);

@@ -5,7 +5,7 @@ import type { Id } from "./_generated/dataModel";
 import { internalAction } from "./_generated/server";
 import { v } from "convex/values";
 import type { ResumeScanRow } from "./resumes";
-import { isRecord } from "@trends/shared";
+import { isRecord, type BrandOrigin, type ProductClass } from "@trends/shared";
 import { computeProtectedAttributeHashes } from "./audit.js";
 
 interface BrandHit {
@@ -14,6 +14,8 @@ interface BrandHit {
   source: string;
   context: string;
   companyId?: number;
+  origin?: BrandOrigin;
+  productClass?: ProductClass;
 }
 
 interface IndustryDbV2RawComponents {
@@ -156,6 +158,8 @@ export const processNewResumes = internalAction({
           industryTags: item.industryTags as string[],
           synonymHits: item.synonymHits as string[],
           brandHits: (item.brandHits as BrandHit[]) || [],
+          brandOrigin: item.brandOrigin as BrandOrigin | undefined,
+          productClass: item.productClass as ProductClass | undefined,
           companyHits: (item.companyHits as string[]) || [],
           industryDbV2Raw: item.industryDbV2Raw as number | undefined,
           industryDbV2RawComponents: (item.industryDbV2RawComponents as IndustryDbV2RawComponents) || undefined,

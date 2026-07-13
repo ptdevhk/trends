@@ -92,7 +92,16 @@ describe("processNewResumes", () => {
             evidenceText: "evidence",
             industryTags: ["software"],
             synonymHits: ["dev"],
-            brandHits: [],
+            brandHits: [{
+              brand: "FANUC",
+              role: "both",
+              source: "workHistory",
+              context: "equipment",
+              origin: "international",
+              productClass: "complete_machine",
+            }],
+            brandOrigin: "international",
+            productClass: "complete_machine",
             companyHits: [],
             ruleScores: { tech: 0.9 },
             experienceLevel: "senior",
@@ -146,6 +155,16 @@ describe("processNewResumes", () => {
     expect(update0.resumeId).toBe("r1")
     expect((update0.ingestData as Record<string, unknown>).market).toBe("tech")
     expect((update0.ingestData as Record<string, unknown>).skillsVersion).toBe(2)
+    expect((update0.ingestData as Record<string, unknown>).brandOrigin).toBe("international")
+    expect((update0.ingestData as Record<string, unknown>).productClass).toBe("complete_machine")
+    expect((update0.ingestData as Record<string, unknown>).brandHits).toEqual([{
+      brand: "FANUC",
+      role: "both",
+      source: "workHistory",
+      context: "equipment",
+      origin: "international",
+      productClass: "complete_machine",
+    }])
     expect(ingestMutations[0].updates[1].resumeId).toBe("r2")
 
     // Verify audit log mutations were called for each processed resume (EU AI Act Art. 12)

@@ -1,5 +1,18 @@
 import { v } from "convex/values";
 
+const brandOriginValidator = v.union(
+    v.literal("international"),
+    v.literal("domestic"),
+    v.literal("unknown"),
+);
+
+const productClassValidator = v.union(
+    v.literal("complete_machine"),
+    v.literal("tool_accessory"),
+    v.literal("industrial_component"),
+    v.literal("other"),
+);
+
 /**
  * Shared validator definitions for Convex schema shapes that are also used
  * in mutation/action args. Single source of truth — schema.ts and mutation
@@ -19,7 +32,11 @@ export const ingestDataValidator = v.object({
         source: v.string(),
         context: v.string(),
         companyId: v.optional(v.number()),
+        origin: v.optional(brandOriginValidator),
+        productClass: v.optional(productClassValidator),
     }))),
+    brandOrigin: v.optional(brandOriginValidator),
+    productClass: v.optional(productClassValidator),
     companyHits: v.optional(v.array(v.string())),
     industryDbV2Raw: v.optional(v.number()),
     industryDbV2RawComponents: v.optional(v.object({

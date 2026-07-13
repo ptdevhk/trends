@@ -455,6 +455,43 @@ describe("enrichConcernsWithBrandSignals", () => {
         expect(concerns.some((c) => c.includes("国产"))).toBe(true);
         expect(concerns.some((c) => c.includes("刀具"))).toBe(true);
     });
+
+    it("falls back to persisted hit-level signals when candidate-level fields are absent", () => {
+        const concerns = enrichConcernsWithBrandSignals(
+            [],
+            {
+                ingestData: {
+                    brandHits: [{
+                        brand: "蕙勒",
+                        origin: "domestic",
+                        productClass: "tool_accessory",
+                    }],
+                },
+            },
+            "zh",
+        );
+        expect(concerns.some((concern) => concern.includes("国产"))).toBe(true);
+        expect(concerns.some((concern) => concern.includes("刀具"))).toBe(true);
+    });
+
+    it("prefers candidate-level signals over conflicting hit-level fallback values", () => {
+        const concerns = enrichConcernsWithBrandSignals(
+            [],
+            {
+                ingestData: {
+                    brandOrigin: "international",
+                    productClass: "complete_machine",
+                    brandHits: [{
+                        brand: "legacy-hit",
+                        origin: "domestic",
+                        productClass: "tool_accessory",
+                    }],
+                },
+            },
+            "zh",
+        );
+        expect(concerns).toEqual([]);
+    });
 });
 
 // ---------------------------------------------------------------------------
