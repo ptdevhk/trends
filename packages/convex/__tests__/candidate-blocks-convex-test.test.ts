@@ -24,10 +24,27 @@ afterEach(() => {
 
 describe("candidate_blocks (convex-test)", () => {
   describe("list", () => {
+    it("rejects direct reads without the server write secret", async () => {
+      const t = createTest();
+
+      await expect(t.query(api.candidate_blocks.list, {
+        workspaceSlug: "ws1",
+        paginationOpts: { cursor: null, numItems: 500 },
+      })).rejects.toThrow("Unauthorized Convex read");
+      await expect(t.query(api.candidate_blocks.list, {
+        workspaceSlug: "ws1",
+        paginationOpts: { cursor: null, numItems: 500 },
+        writeSecret: "wrong-secret",
+      })).rejects.toThrow("Unauthorized Convex read");
+    });
+
     it("returns empty array when no blocks exist", async () => {
       const t = createTest();
-      const result = await t.query(api.candidate_blocks.list, {});
-      expect(result).toEqual([]);
+      const result = await t.query(api.candidate_blocks.list, {
+        paginationOpts: { cursor: null, numItems: 500 },
+        writeSecret: WRITE_SECRET,
+      });
+      expect(result.page).toEqual([]);
     });
 
     it("returns blocks filtered by workspaceSlug", async () => {
@@ -48,24 +65,67 @@ describe("candidate_blocks (convex-test)", () => {
 
       const result = await t.query(api.candidate_blocks.list, {
         workspaceSlug: "ws1",
+        paginationOpts: { cursor: null, numItems: 500 },
+        writeSecret: WRITE_SECRET,
       });
-      expect(result).toHaveLength(1);
-      expect(result[0].identityKey).toBe("id1");
+      expect(result.page).toHaveLength(1);
+      expect(result.page[0].identityKey).toBe("id1");
     });
 
     it("defaults workspaceSlug when not provided", async () => {
       const t = createTest();
 
-      const result = await t.query(api.candidate_blocks.list, {});
-      expect(result).toEqual([]);
+      const result = await t.query(api.candidate_blocks.list, {
+        paginationOpts: { cursor: null, numItems: 500 },
+        writeSecret: WRITE_SECRET,
+      });
+      expect(result.page).toEqual([]);
+    });
+
+    it("paginates beyond 500 workspace rows without truncation", async () => {
+      const t = createTest();
+      await t.run(async (ctx) => {
+        for (let index = 0; index < 501; index += 1) {
+          await ctx.db.insert("candidate_blocks", {
+            workspaceSlug: "ws-large",
+            identityKey: `identity-${index}`,
+            blockedAt: index,
+          });
+        }
+      });
+
+      const first = await t.query(api.candidate_blocks.list, {
+        workspaceSlug: "ws-large",
+        paginationOpts: { cursor: null, numItems: 500 },
+        writeSecret: WRITE_SECRET,
+      });
+      const second = await t.query(api.candidate_blocks.list, {
+        workspaceSlug: "ws-large",
+        paginationOpts: { cursor: first.continueCursor, numItems: 500 },
+        writeSecret: WRITE_SECRET,
+      });
+
+      expect(first.page).toHaveLength(500);
+      expect(first.isDone).toBe(false);
+      expect(second.page).toHaveLength(1);
+      expect(second.isDone).toBe(true);
     });
   });
 
   describe("getByIdentity", () => {
+    it("rejects direct identity reads without the server write secret", async () => {
+      const t = createTest();
+      await expect(t.query(api.candidate_blocks.getByIdentity, {
+        workspaceSlug: "ws1",
+        identityKey: "user-123",
+      })).rejects.toThrow("Unauthorized Convex read");
+    });
+
     it("returns null for non-existent identity", async () => {
       const t = createTest();
       const result = await t.query(api.candidate_blocks.getByIdentity, {
         identityKey: "nonexistent",
+        writeSecret: WRITE_SECRET,
       });
       expect(result).toBeNull();
     });
@@ -85,6 +145,7 @@ describe("candidate_blocks (convex-test)", () => {
       const result = await t.query(api.candidate_blocks.getByIdentity, {
         workspaceSlug: "ws1",
         identityKey: "user-123",
+        writeSecret: WRITE_SECRET,
       });
       expect(result).not.toBeNull();
       expect(result!.identityKey).toBe("user-123");
@@ -95,6 +156,7 @@ describe("candidate_blocks (convex-test)", () => {
       const t = createTest();
       const result = await t.query(api.candidate_blocks.getByIdentity, {
         identityKey: "  ",
+        writeSecret: WRITE_SECRET,
       });
       expect(result).toBeNull();
     });
@@ -116,6 +178,7 @@ describe("candidate_blocks (convex-test)", () => {
       const block = await t.query(api.candidate_blocks.getByIdentity, {
         workspaceSlug: "ws1",
         identityKey: "user-new",
+        writeSecret: WRITE_SECRET,
       });
       expect(block).not.toBeNull();
       expect(block!.reason).toBe("fraud");
@@ -144,6 +207,7 @@ describe("candidate_blocks (convex-test)", () => {
       const block = await t.query(api.candidate_blocks.getByIdentity, {
         workspaceSlug: "ws1",
         identityKey: "user-dup",
+        writeSecret: WRITE_SECRET,
       });
       expect(block!.reason).toBe("second");
       expect(block!.blockedBy).toBe("admin");
@@ -182,6 +246,7 @@ describe("candidate_blocks (convex-test)", () => {
       const block = await t.query(api.candidate_blocks.getByIdentity, {
         workspaceSlug: "ws1",
         identityKey: "user-upd",
+        writeSecret: WRITE_SECRET,
       });
       expect(block!.reason).toBe("new reason");
     });
@@ -262,6 +327,37 @@ describe("candidate_blocks (convex-test)", () => {
 
       expect(result.total).toBe(1);
     });
+
+    it("updates an existing identity beyond the first 500 workspace rows", async () => {
+      const t = createTest();
+      await t.run(async (ctx) => {
+        for (let index = 0; index < 501; index += 1) {
+          await ctx.db.insert("candidate_blocks", {
+            workspaceSlug: "ws-large",
+            identityKey: `identity-${index}`,
+            reason: "old",
+            blockedAt: index,
+          });
+        }
+      });
+
+      const result = await t.mutation(api.candidate_blocks.bulkUpsert, {
+        workspaceSlug: "ws-large",
+        identityKeys: ["identity-500", "identity-new"],
+        reason: "updated",
+        writeSecret: WRITE_SECRET,
+      });
+
+      expect(result).toEqual({ total: 2, inserted: 1, updated: 1 });
+      const rows = await t.run(async (ctx) => ctx.db
+        .query("candidate_blocks")
+        .withIndex("by_workspace_identity", (q) => q
+          .eq("workspaceSlug", "ws-large")
+          .eq("identityKey", "identity-500"))
+        .collect());
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.reason).toBe("updated");
+    });
   });
 
   describe("remove", () => {
@@ -284,6 +380,7 @@ describe("candidate_blocks (convex-test)", () => {
       const block = await t.query(api.candidate_blocks.getByIdentity, {
         workspaceSlug: "ws1",
         identityKey: "user-del",
+        writeSecret: WRITE_SECRET,
       });
       expect(block).toBeNull();
     });

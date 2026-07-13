@@ -7,11 +7,12 @@ import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { callConvexQuery, callConvexMutation } from "../services/convex-utils.js";
 import { config } from "../services/config.js";
 import { getAuthenticatedActorId, requireWorkspaceUser } from "../middleware/auth.js";
+import { listCandidateBlocks } from "../services/candidate-block-service.js";
 
 const app = new OpenAPIHono();
 
 app.use("/api/blocks", async (c, next) => {
-  if (c.req.method === "POST" || c.req.method === "PATCH" || c.req.method === "DELETE") {
+  if (["GET", "POST", "PATCH", "DELETE"].includes(c.req.method)) {
     return requireWorkspaceUser(c, next);
   }
   await next();
@@ -84,10 +85,7 @@ const listRoute = createRoute({
 });
 
 app.openapi(listRoute, async (c) => {
-  const value = await callConvexQuery( "candidate_blocks:list", {
-    workspaceSlug: c.var.workspaceSlug,
-  });
-  const items = Array.isArray(value) ? value : [];
+  const items = await listCandidateBlocks(c.var.workspaceSlug);
   return c.json({ success: true as const, items }, 200);
 });
 
@@ -114,12 +112,13 @@ const upsertRoute = createRoute({
 app.openapi(upsertRoute, async (c) => {
   const body = c.req.valid("json");
   const actorId = getAuthenticatedActorId(c);
-  const identityKeys = Array.from(
-    new Set((body.identityKeys ?? []).map((key) => key.trim()).filter((key) => key.length > 0))
+  const identityKeySet = new Set(
+    (body.identityKeys ?? []).map((key) => key.trim()).filter((key) => key.length > 0)
   );
   if (body.identityKey && body.identityKey.trim().length > 0) {
-    identityKeys.push(body.identityKey.trim());
+    identityKeySet.add(body.identityKey.trim());
   }
+  const identityKeys = Array.from(identityKeySet);
 
   if (identityKeys.length === 0) {
     return c.json({ success: true as const, inserted: 0, updated: 0, total: 0 }, 200);
@@ -143,18 +142,24 @@ app.openapi(upsertRoute, async (c) => {
     }, 200);
   }
 
-  const result = await callConvexMutation( "candidate_blocks:bulkUpsert", {
-    workspaceSlug: c.var.workspaceSlug,
-    identityKeys,
-    reason: body.reason,
-    blockedBy: actorId,
-    writeSecret: config.auth.convexWriteSecret,
-  });
+  let inserted = 0;
+  let updated = 0;
+  let total = 0;
+  for (let offset = 0; offset < identityKeys.length; offset += 100) {
+    const batch = identityKeys.slice(offset, offset + 100);
+    const result = await callConvexMutation( "candidate_blocks:bulkUpsert", {
+      workspaceSlug: c.var.workspaceSlug,
+      identityKeys: batch,
+      reason: body.reason,
+      blockedBy: actorId,
+      writeSecret: config.auth.convexWriteSecret,
+    });
 
-  const normalized = isRecord(result) ? result : {};
-  const inserted = typeof normalized.inserted === "number" ? normalized.inserted : 0;
-  const updated = typeof normalized.updated === "number" ? normalized.updated : 0;
-  const total = typeof normalized.total === "number" ? normalized.total : identityKeys.length;
+    const normalized = isRecord(result) ? result : {};
+    inserted += typeof normalized.inserted === "number" ? normalized.inserted : 0;
+    updated += typeof normalized.updated === "number" ? normalized.updated : 0;
+    total += typeof normalized.total === "number" ? normalized.total : batch.length;
+  }
 
   return c.json({
     success: true as const,

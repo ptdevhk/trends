@@ -34,6 +34,7 @@ import { SkillsKnowledgeService } from "../services/skills-knowledge.js";
 import type { ResumeItem } from "../types/resume.js";
 import type { ResumeIndex } from "../services/resume-index.js";
 import { workspaceConfigService } from "../services/workspace-config-service.js";
+import { listCandidateBlocks } from "../services/candidate-block-service.js";
 import {
   buildResumeIngestData,
   toOptionalNumber,
@@ -177,9 +178,7 @@ async function loadCandidateStatusContext(
     }) as Promise<Array<{ identityKey?: string; status?: string }>>,
     showBlocked
       ? Promise.resolve([] as Array<{ identityKey?: string }>)
-      : callConvexQuery("candidate_blocks:list", {
-        workspaceSlug,
-      }) as Promise<Array<{ identityKey?: string }>>,
+      : listCandidateBlocks(workspaceSlug),
   ]);
 
   const statusByIdentity = new Map<string, string>();

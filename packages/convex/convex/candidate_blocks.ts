@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import { paginationOptsValidator } from "convex/server";
 import { mutation, query } from "./_generated/server";
 
 import { DEFAULT_WORKSPACE_SLUG } from "./sessions";
@@ -19,16 +20,32 @@ function requireWriteSecret(writeSecret: string | undefined): void {
     }
 }
 
+function requireReadSecret(writeSecret: string | undefined): void {
+    const expected = process.env.CONVEX_WRITE_SECRET;
+    if (!expected || writeSecret !== expected) {
+        throw new Error("Unauthorized Convex read");
+    }
+}
+
+function newestFirst<T extends { blockedAt: number; _creationTime: number }>(blocks: T[]): T[] {
+    return blocks.sort((left, right) =>
+        right.blockedAt - left.blockedAt || right._creationTime - left._creationTime
+    );
+}
+
 export const list = query({
     args: {
         workspaceSlug: v.optional(v.string()),
+        paginationOpts: paginationOptsValidator,
+        writeSecret: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
+        requireReadSecret(args.writeSecret);
         const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
         return await ctx.db
             .query("candidate_blocks")
             .withIndex("by_workspace", (q) => q.eq("workspaceSlug", workspaceSlug))
-            .take(500);
+            .paginate(args.paginationOpts);
     },
 });
 
@@ -36,20 +53,23 @@ export const getByIdentity = query({
     args: {
         workspaceSlug: v.optional(v.string()),
         identityKey: v.string(),
+        writeSecret: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
+        requireReadSecret(args.writeSecret);
         const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
         const identityKey = normalizeIdentityKey(args.identityKey);
         if (!identityKey) {
             return null;
         }
 
-        return await ctx.db
+        const blocks = await ctx.db
             .query("candidate_blocks")
             .withIndex("by_workspace_identity", (q) =>
                 q.eq("workspaceSlug", workspaceSlug).eq("identityKey", identityKey)
             )
-            .unique();
+            .collect();
+        return newestFirst(blocks)[0] ?? null;
     },
 });
 
@@ -70,12 +90,13 @@ export const upsert = mutation({
         }
 
         const now = Date.now();
-        const existing = await ctx.db
+        const existingBlocks = newestFirst(await ctx.db
             .query("candidate_blocks")
             .withIndex("by_workspace_identity", (q) =>
                 q.eq("workspaceSlug", workspaceSlug).eq("identityKey", identityKey)
             )
-            .unique();
+            .collect());
+        const [existing, ...duplicates] = existingBlocks;
 
         if (existing) {
             await ctx.db.patch(existing._id, {
@@ -83,6 +104,9 @@ export const upsert = mutation({
                 blockedBy: args.blockedBy,
                 blockedAt: now,
             });
+            for (const duplicate of duplicates) {
+                await ctx.db.delete(duplicate._id);
+            }
             return existing._id;
         }
 
@@ -111,12 +135,13 @@ export const updateReason = mutation({
             throw new Error("identityKey is required");
         }
 
-        const existing = await ctx.db
+        const existingBlocks = newestFirst(await ctx.db
             .query("candidate_blocks")
             .withIndex("by_workspace_identity", (q) =>
                 q.eq("workspaceSlug", workspaceSlug).eq("identityKey", identityKey)
             )
-            .unique();
+            .collect());
+        const [existing, ...duplicates] = existingBlocks;
 
         if (!existing) {
             return false;
@@ -125,6 +150,9 @@ export const updateReason = mutation({
         await ctx.db.patch(existing._id, {
             reason: args.reason,
         });
+        for (const duplicate of duplicates) {
+            await ctx.db.delete(duplicate._id);
+        }
 
         return true;
     },
@@ -149,15 +177,14 @@ export const bulkUpsert = mutation({
         let inserted = 0;
         const now = Date.now();
 
-        // Fetch all existing blocks for this workspace in one query
-        const existingBlocks = await ctx.db
-            .query("candidate_blocks")
-            .withIndex("by_workspace", (q) => q.eq("workspaceSlug", workspaceSlug))
-            .take(500);
-        const existingMap = new Map(existingBlocks.map((block) => [block.identityKey, block]));
-
         for (const identityKey of identityKeys) {
-            const existing = existingMap.get(identityKey);
+            const existingBlocks = newestFirst(await ctx.db
+                .query("candidate_blocks")
+                .withIndex("by_workspace_identity", (q) =>
+                    q.eq("workspaceSlug", workspaceSlug).eq("identityKey", identityKey)
+                )
+                .collect());
+            const [existing, ...duplicates] = existingBlocks;
 
             if (existing) {
                 await ctx.db.patch(existing._id, {
@@ -165,6 +192,9 @@ export const bulkUpsert = mutation({
                     blockedBy: args.blockedBy,
                     blockedAt: now,
                 });
+                for (const duplicate of duplicates) {
+                    await ctx.db.delete(duplicate._id);
+                }
                 updated += 1;
                 continue;
             }
@@ -206,13 +236,15 @@ export const remove = mutation({
             .withIndex("by_workspace_identity", (q) =>
                 q.eq("workspaceSlug", workspaceSlug).eq("identityKey", identityKey)
             )
-            .unique();
+            .collect();
 
-        if (!existing) {
+        if (existing.length === 0) {
             return false;
         }
 
-        await ctx.db.delete(existing._id);
+        for (const block of existing) {
+            await ctx.db.delete(block._id);
+        }
         return true;
     },
 });

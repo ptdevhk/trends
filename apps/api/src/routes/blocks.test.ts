@@ -68,31 +68,99 @@ describe('blocks route', () => {
     resetResumeScreeningDb()
   })
 
-  it('respects workspace isolation via X-Workspace-Slug on list', async () => {
+  it('rejects block list reads without a session even when a workspace header is supplied', async () => {
     const calls: ConvexCall[] = []
-
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
-      const call = parseConvexCall(input, init)
-      calls.push(call)
-      if (call.pathName === 'candidate_blocks:list') {
-        return convexSuccess([])
-      }
-      throw new Error(`Unexpected convex path: ${call.pathName}`)
+      calls.push(parseConvexCall(input, init))
+      return convexSuccess([])
     })
 
     const app = createApp()
-    const hrResponse = await app.request('/api/blocks', {
+    const response = await app.request('/api/blocks', {
       headers: {
         'X-Workspace-Slug': 'hr',
       },
     })
-    const devResponse = await app.request('/api/blocks')
 
-    expect(hrResponse.status).toBe(200)
-    expect(devResponse.status).toBe(200)
-    expect(calls).toHaveLength(2)
+    expect(response.status).toBe(401)
+    expect(calls).toHaveLength(0)
+  })
+
+  it('lists only the authenticated workspace and rejects a workspace override', async () => {
+    const auth = createAuthHeaders({ workspaceSlug: 'hr', role: 'user' })
+    const calls: ConvexCall[] = []
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init)
+      calls.push(call)
+      if (call.pathName === 'candidate_blocks:list') {
+        return convexSuccess({
+          page: [],
+          isDone: true,
+          continueCursor: '',
+        })
+      }
+      throw new Error(`Unexpected convex path: ${call.pathName}`)
+    })
+
+    const app = createApp({ authStorage: auth.storage })
+    const allowed = await app.request('/api/blocks', { headers: auth.headers })
+    const denied = await app.request('/api/blocks', {
+      headers: {
+        ...auth.headers,
+        'X-Workspace-Slug': 'dev',
+      },
+    })
+
+    expect(allowed.status).toBe(200)
+    expect(denied.status).toBe(403)
+    expect(calls).toHaveLength(1)
     expect(calls[0]?.args.workspaceSlug).toBe('hr')
-    expect(calls[1]?.args.workspaceSlug).toBe('dev')
+  })
+
+  it('aggregates paginated block rows and deduplicates identities', async () => {
+    const auth = createAuthHeaders({ workspaceSlug: 'hr', role: 'user' })
+    const firstPage = Array.from({ length: 500 }, (_, index) => ({
+      _id: `block-${index}`,
+      identityKey: `identity-${index}`,
+      workspaceSlug: 'hr',
+      blockedAt: index,
+    }))
+    const secondPage = [
+      {
+        _id: 'block-duplicate-newer',
+        identityKey: 'identity-10',
+        workspaceSlug: 'hr',
+        reason: 'newer reason',
+        blockedAt: 1000,
+      },
+      {
+        _id: 'block-500',
+        identityKey: 'identity-500',
+        workspaceSlug: 'hr',
+        blockedAt: 500,
+      },
+    ]
+    const calls: ConvexCall[] = []
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init)
+      calls.push(call)
+      if (call.pathName !== 'candidate_blocks:list') {
+        throw new Error(`Unexpected convex path: ${call.pathName}`)
+      }
+      const paginationOpts = call.args.paginationOpts as { cursor?: string | null }
+      return paginationOpts?.cursor
+        ? convexSuccess({ page: secondPage, isDone: true, continueCursor: '' })
+        : convexSuccess({ page: firstPage, isDone: false, continueCursor: 'page-2' })
+    })
+
+    const app = createApp({ authStorage: auth.storage })
+    const response = await app.request('/api/blocks', { headers: auth.headers })
+    const payload = await response.json() as { items: Array<{ identityKey: string; reason?: string }> }
+
+    expect(response.status).toBe(200)
+    expect(calls).toHaveLength(2)
+    expect(payload.items).toHaveLength(501)
+    expect(payload.items.find((item) => item.identityKey === 'identity-10')?.reason).toBe('newer reason')
   })
 
   it('rejects block mutations without a session', async () => {
