@@ -29,6 +29,14 @@ if [ -n "$ENV_FILE_RESOLVED" ]; then
     set +a
 fi
 
+LOCAL_CONVEX_SECRET_HELPER="$SCRIPT_DIR/local-convex-write-secret.sh"
+if [ -f "$LOCAL_CONVEX_SECRET_HELPER" ]; then
+    # shellcheck disable=SC1090
+    source "$LOCAL_CONVEX_SECRET_HELPER"
+    LOCAL_CONVEX_PROJECT_ROOT="$PROJECT_ROOT"
+    ensure_local_convex_write_secret
+fi
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -408,10 +416,14 @@ sync_convex_ai_env() {
     local value
     local synced=0
     local failed=0
-    local keys=("AI_ANALYSIS_ENABLED" "AI_ANALYSIS_RESUMES_ENABLED" "AI_MODEL" "AI_API_KEY" "AI_API_BASE")
+    local keys=("AI_ANALYSIS_ENABLED" "AI_ANALYSIS_RESUMES_ENABLED" "AI_MODEL" "AI_API_KEY" "AI_API_BASE" "CONVEX_WRITE_SECRET")
 
     if [ ! -d "$convex_dir" ]; then
         return 0
+    fi
+
+    if declare -F is_local_anonymous_convex >/dev/null 2>&1 && is_local_anonymous_convex; then
+        export CONVEX_AGENT_MODE=anonymous
     fi
 
     runner="$(convex_cli_runner)"
@@ -1140,6 +1152,9 @@ start_api() {
     local port="${API_PORT:-3000}"
 
     if [ -d "$PROJECT_ROOT/apps/api" ]; then
+        if declare -F ensure_local_convex_write_secret >/dev/null 2>&1; then
+            ensure_local_convex_write_secret
+        fi
         if ! check_port "$port"; then
             log "API" "$YELLOW" "Port $port already in use, skipping API server"
             return 0

@@ -8,6 +8,17 @@ echo "Syncing Convex environment variables..."
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
+LOCAL_CONVEX_SECRET_HELPER="$SCRIPT_DIR/local-convex-write-secret.sh"
+if [ -f "$LOCAL_CONVEX_SECRET_HELPER" ]; then
+    # shellcheck disable=SC1090
+    source "$LOCAL_CONVEX_SECRET_HELPER"
+    LOCAL_CONVEX_PROJECT_ROOT="$PROJECT_ROOT"
+    ensure_local_convex_write_secret
+    if is_local_anonymous_convex; then
+        export CONVEX_AGENT_MODE=anonymous
+    fi
+fi
+
 CONVEX_ENV_PACKAGE="$PROJECT_ROOT/packages/convex/.env.local"
 CONVEX_ENV_ROOT="$PROJECT_ROOT/.env.local"
 WEB_ENV="$PROJECT_ROOT/apps/web/.env.local"
@@ -78,7 +89,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Sync AI env vars into Convex deployment env
+# Sync runtime env vars into Convex deployment env
 # ---------------------------------------------------------------------------
 # These keys are read by Convex functions via process.env (analysis_config.ts,
 # embeddings.ts, ai_tagging_results.ts, analyze.ts, analysis_tasks.ts).
@@ -86,7 +97,7 @@ fi
 # keys must be pushed via `npx convex env set`.
 # ---------------------------------------------------------------------------
 
-AI_ENV_KEYS=(
+CONVEX_RUNTIME_ENV_KEYS=(
     AI_ANALYSIS_ENABLED
     AI_ANALYSIS_RESUMES_ENABLED
     AI_MODEL
@@ -94,6 +105,7 @@ AI_ENV_KEYS=(
     AI_API_BASE
     AI_OUTPUT_LOCALE
     AI_ANALYSIS_PARALLELISM
+    CONVEX_WRITE_SECRET
 )
 
 CONVEX_DIR="$PROJECT_ROOT/packages/convex"
@@ -107,7 +119,7 @@ fi
 synced=0
 failed=0
 
-for key in "${AI_ENV_KEYS[@]}"; do
+for key in "${CONVEX_RUNTIME_ENV_KEYS[@]}"; do
     value="${!key:-}"
     if [ -z "$value" ]; then
         continue
@@ -136,9 +148,9 @@ for key in "${AI_ENV_KEYS[@]}"; do
 done
 
 if [ "$synced" -gt 0 ]; then
-    echo "Synced $synced AI env var(s) to Convex deployment."
+    echo "Synced $synced runtime env var(s) to Convex deployment."
 elif [ "$failed" -eq 0 ]; then
-    echo "No AI env vars found in environment (expected AI_API_KEY, AI_MODEL, etc.)."
+    echo "No managed runtime env vars found in environment."
 fi
 
 if [ "$failed" -gt 0 ]; then

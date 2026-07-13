@@ -19,7 +19,7 @@
 		clear-resumes \
 		cli-build cli-install cli-test \
 		sync-agent-policy check-agent-policy sync-project-skills check-project-skills install-global-skills install-agent-skill check-agent-skill sync-agent-governance \
-		check-route-auth check-mutation-entry-points auth-workspace-smoke auth-provider-membership \
+		check-route-auth check-mutation-entry-points check-local-convex-write-secret auth-workspace-smoke auth-provider-membership \
 		install-skill validate-skill check-skill-install install-test-plan-skill check-test-plan-skill \
 		install-browser-ext-skill check-browser-ext-skill \
 		sync-resume-ai-prompts check-resume-ai-prompts \
@@ -1191,7 +1191,7 @@ fresh-env: clean clean-db
 	@echo "Fresh environment ready."
 
 # Run all validation checks (Python + Node.js + project skill sync + governance skill validation; honors TARGET=all)
-check: check-python check-node check-project-skills check-agent-policy check-agent-skill check-concept-drift check-route-auth check-mutation-entry-points check-seed-bootstrap-admins
+check: check-python check-node check-project-skills check-agent-policy check-agent-skill check-concept-drift check-route-auth check-mutation-entry-points check-seed-bootstrap-admins check-local-convex-write-secret
 	@echo "All checks passed"
 
 # Auth gating lint — verify API route files have auth middleware
@@ -1207,6 +1207,11 @@ check-mutation-entry-points:
 # in scripts/install.sh (deploy-time admin seeding for the auth refactor).
 check-seed-bootstrap-admins:
 	@bash scripts/seed-bootstrap-admins.test.sh
+
+# Local Convex write secret - verify local-only detection, stable persistence,
+# mode protection, and cloud no-op behavior.
+check-local-convex-write-secret:
+	@bash scripts/local-convex-write-secret.test.sh
 
 # Concept drift check — flags vault concept pages that may need review after code changes
 check-concept-drift:
