@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/ptdevhk/trends/packages/cli/internal/client"
 )
@@ -188,6 +189,49 @@ func TestMCPPublicErrorSinkBoundsAndRedactsAuthenticationError(t *testing.T) {
 	for _, secret := range []string{commandAuthUsername, commandAuthPassword, commandSessionCookie, commandCSRFToken} {
 		if strings.Contains(publicText, secret) {
 			t.Fatal("authentication material leaked from MCP public error")
+		}
+	}
+	if !strings.Contains(publicText, "[REDACTED]") {
+		t.Fatalf("useful MCP redaction marker was lost: %q", publicText)
+	}
+	if got := loginCalls.Load(); got != 1 {
+		t.Fatalf("expected one MCP login, got %d", got)
+	}
+}
+
+func TestMCPPublicErrorSinkNormalizesInvalidUTF8BeforeBounding(t *testing.T) {
+	setCommandSessionAuthEnvironment(t)
+	var loginCalls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if handleCommandSessionLogin(t, w, r, &loginCalls) {
+			return
+		}
+		assertCommandSessionRequest(t, r, true)
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusBadRequest)
+		body := []byte(strings.Join([]string{
+			commandAuthUsername,
+			commandAuthPassword,
+			commandSessionCookie,
+			commandCSRFToken,
+		}, " ") + "\n")
+		body = append(body, bytes.Repeat([]byte{0xff}, maxPublicErrorBytes*2)...)
+		_, _ = w.Write(body)
+	}))
+	defer server.Close()
+	setResumeCLIConfig(t, server.URL, "dev")
+
+	response := executeMCPStreamRequest(t, `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"resume_clear_analyses","arguments":{}}}`)
+	publicText := mcpToolErrorText(t, response)
+	if !utf8.ValidString(publicText) {
+		t.Fatal("decoded MCP public error was not valid UTF-8")
+	}
+	if len(publicText) > maxPublicErrorBytes {
+		t.Fatalf("decoded MCP public error exceeded %d bytes: %d", maxPublicErrorBytes, len(publicText))
+	}
+	for _, secret := range []string{commandAuthUsername, commandAuthPassword, commandSessionCookie, commandCSRFToken} {
+		if strings.Contains(publicText, secret) {
+			t.Fatal("authentication material leaked from invalid-UTF-8 MCP public error")
 		}
 	}
 	if !strings.Contains(publicText, "[REDACTED]") {

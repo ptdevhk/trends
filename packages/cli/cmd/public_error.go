@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"errors"
+	"strings"
 	"unicode/utf8"
 
 	"github.com/spf13/cobra"
@@ -10,6 +11,7 @@ import (
 const maxPublicErrorBytes = 2 << 10
 
 func boundPublicErrorText(message string) string {
+	message = strings.ToValidUTF8(message, string(utf8.RuneError))
 	if len(message) <= maxPublicErrorBytes {
 		return message
 	}
