@@ -154,18 +154,22 @@ async function migrateLegacyCandidateStatus(
     };
 }
 
-async function migrateLegacyResumeIdentity(
+async function repairResumeIdentityProjections(
     ctx: MutationCtx,
     resume: Doc<"resumes">,
     identityKey: string,
 ): Promise<void> {
-    await ctx.db.patch(resume._id, { identityKey });
+    if (resume.identityKey !== identityKey) {
+        await ctx.db.patch(resume._id, { identityKey });
+    }
     const digests = await ctx.db
         .query("resume_digests")
         .withIndex("by_resumeId", (q) => q.eq("resumeId", resume._id))
         .collect();
     for (const digest of digests) {
-        await ctx.db.patch(digest._id, { identityKey });
+        if (digest.identityKey !== identityKey) {
+            await ctx.db.patch(digest._id, { identityKey });
+        }
     }
 }
 
@@ -469,10 +473,9 @@ export const importNotesBatch = mutation({
                 externalId: resume.externalId,
                 source: resume.source,
             });
-            const legacyIdentityKey = storedIdentityKey ? undefined : String(resume._id);
-            if (legacyIdentityKey) {
-                await migrateLegacyResumeIdentity(ctx, resume, identityKey);
-            }
+            const resumeDocumentId = String(resume._id);
+            const legacyIdentityKey = resumeDocumentId === identityKey ? undefined : resumeDocumentId;
+            await repairResumeIdentityProjections(ctx, resume, identityKey);
             const existing = await migrateLegacyCandidateStatus(ctx, {
                 workspaceSlug,
                 legacyIdentityKey,

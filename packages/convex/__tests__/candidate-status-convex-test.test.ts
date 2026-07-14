@@ -44,6 +44,86 @@ async function insertResumeWithIdentity(
   });
 }
 
+async function seedBackfilledLegacyCandidateState(
+  t: ReturnType<typeof createTest>,
+  suffix: string,
+  legacyNote: string,
+) {
+  const portableIdentityKey = `externalId:backfilled-${suffix}`;
+  const resumeId = await t.run(async (ctx) => await ctx.db.insert("resumes", {
+    externalId: `backfilled-${suffix}`,
+    identityKey: portableIdentityKey,
+    content: { name: `Backfilled Candidate ${suffix}` },
+    hash: `backfilled-hash-${suffix}`,
+    tags: [],
+    crawledAt: 1_700_000_000_000,
+    source: "test",
+    sourceKey: "test",
+    workspaceSlug: "dev",
+  }));
+  const legacyIdentityKey = String(resumeId);
+  const legacyHistory = [{
+    status: "new",
+    updatedAt: 1_600_000_000_000,
+    notes: "Initial review",
+  }];
+  const portableHistory = [{
+    status: "contacted",
+    updatedAt: 1_750_000_000_000,
+    notes: "Portable duplicate history",
+  }];
+
+  await t.mutation(api.resumes_search.upsertResumeDigestForTest, { resumeId });
+  await t.run(async (ctx) => {
+    const digests = await ctx.db
+      .query("resume_digests")
+      .withIndex("by_resumeId", (q) => q.eq("resumeId", resumeId))
+      .collect();
+    for (const digest of digests) {
+      await ctx.db.patch(digest._id, { identityKey: legacyIdentityKey });
+    }
+    await ctx.db.insert("candidate_status", {
+      workspaceSlug: "dev",
+      identityKey: legacyIdentityKey,
+      status: "shortlisted",
+      notes: legacyNote,
+      updatedBy: "legacy-reviewer",
+      updatedAt: 1_700_000_000_000,
+      history: legacyHistory,
+    });
+    await ctx.db.insert("resume_digest_statuses", {
+      resumeId,
+      workspaceSlug: "dev",
+      identityKey: legacyIdentityKey,
+      status: "shortlisted",
+      updatedAt: 1_700_000_000_000,
+    });
+    await ctx.db.insert("candidate_status", {
+      workspaceSlug: "dev",
+      identityKey: portableIdentityKey,
+      status: "new",
+      notes: "Portable duplicate note",
+      updatedBy: "prior-importer",
+      updatedAt: 1_800_000_000_000,
+      history: [...legacyHistory, ...portableHistory],
+    });
+    await ctx.db.insert("resume_digest_statuses", {
+      resumeId,
+      workspaceSlug: "dev",
+      identityKey: portableIdentityKey,
+      status: "new",
+      updatedAt: 1_800_000_000_000,
+    });
+  });
+
+  return {
+    resumeId,
+    legacyIdentityKey,
+    portableIdentityKey,
+    mergedHistory: [...legacyHistory, ...portableHistory],
+  };
+}
+
 // ---------------------------------------------------------------------------
 // upsert + getByIdentity
 // ---------------------------------------------------------------------------
@@ -573,6 +653,108 @@ describe("candidate_status: importNotesBatch", () => {
     expect(digestProjection.docs).toEqual([
       expect.objectContaining({ resumeId: legacyResumeId, identityKey: portableIdentityKey }),
     ]);
+  });
+
+  it("migrates lingering document-id lifecycle state after resume identity backfill", async () => {
+    const t = createTest();
+    const fixture = await seedBackfilledLegacyCandidateState(t, "changed-note", "Legacy note");
+    vi.spyOn(Date, "now").mockReturnValue(1_900_000_000_000);
+
+    const result = await t.mutation(api.candidate_status.importNotesBatch, {
+      workspaceSlug: "dev",
+      items: [{ resumeId: fixture.legacyIdentityKey, comments: "Changed HR note" }],
+      updatedBy: "current-reviewer",
+      writeSecret: WRITE_SECRET,
+    });
+
+    expect(result).toMatchObject({ requested: 1, applied: 1, unchanged: 0, notFound: 0 });
+    const state = await t.run(async (ctx) => ({
+      resume: await ctx.db.get(fixture.resumeId),
+      digests: await ctx.db
+        .query("resume_digests")
+        .withIndex("by_resumeId", (q) => q.eq("resumeId", fixture.resumeId))
+        .collect(),
+      statuses: await ctx.db.query("candidate_status").collect(),
+      overlays: await ctx.db.query("resume_digest_statuses").collect(),
+    }));
+
+    expect(state.resume?.identityKey).toBe(fixture.portableIdentityKey);
+    expect(state.digests).toEqual([
+      expect.objectContaining({ identityKey: fixture.portableIdentityKey }),
+    ]);
+    expect(state.statuses).toHaveLength(1);
+    expect(state.statuses[0]).toMatchObject({
+      identityKey: fixture.portableIdentityKey,
+      status: "shortlisted",
+      notes: "Changed HR note",
+      updatedBy: "current-reviewer",
+      updatedAt: 1_900_000_000_000,
+      history: fixture.mergedHistory,
+    });
+    expect(state.overlays).toHaveLength(1);
+    expect(state.overlays[0]).toMatchObject({
+      resumeId: fixture.resumeId,
+      identityKey: fixture.portableIdentityKey,
+      status: "shortlisted",
+      updatedAt: 1_900_000_000_000,
+    });
+  });
+
+  it("repairs unchanged legacy notes without lifecycle or overlay timestamp churn", async () => {
+    const t = createTest();
+    const fixture = await seedBackfilledLegacyCandidateState(
+      t,
+      "unchanged-note",
+      "Authoritative legacy note",
+    );
+    vi.spyOn(Date, "now").mockReturnValue(1_900_000_000_000);
+
+    const result = await t.mutation(api.candidate_status.importNotesBatch, {
+      workspaceSlug: "dev",
+      items: [{
+        resumeId: fixture.legacyIdentityKey,
+        comments: "  Authoritative legacy note  ",
+      }],
+      updatedBy: "must-not-replace-actor",
+      writeSecret: WRITE_SECRET,
+    });
+
+    expect(result).toMatchObject({ requested: 1, applied: 0, unchanged: 1, notFound: 0 });
+    expect(result.results).toEqual([{
+      resumeId: fixture.legacyIdentityKey,
+      identityKey: fixture.portableIdentityKey,
+      outcome: "unchanged",
+    }]);
+    const state = await t.run(async (ctx) => ({
+      resume: await ctx.db.get(fixture.resumeId),
+      digests: await ctx.db
+        .query("resume_digests")
+        .withIndex("by_resumeId", (q) => q.eq("resumeId", fixture.resumeId))
+        .collect(),
+      statuses: await ctx.db.query("candidate_status").collect(),
+      overlays: await ctx.db.query("resume_digest_statuses").collect(),
+    }));
+
+    expect(state.resume?.identityKey).toBe(fixture.portableIdentityKey);
+    expect(state.digests).toEqual([
+      expect.objectContaining({ identityKey: fixture.portableIdentityKey }),
+    ]);
+    expect(state.statuses).toHaveLength(1);
+    expect(state.statuses[0]).toMatchObject({
+      identityKey: fixture.portableIdentityKey,
+      status: "shortlisted",
+      notes: "Authoritative legacy note",
+      updatedBy: "legacy-reviewer",
+      updatedAt: 1_700_000_000_000,
+      history: fixture.mergedHistory,
+    });
+    expect(state.overlays).toHaveLength(1);
+    expect(state.overlays[0]).toMatchObject({
+      resumeId: fixture.resumeId,
+      identityKey: fixture.portableIdentityKey,
+      status: "shortlisted",
+      updatedAt: 1_700_000_000_000,
+    });
   });
 
   it("treats cross-workspace and non-dev unscoped resume ids as not found", async () => {
