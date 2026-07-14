@@ -75,6 +75,111 @@ describe("resumes_import", () => {
     });
   });
 
+  describe("POST /api/resumes/restore-state", () => {
+    it("replays archive state through the dedicated restore lane", async () => {
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
+        const body = JSON.parse(String(init?.body));
+        if (body.path === "candidate_status:restoreBatch") {
+          expect(body.args).toMatchObject({
+            workspaceSlug: "dev",
+            allowOrphan: true,
+          });
+          return convexSuccess({
+            requested: 1,
+            restored: 1,
+            inserted: 1,
+            updated: 0,
+            unresolvedIdentityKeys: [],
+          });
+        }
+        if (body.path === "candidate_status:getByIdentities") {
+          return convexSuccess([{
+            _id: "status:smoke-nonhr",
+            workspaceSlug: "dev",
+            identityKey: "smoke-nonhr",
+            status: "rejected",
+            updatedAt: 1_782_291_761_290,
+            history: [],
+          }]);
+        }
+        throw new Error(`Unexpected Convex path: ${body.path}`);
+      });
+
+      const app = createTestApp();
+      const response = await app.request("/api/resumes/restore-state", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          metadata: {
+            sourceUrl: "https://backup.example.com/resumes",
+            generatedBy: "trends-api backup",
+          },
+          candidateStatus: [{
+            identityKey: "smoke-nonhr",
+            status: "rejected",
+            updatedAt: 1_782_291_761_290,
+            history: [],
+          }],
+        }),
+      });
+
+      expect(response.status).toBe(200);
+      await expect(parseJsonBody(response)).resolves.toMatchObject({
+        success: true,
+        statusReplayed: 1,
+        actionsReplayed: 0,
+        actionsDeduped: 0,
+      });
+    });
+
+    it("rejects resume records in the state-only restore lane", async () => {
+      const fetchSpy = vi.spyOn(globalThis, "fetch");
+      const app = createTestApp();
+      const response = await app.request("/api/resumes/restore-state", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          metadata: {
+            sourceUrl: "https://backup.example.com/resumes",
+            generatedBy: "trends-api backup",
+          },
+          resumes: [{ name: "must-not-import-here" }],
+          candidateStatus: [{
+            identityKey: "smoke-nonhr",
+            status: "rejected",
+            updatedAt: 1_782_291_761_290,
+            history: [],
+          }],
+        }),
+      });
+
+      expect(response.status).toBe(400);
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it("rejects non-admin state restore requests", async () => {
+      const app = createTestApp({ workspaceSlug: "hr", role: "user" });
+      const response = await app.request("/api/resumes/restore-state", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Workspace-Slug": "hr" },
+        body: JSON.stringify({
+          metadata: {
+            sourceUrl: "https://backup.example.com/resumes",
+            generatedBy: "trends-api backup",
+          },
+          candidateStatus: [{
+            identityKey: "smoke-nonhr",
+            status: "rejected",
+            updatedAt: 1_782_291_761_290,
+            history: [],
+          }],
+        }),
+      });
+
+      expect(response.status).toBe(403);
+    });
+  });
+
   describe("POST /api/resumes/manual-import", () => {
     it("rejects non-form-data body", async () => {
       const app = createTestApp();

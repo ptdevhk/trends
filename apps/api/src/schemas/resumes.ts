@@ -413,14 +413,18 @@ export const CandidateStatusBackupSchema = z
   })
   .openapi("CandidateStatusBackup");
 
+const ResumeCandidateStateBackupFields = {
+  candidateActions: z.array(CandidateActionBackupSchema).optional(),
+  candidateStatus: z.array(CandidateStatusBackupSchema).optional(),
+};
+
 export const ResumeImportRequestSchema = z
   .object({
     metadata: ResumeImportMetadataSchema,
     resumes: z.array(ResumeImportItemSchema).optional(),
     data: z.array(ResumeImportItemSchema).optional(),
     options: ResumeImportOptionsSchema.optional(),
-    candidateActions: z.array(CandidateActionBackupSchema).optional(),
-    candidateStatus: z.array(CandidateStatusBackupSchema).optional(),
+    ...ResumeCandidateStateBackupFields,
   })
   .superRefine((value, ctx) => {
     if (!value.resumes && !value.data && !value.candidateActions && !value.candidateStatus) {
@@ -432,6 +436,23 @@ export const ResumeImportRequestSchema = z
     }
   })
   .openapi("ResumeImportRequest");
+
+export const ResumeCandidateStateRestoreRequestSchema = z
+  .object({
+    metadata: ResumeImportMetadataSchema,
+    ...ResumeCandidateStateBackupFields,
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    if (!value.candidateActions && !value.candidateStatus) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Expected candidateActions or candidateStatus array",
+        path: ["candidateStatus"],
+      });
+    }
+  })
+  .openapi("ResumeCandidateStateRestoreRequest");
 
 export const ResumeBackupRequestSchema = z
   .object({
@@ -451,6 +472,15 @@ export const ResumeSubmitSummarySchema = z
     deduped: z.number().int(),
   })
   .openapi("ResumeSubmitSummary");
+
+export const CandidateStateReplayResponseSchema = z
+  .object({
+    success: z.literal(true),
+    statusReplayed: z.number().int(),
+    actionsReplayed: z.number().int(),
+    actionsDeduped: z.number().int(),
+  })
+  .openapi("CandidateStateReplayResponse");
 
 const ResumeManualImportContextFields = {
   searchProfileId: z.string().optional().openapi({ example: "sales-engineer" }),

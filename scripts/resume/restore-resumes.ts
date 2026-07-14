@@ -600,7 +600,7 @@ export async function runRestoreResumes(
     const stateResponse = await postJson(
       params.apiUrl,
       params.workspace,
-      "/api/resumes/import",
+      "/api/resumes/restore-state",
       {
         metadata: prepared.payload.metadata,
         ...(candidateStatus.length > 0 ? { candidateStatus } : {}),

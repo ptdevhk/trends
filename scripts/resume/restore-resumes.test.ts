@@ -126,6 +126,7 @@ describe("restore-resumes", () => {
       ],
     });
     const requestBodies: Array<Record<string, unknown>> = [];
+    const requestPaths: string[] = [];
 
     const summary = await runRestoreResumes(
       {
@@ -137,7 +138,9 @@ describe("restore-resumes", () => {
         recomputeDerivedFields: false,
       },
       {
-        fetch: vi.fn(async (_input, init) => {
+        fetch: vi.fn(async (input, init) => {
+          const url = typeof input === "string" ? input : input.toString();
+          requestPaths.push(new URL(url).pathname);
           const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
           requestBodies.push(body);
           const isStateReplay = Array.isArray(body.candidateStatus) || Array.isArray(body.candidateActions);
@@ -168,6 +171,11 @@ describe("restore-resumes", () => {
     );
 
     expect(requestBodies).toHaveLength(3);
+    expect(requestPaths).toEqual([
+      "/api/resumes/import",
+      "/api/resumes/import",
+      "/api/resumes/restore-state",
+    ]);
     expect(requestBodies.slice(0, 2)).toEqual([
       expect.objectContaining({ resumes: expect.arrayContaining([expect.any(Object)]) }),
       expect.objectContaining({ resumes: [expect.any(Object)] }),

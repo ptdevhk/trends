@@ -71,6 +71,7 @@ describe("candidate_status write authorization", () => {
           }
         : {
             workspaceSlug: "hr",
+            allowOrphan: true,
             items: [{
               identityKey: "candidate-1",
               status: "new" as const,

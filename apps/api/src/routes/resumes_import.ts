@@ -3,7 +3,7 @@ import { bodyLimit } from "hono/body-limit";
 import { randomUUID } from "node:crypto";
 import { callConvexQuery, callConvexMutation, isConvexPaginatedQueryPage } from "../services/convex-utils.js";
 import { ActionStorage } from "../services/action-storage.js";
-import { submitResumeImport } from "../services/resume-import-service.js";
+import { restoreCandidateStateFromBackup, submitResumeImport } from "../services/resume-import-service.js";
 import { getManualResumeImportMaxUploadBytes, importManualResumes } from "../services/manual-resume-import-service.js";
 import { config } from "../services/config.js";
 import { logger } from "../services/logger.js";
@@ -11,11 +11,13 @@ import { requireAdmin } from "../middleware/auth.js";
 import {
   ResumeBackupRequestSchema,
   ResumeImportRequestSchema,
+  ResumeCandidateStateRestoreRequestSchema,
   ResumeManualImportErrorSchema,
   ResumeManualImportRequestSchema,
   ResumeManualImportFormSchema,
   ResumeManualImportResponseSchema,
   ResumeSubmitSummarySchema,
+  CandidateStateReplayResponseSchema,
   SimpleErrorSchema,
   ResumeResetResponseSchema,
   CandidateStatusBackupSchema,
@@ -32,6 +34,7 @@ import { listCandidateStatuses } from "../services/candidate-status-service.js";
 
 const app = new OpenAPIHono();
 app.use("/api/resumes/import", requireAdmin);
+app.use("/api/resumes/restore-state", requireAdmin);
 app.use("/api/resumes/backup", requireAdmin);
 app.use("/api/resumes/reset", requireAdmin);
 const actionStorage = new ActionStorage(config.projectRoot);
@@ -185,6 +188,41 @@ const importResumesRoute = createRoute({
   },
 });
 
+const restoreCandidateStateRoute = createRoute({
+  method: "post",
+  path: "/api/resumes/restore-state",
+  tags: ["resumes"],
+  summary: "Replay candidate state from a portable backup",
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: ResumeCandidateStateRestoreRequestSchema,
+        },
+      },
+      required: true,
+    },
+  },
+  responses: {
+    200: {
+      content: { "application/json": { schema: CandidateStateReplayResponseSchema } },
+      description: "Candidate state replay result",
+    },
+    400: {
+      content: { "application/json": { schema: ResumeImportErrorSchema } },
+      description: "Invalid backup state payload",
+    },
+    403: {
+      content: { "application/json": { schema: ResumeImportErrorSchema } },
+      description: "Admin access required",
+    },
+    500: {
+      content: { "application/json": { schema: ResumeImportErrorSchema } },
+      description: "Candidate state replay failed",
+    },
+  },
+});
+
 const backupResumesRoute = createRoute({
   method: "post",
   path: "/api/resumes/backup",
@@ -257,6 +295,17 @@ app.openapi(importResumesRoute, async (c) => {
   } catch (error) {
     logger.error("Failed to import resumes", error, { route: "resumes_import" });
     return c.json({ success: false as const, error: "Failed to import resumes" }, 500);
+  }
+});
+
+app.openapi(restoreCandidateStateRoute, async (c) => {
+  try {
+    const payload = c.req.valid("json");
+    const result = await restoreCandidateStateFromBackup(payload, c.var.workspaceSlug);
+    return c.json(CandidateStateReplayResponseSchema.parse({ success: true, ...result }), 200);
+  } catch (error) {
+    logger.error("Failed to replay candidate state", error, { route: "resumes_restore_state" });
+    return c.json({ success: false as const, error: "Failed to replay candidate state" }, 500);
   }
 });
 

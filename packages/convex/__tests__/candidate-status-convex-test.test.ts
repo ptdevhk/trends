@@ -987,6 +987,43 @@ describe("candidate_status: restoreBatch", () => {
       history,
     });
     expect(await t.run(async (ctx) => ctx.db.query("resume_digest_statuses").collect())).toEqual([]);
+
+    const updatedHistory = [
+      ...history,
+      { status: "rejected", updatedAt: 1_782_291_761_290, notes: "Archived note" },
+    ];
+    const secondResult = await t.mutation(api.candidate_status.restoreBatch, {
+      workspaceSlug: "dev",
+      allowOrphan: true,
+      items: [{
+        identityKey: "smoke-nonhr",
+        status: "withdrawn",
+        notes: "Replacement archive note",
+        updatedBy: "recovery-user",
+        updatedAt: 1_782_291_761_291,
+        history: updatedHistory,
+      }],
+      writeSecret: WRITE_SECRET,
+    });
+
+    expect(secondResult).toEqual({
+      requested: 1,
+      restored: 1,
+      inserted: 0,
+      updated: 1,
+      unresolvedIdentityKeys: [],
+    });
+    expect(await t.query(api.candidate_status.getByIdentity, {
+      workspaceSlug: "dev",
+      identityKey: "smoke-nonhr",
+    })).toMatchObject({
+      status: "withdrawn",
+      notes: "Replacement archive note",
+      updatedBy: "recovery-user",
+      updatedAt: 1_782_291_761_291,
+      history: updatedHistory,
+    });
+    expect(await t.run(async (ctx) => ctx.db.query("resume_digest_statuses").collect())).toEqual([]);
   });
 
   it("restores exact candidate state and rebuilds the digest status overlay", async () => {

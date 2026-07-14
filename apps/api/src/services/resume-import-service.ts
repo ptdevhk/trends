@@ -590,8 +590,9 @@ export async function replayCandidateState(params: {
   candidateActions?: CandidateActionBackupRow[];
   workspaceSlug: string;
   mode: "replace" | "merge";
+  allowOrphan?: boolean;
 }): Promise<CandidateStateReplayResult> {
-  const { candidateStatus, candidateActions, workspaceSlug, mode } = params;
+  const { candidateStatus, candidateActions, workspaceSlug, mode, allowOrphan = false } = params;
   const result: CandidateStateReplayResult = {
     statusReplayed: 0,
     actionsReplayed: 0,
@@ -603,7 +604,7 @@ export async function replayCandidateState(params: {
       const batch = candidateStatus.slice(offset, offset + CANDIDATE_STATUS_RESTORE_BATCH_SIZE);
       const value = await callConvexFunction("mutation", "candidate_status:restoreBatch", {
         workspaceSlug,
-        allowOrphan: true,
+        ...(allowOrphan ? { allowOrphan: true } : {}),
         items: batch,
         writeSecret: config.auth.convexWriteSecret,
       });
@@ -628,6 +629,19 @@ export async function replayCandidateState(params: {
   }
 
   return result;
+}
+
+export async function restoreCandidateStateFromBackup(
+  input: Pick<ResumeImportRequest, "candidateStatus" | "candidateActions">,
+  workspaceSlug?: string,
+): Promise<CandidateStateReplayResult> {
+  return replayCandidateState({
+    candidateStatus: input.candidateStatus,
+    candidateActions: input.candidateActions,
+    workspaceSlug: workspaceSlug ?? "dev",
+    mode: "merge",
+    allowOrphan: true,
+  });
 }
 
 export async function submitResumeImport(input: ResumeImportRequest, workspaceSlug?: string): Promise<{

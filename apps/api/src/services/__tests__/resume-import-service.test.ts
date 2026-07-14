@@ -18,6 +18,7 @@ import {
   normalizeResumeImportPayload,
   submitNormalizedResumeImport,
   replayCandidateState,
+  restoreCandidateStateFromBackup,
   submitResumeImport,
 } from "../resume-import-service.js";
 import { config } from "../config.js";
@@ -585,7 +586,7 @@ describe("resume-import-service", () => {
       expect(result).toEqual({ statusReplayed: 0, actionsReplayed: 0, actionsDeduped: 0 });
     });
 
-    it("restores and reconciles exact candidate status in 100-row batches before replaying actions", async () => {
+    it("restores and reconciles exact candidate status in 100-row batches before replaying actions without enabling orphan status", async () => {
       const candidateStatus = Array.from({ length: 101 }, (_, index) => ({
         identityKey: `candidate-${index}`,
         status: index % 2 === 0 ? "shortlisted" : "withdrawn",
@@ -605,8 +606,8 @@ describe("resume-import-service", () => {
           expect(body.args).toMatchObject({
             workspaceSlug: "dev",
             writeSecret: config.auth.convexWriteSecret,
-            allowOrphan: true,
           });
+          expect(body.args).not.toHaveProperty("allowOrphan");
           return {
             ok: true,
             json: async () => ({
@@ -656,6 +657,56 @@ describe("resume-import-service", () => {
 
       expect(result).toEqual({ statusReplayed: 101, actionsReplayed: 1, actionsDeduped: 0 });
       expect(events).toEqual(["restore:100", "restore:1", "read:100", "read:1", "actions"]);
+    });
+
+    it("enables orphan status restoration only for backup state replay", async () => {
+      const candidateStatus = [{
+        identityKey: "smoke-nonhr",
+        status: "rejected" as const,
+        notes: "Archived note",
+        updatedBy: "backup-user",
+        updatedAt: 1_782_291_761_290,
+        history: [{ status: "new", updatedAt: 1_700_000_000_000, notes: "Initial" }],
+      }];
+      mockFetch.mockImplementation(async (_url, init) => {
+        const body = JSON.parse(String(init?.body));
+        if (body.path === "candidate_status:restoreBatch") {
+          expect(body.args).toMatchObject({
+            workspaceSlug: "dev",
+            allowOrphan: true,
+            writeSecret: config.auth.convexWriteSecret,
+          });
+          return {
+            ok: true,
+            json: async () => ({
+              status: "success",
+              value: {
+                requested: 1,
+                restored: 1,
+                inserted: 1,
+                updated: 0,
+                unresolvedIdentityKeys: [],
+              },
+            }),
+          };
+        }
+        if (body.path === "candidate_status:getByIdentities") {
+          return {
+            ok: true,
+            json: async () => ({
+              status: "success",
+              value: [{ _id: "status:smoke-nonhr", workspaceSlug: "dev", ...candidateStatus[0] }],
+            }),
+          };
+        }
+        throw new Error(`Unexpected Convex path: ${body.path}`);
+      });
+
+      await expect(restoreCandidateStateFromBackup({ candidateStatus }, "dev")).resolves.toEqual({
+        statusReplayed: 1,
+        actionsReplayed: 0,
+        actionsDeduped: 0,
+      });
     });
 
     it("fails closed on a successful HTTP response with a Convex error envelope", async () => {
