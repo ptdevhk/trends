@@ -570,14 +570,59 @@ func newResumeExportCmd() *cobra.Command {
 	var limit int
 	var query string
 	var outPath string
+	var source string
+	var all bool
+	var analysisTask string
 
 	cmd := &cobra.Command{
 		Use:   "export",
 		Short: "Export resumes through API",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			source = strings.ToLower(strings.TrimSpace(source))
+			if source != "sample" && source != "convex" {
+				return fmt.Errorf("invalid source %q (expected sample|convex)", source)
+			}
 			format = strings.ToLower(strings.TrimSpace(format))
 			if format != "csv" && format != "xlsx" {
 				return fmt.Errorf("invalid format %q (expected csv|xlsx)", format)
+			}
+			if source == "convex" {
+				if !all {
+					return fmt.Errorf("--all is required when --source convex")
+				}
+				analysisTask = strings.TrimSpace(analysisTask)
+				if analysisTask == "" {
+					return fmt.Errorf("--analysis-task is required when --source convex")
+				}
+				if format != "csv" {
+					return fmt.Errorf("--source convex requires --format csv")
+				}
+				if !cmd.Flags().Changed("out") || strings.TrimSpace(outPath) == "" {
+					return fmt.Errorf("an explicit --out path is required when --source convex")
+				}
+				if cmd.Flags().Changed("query") {
+					return fmt.Errorf("--query is not allowed when --source convex")
+				}
+				if cmd.Flags().Changed("limit") {
+					return fmt.Errorf("--limit is not allowed when --source convex")
+				}
+
+				result, err := runExactTaskAuditExport(
+					context.Background(),
+					newAPIClient(),
+					analysisTask,
+					strings.TrimSpace(outPath),
+				)
+				if err != nil {
+					return err
+				}
+				return writeExactTaskAuditExportResult(cmd, result)
+			}
+			if all {
+				return fmt.Errorf("--all is only allowed when --source convex")
+			}
+			if cmd.Flags().Changed("analysis-task") {
+				return fmt.Errorf("--analysis-task is only allowed when --source convex")
 			}
 
 			apiClient := newAPIClient()
@@ -640,6 +685,9 @@ func newResumeExportCmd() *cobra.Command {
 	cmd.Flags().IntVar(&limit, "limit", 200, "Maximum resumes to fetch before export")
 	cmd.Flags().StringVar(&query, "query", "", "Optional search query before export")
 	cmd.Flags().StringVar(&outPath, "out", "", "Output file path")
+	cmd.Flags().StringVar(&source, "source", "sample", "Export source: sample|convex")
+	cmd.Flags().BoolVar(&all, "all", false, "Export all active workspace resumes (requires --source convex)")
+	cmd.Flags().StringVar(&analysisTask, "analysis-task", "", "Exact completed analysis task ID (requires --source convex)")
 
 	return cmd
 }

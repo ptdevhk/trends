@@ -1550,6 +1550,152 @@ export const AnalysisTaskDetailResponseSchema = AnalysisTaskDetailSchema.extend(
   success: z.literal(true),
 }).openapi("AnalysisTaskDetailResponse");
 
+export const ExactTaskAuditAnalysisStateSchema = z.enum([
+  "ready",
+  "not_targeted",
+  "cold_row_missing",
+  "analysis_map_missing",
+  "analysis_key_missing",
+  "job_description_mismatch",
+  "prompt_version_mismatch",
+  "timestamp_missing",
+  "not_newer_than_dispatch",
+]).openapi("ExactTaskAuditAnalysisState");
+
+export const ExactTaskAuditMetadataSchema = z.object({
+  taskId: z.string().min(1),
+  status: z.literal("completed"),
+  dispatchMode: z.literal("exact"),
+  workspaceSlug: z.string().min(1),
+  dispatchedAt: z.number(),
+  completedAt: z.number(),
+  expectedJobDescriptionId: z.string().min(1),
+  expectedPromptVersion: z.number().int(),
+  targetCount: z.number().int().positive(),
+}).openapi("ExactTaskAuditMetadata");
+
+const ExactTaskAuditMatchedWorkEntrySchema = z.object({
+  companyName: z.string().optional(),
+  jobTitle: z.string().optional(),
+  years: z.number(),
+  industryVerified: z.boolean(),
+  matchedSignals: z.array(z.string()),
+  directRoleMatch: z.boolean().optional(),
+});
+
+const ExactTaskAuditRoleSignalSchema = z.object({
+  type: z.string(),
+  matchedSignals: z.array(z.string()),
+  signalCount: z.number(),
+  occurrences: z.number(),
+  years: z.number(),
+  industryVerifiedYears: z.number().optional(),
+  roleRelevantYears: z.number().optional(),
+  industryVerifiedRelevantYears: z.number().optional(),
+  matchedWorkEntries: z.array(ExactTaskAuditMatchedWorkEntrySchema).optional(),
+  verifyIn: z.string(),
+});
+
+const ExactTaskAuditBrandHitSchema = z.object({
+  brand: z.string(),
+  role: z.string(),
+  source: z.string(),
+  context: z.string(),
+  companyId: z.number().optional(),
+  origin: z.enum(["international", "domestic", "unknown"]).optional(),
+  productClass: z.enum([
+    "complete_machine",
+    "tool_accessory",
+    "industrial_component",
+    "other",
+  ]).optional(),
+});
+
+export const ExactTaskAuditRowSchema = z.object({
+  currentResumeId: z.string().min(1),
+  canonicalIdentityKey: z.string().min(1),
+  externalId: z.string(),
+  profileResumeId: z.string().optional(),
+  profileUrl: z.string().optional(),
+  source: z.string().min(1),
+  sourceKey: z.string().min(1),
+  workspaceSlug: z.string().min(1),
+  name: z.string().optional(),
+  age: z.union([z.string(), z.number()]).optional(),
+  location: z.string().optional(),
+  taskId: z.string().min(1),
+  taskStatus: z.literal("completed"),
+  taskWorkspaceSlug: z.string().min(1),
+  taskDispatchedAt: z.number(),
+  taskCompletedAt: z.number(),
+  expectedJobDescriptionId: z.string().min(1),
+  expectedPromptVersion: z.number().int(),
+  expectedAnalysisKey: z.string().min(1),
+  exactCohortMember: z.boolean(),
+  analysisState: ExactTaskAuditAnalysisStateSchema,
+  analysisReasons: z.array(ExactTaskAuditAnalysisStateSchema),
+  currentAnalysisKey: z.string().optional(),
+  currentJobDescriptionId: z.string().optional(),
+  currentPromptVersion: z.number().int().optional(),
+  currentLocale: z.string().optional(),
+  currentQueryLocation: z.string().optional(),
+  currentAnalyzedAt: z.number().optional(),
+  finalAiScore: z.number().optional(),
+  currentRecommendation: z.string().optional(),
+  currentBreakdown: z.record(z.string(), z.number()).optional(),
+  relatedExpAuditFactor: z.number().optional(),
+  relatedExpContribution: z.number().optional(),
+  industryDbContribution: z.number().optional(),
+  currentAISummary: z.string().optional(),
+  currentHighlights: z.array(z.string()).optional(),
+  currentConcerns: z.array(z.string()).optional(),
+  currentKeyFactors: z.array(z.object({
+    factor: z.string(),
+    weight: z.number().optional(),
+    value: z.string(),
+  })).optional(),
+  evidenceBandMax: z.number().optional(),
+  relatedExpCoverage: z.string().optional(),
+  missingReasons: z.array(z.string()).optional(),
+  effectiveRelatedExp: z.number().optional(),
+  llmRelatedExp: z.number().optional(),
+  recommendationMax: z.number().optional(),
+  relatedExpContextHash: z.string().optional(),
+  relatedExpRubricVersion: z.string().optional(),
+  brandHits: z.array(ExactTaskAuditBrandHitSchema).optional(),
+  brandOrigin: z.enum(["international", "domestic", "unknown"]).optional(),
+  productClass: z.enum([
+    "complete_machine",
+    "tool_accessory",
+    "industrial_component",
+    "other",
+  ]).optional(),
+  companyHits: z.array(z.string()).optional(),
+  roleSignals: z.array(ExactTaskAuditRoleSignalSchema).optional(),
+  matchedWorkEntries: z.array(ExactTaskAuditMatchedWorkEntrySchema).optional(),
+  evidenceText: z.string().optional(),
+  market: z.string().optional(),
+  ruleScores: z.record(z.string(), z.number()).optional(),
+  ruleScore: z.number().optional(),
+}).openapi("ExactTaskAuditRow");
+
+export const ExactTaskAuditPageSchema = z.object({
+  task: ExactTaskAuditMetadataSchema,
+  counts: z.object({
+    scanned: z.number().int().nonnegative(),
+    exported: z.number().int().nonnegative(),
+    targeted: z.number().int().nonnegative(),
+    ready: z.number().int().nonnegative(),
+  }),
+  page: z.array(ExactTaskAuditRowSchema),
+  continueCursor: z.string(),
+  isDone: z.boolean(),
+}).openapi("ExactTaskAuditPage");
+
+export const ExactTaskAuditPageResponseSchema = ExactTaskAuditPageSchema.extend({
+  success: z.literal(true),
+}).openapi("ExactTaskAuditPageResponse");
+
 // Shared route-level schemas (previously duplicated across route files)
 
 export const ClearMatchesResponseSchema = z

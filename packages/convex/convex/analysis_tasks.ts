@@ -6,8 +6,6 @@ import { api } from "./_generated/api";
 import {
     getCurrentResumeAiPromptVersion,
     FALLBACK_INDUSTRY_KEYWORDS,
-    buildResumeAnalysisStorageKey,
-    resolveResumeAnalysisSourceKey,
     type RelatedExpContextInput,
     type RelatedExpIngestEvidence,
 } from "@trends/shared";
@@ -42,6 +40,12 @@ import {
 import { relatedExpContextValidator } from "./validators.js";
 import { getActiveColdAnalysisRow } from "./lib/resume_analysis_read.js";
 import { belongsToWorkspace } from "./search_profiles.js";
+import {
+    projectExactTaskAuditRow,
+    resolveCompletedExactTaskAuditMetadata,
+    resolveExactAnalysisIdentity,
+    resolveExactTaskMetadata,
+} from "./lib/exact_analysis_task.js";
 
 // Backward-compatible re-exports
 export type { AnalysisResult, AnalysisDispatchKeyInput } from "./lib/analysis_task_helpers.js";
@@ -802,25 +806,12 @@ export const getExactStatus = query({
         if (!task) {
             return null;
         }
-        if (task.dispatchMode !== "exact") {
-            throw new Error(`Analysis task ${String(task._id)} is not an exact dispatch`);
-        }
-        if (task.workspaceSlug !== workspaceSlug) {
-            throw new Error(
-                `Analysis task workspace ${task.workspaceSlug ?? "unknown"} does not match ${workspaceSlug}`,
-            );
-        }
-
-        const targetResumeIds = task.targetResumeIds;
-        const expectedJobDescriptionId = task.config.jobDescriptionId;
-        const expectedPromptVersion = task.config.promptVersion;
-        const dispatchedAt = task.dispatchedAt;
-        if (!targetResumeIds?.length
-            || !expectedJobDescriptionId
-            || expectedPromptVersion === undefined
-            || dispatchedAt === undefined) {
-            throw new Error(`Exact analysis task ${String(task._id)} is missing verification metadata`);
-        }
+        const {
+            targetResumeIds,
+            expectedJobDescriptionId,
+            expectedPromptVersion,
+            dispatchedAt,
+        } = resolveExactTaskMetadata(task, workspaceSlug);
 
         const targets: ExactAnalysisTargetStatus[] = [];
         let ready = 0;
@@ -829,16 +820,10 @@ export const getExactStatus = query({
 
         for (const resumeId of targetResumeIds) {
             const resume = await ctx.db.get(resumeId);
-            const sourceKey = resume
-                ? resolveResumeAnalysisSourceKey({ source: resume.source })
-                : undefined;
-            const locale = resume
-                ? resolveAIOutputLocale({ sourceKey: inferSourceKey(resume.source) })
-                : undefined;
-            const expectedAnalysisKey = buildResumeAnalysisStorageKey(expectedJobDescriptionId, {
-                sourceKey,
-                locale,
-            });
+            const { expectedAnalysisKey } = resolveExactAnalysisIdentity(
+                expectedJobDescriptionId,
+                resume?.source,
+            );
             const base = {
                 currentResumeId: String(resumeId),
                 expectedAnalysisKey,
@@ -940,6 +925,79 @@ export const getExactStatus = query({
                 dispatchedAt,
                 targets,
             },
+        };
+    },
+});
+
+const MAX_EXACT_AUDIT_EXPORT_PAGE_SIZE = 200;
+
+export const getExactAuditExportPage = query({
+    args: {
+        taskId: v.id("analysis_tasks"),
+        workspaceSlug: v.string(),
+        writeSecret: v.optional(v.string()),
+        cursor: v.optional(v.string()),
+        limit: v.number(),
+    },
+    handler: async (ctx, args) => {
+        requireAnalysisWriteSecret(args.writeSecret);
+        const workspaceSlug = args.workspaceSlug.trim();
+        if (!workspaceSlug) {
+            throw new Error("Exact task audit export requires a workspaceSlug");
+        }
+        if (args.cursor !== undefined
+            && (args.cursor.trim().length === 0 || args.cursor.length > 4_096)) {
+            throw new Error("Exact task audit export cursor is invalid");
+        }
+        if (!Number.isInteger(args.limit)
+            || args.limit < 1
+            || args.limit > MAX_EXACT_AUDIT_EXPORT_PAGE_SIZE) {
+            throw new Error(
+                `Exact task audit export limit must be an integer between 1 and ${MAX_EXACT_AUDIT_EXPORT_PAGE_SIZE}`,
+            );
+        }
+
+        const task = await ctx.db.get(args.taskId);
+        if (!task) {
+            return null;
+        }
+        const metadata = resolveCompletedExactTaskAuditMetadata(task, workspaceSlug);
+        const targetResumeIds = new Set(metadata.targetResumeIds.map(String));
+        const paginated = await ctx.db
+            .query("resumes")
+            .paginate({
+                cursor: args.cursor ?? null,
+                numItems: args.limit,
+            });
+        const activeWorkspaceResumes = paginated.page.filter((resume) => (
+            resume.isArchived !== true
+            && belongsToWorkspace(resume.workspaceSlug, workspaceSlug)
+        ));
+        const rows = await Promise.all(activeWorkspaceResumes.map((resume) => (
+            projectExactTaskAuditRow(ctx, resume, metadata, targetResumeIds)
+        )));
+
+        return {
+            task: {
+                taskId: metadata.taskId,
+                status: metadata.status,
+                dispatchMode: metadata.dispatchMode,
+                workspaceSlug: metadata.workspaceSlug,
+                dispatchedAt: metadata.dispatchedAt,
+                completedAt: metadata.completedAt,
+                expectedJobDescriptionId: metadata.expectedJobDescriptionId,
+                expectedPromptVersion: metadata.expectedPromptVersion,
+                targetCount: metadata.targetCount,
+            },
+            counts: {
+                scanned: paginated.page.length,
+                exported: rows.length,
+                targeted: rows.filter((row) => row.exactCohortMember).length,
+                ready: rows.filter((row) => row.analysisState === "ready").length,
+            },
+            page: rows,
+            continueCursor: paginated.continueCursor,
+            isDone: paginated.isDone,
         };
     },
 });

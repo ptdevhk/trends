@@ -2414,6 +2414,99 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/resumes/analysis-tasks/{taskId}/audit-export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get one page of an exact completed analysis task audit export */
+        get: {
+            parameters: {
+                query?: {
+                    cursor?: string;
+                    limit?: number;
+                };
+                header?: never;
+                path: {
+                    taskId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Exact task audit export page */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ExactTaskAuditPageResponse"];
+                    };
+                };
+                /** @description Invalid request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Analysis task not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Task is not exportable */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Internal error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/resumes/skills-version": {
         parameters: {
             query?: never;
@@ -14339,6 +14432,141 @@ export interface components {
             };
             /** @enum {boolean} */
             success: true;
+        };
+        ExactTaskAuditPageResponse: components["schemas"]["ExactTaskAuditPage"] & {
+            /** @enum {boolean} */
+            success: true;
+        };
+        ExactTaskAuditMetadata: {
+            taskId: string;
+            /** @enum {string} */
+            status: "completed";
+            /** @enum {string} */
+            dispatchMode: "exact";
+            workspaceSlug: string;
+            dispatchedAt: number;
+            completedAt: number;
+            expectedJobDescriptionId: string;
+            expectedPromptVersion: number;
+            targetCount: number;
+        };
+        ExactTaskAuditRow: {
+            currentResumeId: string;
+            canonicalIdentityKey: string;
+            externalId: string;
+            profileResumeId?: string;
+            profileUrl?: string;
+            source: string;
+            sourceKey: string;
+            workspaceSlug: string;
+            name?: string;
+            age?: string | number;
+            location?: string;
+            taskId: string;
+            /** @enum {string} */
+            taskStatus: "completed";
+            taskWorkspaceSlug: string;
+            taskDispatchedAt: number;
+            taskCompletedAt: number;
+            expectedJobDescriptionId: string;
+            expectedPromptVersion: number;
+            expectedAnalysisKey: string;
+            exactCohortMember: boolean;
+            analysisState: components["schemas"]["ExactTaskAuditAnalysisState"];
+            analysisReasons: components["schemas"]["ExactTaskAuditAnalysisState"][];
+            currentAnalysisKey?: string;
+            currentJobDescriptionId?: string;
+            currentPromptVersion?: number;
+            currentLocale?: string;
+            currentQueryLocation?: string;
+            currentAnalyzedAt?: number;
+            finalAiScore?: number;
+            currentRecommendation?: string;
+            currentBreakdown?: {
+                [key: string]: number;
+            };
+            relatedExpAuditFactor?: number;
+            relatedExpContribution?: number;
+            industryDbContribution?: number;
+            currentAISummary?: string;
+            currentHighlights?: string[];
+            currentConcerns?: string[];
+            currentKeyFactors?: {
+                factor: string;
+                weight?: number;
+                value: string;
+            }[];
+            evidenceBandMax?: number;
+            relatedExpCoverage?: string;
+            missingReasons?: string[];
+            effectiveRelatedExp?: number;
+            llmRelatedExp?: number;
+            recommendationMax?: number;
+            relatedExpContextHash?: string;
+            relatedExpRubricVersion?: string;
+            brandHits?: {
+                brand: string;
+                role: string;
+                source: string;
+                context: string;
+                companyId?: number;
+                /** @enum {string} */
+                origin?: "international" | "domestic" | "unknown";
+                /** @enum {string} */
+                productClass?: "complete_machine" | "tool_accessory" | "industrial_component" | "other";
+            }[];
+            /** @enum {string} */
+            brandOrigin?: "international" | "domestic" | "unknown";
+            /** @enum {string} */
+            productClass?: "complete_machine" | "tool_accessory" | "industrial_component" | "other";
+            companyHits?: string[];
+            roleSignals?: {
+                type: string;
+                matchedSignals: string[];
+                signalCount: number;
+                occurrences: number;
+                years: number;
+                industryVerifiedYears?: number;
+                roleRelevantYears?: number;
+                industryVerifiedRelevantYears?: number;
+                matchedWorkEntries?: {
+                    companyName?: string;
+                    jobTitle?: string;
+                    years: number;
+                    industryVerified: boolean;
+                    matchedSignals: string[];
+                    directRoleMatch?: boolean;
+                }[];
+                verifyIn: string;
+            }[];
+            matchedWorkEntries?: {
+                companyName?: string;
+                jobTitle?: string;
+                years: number;
+                industryVerified: boolean;
+                matchedSignals: string[];
+                directRoleMatch?: boolean;
+            }[];
+            evidenceText?: string;
+            market?: string;
+            ruleScores?: {
+                [key: string]: number;
+            };
+            ruleScore?: number;
+        };
+        /** @enum {string} */
+        ExactTaskAuditAnalysisState: "ready" | "not_targeted" | "cold_row_missing" | "analysis_map_missing" | "analysis_key_missing" | "job_description_mismatch" | "prompt_version_mismatch" | "timestamp_missing" | "not_newer_than_dispatch";
+        ExactTaskAuditPage: {
+            task: components["schemas"]["ExactTaskAuditMetadata"];
+            counts: {
+                scanned: number;
+                exported: number;
+                targeted: number;
+                ready: number;
+            };
+            page: components["schemas"]["ExactTaskAuditRow"][];
+            continueCursor: string;
+            isDone: boolean;
         };
         ResumeDiagnosticsResponse: {
             /** @enum {boolean} */

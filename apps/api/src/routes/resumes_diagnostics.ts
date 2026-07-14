@@ -8,6 +8,8 @@ import {
   AnalysisTasksResponseSchema,
   AnalysisTaskDetailResponseSchema,
   AnalysisTaskDetailSchema,
+  ExactTaskAuditPageResponseSchema,
+  ExactTaskAuditPageSchema,
   ResumeDiagnosticsQuerySchema,
   ResumeDiagnosticsResponseSchema,
 } from "../schemas/index.js";
@@ -31,6 +33,96 @@ const FieldCoverageResponseSchema = z.object({
   missingVerifiedRoleYears: z.number().int(),
   hasRoleSignals: z.number().int(),
 });
+
+const ExactTaskAuditPageQuerySchema = z.object({
+  cursor: z.string().min(1).max(4_096).optional(),
+  limit: z.coerce.number().int().min(1).max(200).default(200),
+});
+
+type ExactTaskAuditPage = z.infer<typeof ExactTaskAuditPageSchema>;
+
+function hasExactTaskAuditScoreEvidence(row: ExactTaskAuditPage["page"][number]): boolean {
+  return [
+    row.finalAiScore,
+    row.currentRecommendation,
+    row.currentBreakdown,
+    row.relatedExpAuditFactor,
+    row.relatedExpContribution,
+    row.industryDbContribution,
+    row.currentAISummary,
+    row.currentHighlights,
+    row.currentConcerns,
+    row.currentKeyFactors,
+    row.evidenceBandMax,
+    row.relatedExpCoverage,
+    row.missingReasons,
+    row.effectiveRelatedExp,
+    row.llmRelatedExp,
+    row.recommendationMax,
+    row.relatedExpContextHash,
+    row.relatedExpRubricVersion,
+  ].some((value) => value !== undefined);
+}
+
+function assertExactTaskAuditPageConsistency(
+  value: ExactTaskAuditPage,
+  taskId: string,
+  workspaceSlug: string,
+): void {
+  const targeted = value.page.filter((row) => row.exactCohortMember).length;
+  const ready = value.page.filter((row) => row.analysisState === "ready").length;
+  const resumeIds = new Set(value.page.map((row) => row.currentResumeId));
+  const rowsMatchTask = value.page.every((row) => (
+    row.taskId === value.task.taskId
+    && row.taskStatus === value.task.status
+    && row.taskWorkspaceSlug === value.task.workspaceSlug
+    && row.workspaceSlug === value.task.workspaceSlug
+    && row.taskDispatchedAt === value.task.dispatchedAt
+    && row.taskCompletedAt === value.task.completedAt
+    && row.expectedJobDescriptionId === value.task.expectedJobDescriptionId
+    && row.expectedPromptVersion === value.task.expectedPromptVersion
+    && (row.currentAnalysisKey === undefined || row.currentAnalysisKey === row.expectedAnalysisKey)
+    && (row.analysisState === "ready"
+      ? (
+        row.exactCohortMember
+        && row.analysisReasons.length === 0
+        && row.currentJobDescriptionId === value.task.expectedJobDescriptionId
+        && row.currentPromptVersion === value.task.expectedPromptVersion
+        && row.currentAnalyzedAt !== undefined
+        && row.currentAnalyzedAt > value.task.dispatchedAt
+        && row.finalAiScore !== undefined
+      )
+      : !hasExactTaskAuditScoreEvidence(row))
+    && (row.analysisState !== "not_targeted" || !row.exactCohortMember)
+    && (row.exactCohortMember || row.analysisState === "not_targeted")
+  ));
+
+  if (value.task.taskId !== taskId
+    || value.task.workspaceSlug !== workspaceSlug
+    || value.counts.scanned < value.counts.exported
+    || value.counts.exported !== value.page.length
+    || value.counts.targeted !== targeted
+    || value.counts.ready !== ready
+    || value.counts.ready > value.counts.targeted
+    || value.counts.targeted > value.task.targetCount
+    || resumeIds.size !== value.page.length
+    || !rowsMatchTask
+    || (!value.isDone && value.continueCursor.length === 0)) {
+    throw new Error("Exact task audit export returned inconsistent task, count, row, or cursor metadata");
+  }
+}
+
+function isInvalidExactTaskAuditError(message: string): boolean {
+  return [
+    "not an exact dispatch",
+    "must be completed for audit export",
+    "does not match",
+    "missing verification metadata",
+    "missing completion metadata",
+    "invalid verification metadata",
+    "inconsistent target count metadata",
+  ].some((fragment) => message.includes(fragment));
+}
 
 function normalizeResumeDiagnosticsSourceKeys(values: string[] | undefined): string[] | undefined {
   if (!values?.length) {
@@ -157,6 +249,75 @@ app.openapi(getAnalysisTaskRoute, async (c) => {
     logger.error("Failed to get exact analysis task status", error, { route: "resumes_diagnostics", taskId });
     const message = error instanceof Error ? error.message : String(error);
     return c.json({ success: false as const, error: message }, 500);
+  }
+});
+
+const getExactTaskAuditExportRoute = createRoute({
+  method: "get",
+  path: "/api/resumes/analysis-tasks/{taskId}/audit-export",
+  tags: ["resumes"],
+  summary: "Get one page of an exact completed analysis task audit export",
+  request: {
+    params: z.object({ taskId: z.string().min(1).max(512) }),
+    query: ExactTaskAuditPageQuerySchema,
+  },
+  responses: {
+    200: {
+      content: { "application/json": { schema: ExactTaskAuditPageResponseSchema } },
+      description: "Exact task audit export page",
+    },
+    400: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Invalid request" },
+    404: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Analysis task not found" },
+    409: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Task is not exportable" },
+    500: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Internal error" },
+  },
+});
+app.openapi(getExactTaskAuditExportRoute, async (c) => {
+  const rawTaskId = c.req.valid("param").taskId;
+  let taskId: string;
+  try {
+    taskId = decodeURIComponent(rawTaskId).trim();
+  } catch {
+    return c.json({ success: false as const, error: "Invalid analysis task ID" }, 400);
+  }
+  if (!taskId) {
+    return c.json({ success: false as const, error: "Invalid analysis task ID" }, 400);
+  }
+  const { cursor, limit } = c.req.valid("query");
+
+  try {
+    const value = await callConvexQuery("analysis_tasks:getExactAuditExportPage", {
+      taskId,
+      workspaceSlug: c.var.workspaceSlug,
+      writeSecret: config.auth.convexWriteSecret,
+      ...(cursor === undefined ? {} : { cursor }),
+      limit,
+    });
+    if (value === null) {
+      return c.json({ success: false as const, error: "Analysis task not found" }, 404);
+    }
+
+    const page = ExactTaskAuditPageSchema.parse(value);
+    assertExactTaskAuditPageConsistency(page, taskId, c.var.workspaceSlug);
+    return c.json(ExactTaskAuditPageResponseSchema.parse({
+      success: true as const,
+      ...page,
+    }), 200);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (isInvalidExactTaskAuditError(message)) {
+      return c.json({ success: false as const, error: message }, 409);
+    }
+
+    const safeMessage = message.startsWith("Exact task audit export returned inconsistent")
+      ? message
+      : "Exact task audit export failed validation";
+    logger.error(
+      "Failed to get exact task audit export page",
+      new Error(safeMessage),
+      { route: "resumes_diagnostics", taskId },
+    );
+    return c.json({ success: false as const, error: safeMessage }, 500);
   }
 });
 

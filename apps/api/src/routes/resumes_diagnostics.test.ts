@@ -11,12 +11,14 @@ import { getCurrentResumeAiPromptVersion } from "@trends/shared";
 const PROMPT_VERSION = getCurrentResumeAiPromptVersion();
 
 function createTestApp(
-  authContext = createAuthContext({ workspaceSlug: "dev", role: "admin" }),
+  authContext: ReturnType<typeof createAuthContext> | null = createAuthContext({ workspaceSlug: "dev", role: "admin" }),
 ) {
   const app = new OpenAPIHono();
   app.use("*", workspaceMiddleware);
   app.use("*", async (c, next) => {
-    c.set("auth", authContext);
+    if (authContext) {
+      c.set("auth", authContext);
+    }
     await next();
   });
   app.route("/", resumesDiagnosticsRoutes);
@@ -79,6 +81,119 @@ function exactTaskStatusPayload(overrides: Record<string, unknown> = {}) {
         reasons: [],
       }],
     },
+    ...overrides,
+  };
+}
+
+function exactTaskAuditExportPayload(overrides: Record<string, unknown> = {}) {
+  return {
+    task: {
+      taskId: "task-exact-1",
+      status: "completed",
+      dispatchMode: "exact",
+      workspaceSlug: "dev",
+      dispatchedAt: 1_750_000_000_001,
+      completedAt: 1_750_000_000_100,
+      expectedJobDescriptionId: "jd-exact",
+      expectedPromptVersion: PROMPT_VERSION,
+      targetCount: 1,
+    },
+    counts: {
+      scanned: 1,
+      exported: 1,
+      targeted: 1,
+      ready: 1,
+    },
+    page: [{
+      currentResumeId: "resume-1",
+      canonicalIdentityKey: "resumeId:profile-1",
+      externalId: "external-1",
+      profileResumeId: "profile-1",
+      profileUrl: "https://example.com/candidates/1",
+      source: "seek",
+      sourceKey: "seek",
+      workspaceSlug: "dev",
+      name: "Alice",
+      age: "31",
+      location: "Kuala Lumpur",
+      taskId: "task-exact-1",
+      taskStatus: "completed",
+      taskWorkspaceSlug: "dev",
+      taskDispatchedAt: 1_750_000_000_001,
+      taskCompletedAt: 1_750_000_000_100,
+      expectedJobDescriptionId: "jd-exact",
+      expectedPromptVersion: PROMPT_VERSION,
+      expectedAnalysisKey: "source:seek|locale:en|analysis:jd-exact",
+      exactCohortMember: true,
+      analysisState: "ready",
+      analysisReasons: [] as string[],
+      currentAnalysisKey: "source:seek|locale:en|analysis:jd-exact",
+      currentJobDescriptionId: "jd-exact",
+      currentPromptVersion: PROMPT_VERSION,
+      currentLocale: "en",
+      currentQueryLocation: "Malaysia",
+      currentAnalyzedAt: 1_750_000_000_002,
+      finalAiScore: 79,
+      currentRecommendation: "match",
+      currentBreakdown: { related_exp: 78, industry_db: 40 },
+      relatedExpAuditFactor: 78,
+      relatedExpContribution: 39,
+      industryDbContribution: 40,
+      currentAISummary: "Persisted exact-task score",
+      currentHighlights: ["CNC sales"],
+      currentConcerns: ["Limited premium-brand coverage"],
+      currentKeyFactors: [{ factor: "role", value: "sales", weight: 0.5 }],
+      evidenceBandMax: 65,
+      relatedExpCoverage: "partial",
+      missingReasons: ["outcome_missing"],
+      effectiveRelatedExp: 65,
+      llmRelatedExp: 78,
+      recommendationMax: 80,
+      relatedExpContextHash: "context-hash",
+      relatedExpRubricVersion: "rubric-v2",
+      brandHits: [{
+        brand: "fanuc",
+        role: "equipment",
+        source: "workHistory",
+        context: "sales",
+        origin: "international",
+        productClass: "complete_machine",
+      }],
+      brandOrigin: "international",
+      productClass: "complete_machine",
+      companyHits: ["fanuc"],
+      roleSignals: [{
+        type: "sales",
+        matchedSignals: ["sales manager"],
+        signalCount: 1,
+        occurrences: 1,
+        years: 5,
+        industryVerifiedYears: 5,
+        matchedWorkEntries: [{
+          companyName: "Fanuc MY",
+          jobTitle: "Sales Manager",
+          years: 5,
+          industryVerified: true,
+          matchedSignals: ["sales manager"],
+          directRoleMatch: true,
+        }],
+        verifyIn: "workHistory",
+      }],
+      matchedWorkEntries: [{
+        companyName: "Fanuc MY",
+        jobTitle: "Sales Manager",
+        years: 5,
+        industryVerified: true,
+        matchedSignals: ["sales manager"],
+        directRoleMatch: true,
+      }],
+      evidenceText: "Five years of CNC sales evidence",
+      market: "MY",
+      ruleScores: { sales: 63, industry: 50 },
+      ruleScore: 63,
+    }],
+    continueCursor: "next/cursor+1",
+    isDone: false,
     ...overrides,
   };
 }
@@ -212,6 +327,173 @@ describe("resumes_diagnostics", () => {
 
       expect(response.status).toBe(500);
       expect((await parseJsonBody(response)).error).toContain("inconsistent target counts");
+    });
+  });
+
+  describe("GET /api/resumes/analysis-tasks/:taskId/audit-export", () => {
+    it("requires an authenticated workspace admin before querying Convex", async () => {
+      for (const authContext of [
+        null,
+        createAuthContext({ workspaceSlug: "dev", role: "user" }),
+        createAuthContext({ workspaceSlug: "hr", role: "admin" }),
+      ]) {
+        const fetchSpy = vi.spyOn(globalThis, "fetch");
+        const response = await createTestApp(authContext).request(
+          "/api/resumes/analysis-tasks/task-exact-1/audit-export",
+        );
+        expect(response.status).toBe(authContext === null ? 401 : 403);
+        expect(fetchSpy).not.toHaveBeenCalled();
+        fetchSpy.mockRestore();
+      }
+    });
+
+    it("decodes one exact task ID and forwards workspace, secret, cursor, and bounded limit only to the audit page query", async () => {
+      const calls: Array<{ path: string; args: Record<string, unknown> }> = [];
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {
+        const body = JSON.parse(typeof init?.body === "string" ? init.body : "{}") as {
+          path: string;
+          args: Record<string, unknown>;
+        };
+        calls.push(body);
+        const payload = exactTaskAuditExportPayload();
+        payload.task.taskId = "task/with space";
+        payload.page[0].taskId = "task/with space";
+        return convexSuccess(payload);
+      });
+
+      const response = await createTestApp().request(
+        "/api/resumes/analysis-tasks/task%2Fwith%20space/audit-export?cursor=cursor%2Fwith%20%2B&limit=37",
+      );
+
+      expect(response.status).toBe(200);
+      expect((await parseJsonBody<{ task: { taskId: string } }>(response)).task.taskId).toBe("task/with space");
+      expect(calls).toEqual([{
+        path: "analysis_tasks:getExactAuditExportPage",
+        args: {
+          taskId: "task/with space",
+          workspaceSlug: "dev",
+          writeSecret: config.auth.convexWriteSecret,
+          cursor: "cursor/with +",
+          limit: 37,
+        },
+      }]);
+      expect(calls.some((call) => call.path === "analysis_tasks:list")).toBe(false);
+      expect(calls.some((call) => call.path === "resumes:getByIdsForExport")).toBe(false);
+    });
+
+    it("uses a bounded default page size and rejects malformed query parameters before Convex", async () => {
+      const calls: Array<{ args: Record<string, unknown> }> = [];
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {
+        const body = JSON.parse(typeof init?.body === "string" ? init.body : "{}") as {
+          args: Record<string, unknown>;
+        };
+        calls.push(body);
+        return convexSuccess(exactTaskAuditExportPayload());
+      });
+
+      const defaultResponse = await createTestApp().request(
+        "/api/resumes/analysis-tasks/task-exact-1/audit-export",
+      );
+      expect(defaultResponse.status).toBe(200);
+      expect(calls[0]?.args).toMatchObject({ limit: 200 });
+      expect(calls[0]?.args).not.toHaveProperty("cursor");
+
+      for (const query of ["limit=0", "limit=201", "limit=1.5", "cursor="]) {
+        const callCount = calls.length;
+        const response = await createTestApp().request(
+          `/api/resumes/analysis-tasks/task-exact-1/audit-export?${query}`,
+        );
+        expect(response.status).toBe(400);
+        expect(calls).toHaveLength(callCount);
+      }
+    });
+
+    it("maps a missing exact task to 404", async () => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(convexSuccess(null));
+
+      const response = await createTestApp().request(
+        "/api/resumes/analysis-tasks/missing-task/audit-export",
+      );
+
+      expect(response.status).toBe(404);
+      expect(await parseJsonBody(response)).toEqual({
+        success: false,
+        error: "Analysis task not found",
+      });
+    });
+
+    it.each([
+      "Analysis task task-exact-1 is not an exact dispatch",
+      "Exact analysis task task-exact-1 must be completed for audit export",
+      "Analysis task workspace hr does not match dev",
+    ])("maps invalid task state to 409: %s", async (message) => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(
+        JSON.stringify({ status: "error", errorMessage: message }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ));
+
+      const response = await createTestApp().request(
+        "/api/resumes/analysis-tasks/task-exact-1/audit-export",
+      );
+
+      expect(response.status).toBe(409);
+      expect((await parseJsonBody(response)).error).toContain(message);
+    });
+
+    it("rejects a malformed page row against the response schema", async () => {
+      const payload = exactTaskAuditExportPayload();
+      payload.page[0].analysisState = "unknown";
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(convexSuccess(payload));
+
+      const response = await createTestApp().request(
+        "/api/resumes/analysis-tasks/task-exact-1/audit-export",
+      );
+
+      expect(response.status).toBe(500);
+    });
+
+    it("rejects a non-ready row that carries score evidence", async () => {
+      const payload = exactTaskAuditExportPayload();
+      payload.page[0].analysisState = "cold_row_missing";
+      payload.page[0].analysisReasons = ["cold_row_missing"];
+      payload.counts.ready = 0;
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(convexSuccess(payload));
+
+      const response = await createTestApp().request(
+        "/api/resumes/analysis-tasks/task-exact-1/audit-export",
+      );
+
+      expect(response.status).toBe(500);
+      expect((await parseJsonBody(response)).error).toContain("inconsistent");
+    });
+
+    it.each([
+      "exported count",
+      "targeted count",
+      "ready count",
+      "task metadata",
+      "cursor",
+    ])("rejects inconsistent %s", async (caseName) => {
+      const payload = exactTaskAuditExportPayload();
+      if (caseName === "exported count") {
+        payload.counts.exported = 2;
+      } else if (caseName === "targeted count") {
+        payload.counts.targeted = 0;
+      } else if (caseName === "ready count") {
+        payload.counts.ready = 0;
+      } else if (caseName === "task metadata") {
+        payload.page[0].taskId = "task-other";
+      } else {
+        payload.continueCursor = "";
+      }
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(convexSuccess(payload));
+
+      const response = await createTestApp().request(
+        "/api/resumes/analysis-tasks/task-exact-1/audit-export",
+      );
+
+      expect(response.status).toBe(500);
+      expect((await parseJsonBody(response)).error).toContain("inconsistent");
     });
   });
 
