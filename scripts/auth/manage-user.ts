@@ -6,7 +6,8 @@
  *     --username hr-admin --email hr@example.com --display-name "HR Admin" \
  *     --workspace hr --role admin --password-env AUTH_BOOTSTRAP_PASSWORD --output json
  *
- * Loads PROJECT_ROOT/.env or cwd/.env when present for local dev helpers.
+ * Loads PROJECT_ROOT/.env or cwd/.env when present for local dev helpers unless
+ * --no-load-project-env is supplied.
  * Password input priority: --password-env > --password-stdin > --no-password
  * Never echoes passwords in stdout/stderr.
  */
@@ -29,6 +30,7 @@ type Args = {
   passwordStdin: boolean;
   noPassword: boolean;
   replaceMemberships: boolean;
+  loadProjectEnv: boolean;
   dryRun: boolean;
   output: "json" | "agent";
 };
@@ -41,6 +43,7 @@ function parseArgs(argv: string[]): Args {
     passwordStdin: false,
     noPassword: false,
     replaceMemberships: false,
+    loadProjectEnv: true,
     dryRun: false,
     output: "json",
   };
@@ -74,6 +77,9 @@ function parseArgs(argv: string[]): Args {
         break;
       case "--replace-memberships":
         args.replaceMemberships = true;
+        break;
+      case "--no-load-project-env":
+        args.loadProjectEnv = false;
         break;
       case "--dry-run":
         args.dryRun = true;
@@ -231,11 +237,12 @@ function upsertUser(
 }
 
 async function main() {
-  let projectRoot = resolveProjectRoot();
-  loadProjectEnvFile(projectRoot);
-  projectRoot = resolveProjectRoot();
-
   const args = parseArgs(process.argv.slice(2));
+  let projectRoot = resolveProjectRoot();
+  if (args.loadProjectEnv) {
+    loadProjectEnvFile(projectRoot);
+    projectRoot = resolveProjectRoot();
+  }
 
   if (!args.username) {
     console.error("Error: --username is required");

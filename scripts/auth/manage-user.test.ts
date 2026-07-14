@@ -217,6 +217,42 @@ describe("manage-user bootstrap logic", () => {
     expect(await verifyPassword("demo-admin", credential!)).toBe(true);
   });
 
+  it("does not load the project .env when explicitly disabled", () => {
+    const root = mkdtempSync(path.join(tmpdir(), "trends-manage-user-no-env-"));
+    writeFileSync(path.join(root, ".env"), "AUTH_BOOTSTRAP_PASSWORD=from-project-env\n");
+
+    const env = { ...process.env, PROJECT_ROOT: root };
+    delete env.AUTH_BOOTSTRAP_PASSWORD;
+
+    const result = spawnSync(
+      "node",
+      [
+        "--import",
+        "tsx",
+        manageUserScript,
+        "--username",
+        "demo-admin",
+        "--workspace",
+        "dev",
+        "--role",
+        "admin",
+        "--no-load-project-env",
+        "--password-env",
+        "AUTH_BOOTSTRAP_PASSWORD",
+        "--dry-run",
+      ],
+      {
+        cwd: repoRoot,
+        env,
+        encoding: "utf8",
+      },
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("AUTH_BOOTSTRAP_PASSWORD is not set");
+  });
+
   it("replaces legacy demo-admin workspace memberships when requested", () => {
     const root = mkdtempSync(path.join(tmpdir(), "trends-manage-user-replace-"));
     const storage = new AuthStorage(root);
