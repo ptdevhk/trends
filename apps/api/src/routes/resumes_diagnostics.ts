@@ -41,6 +41,20 @@ const ExactTaskAuditPageQuerySchema = z.object({
 
 type ExactTaskAuditPage = z.infer<typeof ExactTaskAuditPageSchema>;
 
+const exactTaskAuditMismatchReasonSequences = [
+  ["job_description_mismatch"],
+  ["prompt_version_mismatch"],
+  ["timestamp_missing"],
+  ["not_newer_than_dispatch"],
+  ["job_description_mismatch", "prompt_version_mismatch"],
+  ["job_description_mismatch", "timestamp_missing"],
+  ["job_description_mismatch", "not_newer_than_dispatch"],
+  ["prompt_version_mismatch", "timestamp_missing"],
+  ["prompt_version_mismatch", "not_newer_than_dispatch"],
+  ["job_description_mismatch", "prompt_version_mismatch", "timestamp_missing"],
+  ["job_description_mismatch", "prompt_version_mismatch", "not_newer_than_dispatch"],
+] as const;
+
 function hasExactTaskAuditScoreEvidence(row: ExactTaskAuditPage["page"][number]): boolean {
   return [
     row.finalAiScore,
@@ -68,13 +82,14 @@ function hasExactTaskAuditReasonStateConsistency(row: ExactTaskAuditPage["page"]
   if (row.analysisState === "ready") {
     return row.analysisReasons.length === 0;
   }
-  if (row.analysisState === "not_targeted") {
-    return row.analysisReasons.length === 1 && row.analysisReasons[0] === "not_targeted";
+  if (["not_targeted", "cold_row_missing", "analysis_map_missing", "analysis_key_missing"].includes(row.analysisState)) {
+    return row.analysisReasons.length === 1 && row.analysisReasons[0] === row.analysisState;
   }
-  return row.analysisReasons.length > 0
-    && row.analysisReasons[0] === row.analysisState
-    && !row.analysisReasons.includes("ready")
-    && !row.analysisReasons.includes("not_targeted");
+  return exactTaskAuditMismatchReasonSequences.some((expectedReasons) => (
+    row.analysisState === expectedReasons[0]
+    && row.analysisReasons.length === expectedReasons.length
+    && row.analysisReasons.every((reason, index) => reason === expectedReasons[index])
+  ));
 }
 
 function assertExactTaskAuditPageConsistency(
@@ -100,6 +115,7 @@ function assertExactTaskAuditPageConsistency(
       ? (
         row.exactCohortMember
         && row.analysisReasons.length === 0
+        && row.currentAnalysisKey === row.expectedAnalysisKey
         && row.currentJobDescriptionId === value.task.expectedJobDescriptionId
         && row.currentPromptVersion === value.task.expectedPromptVersion
         && row.currentAnalyzedAt !== undefined

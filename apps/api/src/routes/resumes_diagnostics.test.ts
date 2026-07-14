@@ -488,6 +488,20 @@ describe("resumes_diagnostics", () => {
       expect(response.status).toBe(500);
     });
 
+    it("rejects a ready row without its current analysis key", async () => {
+      const payload = exactTaskAuditExportPayload();
+      const row = payload.page[0] as Record<string, unknown>;
+      delete row.currentAnalysisKey;
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(convexSuccess(payload));
+
+      const response = await createTestApp().request(
+        "/api/resumes/analysis-tasks/task-exact-1/audit-export",
+      );
+
+      expect(response.status).toBe(500);
+      expect((await parseJsonBody(response)).error).toContain("inconsistent");
+    });
+
     it("rejects a non-ready row that carries score evidence", async () => {
       const payload = exactTaskAuditExportPayload();
       payload.page[0].analysisState = "cold_row_missing";
@@ -511,6 +525,35 @@ describe("resumes_diagnostics", () => {
         "job_description_mismatch",
         reasons,
       );
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(convexSuccess(payload));
+
+      const response = await createTestApp().request(
+        "/api/resumes/analysis-tasks/task-exact-1/audit-export",
+      );
+
+      expect(response.status).toBe(500);
+      expect((await parseJsonBody(response)).error).toContain("inconsistent");
+    });
+
+    it.each([
+      {
+        analysisState: "cold_row_missing",
+        reasons: ["cold_row_missing", "prompt_version_mismatch"],
+      },
+      {
+        analysisState: "job_description_mismatch",
+        reasons: ["job_description_mismatch", "job_description_mismatch"],
+      },
+      {
+        analysisState: "job_description_mismatch",
+        reasons: ["job_description_mismatch", "timestamp_missing", "not_newer_than_dispatch"],
+      },
+      {
+        analysisState: "prompt_version_mismatch",
+        reasons: ["prompt_version_mismatch", "job_description_mismatch"],
+      },
+    ])("rejects an impossible non-ready reason sequence", async ({ analysisState, reasons }) => {
+      const payload = nonReadyExactTaskAuditExportPayload(analysisState, reasons);
       vi.spyOn(globalThis, "fetch").mockResolvedValue(convexSuccess(payload));
 
       const response = await createTestApp().request(
