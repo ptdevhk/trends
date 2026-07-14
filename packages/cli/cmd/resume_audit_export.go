@@ -144,6 +144,24 @@ func hasExactTaskAuditScoreEvidence(row client.ExactTaskAuditRow) bool {
 		row.RelatedExpRubricVersion != ""
 }
 
+func hasExactTaskAuditReasonStateConsistency(row client.ExactTaskAuditRow) bool {
+	if row.AnalysisState == "ready" {
+		return len(row.AnalysisReasons) == 0
+	}
+	if row.AnalysisState == "not_targeted" {
+		return len(row.AnalysisReasons) == 1 && row.AnalysisReasons[0] == "not_targeted"
+	}
+	if len(row.AnalysisReasons) == 0 || row.AnalysisReasons[0] != row.AnalysisState {
+		return false
+	}
+	for _, reason := range row.AnalysisReasons {
+		if reason == "ready" || reason == "not_targeted" {
+			return false
+		}
+	}
+	return true
+}
+
 func validateExactTaskAuditPage(
 	page *client.ExactTaskAuditPageResponse,
 	metadata client.ExactTaskAuditMetadata,
@@ -173,6 +191,9 @@ func validateExactTaskAuditPage(
 		}
 		if _, known := exactTaskAuditStates[row.AnalysisState]; !known {
 			return fmt.Errorf("malformed exact task audit export page: unknown analysis state %q", row.AnalysisState)
+		}
+		if !hasExactTaskAuditReasonStateConsistency(row) {
+			return fmt.Errorf("malformed exact task audit export page: analysis reason/state mismatch")
 		}
 		if row.TaskID != metadata.TaskID ||
 			row.TaskStatus != metadata.Status ||

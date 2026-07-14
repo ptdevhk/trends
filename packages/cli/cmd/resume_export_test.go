@@ -376,6 +376,8 @@ func TestResumeExportConvexModeRejectsInvalidStreamsWithoutPartialFiles(t *testi
 	}{
 		{scenario: "empty completed export", wantErr: "no active workspace resumes"},
 		{scenario: "stale score evidence", wantErr: "non-ready row includes score evidence"},
+		{scenario: "empty non-ready reason metadata", wantErr: "analysis reason/state mismatch"},
+		{scenario: "contradictory non-ready reason metadata", wantErr: "analysis reason/state mismatch"},
 		{scenario: "repeated cursor", wantErr: "repeated cursor"},
 		{scenario: "duplicate resume", wantErr: "duplicate resume"},
 		{scenario: "changed task", wantErr: "task metadata changed"},
@@ -399,6 +401,18 @@ func TestResumeExportConvexModeRejectsInvalidStreamsWithoutPartialFiles(t *testi
 				if scenario == "stale score evidence" {
 					row := auditExportRow(taskID, 1, true, "cold_row_missing")
 					row["finalAiScore"] = 79
+					writeAuditExportPage(w, auditTaskMetadata(taskID), []map[string]any{row}, "", true, 1)
+					return
+				}
+				if scenario == "empty non-ready reason metadata" {
+					row := auditExportRow(taskID, 1, true, "job_description_mismatch")
+					row["analysisReasons"] = []string{}
+					writeAuditExportPage(w, auditTaskMetadata(taskID), []map[string]any{row}, "", true, 1)
+					return
+				}
+				if scenario == "contradictory non-ready reason metadata" {
+					row := auditExportRow(taskID, 1, true, "job_description_mismatch")
+					row["analysisReasons"] = []string{"prompt_version_mismatch"}
 					writeAuditExportPage(w, auditTaskMetadata(taskID), []map[string]any{row}, "", true, 1)
 					return
 				}
@@ -443,6 +457,32 @@ func TestResumeExportConvexModeRejectsInvalidStreamsWithoutPartialFiles(t *testi
 			}
 			assertNoAuditExportFiles(t, finalPath)
 		})
+	}
+}
+
+func TestResumeExportConvexModePreservesOrderedMultiReasonMismatch(t *testing.T) {
+	taskID := "task-multi-reason"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		row := auditExportRow(taskID, 1, true, "job_description_mismatch")
+		row["analysisReasons"] = []string{
+			"job_description_mismatch",
+			"prompt_version_mismatch",
+			"not_newer_than_dispatch",
+		}
+		writeAuditExportPage(w, auditTaskMetadata(taskID), []map[string]any{row}, "", true, 1)
+	}))
+	defer server.Close()
+
+	outPath := filepath.Join(t.TempDir(), "multi-reason.csv")
+	_, err := executeResumeExport(
+		t, server.URL, "json",
+		"--source", "convex", "--all", "--analysis-task", taskID, "--out", outPath,
+	)
+	if err != nil {
+		t.Fatalf("multi-reason export failed: %v", err)
+	}
+	if len(readCSVRecords(t, outPath)) != 2 {
+		t.Fatal("expected header plus one multi-reason row")
 	}
 }
 

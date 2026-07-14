@@ -64,6 +64,19 @@ function hasExactTaskAuditScoreEvidence(row: ExactTaskAuditPage["page"][number])
   ].some((value) => value !== undefined);
 }
 
+function hasExactTaskAuditReasonStateConsistency(row: ExactTaskAuditPage["page"][number]): boolean {
+  if (row.analysisState === "ready") {
+    return row.analysisReasons.length === 0;
+  }
+  if (row.analysisState === "not_targeted") {
+    return row.analysisReasons.length === 1 && row.analysisReasons[0] === "not_targeted";
+  }
+  return row.analysisReasons.length > 0
+    && row.analysisReasons[0] === row.analysisState
+    && !row.analysisReasons.includes("ready")
+    && !row.analysisReasons.includes("not_targeted");
+}
+
 function assertExactTaskAuditPageConsistency(
   value: ExactTaskAuditPage,
   taskId: string,
@@ -82,6 +95,7 @@ function assertExactTaskAuditPageConsistency(
     && row.expectedJobDescriptionId === value.task.expectedJobDescriptionId
     && row.expectedPromptVersion === value.task.expectedPromptVersion
     && (row.currentAnalysisKey === undefined || row.currentAnalysisKey === row.expectedAnalysisKey)
+    && hasExactTaskAuditReasonStateConsistency(row)
     && (row.analysisState === "ready"
       ? (
         row.exactCohortMember

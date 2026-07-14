@@ -198,6 +198,42 @@ function exactTaskAuditExportPayload(overrides: Record<string, unknown> = {}) {
   };
 }
 
+const exactTaskAuditReadyOnlyEvidenceKeys = [
+  "finalAiScore",
+  "currentRecommendation",
+  "currentBreakdown",
+  "relatedExpAuditFactor",
+  "relatedExpContribution",
+  "industryDbContribution",
+  "currentAISummary",
+  "currentHighlights",
+  "currentConcerns",
+  "currentKeyFactors",
+  "evidenceBandMax",
+  "relatedExpCoverage",
+  "missingReasons",
+  "effectiveRelatedExp",
+  "llmRelatedExp",
+  "recommendationMax",
+  "relatedExpContextHash",
+  "relatedExpRubricVersion",
+] as const;
+
+function nonReadyExactTaskAuditExportPayload(
+  analysisState: string,
+  analysisReasons: string[],
+) {
+  const payload = exactTaskAuditExportPayload();
+  const row = payload.page[0] as Record<string, unknown>;
+  row.analysisState = analysisState;
+  row.analysisReasons = analysisReasons;
+  for (const key of exactTaskAuditReadyOnlyEvidenceKeys) {
+    delete row[key];
+  }
+  payload.counts.ready = 0;
+  return payload;
+}
+
 describe("resumes_diagnostics", () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -465,6 +501,46 @@ describe("resumes_diagnostics", () => {
 
       expect(response.status).toBe(500);
       expect((await parseJsonBody(response)).error).toContain("inconsistent");
+    });
+
+    it.each([
+      { label: "empty reason metadata", reasons: [] },
+      { label: "contradictory reason metadata", reasons: ["prompt_version_mismatch"] },
+    ])("rejects a non-ready row with $label", async ({ reasons }) => {
+      const payload = nonReadyExactTaskAuditExportPayload(
+        "job_description_mismatch",
+        reasons,
+      );
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(convexSuccess(payload));
+
+      const response = await createTestApp().request(
+        "/api/resumes/analysis-tasks/task-exact-1/audit-export",
+      );
+
+      expect(response.status).toBe(500);
+      expect((await parseJsonBody(response)).error).toContain("inconsistent");
+    });
+
+    it("accepts an ordered multi-reason provenance mismatch", async () => {
+      const payload = nonReadyExactTaskAuditExportPayload(
+        "job_description_mismatch",
+        [
+          "job_description_mismatch",
+          "prompt_version_mismatch",
+          "not_newer_than_dispatch",
+        ],
+      );
+      const row = payload.page[0] as Record<string, unknown>;
+      row.currentJobDescriptionId = "jd-other";
+      row.currentPromptVersion = PROMPT_VERSION - 1;
+      row.currentAnalyzedAt = payload.task.dispatchedAt;
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(convexSuccess(payload));
+
+      const response = await createTestApp().request(
+        "/api/resumes/analysis-tasks/task-exact-1/audit-export",
+      );
+
+      expect(response.status).toBe(200);
     });
 
     it.each([
