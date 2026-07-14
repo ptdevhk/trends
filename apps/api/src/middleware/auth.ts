@@ -1,3 +1,5 @@
+import { timingSafeEqual } from "node:crypto";
+
 import type { MiddlewareHandler } from "hono";
 import { getCookie } from "hono/cookie";
 
@@ -166,6 +168,27 @@ export const optionalAuth = defaultAuthMiddleware.optionalAuth;
 export const requireWorkspaceUser = defaultAuthMiddleware.requireWorkspaceUser;
 export const requireAdmin = defaultAuthMiddleware.requireAdmin;
 export const requireCsrf = defaultAuthMiddleware.requireCsrf;
+
+export const CONVEX_WRITE_SECRET_HEADER = "X-Convex-Write-Secret";
+
+function matchesConfiguredConvexWriteSecret(value: string | undefined): boolean {
+  const expected = config.auth.convexWriteSecret;
+  if (!expected?.trim() || !value) {
+    return false;
+  }
+
+  const expectedBytes = Buffer.from(expected);
+  const actualBytes = Buffer.from(value);
+  return expectedBytes.length === actualBytes.length && timingSafeEqual(expectedBytes, actualBytes);
+}
+
+export const requireAdminOrConvexWorker: MiddlewareHandler = async (c, next) => {
+  if (matchesConfiguredConvexWriteSecret(c.req.header(CONVEX_WRITE_SECRET_HEADER))) {
+    await next();
+    return;
+  }
+  return requireAdmin(c, next);
+};
 
 export function getAuthenticatedActorId(c: { var: { auth?: AuthContext } }): string {
   const userId = c.var.auth?.user.id;

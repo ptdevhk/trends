@@ -1,10 +1,14 @@
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+
 import { OpenAPIHono } from "@hono/zod-openapi";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import resumesAdminRoutes from "./resumes_admin";
-import { createAuthMiddleware } from "../middleware/auth";
+import { createAuthMiddleware, requireAdminOrConvexWorker } from "../middleware/auth";
 import { workspaceMiddleware } from "../middleware/workspace";
-import type { AuthStorage } from "../services/auth-storage";
+import { AuthStorage } from "../services/auth-storage";
 import { config } from "../services/config";
 import { resetResumeScreeningDb } from "../services/database";
 import { parseJsonBody } from "../test-utils";
@@ -19,6 +23,8 @@ vi.mock("../services/notification-service", () => ({
 }));
 
 let defaultAuthHeaders: Record<string, string> = {};
+const originalConvexWriteSecret = config.auth.convexWriteSecret;
+const ingestComputeWorkerSecret = "ingest-compute-test-secret";
 
 function createTestApp(storage?: AuthStorage) {
   const auth = storage ? undefined : createAuthHeaders({ workspaceSlug: "dev", role: "admin" });
@@ -56,6 +62,7 @@ describe("resumes_admin", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    config.auth.convexWriteSecret = originalConvexWriteSecret;
     resetResumeScreeningDb();
   });
 
@@ -643,6 +650,64 @@ describe("resumes_admin", () => {
   });
 
   describe("POST /api/resumes/ingest-compute", () => {
+    it("rejects a whitespace-only configured worker secret", async () => {
+      config.auth.convexWriteSecret = "   ";
+      let nextCalled = false;
+      const response = await requireAdminOrConvexWorker({
+        req: { header: () => "   " },
+        var: { workspaceSlug: "dev" },
+        json: (body: unknown, status: number) => new Response(JSON.stringify(body), { status }),
+      } as never, async () => {
+        nextCalled = true;
+      });
+
+      expect(nextCalled).toBe(false);
+      expect(response).toBeInstanceOf(Response);
+      expect((response as Response).status).toBe(401);
+    });
+
+    it("rejects an unauthenticated ingest compute request without the worker secret", async () => {
+      config.auth.convexWriteSecret = ingestComputeWorkerSecret;
+      const app = createTestApp(new AuthStorage(mkdtempSync(path.join(tmpdir(), "ingest-compute-auth-"))));
+      const response = await app.request("/api/resumes/ingest-compute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ resumes: [{ resumeId: "r1", content: { name: "Worker" } }] }),
+      });
+
+      expect(response.status).toBe(401);
+    });
+
+    it("accepts the exact Convex worker secret without a browser session", async () => {
+      config.auth.convexWriteSecret = ingestComputeWorkerSecret;
+      const app = createTestApp(new AuthStorage(mkdtempSync(path.join(tmpdir(), "ingest-compute-secret-"))));
+      const response = await app.request("/api/resumes/ingest-compute", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Convex-Write-Secret": ingestComputeWorkerSecret,
+        },
+        body: JSON.stringify({ resumes: [{ resumeId: "r1", content: { name: "Worker" } }] }),
+      });
+
+      expect(response.status).toBe(200);
+    });
+
+    it("rejects a wrong worker secret without a browser session", async () => {
+      config.auth.convexWriteSecret = ingestComputeWorkerSecret;
+      const app = createTestApp(new AuthStorage(mkdtempSync(path.join(tmpdir(), "ingest-compute-wrong-secret-"))));
+      const response = await app.request("/api/resumes/ingest-compute", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Convex-Write-Secret": "wrong-secret",
+        },
+        body: JSON.stringify({ resumes: [{ resumeId: "r1", content: { name: "Worker" } }] }),
+      });
+
+      expect(response.status).toBe(401);
+    });
+
     it("returns computed results", async () => {
       const app = createTestApp();
       const response = await app.request("/api/resumes/ingest-compute", {

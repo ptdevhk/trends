@@ -660,11 +660,17 @@ export const processNewResumes = internalAction({
 
       console.debug(`[ingest_agent] Calling BFF at ${endpoint}...`);
 
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      const writeSecret = readOptionalString(process.env.CONVEX_WRITE_SECRET);
+      if (writeSecret) {
+        headers["X-Convex-Write-Secret"] = writeSecret;
+      }
+
       const response = await fetch(endpoint, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers,
         body: JSON.stringify(payload),
       });
 

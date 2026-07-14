@@ -3,7 +3,7 @@ import { callConvexAction, callConvexMutation, callConvexQuery } from "../servic
 import { IngestComputeService } from "../services/ingest-compute-service.js";
 import { config } from "../services/config.js";
 import { logger } from "../services/logger.js";
-import { requireAdmin } from "../middleware/auth.js";
+import { requireAdmin, requireAdminOrConvexWorker } from "../middleware/auth.js";
 import { notificationService } from "../services/notification-service.js";
 import { SkillsKnowledgeService } from "../services/skills-knowledge.js";
 import {
@@ -671,7 +671,7 @@ const ingestComputeRoute = createRoute({
   path: "/api/resumes/ingest-compute",
   tags: ["admin"],
   summary: "Compute ingest data for a batch of resumes (internal)",
-  middleware: [requireAdmin] as const,
+  middleware: [requireAdminOrConvexWorker] as const,
   request: {
     body: { content: { "application/json": { schema: IngestComputeRequestSchema } } },
   },

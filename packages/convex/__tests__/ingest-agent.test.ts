@@ -28,6 +28,38 @@ function makeBffResponse(status: number, body: unknown) {
   })
 }
 
+function successfulIngestComputeResponse() {
+  return makeBffResponse(200, {
+    success: true,
+    results: [{
+      resumeId: "r1",
+      market: "CN",
+      evidenceText: "",
+      industryTags: [],
+      synonymHits: [],
+      brandHits: [],
+      companyHits: [],
+      ruleScores: {},
+      experienceLevel: "unknown",
+      computedAt: 1,
+      skillsVersion: 1,
+    }],
+  })
+}
+
+function processableResumeContext() {
+  return {
+    async runQuery() {
+      return [{ _id: "r1", content: {} }]
+    },
+    async runMutation(_fn: unknown, args: Record<string, unknown>) {
+      if ("decisionType" in args) {
+        return "audit-log-1"
+      }
+    },
+  }
+}
+
 describe("processNewResumes", () => {
   it("returns processed: 0 with no error for empty resumeIds", async () => {
     const result = await processNewResumesHandler({} as never, { resumeIds: [] })
@@ -76,6 +108,38 @@ describe("processNewResumes", () => {
     expect(result.processed).toBe(0)
     expect(result.error).toContain("Invalid BFF response")
     fetchSpy.mockRestore()
+  })
+
+  it("sends the configured Convex write secret to the BFF compute endpoint", async () => {
+    vi.stubEnv("CONVEX_WRITE_SECRET", "worker-test-secret")
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(successfulIngestComputeResponse())
+
+    try {
+      await processNewResumesHandler(processableResumeContext() as never, { resumeIds: ["r1"] })
+
+      expect(fetchSpy).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({
+        headers: expect.objectContaining({ "X-Convex-Write-Secret": "worker-test-secret" }),
+      }))
+    } finally {
+      fetchSpy.mockRestore()
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it("omits the BFF worker header when the configured write secret is blank", async () => {
+    vi.stubEnv("CONVEX_WRITE_SECRET", "   ")
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(successfulIngestComputeResponse())
+
+    try {
+      await processNewResumesHandler(processableResumeContext() as never, { resumeIds: ["r1"] })
+
+      expect(fetchSpy).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({
+        headers: { "Content-Type": "application/json" },
+      }))
+    } finally {
+      fetchSpy.mockRestore()
+      vi.unstubAllEnvs()
+    }
   })
 
   it("processes resumes and stores ingest data via mutation", async () => {
