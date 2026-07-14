@@ -371,13 +371,39 @@ func readCSVRecords(t *testing.T, path string) [][]string {
 
 func TestResumeExportConvexModeRejectsInvalidStreamsWithoutPartialFiles(t *testing.T) {
 	tests := []struct {
-		scenario string
-		wantErr  string
+		scenario        string
+		wantErr         string
+		analysisState   string
+		analysisReasons []string
 	}{
 		{scenario: "empty completed export", wantErr: "no active workspace resumes"},
 		{scenario: "stale score evidence", wantErr: "non-ready row includes score evidence"},
 		{scenario: "empty non-ready reason metadata", wantErr: "analysis reason/state mismatch"},
 		{scenario: "contradictory non-ready reason metadata", wantErr: "analysis reason/state mismatch"},
+		{
+			scenario:        "terminal reason contamination",
+			wantErr:         "analysis reason/state mismatch",
+			analysisState:   "cold_row_missing",
+			analysisReasons: []string{"cold_row_missing", "prompt_version_mismatch"},
+		},
+		{
+			scenario:        "duplicate mismatch reason",
+			wantErr:         "analysis reason/state mismatch",
+			analysisState:   "job_description_mismatch",
+			analysisReasons: []string{"job_description_mismatch", "job_description_mismatch"},
+		},
+		{
+			scenario:        "mutually exclusive timestamp reasons",
+			wantErr:         "analysis reason/state mismatch",
+			analysisState:   "job_description_mismatch",
+			analysisReasons: []string{"job_description_mismatch", "timestamp_missing", "not_newer_than_dispatch"},
+		},
+		{
+			scenario:        "invalid mismatch reason ordering",
+			wantErr:         "analysis reason/state mismatch",
+			analysisState:   "prompt_version_mismatch",
+			analysisReasons: []string{"prompt_version_mismatch", "job_description_mismatch"},
+		},
 		{scenario: "repeated cursor", wantErr: "repeated cursor"},
 		{scenario: "duplicate resume", wantErr: "duplicate resume"},
 		{scenario: "changed task", wantErr: "task metadata changed"},
@@ -413,6 +439,12 @@ func TestResumeExportConvexModeRejectsInvalidStreamsWithoutPartialFiles(t *testi
 				if scenario == "contradictory non-ready reason metadata" {
 					row := auditExportRow(taskID, 1, true, "job_description_mismatch")
 					row["analysisReasons"] = []string{"prompt_version_mismatch"}
+					writeAuditExportPage(w, auditTaskMetadata(taskID), []map[string]any{row}, "", true, 1)
+					return
+				}
+				if test.analysisState != "" {
+					row := auditExportRow(taskID, 1, true, test.analysisState)
+					row["analysisReasons"] = test.analysisReasons
 					writeAuditExportPage(w, auditTaskMetadata(taskID), []map[string]any{row}, "", true, 1)
 					return
 				}
@@ -452,7 +484,13 @@ func TestResumeExportConvexModeRejectsInvalidStreamsWithoutPartialFiles(t *testi
 				t, server.URL, "json",
 				"--source", "convex", "--all", "--analysis-task", taskID, "--out", finalPath,
 			)
-			if err == nil || !strings.Contains(strings.ToLower(err.Error()), test.wantErr) {
+			if err == nil {
+				if _, statErr := os.Stat(finalPath); statErr != nil {
+					t.Fatalf("expected %s malformed stream to create a final CSV after acceptance: %v", scenario, statErr)
+				}
+				t.Fatalf("expected %s failure containing %q; malformed stream was accepted and created a final CSV", scenario, test.wantErr)
+			}
+			if !strings.Contains(strings.ToLower(err.Error()), test.wantErr) {
 				t.Fatalf("expected %s failure containing %q, got %v", scenario, test.wantErr, err)
 			}
 			assertNoAuditExportFiles(t, finalPath)

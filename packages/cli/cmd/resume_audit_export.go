@@ -89,6 +89,20 @@ var exactTaskAuditStates = map[string]struct{}{
 	"not_newer_than_dispatch":  {},
 }
 
+var exactTaskAuditMismatchReasonSequences = [][]string{
+	{"job_description_mismatch"},
+	{"prompt_version_mismatch"},
+	{"timestamp_missing"},
+	{"not_newer_than_dispatch"},
+	{"job_description_mismatch", "prompt_version_mismatch"},
+	{"job_description_mismatch", "timestamp_missing"},
+	{"job_description_mismatch", "not_newer_than_dispatch"},
+	{"prompt_version_mismatch", "timestamp_missing"},
+	{"prompt_version_mismatch", "not_newer_than_dispatch"},
+	{"job_description_mismatch", "prompt_version_mismatch", "timestamp_missing"},
+	{"job_description_mismatch", "prompt_version_mismatch", "not_newer_than_dispatch"},
+}
+
 type exactTaskAuditExportResult struct {
 	Count         int
 	File          string
@@ -148,18 +162,28 @@ func hasExactTaskAuditReasonStateConsistency(row client.ExactTaskAuditRow) bool 
 	if row.AnalysisState == "ready" {
 		return len(row.AnalysisReasons) == 0
 	}
-	if row.AnalysisState == "not_targeted" {
-		return len(row.AnalysisReasons) == 1 && row.AnalysisReasons[0] == "not_targeted"
+	if row.AnalysisState == "not_targeted" ||
+		row.AnalysisState == "cold_row_missing" ||
+		row.AnalysisState == "analysis_map_missing" ||
+		row.AnalysisState == "analysis_key_missing" {
+		return len(row.AnalysisReasons) == 1 && row.AnalysisReasons[0] == row.AnalysisState
 	}
-	if len(row.AnalysisReasons) == 0 || row.AnalysisReasons[0] != row.AnalysisState {
-		return false
-	}
-	for _, reason := range row.AnalysisReasons {
-		if reason == "ready" || reason == "not_targeted" {
-			return false
+	for _, expectedReasons := range exactTaskAuditMismatchReasonSequences {
+		if row.AnalysisState != expectedReasons[0] || len(row.AnalysisReasons) != len(expectedReasons) {
+			continue
+		}
+		matches := true
+		for index, reason := range row.AnalysisReasons {
+			if reason != expectedReasons[index] {
+				matches = false
+				break
+			}
+		}
+		if matches {
+			return true
 		}
 	}
-	return true
+	return false
 }
 
 func validateExactTaskAuditPage(
