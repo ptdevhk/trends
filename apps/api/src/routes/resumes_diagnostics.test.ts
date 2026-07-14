@@ -5,12 +5,18 @@ import resumesDiagnosticsRoutes from "./resumes_diagnostics";
 import { workspaceMiddleware } from "../middleware/workspace";
 import { createAuthContext } from "./test-auth-helpers";
 import { parseJsonBody } from "../test-utils";
+import { config } from "../services/config";
+import { getCurrentResumeAiPromptVersion } from "@trends/shared";
 
-function createTestApp() {
+const PROMPT_VERSION = getCurrentResumeAiPromptVersion();
+
+function createTestApp(
+  authContext = createAuthContext({ workspaceSlug: "dev", role: "admin" }),
+) {
   const app = new OpenAPIHono();
   app.use("*", workspaceMiddleware);
   app.use("*", async (c, next) => {
-    c.set("auth", createAuthContext({ workspaceSlug: "dev", role: "admin" }));
+    c.set("auth", authContext);
     await next();
   });
   app.route("/", resumesDiagnosticsRoutes);
@@ -33,6 +39,46 @@ function makeDiagnosticsItem(id: string, overrides: Record<string, unknown> = {}
     name: "Alice",
     jobIntention: "Engineer",
     location: "东莞",
+    ...overrides,
+  };
+}
+
+function exactTaskStatusPayload(overrides: Record<string, unknown> = {}) {
+  return {
+    task: {
+      _id: "task-exact-1",
+      _creationTime: 1_750_000_000_000,
+      status: "completed",
+      dispatchMode: "exact",
+      workspaceSlug: "dev",
+      targetResumeIds: ["resume-1"],
+      dispatchedAt: 1_750_000_000_001,
+      config: {
+        jobDescriptionId: "jd-exact",
+        promptVersion: PROMPT_VERSION,
+        resumeCount: 1,
+      },
+      progress: { current: 1, total: 1, skipped: 0 },
+    },
+    verification: {
+      allReady: true,
+      ready: 1,
+      pending: 0,
+      invalid: 0,
+      checkedAt: 1_750_000_000_100,
+      dispatchedAt: 1_750_000_000_001,
+      targets: [{
+        currentResumeId: "resume-1",
+        state: "ready",
+        expectedAnalysisKey: "source:seek|locale:en|analysis:jd-exact",
+        expectedJobDescriptionId: "jd-exact",
+        expectedPromptVersion: PROMPT_VERSION,
+        actualJobDescriptionId: "jd-exact",
+        actualPromptVersion: PROMPT_VERSION,
+        analyzedAt: 1_750_000_000_002,
+        reasons: [],
+      }],
+    },
     ...overrides,
   };
 }
@@ -86,6 +132,86 @@ describe("resumes_diagnostics", () => {
       const payload = await parseJsonBody<{ success: unknown; error: string }>(response);
       expect(payload.success).toBe(false);
       expect(payload.error).toContain("Convex timeout");
+    });
+  });
+
+  describe("GET /api/resumes/analysis-tasks/:taskId", () => {
+    it("queries one exact task by ID with workspace and server secret", async () => {
+      const calls: Array<{ path: string; args: Record<string, unknown> }> = [];
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {
+        const body = JSON.parse(typeof init?.body === "string" ? init.body : "{}") as {
+          path: string;
+          args: Record<string, unknown>;
+        };
+        calls.push(body);
+        return convexSuccess(exactTaskStatusPayload());
+      });
+
+      const response = await createTestApp().request("/api/resumes/analysis-tasks/task-exact-1");
+
+      expect(response.status).toBe(200);
+      expect(await parseJsonBody(response)).toEqual({
+        success: true,
+        ...exactTaskStatusPayload(),
+      });
+      expect(calls).toEqual([{
+        path: "analysis_tasks:getExactStatus",
+        args: {
+          taskId: "task-exact-1",
+          workspaceSlug: "dev",
+          writeSecret: config.auth.convexWriteSecret,
+        },
+      }]);
+    });
+
+    it("rejects non-admin access without querying Convex", async () => {
+      const fetchSpy = vi.spyOn(globalThis, "fetch");
+      const response = await createTestApp(
+        createAuthContext({ workspaceSlug: "dev", role: "user" }),
+      ).request("/api/resumes/analysis-tasks/task-exact-1");
+
+      expect(response.status).toBe(403);
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it("returns 404 when the exact task does not exist", async () => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(convexSuccess(null));
+
+      const response = await createTestApp().request("/api/resumes/analysis-tasks/missing-task");
+
+      expect(response.status).toBe(404);
+      expect(await parseJsonBody(response)).toEqual({
+        success: false,
+        error: "Analysis task not found",
+      });
+    });
+
+    it("rejects a malformed Convex verification target", async () => {
+      const payload = exactTaskStatusPayload();
+      payload.verification.targets[0].state = "unknown";
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(convexSuccess(payload));
+
+      const response = await createTestApp().request("/api/resumes/analysis-tasks/task-exact-1");
+
+      expect(response.status).toBe(500);
+    });
+
+    it("rejects internally inconsistent verification counts", async () => {
+      const payload = exactTaskStatusPayload({
+        verification: {
+          ...exactTaskStatusPayload().verification,
+          allReady: true,
+          ready: 0,
+          pending: 0,
+          invalid: 0,
+        },
+      });
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(convexSuccess(payload));
+
+      const response = await createTestApp().request("/api/resumes/analysis-tasks/task-exact-1");
+
+      expect(response.status).toBe(500);
+      expect((await parseJsonBody(response)).error).toContain("inconsistent target counts");
     });
   });
 

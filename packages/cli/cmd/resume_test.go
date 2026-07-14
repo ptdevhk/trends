@@ -8,7 +8,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/ptdevhk/trends/packages/cli/internal/client"
 )
@@ -265,9 +267,9 @@ func TestResumeAnalyzeCommandDryRunWritesJSON(t *testing.T) {
 		}
 		_ = json.NewEncoder(w).Encode(client.AnalyzeResponse{
 			Success:      true,
-			DryRun:        true,
-			ResumeCount:   42,
-			SkippedCount:  5,
+			DryRun:       true,
+			ResumeCount:  42,
+			SkippedCount: 5,
 			Config: &client.AnalyzeConfig{
 				Keywords: []string{"CNC", "销售"},
 				Location: "Dongguan",
@@ -343,6 +345,297 @@ func TestResumeAnalyzeCommandWithJDWritesTable(t *testing.T) {
 	if !strings.Contains(text, "30") || !strings.Contains(text, "task-abc") || !strings.Contains(text, "cnc-sales") {
 		t.Fatalf("unexpected analyze table output: %s", text)
 	}
+}
+
+func TestResumeAnalyzeExactDryRunPreservesManifestOrder(t *testing.T) {
+	manifestPath := filepath.Join(t.TempDir(), "cohort.json")
+	manifest := `{"version":1,"targets":[{"referenceResumeId":"old-2","externalId":"external-2"},{"referenceResumeId":"old-1","profileResumeId":"100001"}]}`
+	if err := os.WriteFile(manifestPath, []byte(manifest), 0o600); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/resumes/analyze" || r.Method != http.MethodPost {
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode analyze request: %v", err)
+		}
+		targets, ok := body["targets"].([]any)
+		if !ok || len(targets) != 2 {
+			t.Fatalf("unexpected targets: %+v", body["targets"])
+		}
+		first := targets[0].(map[string]any)
+		second := targets[1].(map[string]any)
+		if first["referenceResumeId"] != "old-2" || second["referenceResumeId"] != "old-1" {
+			t.Fatalf("manifest order changed: %+v", targets)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"success":        true,
+			"mode":           "exact",
+			"dryRun":         true,
+			"resumeCount":    2,
+			"requestedCount": 2,
+			"resolvedCount":  2,
+			"resumeIds":      []string{"current-2", "current-1"},
+			"targets": []map[string]any{
+				{"referenceResumeId": "old-2", "currentResumeId": "current-2", "externalId": "external-2", "source": "seek", "canonicalIdentityKey": "externalId:external-2", "outcome": "resolved", "selectors": []map[string]string{{"kind": "externalId", "value": "external-2"}}},
+				{"referenceResumeId": "old-1", "currentResumeId": "current-1", "externalId": "external-1", "source": "51job", "canonicalIdentityKey": "externalId:external-1", "outcome": "resolved", "selectors": []map[string]string{{"kind": "profileResumeId", "value": "100001"}}},
+			},
+			"expectedAnalysis": map[string]any{"jobDescriptionId": "keyword-search:2:test", "promptVersion": 42},
+		})
+	}))
+	defer server.Close()
+
+	setResumeCLIConfig(t, server.URL, "dev")
+	setCLIOutput(t, "json")
+	cmd := newResumeAnalyzeCmd()
+	var output bytes.Buffer
+	cmd.SetOut(&output)
+	cmd.SetErr(&output)
+	cmd.SetArgs([]string{"--manifest", manifestPath, "--query", "CNC 销售", "--dry-run"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("exact analyze dry run failed: %v", err)
+	}
+	payload := decodeCommandJSON(t, output)
+	if payload["mode"] != "exact" || payload["resolvedCount"] != float64(2) {
+		t.Fatalf("unexpected exact dry-run evidence: %+v", payload)
+	}
+	resolved := payload["targets"].([]any)
+	if resolved[0].(map[string]any)["referenceResumeId"] != "old-2" {
+		t.Fatalf("resolution evidence order changed: %+v", resolved)
+	}
+}
+
+func TestResumeAnalyzeExactDryRunPreservesRepeatableResumeIDs(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode analyze request: %v", err)
+		}
+		resumeIDs, ok := body["resumeIds"].([]any)
+		if !ok || len(resumeIDs) != 2 || resumeIDs[0] != "current-2" || resumeIDs[1] != "current-1" {
+			t.Fatalf("repeatable resume ID order changed: %+v", body["resumeIds"])
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"success": true, "mode": "exact", "dryRun": true,
+			"resumeCount": 2, "requestedCount": 2, "resolvedCount": 2,
+			"resumeIds": []string{"current-2", "current-1"}, "targets": []any{},
+			"expectedAnalysis": map[string]any{"jobDescriptionId": "keyword-search:2:test", "promptVersion": 42},
+		})
+	}))
+	defer server.Close()
+
+	setResumeCLIConfig(t, server.URL, "dev")
+	setCLIOutput(t, "json")
+	cmd := newResumeAnalyzeCmd()
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+	cmd.SetArgs([]string{"--query", "CNC 销售", "--resume-id", "current-2", "--resume-id", "current-1", "--dry-run"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("repeatable exact resume IDs failed: %v", err)
+	}
+}
+
+func TestResumeAnalyzeExactLiveRequiresConfirmation(t *testing.T) {
+	cmd := newResumeAnalyzeCmd()
+	cmd.SetArgs([]string{"--query", "CNC 销售", "--resume-id", "current-1"})
+	err := cmd.Execute()
+	if err == nil || !strings.Contains(err.Error(), "live exact analysis requires --yes") {
+		t.Fatalf("unexpected confirmation error: %v", err)
+	}
+}
+
+func TestResumeAnalyzeExactRejectsWaitWithDryRun(t *testing.T) {
+	cmd := newResumeAnalyzeCmd()
+	cmd.SetArgs([]string{"--query", "CNC 销售", "--resume-id", "current-1", "--dry-run", "--wait"})
+	err := cmd.Execute()
+	if err == nil || !strings.Contains(err.Error(), "--wait requires a live exact analysis") {
+		t.Fatalf("unexpected dry-run wait error: %v", err)
+	}
+}
+
+func TestResumeAnalyzeExactRejectsNonPositiveWaitDurationsBeforeDispatch(t *testing.T) {
+	for _, testCase := range []struct {
+		name string
+		flag string
+	}{
+		{name: "wait timeout", flag: "--wait-timeout"},
+		{name: "poll interval", flag: "--poll-interval"},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			var requests atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				requests.Add(1)
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"success": true, "mode": "exact", "taskId": "task-should-not-dispatch",
+					"dispatchedAt": 1750000000001, "resumeCount": 1,
+					"expectedAnalysis": map[string]any{"jobDescriptionId": "keyword-search:2:test", "promptVersion": 42},
+				})
+			}))
+			defer server.Close()
+
+			setResumeCLIConfig(t, server.URL, "dev")
+			setCLIOutput(t, "json")
+			cmd := newResumeAnalyzeCmd()
+			cmd.SetOut(&bytes.Buffer{})
+			cmd.SetErr(&bytes.Buffer{})
+			cmd.SetArgs([]string{
+				"--query", "CNC 销售",
+				"--resume-id", "current-1",
+				"--yes",
+				"--wait",
+				testCase.flag, "0s",
+			})
+
+			err := cmd.Execute()
+			if err == nil || !strings.Contains(err.Error(), "wait-timeout and poll-interval must be positive") {
+				t.Fatalf("unexpected duration validation error: %v", err)
+			}
+			if got := requests.Load(); got != 0 {
+				t.Fatalf("expected invalid wait flags to prevent dispatch, got %d requests", got)
+			}
+		})
+	}
+}
+
+func TestResumeAnalyzeExactWaitsUntilCompletedAndAllReady(t *testing.T) {
+	pollCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/api/resumes/analyze":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"success": true, "mode": "exact", "dryRun": false,
+				"taskId": "task-exact-1", "dispatchedAt": 1750000000001, "reused": false,
+				"resumeCount": 1, "requestedCount": 1, "resolvedCount": 1,
+				"resumeIds": []string{"current-1"}, "targets": []any{},
+				"expectedAnalysis": map[string]any{"jobDescriptionId": "keyword-search:2:test", "promptVersion": 42},
+			})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/resumes/analysis-tasks/task-exact-1":
+			pollCount++
+			completed := pollCount >= 2
+			status := "processing"
+			state := "pending"
+			ready := 0
+			pending := 1
+			if completed {
+				status, state, ready, pending = "completed", "ready", 1, 0
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"success": true,
+				"task":    map[string]any{"_id": "task-exact-1", "status": status, "_creationTime": 1750000000000, "dispatchedAt": 1750000000001},
+				"verification": map[string]any{
+					"allReady": completed, "ready": ready, "pending": pending, "invalid": 0,
+					"checkedAt": 1750000000100, "dispatchedAt": 1750000000001,
+					"targets": []map[string]any{{"currentResumeId": "current-1", "state": state, "expectedAnalysisKey": "source:seek|locale:en|analysis:keyword-search:2:test", "expectedJobDescriptionId": "keyword-search:2:test", "expectedPromptVersion": 42, "reasons": []string{}}},
+				},
+			})
+		default:
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	setResumeCLIConfig(t, server.URL, "dev")
+	setCLIOutput(t, "json")
+	cmd := newResumeAnalyzeCmd()
+	var output bytes.Buffer
+	cmd.SetOut(&output)
+	cmd.SetErr(&output)
+	cmd.SetArgs([]string{"--query", "CNC 销售", "--resume-id", "current-1", "--yes", "--wait", "--poll-interval", "1ms", "--wait-timeout", "1s"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("exact analysis wait failed: %v", err)
+	}
+	if pollCount != 2 {
+		t.Fatalf("expected two exact task polls, got %d", pollCount)
+	}
+	payload := decodeCommandJSON(t, output)
+	verification := payload["verification"].(map[string]any)
+	if verification["allReady"] != true || verification["ready"] != float64(1) {
+		t.Fatalf("missing final verification evidence: %+v", payload)
+	}
+}
+
+func TestResumeAnalyzeExactWaitReturnsTaskFailure(t *testing.T) {
+	server := newExactAnalyzeWaitServer(t, "failed", map[string]any{
+		"allReady": false, "ready": 0, "pending": 0, "invalid": 1,
+		"targets": []map[string]any{{"currentResumeId": "current-1", "state": "invalid", "reasons": []string{"task_failed"}}},
+	})
+	defer server.Close()
+
+	err := executeExactAnalyzeWait(t, server.URL, 100*time.Millisecond)
+	if err == nil || !strings.Contains(err.Error(), "task-exact-1") || !strings.Contains(err.Error(), "failed") {
+		t.Fatalf("unexpected failed-task error: %v", err)
+	}
+}
+
+func TestResumeAnalyzeExactWaitReturnsInvalidVerification(t *testing.T) {
+	server := newExactAnalyzeWaitServer(t, "completed", map[string]any{
+		"allReady": false, "ready": 0, "pending": 0, "invalid": 1,
+		"targets": []map[string]any{{"currentResumeId": "current-1", "state": "invalid", "reasons": []string{"analysis_prompt_version_mismatch"}}},
+	})
+	defer server.Close()
+
+	err := executeExactAnalyzeWait(t, server.URL, 100*time.Millisecond)
+	if err == nil || !strings.Contains(err.Error(), "1 invalid") || !strings.Contains(err.Error(), "analysis_prompt_version_mismatch") {
+		t.Fatalf("unexpected invalid-verification error: %v", err)
+	}
+}
+
+func TestResumeAnalyzeExactWaitTimesOut(t *testing.T) {
+	server := newExactAnalyzeWaitServer(t, "processing", map[string]any{
+		"allReady": false, "ready": 0, "pending": 1, "invalid": 0,
+		"targets": []map[string]any{{"currentResumeId": "current-1", "state": "pending", "reasons": []string{"task_processing"}}},
+	})
+	defer server.Close()
+
+	err := executeExactAnalyzeWait(t, server.URL, 20*time.Millisecond)
+	if err == nil || !strings.Contains(err.Error(), "task-exact-1") || !strings.Contains(err.Error(), "timed out") {
+		t.Fatalf("unexpected timeout error: %v", err)
+	}
+}
+
+func newExactAnalyzeWaitServer(t *testing.T, taskStatus string, verification map[string]any) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/api/resumes/analyze":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"success": true, "mode": "exact", "taskId": "task-exact-1", "dispatchedAt": 1750000000001,
+				"resumeCount": 1, "requestedCount": 1, "resolvedCount": 1,
+				"resumeIds": []string{"current-1"}, "targets": []any{},
+				"expectedAnalysis": map[string]any{"jobDescriptionId": "keyword-search:2:test", "promptVersion": 42},
+			})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/resumes/analysis-tasks/task-exact-1":
+			verification["checkedAt"] = 1750000000100
+			verification["dispatchedAt"] = 1750000000001
+			for _, rawTarget := range verification["targets"].([]map[string]any) {
+				rawTarget["expectedAnalysisKey"] = "source:seek|locale:en|analysis:keyword-search:2:test"
+				rawTarget["expectedJobDescriptionId"] = "keyword-search:2:test"
+				rawTarget["expectedPromptVersion"] = 42
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"success":      true,
+				"task":         map[string]any{"_id": "task-exact-1", "status": taskStatus, "_creationTime": 1750000000000, "dispatchedAt": 1750000000001},
+				"verification": verification,
+			})
+		default:
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+	}))
+}
+
+func executeExactAnalyzeWait(t *testing.T, apiURL string, timeout time.Duration) error {
+	t.Helper()
+	setResumeCLIConfig(t, apiURL, "dev")
+	setCLIOutput(t, "json")
+	cmd := newResumeAnalyzeCmd()
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+	cmd.SetArgs([]string{"--query", "CNC 销售", "--resume-id", "current-1", "--yes", "--wait", "--poll-interval", "1ms", "--wait-timeout", timeout.String()})
+	return cmd.Execute()
 }
 
 func TestResumeSearchCommandDefaultsToAgentOutput(t *testing.T) {

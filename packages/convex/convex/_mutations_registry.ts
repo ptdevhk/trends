@@ -65,6 +65,7 @@ export const MUTATIONS_REGISTRY: MutationRegistryEntry[] = [
     // Scheduler dispatch + submit — direct guards in the handler (Task 3).
     // ---------------------------------------------------------------------
     { file: "analysis_tasks.ts", name: "dispatch", quiesceAware: true, reason: "Direct guard in handler (Task 3)" },
+    { file: "analysis_tasks.ts", name: "dispatchExact", quiesceAware: true, reason: "Admin exact-cohort dispatch with write-secret, workspace, and atomic target guards" },
     { file: "ingest_agent.ts", name: "scheduleExactReingest", quiesceAware: true, reason: "Admin-only exact re-ingest scheduler with direct write-secret and workspace guards" },
     { file: "resume_tasks.ts", name: "dispatch", quiesceAware: true, reason: "Direct guard in handler (Task 3)" },
     { file: "resume_tasks.ts", name: "submitResumes", quiesceAware: true, reason: "Direct guard in handler (Task 3)" },

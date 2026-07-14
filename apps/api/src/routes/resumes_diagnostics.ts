@@ -6,6 +6,8 @@ import { logger } from "../services/logger.js";
 import { resolveResumeDiagnosticsSourceKey } from "@trends/shared";
 import {
   AnalysisTasksResponseSchema,
+  AnalysisTaskDetailResponseSchema,
+  AnalysisTaskDetailSchema,
   ResumeDiagnosticsQuerySchema,
   ResumeDiagnosticsResponseSchema,
 } from "../schemas/index.js";
@@ -13,6 +15,7 @@ import { requireAdmin } from "../middleware/auth.js";
 
 const app = new OpenAPIHono();
 app.use("/api/resumes/analysis-tasks", requireAdmin);
+app.use("/api/resumes/analysis-tasks/*", requireAdmin);
 app.use("/api/resumes/skills-version", requireAdmin);
 app.use("/api/resumes/field-coverage", requireAdmin);
 app.use("/api/resumes/diagnostics", requireAdmin);
@@ -88,6 +91,72 @@ app.openapi(listAnalysisTasksRoute, async (c) => {
     logger.error("Failed to list analysis tasks", error, { route: "resumes_diagnostics" });
     const message = error instanceof Error ? error.message : String(error);
     return c.json({ success: false, error: message }, 500);
+  }
+});
+
+const getAnalysisTaskRoute = createRoute({
+  method: "get",
+  path: "/api/resumes/analysis-tasks/{taskId}",
+  tags: ["resumes"],
+  summary: "Get exact analysis task status",
+  request: {
+    params: z.object({ taskId: z.string().min(1) }),
+  },
+  responses: {
+    200: { content: { "application/json": { schema: AnalysisTaskDetailResponseSchema } }, description: "Exact analysis task status" },
+    404: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Analysis task not found" },
+    500: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Internal error" },
+  },
+});
+app.openapi(getAnalysisTaskRoute, async (c) => {
+  const { taskId } = c.req.valid("param");
+  try {
+    const value = await callConvexQuery("analysis_tasks:getExactStatus", {
+      taskId,
+      workspaceSlug: c.var.workspaceSlug,
+      writeSecret: config.auth.convexWriteSecret,
+    });
+    if (value === null) {
+      return c.json({ success: false as const, error: "Analysis task not found" }, 404);
+    }
+
+    const detail = AnalysisTaskDetailSchema.parse(value);
+    const stateCounts = detail.verification.targets.reduce(
+      (counts, target) => {
+        counts[target.state] += 1;
+        return counts;
+      },
+      { ready: 0, pending: 0, invalid: 0 },
+    );
+    const targetResumeIds = detail.task.targetResumeIds ?? [];
+    const targetIdsMatch = targetResumeIds.length === detail.verification.targets.length
+      && targetResumeIds.every(
+        (resumeId, index) => resumeId === detail.verification.targets[index].currentResumeId,
+      );
+    const expectedAllReady = detail.task.status === "completed"
+      && stateCounts.ready === detail.verification.targets.length
+      && stateCounts.pending === 0
+      && stateCounts.invalid === 0;
+    if (detail.verification.ready !== stateCounts.ready
+      || detail.verification.pending !== stateCounts.pending
+      || detail.verification.invalid !== stateCounts.invalid
+      || detail.verification.ready + detail.verification.pending + detail.verification.invalid
+        !== detail.verification.targets.length
+      || detail.verification.allReady !== expectedAllReady
+      || detail.task.dispatchedAt !== detail.verification.dispatchedAt
+      || detail.task.config?.resumeCount !== detail.verification.targets.length
+      || !targetIdsMatch) {
+      throw new Error("Exact analysis status returned inconsistent target counts or IDs");
+    }
+
+    return c.json(AnalysisTaskDetailResponseSchema.parse({
+      success: true as const,
+      ...detail,
+    }), 200);
+  } catch (error) {
+    logger.error("Failed to get exact analysis task status", error, { route: "resumes_diagnostics", taskId });
+    const message = error instanceof Error ? error.message : String(error);
+    return c.json({ success: false as const, error: message }, 500);
   }
 });
 

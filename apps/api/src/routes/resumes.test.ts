@@ -1,4 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  buildKeywordAnalysisId,
+  getCurrentResumeAiPromptVersion,
+} from "@trends/shared";
 
 import { createApp } from "../app";
 import { MatchStorage, type StoredMatch } from "../services/match-storage";
@@ -15,6 +19,14 @@ type ConvexCall = {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+async function parseErrorResponse(response: Response): Promise<string> {
+  const body: unknown = await response.json();
+  if (!isRecord(body) || typeof body.error !== "string") {
+    throw new Error("Expected an error response body");
+  }
+  return body.error;
 }
 
 function parseConvexCall(
@@ -65,6 +77,38 @@ function convexSuccess(value: unknown): Response {
       },
     }
   );
+}
+
+function convexFailure(errorMessage: string): Response {
+  return new Response(
+    JSON.stringify({
+      status: "error",
+      errorMessage,
+    }),
+    {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+      },
+    }
+  );
+}
+
+function buildResolvedExactTarget(
+  currentResumeId: string,
+  referenceResumeId: string,
+) {
+  return {
+    referenceResumeId,
+    currentResumeId,
+    profileResumeId: currentResumeId.replace("current-", "profile-"),
+    profileUrl: `https://example.com/candidates/${currentResumeId}`,
+    externalId: `external-${currentResumeId}`,
+    source: "seek",
+    canonicalIdentityKey: `profileUrl:example.com/candidates/${currentResumeId}`,
+    outcome: "resolved" as const,
+    selectors: [{ kind: "currentResumeId" as const, value: currentResumeId }],
+  };
 }
 
 function createTestApp(
@@ -1919,7 +1963,12 @@ describe("resume routes", () => {
             market: "CN",
           },
         }));
-        return convexSuccess("task-related-exp");
+        return convexSuccess({
+          queued: true,
+          taskId: "task-related-exp",
+          dispatchedAt: 1_750_000_000_000,
+          reused: false,
+        });
       }
 
       throw new Error(`Unexpected convex path: ${call.pathName}`);
@@ -1951,6 +2000,351 @@ describe("resume routes", () => {
       "resumes_search:searchWithTagExpansionPaginated",
       "analysis_tasks:dispatch",
     ]);
+  });
+
+  it("maps a search-mode maintenance refusal to HTTP 503", async () => {
+    const calls: ConvexCall[] = [];
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+      if (call.pathName === "resumes_search:searchWithTagExpansionPaginated") {
+        return convexSuccess({
+          page: [{ resume: buildConvexResumeRecord("resume-live-1") }],
+          continuationCursor: null,
+        });
+      }
+      if (call.pathName === "analysis_tasks:dispatch") {
+        return convexSuccess({ queued: false, reason: "maintenance" });
+      }
+      throw new Error(`Unexpected convex path: ${call.pathName}`);
+    });
+
+    const response = await createTestApp().request("/api/resumes/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query: "CNC 销售" }),
+    });
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({
+      success: false,
+      error: "Analysis dispatch is unavailable during maintenance",
+    });
+    expect(calls.map((call) => call.pathName)).toEqual([
+      "resumes_search:searchWithTagExpansionPaginated",
+      "analysis_tasks:dispatch",
+    ]);
+  });
+
+  it("rejects exact analysis without query or job description before Convex calls", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const response = await createTestApp().request("/api/resumes/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        targets: [{ currentResumeId: "current-1" }],
+        dryRun: true,
+      }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(await parseErrorResponse(response)).toBe("Either query or jobDescriptionId is required");
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("exact dry run resolves stable targets without search or dispatch", async () => {
+    const promptVersion = getCurrentResumeAiPromptVersion();
+    const expectedAnalysisId = buildKeywordAnalysisId(["cnc", "销售"], {
+      location: "China",
+      promptVersion,
+    });
+    const resolvedTargets = [
+      buildResolvedExactTarget("current-2", "old-2"),
+      buildResolvedExactTarget("current-1", "old-1"),
+      buildResolvedExactTarget("current-2", "old-2-duplicate"),
+    ];
+    const calls: ConvexCall[] = [];
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+      expect(call.pathName).toBe("ingest_agent:resolveExactReingestTargets");
+      expect(call.args).toEqual(expect.objectContaining({
+        workspaceSlug: "dev",
+        targets: [
+          { referenceResumeId: "old-2", currentResumeId: "current-2" },
+          { referenceResumeId: "old-1", externalId: "external-current-1" },
+          { referenceResumeId: "old-2-duplicate", currentResumeId: "current-2" },
+        ],
+      }));
+      expect(call.args.writeSecret).toEqual(expect.any(String));
+      return convexSuccess({
+        requested: 3,
+        resolved: 2,
+        resumeIds: ["current-2", "current-1"],
+        targets: resolvedTargets,
+      });
+    });
+
+    const response = await createTestApp().request("/api/resumes/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        query: "CNC 销售",
+        location: "China",
+        limit: 1,
+        dryRun: true,
+        targets: [
+          { referenceResumeId: "old-2", currentResumeId: "current-2" },
+          { referenceResumeId: "old-1", externalId: "external-current-1" },
+          { referenceResumeId: "old-2-duplicate", currentResumeId: "current-2" },
+        ],
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      success: true,
+      mode: "exact",
+      dryRun: true,
+      resumeCount: 2,
+      requestedCount: 3,
+      resolvedCount: 2,
+      resumeIds: ["current-2", "current-1"],
+      targets: resolvedTargets,
+      expectedAnalysis: {
+        jobDescriptionId: expectedAnalysisId,
+        promptVersion,
+      },
+      config: {
+        keywords: ["cnc", "销售"],
+        location: "China",
+      },
+    });
+    expect(calls).toHaveLength(1);
+  });
+
+  it("exact live analysis resolves manifest targets and direct IDs before dispatch", async () => {
+    const promptVersion = getCurrentResumeAiPromptVersion();
+    const resolvedTargets = [
+      buildResolvedExactTarget("current-1", "old-1"),
+      buildResolvedExactTarget("current-2", "direct-current-2"),
+    ];
+    const calls: ConvexCall[] = [];
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      if (call.pathName === "system_settings:isMaintenanceMode") {
+        return convexSuccess(false);
+      }
+      calls.push(call);
+      if (call.pathName === "ingest_agent:resolveExactReingestTargets") {
+        expect(call.args.targets).toEqual([
+          { referenceResumeId: "old-1", externalId: "external-current-1" },
+          { currentResumeId: "current-2" },
+        ]);
+        return convexSuccess({
+          requested: 2,
+          resolved: 2,
+          resumeIds: ["current-1", "current-2"],
+          targets: resolvedTargets,
+        });
+      }
+      if (call.pathName === "analysis_tasks:dispatchExact") {
+        expect(call.args).toEqual(expect.objectContaining({
+          workspaceSlug: "dev",
+          keywords: ["cnc", "销售"],
+          promptVersion,
+          resumeIds: ["current-1", "current-2"],
+          writeSecret: expect.any(String),
+        }));
+        return convexSuccess({
+          queued: true,
+          taskId: "task-exact-1",
+          dispatchedAt: 1_750_000_000_001,
+          reused: false,
+        });
+      }
+      throw new Error(`Unexpected convex path: ${call.pathName}`);
+    });
+
+    const response = await createTestApp().request("/api/resumes/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        query: "CNC 销售",
+        targets: [{ referenceResumeId: "old-1", externalId: "external-current-1" }],
+        resumeIds: ["current-2"],
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual(expect.objectContaining({
+      success: true,
+      mode: "exact",
+      dryRun: false,
+      taskId: "task-exact-1",
+      dispatchedAt: 1_750_000_000_001,
+      reused: false,
+      resumeCount: 2,
+      requestedCount: 2,
+      resolvedCount: 2,
+      resumeIds: ["current-1", "current-2"],
+      targets: resolvedTargets,
+    }));
+    expect(calls.map((call) => call.pathName)).toEqual([
+      "ingest_agent:resolveExactReingestTargets",
+      "analysis_tasks:dispatchExact",
+    ]);
+  });
+
+  it.each([
+    "selector externalId did not match any resume",
+    "selectors conflict and resolve to different resumes",
+    "selector profileResumeId matched multiple resumes",
+    "resolved to archived resume current-1",
+    "resolved to workspace hr, not dev",
+  ])("fails exact analysis closed for resolver error: %s", async (resolverError) => {
+    const calls: ConvexCall[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+      expect(call.pathName).toBe("ingest_agent:resolveExactReingestTargets");
+      return convexFailure(`Exact re-ingest target 1 ${resolverError}`);
+    });
+
+    const response = await createTestApp().request("/api/resumes/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        query: "CNC 销售",
+        targets: [{ externalId: "external-current-1" }],
+      }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(await parseErrorResponse(response)).toContain(resolverError);
+    expect(calls).toHaveLength(1);
+  });
+
+  it.each([
+    ["education", ["bachelor"]],
+    ["skills", ["CNC"]],
+    ["requiredKeywords", ["machine tools"]],
+    ["locations", ["Dongguan"]],
+    ["minSalary", 5_000],
+    ["maxSalary", 15_000],
+    ["maxExperience", 10],
+  ])("rejects exact analysis selection-only filter %s", async (field, value) => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const response = await createTestApp().request("/api/resumes/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        query: "CNC 销售",
+        targets: [{ currentResumeId: "current-1" }],
+        [field]: value,
+      }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(await parseErrorResponse(response)).toContain(`not supported in exact mode: ${field}`);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("rejects exact JD-only dry run when the JD cannot be loaded", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const response = await createTestApp().request("/api/resumes/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jobDescriptionId: "missing-exact-jd",
+        targets: [{ currentResumeId: "current-1" }],
+        dryRun: true,
+      }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(await parseErrorResponse(response)).toContain("could not be loaded and no query was provided");
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("rejects 501 combined exact targets before calling Convex", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const response = await createTestApp().request("/api/resumes/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        query: "CNC 销售",
+        targets: Array.from({ length: 500 }, (_, index) => ({
+          currentResumeId: `current-${index}`,
+        })),
+        resumeIds: ["current-overflow"],
+        dryRun: true,
+      }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("rejects an inconsistent exact resolution envelope", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(convexSuccess({
+      requested: 2,
+      resolved: 1,
+      resumeIds: ["current-1"],
+      targets: [buildResolvedExactTarget("current-1", "old-1")],
+    }));
+
+    const response = await createTestApp().request("/api/resumes/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        query: "CNC 销售",
+        targets: [{ currentResumeId: "current-1" }],
+        dryRun: true,
+      }),
+    });
+
+    expect(response.status).toBe(500);
+    expect(await parseErrorResponse(response)).toContain("inconsistent target counts");
+  });
+
+  it("rejects an inconsistent exact dispatch envelope", async () => {
+    const resolvedTarget = buildResolvedExactTarget("current-1", "old-1");
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      if (call.pathName === "ingest_agent:resolveExactReingestTargets") {
+        return convexSuccess({
+          requested: 1,
+          resolved: 1,
+          resumeIds: ["current-1"],
+          targets: [resolvedTarget],
+        });
+      }
+      if (call.pathName === "analysis_tasks:dispatchExact") {
+        return convexSuccess({
+          queued: true,
+          taskId: "",
+          dispatchedAt: 1_750_000_000_001,
+          reused: false,
+        });
+      }
+      throw new Error(`Unexpected convex path: ${call.pathName}`);
+    });
+
+    const response = await createTestApp().request("/api/resumes/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        query: "CNC 销售",
+        targets: [{ currentResumeId: "current-1" }],
+      }),
+    });
+
+    expect(response.status).toBe(500);
+    expect(await parseErrorResponse(response)).toContain("inconsistent response");
   });
 
   it("omits a null cursor on the first dry-run clear-analyses mutation call", async () => {

@@ -6,6 +6,8 @@ import { api } from "./_generated/api";
 import {
     getCurrentResumeAiPromptVersion,
     FALLBACK_INDUSTRY_KEYWORDS,
+    buildResumeAnalysisStorageKey,
+    resolveResumeAnalysisSourceKey,
     type RelatedExpContextInput,
     type RelatedExpIngestEvidence,
 } from "@trends/shared";
@@ -38,6 +40,8 @@ import {
     buildAnalysisDispatchIdempotencyKey,
 } from "./lib/analysis_task_helpers.js";
 import { relatedExpContextValidator } from "./validators.js";
+import { getActiveColdAnalysisRow } from "./lib/resume_analysis_read.js";
+import { belongsToWorkspace } from "./search_profiles.js";
 
 // Backward-compatible re-exports
 export type { AnalysisResult, AnalysisDispatchKeyInput } from "./lib/analysis_task_helpers.js";
@@ -56,6 +60,30 @@ export {
 } from "./lib/analysis_task_helpers.js";
 
 type AnalysisTaskStatus = "pending" | "processing" | "completed" | "failed" | "cancelled";
+type AnalysisDispatchResult =
+    | {
+        queued: true;
+        taskId: Id<"analysis_tasks">;
+        dispatchedAt: number;
+        reused: boolean;
+    }
+    | { queued: false; reason: "maintenance" };
+
+const MAX_EXACT_ANALYSIS_TARGETS = 500;
+
+function requireAnalysisWriteSecret(writeSecret: string | undefined): void {
+    const expected = process.env.CONVEX_WRITE_SECRET;
+    if (!expected || writeSecret !== expected) {
+        throw new Error("Unauthorized Convex write");
+    }
+}
+
+export function resolveAnalysisWriteTimestamp(
+    dispatchedAt: number | undefined,
+    now = Date.now(),
+): number {
+    return dispatchedAt === undefined ? now : Math.max(now, dispatchedAt + 1);
+}
 
 export type RelatedExpNormalizeContextArg = {
     context: RelatedExpContextInput;
@@ -251,7 +279,11 @@ export function classifyResumes<T extends Record<string, unknown>>(
     resumes: T[],
     keywords: string[],
     relatedExpContext?: RelatedExpContextInput,
+    dispatchMode?: "search" | "exact",
 ): { toAnalyze: T[]; toSkip: T[] } {
+    if (dispatchMode === "exact") {
+        return { toAnalyze: resumes, toSkip: [] };
+    }
     if (keywords.length === 0) {
         return { toAnalyze: resumes, toSkip: [] };
     }
@@ -356,10 +388,15 @@ async function analyzeOneResume(
 export const list = query({
     args: {},
     handler: async (ctx) => {
-        return await ctx.db
+        const tasks = await ctx.db
             .query("analysis_tasks")
             .order("desc")
             .take(20);
+        return tasks.map((task) => {
+            const projected = { ...task };
+            delete projected.targetResumeIds;
+            return projected;
+        });
     },
 });
 
@@ -412,10 +449,7 @@ export const dispatch = mutation({
         /** P1: context for evidence ceiling evaluator — optional for backward compat */
         relatedExpContext: v.optional(relatedExpContextValidator),
     },
-    handler: async (ctx, args): Promise<
-        | { queued: true; taskId: Id<"analysis_tasks"> }
-        | { queued: false; reason: "maintenance" }
-    > => {
+    handler: async (ctx, args): Promise<AnalysisDispatchResult> => {
         // Refuse to queue new tasks during maintenance mode (restore quiesce)
         if (await ctx.runQuery(internal.system_settings.isMaintenanceModeInternal, {})) {
             return { queued: false, reason: "maintenance" };
@@ -467,7 +501,12 @@ export const dispatch = mutation({
             )
             .first();
         if (existingProcessingTask) {
-            return { queued: true, taskId: existingProcessingTask._id };
+            return {
+                queued: true,
+                taskId: existingProcessingTask._id,
+                dispatchedAt: existingProcessingTask.dispatchedAt ?? existingProcessingTask._creationTime,
+                reused: true,
+            };
         }
 
         const existingPendingTask = await ctx.db
@@ -477,7 +516,12 @@ export const dispatch = mutation({
             )
             .first();
         if (existingPendingTask) {
-            return { queued: true, taskId: existingPendingTask._id };
+            return {
+                queued: true,
+                taskId: existingPendingTask._id,
+                dispatchedAt: existingPendingTask.dispatchedAt ?? existingPendingTask._creationTime,
+                reused: true,
+            };
         }
 
         const existingProcessingTaskByJobKey = await ctx.db
@@ -487,7 +531,12 @@ export const dispatch = mutation({
             )
             .first();
         if (existingProcessingTaskByJobKey) {
-            return { queued: true, taskId: existingProcessingTaskByJobKey._id };
+            return {
+                queued: true,
+                taskId: existingProcessingTaskByJobKey._id,
+                dispatchedAt: existingProcessingTaskByJobKey.dispatchedAt ?? existingProcessingTaskByJobKey._creationTime,
+                reused: true,
+            };
         }
 
         const existingPendingTaskByJobKey = await ctx.db
@@ -497,12 +546,20 @@ export const dispatch = mutation({
             )
             .first();
         if (existingPendingTaskByJobKey) {
-            return { queued: true, taskId: existingPendingTaskByJobKey._id };
+            return {
+                queued: true,
+                taskId: existingPendingTaskByJobKey._id,
+                dispatchedAt: existingPendingTaskByJobKey.dispatchedAt ?? existingPendingTaskByJobKey._creationTime,
+                reused: true,
+            };
         }
 
+        const dispatchedAt = Date.now();
         const taskId = await ctx.db.insert("analysis_tasks", {
             idempotencyKey,
             jobKey,
+            dispatchMode: "search",
+            dispatchedAt,
             config: {
                 jobDescriptionId: derivedJobDescriptionId,
                 jobDescriptionTitle: args.jobDescriptionTitle,
@@ -527,7 +584,143 @@ export const dispatch = mutation({
             resumeIds: uniqueResumeIds,
         });
 
-        return { queued: true, taskId };
+        return { queued: true, taskId, dispatchedAt, reused: false };
+    },
+});
+
+export const dispatchExact = mutation({
+    args: {
+        workspaceSlug: v.string(),
+        writeSecret: v.optional(v.string()),
+        jobDescriptionId: v.optional(v.string()),
+        jobDescriptionTitle: v.optional(v.string()),
+        jobDescriptionContent: v.optional(v.string()),
+        keywords: v.optional(v.array(v.string())),
+        location: v.optional(v.string()),
+        promptVersion: v.optional(v.number()),
+        resumeIds: v.array(v.id("resumes")),
+        relatedExpContext: v.optional(relatedExpContextValidator),
+    },
+    handler: async (ctx, args): Promise<AnalysisDispatchResult> => {
+        requireAnalysisWriteSecret(args.writeSecret);
+        const workspaceSlug = args.workspaceSlug.trim();
+        if (!workspaceSlug) {
+            throw new Error("Exact analysis requires a workspaceSlug");
+        }
+        if (args.resumeIds.length === 0) {
+            throw new Error("Exact analysis requires at least one resume ID");
+        }
+        if (args.resumeIds.length > MAX_EXACT_ANALYSIS_TARGETS) {
+            throw new Error(`Exact analysis supports at most ${MAX_EXACT_ANALYSIS_TARGETS} resume IDs`);
+        }
+
+        const uniqueResumeIdMap = new Map<string, (typeof args.resumeIds)[number]>();
+        for (const resumeId of args.resumeIds) {
+            const key = String(resumeId);
+            if (!uniqueResumeIdMap.has(key)) {
+                uniqueResumeIdMap.set(key, resumeId);
+            }
+        }
+        const uniqueResumeIds = Array.from(uniqueResumeIdMap.values());
+        const resumes = await Promise.all(uniqueResumeIds.map((resumeId) => ctx.db.get(resumeId)));
+        for (let index = 0; index < uniqueResumeIds.length; index += 1) {
+            const resumeId = uniqueResumeIds[index];
+            const resume = resumes[index];
+            if (!resume) {
+                throw new Error(`Exact analysis resume ${String(resumeId)} no longer exists`);
+            }
+            if (resume.isArchived === true) {
+                throw new Error(`Exact analysis resume ${String(resumeId)} is archived`);
+            }
+            if (!belongsToWorkspace(resume.workspaceSlug, workspaceSlug)) {
+                throw new Error(
+                    `Exact analysis resume ${String(resumeId)} belongs to workspace ${resume.workspaceSlug ?? "dev"}, not ${workspaceSlug}`,
+                );
+            }
+        }
+
+        const normalizedKeywords = normalizeKeywords(args.keywords ?? []);
+        const normalizedLocation = args.location?.trim() || undefined;
+        const promptVersion = args.promptVersion ?? getCurrentResumeAiPromptVersion();
+        if (!args.jobDescriptionContent && normalizedKeywords.length === 0) {
+            throw new Error("Either jobDescriptionContent or keywords is required for analysis.");
+        }
+        const derivedJobDescriptionId = args.jobDescriptionId
+            || (normalizedKeywords.length > 0
+                ? buildKeywordAnalysisId(normalizedKeywords, {
+                    location: normalizedLocation,
+                    promptVersion,
+                })
+                : undefined);
+        if (!derivedJobDescriptionId) {
+            throw new Error("Exact analysis could not derive an analysis ID");
+        }
+        const dispatchKeyInput = {
+            derivedJobDescriptionId,
+            jobDescriptionTitle: args.jobDescriptionTitle,
+            jobDescriptionContent: args.jobDescriptionContent,
+            keywords: normalizedKeywords,
+            location: normalizedLocation,
+            promptVersion,
+            relatedExpContext: args.relatedExpContext,
+            resumeIds: uniqueResumeIds.map(String),
+        };
+        const jobKey = `exact:${buildAnalysisDispatchJobKey(dispatchKeyInput)}`;
+        const idempotencyKey = `exact:${buildAnalysisDispatchIdempotencyKey(dispatchKeyInput)}`;
+
+        if (await ctx.runQuery(internal.system_settings.isMaintenanceModeInternal, {})) {
+            return { queued: false, reason: "maintenance" };
+        }
+
+        for (const status of ["processing", "pending"] as const) {
+            const existingTask = await ctx.db
+                .query("analysis_tasks")
+                .withIndex("by_idempotency_status", (q) =>
+                    q.eq("idempotencyKey", idempotencyKey).eq("status", status)
+                )
+                .first();
+            if (existingTask) {
+                return {
+                    queued: true,
+                    taskId: existingTask._id,
+                    dispatchedAt: existingTask.dispatchedAt ?? existingTask._creationTime,
+                    reused: true,
+                };
+            }
+        }
+
+        const dispatchedAt = Date.now();
+        const taskId = await ctx.db.insert("analysis_tasks", {
+            idempotencyKey,
+            jobKey,
+            dispatchMode: "exact",
+            workspaceSlug,
+            targetResumeIds: uniqueResumeIds,
+            dispatchedAt,
+            config: {
+                jobDescriptionId: derivedJobDescriptionId,
+                jobDescriptionTitle: args.jobDescriptionTitle,
+                jobDescriptionContent: args.jobDescriptionContent,
+                keywords: normalizedKeywords.length > 0 ? normalizedKeywords : undefined,
+                location: normalizedLocation,
+                promptVersion,
+                resumeCount: uniqueResumeIds.length,
+                ...(args.relatedExpContext ? { relatedExpContext: args.relatedExpContext } : {}),
+            },
+            status: "pending",
+            progress: {
+                current: 0,
+                total: uniqueResumeIds.length,
+                skipped: 0,
+            },
+        });
+
+        await ctx.scheduler.runAfter(0, internal.analysis_tasks.processAnalysisTask, {
+            taskId,
+            resumeIds: uniqueResumeIds,
+        });
+
+        return { queued: true, taskId, dispatchedAt, reused: false };
     },
 });
 
@@ -554,6 +747,189 @@ export const getTask = internalQuery({
     },
     handler: async (ctx, args) => {
         return await ctx.db.get(args.taskId);
+    },
+});
+
+type ExactAnalysisTargetState = "ready" | "pending" | "invalid";
+
+type ExactAnalysisTargetStatus = {
+    currentResumeId: string;
+    state: ExactAnalysisTargetState;
+    expectedAnalysisKey: string;
+    expectedJobDescriptionId: string;
+    expectedPromptVersion: number;
+    actualJobDescriptionId?: string;
+    actualPromptVersion?: number;
+    analyzedAt?: number;
+    reasons: string[];
+};
+
+export const getExactStatus = query({
+    args: {
+        taskId: v.id("analysis_tasks"),
+        workspaceSlug: v.string(),
+        writeSecret: v.optional(v.string()),
+    },
+    handler: async (ctx, args): Promise<{
+        task: Doc<"analysis_tasks">;
+        verification: {
+            allReady: boolean;
+            ready: number;
+            pending: number;
+            invalid: number;
+            checkedAt: number;
+            dispatchedAt: number;
+            targets: ExactAnalysisTargetStatus[];
+        };
+    } | null> => {
+        requireAnalysisWriteSecret(args.writeSecret);
+        const workspaceSlug = args.workspaceSlug.trim();
+        if (!workspaceSlug) {
+            throw new Error("Exact analysis status requires a workspaceSlug");
+        }
+        const task = await ctx.db.get(args.taskId);
+        if (!task) {
+            return null;
+        }
+        if (task.dispatchMode !== "exact") {
+            throw new Error(`Analysis task ${String(task._id)} is not an exact dispatch`);
+        }
+        if (task.workspaceSlug !== workspaceSlug) {
+            throw new Error(
+                `Analysis task workspace ${task.workspaceSlug ?? "unknown"} does not match ${workspaceSlug}`,
+            );
+        }
+
+        const targetResumeIds = task.targetResumeIds;
+        const expectedJobDescriptionId = task.config.jobDescriptionId;
+        const expectedPromptVersion = task.config.promptVersion;
+        const dispatchedAt = task.dispatchedAt;
+        if (!targetResumeIds?.length
+            || !expectedJobDescriptionId
+            || expectedPromptVersion === undefined
+            || dispatchedAt === undefined) {
+            throw new Error(`Exact analysis task ${String(task._id)} is missing verification metadata`);
+        }
+
+        const targets: ExactAnalysisTargetStatus[] = [];
+        let ready = 0;
+        let pending = 0;
+        let invalid = 0;
+
+        for (const resumeId of targetResumeIds) {
+            const resume = await ctx.db.get(resumeId);
+            const sourceKey = resume
+                ? resolveResumeAnalysisSourceKey({ source: resume.source })
+                : undefined;
+            const locale = resume
+                ? resolveAIOutputLocale({ sourceKey: inferSourceKey(resume.source) })
+                : undefined;
+            const expectedAnalysisKey = buildResumeAnalysisStorageKey(expectedJobDescriptionId, {
+                sourceKey,
+                locale,
+            });
+            const base = {
+                currentResumeId: String(resumeId),
+                expectedAnalysisKey,
+                expectedJobDescriptionId,
+                expectedPromptVersion,
+            };
+            if (!resume) {
+                invalid += 1;
+                targets.push({ ...base, state: "invalid", reasons: ["resume_missing"] });
+                continue;
+            }
+            if (resume.isArchived === true) {
+                invalid += 1;
+                targets.push({ ...base, state: "invalid", reasons: ["resume_archived"] });
+                continue;
+            }
+            if (!belongsToWorkspace(resume.workspaceSlug, workspaceSlug)) {
+                invalid += 1;
+                targets.push({ ...base, state: "invalid", reasons: ["workspace_mismatch"] });
+                continue;
+            }
+            if (task.status === "pending" || task.status === "processing") {
+                pending += 1;
+                targets.push({
+                    ...base,
+                    state: "pending",
+                    reasons: [`task_${task.status}`],
+                });
+                continue;
+            }
+            if (task.status === "failed" || task.status === "cancelled") {
+                invalid += 1;
+                targets.push({
+                    ...base,
+                    state: "invalid",
+                    reasons: [`task_${task.status}`],
+                });
+                continue;
+            }
+
+            const coldRow = await getActiveColdAnalysisRow(ctx, resumeId);
+            if (!coldRow) {
+                invalid += 1;
+                targets.push({ ...base, state: "invalid", reasons: ["analysis_cold_row_missing"] });
+                continue;
+            }
+            const analyses = coldRow.analyses;
+            if (!analyses || Object.keys(analyses).length === 0) {
+                invalid += 1;
+                targets.push({ ...base, state: "invalid", reasons: ["analysis_missing"] });
+                continue;
+            }
+            const analysis = analyses[expectedAnalysisKey];
+            if (!analysis) {
+                invalid += 1;
+                targets.push({ ...base, state: "invalid", reasons: ["analysis_key_mismatch"] });
+                continue;
+            }
+
+            const reasons: string[] = [];
+            if (analysis.jobDescriptionId !== expectedJobDescriptionId) {
+                reasons.push("analysis_job_description_mismatch");
+            }
+            if (analysis.promptVersion !== expectedPromptVersion) {
+                reasons.push("analysis_prompt_version_mismatch");
+            }
+            if (analysis.analyzedAt === undefined) {
+                reasons.push("analysis_timestamp_missing");
+            } else if (analysis.analyzedAt <= dispatchedAt) {
+                reasons.push("analysis_not_newer_than_dispatch");
+            }
+
+            const actual = {
+                ...(analysis.jobDescriptionId ? { actualJobDescriptionId: analysis.jobDescriptionId } : {}),
+                ...(analysis.promptVersion !== undefined ? { actualPromptVersion: analysis.promptVersion } : {}),
+                ...(analysis.analyzedAt !== undefined ? { analyzedAt: analysis.analyzedAt } : {}),
+            };
+            if (reasons.length > 0) {
+                invalid += 1;
+                targets.push({ ...base, ...actual, state: "invalid", reasons });
+                continue;
+            }
+
+            ready += 1;
+            targets.push({ ...base, ...actual, state: "ready", reasons: [] });
+        }
+
+        return {
+            task,
+            verification: {
+                allReady: task.status === "completed"
+                    && ready === targets.length
+                    && pending === 0
+                    && invalid === 0,
+                ready,
+                pending,
+                invalid,
+                checkedAt: Date.now(),
+                dispatchedAt,
+                targets,
+            },
+        };
     },
 });
 
@@ -714,7 +1090,12 @@ export const processAnalysisTask = internalAction({
                 : extractKeywords(keywordSource);
             const normalizedLocation = task.config.location?.trim() || undefined;
             const promptVersion = task.config.promptVersion ?? getCurrentResumeAiPromptVersion();
-            const { toAnalyze, toSkip } = classifyResumes(resumes, keywords, task.config.relatedExpContext);
+            const { toAnalyze, toSkip } = classifyResumes(
+                resumes,
+                keywords,
+                task.config.relatedExpContext,
+                task.dispatchMode,
+            );
             const analysisJobDescriptionId = task.config.jobDescriptionId
                 || (keywords.length > 0
                     ? buildKeywordAnalysisId(keywords, {
@@ -741,7 +1122,9 @@ export const processAnalysisTask = internalAction({
                             promptVersion,
                             locale: resolveAIOutputLocale({ sourceKey: inferSourceKey(resume.source) }),
                             ...(normalizedLocation ? { queryLocation: normalizedLocation } : {}),
-                            analyzedAt: Date.now(),
+                            analyzedAt: resolveAnalysisWriteTimestamp(
+                                task.dispatchMode === "exact" ? task.dispatchedAt : undefined,
+                            ),
                         },
                     })),
                 });
@@ -840,7 +1223,9 @@ export const processAnalysisTask = internalAction({
                                     promptVersion,
                                     locale: result.locale,
                                     ...(normalizedLocation ? { queryLocation: normalizedLocation } : {}),
-                                    analyzedAt: Date.now(),
+                                    analyzedAt: resolveAnalysisWriteTimestamp(
+                                        task.dispatchMode === "exact" ? task.dispatchedAt : undefined,
+                                    ),
                                     ...(result.relatedExpEvidence ? { relatedExpEvidence: result.relatedExpEvidence } : {}),
                                 },
                             });

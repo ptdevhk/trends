@@ -22,6 +22,7 @@ import {
   MatchRunsQuerySchema,
   AnalyzeRequestSchema,
   AnalyzeResponseSchema,
+  ExactResumeResolutionSchema,
   SimpleErrorSchema,
   ClearMatchesResponseSchema,
   ResumeResetResponseSchema,
@@ -46,7 +47,9 @@ import {
 } from "../services/rule-scoring.js";
 import { resolveResumeId } from "../services/resume-id.js";
 import {
+  buildKeywordAnalysisId,
   formatKeywordQuery,
+  getCurrentResumeAiPromptVersion,
   parseKeywordQuery,
 } from "@trends/shared";
 import { SkillsKnowledgeService } from "../services/skills-knowledge.js";
@@ -68,6 +71,7 @@ import type { ResumeIndex } from "../services/resume-index.js";
 import {
   callConvexQuery,
   callConvexMutation,
+  callConvexAction,
   isConvexPaginatedQueryPage,
 } from "../services/convex-utils.js";
 import {
@@ -1194,14 +1198,38 @@ const analyzeRoute = createRoute({
   responses: {
     200: { content: { "application/json": { schema: AnalyzeResponseSchema } }, description: "Analysis result" },
     400: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Invalid request" },
+    503: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Analysis dispatch unavailable during maintenance" },
     500: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Internal error" },
   },
 });
+
+const AnalysisDispatchResultSchema = z.discriminatedUnion("queued", [
+  z.object({
+    queued: z.literal(true),
+    taskId: z.string().min(1),
+    dispatchedAt: z.number(),
+    reused: z.boolean(),
+  }),
+  z.object({
+    queued: z.literal(false),
+    reason: z.literal("maintenance"),
+  }),
+]);
+
+function parseAnalysisDispatchResult(value: unknown) {
+  const result = AnalysisDispatchResultSchema.safeParse(value);
+  if (!result.success) {
+    throw new Error("Analysis dispatch returned an inconsistent response");
+  }
+  return result.data;
+}
+
 app.openapi(analyzeRoute, async (c) => {
   const {
     query,
     jobDescriptionId,
     location,
+    maxExperience,
     education,
     skills,
     requiredKeywords,
@@ -1213,10 +1241,13 @@ app.openapi(analyzeRoute, async (c) => {
     roleFilterType,
     minRoleYears,
     market,
+    targets,
+    resumeIds: directResumeIds,
   } = c.req.valid("json");
 
   const normalizedQuery = query?.trim() || "";
   const normalizedJobDescriptionId = jobDescriptionId?.trim() || "";
+  const isExactMode = targets !== undefined || directResumeIds !== undefined;
 
   if (!normalizedQuery && !normalizedJobDescriptionId) {
     return c.json(
@@ -1228,12 +1259,143 @@ app.openapi(analyzeRoute, async (c) => {
   const keywords = normalizedQuery
     ? normalizeKeywords(parseKeywordQuery(normalizedQuery).keywords)
     : undefined;
+  const promptVersion = getCurrentResumeAiPromptVersion();
+  const expectedJobDescriptionId = normalizedJobDescriptionId
+    || buildKeywordAnalysisId(keywords ?? [], {
+      location: location?.trim() || undefined,
+      promptVersion,
+    });
 
   const responseConfig = {
     ...(normalizedJobDescriptionId ? { jobDescriptionId: normalizedJobDescriptionId } : {}),
     ...(keywords && keywords.length > 0 ? { keywords } : {}),
     ...(location ? { location } : {}),
   };
+
+  if (isExactMode) {
+    const unsupportedFilters = [
+      education && education.length > 0 ? "education" : undefined,
+      skills && skills.length > 0 ? "skills" : undefined,
+      requiredKeywords && requiredKeywords.length > 0 ? "requiredKeywords" : undefined,
+      locationFilters && locationFilters.length > 0 ? "locations" : undefined,
+      minSalary !== undefined ? "minSalary" : undefined,
+      maxSalary !== undefined ? "maxSalary" : undefined,
+      maxExperience !== undefined ? "maxExperience" : undefined,
+    ].filter((field): field is string => field !== undefined);
+    if (unsupportedFilters.length > 0) {
+      return c.json({
+        success: false as const,
+        error: `Search selection filters are not supported in exact mode: ${unsupportedFilters.join(", ")}`,
+      }, 400);
+    }
+
+    let jobDescriptionTitle: string | undefined;
+    let jobDescriptionContent: string | undefined;
+    if (normalizedJobDescriptionId) {
+      try {
+        const jdData = jobService.loadFile(normalizedJobDescriptionId);
+        jobDescriptionTitle = jdData.title;
+        jobDescriptionContent = jdData.content;
+      } catch {
+        if (!keywords || keywords.length === 0) {
+          return c.json({
+            success: false as const,
+            error: `Job description ${normalizedJobDescriptionId} could not be loaded and no query was provided`,
+          }, 400);
+        }
+      }
+    }
+    if ((!keywords || keywords.length === 0) && !jobDescriptionContent) {
+      return c.json({
+        success: false as const,
+        error: "Exact analysis requires usable query keywords or a loadable job description",
+      }, 400);
+    }
+
+    const requestedTargets = [
+      ...(targets ?? []),
+      ...(directResumeIds ?? []).map((currentResumeId) => ({ currentResumeId })),
+    ];
+
+    try {
+      const resolution = ExactResumeResolutionSchema.parse(
+        await callConvexAction("ingest_agent:resolveExactReingestTargets", {
+          workspaceSlug: c.var.workspaceSlug,
+          writeSecret: config.auth.convexWriteSecret,
+          targets: requestedTargets,
+        }),
+      );
+      const orderedTargetIds = Array.from(new Set(
+        resolution.targets.map((target) => target.currentResumeId),
+      ));
+      if (resolution.requested !== requestedTargets.length
+        || resolution.targets.length !== requestedTargets.length
+        || resolution.resolved !== resolution.resumeIds.length
+        || resolution.resolved !== orderedTargetIds.length
+        || resolution.resumeIds.some((resumeId, index) => resumeId !== orderedTargetIds[index])) {
+        throw new Error("Exact analysis resolution returned inconsistent target counts or IDs");
+      }
+
+      const responseBase = {
+        success: true as const,
+        mode: "exact" as const,
+        dryRun,
+        resumeCount: resolution.resumeIds.length,
+        requestedCount: resolution.requested,
+        resolvedCount: resolution.resolved,
+        resumeIds: resolution.resumeIds,
+        targets: resolution.targets,
+        expectedAnalysis: {
+          jobDescriptionId: expectedJobDescriptionId,
+          promptVersion,
+        },
+        config: responseConfig,
+      };
+      if (dryRun) {
+        return c.json(AnalyzeResponseSchema.parse(responseBase), 200);
+      }
+
+      const dispatchResult = parseAnalysisDispatchResult(
+        await callConvexMutation("analysis_tasks:dispatchExact", {
+          workspaceSlug: c.var.workspaceSlug,
+          writeSecret: config.auth.convexWriteSecret,
+          ...(normalizedJobDescriptionId ? { jobDescriptionId: normalizedJobDescriptionId } : {}),
+          ...(jobDescriptionTitle ? { jobDescriptionTitle } : {}),
+          ...(jobDescriptionContent ? { jobDescriptionContent } : {}),
+          ...(keywords && keywords.length > 0 ? { keywords } : {}),
+          ...(location ? { location } : {}),
+          promptVersion,
+          resumeIds: resolution.resumeIds,
+          ...((roleFilterType || minRoleYears !== undefined || market) ? {
+            relatedExpContext: {
+              ...(roleFilterType ? { roleFilterType } : {}),
+              ...(minRoleYears !== undefined ? { minRoleYears } : {}),
+              ...(market ? { market } : {}),
+            },
+          } : {}),
+        }),
+      );
+      if (!dispatchResult.queued) {
+        return c.json({
+          success: false as const,
+          error: "Analysis dispatch is unavailable during maintenance",
+        }, 503);
+      }
+
+      return c.json(AnalyzeResponseSchema.parse({
+        ...responseBase,
+        taskId: dispatchResult.taskId,
+        dispatchedAt: dispatchResult.dispatchedAt,
+        reused: dispatchResult.reused,
+      }), 200);
+    } catch (error) {
+      logger.error("Failed to resolve or dispatch exact analysis", error, { route: "resumes" });
+      const message = error instanceof Error ? error.message : String(error);
+      const status = message.includes("Exact re-ingest target") ? 400 : 500;
+      return c.json({ success: false as const, error: message }, status);
+    }
+  }
+
   const searchLocations = [
     ...(location ? [location.trim()] : []),
     ...(locationFilters ?? []).map((value) => value.trim()).filter((value) => value.length > 0),
@@ -1274,8 +1436,13 @@ app.openapi(analyzeRoute, async (c) => {
       return c.json(
         AnalyzeResponseSchema.parse({
           success: true,
+          mode: "search",
           dryRun: true,
           resumeCount: resumeIds.length,
+          expectedAnalysis: {
+            jobDescriptionId: expectedJobDescriptionId,
+            promptVersion,
+          },
           config: responseConfig,
         }),
         200,
@@ -1286,7 +1453,12 @@ app.openapi(analyzeRoute, async (c) => {
       return c.json(
         AnalyzeResponseSchema.parse({
           success: true,
+          mode: "search",
           resumeCount: 0,
+          expectedAnalysis: {
+            jobDescriptionId: expectedJobDescriptionId,
+            promptVersion,
+          },
           config: responseConfig,
         }),
         200,
@@ -1306,7 +1478,7 @@ app.openapi(analyzeRoute, async (c) => {
       }
     }
 
-    const dispatchResult = (await callConvexMutation("analysis_tasks:dispatch", {
+    const dispatchResult = parseAnalysisDispatchResult(await callConvexMutation("analysis_tasks:dispatch", {
       ...(normalizedJobDescriptionId
         ? { jobDescriptionId: normalizedJobDescriptionId }
         : {}),
@@ -1323,13 +1495,26 @@ app.openapi(analyzeRoute, async (c) => {
           ...(market ? { market } : {}),
         },
       } : {}),
-    })) as string;
+    }));
+    if (!dispatchResult.queued) {
+      return c.json({
+        success: false as const,
+        error: "Analysis dispatch is unavailable during maintenance",
+      }, 503);
+    }
 
     return c.json(
       AnalyzeResponseSchema.parse({
         success: true,
-        taskId: dispatchResult,
+        mode: "search",
+        taskId: dispatchResult.taskId,
+        dispatchedAt: dispatchResult.dispatchedAt,
+        reused: dispatchResult.reused,
         resumeCount: resumeIds.length,
+        expectedAnalysis: {
+          jobDescriptionId: expectedJobDescriptionId,
+          promptVersion,
+        },
         config: responseConfig,
       }),
       200,

@@ -94,7 +94,12 @@ describe("analysis_tasks: dispatch", () => {
       resumeIds: [resumeId],
     });
 
-    expect(result).toBeDefined();
+    expect(result).toEqual({
+      queued: true,
+      taskId: expect.any(String),
+      dispatchedAt: expect.any(Number),
+      reused: false,
+    });
 
     const tasks = await t.query(api.analysis_tasks.list, {});
     expect(tasks).toHaveLength(1);

@@ -1,4 +1,8 @@
 import { z } from "@hono/zod-openapi";
+import {
+  ExactResumeResolvedTargetSchema,
+  ExactResumeTargetSchema,
+} from "./exact-resume-targets.js";
 
 export const CsvStringArraySchema = z
   .union([z.string(), z.array(z.string())])
@@ -1429,14 +1433,36 @@ export const AnalyzeRequestSchema = z.object({
   roleFilterType: z.string().optional().openapi({ example: "sales", description: "Role type required: sales | technical | any" }),
   minRoleYears: z.number().min(0).optional().openapi({ example: 1, description: "Minimum domain-role years required" }),
   market: z.string().optional().openapi({ example: "CN", description: "Market context: CN | MY" }),
+  targets: z.array(ExactResumeTargetSchema).min(1).max(500).optional(),
+  resumeIds: z.array(z.string().trim().min(1)).min(1).max(500).optional(),
+}).superRefine((value, ctx) => {
+  const targetCount = (value.targets?.length ?? 0) + (value.resumeIds?.length ?? 0);
+  if (targetCount > 500) {
+    ctx.addIssue({
+      code: "custom",
+      message: "Exact analysis supports at most 500 combined targets",
+      path: ["targets"],
+    });
+  }
 });
 
 export const AnalyzeResponseSchema = z
   .object({
     success: z.literal(true),
+    mode: z.enum(["search", "exact"]),
     dryRun: z.boolean().optional(),
     taskId: z.string().optional(),
+    dispatchedAt: z.number().optional(),
+    reused: z.boolean().optional(),
     resumeCount: z.number(),
+    requestedCount: z.number().int().optional(),
+    resolvedCount: z.number().int().optional(),
+    resumeIds: z.array(z.string()).optional(),
+    targets: z.array(ExactResumeResolvedTargetSchema).optional(),
+    expectedAnalysis: z.object({
+      jobDescriptionId: z.string().min(1),
+      promptVersion: z.number().int(),
+    }),
     skippedCount: z.number().optional(),
     config: z
       .object({
@@ -1474,6 +1500,10 @@ export const AnalysisTaskSchema = z.object({
   _id: z.string(),
   status: z.enum(["pending", "processing", "completed", "failed", "cancelled"]),
   _creationTime: z.number(),
+  dispatchMode: z.enum(["search", "exact"]).optional(),
+  workspaceSlug: z.string().optional(),
+  targetResumeIds: z.array(z.string()).optional(),
+  dispatchedAt: z.number().optional(),
   config: AnalysisTaskConfigSchema.optional(),
   progress: AnalysisTaskProgressSchema.optional(),
   results: AnalysisTaskResultsSchema.optional(),
@@ -1487,6 +1517,37 @@ export const AnalysisTasksResponseSchema = z
     tasks: z.array(AnalysisTaskSchema),
   })
   .openapi("AnalysisTasksResponse");
+
+export const ExactAnalysisTargetStatusSchema = z.object({
+  currentResumeId: z.string().min(1),
+  state: z.enum(["ready", "pending", "invalid"]),
+  expectedAnalysisKey: z.string().min(1),
+  expectedJobDescriptionId: z.string().min(1),
+  expectedPromptVersion: z.number().int(),
+  actualJobDescriptionId: z.string().optional(),
+  actualPromptVersion: z.number().int().optional(),
+  analyzedAt: z.number().optional(),
+  reasons: z.array(z.string()),
+});
+
+export const ExactAnalysisVerificationSchema = z.object({
+  allReady: z.boolean(),
+  ready: z.number().int().nonnegative(),
+  pending: z.number().int().nonnegative(),
+  invalid: z.number().int().nonnegative(),
+  checkedAt: z.number(),
+  dispatchedAt: z.number(),
+  targets: z.array(ExactAnalysisTargetStatusSchema).min(1),
+});
+
+export const AnalysisTaskDetailSchema = z.object({
+  task: AnalysisTaskSchema,
+  verification: ExactAnalysisVerificationSchema,
+});
+
+export const AnalysisTaskDetailResponseSchema = AnalysisTaskDetailSchema.extend({
+  success: z.literal(true),
+}).openapi("AnalysisTaskDetailResponse");
 
 // Shared route-level schemas (previously duplicated across route files)
 

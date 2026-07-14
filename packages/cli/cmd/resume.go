@@ -273,6 +273,12 @@ func newResumeAnalyzeCmd() *cobra.Command {
 		roleType         string
 		minRoleYears     int
 		market           string
+		manifestPath     string
+		resumeIDs        []string
+		yes              bool
+		wait             bool
+		waitTimeout      time.Duration
+		pollInterval     time.Duration
 	)
 
 	cmd := &cobra.Command{
@@ -282,6 +288,43 @@ func newResumeAnalyzeCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if strings.TrimSpace(query) == "" && strings.TrimSpace(jobDescriptionID) == "" {
 				return fmt.Errorf("query or job-description is required")
+			}
+
+			exactMode := cmd.Flags().Changed("manifest") || cmd.Flags().Changed("resume-id")
+			if exactMode && !dryRun && !yes {
+				return fmt.Errorf("live exact analysis requires --yes; use --dry-run to resolve and preview")
+			}
+			if exactMode && wait && dryRun {
+				return fmt.Errorf("--wait requires a live exact analysis; it cannot be used with --dry-run")
+			}
+			if exactMode && wait && (waitTimeout <= 0 || pollInterval <= 0) {
+				return fmt.Errorf("wait-timeout and poll-interval must be positive")
+			}
+			if !exactMode && wait {
+				return fmt.Errorf("--wait requires exact analysis selected by --manifest and/or --resume-id")
+			}
+
+			var targets []client.ExactReingestTarget
+			if exactMode && cmd.Flags().Changed("manifest") {
+				if strings.TrimSpace(manifestPath) == "" {
+					return fmt.Errorf("--manifest requires a path")
+				}
+				manifestTargets, err := readExactReingestManifest(manifestPath)
+				if err != nil {
+					return err
+				}
+				targets = manifestTargets
+			}
+			normalizedResumeIDs := make([]string, 0, len(resumeIDs))
+			for _, resumeID := range resumeIDs {
+				trimmed := strings.TrimSpace(resumeID)
+				if trimmed == "" {
+					return fmt.Errorf("--resume-id cannot be empty")
+				}
+				normalizedResumeIDs = append(normalizedResumeIDs, trimmed)
+			}
+			if exactMode && len(targets)+len(normalizedResumeIDs) == 0 {
+				return fmt.Errorf("exact analysis requires --manifest and/or at least one --resume-id")
 			}
 
 			var educationSlice []string
@@ -318,11 +361,27 @@ func newResumeAnalyzeCmd() *cobra.Command {
 				RoleFilterType:   strings.TrimSpace(roleType),
 				MinRoleYears:     minRoleYears,
 				Market:           strings.TrimSpace(market),
+				Targets:          targets,
+				ResumeIDs:        normalizedResumeIDs,
 			}
 
-			response, err := newAPIClient().AnalyzeResumes(context.Background(), request)
+			apiClient := newAPIClient()
+			response, err := apiClient.AnalyzeResumes(cmd.Context(), request)
 			if err != nil {
 				return err
+			}
+			if wait {
+				verification, err := waitForExactAnalysis(
+					cmd.Context(),
+					apiClient,
+					response,
+					waitTimeout,
+					pollInterval,
+				)
+				if err != nil {
+					return err
+				}
+				response.Verification = verification
 			}
 
 			if currentOptions().Output == "json" {
@@ -349,8 +408,104 @@ func newResumeAnalyzeCmd() *cobra.Command {
 	cmd.Flags().StringVar(&roleType, "role-type", "", "Role filter type for related experience evidence (e.g. sales)")
 	cmd.Flags().IntVar(&minRoleYears, "min-role-years", 0, "Minimum role years for related experience evidence")
 	cmd.Flags().StringVar(&market, "market", "", "Market context for related experience evidence (e.g. CN, MY)")
+	cmd.Flags().StringVar(&manifestPath, "manifest", "", "Path to a version-1 exact resume manifest")
+	cmd.Flags().StringArrayVar(&resumeIDs, "resume-id", nil, "Current Convex resume ID to analyze (repeatable)")
+	cmd.Flags().BoolVar(&yes, "yes", false, "Confirm live exact analysis dispatch")
+	cmd.Flags().BoolVar(&wait, "wait", false, "Wait for every exact target analysis to become authoritative")
+	cmd.Flags().DurationVar(&waitTimeout, "wait-timeout", 10*time.Minute, "Maximum time to wait for exact analysis readiness")
+	cmd.Flags().DurationVar(&pollInterval, "poll-interval", 2*time.Second, "Interval between exact analysis task checks")
 
 	return cmd
+}
+
+func waitForExactAnalysis(
+	ctx context.Context,
+	apiClient *client.Client,
+	response *client.AnalyzeResponse,
+	timeout time.Duration,
+	pollInterval time.Duration,
+) (*client.ExactAnalysisVerification, error) {
+	taskID := strings.TrimSpace(response.TaskID)
+	if taskID == "" {
+		return nil, fmt.Errorf("exact analysis response is missing taskId")
+	}
+	if timeout <= 0 || pollInterval <= 0 {
+		return nil, fmt.Errorf("wait-timeout and poll-interval must be positive")
+	}
+
+	waitCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	for {
+		if waitCtx.Err() != nil {
+			return nil, exactAnalysisTimeoutError(taskID, timeout)
+		}
+
+		detail, err := apiClient.GetAnalysisTask(waitCtx, taskID)
+		if err != nil {
+			if waitCtx.Err() != nil {
+				return nil, exactAnalysisTimeoutError(taskID, timeout)
+			}
+			return nil, err
+		}
+
+		switch detail.Task.Status {
+		case "failed", "cancelled":
+			return nil, fmt.Errorf("exact analysis task %s %s", taskID, detail.Task.Status)
+		case "completed", "pending", "processing":
+		case "":
+			return nil, fmt.Errorf("exact analysis task %s response is missing status", taskID)
+		default:
+			return nil, fmt.Errorf("exact analysis task %s has unknown status %q", taskID, detail.Task.Status)
+		}
+
+		if detail.Verification.Invalid > 0 {
+			return nil, exactAnalysisInvalidError(taskID, detail.Verification)
+		}
+		if detail.Task.Status == "completed" && detail.Verification.AllReady {
+			return &detail.Verification, nil
+		}
+
+		timer := time.NewTimer(pollInterval)
+		select {
+		case <-waitCtx.Done():
+			if !timer.Stop() {
+				<-timer.C
+			}
+			return nil, exactAnalysisTimeoutError(taskID, timeout)
+		case <-timer.C:
+		}
+	}
+}
+
+func exactAnalysisInvalidError(taskID string, verification client.ExactAnalysisVerification) error {
+	reasons := make([]string, 0)
+	seen := make(map[string]struct{})
+	for _, target := range verification.Targets {
+		for _, reason := range target.Reasons {
+			trimmed := strings.TrimSpace(reason)
+			if trimmed == "" {
+				continue
+			}
+			if _, exists := seen[trimmed]; exists {
+				continue
+			}
+			seen[trimmed] = struct{}{}
+			reasons = append(reasons, trimmed)
+		}
+	}
+	if len(reasons) == 0 {
+		reasons = append(reasons, "no reasons reported")
+	}
+	return fmt.Errorf(
+		"exact analysis task %s has %d invalid targets: %s",
+		taskID,
+		verification.Invalid,
+		strings.Join(reasons, ", "),
+	)
+}
+
+func exactAnalysisTimeoutError(taskID string, timeout time.Duration) error {
+	return fmt.Errorf("exact analysis task %s timed out after %s", taskID, timeout)
 }
 
 func splitCSV(input string) []string {

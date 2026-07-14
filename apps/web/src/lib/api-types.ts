@@ -2350,6 +2350,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/resumes/analysis-tasks/{taskId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get exact analysis task status */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    taskId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Exact analysis task status */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AnalysisTaskDetailResponse"];
+                    };
+                };
+                /** @description Analysis task not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Internal error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/resumes/skills-version": {
         parameters: {
             query?: never;
@@ -3377,7 +3441,6 @@ export interface paths {
                                 comments: string;
                                 /** @enum {string} */
                                 status: "imported" | "skipped" | "notFound";
-                                actionId?: number;
                                 reason?: string;
                             }[];
                         };
@@ -4133,6 +4196,16 @@ export interface paths {
                          * @example CN
                          */
                         market?: string;
+                        targets?: {
+                            referenceResumeId?: string;
+                            currentResumeId?: string;
+                            profileResumeId?: string;
+                            profileUrl?: string;
+                            externalId?: string;
+                            identityKey?: string;
+                            source?: string;
+                        }[];
+                        resumeIds?: string[];
                     };
                 };
             };
@@ -4157,6 +4230,15 @@ export interface paths {
                 };
                 /** @description Internal error */
                 500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SimpleError"];
+                    };
+                };
+                /** @description Analysis dispatch unavailable during maintenance */
+                503: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -14172,6 +14254,11 @@ export interface components {
                 /** @enum {string} */
                 status: "pending" | "processing" | "completed" | "failed" | "cancelled";
                 _creationTime: number;
+                /** @enum {string} */
+                dispatchMode?: "search" | "exact";
+                workspaceSlug?: string;
+                targetResumeIds?: string[];
+                dispatchedAt?: number;
                 config?: {
                     jobDescriptionId?: string;
                     jobDescriptionTitle?: string;
@@ -14194,6 +14281,62 @@ export interface components {
                 lastStatus?: string;
                 error?: string;
             }[];
+        };
+        AnalysisTaskDetailResponse: {
+            task: {
+                _id: string;
+                /** @enum {string} */
+                status: "pending" | "processing" | "completed" | "failed" | "cancelled";
+                _creationTime: number;
+                /** @enum {string} */
+                dispatchMode?: "search" | "exact";
+                workspaceSlug?: string;
+                targetResumeIds?: string[];
+                dispatchedAt?: number;
+                config?: {
+                    jobDescriptionId?: string;
+                    jobDescriptionTitle?: string;
+                    keywords?: string[];
+                    location?: string;
+                    promptVersion?: number;
+                    resumeCount?: number;
+                };
+                progress?: {
+                    current?: number;
+                    total?: number;
+                    skipped?: number;
+                };
+                results?: {
+                    analyzed?: number;
+                    failed?: number;
+                    avgScore?: number;
+                    highScoreCount?: number;
+                };
+                lastStatus?: string;
+                error?: string;
+            };
+            verification: {
+                allReady: boolean;
+                ready: number;
+                pending: number;
+                invalid: number;
+                checkedAt: number;
+                dispatchedAt: number;
+                targets: {
+                    currentResumeId: string;
+                    /** @enum {string} */
+                    state: "ready" | "pending" | "invalid";
+                    expectedAnalysisKey: string;
+                    expectedJobDescriptionId: string;
+                    expectedPromptVersion: number;
+                    actualJobDescriptionId?: string;
+                    actualPromptVersion?: number;
+                    analyzedAt?: number;
+                    reasons: string[];
+                }[];
+            };
+            /** @enum {boolean} */
+            success: true;
         };
         ResumeDiagnosticsResponse: {
             /** @enum {boolean} */
@@ -15378,9 +15521,36 @@ export interface components {
         AnalyzeResponse: {
             /** @enum {boolean} */
             success: true;
+            /** @enum {string} */
+            mode: "search" | "exact";
             dryRun?: boolean;
             taskId?: string;
+            dispatchedAt?: number;
+            reused?: boolean;
             resumeCount: number;
+            requestedCount?: number;
+            resolvedCount?: number;
+            resumeIds?: string[];
+            targets?: {
+                referenceResumeId?: string;
+                currentResumeId: string;
+                profileResumeId?: string;
+                profileUrl?: string;
+                externalId: string;
+                source: string;
+                canonicalIdentityKey: string;
+                /** @enum {string} */
+                outcome: "resolved";
+                selectors: {
+                    /** @enum {string} */
+                    kind: "currentResumeId" | "profileUrl" | "profileResumeId" | "externalId" | "identityKey";
+                    value: string;
+                }[];
+            }[];
+            expectedAnalysis: {
+                jobDescriptionId: string;
+                promptVersion: number;
+            };
             skippedCount?: number;
             config?: {
                 jobDescriptionId?: string;

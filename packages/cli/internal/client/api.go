@@ -656,22 +656,24 @@ func (c *Client) UnarchiveResumes(ctx context.Context, resumeIDs []string) (*Arc
 }
 
 type AnalyzeRequest struct {
-	Query            string   `json:"query,omitempty"`
-	JobDescriptionID string   `json:"jobDescriptionId,omitempty"`
-	Location         string   `json:"location,omitempty"`
-	MinExperience    int      `json:"minExperience,omitempty"`
-	MaxExperience    int      `json:"maxExperience,omitempty"`
-	Education        []string `json:"education,omitempty"`
-	Skills           []string `json:"skills,omitempty"`
-	RequiredKeywords []string `json:"requiredKeywords,omitempty"`
-	Locations        []string `json:"locations,omitempty"`
-	MinSalary        int      `json:"minSalary,omitempty"`
-	MaxSalary        int      `json:"maxSalary,omitempty"`
-	Limit            int      `json:"limit,omitempty"`
-	DryRun           bool     `json:"dryRun,omitempty"`
-	RoleFilterType   string   `json:"roleFilterType,omitempty"`
-	MinRoleYears     int      `json:"minRoleYears,omitempty"`
-	Market           string   `json:"market,omitempty"`
+	Query            string                `json:"query,omitempty"`
+	JobDescriptionID string                `json:"jobDescriptionId,omitempty"`
+	Location         string                `json:"location,omitempty"`
+	MinExperience    int                   `json:"minExperience,omitempty"`
+	MaxExperience    int                   `json:"maxExperience,omitempty"`
+	Education        []string              `json:"education,omitempty"`
+	Skills           []string              `json:"skills,omitempty"`
+	RequiredKeywords []string              `json:"requiredKeywords,omitempty"`
+	Locations        []string              `json:"locations,omitempty"`
+	MinSalary        int                   `json:"minSalary,omitempty"`
+	MaxSalary        int                   `json:"maxSalary,omitempty"`
+	Limit            int                   `json:"limit,omitempty"`
+	DryRun           bool                  `json:"dryRun,omitempty"`
+	RoleFilterType   string                `json:"roleFilterType,omitempty"`
+	MinRoleYears     int                   `json:"minRoleYears,omitempty"`
+	Market           string                `json:"market,omitempty"`
+	Targets          []ExactReingestTarget `json:"targets,omitempty"`
+	ResumeIDs        []string              `json:"resumeIds,omitempty"`
 }
 
 type AnalyzeConfig struct {
@@ -681,12 +683,21 @@ type AnalyzeConfig struct {
 }
 
 type AnalyzeResponse struct {
-	Success      bool           `json:"success"`
-	DryRun       bool           `json:"dryRun,omitempty"`
-	TaskID       string         `json:"taskId,omitempty"`
-	ResumeCount  int            `json:"resumeCount"`
-	SkippedCount int            `json:"skippedCount,omitempty"`
-	Config       *AnalyzeConfig `json:"config,omitempty"`
+	Success          bool                          `json:"success"`
+	Mode             string                        `json:"mode,omitempty"`
+	DryRun           bool                          `json:"dryRun,omitempty"`
+	TaskID           string                        `json:"taskId,omitempty"`
+	DispatchedAt     int64                         `json:"dispatchedAt,omitempty"`
+	Reused           bool                          `json:"reused,omitempty"`
+	ResumeCount      int                           `json:"resumeCount"`
+	RequestedCount   int                           `json:"requestedCount,omitempty"`
+	ResolvedCount    int                           `json:"resolvedCount,omitempty"`
+	ResumeIDs        []string                      `json:"resumeIds,omitempty"`
+	Targets          []ExactReingestResolvedTarget `json:"targets,omitempty"`
+	ExpectedAnalysis *ExactAnalysisExpected        `json:"expectedAnalysis,omitempty"`
+	Verification     *ExactAnalysisVerification    `json:"verification,omitempty"`
+	SkippedCount     int                           `json:"skippedCount,omitempty"`
+	Config           *AnalyzeConfig                `json:"config,omitempty"`
 }
 
 func (c *Client) AnalyzeResumes(ctx context.Context, request AnalyzeRequest) (*AnalyzeResponse, error) {
@@ -724,14 +735,18 @@ type AnalysisTaskConfig struct {
 }
 
 type AnalysisTask struct {
-	ID         string                `json:"_id"`
-	Status     string                `json:"status"`
-	CreatedAt  float64               `json:"_creationTime"`
-	Config     *AnalysisTaskConfig   `json:"config,omitempty"`
-	Progress   *AnalysisTaskProgress `json:"progress,omitempty"`
-	Results    *AnalysisTaskResults  `json:"results,omitempty"`
-	LastStatus string                `json:"lastStatus,omitempty"`
-	Error      string                `json:"error,omitempty"`
+	ID              string                `json:"_id"`
+	Status          string                `json:"status"`
+	CreatedAt       float64               `json:"_creationTime"`
+	DispatchMode    string                `json:"dispatchMode,omitempty"`
+	WorkspaceSlug   string                `json:"workspaceSlug,omitempty"`
+	TargetResumeIDs []string              `json:"targetResumeIds,omitempty"`
+	DispatchedAt    int64                 `json:"dispatchedAt,omitempty"`
+	Config          *AnalysisTaskConfig   `json:"config,omitempty"`
+	Progress        *AnalysisTaskProgress `json:"progress,omitempty"`
+	Results         *AnalysisTaskResults  `json:"results,omitempty"`
+	LastStatus      string                `json:"lastStatus,omitempty"`
+	Error           string                `json:"error,omitempty"`
 }
 
 type AnalysisTasksResponse struct {

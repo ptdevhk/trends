@@ -163,6 +163,10 @@ export default defineSchema({
     analysis_tasks: defineTable({
         idempotencyKey: v.optional(v.string()),
         jobKey: v.optional(v.string()),
+        dispatchMode: v.optional(v.union(v.literal("search"), v.literal("exact"))),
+        workspaceSlug: v.optional(v.string()),
+        targetResumeIds: v.optional(v.array(v.id("resumes"))),
+        dispatchedAt: v.optional(v.number()),
         config: v.object({
             jobDescriptionId: v.optional(v.string()),
             jobDescriptionTitle: v.optional(v.string()),

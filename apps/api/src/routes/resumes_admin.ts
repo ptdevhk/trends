@@ -6,6 +6,11 @@ import { logger } from "../services/logger.js";
 import { requireAdmin } from "../middleware/auth.js";
 import { notificationService } from "../services/notification-service.js";
 import { SkillsKnowledgeService } from "../services/skills-knowledge.js";
+import {
+  ExactResumeResolutionSchema,
+  ExactResumeResolvedTargetSchema,
+  ExactResumeTargetSchema,
+} from "../schemas/index.js";
 
 const app = new OpenAPIHono();
 // Per-route requireAdmin — do NOT use app.use("*", requireAdmin) here
@@ -31,53 +36,10 @@ const HardResetReingestResponseSchema = z.object({
   error: z.string().optional(),
 });
 
-function isPlaceholderExternalIdentity(value: string): boolean {
-  const normalized = value.trim().toLowerCase();
-  return normalized === "unknown" || normalized === "externalid:unknown";
-}
-
-const ExactReingestTargetSchema = z.object({
-  referenceResumeId: z.string().trim().min(1).optional(),
-  currentResumeId: z.string().trim().min(1).optional(),
-  profileResumeId: z.string().trim().min(1).optional(),
-  profileUrl: z.string().trim().min(1).optional(),
-  externalId: z.string().trim().min(1)
-    .refine((value) => !isPlaceholderExternalIdentity(value), "Placeholder external IDs are not stable selectors")
-    .optional(),
-  identityKey: z.string().trim().min(1)
-    .refine((value) => !isPlaceholderExternalIdentity(value), "Placeholder external identity keys are not stable selectors")
-    .optional(),
-  source: z.string().trim().min(1).optional(),
-}).strict();
-
 const ExactReingestRequestSchema = z.object({
-  targets: z.array(ExactReingestTargetSchema).min(1).max(500),
+  targets: z.array(ExactResumeTargetSchema).min(1).max(500),
   dryRun: z.boolean().optional(),
 }).strict();
-
-const ExactReingestResolvedSelectorSchema = z.object({
-  kind: z.enum(["currentResumeId", "profileUrl", "profileResumeId", "externalId", "identityKey"]),
-  value: z.string().min(1),
-});
-
-const ExactReingestResolvedTargetSchema = z.object({
-  referenceResumeId: z.string().optional(),
-  currentResumeId: z.string().min(1),
-  profileResumeId: z.string().optional(),
-  profileUrl: z.string().optional(),
-  externalId: z.string(),
-  source: z.string(),
-  canonicalIdentityKey: z.string().min(1),
-  outcome: z.literal("resolved"),
-  selectors: z.array(ExactReingestResolvedSelectorSchema).min(1),
-});
-
-const ExactReingestResolutionSchema = z.object({
-  requested: z.number().int().positive(),
-  resolved: z.number().int().positive(),
-  resumeIds: z.array(z.string().min(1)).min(1),
-  targets: z.array(ExactReingestResolvedTargetSchema).min(1),
-});
 
 const ExactReingestDispatchSchema = z.object({
   requested: z.number().int().positive(),
@@ -99,7 +61,7 @@ const ExactReingestResponseSchema = z.object({
   batches: z.number().int().nonnegative(),
   dispatchedAt: z.number().optional(),
   resumeIds: z.array(z.string().min(1)).min(1),
-  targets: z.array(ExactReingestResolvedTargetSchema).min(1),
+  targets: z.array(ExactResumeResolvedTargetSchema).min(1),
 });
 
 const ExactReingestReadinessRequestSchema = z.object({
@@ -383,7 +345,7 @@ app.openapi(exactReingestRoute, async (c) => {
   const workspaceSlug = c.var.workspaceSlug;
 
   try {
-    const resolution = ExactReingestResolutionSchema.parse(
+    const resolution = ExactResumeResolutionSchema.parse(
       await callConvexAction("ingest_agent:resolveExactReingestTargets", {
         workspaceSlug,
         writeSecret: config.auth.convexWriteSecret,

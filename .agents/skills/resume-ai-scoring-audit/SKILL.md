@@ -53,27 +53,7 @@ Use `make local-restore-from-prod FILE=<path>` only when the user specifically w
 
 If many resumes still lack ingest evidence, wait and re-check before dispatching AI scoring.
 
-5. Dispatch AI scoring for the exact audit target.
-
-For a JD-backed audit:
-
-```bash
-./bin/trends resume analyze --job-description <jd-id> --limit 500 --api-url http://localhost:3000 --workspace dev --output json
-```
-
-For a keyword-backed audit:
-
-```bash
-./bin/trends resume analyze --query "CNC 销售" --limit 500 --api-url http://localhost:3000 --workspace dev --output json
-```
-
-Poll until recent tasks complete:
-
-```bash
-./bin/trends resume debug analysis-tasks --api-url http://localhost:3000 --workspace dev --output json
-```
-
-6. Export current DB scores.
+5. Export the current DB identity snapshot. Do not dispatch broad analysis for the audit cohort.
 
 ```bash
 STAMP="$(date -u +%Y-%m-%dT%H-%M-%S-%3NZ)"
@@ -81,7 +61,7 @@ CURRENT_EXPORT="$HOME/Documents/resumes-export-current-db-${STAMP}.csv"
 ./bin/trends resume export --format csv --limit 5000 --out "$CURRENT_EXPORT" --api-url http://localhost:3000 --workspace dev
 ```
 
-7. Extract the HR cohort audit CSV/JSON.
+6. Extract the preliminary HR cohort audit CSV/JSON and stable target manifest.
 
 ```bash
 REFERENCE_CSV="${REFERENCE_CSV:-$HOME/Documents/resumes-export-reference-hr-feedback-34.csv}"
@@ -104,9 +84,23 @@ The target manifest preserves reference order and carries stable profile/externa
 ./bin/trends resume debug reingest --manifest "$TARGET_MANIFEST" --yes --wait --api-url http://localhost:3000 --workspace dev --output json
 ```
 
-8. Report audit facts.
+Preview exact persisted analysis for the resolved cohort. This is non-mutating and must report `mode: "exact"`, `requestedCount: 34`, `resolvedCount: 34`, 34 ordered targets/current IDs, and the expected analysis job-description ID and prompt version:
 
-Include cohort size, missing current resumes, missing AI scores, high-score counts by HR category, min/median/max scores by HR category, output paths, and commands used.
+```bash
+./bin/trends resume analyze --manifest "$TARGET_MANIFEST" --query "CNC 销售" --dry-run --api-url http://localhost:3000 --workspace dev --output json
+```
+
+After checking the dry-run evidence, dispatch and wait on that exact task. The CLI polls only the task-by-ID endpoint:
+
+```bash
+./bin/trends resume analyze --manifest "$TARGET_MANIFEST" --query "CNC 销售" --yes --wait --wait-timeout 10m --poll-interval 2s --api-url http://localhost:3000 --workspace dev --output json
+```
+
+Retain the live JSON evidence: non-empty task ID, dispatch timestamp, expected analysis job-description ID, prompt version, and final verification with `allReady: true`, `ready: 34`, `pending: 0`, `invalid: 0`, and 34 ready targets. Each ready target's persisted `analyzedAt` must be newer than the dispatch timestamp. After readiness passes, repeat the export and audit extraction with a new timestamp so the final artifacts contain scores from this exact run.
+
+7. Report audit facts.
+
+Include cohort size, missing current resumes, missing AI scores, task ID, dispatch timestamp, expected analysis ID, prompt version, 34/34 readiness, high-score counts by HR category, min/median/max scores by HR category, output paths, and commands used.
 
 ## Script
 
