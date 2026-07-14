@@ -4,8 +4,9 @@ import {
   getCurrentResumeAiPromptVersion,
 } from "@trends/shared";
 
-import { api } from "../convex/_generated/api.js";
+import { api, internal } from "../convex/_generated/api.js";
 import type { Id } from "../convex/_generated/dataModel.js";
+import { createExactAnalysisIdentity } from "../convex/lib/exact_analysis_task.js";
 import {
   createTest,
   seedResumeAnalysesColdRow,
@@ -159,30 +160,55 @@ function seedResume(
   return t.run((ctx) => ctx.db.insert("resumes", resumeDocument(index, overrides)));
 }
 
-function seedCompletedExactTask(
+async function seedCompletedExactTask(
   t: TestContext,
   targetResumeIds: Id<"resumes">[],
   overrides: Record<string, unknown> = {},
 ) {
-  return t.run((ctx) => ctx.db.insert("analysis_tasks", {
-    dispatchMode: "exact",
-    workspaceSlug: "dev",
-    targetResumeIds,
-    dispatchedAt: DISPATCHED_AT,
-    completedAt: COMPLETED_AT,
-    config: {
+  return t.run(async (ctx) => {
+    const config = (overrides.config ?? {
       jobDescriptionId: "jd-exact",
       promptVersion: PROMPT_VERSION,
       resumeCount: targetResumeIds.length,
-    },
-    status: "completed",
-    progress: {
-      current: targetResumeIds.length,
-      total: targetResumeIds.length,
-      skipped: 0,
-    },
-    ...overrides,
-  }));
+    }) as { jobDescriptionId?: unknown };
+    const expectedJobDescriptionId = typeof config.jobDescriptionId === "string"
+      ? config.jobDescriptionId
+      : "jd-exact";
+    const hasIdentityOverride = Object.prototype.hasOwnProperty.call(
+      overrides,
+      "targetAnalysisIdentities",
+    );
+    const targetAnalysisIdentities = hasIdentityOverride
+      ? undefined
+      : await Promise.all(targetResumeIds.map(async (resumeId) => {
+        const resume = await ctx.db.get(resumeId);
+        if (!resume) {
+          throw new Error(`Expected audit resume ${String(resumeId)}`);
+        }
+        return createExactAnalysisIdentity(expectedJobDescriptionId, resume);
+      }));
+
+    return ctx.db.insert("analysis_tasks", {
+      dispatchMode: "exact",
+      workspaceSlug: "dev",
+      targetResumeIds,
+      targetAnalysisIdentities,
+      dispatchedAt: DISPATCHED_AT,
+      completedAt: COMPLETED_AT,
+      config: {
+        jobDescriptionId: "jd-exact",
+        promptVersion: PROMPT_VERSION,
+        resumeCount: targetResumeIds.length,
+      },
+      status: "completed",
+      progress: {
+        current: targetResumeIds.length,
+        total: targetResumeIds.length,
+        skipped: 0,
+      },
+      ...overrides,
+    });
+  });
 }
 
 function analysisValue(overrides: Record<string, unknown> = {}) {
@@ -532,6 +558,92 @@ describe("analysis_tasks:getExactAuditExportPage", () => {
       analysisState: "not_targeted",
       analysisReasons: ["not_targeted"],
     });
+  });
+
+  it("preserves a Job5156 dispatch-time lane after the runtime locale changes", async () => {
+    const t = createTest();
+    const resumeId = await seedResume(t, 25, {
+      source: "hr.job5156.com",
+      sourceKey: "job5156",
+      workspaceSlug: "dev",
+    });
+    process.env.AI_OUTPUT_LOCALE = "zh-Hans";
+    const dispatch = await t.mutation(api.analysis_tasks.dispatchExact, {
+      workspaceSlug: "dev",
+      writeSecret: WRITE_SECRET,
+      keywords: ["CNC", "Sales"],
+      location: "Dongguan",
+      resumeIds: [resumeId],
+    });
+    if (!dispatch.queued) {
+      throw new Error("Expected exact analysis dispatch to queue");
+    }
+    const task = await t.query(internal.analysis_tasks.getTask, { taskId: dispatch.taskId });
+    if (!task) {
+      throw new Error("Expected dispatched exact task");
+    }
+    const frozenKey = buildResumeAnalysisStorageKey(task.config.jobDescriptionId, {
+      sourceKey: "job5156",
+      locale: "zh-Hans",
+    });
+    await seedResumeAnalysesColdRow(t, resumeId, {
+      analyses: {
+        [frozenKey]: analysisValue({
+          jobDescriptionId: task.config.jobDescriptionId,
+          locale: "zh-Hans",
+          analyzedAt: dispatch.dispatchedAt + 1,
+        }),
+      },
+    });
+    await t.mutation(internal.analysis_tasks.complete, {
+      taskId: dispatch.taskId,
+      status: "completed",
+      results: {
+        analyzed: 1,
+        skipped: 0,
+        failed: 0,
+        avgScore: 79,
+        highScoreCount: 0,
+      },
+    });
+
+    process.env.AI_OUTPUT_LOCALE = "en";
+    const result = await getAuditPage(t, {
+      taskId: dispatch.taskId,
+      workspaceSlug: "dev",
+      writeSecret: WRITE_SECRET,
+      limit: 100,
+    });
+
+    expect(result?.page[0]).toMatchObject({
+      currentResumeId: String(resumeId),
+      expectedAnalysisKey: frozenKey,
+      analysisState: "ready",
+      currentAnalysisKey: frozenKey,
+    });
+    expect((task as unknown as { targetAnalysisIdentities?: unknown }).targetAnalysisIdentities).toEqual([
+      {
+        resumeId,
+        sourceKey: "job5156",
+        locale: "zh-Hans",
+        expectedAnalysisKey: frozenKey,
+      },
+    ]);
+  });
+
+  it("rejects a completed legacy exact task without immutable target identities", async () => {
+    const t = createTest();
+    const resumeId = await seedResume(t, 26);
+    const taskId = await seedCompletedExactTask(t, [resumeId], {
+      targetAnalysisIdentities: undefined,
+    });
+
+    await expect(getAuditPage(t, {
+      taskId,
+      workspaceSlug: "dev",
+      writeSecret: WRITE_SECRET,
+      limit: 100,
+    })).rejects.toThrow(/immutable.*identit/i);
   });
 
   it("does not fall back from an archived cold row to matching hot, bare, or latest analyses", async () => {

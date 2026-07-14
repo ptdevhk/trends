@@ -449,6 +449,83 @@ describe("analysis_tasks:getExactStatus", () => {
     }));
   });
 
+  it("keeps a Job5156 exact task on its dispatch-time locale after the runtime locale changes", async () => {
+    const t = createTest();
+    const resumeId = await seedResume(t, {
+      externalId: "frozen-job5156-locale",
+      source: "hr.job5156.com",
+      workspaceSlug: "dev",
+    });
+    process.env.AI_OUTPUT_LOCALE = "zh-Hans";
+    const dispatch = queuedResult(await dispatchExact(t, [resumeId], {
+      keywords: ["CNC", "Sales"],
+      location: "Dongguan",
+    }));
+    const task = await t.query(internal.analysis_tasks.getTask, { taskId: dispatch.taskId });
+    if (!task) {
+      throw new Error("Expected dispatched exact task");
+    }
+    const frozenKey = buildResumeAnalysisStorageKey(task.config.jobDescriptionId, {
+      sourceKey: "job5156",
+      locale: "zh-Hans",
+    });
+    await seedResumeAnalysesColdRow(t, resumeId, {
+      analyses: {
+        [frozenKey]: analysisValue({
+          jobDescriptionId: task.config.jobDescriptionId,
+          locale: "zh-Hans",
+          analyzedAt: dispatch.dispatchedAt + 1,
+        }),
+      },
+    });
+    await completeTask(t, dispatch.taskId);
+
+    process.env.AI_OUTPUT_LOCALE = "en";
+    const status = await t.query(api.analysis_tasks.getExactStatus, {
+      taskId: dispatch.taskId,
+      workspaceSlug: "dev",
+      writeSecret: WRITE_SECRET,
+    });
+
+    expect(status?.verification.allReady).toBe(true);
+    expect(status?.verification.targets[0]).toMatchObject({
+      state: "ready",
+      expectedAnalysisKey: frozenKey,
+    });
+    expect((task as unknown as { targetAnalysisIdentities?: unknown }).targetAnalysisIdentities).toEqual([
+      {
+        resumeId,
+        sourceKey: "job5156",
+        locale: "zh-Hans",
+        expectedAnalysisKey: frozenKey,
+      },
+    ]);
+  });
+
+  it("rejects a legacy exact task that lacks immutable target identities", async () => {
+    const t = createTest();
+    const resumeId = await seedResume(t, {
+      externalId: "legacy-exact-no-identities",
+      source: "hr.job5156.com",
+      workspaceSlug: "dev",
+    });
+    const dispatch = queuedResult(await dispatchExact(t, [resumeId], {
+      keywords: undefined,
+      jobDescriptionId: "jd-exact",
+      jobDescriptionContent: "CNC sales",
+    }));
+    await t.run((ctx) => ctx.db.patch(dispatch.taskId, {
+      targetAnalysisIdentities: undefined,
+    }));
+    await completeTask(t, dispatch.taskId);
+
+    await expect(t.query(api.analysis_tasks.getExactStatus, {
+      taskId: dispatch.taskId,
+      workspaceSlug: "dev",
+      writeSecret: WRITE_SECRET,
+    })).rejects.toThrow(/immutable.*identit/i);
+  });
+
   it("verifies keyword analysis in the SEEK source:seek|locale:en lane", async () => {
     const t = createTest();
     const resumeId = await seedResume(t, {

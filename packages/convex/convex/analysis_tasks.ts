@@ -41,6 +41,7 @@ import { relatedExpContextValidator } from "./validators.js";
 import { getActiveColdAnalysisRow } from "./lib/resume_analysis_read.js";
 import { belongsToWorkspace } from "./search_profiles.js";
 import {
+    createExactAnalysisIdentity,
     projectExactTaskAuditRow,
     resolveCompletedExactTaskAuditMetadata,
     resolveExactAnalysisIdentity,
@@ -327,11 +328,12 @@ async function analyzeOneResume(
         location?: string;
         relatedExpContext?: RelatedExpContextInput;
     },
-    apiKey: string
+    apiKey: string,
+    localeOverride?: string,
 ): Promise<AnalysisResult> {
     const normalizedKeywords = normalizeKeywords(config.keywords ?? []);
     const useKeywordPath = normalizedKeywords.length > 0 && !config.jobDescriptionContent;
-    const locale = resolveAIOutputLocale({ sourceKey: inferSourceKey(resume.source) });
+    const locale = localeOverride ?? resolveAIOutputLocale({ sourceKey: inferSourceKey(resume.source) });
     const isEnglishLocale = locale === "en";
 
     const jobTitle = config.jobDescriptionTitle
@@ -400,6 +402,7 @@ export const list = query({
         return tasks.map((task) => {
             const projected = { ...task };
             delete projected.targetResumeIds;
+            delete projected.targetAnalysisIdentities;
             return projected;
         });
     },
@@ -685,18 +688,23 @@ export const dispatchExact = mutation({
                 )
                 .first();
             if (existingTask) {
-                if (!existingTask.targetResumeIds?.length) {
-                    throw new Error(`Exact analysis task ${String(existingTask._id)} is missing persisted resume IDs`);
-                }
+                const existingMetadata = resolveExactTaskMetadata(existingTask, workspaceSlug);
                 return {
                     queued: true,
                     taskId: existingTask._id,
                     dispatchedAt: existingTask.dispatchedAt ?? existingTask._creationTime,
                     reused: true,
-                    resumeIds: existingTask.targetResumeIds,
+                    resumeIds: existingMetadata.targetResumeIds,
                 };
             }
         }
+
+        const targetAnalysisIdentities = resumes.map((resume, index) => {
+            if (!resume) {
+                throw new Error(`Exact analysis resume ${String(uniqueResumeIds[index])} no longer exists`);
+            }
+            return createExactAnalysisIdentity(derivedJobDescriptionId, resume);
+        });
 
         const dispatchedAt = Date.now();
         const taskId = await ctx.db.insert("analysis_tasks", {
@@ -705,6 +713,7 @@ export const dispatchExact = mutation({
             dispatchMode: "exact",
             workspaceSlug,
             targetResumeIds: uniqueResumeIds,
+            targetAnalysisIdentities,
             dispatchedAt,
             config: {
                 jobDescriptionId: derivedJobDescriptionId,
@@ -806,12 +815,13 @@ export const getExactStatus = query({
         if (!task) {
             return null;
         }
+        const metadata = resolveExactTaskMetadata(task, workspaceSlug);
         const {
             targetResumeIds,
             expectedJobDescriptionId,
             expectedPromptVersion,
             dispatchedAt,
-        } = resolveExactTaskMetadata(task, workspaceSlug);
+        } = metadata;
 
         const targets: ExactAnalysisTargetStatus[] = [];
         let ready = 0;
@@ -820,10 +830,7 @@ export const getExactStatus = query({
 
         for (const resumeId of targetResumeIds) {
             const resume = await ctx.db.get(resumeId);
-            const { expectedAnalysisKey } = resolveExactAnalysisIdentity(
-                expectedJobDescriptionId,
-                resume?.source,
-            );
+            const { expectedAnalysisKey } = resolveExactAnalysisIdentity(metadata, resumeId);
             const base = {
                 currentResumeId: String(resumeId),
                 expectedAnalysisKey,
@@ -962,7 +969,6 @@ export const getExactAuditExportPage = query({
             return null;
         }
         const metadata = resolveCompletedExactTaskAuditMetadata(task, workspaceSlug);
-        const targetResumeIds = new Set(metadata.targetResumeIds.map(String));
         const paginated = await ctx.db
             .query("resumes")
             .paginate({
@@ -974,7 +980,7 @@ export const getExactAuditExportPage = query({
             && belongsToWorkspace(resume.workspaceSlug, workspaceSlug)
         ));
         const rows = await Promise.all(activeWorkspaceResumes.map((resume) => (
-            projectExactTaskAuditRow(ctx, resume, metadata, targetResumeIds)
+            projectExactTaskAuditRow(ctx, resume, metadata)
         )));
 
         return {
@@ -1150,6 +1156,10 @@ export const processAnalysisTask = internalAction({
                 throw new Error(`Analysis task not found: ${String(args.taskId)}`);
             }
 
+            const exactTaskMetadata = task.dispatchMode === "exact"
+                ? resolveExactTaskMetadata(task, task.workspaceSlug ?? "")
+                : undefined;
+
             const resumes = await ctx.runQuery(internal.resumes_search.getResumesByIds, {
                 resumeIds: args.resumeIds,
             });
@@ -1158,20 +1168,24 @@ export const processAnalysisTask = internalAction({
                 ? normalizeKeywords(task.config.keywords)
                 : extractKeywords(keywordSource);
             const normalizedLocation = task.config.location?.trim() || undefined;
-            const promptVersion = task.config.promptVersion ?? getCurrentResumeAiPromptVersion();
+            const promptVersion = exactTaskMetadata?.expectedPromptVersion
+                ?? task.config.promptVersion
+                ?? getCurrentResumeAiPromptVersion();
             const { toAnalyze, toSkip } = classifyResumes(
                 resumes,
                 keywords,
                 task.config.relatedExpContext,
                 task.dispatchMode,
             );
-            const analysisJobDescriptionId = task.config.jobDescriptionId
+            const computedAnalysisJobDescriptionId = task.config.jobDescriptionId
                 || (keywords.length > 0
                     ? buildKeywordAnalysisId(keywords, {
                         location: normalizedLocation,
                         promptVersion,
                     })
                     : "keyword-search");
+            const analysisJobDescriptionId = exactTaskMetadata?.expectedJobDescriptionId
+                ?? computedAnalysisJobDescriptionId;
 
             skippedCount = toSkip.length;
 
@@ -1267,6 +1281,9 @@ export const processAnalysisTask = internalAction({
 
                         const resume = toAnalyze[currentIndex];
                         try {
+                            const exactIdentity = exactTaskMetadata
+                                ? resolveExactAnalysisIdentity(exactTaskMetadata, resume._id)
+                                : undefined;
                             const result = await analyzeOneResume(
                                 resume,
                                 {
@@ -1277,7 +1294,8 @@ export const processAnalysisTask = internalAction({
                                     location: normalizedLocation,
                                     relatedExpContext: task.config.relatedExpContext,
                                 },
-                                apiKey
+                                apiKey,
+                                exactIdentity?.locale,
                             );
 
                             await ctx.runMutation(internal.resumes_mutations.updateAnalysis, {
@@ -1292,13 +1310,16 @@ export const processAnalysisTask = internalAction({
                                     keyFactors: result.keyFactors.length > 0 ? result.keyFactors : undefined,
                                     jobDescriptionId: analysisJobDescriptionId,
                                     promptVersion,
-                                    locale: result.locale,
+                                    locale: exactIdentity?.locale ?? result.locale,
                                     ...(normalizedLocation ? { queryLocation: normalizedLocation } : {}),
                                     analyzedAt: resolveAnalysisWriteTimestamp(
                                         task.dispatchMode === "exact" ? task.dispatchedAt : undefined,
                                     ),
                                     ...(result.relatedExpEvidence ? { relatedExpEvidence: result.relatedExpEvidence } : {}),
                                 },
+                                ...(exactIdentity ? {
+                                    analysisKeySourceKeyOverride: exactIdentity.sourceKey,
+                                } : {}),
                             });
 
                             // Audit log — EU AI Act compliance for score decisions

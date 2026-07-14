@@ -15,6 +15,8 @@ import {
 
 export type ExactTaskMetadata = {
     targetResumeIds: Id<"resumes">[];
+    targetAnalysisIdentities: ExactAnalysisIdentity[];
+    targetAnalysisIdentityByResumeId: ReadonlyMap<string, ExactAnalysisIdentity>;
     expectedJobDescriptionId: string;
     expectedPromptVersion: number;
     dispatchedAt: number;
@@ -30,8 +32,9 @@ export type CompletedExactTaskAuditMetadata = ExactTaskMetadata & {
 };
 
 export type ExactAnalysisIdentity = {
-    sourceKey?: string;
-    locale?: string;
+    resumeId: Id<"resumes">;
+    sourceKey: string;
+    locale: string;
     expectedAnalysisKey: string;
 };
 
@@ -155,6 +158,7 @@ export function resolveExactTaskMetadata(
     }
 
     const targetResumeIds = task.targetResumeIds;
+    const targetAnalysisIdentities = task.targetAnalysisIdentities;
     const expectedJobDescriptionId = task.config.jobDescriptionId?.trim();
     const expectedPromptVersion = task.config.promptVersion;
     const dispatchedAt = task.dispatchedAt;
@@ -165,8 +169,52 @@ export function resolveExactTaskMetadata(
         throw new Error(`Exact analysis task ${String(task._id)} is missing verification metadata`);
     }
 
+    if (!targetAnalysisIdentities?.length) {
+        throw new Error(`Exact analysis task ${String(task._id)} is missing immutable target analysis identities`);
+    }
+    if (new Set(targetResumeIds.map(String)).size !== targetResumeIds.length) {
+        throw new Error(`Exact analysis task ${String(task._id)} has duplicate target resume IDs`);
+    }
+    if (targetAnalysisIdentities.length !== targetResumeIds.length) {
+        throw new Error(`Exact analysis task ${String(task._id)} has incomplete immutable target analysis identities`);
+    }
+
+    const targetAnalysisIdentityByResumeId = new Map<string, ExactAnalysisIdentity>();
+    for (let index = 0; index < targetResumeIds.length; index += 1) {
+        const targetResumeId = targetResumeIds[index];
+        const identity = targetAnalysisIdentities[index];
+        const identityResumeId = identity?.resumeId;
+        const sourceKey = identity?.sourceKey?.trim();
+        const locale = identity?.locale?.trim();
+        const expectedAnalysisKey = identity?.expectedAnalysisKey?.trim();
+        if (!identityResumeId || !sourceKey || !locale || !expectedAnalysisKey) {
+            throw new Error(`Exact analysis task ${String(task._id)} has malformed immutable target analysis identities`);
+        }
+        if (String(identityResumeId) !== String(targetResumeId)) {
+            const targetIds = new Set(targetResumeIds.map(String));
+            if (!targetIds.has(String(identityResumeId))) {
+                throw new Error(`Exact analysis task ${String(task._id)} has a foreign immutable target analysis identity`);
+            }
+            throw new Error(`Exact analysis task ${String(task._id)} has unordered immutable target analysis identities`);
+        }
+        if (targetAnalysisIdentityByResumeId.has(String(identityResumeId))) {
+            throw new Error(`Exact analysis task ${String(task._id)} has duplicate immutable target analysis identities`);
+        }
+        if (buildResumeAnalysisStorageKey(expectedJobDescriptionId, { sourceKey, locale }) !== expectedAnalysisKey) {
+            throw new Error(`Exact analysis task ${String(task._id)} has an inconsistent immutable target analysis identity key`);
+        }
+        targetAnalysisIdentityByResumeId.set(String(identityResumeId), {
+            resumeId: identityResumeId,
+            sourceKey,
+            locale,
+            expectedAnalysisKey,
+        });
+    }
+
     return {
         targetResumeIds,
+        targetAnalysisIdentities: Array.from(targetAnalysisIdentityByResumeId.values()),
+        targetAnalysisIdentityByResumeId,
         expectedJobDescriptionId,
         expectedPromptVersion,
         dispatchedAt,
@@ -205,24 +253,35 @@ export function resolveCompletedExactTaskAuditMetadata(
     };
 }
 
-export function resolveExactAnalysisIdentity(
+export function createExactAnalysisIdentity(
     expectedJobDescriptionId: string,
-    resumeSource: string | undefined,
+    resume: Pick<Doc<"resumes">, "_id" | "source">,
 ): ExactAnalysisIdentity {
-    const sourceKey = resumeSource
-        ? resolveResumeAnalysisSourceKey({ source: resumeSource })
-        : undefined;
-    const locale = resumeSource
-        ? resolveAIOutputLocale({ sourceKey: inferSourceKey(resumeSource) })
-        : undefined;
+    const sourceKey = resolveResumeAnalysisSourceKey({ source: resume.source }) ?? "unknown";
+    const locale = resolveAIOutputLocale({ sourceKey: inferSourceKey(resume.source) }).trim();
+    if (!locale) {
+        throw new Error(`Exact analysis resume ${String(resume._id)} has no dispatch-time analysis locale`);
+    }
     return {
-        ...(sourceKey ? { sourceKey } : {}),
-        ...(locale ? { locale } : {}),
+        resumeId: resume._id,
+        sourceKey,
+        locale,
         expectedAnalysisKey: buildResumeAnalysisStorageKey(expectedJobDescriptionId, {
             sourceKey,
             locale,
         }),
     };
+}
+
+export function resolveExactAnalysisIdentity(
+    metadata: ExactTaskMetadata,
+    resumeId: Id<"resumes">,
+): ExactAnalysisIdentity {
+    const identity = metadata.targetAnalysisIdentityByResumeId.get(String(resumeId));
+    if (!identity) {
+        throw new Error(`Exact analysis task target ${String(resumeId)} is missing an immutable analysis identity`);
+    }
+    return identity;
 }
 
 function actualAnalysisProvenance(
@@ -297,7 +356,6 @@ export async function projectExactTaskAuditRow(
     ctx: QueryCtx,
     resume: Doc<"resumes">,
     metadata: CompletedExactTaskAuditMetadata,
-    targetResumeIds: ReadonlySet<string>,
 ): Promise<ExactTaskAuditRow> {
     const content = isRecord(resume.content) ? resume.content : {};
     const aliases = collectResumeIdentityAliases({
@@ -305,8 +363,8 @@ export async function projectExactTaskAuditRow(
         externalId: resume.externalId,
         content: resume.content,
     });
-    const identity = resolveExactAnalysisIdentity(metadata.expectedJobDescriptionId, resume.source);
-    const exactCohortMember = targetResumeIds.has(String(resume._id));
+    const identity = metadata.targetAnalysisIdentityByResumeId.get(String(resume._id));
+    const exactCohortMember = identity !== undefined;
     const ingestData = resume.ingestData;
     const roleSignals = ingestData?.roleSignals;
     const matchedWorkEntries = roleSignals?.flatMap((signal) => signal.matchedWorkEntries ?? []);
@@ -321,7 +379,7 @@ export async function projectExactTaskAuditRow(
         ...(aliases.profileResumeId ? { profileResumeId: aliases.profileResumeId } : {}),
         ...(aliases.profileUrl ? { profileUrl: aliases.profileUrl } : {}),
         source: resume.source,
-        sourceKey: identity.sourceKey ?? resume.sourceKey?.trim() ?? "unknown",
+        sourceKey: identity?.sourceKey ?? resume.sourceKey?.trim() ?? "unknown",
         workspaceSlug: metadata.workspaceSlug,
         ...(readString(content, ["name"]) ? { name: readString(content, ["name"]) } : {}),
         ...(readAge(content, resume.age) !== undefined ? { age: readAge(content, resume.age) } : {}),
@@ -333,7 +391,10 @@ export async function projectExactTaskAuditRow(
         taskCompletedAt: metadata.completedAt,
         expectedJobDescriptionId: metadata.expectedJobDescriptionId,
         expectedPromptVersion: metadata.expectedPromptVersion,
-        expectedAnalysisKey: identity.expectedAnalysisKey,
+        // Non-target rows do not have a task-owned analysis identity. The
+        // explicit sentinel preserves the public row shape without deriving a
+        // live locale/key for data that was never part of the exact cohort.
+        expectedAnalysisKey: identity?.expectedAnalysisKey ?? "not-targeted",
         exactCohortMember,
         ...(ingestData?.brandHits ? { brandHits: ingestData.brandHits } : {}),
         ...(ingestData?.brandOrigin ? { brandOrigin: ingestData.brandOrigin } : {}),
@@ -355,6 +416,8 @@ export async function projectExactTaskAuditRow(
         };
     }
 
+    const exactIdentity = resolveExactAnalysisIdentity(metadata, resume._id);
+
     const coldRow = await getActiveColdAnalysisRow(ctx, resume._id);
     if (!coldRow) {
         return {
@@ -370,7 +433,7 @@ export async function projectExactTaskAuditRow(
             analysisReasons: ["analysis_map_missing"],
         };
     }
-    const analysis = coldRow.analyses[identity.expectedAnalysisKey];
+    const analysis = coldRow.analyses[exactIdentity.expectedAnalysisKey];
     if (!analysis) {
         return {
             ...base,
@@ -384,7 +447,7 @@ export async function projectExactTaskAuditRow(
         ...base,
         analysisState: classified.state,
         analysisReasons: classified.reasons,
-        ...actualAnalysisProvenance(identity.expectedAnalysisKey, analysis),
+        ...actualAnalysisProvenance(exactIdentity.expectedAnalysisKey, analysis),
         ...(classified.state === "ready" ? readyAnalysisEvidence(analysis) : {}),
     };
 }

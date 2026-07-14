@@ -166,6 +166,14 @@ export default defineSchema({
         dispatchMode: v.optional(v.union(v.literal("search"), v.literal("exact"))),
         workspaceSlug: v.optional(v.string()),
         targetResumeIds: v.optional(v.array(v.id("resumes"))),
+        // Optional so historic exact-task documents remain decodable. New exact
+        // tasks persist one immutable source/locale/key identity per target.
+        targetAnalysisIdentities: v.optional(v.array(v.object({
+            resumeId: v.id("resumes"),
+            sourceKey: v.string(),
+            locale: v.string(),
+            expectedAnalysisKey: v.string(),
+        }))),
         dispatchedAt: v.optional(v.number()),
         config: v.object({
             jobDescriptionId: v.optional(v.string()),

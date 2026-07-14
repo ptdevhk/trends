@@ -92,6 +92,10 @@ export const updateAnalysis = internalMutation({
     args: {
         resumeId: v.id("resumes"),
         analysis: resumeAnalysisValidator,
+        // Exact tasks freeze their source lane at dispatch. This trusted
+        // internal override affects only the cold-map storage key; callers
+        // that omit it retain the current resume-source behavior.
+        analysisKeySourceKeyOverride: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
         const resume = await ctx.db.get(args.resumeId);
@@ -103,8 +107,13 @@ export const updateAnalysis = internalMutation({
         // authoritative; the digest upsert reads display fields from it.
         const activeAnalysis = await readActiveResumeAnalysis(ctx, resume);
         const analyses = { ...(activeAnalysis.analyses ?? {}) };
+        const analysisKeySourceKeyOverride = args.analysisKeySourceKeyOverride?.trim();
+        if (args.analysisKeySourceKeyOverride !== undefined && !analysisKeySourceKeyOverride) {
+            throw new Error("Analysis key source-key override must be nonempty");
+        }
         const analysisKey = buildResumeAnalysisStorageKey(args.analysis.jobDescriptionId, {
-            sourceKey: resolveResumeAnalysisSourceKey({ source: resume.source }),
+            sourceKey: analysisKeySourceKeyOverride
+                ?? resolveResumeAnalysisSourceKey({ source: resume.source }),
             locale: args.analysis.locale,
         });
 
