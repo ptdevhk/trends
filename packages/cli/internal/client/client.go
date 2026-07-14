@@ -81,6 +81,16 @@ func (c *Client) doJSON(ctx context.Context, method string, url string, body any
 }
 
 func (c *Client) doBinary(ctx context.Context, method string, url string, body any) ([]byte, http.Header, error) {
+	return c.doBinaryWithRequestTimeout(ctx, method, url, body, 0)
+}
+
+func (c *Client) doBinaryWithRequestTimeout(
+	ctx context.Context,
+	method string,
+	url string,
+	body any,
+	minimumTimeout time.Duration,
+) ([]byte, http.Header, error) {
 	var payload io.Reader
 	contentType := ""
 	if body != nil {
@@ -92,7 +102,7 @@ func (c *Client) doBinary(ctx context.Context, method string, url string, body a
 		contentType = "application/json"
 	}
 
-	res, err := c.sendRequest(ctx, method, url, payload, contentType)
+	res, err := c.sendRequestWithMinimumTimeout(ctx, method, url, payload, contentType, minimumTimeout)
 	if err != nil {
 		return nil, nil, err
 	}

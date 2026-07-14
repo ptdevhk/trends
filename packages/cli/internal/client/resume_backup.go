@@ -12,7 +12,10 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 )
+
+const fullResumeBackupRequestTimeout = 5 * time.Minute
 
 type ResumeBackupRequest struct {
 	ResumeIDs   []string `json:"resumeIds,omitempty"`
@@ -86,7 +89,17 @@ type ResumeManualImportResponse struct {
 
 func (c *Client) BackupResumes(ctx context.Context, request ResumeBackupRequest) ([]byte, string, error) {
 	endpoint := fmt.Sprintf("%s/api/resumes/backup", c.APIURL)
-	payload, headers, err := c.doBinary(ctx, http.MethodPost, endpoint, request)
+	minimumTimeout := time.Duration(0)
+	if len(request.ResumeIDs) == 0 && len(request.SourceHosts) == 0 && request.Limit <= 0 {
+		minimumTimeout = fullResumeBackupRequestTimeout
+	}
+	payload, headers, err := c.doBinaryWithRequestTimeout(
+		ctx,
+		http.MethodPost,
+		endpoint,
+		request,
+		minimumTimeout,
+	)
 	if err != nil {
 		return nil, "", err
 	}

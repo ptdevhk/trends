@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func TestResumeBackupClientEndpoints(t *testing.T) {
@@ -123,6 +124,48 @@ func TestResumeBackupClientEndpoints(t *testing.T) {
 	}
 	if resetSummary.Count != 2 || resetSummary.Partial {
 		t.Fatalf("unexpected reset summary: %+v", resetSummary)
+	}
+}
+
+func TestResumeBackupAllowsFullSnapshotToExceedDefaultClientTimeout(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/api/resumes/backup" {
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+		time.Sleep(100 * time.Millisecond)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"metadata": map[string]any{"generatedBy": "trends-api backup"},
+			"resumes":  []map[string]any{},
+		})
+	}))
+	defer server.Close()
+
+	c := New(server.URL, server.URL, "dev")
+	c.HTTP = &http.Client{Timeout: 10 * time.Millisecond}
+
+	if _, _, err := c.BackupResumes(context.Background(), ResumeBackupRequest{}); err != nil {
+		t.Fatalf("full resume backup should use its extended request timeout: %v", err)
+	}
+}
+
+func TestResumeBackupKeepsDefaultTimeoutForTargetedBackup(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/api/resumes/backup" {
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+		time.Sleep(100 * time.Millisecond)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"metadata": map[string]any{"generatedBy": "trends-api backup"},
+			"resumes":  []map[string]any{},
+		})
+	}))
+	defer server.Close()
+
+	c := New(server.URL, server.URL, "dev")
+	c.HTTP = &http.Client{Timeout: 10 * time.Millisecond}
+
+	if _, _, err := c.BackupResumes(context.Background(), ResumeBackupRequest{Limit: 1}); err == nil {
+		t.Fatal("targeted resume backup should retain the caller's default timeout")
 	}
 }
 

@@ -17,6 +17,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 	"unicode/utf8"
 )
 
@@ -288,9 +289,25 @@ func (c *Client) sendRequest(
 	body io.Reader,
 	contentType string,
 ) (*http.Response, error) {
+	return c.sendRequestWithMinimumTimeout(ctx, method, requestURL, body, contentType, 0)
+}
+
+func (c *Client) sendRequestWithMinimumTimeout(
+	ctx context.Context,
+	method string,
+	requestURL string,
+	body io.Reader,
+	contentType string,
+	minimumTimeout time.Duration,
+) (*http.Response, error) {
 	httpClient, authenticated, err := c.httpClientForRequest(ctx, requestURL)
 	if err != nil {
 		return nil, err
+	}
+	if httpClient != nil && minimumTimeout > 0 && httpClient.Timeout > 0 && httpClient.Timeout < minimumTimeout {
+		requestClient := *httpClient
+		requestClient.Timeout = minimumTimeout
+		httpClient = &requestClient
 	}
 
 	req, err := http.NewRequestWithContext(ctx, method, requestURL, body)
