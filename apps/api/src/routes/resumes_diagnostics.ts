@@ -1,11 +1,14 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { callConvexQuery, isConvexPaginatedQueryPage } from "../services/convex-utils.js";
+import { callConvexMutation, callConvexQuery, isConvexPaginatedQueryPage } from "../services/convex-utils.js";
 import { SkillsKnowledgeService } from "../services/skills-knowledge.js";
 import { config } from "../services/config.js";
 import { logger } from "../services/logger.js";
 import { resolveResumeDiagnosticsSourceKey } from "@trends/shared";
 import {
   AnalysisTasksResponseSchema,
+  AnalysisTaskCancelResponseSchema,
+  AnalysisTaskDispatchRequestSchema,
+  AnalysisTaskDispatchResponseSchema,
   AnalysisTaskDetailResponseSchema,
   AnalysisTaskDetailSchema,
   ExactTaskAuditPageResponseSchema,
@@ -179,7 +182,10 @@ const listAnalysisTasksRoute = createRoute({
 });
 app.openapi(listAnalysisTasksRoute, async (c) => {
   try {
-    const tasks = (await callConvexQuery("analysis_tasks:list", {})) as Array<{
+    const tasks = (await callConvexQuery("analysis_tasks:list", {
+      workspaceSlug: c.var.workspaceSlug,
+      writeSecret: config.auth.convexWriteSecret,
+    })) as Array<{
       _id: string;
       status: string;
       _creationTime: number;
@@ -211,6 +217,73 @@ app.openapi(listAnalysisTasksRoute, async (c) => {
     );
   } catch (error) {
     logger.error("Failed to list analysis tasks", error, { route: "resumes_diagnostics" });
+    const message = error instanceof Error ? error.message : String(error);
+    return c.json({ success: false, error: message }, 500);
+  }
+});
+
+const dispatchAnalysisTaskRoute = createRoute({
+  method: "post",
+  path: "/api/resumes/analysis-tasks/dispatch",
+  tags: ["resumes"],
+  summary: "Dispatch a normal analysis task",
+  request: {
+    body: {
+      content: { "application/json": { schema: AnalysisTaskDispatchRequestSchema } },
+      required: true,
+    },
+  },
+  responses: {
+    200: { content: { "application/json": { schema: AnalysisTaskDispatchResponseSchema } }, description: "Analysis task dispatched" },
+    400: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Invalid task dispatch request" },
+    503: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Analysis dispatch unavailable during maintenance" },
+    500: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Internal error" },
+  },
+});
+app.openapi(dispatchAnalysisTaskRoute, async (c) => {
+  const request = c.req.valid("json");
+  try {
+    const result = AnalysisTaskDispatchResponseSchema.parse(await callConvexMutation("analysis_tasks:dispatch", {
+      ...request,
+      workspaceSlug: c.var.workspaceSlug,
+      writeSecret: config.auth.convexWriteSecret,
+    }));
+    if (!result.queued) {
+      return c.json({ success: false as const, error: "Analysis dispatch is unavailable during maintenance" }, 503);
+    }
+    return c.json(result, 200);
+  } catch (error) {
+    logger.error("Failed to dispatch analysis task", error, { route: "resumes_diagnostics" });
+    const message = error instanceof Error ? error.message : String(error);
+    return c.json({ success: false, error: message }, 500);
+  }
+});
+
+const cancelAnalysisTaskRoute = createRoute({
+  method: "delete",
+  path: "/api/resumes/analysis-tasks/{taskId}",
+  tags: ["resumes"],
+  summary: "Cancel an analysis task",
+  request: {
+    params: z.object({ taskId: z.string().min(1).max(512) }),
+  },
+  responses: {
+    200: { content: { "application/json": { schema: AnalysisTaskCancelResponseSchema } }, description: "Analysis task cancellation requested" },
+    400: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Invalid analysis task ID" },
+    500: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Internal error" },
+  },
+});
+app.openapi(cancelAnalysisTaskRoute, async (c) => {
+  const { taskId } = c.req.valid("param");
+  try {
+    await callConvexMutation("analysis_tasks:cancel", {
+      taskId,
+      workspaceSlug: c.var.workspaceSlug,
+      writeSecret: config.auth.convexWriteSecret,
+    });
+    return c.json(AnalysisTaskCancelResponseSchema.parse({ success: true }), 200);
+  } catch (error) {
+    logger.error("Failed to cancel analysis task", error, { route: "resumes_diagnostics", taskId });
     const message = error instanceof Error ? error.message : String(error);
     return c.json({ success: false, error: message }, 500);
   }

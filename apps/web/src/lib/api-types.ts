@@ -2350,6 +2350,85 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/resumes/analysis-tasks/dispatch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Dispatch a normal analysis task */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["AnalysisTaskDispatchRequest"];
+                };
+            };
+            responses: {
+                /** @description Analysis task dispatched */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AnalysisTaskDispatchResponse"];
+                    };
+                };
+                /** @description Invalid task dispatch request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Internal error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Analysis dispatch unavailable during maintenance */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/resumes/analysis-tasks/{taskId}": {
         parameters: {
             query?: never;
@@ -2408,7 +2487,55 @@ export interface paths {
         };
         put?: never;
         post?: never;
-        delete?: never;
+        /** Cancel an analysis task */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    taskId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Analysis task cancellation requested */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AnalysisTaskCancelResponse"];
+                    };
+                };
+                /** @description Invalid analysis task ID */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Internal error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
         options?: never;
         head?: never;
         patch?: never;
@@ -14376,6 +14503,38 @@ export interface components {
                 lastStatus?: string;
                 error?: string;
             }[];
+        };
+        AnalysisTaskDispatchResponse: {
+            /** @enum {boolean} */
+            queued: true;
+            taskId: string;
+            dispatchedAt: number;
+            reused: boolean;
+        } | {
+            /** @enum {boolean} */
+            queued: false;
+            /** @enum {string} */
+            reason: "maintenance";
+        };
+        AnalysisTaskDispatchRequest: {
+            jobDescriptionId?: string;
+            jobDescriptionTitle?: string;
+            jobDescriptionContent?: string;
+            keywords?: string[];
+            location?: string;
+            promptVersion?: number;
+            sample?: string;
+            resumeIds: string[];
+            relatedExpContext?: {
+                roleFilterType?: string;
+                minRoleYears?: number;
+                market?: string;
+                locale?: string;
+            };
+        };
+        AnalysisTaskCancelResponse: {
+            /** @enum {boolean} */
+            success: true;
         };
         AnalysisTaskDetailResponse: {
             task: {

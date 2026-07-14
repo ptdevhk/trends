@@ -1,5 +1,5 @@
 import { OpenAPIHono } from "@hono/zod-openapi";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import resumesDiagnosticsRoutes from "./resumes_diagnostics";
 import { workspaceMiddleware } from "../middleware/workspace";
@@ -9,6 +9,8 @@ import { config } from "../services/config";
 import { getCurrentResumeAiPromptVersion } from "@trends/shared";
 
 const PROMPT_VERSION = getCurrentResumeAiPromptVersion();
+const TEST_CONVEX_WRITE_SECRET = "test-resumes-diagnostics-secret";
+const originalConvexWriteSecret = config.auth.convexWriteSecret;
 
 function createTestApp(
   authContext: ReturnType<typeof createAuthContext> | null = createAuthContext({ workspaceSlug: "dev", role: "admin" }),
@@ -235,14 +237,25 @@ function nonReadyExactTaskAuditExportPayload(
 }
 
 describe("resumes_diagnostics", () => {
+  beforeEach(() => {
+    config.auth.convexWriteSecret = TEST_CONVEX_WRITE_SECRET;
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
+    config.auth.convexWriteSecret = originalConvexWriteSecret;
   });
 
   describe("GET /api/resumes/analysis-tasks", () => {
-    it("returns task list", async () => {
-      vi.spyOn(globalThis, "fetch").mockResolvedValue(
-        convexSuccess([
+    it("returns task list for the active workspace", async () => {
+      const calls: Array<{ path: string; args: Record<string, unknown> }> = [];
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {
+        const body = JSON.parse(typeof init?.body === "string" ? init.body : "{}") as {
+          path: string;
+          args: Record<string, unknown>;
+        };
+        calls.push(body);
+        return convexSuccess([
           {
             _id: "task-1",
             status: "completed",
@@ -258,11 +271,13 @@ describe("resumes_diagnostics", () => {
             config: { keywords: ["python"] },
             progress: { current: 30, total: 100, skipped: 2 },
           },
-        ]),
-      );
+        ]);
+      });
 
-      const app = createTestApp();
-      const response = await app.request("/api/resumes/analysis-tasks");
+      const app = createTestApp(createAuthContext({ workspaceSlug: "hr", role: "admin" }));
+      const response = await app.request("/api/resumes/analysis-tasks", {
+        headers: { "X-Workspace-Slug": "hr" },
+      });
 
       expect(response.status).toBe(200);
       const payload = await parseJsonBody<{ success: unknown; tasks: { _id: string; status: string }[] }>(response);
@@ -271,6 +286,146 @@ describe("resumes_diagnostics", () => {
       expect(payload.tasks[0]._id).toBe("task-1");
       expect(payload.tasks[0].status).toBe("completed");
       expect(payload.tasks[1].status).toBe("processing");
+      expect(calls).toEqual([{
+        path: "analysis_tasks:list",
+        args: {
+          workspaceSlug: "hr",
+          writeSecret: TEST_CONVEX_WRITE_SECRET,
+        },
+      }]);
+    });
+
+    it("dispatches a normal task with only server-derived authority", async () => {
+      const calls: Array<{ path: string; args: Record<string, unknown> }> = [];
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {
+        const body = JSON.parse(typeof init?.body === "string" ? init.body : "{}") as {
+          path: string;
+          args: Record<string, unknown>;
+        };
+        calls.push(body);
+        return convexSuccess({
+          queued: true,
+          taskId: "task-dispatch-1",
+          dispatchedAt: 1_750_000_000_000,
+          reused: false,
+        });
+      });
+
+      const response = await createTestApp(createAuthContext({ workspaceSlug: "hr", role: "admin" })).request(
+        "/api/resumes/analysis-tasks/dispatch",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Workspace-Slug": "hr" },
+          body: JSON.stringify({
+            jobDescriptionId: "jd-1",
+            jobDescriptionTitle: "Sales Engineer",
+            jobDescriptionContent: "Machine-tool sales experience",
+            keywords: ["sales"],
+            location: "Malaysia",
+            promptVersion: 7,
+            sample: "hr-reviewed",
+            relatedExpContext: { roleFilterType: "sales", minRoleYears: 3, market: "MY", locale: "en" },
+            resumeIds: ["resume-1"],
+          }),
+        },
+      );
+
+      expect(response.status).toBe(200);
+      expect(calls).toEqual([{
+        path: "analysis_tasks:dispatch",
+        args: {
+          workspaceSlug: "hr",
+          writeSecret: TEST_CONVEX_WRITE_SECRET,
+          jobDescriptionId: "jd-1",
+          jobDescriptionTitle: "Sales Engineer",
+          jobDescriptionContent: "Machine-tool sales experience",
+          keywords: ["sales"],
+          location: "Malaysia",
+          promptVersion: 7,
+          sample: "hr-reviewed",
+          relatedExpContext: { roleFilterType: "sales", minRoleYears: 3, market: "MY", locale: "en" },
+          resumeIds: ["resume-1"],
+        },
+      }]);
+    });
+
+    it("rejects browser-supplied task authority before Convex dispatch", async () => {
+      const fetchSpy = vi.spyOn(globalThis, "fetch");
+      const response = await createTestApp(createAuthContext({ workspaceSlug: "hr", role: "admin" })).request(
+        "/api/resumes/analysis-tasks/dispatch",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Workspace-Slug": "hr" },
+          body: JSON.stringify({
+            keywords: ["sales"],
+            resumeIds: ["resume-1"],
+            workspaceSlug: "dev",
+            writeSecret: "browser-secret",
+          }),
+        },
+      );
+
+      expect(response.status).toBe(400);
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it("rejects non-admin normal task dispatch without querying Convex", async () => {
+      const fetchSpy = vi.spyOn(globalThis, "fetch");
+      const response = await createTestApp(createAuthContext({ workspaceSlug: "hr", role: "user" })).request(
+        "/api/resumes/analysis-tasks/dispatch",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Workspace-Slug": "hr" },
+          body: JSON.stringify({ keywords: ["sales"], resumeIds: ["resume-1"] }),
+        },
+      );
+
+      expect(response.status).toBe(403);
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it("cancels a task with only server-derived authority", async () => {
+      const calls: Array<{ path: string; args: Record<string, unknown> }> = [];
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {
+        const body = JSON.parse(typeof init?.body === "string" ? init.body : "{}") as {
+          path: string;
+          args: Record<string, unknown>;
+        };
+        calls.push(body);
+        return convexSuccess(null);
+      });
+
+      const response = await createTestApp(createAuthContext({ workspaceSlug: "hr", role: "admin" })).request(
+        "/api/resumes/analysis-tasks/task-cancel-1",
+        {
+          method: "DELETE",
+          headers: { "X-Workspace-Slug": "hr" },
+        },
+      );
+
+      expect(response.status).toBe(200);
+      expect(calls).toEqual([{
+        path: "analysis_tasks:cancel",
+        args: {
+          taskId: "task-cancel-1",
+          workspaceSlug: "hr",
+          writeSecret: TEST_CONVEX_WRITE_SECRET,
+        },
+      }]);
+    });
+
+    it("rejects non-admin cancellation without querying Convex", async () => {
+      const fetchSpy = vi.spyOn(globalThis, "fetch");
+      const response = await createTestApp(createAuthContext({ workspaceSlug: "hr", role: "user" })).request(
+        "/api/resumes/analysis-tasks/task-cancel-1",
+        {
+          method: "DELETE",
+          headers: { "X-Workspace-Slug": "hr" },
+        },
+      );
+
+      expect(response.status).toBe(403);
+      expect(fetchSpy).not.toHaveBeenCalled();
     });
 
     it("returns 500 on Convex error", async () => {

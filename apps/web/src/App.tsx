@@ -13,6 +13,7 @@ import SettingsLayout from '@/layouts/SettingsLayout'
 import SystemLayout from '@/layouts/SystemLayout'
 import SystemSettingsLayout from '@/layouts/SystemSettingsLayout'
 import { AuthProvider, useAuth } from '@/contexts/AuthContext'
+import { AnalysisTasksProvider } from '@/contexts/AnalysisTasksContext'
 import { WorkspaceProvider, useWorkspace } from '@/contexts/WorkspaceContext'
 import { BrandDisplayMapProvider } from '@/contexts/BrandDisplayMapContext'
 import { ResumeFieldUsagePolicyProvider } from '@/contexts/ResumeFieldUsagePolicyContext'
@@ -163,11 +164,13 @@ function AppProviders({
       invalidFallback={invalidFallback}
     >
       <AuthProvider>
-        <ResumeFieldUsagePolicyProvider>
-          <BrandDisplayMapProvider>
-            {children}
-          </BrandDisplayMapProvider>
-        </ResumeFieldUsagePolicyProvider>
+        <AnalysisTasksProvider>
+          <ResumeFieldUsagePolicyProvider>
+            <BrandDisplayMapProvider>
+              {children}
+            </BrandDisplayMapProvider>
+          </ResumeFieldUsagePolicyProvider>
+        </AnalysisTasksProvider>
       </AuthProvider>
     </WorkspaceProvider>
   )

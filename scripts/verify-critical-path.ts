@@ -201,6 +201,14 @@ function resolveConvexUrl(projectRoot: string): string {
     return "http://127.0.0.1:3210";
 }
 
+function requireAnalysisWriteSecret(): string {
+    const writeSecret = process.env.CONVEX_WRITE_SECRET?.trim();
+    if (!writeSecret) {
+        throw new Error("CONVEX_WRITE_SECRET is required for analysis verification");
+    }
+    return writeSecret;
+}
+
 function parseCliArgs(argv: string[]): CliOptions {
     if (hasCliFlag(argv, "help") || hasCliFlag(argv, "h")) {
         printUsage();
@@ -887,7 +895,8 @@ async function runSearchStage(client: ConvexHttpClient, keyword: string): Promis
 async function runAnalysisStage(
     client: ConvexHttpClient,
     keyword: string,
-    timeoutSec: number
+    timeoutSec: number,
+    writeSecret: string,
 ): Promise<StageResult> {
     const searchHits = await client.query(api.resumes.search, { query: keyword, limit: 10 });
     const listFallback = searchHits.length > 0 ? [] : await client.query(api.resumes.list, { limit: 10 });
@@ -905,6 +914,8 @@ async function runAnalysisStage(
     }
 
     const dispatchResult = await client.mutation(api.analysis_tasks.dispatch, {
+        workspaceSlug: "dev",
+        writeSecret,
         keywords: [keyword],
         resumeIds,
     });
@@ -923,7 +934,7 @@ async function runAnalysisStage(
     const taskId = dispatchResult.taskId;
 
     const pollResult = await pollTaskById(
-        () => client.query(api.analysis_tasks.list, {}),
+        () => client.query(api.analysis_tasks.list, { workspaceSlug: "dev", writeSecret }),
         taskId,
         timeoutSec,
         isAnalysisTerminal
@@ -1079,7 +1090,12 @@ export async function runVerification(
 
     let analysis: StageResult;
     try {
-        analysis = await runAnalysisStage(client, options.keyword, options.analysisTimeoutSec);
+        analysis = await runAnalysisStage(
+            client,
+            options.keyword,
+            options.analysisTimeoutSec,
+            requireAnalysisWriteSecret(),
+        );
     } catch (error) {
         analysis = stageFail(
             {

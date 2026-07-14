@@ -213,7 +213,8 @@ export default defineSchema({
     })
         .index("by_status", ["status"])
         .index("by_idempotency_status", ["idempotencyKey", "status"])
-        .index("by_job_key_status", ["jobKey", "status"]),
+        .index("by_job_key_status", ["jobKey", "status"])
+        .index("by_workspace", ["workspaceSlug"]),
 
     ai_tagging_results: defineTable({
         resumeId: v.id("resumes"),

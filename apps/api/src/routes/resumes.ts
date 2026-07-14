@@ -1491,6 +1491,8 @@ app.openapi(analyzeRoute, async (c) => {
     }
 
     const dispatchResult = parseAnalysisDispatchResult(await callConvexMutation("analysis_tasks:dispatch", {
+      workspaceSlug: c.var.workspaceSlug,
+      writeSecret: config.auth.convexWriteSecret,
       ...(normalizedJobDescriptionId
         ? { jobDescriptionId: normalizedJobDescriptionId }
         : {}),

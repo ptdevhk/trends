@@ -40,6 +40,7 @@ import {
 import { relatedExpContextValidator } from "./validators.js";
 import { getActiveColdAnalysisRow } from "./lib/resume_analysis_read.js";
 import { belongsToWorkspace } from "./search_profiles.js";
+import { DEFAULT_WORKSPACE_SLUG } from "./sessions";
 import {
     createExactAnalysisIdentity,
     projectExactTaskAuditRow,
@@ -76,12 +77,77 @@ type AnalysisDispatchResult =
     | { queued: false; reason: "maintenance" };
 
 const MAX_EXACT_ANALYSIS_TARGETS = 500;
+const ANALYSIS_TASK_LIST_LIMIT = 20;
 
 function requireAnalysisWriteSecret(writeSecret: string | undefined): void {
     const expected = process.env.CONVEX_WRITE_SECRET;
     if (!expected || writeSecret !== expected) {
         throw new Error("Unauthorized Convex write");
     }
+}
+
+function requireAnalysisReadSecret(writeSecret: string | undefined): void {
+    const expected = process.env.CONVEX_WRITE_SECRET;
+    if (!expected || writeSecret !== expected) {
+        throw new Error("Unauthorized Convex read");
+    }
+}
+
+function requireNonblankWorkspaceSlug(workspaceSlug: string, message: string): string {
+    const normalized = workspaceSlug.trim();
+    if (!normalized) {
+        throw new Error(message);
+    }
+    return normalized;
+}
+
+function scopeAnalysisTaskKey(workspaceSlug: string, key: string): string {
+    return `workspace:${workspaceSlug}:${key}`;
+}
+
+function projectAnalysisTaskForList(task: Doc<"analysis_tasks">) {
+    const projected = { ...task };
+    delete projected.targetResumeIds;
+    delete projected.targetAnalysisIdentities;
+    return projected;
+}
+
+function sortAnalysisTasksByRecencyDesc(tasks: Doc<"analysis_tasks">[]): Doc<"analysis_tasks">[] {
+    return [...tasks].sort((left, right) => right._creationTime - left._creationTime);
+}
+
+async function queryAnalysisTasksByWorkspace(
+    ctx: { db: { query: (table: "analysis_tasks") => any } },
+    workspaceSlug: string | undefined,
+    limit?: number,
+): Promise<Doc<"analysis_tasks">[]> {
+    let query = ctx.db
+        .query("analysis_tasks")
+        .withIndex("by_workspace", (q: any) => q.eq("workspaceSlug", workspaceSlug))
+        .order("desc");
+    if (limit === undefined) {
+        return await query.collect();
+    }
+    return await query.take(limit);
+}
+
+async function loadWorkspaceAnalysisTasks(
+    ctx: { db: { query: (table: "analysis_tasks") => any } },
+    workspaceSlug: string,
+    limit?: number,
+): Promise<Doc<"analysis_tasks">[]> {
+    if (workspaceSlug !== DEFAULT_WORKSPACE_SLUG) {
+        return await queryAnalysisTasksByWorkspace(ctx, workspaceSlug, limit);
+    }
+    // Legacy unscoped records (missing workspaceSlug) are visible only to dev.
+    const [explicit, legacy] = await Promise.all([
+        queryAnalysisTasksByWorkspace(ctx, workspaceSlug, limit),
+        queryAnalysisTasksByWorkspace(ctx, undefined, limit),
+    ]);
+    if (limit === undefined) {
+        return [...explicit, ...legacy];
+    }
+    return sortAnalysisTasksByRecencyDesc([...explicit, ...legacy]).slice(0, limit);
 }
 
 export function resolveAnalysisWriteTimestamp(
@@ -393,18 +459,19 @@ async function analyzeOneResume(
 }
 
 export const list = query({
-    args: {},
-    handler: async (ctx) => {
-        const tasks = await ctx.db
-            .query("analysis_tasks")
-            .order("desc")
-            .take(20);
-        return tasks.map((task) => {
-            const projected = { ...task };
-            delete projected.targetResumeIds;
-            delete projected.targetAnalysisIdentities;
-            return projected;
-        });
+    args: {
+        workspaceSlug: v.string(),
+        writeSecret: v.optional(v.string()),
+    },
+    handler: async (ctx, args) => {
+        requireAnalysisReadSecret(args.writeSecret);
+        const workspaceSlug = requireNonblankWorkspaceSlug(
+            args.workspaceSlug,
+            "Analysis task list requires a workspaceSlug",
+        );
+
+        const tasks = await loadWorkspaceAnalysisTasks(ctx, workspaceSlug, ANALYSIS_TASK_LIST_LIMIT);
+        return tasks.map(projectAnalysisTaskForList);
     },
 });
 
@@ -413,8 +480,11 @@ export const list = query({
  * Used by the restore quiesce helper to detect drain completion.
  */
 export const countProcessing = query({
-    args: {},
-    handler: async (ctx) => {
+    args: {
+        writeSecret: v.optional(v.string()),
+    },
+    handler: async (ctx, args) => {
+        requireAnalysisReadSecret(args.writeSecret);
         const processing = await ctx.db
             .query("analysis_tasks")
             .withIndex("by_status", (q) => q.eq("status", "processing"))
@@ -424,28 +494,38 @@ export const countProcessing = query({
 });
 
 export const getSummary = query({
-    args: {},
-    handler: async (ctx) => {
-        const [pending, processing, completed, failed, cancelled] = await Promise.all([
-            ctx.db.query("analysis_tasks").withIndex("by_status", q => q.eq("status", "pending")).take(100),
-            ctx.db.query("analysis_tasks").withIndex("by_status", q => q.eq("status", "processing")).take(100),
-            ctx.db.query("analysis_tasks").withIndex("by_status", q => q.eq("status", "completed")).order("desc").take(100),
-            ctx.db.query("analysis_tasks").withIndex("by_status", q => q.eq("status", "failed")).order("desc").take(100),
-            ctx.db.query("analysis_tasks").withIndex("by_status", q => q.eq("status", "cancelled")).order("desc").take(100),
-        ]);
-        return {
-            total: pending.length + processing.length + completed.length + failed.length + cancelled.length,
-            pending: pending.length,
-            processing: processing.length,
-            completed: completed.length,
-            failed: failed.length,
-            cancelled: cancelled.length,
+    args: {
+        workspaceSlug: v.string(),
+        writeSecret: v.optional(v.string()),
+    },
+    handler: async (ctx, args) => {
+        requireAnalysisReadSecret(args.writeSecret);
+        const workspaceSlug = requireNonblankWorkspaceSlug(
+            args.workspaceSlug,
+            "Analysis task summary requires a workspaceSlug",
+        );
+
+        const counts = {
+            total: 0,
+            pending: 0,
+            processing: 0,
+            completed: 0,
+            failed: 0,
+            cancelled: 0,
         };
+        const tasks = await loadWorkspaceAnalysisTasks(ctx, workspaceSlug);
+        for (const task of tasks) {
+            counts.total += 1;
+            counts[task.status] += 1;
+        }
+        return counts;
     },
 });
 
 export const dispatch = mutation({
     args: {
+        workspaceSlug: v.string(),
+        writeSecret: v.optional(v.string()),
         jobDescriptionId: v.optional(v.string()),
         jobDescriptionTitle: v.optional(v.string()),
         jobDescriptionContent: v.optional(v.string()),
@@ -458,6 +538,11 @@ export const dispatch = mutation({
         relatedExpContext: v.optional(relatedExpContextValidator),
     },
     handler: async (ctx, args): Promise<AnalysisDispatchResult> => {
+        requireAnalysisWriteSecret(args.writeSecret);
+        const workspaceSlug = requireNonblankWorkspaceSlug(
+            args.workspaceSlug,
+            "Analysis dispatch requires a workspaceSlug",
+        );
         // Refuse to queue new tasks during maintenance mode (restore quiesce)
         if (await ctx.runQuery(internal.system_settings.isMaintenanceModeInternal, {})) {
             return { queued: false, reason: "maintenance" };
@@ -474,6 +559,19 @@ export const dispatch = mutation({
             uniqueResumeIdMap.set(String(resumeId), resumeId);
         }
         const uniqueResumeIds = Array.from(uniqueResumeIdMap.values());
+        const resumes = await Promise.all(uniqueResumeIds.map((resumeId) => ctx.db.get(resumeId)));
+        for (let index = 0; index < uniqueResumeIds.length; index += 1) {
+            const resumeId = uniqueResumeIds[index];
+            const resume = resumes[index];
+            if (!resume) {
+                throw new Error(`Analysis resume ${String(resumeId)} no longer exists`);
+            }
+            if (!belongsToWorkspace(resume.workspaceSlug, workspaceSlug)) {
+                throw new Error(
+                    `Analysis resume ${String(resumeId)} belongs to workspace ${resume.workspaceSlug ?? "dev"}, not ${workspaceSlug}`,
+                );
+            }
+        }
         const derivedJobDescriptionId = args.jobDescriptionId
             || (normalizedKeywords.length > 0
                 ? buildKeywordAnalysisId(normalizedKeywords, {
@@ -481,7 +579,7 @@ export const dispatch = mutation({
                     promptVersion,
                 })
                 : undefined);
-        const jobKey = buildAnalysisDispatchJobKey({
+        const jobKey = scopeAnalysisTaskKey(workspaceSlug, buildAnalysisDispatchJobKey({
             derivedJobDescriptionId,
             jobDescriptionTitle: args.jobDescriptionTitle,
             jobDescriptionContent: args.jobDescriptionContent,
@@ -490,8 +588,8 @@ export const dispatch = mutation({
             promptVersion,
             relatedExpContext: args.relatedExpContext,
             resumeIds: uniqueResumeIds.map((resumeId) => String(resumeId)),
-        });
-        const idempotencyKey = buildAnalysisDispatchIdempotencyKey({
+        }));
+        const idempotencyKey = scopeAnalysisTaskKey(workspaceSlug, buildAnalysisDispatchIdempotencyKey({
             derivedJobDescriptionId,
             jobDescriptionTitle: args.jobDescriptionTitle,
             jobDescriptionContent: args.jobDescriptionContent,
@@ -500,7 +598,7 @@ export const dispatch = mutation({
             promptVersion,
             relatedExpContext: args.relatedExpContext,
             resumeIds: uniqueResumeIds.map((resumeId) => String(resumeId)),
-        });
+        }));
 
         const existingProcessingTask = await ctx.db
             .query("analysis_tasks")
@@ -567,6 +665,7 @@ export const dispatch = mutation({
             idempotencyKey,
             jobKey,
             dispatchMode: "search",
+            workspaceSlug,
             dispatchedAt,
             config: {
                 jobDescriptionId: derivedJobDescriptionId,
@@ -611,10 +710,10 @@ export const dispatchExact = mutation({
     },
     handler: async (ctx, args): Promise<AnalysisDispatchResult> => {
         requireAnalysisWriteSecret(args.writeSecret);
-        const workspaceSlug = args.workspaceSlug.trim();
-        if (!workspaceSlug) {
-            throw new Error("Exact analysis requires a workspaceSlug");
-        }
+        const workspaceSlug = requireNonblankWorkspaceSlug(
+            args.workspaceSlug,
+            "Exact analysis requires a workspaceSlug",
+        );
         if (args.resumeIds.length === 0) {
             throw new Error("Exact analysis requires at least one resume ID");
         }
@@ -751,17 +850,27 @@ export const dispatchExact = mutation({
 export const cancel = mutation({
     args: {
         taskId: v.id("analysis_tasks"),
+        workspaceSlug: v.string(),
+        writeSecret: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
+        requireAnalysisWriteSecret(args.writeSecret);
+        const workspaceSlug = requireNonblankWorkspaceSlug(
+            args.workspaceSlug,
+            "Analysis task cancellation requires a workspaceSlug",
+        );
         const task = await ctx.db.get(args.taskId);
-        if (!task || (task.status !== "pending" && task.status !== "processing")) {
-            return;
+        if (!task
+            || !belongsToWorkspace(task.workspaceSlug, workspaceSlug)
+            || (task.status !== "pending" && task.status !== "processing")) {
+            return null;
         }
 
         await ctx.db.patch(args.taskId, {
             status: "cancelled",
             completedAt: Date.now(),
         });
+        return null;
     },
 });
 
@@ -806,11 +915,11 @@ export const getExactStatus = query({
             targets: ExactAnalysisTargetStatus[];
         };
     } | null> => {
-        requireAnalysisWriteSecret(args.writeSecret);
-        const workspaceSlug = args.workspaceSlug.trim();
-        if (!workspaceSlug) {
-            throw new Error("Exact analysis status requires a workspaceSlug");
-        }
+        requireAnalysisReadSecret(args.writeSecret);
+        const workspaceSlug = requireNonblankWorkspaceSlug(
+            args.workspaceSlug,
+            "Exact analysis status requires a workspaceSlug",
+        );
         const task = await ctx.db.get(args.taskId);
         if (!task) {
             return null;
@@ -947,11 +1056,11 @@ export const getExactAuditExportPage = query({
         limit: v.number(),
     },
     handler: async (ctx, args) => {
-        requireAnalysisWriteSecret(args.writeSecret);
-        const workspaceSlug = args.workspaceSlug.trim();
-        if (!workspaceSlug) {
-            throw new Error("Exact task audit export requires a workspaceSlug");
-        }
+        requireAnalysisReadSecret(args.writeSecret);
+        const workspaceSlug = requireNonblankWorkspaceSlug(
+            args.workspaceSlug,
+            "Exact task audit export requires a workspaceSlug",
+        );
         if (args.cursor !== undefined
             && (args.cursor.trim().length === 0 || args.cursor.length > 4_096)) {
             throw new Error("Exact task audit export cursor is invalid");

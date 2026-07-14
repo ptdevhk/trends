@@ -9,13 +9,18 @@ import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
 import type { UrlSearchState } from '@/hooks/useUrlSearchState'
 
 const {
-  dispatchAnalysisMutationMock,
+  dispatchTaskMock,
   exportDownloadMock,
   toastErrorMock,
   toastInfoMock,
   toastSuccessMock,
 } = vi.hoisted(() => ({
-  dispatchAnalysisMutationMock: vi.fn(async () => 'analysis-task-1'),
+  dispatchTaskMock: vi.fn(async () => ({
+    queued: true,
+    taskId: 'analysis-task-1',
+    dispatchedAt: 1,
+    reused: false,
+  })),
   exportDownloadMock: vi.fn(async (apiBaseUrl: string, payload: unknown) => {
     void apiBaseUrl
     void payload
@@ -86,6 +91,7 @@ const {
   useCandidateStatusHookMock,
   useMutationMock,
   useQueryMock,
+  useAnalysisTasksMock,
   useUrlSearchStateMock,
   workspaceMock,
   mutableState,
@@ -121,6 +127,7 @@ const {
   useCandidateStatusHookMock: vi.fn(),
   useMutationMock: vi.fn(),
   useQueryMock: vi.fn(),
+  useAnalysisTasksMock: vi.fn(),
   useUrlSearchStateMock: vi.fn(),
   workspaceMock: {
     slug: 'dev',
@@ -138,6 +145,10 @@ vi.mock('@/contexts/WorkspaceContext', () => ({
 
 vi.mock('@/contexts/AuthContext', () => ({
   useAuth: () => authMock,
+}))
+
+vi.mock('@/contexts/AnalysisTasksContext', () => ({
+  useAnalysisTasks: () => useAnalysisTasksMock(),
 }))
 
 vi.mock('@/hooks/useUrlSearchState', () => ({
@@ -335,9 +346,6 @@ describe('useResumeSearchState', () => {
       if (query === 'recent-searches-query') {
         return recentSearchHistoryRecordsMock
       }
-      if (query === 'analysis-tasks-list-query') {
-        return analysisTasksMock
-      }
       if (query === 'taxonomy-clusters-list-query') {
         return taxonomyClusterRecordsMock
       }
@@ -352,7 +360,7 @@ describe('useResumeSearchState', () => {
         return markSearchHistoryOpenedMutationMock
       }
       if (mutation === 'analysis-tasks-dispatch-mutation') {
-        return dispatchAnalysisMutationMock
+        return dispatchTaskMock
       }
       return vi.fn()
     })
@@ -365,7 +373,21 @@ describe('useResumeSearchState', () => {
       loadingMore: convexQueryStateMock.loadingMore,
     }))
     exportDownloadMock.mockResolvedValue(undefined)
-    dispatchAnalysisMutationMock.mockResolvedValue('analysis-task-1')
+    dispatchTaskMock.mockResolvedValue({
+      queued: true,
+      taskId: 'analysis-task-1',
+      dispatchedAt: 1,
+      reused: false,
+    })
+    useAnalysisTasksMock.mockImplementation(() => ({
+      tasks: analysisTasksMock,
+      loading: false,
+      error: null,
+      refresh: vi.fn(),
+      dispatch: dispatchTaskMock,
+      cancel: vi.fn(),
+      canManage: true,
+    }))
   })
 
   afterEach(() => {
@@ -388,7 +410,9 @@ describe('useResumeSearchState', () => {
       undefined,
       false,
     )
-    expect(useQueryMock).toHaveBeenCalledWith('analysis-tasks-list-query', 'skip')
+    expect(useAnalysisTasksMock).toHaveBeenCalled()
+    expect(useQueryMock).not.toHaveBeenCalledWith('analysis-tasks-list-query', expect.anything())
+    expect(useMutationMock).not.toHaveBeenCalledWith('analysis-tasks-dispatch-mutation')
     expect(useQueryMock).toHaveBeenCalledWith('recent-searches-query', 'skip')
     expect(useQueryMock).toHaveBeenCalledWith('resumes:countResumesByStatus', 'skip')
     expect(result.current.searchHistoryLoading).toBe(false)
@@ -1048,7 +1072,7 @@ describe('useResumeSearchState', () => {
       await result.current.analyzeResults()
     })
 
-    expect(dispatchAnalysisMutationMock).toHaveBeenCalledWith({
+    expect(dispatchTaskMock).toHaveBeenCalledWith({
       keywords: ['CNC', '销售'],
       promptVersion: CURRENT_PROMPT_VERSION,
       relatedExpContext: {
@@ -1144,6 +1168,14 @@ describe('useResumeSearchState', () => {
       workspaceSlug: 'dev',
       limit: 10,
     })
+  })
+
+  it('consumes BFF-backed analysis tasks without a raw Convex query', () => {
+    renderHook(() => useResumeSearchState())
+
+    expect(useAnalysisTasksMock).toHaveBeenCalled()
+    expect(useQueryMock).not.toHaveBeenCalledWith('analysis-tasks-list-query', expect.anything())
+    expect(useMutationMock).not.toHaveBeenCalledWith('analysis-tasks-dispatch-mutation')
   })
 
   it('debounces search-history persistence and caps saved resume ids to the first 50', async () => {
@@ -1423,7 +1455,7 @@ describe('useResumeSearchState', () => {
 
     expect(result.current.analysisCandidateCount).toBe(12)
     expect(result.current.disableAnalyzeResults).toBe(false)
-    expect(dispatchAnalysisMutationMock).not.toHaveBeenCalled()
+    expect(dispatchTaskMock).not.toHaveBeenCalled()
 
     await act(async () => {
       result.current.submitSearch('machine tools')
@@ -1438,9 +1470,9 @@ describe('useResumeSearchState', () => {
       await Promise.resolve()
     })
 
-    expect(dispatchAnalysisMutationMock).toHaveBeenCalledTimes(1)
+    expect(dispatchTaskMock).toHaveBeenCalledTimes(1)
 
-    expect(dispatchAnalysisMutationMock).toHaveBeenCalledWith({
+    expect(dispatchTaskMock).toHaveBeenCalledWith({
       keywords: ['machine', 'tools'],
       location: 'China',
       promptVersion: CURRENT_PROMPT_VERSION,
@@ -1486,8 +1518,8 @@ describe('useResumeSearchState', () => {
       await Promise.resolve()
     })
 
-    expect(dispatchAnalysisMutationMock).toHaveBeenCalledTimes(1)
-    expect(dispatchAnalysisMutationMock).toHaveBeenCalledWith({
+    expect(dispatchTaskMock).toHaveBeenCalledTimes(1)
+    expect(dispatchTaskMock).toHaveBeenCalledWith({
       keywords: ['machine', 'tools'],
       location: 'China',
       promptVersion: CURRENT_PROMPT_VERSION,
@@ -1534,8 +1566,8 @@ describe('useResumeSearchState', () => {
       await Promise.resolve()
     })
 
-    expect(dispatchAnalysisMutationMock).toHaveBeenCalledTimes(1)
-    expect(dispatchAnalysisMutationMock).toHaveBeenCalledWith(
+    expect(dispatchTaskMock).toHaveBeenCalledTimes(1)
+    expect(dispatchTaskMock).toHaveBeenCalledWith(
       expect.objectContaining({
         resumeIds: Array.from({ length: 10 }, (_, index) => `resume-${index + 1}`),
       }),
@@ -1552,7 +1584,7 @@ describe('useResumeSearchState', () => {
     expect(result.current.analysisCandidateCount).toBe(12)
 
     // Verify the dispatch used the TOP_N-sliced batch (not all candidates)
-    expect(dispatchAnalysisMutationMock).toHaveBeenCalledWith(
+    expect(dispatchTaskMock).toHaveBeenCalledWith(
       expect.objectContaining({
         resumeIds: Array.from({ length: 10 }, (_, index) => `resume-${index + 1}`),
       }),
@@ -1734,8 +1766,8 @@ describe('useResumeSearchState', () => {
     })
 
     expect(result.current.aiModeEnabled).toBe(true)
-    expect(dispatchAnalysisMutationMock).toHaveBeenCalledTimes(1)
-    expect(dispatchAnalysisMutationMock).toHaveBeenCalledWith({
+    expect(dispatchTaskMock).toHaveBeenCalledTimes(1)
+    expect(dispatchTaskMock).toHaveBeenCalledWith({
       keywords: ['machine', 'tools'],
       location: 'China',
       promptVersion: CURRENT_PROMPT_VERSION,

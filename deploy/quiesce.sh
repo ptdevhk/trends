@@ -44,10 +44,30 @@ convex_run() {
         bash "$convex_dir" "$function_name" "$args"
 }
 
+analysis_count_processing_args() {
+    if [ -z "${CONVEX_WRITE_SECRET:-}" ]; then
+        echo "CONVEX_WRITE_SECRET is required to check analysis task drain state" >&2
+        return 1
+    fi
+
+    node -e '
+const writeSecret = process.env.CONVEX_WRITE_SECRET?.trim();
+if (!writeSecret) {
+  process.exit(1);
+}
+process.stdout.write(JSON.stringify({ writeSecret }));
+'
+}
+
 quiesce_writers() {
     local convex_dir="$1"
     local convex_url="$2"
     local reason="${3:-restore}"
+    local analysis_count_args
+
+    if ! analysis_count_args="$(analysis_count_processing_args)"; then
+        return 1
+    fi
 
     echo "=== Quiescing writers (reason: $reason) ==="
 
@@ -59,7 +79,7 @@ quiesce_writers() {
     local waited=0
     while [ "$waited" -lt "$DRAIN_MAX_WAIT" ]; do
         local analysis_pending resume_pending
-        analysis_pending=$(convex_run "$convex_dir" "$convex_url" analysis_tasks:countProcessing '{}' | grep -E '^[0-9]+$' | tail -1)
+        analysis_pending=$(convex_run "$convex_dir" "$convex_url" analysis_tasks:countProcessing "$analysis_count_args" | grep -E '^[0-9]+$' | tail -1)
         resume_pending=$(convex_run "$convex_dir" "$convex_url" resume_tasks:countProcessing '{}' | grep -E '^[0-9]+$' | tail -1)
 
         analysis_pending="${analysis_pending:-0}"

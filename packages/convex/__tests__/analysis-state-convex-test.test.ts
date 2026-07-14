@@ -9,9 +9,23 @@
  * Uses convex-test with real schema validation — no mocks.
  */
 import { createTest } from "./test-helpers.js";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { api, internal } from "../convex/_generated/api.js";
 
+const WRITE_SECRET = "test-analysis-state-secret";
+const originalWriteSecret = process.env.CONVEX_WRITE_SECRET;
+
+beforeEach(() => {
+  process.env.CONVEX_WRITE_SECRET = WRITE_SECRET;
+});
+
+afterEach(() => {
+  if (originalWriteSecret === undefined) {
+    delete process.env.CONVEX_WRITE_SECRET;
+    return;
+  }
+  process.env.CONVEX_WRITE_SECRET = originalWriteSecret;
+});
 
 // Helper: insert a minimal resume document matching schema requirements
 let _resumeCounter = 0;
@@ -40,6 +54,8 @@ async function dispatchAnalysisTask(
 ) {
   const resumeId = await insertResume(t);
   const result = await t.mutation(api.analysis_tasks.dispatch, {
+    workspaceSlug: "dev",
+    writeSecret: WRITE_SECRET,
     keywords: ["test"],
     resumeIds: [resumeId],
     ...overrides,
@@ -79,7 +95,11 @@ describe("analysis_tasks: markProcessing", () => {
     const taskId = await dispatchAnalysisTask(t);
 
     // Cancel the task first
-    await t.mutation(api.analysis_tasks.cancel, { taskId });
+    await t.mutation(api.analysis_tasks.cancel, {
+      taskId,
+      workspaceSlug: "dev",
+      writeSecret: WRITE_SECRET,
+    });
 
     const result = await t.mutation(internal.analysis_tasks.markProcessing, {
       taskId,
@@ -94,6 +114,8 @@ describe("analysis_tasks: markProcessing", () => {
     // Create and delete a task to get a valid-format ID that no longer exists
     const tempResumeId = await insertResume(t);
     const tempResult = await t.mutation(api.analysis_tasks.dispatch, {
+      workspaceSlug: "dev",
+      writeSecret: WRITE_SECRET,
       keywords: ["temp"],
       resumeIds: [tempResumeId],
     });
@@ -175,7 +197,11 @@ describe("analysis_tasks: updateProgress", () => {
 
     const taskId = await dispatchAnalysisTask(t);
 
-    await t.mutation(api.analysis_tasks.cancel, { taskId });
+    await t.mutation(api.analysis_tasks.cancel, {
+      taskId,
+      workspaceSlug: "dev",
+      writeSecret: WRITE_SECRET,
+    });
 
     const result = await t.mutation(internal.analysis_tasks.updateProgress, {
       taskId,
@@ -246,7 +272,11 @@ describe("analysis_tasks: complete", () => {
     const taskId = await dispatchAnalysisTask(t);
 
     // Cancel the task
-    await t.mutation(api.analysis_tasks.cancel, { taskId });
+    await t.mutation(api.analysis_tasks.cancel, {
+      taskId,
+      workspaceSlug: "dev",
+      writeSecret: WRITE_SECRET,
+    });
 
     // Try to complete it — should remain cancelled
     await t.mutation(internal.analysis_tasks.complete, {

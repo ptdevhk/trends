@@ -291,7 +291,10 @@ describe("analysis_tasks:dispatchExact", () => {
     const resumeId = await seedResume(t, { workspaceSlug: "dev" });
     const result = queuedResult(await dispatchExact(t, [resumeId]));
 
-    const listed = await t.query(api.analysis_tasks.list, {});
+    const listed = await t.query(api.analysis_tasks.list, {
+      workspaceSlug: "dev",
+      writeSecret: WRITE_SECRET,
+    });
     const listedTask = listed.find((task) => task._id === result.taskId);
     expect(listedTask).toBeDefined();
     expect(listedTask).not.toHaveProperty("targetResumeIds");
@@ -305,6 +308,8 @@ describe("analysis_tasks:dispatchExact", () => {
     const resumeId = await seedResume(t);
 
     const first = await t.mutation(api.analysis_tasks.dispatch, {
+      workspaceSlug: "dev",
+      writeSecret: WRITE_SECRET,
       keywords: ["python"],
       resumeIds: [resumeId],
     });
@@ -317,6 +322,8 @@ describe("analysis_tasks:dispatchExact", () => {
     if (!first.queued) throw new Error("Expected public dispatch to queue");
 
     const second = await t.mutation(api.analysis_tasks.dispatch, {
+      workspaceSlug: "dev",
+      writeSecret: WRITE_SECRET,
       keywords: ["python"],
       resumeIds: [resumeId],
     });
@@ -379,12 +386,12 @@ describe("analysis_tasks:getExactStatus", () => {
     await expect(t.query(api.analysis_tasks.getExactStatus, {
       taskId: dispatch.taskId,
       workspaceSlug: "dev",
-    })).rejects.toThrow(/Unauthorized Convex write/);
+    })).rejects.toThrow(/Unauthorized Convex read/);
     await expect(t.query(api.analysis_tasks.getExactStatus, {
       taskId: dispatch.taskId,
       workspaceSlug: "dev",
       writeSecret: "wrong-secret",
-    })).rejects.toThrow(/Unauthorized Convex write/);
+    })).rejects.toThrow(/Unauthorized Convex read/);
     await expect(t.query(api.analysis_tasks.getExactStatus, {
       taskId: dispatch.taskId,
       workspaceSlug: "hr",

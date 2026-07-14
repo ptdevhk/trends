@@ -11,10 +11,24 @@
  * Uses convex-test with real schema validation — no mocks.
  */
 import { createTest } from "./test-helpers.js";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { api } from "../convex/_generated/api.js";
 import { internal } from "../convex/_generated/api.js";
 
+const WRITE_SECRET = "test-tasks-convex-secret";
+const originalWriteSecret = process.env.CONVEX_WRITE_SECRET;
+
+beforeEach(() => {
+  process.env.CONVEX_WRITE_SECRET = WRITE_SECRET;
+});
+
+afterEach(() => {
+  if (originalWriteSecret === undefined) {
+    delete process.env.CONVEX_WRITE_SECRET;
+    return;
+  }
+  process.env.CONVEX_WRITE_SECRET = originalWriteSecret;
+});
 
 // Helper: insert a minimal resume document matching schema requirements
 let _resumeCounter = 0;
@@ -48,6 +62,8 @@ describe("analysis_tasks: dispatch", () => {
     const resumeId2 = await insertResume(t);
 
     const taskId = await t.mutation(api.analysis_tasks.dispatch, {
+      workspaceSlug: "dev",
+      writeSecret: WRITE_SECRET,
       keywords: ["python", "react"],
       location: "Shanghai",
       resumeIds: [resumeId1, resumeId2],
@@ -73,6 +89,8 @@ describe("analysis_tasks: dispatch", () => {
     const resumeId = await insertResume(t);
 
     const taskId = await t.mutation(api.analysis_tasks.dispatch, {
+      workspaceSlug: "dev",
+      writeSecret: WRITE_SECRET,
       jobDescriptionContent: "We need a senior developer...",
       resumeIds: [resumeId],
     });
@@ -92,6 +110,8 @@ describe("analysis_tasks: dispatch", () => {
 
     await expect(
       t.mutation(api.analysis_tasks.dispatch, {
+        workspaceSlug: "dev",
+        writeSecret: WRITE_SECRET,
         resumeIds: [resumeId],
       }),
     ).rejects.toThrow("Either jobDescriptionContent or keywords is required");
@@ -103,6 +123,8 @@ describe("analysis_tasks: dispatch", () => {
     const resumeId = await insertResume(t);
 
     const taskId = await t.mutation(api.analysis_tasks.dispatch, {
+      workspaceSlug: "dev",
+      writeSecret: WRITE_SECRET,
       keywords: ["test"],
       resumeIds: [resumeId, resumeId, resumeId],
     });
@@ -122,6 +144,8 @@ describe("analysis_tasks: dispatch", () => {
     const resumeId = await insertResume(t);
 
     const first = await t.mutation(api.analysis_tasks.dispatch, {
+      workspaceSlug: "dev",
+      writeSecret: WRITE_SECRET,
       keywords: ["python"],
       location: "Beijing",
       resumeIds: [resumeId],
@@ -131,6 +155,8 @@ describe("analysis_tasks: dispatch", () => {
     }
 
     const second = await t.mutation(api.analysis_tasks.dispatch, {
+      workspaceSlug: "dev",
+      writeSecret: WRITE_SECRET,
       keywords: ["python"],
       location: "Beijing",
       resumeIds: [resumeId],
@@ -159,6 +185,8 @@ describe("analysis_tasks: cancel", () => {
 
     const resumeId = await insertResume(t);
     const dispatchResult = await t.mutation(api.analysis_tasks.dispatch, {
+      workspaceSlug: "dev",
+      writeSecret: WRITE_SECRET,
       keywords: ["test"],
       resumeIds: [resumeId],
     });
@@ -167,7 +195,11 @@ describe("analysis_tasks: cancel", () => {
     }
     const taskId = dispatchResult.taskId;
 
-    await t.mutation(api.analysis_tasks.cancel, { taskId });
+    await t.mutation(api.analysis_tasks.cancel, {
+      taskId,
+      workspaceSlug: "dev",
+      writeSecret: WRITE_SECRET,
+    });
 
     const task = await t.run(async (ctx) => {
       return ctx.db.get(taskId);
@@ -181,6 +213,8 @@ describe("analysis_tasks: cancel", () => {
 
     const resumeId = await insertResume(t);
     const dispatchResult = await t.mutation(api.analysis_tasks.dispatch, {
+      workspaceSlug: "dev",
+      writeSecret: WRITE_SECRET,
       keywords: ["test"],
       resumeIds: [resumeId],
     });
@@ -197,7 +231,11 @@ describe("analysis_tasks: cancel", () => {
       });
     });
 
-    await t.mutation(api.analysis_tasks.cancel, { taskId });
+    await t.mutation(api.analysis_tasks.cancel, {
+      taskId,
+      workspaceSlug: "dev",
+      writeSecret: WRITE_SECRET,
+    });
 
     const task = await t.run(async (ctx) => {
       return ctx.db.get(taskId);

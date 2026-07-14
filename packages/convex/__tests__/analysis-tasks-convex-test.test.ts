@@ -9,9 +9,23 @@
  * callable from the analysis_tasks action context.
  */
 import { createTest } from "./test-helpers.js";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { api, internal } from "../convex/_generated/api.js";
 
+const WRITE_SECRET = "test-analysis-tasks-secret";
+const originalWriteSecret = process.env.CONVEX_WRITE_SECRET;
+
+beforeEach(() => {
+  process.env.CONVEX_WRITE_SECRET = WRITE_SECRET;
+});
+
+afterEach(() => {
+  if (originalWriteSecret === undefined) {
+    delete process.env.CONVEX_WRITE_SECRET;
+    return;
+  }
+  process.env.CONVEX_WRITE_SECRET = originalWriteSecret;
+});
 
 /** Insert a minimal resume and return its ID. */
 async function insertResume(t: ReturnType<typeof createTest>) {
@@ -58,9 +72,170 @@ describe("analysis_tasks: list + getSummary", () => {
     await insertTask(t);
     await insertTask(t, { status: "completed" });
 
-    const tasks = await t.query(api.analysis_tasks.list, {});
+    const tasks = await t.query(api.analysis_tasks.list, {
+      workspaceSlug: "dev",
+      writeSecret: WRITE_SECRET,
+    });
 
     expect(tasks.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("isolates task projections by workspace and keeps legacy records in dev", async () => {
+    const t = createTest();
+    const devTaskId = await insertTask(t, { workspaceSlug: "dev" });
+    const legacyTaskId = await insertTask(t);
+    const hrTaskId = await insertTask(t, { workspaceSlug: "hr" });
+    const otherTaskId = await insertTask(t, { workspaceSlug: "other" });
+
+    const devTasks = await t.query(api.analysis_tasks.list, {
+      workspaceSlug: "dev",
+      writeSecret: WRITE_SECRET,
+    });
+    expect(devTasks).toHaveLength(2);
+    expect(devTasks.map((task) => task._id)).toEqual(expect.arrayContaining([devTaskId, legacyTaskId]));
+
+    const hrTasks = await t.query(api.analysis_tasks.list, {
+      workspaceSlug: "hr",
+      writeSecret: WRITE_SECRET,
+    });
+    expect(hrTasks.map((task) => task._id)).toEqual([hrTaskId]);
+
+    const otherTasks = await t.query(api.analysis_tasks.list, {
+      workspaceSlug: "other",
+      writeSecret: WRITE_SECRET,
+    });
+    expect(otherTasks.map((task) => task._id)).toEqual([otherTaskId]);
+  });
+
+  it("applies the task limit after workspace filtering", async () => {
+    const t = createTest();
+    const devTaskId = await insertTask(t, { workspaceSlug: "dev" });
+    const legacyTaskId = await insertTask(t);
+    for (let index = 0; index < 25; index += 1) {
+      await insertTask(t, { workspaceSlug: "hr" });
+    }
+
+    const devTasks = await t.query(api.analysis_tasks.list, {
+      workspaceSlug: "dev",
+      writeSecret: WRITE_SECRET,
+    });
+    expect(devTasks).toHaveLength(2);
+    expect(devTasks.map((task) => task._id)).toEqual(expect.arrayContaining([devTaskId, legacyTaskId]));
+
+    const hrTasks = await t.query(api.analysis_tasks.list, {
+      workspaceSlug: "hr",
+      writeSecret: WRITE_SECRET,
+    });
+    expect(hrTasks).toHaveLength(20);
+    expect(hrTasks.every((task) => task.workspaceSlug === "hr")).toBe(true);
+  });
+
+  it("merges explicit-dev and legacy-unscoped tasks before applying the newest-20 limit", async () => {
+    const t = createTest();
+    const expectedIds: string[] = [];
+
+    // Older foreign noise that must never appear in the merged top-20.
+    for (let index = 0; index < 30; index += 1) {
+      await insertTask(t, { workspaceSlug: "hr", status: "completed" });
+    }
+    // Explicit dev + legacy unscoped candidates for the merged ranking window.
+    for (let index = 0; index < 15; index += 1) {
+      expectedIds.push(await insertTask(t, { workspaceSlug: "dev", status: "pending" }));
+    }
+    for (let index = 0; index < 15; index += 1) {
+      expectedIds.push(await insertTask(t, { status: "completed" }));
+    }
+    // More foreign noise after the candidates (newer by insertion order).
+    for (let index = 0; index < 30; index += 1) {
+      await insertTask(t, { workspaceSlug: "hr", status: "failed" });
+    }
+
+    const devTasks = await t.query(api.analysis_tasks.list, {
+      workspaceSlug: "dev",
+      writeSecret: WRITE_SECRET,
+    });
+
+    expect(devTasks).toHaveLength(20);
+    expect(devTasks.every((task) => task.workspaceSlug === "dev" || task.workspaceSlug === undefined)).toBe(true);
+    // Newest 20 of the 30 allowed candidates (15 explicit + 15 legacy), never the later HR noise.
+    expect(devTasks.map((task) => task._id)).toEqual(expectedIds.slice(-20).reverse());
+  });
+
+  it("summarizes only the requested workspace without counting foreign tasks", async () => {
+    const t = createTest();
+
+    await insertTask(t, { workspaceSlug: "dev", status: "pending" });
+    await insertTask(t, { status: "completed" }); // legacy → dev
+    await insertTask(t, { workspaceSlug: "hr", status: "failed" });
+    await insertTask(t, { workspaceSlug: "hr", status: "pending" });
+    for (let index = 0; index < 40; index += 1) {
+      await insertTask(t, { workspaceSlug: "other", status: "cancelled" });
+    }
+
+    const devSummary = await t.query(api.analysis_tasks.getSummary, {
+      workspaceSlug: "dev",
+      writeSecret: WRITE_SECRET,
+    });
+    expect(devSummary).toEqual({
+      total: 2,
+      pending: 1,
+      processing: 0,
+      completed: 1,
+      failed: 0,
+      cancelled: 0,
+    });
+
+    const hrSummary = await t.query(api.analysis_tasks.getSummary, {
+      workspaceSlug: "hr",
+      writeSecret: WRITE_SECRET,
+    });
+    expect(hrSummary).toEqual({
+      total: 2,
+      pending: 1,
+      processing: 0,
+      completed: 0,
+      failed: 1,
+      cancelled: 0,
+    });
+  });
+
+  it("uses workspace-oriented indexes for list and getSummary instead of a global full-table collect", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { fileURLToPath } = await import("node:url");
+    const sourcePath = fileURLToPath(new URL("../convex/analysis_tasks.ts", import.meta.url));
+    const source = readFileSync(sourcePath, "utf8");
+
+    const listHandler = source.match(/export const list = query\(\{[\s\S]*?handler:\s*async[\s\S]*?\n\}\);/);
+    const summaryHandler = source.match(/export const getSummary = query\(\{[\s\S]*?handler:\s*async[\s\S]*?\n\}\);/);
+    expect(listHandler?.[0]).toBeTruthy();
+    expect(summaryHandler?.[0]).toBeTruthy();
+
+    // Handlers must route through the workspace-scoped loader (not a global collect).
+    expect(listHandler![0]).toContain("loadWorkspaceAnalysisTasks");
+    expect(summaryHandler![0]).toContain("loadWorkspaceAnalysisTasks");
+    expect(listHandler![0]).not.toMatch(/\.query\("analysis_tasks"\)\s*\n?\s*\.order\("desc"\)\s*\n?\s*\.collect\(\)/);
+    expect(summaryHandler![0]).not.toMatch(/\.query\("analysis_tasks"\)\s*\.collect\(\)/);
+
+    // Shared query helper uses the workspace index; loader calls it for explicit (+ legacy for dev).
+    expect(source).toMatch(/function queryAnalysisTasksByWorkspace[\s\S]*?withIndex\("by_workspace"/);
+    expect(source).toContain("loadWorkspaceAnalysisTasks");
+    expect(source).toContain("queryAnalysisTasksByWorkspace");
+    expect(source).not.toMatch(
+      /export const list = query\(\{[\s\S]*?\.query\("analysis_tasks"\)\s*\n?\s*\.order\("desc"\)\s*\n?\s*\.collect\(\)/,
+    );
+    expect(source).not.toMatch(
+      /export const getSummary = query\(\{[\s\S]*?\.query\("analysis_tasks"\)\s*\.collect\(\)/,
+    );
+  });
+
+  it("declares a workspace index on analysis_tasks", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { fileURLToPath } = await import("node:url");
+    const sourcePath = fileURLToPath(new URL("../convex/schema.ts", import.meta.url));
+    const source = readFileSync(sourcePath, "utf8");
+    const analysisTable = source.match(/analysis_tasks:\s*defineTable\(\{[\s\S]*?\}\)\s*[\s\S]*?(?=\n\s{4}[a-z_]+:\s*defineTable)/);
+    expect(analysisTable?.[0]).toBeTruthy();
+    expect(analysisTable![0]).toContain('.index("by_workspace", ["workspaceSlug"])');
   });
 
   it("returns summary counts by status", async () => {
@@ -70,12 +245,35 @@ describe("analysis_tasks: list + getSummary", () => {
     await insertTask(t, { status: "completed" });
     await insertTask(t, { status: "failed" });
 
-    const summary = await t.query(api.analysis_tasks.getSummary, {});
+    const summary = await t.query(api.analysis_tasks.getSummary, {
+      workspaceSlug: "dev",
+      writeSecret: WRITE_SECRET,
+    });
 
     expect(summary.pending).toBeGreaterThanOrEqual(1);
     expect(summary.completed).toBeGreaterThanOrEqual(1);
     expect(summary.failed).toBeGreaterThanOrEqual(1);
     expect(summary.total).toBeGreaterThanOrEqual(3);
+  });
+
+  it("rejects task metadata reads without the service secret", async () => {
+    const t = createTest();
+
+    await expect(t.query(api.analysis_tasks.list, { workspaceSlug: "hr" }))
+      .rejects.toThrow("Unauthorized Convex read");
+    await expect(t.query(api.analysis_tasks.getSummary, { workspaceSlug: "hr" }))
+      .rejects.toThrow("Unauthorized Convex read");
+  });
+
+  it("requires the service secret for the global processing count", async () => {
+    const t = createTest();
+
+    await insertTask(t, { status: "processing", workspaceSlug: "hr" });
+
+    await expect(t.query(api.analysis_tasks.countProcessing, {}))
+      .rejects.toThrow("Unauthorized Convex read");
+    await expect(t.query(api.analysis_tasks.countProcessing, { writeSecret: WRITE_SECRET }))
+      .resolves.toBe(1);
   });
 });
 
@@ -90,6 +288,8 @@ describe("analysis_tasks: dispatch", () => {
     const resumeId = await insertResume(t);
 
     const result = await t.mutation(api.analysis_tasks.dispatch, {
+      workspaceSlug: "dev",
+      writeSecret: WRITE_SECRET,
       keywords: ["python", "sales"],
       resumeIds: [resumeId],
     });
@@ -101,10 +301,95 @@ describe("analysis_tasks: dispatch", () => {
       reused: false,
     });
 
-    const tasks = await t.query(api.analysis_tasks.list, {});
+    const tasks = await t.query(api.analysis_tasks.list, {
+      workspaceSlug: "dev",
+      writeSecret: WRITE_SECRET,
+    });
     expect(tasks).toHaveLength(1);
     expect(tasks[0].status).toBe("pending");
+    expect(tasks[0].workspaceSlug).toBe("dev");
     expect(tasks[0].config.keywords).toEqual(["python", "sales"]);
+  });
+
+  it("rejects missing or mismatched service secrets before creating a task", async () => {
+    const t = createTest();
+    const resumeId = await insertResume(t);
+
+    await expect(t.mutation(api.analysis_tasks.dispatch, {
+      workspaceSlug: "dev",
+      keywords: ["sales"],
+      resumeIds: [resumeId],
+    })).rejects.toThrow("Unauthorized Convex write");
+    await expect(t.mutation(api.analysis_tasks.dispatch, {
+      workspaceSlug: "dev",
+      writeSecret: "wrong-secret",
+      keywords: ["sales"],
+      resumeIds: [resumeId],
+    })).rejects.toThrow("Unauthorized Convex write");
+
+    expect(await t.run((ctx) => ctx.db.query("analysis_tasks").collect())).toEqual([]);
+  });
+
+  it("persists normal tasks for the requested HR workspace", async () => {
+    const t = createTest();
+    const resumeId = await t.run((ctx) => ctx.db.insert("resumes", {
+      externalId: "hr-analysis-resume",
+      content: { name: "Synthetic HR Resume" },
+      hash: "hr-analysis-resume-hash",
+      tags: [],
+      crawledAt: 1,
+      source: "test",
+      workspaceSlug: "hr",
+    }));
+
+    const result = await t.mutation(api.analysis_tasks.dispatch, {
+      workspaceSlug: "hr",
+      writeSecret: WRITE_SECRET,
+      keywords: ["sales"],
+      resumeIds: [resumeId],
+    });
+    expect(result).toMatchObject({ queued: true, reused: false });
+
+    const tasks = await t.query(api.analysis_tasks.list, {
+      workspaceSlug: "hr",
+      writeSecret: WRITE_SECRET,
+    });
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0].workspaceSlug).toBe("hr");
+  });
+
+  it("does not reuse matching job keys across workspaces", async () => {
+    const t = createTest();
+    const devResumeId = await insertResume(t);
+    const hrResumeId = await t.run((ctx) => ctx.db.insert("resumes", {
+      externalId: "hr-reuse-resume",
+      content: { name: "Synthetic HR Reuse Resume" },
+      hash: "hr-reuse-resume-hash",
+      tags: [],
+      crawledAt: 1,
+      source: "test",
+      workspaceSlug: "hr",
+    }));
+
+    const devResult = await t.mutation(api.analysis_tasks.dispatch, {
+      workspaceSlug: "dev",
+      writeSecret: WRITE_SECRET,
+      keywords: ["sales"],
+      resumeIds: [devResumeId],
+    });
+    const hrResult = await t.mutation(api.analysis_tasks.dispatch, {
+      workspaceSlug: "hr",
+      writeSecret: WRITE_SECRET,
+      keywords: ["sales"],
+      resumeIds: [hrResumeId],
+    });
+
+    expect(devResult).toMatchObject({ queued: true, reused: false });
+    expect(hrResult).toMatchObject({ queued: true, reused: false });
+    if (!devResult.queued || !hrResult.queued) {
+      throw new Error("Expected both workspace dispatches to queue");
+    }
+    expect(hrResult.taskId).not.toBe(devResult.taskId);
   });
 
   it("throws when neither jobDescriptionContent nor keywords provided", async () => {
@@ -114,6 +399,8 @@ describe("analysis_tasks: dispatch", () => {
 
     await expect(
       t.mutation(api.analysis_tasks.dispatch, {
+        workspaceSlug: "dev",
+        writeSecret: WRITE_SECRET,
         resumeIds: [resumeId],
       }),
     ).rejects.toThrow("Either jobDescriptionContent or keywords is required");
@@ -125,6 +412,8 @@ describe("analysis_tasks: dispatch", () => {
     const resumeId = await insertResume(t);
 
     const taskId = await t.mutation(api.analysis_tasks.dispatch, {
+      workspaceSlug: "dev",
+      writeSecret: WRITE_SECRET,
       keywords: ["cnc", "sales"],
       resumeIds: [resumeId],
       relatedExpContext: {
@@ -136,7 +425,10 @@ describe("analysis_tasks: dispatch", () => {
     });
 
     expect(taskId).toBeDefined();
-    const tasks = await t.query(api.analysis_tasks.list, {});
+    const tasks = await t.query(api.analysis_tasks.list, {
+      workspaceSlug: "dev",
+      writeSecret: WRITE_SECRET,
+    });
     expect(tasks[0].config.relatedExpContext).toBeDefined();
     expect(tasks[0].config.relatedExpContext?.roleFilterType).toBe("sales");
     expect(tasks[0].config.relatedExpContext?.minRoleYears).toBe(1);
@@ -149,12 +441,17 @@ describe("analysis_tasks: dispatch", () => {
     const resumeId = await insertResume(t);
 
     const taskId = await t.mutation(api.analysis_tasks.dispatch, {
+      workspaceSlug: "dev",
+      writeSecret: WRITE_SECRET,
       keywords: ["python"],
       resumeIds: [resumeId],
     });
 
     expect(taskId).toBeDefined();
-    const tasks = await t.query(api.analysis_tasks.list, {});
+    const tasks = await t.query(api.analysis_tasks.list, {
+      workspaceSlug: "dev",
+      writeSecret: WRITE_SECRET,
+    });
     // relatedExpContext is optional — absent when not provided
     expect(tasks[0].config.relatedExpContext).toBeUndefined();
   });
@@ -164,6 +461,8 @@ describe("analysis_tasks: dispatch", () => {
     const resumeId = await insertResume(t);
 
     const taskId = await t.mutation(api.analysis_tasks.dispatch, {
+      workspaceSlug: "dev",
+      writeSecret: WRITE_SECRET,
       keywords: ["sales"],
       resumeIds: [resumeId],
       relatedExpContext: {
@@ -172,9 +471,46 @@ describe("analysis_tasks: dispatch", () => {
     });
 
     expect(taskId).toBeDefined();
-    const tasks = await t.query(api.analysis_tasks.list, {});
+    const tasks = await t.query(api.analysis_tasks.list, {
+      workspaceSlug: "dev",
+      writeSecret: WRITE_SECRET,
+    });
     expect(tasks[0].config.relatedExpContext?.roleFilterType).toBe("any");
     expect(tasks[0].config.relatedExpContext?.minRoleYears).toBeUndefined();
+  });
+
+  it("rejects a foreign resume before creating a normal task", async () => {
+    const t = createTest();
+    const foreignResumeId = await t.run((ctx) => ctx.db.insert("resumes", {
+      externalId: "foreign-analysis-resume",
+      content: { name: "Synthetic Foreign Resume" },
+      hash: "foreign-analysis-resume-hash",
+      tags: [],
+      crawledAt: 1,
+      source: "test",
+      workspaceSlug: "hr",
+    }));
+
+    await expect(t.mutation(api.analysis_tasks.dispatch, {
+      workspaceSlug: "dev",
+      writeSecret: WRITE_SECRET,
+      keywords: ["sales"],
+      resumeIds: [foreignResumeId],
+    })).rejects.toThrow("belongs to workspace");
+  });
+
+  it("rejects a missing resume before creating a normal task", async () => {
+    const t = createTest();
+    const resumeId = await insertResume(t);
+    await t.run((ctx) => ctx.db.delete(resumeId));
+
+    await expect(t.mutation(api.analysis_tasks.dispatch, {
+      workspaceSlug: "dev",
+      writeSecret: WRITE_SECRET,
+      keywords: ["sales"],
+      resumeIds: [resumeId],
+    })).rejects.toThrow("no longer exists");
+    expect(await t.run((ctx) => ctx.db.query("analysis_tasks").collect())).toEqual([]);
   });
 });
 
@@ -188,7 +524,11 @@ describe("analysis_tasks: cancel", () => {
 
     const taskId = await insertTask(t, { status: "pending" });
 
-    await t.mutation(api.analysis_tasks.cancel, { taskId });
+    await t.mutation(api.analysis_tasks.cancel, {
+      taskId,
+      workspaceSlug: "dev",
+      writeSecret: WRITE_SECRET,
+    });
 
     const task = await t.query(internal.analysis_tasks.getTask, { taskId });
     expect(task!.status).toBe("cancelled");
@@ -203,11 +543,48 @@ describe("analysis_tasks: cancel", () => {
       completedAt: Date.now(),
     });
 
-    await t.mutation(api.analysis_tasks.cancel, { taskId });
+    await t.mutation(api.analysis_tasks.cancel, {
+      taskId,
+      workspaceSlug: "dev",
+      writeSecret: WRITE_SECRET,
+    });
 
     // Status should remain completed
     const task = await t.query(internal.analysis_tasks.getTask, { taskId });
     expect(task!.status).toBe("completed");
+  });
+
+  it("does not cancel a task from another workspace", async () => {
+    const t = createTest();
+    const taskId = await insertTask(t, { workspaceSlug: "hr" });
+
+    await expect(t.mutation(api.analysis_tasks.cancel, {
+      taskId,
+      workspaceSlug: "dev",
+      writeSecret: WRITE_SECRET,
+    })).resolves.toBeNull();
+
+    const task = await t.query(internal.analysis_tasks.getTask, { taskId });
+    expect(task!.status).toBe("pending");
+  });
+
+  it("rejects missing or mismatched secrets before cancelling a task", async () => {
+    const t = createTest();
+    const taskId = await insertTask(t, { workspaceSlug: "dev" });
+
+    await expect(t.mutation(api.analysis_tasks.cancel, {
+      taskId,
+      workspaceSlug: "dev",
+    })).rejects.toThrow("Unauthorized Convex write");
+    await expect(t.mutation(api.analysis_tasks.cancel, {
+      taskId,
+      workspaceSlug: "dev",
+      writeSecret: "wrong-secret",
+    })).rejects.toThrow("Unauthorized Convex write");
+
+    const task = await t.query(internal.analysis_tasks.getTask, { taskId });
+    expect(task!.status).toBe("pending");
+    expect(task!.completedAt).toBeUndefined();
   });
 });
 
@@ -374,7 +751,10 @@ describe("analysis_tasks: sweepStuckTasks", () => {
 
     expect(result.swept).toBe(1);
 
-    const tasks = await t.query(api.analysis_tasks.list, {});
+    const tasks = await t.query(api.analysis_tasks.list, {
+      workspaceSlug: "dev",
+      writeSecret: WRITE_SECRET,
+    });
     expect(tasks[0].status).toBe("failed");
     expect(tasks[0].error).toContain("stuck in processing");
   });

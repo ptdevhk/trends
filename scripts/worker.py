@@ -298,7 +298,17 @@ async def process_task(task, client: httpx.AsyncClient):
         if result and isinstance(result, dict) and result.get("status") == "cancelled":
             raise CancellationError("Task was cancelled by user")
 
+    analysis_workspace_slug: Optional[str] = None
+    analysis_write_secret: Optional[str] = None
     try:
+        if auto_analyze:
+            analysis_workspace_slug = _read_str(os.environ.get("WORKSPACE_SLUG"))
+            analysis_write_secret = _read_str(os.environ.get("CONVEX_WRITE_SECRET"))
+            if not analysis_workspace_slug:
+                raise RuntimeError("WORKSPACE_SLUG is required for auto-analysis dispatch")
+            if not analysis_write_secret:
+                raise RuntimeError("CONVEX_WRITE_SECRET is required for auto-analysis dispatch")
+
         # Initial check
         await on_progress(0, 0)
         
@@ -420,7 +430,11 @@ async def process_task(task, client: httpx.AsyncClient):
                         if isinstance(item, dict) and item.get("_id")
                     ]
                     if resume_ids:
+                        if not analysis_workspace_slug or not analysis_write_secret:
+                            raise RuntimeError("Auto-analysis dispatch authority is unavailable")
                         analysis_task_id = await convex_mutation(client, "analysis_tasks:dispatch", {
+                            "workspaceSlug": analysis_workspace_slug,
+                            "writeSecret": analysis_write_secret,
                             "keywords": [keyword],
                             "resumeIds": resume_ids,
                         })

@@ -9,9 +9,23 @@
  * Uses convex-test with real schema validation — no mocks.
  */
 import { createTest } from "./test-helpers.js";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { api, internal } from "../convex/_generated/api.js";
 
+const WRITE_SECRET = "test-queries-analysis-secret";
+const originalWriteSecret = process.env.CONVEX_WRITE_SECRET;
+
+beforeEach(() => {
+  process.env.CONVEX_WRITE_SECRET = WRITE_SECRET;
+});
+
+afterEach(() => {
+  if (originalWriteSecret === undefined) {
+    delete process.env.CONVEX_WRITE_SECRET;
+    return;
+  }
+  process.env.CONVEX_WRITE_SECRET = originalWriteSecret;
+});
 
 // Helper: insert a minimal resume document matching schema requirements
 let _resumeCounter = 0;
@@ -40,6 +54,8 @@ async function dispatchAnalysisTask(
 ) {
   const resumeId = await insertResume(t);
   const result = await t.mutation(api.analysis_tasks.dispatch, {
+    workspaceSlug: "dev",
+    writeSecret: WRITE_SECRET,
     keywords: ["test"],
     resumeIds: [resumeId],
     ...overrides,
@@ -78,7 +94,10 @@ describe("analysis_tasks: list", () => {
     await dispatchAnalysisTask(t);
     await dispatchAnalysisTask(t, { keywords: ["golang"] });
 
-    const results = await t.query(api.analysis_tasks.list, {});
+    const results = await t.query(api.analysis_tasks.list, {
+      workspaceSlug: "dev",
+      writeSecret: WRITE_SECRET,
+    });
 
     expect(results).toHaveLength(2);
   });
@@ -86,7 +105,10 @@ describe("analysis_tasks: list", () => {
   it("returns empty array when no tasks exist", async () => {
     const t = createTest();
 
-    const results = await t.query(api.analysis_tasks.list, {});
+    const results = await t.query(api.analysis_tasks.list, {
+      workspaceSlug: "dev",
+      writeSecret: WRITE_SECRET,
+    });
 
     expect(results).toHaveLength(0);
   });
@@ -103,7 +125,10 @@ describe("analysis_tasks: getSummary", () => {
     await dispatchAnalysisTask(t);
     await dispatchAnalysisTask(t, { keywords: ["golang"] });
 
-    const summary = await t.query(api.analysis_tasks.getSummary, {});
+    const summary = await t.query(api.analysis_tasks.getSummary, {
+      workspaceSlug: "dev",
+      writeSecret: WRITE_SECRET,
+    });
 
     expect(summary.total).toBe(2);
     expect(summary.pending).toBe(2);
@@ -120,9 +145,16 @@ describe("analysis_tasks: getSummary", () => {
     await dispatchAnalysisTask(t, { keywords: ["golang"] });
 
     // Cancel one task
-    await t.mutation(api.analysis_tasks.cancel, { taskId });
+    await t.mutation(api.analysis_tasks.cancel, {
+      taskId,
+      workspaceSlug: "dev",
+      writeSecret: WRITE_SECRET,
+    });
 
-    const summary = await t.query(api.analysis_tasks.getSummary, {});
+    const summary = await t.query(api.analysis_tasks.getSummary, {
+      workspaceSlug: "dev",
+      writeSecret: WRITE_SECRET,
+    });
 
     expect(summary.pending).toBe(1);
     expect(summary.cancelled).toBe(1);
@@ -131,7 +163,10 @@ describe("analysis_tasks: getSummary", () => {
   it("returns zeros when no tasks exist", async () => {
     const t = createTest();
 
-    const summary = await t.query(api.analysis_tasks.getSummary, {});
+    const summary = await t.query(api.analysis_tasks.getSummary, {
+      workspaceSlug: "dev",
+      writeSecret: WRITE_SECRET,
+    });
 
     expect(summary.total).toBe(0);
     expect(summary.pending).toBe(0);
@@ -160,6 +195,8 @@ describe("analysis_tasks: getTask", () => {
     // Create and delete a task to get a valid-format ID that no longer exists
     const tempResumeId = await insertResume(t);
     const tempResult = await t.mutation(api.analysis_tasks.dispatch, {
+      workspaceSlug: "dev",
+      writeSecret: WRITE_SECRET,
       keywords: ["temp"],
       resumeIds: [tempResumeId],
     });

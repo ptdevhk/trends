@@ -9,6 +9,7 @@ import { MatchStorage, type StoredMatch } from "../services/match-storage";
 import { ResumeService } from "../services/resume-service";
 import { SessionManager } from "../services/session-manager";
 import { logger } from "../services/logger";
+import { config } from "../services/config";
 import { parseJsonBody } from "../test-utils";
 import { createAuthContext } from "./test-auth-helpers";
 
@@ -1955,6 +1956,8 @@ describe("resume routes", () => {
 
       if (call.pathName === "analysis_tasks:dispatch") {
         expect(call.args).toEqual(expect.objectContaining({
+          workspaceSlug: "dev",
+          writeSecret: config.auth.convexWriteSecret,
           keywords: ["cnc", "销售"],
           resumeIds: ["resume-live-1"],
           relatedExpContext: {

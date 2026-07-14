@@ -262,13 +262,13 @@ describe("analysis_tasks:getExactAuditExportPage", () => {
       taskId,
       workspaceSlug: "dev",
       limit: 100,
-    })).rejects.toThrow(/Unauthorized Convex write/);
+    })).rejects.toThrow(/Unauthorized Convex read/);
     await expect(getAuditPage(t, {
       taskId,
       workspaceSlug: "dev",
       writeSecret: "wrong-secret",
       limit: 100,
-    })).rejects.toThrow(/Unauthorized Convex write/);
+    })).rejects.toThrow(/Unauthorized Convex read/);
     await expect(getAuditPage(t, {
       taskId,
       workspaceSlug: " ",

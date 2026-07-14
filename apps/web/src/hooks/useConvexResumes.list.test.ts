@@ -16,6 +16,8 @@ type KeywordExpansionResponse = {
 }
 
 const loadMoreMock = vi.fn()
+const useQueryMock = vi.hoisted(() => vi.fn())
+const useAnalysisTasksMock = vi.hoisted(() => vi.fn())
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const rawApiGetMock = vi.fn(async (path?: unknown, _options?: unknown): Promise<KeywordExpansionResponse> => {
   if (typeof path === 'string' && path === '/api/resumes') {
@@ -65,7 +67,15 @@ const usePaginatedQueryMock = vi.fn<(
 vi.mock('convex/react', () => ({
   usePaginatedQuery: (query: unknown, args: unknown, options: { initialNumItems: number }) =>
     usePaginatedQueryMock(query, args, options),
-  useQuery: () => undefined,
+  useQuery: (...args: unknown[]) => useQueryMock(...args),
+}))
+
+vi.mock('@/contexts/WorkspaceContext', () => ({
+  useWorkspace: () => ({ slug: 'dev' }),
+}))
+
+vi.mock('@/contexts/AnalysisTasksContext', () => ({
+  useAnalysisTasks: () => useAnalysisTasksMock(),
 }))
 
 vi.mock('../../../../packages/convex/convex/_generated/api', () => ({
@@ -148,6 +158,15 @@ const skipPaginatedResult: PaginatedResult = {
 describe('useConvexResumes list path', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    useAnalysisTasksMock.mockReturnValue({
+      tasks: [],
+      loading: false,
+      error: null,
+      refresh: vi.fn(),
+      dispatch: vi.fn(),
+      cancel: vi.fn(),
+      canManage: true,
+    })
     rawApiPostMock.mockImplementation(async (...args: unknown[]) => {
       void args
       return {
@@ -160,6 +179,13 @@ describe('useConvexResumes list path', () => {
     usePaginatedQueryMock.mockImplementation((_query, args) =>
       args === 'skip' ? skipPaginatedResult : exhaustedPaginatedResult,
     )
+  })
+
+  it('gets analysis-task refetch state from the BFF-backed context', () => {
+    renderHook(() => useConvexResumes(200))
+
+    expect(useAnalysisTasksMock).toHaveBeenCalled()
+    expect(useQueryMock).not.toHaveBeenCalledWith('analysis_tasks:list', expect.anything())
   })
 
   it('loads additional list pages when the requested limit exceeds the loaded page', async () => {

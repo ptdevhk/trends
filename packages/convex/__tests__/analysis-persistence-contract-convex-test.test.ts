@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   buildResumeAnalysisStorageKey,
   resolveResumeAnalysisSourceKey,
@@ -15,6 +15,8 @@ import {
 const JOB_DESCRIPTION_ID = "jd-analysis-persistence";
 const SOURCE = "hr.job5156.com";
 const LOCALE = "zh-Hans";
+const WRITE_SECRET = "test-analysis-persistence-secret";
+const originalWriteSecret = process.env.CONVEX_WRITE_SECRET;
 
 const INGEST_DATA = {
   industryTags: ["machine tools"],
@@ -65,9 +67,18 @@ function expectedAnalysisKey(): string {
   });
 }
 
+beforeEach(() => {
+  process.env.CONVEX_WRITE_SECRET = WRITE_SECRET;
+});
+
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
+  if (originalWriteSecret === undefined) {
+    delete process.env.CONVEX_WRITE_SECRET;
+    return;
+  }
+  process.env.CONVEX_WRITE_SECRET = originalWriteSecret;
 });
 
 describe("persisted analysis contract", () => {
@@ -84,6 +95,8 @@ describe("persisted analysis contract", () => {
     const expected = normalizeAnalysisResult(LLM_RESULT, resume);
 
     const dispatch = await t.mutation(api.analysis_tasks.dispatch, {
+      workspaceSlug: "dev",
+      writeSecret: WRITE_SECRET,
       jobDescriptionId: JOB_DESCRIPTION_ID,
       jobDescriptionTitle: "Imported machine-tool sales",
       jobDescriptionContent: "Sell imported complete machines",

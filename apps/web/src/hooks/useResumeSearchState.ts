@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { logSearchEvent } from '@/lib/search-analytics'
 import { api } from '../../../../packages/convex/convex/_generated/api'
 import { useAuth } from '@/contexts/AuthContext'
+import { useAnalysisTasks } from '@/contexts/AnalysisTasksContext'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { useCandidateActions } from '@/hooks/useCandidateActions'
 import { useCandidateBlocks } from '@/hooks/useCandidateBlocks'
@@ -755,11 +756,7 @@ export function useResumeSearchState() {
   const markSearchHistoryOpened = useMutation(
     api.sessions.markSearchHistoryOpened,
   )
-  const dispatchAnalysis = useMutation(api.analysis_tasks.dispatch)
-  const analysisTasks = useQuery(
-    api.analysis_tasks.list,
-    canLoadOperationalState ? {} : 'skip',
-  )
+  const { tasks: analysisTasks, dispatch: dispatchAnalysis } = useAnalysisTasks()
   const recentSearchHistoryRecords = useQuery(
     api.sessions.recentSearches,
     canLoadOperationalState
@@ -1142,6 +1139,7 @@ export function useResumeSearchState() {
     analysisCandidateResumeIds.length === 0 ||
     analyzingResults ||
     hasActiveAnalysisTask ||
+    !dispatchAnalysis ||
     (!parsedState.jobDescriptionId && analysisKeywords.length === 0)
   const filterCount =
     parsedState.selectedTags.length +
@@ -1694,6 +1692,11 @@ export function useResumeSearchState() {
   }, [apiBaseUrl, exportFormat, filteredResults, parsedState.jobDescriptionId, ratingsByResume, sessionKey]) // selectedIds excluded on purpose — export uses snapshot at call time
 
   const analyzeResults = useCallback(async () => {
+    if (!dispatchAnalysis) {
+      toast.error('AI analysis is unavailable for this account.')
+      return
+    }
+
     if (analysisDispatchBatchIds.length === 0) {
       toast.info('No new candidates to analyze among loaded results.')
       return

@@ -41,6 +41,10 @@ vi.mock('@/contexts/AuthContext', () => ({
   AuthProvider: ({ children }: { children: React.ReactNode }) => children,
 }))
 
+vi.mock('@/contexts/AnalysisTasksContext', () => ({
+  AnalysisTasksProvider: ({ children }: { children: React.ReactNode }) => children,
+}))
+
 vi.mock('@/contexts/BrandDisplayMapContext', () => ({
   BrandDisplayMapProvider: ({ children }: { children: React.ReactNode }) => children,
 }))

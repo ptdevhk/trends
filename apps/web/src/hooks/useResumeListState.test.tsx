@@ -14,6 +14,15 @@ let capturedExportPayload: unknown = null
 const createObjectUrlMock = vi.fn(() => 'blob:mock')
 const revokeObjectUrlMock = vi.fn()
 const anchorClickMock = vi.fn()
+const useQueryMock = vi.hoisted(() => vi.fn((..._args: unknown[]) => []))
+const useMutationMock = vi.hoisted(() => vi.fn(() => vi.fn(async () => ({}))))
+const dispatchTaskMock = vi.hoisted(() => vi.fn(async () => ({
+  queued: true,
+  taskId: 'analysis-task-1',
+  dispatchedAt: 1,
+  reused: false,
+})))
+const useAnalysisTasksMock = vi.hoisted(() => vi.fn())
 
 const mockState = vi.hoisted(() => ({
   convexResumes: [] as ConvexResumeItem[],
@@ -105,8 +114,16 @@ vi.mock('react-router-dom', () => ({
 }))
 
 vi.mock('convex/react', () => ({
-  useQuery: () => [],
-  useMutation: () => vi.fn(async () => ({})),
+  useQuery: (...args: unknown[]) => useQueryMock(...args),
+  useMutation: (_mutation: unknown) => useMutationMock(),
+}))
+
+vi.mock('@/contexts/WorkspaceContext', () => ({
+  useWorkspace: () => ({ slug: 'dev' }),
+}))
+
+vi.mock('@/contexts/AnalysisTasksContext', () => ({
+  useAnalysisTasks: () => useAnalysisTasksMock(),
 }))
 
 vi.mock('@/hooks/useSession', () => ({
@@ -353,6 +370,68 @@ function getLastConvexArgs() {
 }
 
 describe('useResumeListState role filter regression', () => {
+  it('uses the BFF-backed task context instead of raw Convex task operations', () => {
+    renderHook(() => useResumeListState())
+
+    expect(useAnalysisTasksMock).toHaveBeenCalled()
+    expect(useQueryMock).not.toHaveBeenCalled()
+    expect(useMutationMock).not.toHaveBeenCalled()
+  })
+
+  it('keeps matching active task state from the BFF context', () => {
+    mockState.sessionJobDescriptionId = 'active-jd'
+    mockState.sessionKeywords = []
+    mockState.sessionLocation = '广东'
+    useAnalysisTasksMock.mockReturnValue({
+      tasks: [{
+        id: 'active-task',
+        createdAt: 1,
+        status: 'processing',
+        config: {
+          jobDescriptionId: 'active-jd',
+          location: '广东',
+          promptVersion: getCurrentResumeAiPromptVersion(),
+        },
+        progress: { current: 1, total: 2, skipped: 0 },
+      }],
+      loading: false,
+      error: null,
+      refresh: vi.fn(),
+      dispatch: dispatchTaskMock,
+      cancel: vi.fn(),
+      canManage: true,
+    })
+
+    const { result } = renderHook(() => useResumeListState())
+
+    expect(result.current.hasActiveTask).toBe(true)
+    expect(result.current.disableAnalyzeButton).toBe(true)
+  })
+
+  it('dispatches normal analysis through the task context', async () => {
+    mockState.sessionJobDescriptionId = 'jd-1'
+    mockState.convexResumes = [
+      buildResume({ id: 'dispatch-resume', name: 'Dispatch Candidate', roleSignals: [] }),
+    ]
+
+    const { result } = renderHook(() => useResumeListState())
+
+    await act(async () => {
+      await result.current.handleAnalyzeAll()
+    })
+
+    expect(dispatchTaskMock).toHaveBeenCalledWith({
+      jobDescriptionId: 'jd-1',
+      jobDescriptionTitle: undefined,
+      jobDescriptionContent: undefined,
+      location: '广东',
+      promptVersion: getCurrentResumeAiPromptVersion(),
+      sample: undefined,
+      resumeIds: ['dispatch-resume'],
+    })
+    expect(useMutationMock).not.toHaveBeenCalled()
+  })
+
   it('preserves richer imported resume fields on convex resumes', () => {
     mockState.convexResumes = [
       buildResume({
@@ -644,6 +723,23 @@ describe('useResumeListState role filter regression', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    useQueryMock.mockImplementation((..._args: unknown[]) => [])
+    useMutationMock.mockImplementation(() => vi.fn(async () => ({})))
+    dispatchTaskMock.mockResolvedValue({
+      queued: true,
+      taskId: 'analysis-task-1',
+      dispatchedAt: 1,
+      reused: false,
+    })
+    useAnalysisTasksMock.mockReturnValue({
+      tasks: [],
+      loading: false,
+      error: null,
+      refresh: vi.fn(),
+      dispatch: dispatchTaskMock,
+      cancel: vi.fn(),
+      canManage: true,
+    })
     capturedExportPayload = null
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input)

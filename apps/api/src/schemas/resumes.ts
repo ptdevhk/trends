@@ -1514,6 +1514,49 @@ export const AnalysisTaskConfigSchema = z.object({
   resumeCount: z.number().optional(),
 });
 
+export const AnalysisTaskRelatedExpContextSchema = z.object({
+  roleFilterType: z.string().optional(),
+  minRoleYears: z.number().optional(),
+  market: z.string().optional(),
+  locale: z.string().optional(),
+}).strict();
+
+export const AnalysisTaskDispatchRequestSchema = z
+  .object({
+    jobDescriptionId: z.string().optional(),
+    jobDescriptionTitle: z.string().optional(),
+    jobDescriptionContent: z.string().optional(),
+    keywords: z.array(z.string()).optional(),
+    location: z.string().optional(),
+    promptVersion: z.number().optional(),
+    sample: z.string().optional(),
+    resumeIds: z.array(z.string().trim().min(1)).min(1),
+    relatedExpContext: AnalysisTaskRelatedExpContextSchema.optional(),
+  })
+  .strict()
+  .openapi("AnalysisTaskDispatchRequest");
+
+export const AnalysisTaskDispatchResponseSchema = z
+  .discriminatedUnion("queued", [
+    z.object({
+      queued: z.literal(true),
+      taskId: z.string().min(1),
+      dispatchedAt: z.number(),
+      reused: z.boolean(),
+    }),
+    z.object({
+      queued: z.literal(false),
+      reason: z.literal("maintenance"),
+    }),
+  ])
+  .openapi("AnalysisTaskDispatchResponse");
+
+export const AnalysisTaskCancelResponseSchema = z
+  .object({
+    success: z.literal(true),
+  })
+  .openapi("AnalysisTaskCancelResponse");
+
 export const AnalysisTaskProgressSchema = z.object({
   current: z.number().optional(),
   total: z.number().optional(),

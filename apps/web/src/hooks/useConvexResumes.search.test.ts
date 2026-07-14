@@ -16,6 +16,11 @@ type KeywordExpansionResponse = {
 }
 
 const loadMoreMock = vi.fn()
+const useQueryMock = vi.hoisted(() => vi.fn())
+const useAnalysisTasksMock = vi.hoisted(() => vi.fn())
+const analysisTasksState = vi.hoisted(() => ({
+  tasks: [] as Array<Record<string, unknown>>,
+}))
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const rawApiGetMock = vi.fn(async (path?: unknown, _options?: unknown): Promise<KeywordExpansionResponse> => {
   if (typeof path === 'string' && path === '/api/resumes') {
@@ -65,7 +70,15 @@ const usePaginatedQueryMock = vi.fn<(
 vi.mock('convex/react', () => ({
   usePaginatedQuery: (query: unknown, args: unknown, options: { initialNumItems: number }) =>
     usePaginatedQueryMock(query, args, options),
-  useQuery: () => undefined,
+  useQuery: (...args: unknown[]) => useQueryMock(...args),
+}))
+
+vi.mock('@/contexts/WorkspaceContext', () => ({
+  useWorkspace: () => ({ slug: 'dev' }),
+}))
+
+vi.mock('@/contexts/AnalysisTasksContext', () => ({
+  useAnalysisTasks: () => useAnalysisTasksMock(),
 }))
 
 vi.mock('../../../../packages/convex/convex/_generated/api', () => ({
@@ -149,6 +162,16 @@ const skipPaginatedResult: PaginatedResult = {
 describe('useConvexResumes AND-mode search', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    analysisTasksState.tasks = []
+    useAnalysisTasksMock.mockImplementation(() => ({
+      tasks: analysisTasksState.tasks,
+      loading: false,
+      error: null,
+      refresh: vi.fn(),
+      dispatch: vi.fn(),
+      cancel: vi.fn(),
+      canManage: true,
+    }))
     rawApiPostMock.mockImplementation(async (...args: unknown[]) => {
       void args
       return {
@@ -261,6 +284,29 @@ describe('useConvexResumes AND-mode search', () => {
       const bffCall = rawApiGetMock.mock.calls.find(([path]) => path === '/api/resumes')
       expect(bffCall).toBeDefined()
     })
+  })
+
+  it('refetches BFF AND-mode results when the task context reports a newly completed task', async () => {
+    const { rerender } = renderHook(() => useConvexResumes(200, 'CNC'))
+
+    await waitFor(() => {
+      expect(rawApiGetMock.mock.calls.filter(([path]) => path === '/api/resumes')).toHaveLength(1)
+    })
+
+    analysisTasksState.tasks = [{
+      id: 'completed-task',
+      createdAt: 1,
+      status: 'completed',
+      config: {},
+      progress: { current: 1, total: 1, skipped: 0 },
+    }]
+    rerender()
+
+    await waitFor(() => {
+      expect(rawApiGetMock.mock.calls.filter(([path]) => path === '/api/resumes')).toHaveLength(2)
+    })
+    expect(useAnalysisTasksMock).toHaveBeenCalled()
+    expect(useQueryMock).not.toHaveBeenCalledWith('analysis_tasks:list', expect.anything())
   })
 
   it('forwards sort and source filters to the BFF AND-mode search path', async () => {

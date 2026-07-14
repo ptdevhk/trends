@@ -1,9 +1,7 @@
-import { useMutation, useQuery } from 'convex/react'
 import { useTranslation } from 'react-i18next'
 import { Loader2, CheckCircle2, XCircle, Clock, History as HistoryIcon } from 'lucide-react'
 import { useState } from 'react'
-import { api } from '../../../../packages/convex/convex/_generated/api'
-import type { Doc } from '../../../../packages/convex/convex/_generated/dataModel'
+import { useAnalysisTasks, type AnalysisTaskSummary } from '@/contexts/AnalysisTasksContext'
 import { Progress } from './ui/progress'
 import { Button } from './ui/button'
 import {
@@ -16,9 +14,7 @@ import {
 } from "@/components/ui/dialog"
 import { formatInAppTimezone } from '@/lib/timezone'
 
-type AnalysisTaskDoc = Doc<'analysis_tasks'>
-
-function getStatusLabel(status: AnalysisTaskDoc['status']): string {
+function getStatusLabel(status: AnalysisTaskSummary['status']): string {
   switch (status) {
     case 'processing':
       return 'Processing'
@@ -33,7 +29,7 @@ function getStatusLabel(status: AnalysisTaskDoc['status']): string {
   }
 }
 
-function getStatusBadgeClass(status: AnalysisTaskDoc['status']): string {
+function getStatusBadgeClass(status: AnalysisTaskSummary['status']): string {
   if (status === 'completed') {
     return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
   }
@@ -49,7 +45,7 @@ function getStatusBadgeClass(status: AnalysisTaskDoc['status']): string {
   return 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400'
 }
 
-function StatusIcon({ status }: { status: AnalysisTaskDoc['status'] }) {
+function StatusIcon({ status }: { status: AnalysisTaskSummary['status'] }) {
   if (status === 'completed') {
     return <CheckCircle2 className="h-4 w-4 text-green-500" />
   }
@@ -69,8 +65,8 @@ function TaskItem({
   task,
   onCancel,
 }: {
-  task: AnalysisTaskDoc
-  onCancel: (args: { taskId: AnalysisTaskDoc['_id'] }) => Promise<unknown>
+  task: AnalysisTaskSummary
+  onCancel?: (taskId: string) => Promise<void>
 }) {
   const { t } = useTranslation()
   const [cancelling, setCancelling] = useState(false)
@@ -94,9 +90,9 @@ function TaskItem({
         </div>
         <div className="flex items-center gap-3">
           <div className="text-xs text-muted-foreground">
-            {formatInAppTimezone(task._creationTime)}
+            {formatInAppTimezone(task.createdAt)}
           </div>
-          {isActive ? (
+          {isActive && onCancel ? (
             <Button
               variant="ghost"
               size="sm"
@@ -104,7 +100,7 @@ function TaskItem({
               disabled={cancelling}
               onClick={async () => {
                 setCancelling(true)
-                await onCancel({ taskId: task._id })
+                await onCancel(task.id)
               }}
             >
               {cancelling ? t('aiTasks.monitor.cancelling') : t('aiTasks.monitor.cancel')}
@@ -147,8 +143,7 @@ function TaskItem({
 
 export function AnalysisTaskMonitor() {
   const { t } = useTranslation()
-  const tasks = useQuery(api.analysis_tasks.list)
-  const cancelTask = useMutation(api.analysis_tasks.cancel)
+  const { tasks, cancel: cancelTask } = useAnalysisTasks()
 
   if (!tasks || tasks.length === 0) {
     return null
@@ -185,7 +180,7 @@ export function AnalysisTaskMonitor() {
             <div className="space-y-3">
               <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Active</div>
               {activeTasks.map((task) => (
-                <TaskItem key={task._id} task={task} onCancel={cancelTask} />
+                <TaskItem key={task.id} task={task} onCancel={cancelTask} />
               ))}
             </div>
           )}
@@ -195,7 +190,7 @@ export function AnalysisTaskMonitor() {
               {activeTasks.length > 0 && <div className="border-t my-2" />}
               <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">History</div>
               {finishedTasks.slice(0, 20).map((task) => (
-                <TaskItem key={task._id} task={task} onCancel={cancelTask} />
+                <TaskItem key={task.id} task={task} onCancel={cancelTask} />
               ))}
             </div>
           )}

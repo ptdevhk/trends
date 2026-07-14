@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useMutation, useQuery } from 'convex/react'
 import {
   buildWorkHistoryEntryText,
   deriveMarketFromSourceKey,
@@ -10,7 +9,6 @@ import {
 } from '@trends/shared'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { api } from '../../../../packages/convex/convex/_generated/api'
 import { useResumes, type ResumeItem } from '@/hooks/useResumes'
 import {
   CONVEX_RESUME_PAGE_SIZE,
@@ -22,6 +20,7 @@ import {
   type ConvexResumeSortBy,
 } from '@/hooks/useConvexResumes'
 import { useSession } from '@/hooks/useSession'
+import { useAnalysisTasks } from '@/contexts/AnalysisTasksContext'
 import { useCandidateActions } from '@/hooks/useCandidateActions'
 import { useCandidateBlocks } from '@/hooks/useCandidateBlocks'
 import { useCandidateStatus, type CandidateStatusRecord } from '@/hooks/useCandidateStatus'
@@ -355,8 +354,7 @@ export function useResumeListState(loadSearchHistory = false) {
   )
   const { blocksByIdentity, blockCandidates, unblockCandidate } = useCandidateBlocks(auxiliaryResumeDataEnabled)
   const { statusByIdentity, updateStatus: updateCandidateStatus } = useCandidateStatus(auxiliaryResumeDataEnabled)
-  const analysisTasks = useQuery(api.analysis_tasks.list)
-  const dispatchAnalysis = useMutation(api.analysis_tasks.dispatch)
+  const { tasks: analysisTasks, dispatch: dispatchAnalysis } = useAnalysisTasks()
   const [analyzing, setAnalyzing] = useState(false)
   const [lastDispatchTime, setLastDispatchTime] = useState<number>(0)
   const DISPATCH_COOLDOWN_MS = 2000
@@ -406,7 +404,7 @@ export function useResumeListState(loadSearchHistory = false) {
     && convexHasMore
     && requestedConvexLimit < MAX_CONVEX_RESUME_LIMIT
   const hasActiveTask = useMemo(() => {
-    if (!analysisTasks || analysisTasks.length === 0) {
+    if (analysisTasks.length === 0) {
       return false
     }
     return analysisTasks.some((task) =>
@@ -1049,6 +1047,10 @@ export function useResumeListState(loadSearchHistory = false) {
   const handleAnalyzeAll = useCallback(async () => {
     if (!convexResumes.length) return
     if (!jobDescriptionId && sessionKeywords.length === 0) return
+    if (!dispatchAnalysis) {
+      toast.error(t('aiTasks.error'))
+      return
+    }
     if (hasActiveTask) {
       toast.info(t('aiTasks.waitForCompletion', 'Please wait for current analysis to complete.'))
       return
@@ -1761,7 +1763,7 @@ export function useResumeListState(loadSearchHistory = false) {
   const blockedCount = useMemo(() => Object.keys(blocksByIdentity).length, [blocksByIdentity])
 
   const hasInput = Boolean(jobDescriptionId) || sessionKeywords.length > 0
-  const disableAnalyzeButton = (filteredConvexResumes.length === 0 || analyzing || !hasInput || hasActiveTask)
+  const disableAnalyzeButton = (filteredConvexResumes.length === 0 || analyzing || !hasInput || hasActiveTask || !dispatchAnalysis)
   const shouldBlockQuickStartSync = activeHasUrlParams && !hasCompletedUrlHydration
 
   const handleQuickStartApply = useCallback(

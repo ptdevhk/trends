@@ -4,6 +4,7 @@ import { useQuery } from 'convex/react'
 import { useStablePaginatedQuery } from '@/hooks/useStablePaginatedQuery'
 import { api } from '../../../../packages/convex/convex/_generated/api'
 import type { Doc } from '../../../../packages/convex/convex/_generated/dataModel'
+import { useAnalysisTasks } from '@/contexts/AnalysisTasksContext'
 import { withRetry } from '@/lib/retry'
 import { rawApiClient } from '@/lib/api-helpers'
 import type { CandidateStatus } from '@/types/resume'
@@ -844,8 +845,8 @@ function useBffAndModeSearch(
 
   // Reset page to 0 when query or filters change
   const pageResetKey = useMemo(
-    () => `${normalizedQuery ?? ''}|${filtersKey}|${showBlocked === true}`,
-    [normalizedQuery, filtersKey, showBlocked],
+    () => `${normalizedQuery ?? ''}|${filtersKey}|${showBlocked === true}|${refetchTrigger ?? 0}`,
+    [filtersKey, normalizedQuery, refetchTrigger, showBlocked],
   )
 
   // Compute the target page from limit
@@ -1013,6 +1014,7 @@ export function useConvexResumes(
     showBlocked?: boolean
   }
 ) {
+  const { tasks: analysisTasksForRefetch } = useAnalysisTasks()
   const enabled = options?.enabled ?? true
   const normalizedJobDescriptionId = jobDescriptionId?.trim() || undefined
   const normalizedQuery = query?.trim() || undefined
@@ -1117,9 +1119,8 @@ export function useConvexResumes(
 
   const isAndModeBffActive = !mockPayload && enabled && useAndModeBff && keywordExpansion?.mode === 'AND' && !expansionLoading
 
-  const analysisTasksForRefetch = useQuery(api.analysis_tasks.list)
   const bffRefetchTrigger = useMemo(() => {
-    if (!isAndModeBffActive || !analysisTasksForRefetch) return 0
+    if (!isAndModeBffActive) return 0
     const completedCount = analysisTasksForRefetch.filter(
       (t) => t.status === 'completed',
     ).length

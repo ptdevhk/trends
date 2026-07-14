@@ -16,6 +16,7 @@ type KeywordExpansionResponse = {
 }
 
 const loadMoreMock = vi.fn()
+const useAnalysisTasksMock = vi.hoisted(() => vi.fn())
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const rawApiGetMock = vi.fn(async (path?: unknown, _options?: unknown): Promise<KeywordExpansionResponse> => {
   if (typeof path === 'string' && path === '/api/resumes') {
@@ -66,6 +67,14 @@ vi.mock('convex/react', () => ({
   usePaginatedQuery: (query: unknown, args: unknown, options: { initialNumItems: number }) =>
     usePaginatedQueryMock(query, args, options),
   useQuery: () => undefined,
+}))
+
+vi.mock('@/contexts/WorkspaceContext', () => ({
+  useWorkspace: () => ({ slug: 'dev' }),
+}))
+
+vi.mock('@/contexts/AnalysisTasksContext', () => ({
+  useAnalysisTasks: () => useAnalysisTasksMock(),
 }))
 
 vi.mock('../../../../packages/convex/convex/_generated/api', () => ({
@@ -149,6 +158,15 @@ const skipPaginatedResult: PaginatedResult = {
 describe('useConvexResumes exact keyword scan', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    useAnalysisTasksMock.mockReturnValue({
+      tasks: [],
+      loading: false,
+      error: null,
+      refresh: vi.fn(),
+      dispatch: vi.fn(),
+      cancel: vi.fn(),
+      canManage: true,
+    })
     rawApiPostMock.mockImplementation(async (...args: unknown[]) => {
       void args
       return {
