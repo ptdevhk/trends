@@ -169,29 +169,38 @@ describe("persisted analysis contract", () => {
     expect(coldRow?.analysis?.keyFactors).toEqual(keyFactors);
   });
 
-  it("preserves concerns in confirm-result storage", async () => {
+  it("persists normalized concerns and key factors through the public confirm action", async () => {
+    installLlmResponse();
     const t = createTest();
-    const resumeId = await seedResume(t, { externalId: "confirm-analysis-persistence" });
-    const analyzedAt = 3;
-    const concerns = ["Confirm concern"];
+    const workspaceId = "confirm-analysis-persistence";
+    const resumeId = await seedResume(t, {
+      externalId: "confirm-analysis-persistence",
+      source: SOURCE,
+      sourceKey: "job5156",
+      ingestData: INGEST_DATA,
+    });
+    const resume = await t.run((ctx) => ctx.db.get(resumeId));
+    const expected = normalizeAnalysisResult(LLM_RESULT, resume);
+    const budget = await t.query(api.llm_cost.getBudget, { workspaceId });
 
-    await t.mutation(internal.analyze.storeConfirmResult, {
-      resumeId,
-      analysis: {
-        score: 55,
-        summary: "Confirm result",
-        highlights: ["Sales"],
-        concerns,
-        recommendation: "potential",
-        keyFactors: [{ factor: "experience", value: "Adjacent" }],
-        promptVersion: 2,
-        locale: LOCALE,
-        analyzedAt,
-      },
+    expect(budget.remainingConfirms).toBeGreaterThan(0);
+    expect(budget.remainingTokens).toBeGreaterThan(0);
+    await expect(t.action(api.analyze.confirmSearchResults, {
+      workspaceId,
+      resumeIds: [resumeId],
+      query: "imported machine-tool sales",
+    })).resolves.toMatchObject({
+      confirmed: 1,
+      results: [{ resumeId }],
     });
 
     const coldRow = await getResumeAnalysesColdRow(t, resumeId);
-    expect(coldRow?.analyses?.[`confirm:${analyzedAt}`]?.concerns).toEqual(concerns);
+    const confirmEntries = Object.entries(coldRow?.analyses ?? {})
+      .filter(([key]) => key.startsWith("confirm:"));
+    expect(coldRow?.status).toBe("active");
+    expect(confirmEntries).toHaveLength(1);
+    expect(confirmEntries[0][1].concerns).toEqual(expected.concerns);
+    expect(confirmEntries[0][1].keyFactors).toEqual(expected.keyFactors);
   });
 
   it("round-trips full analysis through restore and backup while accepting legacy optional omissions", async () => {

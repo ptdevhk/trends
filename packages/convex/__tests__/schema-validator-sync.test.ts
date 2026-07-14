@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { normalizeEducationLevel, parseExperienceYears } from "@trends/shared";
 import { ingestDataValidator, collectionTaskResultsValidator, resumeAnalysisValidator } from "../convex/validators";
@@ -19,8 +19,8 @@ import * as resumesModule from "../convex/resumes";
  *   keys match expected canonical sets. Adding a field to the schema without
  *   updating the shared validator will fail the "has all expected fields" test.
  * - For shapes with intentional differences (analysis in storeConfirmResult):
- *   verify the mutation handler accepts all schema fields by calling it with
- *   a fully-populated payload.
+ *   inspect the registered mutation's exported argument validator so this test
+ *   fails when a field is missing before the handler can run.
  */
 
 function getFieldNames(validator: { fields: Record<string, unknown> }): string[] {
@@ -96,12 +96,10 @@ describe("collectionTaskResults validator sync", () => {
 
 describe("analysis validator sync (with intentional overrides)", () => {
     /**
-     * The schema's `analysis` object has some fields as optional that the
-     * `storeConfirmResult` mutation requires (callers always provide them;
-     * the schema marks optional for backward compat with old documents).
-     *
-     * This test verifies the storeConfirmResult handler can process a payload
-     * containing all schema-defined fields without error.
+     * The schema's primary `analysis` object and the confirm-result cache entry
+     * intentionally differ: confirm requires prompt metadata but does not carry
+     * relatedExpEvidence. Compare each authoritative validator with its exact
+     * expected field set rather than invoking an unvalidated raw handler.
      */
 
     const PRIMARY_RESUME_ANALYSIS_FIELDS = [
@@ -133,7 +131,7 @@ describe("analysis validator sync (with intentional overrides)", () => {
         "locale",
         "queryLocation",
         "analyzedAt",
-    ] as const;
+    ].sort();
 
     it("resumes.analysis schema stays in sync with the shared primary analysis validator", () => {
         const resumeFields = schema.tables.resumes.validator.fields;
@@ -143,68 +141,22 @@ describe("analysis validator sync (with intentional overrides)", () => {
         expect(getFieldNames(resumeAnalysisValidator)).toEqual(PRIMARY_RESUME_ANALYSIS_FIELDS);
     });
 
-    it("storeConfirmResult accepts all confirm analysis fields", async () => {
-        const patch = vi.fn(async () => undefined);
-        const insert = vi.fn(async () => "mock-id");
-        // Mock chainable query for Phase 3 propagation helpers
-        const mockQueryChain = {
-            withIndex: () => mockQueryChain,
-            withSearchIndex: () => mockQueryChain,
-            order: () => mockQueryChain,
-            filter: () => mockQueryChain,
-            first: async () => null,
-            unique: async () => null,
-            take: async () => [],
-            collect: async () => [],
+    it("storeConfirmResult's registered argument validator has every confirm analysis field", () => {
+        type ExportedValidator = {
+            type: string;
+            value?: Record<string, {
+                fieldType: ExportedValidator;
+                optional: boolean;
+            }>;
         };
+        const argsValidator = JSON.parse(storeConfirmResult.exportArgs()) as ExportedValidator;
+        const analysisValidator = argsValidator.value?.analysis?.fieldType;
 
-        const ctx = {
-            db: {
-                get: vi.fn(async () => ({
-                    _id: "resume-1",
-                    analyses: {},
-                })),
-                patch,
-                insert,
-                query: vi.fn(() => mockQueryChain),
-            },
-        };
-
-        const handler = (storeConfirmResult as unknown as {
-            _handler: (ctx: unknown, args: unknown) => Promise<unknown>;
-        })._handler;
-
-        // Provide all confirm-result fields — this should succeed without
-        // ArgumentValidationError if the validator includes them
-        const fullAnalysisPayload = {
-            resumeId: "resume-1",
-            analysis: {
-                score: 80,
-                summary: "test summary",
-                highlights: ["highlight1"],
-                concerns: ["concern1"],
-                recommendation: "yes",
-                breakdown: { related: 80 },
-                keyFactors: [{ factor: "experience", value: "five years" }],
-                jobDescriptionId: "jd-1",
-                promptVersion: 2,
-                locale: "en",
-                queryLocation: "Shanghai",
-                analyzedAt: Date.now(),
-            },
-        };
-
-        // If the validator is missing any field, Convex will throw
-        // ArgumentValidationError at validation time (before handler runs)
-        await handler(ctx, fullAnalysisPayload);
-
-        expect(patch).toHaveBeenCalledTimes(1);
-    });
-
-    it("all confirm analysis fields are tested", () => {
-        const expectedCount = 12; // score, summary, highlights, concerns, recommendation,
-        // breakdown, keyFactors, jobDescriptionId, promptVersion, locale, queryLocation, analyzedAt
-        expect(CONFIRM_RESULT_ANALYSIS_FIELDS).toHaveLength(expectedCount);
+        expect(argsValidator.type).toBe("object");
+        expect(analysisValidator?.type).toBe("object");
+        expect(Object.keys(analysisValidator?.value ?? {}).sort()).toEqual(CONFIRM_RESULT_ANALYSIS_FIELDS);
+        expect(analysisValidator?.value?.concerns?.optional).toBe(true);
+        expect(analysisValidator?.value?.keyFactors?.optional).toBe(true);
     });
 });
 

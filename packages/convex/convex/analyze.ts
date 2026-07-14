@@ -567,6 +567,7 @@ export const confirmSearchResults = action({
                         highlights: analysis.highlights || [],
                         concerns: analysis.concerns.length > 0 ? analysis.concerns : undefined,
                         recommendation: analysis.recommendation,
+                        keyFactors: analysis.keyFactors.length > 0 ? analysis.keyFactors : undefined,
                         promptVersion: 1,
                         locale: "zh-Hans",
                         analyzedAt: Date.now(),
