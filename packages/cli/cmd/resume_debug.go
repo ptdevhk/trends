@@ -461,7 +461,8 @@ func newResumeDebugRescoreCmd() *cobra.Command {
 			}
 
 			persist := true
-			response, err := newAPIClient().RescoreResumeMatches(context.Background(), client.ResumeRescoreRequest{
+			apiClient := newAPIClient()
+			response, err := apiClient.RescoreResumeMatches(context.Background(), client.ResumeRescoreRequest{
 				Sample:           strings.TrimSpace(sample),
 				Source:           source,
 				Persist:          &persist,
@@ -478,7 +479,7 @@ func newResumeDebugRescoreCmd() *cobra.Command {
 				return writeOutput(cmd, nil, nil, response)
 			}
 
-			displayMap, err := loadResumeDisplayMap(context.Background(), newAPIClient(), strings.Join(keywords, " "), limit, source)
+			displayMap, err := loadResumeDisplayMap(context.Background(), apiClient, strings.Join(keywords, " "), limit, source)
 			if err != nil {
 				return err
 			}

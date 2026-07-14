@@ -44,8 +44,13 @@ func newMCPCmd() *cobra.Command {
 }
 
 func serveMCP(ctx context.Context) error {
-	reader := bufio.NewReader(os.Stdin)
-	writer := bufio.NewWriter(os.Stdout)
+	return serveMCPStreams(ctx, os.Stdin, os.Stdout)
+}
+
+func serveMCPStreams(ctx context.Context, input io.Reader, output io.Writer) error {
+	reader := bufio.NewReader(input)
+	writer := bufio.NewWriter(output)
+	apiClient := newAPIClient()
 
 	for {
 		select {
@@ -71,7 +76,7 @@ func serveMCP(ctx context.Context) error {
 		}
 
 		hasID := len(request.ID) > 0 && string(request.ID) != "null"
-		response, responseErr := handleMCPRequest(ctx, request)
+		response, responseErr := handleMCPRequestWithClient(ctx, apiClient, request)
 		if responseErr != nil {
 			if hasID {
 				if err := writeMCPError(writer, request.ID, -32000, responseErr.Error()); err != nil {
@@ -90,6 +95,10 @@ func serveMCP(ctx context.Context) error {
 }
 
 func handleMCPRequest(ctx context.Context, request mcpRequest) (any, error) {
+	return handleMCPRequestWithClient(ctx, newAPIClient(), request)
+}
+
+func handleMCPRequestWithClient(ctx context.Context, apiClient *client.Client, request mcpRequest) (any, error) {
 	switch request.Method {
 	case "initialize":
 		return map[string]any{
@@ -111,7 +120,7 @@ func handleMCPRequest(ctx context.Context, request mcpRequest) (any, error) {
 		if err := json.Unmarshal(request.Params, &params); err != nil {
 			return nil, fmt.Errorf("invalid tools/call params: %w", err)
 		}
-		text, toolErr := runMCPTool(ctx, params.Name, params.Arguments)
+		text, toolErr := runMCPToolWithClient(ctx, apiClient, params.Name, params.Arguments)
 		if toolErr != nil {
 			return map[string]any{
 				"isError": true,
@@ -302,22 +311,22 @@ func mcpTools() []map[string]any {
 			"inputSchema": map[string]any{
 				"type": "object",
 				"properties": map[string]any{
-					"query":             map[string]any{"type": "string"},
-					"jobDescriptionId":  map[string]any{"type": "string"},
-					"location":          map[string]any{"type": "string"},
-					"locations":         map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
-					"minExperience":     map[string]any{"type": "integer", "minimum": 0},
-					"maxExperience":     map[string]any{"type": "integer", "minimum": 0},
-					"education":         map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
-					"skills":            map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
-					"requiredKeywords":  map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
-					"minSalary":         map[string]any{"type": "integer", "minimum": 0},
-					"maxSalary":         map[string]any{"type": "integer", "minimum": 0},
-					"limit":             map[string]any{"type": "integer", "minimum": 1, "maximum": 500},
-					"dryRun":            map[string]any{"type": "boolean"},
-					"roleFilterType":    map[string]any{"type": "string"},
-					"minRoleYears":      map[string]any{"type": "integer", "minimum": 0},
-					"market":            map[string]any{"type": "string"},
+					"query":            map[string]any{"type": "string"},
+					"jobDescriptionId": map[string]any{"type": "string"},
+					"location":         map[string]any{"type": "string"},
+					"locations":        map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+					"minExperience":    map[string]any{"type": "integer", "minimum": 0},
+					"maxExperience":    map[string]any{"type": "integer", "minimum": 0},
+					"education":        map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+					"skills":           map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+					"requiredKeywords": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+					"minSalary":        map[string]any{"type": "integer", "minimum": 0},
+					"maxSalary":        map[string]any{"type": "integer", "minimum": 0},
+					"limit":            map[string]any{"type": "integer", "minimum": 1, "maximum": 500},
+					"dryRun":           map[string]any{"type": "boolean"},
+					"roleFilterType":   map[string]any{"type": "string"},
+					"minRoleYears":     map[string]any{"type": "integer", "minimum": 0},
+					"market":           map[string]any{"type": "string"},
 				},
 			},
 		},
@@ -330,8 +339,10 @@ func mcpTools() []map[string]any {
 }
 
 func runMCPTool(ctx context.Context, name string, args map[string]interface{}) (string, error) {
-	apiClient := newAPIClient()
+	return runMCPToolWithClient(ctx, newAPIClient(), name, args)
+}
 
+func runMCPToolWithClient(ctx context.Context, apiClient *client.Client, name string, args map[string]interface{}) (string, error) {
 	switch name {
 	case "resume_list":
 		limit := intArg(args, "limit", 50)

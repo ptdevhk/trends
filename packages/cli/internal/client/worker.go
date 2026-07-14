@@ -130,12 +130,16 @@ func (c *Client) WorkerStatus(ctx context.Context) (*WorkerStatus, error) {
 	var response WorkerStatus
 
 	proxyEndpoint := fmt.Sprintf("%s/worker/status", c.APIURL)
-	if err := c.doJSON(ctx, http.MethodGet, proxyEndpoint, nil, &response); err == nil {
+	proxyErr := c.doJSON(ctx, http.MethodGet, proxyEndpoint, nil, &response)
+	if proxyErr == nil {
 		return &response, nil
+	}
+	if isAuthenticationError(proxyErr) {
+		return nil, proxyErr
 	}
 
 	workerEndpoint := fmt.Sprintf("%s/worker/status", c.WorkerURL)
-	if err := c.doJSON(ctx, http.MethodGet, workerEndpoint, nil, &response); err != nil {
+	if err := c.doWorkerJSON(ctx, http.MethodGet, workerEndpoint, &response); err != nil {
 		return nil, err
 	}
 	return &response, nil

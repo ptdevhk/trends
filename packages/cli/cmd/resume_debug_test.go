@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/ptdevhk/trends/packages/cli/internal/client"
@@ -1018,6 +1019,62 @@ func TestResumeDebugExactReingestWaitsForPersistedTargetReadiness(t *testing.T) 
 	readiness, ok := payload["readiness"].(map[string]any)
 	if !ok || readiness["allReady"] != true {
 		t.Fatalf("unexpected readiness output: %+v", payload)
+	}
+}
+
+func TestExactReingestWaitReusesAuthenticatedClient(t *testing.T) {
+	setCommandSessionAuthEnvironment(t)
+	var loginCalls atomic.Int32
+	var dispatchCalls atomic.Int32
+	var readinessCalls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if handleCommandSessionLogin(t, w, r, &loginCalls) {
+			return
+		}
+		assertCommandSessionRequest(t, r, true)
+		switch r.URL.Path {
+		case "/api/resumes/exact-reingest":
+			dispatchCalls.Add(1)
+			_ = json.NewEncoder(w).Encode(client.ExactReingestResponse{
+				Success:               true,
+				ManifestVersion:       1,
+				ExpectedSkillsVersion: 3,
+				Requested:             1,
+				Resolved:              1,
+				Scheduled:             1,
+				DispatchedAt:          1_750_000_000_000,
+				ResumeIDs:             []string{"current-1"},
+				Targets: []client.ExactReingestResolvedTarget{{
+					CurrentResumeID: "current-1",
+				}},
+			})
+		case "/api/resumes/exact-reingest/readiness":
+			call := readinessCalls.Add(1)
+			ready := call >= 2
+			_ = json.NewEncoder(w).Encode(client.ExactReingestReadinessResponse{
+				Success:               true,
+				AllReady:              ready,
+				Ready:                 map[bool]int{true: 1, false: 0}[ready],
+				Pending:               map[bool]int{true: 0, false: 1}[ready],
+				DispatchedAt:          1_750_000_000_000,
+				ExpectedSkillsVersion: 3,
+			})
+		default:
+			t.Errorf("unexpected authenticated exact-reingest path %q", r.URL.Path)
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	setResumeCLIConfig(t, server.URL, "dev")
+	setCLIOutput(t, "json")
+	cmd := newResumeDebugExactReingestCmd()
+	cmd.SetArgs([]string{"--resume-id", "current-1", "--yes", "--wait", "--wait-timeout", "1s", "--poll-interval", "1ms"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("authenticated exact reingest wait failed: %v", err)
+	}
+	if loginCalls.Load() != 1 || dispatchCalls.Load() != 1 || readinessCalls.Load() != 2 {
+		t.Fatalf("unexpected authenticated exact-reingest counts login=%d dispatch=%d readiness=%d", loginCalls.Load(), dispatchCalls.Load(), readinessCalls.Load())
 	}
 }
 

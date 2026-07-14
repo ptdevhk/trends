@@ -107,7 +107,7 @@ func currentOptions() RootOptions {
 
 var apiClientFactory = func() *client.Client {
 	options := currentOptions()
-	return client.New(options.APIURL, options.WorkerURL, options.Workspace)
+	return client.NewWithSessionAuthFromEnvironment(options.APIURL, options.WorkerURL, options.Workspace)
 }
 
 func newAPIClient() *client.Client {

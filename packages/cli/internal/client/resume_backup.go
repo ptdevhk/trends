@@ -177,27 +177,19 @@ func (c *Client) ImportManualResumes(ctx context.Context, request ResumeManualIm
 	}
 
 	endpoint := fmt.Sprintf("%s/api/resumes/manual-import", c.APIURL)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, &body)
+	res, err := c.sendRequest(ctx, http.MethodPost, endpoint, &body, writer.FormDataContentType())
 	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
-	}
-	req.Header.Set("X-Workspace-Slug", c.Workspace)
-	req.Header.Set("Content-Type", writer.FormDataContentType())
-
-	res, err := c.HTTP.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("perform request: %w", err)
+		return nil, err
 	}
 	defer res.Body.Close()
+	if res.StatusCode < http.StatusOK || res.StatusCode >= http.StatusMultipleChoices {
+		return nil, c.responseError(res, http.MethodPost)
+	}
 
 	responseBody, err := io.ReadAll(res.Body)
 	if err != nil {
 		return nil, fmt.Errorf("read response body: %w", err)
 	}
-	if res.StatusCode >= 400 {
-		return nil, fmt.Errorf("request POST %s failed: %d %s", endpoint, res.StatusCode, strings.TrimSpace(string(responseBody)))
-	}
-
 	var response ResumeManualImportResponse
 	if err := json.Unmarshal(responseBody, &response); err != nil {
 		return nil, fmt.Errorf("decode response: %w", err)

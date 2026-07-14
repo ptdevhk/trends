@@ -6,8 +6,138 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 )
+
+func TestWorkerFallbackNeverReceivesAPISessionMaterial(t *testing.T) {
+	var workerCalls atomic.Int32
+	worker := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		workerCalls.Add(1)
+		if r.Header.Get("Cookie") != "" || r.Header.Get("X-CSRF-Token") != "" {
+			t.Error("worker fallback received API session material")
+		}
+		_ = json.NewEncoder(w).Encode(WorkerStatus{Running: true})
+	}))
+	defer worker.Close()
+
+	var loginCalls atomic.Int32
+	var proxyCalls atomic.Int32
+	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/auth/login" {
+			loginCalls.Add(1)
+			writeSessionLoginSuccess(w, "worker-isolation-session", "worker-isolation-cookie", "worker-isolation-token")
+			return
+		}
+		proxyCalls.Add(1)
+		http.Error(w, "proxy unavailable", http.StatusBadGateway)
+	}))
+	defer api.Close()
+
+	c := newWithSessionAuth(api.URL, worker.URL, "dev", "worker-user", true, "worker-password", true)
+	c.HTTP = api.Client()
+	status, err := c.WorkerStatus(context.Background())
+	if err != nil {
+		t.Fatalf("worker fallback failed: %v", err)
+	}
+	if !status.Running {
+		t.Fatal("unexpected worker fallback response")
+	}
+	if loginCalls.Load() != 1 || proxyCalls.Load() != 1 || workerCalls.Load() != 1 {
+		t.Fatalf("unexpected call counts login=%d proxy=%d worker=%d", loginCalls.Load(), proxyCalls.Load(), workerCalls.Load())
+	}
+}
+
+func TestWorkerFallbackRemainsJarlessWhenWorkerURLMatchesAPIOrigin(t *testing.T) {
+	var loginCalls atomic.Int32
+	var proxyCalls atomic.Int32
+	var jarlessWorkerCalls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/auth/login" {
+			loginCalls.Add(1)
+			writeSessionLoginSuccess(w, "same-origin-session", "same-origin-cookie", "same-origin-token")
+			return
+		}
+		if r.Header.Get("Cookie") != "" {
+			proxyCalls.Add(1)
+			http.Error(w, "proxy unavailable", http.StatusBadGateway)
+			return
+		}
+		jarlessWorkerCalls.Add(1)
+		if r.Header.Get("X-CSRF-Token") != "" {
+			t.Error("same-origin worker fallback received CSRF material")
+		}
+		_ = json.NewEncoder(w).Encode(WorkerStatus{Running: true})
+	}))
+	defer server.Close()
+
+	c := newWithSessionAuth(server.URL, server.URL, "dev", "same-origin-user", true, "same-origin-password", true)
+	c.HTTP = server.Client()
+	status, err := c.WorkerStatus(context.Background())
+	if err != nil {
+		t.Fatalf("same-origin jarless worker fallback failed: %v", err)
+	}
+	if !status.Running {
+		t.Fatal("unexpected same-origin worker response")
+	}
+	if loginCalls.Load() != 1 || proxyCalls.Load() != 1 || jarlessWorkerCalls.Load() != 1 {
+		t.Fatalf("unexpected same-origin counts login=%d proxy=%d worker=%d", loginCalls.Load(), proxyCalls.Load(), jarlessWorkerCalls.Load())
+	}
+}
+
+func TestWorkerStatusDoesNotFallbackOnAuthenticationError(t *testing.T) {
+	tests := []struct {
+		name      string
+		status    int
+		preflight bool
+	}{
+		{name: "preflight", preflight: true},
+		{name: "login 401", status: -http.StatusUnauthorized},
+		{name: "application 401", status: http.StatusUnauthorized},
+		{name: "application 403", status: http.StatusForbidden},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var workerCalls atomic.Int32
+			worker := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				workerCalls.Add(1)
+				_ = json.NewEncoder(w).Encode(WorkerStatus{})
+			}))
+			defer worker.Close()
+
+			var apiCalls atomic.Int32
+			api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == "/api/auth/login" {
+					apiCalls.Add(1)
+					if tt.status < 0 {
+						http.Error(w, "login rejected", -tt.status)
+						return
+					}
+					writeSessionLoginSuccess(w, "worker-auth-session", "worker-auth-cookie", "worker-auth-token")
+					return
+				}
+				apiCalls.Add(1)
+				http.Error(w, "proxy auth failure", tt.status)
+			}))
+			defer api.Close()
+
+			var c *Client
+			if tt.preflight {
+				c = newWithSessionAuth(api.URL, worker.URL, "dev", "partial-user", true, "", false)
+			} else {
+				c = newWithSessionAuth(api.URL, worker.URL, "dev", "worker-auth-user", true, "worker-auth-password", true)
+			}
+			c.HTTP = api.Client()
+			_, err := c.WorkerStatus(context.Background())
+			if err == nil || !isAuthenticationError(err) {
+				t.Fatalf("expected typed authentication error, got %v", err)
+			}
+			if got := workerCalls.Load(); got != 0 {
+				t.Fatalf("worker fallback received %d requests", got)
+			}
+		})
+	}
+}
 
 func TestWorkerStatusUsesAPIProxyWhenSuccessful(t *testing.T) {
 	var proxyCalls int

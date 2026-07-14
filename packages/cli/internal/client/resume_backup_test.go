@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 )
 
@@ -219,5 +220,74 @@ func TestImportManualResumesUploadsMultipartForm(t *testing.T) {
 	}
 	if len(response.Files) != 1 || response.Files[0].ResumeName != "张三" {
 		t.Fatalf("unexpected file response: %+v", response.Files)
+	}
+}
+
+func TestAuthenticatedMultipartImportUsesSessionAndCSRF(t *testing.T) {
+	uploadPath := filepath.Join(t.TempDir(), "resume.json")
+	if err := os.WriteFile(uploadPath, []byte(`{"resumeId":"resume-one"}`), 0o600); err != nil {
+		t.Fatalf("write upload fixture: %v", err)
+	}
+
+	var loginCalls atomic.Int32
+	var importCalls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/auth/login" {
+			loginCalls.Add(1)
+			writeSessionLoginSuccess(w, "multipart-session", "multipart-csrf-cookie", "multipart-json-csrf")
+			return
+		}
+		importCalls.Add(1)
+		if cookie, err := r.Cookie("custom_session"); err != nil || cookie.Value != "multipart-session" {
+			t.Error("multipart request did not receive API session cookie")
+		}
+		if r.Header.Get("X-CSRF-Token") != "multipart-json-csrf" {
+			t.Error("multipart request did not receive JSON CSRF token")
+		}
+		if err := r.ParseMultipartForm(1 << 20); err != nil {
+			t.Errorf("parse authenticated multipart form: %v", err)
+		}
+		_ = json.NewEncoder(w).Encode(ResumeManualImportResponse{Success: true})
+	}))
+	defer server.Close()
+
+	c := newAuthenticatedTestClient(server, "multipart-user", "multipart-password")
+	if _, err := c.ImportManualResumes(context.Background(), ResumeManualImportRequest{FilePaths: []string{uploadPath}}); err != nil {
+		t.Fatalf("authenticated multipart import failed: %v", err)
+	}
+	if loginCalls.Load() != 1 || importCalls.Load() != 1 {
+		t.Fatalf("expected one login and one multipart import, got login=%d import=%d", loginCalls.Load(), importCalls.Load())
+	}
+}
+
+func TestMultipart401IsNotReplayed(t *testing.T) {
+	uploadPath := filepath.Join(t.TempDir(), "resume.json")
+	if err := os.WriteFile(uploadPath, []byte(`{"resumeId":"resume-one"}`), 0o600); err != nil {
+		t.Fatalf("write upload fixture: %v", err)
+	}
+
+	var loginCalls atomic.Int32
+	var importCalls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/auth/login" {
+			loginCalls.Add(1)
+			writeSessionLoginSuccess(w, "multipart-401-session", "multipart-401-cookie", "multipart-401-token")
+			return
+		}
+		importCalls.Add(1)
+		http.Error(w, "expired", http.StatusUnauthorized)
+	}))
+	defer server.Close()
+
+	c := newAuthenticatedTestClient(server, "multipart-401-user", "multipart-401-password")
+	_, err := c.ImportManualResumes(context.Background(), ResumeManualImportRequest{FilePaths: []string{uploadPath}})
+	if err == nil {
+		t.Fatal("expected multipart 401 error")
+	}
+	if !isAuthenticationError(err) {
+		t.Fatalf("expected multipart 401 to retain authentication type, got %T", err)
+	}
+	if loginCalls.Load() != 1 || importCalls.Load() != 1 {
+		t.Fatalf("expected no replay, got login=%d import=%d", loginCalls.Load(), importCalls.Load())
 	}
 }

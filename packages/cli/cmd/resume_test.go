@@ -635,6 +635,156 @@ func TestResumeAnalyzeExactWaitsUntilCompletedAndAllReady(t *testing.T) {
 	}
 }
 
+func TestExactAnalysisWaitReusesAuthenticatedClient(t *testing.T) {
+	setCommandSessionAuthEnvironment(t)
+	var loginCalls atomic.Int32
+	var dispatchCalls atomic.Int32
+	var pollCalls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if handleCommandSessionLogin(t, w, r, &loginCalls) {
+			return
+		}
+		wantCSRF := r.Method != http.MethodGet && r.Method != http.MethodHead && r.Method != http.MethodOptions
+		assertCommandSessionRequest(t, r, wantCSRF)
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/api/resumes/analyze":
+			dispatchCalls.Add(1)
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"success": true, "mode": "exact", "taskId": "task-auth-exact", "dispatchedAt": 1750000000001,
+				"resumeCount": 1, "requestedCount": 1, "resolvedCount": 1,
+				"expectedAnalysis": map[string]any{"jobDescriptionId": "keyword-search:auth", "promptVersion": 42},
+			})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/resumes/analysis-tasks/task-auth-exact":
+			call := pollCalls.Add(1)
+			ready := call >= 2
+			status := "processing"
+			if ready {
+				status = "completed"
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"success": true,
+				"task":    map[string]any{"_id": "task-auth-exact", "status": status},
+				"verification": map[string]any{
+					"allReady": ready, "ready": map[bool]int{true: 1, false: 0}[ready], "pending": map[bool]int{true: 0, false: 1}[ready], "invalid": 0,
+				},
+			})
+		default:
+			t.Errorf("unexpected authenticated exact-analysis request %s %s", r.Method, r.URL.Path)
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	setResumeCLIConfig(t, server.URL, "dev")
+	setCLIOutput(t, "json")
+	cmd := newResumeAnalyzeCmd()
+	cmd.SetArgs([]string{"--query", "CNC sales", "--resume-id", "current-1", "--yes", "--wait", "--poll-interval", "1ms", "--wait-timeout", "1s"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("authenticated exact analysis wait failed: %v", err)
+	}
+	if loginCalls.Load() != 1 || dispatchCalls.Load() != 1 || pollCalls.Load() != 2 {
+		t.Fatalf("unexpected authenticated exact-analysis counts login=%d dispatch=%d polls=%d", loginCalls.Load(), dispatchCalls.Load(), pollCalls.Load())
+	}
+}
+
+func TestMatchExportAndRescoreReuseOneClientPerCommand_Authenticated(t *testing.T) {
+	setCommandSessionAuthEnvironment(t)
+
+	t.Run("match", func(t *testing.T) {
+		var loginCalls atomic.Int32
+		var applicationCalls atomic.Int32
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if handleCommandSessionLogin(t, w, r, &loginCalls) {
+				return
+			}
+			applicationCalls.Add(1)
+			assertCommandSessionRequest(t, r, r.Method != http.MethodGet)
+			switch r.URL.Path {
+			case "/api/resumes/match":
+				_ = json.NewEncoder(w).Encode(client.ResumeMatchResponse{Success: true, Results: []client.ResumeMatchResult{{ResumeID: "resume-1"}}})
+			case "/api/resumes":
+				_ = json.NewEncoder(w).Encode(client.ResumesResponse{Success: true, Data: []client.ResumeItem{{ResumeID: "resume-1", Name: "Alice"}}})
+			default:
+				http.NotFound(w, r)
+			}
+		}))
+		defer server.Close()
+		setResumeCLIConfig(t, server.URL, "dev")
+		setCLIOutput(t, "table")
+		cmd := newResumeMatchCmd()
+		cmd.SetArgs([]string{"--query", "CNC", "--source", "sample"})
+		if err := cmd.Execute(); err != nil {
+			t.Fatalf("authenticated match command failed: %v", err)
+		}
+		if loginCalls.Load() != 1 || applicationCalls.Load() != 2 {
+			t.Fatalf("match counts login=%d application=%d", loginCalls.Load(), applicationCalls.Load())
+		}
+	})
+
+	t.Run("export", func(t *testing.T) {
+		var loginCalls atomic.Int32
+		var applicationCalls atomic.Int32
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if handleCommandSessionLogin(t, w, r, &loginCalls) {
+				return
+			}
+			applicationCalls.Add(1)
+			assertCommandSessionRequest(t, r, r.Method != http.MethodGet)
+			switch r.URL.Path {
+			case "/api/resumes":
+				_ = json.NewEncoder(w).Encode(client.ResumesResponse{Success: true, Data: []client.ResumeItem{{ResumeID: "resume-1"}}})
+			case "/api/resumes/export":
+				w.Header().Set("Content-Disposition", `attachment; filename="resumes.csv"`)
+				_, _ = w.Write([]byte("id\nresume-1\n"))
+			default:
+				http.NotFound(w, r)
+			}
+		}))
+		defer server.Close()
+		setResumeCLIConfig(t, server.URL, "dev")
+		setCLIOutput(t, "json")
+		cmd := newResumeExportCmd()
+		cmd.SetArgs([]string{"--out", filepath.Join(t.TempDir(), "resumes.csv")})
+		if err := cmd.Execute(); err != nil {
+			t.Fatalf("authenticated export command failed: %v", err)
+		}
+		if loginCalls.Load() != 1 || applicationCalls.Load() != 2 {
+			t.Fatalf("export counts login=%d application=%d", loginCalls.Load(), applicationCalls.Load())
+		}
+	})
+
+	t.Run("rescore", func(t *testing.T) {
+		var loginCalls atomic.Int32
+		var applicationCalls atomic.Int32
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if handleCommandSessionLogin(t, w, r, &loginCalls) {
+				return
+			}
+			applicationCalls.Add(1)
+			assertCommandSessionRequest(t, r, r.Method != http.MethodGet)
+			switch r.URL.Path {
+			case "/api/resumes/matches/rescore":
+				_ = json.NewEncoder(w).Encode(client.ResumeMatchResponse{Success: true, Results: []client.ResumeMatchResult{{ResumeID: "resume-1"}}})
+			case "/api/resumes":
+				_ = json.NewEncoder(w).Encode(client.ResumesResponse{Success: true, Data: []client.ResumeItem{{ResumeID: "resume-1", Name: "Alice"}}})
+			default:
+				http.NotFound(w, r)
+			}
+		}))
+		defer server.Close()
+		setResumeCLIConfig(t, server.URL, "dev")
+		setCLIOutput(t, "table")
+		cmd := newResumeDebugRescoreCmd()
+		cmd.SetArgs([]string{"--query", "CNC", "--source", "sample"})
+		if err := cmd.Execute(); err != nil {
+			t.Fatalf("authenticated rescore command failed: %v", err)
+		}
+		if loginCalls.Load() != 1 || applicationCalls.Load() != 2 {
+			t.Fatalf("rescore counts login=%d application=%d", loginCalls.Load(), applicationCalls.Load())
+		}
+	})
+}
+
 func TestResumeAnalyzeExactWaitReturnsTaskFailure(t *testing.T) {
 	server := newExactAnalyzeWaitServer(t, "failed", map[string]any{
 		"allReady": false, "ready": 0, "pending": 0, "invalid": 1,

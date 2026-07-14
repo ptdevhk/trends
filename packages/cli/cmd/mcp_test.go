@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/ptdevhk/trends/packages/cli/internal/client"
@@ -112,6 +113,50 @@ func TestHandleMCPRequestUnknownMethod(t *testing.T) {
 	}
 }
 
+func TestMCPServerReusesOneAuthenticatedClientAcrossToolCalls(t *testing.T) {
+	setCommandSessionAuthEnvironment(t)
+	var loginCalls atomic.Int32
+	var applicationCalls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if handleCommandSessionLogin(t, w, r, &loginCalls) {
+			return
+		}
+		applicationCalls.Add(1)
+		assertCommandSessionRequest(t, r, false)
+		if r.URL.Path != "/api/job-descriptions" {
+			t.Errorf("unexpected MCP API path %q", r.URL.Path)
+			http.NotFound(w, r)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(client.JobDescriptionsResponse{Success: true})
+	}))
+	defer server.Close()
+	setResumeCLIConfig(t, server.URL, "dev")
+
+	requests := []string{
+		`{"jsonrpc":"2.0","id":1,"method":"initialize"}`,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"jd_list","arguments":{}}}`,
+		`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"jd_list","arguments":{}}}`,
+	}
+	var input strings.Builder
+	for _, payload := range requests {
+		input.WriteString("Content-Length: ")
+		input.WriteString(strconv.Itoa(len(payload)))
+		input.WriteString("\r\n\r\n")
+		input.WriteString(payload)
+	}
+	var output bytes.Buffer
+	if err := serveMCPStreams(context.Background(), strings.NewReader(input.String()), &output); err != nil {
+		t.Fatalf("authenticated MCP stream failed: %v", err)
+	}
+	if loginCalls.Load() != 1 || applicationCalls.Load() != 2 {
+		t.Fatalf("unexpected MCP counts login=%d application=%d", loginCalls.Load(), applicationCalls.Load())
+	}
+	if !strings.Contains(output.String(), `"id":1`) || !strings.Contains(output.String(), `"id":3`) {
+		t.Fatalf("MCP stream did not return all responses: %s", output.String())
+	}
+}
+
 func TestArgumentHelpers(t *testing.T) {
 	args := map[string]interface{}{
 		"intFloat":   float64(12),
@@ -186,10 +231,10 @@ func TestRunMCPToolResumeClearAnalyses(t *testing.T) {
 			t.Fatalf("unexpected path: %s", r.URL.Path)
 		}
 		_ = json.NewEncoder(w).Encode(client.ClearAnalysesAPIResponse{
-			Success:         true,
-			Cleared:         2,
-			Batches:         1,
-			Targeted:        true,
+			Success:          true,
+			Cleared:          2,
+			Batches:          1,
+			Targeted:         true,
 			JobDescriptionID: "lathe-sales",
 		})
 	}))
@@ -498,9 +543,9 @@ func TestRunMCPToolResumeAnalyze(t *testing.T) {
 		}
 		_ = json.NewEncoder(w).Encode(client.AnalyzeResponse{
 			Success:      true,
-			DryRun:        true,
-			ResumeCount:   42,
-			SkippedCount:  5,
+			DryRun:       true,
+			ResumeCount:  42,
+			SkippedCount: 5,
 			Config: &client.AnalyzeConfig{
 				Keywords: []string{"CNC", "销售"},
 			},
@@ -541,8 +586,8 @@ func TestRunMCPToolAnalysisTasks(t *testing.T) {
 						ResumeCount: 10,
 					},
 					Results: &client.AnalysisTaskResults{
-						Analyzed:      10,
-						AvgScore:      85.5,
+						Analyzed:       10,
+						AvgScore:       85.5,
 						HighScoreCount: 3,
 					},
 				},

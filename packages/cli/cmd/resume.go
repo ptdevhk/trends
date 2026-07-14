@@ -226,7 +226,8 @@ func newResumeMatchCmd() *cobra.Command {
 				return err
 			}
 
-			response, err := newAPIClient().MatchResumes(context.Background(), request)
+			apiClient := newAPIClient()
+			response, err := apiClient.MatchResumes(context.Background(), request)
 			if err != nil {
 				return err
 			}
@@ -234,7 +235,7 @@ func newResumeMatchCmd() *cobra.Command {
 				return writeOutput(cmd, nil, nil, response)
 			}
 
-			displayMap, err := loadResumeDisplayMap(context.Background(), newAPIClient(), strings.Join(keywords, " "), limit, source)
+			displayMap, err := loadResumeDisplayMap(context.Background(), apiClient, strings.Join(keywords, " "), limit, source)
 			if err != nil {
 				return err
 			}
@@ -579,7 +580,8 @@ func newResumeExportCmd() *cobra.Command {
 				return fmt.Errorf("invalid format %q (expected csv|xlsx)", format)
 			}
 
-			resumes, err := newAPIClient().ListResumes(context.Background(), limit, query, "sample")
+			apiClient := newAPIClient()
+			resumes, err := apiClient.ListResumes(context.Background(), limit, query, "sample")
 			if err != nil {
 				return err
 			}
@@ -603,7 +605,7 @@ func newResumeExportCmd() *cobra.Command {
 				request.Sample = resumes.Sample.Name
 			}
 
-			payload, disposition, err := newAPIClient().ExportResumes(context.Background(), request)
+			payload, disposition, err := apiClient.ExportResumes(context.Background(), request)
 			if err != nil {
 				return err
 			}
