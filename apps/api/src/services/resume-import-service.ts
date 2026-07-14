@@ -603,6 +603,7 @@ export async function replayCandidateState(params: {
       const batch = candidateStatus.slice(offset, offset + CANDIDATE_STATUS_RESTORE_BATCH_SIZE);
       const value = await callConvexFunction("mutation", "candidate_status:restoreBatch", {
         workspaceSlug,
+        allowOrphan: true,
         items: batch,
         writeSecret: config.auth.convexWriteSecret,
       });

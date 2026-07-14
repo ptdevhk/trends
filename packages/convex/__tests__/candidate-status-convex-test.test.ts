@@ -951,6 +951,44 @@ describe("candidate_status: importNotesBatch", () => {
 });
 
 describe("candidate_status: restoreBatch", () => {
+  it("restores an explicit orphan status without creating a digest overlay", async () => {
+    const t = createTest();
+    const history = [{ status: "new", updatedAt: 1_700_000_000_000, notes: "Archived note" }];
+
+    const firstResult = await t.mutation(api.candidate_status.restoreBatch, {
+      workspaceSlug: "dev",
+      allowOrphan: true,
+      items: [{
+        identityKey: "smoke-nonhr",
+        status: "rejected",
+        notes: "Archived note",
+        updatedBy: "backup-user",
+        updatedAt: 1_782_291_761_290,
+        history,
+      }],
+      writeSecret: WRITE_SECRET,
+    });
+
+    expect(firstResult).toEqual({
+      requested: 1,
+      restored: 1,
+      inserted: 1,
+      updated: 0,
+      unresolvedIdentityKeys: [],
+    });
+    expect(await t.query(api.candidate_status.getByIdentity, {
+      workspaceSlug: "dev",
+      identityKey: "smoke-nonhr",
+    })).toMatchObject({
+      status: "rejected",
+      notes: "Archived note",
+      updatedBy: "backup-user",
+      updatedAt: 1_782_291_761_290,
+      history,
+    });
+    expect(await t.run(async (ctx) => ctx.db.query("resume_digest_statuses").collect())).toEqual([]);
+  });
+
   it("restores exact candidate state and rebuilds the digest status overlay", async () => {
     const t = createTest();
     const restoredResumeId = await insertResumeWithIdentity(t, "restore-identity");

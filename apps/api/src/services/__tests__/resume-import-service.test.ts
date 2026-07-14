@@ -605,6 +605,7 @@ describe("resume-import-service", () => {
           expect(body.args).toMatchObject({
             workspaceSlug: "dev",
             writeSecret: config.auth.convexWriteSecret,
+            allowOrphan: true,
           });
           return {
             ok: true,

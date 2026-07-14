@@ -542,6 +542,7 @@ export const importNotesBatch = mutation({
 export const restoreBatch = mutation({
     args: {
         workspaceSlug: v.optional(v.string()),
+        allowOrphan: v.optional(v.boolean()),
         items: v.array(v.object({
             identityKey: v.string(),
             status: candidateStatusValidator,
@@ -573,7 +574,7 @@ export const restoreBatch = mutation({
                 .query("resumes")
                 .withIndex("by_identityKey", (q) => q.eq("identityKey", identityKey))
                 .unique();
-            if (!resume) {
+            if (!resume && !args.allowOrphan) {
                 unresolvedIdentityKeys.push(identityKey);
                 continue;
             }
@@ -602,13 +603,15 @@ export const restoreBatch = mutation({
                 });
                 inserted += 1;
             }
-            await upsertDigestStatusForResume(ctx, {
-                resumeId: resume._id,
-                workspaceSlug,
-                identityKey,
-                status: item.status,
-                updatedAt: item.updatedAt,
-            });
+            if (resume) {
+                await upsertDigestStatusForResume(ctx, {
+                    resumeId: resume._id,
+                    workspaceSlug,
+                    identityKey,
+                    status: item.status,
+                    updatedAt: item.updatedAt,
+                });
+            }
             restored += 1;
         }
 
