@@ -1,4 +1,5 @@
 import { apiBaseUrl } from './api-client'
+import { workspaceRef } from './workspace-ref'
 
 const csrfCookieName = 'trends_csrf'
 
@@ -23,9 +24,7 @@ export function logSearchEvent(params: {
   resultCount: number
   topScore?: number
 }): void {
-  const workspace = document.querySelector<HTMLMetaElement>('meta[name="workspace-slug"]')?.content
-    ?? window.location.pathname.split('/')[1]
-    ?? 'default'
+  const workspace = workspaceRef.get()
   const csrfToken = readCookie(csrfCookieName)
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',

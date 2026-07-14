@@ -1,5 +1,6 @@
 import { afterAll, describe, expect, it, vi, beforeEach } from 'vitest'
 import { logSearchEvent } from '@/lib/search-analytics'
+import { workspaceRef } from '@/lib/workspace-ref'
 
 describe('logSearchEvent', () => {
   const mockFetch = vi.fn()
@@ -8,6 +9,7 @@ describe('logSearchEvent', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     document.cookie = 'trends_csrf=; Max-Age=0; path=/'
+    workspaceRef.set('dev')
   })
 
   afterAll(() => {
@@ -22,6 +24,7 @@ describe('logSearchEvent', () => {
     const [url, options] = mockFetch.mock.calls[0]
     expect(url).toContain('/api/search-analytics/log')
     expect(options.method).toBe('POST')
+    expect(options.headers['X-Workspace-Slug']).toBe('dev')
     expect(JSON.parse(options.body)).toEqual({
       query: 'React developer',
       resultCount: 10,
@@ -55,6 +58,16 @@ describe('logSearchEvent', () => {
     logSearchEvent({ query: 'test', resultCount: 1 })
 
     expect(mockFetch.mock.calls[0][1].headers['X-CSRF-Token']).toBe('csrf-token-analytics')
+  })
+
+  it('uses the active workspace rather than a public URL path segment', () => {
+    workspaceRef.set('hr')
+    mockFetch.mockResolvedValue({ ok: true })
+
+    logSearchEvent({ query: 'test', resultCount: 1 })
+
+    const [, options] = mockFetch.mock.calls[0]
+    expect(options.headers['X-Workspace-Slug']).toBe('hr')
   })
 
   it('silently ignores network errors', () => {
