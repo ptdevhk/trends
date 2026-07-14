@@ -299,8 +299,14 @@ func collectExactTaskAuditRows(
 		if err := validateExactTaskAuditPage(page, metadata, seenResumeIDs); err != nil {
 			return nil, metadata, 0, 0, err
 		}
+		prospectiveCohortMembers := cohortMembers + page.Counts.Targeted
+		if prospectiveCohortMembers > metadata.TargetCount {
+			return nil, metadata, 0, 0, fmt.Errorf(
+				"malformed exact task audit export page: cumulative cohort count exceeds exact task target count",
+			)
+		}
 		rows = append(rows, page.Page...)
-		cohortMembers += page.Counts.Targeted
+		cohortMembers = prospectiveCohortMembers
 		ready += page.Counts.Ready
 
 		if page.IsDone {

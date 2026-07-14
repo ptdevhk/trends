@@ -407,6 +407,7 @@ func TestResumeExportConvexModeRejectsInvalidStreamsWithoutPartialFiles(t *testi
 		{scenario: "repeated cursor", wantErr: "repeated cursor"},
 		{scenario: "duplicate resume", wantErr: "duplicate resume"},
 		{scenario: "changed task", wantErr: "task metadata changed"},
+		{scenario: "cumulative targeted count", wantErr: "cumulative cohort count"},
 		{scenario: "malformed page", wantErr: "malformed"},
 		{scenario: "http error", wantErr: "500"},
 	}
@@ -446,6 +447,19 @@ func TestResumeExportConvexModeRejectsInvalidStreamsWithoutPartialFiles(t *testi
 					row := auditExportRow(taskID, 1, true, test.analysisState)
 					row["analysisReasons"] = test.analysisReasons
 					writeAuditExportPage(w, auditTaskMetadata(taskID), []map[string]any{row}, "", true, 1)
+					return
+				}
+				if scenario == "cumulative targeted count" {
+					task := auditTaskMetadata(taskID, map[string]any{"targetCount": 1})
+					if cursor == "" {
+						writeAuditExportPage(w, task, []map[string]any{
+							auditExportRow(taskID, 1, true, "ready"),
+						}, "cursor-2", false, 1)
+						return
+					}
+					writeAuditExportPage(w, task, []map[string]any{
+						auditExportRow(taskID, 2, true, "ready"),
+					}, "", true, 1)
 					return
 				}
 				if cursor == "" {
