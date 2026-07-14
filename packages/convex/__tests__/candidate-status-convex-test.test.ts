@@ -419,6 +419,162 @@ describe("candidate_status: importNotesBatch", () => {
     })).toMatchObject({ notes: "Legacy note" });
   });
 
+  it("migrates legacy document-id lifecycle state into one visible portable identity", async () => {
+    const t = createTest();
+    const legacyResumeId = await t.run(async (ctx) => await ctx.db.insert("resumes", {
+      externalId: "legacy-lifecycle-external-id",
+      content: { name: "Legacy Lifecycle Candidate" },
+      hash: "legacy-lifecycle-hash",
+      tags: [],
+      crawledAt: 1_700_000_000_000,
+      source: "test",
+      sourceKey: "test",
+      workspaceSlug: "dev",
+    }));
+    const legacyIdentityKey = String(legacyResumeId);
+    const portableIdentityKey = "externalId:legacy-lifecycle-external-id";
+    const lifecycleHistory = [{
+      status: "new",
+      updatedAt: 1_600_000_000_000,
+      notes: "Initial review",
+    }];
+    const portableOnlyHistory = [{
+      status: "contacted",
+      updatedAt: 1_750_000_000_000,
+      notes: "Portable duplicate history",
+    }];
+
+    await t.mutation(api.resumes_search.upsertResumeDigestForTest, { resumeId: legacyResumeId });
+    await t.run(async (ctx) => {
+      await ctx.db.insert("candidate_status", {
+        workspaceSlug: "dev",
+        identityKey: legacyIdentityKey,
+        status: "shortlisted",
+        notes: "Legacy lifecycle note",
+        updatedBy: "legacy-reviewer",
+        updatedAt: 1_700_000_000_000,
+        history: lifecycleHistory,
+      });
+      await ctx.db.insert("resume_digest_statuses", {
+        resumeId: legacyResumeId,
+        workspaceSlug: "dev",
+        identityKey: legacyIdentityKey,
+        status: "shortlisted",
+        updatedAt: 1_700_000_000_000,
+      });
+
+      // Reproduce the duplicate left by the pre-migration note-import path.
+      await ctx.db.insert("candidate_status", {
+        workspaceSlug: "dev",
+        identityKey: portableIdentityKey,
+        status: "new",
+        notes: "Prior imported note",
+        updatedBy: "prior-importer",
+        updatedAt: 1_800_000_000_000,
+        history: [...lifecycleHistory, ...portableOnlyHistory],
+      });
+      await ctx.db.insert("resume_digest_statuses", {
+        resumeId: legacyResumeId,
+        workspaceSlug: "dev",
+        identityKey: portableIdentityKey,
+        status: "new",
+        updatedAt: 1_800_000_000_000,
+      });
+
+      // Identity migration must not rewrite another workspace's lifecycle rows.
+      await ctx.db.insert("candidate_status", {
+        workspaceSlug: "other",
+        identityKey: legacyIdentityKey,
+        status: "rejected",
+        notes: "Other workspace note",
+        updatedAt: 1_650_000_000_000,
+        history: [],
+      });
+      await ctx.db.insert("resume_digest_statuses", {
+        resumeId: legacyResumeId,
+        workspaceSlug: "other",
+        identityKey: legacyIdentityKey,
+        status: "rejected",
+        updatedAt: 1_650_000_000_000,
+      });
+    });
+    vi.spyOn(Date, "now").mockReturnValue(1_900_000_000_000);
+
+    const result = await t.mutation(api.candidate_status.importNotesBatch, {
+      workspaceSlug: "dev",
+      items: [{ resumeId: legacyIdentityKey, comments: "Final HR note" }],
+      updatedBy: "current-reviewer",
+      writeSecret: WRITE_SECRET,
+    });
+
+    expect(result).toMatchObject({ requested: 1, applied: 1, unchanged: 0, notFound: 0 });
+    expect(result.results).toEqual([{
+      resumeId: legacyIdentityKey,
+      identityKey: portableIdentityKey,
+      outcome: "applied",
+    }]);
+
+    const state = await t.run(async (ctx) => ({
+      resume: await ctx.db.get(legacyResumeId),
+      digests: await ctx.db
+        .query("resume_digests")
+        .withIndex("by_resumeId", (q) => q.eq("resumeId", legacyResumeId))
+        .collect(),
+      statuses: await ctx.db.query("candidate_status").collect(),
+      overlays: await ctx.db.query("resume_digest_statuses").collect(),
+    }));
+    expect(state.resume?.identityKey).toBe(portableIdentityKey);
+    expect(state.digests).toHaveLength(1);
+    expect(state.digests[0]?.identityKey).toBe(portableIdentityKey);
+
+    const devStatuses = state.statuses.filter((row) => row.workspaceSlug === "dev");
+    expect(devStatuses).toHaveLength(1);
+    expect(devStatuses[0]).toMatchObject({
+      identityKey: portableIdentityKey,
+      status: "shortlisted",
+      notes: "Final HR note",
+      updatedBy: "current-reviewer",
+      updatedAt: 1_900_000_000_000,
+      history: [...lifecycleHistory, ...portableOnlyHistory],
+    });
+    const devOverlays = state.overlays.filter((row) => row.workspaceSlug === "dev");
+    expect(devOverlays).toHaveLength(1);
+    expect(devOverlays[0]).toMatchObject({
+      resumeId: legacyResumeId,
+      identityKey: portableIdentityKey,
+      status: "shortlisted",
+      updatedAt: 1_900_000_000_000,
+    });
+
+    expect(state.statuses.filter((row) => row.workspaceSlug === "other")).toEqual([
+      expect.objectContaining({
+        identityKey: legacyIdentityKey,
+        status: "rejected",
+        notes: "Other workspace note",
+      }),
+    ]);
+    expect(state.overlays.filter((row) => row.workspaceSlug === "other")).toEqual([
+      expect.objectContaining({
+        identityKey: legacyIdentityKey,
+        status: "rejected",
+      }),
+    ]);
+
+    const activeResumes = await t.query(api.resumes.list, { limit: 10 });
+    expect(activeResumes.find((resume) => resume._id === legacyResumeId)?.identityKey)
+      .toBe(portableIdentityKey);
+    const projectedResumes = await t.query(api.resumes_search.getResumeDocsByIds, {
+      ids: [legacyResumeId],
+    });
+    expect(projectedResumes).toEqual([
+      expect.objectContaining({ identityKey: portableIdentityKey }),
+    ]);
+    const digestProjection = await t.query(api.resumes_search.scanResumeDigestPage, { numItems: 10 });
+    expect(digestProjection.docs).toEqual([
+      expect.objectContaining({ resumeId: legacyResumeId, identityKey: portableIdentityKey }),
+    ]);
+  });
+
   it("treats cross-workspace and non-dev unscoped resume ids as not found", async () => {
     const t = createTest();
     const hrResumeId = await insertResumeWithIdentity(t, "hr-identity", "hr");

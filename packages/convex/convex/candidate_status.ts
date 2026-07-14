@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
 import { mutation, query, type MutationCtx } from "./_generated/server";
-import type { Id } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 
 import { DEFAULT_WORKSPACE_SLUG } from "./sessions";
 import { belongsToWorkspace } from "./search_profiles";
@@ -42,27 +42,131 @@ async function upsertDigestStatusForResume(
         resumeId: Id<"resumes">;
         workspaceSlug: string;
         identityKey: string;
+        legacyIdentityKey?: string;
         status: CandidateStatus;
         updatedAt: number;
     },
 ): Promise<void> {
-    const existing = await ctx.db
+    const portable = await ctx.db
         .query("resume_digest_statuses")
         .withIndex("by_workspace_identity", (q) =>
             q.eq("workspaceSlug", args.workspaceSlug).eq("identityKey", args.identityKey)
         )
         .unique();
+    const legacyIdentityKey = args.legacyIdentityKey;
+    const legacy = legacyIdentityKey && legacyIdentityKey !== args.identityKey
+        ? await ctx.db
+            .query("resume_digest_statuses")
+            .withIndex("by_workspace_identity", (q) =>
+                q.eq("workspaceSlug", args.workspaceSlug).eq("identityKey", legacyIdentityKey)
+            )
+            .unique()
+        : null;
+    const existing = legacy ?? portable;
 
     if (existing) {
         await ctx.db.patch(existing._id, {
             resumeId: args.resumeId,
+            identityKey: args.identityKey,
             status: args.status,
             updatedAt: args.updatedAt,
         });
+        if (legacy && portable) {
+            await ctx.db.delete(portable._id);
+        }
         return;
     }
 
-    await ctx.db.insert("resume_digest_statuses", args);
+    await ctx.db.insert("resume_digest_statuses", {
+        resumeId: args.resumeId,
+        workspaceSlug: args.workspaceSlug,
+        identityKey: args.identityKey,
+        status: args.status,
+        updatedAt: args.updatedAt,
+    });
+}
+
+function mergeCandidateStatusHistory(
+    primary: Doc<"candidate_status">["history"],
+    duplicate: Doc<"candidate_status">["history"],
+): Doc<"candidate_status">["history"] {
+    if (!primary && !duplicate) {
+        return undefined;
+    }
+
+    const merged = [...(primary ?? [])];
+    for (const entry of duplicate ?? []) {
+        const alreadyPresent = merged.some((existing) =>
+            existing.status === entry.status
+            && existing.updatedAt === entry.updatedAt
+            && existing.notes === entry.notes
+        );
+        if (!alreadyPresent) {
+            merged.push(entry);
+        }
+    }
+    return merged;
+}
+
+async function migrateLegacyCandidateStatus(
+    ctx: MutationCtx,
+    args: {
+        workspaceSlug: string;
+        legacyIdentityKey: string | undefined;
+        identityKey: string;
+    },
+): Promise<Doc<"candidate_status"> | null> {
+    const portable = await ctx.db
+        .query("candidate_status")
+        .withIndex("by_workspace_identity", (q) =>
+            q.eq("workspaceSlug", args.workspaceSlug).eq("identityKey", args.identityKey)
+        )
+        .unique();
+    const legacyIdentityKey = args.legacyIdentityKey;
+    if (!legacyIdentityKey || legacyIdentityKey === args.identityKey) {
+        return portable;
+    }
+
+    const legacy = await ctx.db
+        .query("candidate_status")
+        .withIndex("by_workspace_identity", (q) =>
+            q.eq("workspaceSlug", args.workspaceSlug).eq("identityKey", legacyIdentityKey)
+        )
+        .unique();
+    if (!legacy) {
+        return portable;
+    }
+
+    // The document-ID row predates portable duplicates created by the old note path,
+    // so it owns the lifecycle while unique duplicate history is retained.
+    const history = mergeCandidateStatusHistory(legacy.history, portable?.history);
+    if (portable) {
+        await ctx.db.delete(portable._id);
+    }
+    await ctx.db.patch(legacy._id, {
+        identityKey: args.identityKey,
+        history,
+    });
+    return {
+        ...legacy,
+        identityKey: args.identityKey,
+        history,
+    };
+}
+
+async function migrateLegacyResumeIdentity(
+    ctx: MutationCtx,
+    resume: Doc<"resumes">,
+    identityKey: string,
+): Promise<void> {
+    await ctx.db.patch(resume._id, { identityKey });
+    const digests = await ctx.db
+        .query("resume_digests")
+        .withIndex("by_resumeId", (q) => q.eq("resumeId", resume._id))
+        .collect();
+    for (const digest of digests) {
+        await ctx.db.patch(digest._id, { identityKey });
+    }
 }
 
 /**
@@ -359,19 +463,33 @@ export const importNotesBatch = mutation({
                 continue;
             }
 
-            const identityKey = resume.identityKey?.trim() || deriveResumeIdentityKey({
+            const storedIdentityKey = resume.identityKey?.trim();
+            const identityKey = storedIdentityKey || deriveResumeIdentityKey({
                 content: resume.content,
                 externalId: resume.externalId,
                 source: resume.source,
             });
-            const existing = await ctx.db
-                .query("candidate_status")
-                .withIndex("by_workspace_identity", (q) =>
-                    q.eq("workspaceSlug", workspaceSlug).eq("identityKey", identityKey)
-                )
-                .unique();
+            const legacyIdentityKey = storedIdentityKey ? undefined : String(resume._id);
+            if (legacyIdentityKey) {
+                await migrateLegacyResumeIdentity(ctx, resume, identityKey);
+            }
+            const existing = await migrateLegacyCandidateStatus(ctx, {
+                workspaceSlug,
+                legacyIdentityKey,
+                identityKey,
+            });
 
             if (existing?.notes === item.comments) {
+                if (legacyIdentityKey) {
+                    await upsertDigestStatusForResume(ctx, {
+                        resumeId: resume._id,
+                        workspaceSlug,
+                        identityKey,
+                        legacyIdentityKey,
+                        status: existing.status,
+                        updatedAt: existing.updatedAt,
+                    });
+                }
                 unchanged += 1;
                 results.push({ resumeId: item.resumeId, identityKey, outcome: "unchanged" });
                 continue;
@@ -399,6 +517,7 @@ export const importNotesBatch = mutation({
                 resumeId: resume._id,
                 workspaceSlug,
                 identityKey,
+                legacyIdentityKey,
                 status,
                 updatedAt: now,
             });
