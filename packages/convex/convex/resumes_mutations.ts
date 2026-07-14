@@ -2,7 +2,7 @@ import { internalMutation, internalQuery, mutation, type MutationCtx } from "./_
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
-import { ingestDataValidator, relatedExpEvidenceValidator } from "./validators.js";
+import { ingestDataValidator, resumeAnalysisValidator } from "./validators.js";
 import { doUpsertResumeDigest, doUpsertResumeAnalysis } from "./resumes_search.js";
 
 import {
@@ -91,25 +91,7 @@ function normalizeRequestedResumeIds(resumeIds: string[]): string[] {
 export const updateAnalysis = internalMutation({
     args: {
         resumeId: v.id("resumes"),
-        analysis: v.object({
-            score: v.number(),
-            summary: v.string(),
-            highlights: v.array(v.string()),
-            recommendation: v.string(),
-            breakdown: v.optional(v.record(v.string(), v.number())),
-            keyFactors: v.optional(v.array(v.object({
-                factor: v.string(),
-                weight: v.optional(v.number()),
-                value: v.string(),
-            }))),
-            jobDescriptionId: v.optional(v.string()),
-            promptVersion: v.optional(v.number()),
-            locale: v.optional(v.string()),
-            queryLocation: v.optional(v.string()),
-            analyzedAt: v.optional(v.number()),
-            /** P1: evidence ceiling result — stored for audit/display */
-            relatedExpEvidence: v.optional(relatedExpEvidenceValidator),
-        }),
+        analysis: resumeAnalysisValidator,
     },
     handler: async (ctx, args) => {
         const resume = await ctx.db.get(args.resumeId);
@@ -142,23 +124,7 @@ export const updateAnalysisBatch = internalMutation({
     args: {
         updates: v.array(v.object({
             resumeId: v.id("resumes"),
-            analysis: v.object({
-                score: v.number(),
-                summary: v.string(),
-                highlights: v.array(v.string()),
-                recommendation: v.string(),
-                breakdown: v.optional(v.record(v.string(), v.number())),
-                keyFactors: v.optional(v.array(v.object({
-                    factor: v.string(),
-                    weight: v.optional(v.number()),
-                    value: v.string(),
-                }))),
-                jobDescriptionId: v.optional(v.string()),
-                promptVersion: v.optional(v.number()),
-                locale: v.optional(v.string()),
-                queryLocation: v.optional(v.string()),
-                analyzedAt: v.optional(v.number()),
-            }),
+            analysis: resumeAnalysisValidator,
         })),
     },
     handler: async (ctx, args) => {

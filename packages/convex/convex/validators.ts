@@ -164,17 +164,20 @@ export const relatedExpEvidenceValidator = v.object({
 
 // --- Analysis result (resumes.analyses values) ---
 
+export const analysisKeyFactorValidator = v.object({
+    factor: v.string(),
+    weight: v.optional(v.number()),
+    value: v.string(),
+});
+
 export const analysisResultValidator = v.object({
     score: v.number(),
     summary: v.optional(v.string()),
     highlights: v.optional(v.array(v.string())),
+    concerns: v.optional(v.array(v.string())),
     recommendation: v.optional(v.string()),
     breakdown: v.optional(v.record(v.string(), v.number())),
-    keyFactors: v.optional(v.array(v.object({
-        factor: v.string(),
-        weight: v.optional(v.number()),
-        value: v.string(),
-    }))),
+    keyFactors: v.optional(v.array(analysisKeyFactorValidator)),
     jobDescriptionId: v.optional(v.string()),
     promptVersion: v.optional(v.number()),
     locale: v.optional(v.string()),
@@ -190,8 +193,10 @@ export const resumeAnalysisValidator = v.object({
     score: v.number(),
     summary: v.string(),
     highlights: v.array(v.string()),
+    concerns: v.optional(v.array(v.string())),
     recommendation: v.string(),
     breakdown: v.optional(v.record(v.string(), v.number())),
+    keyFactors: v.optional(v.array(analysisKeyFactorValidator)),
     jobDescriptionId: v.optional(v.string()),
     promptVersion: v.optional(v.number()),
     locale: v.optional(v.string()),

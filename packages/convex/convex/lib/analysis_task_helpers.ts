@@ -9,6 +9,7 @@ import {
     getCurrentResumeAiPromptVersion,
     type RelatedExpContextInput,
 } from "@trends/shared";
+import { parseKeyFactors, type KeyFactor } from "./analysis_normalization.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -18,8 +19,10 @@ export type AnalysisResult = {
     score: number;
     summary: string;
     highlights: string[];
+    concerns: string[];
     recommendation: string;
     breakdown?: Record<string, number>;
+    keyFactors: KeyFactor[];
     locale?: string;
     relatedExpEvidence?: {
         evidenceBandMax: number;
@@ -150,8 +153,10 @@ export function parseLlmResult(value: unknown): AnalysisResult {
         score,
         summary: summary || "No summary provided.",
         highlights: toStringArray(obj.highlights),
+        concerns: toStringArray(obj.concerns),
         recommendation,
         breakdown: parseBreakdown(obj.breakdown),
+        keyFactors: parseKeyFactors(obj.keyFactors),
     };
 }
 

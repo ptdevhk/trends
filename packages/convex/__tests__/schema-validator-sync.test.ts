@@ -42,6 +42,8 @@ describe("ingestData validator sync", () => {
         "industryTags",
         "synonymHits",
         "brandHits",
+        "brandOrigin",
+        "productClass",
         "companyHits",
         "industryDbV2Raw",
         "industryDbV2RawComponents",
@@ -106,8 +108,10 @@ describe("analysis validator sync (with intentional overrides)", () => {
         "score",
         "summary",
         "highlights",
+        "concerns",
         "recommendation",
         "breakdown",
+        "keyFactors",
         "jobDescriptionId",
         "promptVersion",
         "locale",
@@ -120,8 +124,10 @@ describe("analysis validator sync (with intentional overrides)", () => {
         "score",
         "summary",
         "highlights",
+        "concerns",
         "recommendation",
         "breakdown",
+        "keyFactors",
         "jobDescriptionId",
         "promptVersion",
         "locale",
@@ -176,8 +182,10 @@ describe("analysis validator sync (with intentional overrides)", () => {
                 score: 80,
                 summary: "test summary",
                 highlights: ["highlight1"],
+                concerns: ["concern1"],
                 recommendation: "yes",
                 breakdown: { related: 80 },
+                keyFactors: [{ factor: "experience", value: "five years" }],
                 jobDescriptionId: "jd-1",
                 promptVersion: 2,
                 locale: "en",
@@ -194,8 +202,8 @@ describe("analysis validator sync (with intentional overrides)", () => {
     });
 
     it("all confirm analysis fields are tested", () => {
-        const expectedCount = 10; // score, summary, highlights, recommendation,
-        // breakdown, jobDescriptionId, promptVersion, locale, queryLocation, analyzedAt
+        const expectedCount = 12; // score, summary, highlights, concerns, recommendation,
+        // breakdown, keyFactors, jobDescriptionId, promptVersion, locale, queryLocation, analyzedAt
         expect(CONFIRM_RESULT_ANALYSIS_FIELDS).toHaveLength(expectedCount);
     });
 });

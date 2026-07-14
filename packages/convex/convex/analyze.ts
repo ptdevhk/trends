@@ -39,7 +39,7 @@ import {
     getAiTemperature,
     type ChatMessage,
 } from "./lib/analysis_config.js";
-import { matchingRulesValidator } from "./validators.js";
+import { analysisKeyFactorValidator, matchingRulesValidator } from "./validators.js";
 
 // Re-export for backward compatibility
 export {
@@ -312,6 +312,7 @@ export const analyzeResume = action({
                 breakdown: result.breakdown,
                 summary: result.summary,
                 highlights: result.highlights || [],
+                concerns: result.concerns.length > 0 ? result.concerns : undefined,
                 recommendation: result.recommendation || "no_match",
                 keyFactors: result.keyFactors.length > 0 ? result.keyFactors : undefined,
                 jobDescriptionId: args.jobDescriptionId || "default",
@@ -454,13 +455,10 @@ export const storeConfirmResult = internalMutation({
             score: v.number(),
             summary: v.string(),
             highlights: v.array(v.string()),
+            concerns: v.optional(v.array(v.string())),
             recommendation: v.string(),
             breakdown: v.optional(v.record(v.string(), v.number())),
-            keyFactors: v.optional(v.array(v.object({
-                factor: v.string(),
-                weight: v.optional(v.number()),
-                value: v.string(),
-            }))),
+            keyFactors: v.optional(v.array(analysisKeyFactorValidator)),
             jobDescriptionId: v.optional(v.string()),
             promptVersion: v.number(),
             locale: v.string(),
@@ -486,8 +484,7 @@ export const storeConfirmResult = internalMutation({
         });
         // Cold row authoritative. Preserve the existing primary `analysis`
         // (the JD-based result) — do NOT overwrite it with the confirm result,
-        // which carries keyFactors not allowed by resumeAnalysisValidator and
-        // would clobber the primary analysis. The confirm entry lives in the
+        // which would clobber the primary analysis. The confirm entry lives in the
         // `analyses` map under confirmKey. Matches the pre-3a contract.
         await doUpsertResumeAnalysis(ctx, args.resumeId, activeAnalysis.analysis, analyses);
 
@@ -568,6 +565,7 @@ export const confirmSearchResults = action({
                         breakdown: analysis.breakdown,
                         summary: analysis.summary,
                         highlights: analysis.highlights || [],
+                        concerns: analysis.concerns.length > 0 ? analysis.concerns : undefined,
                         recommendation: analysis.recommendation,
                         promptVersion: 1,
                         locale: "zh-Hans",
