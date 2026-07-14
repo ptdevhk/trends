@@ -1420,6 +1420,7 @@ export const AnalyzeRequestSchema = z.object({
   query: z.string().optional().openapi({ example: "CNC 销售" }),
   jobDescriptionId: z.string().optional().openapi({ example: "lathe-sales" }),
   location: z.string().optional().openapi({ example: "东莞" }),
+  minExperience: z.number().min(0).optional().openapi({ example: 3 }),
   maxExperience: z.number().min(0).optional().openapi({ example: 10 }),
   education: z.array(z.string()).optional().openapi({ example: ["bachelor", "master"] }),
   skills: z.array(z.string()).optional().openapi({ example: ["CNC", "FANUC"] }),

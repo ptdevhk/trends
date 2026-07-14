@@ -4138,6 +4138,8 @@ export interface paths {
                         jobDescriptionId?: string;
                         /** @example 东莞 */
                         location?: string;
+                        /** @example 3 */
+                        minExperience?: number;
                         /** @example 10 */
                         maxExperience?: number;
                         /**

@@ -289,8 +289,14 @@ func newResumeAnalyzeCmd() *cobra.Command {
 			if strings.TrimSpace(query) == "" && strings.TrimSpace(jobDescriptionID) == "" {
 				return fmt.Errorf("query or job-description is required")
 			}
+			if !wait && (cmd.Flags().Changed("wait-timeout") || cmd.Flags().Changed("poll-interval")) {
+				return fmt.Errorf("--wait-timeout and --poll-interval require --wait")
+			}
 
 			exactMode := cmd.Flags().Changed("manifest") || cmd.Flags().Changed("resume-id")
+			if exactMode && minExperience > 0 {
+				return fmt.Errorf("--min-experience is not supported in exact mode")
+			}
 			if exactMode && !dryRun && !yes {
 				return fmt.Errorf("live exact analysis requires --yes; use --dry-run to resolve and preview")
 			}

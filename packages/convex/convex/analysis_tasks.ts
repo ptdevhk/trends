@@ -66,6 +66,7 @@ type AnalysisDispatchResult =
         taskId: Id<"analysis_tasks">;
         dispatchedAt: number;
         reused: boolean;
+        resumeIds?: Id<"resumes">[];
     }
     | { queued: false; reason: "maintenance" };
 
@@ -680,11 +681,15 @@ export const dispatchExact = mutation({
                 )
                 .first();
             if (existingTask) {
+                if (!existingTask.targetResumeIds?.length) {
+                    throw new Error(`Exact analysis task ${String(existingTask._id)} is missing persisted resume IDs`);
+                }
                 return {
                     queued: true,
                     taskId: existingTask._id,
                     dispatchedAt: existingTask.dispatchedAt ?? existingTask._creationTime,
                     reused: true,
+                    resumeIds: existingTask.targetResumeIds,
                 };
             }
         }
@@ -720,7 +725,13 @@ export const dispatchExact = mutation({
             resumeIds: uniqueResumeIds,
         });
 
-        return { queued: true, taskId, dispatchedAt, reused: false };
+        return {
+            queued: true,
+            taskId,
+            dispatchedAt,
+            reused: false,
+            resumeIds: uniqueResumeIds,
+        };
     },
 });
 
@@ -834,21 +845,6 @@ export const getExactStatus = query({
                 expectedJobDescriptionId,
                 expectedPromptVersion,
             };
-            if (!resume) {
-                invalid += 1;
-                targets.push({ ...base, state: "invalid", reasons: ["resume_missing"] });
-                continue;
-            }
-            if (resume.isArchived === true) {
-                invalid += 1;
-                targets.push({ ...base, state: "invalid", reasons: ["resume_archived"] });
-                continue;
-            }
-            if (!belongsToWorkspace(resume.workspaceSlug, workspaceSlug)) {
-                invalid += 1;
-                targets.push({ ...base, state: "invalid", reasons: ["workspace_mismatch"] });
-                continue;
-            }
             if (task.status === "pending" || task.status === "processing") {
                 pending += 1;
                 targets.push({
@@ -865,6 +861,21 @@ export const getExactStatus = query({
                     state: "invalid",
                     reasons: [`task_${task.status}`],
                 });
+                continue;
+            }
+            if (!resume) {
+                invalid += 1;
+                targets.push({ ...base, state: "invalid", reasons: ["resume_missing"] });
+                continue;
+            }
+            if (resume.isArchived === true) {
+                invalid += 1;
+                targets.push({ ...base, state: "invalid", reasons: ["resume_archived"] });
+                continue;
+            }
+            if (!belongsToWorkspace(resume.workspaceSlug, workspaceSlug)) {
+                invalid += 1;
+                targets.push({ ...base, state: "invalid", reasons: ["workspace_mismatch"] });
                 continue;
             }
 

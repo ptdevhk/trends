@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   buildKeywordAnalysisId,
   buildResumeAnalysisStorageKey,
@@ -90,6 +90,7 @@ describe("analysis_tasks:dispatchExact", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     delete process.env.CONVEX_WRITE_SECRET;
     delete process.env.AI_OUTPUT_LOCALE;
   });
@@ -148,6 +149,7 @@ describe("analysis_tasks:dispatchExact", () => {
       taskId: expect.any(String),
       dispatchedAt: expect.any(Number),
       reused: false,
+      resumeIds: [secondId, firstId],
     });
 
     const task = await t.query(internal.analysis_tasks.getTask, { taskId: result.taskId });
@@ -204,6 +206,7 @@ describe("analysis_tasks:dispatchExact", () => {
   });
 
   it("reuses only the same pending exact set and returns its original boundary", async () => {
+    vi.useFakeTimers();
     const t = createTest();
     const firstId = await seedResume(t, { externalId: "reuse-first", workspaceSlug: "dev" });
     const secondId = await seedResume(t, { externalId: "reuse-second", workspaceSlug: "dev" });
@@ -217,7 +220,19 @@ describe("analysis_tasks:dispatchExact", () => {
       taskId: first.taskId,
       dispatchedAt: originalBoundary,
       reused: true,
+      resumeIds: [firstId, secondId],
     });
+    if (!reused.resumeIds) {
+      throw new Error("Expected reused exact dispatch to return persisted resume IDs");
+    }
+    const status = await t.query(api.analysis_tasks.getExactStatus, {
+      taskId: reused.taskId,
+      workspaceSlug: "dev",
+      writeSecret: WRITE_SECRET,
+    });
+    expect(status?.verification.targets.map((target) => target.currentResumeId)).toEqual(
+      reused.resumeIds.map(String),
+    );
     expect(await storedTasks(t)).toHaveLength(1);
     expect(await scheduledFunctions(t)).toHaveLength(1);
   });
@@ -351,6 +366,7 @@ describe("analysis_tasks:getExactStatus", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     delete process.env.CONVEX_WRITE_SECRET;
     delete process.env.AI_OUTPUT_LOCALE;
   });
@@ -592,6 +608,62 @@ describe("analysis_tasks:getExactStatus", () => {
       ["resume_archived"],
       ["workspace_mismatch"],
     ]);
+  });
+
+  it.each([
+    ["pending", "missing"],
+    ["pending", "archived"],
+    ["pending", "workspace"],
+    ["processing", "missing"],
+    ["processing", "archived"],
+    ["processing", "workspace"],
+    ["failed", "missing"],
+    ["failed", "archived"],
+    ["failed", "workspace"],
+    ["cancelled", "missing"],
+    ["cancelled", "archived"],
+    ["cancelled", "workspace"],
+  ] as const)("gives %s task state precedence over %s resume drift", async (taskStatus, drift) => {
+    vi.useFakeTimers();
+    const t = createTest();
+    const resumeId = await seedResume(t, {
+      externalId: `precedence-${taskStatus}-${drift}`,
+      workspaceSlug: "dev",
+    });
+    const dispatch = queuedResult(await dispatchExact(t, [resumeId]));
+
+    if (taskStatus === "processing") {
+      await t.mutation(internal.analysis_tasks.markProcessing, { taskId: dispatch.taskId });
+    } else if (taskStatus === "failed" || taskStatus === "cancelled") {
+      await completeTask(t, dispatch.taskId, taskStatus);
+    }
+
+    await t.run(async (ctx) => {
+      if (drift === "missing") {
+        await ctx.db.delete(resumeId);
+      } else if (drift === "archived") {
+        await ctx.db.patch(resumeId, { isArchived: true });
+      } else {
+        await ctx.db.patch(resumeId, { workspaceSlug: "hr" });
+      }
+    });
+
+    const status = await t.query(api.analysis_tasks.getExactStatus, {
+      taskId: dispatch.taskId,
+      workspaceSlug: "dev",
+      writeSecret: WRITE_SECRET,
+    });
+    const pendingTask = taskStatus === "pending" || taskStatus === "processing";
+    expect(status?.verification).toMatchObject({
+      allReady: false,
+      ready: 0,
+      pending: pendingTask ? 1 : 0,
+      invalid: pendingTask ? 0 : 1,
+    });
+    expect(status?.verification.targets[0]).toMatchObject({
+      state: pendingTask ? "pending" : "invalid",
+      reasons: [`task_${taskStatus}`],
+    });
   });
 
   it("reports valid targets pending while the task is pending or processing", async () => {

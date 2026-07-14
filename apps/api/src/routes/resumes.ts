@@ -1209,6 +1209,7 @@ const AnalysisDispatchResultSchema = z.discriminatedUnion("queued", [
     taskId: z.string().min(1),
     dispatchedAt: z.number(),
     reused: z.boolean(),
+    resumeIds: z.array(z.string().min(1)).min(1).max(500).optional(),
   }),
   z.object({
     queued: z.literal(false),
@@ -1229,6 +1230,7 @@ app.openapi(analyzeRoute, async (c) => {
     query,
     jobDescriptionId,
     location,
+    minExperience,
     maxExperience,
     education,
     skills,
@@ -1280,6 +1282,7 @@ app.openapi(analyzeRoute, async (c) => {
       locationFilters && locationFilters.length > 0 ? "locations" : undefined,
       minSalary !== undefined ? "minSalary" : undefined,
       maxSalary !== undefined ? "maxSalary" : undefined,
+      minExperience !== undefined ? "minExperience" : undefined,
       maxExperience !== undefined ? "maxExperience" : undefined,
     ].filter((field): field is string => field !== undefined);
     if (unsupportedFilters.length > 0) {
@@ -1381,12 +1384,21 @@ app.openapi(analyzeRoute, async (c) => {
           error: "Analysis dispatch is unavailable during maintenance",
         }, 503);
       }
+      const persistedResumeIds = dispatchResult.resumeIds;
+      const persistedResumeIdSet = new Set(persistedResumeIds ?? []);
+      if (!persistedResumeIds
+        || persistedResumeIds.length !== resolution.resumeIds.length
+        || persistedResumeIdSet.size !== persistedResumeIds.length
+        || resolution.resumeIds.some((resumeId) => !persistedResumeIdSet.has(resumeId))) {
+        throw new Error("Exact analysis dispatch returned inconsistent persisted resume IDs");
+      }
 
       return c.json(AnalyzeResponseSchema.parse({
         ...responseBase,
         taskId: dispatchResult.taskId,
         dispatchedAt: dispatchResult.dispatchedAt,
         reused: dispatchResult.reused,
+        resumeIds: persistedResumeIds,
       }), 200);
     } catch (error) {
       logger.error("Failed to resolve or dispatch exact analysis", error, { route: "resumes" });

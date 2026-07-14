@@ -457,6 +457,40 @@ func TestResumeAnalyzeExactRejectsWaitWithDryRun(t *testing.T) {
 	}
 }
 
+func TestResumeAnalyzeExactRejectsMinExperienceBeforeRequest(t *testing.T) {
+	var requests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"success": true, "mode": "exact", "dryRun": true,
+			"resumeCount": 1, "requestedCount": 1, "resolvedCount": 1,
+			"resumeIds": []string{"current-1"}, "targets": []any{},
+			"expectedAnalysis": map[string]any{"jobDescriptionId": "keyword-search:2:test", "promptVersion": 42},
+		})
+	}))
+	defer server.Close()
+
+	setResumeCLIConfig(t, server.URL, "dev")
+	setCLIOutput(t, "json")
+	cmd := newResumeAnalyzeCmd()
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+	cmd.SetArgs([]string{
+		"--query", "CNC 销售",
+		"--resume-id", "current-1",
+		"--min-experience", "1",
+		"--dry-run",
+	})
+
+	err := cmd.Execute()
+	if err == nil || !strings.Contains(err.Error(), "--min-experience is not supported in exact mode") {
+		t.Fatalf("unexpected exact min-experience error: %v", err)
+	}
+	if got := requests.Load(); got != 0 {
+		t.Fatalf("expected exact min-experience validation before HTTP, got %d requests", got)
+	}
+}
+
 func TestResumeAnalyzeExactRejectsNonPositiveWaitDurationsBeforeDispatch(t *testing.T) {
 	for _, testCase := range []struct {
 		name string
@@ -496,6 +530,49 @@ func TestResumeAnalyzeExactRejectsNonPositiveWaitDurationsBeforeDispatch(t *test
 			}
 			if got := requests.Load(); got != 0 {
 				t.Fatalf("expected invalid wait flags to prevent dispatch, got %d requests", got)
+			}
+		})
+	}
+}
+
+func TestResumeAnalyzeExactRejectsTimingFlagsWithoutWaitBeforeRequest(t *testing.T) {
+	for _, testCase := range []struct {
+		name string
+		flag string
+	}{
+		{name: "wait timeout", flag: "--wait-timeout"},
+		{name: "poll interval", flag: "--poll-interval"},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			var requests atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				requests.Add(1)
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"success": true, "mode": "exact", "taskId": "task-should-not-dispatch",
+					"dispatchedAt": 1750000000001, "resumeCount": 1,
+					"expectedAnalysis": map[string]any{"jobDescriptionId": "keyword-search:2:test", "promptVersion": 42},
+				})
+			}))
+			defer server.Close()
+
+			setResumeCLIConfig(t, server.URL, "dev")
+			setCLIOutput(t, "json")
+			cmd := newResumeAnalyzeCmd()
+			cmd.SetOut(&bytes.Buffer{})
+			cmd.SetErr(&bytes.Buffer{})
+			cmd.SetArgs([]string{
+				"--query", "CNC 销售",
+				"--resume-id", "current-1",
+				"--yes",
+				testCase.flag, "1s",
+			})
+
+			err := cmd.Execute()
+			if err == nil || !strings.Contains(err.Error(), "--wait-timeout and --poll-interval require --wait") {
+				t.Fatalf("unexpected timing-without-wait error: %v", err)
+			}
+			if got := requests.Load(); got != 0 {
+				t.Fatalf("expected timing flag validation before HTTP, got %d requests", got)
 			}
 		})
 	}
