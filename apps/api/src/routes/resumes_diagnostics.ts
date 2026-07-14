@@ -327,12 +327,12 @@ app.openapi(getExactTaskAuditExportRoute, async (c) => {
       return c.json({ success: false as const, error: "Analysis task not found" }, 404);
     }
 
-    const page = ExactTaskAuditPageSchema.parse(value);
-    assertExactTaskAuditPageConsistency(page, taskId, c.var.workspaceSlug);
-    return c.json(ExactTaskAuditPageResponseSchema.parse({
+    const page = ExactTaskAuditPageResponseSchema.parse({
+      ...(value as Record<string, unknown>),
       success: true as const,
-      ...page,
-    }), 200);
+    });
+    assertExactTaskAuditPageConsistency(page, taskId, c.var.workspaceSlug);
+    return c.json(page, 200);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (isInvalidExactTaskAuditError(message)) {

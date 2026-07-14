@@ -15,7 +15,6 @@ import {
 
 export type ExactTaskMetadata = {
     targetResumeIds: Id<"resumes">[];
-    targetAnalysisIdentities: ExactAnalysisIdentity[];
     targetAnalysisIdentityByResumeId: ReadonlyMap<string, ExactAnalysisIdentity>;
     expectedJobDescriptionId: string;
     expectedPromptVersion: number;
@@ -213,7 +212,6 @@ export function resolveExactTaskMetadata(
 
     return {
         targetResumeIds,
-        targetAnalysisIdentities: Array.from(targetAnalysisIdentityByResumeId.values()),
         targetAnalysisIdentityByResumeId,
         expectedJobDescriptionId,
         expectedPromptVersion,
@@ -236,9 +234,7 @@ export function resolveCompletedExactTaskAuditMetadata(
         || !Number.isInteger(metadata.expectedPromptVersion)) {
         throw new Error(`Exact analysis task ${String(task._id)} has invalid verification metadata`);
     }
-    const uniqueTargetCount = new Set(metadata.targetResumeIds.map(String)).size;
-    if (uniqueTargetCount !== metadata.targetResumeIds.length
-        || task.config.resumeCount !== metadata.targetResumeIds.length) {
+    if (task.config.resumeCount !== metadata.targetResumeIds.length) {
         throw new Error(`Exact analysis task ${String(task._id)} has inconsistent target count metadata`);
     }
 
@@ -368,6 +364,9 @@ export async function projectExactTaskAuditRow(
     const ingestData = resume.ingestData;
     const roleSignals = ingestData?.roleSignals;
     const matchedWorkEntries = roleSignals?.flatMap((signal) => signal.matchedWorkEntries ?? []);
+    const name = readString(content, ["name"]);
+    const age = readAge(content, resume.age);
+    const location = readString(content, ["location"]);
     const base = {
         currentResumeId: String(resume._id),
         canonicalIdentityKey: resume.identityKey?.trim() || deriveResumeIdentityKey({
@@ -381,9 +380,9 @@ export async function projectExactTaskAuditRow(
         source: resume.source,
         sourceKey: identity?.sourceKey ?? resume.sourceKey?.trim() ?? "unknown",
         workspaceSlug: metadata.workspaceSlug,
-        ...(readString(content, ["name"]) ? { name: readString(content, ["name"]) } : {}),
-        ...(readAge(content, resume.age) !== undefined ? { age: readAge(content, resume.age) } : {}),
-        ...(readString(content, ["location"]) ? { location: readString(content, ["location"]) } : {}),
+        ...(name ? { name } : {}),
+        ...(age !== undefined ? { age } : {}),
+        ...(location ? { location } : {}),
         taskId: metadata.taskId,
         taskStatus: metadata.status,
         taskWorkspaceSlug: metadata.workspaceSlug,
