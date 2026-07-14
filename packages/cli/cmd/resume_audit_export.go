@@ -382,6 +382,18 @@ func auditInt64Cell(value *int64) string {
 	return strconv.FormatInt(*value, 10)
 }
 
+func neutralizeAuditCSVFormulaCell(value string) string {
+	if len(value) == 0 {
+		return value
+	}
+	switch value[0] {
+	case '=', '+', '-', '@', '\t', '\r':
+		return "'" + value
+	default:
+		return value
+	}
+}
+
 func exactTaskAuditCSVRecord(row client.ExactTaskAuditRow) ([]string, error) {
 	age, err := auditRawScalarCell(row.Age)
 	if err != nil {
@@ -503,6 +515,9 @@ func encodeExactTaskAuditCSV(rows []client.ExactTaskAuditRow) ([]byte, error) {
 		if err != nil {
 			return nil, fmt.Errorf("encode audit export row %s: %w", row.CurrentResumeID, err)
 		}
+		for index, value := range record {
+			record[index] = neutralizeAuditCSVFormulaCell(value)
+		}
 		if err := writer.Write(record); err != nil {
 			return nil, fmt.Errorf("write audit export row %s: %w", row.CurrentResumeID, err)
 		}
@@ -516,7 +531,7 @@ func encodeExactTaskAuditCSV(rows []client.ExactTaskAuditRow) ([]byte, error) {
 
 func installPrivateAtomicFile(path string, payload []byte) error {
 	directory := filepath.Dir(path)
-	if err := os.MkdirAll(directory, 0o755); err != nil {
+	if err := os.MkdirAll(directory, 0o700); err != nil {
 		return fmt.Errorf("create audit export directory: %w", err)
 	}
 	temporary, err := os.CreateTemp(directory, "."+filepath.Base(path)+".*.tmp")

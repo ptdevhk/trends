@@ -15,6 +15,8 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+
+	"github.com/ptdevhk/trends/packages/cli/internal/client"
 )
 
 const (
@@ -367,6 +369,104 @@ func readCSVRecords(t *testing.T, path string) [][]string {
 		t.Fatalf("read CSV: %v", err)
 	}
 	return records
+}
+
+func TestExactTaskAuditCSVNeutralizesSpreadsheetFormulaCells(t *testing.T) {
+	payload, err := encodeExactTaskAuditCSV([]client.ExactTaskAuditRow{{
+		Name:                  "=scalar-formula",
+		Age:                   json.RawMessage(`"+json-formula"`),
+		Location:              "-location-formula",
+		CurrentAISummary:      "@model-formula",
+		EvidenceText:          "\tevidence-formula",
+		CurrentRecommendation: "\rrecommendation-formula",
+	}})
+	if err != nil {
+		t.Fatalf("encode audit CSV: %v", err)
+	}
+
+	records, err := csv.NewReader(bytes.NewReader(payload)).ReadAll()
+	if err != nil {
+		t.Fatalf("read audit CSV: %v", err)
+	}
+	if len(records) != 2 {
+		t.Fatalf("expected header plus one row, got %d records", len(records))
+	}
+	cell := func(header string) string {
+		t.Helper()
+		for index, value := range records[0] {
+			if value == header {
+				return records[1][index]
+			}
+		}
+		t.Fatalf("missing %q column", header)
+		return ""
+	}
+
+	for header, want := range map[string]string{
+		"Name":                   "'=scalar-formula",
+		"Age":                    "'+json-formula",
+		"Location":               "'-location-formula",
+		"Current AI Summary":     "'@model-formula",
+		"Evidence Text":          "'\tevidence-formula",
+		"Current Recommendation": "'\rrecommendation-formula",
+	} {
+		if got := cell(header); got != want {
+			t.Errorf("%s formula cell = %q, want %q", header, got, want)
+		}
+	}
+	if records[0][0] != exactTaskAuditCSVHeaders[0] {
+		t.Fatalf("static audit CSV header changed: %q", records[0][0])
+	}
+}
+
+func TestAuditPrivateAtomicFileCreatesMissingDirectoriesOwnerOnly(t *testing.T) {
+	root := t.TempDir()
+	directory := filepath.Join(root, "nested", "audit")
+	path := filepath.Join(directory, "export.csv")
+	if err := installPrivateAtomicFile(path, []byte("private audit payload")); err != nil {
+		t.Fatalf("install private audit file: %v", err)
+	}
+
+	for _, createdDirectory := range []string{
+		filepath.Join(root, "nested"),
+		directory,
+	} {
+		info, err := os.Stat(createdDirectory)
+		if err != nil {
+			t.Fatalf("stat created audit directory %s: %v", createdDirectory, err)
+		}
+		if got := info.Mode().Perm(); got != 0o700 {
+			t.Errorf("created audit directory %s mode = %04o, want 0700", createdDirectory, got)
+		}
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat private audit file: %v", err)
+	}
+	if got := info.Mode().Perm(); got != 0o600 {
+		t.Fatalf("private audit file mode = %04o, want 0600", got)
+	}
+}
+
+func TestAuditPrivateAtomicFilePreservesExistingDirectoryMode(t *testing.T) {
+	directory := filepath.Join(t.TempDir(), "existing-audit-output")
+	if err := os.Mkdir(directory, 0o755); err != nil {
+		t.Fatalf("create existing audit directory: %v", err)
+	}
+	if err := os.Chmod(directory, 0o755); err != nil {
+		t.Fatalf("set existing audit directory mode: %v", err)
+	}
+
+	if err := installPrivateAtomicFile(filepath.Join(directory, "export.csv"), []byte("private audit payload")); err != nil {
+		t.Fatalf("install private audit file: %v", err)
+	}
+	info, err := os.Stat(directory)
+	if err != nil {
+		t.Fatalf("stat existing audit directory: %v", err)
+	}
+	if got := info.Mode().Perm(); got != 0o755 {
+		t.Fatalf("existing audit directory mode = %04o, want unchanged 0755", got)
+	}
 }
 
 func TestResumeExportConvexModeRejectsInvalidStreamsWithoutPartialFiles(t *testing.T) {
