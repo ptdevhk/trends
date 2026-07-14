@@ -26,17 +26,65 @@ const (
 )
 
 type sessionAuth struct {
-	once      sync.Once
-	username  string
-	password  string
-	csrfToken string
-	apiURL    *url.URL
-	jar       http.CookieJar
-	http      *http.Client
-	// secrets retains only in-memory redaction values after password is cleared from the login field.
-	secrets      []string
+	once         sync.Once
+	username     string
+	password     string
+	csrfToken    string
+	apiURL       *url.URL
+	jar          http.CookieJar
+	http         *http.Client
+	redactions   *redactionRegistry
 	preflightErr error
 	loginErr     error
+}
+
+type redactionRegistry struct {
+	mu     sync.RWMutex
+	values map[string]struct{}
+}
+
+func newRedactionRegistry(values ...string) *redactionRegistry {
+	registry := &redactionRegistry{values: make(map[string]struct{}, len(values))}
+	registry.register(values...)
+	return registry
+}
+
+func (r *redactionRegistry) register(values ...string) {
+	if r == nil {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, value := range values {
+		if value != "" {
+			r.values[value] = struct{}{}
+		}
+	}
+}
+
+func (r *redactionRegistry) snapshot() []string {
+	if r == nil {
+		return nil
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	values := make([]string, 0, len(r.values))
+	for value := range r.values {
+		values = append(values, value)
+	}
+	return values
+}
+
+type cookieCapturingTransport struct {
+	base       http.RoundTripper
+	redactions *redactionRegistry
+}
+
+func (t *cookieCapturingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	for _, cookie := range req.Cookies() {
+		t.redactions.register(cookie.Value)
+	}
+	return t.base.RoundTrip(req)
 }
 
 type authenticationError struct {
@@ -77,6 +125,8 @@ func newWithSessionAuth(
 		auth.preflightErr = err
 		return c
 	}
+	parsedAPIURL.Scheme = strings.ToLower(parsedAPIURL.Scheme)
+	c.APIURL = strings.TrimRight(parsedAPIURL.String(), "/")
 	jar, err := cookiejar.New(nil)
 	if err != nil {
 		auth.preflightErr = &authenticationError{message: "CLI authentication could not initialize an in-memory session"}
@@ -87,7 +137,7 @@ func newWithSessionAuth(
 	auth.password = password
 	auth.apiURL = parsedAPIURL
 	auth.jar = jar
-	auth.secrets = []string{username, password}
+	auth.redactions = newRedactionRegistry(username, password)
 	return c
 }
 
@@ -155,6 +205,14 @@ func (c *Client) ensureAuthenticated(ctx context.Context) error {
 		}
 		authenticatedClient := *baseClient
 		authenticatedClient.Jar = c.auth.jar
+		baseTransport := authenticatedClient.Transport
+		if baseTransport == nil {
+			baseTransport = http.DefaultTransport
+		}
+		authenticatedClient.Transport = &cookieCapturingTransport{
+			base:       baseTransport,
+			redactions: c.auth.redactions,
+		}
 		authenticatedClient.CheckRedirect = func(*http.Request, []*http.Request) error {
 			return http.ErrUseLastResponse
 		}
@@ -195,6 +253,7 @@ func (c *Client) login(ctx context.Context, password string) error {
 		return &authenticationError{message: "CLI authentication failed: login request could not be completed"}
 	}
 	defer res.Body.Close()
+	c.registerResponseCookieValues(res, req.URL)
 
 	if res.StatusCode != http.StatusOK {
 		return &authenticationError{message: fmt.Sprintf("CLI authentication failed: login returned HTTP %d", res.StatusCode)}
@@ -211,11 +270,12 @@ func (c *Client) login(ctx context.Context, password string) error {
 		return &authenticationError{message: "CLI authentication failed: invalid login response"}
 	}
 
-	parsedLoginURL, err := url.Parse(loginURL)
-	if err != nil || len(c.auth.jar.Cookies(parsedLoginURL)) == 0 {
+	representativeApplicationURL, err := url.Parse(c.APIURL + "/api/resumes")
+	if err != nil || len(c.auth.jar.Cookies(representativeApplicationURL)) == 0 {
 		return &authenticationError{message: "CLI authentication failed: login response did not establish a session"}
 	}
 	c.auth.csrfToken = response.CSRFToken
+	c.auth.redactions.register(response.CSRFToken)
 	return nil
 }
 
@@ -244,12 +304,37 @@ func (c *Client) sendRequest(
 	if authenticated && requiresCSRF(method) {
 		req.Header.Set("X-CSRF-Token", c.auth.csrfToken)
 	}
+	if authenticated {
+		c.registerJarCookieValues(req.URL)
+	}
 
 	res, err := httpClient.Do(req)
 	if err != nil {
 		return nil, c.requestTransportError(err, parsedRequestURLOrNil(requestURL))
 	}
+	if authenticated {
+		c.registerResponseCookieValues(res, req.URL)
+	}
 	return res, nil
+}
+
+func (c *Client) registerJarCookieValues(cookieURL *url.URL) {
+	if c == nil || c.auth == nil || c.auth.jar == nil || cookieURL == nil {
+		return
+	}
+	for _, cookie := range c.auth.jar.Cookies(cookieURL) {
+		c.auth.redactions.register(cookie.Value)
+	}
+}
+
+func (c *Client) registerResponseCookieValues(res *http.Response, requestURL *url.URL) {
+	if c == nil || c.auth == nil || res == nil {
+		return
+	}
+	for _, cookie := range res.Cookies() {
+		c.auth.redactions.register(cookie.Value)
+	}
+	c.registerJarCookieValues(requestURL)
 }
 
 func (c *Client) httpClientForRequest(ctx context.Context, requestURL string) (*http.Client, bool, error) {
@@ -311,7 +396,7 @@ const (
 	maxErrorMessageBytes      = 2 << 10
 )
 
-var sensitiveHeaderPattern = regexp.MustCompile(`(?i)\b(set-cookie|cookie)\s*:\s*[^|\r\n]*`)
+var sensitiveHeaderPattern = regexp.MustCompile(`(?i)\b(set-cookie|cookie)\s*:\s*[^\r\n]*`)
 
 func (c *Client) responseError(res *http.Response, method string) error {
 	message := fmt.Sprintf("request %s failed: HTTP %d", method, res.StatusCode)
@@ -391,7 +476,8 @@ func (c *Client) authenticationSecrets(requestURLs ...*url.URL) []string {
 	}
 
 	seen := make(map[string]struct{})
-	secrets := make([]string, 0, len(c.auth.secrets)+4)
+	registered := c.auth.redactions.snapshot()
+	secrets := make([]string, 0, len(registered)+1)
 	add := func(value string) {
 		if value == "" {
 			return
@@ -402,7 +488,7 @@ func (c *Client) authenticationSecrets(requestURLs ...*url.URL) []string {
 		seen[value] = struct{}{}
 		secrets = append(secrets, value)
 	}
-	for _, secret := range c.auth.secrets {
+	for _, secret := range registered {
 		add(secret)
 	}
 	add(c.auth.csrfToken)

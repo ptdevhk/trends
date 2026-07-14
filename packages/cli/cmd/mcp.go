@@ -126,7 +126,7 @@ func handleMCPRequestWithClient(ctx context.Context, apiClient *client.Client, r
 				"isError": true,
 				"content": []map[string]any{{
 					"type": "text",
-					"text": toolErr.Error(),
+					"text": boundPublicErrorText(toolErr.Error()),
 				}},
 			}, nil
 		}
@@ -641,7 +641,7 @@ func writeMCPError(writer *bufio.Writer, id json.RawMessage, code int, message s
 		"id":      nil,
 		"error": map[string]any{
 			"code":    code,
-			"message": message,
+			"message": boundPublicErrorText(message),
 		},
 	}
 	if len(id) > 0 {

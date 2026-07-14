@@ -1,9 +1,12 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
 	"sync/atomic"
@@ -117,6 +120,70 @@ func TestRootAPIClientFactoryUsesSessionAuthEnvironment(t *testing.T) {
 	}
 	if strings.Contains(err.Error(), "root-factory-user-marker") {
 		t.Fatalf("credential leaked in authentication error: %v", err)
+	}
+}
+
+func TestCobraPublicErrorSinkBoundsAndRedactsAuthenticationError(t *testing.T) {
+	setCommandSessionAuthEnvironment(t)
+	var loginCalls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if handleCommandSessionLogin(t, w, r, &loginCalls) {
+			return
+		}
+		assertCommandSessionRequest(t, r, true)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{
+			"error": strings.Join([]string{
+				commandAuthUsername,
+				commandAuthPassword,
+				commandSessionCookie,
+				commandCSRFToken,
+				strings.Repeat("cobra-long-reflection-", 500),
+			}, " "),
+		})
+	}))
+	defer server.Close()
+	setResumeCLIConfig(t, server.URL, "dev")
+
+	cmd := newResumeArchiveCmd()
+	cmd.SilenceErrors = true
+	cmd.SilenceUsage = true
+	var output bytes.Buffer
+	cmd.SetOut(&output)
+	cmd.SetErr(&output)
+	cmd.SetArgs([]string{"resume-1"})
+	err := executeCobraCommand(cmd)
+	if err == nil {
+		t.Fatal("expected bounded Cobra authentication error")
+	}
+	publicText := err.Error()
+	if len(publicText) > 2048 {
+		t.Fatalf("Cobra public error exceeded 2048 bytes: %d", len(publicText))
+	}
+	for _, secret := range []string{commandAuthUsername, commandAuthPassword, commandSessionCookie, commandCSRFToken} {
+		if strings.Contains(publicText, secret) {
+			t.Fatal("authentication material leaked from Cobra public error")
+		}
+	}
+	if !strings.Contains(publicText, "archive resumes:") || !strings.Contains(publicText, "[REDACTED]") {
+		t.Fatalf("useful Cobra error context was lost: %v", err)
+	}
+	if got := loginCalls.Load(); got != 1 {
+		t.Fatalf("expected one Cobra login, got %d", got)
+	}
+}
+
+func TestCobraPublicErrorSinkPreservesUsefulShortError(t *testing.T) {
+	cmd := newResumeMatchCmd()
+	cmd.SilenceErrors = true
+	cmd.SilenceUsage = true
+	err := executeCobraCommand(cmd)
+	if err == nil {
+		t.Fatal("expected resume-match validation error")
+	}
+	if got, want := err.Error(), "query or job-description is required"; got != want {
+		t.Fatalf("short Cobra error changed: got %q want %q", got, want)
 	}
 }
 

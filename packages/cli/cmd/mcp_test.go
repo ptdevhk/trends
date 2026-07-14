@@ -157,6 +157,109 @@ func TestMCPServerReusesOneAuthenticatedClientAcrossToolCalls(t *testing.T) {
 	}
 }
 
+func TestMCPPublicErrorSinkBoundsAndRedactsAuthenticationError(t *testing.T) {
+	setCommandSessionAuthEnvironment(t)
+	var loginCalls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if handleCommandSessionLogin(t, w, r, &loginCalls) {
+			return
+		}
+		assertCommandSessionRequest(t, r, true)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{
+			"error": strings.Join([]string{
+				commandAuthUsername,
+				commandAuthPassword,
+				commandSessionCookie,
+				commandCSRFToken,
+				strings.Repeat("mcp-long-reflection-", 500),
+			}, " "),
+		})
+	}))
+	defer server.Close()
+	setResumeCLIConfig(t, server.URL, "dev")
+
+	response := executeMCPStreamRequest(t, `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"resume_clear_analyses","arguments":{}}}`)
+	publicText := mcpToolErrorText(t, response)
+	if len(publicText) > 2048 {
+		t.Fatalf("MCP public error exceeded 2048 bytes: %d", len(publicText))
+	}
+	for _, secret := range []string{commandAuthUsername, commandAuthPassword, commandSessionCookie, commandCSRFToken} {
+		if strings.Contains(publicText, secret) {
+			t.Fatal("authentication material leaked from MCP public error")
+		}
+	}
+	if !strings.Contains(publicText, "[REDACTED]") {
+		t.Fatalf("useful MCP redaction marker was lost: %q", publicText)
+	}
+	if got := loginCalls.Load(); got != 1 {
+		t.Fatalf("expected one MCP login, got %d", got)
+	}
+}
+
+func TestMCPPublicErrorSinkBoundsAndPreservesShortErrors(t *testing.T) {
+	t.Run("long", func(t *testing.T) {
+		toolName := strings.Repeat("unknown-tool-", 300)
+		payload, err := json.Marshal(map[string]any{
+			"jsonrpc": "2.0",
+			"id":      1,
+			"method":  "tools/call",
+			"params":  map[string]any{"name": toolName, "arguments": map[string]any{}},
+		})
+		if err != nil {
+			t.Fatalf("marshal long MCP request: %v", err)
+		}
+		response := executeMCPStreamRequest(t, string(payload))
+		if publicText := mcpToolErrorText(t, response); len(publicText) > 2048 {
+			t.Fatalf("long MCP tool error exceeded 2048 bytes: %d", len(publicText))
+		}
+	})
+
+	t.Run("short", func(t *testing.T) {
+		response := executeMCPStreamRequest(t, `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"unknown","arguments":{}}}`)
+		if got, want := mcpToolErrorText(t, response), "unknown tool: unknown"; got != want {
+			t.Fatalf("short MCP tool error changed: got %q want %q", got, want)
+		}
+	})
+}
+
+func executeMCPStreamRequest(t *testing.T, payload string) map[string]any {
+	t.Helper()
+	input := "Content-Length: " + strconv.Itoa(len(payload)) + "\r\n\r\n" + payload
+	var output bytes.Buffer
+	if err := serveMCPStreams(context.Background(), strings.NewReader(input), &output); err != nil {
+		t.Fatalf("serve MCP stream: %v", err)
+	}
+	raw, err := readMCPMessage(bufio.NewReader(&output))
+	if err != nil {
+		t.Fatalf("read MCP response: %v", err)
+	}
+	var response map[string]any
+	if err := json.Unmarshal(raw, &response); err != nil {
+		t.Fatalf("decode MCP response: %v", err)
+	}
+	return response
+}
+
+func mcpToolErrorText(t *testing.T, response map[string]any) string {
+	t.Helper()
+	result, ok := response["result"].(map[string]any)
+	if !ok || result["isError"] != true {
+		t.Fatalf("expected MCP tool error result: %#v", response)
+	}
+	content, ok := result["content"].([]any)
+	if !ok || len(content) != 1 {
+		t.Fatalf("expected one MCP error content item: %#v", result)
+	}
+	item, ok := content[0].(map[string]any)
+	if !ok {
+		t.Fatalf("unexpected MCP error content: %#v", content[0])
+	}
+	text, _ := item["text"].(string)
+	return text
+}
+
 func TestArgumentHelpers(t *testing.T) {
 	args := map[string]interface{}{
 		"intFloat":   float64(12),

@@ -176,6 +176,47 @@ func TestSessionAuthLoopbackEligibility(t *testing.T) {
 	}
 }
 
+func TestSessionAuthCanonicalizesUppercaseSchemeForRealRequests(t *testing.T) {
+	tests := []struct {
+		name      string
+		newServer func(http.Handler) *httptest.Server
+		scheme    string
+	}{
+		{name: "HTTP", newServer: httptest.NewServer, scheme: "http"},
+		{name: "HTTPS", newServer: httptest.NewTLSServer, scheme: "https"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var loginCalls atomic.Int32
+			var applicationCalls atomic.Int32
+			server := tt.newServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == "/api/auth/login" {
+					loginCalls.Add(1)
+					writeSessionLoginSuccess(w, "uppercase-session", "uppercase-csrf-cookie", "uppercase-json-csrf")
+					return
+				}
+				applicationCalls.Add(1)
+				_, _ = w.Write([]byte(`{}`))
+			}))
+			defer server.Close()
+
+			uppercaseURL := strings.ToUpper(tt.scheme) + strings.TrimPrefix(server.URL, tt.scheme)
+			c := newWithSessionAuth(uppercaseURL, server.URL, "dev", "uppercase-user", true, "uppercase-password", true)
+			c.HTTP = server.Client()
+			if err := c.doJSON(context.Background(), http.MethodGet, c.APIURL+"/api/resumes", nil, nil); err != nil {
+				t.Fatalf("uppercase %s authenticated request failed: %v", tt.scheme, err)
+			}
+			if !strings.HasPrefix(c.APIURL, tt.scheme+"://") || c.auth.apiURL.Scheme != tt.scheme {
+				t.Fatalf("API scheme was not canonicalized: APIURL=%q origin=%q", c.APIURL, c.auth.apiURL.Scheme)
+			}
+			if loginCalls.Load() != 1 || applicationCalls.Load() != 1 {
+				t.Fatalf("unexpected uppercase %s counts login=%d application=%d", tt.scheme, loginCalls.Load(), applicationCalls.Load())
+			}
+		})
+	}
+}
+
 func TestUnauthenticatedPublicRequestStillAllowsNonLoopbackAPIURL(t *testing.T) {
 	setSessionAuthEnvironment(t, nil, nil)
 
@@ -514,6 +555,40 @@ func TestSessionAuthFailsClosedOnMalformedSuccess(t *testing.T) {
 	}
 }
 
+func TestSessionAuthRejectsLoginCookieScopedOnlyToLoginPath(t *testing.T) {
+	var loginCalls atomic.Int32
+	var applicationCalls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/auth/login" {
+			loginCalls.Add(1)
+			http.SetCookie(w, &http.Cookie{
+				Name:     "server_configured_session_name",
+				Value:    "login-path-only-cookie",
+				Path:     "/api/auth/",
+				HttpOnly: true,
+			})
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"success": true, "csrfToken": "login-path-json-csrf"})
+			return
+		}
+		applicationCalls.Add(1)
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	defer server.Close()
+
+	c := newAuthenticatedTestClient(server, "login-path-user", "login-path-password")
+	err := c.doJSON(context.Background(), http.MethodGet, c.APIURL+"/api/resumes", nil, nil)
+	if err == nil {
+		t.Fatal("expected login-path-only cookie to fail session validation")
+	}
+	if got := loginCalls.Load(); got != 1 {
+		t.Fatalf("expected one login attempt, got %d", got)
+	}
+	if got := applicationCalls.Load(); got != 0 {
+		t.Fatalf("expected no application request, got %d", got)
+	}
+}
+
 func TestFailedLoginSendsNoApplicationRequestAndIsNotRetried(t *testing.T) {
 	var loginCalls atomic.Int32
 	var applicationCalls atomic.Int32
@@ -685,6 +760,54 @@ func TestAuthErrorsAreRedactedAcrossJSONBinaryAndMultipart(t *testing.T) {
 				t.Fatalf("expected one application request, got %d", got)
 			}
 		})
+	}
+}
+
+func TestSessionAuthRedactionRetainsRotatedOutgoingCookies(t *testing.T) {
+	const (
+		outgoingCookie = "rotated-old|cookie-value"
+		responseCookie = "rotated-new|cookie-value"
+		headerSuffix   = "header-suffix-must-be-redacted"
+	)
+
+	var applicationCalls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/auth/login" {
+			writeSessionLoginSuccess(w, outgoingCookie, "rotation-csrf-cookie", "rotation-json-csrf")
+			return
+		}
+
+		applicationCalls.Add(1)
+		cookie, err := r.Cookie("custom_session")
+		if err != nil || cookie.Value != outgoingCookie {
+			t.Error("application request did not carry the original session cookie")
+		}
+		http.SetCookie(w, &http.Cookie{Name: "custom_session", Value: "", Path: "/", MaxAge: -1})
+		http.SetCookie(w, &http.Cookie{Name: "future_session", Value: responseCookie, Path: "/future"})
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{
+			"error": "old=" + outgoingCookie + " new=" + responseCookie + "\nCookie: custom_session=" + outgoingCookie + " | " + headerSuffix,
+		})
+	}))
+	defer server.Close()
+
+	c := newAuthenticatedTestClient(server, "rotation-user", "rotation-password")
+	err := c.doJSON(context.Background(), http.MethodGet, c.APIURL+"/api/resumes/rotation", nil, nil)
+	if err == nil {
+		t.Fatal("expected rotating-cookie application error")
+	}
+	errorText := err.Error()
+	for _, forbidden := range []string{outgoingCookie, responseCookie, headerSuffix} {
+		if strings.Contains(errorText, forbidden) {
+			t.Fatal("rotated cookie or complete Cookie header material leaked")
+		}
+	}
+	if !strings.Contains(errorText, "[REDACTED]") {
+		t.Fatalf("expected redaction marker in rotating-cookie error: %v", err)
+	}
+	if got := applicationCalls.Load(); got != 1 {
+		t.Fatalf("expected one application request, got %d", got)
 	}
 }
 

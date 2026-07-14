@@ -11,14 +11,16 @@ import (
 )
 
 const (
+	commandAuthUsername  = "command-auth-user"
+	commandAuthPassword  = "command-auth-password"
 	commandSessionCookie = "command-session-cookie"
 	commandCSRFToken     = "command-json-csrf-token"
 )
 
 func setCommandSessionAuthEnvironment(t *testing.T) {
 	t.Helper()
-	t.Setenv("TRENDS_AUTH_USERNAME", "command-auth-user")
-	t.Setenv("TRENDS_AUTH_PASSWORD", "command-auth-password")
+	t.Setenv("TRENDS_AUTH_USERNAME", commandAuthUsername)
+	t.Setenv("TRENDS_AUTH_PASSWORD", commandAuthPassword)
 }
 
 func handleCommandSessionLogin(t *testing.T, w http.ResponseWriter, r *http.Request, loginCalls *atomic.Int32) bool {
