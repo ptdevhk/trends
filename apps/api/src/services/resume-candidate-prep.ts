@@ -474,12 +474,12 @@ export function prepareResumeCandidate(params: {
 }): PreparedResumeCandidate {
   const rawIngestData = params.ingestData ?? params.resume.ingestData;
   const parsedIngestData = params.resume.ingestData ?? buildResumeIngestData(params.ingestData);
-  const baseResume = params.resume.resumeId
-    ? params.resume
-    : {
-        ...params.resume,
-        resumeId: params.resumeId,
-      };
+  // Always stamp the authoritative id (Convex document _id on the live path).
+  // Content payloads often carry a short platform resumeId that must not win.
+  const baseResume: ResumeItem = {
+    ...params.resume,
+    resumeId: params.resumeId,
+  };
   const resume = parsedIngestData
     ? {
         ...baseResume,

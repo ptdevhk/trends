@@ -936,6 +936,20 @@ describe("resume-candidate-prep", () => {
       expect(result.resume.resumeId).toBe("res-from-params");
     });
 
+    it("prefers authoritative params resumeId over content-level resumeId (Convex list path)", () => {
+      // Content payloads often carry a short platform resumeId (e.g. SEEK profile id).
+      // prepareConvexCandidates passes the Convex document _id as params.resumeId; that
+      // value must win so BFF list/actions/feedback-batch can address the document.
+      const resume = makeMinimalResume({ resumeId: "seek-short-id" });
+      const result = prepareResumeCandidate({
+        resume,
+        resumeId: "jd7convexdocumentid0123456789ab",
+        indexData: makeMinimalIndex(),
+      });
+      expect(result.resumeId).toBe("jd7convexdocumentid0123456789ab");
+      expect(result.resume.resumeId).toBe("jd7convexdocumentid0123456789ab");
+    });
+
     it("uses provided ingestData over resume.ingestData", () => {
       const resume = makeMinimalResume({ ingestData: { brandHits: [{ brand: "Old", role: "employer", source: "workHistory", context: "employer" }] } });
       const result = prepareResumeCandidate({
