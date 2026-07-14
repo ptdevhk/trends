@@ -55,6 +55,10 @@ is_local_anonymous_convex() {
     deployment="$(local_convex_resolve_setting "$project_root" CONVEX_DEPLOYMENT)"
     convex_url="$(local_convex_resolve_setting "$project_root" CONVEX_URL)"
 
+    if [[ -n "$deployment" && "$deployment" != anonymous:* ]]; then
+        return 1
+    fi
+
     if [[ -n "$convex_url" ]] && ! local_convex_is_loopback_url "$convex_url"; then
         return 1
     fi

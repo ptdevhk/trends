@@ -85,6 +85,35 @@ ensure_local_convex_write_secret > "$OUTPUT_FILE" 2>&1
 [[ "$(grep -c '^CONVEX_WRITE_SECRET=' "$CLOUD_PROJECT/.env.local" || true)" -eq 0 ]] || fail "cloud env file was modified"
 echo "PASS: cloud deployment remains untouched"
 
+# An explicitly named cloud deployment remains a strict no-op even when a
+# local-looking URL is present.
+LOOPBACK_CLOUD_PROJECT="$TMP_DIR/cloud-loopback"
+mkdir -p "$LOOPBACK_CLOUD_PROJECT"
+printf '%s\n' \
+    'CONVEX_DEPLOYMENT=dev:cloud-project' \
+    'CONVEX_URL=http://127.0.0.1:3210' > "$LOOPBACK_CLOUD_PROJECT/.env.local"
+LOCAL_CONVEX_PROJECT_ROOT="$LOOPBACK_CLOUD_PROJECT"
+unset CONVEX_WRITE_SECRET CONVEX_DEPLOYMENT CONVEX_URL CONVEX_AGENT_MODE
+ensure_local_convex_write_secret > "$OUTPUT_FILE" 2>&1
+[[ -z "${CONVEX_WRITE_SECRET:-}" ]] || fail "loopback cloud deployment exported a local secret"
+[[ "$(grep -c '^CONVEX_WRITE_SECRET=' "$LOOPBACK_CLOUD_PROJECT/.env.local" || true)" -eq 0 ]] || fail "loopback cloud env file was modified"
+echo "PASS: loopback cloud deployment remains untouched"
+
+# Agent mode cannot override an explicit named cloud deployment.
+LOOPBACK_CLOUD_ANONYMOUS_PROJECT="$TMP_DIR/cloud-loopback-anonymous"
+mkdir -p "$LOOPBACK_CLOUD_ANONYMOUS_PROJECT"
+printf '%s\n' \
+    'CONVEX_DEPLOYMENT=dev:cloud-project' \
+    'CONVEX_URL=http://127.0.0.1:3210' > "$LOOPBACK_CLOUD_ANONYMOUS_PROJECT/.env.local"
+LOCAL_CONVEX_PROJECT_ROOT="$LOOPBACK_CLOUD_ANONYMOUS_PROJECT"
+unset CONVEX_WRITE_SECRET CONVEX_DEPLOYMENT CONVEX_URL
+CONVEX_AGENT_MODE=anonymous
+ensure_local_convex_write_secret > "$OUTPUT_FILE" 2>&1
+[[ -z "${CONVEX_WRITE_SECRET:-}" ]] || fail "anonymous-mode cloud deployment exported a local secret"
+[[ "$(grep -c '^CONVEX_WRITE_SECRET=' "$LOOPBACK_CLOUD_ANONYMOUS_PROJECT/.env.local" || true)" -eq 0 ]] || fail "anonymous-mode cloud env file was modified"
+unset CONVEX_AGENT_MODE
+echo "PASS: anonymous mode cannot override a cloud deployment"
+
 # Startup and runtime-env sync must both consume the shared helper. Anonymous
 # local CLI calls need agent mode, while the secret key must remain part of the
 # bounded runtime allowlist.
