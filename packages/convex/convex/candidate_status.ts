@@ -570,10 +570,13 @@ export const restoreBatch = mutation({
                 unresolvedIdentityKeys.push(identityKey);
                 continue;
             }
-            const resume = await ctx.db
+            const candidateResume = await ctx.db
                 .query("resumes")
                 .withIndex("by_identityKey", (q) => q.eq("identityKey", identityKey))
                 .unique();
+            const resume = candidateResume && belongsToWorkspace(candidateResume.workspaceSlug, workspaceSlug)
+                ? candidateResume
+                : null;
             if (!resume && !args.allowOrphan) {
                 unresolvedIdentityKeys.push(identityKey);
                 continue;

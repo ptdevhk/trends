@@ -1026,6 +1026,69 @@ describe("candidate_status: restoreBatch", () => {
     expect(await t.run(async (ctx) => ctx.db.query("resume_digest_statuses").collect())).toEqual([]);
   });
 
+  it("keeps a foreign-workspace identity collision as an explicit orphan without an overlay", async () => {
+    const t = createTest();
+    const identityKey = "restore-foreign-orphan-identity";
+    await insertResumeWithIdentity(t, identityKey, "hr");
+
+    const result = await t.mutation(api.candidate_status.restoreBatch, {
+      workspaceSlug: "dev",
+      allowOrphan: true,
+      items: [{
+        identityKey,
+        status: "rejected",
+        notes: "Portable status",
+        updatedBy: "backup-user",
+        updatedAt: 1_782_291_761_300,
+        history: [],
+      }],
+      writeSecret: WRITE_SECRET,
+    });
+
+    expect(result).toMatchObject({
+      restored: 1,
+      inserted: 1,
+      unresolvedIdentityKeys: [],
+    });
+    expect(await t.query(api.candidate_status.getByIdentity, {
+      workspaceSlug: "dev",
+      identityKey,
+    })).toMatchObject({
+      status: "rejected",
+      notes: "Portable status",
+    });
+    expect(await t.run(async (ctx) => ctx.db.query("resume_digest_statuses").collect())).toEqual([]);
+  });
+
+  it("leaves a foreign-workspace identity collision unresolved without allowOrphan", async () => {
+    const t = createTest();
+    const identityKey = "restore-foreign-unresolved-identity";
+    await insertResumeWithIdentity(t, identityKey, "hr");
+
+    const result = await t.mutation(api.candidate_status.restoreBatch, {
+      workspaceSlug: "dev",
+      items: [{
+        identityKey,
+        status: "shortlisted",
+        updatedAt: 1_782_291_761_301,
+        history: [],
+      }],
+      writeSecret: WRITE_SECRET,
+    });
+
+    expect(result).toMatchObject({
+      restored: 0,
+      inserted: 0,
+      updated: 0,
+      unresolvedIdentityKeys: [identityKey],
+    });
+    expect(await t.query(api.candidate_status.getByIdentity, {
+      workspaceSlug: "dev",
+      identityKey,
+    })).toBeNull();
+    expect(await t.run(async (ctx) => ctx.db.query("resume_digest_statuses").collect())).toEqual([]);
+  });
+
   it("restores exact candidate state and rebuilds the digest status overlay", async () => {
     const t = createTest();
     const restoredResumeId = await insertResumeWithIdentity(t, "restore-identity");
