@@ -8,6 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { AiFeedbackButtons } from '@/components/AiFeedbackButtons'
 import { ConfirmedScoreBadge } from '@/components/ConfirmedScoreBadge'
 import { StarRating } from '@/components/StarRating'
+import { CandidateNotesDialog } from '@/components/CandidateNotesDialog'
 import type { ResumeItem } from '@/hooks/useResumes'
 import type { AiFeedbackSentiment, AiFeedbackTarget, CandidateActionType, CandidateStatus, MatchingResult } from '@/types/resume'
 import type { ExperienceLevelFilter } from '@/lib/resume-scoring'
@@ -209,7 +210,6 @@ export const ResumeCard = memo(function ResumeCard({
   const [blockDialogOpen, setBlockDialogOpen] = useState(false)
   const [blockNoteInput, setBlockNoteInput] = useState('')
   const [commentDialogOpen, setCommentDialogOpen] = useState(false)
-  const [commentNoteInput, setCommentNoteInput] = useState('')
   const workHistory = selectLatestWorkHistory(resume.workHistory)
     .map((item) => ({
       item,
@@ -641,10 +641,7 @@ export const ResumeCard = memo(function ResumeCard({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => {
-                  setCommentNoteInput(statusNotes)
-                  setCommentDialogOpen(true)
-                }}
+                onClick={() => setCommentDialogOpen(true)}
                 className="gap-2"
               >
                 <MessageSquare className="h-3.5 w-3.5" />
@@ -780,46 +777,15 @@ export const ResumeCard = memo(function ResumeCard({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={commentDialogOpen} onOpenChange={setCommentDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t('resumes.card.notesTitle', { defaultValue: 'Notes' })}</DialogTitle>
-            <DialogDescription>
-              {t('resumes.card.notesDescription', {
-                name: resume.name || '--',
-                defaultValue: 'Add a note for {{name}}.',
-              })}
-            </DialogDescription>
-          </DialogHeader>
-          <Input
-            value={commentNoteInput}
-            onChange={(e) => setCommentNoteInput(e.target.value)}
-            placeholder={t('resumes.card.notePlaceholderInput', { defaultValue: 'Enter note...' })}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault()
-                const notes = commentNoteInput.trim()
-                onCandidateStatusChange?.(candidateStatus || 'new', notes.length > 0 ? notes : undefined)
-                setCommentDialogOpen(false)
-              }
-            }}
-          />
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCommentDialogOpen(false)}>
-              {t('common.cancel', 'Cancel')}
-            </Button>
-            <Button
-              onClick={() => {
-                const notes = commentNoteInput.trim()
-                onCandidateStatusChange?.(candidateStatus || 'new', notes.length > 0 ? notes : undefined)
-                setCommentDialogOpen(false)
-              }}
-            >
-              {t('common.confirm', 'Confirm')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <CandidateNotesDialog
+        open={commentDialogOpen}
+        onOpenChange={setCommentDialogOpen}
+        candidateName={resume.name || '--'}
+        notes={statusNotes}
+        onSave={(notes) => {
+          onCandidateStatusChange?.(candidateStatus || 'new', notes)
+        }}
+      />
     </div>
   )
 })

@@ -468,9 +468,11 @@ export const upsert = mutation({
                 });
             }
 
+            // Preserve existing notes when callers omit `notes` (status-only updates).
+            // Explicit empty string still clears; undefined means "leave unchanged".
             await ctx.db.patch(existing._id, {
                 status: args.status,
-                notes: args.notes,
+                notes: args.notes !== undefined ? args.notes : existing.notes,
                 updatedBy: args.updatedBy,
                 updatedAt: now,
                 history: nextHistory,

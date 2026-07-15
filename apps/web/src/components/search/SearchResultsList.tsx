@@ -253,7 +253,8 @@ export function SearchResultsList({
     actionType: actionsByResume?.[item.resume.resumeId],
     onAction,
     userRating: ratingsByResume?.[item.resume.resumeId],
-    initialComment: commentsByResume?.[item.resume.resumeId],
+    // User Comment SoT is candidate_status.notes (not session action notes).
+    initialComment: item.statusMeta?.notes ?? commentsByResume?.[item.resume.resumeId],
     onRating,
     onRatingComment,
     onCandidateStatusChange,
@@ -353,7 +354,7 @@ export function SearchResultsList({
             }}
             loading={detailResumeLoading}
             userRating={ratingsByResume?.[detailItem.resume.resumeId]}
-            initialComment={commentsByResume?.[detailItem.resume.resumeId]}
+            initialComment={detailItem.statusMeta?.notes ?? commentsByResume?.[detailItem.resume.resumeId]}
             onRating={onRating ? (rating) => onRating(detailItem.resume.resumeId, rating) : undefined}
             onRatingComment={onRatingComment ? (comment) => onRatingComment(detailItem.resume.resumeId, comment) : undefined}
           />

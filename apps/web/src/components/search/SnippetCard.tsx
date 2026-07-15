@@ -22,6 +22,7 @@ import {
 import type { ResumeSearchResultItem } from '@/components/search/search-types'
 import { SnippetCardExpanded } from '@/components/search/SnippetCardExpanded'
 import { StarRating } from '@/components/StarRating'
+import { CandidateNotesDialog } from '@/components/CandidateNotesDialog'
 import { getResumeContentLocale, getResumeSourceLabel, getExperienceBadge, isSafeProfileUrl, summarizeBrandHits, toDisplayMatchBreakdown } from '@/lib/resume-scoring'
 import { highlightTerms } from '@/lib/highlight'
 import { useBrandDisplayMap } from '@/hooks/useBrandDisplayMap'
@@ -177,7 +178,6 @@ export const SnippetCard = memo(function SnippetCard({
   const [blockDialogOpen, setBlockDialogOpen] = useState(false)
   const [blockNoteInput, setBlockNoteInput] = useState('')
   const [commentDialogOpen, setCommentDialogOpen] = useState(false)
-  const [commentNoteInput, setCommentNoteInput] = useState('')
 
   const profileOverviewLabel = t('resumes.searchPage.card.profileOverview', {
     defaultValue: '摘要总览',
@@ -445,10 +445,7 @@ export const SnippetCard = memo(function SnippetCard({
             }
             : undefined}
           onNoteTrigger={onCandidateStatusChange
-            ? () => {
-              setCommentNoteInput(statusNotes)
-              setCommentDialogOpen(true)
-            }
+            ? () => setCommentDialogOpen(true)
             : undefined}
         />
         </div>
@@ -536,47 +533,15 @@ export const SnippetCard = memo(function SnippetCard({
         </DialogContent>
       </Dialog>
 
-      {/* Notes/comment dialog */}
-      <Dialog open={commentDialogOpen} onOpenChange={setCommentDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t('resumes.card.notesTitle', { defaultValue: '备注' })}</DialogTitle>
-            <DialogDescription>
-              {t('resumes.card.notesDescription', {
-                name: item.resume.name || '--',
-                defaultValue: '为 {{name}} 添加备注。',
-              })}
-            </DialogDescription>
-          </DialogHeader>
-          <Input
-            value={commentNoteInput}
-            onChange={(e) => setCommentNoteInput(e.target.value)}
-            placeholder={t('resumes.card.notePlaceholderInput', { defaultValue: '输入备注...' })}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault()
-                const notes = commentNoteInput.trim()
-                onCandidateStatusChange?.(item.identityKey, candidateStatus || 'new', notes.length > 0 ? notes : undefined)
-                setCommentDialogOpen(false)
-              }
-            }}
-          />
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCommentDialogOpen(false)}>
-              {t('common.cancel', 'Cancel')}
-            </Button>
-            <Button
-              onClick={() => {
-                const notes = commentNoteInput.trim()
-                onCandidateStatusChange?.(item.identityKey, candidateStatus || 'new', notes.length > 0 ? notes : undefined)
-                setCommentDialogOpen(false)
-              }}
-            >
-              {t('common.confirm', 'Confirm')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <CandidateNotesDialog
+        open={commentDialogOpen}
+        onOpenChange={setCommentDialogOpen}
+        candidateName={item.resume.name || '--'}
+        notes={statusNotes}
+        onSave={(notes) => {
+          onCandidateStatusChange?.(item.identityKey, candidateStatus || 'new', notes)
+        }}
+      />
     </Card>
   )
 })

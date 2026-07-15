@@ -1889,13 +1889,27 @@ export function useResumeSearchState() {
 
   const handleRatingComment = useCallback(
     (resumeId: string, comment: string) => {
-      void saveAction({
-        resumeId,
-        actionType: 'note',
-        actionData: { text: comment, context: 'rating' },
-      })
-        .then((result) => {
-          if (result) {
+      const trimmed = comment.trim()
+      if (!trimmed) {
+        return
+      }
+
+      const targetItem = filteredResults.find(
+        (item) => item.resume.resumeId === resumeId || item.key === resumeId,
+      )
+      if (!targetItem?.identityKey) {
+        toast.error('备注保存失败')
+        return
+      }
+
+      const currentStatus =
+        statusByIdentity[targetItem.identityKey]?.status
+        ?? targetItem.status
+        ?? 'new'
+
+      void updateCandidateStatus(targetItem.identityKey, currentStatus, trimmed)
+        .then((success) => {
+          if (success) {
             toast.success('备注已保存')
             return
           }
@@ -1906,7 +1920,7 @@ export function useResumeSearchState() {
           toast.error('备注保存失败')
         })
     },
-    [saveAction],
+    [filteredResults, statusByIdentity, updateCandidateStatus],
   )
 
   const handleCandidateStatusChange = useCallback(
