@@ -1,4 +1,17 @@
 #!/usr/bin/env bash
+# Associative arrays need Bash 4+. On macOS, /usr/bin/env bash is often 3.2 when
+# Homebrew is missing from PATH (GUI apps, minimal make envs). Re-exec if needed.
+if [ -z "${BASH_VERSION:-}" ] || [ "${BASH_VERSINFO[0]}" -lt 4 ]; then
+  for _bash_candidate in /opt/homebrew/bin/bash /usr/local/bin/bash; do
+    if [ -x "$_bash_candidate" ]; then
+      exec "$_bash_candidate" "$0" "$@"
+    fi
+  done
+  echo "error: this script requires Bash 4+ (found ${BASH_VERSION:-non-bash})." >&2
+  echo "Install with: brew install bash" >&2
+  exit 1
+fi
+
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

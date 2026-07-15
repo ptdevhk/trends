@@ -122,6 +122,7 @@ TARGET=all make sync-agent-governance
 - Template changes may require `SEARCH_PROFILES_RESEED_ON_DRIFT=true` to restamp local/prod profiles.
 - New Convex write mutations must be added to `packages/convex/convex/_mutations_registry.ts`.
 - Convex `import --replace-all` preserves `_id`; restore flows depend on that preservation.
+- Portable BFF resume restore (`trends resume restore` / `make restore-resumes`) does **not** preserve Convex document `_id` (backup JSON has no `_id`). After restore, HR export CSV `Resume ID` values often miss. Import HR feedback with Profile URL / externalId matching (supported by feedback-batch + importNotesBatch). Import in the **same workspace** the resumes were restored into (`dev` vs `hr`).
 - New fields on existing Convex tables should start as `v.optional(...)`.
 
 ## Browser Testing & Debugging

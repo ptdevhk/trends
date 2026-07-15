@@ -757,7 +757,7 @@ describe("candidate_status: importNotesBatch", () => {
     });
   });
 
-  it("treats cross-workspace and non-dev unscoped resume ids as not found", async () => {
+  it("blocks foreign workspace resume ids but allows unscoped shared bodies for hr notes", async () => {
     const t = createTest();
     const hrResumeId = await insertResumeWithIdentity(t, "hr-identity", "hr");
     const otherResumeId = await insertResumeWithIdentity(t, "other-identity", "other");
@@ -768,19 +768,21 @@ describe("candidate_status: importNotesBatch", () => {
       items: [
         { resumeId: hrResumeId, comments: "Allowed" },
         { resumeId: otherResumeId, comments: "Must not leak" },
-        { resumeId: unscopedResumeId, comments: "Dev only" },
+        { resumeId: unscopedResumeId, comments: "Shared public body" },
       ],
       writeSecret: WRITE_SECRET,
     });
 
-    expect(result).toMatchObject({ requested: 3, applied: 1, notFound: 2 });
+    // Explicit hr + unscoped shared corpus are writable from hr; foreign workspace is not.
+    expect(result).toMatchObject({ requested: 3, applied: 2, notFound: 1 });
     expect(result.results).toEqual([
       { resumeId: hrResumeId, identityKey: "hr-identity", outcome: "applied" },
       { resumeId: otherResumeId, outcome: "notFound", reason: "resume_not_found" },
-      { resumeId: unscopedResumeId, outcome: "notFound", reason: "resume_not_found" },
+      { resumeId: unscopedResumeId, identityKey: "legacy-unscoped", outcome: "applied" },
     ]);
-    expect(await t.run(async (ctx) => ctx.db.query("candidate_status").collect())).toHaveLength(1);
-    expect(await t.run(async (ctx) => ctx.db.query("resume_digest_statuses").collect())).toHaveLength(1);
+    const statuses = await t.run(async (ctx) => ctx.db.query("candidate_status").collect());
+    expect(statuses).toHaveLength(2);
+    expect(statuses.every((row) => row.workspaceSlug === "hr")).toBe(true);
 
     const devResult = await t.mutation(api.candidate_status.importNotesBatch, {
       workspaceSlug: "dev",
@@ -922,6 +924,83 @@ describe("candidate_status: importNotesBatch", () => {
       identityKey: "duplicate-identity",
     });
     expect(status?.notes).toBe("Final note");
+  });
+
+  it("imports notes for unscoped (shared) resumes under the hr workspace", async () => {
+    const t = createTest();
+    const resumeId = await t.run(async (ctx) => {
+      return String(await ctx.db.insert("resumes", {
+        externalId: "250533275",
+        identityKey: "profileUrl:ehire.51job.com/revision/talent/resume/detail?contenttype=&resumeid=250533275",
+        content: { name: "舒先生" },
+        hash: "hash-unscoped-hr-note",
+        tags: [],
+        crawledAt: 1_700_000_000_000,
+        source: "ehire.51job.com",
+        sourceKey: "ehire.51job.com",
+        // no workspaceSlug — public shared corpus
+      }));
+    });
+
+    const result = await t.mutation(api.candidate_status.importNotesBatch, {
+      workspaceSlug: "hr",
+      items: [{ resumeId, comments: "半导体，行业不匹配" }],
+      writeSecret: WRITE_SECRET,
+    });
+
+    expect(result).toMatchObject({
+      requested: 1,
+      applied: 1,
+      notFound: 0,
+    });
+    const status = await t.query(api.candidate_status.getByIdentity, {
+      workspaceSlug: "hr",
+      identityKey: "profileUrl:ehire.51job.com/revision/talent/resume/detail?contenttype=&resumeid=250533275",
+    });
+    expect(status?.notes).toBe("半导体，行业不匹配");
+  });
+
+  it("resolves notes by profile URL / externalId when export Convex resume ids no longer exist after restore", async () => {
+    const t = createTest();
+    const profileUrl =
+      "https://ehire.51job.com/Revision/talent/resume/detail?contentType=&resumeId=250533275";
+    const externalId = "250533275";
+    const currentResumeId = await t.run(async (ctx) => {
+      return String(await ctx.db.insert("resumes", {
+        externalId,
+        identityKey: `profileUrl:ehire.51job.com/revision/talent/resume/detail?contenttype=&resumeid=${externalId}`,
+        content: { name: "舒先生", profileUrl },
+        hash: "hash-restore-1",
+        tags: [],
+        crawledAt: 1_700_000_000_000,
+        source: "ehire.51job.com",
+        sourceKey: "ehire.51job.com",
+        workspaceSlug: "hr",
+      }));
+    });
+    expect(currentResumeId).not.toBe("k172ydnrexaqrhq66myhqqd1r18885k3");
+
+    const result = await t.mutation(api.candidate_status.importNotesBatch, {
+      workspaceSlug: "hr",
+      items: [{
+        resumeId: "k172ydnrexaqrhq66myhqqd1r18885k3",
+        profileUrl,
+        comments: "半导体，行业不匹配",
+      }],
+      writeSecret: WRITE_SECRET,
+    });
+
+    expect(result).toMatchObject({
+      requested: 1,
+      applied: 1,
+      notFound: 0,
+    });
+    expect(result.results[0]?.outcome).toBe("applied");
+    const status = await t.query(api.candidate_status.getByIdentity, {
+      workspaceSlug: "hr",
+      identityKey: `profileUrl:ehire.51job.com/revision/talent/resume/detail?contenttype=&resumeid=${externalId}`,
+    });
+    expect(status?.notes).toBe("半导体，行业不匹配");
   });
 
   it("rejects 101 note items atomically without changing status or overlays", async () => {

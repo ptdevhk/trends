@@ -74,6 +74,7 @@ describe('submitResumeExportDownload', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    document.cookie = 'trends_csrf=; Max-Age=0; path=/'
   })
 
   it('throws network error when fetch fails', async () => {
@@ -109,7 +110,8 @@ describe('submitResumeExportDownload', () => {
     ).rejects.toThrow('Server error')
   })
 
-  it('sends correct request body', async () => {
+  it('sends correct request body with CSRF and credentials', async () => {
+    document.cookie = 'trends_csrf=csrf-token-export; path=/'
     mockFetch.mockResolvedValue({
       ok: true,
       headers: { get: () => null },
@@ -123,15 +125,23 @@ describe('submitResumeExportDownload', () => {
       static revokeObjectURL = () => {}
     }
     vi.stubGlobal('URL', MockURL)
-    vi.stubGlobal('document', { body: { appendChild: () => {}, removeChild: () => {} }, createElement: () => ({ click: () => {}, style: {}, remove: () => {} }) })
+    const createElement = vi.fn(() => ({ click: () => {}, style: {}, remove: () => {} }))
+    vi.stubGlobal('document', {
+      cookie: 'trends_csrf=csrf-token-export; path=/',
+      body: { appendChild: () => {}, removeChild: () => {} },
+      createElement,
+    })
 
     await submitResumeExportDownload('/api', validPayload)
-    expect(mockFetch).toHaveBeenCalledWith(
-      expect.stringContaining('/api/resumes/export'),
-      expect.objectContaining({
-        method: 'POST',
-        body: JSON.stringify(validPayload),
-      }),
-    )
+    expect(mockFetch).toHaveBeenCalledTimes(1)
+    const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit]
+    expect(url).toContain('/api/resumes/export')
+    expect(init.method).toBe('POST')
+    expect(init.credentials).toBe('include')
+    expect(init.body).toBe(JSON.stringify(validPayload))
+    const headers = init.headers as Headers
+    expect(headers.get('Content-Type')).toBe('application/json')
+    expect(headers.get('X-CSRF-Token')).toBe('csrf-token-export')
+    expect(headers.get('X-Workspace-Slug')).toBeTruthy()
   })
 })

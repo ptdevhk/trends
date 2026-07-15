@@ -2824,6 +2824,73 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/resumes/restore-state": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Replay candidate state from a portable backup */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ResumeCandidateStateRestoreRequest"];
+                };
+            };
+            responses: {
+                /** @description Candidate state replay result */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CandidateStateReplayResponse"];
+                    };
+                };
+                /** @description Invalid backup state payload */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SimpleError"];
+                    };
+                };
+                /** @description Admin access required */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SimpleError"];
+                    };
+                };
+                /** @description Candidate state replay failed */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SimpleError"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/resumes/manual-import": {
         parameters: {
             query?: never;
@@ -15060,6 +15127,18 @@ export interface components {
                 updatedAt: number;
                 notes?: string;
             }[];
+        };
+        CandidateStateReplayResponse: {
+            /** @enum {boolean} */
+            success: true;
+            statusReplayed: number;
+            actionsReplayed: number;
+            actionsDeduped: number;
+        };
+        ResumeCandidateStateRestoreRequest: {
+            metadata: components["schemas"]["ResumeImportMetadata"];
+            candidateActions?: components["schemas"]["CandidateActionBackup"][];
+            candidateStatus?: components["schemas"]["CandidateStatusBackup"][];
         };
         ResumeManualImportResponse: {
             /** @enum {boolean} */

@@ -4,6 +4,21 @@ import { withWorkspaceHeaders } from '@/lib/workspace-ref'
 export type ResumeExportRequestBody =
   components['schemas']['ResumeExportCanonicalRequest']
 
+const csrfCookieName = 'trends_csrf'
+const csrfHeaderName = 'X-CSRF-Token'
+
+function readCookie(name: string): string | null {
+  if (typeof document === 'undefined') {
+    return null
+  }
+  const prefix = `${name}=`
+  const match = document.cookie
+    .split(';')
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(prefix))
+  return match ? decodeURIComponent(match.slice(prefix.length)) : null
+}
+
 function parseDownloadFilename(
   contentDisposition: string | null,
 ): string | undefined {
@@ -51,6 +66,15 @@ export async function submitResumeExportDownload(
   apiBaseUrl: string,
   payload: ResumeExportRequestBody,
 ): Promise<void> {
+  const csrfToken = readCookie(csrfCookieName)
+  const headers = withWorkspaceHeaders({
+    'Content-Type': 'application/json',
+  })
+  // Mutating export must match apiClient / search-analytics CSRF contract.
+  if (csrfToken) {
+    headers.set(csrfHeaderName, csrfToken)
+  }
+
   let response: Response
   try {
     response = await fetch(
@@ -58,10 +82,9 @@ export async function submitResumeExportDownload(
         .toString(),
       {
         method: 'POST',
-        headers: withWorkspaceHeaders({
-          'Content-Type': 'application/json',
-        }),
+        headers,
         body: JSON.stringify(payload),
+        credentials: 'include',
       },
     )
   } catch (error) {

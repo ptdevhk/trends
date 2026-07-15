@@ -13,6 +13,8 @@ const FeedbackBatchItemSchema = z.object({
   resumeId: z.string().trim().min(1),
   name: z.string().trim().optional(),
   comments: z.string(),
+  /** Stable source profile URL from export CSVs; used when Convex resume ids changed after restore. */
+  profileUrl: z.string().trim().optional(),
 });
 
 const FeedbackBatchRequestSchema = z.object({
@@ -130,19 +132,24 @@ app.openapi(importFeedbackBatchRoute, async (c) => {
   const normalizedItems: NormalizedFeedbackBatchItem[] = items.map((item) => ({
     ...item,
     comments: item.comments.trim(),
+    profileUrl: item.profileUrl?.trim() || undefined,
   }));
   try {
     const workspaceSlug = c.var.workspaceSlug;
     const updatedBy = getAuthenticatedActorId(c);
+    const rowKey = (item: NormalizedFeedbackBatchItem) =>
+      item.profileUrl && item.profileUrl.length > 0
+        ? `profileUrl:${item.profileUrl.toLowerCase()}`
+        : `resumeId:${item.resumeId}`;
     const lastNonemptyIndex = new Map<string, number>();
     normalizedItems.forEach((item, index) => {
       if (item.comments) {
-        lastNonemptyIndex.set(item.resumeId, index);
+        lastNonemptyIndex.set(rowKey(item), index);
       }
     });
     const winners = normalizedItems
       .map((item, index) => ({ item, index }))
-      .filter(({ item, index }) => item.comments && lastNonemptyIndex.get(item.resumeId) === index);
+      .filter(({ item, index }) => item.comments && lastNonemptyIndex.get(rowKey(item)) === index);
     const outcomesByIndex = new Map<number, ConvexImportNoteResult>();
 
     for (let offset = 0; offset < winners.length; offset += 100) {
@@ -150,6 +157,7 @@ app.openapi(importFeedbackBatchRoute, async (c) => {
       const mutationItems = batch.map(({ item }) => ({
         resumeId: item.resumeId,
         comments: item.comments,
+        ...(item.profileUrl ? { profileUrl: item.profileUrl } : {}),
       }));
       const value = await callConvexMutation("candidate_status:importNotesBatch", {
         workspaceSlug,
@@ -187,7 +195,7 @@ app.openapi(importFeedbackBatchRoute, async (c) => {
         continue;
       }
 
-      if (lastNonemptyIndex.get(item.resumeId) !== index) {
+      if (lastNonemptyIndex.get(rowKey(item)) !== index) {
         skipped += 1;
         results.push({
           resumeId: item.resumeId,

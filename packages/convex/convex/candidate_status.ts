@@ -5,7 +5,10 @@ import type { Doc, Id } from "./_generated/dataModel";
 
 import { DEFAULT_WORKSPACE_SLUG } from "./sessions";
 import { belongsToWorkspace } from "./search_profiles";
-import { deriveResumeIdentityKey } from "./lib/resume_identity";
+import {
+    collectResumeIdentityAliases,
+    deriveResumeIdentityKey,
+} from "./lib/resume_identity";
 
 type CandidateStatus =
     | "new" | "shortlisted" | "rejected" | "contacted"
@@ -35,6 +38,108 @@ const candidateStatusHistoryValidator = v.array(v.object({
     updatedAt: v.number(),
     notes: v.optional(v.string()),
 }));
+
+/**
+ * Resume body ownership for note import.
+ * Unscoped resumes (missing workspaceSlug) are the public shared corpus used by
+ * `/resumes` and prod HR search; notes remain workspace-scoped on candidate_status.
+ * Explicit foreign workspaces stay isolated.
+ */
+function isResumeEligibleForNoteImport(
+    recordWorkspaceSlug: string | undefined,
+    workspaceSlug: string,
+): boolean {
+    if (belongsToWorkspace(recordWorkspaceSlug, workspaceSlug)) {
+        return true;
+    }
+    // Legacy/prod shared bodies: no workspace tag, visible on public HR list.
+    return recordWorkspaceSlug === undefined || recordWorkspaceSlug === null
+        || (typeof recordWorkspaceSlug === "string" && recordWorkspaceSlug.trim() === "");
+}
+
+/**
+ * Resolve a resume for HR feedback import after restore.
+ * Portable restore re-mints Convex document IDs, so export CSV "Resume ID"
+ * values often miss. Prefer document id when valid, then stable externalId /
+ * identityKey derived from profile URL / external selectors.
+ */
+async function resolveResumeForNoteImport(
+    ctx: MutationCtx,
+    workspaceSlug: string,
+    item: { resumeId: string; profileUrl?: string },
+): Promise<Doc<"resumes"> | null> {
+    const resumeId = item.resumeId.trim();
+    const profileUrl = item.profileUrl?.trim() || undefined;
+
+    const normalizedResumeId = resumeId ? ctx.db.normalizeId("resumes", resumeId) : null;
+    if (normalizedResumeId) {
+        const byId = await ctx.db.get(normalizedResumeId);
+        if (byId && isResumeEligibleForNoteImport(byId.workspaceSlug, workspaceSlug)) {
+            return byId;
+        }
+    }
+
+    const aliases = collectResumeIdentityAliases({
+        content: profileUrl ? { profileUrl } : {},
+        // Prefer profile-derived external selectors; do not treat stale Convex
+        // document ids as externalId unless they look like stable site ids.
+        externalId: (/^\d{6,}$/.test(resumeId) ? resumeId : "unknown"),
+        source: undefined,
+    });
+
+    const externalCandidates = new Set<string>();
+    for (const value of aliases.externalIds) {
+        externalCandidates.add(value);
+    }
+    for (const value of aliases.profileResumeIds) {
+        externalCandidates.add(value);
+    }
+    if (profileUrl) {
+        const match = profileUrl.match(/[?&]resumeId=([^&]+)/i)
+            ?? profileUrl.match(/\/resume\/(?:view\/)?([^/?#]+)/i);
+        if (match?.[1]) {
+            try {
+                externalCandidates.add(decodeURIComponent(match[1]));
+            } catch {
+                externalCandidates.add(match[1]);
+            }
+        }
+    }
+
+    for (const externalId of externalCandidates) {
+        if (!externalId || externalId === "unknown") {
+            continue;
+        }
+        const matches = await ctx.db
+            .query("resumes")
+            .withIndex("by_externalId", (q) => q.eq("externalId", externalId))
+            .collect();
+        const inWorkspace = matches.find((resume) =>
+            isResumeEligibleForNoteImport(resume.workspaceSlug, workspaceSlug)
+        );
+        if (inWorkspace) {
+            return inWorkspace;
+        }
+    }
+
+    for (const identityKey of aliases.identityKeys) {
+        if (!identityKey || identityKey === "externalId:unknown") {
+            continue;
+        }
+        const matches = await ctx.db
+            .query("resumes")
+            .withIndex("by_identityKey", (q) => q.eq("identityKey", identityKey))
+            .collect();
+        const inWorkspace = matches.find((resume) =>
+            isResumeEligibleForNoteImport(resume.workspaceSlug, workspaceSlug)
+        );
+        if (inWorkspace) {
+            return inWorkspace;
+        }
+    }
+
+    return null;
+}
 
 async function upsertDigestStatusForResume(
     ctx: MutationCtx,
@@ -409,6 +514,7 @@ export const importNotesBatch = mutation({
         items: v.array(v.object({
             resumeId: v.string(),
             comments: v.string(),
+            profileUrl: v.optional(v.string()),
         })),
         updatedBy: v.optional(v.string()),
         writeSecret: v.optional(v.string()),
@@ -422,11 +528,17 @@ export const importNotesBatch = mutation({
         const normalizedItems = args.items.map((item) => ({
             resumeId: item.resumeId.trim(),
             comments: item.comments.trim(),
+            profileUrl: item.profileUrl?.trim() || undefined,
         }));
+        // Deduplicate by stable selector: prefer profileUrl, else resumeId.
+        const rowKey = (item: { resumeId: string; profileUrl?: string }) =>
+            (item.profileUrl && item.profileUrl.length > 0)
+                ? `profileUrl:${item.profileUrl.toLowerCase()}`
+                : `resumeId:${item.resumeId}`;
         const lastNonemptyIndex = new Map<string, number>();
         normalizedItems.forEach((item, index) => {
             if (item.comments) {
-                lastNonemptyIndex.set(item.resumeId, index);
+                lastNonemptyIndex.set(rowKey(item), index);
             }
         });
 
@@ -449,7 +561,7 @@ export const importNotesBatch = mutation({
                 results.push({ resumeId: item.resumeId, outcome: "skipped", reason: "empty_comments" });
                 continue;
             }
-            if (lastNonemptyIndex.get(item.resumeId) !== index) {
+            if (lastNonemptyIndex.get(rowKey(item)) !== index) {
                 skipped += 1;
                 results.push({
                     resumeId: item.resumeId,
@@ -459,9 +571,8 @@ export const importNotesBatch = mutation({
                 continue;
             }
 
-            const normalizedResumeId = ctx.db.normalizeId("resumes", item.resumeId);
-            const resume = normalizedResumeId ? await ctx.db.get(normalizedResumeId) : null;
-            if (!resume || !belongsToWorkspace(resume.workspaceSlug, workspaceSlug)) {
+            const resume = await resolveResumeForNoteImport(ctx, workspaceSlug, item);
+            if (!resume) {
                 notFound += 1;
                 results.push({ resumeId: item.resumeId, outcome: "notFound", reason: "resume_not_found" });
                 continue;
@@ -624,6 +735,76 @@ export const restoreBatch = mutation({
             inserted,
             updated,
             unresolvedIdentityKeys,
+        };
+    },
+});
+
+/**
+ * Operator helper: stamp resume.workspaceSlug for known externalIds so
+ * workspace-scoped feedback import can own restored/unscoped resumes.
+ * Gated by CONVEX_WRITE_SECRET.
+ */
+export const stampWorkspaceByExternalIds = mutation({
+    args: {
+        workspaceSlug: v.string(),
+        externalIds: v.array(v.string()),
+        writeSecret: v.optional(v.string()),
+    },
+    handler: async (ctx, args) => {
+        requireWriteSecret(args.writeSecret);
+        const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
+        const externalIds = Array.from(
+            new Set(args.externalIds.map((id) => id.trim()).filter((id) => id.length > 0)),
+        );
+        if (externalIds.length === 0) {
+            throw new Error("externalIds required");
+        }
+        if (externalIds.length > 200) {
+            throw new Error("stampWorkspaceByExternalIds supports at most 200 ids");
+        }
+
+        let patched = 0;
+        let unchanged = 0;
+        let notFound = 0;
+        const results: Array<{ externalId: string; outcome: "patched" | "unchanged" | "notFound"; resumeId?: string }> = [];
+
+        for (const externalId of externalIds) {
+            const matches = await ctx.db
+                .query("resumes")
+                .withIndex("by_externalId", (q) => q.eq("externalId", externalId))
+                .collect();
+            if (matches.length === 0) {
+                notFound += 1;
+                results.push({ externalId, outcome: "notFound" });
+                continue;
+            }
+            for (const resume of matches) {
+                if (resume.workspaceSlug === workspaceSlug) {
+                    unchanged += 1;
+                    results.push({
+                        externalId,
+                        outcome: "unchanged",
+                        resumeId: String(resume._id),
+                    });
+                    continue;
+                }
+                await ctx.db.patch(resume._id, { workspaceSlug });
+                patched += 1;
+                results.push({
+                    externalId,
+                    outcome: "patched",
+                    resumeId: String(resume._id),
+                });
+            }
+        }
+
+        return {
+            workspaceSlug,
+            requested: externalIds.length,
+            patched,
+            unchanged,
+            notFound,
+            results,
         };
     },
 });

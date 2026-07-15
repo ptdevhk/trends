@@ -19,4 +19,31 @@ describe('parseHrFeedbackRows', () => {
       { resumeId: 'r1', name: 'Alice', comments: '半导体, industry mismatch', rowNumber: 2 },
     ])
   })
+
+  it('parses Trends export CSV and falls back Job Intention when User Comment is empty', () => {
+    const csv = [
+      'Resume ID,Name,Job Intention,Profile URL,User Rating,User Comment',
+      'k172ydnrexaqrhq66myhqqd1r18885k3,舒先生,半导体，行业不匹配,https://ehire.51job.com/Revision/talent/resume/detail?contentType=&resumeId=250533275,,',
+      'k17475zbw6pmv5yw6crwr7dd1s899scn,谢先生,宝力离职销售,https://ehire.51job.com/Revision/talent/resume/detail?contentType=&resumeId=979890519,,explicit note',
+    ].join('\n')
+
+    const rows = parseHrFeedbackRows(csv)
+
+    expect(rows).toEqual([
+      {
+        resumeId: 'k172ydnrexaqrhq66myhqqd1r18885k3',
+        name: '舒先生',
+        comments: '半导体，行业不匹配',
+        profileUrl: 'https://ehire.51job.com/Revision/talent/resume/detail?contentType=&resumeId=250533275',
+        rowNumber: 2,
+      },
+      {
+        resumeId: 'k17475zbw6pmv5yw6crwr7dd1s899scn',
+        name: '谢先生',
+        comments: 'explicit note',
+        profileUrl: 'https://ehire.51job.com/Revision/talent/resume/detail?contentType=&resumeId=979890519',
+        rowNumber: 3,
+      },
+    ])
+  })
 })

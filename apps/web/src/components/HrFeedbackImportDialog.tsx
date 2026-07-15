@@ -136,6 +136,7 @@ export function HrFeedbackImportDialog({ disabled = false }: { disabled?: boolea
             resumeId: row.resumeId,
             name: row.name,
             comments: row.comments,
+            ...(row.profileUrl ? { profileUrl: row.profileUrl } : {}),
           })),
         },
       })

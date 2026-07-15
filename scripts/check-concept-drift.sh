@@ -1,6 +1,17 @@
 #!/usr/bin/env bash
 # Check if recent commits touched files with corresponding vault concept pages.
 # Usage: bash scripts/check-concept-drift.sh [--since <ref>] [--range <ref1..ref2>]
+# Associative arrays need Bash 4+. Re-exec with Homebrew bash on macOS if needed.
+if [ -z "${BASH_VERSION:-}" ] || [ "${BASH_VERSINFO[0]}" -lt 4 ]; then
+  for _bash_candidate in /opt/homebrew/bin/bash /usr/local/bin/bash; do
+    if [ -x "$_bash_candidate" ]; then
+      exec "$_bash_candidate" "$0" "$@"
+    fi
+  done
+  echo "error: this script requires Bash 4+ (found ${BASH_VERSION:-non-bash})." >&2
+  echo "Install with: brew install bash" >&2
+  exit 1
+fi
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
