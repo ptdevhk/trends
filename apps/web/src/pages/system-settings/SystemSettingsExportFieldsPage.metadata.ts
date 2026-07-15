@@ -3,7 +3,7 @@ import type { ExportFieldKey } from '@trends/shared'
 export const FIELD_GROUPS: Array<{ label: string; fields: ExportFieldKey[] }> = [
   {
     label: 'Core - Identity',
-    fields: ['resumeId', 'name', 'jobIntention', 'location', 'profileUrl', 'source'],
+    fields: ['resumeId', 'name', 'location', 'profileUrl', 'source'],
   },
   {
     label: 'Core - Profile',
@@ -15,7 +15,7 @@ export const FIELD_GROUPS: Array<{ label: string; fields: ExportFieldKey[] }> = 
   },
   {
     label: 'Detail - Profile',
-    fields: ['experience', 'workHistory', 'selfIntro'],
+    fields: ['experience', 'workHistory', 'selfIntro', 'jobIntention'],
   },
   {
     label: 'Detail - Workflow',

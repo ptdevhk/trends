@@ -40,6 +40,14 @@ function fieldCheckbox(field: keyof typeof FIELD_LABELS) {
   return screen.getByRole('checkbox', { name: FIELD_LABELS[field] })
 }
 
+function addFieldButton(field: keyof typeof FIELD_LABELS) {
+  return screen.getByRole('button', { name: `Add ${FIELD_LABELS[field]}` })
+}
+
+function removeFieldButton(field: keyof typeof FIELD_LABELS) {
+  return screen.getByRole('button', { name: `Remove ${FIELD_LABELS[field]}` })
+}
+
 describe('SystemSettingsExportFieldsPage export field metadata', () => {
   it('defines one group path for every export field key', () => {
     const groupedFields = FIELD_GROUPS.flatMap((group) => group.fields)
@@ -60,6 +68,20 @@ describe('SystemSettingsExportFieldsPage export field metadata', () => {
     expect(groupedFields.has('relatedExpAuditFactor')).toBe(true)
     expect(groupedFields.has('relatedExpContribution')).toBe(true)
   })
+
+  it('places jobIntention in Detail - Profile after selfIntro and off by default', () => {
+    const detailProfile = FIELD_GROUPS.find((group) => group.label === 'Detail - Profile')
+    expect(detailProfile).toBeDefined()
+    expect(detailProfile!.fields).toEqual(['experience', 'workHistory', 'selfIntro', 'jobIntention'])
+    expect(EXPORT_CORE_FIELDS).not.toContain('jobIntention')
+    expect(EXPORT_CORE_FIELDS).toContain('userComment')
+  })
+
+  it('orders userComment third in core defaults', () => {
+    expect(EXPORT_CORE_FIELDS[0]).toBe('resumeId')
+    expect(EXPORT_CORE_FIELDS[1]).toBe('name')
+    expect(EXPORT_CORE_FIELDS[2]).toBe('userComment')
+  })
 })
 
 describe('SystemSettingsExportFieldsPage state', () => {
@@ -76,11 +98,14 @@ describe('SystemSettingsExportFieldsPage state', () => {
       expect(fieldCheckbox('resumeId')).toBeChecked()
     })
 
+    // Core fields are checked (selected)
     for (const field of EXPORT_CORE_FIELDS) {
       expect(fieldCheckbox(field)).toBeChecked()
     }
+    // Non-core fields are unchecked and show an add button
     for (const field of [...EXPORT_DETAIL_FIELDS, ...EXPORT_DEBUG_FIELDS]) {
       expect(fieldCheckbox(field)).not.toBeChecked()
+      expect(addFieldButton(field)).toBeInTheDocument()
     }
     expect(screen.getByText('Using default columns. Configure below to customize.')).toBeInTheDocument()
   })
@@ -97,9 +122,110 @@ describe('SystemSettingsExportFieldsPage state', () => {
       expect(fieldCheckbox('name')).toBeChecked()
     })
 
-    expect(fieldCheckbox('resumeId')).not.toBeChecked()
     expect(fieldCheckbox('experience')).toBeChecked()
+    // resumeId is not in the saved config
+    expect(fieldCheckbox('resumeId')).not.toBeChecked()
+    expect(addFieldButton('resumeId')).toBeInTheDocument()
     expect(screen.getByRole('checkbox', { name: 'Include debug columns when debug mode is enabled' })).toBeChecked()
+  })
+
+  it('adds a field from available into export order', async () => {
+    const user = userEvent.setup()
+    requestJsonMock.mockResolvedValueOnce({ success: true, config: null })
+
+    render(<SystemSettingsExportFieldsPage />)
+
+    await waitFor(() => {
+      expect(fieldCheckbox('resumeId')).toBeChecked()
+    })
+
+    // jobIntention is off by default -> unchecked with an add button
+    expect(fieldCheckbox('jobIntention')).not.toBeChecked()
+    expect(addFieldButton('jobIntention')).toBeInTheDocument()
+
+    await user.click(addFieldButton('jobIntention'))
+
+    // After adding, the field is checked and the add button is gone
+    expect(fieldCheckbox('jobIntention')).toBeChecked()
+    expect(removeFieldButton('jobIntention')).toBeInTheDocument()
+  })
+
+  it('toggles a selected field off via its checkbox', async () => {
+    const user = userEvent.setup()
+    requestJsonMock.mockResolvedValueOnce({ success: true, config: null })
+
+    render(<SystemSettingsExportFieldsPage />)
+
+    await waitFor(() => {
+      expect(fieldCheckbox('userComment')).toBeChecked()
+    })
+
+    // userComment is selected by default -> uncheck it via its checkbox
+    await user.click(fieldCheckbox('userComment'))
+
+    expect(fieldCheckbox('userComment')).not.toBeChecked()
+    expect(addFieldButton('userComment')).toBeInTheDocument()
+  })
+
+  it('removes a field from export order back to available', async () => {
+    const user = userEvent.setup()
+    requestJsonMock.mockResolvedValueOnce({ success: true, config: null })
+
+    render(<SystemSettingsExportFieldsPage />)
+
+    await waitFor(() => {
+      expect(fieldCheckbox('userComment')).toBeChecked()
+    })
+
+    // userComment is selected by default -> has a remove button
+    await user.click(removeFieldButton('userComment'))
+
+    // Now userComment is unchecked and available again with an add button
+    expect(fieldCheckbox('userComment')).not.toBeChecked()
+    expect(addFieldButton('userComment')).toBeInTheDocument()
+  })
+
+  it('can deselect an individual field from a fully-selected group', async () => {
+    const user = userEvent.setup()
+    requestJsonMock.mockResolvedValueOnce({ success: true, config: null })
+
+    render(<SystemSettingsExportFieldsPage />)
+
+    await waitFor(() => {
+      expect(fieldCheckbox('name')).toBeChecked()
+    })
+
+    // Core - Identity is fully selected (5/5) by default; name is in that group.
+    // The individual field checkbox must still be toggleable to deselect it.
+    await user.click(fieldCheckbox('name'))
+
+    expect(fieldCheckbox('name')).not.toBeChecked()
+    expect(addFieldButton('name')).toBeInTheDocument()
+    // The other Core - Identity fields remain selected
+    expect(fieldCheckbox('resumeId')).toBeChecked()
+  })
+
+  it('collapses and expands a group without losing selection state', async () => {
+    const user = userEvent.setup()
+    requestJsonMock.mockResolvedValueOnce({ success: true, config: null })
+
+    render(<SystemSettingsExportFieldsPage />)
+
+    await waitFor(() => {
+      expect(fieldCheckbox('resumeId')).toBeChecked()
+    })
+
+    // Collapse the Core - Identity group
+    await user.click(screen.getByRole('button', { name: 'Collapse Core - Identity' }))
+
+    // Field checkboxes are hidden when collapsed
+    expect(screen.queryByRole('checkbox', { name: FIELD_LABELS.resumeId })).not.toBeInTheDocument()
+
+    // Expand it back
+    await user.click(screen.getByRole('button', { name: 'Expand Core - Identity' }))
+
+    // Selection state is preserved across collapse/expand
+    expect(fieldCheckbox('resumeId')).toBeChecked()
   })
 
   it('resets visible state back to effective defaults', async () => {
@@ -127,6 +253,7 @@ describe('SystemSettingsExportFieldsPage state', () => {
       expect(fieldCheckbox(field)).toBeChecked()
     }
     expect(fieldCheckbox('experience')).not.toBeChecked()
+    expect(addFieldButton('experience')).toBeInTheDocument()
     expect(screen.getByRole('checkbox', { name: 'Include debug columns when debug mode is enabled' })).not.toBeChecked()
   })
 })

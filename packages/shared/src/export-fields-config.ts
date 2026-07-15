@@ -48,7 +48,7 @@ export type ExportFieldKey = (typeof EXPORT_FIELD_KEYS)[number];
 export const EXPORT_CORE_FIELDS = [
   "resumeId",
   "name",
-  "jobIntention",
+  "userComment",
   "location",
   "education",
   "age",
@@ -61,13 +61,13 @@ export const EXPORT_CORE_FIELDS = [
   "source",
   "status",
   "userRating",
-  "userComment",
 ] as const satisfies readonly ExportFieldKey[];
 
 export const EXPORT_DETAIL_FIELDS = [
   "experience",
   "workHistory",
   "selfIntro",
+  "jobIntention",
   "action",
   "finalAiScore",
   "relatedExpAuditFactor",
