@@ -104,3 +104,7 @@ resume-backup-*.json
 
 # Playwright CLI runtime output
 .playwright-cli/
+
+# local env backups
+.env*.bak.*
+*.env.bak.*
