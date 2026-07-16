@@ -92,6 +92,8 @@ apps/worker/status.json
 .claude/scheduled_tasks.json
 .claude/dev-loop-debug/
 .claude/dev-loop-work/
+.claude/scheduled_tasks.json
+.claude/dev-loop/status/
 
 .omc/
 .omx/
@@ -102,4 +104,3 @@ resume-backup-*.json
 
 # Playwright CLI runtime output
 .playwright-cli/
-.claude/scheduled_tasks.json
