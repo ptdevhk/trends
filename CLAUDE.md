@@ -15,7 +15,7 @@
 - Vault root: `{WIKI_VAULT}`
 - Trends wiki index: `{WIKI_VAULT}/projects/trends/index.md`
 - Trends project README: `{WIKI_VAULT}/projects/trends/README.md`
-- Auth + personal seats (active): `{WIKI_VAULT}/projects/trends/work/2026-07-16-admin-user-workspace-onboarding/`
+- Auth + personal seats (completed 2026-07-16): `{WIKI_VAULT}/projects/trends/work/2026-07-16-admin-user-workspace-onboarding/`
 - Auth seats session compound: `{WIKI_VAULT}/projects/trends/compound/2026-07-16-auth-workspace-personal-seats-session.md`
 - Current scorer batch: `{WIKI_VAULT}/projects/trends/work/2026-07-09-cn-hr-feedback-analysis/`
 - Separate K3 track: `{WIKI_VAULT}/projects/trends/work/2026-07-10-company-registry-policy-architecture/`
