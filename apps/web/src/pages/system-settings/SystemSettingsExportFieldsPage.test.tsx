@@ -256,4 +256,47 @@ describe('SystemSettingsExportFieldsPage state', () => {
     expect(addFieldButton('experience')).toBeInTheDocument()
     expect(screen.getByRole('checkbox', { name: 'Include debug columns when debug mode is enabled' })).not.toBeChecked()
   })
+
+  it('reset order re-sorts current selection to canonical order without calling the API', async () => {
+    const user = userEvent.setup()
+    // Saved config has non-canonical order: experience (detail) before core
+    // fields, and userComment pushed to the end instead of its default core
+    // position 3 (after resumeId, name).
+    requestJsonMock.mockResolvedValueOnce({
+      success: true,
+      config: {
+        fields: ['experience', 'resumeId', 'name', 'userComment'],
+        includeDebugWhenEnabled: true,
+      },
+    })
+
+    render(<SystemSettingsExportFieldsPage />)
+
+    await waitFor(() => {
+      expect(fieldCheckbox('experience')).toBeChecked()
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Reset order' }))
+
+    // No PUT call - reset order is a local edit only
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/config/export-fields')
+
+    // Selection set is preserved
+    expect(fieldCheckbox('resumeId')).toBeChecked()
+    expect(fieldCheckbox('name')).toBeChecked()
+    expect(fieldCheckbox('userComment')).toBeChecked()
+    expect(fieldCheckbox('experience')).toBeChecked()
+    // includeDebug flag is preserved
+    expect(screen.getByRole('checkbox', { name: 'Include debug columns when debug mode is enabled' })).toBeChecked()
+
+    // Canonical order is EXPORT_CORE_FIELDS then EXPORT_DETAIL_FIELDS:
+    //   resumeId(1), name(2), userComment(3), ..., experience(detail)
+    const positionOf = (field: keyof typeof FIELD_LABELS) =>
+      removeFieldButton(field).closest('div')?.querySelector('.tabular-nums')?.textContent
+    expect(positionOf('resumeId')).toBe('1')
+    expect(positionOf('name')).toBe('2')
+    expect(positionOf('userComment')).toBe('3')
+    // experience is a detail field -> comes after all selected core fields
+    expect(Number(positionOf('experience'))).toBeGreaterThan(3)
+  })
 })

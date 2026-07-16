@@ -1035,6 +1035,7 @@
     "exportFieldsDescription": "選取要包含在匯出中的欄位。欄位按所示順序匯出。",
     "exportFieldsPageDescription": "設定履歷 CSV/XLSX 匯出中顯示的欄位。",
     "exportFieldsResetDefaults": "恢復預設",
+    "exportFieldsResetOrder": "重設順序",
     "exportFieldsIncludeDebug": "偵錯模式啟用時包含偵錯欄位",
     "exportFieldsNoConfig": "目前使用預設欄位配置。在下方自訂。",
     "exportFieldsOrderTitle": "匯出順序",

@@ -25,7 +25,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { useSettingsRequestJson } from '@/pages/system-settings/lib'
-import { EXPORT_CORE_FIELDS, isRecord } from '@trends/shared'
+import { EXPORT_CORE_FIELDS, EXPORT_DEBUG_FIELDS, EXPORT_DETAIL_FIELDS, isRecord } from '@trends/shared'
 import type { ExportFieldKey } from '@trends/shared'
 import { FIELD_GROUPS, FIELD_LABELS } from './SystemSettingsExportFieldsPage.metadata'
 import { reportUiError } from '@/lib/ui-error-reporting'
@@ -305,6 +305,19 @@ export function SystemSettingsExportFieldsPage() {
     }
   }, [requestJson, t])
 
+  const handleResetOrder = useCallback(() => {
+    setSelectedFields((current) => {
+      // Canonical default order is core -> detail -> debug, as defined in
+      // packages/shared/src/export-fields-config.ts. This preserves the
+      // user's current field selection while restoring the default ordering.
+      const canonicalOrder = [...EXPORT_CORE_FIELDS, ...EXPORT_DETAIL_FIELDS, ...EXPORT_DEBUG_FIELDS]
+      const orderIndex = new Map<ExportFieldKey, number>()
+      canonicalOrder.forEach((key, index) => orderIndex.set(key, index))
+      return [...current].sort((a, b) => (orderIndex.get(a) ?? 0) - (orderIndex.get(b) ?? 0))
+    })
+    setHasConfig(true)
+  }, [])
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -329,6 +342,13 @@ export function SystemSettingsExportFieldsPage() {
             disabled={loading}
           >
             {loading ? t('trends.loading') : t('common.refresh', { defaultValue: 'Refresh' })}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handleResetOrder}
+            disabled={saving || loading}
+          >
+            {t('debugConfig.exportFieldsResetOrder', { defaultValue: 'Reset order' })}
           </Button>
           <Button
             variant="outline"

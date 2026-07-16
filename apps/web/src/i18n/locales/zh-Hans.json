@@ -646,6 +646,7 @@
     "exportFieldsDescription": "选取要包含在导出中的列。列按所示顺序导出。",
     "exportFieldsPageDescription": "配置简历 CSV/XLSX 导出中显示的列。",
     "exportFieldsResetDefaults": "恢复默认",
+    "exportFieldsResetOrder": "重置顺序",
     "exportFieldsIncludeDebug": "调试模式启用时包含调试列",
     "exportFieldsNoConfig": "当前使用默认列配置。在下方自定义。",
     "exportFieldsOrderTitle": "导出顺序",

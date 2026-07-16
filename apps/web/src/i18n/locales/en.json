@@ -1035,6 +1035,7 @@
     "exportFieldsDescription": "Select which fields to include in exports. Fields are exported in the order shown.",
     "exportFieldsPageDescription": "Configure which columns appear in resume CSV/XLSX exports.",
     "exportFieldsResetDefaults": "Reset to defaults",
+    "exportFieldsResetOrder": "Reset order",
     "exportFieldsIncludeDebug": "Include debug columns when debug mode is enabled",
     "exportFieldsNoConfig": "Using default columns. Configure below to customize.",
     "exportFieldsOrderTitle": "Export order",

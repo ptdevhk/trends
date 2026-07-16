@@ -9,6 +9,22 @@ import type {
 import { isRecord, SYSTEM_SETTINGS_NAV_ITEMS } from '@trends/shared'
 import { withWorkspaceHeaders } from '@/lib/workspace-ref'
 
+const csrfCookieName = 'trends_csrf'
+const csrfHeaderName = 'X-CSRF-Token'
+const mutatingMethods = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
+
+function readCookie(name: string): string | null {
+  if (typeof document === 'undefined') {
+    return null
+  }
+  const prefix = `${name}=`
+  const match = document.cookie
+    .split(';')
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(prefix))
+  return match ? decodeURIComponent(match.slice(prefix.length)) : null
+}
+
 export type {
   ConfigSourceMetadata,
   ConfigSourceDetail,
@@ -802,12 +818,21 @@ export function useSettingsRequestJson(): {
   }, [])
 
   const requestJson = useCallback(async (path: string, init?: RequestInit): Promise<unknown> => {
+    const headers = withWorkspaceHeaders({
+      ...(init?.headers ?? {}),
+      'Content-Type': 'application/json',
+    })
+    const method = (init?.method ?? 'GET').toUpperCase()
+    if (mutatingMethods.has(method) && !headers.has(csrfHeaderName)) {
+      const csrfToken = readCookie(csrfCookieName)
+      if (csrfToken) {
+        headers.set(csrfHeaderName, csrfToken)
+      }
+    }
+
     const response = await fetch(`${apiBaseUrl}${path}`, {
       ...init,
-      headers: withWorkspaceHeaders({
-        ...(init?.headers ?? {}),
-        'Content-Type': 'application/json',
-      }),
+      headers,
     })
 
     if (!response.ok) {
