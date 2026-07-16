@@ -105,7 +105,7 @@ export function StarRating({
       ? createPortal(
           <div
             ref={popoverRef}
-            className="fixed z-[100] w-72 rounded-lg border border-slate-700 bg-slate-800 p-3 shadow-xl"
+            className="fixed z-[100] w-72 rounded-lg border bg-popover text-popover-foreground p-3 shadow-lg"
             style={{ top: popoverPos.top, left: popoverPos.left }}
             data-testid="rating-comment-popover"
             data-portal="true"
@@ -113,8 +113,8 @@ export function StarRating({
             onMouseDown={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-1.5 mb-2">
-              <MessageSquare size={13} className="text-amber-400" />
-              <span className="text-xs font-medium text-slate-200">
+              <MessageSquare size={13} className="text-amber-500" />
+              <span className="text-xs font-medium text-foreground">
                 {editing
                   ? t('resumes.ratingComment.title', { defaultValue: 'Add Rating Note' })
                   : t('resumes.ratingComment.viewTitle', { defaultValue: 'User Comment' })}
@@ -128,7 +128,7 @@ export function StarRating({
                 placeholder={t('resumes.ratingComment.placeholder', {
                   defaultValue: '写一下你对这个候选人的评价...',
                 })}
-                className="min-h-[60px] text-xs bg-slate-700 border-slate-600 text-white placeholder:text-slate-400 resize-none"
+                className="min-h-[60px] text-xs resize-none"
                 autoFocus
                 data-testid="rating-comment-input"
                 onClick={(e) => e.stopPropagation()}
@@ -144,7 +144,7 @@ export function StarRating({
               />
             ) : (
               <p
-                className="min-h-[60px] text-xs text-slate-100 whitespace-pre-wrap break-words rounded-md bg-slate-700/60 border border-slate-600 px-2 py-1.5"
+                className="min-h-[60px] text-xs text-foreground whitespace-pre-wrap break-words rounded-md border bg-muted/40 px-2 py-1.5"
                 data-testid="rating-comment-view"
               >
                 {commentText}
@@ -155,7 +155,7 @@ export function StarRating({
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-7 text-xs text-slate-400 hover:text-white"
+                className="h-7 text-xs text-muted-foreground"
                 onClick={(e) => {
                   e.stopPropagation()
                   handleDismissComment()
@@ -224,7 +224,7 @@ export function StarRating({
               size={size}
               className={filled
                 ? 'fill-amber-400 text-amber-400'
-                : 'text-slate-300 hover:text-amber-300'}
+                : 'text-muted-foreground hover:text-amber-400'}
             />
           </button>
         )
