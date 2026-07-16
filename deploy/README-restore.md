@@ -9,6 +9,22 @@ Two restore scripts handle data sync between preview and prod:
 | `restore-preview-from-prod.sh` | prod → preview | Refresh preview with latest prod data |
 | `restore-prod-from-preview.sh` | preview → prod | Promote preview changes to prod |
 
+For the **full preview clone + upgrade CLI runbook** (backup → clone prod version → data sync → upgrade), see:
+
+- [`docs/preview-upgrade-runbook.md`](../docs/preview-upgrade-runbook.md)
+
+Related helpers:
+
+| Script | Role |
+|--------|------|
+| `backup-prod-complete.sh` | Complete production backup before preview work |
+| `preview-preflight.sh` | Read-only isolation / path checks |
+| `preview-clone-from-prod.sh` | Install production app version into preview |
+| `preview-upgrade.sh` | Upgrade preview to latest (safe `make deploy` target) |
+| `preview-isolate-integrations.sh` | Clear Telegram / force preview URLs |
+| `restore-preview-full-state-from-prod.sh` | Convex + SQLite into preview |
+| `preview-doctor.sh` | Health + recovery |
+
 ## Quiesce behavior
 
 Both scripts use `deploy/quiesce.sh` to set a maintenance flag on both environments before export/import. During maintenance:

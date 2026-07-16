@@ -344,10 +344,15 @@ e2e_optional_benchmarks:
 ## Release
 
 ```yaml
-bump_script:
+bump_script: bash scripts/bump-version.sh
 publish_via: none
+# Production only — never run against /home/ubuntu/trends-preview.
+# Preview upgrades: cd /home/ubuntu/trends-preview && make deploy  (→ deploy/preview-upgrade.sh)
+# Full preview runbook: docs/preview-upgrade-runbook.md
 deploy_script: bash scripts/install.sh upgrade
-manifests_count: 5
+# Version-carrying package manifests (plus root `version` file used by bump-version.sh):
+# package.json, packages/convex, apps/api, apps/web, apps/browser-extension, apps/worker/pyproject.toml
+manifests_count: 6
 remote_hosts: [${SSH_HOST:-ptcloud}]
 ```
 

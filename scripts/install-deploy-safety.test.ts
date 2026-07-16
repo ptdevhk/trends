@@ -72,9 +72,12 @@ describe("install/deploy demo resume safety", () => {
     expect(makefile).toMatch(/^prod-install:\s+on-prod-install$/m);
     expect(makefile).toMatch(/^install:\s+on-prod-install$/m);
     expect(makefile).toMatch(/^prod-deploy:\s+on-prod-deploy$/m);
-    expect(makefile).toMatch(/^deploy:\s+on-prod-deploy$/m);
+    // deploy/deploy-check are context-aware (preview vs /opt/trends); prod aliases stay explicit
     expect(makefile).toMatch(/^prod-deploy-check:\s+on-prod-deploy-check$/m);
-    expect(makefile).toMatch(/^deploy-check:\s+on-prod-deploy-check$/m);
+    expect(getTargetRecipe("deploy")).toContain("preview-upgrade.sh");
+    expect(getTargetRecipe("deploy")).toContain("on-prod-deploy");
+    expect(getTargetRecipe("deploy-check")).toContain("preview-preflight.sh");
+    expect(getTargetRecipe("deploy-check")).toContain("on-prod-deploy-check");
   });
 
   it("removes dead install script logic for that env var", () => {
@@ -415,6 +418,93 @@ describe("preview AI env sync", () => {
     } finally {
       rmSync(tempDir, { force: true, recursive: true });
     }
+  });
+});
+
+describe("production install refuses preview paths", () => {
+  it("defines assert_production_install_target and calls it from install/upgrade flows", () => {
+    expect(installScript).toContain("assert_production_install_target()");
+    expect(installScript).toContain("trends-preview");
+    expect(installScript).toContain("deploy/preview-upgrade.sh");
+    // Match function bodies with ^ so env_only_upgrade_flow does not steal upgrade_flow
+    expect(installScript).toMatch(/^install_flow\(\) \{\n\s+check_root\n\s+assert_production_install_target/m);
+    expect(installScript).toMatch(/^upgrade_flow\(\) \{\n\s+check_root\n\s+assert_production_install_target/m);
+    expect(installScript).toMatch(/^upgrade_check_flow\(\) \{\n\s+check_root\n\s+assert_production_install_target/m);
+    expect(installScript).toMatch(/^uninstall_flow\(\) \{\n\s+check_root\n\s+assert_production_install_target/m);
+    expectBefore(extractShellFunction(installScript, "install_flow"), "assert_production_install_target", "clone_or_update_repo");
+  });
+
+  it("routes context-aware make deploy to preview-upgrade from preview paths", () => {
+    const recipe = getTargetRecipe("deploy");
+    expect(recipe).toContain("trends-preview");
+    expect(recipe).toContain("preview-upgrade.sh");
+    expect(recipe).toContain("on-prod-deploy");
+    expect(recipe).toContain("/opt/trends");
+  });
+
+  it("refuses on-prod-deploy when cwd is preview", () => {
+    const recipe = getTargetRecipe("on-prod-deploy");
+    expect(recipe).toContain("trends-preview");
+    expect(recipe).toContain("refused");
+  });
+});
+
+describe("preview release helpers", () => {
+  const backupScript = readFileSync(new URL("../deploy/backup-prod-complete.sh", import.meta.url), "utf8");
+  const preflightScript = readFileSync(new URL("../deploy/preview-preflight.sh", import.meta.url), "utf8");
+  const cloneScript = readFileSync(new URL("../deploy/preview-clone-from-prod.sh", import.meta.url), "utf8");
+  const upgradeScript = readFileSync(new URL("../deploy/preview-upgrade.sh", import.meta.url), "utf8");
+  const isolateScript = readFileSync(new URL("../deploy/preview-isolate-integrations.sh", import.meta.url), "utf8");
+  const commonLib = readFileSync(new URL("../deploy/lib-preview-common.sh", import.meta.url), "utf8");
+
+  it("ships complete backup with verify and no prod import", () => {
+    expect(backupScript).toContain("set -Eeuo pipefail");
+    expect(backupScript).toContain("prod-complete-");
+    expect(backupScript).toContain(".backup");
+    expect(backupScript).toContain("npx convex export");
+    expect(backupScript).toContain("integrity_check");
+    expect(backupScript).toContain('status "OK"');
+    expect(backupScript).not.toContain("convex import");
+    expect(backupScript).not.toContain("restore-prod-from-preview");
+  });
+
+  it("preflight checks preview isolation and separate sqlite paths", () => {
+    expect(preflightScript).toContain("assert_preview_env_file");
+    expect(preflightScript).toContain("PREVIEW_CONVEX_URL");
+    expect(preflightScript).toContain("preview SQLite is separate");
+    expect(commonLib).toContain("4210");
+  });
+
+  it("clone-from-prod preserves preview env and never targets /opt/trends as destination", () => {
+    expect(cloneScript).toContain("assert_not_prod_install_dir");
+    expect(cloneScript).toContain("SOURCE=production");
+    expect(cloneScript).toContain("preview-isolate-integrations.sh");
+    expect(cloneScript).toContain("rsync");
+    expect(cloneScript).toContain('systemctl restart "$PREVIEW_API_SERVICE"');
+    expect(cloneScript).not.toContain("systemctl restart trends-api");
+  });
+
+  it("preview-upgrade refuses production cwd and restarts only preview units", () => {
+    expect(upgradeScript).toContain("set -Eeuo pipefail");
+    expect(upgradeScript).toContain("is_prod_path");
+    expect(upgradeScript).toContain("REPO_MIRROR");
+    expect(upgradeScript).toContain("SOURCE_REF");
+    expect(upgradeScript).toContain("systemctl restart \"$PREVIEW_API_SERVICE\"");
+    expect(upgradeScript).not.toContain("systemctl restart trends-api");
+    expect(upgradeScript).toContain("Production was not modified");
+  });
+
+  it("isolate script clears telegram and forces preview URLs", () => {
+    expect(isolateScript).toContain("TELEGRAM_BOT_TOKEN");
+    expect(isolateScript).toContain("AUTH_ALLOWED_ORIGINS");
+    expect(isolateScript).toContain("4210");
+    expect(isolateScript).toContain("--apply");
+  });
+
+  it("shared lib defines canonical prod/preview paths", () => {
+    expect(commonLib).toContain('/opt/trends');
+    expect(commonLib).toContain("/home/ubuntu/trends-preview");
+    expect(commonLib).toContain("print_context_report");
   });
 });
 

@@ -3,6 +3,7 @@
 .PHONY: dev dev-samples dev-fast dev-critical dev-backend dev-clean dev-mcp dev-crawl dev-convex dev-convex-stop dev-convex-restart dev-convex-refresh dev-convex-ensure dev-convex-status dev-web dev-api dev-worker dev-api-worker \
 		local-run-crawler local-run-mcp local-run-mcp-http local-run-worker local-run-worker-once run crawl mcp mcp-http worker worker-once \
 		on-prod-install on-prod-deploy on-prod-deploy-check on-prod-uninstall on-prod-refresh-env on-prod-preview-restore-full-state prod-install prod-deploy prod-deploy-check install deploy deploy-check uninstall refresh-env preview-restore-full-state restore-preview-full-state \
+		preview-backup-prod on-host-backup-prod-complete on-host-preview-preflight on-host-preview-clone-from-prod on-host-preview-upgrade on-host-preview-isolate preview-deploy preview-restore-data preview-doctor preview-smoke \
 		install-deps fetch-docs clean check help docker docker-build docker-down \
 		check-python check-node check-node-tests-types check-build \
 		test test-python test-node test-resume test-extension-keyword-mode test-api-search-profiles test-worker-resume-tasks test-collect-url-smoke \
@@ -322,17 +323,60 @@ install: on-prod-install
 
 # Runs on prod host ONLY. Preflight workspace branch, snapshot Convex, then pull/rebuild/restart production services (JDs only)
 on-prod-deploy:
+	@case "$$(pwd -P)" in \
+		*/trends-preview|*/trends-preview/*) \
+			echo "ERROR: on-prod-deploy refused — cwd is preview ($$(pwd -P))."; \
+			echo "Use: make deploy  (routes to preview-upgrade) or sudo bash deploy/preview-upgrade.sh"; \
+			exit 1 ;; \
+	esac
 	sudo REPO_URL="$${REPO_URL:-}" ENV_FILE="$${ENV_FILE:-.env.production}" WORKSPACE_DIR="$$(pwd)" INSTALL_BRANCH="$${INSTALL_BRANCH:-}" FORCE="$${FORCE:-}" ALLOW_NODE_DOWNGRADE="$${ALLOW_NODE_DOWNGRADE:-}" ./scripts/install.sh upgrade
 
 prod-deploy: on-prod-deploy
-deploy: on-prod-deploy
+
+# Context-aware deploy:
+#   /opt/trends            → production upgrade via install.sh
+#   /home/ubuntu/trends-preview → preview upgrade (never touches production)
+#   elsewhere              → hard fail with guidance
+deploy:
+	@cwd="$$(pwd -P)"; \
+	case "$$cwd" in \
+		*/trends-preview|*/trends-preview/*) \
+			echo "→ preview deploy (cwd=$$cwd)"; \
+			sudo ASSUME_YES="$${ASSUME_YES:-}" SOURCE_REF="$${SOURCE_REF:-origin/main}" bash ./deploy/preview-upgrade.sh ;; \
+		/opt/trends|/opt/trends/*) \
+			echo "→ production deploy (cwd=$$cwd)"; \
+			$(MAKE) --no-print-directory on-prod-deploy ;; \
+		*) \
+			echo "ERROR: make deploy must be run from /opt/trends (prod) or .../trends-preview (preview)."; \
+			echo "  cwd=$$cwd"; \
+			echo "  Preview:  cd /home/ubuntu/trends-preview && make deploy"; \
+			echo "  Prod:     cd /opt/trends && make deploy"; \
+			exit 1 ;; \
+	esac
 
 # Runs on prod host ONLY. Show whether deploy would skip, refresh env only, or run a full upgrade
 on-prod-deploy-check:
+	@case "$$(pwd -P)" in \
+		*/trends-preview|*/trends-preview/*) \
+			echo "ERROR: on-prod-deploy-check refused — cwd is preview."; \
+			exit 1 ;; \
+	esac
 	sudo REPO_URL="$${REPO_URL:-}" ENV_FILE="$${ENV_FILE:-.env.production}" WORKSPACE_DIR="$$(pwd)" INSTALL_BRANCH="$${INSTALL_BRANCH:-}" FORCE="$${FORCE:-}" ALLOW_NODE_DOWNGRADE="$${ALLOW_NODE_DOWNGRADE:-}" ./scripts/install.sh upgrade-check
 
 prod-deploy-check: on-prod-deploy-check
-deploy-check: on-prod-deploy-check
+
+deploy-check:
+	@cwd="$$(pwd -P)"; \
+	case "$$cwd" in \
+		*/trends-preview|*/trends-preview/*) \
+			echo "→ preview deploy-check (read-only preflight)"; \
+			sudo bash ./deploy/preview-preflight.sh ;; \
+		/opt/trends|/opt/trends/*) \
+			$(MAKE) --no-print-directory on-prod-deploy-check ;; \
+		*) \
+			echo "ERROR: make deploy-check must be run from /opt/trends or .../trends-preview (cwd=$$cwd)"; \
+			exit 1 ;; \
+	esac
 
 # Runs on prod host ONLY. Remove systemd services
 on-prod-uninstall:
@@ -450,21 +494,56 @@ local-restore-from-prod:
 restore-from-prod: local-restore-from-prod
 
 # --- Preview deployment (preview.pt-mes.com on ptcloud) ---
+#
+# Full CLI runbook: docs/preview-upgrade-runbook.md
+# Preferred on-host flow (preview only — never upgrades production):
+#   sudo bash deploy/backup-prod-complete.sh
+#   sudo bash deploy/preview-preflight.sh
+#   sudo bash deploy/preview-clone-from-prod.sh
+#   sudo bash deploy/restore-preview-full-state-from-prod.sh
+#   cd /home/ubuntu/trends-preview && make deploy   # → preview-upgrade.sh
+
+# Complete production backup (on ptcloud as root; read-mostly, export only)
+preview-backup-prod:
+	@SSH_HOST="$${SSH_HOST:-ptcloud}"; \
+	echo "→ complete production backup on $$SSH_HOST"; \
+	ssh "$$SSH_HOST" 'sudo ASSUME_YES=1 bash /opt/trends/deploy/backup-prod-complete.sh 2>/dev/null || \
+		sudo ASSUME_YES=1 bash /home/ubuntu/trends/deploy/backup-prod-complete.sh'
+
+# On-host: complete production backup (no SSH)
+on-host-backup-prod-complete:
+	sudo ASSUME_YES="$${ASSUME_YES:-1}" bash ./deploy/backup-prod-complete.sh
+
+# On-host: preview preflight (read-only)
+on-host-preview-preflight:
+	sudo bash ./deploy/preview-preflight.sh
+
+# On-host: clone production application version into preview
+on-host-preview-clone-from-prod:
+	sudo ASSUME_YES="$${ASSUME_YES:-}" bash ./deploy/preview-clone-from-prod.sh
+
+# On-host: upgrade preview to latest (SOURCE_REF default origin/main)
+on-host-preview-upgrade:
+	sudo ASSUME_YES="$${ASSUME_YES:-}" SOURCE_REF="$${SOURCE_REF:-origin/main}" bash ./deploy/preview-upgrade.sh
+
+# On-host: isolate preview integrations (Telegram etc.)
+on-host-preview-isolate:
+	sudo ASSUME_YES=1 bash ./deploy/preview-isolate-integrations.sh --apply
 
 # Full preview deploy: sync code from origin/main, install, build, restart services.
-# Requires SSH access to ptcloud.
+# Requires SSH access to ptcloud. Prefer on-host preview-upgrade when already on the host.
 preview-deploy:
 	@SSH_HOST="$${SSH_HOST:-ptcloud}"; \
-	echo "→ deploying preview to $$SSH_HOST"; \
-	ssh "$$SSH_HOST" "sudo bash /home/ubuntu/trends/deploy/setup-preview.sh"; \
-	echo "→ restarting API"; \
-	ssh "$$SSH_HOST" "sudo systemctl restart trends-preview-api"; \
-	echo "→ waiting for API readiness"; \
-	ssh "$$SSH_HOST" "for i in 1 2 3 4 5 6 7 8 9 10; do \
-		curl -sf --max-time 5 http://127.0.0.1:3002/api/blocks >/dev/null 2>&1 && break; \
-		echo \"  API not ready yet (\$$i/10), waiting 3s…\"; \
-		sleep 3; \
-	done"; \
+	echo "→ deploying preview to $$SSH_HOST via preview-upgrade.sh"; \
+	ssh "$$SSH_HOST" 'set -e; \
+		if [ -x /home/ubuntu/trends-preview/deploy/preview-upgrade.sh ]; then \
+			cd /home/ubuntu/trends-preview && sudo ASSUME_YES=1 bash deploy/preview-upgrade.sh; \
+		elif [ -x /home/ubuntu/trends/deploy/preview-upgrade.sh ]; then \
+			sudo ASSUME_YES=1 bash /home/ubuntu/trends/deploy/preview-upgrade.sh; \
+		else \
+			sudo bash /home/ubuntu/trends/deploy/setup-preview.sh; \
+			sudo systemctl restart trends-preview-api; \
+		fi'; \
 	echo "→ verifying endpoints"; \
 	ssh "$$SSH_HOST" "curl -s -o /dev/null -w 'Web: %{http_code}\n' https://preview.pt-mes.com/ && \
 		curl -s -o /dev/null -w 'API: %{http_code}\n' http://127.0.0.1:3002/api/blocks"
@@ -473,7 +552,14 @@ preview-deploy:
 preview-restore-data:
 	@SSH_HOST="$${SSH_HOST:-ptcloud}"; \
 	echo "→ restoring prod data into preview on $$SSH_HOST"; \
-	ssh "$$SSH_HOST" "sudo bash /home/ubuntu/trends/deploy/restore-preview-from-prod.sh"
+	ssh "$$SSH_HOST" "sudo bash /opt/trends/deploy/restore-preview-from-prod.sh 2>/dev/null || \
+		sudo bash /home/ubuntu/trends/deploy/restore-preview-from-prod.sh"
+
+# On-host preview doctor
+preview-doctor:
+	@SSH_HOST="$${SSH_HOST:-ptcloud}"; \
+	ssh "$$SSH_HOST" 'bash /home/ubuntu/trends-preview/deploy/preview-doctor.sh --full 2>/dev/null || \
+		bash /home/ubuntu/trends/deploy/preview-doctor.sh --full'
 
 # Quick smoke check for preview endpoints
 preview-smoke:

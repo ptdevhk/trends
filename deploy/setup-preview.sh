@@ -4,6 +4,15 @@
 #
 # IMPORTANT: This pulls from origin/main, NOT /opt/trends. Production might be
 # weeks behind main. Preview should always reflect the bleeding-edge code.
+#
+# Preferred modern workflow (backup → clone prod version → data sync → upgrade):
+#   docs/preview-upgrade-runbook.md
+#   deploy/backup-prod-complete.sh
+#   deploy/preview-clone-from-prod.sh   # pin preview app to production SHA
+#   deploy/restore-preview-full-state-from-prod.sh
+#   deploy/preview-upgrade.sh           # or: cd /home/ubuntu/trends-preview && make deploy
+#
+# Optional: SOURCE_REF=origin/main (default) when using preview-upgrade.sh instead.
 set -e
 
 REPO_HEAD=/home/ubuntu/trends                # mirror of origin/main, fetched fresh each run

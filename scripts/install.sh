@@ -80,6 +80,48 @@ check_root() {
     fi
 }
 
+# Production install/upgrade must never run against the preview tree.
+# Preview upgrades use deploy/preview-upgrade.sh (or `make deploy` from the preview dir).
+assert_production_install_target() {
+    local cwd workspace_real install_real env_path env_lower
+    cwd="$(pwd -P 2>/dev/null || pwd)"
+    workspace_real="$(cd "$WORKSPACE_DIR" 2>/dev/null && pwd -P || echo "$WORKSPACE_DIR")"
+    install_real="$(cd "$INSTALL_DIR" 2>/dev/null && pwd -P || echo "$INSTALL_DIR")"
+
+    if [[ "$cwd" == *"/trends-preview"* || "$workspace_real" == *"/trends-preview"* ]]; then
+        log_error "Refusing production install/upgrade from a preview path."
+        log_error "  cwd=$cwd"
+        log_error "  WORKSPACE_DIR=$workspace_real"
+        log_error "  INSTALL_DIR is hard-coded to $INSTALL_DIR (production)."
+        log_error "For preview, run from the preview directory:"
+        log_error "  cd /home/ubuntu/trends-preview && sudo bash deploy/preview-upgrade.sh"
+        log_error "  # or: cd /home/ubuntu/trends-preview && make deploy"
+        exit 1
+    fi
+
+    if [[ "$install_real" == *"/trends-preview"* ]]; then
+        log_error "INSTALL_DIR resolves to preview ($install_real). Production install.sh cannot target preview."
+        exit 1
+    fi
+
+    # Reject explicit preview env files
+    env_path="${ENV_FILE:-}"
+    if [[ -n "$env_path" ]]; then
+        env_lower="$(basename "$env_path" | tr '[:upper:]' '[:lower:]')"
+        if [[ "$env_lower" == ".env.preview" || "$env_path" == *".env.preview"* ]]; then
+            log_error "ENV_FILE=$env_path is a preview env. Use deploy/preview-upgrade.sh instead."
+            exit 1
+        fi
+    fi
+
+    if [[ -f "$workspace_real/.env.preview" && ! -f "$workspace_real/.env.production" ]]; then
+        if [[ "$workspace_real" == *"/trends-preview"* ]]; then
+            log_error "Workspace looks like a preview checkout (only .env.preview present)."
+            exit 1
+        fi
+    fi
+}
+
 check_systemd() {
     if ! command -v systemctl >/dev/null 2>&1; then
         log_error "systemd is required but not found."
@@ -1953,6 +1995,7 @@ EOF
 
 install_flow() {
     check_root
+    assert_production_install_target
     check_systemd
     ensure_base_dependencies
     ensure_node_22
@@ -2015,6 +2058,7 @@ full_upgrade_steps() {
 
 upgrade_flow() {
     check_root
+    assert_production_install_target
     check_systemd
     require_git
     ensure_repo_access
@@ -2052,6 +2096,7 @@ upgrade_flow() {
 
 upgrade_check_flow() {
     check_root
+    assert_production_install_target
     check_systemd
     require_git
     ensure_repo_access
@@ -2078,6 +2123,7 @@ upgrade_check_flow() {
 
 uninstall_flow() {
     check_root
+    assert_production_install_target
     check_systemd
 
     log_info "Stopping and disabling trends services..."
@@ -2113,6 +2159,13 @@ print_usage() {
     echo "  upgrade-check  Show whether deploy would skip, refresh env, or run full upgrade"
     echo "  uninstall      Remove installed systemd services"
     echo "  --help, -h     Show this help message"
+    echo ""
+    echo "Safety:"
+    echo "  This script ONLY targets production ($INSTALL_DIR)."
+    echo "  It refuses to run from /home/ubuntu/trends-preview or with ENV_FILE=.env.preview."
+    echo "  For preview upgrades on ptcloud:"
+    echo "    cd /home/ubuntu/trends-preview && sudo bash deploy/preview-upgrade.sh"
+    echo "    # or: cd /home/ubuntu/trends-preview && make deploy"
     echo ""
     echo "Environment variables:"
     echo "  ENV_FILE               Production env file path (default: .env.production)"

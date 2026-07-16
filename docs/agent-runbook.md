@@ -58,15 +58,29 @@ make on-prod-refresh-env
 ```
 
 ### Preview deployment
-Preview uses separate ports and paths. Full postmortem/reference:
+Preview uses separate ports and paths. **Complete CLI runbook:**
+- `docs/preview-upgrade-runbook.md`
+
+Full postmortem/reference:
 - `{WIKI_VAULT}/projects/trends/compound/2026-05-29-preview-deployment-lessons.md`
 
+Canonical paths on `ptcloud`:
+- Production: `/opt/trends` (API `:3000`, Convex `:3210`, `trends.pt-mes.com`)
+- Preview: `/home/ubuntu/trends-preview` (API `:3002`, Convex `:4210`, `preview.pt-mes.com`)
+
 ```bash
-bash /opt/trends/deploy/setup-preview.sh
-cd /home/ubuntu/trends-preview && docker compose -f docker-compose.preview.yml up -d
-systemctl enable --now trends-preview-api
-bash /opt/trends/deploy/restore-preview-from-prod.sh
+# On ptcloud — never upgrade production during preview work
+sudo ASSUME_YES=1 bash deploy/backup-prod-complete.sh
+sudo bash deploy/preview-preflight.sh
+sudo ASSUME_YES=1 bash deploy/preview-clone-from-prod.sh
+sudo SKIP_PREVIEW_AI_SMOKE=1 bash deploy/restore-preview-full-state-from-prod.sh
+cd /home/ubuntu/trends-preview && sudo ASSUME_YES=1 make deploy   # → preview-upgrade.sh only
+bash deploy/preview-doctor.sh --full
 ```
+
+`make deploy` / `./scripts/install.sh upgrade` from `/opt/trends` = **production**.  
+From `/home/ubuntu/trends-preview`, `make deploy` routes to `deploy/preview-upgrade.sh`.  
+`install.sh` refuses preview paths.
 
 Do **not** raw-copy `convex_local_backend.sqlite3` between deployments.
 
