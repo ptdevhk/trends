@@ -79,7 +79,8 @@ describe('StarRating', () => {
   it('applies unfilled class to stars above the value', () => {
     render(<StarRating value={2} />)
     const buttons = screen.getAllByRole('button')
-    const unfilledStars = buttons.filter(btn => btn.querySelector('.text-slate-300'))
+    // Unfilled stars use muted foreground (not a hard-coded slate shade)
+    const unfilledStars = buttons.filter(btn => btn.querySelector('.text-muted-foreground'))
     expect(unfilledStars).toHaveLength(3)
   })
 

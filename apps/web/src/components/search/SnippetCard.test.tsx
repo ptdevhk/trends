@@ -487,8 +487,9 @@ describe('SnippetCard', () => {
 
     await user.click(screen.getByTestId('note-trigger'))
 
-    // Dialog title uses defaultValue '备注'
-    expect(screen.getByText('备注')).toBeInTheDocument()
+    // CandidateNotesDialog title defaultValue is 'Notes' (not the trigger label)
+    expect(screen.getByTestId('candidate-notes-dialog')).toBeInTheDocument()
+    expect(screen.getByText('Notes')).toBeInTheDocument()
   })
 
   it('opens status note prompt dialog when status change to interviewed_reject', async () => {
