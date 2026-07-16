@@ -7,12 +7,14 @@ import { workspaceConfigService } from '../services/workspace-config-service'
 import { createAuthContext } from './test-auth-helpers'
 import { parseJsonBody } from '../test-utils'
 
-// dev workspace = admin, hr workspace = user
-function createTestApp() {
+// Default: dev workspace admin. Pass role/slug for member-desk coverage.
+function createTestApp(options?: { workspaceSlug?: string; role?: 'user' | 'admin' }) {
+  const workspaceSlug = options?.workspaceSlug ?? 'dev'
+  const role = options?.role ?? 'admin'
   const app = new OpenAPIHono()
   app.use('*', workspaceMiddleware)
   app.use('*', async (c, next) => {
-    c.set('auth', createAuthContext({ workspaceSlug: 'dev', role: 'admin' }))
+    c.set('auth', createAuthContext({ workspaceSlug, role }))
     await next()
   })
   app.route('/api/filter-presets', filterPresetsRoutes)
@@ -155,7 +157,8 @@ describe('filter-presets routes', () => {
       expect(body.preset.id).toBe('lead-engineer')
     })
 
-    it('rejects creation without admin access (hr workspace)', async () => {
+    it('rejects creation without membership on the target workspace', async () => {
+      // Auth is dev admin; request targets hr → no membership on hr.
       const app = createTestApp()
       const response = await app.request('/api/filter-presets', {
         method: 'POST',
@@ -168,6 +171,30 @@ describe('filter-presets routes', () => {
         }),
       })
       expect(response.status).toBe(403)
+    })
+
+    it('allows workspace user role to create presets (member desk)', async () => {
+      const workspaceConfig = {
+        presets: [...MOCK_PRESETS.presets],
+        categories: [...MOCK_PRESETS.categories],
+      }
+      vi.spyOn(workspaceConfigService, 'getWorkspaceFilterPresets').mockResolvedValue(workspaceConfig)
+      vi.spyOn(workspaceConfigService, 'setWorkspaceFilterPresets').mockResolvedValue(undefined)
+      const app = createTestApp({ workspaceSlug: 'hr', role: 'user' })
+      const response = await app.request('/api/filter-presets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...USER_HEADERS },
+        body: JSON.stringify({
+          id: 'hr-member-preset',
+          name: 'HR Member Preset',
+          category: 'engineering',
+          filters: { minExperience: 2 },
+        }),
+      })
+      expect(response.status).toBe(201)
+      const body = await parseJsonBody<{ success: unknown; preset: { id: string } }>(response)
+      expect(body.success).toBe(true)
+      expect(body.preset.id).toBe('hr-member-preset')
     })
 
     it('rejects duplicate preset id', async () => {

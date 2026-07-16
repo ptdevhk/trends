@@ -19,7 +19,7 @@ import {
   SYSTEM_NAV_ITEMS,
   isRecord,
 } from "@trends/shared";
-import { getAdminAccessError } from "../middleware/auth.js";
+import { getAdminAccessError, getWorkspaceUserAccessError } from "../middleware/auth.js";
 import { getMaskedApiKey, loadAIConfig, validateAIConfig } from "../services/ai-config.js";
 import { configSourceInspector, UnknownConfigSourceError } from "../services/config-source-inspector.js";
 import { customKeywordService } from "../services/custom-keyword-service.js";
@@ -1281,6 +1281,11 @@ const putExportFieldsRoute = createRoute({
 });
 
 app.openapi(putExportFieldsRoute, async (c) => {
+  // Member desk prefs: workspace members may edit export fields for their seat.
+  const memberError = getWorkspaceUserAccessError(c);
+  if (memberError) {
+    return c.json(memberError.body, memberError.status);
+  }
   try {
     const data = c.req.valid("json");
     await workspaceConfigService.setExportFieldsConfig(c.var.workspaceSlug, data);

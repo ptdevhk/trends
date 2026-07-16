@@ -6,7 +6,7 @@ import { isRecord } from "@trends/shared";
 import { logger } from "../services/logger.js";
 import { callConvexQuery, callConvexMutation } from "../services/convex-utils.js";
 import { readString } from "../services/workspace-config-service.js";
-import { getAdminAccessError } from "../middleware/auth.js";
+import { getWorkspaceUserAccessError } from "../middleware/auth.js";
 
 const app = new OpenAPIHono();
 
@@ -218,9 +218,10 @@ const createRouteDef = createRoute({
 });
 
 app.openapi(createRouteDef, async (c) => {
-  const adminError = getAdminAccessError(c);
-  if (adminError) {
-    return c.json(adminError.body, adminError.status);
+  // Member desk (locked B): personal-seat `user` and HR users may create JDs.
+  const memberError = getWorkspaceUserAccessError(c);
+  if (memberError) {
+    return c.json(memberError.body, memberError.status);
   }
   const { name, content, overwrite } = c.req.valid("json");
   try {

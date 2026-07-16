@@ -313,12 +313,8 @@ describe('config route workspace access', () => {
     })
   })
 
-  it('allows hr users to update export field settings', async () => {
+  it('requires authentication to update export field settings', async () => {
     const setExportFieldsSpy = vi.spyOn(workspaceConfigService, 'setExportFieldsConfig').mockResolvedValue()
-    const getExportFieldsSpy = vi.spyOn(workspaceConfigService, 'getExportFieldsConfig').mockResolvedValue({
-      fields: ['resumeId', 'name', 'userRating'],
-      includeDebugWhenEnabled: true,
-    })
 
     const app = createTestApp()
     const response = await app.request('/api/config/export-fields', {
@@ -326,6 +322,31 @@ describe('config route workspace access', () => {
       headers: {
         'Content-Type': 'application/json',
         'X-Workspace-Slug': 'hr',
+      },
+      body: JSON.stringify({
+        fields: ['resumeId', 'name'],
+        includeDebugWhenEnabled: false,
+      }),
+    })
+
+    expect(response.status).toBe(401)
+    expect(setExportFieldsSpy).not.toHaveBeenCalled()
+  })
+
+  it('allows hr users to update export field settings', async () => {
+    const auth = createAuthHeaders({ workspaceSlug: 'hr', role: 'user' })
+    const setExportFieldsSpy = vi.spyOn(workspaceConfigService, 'setExportFieldsConfig').mockResolvedValue()
+    const getExportFieldsSpy = vi.spyOn(workspaceConfigService, 'getExportFieldsConfig').mockResolvedValue({
+      fields: ['resumeId', 'name', 'userRating'],
+      includeDebugWhenEnabled: true,
+    })
+
+    const app = createTestApp(auth.storage)
+    const response = await app.request('/api/config/export-fields', {
+      method: 'PUT',
+      headers: {
+        ...auth.headers,
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         fields: ['resumeId', 'name', 'userRating'],

@@ -24,10 +24,36 @@ type AuthMiddlewareOptions = {
   csrfHeaderName?: string;
 };
 
-type AdminAccessError = {
+type AccessError = {
   body: { success: false; error: string };
   status: 401 | 403;
 };
+
+/** @deprecated Prefer AccessError — kept as alias for existing call sites. */
+type AdminAccessError = AccessError;
+
+/**
+ * Member-desk gate: any workspace membership (user or admin) on the active slug.
+ * Used for full member desk features on personal seats and HR users (locked B).
+ */
+export function getWorkspaceUserAccessError(c: {
+  var: { auth?: AuthContext; workspaceSlug: string };
+}): AccessError | null {
+  const auth = c.var.auth;
+  if (!auth) {
+    return {
+      body: { success: false, error: "Authentication required" },
+      status: 401,
+    };
+  }
+  if (!hasWorkspaceRole(auth.memberships, c.var.workspaceSlug, ["user", "admin"])) {
+    return {
+      body: { success: false, error: "Workspace access required" },
+      status: 403,
+    };
+  }
+  return null;
+}
 
 export function getAdminAccessError(c: { var: { auth?: AuthContext; workspaceSlug: string } }): AdminAccessError | null {
   const auth = c.var.auth;

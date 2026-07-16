@@ -13,7 +13,11 @@ import type { AuthContext, WorkspaceRole } from "../services/auth-types.js";
 import { hasWorkspaceRole } from "../services/auth-types.js";
 import { config } from "../services/config.js";
 import { resetResumeScreeningDb } from "../services/database.js";
-import { createAuthMiddleware, getAuthenticatedActorId } from "./auth.js";
+import {
+  createAuthMiddleware,
+  getAuthenticatedActorId,
+  getWorkspaceUserAccessError,
+} from "./auth.js";
 import { workspaceMiddleware } from "./workspace.js";
 
 function createAuthContext(role: WorkspaceRole, workspaceSlug = "hr"): AuthContext {
@@ -52,6 +56,42 @@ describe("auth middleware role helpers", () => {
     expect(hasWorkspaceRole([{ userId: "u1", workspaceSlug: "hr", role: "user" }], "hr", ["user", "admin"])).toBe(true);
     expect(hasWorkspaceRole([{ userId: "u1", workspaceSlug: "hr", role: "user" }], "dev", ["user", "admin"])).toBe(false);
     expect(hasWorkspaceRole([{ userId: "u1", workspaceSlug: "hr", role: "user" }], "hr", ["admin"])).toBe(false);
+  });
+
+  it("getWorkspaceUserAccessError allows user role and blocks non-members", () => {
+    const userCtx = {
+      var: {
+        auth: createAuthContext("user", "alice"),
+        workspaceSlug: "alice",
+      },
+    };
+    expect(getWorkspaceUserAccessError(userCtx)).toBeNull();
+
+    const adminCtx = {
+      var: {
+        auth: createAuthContext("admin", "hr"),
+        workspaceSlug: "hr",
+      },
+    };
+    expect(getWorkspaceUserAccessError(adminCtx)).toBeNull();
+
+    const wrongSeat = {
+      var: {
+        auth: createAuthContext("user", "alice"),
+        workspaceSlug: "hr",
+      },
+    };
+    expect(getWorkspaceUserAccessError(wrongSeat)).toMatchObject({
+      status: 403,
+      body: { error: "Workspace access required" },
+    });
+
+    expect(
+      getWorkspaceUserAccessError({ var: { auth: undefined, workspaceSlug: "hr" } }),
+    ).toMatchObject({
+      status: 401,
+      body: { error: "Authentication required" },
+    });
   });
 });
 
@@ -129,8 +169,10 @@ describe("auth middleware gates", () => {
     const middleware = createAuthMiddleware();
     const app = createGateApp(createAuthContext("user", "hr"), middleware.requireWorkspaceUser);
 
+    // Personal seats accept non-reserved lowercase slugs (e.g. "prod" is valid format).
+    // Use illegal charset / double-hyphen so middleware fails closed at 400.
     const res = await app.request("/protected", {
-      headers: { "X-Workspace-Slug": "prod" },
+      headers: { "X-Workspace-Slug": "not--valid" },
     });
 
     expect(res.status).toBe(400);

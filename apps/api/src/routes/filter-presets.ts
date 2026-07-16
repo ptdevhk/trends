@@ -4,7 +4,7 @@
 
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { workspaceConfigService } from "../services/workspace-config-service.js";
-import { getAdminAccessError } from "../middleware/auth.js";
+import { getWorkspaceUserAccessError } from "../middleware/auth.js";
 
 const app = new OpenAPIHono();
 
@@ -217,9 +217,10 @@ const createPresetRoute = createRoute({
 });
 
 app.openapi(createPresetRoute, async (c) => {
-    const adminError = getAdminAccessError(c);
-  if (adminError) {
-    return c.json(adminError.body, adminError.status);
+    // Member desk: workspace users may manage workspace-scoped filter presets.
+    const memberError = getWorkspaceUserAccessError(c);
+  if (memberError) {
+    return c.json(memberError.body, memberError.status);
   }
     const payload = c.req.valid("json");
     const workspaceConfig = await workspaceConfigService.getWorkspaceFilterPresets(c.var.workspaceSlug);
@@ -279,9 +280,9 @@ const updatePresetRoute = createRoute({
 });
 
 app.openapi(updatePresetRoute, async (c) => {
-    const adminError = getAdminAccessError(c);
-  if (adminError) {
-    return c.json(adminError.body, adminError.status);
+    const memberError = getWorkspaceUserAccessError(c);
+  if (memberError) {
+    return c.json(memberError.body, memberError.status);
   }
     const { id } = c.req.valid("param");
     const updates = c.req.valid("json");
@@ -338,9 +339,9 @@ const deletePresetRoute = createRoute({
 });
 
 app.openapi(deletePresetRoute, async (c) => {
-    const adminError = getAdminAccessError(c);
-  if (adminError) {
-    return c.json(adminError.body, adminError.status);
+    const memberError = getWorkspaceUserAccessError(c);
+  if (memberError) {
+    return c.json(memberError.body, memberError.status);
   }
     const { id } = c.req.valid("param");
     const workspaceConfig = await workspaceConfigService.getWorkspaceFilterPresets(c.var.workspaceSlug);
