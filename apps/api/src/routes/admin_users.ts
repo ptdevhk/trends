@@ -359,14 +359,15 @@ export function createAdminUserRoutes(options: AdminUserRoutesOptions) {
       return c.json({ success: false as const, error: "Username already exists" }, 409);
     }
 
-    const user = getStorage().createUser({ email: input.email, displayName: input.displayName });
+    const displayName = input.displayName ?? input.username;
+    const user = getStorage().createUser({ email: input.email, displayName });
     getStorage().linkIdentity({
       userId: user.id,
       provider: "local",
       providerSubject: input.username,
       providerTenant: "local",
       email: input.email,
-      displayName: input.displayName,
+      displayName,
     });
     const temporaryPassword = randomBytes(16).toString("base64url");
     getStorage().savePasswordCredential({

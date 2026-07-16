@@ -178,4 +178,39 @@ describe('Header', () => {
     const settingsLinks = screen.getAllByRole('link', { name: 'Settings' })
     expect(settingsLinks).toHaveLength(2)
   })
+
+  it('links anonymous sign-in to canonical /login', () => {
+    mockState.isPublicSurface = true
+
+    render(<Header />)
+
+    expect(screen.getByRole('link', { name: 'auth.signIn' })).toHaveAttribute('href', '/login')
+  })
+
+  it('shows a friendly account label instead of a raw user UUID', () => {
+    mockAuthState.isAuthenticated = true
+    mockAuthState.user = {
+      id: 'f2a53aee-b31c-4d8d-836e-2b8e4bbc33db',
+      status: 'active',
+    }
+
+    render(<Header />)
+
+    expect(screen.getByText('Account')).toBeInTheDocument()
+    expect(screen.queryByText('f2a53aee-b31c-4d8d-836e-2b8e4bbc33db')).not.toBeInTheDocument()
+  })
+
+  it('does not duplicate the workspace name badge next to the workspace switcher', () => {
+    mockState.slug = 'hr'
+    mockState.name = 'HR Team'
+    mockAuthState.isAuthenticated = true
+    mockAuthState.user = { id: 'hr-user', status: 'active', displayName: 'HR Operator' }
+
+    render(<Header />)
+
+    // Workspace switcher mock is present; static name badge should not also render "HR Team"
+    expect(screen.getByText('Workspace Switcher')).toBeInTheDocument()
+    expect(screen.queryByText('HR Team')).not.toBeInTheDocument()
+    expect(screen.getByText('HR Operator')).toBeInTheDocument()
+  })
 })

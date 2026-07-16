@@ -9,6 +9,7 @@ import { RESUME_HOME_RESET_STATE } from '@/lib/resume-home-navigation'
 import { isReviewPacketsEnabled } from '@/lib/feature-flags'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { formatAuthUserLabel } from '@/lib/auth-user-label'
 import { hasSystemAdminAccess, SYSTEM_ROUTE_PREFIX } from '@/lib/workspace-access'
 
 interface HeaderProps {
@@ -17,7 +18,7 @@ interface HeaderProps {
 
 export function Header({ leftAction }: HeaderProps = {}) {
   const { t } = useTranslation()
-  const { slug, name, isPublicSurface } = useWorkspace()
+  const { slug, isPublicSurface } = useWorkspace()
   const { memberships } = useAuth()
   const resumesPath = isPublicSurface ? '/resumes' : `/${slug}/resumes`
   const reviewPacketsPath = `/${slug}/review-packets`
@@ -94,11 +95,7 @@ export function Header({ leftAction }: HeaderProps = {}) {
           </nav>
         </div>
         <div className="flex items-center gap-3">
-          {!isPublicSurface ? (
-            <span className="hidden md:inline-flex items-center rounded-md border px-2 py-0.5 text-xs text-muted-foreground">
-              {name}
-            </span>
-          ) : null}
+          {/* Workspace name lives in WorkspaceSwitcher only — avoid duplicate "HR Team" badge. */}
           {!isPublicSurface ? <WorkspaceSwitcher /> : null}
           <nav className="flex items-center gap-3 text-sm sm:hidden">
             <NavLink
@@ -183,8 +180,11 @@ function AuthChip() {
 
   return (
     <div className="flex items-center gap-2">
-      <span className="hidden md:inline-flex items-center rounded-md border px-2 py-0.5 text-xs text-muted-foreground">
-        {user.displayName ?? user.email ?? user.id}
+      <span
+        className="hidden md:inline-flex max-w-[10rem] items-center truncate rounded-md border px-2 py-0.5 text-xs text-muted-foreground"
+        title={formatAuthUserLabel(user)}
+      >
+        {formatAuthUserLabel(user)}
       </span>
       <Button
         variant="ghost"

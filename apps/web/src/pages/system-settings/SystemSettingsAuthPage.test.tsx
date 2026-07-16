@@ -106,24 +106,24 @@ describe('SystemSettingsAuthPage', () => {
   it('renders provider identities, preapprovals, grants, form controls, and events', async () => {
     render(<SystemSettingsAuthPage />)
 
-    expect(await screen.findByText('Casdoor User')).toBeInTheDocument()
-    expect(screen.getByText('casdoor@example.com')).toBeInTheDocument()
+    expect((await screen.findAllByText('Casdoor User')).length).toBeGreaterThan(0)
+    expect(screen.getAllByText('casdoor@example.com').length).toBeGreaterThan(0)
     expect(screen.getAllByText('sub-1').length).toBeGreaterThan(1)
     expect(screen.getAllByText('tenant-1').length).toBeGreaterThan(1)
-    expect(screen.getByText('workspace_membership_granted')).toBeInTheDocument()
+    expect(screen.getAllByText('workspace_membership_granted').length).toBeGreaterThan(0)
     expect(screen.getByTestId('auth-provider-subject-input')).toBeInTheDocument()
     expect(screen.getByTestId('auth-provider-tenant-input')).toBeInTheDocument()
     expect(screen.getByTestId('auth-workspace-input')).toBeInTheDocument()
     expect(screen.getByTestId('auth-role-select')).toBeInTheDocument()
     expect(screen.getByTestId('auth-preapprove-submit')).toBeInTheDocument()
-    expect(screen.getByTestId('auth-revoke-sub-1-hr')).toBeInTheDocument()
+    expect(screen.getAllByTestId('auth-revoke-sub-1-hr').length).toBeGreaterThan(0)
   })
 
   it('renders workspace role policy and the UsersPanel', async () => {
     render(<SystemSettingsAuthPage />)
 
     expect(await screen.findByText('Workspace access policy')).toBeInTheDocument()
-    expect(screen.getByText('Everyone / anonymous')).toBeInTheDocument()
+    expect(screen.getAllByText('Everyone / anonymous').length).toBeGreaterThan(0)
     expect(screen.getAllByText('resume:search').length).toBeGreaterThan(0)
     expect(screen.getByText('Current user role')).toBeInTheDocument()
     expect(screen.getByText('Admin User')).toBeInTheDocument()
@@ -141,7 +141,7 @@ describe('SystemSettingsAuthPage', () => {
     const user = userEvent.setup()
     render(<SystemSettingsAuthPage />)
 
-    await screen.findByText('Casdoor User')
+    await screen.findAllByText('Casdoor User')
     await user.clear(screen.getByTestId('auth-provider-subject-input'))
     await user.type(screen.getByTestId('auth-provider-subject-input'), 'sub-2')
     await user.clear(screen.getByTestId('auth-provider-tenant-input'))
@@ -169,7 +169,8 @@ describe('SystemSettingsAuthPage', () => {
     const user = userEvent.setup()
     render(<SystemSettingsAuthPage />)
 
-    await user.click(await screen.findByTestId('auth-revoke-sub-1-hr'))
+    const revokeButtons = await screen.findAllByTestId('auth-revoke-sub-1-hr')
+    await user.click(revokeButtons[0]!)
 
     expect(window.confirm).toHaveBeenCalled()
     expect(mockRevokeProviderMembership).toHaveBeenCalledWith({
@@ -204,7 +205,7 @@ describe('SystemSettingsAuthPage', () => {
     const user = userEvent.setup()
     render(<SystemSettingsAuthPage />)
 
-    await screen.findByText('Casdoor User')
+    await screen.findAllByText('Casdoor User')
     await user.clear(screen.getByTestId('auth-provider-subject-input'))
     await user.type(screen.getByTestId('auth-provider-subject-input'), 'sub-2')
     await user.clear(screen.getByTestId('auth-provider-tenant-input'))
@@ -228,11 +229,20 @@ describe('SystemSettingsAuthPage', () => {
     const user = userEvent.setup()
     render(<SystemSettingsAuthPage />)
 
-    await user.click(await screen.findByTestId('auth-revoke-sub-1-hr'))
+    const revokeButtons = await screen.findAllByTestId('auth-revoke-sub-1-hr')
+    await user.click(revokeButtons[0]!)
 
     await waitFor(() => {
       expect(mockToast.error).toHaveBeenCalledWith('Provider membership preapproval not found')
     })
     confirmSpy.mockRestore()
+  })
+
+  it('renders stacked auth records for tablet-friendly layout', async () => {
+    render(<SystemSettingsAuthPage />)
+
+    await screen.findAllByText('Casdoor User')
+    expect(screen.getAllByTestId('auth-stacked-records').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Everyone / anonymous').length).toBeGreaterThan(0)
   })
 })

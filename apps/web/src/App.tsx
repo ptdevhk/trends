@@ -239,7 +239,7 @@ function WorkspaceMembershipGate({ children }: { children: ReactNode }) {
   if (!auth.isAuthenticated && slug !== PUBLIC_RESUME_WORKSPACE && location.pathname !== `/${slug}/login`) {
     const redirectTo = `${location.pathname}${location.search}`
     const search = new URLSearchParams({ redirectTo }).toString()
-    return <Navigate to={{ pathname: `/${slug}/login`, search: `?${search}` }} replace />
+    return <Navigate to={{ pathname: '/login', search: `?${search}` }} replace />
   }
   if (auth.isAuthenticated && !hasWorkspaceMembership(auth.memberships, slug)) {
     const fallbackSlug = getFirstAuthorizedWorkspaceSlug(auth.memberships) ?? SYSTEM_AUTH_WORKSPACE
@@ -257,7 +257,7 @@ function SystemAccessGate({ children }: { children: ReactNode }) {
   if (!auth.isAuthenticated) {
     const redirectTo = `${location.pathname}${location.search}`
     const search = new URLSearchParams({ redirectTo }).toString()
-    return <Navigate to={{ pathname: `/${SYSTEM_AUTH_WORKSPACE}/login`, search: `?${search}` }} replace />
+    return <Navigate to={{ pathname: '/login', search: `?${search}` }} replace />
   }
   if (!hasSystemAdminAccess(auth.memberships)) {
     const fallbackSlug = getFirstAuthorizedWorkspaceSlug(auth.memberships) ?? SYSTEM_AUTH_WORKSPACE
@@ -273,7 +273,7 @@ function WorkspaceSystemAccessDeniedRoute() {
   if (!auth.isAuthenticated) {
     const redirectTo = `${location.pathname}${location.search}`
     const search = new URLSearchParams({ redirectTo }).toString()
-    return <Navigate to={{ pathname: `/${SYSTEM_AUTH_WORKSPACE}/login`, search: `?${search}` }} replace />
+    return <Navigate to={{ pathname: '/login', search: `?${search}` }} replace />
   }
 
   if (hasSystemAdminAccess(auth.memberships)) {
@@ -301,7 +301,7 @@ function LegacyDevSystemRedirect() {
   return <Navigate to={{ pathname: `${SYSTEM_ROUTE_PREFIX}${suffix}`, search: location.search }} replace />
 }
 
-function LoginRedirect() {
+function LoginRoute() {
   const auth = useAuth()
   const location = useLocation()
   const redirectTo = new URLSearchParams(location.search).get('redirectTo')
@@ -322,8 +322,12 @@ function LoginRedirect() {
     }
   }
 
-  const search = redirectTo ? `?redirectTo=${encodeURIComponent(redirectTo)}` : ''
-  return <Navigate to={`/${SYSTEM_AUTH_WORKSPACE}/login${search}`} replace />
+  // Canonical login page stays at /login (no bounce to /dev/login).
+  return (
+    <MainShell>
+      <LoginPage />
+    </MainShell>
+  )
 }
 
 function WorkspaceResumeRoute() {
@@ -354,7 +358,7 @@ function App() {
           <Route path="/resumes" element={<PublicResumeRoute />} />
           <Route path="/s/:token" element={<PublicShareRoute />} />
           <Route path="/dev/system/*" element={<LegacyDevSystemRedirect />} />
-          <Route path="/login" element={<AppProviders workspaceSlug="dev"><LoginRedirect /></AppProviders>} />
+          <Route path="/login" element={<AppProviders workspaceSlug={SYSTEM_AUTH_WORKSPACE}><LoginRoute /></AppProviders>} />
           <Route path="/admin/system" element={<SystemWorkspaceShell />}>
             <Route
               element={(

@@ -175,26 +175,35 @@ describe('App routes', () => {
     await waitFor(() => expect(window.location.pathname).toBe('/admin/system/settings/auth'))
   })
 
-  it('redirects anonymous system routes through dev login with the original destination', async () => {
+  it('redirects anonymous system routes through canonical /login with the original destination', async () => {
     window.history.pushState({}, '', '/admin/system/settings/auth?tab=users')
 
     render(<App />)
 
     await waitFor(() => {
-      expect(window.location.pathname).toBe('/dev/login')
+      expect(window.location.pathname).toBe('/login')
       expect(window.location.search).toBe('?redirectTo=%2Fadmin%2Fsystem%2Fsettings%2Fauth%3Ftab%3Dusers')
     })
   })
 
-  it('redirects anonymous protected workspace resume routes through workspace login', async () => {
+  it('redirects anonymous protected workspace resume routes through canonical /login', async () => {
     window.history.pushState({}, '', '/dev/resumes?q=CNC+Sales')
 
     render(<App />)
 
     await waitFor(() => {
-      expect(window.location.pathname).toBe('/dev/login')
+      expect(window.location.pathname).toBe('/login')
       expect(window.location.search).toBe('?redirectTo=%2Fdev%2Fresumes%3Fq%3DCNC%2BSales')
     })
+  })
+
+  it('renders the login form at /login without bouncing to /dev/login', async () => {
+    window.history.pushState({}, '', '/login')
+
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { name: /sign in/i })).toBeInTheDocument()
+    expect(window.location.pathname).toBe('/login')
   })
 
   it('redirects signed-in users away from workspace routes where they lack membership', async () => {

@@ -77,10 +77,11 @@ describe('UsersPanel', () => {
   it('renders the user list', async () => {
     render(<UsersPanel operatorId="admin-1" />)
 
-    expect(await screen.findByText('Alice')).toBeInTheDocument()
-    expect(screen.getByText('alice@example.com')).toBeInTheDocument()
-    expect(screen.getByText('Bob')).toBeInTheDocument()
-    expect(screen.getByText('bob@example.com')).toBeInTheDocument()
+    expect((await screen.findAllByText('Alice')).length).toBeGreaterThan(0)
+    expect(screen.getAllByText('alice@example.com').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Bob').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('bob@example.com').length).toBeGreaterThan(0)
+    expect(screen.getByTestId('admin-users-stacked')).toBeInTheDocument()
   })
 
   it('disables then re-enables a user via round-trip', async () => {
@@ -89,22 +90,22 @@ describe('UsersPanel', () => {
     const user = userEvent.setup()
     render(<UsersPanel operatorId="admin-1" />)
 
-    await screen.findByText('Alice')
+    await screen.findAllByText('Alice')
 
     // Disable: local state update (no server re-fetch)
-    await user.click(screen.getByTestId('admin-disable-user-1'))
+    await user.click(screen.getAllByTestId('admin-disable-user-1')[0]!)
     expect(mockDisableAdminUser).toHaveBeenCalledWith('user-1')
 
     await waitFor(() => {
-      expect(screen.getByTestId('admin-enable-user-1')).toBeInTheDocument()
+      expect(screen.getAllByTestId('admin-enable-user-1').length).toBeGreaterThan(0)
     })
 
     // Re-enable: local state update
-    await user.click(screen.getByTestId('admin-enable-user-1'))
+    await user.click(screen.getAllByTestId('admin-enable-user-1')[0]!)
     expect(mockEnableAdminUser).toHaveBeenCalledWith('user-1')
 
     await waitFor(() => {
-      expect(screen.getByTestId('admin-disable-user-1')).toBeInTheDocument()
+      expect(screen.getAllByTestId('admin-disable-user-1').length).toBeGreaterThan(0)
     })
   })
 
@@ -125,9 +126,9 @@ describe('UsersPanel', () => {
     const user = userEvent.setup()
     render(<UsersPanel operatorId="admin-1" />)
 
-    await screen.findByText('Alice')
+    await screen.findAllByText('Alice')
 
-    await user.click(screen.getByTestId('admin-view-audit-user-1'))
+    await user.click(screen.getAllByTestId('admin-view-audit-user-1')[0]!)
 
     await waitFor(() => {
       expect(mockListAdminUserAuthEvents).toHaveBeenCalledWith('user-1')

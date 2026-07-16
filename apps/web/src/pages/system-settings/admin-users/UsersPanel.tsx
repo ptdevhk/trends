@@ -196,8 +196,9 @@ export function UsersPanel({ operatorId }: Props) {
             </Button>
           </div>
         </CardHeader>
-        <CardContent className="overflow-x-auto">
-          <table className="w-full min-w-[720px] text-sm">
+        <CardContent className="min-w-0">
+          <div className="hidden lg:block overflow-x-auto">
+          <table className="w-full min-w-[640px] text-sm">
             <thead className="border-b text-left text-xs uppercase text-muted-foreground">
               <tr>
                 <th className="px-3 py-2">User</th>
@@ -331,6 +332,123 @@ export function UsersPanel({ operatorId }: Props) {
               )}
             </tbody>
           </table>
+          </div>
+
+          <div className="space-y-3 lg:hidden" data-testid="admin-users-stacked">
+            {users.length === 0 ? (
+              <p className="py-4 text-center text-sm text-muted-foreground">
+                {t('debugConfig.adminUsersEmpty', { defaultValue: 'No users found.' })}
+              </p>
+            ) : (
+              users.map((u) => {
+                const isSelf = u.id === operatorId
+                return (
+                  <div key={`stacked-${u.id}`} className="space-y-3 rounded-md border p-3">
+                    <div className="min-w-0">
+                      <div className="font-medium">
+                        {u.displayName ?? getLocalUsername(u)}
+                        {isSelf && (
+                          <Badge variant="outline" className="ml-2 text-xs">
+                            You
+                          </Badge>
+                        )}
+                      </div>
+                      {u.email && (
+                        <div className="break-all text-xs text-muted-foreground">{u.email}</div>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Badge variant={u.status === 'active' ? 'default' : 'destructive'}>
+                        {u.status}
+                      </Badge>
+                      {u.memberships.length === 0 ? (
+                        <span className="text-xs text-muted-foreground">none</span>
+                      ) : (
+                        u.memberships.map((m) => (
+                          <Badge key={m.workspaceSlug} variant="secondary" className="text-xs">
+                            {m.workspaceSlug}/{m.role}
+                          </Badge>
+                        ))
+                      )}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {new Date(u.createdAt).toLocaleDateString()}
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {u.status === 'active' ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          data-testid={`admin-disable-${u.id}`}
+                          onClick={() => {
+                            void handleDisable(u.id)
+                          }}
+                        >
+                          <Ban className="mr-1 h-3 w-3" />
+                          {t('debugConfig.adminUsersDisable', { defaultValue: 'Disable' })}
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          data-testid={`admin-enable-${u.id}`}
+                          onClick={() => {
+                            void handleEnable(u.id)
+                          }}
+                        >
+                          <RefreshCw className="mr-1 h-3 w-3" />
+                          {t('debugConfig.adminUsersEnable', { defaultValue: 'Re-enable' })}
+                        </Button>
+                      )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        data-testid={`admin-reset-pw-${u.id}`}
+                        onClick={() => {
+                          void handleResetPassword(getLocalUsername(u))
+                        }}
+                      >
+                        <Key className="mr-1 h-3 w-3" />
+                        {t('debugConfig.adminUsersResetPassword', { defaultValue: 'Reset password' })}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        data-testid={`admin-unlock-${u.id}`}
+                        onClick={() => {
+                          void handleUnlock(getLocalUsername(u))
+                        }}
+                      >
+                        <Lock className="mr-1 h-3 w-3" />
+                        {t('debugConfig.adminUsersUnlock', { defaultValue: 'Unlock' })}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        data-testid={`admin-view-audit-${u.id}`}
+                        onClick={() => {
+                          setAuditUser(u)
+                        }}
+                      >
+                        <ShieldCheck className="mr-1 h-3 w-3" />
+                        {t('debugConfig.adminUsersViewAudit', { defaultValue: 'View audit' })}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        data-testid={`admin-edit-memberships-${u.id}`}
+                        onClick={() => {
+                          setMembershipsUser(u)
+                        }}
+                      >
+                        {t('debugConfig.adminUsersEditMemberships', { defaultValue: 'Edit memberships' })}
+                      </Button>
+                    </div>
+                  </div>
+                )
+              })
+            )}
+          </div>
         </CardContent>
       </Card>
 

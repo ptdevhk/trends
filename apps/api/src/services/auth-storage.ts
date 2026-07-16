@@ -261,11 +261,18 @@ export class AuthStorage {
       return null;
     }
 
-    const displayName = typeof row.display_name === "string"
+    let displayName = typeof row.display_name === "string"
       ? row.display_name
       : typeof row.name === "string"
         ? row.name
         : undefined;
+
+    // Prefer a human label over a bare UUID: local username (provider subject), then any identity.
+    if (!displayName) {
+      const identities = this.listIdentities(row.id);
+      const localIdentity = identities.find((identity) => identity.provider === "local");
+      displayName = localIdentity?.providerSubject ?? identities[0]?.providerSubject;
+    }
 
     return {
       id: row.id,

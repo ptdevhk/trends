@@ -109,6 +109,26 @@ describe("auth sqlite schema", () => {
     ]);
   });
 
+  it("falls back displayName to local username when user has no display name", () => {
+    const root = mkdtempSync(path.join(tmpdir(), "trends-auth-display-fallback-"));
+    const storage = new AuthStorage(root);
+
+    const user = storage.createUser({});
+    storage.linkIdentity({
+      userId: user.id,
+      provider: "local",
+      providerSubject: "qa-hr-operator",
+      providerTenant: "local",
+    });
+
+    expect(storage.findUser(user.id)).toEqual({
+      id: user.id,
+      email: undefined,
+      displayName: "qa-hr-operator",
+      status: "active",
+    });
+  });
+
   it("consumes OIDC state only once", () => {
     const root = mkdtempSync(path.join(tmpdir(), "trends-auth-oidc-state-"));
     const storage = new AuthStorage(root);

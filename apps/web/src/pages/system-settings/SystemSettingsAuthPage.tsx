@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { Ban, RefreshCw, ShieldCheck } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
@@ -15,6 +15,7 @@ import {
   type ProviderMembershipsResponse,
   type WorkspaceRole,
 } from '@/lib/auth'
+import { formatAuthUserLabel } from '@/lib/auth-user-label'
 import { reportUiError } from '@/lib/ui-error-reporting'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { useAuth } from '@/contexts/AuthContext'
@@ -68,6 +69,87 @@ function EmptyRow({ colSpan, label }: { colSpan: number; label: string }) {
   )
 }
 
+function FieldLabel({ children }: { children: string }) {
+  return <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{children}</dt>
+}
+
+function PolicyField({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="space-y-1">
+      <FieldLabel>{label}</FieldLabel>
+      <dd className="text-sm">{children}</dd>
+    </div>
+  )
+}
+
+function StackedRecord({
+  title,
+  fields,
+  action,
+}: {
+  title: ReactNode
+  fields: Array<{ label: string; value: ReactNode }>
+  action?: ReactNode
+}) {
+  return (
+    <div className="rounded-md border p-3 space-y-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 text-sm font-medium">{title}</div>
+        {action ? <div className="shrink-0">{action}</div> : null}
+      </div>
+      <dl className="grid gap-3 sm:grid-cols-2">
+        {fields.map((field) => (
+          <PolicyField key={field.label} label={field.label}>
+            {field.value}
+          </PolicyField>
+        ))}
+      </dl>
+    </div>
+  )
+}
+
+function ResponsiveTable({
+  headers,
+  emptyLabel,
+  isEmpty,
+  minWidthClassName,
+  children,
+  stacked,
+}: {
+  headers: string[]
+  emptyLabel: string
+  isEmpty: boolean
+  minWidthClassName: string
+  children: ReactNode
+  stacked: ReactNode
+}) {
+  return (
+    <>
+      <div className="hidden lg:block overflow-x-auto">
+        <table className={`w-full ${minWidthClassName} text-sm`}>
+          <thead className="border-b text-left text-xs uppercase text-muted-foreground">
+            <tr>
+              {headers.map((header) => (
+                <th key={header || 'actions'} className="px-3 py-2">{header}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {isEmpty ? <EmptyRow colSpan={headers.length} label={emptyLabel} /> : children}
+          </tbody>
+        </table>
+      </div>
+      <div className="space-y-3 lg:hidden" data-testid="auth-stacked-records">
+        {isEmpty ? (
+          <p className="py-4 text-center text-sm text-muted-foreground">{emptyLabel}</p>
+        ) : (
+          stacked
+        )}
+      </div>
+    </>
+  )
+}
+
 export function SystemSettingsAuthPage() {
   const { t } = useTranslation()
   const { slug } = useWorkspace()
@@ -85,7 +167,7 @@ export function SystemSettingsAuthPage() {
     : auth.workspaceRole === 'user'
       ? 'Workspace user'
       : 'No workspace role'
-  const currentUserLabel = auth.user?.displayName ?? auth.user?.email ?? auth.user?.id ?? 'Signed out'
+  const currentUserLabel = auth.user ? formatAuthUserLabel(auth.user) : 'Signed out'
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -193,8 +275,37 @@ export function SystemSettingsAuthPage() {
     )
   }
 
+  const policyRows = [
+    {
+      principal: 'Everyone / anonymous',
+      role: 'public-search',
+      search: anonymousResumeSearchEnabled ? <Pill>resume:search</Pill> : <Pill active={false}>not granted</Pill>,
+      operational: <span className="text-muted-foreground">login required</span>,
+      writes: <span className="text-muted-foreground">login required</span>,
+    },
+    {
+      principal: 'Workspace users',
+      role: 'user',
+      search: <Pill>resume:search</Pill>,
+      operational: (
+        <div className="flex flex-wrap gap-1">
+          <Pill>candidate:status:read</Pill>
+          <Pill>candidate:action:read</Pill>
+        </div>
+      ),
+      writes: <Pill>candidate:mutate</Pill>,
+    },
+    {
+      principal: 'Workspace admins',
+      role: 'admin',
+      search: <Pill>resume:search</Pill>,
+      operational: <Pill>resume:export</Pill>,
+      writes: <Pill>workspace:admin</Pill>,
+    },
+  ]
+
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-6">
       <div className="space-y-1">
         <h2 className="text-xl font-semibold tracking-tight">
           {t('debugConfig.settingsNavAuth', { defaultValue: 'Auth access' })}
@@ -206,8 +317,8 @@ export function SystemSettingsAuthPage() {
         </p>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(320px,0.8fr)]">
-        <Card>
+      <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(280px,0.8fr)]">
+        <Card className="min-w-0">
           <CardHeader>
             <CardTitle>{t('debugConfig.authAccessPolicyTitle', { defaultValue: 'Workspace access policy' })}</CardTitle>
             <CardDescription>
@@ -216,56 +327,39 @@ export function SystemSettingsAuthPage() {
               })}
             </CardDescription>
           </CardHeader>
-          <CardContent className="overflow-x-auto">
-            <table className="w-full min-w-[680px] text-sm">
-              <thead className="border-b text-left text-xs uppercase text-muted-foreground">
-                <tr>
-                  <th className="px-3 py-2">Principal</th>
-                  <th className="px-3 py-2">Role</th>
-                  <th className="px-3 py-2">Search</th>
-                  <th className="px-3 py-2">Operational HR data</th>
-                  <th className="px-3 py-2">Writes</th>
+          <CardContent className="min-w-0">
+            <ResponsiveTable
+              headers={['Principal', 'Role', 'Search', 'Operational HR data', 'Writes']}
+              emptyLabel="No policy rows"
+              isEmpty={false}
+              minWidthClassName="min-w-[640px]"
+              stacked={policyRows.map((row) => (
+                <StackedRecord
+                  key={row.principal}
+                  title={row.principal}
+                  fields={[
+                    { label: 'Role', value: row.role },
+                    { label: 'Search', value: row.search },
+                    { label: 'Operational HR data', value: row.operational },
+                    { label: 'Writes', value: row.writes },
+                  ]}
+                />
+              ))}
+            >
+              {policyRows.map((row) => (
+                <tr key={row.principal} className="border-b last:border-0">
+                  <td className="px-3 py-2 font-medium">{row.principal}</td>
+                  <td className="px-3 py-2">{row.role}</td>
+                  <td className="px-3 py-2">{row.search}</td>
+                  <td className="px-3 py-2">{row.operational}</td>
+                  <td className="px-3 py-2">{row.writes}</td>
                 </tr>
-              </thead>
-              <tbody>
-                <tr className="border-b">
-                  <td className="px-3 py-2 font-medium">Everyone / anonymous</td>
-                  <td className="px-3 py-2">public-search</td>
-                  <td className="px-3 py-2">
-                    {anonymousResumeSearchEnabled ? (
-                      <Pill>resume:search</Pill>
-                    ) : (
-                      <Pill active={false}>not granted</Pill>
-                    )}
-                  </td>
-                  <td className="px-3 py-2 text-muted-foreground">login required</td>
-                  <td className="px-3 py-2 text-muted-foreground">login required</td>
-                </tr>
-                <tr className="border-b">
-                  <td className="px-3 py-2 font-medium">Workspace users</td>
-                  <td className="px-3 py-2">user</td>
-                  <td className="px-3 py-2"><Pill>resume:search</Pill></td>
-                  <td className="px-3 py-2">
-                    <div className="flex flex-wrap gap-1">
-                      <Pill>candidate:status:read</Pill>
-                      <Pill>candidate:action:read</Pill>
-                    </div>
-                  </td>
-                  <td className="px-3 py-2"><Pill>candidate:mutate</Pill></td>
-                </tr>
-                <tr>
-                  <td className="px-3 py-2 font-medium">Workspace admins</td>
-                  <td className="px-3 py-2">admin</td>
-                  <td className="px-3 py-2"><Pill>resume:search</Pill></td>
-                  <td className="px-3 py-2"><Pill>resume:export</Pill></td>
-                  <td className="px-3 py-2"><Pill>workspace:admin</Pill></td>
-                </tr>
-              </tbody>
-            </table>
+              ))}
+            </ResponsiveTable>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="min-w-0">
           <CardHeader>
             <CardTitle>{t('debugConfig.authAccessCurrentRoleTitle', { defaultValue: 'Current user role' })}</CardTitle>
             <CardDescription>
@@ -278,18 +372,19 @@ export function SystemSettingsAuthPage() {
             <div className="space-y-1">
               <div className="text-sm font-medium">{currentUserLabel}</div>
               {auth.user?.email && auth.user.email !== currentUserLabel && (
-                <div className="text-sm text-muted-foreground">{auth.user.email}</div>
+                <div className="break-all text-sm text-muted-foreground">{auth.user.email}</div>
               )}
               <div className="pt-2">
                 <Pill active={auth.workspaceRole !== null}>{currentRoleLabel}</Pill>
               </div>
             </div>
-            <UsersPanel operatorId={auth.user?.id ?? null} />
           </CardContent>
         </Card>
       </div>
 
-      <Card>
+      <UsersPanel operatorId={auth.user?.id ?? null} />
+
+      <Card className="min-w-0">
         <CardHeader>
           <CardTitle>{t('debugConfig.authAccessGrantTitle', { defaultValue: 'Grant provider access' })}</CardTitle>
           <CardDescription>
@@ -299,7 +394,7 @@ export function SystemSettingsAuthPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-5">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
             <div className="space-y-2">
               <label className="text-sm font-medium" htmlFor="auth-provider-subject">Provider subject</label>
               <Input
@@ -340,7 +435,7 @@ export function SystemSettingsAuthPage() {
                 <option value="admin">admin</option>
               </select>
             </div>
-            <div className="flex items-end">
+            <div className="flex items-end sm:col-span-2 xl:col-span-1">
               <Button
                 data-testid="auth-preapprove-submit"
                 disabled={submitting}
@@ -355,123 +450,147 @@ export function SystemSettingsAuthPage() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-6 xl:grid-cols-2">
-        <Card>
+      <div className="grid min-w-0 gap-6 xl:grid-cols-2">
+        <Card className="min-w-0">
           <CardHeader>
             <CardTitle>{t('debugConfig.authAccessIdentities', { defaultValue: 'Provider identities' })}</CardTitle>
           </CardHeader>
-          <CardContent className="overflow-x-auto">
-            <table className="w-full min-w-[640px] text-sm">
-              <thead className="border-b text-left text-xs uppercase text-muted-foreground">
-                <tr>
-                  <th className="px-3 py-2">User</th>
-                  <th className="px-3 py-2">Provider</th>
-                  <th className="px-3 py-2">Subject</th>
-                  <th className="px-3 py-2">Tenant</th>
+          <CardContent className="min-w-0">
+            <ResponsiveTable
+              headers={['User', 'Provider', 'Subject', 'Tenant']}
+              emptyLabel="No provider identities"
+              isEmpty={providerIdentities.length === 0}
+              minWidthClassName="min-w-[560px]"
+              stacked={providerIdentities.map((identity) => (
+                <StackedRecord
+                  key={`${identity.provider}:${identity.providerTenant}:${identity.providerSubject}`}
+                  title={identity.displayName ?? identity.userId}
+                  fields={[
+                    { label: 'Email', value: identity.email ?? '-' },
+                    { label: 'Provider', value: identity.provider },
+                    { label: 'Subject', value: <span className="break-all">{identity.providerSubject}</span> },
+                    { label: 'Tenant', value: identity.providerTenant ?? '-' },
+                  ]}
+                />
+              ))}
+            >
+              {providerIdentities.map((identity) => (
+                <tr key={`${identity.provider}:${identity.providerTenant}:${identity.providerSubject}`} className="border-b last:border-0">
+                  <td className="px-3 py-2">
+                    <div className="font-medium">{identity.displayName ?? identity.userId}</div>
+                    {identity.email && <div className="text-xs text-muted-foreground">{identity.email}</div>}
+                  </td>
+                  <td className="px-3 py-2">{identity.provider}</td>
+                  <td className="px-3 py-2 break-all">{identity.providerSubject}</td>
+                  <td className="px-3 py-2">{identity.providerTenant ?? '-'}</td>
                 </tr>
-              </thead>
-              <tbody>
-                {providerIdentities.length === 0 ? (
-                  <EmptyRow colSpan={4} label="No provider identities" />
-                ) : providerIdentities.map((identity) => (
-                  <tr key={`${identity.provider}:${identity.providerTenant}:${identity.providerSubject}`} className="border-b last:border-0">
-                    <td className="px-3 py-2">
-                      <div className="font-medium">{identity.displayName ?? identity.userId}</div>
-                      {identity.email && <div className="text-xs text-muted-foreground">{identity.email}</div>}
-                    </td>
-                    <td className="px-3 py-2">{identity.provider}</td>
-                    <td className="px-3 py-2">{identity.providerSubject}</td>
-                    <td className="px-3 py-2">{identity.providerTenant ?? '-'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+              ))}
+            </ResponsiveTable>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="min-w-0">
           <CardHeader>
             <CardTitle>{t('debugConfig.authAccessPreapprovals', { defaultValue: 'Preapprovals' })}</CardTitle>
           </CardHeader>
-          <CardContent className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-sm">
-              <thead className="border-b text-left text-xs uppercase text-muted-foreground">
-                <tr>
-                  <th className="px-3 py-2">Subject</th>
-                  <th className="px-3 py-2">Tenant</th>
-                  <th className="px-3 py-2">Workspace</th>
-                  <th className="px-3 py-2">Role</th>
-                  <th className="px-3 py-2">Status</th>
-                  <th className="px-3 py-2" />
+          <CardContent className="min-w-0">
+            <ResponsiveTable
+              headers={['Subject', 'Tenant', 'Workspace', 'Role', 'Status', '']}
+              emptyLabel="No preapprovals"
+              isEmpty={state.preapprovals.length === 0}
+              minWidthClassName="min-w-[640px]"
+              stacked={state.preapprovals.map((preapproval) => (
+                <StackedRecord
+                  key={`${preapproval.provider}:${preapproval.providerTenant}:${preapproval.providerSubject}:${preapproval.workspaceSlug}`}
+                  title={<span className="break-all">{preapproval.providerSubject}</span>}
+                  action={preapproval.active ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      data-testid={`auth-revoke-${toActionId(preapproval.providerSubject)}-${toActionId(preapproval.workspaceSlug)}`}
+                      disabled={submitting}
+                      onClick={() => { void handleRevoke(preapproval) }}
+                    >
+                      <Ban className="mr-2 h-4 w-4" />
+                      Revoke
+                    </Button>
+                  ) : undefined}
+                  fields={[
+                    { label: 'Tenant', value: preapproval.providerTenant },
+                    { label: 'Workspace', value: preapproval.workspaceSlug },
+                    { label: 'Role', value: preapproval.role },
+                    { label: 'Status', value: <StatusPill active={preapproval.active} /> },
+                  ]}
+                />
+              ))}
+            >
+              {state.preapprovals.map((preapproval) => (
+                <tr key={`${preapproval.provider}:${preapproval.providerTenant}:${preapproval.providerSubject}:${preapproval.workspaceSlug}`} className="border-b last:border-0">
+                  <td className="px-3 py-2 break-all">{preapproval.providerSubject}</td>
+                  <td className="px-3 py-2">{preapproval.providerTenant}</td>
+                  <td className="px-3 py-2">{preapproval.workspaceSlug}</td>
+                  <td className="px-3 py-2">{preapproval.role}</td>
+                  <td className="px-3 py-2"><StatusPill active={preapproval.active} /></td>
+                  <td className="px-3 py-2 text-right">
+                    {preapproval.active && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        data-testid={`auth-revoke-${toActionId(preapproval.providerSubject)}-${toActionId(preapproval.workspaceSlug)}`}
+                        disabled={submitting}
+                        onClick={() => { void handleRevoke(preapproval) }}
+                      >
+                        <Ban className="mr-2 h-4 w-4" />
+                        Revoke
+                      </Button>
+                    )}
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {state.preapprovals.length === 0 ? (
-                  <EmptyRow colSpan={6} label="No preapprovals" />
-                ) : state.preapprovals.map((preapproval) => (
-                  <tr key={`${preapproval.provider}:${preapproval.providerTenant}:${preapproval.providerSubject}:${preapproval.workspaceSlug}`} className="border-b last:border-0">
-                    <td className="px-3 py-2">{preapproval.providerSubject}</td>
-                    <td className="px-3 py-2">{preapproval.providerTenant}</td>
-                    <td className="px-3 py-2">{preapproval.workspaceSlug}</td>
-                    <td className="px-3 py-2">{preapproval.role}</td>
-                    <td className="px-3 py-2"><StatusPill active={preapproval.active} /></td>
-                    <td className="px-3 py-2 text-right">
-                      {preapproval.active && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          data-testid={`auth-revoke-${toActionId(preapproval.providerSubject)}-${toActionId(preapproval.workspaceSlug)}`}
-                          disabled={submitting}
-                          onClick={() => { void handleRevoke(preapproval) }}
-                        >
-                          <Ban className="mr-2 h-4 w-4" />
-                          Revoke
-                        </Button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+              ))}
+            </ResponsiveTable>
           </CardContent>
         </Card>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-2">
-        <Card>
+      <div className="grid min-w-0 gap-6 xl:grid-cols-2">
+        <Card className="min-w-0">
           <CardHeader>
             <CardTitle>{t('debugConfig.authAccessGrants', { defaultValue: 'Provider-derived grants' })}</CardTitle>
           </CardHeader>
-          <CardContent className="overflow-x-auto">
-            <table className="w-full min-w-[640px] text-sm">
-              <thead className="border-b text-left text-xs uppercase text-muted-foreground">
-                <tr>
-                  <th className="px-3 py-2">Subject</th>
-                  <th className="px-3 py-2">User ID</th>
-                  <th className="px-3 py-2">Workspace</th>
-                  <th className="px-3 py-2">Role</th>
-                  <th className="px-3 py-2">Status</th>
+          <CardContent className="min-w-0">
+            <ResponsiveTable
+              headers={['Subject', 'User ID', 'Workspace', 'Role', 'Status']}
+              emptyLabel="No provider-derived grants"
+              isEmpty={state.grants.length === 0}
+              minWidthClassName="min-w-[560px]"
+              stacked={state.grants.map((grant) => (
+                <StackedRecord
+                  key={`${grant.provider}:${grant.providerTenant}:${grant.providerSubject}:${grant.workspaceSlug}:${grant.userId}`}
+                  title={<span className="break-all">{grant.providerSubject}</span>}
+                  fields={[
+                    { label: 'User ID', value: <span className="break-all">{grant.userId}</span> },
+                    { label: 'Workspace', value: grant.workspaceSlug },
+                    { label: 'Role', value: grant.role },
+                    { label: 'Status', value: <StatusPill active={grant.active} /> },
+                  ]}
+                />
+              ))}
+            >
+              {state.grants.map((grant) => (
+                <tr key={`${grant.provider}:${grant.providerTenant}:${grant.providerSubject}:${grant.workspaceSlug}:${grant.userId}`} className="border-b last:border-0">
+                  <td className="px-3 py-2 break-all">{grant.providerSubject}</td>
+                  <td className="px-3 py-2 break-all">{grant.userId}</td>
+                  <td className="px-3 py-2">{grant.workspaceSlug}</td>
+                  <td className="px-3 py-2">{grant.role}</td>
+                  <td className="px-3 py-2"><StatusPill active={grant.active} /></td>
                 </tr>
-              </thead>
-              <tbody>
-                {state.grants.length === 0 ? (
-                  <EmptyRow colSpan={5} label="No provider-derived grants" />
-                ) : state.grants.map((grant) => (
-                  <tr key={`${grant.provider}:${grant.providerTenant}:${grant.providerSubject}:${grant.workspaceSlug}:${grant.userId}`} className="border-b last:border-0">
-                    <td className="px-3 py-2">{grant.providerSubject}</td>
-                    <td className="px-3 py-2">{grant.userId}</td>
-                    <td className="px-3 py-2">{grant.workspaceSlug}</td>
-                    <td className="px-3 py-2">{grant.role}</td>
-                    <td className="px-3 py-2"><StatusPill active={grant.active} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+              ))}
+            </ResponsiveTable>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-start justify-between gap-4">
+        <Card className="min-w-0">
+          <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <CardTitle>{t('debugConfig.authAccessEvents', { defaultValue: 'Recent auth events' })}</CardTitle>
               <CardDescription>{t('debugConfig.authAccessEventsDescription', { defaultValue: 'Latest events for the current workspace.' })}</CardDescription>
@@ -481,29 +600,33 @@ export function SystemSettingsAuthPage() {
               Refresh
             </Button>
           </CardHeader>
-          <CardContent className="overflow-x-auto">
-            <table className="w-full min-w-[560px] text-sm">
-              <thead className="border-b text-left text-xs uppercase text-muted-foreground">
-                <tr>
-                  <th className="px-3 py-2">Type</th>
-                  <th className="px-3 py-2">Provider</th>
-                  <th className="px-3 py-2">User</th>
-                  <th className="px-3 py-2">Created</th>
+          <CardContent className="min-w-0">
+            <ResponsiveTable
+              headers={['Type', 'Provider', 'User', 'Created']}
+              emptyLabel="No auth events"
+              isEmpty={state.events.length === 0}
+              minWidthClassName="min-w-[480px]"
+              stacked={state.events.map((event) => (
+                <StackedRecord
+                  key={event.id}
+                  title={event.type}
+                  fields={[
+                    { label: 'Provider', value: event.provider ?? '-' },
+                    { label: 'User', value: <span className="break-all">{event.userId ?? '-'}</span> },
+                    { label: 'Created', value: event.createdAt },
+                  ]}
+                />
+              ))}
+            >
+              {state.events.map((event) => (
+                <tr key={event.id} className="border-b last:border-0">
+                  <td className="px-3 py-2">{event.type}</td>
+                  <td className="px-3 py-2">{event.provider ?? '-'}</td>
+                  <td className="px-3 py-2 break-all">{event.userId ?? '-'}</td>
+                  <td className="px-3 py-2">{event.createdAt}</td>
                 </tr>
-              </thead>
-              <tbody>
-                {state.events.length === 0 ? (
-                  <EmptyRow colSpan={4} label="No auth events" />
-                ) : state.events.map((event) => (
-                  <tr key={event.id} className="border-b last:border-0">
-                    <td className="px-3 py-2">{event.type}</td>
-                    <td className="px-3 py-2">{event.provider ?? '-'}</td>
-                    <td className="px-3 py-2">{event.userId ?? '-'}</td>
-                    <td className="px-3 py-2">{event.createdAt}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+              ))}
+            </ResponsiveTable>
           </CardContent>
         </Card>
       </div>
