@@ -17,10 +17,15 @@ import {
   ResumeDiagnosticsResponseSchema,
 } from "../schemas/index.js";
 import { requireAdmin } from "../middleware/auth.js";
+import { requireWorkspacePermission } from "../services/workspace-permissions.js";
 
 const app = new OpenAPIHono();
-app.use("/api/resumes/analysis-tasks", requireAdmin);
-app.use("/api/resumes/analysis-tasks/*", requireAdmin);
+// Member permission: workspace role `user` and `admin` both get resume:analysis:run.
+// Previously requireAdmin blocked HR members (role user) from search auto-analyze.
+app.use("/api/resumes/analysis-tasks", requireWorkspacePermission("resume:analysis:run"));
+app.use("/api/resumes/analysis-tasks/*", requireWorkspacePermission("resume:analysis:run"));
+// Audit export remains workspace-admin only (compliance surface).
+app.use("/api/resumes/analysis-tasks/*/audit-export", requireAdmin);
 app.use("/api/resumes/skills-version", requireAdmin);
 app.use("/api/resumes/field-coverage", requireAdmin);
 app.use("/api/resumes/diagnostics", requireAdmin);

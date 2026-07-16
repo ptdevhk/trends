@@ -60,15 +60,10 @@ describe('AnalysisTasksContext', () => {
     apiClientMock.DELETE.mockResolvedValue({ data: { success: true } })
   })
 
-  it.each([
-    { isAuthenticated: false, workspaceRole: null },
-    { isAuthenticated: true, workspaceRole: 'user' as const },
-  ])('does not expose task data or mutations to an unprivileged session', (session) => {
-    authState.isAuthenticated = session.isAuthenticated
-    authState.workspaceRole = session.workspaceRole
-    authState.memberships = session.workspaceRole === 'user'
-      ? [{ workspaceSlug: 'dev', role: 'user' }]
-      : []
+  it('does not expose task data or mutations when unauthenticated', () => {
+    authState.isAuthenticated = false
+    authState.workspaceRole = null
+    authState.memberships = []
 
     const { result } = renderHook(() => useAnalysisTasks(), { wrapper })
 
@@ -79,6 +74,36 @@ describe('AnalysisTasksContext', () => {
     expect(apiClientMock.GET).not.toHaveBeenCalled()
     expect(apiClientMock.POST).not.toHaveBeenCalled()
     expect(apiClientMock.DELETE).not.toHaveBeenCalled()
+  })
+
+  it('does not expose task data when the user has no membership on the active workspace', () => {
+    authState.isAuthenticated = true
+    authState.workspaceRole = null
+    authState.memberships = [{ workspaceSlug: 'hr', role: 'user' }]
+    workspaceState.slug = 'dev'
+
+    const { result } = renderHook(() => useAnalysisTasks(), { wrapper })
+
+    expect(result.current.canManage).toBe(false)
+    expect(result.current.tasks).toEqual([])
+    expect(result.current.dispatch).toBeUndefined()
+    expect(result.current.cancel).toBeUndefined()
+    expect(apiClientMock.GET).not.toHaveBeenCalled()
+  })
+
+  it('exposes dispatch for workspace members with role user (resume:analysis:run)', async () => {
+    authState.isAuthenticated = true
+    authState.workspaceRole = 'user'
+    authState.memberships = [{ workspaceSlug: 'hr', role: 'user' }]
+    workspaceState.slug = 'hr'
+    apiClientMock.GET.mockResolvedValueOnce({ data: { success: true, tasks: [] } })
+
+    const { result } = renderHook(() => useAnalysisTasks(), { wrapper })
+
+    expect(result.current.canManage).toBe(true)
+    expect(result.current.dispatch).toBeTypeOf('function')
+    expect(result.current.cancel).toBeTypeOf('function')
+    await waitFor(() => expect(apiClientMock.GET).toHaveBeenCalled())
   })
 
   it('uses only BFF task operations without workspace or secret browser inputs', async () => {
@@ -274,13 +299,16 @@ describe('AnalysisTasksContext', () => {
     expect(result.current.tasks.map((task) => task.id)).toEqual(['hr-task'])
   })
 
-  it('hides task controls when the active workspace membership is not admin', async () => {
+  it('keeps task controls when switching to a workspace membership with role user', async () => {
     const first = deferred<{ data: { success: true; tasks: Array<Record<string, unknown>> } }>()
+    const second = deferred<{ data: { success: true; tasks: Array<Record<string, unknown>> } }>()
     authState.memberships = [
       { workspaceSlug: 'dev', role: 'admin' },
       { workspaceSlug: 'hr', role: 'user' },
     ]
-    apiClientMock.GET.mockReturnValueOnce(first.promise)
+    apiClientMock.GET
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise)
 
     const { result, rerender } = renderHook(() => useAnalysisTasks(), { wrapper })
     await waitFor(() => expect(apiClientMock.GET).toHaveBeenCalledTimes(1))
@@ -288,10 +316,10 @@ describe('AnalysisTasksContext', () => {
     workspaceState.slug = 'hr'
     rerender()
 
-    expect(result.current.canManage).toBe(false)
-    expect(result.current.tasks).toEqual([])
-    expect(result.current.dispatch).toBeUndefined()
-    expect(result.current.cancel).toBeUndefined()
+    expect(result.current.canManage).toBe(true)
+    expect(result.current.dispatch).toBeTypeOf('function')
+    expect(result.current.cancel).toBeTypeOf('function')
+    await waitFor(() => expect(apiClientMock.GET).toHaveBeenCalledTimes(2))
 
     await act(async () => {
       first.resolve({
@@ -302,7 +330,18 @@ describe('AnalysisTasksContext', () => {
       })
       await first.promise
     })
-
+    // Stale dev response must not leak into the hr workspace view.
     expect(result.current.tasks).toEqual([])
+
+    await act(async () => {
+      second.resolve({
+        data: {
+          success: true,
+          tasks: [{ _id: 'hr-task', _creationTime: 2, status: 'completed' }],
+        },
+      })
+      await second.promise
+    })
+    await waitFor(() => expect(result.current.tasks.map((task) => task.id)).toEqual(['hr-task']))
   })
 })

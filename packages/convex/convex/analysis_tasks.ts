@@ -6,6 +6,7 @@ import { api } from "./_generated/api";
 import {
     getCurrentResumeAiPromptVersion,
     FALLBACK_INDUSTRY_KEYWORDS,
+    isSystemWorkspace,
     type RelatedExpContextInput,
     type RelatedExpIngestEvidence,
 } from "@trends/shared";
@@ -99,6 +100,28 @@ function requireNonblankWorkspaceSlug(workspaceSlug: string, message: string): s
         throw new Error(message);
     }
     return normalized;
+}
+
+/**
+ * Analysis task *records* are workspace-scoped; resume *bodies* are a global pool.
+ * Eligible when:
+ * - record matches the caller workspace (incl. default/dev unscoped rules), or
+ * - resume is unscoped (shared corpus), or
+ * - both caller and resume stamp are system teams (dev/hr operational corpus).
+ * Personal-seat stamps stay isolated from each other and from system teams.
+ */
+function isResumeEligibleForAnalysis(
+    recordWorkspaceSlug: string | undefined,
+    callerWorkspaceSlug: string,
+): boolean {
+    if (belongsToWorkspace(recordWorkspaceSlug, callerWorkspaceSlug)) {
+        return true;
+    }
+    const record = typeof recordWorkspaceSlug === "string" ? recordWorkspaceSlug.trim() : "";
+    if (!record) {
+        return true;
+    }
+    return isSystemWorkspace(record) && isSystemWorkspace(callerWorkspaceSlug);
 }
 
 function scopeAnalysisTaskKey(workspaceSlug: string, key: string): string {
@@ -566,7 +589,7 @@ export const dispatch = mutation({
             if (!resume) {
                 throw new Error(`Analysis resume ${String(resumeId)} no longer exists`);
             }
-            if (!belongsToWorkspace(resume.workspaceSlug, workspaceSlug)) {
+            if (!isResumeEligibleForAnalysis(resume.workspaceSlug, workspaceSlug)) {
                 throw new Error(
                     `Analysis resume ${String(resumeId)} belongs to workspace ${resume.workspaceSlug ?? "dev"}, not ${workspaceSlug}`,
                 );
@@ -739,7 +762,7 @@ export const dispatchExact = mutation({
             if (resume.isArchived === true) {
                 throw new Error(`Exact analysis resume ${String(resumeId)} is archived`);
             }
-            if (!belongsToWorkspace(resume.workspaceSlug, workspaceSlug)) {
+            if (!isResumeEligibleForAnalysis(resume.workspaceSlug, workspaceSlug)) {
                 throw new Error(
                     `Exact analysis resume ${String(resumeId)} belongs to workspace ${resume.workspaceSlug ?? "dev"}, not ${workspaceSlug}`,
                 );
@@ -974,7 +997,7 @@ export const getExactStatus = query({
                 targets.push({ ...base, state: "invalid", reasons: ["resume_archived"] });
                 continue;
             }
-            if (!belongsToWorkspace(resume.workspaceSlug, workspaceSlug)) {
+            if (!isResumeEligibleForAnalysis(resume.workspaceSlug, workspaceSlug)) {
                 invalid += 1;
                 targets.push({ ...base, state: "invalid", reasons: ["workspace_mismatch"] });
                 continue;
@@ -1086,7 +1109,7 @@ export const getExactAuditExportPage = query({
             });
         const activeWorkspaceResumes = paginated.page.filter((resume) => (
             resume.isArchived !== true
-            && belongsToWorkspace(resume.workspaceSlug, workspaceSlug)
+            && isResumeEligibleForAnalysis(resume.workspaceSlug, workspaceSlug)
         ));
         const rows = await Promise.all(activeWorkspaceResumes.map((resume) => (
             projectExactTaskAuditRow(ctx, resume, metadata)

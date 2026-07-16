@@ -479,7 +479,7 @@ describe("analysis_tasks: dispatch", () => {
     expect(tasks[0].config.relatedExpContext?.minRoleYears).toBeUndefined();
   });
 
-  it("rejects a foreign resume before creating a normal task", async () => {
+  it("rejects a personal-seat foreign resume before creating a normal task", async () => {
     const t = createTest();
     const foreignResumeId = await t.run((ctx) => ctx.db.insert("resumes", {
       externalId: "foreign-analysis-resume",
@@ -488,7 +488,7 @@ describe("analysis_tasks: dispatch", () => {
       tags: [],
       crawledAt: 1,
       source: "test",
-      workspaceSlug: "hr",
+      workspaceSlug: "alice-personal",
     }));
 
     await expect(t.mutation(api.analysis_tasks.dispatch, {
@@ -497,6 +497,47 @@ describe("analysis_tasks: dispatch", () => {
       keywords: ["sales"],
       resumeIds: [foreignResumeId],
     })).rejects.toThrow("belongs to workspace");
+  });
+
+  it("allows system-team shared corpus resumes from hr when stamped as dev", async () => {
+    const t = createTest();
+    const sharedResumeId = await t.run((ctx) => ctx.db.insert("resumes", {
+      externalId: "shared-dev-stamped-resume",
+      content: { name: "Shared Operational Resume" },
+      hash: "shared-dev-stamped-resume-hash",
+      tags: [],
+      crawledAt: 1,
+      source: "test",
+      workspaceSlug: "dev",
+    }));
+
+    const result = await t.mutation(api.analysis_tasks.dispatch, {
+      workspaceSlug: "hr",
+      writeSecret: WRITE_SECRET,
+      keywords: ["sales"],
+      resumeIds: [sharedResumeId],
+    });
+    expect(result.queued).toBe(true);
+  });
+
+  it("allows unscoped shared-corpus resumes from hr", async () => {
+    const t = createTest();
+    const unscopedResumeId = await t.run((ctx) => ctx.db.insert("resumes", {
+      externalId: "unscoped-shared-resume",
+      content: { name: "Unscoped Shared Resume" },
+      hash: "unscoped-shared-resume-hash",
+      tags: [],
+      crawledAt: 1,
+      source: "test",
+    }));
+
+    const result = await t.mutation(api.analysis_tasks.dispatch, {
+      workspaceSlug: "hr",
+      writeSecret: WRITE_SECRET,
+      keywords: ["sales"],
+      resumeIds: [unscopedResumeId],
+    });
+    expect(result.queued).toBe(true);
   });
 
   it("rejects a missing resume before creating a normal task", async () => {

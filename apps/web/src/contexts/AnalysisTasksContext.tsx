@@ -145,8 +145,12 @@ export function AnalysisTasksProvider({
 }) {
   const { isAuthenticated, memberships } = useAuth()
   const { slug } = useWorkspace()
+  // Align with API resume:analysis:run — any authenticated workspace member
+  // (role user or admin) may list/dispatch/cancel analysis tasks. Workspace
+  // admins still own audit-export and other admin diagnostics surfaces.
   const canManage = isAuthenticated && memberships.some((membership) => (
-    membership.workspaceSlug === slug && membership.role === 'admin'
+    membership.workspaceSlug === slug
+    && (membership.role === 'admin' || membership.role === 'user')
   ))
   const [tasks, setTasks] = useState<AnalysisTaskSummary[]>([])
   const [tasksWorkspaceSlug, setTasksWorkspaceSlug] = useState<string | null>(null)
