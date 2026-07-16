@@ -90,14 +90,17 @@ describe('App routes', () => {
     window.history.replaceState({}, '', '/')
   })
 
-  it('shows a not found page for unknown global routes', async () => {
+  it('treats non-system path segments as personal workspace seats (login when anonymous)', async () => {
+    // Personal slug format is valid for multi-seat routing; unknown seats are not global 404s.
     window.history.pushState({}, '', '/missing-route?from=test')
 
     render(<App />)
 
-    expect(await screen.findByRole('heading', { name: 'Page not found' })).toBeInTheDocument()
+    await waitFor(() => {
+      expect(window.location.pathname).toBe('/login')
+      expect(window.location.search).toContain('redirectTo')
+    })
     expect(screen.queryByText('Resume route rendered')).not.toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Back to resumes' })).toHaveAttribute('href', '/dev/resumes')
   })
 
   it('shows a workspace-aware not found page for unknown workspace routes', async () => {

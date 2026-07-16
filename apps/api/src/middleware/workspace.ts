@@ -23,7 +23,7 @@ export const workspaceMiddleware: MiddlewareHandler = async (c, next) => {
     return c.json(
       {
         success: false,
-        error: `Invalid workspace slug: ${candidate}. Allowed: ${formatWorkspaceSlugList()}`,
+        error: `Invalid workspace slug: ${candidate}. System teams: ${formatWorkspaceSlugList()}. Personal seats use lowercase slug format (not reserved).`,
       },
       400,
     );

@@ -573,9 +573,12 @@ describe("POST /api/admin/users", () => {
     // Verify identity + membership + password were persisted
     const identity = storage.findIdentity("local", "new-hr-user", "local");
     expect(identity?.userId).toBe(body.user.id);
-    expect(storage.listMemberships(body.user.id)).toEqual([
+    const memberships = storage.listMemberships(body.user.id);
+    expect(memberships).toEqual(expect.arrayContaining([
+      { userId: body.user.id, workspaceSlug: "new-hr-user", role: "user" },
       { userId: body.user.id, workspaceSlug: "hr", role: "user" },
-    ]);
+    ]));
+    expect(memberships).toHaveLength(2);
     // Login with returned temp password should succeed (verifies hash round-trip)
     const cred = storage.findPasswordCredential(body.user.id);
     expect(cred).not.toBeNull();
@@ -584,7 +587,7 @@ describe("POST /api/admin/users", () => {
     // Audit
     const events = eventStorage.listRecent({ limit: 10 });
     expect(events.some((e) => e.type === "user_created" && e.userId === body.user.id)).toBe(true);
-    expect(events.some((e) => e.type === "membership_granted_by_admin" && e.userId === body.user.id)).toBe(true);
+    expect(events.filter((e) => e.type === "membership_granted_by_admin" && e.userId === body.user.id).length).toBeGreaterThanOrEqual(2);
   });
 
   it("returns 409 when local username already exists", async () => {
@@ -605,8 +608,8 @@ describe("POST /api/admin/users", () => {
     expect(res.status).toBe(409);
   });
 
-  it("creates user with no membership when initialMembership omitted", async () => {
-    const root = mkdtempSync(path.join(tmpdir(), "create-user-no-mem-"));
+  it("always creates a personal user seat when system memberships are omitted", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "create-user-personal-"));
     const storage = new AuthStorage(root);
     const eventStorage = new AuthEventStorage(root);
     const devAdmin = await seedDevAdmin(storage);
@@ -621,7 +624,26 @@ describe("POST /api/admin/users", () => {
     });
     expect(res.status).toBe(201);
     const body = await parseJsonBody<{ user: { id: string } }>(res);
-    expect(storage.listMemberships(body.user.id)).toEqual([]);
+    expect(storage.listMemberships(body.user.id)).toEqual([
+      { userId: body.user.id, workspaceSlug: "orphan", role: "user" },
+    ]);
+  });
+
+  it("rejects reserved usernames that cannot own a personal seat", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "create-user-reserved-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const devAdmin = await seedDevAdmin(storage);
+    const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
+    const session = sessions.createSession(devAdmin.user.id);
+    const app = createTestApp(storage, eventStorage);
+
+    const res = await app.request("/api/admin/users", {
+      method: "POST",
+      headers: authHeaders("dev", session),
+      body: JSON.stringify({ username: "hr" }),
+    });
+    expect(res.status).toBe(400);
   });
 
   it("returns 403 from hr workspace", async () => {

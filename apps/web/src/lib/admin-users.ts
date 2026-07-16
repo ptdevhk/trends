@@ -93,6 +93,9 @@ export async function createAdminUser(input: {
   username: string
   email?: string
   displayName?: string
+  /** Optional system team seats (hr/dev). Personal desk is always created server-side. */
+  systemMemberships?: Array<{ workspaceSlug: WorkspaceSlug; role: WorkspaceRole }>
+  /** @deprecated Prefer systemMemberships */
   initialMembership?: { workspaceSlug: WorkspaceSlug; role: WorkspaceRole }
 }): Promise<{ success: true; user: AdminUserRecord; temporaryPassword: string } | AdminUsersError> {
   const { data, error, response } = await rawApiClient.POST<{

@@ -2,6 +2,11 @@ import { randomBytes } from "node:crypto";
 
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import type { Context } from "hono";
+import {
+  isReservedWorkspaceSlug,
+  isSystemWorkspace,
+  slugifyUsernameForWorkspace,
+} from "@trends/shared";
 
 import { clearLoginLockout } from "../middleware/login-rate-limit.js";
 import { AuthEventStorage } from "../services/auth-event-storage.js";
@@ -319,14 +324,21 @@ export function createAdminUserRoutes(options: AdminUserRoutesOptions) {
     return c.json({ success: true as const, users }, 200);
   });
 
+  const SystemMembershipSchema = z.object({
+    workspaceSlug: z.enum(["dev", "hr"]),
+    role: z.enum(["user", "admin"]),
+  });
+
   const CreateUserRequestSchema = z.object({
     username: z.string().min(1).max(64),
     email: z.string().email().optional(),
     displayName: z.string().min(1).max(120).optional(),
-    initialMembership: z.object({
-      workspaceSlug: z.enum(["dev", "hr"]),
-      role: z.enum(["user", "admin"]),
-    }).optional(),
+    /** Optional system team seats (hr/dev). Personal desk is always created. */
+    systemMemberships: z.array(SystemMembershipSchema).optional(),
+    /**
+     * @deprecated Prefer systemMemberships. Still accepted as a single system join.
+     */
+    initialMembership: SystemMembershipSchema.optional(),
   });
 
   const CreateUserResponseSchema = z.object({
@@ -342,9 +354,10 @@ export function createAdminUserRoutes(options: AdminUserRoutesOptions) {
     request: { body: { content: { "application/json": { schema: CreateUserRequestSchema } } } },
     responses: {
       201: { description: "User created", content: { "application/json": { schema: CreateUserResponseSchema } } },
+      400: { description: "Invalid username / reserved slug", content: { "application/json": { schema: ErrorResponseSchema } } },
       401: { description: "Auth required", content: { "application/json": { schema: ErrorResponseSchema } } },
       403: { description: "Admin access required", content: { "application/json": { schema: ErrorResponseSchema } } },
-      409: { description: "Username taken", content: { "application/json": { schema: ErrorResponseSchema } } },
+      409: { description: "Username or personal slug taken", content: { "application/json": { schema: ErrorResponseSchema } } },
       500: { description: "Internal error", content: { "application/json": { schema: ErrorResponseSchema } } },
     },
   });
@@ -354,17 +367,42 @@ export function createAdminUserRoutes(options: AdminUserRoutesOptions) {
     if (!gate.ok) return gate.response;
     const auth = c.var.auth!;
     const input = c.req.valid("json");
+    const username = input.username.trim();
 
-    if (getStorage().findIdentity("local", input.username, "local")) {
+    if (getStorage().findIdentity("local", username, "local")) {
       return c.json({ success: false as const, error: "Username already exists" }, 409);
     }
 
-    const displayName = input.displayName ?? input.username;
+    const personalSlug = slugifyUsernameForWorkspace(username);
+    if (
+      !personalSlug
+      || isReservedWorkspaceSlug(username)
+      || isReservedWorkspaceSlug(personalSlug)
+      || isSystemWorkspace(personalSlug)
+    ) {
+      return c.json({
+        success: false as const,
+        error: "Username is reserved or cannot form a personal workspace slug",
+      }, 400);
+    }
+
+    // Personal seat must not collide with an existing membership on that slug (any user).
+    const existingPersonalOwner = getStorage().listUsers().some((record) =>
+      record.memberships.some((m) => m.workspaceSlug === personalSlug),
+    );
+    if (existingPersonalOwner) {
+      return c.json({
+        success: false as const,
+        error: `Personal workspace slug '${personalSlug}' is already in use`,
+      }, 409);
+    }
+
+    const displayName = input.displayName ?? username;
     const user = getStorage().createUser({ email: input.email, displayName });
     getStorage().linkIdentity({
       userId: user.id,
       provider: "local",
-      providerSubject: input.username,
+      providerSubject: username,
       providerTenant: "local",
       email: input.email,
       displayName,
@@ -375,30 +413,65 @@ export function createAdminUserRoutes(options: AdminUserRoutesOptions) {
       ...(await hashPassword(temporaryPassword)),
       mustChangePassword: false,
     });
-    if (input.initialMembership) {
+
+    // Always grant personal desk as user (full member desk; no auto-admin).
+    getStorage().upsertMembership({
+      userId: user.id,
+      workspaceSlug: personalSlug,
+      role: "user",
+    });
+    getEventStorage().append({
+      type: "membership_granted_by_admin",
+      userId: user.id,
+      workspaceSlug: personalSlug,
+      sessionId: auth.sessionId,
+      metadata: {
+        operatorId: auth.user.id,
+        role: "user",
+        kind: "personal",
+      },
+    });
+
+    const systemMemberships = [
+      ...(input.systemMemberships ?? []),
+      ...(input.initialMembership ? [input.initialMembership] : []),
+    ];
+    const seenSystem = new Set<string>();
+    for (const membership of systemMemberships) {
+      if (!isSystemWorkspace(membership.workspaceSlug)) continue;
+      if (seenSystem.has(membership.workspaceSlug)) continue;
+      seenSystem.add(membership.workspaceSlug);
       getStorage().upsertMembership({
         userId: user.id,
-        workspaceSlug: input.initialMembership.workspaceSlug,
-        role: input.initialMembership.role,
+        workspaceSlug: membership.workspaceSlug,
+        role: membership.role,
       });
       getEventStorage().append({
         type: "membership_granted_by_admin",
         userId: user.id,
-        workspaceSlug: input.initialMembership.workspaceSlug,
+        workspaceSlug: membership.workspaceSlug,
         sessionId: auth.sessionId,
-        metadata: { operatorId: auth.user.id, role: input.initialMembership.role },
+        metadata: {
+          operatorId: auth.user.id,
+          role: membership.role,
+          kind: "system",
+        },
       });
     }
+
     getEventStorage().append({
       type: "user_created",
       userId: user.id,
       sessionId: auth.sessionId,
-      metadata: { operatorId: auth.user.id, username: input.username },
+      metadata: {
+        operatorId: auth.user.id,
+        username,
+        personalSlug,
+      },
     });
 
     const record = getStorage().listUsers().find((u) => u.id === user.id);
     if (!record) {
-      // Should not happen -- user was just inserted in same transaction context.
       console.error("[admin/users:create] freshly created user not found in listUsers", user.id);
       return c.json({ success: false as const, error: "Internal error" }, 500);
     }

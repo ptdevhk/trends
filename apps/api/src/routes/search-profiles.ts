@@ -20,7 +20,7 @@ import {
     type SearchProfile,
 } from "../services/search-profile-service.js";
 import { logger } from "../services/logger.js";
-import { requireAdmin } from "../middleware/auth.js";
+import { requireAdmin, requireWorkspaceUser } from "../middleware/auth.js";
 import { callConvexQuery, callConvexMutation } from "../services/convex-utils.js";
 import { resolveConvexUrl } from "../services/resume-import-service.js";
 import { readString, readNumber } from "../services/workspace-config-service.js";
@@ -33,8 +33,28 @@ import {
 } from "../services/search-profile-run-status.js";
 
 const app = new OpenAPIHono();
-app.use("/api/search-profiles", requireAdmin);
-app.use("/api/search-profiles/*", requireAdmin);
+
+/**
+ * Auth matrix for search profiles (member desk on personal seats + HR users):
+ * - Read / seed-on-list / run / auto-match: workspace member
+ * - Create / update / delete: workspace admin
+ */
+const searchProfilesAccess: typeof requireWorkspaceUser = async (c, next) => {
+  const method = c.req.method.toUpperCase();
+  const path = c.req.path;
+  const isWriteShape =
+    method === "PUT"
+    || method === "DELETE"
+    || (method === "POST" && !path.endsWith("/run") && !path.endsWith("/auto-match") && path === "/api/search-profiles");
+
+  if (isWriteShape) {
+    return requireAdmin(c, next);
+  }
+  return requireWorkspaceUser(c, next);
+};
+
+app.use("/api/search-profiles", searchProfilesAccess);
+app.use("/api/search-profiles/*", searchProfilesAccess);
 
 // Schemas
 const ProfileSummarySchema = z.object({

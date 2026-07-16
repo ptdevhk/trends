@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Copy, Key } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
@@ -13,8 +13,13 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { createAdminUser } from '@/lib/admin-users'
-import type { WorkspaceSlug } from '@trends/shared'
-import { WORKSPACE_TEAMS } from '@trends/shared'
+import {
+  getWorkspaceDisplayName,
+  isReservedWorkspaceSlug,
+  listSystemWorkspaceSlugs,
+  slugifyUsernameForWorkspace,
+  type SystemWorkspaceSlug,
+} from '@trends/shared'
 import type { WorkspaceRole } from '@/lib/auth'
 
 type Props = {
@@ -23,26 +28,43 @@ type Props = {
   onCreated: (temporaryPassword: string) => void
 }
 
+type SystemJoin = {
+  workspaceSlug: SystemWorkspaceSlug
+  role: WorkspaceRole
+  enabled: boolean
+}
+
+function createDefaultSystemJoins(): SystemJoin[] {
+  return listSystemWorkspaceSlugs().map((workspaceSlug) => ({
+    workspaceSlug,
+    role: 'user',
+    enabled: false,
+  }))
+}
+
 export function CreateUserDialog({ open, onOpenChange, onCreated }: Props) {
   const { t } = useTranslation()
   const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
   const [displayName, setDisplayName] = useState('')
-  const [workspaceSlug, setWorkspaceSlug] = useState<WorkspaceSlug | ''>('')
-  const [role, setRole] = useState<WorkspaceRole>('user')
+  const [showSystemTeams, setShowSystemTeams] = useState(false)
+  const [systemJoins, setSystemJoins] = useState<SystemJoin[]>(() => createDefaultSystemJoins())
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [tempPassword, setTempPassword] = useState<string | null>(null)
   const [createdUsername, setCreatedUsername] = useState<string | null>(null)
 
-  const workspaceOptions = Object.keys(WORKSPACE_TEAMS) as WorkspaceSlug[]
+  const personalSlugPreview = useMemo(
+    () => (username.trim() ? slugifyUsernameForWorkspace(username) : ''),
+    [username],
+  )
 
   function resetForm() {
     setUsername('')
     setEmail('')
     setDisplayName('')
-    setWorkspaceSlug('')
-    setRole('user')
+    setShowSystemTeams(false)
+    setSystemJoins(createDefaultSystemJoins())
     setError(null)
   }
 
@@ -56,28 +78,40 @@ export function CreateUserDialog({ open, onOpenChange, onCreated }: Props) {
   }
 
   async function handleSubmit() {
-    if (!username.trim()) {
+    const trimmed = username.trim()
+    if (!trimmed) {
       setError(t('debugConfig.adminUsersUsernameRequired', { defaultValue: 'Username is required' }))
       return
     }
+    const personalSlug = slugifyUsernameForWorkspace(trimmed)
+    if (!personalSlug || isReservedWorkspaceSlug(trimmed) || isReservedWorkspaceSlug(personalSlug)) {
+      setError(t('debugConfig.adminUsersUsernameReserved', {
+        defaultValue: 'Username is reserved or cannot form a personal workspace slug',
+      }))
+      return
+    }
+
     setSubmitting(true)
     setError(null)
     try {
+      const systemMemberships = showSystemTeams
+        ? systemJoins
+          .filter((join) => join.enabled)
+          .map((join) => ({ workspaceSlug: join.workspaceSlug, role: join.role }))
+        : []
+
       const result = await createAdminUser({
-        username: username.trim(),
+        username: trimmed,
         email: email.trim() || undefined,
         displayName: displayName.trim() || undefined,
-        initialMembership:
-          workspaceSlug !== ''
-            ? { workspaceSlug, role }
-            : undefined,
+        systemMemberships: systemMemberships.length > 0 ? systemMemberships : undefined,
       })
       if (result.success === false) {
         setError(result.error)
         return
       }
       setTempPassword(result.temporaryPassword)
-      setCreatedUsername(result.user.displayName ?? username.trim())
+      setCreatedUsername(result.user.displayName ?? trimmed)
       toast.success(t('debugConfig.adminUsersCreated', { defaultValue: 'User created' }))
       onCreated(result.temporaryPassword)
     } catch (err) {
@@ -153,7 +187,7 @@ export function CreateUserDialog({ open, onOpenChange, onCreated }: Props) {
           </DialogTitle>
           <DialogDescription>
             {t('debugConfig.adminUsersCreateDescription', {
-              defaultValue: 'Create a new local user account.',
+              defaultValue: 'Create a local account with a personal workspace seat (member desk).',
             })}
           </DialogDescription>
         </DialogHeader>
@@ -199,47 +233,80 @@ export function CreateUserDialog({ open, onOpenChange, onCreated }: Props) {
               }}
             />
           </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <label className="text-sm font-medium" htmlFor="create-workspace">
-                Initial workspace (optional)
-              </label>
-              <select
-                id="create-workspace"
-                data-testid="create-user-workspace"
-                className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                value={workspaceSlug}
-                onChange={(e) => {
-                  setWorkspaceSlug(e.target.value as WorkspaceSlug | '')
-                }}
-              >
-                <option value="">None</option>
-                {workspaceOptions.map((slug) => (
-                  <option key={slug} value={slug}>
-                    {WORKSPACE_TEAMS[slug].name}
-                  </option>
-                ))}
-              </select>
+
+          <div className="rounded-md border bg-muted/30 px-3 py-3 space-y-1" data-testid="create-user-personal-seat">
+            <div className="text-sm font-medium">
+              {t('debugConfig.adminUsersPersonalSeat', { defaultValue: 'Personal workspace' })}
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium" htmlFor="create-role">
-                Role
-              </label>
-              <select
-                id="create-role"
-                data-testid="create-user-role"
-                className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                value={role}
-                disabled={workspaceSlug === ''}
-                onChange={(e) => {
-                  setRole(e.target.value === 'admin' ? 'admin' : 'user')
-                }}
-              >
-                <option value="user">user</option>
-                <option value="admin">admin</option>
-              </select>
+            <p className="text-xs text-muted-foreground">
+              {t('debugConfig.adminUsersPersonalSeatHelp', {
+                defaultValue: 'Always created. Full member desk on a private seat; same shared resume pool. Role: user.',
+              })}
+            </p>
+            <div className="text-sm font-mono" data-testid="create-user-personal-slug">
+              {personalSlugPreview || '—'}
             </div>
           </div>
+
+          <div className="space-y-3">
+            <label className="flex items-center gap-2 text-sm font-medium">
+              <input
+                type="checkbox"
+                data-testid="create-user-show-system-teams"
+                checked={showSystemTeams}
+                onChange={(e) => {
+                  setShowSystemTeams(e.target.checked)
+                }}
+              />
+              {t('debugConfig.adminUsersShowSystemTeams', { defaultValue: 'Show system teams' })}
+            </label>
+            {showSystemTeams ? (
+              <div className="space-y-2 rounded-md border p-3" data-testid="create-user-system-teams">
+                {systemJoins.map((join) => (
+                  <div key={join.workspaceSlug} className="flex flex-wrap items-center gap-3 text-sm">
+                    <label className="flex min-w-[8rem] items-center gap-2">
+                      <input
+                        type="checkbox"
+                        data-testid={`create-user-system-${join.workspaceSlug}`}
+                        checked={join.enabled}
+                        onChange={(e) => {
+                          const enabled = e.target.checked
+                          setSystemJoins((current) =>
+                            current.map((row) =>
+                              row.workspaceSlug === join.workspaceSlug
+                                ? { ...row, enabled }
+                                : row,
+                            ),
+                          )
+                        }}
+                      />
+                      {getWorkspaceDisplayName(join.workspaceSlug)}
+                    </label>
+                    <select
+                      data-testid={`create-user-system-role-${join.workspaceSlug}`}
+                      className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                      value={join.role}
+                      disabled={!join.enabled}
+                      onChange={(e) => {
+                        const role: WorkspaceRole = e.target.value === 'admin' ? 'admin' : 'user'
+                        setSystemJoins((current) =>
+                          current.map((row) =>
+                            row.workspaceSlug === join.workspaceSlug
+                              ? { ...row, role }
+                              : row,
+                          ),
+                        )
+                      }}
+                    >
+                      <option value="user">user</option>
+                      <option value="admin">admin</option>
+                    </select>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
+
           {error && (
             <p className="text-sm text-destructive">{error}</p>
           )}

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
-import { Ban, RefreshCw, ShieldCheck } from 'lucide-react'
+import { Ban, Copy, RefreshCw, ShieldCheck } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
@@ -160,6 +160,7 @@ export function SystemSettingsAuthPage() {
   const [accessError, setAccessError] = useState<ProviderMembershipApiError | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [form, setForm] = useState<FormState>(() => createInitialForm(slug))
+  const [temporaryPasswordBanner, setTemporaryPasswordBanner] = useState<string | null>(null)
   const providerIdentities = state?.identities.filter((identity) => identity.provider === form.provider) ?? []
   const anonymousResumeSearchEnabled = slug === 'hr'
   const currentRoleLabel = auth.workspaceRole === 'admin'
@@ -317,6 +318,52 @@ export function SystemSettingsAuthPage() {
         </p>
       </div>
 
+      {temporaryPasswordBanner !== null && (
+        <div
+          data-testid="temp-password-panel"
+          className="sticky top-16 z-30 rounded-md border border-amber-200 bg-amber-50 p-4 shadow-sm"
+        >
+          <div className="mb-2 text-sm font-medium text-amber-800">
+            {t('debugConfig.adminUsersTempPasswordTitle', { defaultValue: 'Temporary password' })}
+          </div>
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <code className="rounded bg-white px-2 py-1 font-mono text-sm break-all">
+              {temporaryPasswordBanner}
+            </code>
+            <Button
+              variant="outline"
+              size="sm"
+              data-testid="copy-temp-password"
+              onClick={() => {
+                void navigator.clipboard.writeText(temporaryPasswordBanner)
+                toast.success(t('debugConfig.adminUsersTempPasswordCopied', {
+                  defaultValue: 'Password copied to clipboard',
+                }))
+              }}
+            >
+              <Copy className="mr-1 h-3 w-3" />
+              {t('debugConfig.adminUsersTempPasswordCopy', { defaultValue: 'Copy password' })}
+            </Button>
+          </div>
+          <p className="text-xs text-amber-700">
+            {t('debugConfig.adminUsersTempPasswordWarning', {
+              defaultValue: 'Copy this now. It will not be shown again after you close this dialog.',
+            })}
+          </p>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="mt-2"
+            data-testid="close-temp-password"
+            onClick={() => {
+              setTemporaryPasswordBanner(null)
+            }}
+          >
+            Dismiss
+          </Button>
+        </div>
+      )}
+
       <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(280px,0.8fr)]">
         <Card className="min-w-0">
           <CardHeader>
@@ -382,7 +429,10 @@ export function SystemSettingsAuthPage() {
         </Card>
       </div>
 
-      <UsersPanel operatorId={auth.user?.id ?? null} />
+      <UsersPanel
+        operatorId={auth.user?.id ?? null}
+        onTemporaryPassword={setTemporaryPasswordBanner}
+      />
 
       <Card className="min-w-0">
         <CardHeader>

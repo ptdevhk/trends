@@ -1,6 +1,10 @@
 import { createContext, useContext, useMemo, type ReactNode } from 'react'
 import { Navigate, useLocation, useParams } from 'react-router-dom'
-import { WORKSPACE_TEAMS, isValidWorkspace, type WorkspaceSlug } from '@trends/shared'
+import {
+  getWorkspaceDisplayName,
+  isValidWorkspace,
+  type WorkspaceSlug,
+} from '@trends/shared'
 import { workspaceRef } from '@/lib/workspace-ref'
 
 export type WorkspaceSurface = 'workspace' | 'system' | 'public'
@@ -34,10 +38,9 @@ export function WorkspaceProvider({
 
   const value = useMemo<WorkspaceContextValue>(() => {
     const slug = validSlug ?? 'dev'
-    const workspace = WORKSPACE_TEAMS[slug]
     return {
       slug,
-      name: workspace.name,
+      name: getWorkspaceDisplayName(slug),
       isAdmin: false,
       surface,
       isSystemSurface: surface === 'system',

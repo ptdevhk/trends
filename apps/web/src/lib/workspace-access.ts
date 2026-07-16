@@ -1,5 +1,6 @@
 import { isValidWorkspace, type WorkspaceSlug } from '@trends/shared'
 import type { CurrentAuth, WorkspaceMembership, WorkspaceRole } from '@/lib/auth'
+import { resolvePreferredWorkspaceSlug } from '@/lib/last-workspace'
 
 export const SYSTEM_AUTH_WORKSPACE: WorkspaceSlug = 'dev'
 export const PUBLIC_RESUME_WORKSPACE: WorkspaceSlug = 'hr'
@@ -32,6 +33,11 @@ export function getDefaultAuthenticatedPath(auth: CurrentAuth, fallbackWorkspace
   }
   if (hasSystemAdminAccess(auth.memberships)) {
     return `${SYSTEM_ROUTE_PREFIX}/settings/auth`
+  }
+
+  const preferred = resolvePreferredWorkspaceSlug(auth.user.id, auth.memberships)
+  if (preferred) {
+    return `/${preferred}/resumes`
   }
 
   const firstWorkspace = getFirstAuthorizedWorkspaceSlug(auth.memberships)

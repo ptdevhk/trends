@@ -79,13 +79,13 @@ describe("workspaceMiddleware", () => {
   it("rejects invalid workspace slug", async () => {
     const app = createTestApp();
     const res = await app.request("/test", {
-      headers: { "X-Workspace-Slug": "invalid-workspace" },
+      headers: { "X-Workspace-Slug": "Admin" },
     });
     expect(res.status).toBe(400);
     const body = await parseJsonBody(res);
     expect(body.success).toBe(false);
     expect(body.error).toContain("Invalid workspace slug");
-    expect(body.error).toContain(`Allowed: ${formatWorkspaceSlugList()}`);
+    expect(body.error).toContain(formatWorkspaceSlugList());
   });
 
   it.each(listWorkspaceSlugs())("accepts registered workspace %s", async (slug) => {

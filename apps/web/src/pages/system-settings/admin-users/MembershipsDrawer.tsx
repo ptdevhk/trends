@@ -11,8 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { WORKSPACE_TEAMS } from '@trends/shared'
-import type { WorkspaceSlug } from '@trends/shared'
+import { getWorkspaceDisplayName, listSystemWorkspaceSlugs, type WorkspaceSlug } from '@trends/shared'
 import type { AdminUserRecord } from '@/lib/admin-users'
 import { addAdminUserMembership, removeAdminUserMembership } from '@/lib/admin-users'
 import type { WorkspaceRole } from '@/lib/auth'
@@ -30,7 +29,7 @@ export function MembershipsDrawer({ open, onOpenChange, user, onChanged }: Props
   const [addRole, setAddRole] = useState<WorkspaceRole>('user')
   const [submitting, setSubmitting] = useState(false)
 
-  const workspaceOptions = Object.keys(WORKSPACE_TEAMS) as WorkspaceSlug[]
+  const workspaceOptions = listSystemWorkspaceSlugs()
 
   function handleClose() {
     setAddWorkspaceSlug('')
@@ -168,7 +167,7 @@ export function MembershipsDrawer({ open, onOpenChange, user, onChanged }: Props
                   <option value="">Select...</option>
                   {workspaceOptions.map((slug) => (
                     <option key={slug} value={slug}>
-                      {WORKSPACE_TEAMS[slug].name}
+                      {getWorkspaceDisplayName(slug)}
                     </option>
                   ))}
                 </select>

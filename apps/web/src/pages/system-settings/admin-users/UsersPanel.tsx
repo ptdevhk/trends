@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Ban, Copy, Key, Lock, RefreshCw, ShieldCheck, Users } from 'lucide-react'
+import { Ban, Key, Lock, RefreshCw, ShieldCheck, Users } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
@@ -21,6 +21,8 @@ import { UserAuditDrawer } from './UserAuditDrawer'
 
 type Props = {
   operatorId: string | null
+  /** Surface one-time passwords at the top of the auth settings page. */
+  onTemporaryPassword?: (temporaryPassword: string | null) => void
 }
 
 type LoadOptions = {
@@ -31,16 +33,19 @@ function formatApiError(error: AdminUsersError): string {
   return error.status === undefined ? error.error : `${error.error} (${error.status})`
 }
 
-export function UsersPanel({ operatorId }: Props) {
+export function UsersPanel({ operatorId, onTemporaryPassword }: Props) {
   const { t } = useTranslation()
   const [users, setUsers] = useState<AdminUserRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [accessDenied, setAccessDenied] = useState(false)
   const [accessError, setAccessError] = useState<AdminUsersError | null>(null)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
-  const [tempPassword, setTempPassword] = useState<string | null>(null)
   const [membershipsUser, setMembershipsUser] = useState<AdminUserRecord | null>(null)
   const [auditUser, setAuditUser] = useState<AdminUserRecord | null>(null)
+
+  function publishTemporaryPassword(temporaryPassword: string | null) {
+    onTemporaryPassword?.(temporaryPassword)
+  }
 
   const load = useCallback(async (options: LoadOptions = {}) => {
     const showLoading = options.showLoading ?? true
@@ -110,7 +115,7 @@ export function UsersPanel({ operatorId }: Props) {
       toast.error(result.error)
       return
     }
-    setTempPassword(result.temporaryPassword)
+    publishTemporaryPassword(result.temporaryPassword)
   }
 
   async function handleUnlock(username: string) {
@@ -187,7 +192,7 @@ export function UsersPanel({ operatorId }: Props) {
               size="sm"
               data-testid="create-user-button"
               onClick={() => {
-                setTempPassword(null)
+                publishTemporaryPassword(null)
                 setCreateDialogOpen(true)
               }}
             >
@@ -457,54 +462,11 @@ export function UsersPanel({ operatorId }: Props) {
         onOpenChange={(open) => {
           setCreateDialogOpen(open)
         }}
-        onCreated={(temporaryPassword) => {
-          setTempPassword(temporaryPassword)
+        onCreated={() => {
+          // Create flow shows the password inside CreateUserDialog; page banner is for reset.
           void load({ showLoading: false })
         }}
       />
-
-      {/* Temp password shown once after create or reset */}
-      {tempPassword !== null && (
-        <div
-          data-testid="temp-password-panel"
-          className="rounded-md border border-amber-200 bg-amber-50 p-4"
-        >
-          <div className="mb-2 text-sm font-medium text-amber-800">
-            {t('debugConfig.adminUsersTempPasswordTitle', { defaultValue: 'Temporary password' })}
-          </div>
-          <div className="mb-2 flex items-center gap-2">
-            <code className="rounded bg-white px-2 py-1 font-mono text-sm">{tempPassword}</code>
-            <Button
-              variant="outline"
-              size="sm"
-              data-testid="copy-temp-password"
-              onClick={() => {
-                void navigator.clipboard.writeText(tempPassword)
-                toast.success(t('debugConfig.adminUsersTempPasswordCopied', { defaultValue: 'Password copied to clipboard' }))
-              }}
-            >
-              <Copy className="mr-1 h-3 w-3" />
-              {t('debugConfig.adminUsersTempPasswordCopy', { defaultValue: 'Copy' })}
-            </Button>
-          </div>
-          <p className="text-xs text-amber-700">
-            {t('debugConfig.adminUsersTempPasswordWarning', {
-              defaultValue: 'Copy this now. It will not be shown again.',
-            })}
-          </p>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="mt-2"
-            data-testid="close-temp-password"
-            onClick={() => {
-              setTempPassword(null)
-            }}
-          >
-            Dismiss
-          </Button>
-        </div>
-      )}
 
       <MembershipsDrawer
         open={membershipsUser !== null}

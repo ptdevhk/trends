@@ -361,11 +361,35 @@ export function buildSearchProfileCriteria(profile: SharedSearchProfileTemplate[
   };
 }
 
+/**
+ * Templates for a workspace seat.
+ * - Exact workspace match when present (dev/hr YAML fan-out).
+ * - Personal / unlisted seats inherit the **global default** set (prefer `hr`
+ *   copies, else any unique profile id) so quick-start profiles auto-init
+ *   for every user workspace.
+ */
 export function getWorkspaceSearchProfileTemplates(workspaceSlug?: string): SharedSearchProfileTemplate[] {
   const normalizedWorkspaceSlug = normalizeTemplateWorkspaceSlug(workspaceSlug);
-  return SEARCH_PROFILE_TEMPLATES.filter((template) => (
+  const exact = SEARCH_PROFILE_TEMPLATES.filter((template) => (
     normalizeTemplateWorkspaceSlug(template.workspaceSlug) === normalizedWorkspaceSlug
   ));
+  if (exact.length > 0) {
+    return exact;
+  }
+
+  const preferredFallback = "hr";
+  const fallbackSource = SEARCH_PROFILE_TEMPLATES.filter((template) => (
+    normalizeTemplateWorkspaceSlug(template.workspaceSlug) === preferredFallback
+  ));
+  const source = fallbackSource.length > 0 ? fallbackSource : SEARCH_PROFILE_TEMPLATES;
+  const byId = new Map<string, SharedSearchProfileTemplate>();
+  for (const template of source) {
+    const id = template.profile.id.trim().toLowerCase();
+    if (!byId.has(id)) {
+      byId.set(id, template);
+    }
+  }
+  return Array.from(byId.values());
 }
 
 export function findWorkspaceSearchProfileTemplate(

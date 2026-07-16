@@ -32,7 +32,7 @@ describe('CreateUserDialog', () => {
     expect(mockCreateAdminUser).not.toHaveBeenCalled()
   })
 
-  it('shows temp password modal with copy button on success', async () => {
+  it('previews personal slug and creates without system memberships by default', async () => {
     mockCreateAdminUser.mockResolvedValue({
       success: true,
       user: {
@@ -41,7 +41,7 @@ describe('CreateUserDialog', () => {
         status: 'active' as const,
         createdAt: '2026-06-19T00:00:00.000Z',
         identities: [],
-        memberships: [],
+        memberships: [{ workspaceSlug: 'newuser', role: 'user' }],
       },
       temporaryPassword: 'abc123',
     })
@@ -49,8 +49,17 @@ describe('CreateUserDialog', () => {
     render(<CreateUserDialog open={true} onOpenChange={vi.fn()} onCreated={vi.fn()} />)
 
     await user.type(screen.getByTestId('create-user-username'), 'newuser')
+    expect(screen.getByTestId('create-user-personal-slug')).toHaveTextContent('newuser')
+    expect(screen.queryByTestId('create-user-system-teams')).not.toBeInTheDocument()
+
     await user.click(screen.getByTestId('create-user-submit'))
 
+    expect(mockCreateAdminUser).toHaveBeenCalledWith({
+      username: 'newuser',
+      email: undefined,
+      displayName: undefined,
+      systemMemberships: undefined,
+    })
     expect(await screen.findByText('abc123')).toBeInTheDocument()
     expect(screen.getByTestId('copy-temp-password')).toBeInTheDocument()
   })
