@@ -746,7 +746,7 @@ export function ReviewPacketsPage() {
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="review-packets-user-comment">
-                    {t('reviewPackets.userComment', { defaultValue: 'User comment' })}
+                    {t('reviewPackets.userComment', { defaultValue: 'User Comment' })}
                   </Label>
                   <Textarea
                     id="review-packets-user-comment"

@@ -343,6 +343,7 @@
     },
     "ratingComment": {
       "title": "新增評價備註",
+      "viewTitle": "用戶備註",
       "placeholder": "寫下你對這個候選人的評價..."
     },
     "status": {
@@ -413,6 +414,7 @@
       "notePlaceholder": "備註",
       "notePlaceholderInput": "輸入備註...",
       "notesTitle": "備註",
+      "notesViewTitle": "用戶備註",
       "notesDescription": "為 {{name}} 新增備註。",
       "currentPosition": "目前職位",
       "pipelineActions": "流程操作"
@@ -1540,7 +1542,7 @@
     "totalRows": "總行數",
     "updatedBy": "更新人",
     "updatedByPlaceholder": "hr.lead",
-    "userComment": "使用者備註",
+    "userComment": "用戶備註",
     "userCommentPlaceholder": "評審員批次備註",
     "warningCount": "警告數",
     "webhookUrl": "Webhook URL",

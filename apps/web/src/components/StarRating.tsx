@@ -116,8 +116,8 @@ export function StarRating({
               <MessageSquare size={13} className="text-amber-400" />
               <span className="text-xs font-medium text-slate-200">
                 {editing
-                  ? t('resumes.ratingComment.title', { defaultValue: '添加评价备注' })
-                  : t('resumes.ratingComment.viewTitle', { defaultValue: '用户备注' })}
+                  ? t('resumes.ratingComment.title', { defaultValue: 'Add Rating Note' })
+                  : t('resumes.ratingComment.viewTitle', { defaultValue: 'User Comment' })}
               </span>
             </div>
 

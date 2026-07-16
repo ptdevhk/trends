@@ -344,6 +344,7 @@
     },
     "ratingComment": {
       "title": "Add Rating Note",
+      "viewTitle": "User Comment",
       "placeholder": "Write your thoughts about this candidate..."
     },
     "status": {
@@ -414,6 +415,7 @@
       "notePlaceholder": "Note",
       "notePlaceholderInput": "Enter note...",
       "notesTitle": "Notes",
+      "notesViewTitle": "User Comment",
       "notesDescription": "Add a note for {{name}}.",
       "currentPosition": "Current Position",
       "pipelineActions": "Pipeline Actions"
@@ -1540,7 +1542,7 @@
     "totalRows": "Total rows",
     "updatedBy": "Updated by",
     "updatedByPlaceholder": "hr.lead",
-    "userComment": "User comment",
+    "userComment": "User Comment",
     "userCommentPlaceholder": "Batch note for reviewers",
     "warningCount": "Warnings",
     "webhookUrl": "Webhook URL",

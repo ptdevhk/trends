@@ -58,8 +58,8 @@ export function CandidateNotesDialog({
         <DialogHeader>
           <DialogTitle>
             {editing
-              ? t('resumes.card.notesTitle', { defaultValue: '备注' })
-              : t('resumes.card.notesViewTitle', { defaultValue: '用户备注' })}
+              ? t('resumes.card.notesTitle', { defaultValue: 'Notes' })
+              : t('resumes.card.notesViewTitle', { defaultValue: 'User Comment' })}
           </DialogTitle>
           <DialogDescription>
             {t('resumes.card.notesDescription', {

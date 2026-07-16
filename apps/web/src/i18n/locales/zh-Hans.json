@@ -343,6 +343,7 @@
     },
     "ratingComment": {
       "title": "添加评价备注",
+      "viewTitle": "用户备注",
       "placeholder": "写一下你对这个候选人的评价..."
     },
     "status": {
@@ -413,6 +414,7 @@
       "notePlaceholder": "备注",
       "notePlaceholderInput": "输入备注...",
       "notesTitle": "备注",
+      "notesViewTitle": "用户备注",
       "notesDescription": "为 {{name}} 添加备注。",
       "currentPosition": "当前职位",
       "pipelineActions": "流程操作"
