@@ -14,7 +14,7 @@ let capturedExportPayload: unknown = null
 const createObjectUrlMock = vi.fn(() => 'blob:mock')
 const revokeObjectUrlMock = vi.fn()
 const anchorClickMock = vi.fn()
-const useQueryMock = vi.hoisted(() => vi.fn((..._args: unknown[]) => []))
+const useQueryMock = vi.hoisted(() => vi.fn(() => []))
 const useMutationMock = vi.hoisted(() => vi.fn(() => vi.fn(async () => ({}))))
 const dispatchTaskMock = vi.hoisted(() => vi.fn(async () => ({
   queued: true,
@@ -115,7 +115,7 @@ vi.mock('react-router-dom', () => ({
 
 vi.mock('convex/react', () => ({
   useQuery: (...args: unknown[]) => useQueryMock(...args),
-  useMutation: (_mutation: unknown) => useMutationMock(),
+  useMutation: () => useMutationMock(),
 }))
 
 vi.mock('@/contexts/WorkspaceContext', () => ({
@@ -723,7 +723,7 @@ describe('useResumeListState role filter regression', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    useQueryMock.mockImplementation((..._args: unknown[]) => [])
+    useQueryMock.mockImplementation(() => [])
     useMutationMock.mockImplementation(() => vi.fn(async () => ({})))
     dispatchTaskMock.mockResolvedValue({
       queued: true,

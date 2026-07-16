@@ -1276,6 +1276,8 @@ const putExportFieldsRoute = createRoute({
   responses: {
     200: { description: "Updated config", content: { "application/json": { schema: ExportFieldsConfigResponseSchema } } },
     400: { description: "Invalid payload", content: { "application/json": { schema: ErrorResponseSchema } } },
+    401: { description: "Authentication required", content: { "application/json": { schema: ErrorResponseSchema } } },
+    403: { description: "Workspace access required", content: { "application/json": { schema: ErrorResponseSchema } } },
     500: { description: "Server error", content: { "application/json": { schema: ErrorResponseSchema } } },
   },
 });
