@@ -12,6 +12,10 @@ function makeInput(overrides: Partial<AuthEnvInput> = {}): AuthEnvInput {
     AUTH_OIDC_CLIENT_ID: '',
     AUTH_OIDC_CLIENT_SECRET: '',
     AUTH_OIDC_REDIRECT_URI: '',
+    AUTH_BOOTSTRAP_PASSWORD: '',
+    AUTH_HR_DEMO_PASSWORD: '',
+    BOOTSTRAP_ADMIN_USERS: '',
+    BOOTSTRAP_HR_DEMO_USER: '',
     ...overrides,
   }
 }
@@ -170,11 +174,29 @@ describe('checkAuthEnv', () => {
       )
     })
 
-    it('passes with valid preview config', () => {
+    it('requires AUTH_BOOTSTRAP_PASSWORD and AUTH_HR_DEMO_PASSWORD', () => {
       const result = checkAuthEnv(makeInput({
         mode: 'preview',
         CONVEX_WRITE_SECRET: 'secret',
         AUTH_ALLOWED_ORIGINS: 'https://preview.pt-mes.com',
+      }))
+      expect(result.errors).toEqual(
+        expect.arrayContaining([
+          expect.stringContaining('AUTH_BOOTSTRAP_PASSWORD'),
+          expect.stringContaining('AUTH_HR_DEMO_PASSWORD'),
+        ]),
+      )
+    })
+
+    it('passes with valid preview config including bootstrap passwords', () => {
+      const result = checkAuthEnv(makeInput({
+        mode: 'preview',
+        CONVEX_WRITE_SECRET: 'secret',
+        AUTH_ALLOWED_ORIGINS: 'https://preview.pt-mes.com',
+        AUTH_BOOTSTRAP_PASSWORD: 'ops-secret',
+        AUTH_HR_DEMO_PASSWORD: 'hr-secret',
+        BOOTSTRAP_ADMIN_USERS: 'admin',
+        BOOTSTRAP_HR_DEMO_USER: 'hr-demo',
       }))
       expect(result.errors).toHaveLength(0)
     })

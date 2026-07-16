@@ -98,30 +98,21 @@ echo "[7/8] Building shared + web..."
 sudo -u ubuntu bash -c "cd '$DST' && npm --workspace @trends/shared run build 2>&1 | tail -2"
 sudo -u ubuntu bash -c "cd '$DST' && npm --workspace @trends/web run build 2>&1 | tail -3"
 
-# 8. Seed bootstrap admin(s) — mirrors scripts/install.sh:seed_bootstrap_admins
-echo "[8/8] Seeding bootstrap admin(s) (idempotent)..."
-sudo -u ubuntu bash -c "
-    set -a; source '$DST/.env.preview'; set +a
-    if [ -z \"\${BOOTSTRAP_ADMIN_USERS:-}\" ]; then
-        echo '  -> BOOTSTRAP_ADMIN_USERS unset; skipping'
-        exit 0
-    fi
-    workspace=\"\${BOOTSTRAP_ADMIN_WORKSPACE:-dev}\"
-    password_env=\"\${BOOTSTRAP_ADMIN_PASSWORD_ENV:-AUTH_BOOTSTRAP_PASSWORD}\"
-    cd '$DST'
-    failures=0
-    IFS=',' read -ra users <<< \"\$BOOTSTRAP_ADMIN_USERS\"
-    for u in \"\${users[@]}\"; do
-        u=\"\$(echo \"\$u\" | sed 's/^[[:space:]]*//;s/[[:space:]]*\$//')\"
-        [ -z \"\$u\" ] && continue
-        echo \"  -> seeding admin '\$u' in workspace '\$workspace'\"
-        if ! bunx tsx scripts/auth/manage-user.ts --username \"\$u\" --workspace \"\$workspace\" --role admin --password-env \"\$password_env\" --output agent; then
-            echo \"  -> ERROR: failed to seed admin '\$u'. Deploy cannot continue without a usable admin account.\" >&2
-            exit 1
-        fi
-    done
-    echo 'Bootstrap admin seeding complete.'
-"
+# 8. Seed canonical auth (admin@dev + hr-demo@hr)
+echo "[8/8] Seeding preview auth (admin + hr-demo)..."
+if [ -x "$DST/deploy/preview-seed-auth.sh" ]; then
+    PREVIEW_DIR="$DST" bash "$DST/deploy/preview-seed-auth.sh" || {
+        echo "ERROR: preview-seed-auth failed" >&2
+        exit 1
+    }
+else
+    echo "  -> preview-seed-auth.sh missing; admin-only fallback"
+    sudo -u ubuntu bash -c "
+        set -a; source '$DST/.env.preview'; set +a
+        cd '$DST'
+        bunx tsx scripts/auth/manage-user.ts --username admin --workspace dev --role admin --password-env AUTH_BOOTSTRAP_PASSWORD --output agent
+    "
+fi
 
 echo ""
 echo "=== Setup complete ==="

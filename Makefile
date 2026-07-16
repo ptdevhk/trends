@@ -538,6 +538,24 @@ on-host-preview-sync-from-prod:
 on-host-preview-parity-check:
 	bash ./deploy/preview-parity-check.sh
 
+# On-host: seed admin@dev + hr-demo@hr (+ orphan purge)
+on-host-preview-seed-auth:
+	bash ./deploy/preview-seed-auth.sh
+
+# On-host: full migration gate (seed + doctor + parity)
+on-host-preview-gate:
+	bash ./deploy/preview-migration-gate.sh
+
+preview-seed-auth:
+	@SSH_HOST="$${SSH_HOST:-ptcloud}"; \
+	ssh "$$SSH_HOST" 'bash /home/ubuntu/trends/deploy/preview-seed-auth.sh 2>/dev/null || \
+		bash /home/ubuntu/trends-preview/deploy/preview-seed-auth.sh'
+
+preview-gate:
+	@SSH_HOST="$${SSH_HOST:-ptcloud}"; \
+	ssh "$$SSH_HOST" 'bash /home/ubuntu/trends/deploy/preview-migration-gate.sh 2>/dev/null || \
+		bash /home/ubuntu/trends-preview/deploy/preview-migration-gate.sh'
+
 # Full preview deploy: sync code from origin/main, install, build, restart services.
 # Requires SSH access to ptcloud. Prefer on-host preview-upgrade when already on the host.
 preview-deploy:

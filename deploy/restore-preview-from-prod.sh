@@ -71,9 +71,13 @@ verify_preview_admin_login() {
         return 0
     fi
 
-    # Best-effort reseed before check (idempotent upsert).
-    if [ -x "$PREVIEW_DIR/node_modules/.bin/tsx" ] || command -v bunx >/dev/null 2>&1; then
-        echo "  -> reseeding bootstrap admin '$username' (best-effort)"
+    # Canonical reseed: admin@dev + hr-demo@hr (never reseed failed product usernames)
+    if [ -x "$SCRIPT_DIR/preview-seed-auth.sh" ] || [ -x "$PREVIEW_DIR/deploy/preview-seed-auth.sh" ]; then
+        echo "  -> reseeding preview auth (admin + hr-demo)"
+        PREVIEW_DIR="$PREVIEW_DIR" bash "${SCRIPT_DIR:-$PREVIEW_DIR/deploy}/preview-seed-auth.sh" 2>/dev/null \
+            || PREVIEW_DIR="$PREVIEW_DIR" bash "$PREVIEW_DIR/deploy/preview-seed-auth.sh" || true
+    elif [ -x "$PREVIEW_DIR/node_modules/.bin/tsx" ] || command -v bunx >/dev/null 2>&1; then
+        echo "  -> reseeding bootstrap admin '$username' (best-effort fallback)"
         (
             set -a
             # shellcheck disable=SC1091

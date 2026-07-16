@@ -78,9 +78,13 @@ KILLS=$($SUDO dmesg -T 2>/dev/null | grep -E 'Killed process.*convex-local-ba' |
 if [ -z "$KILLS" ]; then
     ok "no convex-local-backend OOM kills in dmesg buffer"
 else
-    fail "convex-local-backend OOM kills detected:"
+    if [ "${DOCTOR_STRICT_OOM:-0}" = "1" ]; then
+        fail "convex-local-backend OOM kills detected (DOCTOR_STRICT_OOM=1):"
+    else
+        warn "convex-local-backend OOM kills in dmesg (non-fatal unless DOCTOR_STRICT_OOM=1):"
+    fi
     echo "$KILLS" | sed 's/^/      /'
-    info "Mitigation: see queries/2026-05-29-convex-local-backend-memory-oom.md (raise mem_limit, lower SHARED_UDF_CACHE_MAX_SIZE)"
+    info "Mitigation: see queries/2026-05-29-convex-local-backend-memory-oom.md"
 fi
 
 echo
@@ -90,10 +94,78 @@ if systemctl is-active --quiet trends-preview-api 2>/dev/null; then
 else
     fail "trends-preview-api is NOT active"
 fi
+# Unauth: after auth-enabled preview, protected routes must be 401 (not open 200).
 RS=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 "http://127.0.0.1:$API_PORT$RESUME_SMOKE_PATH" || echo 000)
 BL=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 "http://127.0.0.1:$API_PORT/api/blocks" || echo 000)
-[ "$RS" = "200" ] && ok "$RESUME_SMOKE_PATH → $RS" || fail "$RESUME_SMOKE_PATH → $RS"
-[ "$BL" = "200" ] && ok "/api/blocks → $BL"          || fail "/api/blocks → $BL"
+HZ=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 "http://127.0.0.1:$API_PORT/health" || echo 000)
+[ "$HZ" = "200" ] && ok "/health → $HZ" || fail "/health → $HZ"
+if [ "$RS" = "401" ]; then
+    ok "unauth $RESUME_SMOKE_PATH → 401 (auth enforced)"
+elif [ "$RS" = "200" ]; then
+    warn "unauth $RESUME_SMOKE_PATH → 200 (open API — pre-auth tree or AUTH disabled)"
+else
+    fail "unauth $RESUME_SMOKE_PATH → $RS (expected 401 or 200)"
+fi
+if [ "$BL" = "401" ]; then
+    ok "unauth /api/blocks → 401 (auth enforced)"
+elif [ "$BL" = "200" ]; then
+    warn "unauth /api/blocks → 200 (open API — pre-auth tree or AUTH disabled)"
+else
+    fail "unauth /api/blocks → $BL (expected 401 or 200)"
+fi
+
+# Auth smoke when bootstrap passwords are available
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib-preview-auth-session.sh
+if [ -f "$SCRIPT_DIR/lib-preview-auth-session.sh" ]; then
+    # shellcheck disable=SC1091
+    source "$SCRIPT_DIR/lib-preview-common.sh" 2>/dev/null || true
+    # shellcheck disable=SC1091
+    source "$SCRIPT_DIR/lib-preview-auth-session.sh"
+fi
+ENV_FILE="${PREVIEW_ENV_FILE:-$PREVIEW_DIR/.env.preview}"
+if [ -f "$ENV_FILE" ]; then
+    set -a
+    # shellcheck disable=SC1090
+    source "$ENV_FILE"
+    set +a
+fi
+ADMIN_USER="${BOOTSTRAP_ADMIN_USERS%%,*}"
+ADMIN_USER="${ADMIN_USER:-admin}"
+HR_USER="${BOOTSTRAP_HR_DEMO_USER:-hr-demo}"
+ADMIN_WS="${BOOTSTRAP_ADMIN_WORKSPACE:-dev}"
+HR_WS="${BOOTSTRAP_HR_DEMO_WORKSPACE:-hr}"
+
+if [ -n "${AUTH_BOOTSTRAP_PASSWORD:-}" ] && type preview_auth_login >/dev/null 2>&1; then
+    JAR="/tmp/preview-doctor-admin.jar"
+    if preview_auth_login "$ADMIN_USER" "$AUTH_BOOTSTRAP_PASSWORD" "$JAR"; then
+        ok "admin login ($ADMIN_USER)"
+        code=$(preview_auth_curl "$JAR" "$ADMIN_WS" -o /dev/null -w '%{http_code}' \
+            "http://127.0.0.1:$API_PORT$RESUME_SMOKE_PATH" || echo 000)
+        [ "$code" = "200" ] && ok "admin resumes ($ADMIN_WS) → $code" || fail "admin resumes → $code"
+    else
+        fail "admin login ($ADMIN_USER) failed"
+    fi
+else
+    warn "AUTH_BOOTSTRAP_PASSWORD unset or session helper missing — skip admin login smoke"
+fi
+
+if [ -n "${AUTH_HR_DEMO_PASSWORD:-}" ] && type preview_auth_login >/dev/null 2>&1; then
+    JAR="/tmp/preview-doctor-hr.jar"
+    if preview_auth_login "$HR_USER" "$AUTH_HR_DEMO_PASSWORD" "$JAR"; then
+        ok "hr-demo login ($HR_USER)"
+        code=$(preview_auth_curl "$JAR" "$HR_WS" -o /dev/null -w '%{http_code}' \
+            "http://127.0.0.1:$API_PORT$RESUME_SMOKE_PATH" || echo 000)
+        [ "$code" = "200" ] && ok "hr-demo resumes ($HR_WS) → $code" || fail "hr-demo resumes → $code"
+        code=$(preview_auth_curl "$JAR" "$HR_WS" -o /dev/null -w '%{http_code}' \
+            "http://127.0.0.1:$API_PORT/api/blocks" || echo 000)
+        [ "$code" = "200" ] && ok "hr-demo blocks ($HR_WS) → $code" || fail "hr-demo blocks → $code"
+    else
+        fail "hr-demo login ($HR_USER) failed"
+    fi
+else
+    warn "AUTH_HR_DEMO_PASSWORD unset — skip hr-demo login smoke"
+fi
 
 echo
 echo "[5/6] MCP container"

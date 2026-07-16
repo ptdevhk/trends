@@ -233,19 +233,26 @@ assert_not_prod_services_targeted() {
 }
 
 wait_for_http() {
+    # Accept any HTTP status < 500 (auth-enabled APIs often return 401 until login).
+    # Prefer /health for liveness. Override: WAIT_HTTP_OK_CODES=200,401
     local url="$1"
     local max_wait="${2:-120}"
     local waited=0
+    local code=""
     log_info "Waiting for $url (max ${max_wait}s)..."
-    while ! curl -fsS --max-time 5 "$url" >/dev/null 2>&1; do
+    while true; do
+        code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 "$url" 2>/dev/null || echo 000)"
+        if [[ "$code" =~ ^[1234][0-9][0-9]$ ]]; then
+            log_info "Ready after ${waited}s: $url → $code"
+            return 0
+        fi
         sleep 2
         waited=$((waited + 2))
         if [[ "$waited" -ge "$max_wait" ]]; then
-            log_error "Timed out waiting for $url"
+            log_error "Timed out waiting for $url (last code=$code)"
             return 1
         fi
     done
-    log_info "Ready after ${waited}s: $url"
 }
 
 sha256_file() {

@@ -236,25 +236,45 @@ if [[ -f "$PREVIEW_DIR/deploy/systemd/trends-preview-api.service" ]]; then
     systemctl daemon-reload
 fi
 systemctl restart "$PREVIEW_API_SERVICE"
-wait_for_http "$PREVIEW_API_URL/api/blocks" 120
+wait_for_http "$PREVIEW_API_URL/health" 120
+
+log_step "Seed canonical preview auth (admin@dev + hr-demo@hr)"
+if [[ -x "$SCRIPT_DIR/preview-seed-auth.sh" ]]; then
+    bash "$SCRIPT_DIR/preview-seed-auth.sh" || log_warn "preview-seed-auth failed (run manually)"
+elif [[ -x "$PREVIEW_DIR/deploy/preview-seed-auth.sh" ]]; then
+    bash "$PREVIEW_DIR/deploy/preview-seed-auth.sh" || log_warn "preview-seed-auth failed (run manually)"
+fi
+# Ensure CONVEX_WRITE_SECRET is in Convex deployment env (status overlays)
+if [[ -x "$PREVIEW_DIR/deploy/sync-preview-convex-env.sh" ]]; then
+    PREVIEW_DIR="$PREVIEW_DIR" bash "$PREVIEW_DIR/deploy/sync-preview-convex-env.sh" --sync-only || true
+elif [[ -x "$SCRIPT_DIR/sync-preview-convex-env.sh" ]]; then
+    PREVIEW_DIR="$PREVIEW_DIR" bash "$SCRIPT_DIR/sync-preview-convex-env.sh" --sync-only || true
+fi
 
 log_step "Verification"
 print_context_report "preview-after" "$PREVIEW_DIR" "$PREVIEW_ENV_FILE"
+HEALTH="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 "$PREVIEW_API_URL/health" || echo 000)"
 BLOCKS="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 "$PREVIEW_API_URL/api/blocks" || echo 000)"
 RESUMES="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 "$PREVIEW_API_URL/api/resumes?source=convex&paged=true&limit=1" || echo 000)"
 PUB="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 "https://$PREVIEW_PUBLIC_HOST/" || echo 000)"
 CV="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 "$PREVIEW_CONVEX_URL/version" || echo 000)"
-log_info "api/blocks=$BLOCKS resumes=$RESUMES public=$PUB convex=$CV"
+log_info "health=$HEALTH api/blocks=$BLOCKS resumes=$RESUMES public=$PUB convex=$CV"
+# blocks/resumes may be 401 when auth is enforced (expected)
+if [[ "$BLOCKS" != "200" && "$BLOCKS" != "401" ]]; then
+    log_warn "unexpected /api/blocks code=$BLOCKS"
+fi
 
 # Confirm production still untouched
 PROD_SHA_NOW="$(sudo -u "$PROD_SERVICE_USER" git -C "$PROD_DIR" rev-parse --short HEAD 2>/dev/null || echo n/a)"
 log_info "Production SHA unchanged check: $PROD_SHA_NOW (informational)"
 
-if [[ -x "$PREVIEW_DIR/deploy/preview-doctor.sh" ]]; then
+if [[ -x "$SCRIPT_DIR/preview-doctor.sh" ]]; then
+    bash "$SCRIPT_DIR/preview-doctor.sh" || log_warn "preview-doctor reported issues"
+elif [[ -x "$PREVIEW_DIR/deploy/preview-doctor.sh" ]]; then
     bash "$PREVIEW_DIR/deploy/preview-doctor.sh" || log_warn "preview-doctor reported issues"
 fi
 
-if [[ "$BLOCKS" != "200" || "$CV" != "200" ]]; then
+if [[ "$HEALTH" != "200" || "$CV" != "200" ]]; then
     log_error "Post-upgrade health checks failed. STOP and investigate before further changes."
     exit 1
 fi
@@ -272,5 +292,7 @@ log=$LOG_FILE
 
 Production was not modified.
 Data restore (if needed): sudo bash $SCRIPT_DIR/restore-preview-full-state-from-prod.sh
+Seed auth: bash $SCRIPT_DIR/preview-seed-auth.sh
+Gate: bash $SCRIPT_DIR/preview-migration-gate.sh
 Doctor: bash $PREVIEW_DIR/deploy/preview-doctor.sh --full
 EOF

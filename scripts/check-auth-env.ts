@@ -23,6 +23,12 @@ export interface AuthEnvInput {
   AUTH_OIDC_CLIENT_ID: string
   AUTH_OIDC_CLIENT_SECRET: string
   AUTH_OIDC_REDIRECT_URI: string
+  /** Preview bootstrap: ops admin password (via AUTH_BOOTSTRAP_PASSWORD or indirection). */
+  AUTH_BOOTSTRAP_PASSWORD: string
+  /** Preview bootstrap: HR demo password for workspace hr. */
+  AUTH_HR_DEMO_PASSWORD: string
+  BOOTSTRAP_ADMIN_USERS: string
+  BOOTSTRAP_HR_DEMO_USER: string
 }
 
 export interface CheckResult {
@@ -43,6 +49,28 @@ export function checkAuthEnv(input: AuthEnvInput): CheckResult {
   // Production/preview: require AUTH_ALLOWED_ORIGINS
   if (isProdLike && !input.AUTH_ALLOWED_ORIGINS) {
     errors.push('AUTH_ALLOWED_ORIGINS is required in ' + input.mode + ' mode')
+  }
+
+  // Preview bootstrap accounts (no-auth → auth migration gate)
+  if (input.mode === 'preview') {
+    const adminUsers = (input.BOOTSTRAP_ADMIN_USERS || 'admin').trim()
+    const hrDemo = (input.BOOTSTRAP_HR_DEMO_USER || 'hr-demo').trim()
+    if (!adminUsers) {
+      errors.push('BOOTSTRAP_ADMIN_USERS is required in preview mode')
+    }
+    if (!hrDemo) {
+      errors.push('BOOTSTRAP_HR_DEMO_USER is required in preview mode')
+    }
+    if (!input.AUTH_BOOTSTRAP_PASSWORD) {
+      errors.push(
+        'AUTH_BOOTSTRAP_PASSWORD is required in preview mode (ops admin seed/login)',
+      )
+    }
+    if (!input.AUTH_HR_DEMO_PASSWORD) {
+      errors.push(
+        'AUTH_HR_DEMO_PASSWORD is required in preview mode (hr-demo seed/login on workspace hr)',
+      )
+    }
   }
 
   // AUTH_ADMIN_RESET_ENABLED: experimental admin password reset — warn on
@@ -115,6 +143,8 @@ function resolveInput(mode: AuthEnvMode, envFilePath?: string): AuthEnvInput {
     envVars = { ...process.env as Record<string, string>, ...fileVars }
   }
   const get = (key: string) => envVars[key] ?? ''
+  const bootstrapPwEnv = get('BOOTSTRAP_ADMIN_PASSWORD_ENV') || 'AUTH_BOOTSTRAP_PASSWORD'
+  const hrDemoPwEnv = get('BOOTSTRAP_HR_DEMO_PASSWORD_ENV') || 'AUTH_HR_DEMO_PASSWORD'
   return {
     mode,
     CONVEX_WRITE_SECRET: get('CONVEX_WRITE_SECRET'),
@@ -125,6 +155,10 @@ function resolveInput(mode: AuthEnvMode, envFilePath?: string): AuthEnvInput {
     AUTH_OIDC_CLIENT_ID: get('AUTH_OIDC_CLIENT_ID'),
     AUTH_OIDC_CLIENT_SECRET: get('AUTH_OIDC_CLIENT_SECRET'),
     AUTH_OIDC_REDIRECT_URI: get('AUTH_OIDC_REDIRECT_URI'),
+    AUTH_BOOTSTRAP_PASSWORD: get(bootstrapPwEnv) || get('AUTH_BOOTSTRAP_PASSWORD'),
+    AUTH_HR_DEMO_PASSWORD: get(hrDemoPwEnv) || get('AUTH_HR_DEMO_PASSWORD'),
+    BOOTSTRAP_ADMIN_USERS: get('BOOTSTRAP_ADMIN_USERS'),
+    BOOTSTRAP_HR_DEMO_USER: get('BOOTSTRAP_HR_DEMO_USER'),
   }
 }
 
