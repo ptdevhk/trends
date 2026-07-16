@@ -19,6 +19,12 @@ AI_ENV_KEYS=(
     AI_ANALYSIS_PARALLELISM
 )
 
+# Required for candidate_blocks / candidate_status overlays after auth upgrade.
+# Missing this secret yields "Unauthorized Convex read" and empty statusCounts.
+CONVEX_SECRET_ENV_KEYS=(
+    CONVEX_WRITE_SECRET
+)
+
 PROD_ENV_CANDIDATES=()
 if [ -n "${PROD_ENV:-}" ]; then
     PROD_ENV_CANDIDATES+=("$PROD_ENV")
@@ -212,9 +218,12 @@ sync_convex_env() {
         exit 1
     fi
 
-    for key in "${AI_ENV_KEYS[@]}"; do
+    for key in "${AI_ENV_KEYS[@]}" "${CONVEX_SECRET_ENV_KEYS[@]}"; do
         value="$(read_env_value "$PREVIEW_ENV" "$key")"
         if [ -z "$value" ]; then
+            if [[ " ${CONVEX_SECRET_ENV_KEYS[*]} " == *" $key "* ]]; then
+                echo "WARN: $key empty in $PREVIEW_ENV — candidate status/blocks will fail with Unauthorized Convex read" >&2
+            fi
             continue
         fi
 
@@ -231,7 +240,7 @@ sync_convex_env() {
         echo "No preview AI env vars were available to sync." >&2
         exit 1
     fi
-    echo "Synced $synced preview AI env var(s) into Convex."
+    echo "Synced $synced preview Convex env var(s)."
 }
 
 if [ "$MODE" = "all" ] || [ "$MODE" = "--hydrate-only" ]; then
