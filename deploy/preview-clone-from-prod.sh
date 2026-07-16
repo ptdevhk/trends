@@ -211,7 +211,7 @@ log_info "https://$PREVIEW_PUBLIC_HOST/ → $PUB"
 
 cat <<EOF
 
-=== Preview clone from production complete ===
+=== Preview CODE pin from production complete ===
 preview_dir=$PREVIEW_DIR
 source_sha=$PROD_SHA
 source_branch=$PROD_BRANCH
@@ -220,11 +220,15 @@ env_backup=${ENV_BACKUP:-none}
 tree_backup=${BAK:-none}
 log=$LOG_FILE
 
-Next:
-  # Full data sync (Convex + SQLite) — modifies PREVIEW only
-  sudo bash $SCRIPT_DIR/restore-preview-full-state-from-prod.sh
+WARNING: This step does NOT copy resumes, statuses, or AI scores.
+Search/status UI will NOT match production until you run data sync:
 
-  # Then upgrade preview to latest (from preview dir):
-  cd $PREVIEW_DIR && sudo bash deploy/preview-upgrade.sh
-  # or: cd $PREVIEW_DIR && make deploy
+  # Preferred single entrypoint (backup + convex + sqlite + parity):
+  sudo ASSUME_YES=1 DIGEST_BACKFILL_MODE=skip bash $SCRIPT_DIR/preview-sync-from-prod.sh --data-only
+
+  # Or full-state only:
+  sudo ASSUME_YES=1 DIGEST_BACKFILL_MODE=skip bash $SCRIPT_DIR/restore-preview-full-state-from-prod.sh
+
+  # Parity check:
+  bash $SCRIPT_DIR/preview-parity-check.sh
 EOF

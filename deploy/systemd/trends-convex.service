@@ -11,7 +11,13 @@ WorkingDirectory=/opt/trends/packages/convex
 EnvironmentFile=-/etc/trends/env
 Environment=NODE_ENV=production
 Environment=CONVEX_AGENT_MODE=anonymous
-Environment=CONVEX_LOCAL_BACKEND_STARTUP_TIMEOUT_SECS=90
+Environment=CONVEX_LOCAL_BACKEND_STARTUP_TIMEOUT_SECS=120
+# Local-backend memory knobs (same family as preview docker-compose).
+# Defaults in convex-backend knobs.rs are much larger (~1GiB shared UDF cache).
+# Keep these set so long-lived prod backends do not balloon RSS over weeks.
+Environment=SHARED_UDF_CACHE_MAX_SIZE=100000000
+Environment=UDF_CACHE_MAX_SIZE=50000000
+Environment=DOCUMENT_RETENTION_DELAY=172800
 UnsetEnvironment=TZ
 ExecStartPre=/usr/bin/bash /opt/trends/scripts/prefetch-convex-backend.sh
 # Warm the cached backend so the subsequent `convex dev --local` boot is faster.

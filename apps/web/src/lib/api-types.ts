@@ -1183,6 +1183,12 @@ export interface paths {
                         /** Format: email */
                         email?: string;
                         displayName?: string;
+                        systemMemberships?: {
+                            /** @enum {string} */
+                            workspaceSlug: "dev" | "hr";
+                            /** @enum {string} */
+                            role: "user" | "admin";
+                        }[];
                         initialMembership?: {
                             /** @enum {string} */
                             workspaceSlug: "dev" | "hr";
@@ -1225,6 +1231,19 @@ export interface paths {
                         };
                     };
                 };
+                /** @description Invalid username / reserved slug */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
                 /** @description Auth required */
                 401: {
                     headers: {
@@ -1251,7 +1270,7 @@ export interface paths {
                         };
                     };
                 };
-                /** @description Username taken */
+                /** @description Username or personal slug taken */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -3704,6 +3723,7 @@ export interface paths {
                             resumeId: string;
                             name?: string;
                             comments: string;
+                            profileUrl?: string;
                         }[];
                     };
                 };

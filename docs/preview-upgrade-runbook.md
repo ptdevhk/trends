@@ -279,10 +279,34 @@ sudo bash "$DEPLOY_SCRIPTS/preview-preflight.sh" 2>&1 | tee "$LOG_DIR/preview-pr
 
 ---
 
-## 6. Clone production **application version** into preview
+## 6. Preferred: single-command data parity sync
+
+> **This is the primary path.** Code pin alone does **not** reproduce HR search totals or status facets.
+
+Architecture: `docs/backup-restore-architecture.md`
+
+```bash
+set -Eeuo pipefail
+# Loads CONVEX_WRITE_SECRET for quiesce from /etc/trends/env when run as root
+sudo ASSUME_YES=1 DIGEST_BACKFILL_MODE=skip \
+  bash "$DEPLOY_SCRIPTS/preview-sync-from-prod.sh" --data-only \
+  2>&1 | tee "$LOG_DIR/preview-sync-${TS}.log"
+```
+
+With code pin to production SHA as well:
+
+```bash
+sudo ASSUME_YES=1 DIGEST_BACKFILL_MODE=skip \
+  bash "$DEPLOY_SCRIPTS/preview-sync-from-prod.sh" --with-code-pin
+```
+
+**Digest policy:** default `DIGEST_BACKFILL_MODE=skip` keeps production digests (search parity).  
+`always` recomputes digests and **will** drift search totals.
+
+## 6b. Legacy: clone production **application version** only
 
 > **Modifies:** `/home/ubuntu/trends-preview` only (moves previous tree to `trends-preview.bak.<ts>`).  
-> **Does not:** modify `/opt/trends`.
+> **Does not:** copy Convex/SQLite data. **Not sufficient for UI parity.**
 
 ```bash
 set -Eeuo pipefail

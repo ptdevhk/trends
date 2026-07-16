@@ -530,6 +530,14 @@ on-host-preview-upgrade:
 on-host-preview-isolate:
 	sudo ASSUME_YES=1 bash ./deploy/preview-isolate-integrations.sh --apply
 
+# On-host: single entrypoint prod→preview data parity sync (backup + convex + sqlite + parity)
+on-host-preview-sync-from-prod:
+	sudo ASSUME_YES="$${ASSUME_YES:-1}" DIGEST_BACKFILL_MODE="$${DIGEST_BACKFILL_MODE:-skip}" bash ./deploy/preview-sync-from-prod.sh $(ARGS)
+
+# On-host: read-only prod vs preview search/sqlite parity
+on-host-preview-parity-check:
+	bash ./deploy/preview-parity-check.sh
+
 # Full preview deploy: sync code from origin/main, install, build, restart services.
 # Requires SSH access to ptcloud. Prefer on-host preview-upgrade when already on the host.
 preview-deploy:

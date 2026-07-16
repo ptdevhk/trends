@@ -58,15 +58,34 @@ check_preview_endpoint() {
 
 verify_preview_admin_login() {
     # Verify the bootstrap admin can authenticate.
-    # Catches setup-preview.sh step 8 failures that would otherwise leave
-    # the preview instance with no usable admin account.
+    # Soft-fail by default: data restore must not abort after Convex import
+    # because admin login is independent of resume/status parity.
+    # Set RESTORE_STRICT=1 to hard-fail on admin login failure.
     local password="${AUTH_BOOTSTRAP_PASSWORD:-}"
     local username="${BOOTSTRAP_ADMIN_USERS%%,*}"
     username="${username:-admin}"
+    local strict="${RESTORE_STRICT:-0}"
 
     if [ -z "$password" ]; then
         echo "  -> AUTH_BOOTSTRAP_PASSWORD not set; skipping admin login check"
         return 0
+    fi
+
+    # Best-effort reseed before check (idempotent upsert).
+    if [ -x "$PREVIEW_DIR/node_modules/.bin/tsx" ] || command -v bunx >/dev/null 2>&1; then
+        echo "  -> reseeding bootstrap admin '$username' (best-effort)"
+        (
+            set -a
+            # shellcheck disable=SC1091
+            source "$PREVIEW_DIR/.env.preview" 2>/dev/null || true
+            set +a
+            cd "$PREVIEW_DIR"
+            if command -v bunx >/dev/null 2>&1; then
+                bunx tsx scripts/auth/manage-user.ts --username "$username" --workspace "${BOOTSTRAP_ADMIN_WORKSPACE:-dev}" --role admin --password-env AUTH_BOOTSTRAP_PASSWORD --output agent || true
+            else
+                "$PREVIEW_DIR/node_modules/.bin/tsx" scripts/auth/manage-user.ts --username "$username" --workspace "${BOOTSTRAP_ADMIN_WORKSPACE:-dev}" --role admin --password-env AUTH_BOOTSTRAP_PASSWORD --output agent || true
+            fi
+        ) || true
     fi
 
     local body
@@ -84,7 +103,15 @@ verify_preview_admin_login() {
     echo "  Hint: re-seed with:" >&2
     echo "    cd $PREVIEW_DIR && set -a; source .env.preview; set +a \\" >&2
     echo "      && bunx tsx scripts/auth/manage-user.ts --username $username --workspace dev --role admin --password-env AUTH_BOOTSTRAP_PASSWORD --output agent" >&2
-    exit 1
+    case "$strict" in
+        1|true|yes)
+            exit 1
+            ;;
+        *)
+            echo "  -> continuing (RESTORE_STRICT not set). Data parity is independent of admin login." >&2
+            return 0
+            ;;
+    esac
 }
 
 check_preview_resume_page() {
@@ -254,18 +281,48 @@ PREVIEW_DIR="$PREVIEW_DIR" "$PREVIEW_DIR/deploy/sync-preview-convex-env.sh"
 # Run import inside the container (where 127.0.0.1:3210 resolves to local backend)
 docker exec trends-preview-convex bash -c "
     cd /app/packages/convex && \
-    timeout 600 npx convex import --replace-all /app/prod-convex-export.zip --yes
+    timeout 900 npx convex import --replace-all /app/prod-convex-export.zip --yes
 "
 
 echo ""
-echo "=== Step 4: Rebuild resume digests ==="
-# The production export can omit empty derived tables. After replace-all imports,
-# rebuild resume_digests so preview search uses the same hot-table path as prod.
-digest_cursor=""
-digest_total=0
-digest_iteration=1
-while true; do
-    call_args="$(CURSOR="$digest_cursor" DIGEST_BACKFILL_BATCH_SIZE="$DIGEST_BACKFILL_BATCH_SIZE" python3 <<'PYEOF'
+echo "=== Step 4: Resume digests (parity-preserving policy) ==="
+# DIGEST_BACKFILL_MODE:
+#   skip     — never recompute (default). Preserve production digests for search parity.
+#   if-empty — only backfill when digests appear empty after import
+#   always   — recompute all digests (destroys prod digest text/score fields; search can drift)
+DIGEST_BACKFILL_MODE="${DIGEST_BACKFILL_MODE:-skip}"
+DIGEST_IMPORTED_COUNT="$(unzip -l /tmp/prod-convex-export-fixed.zip 2>/dev/null | awk '/resume_digests\/documents\.jsonl/ {print $1; found=1} END{if(!found) print 0}' || echo 0)"
+# Heuristic: documents.jsonl size > 100 bytes means digests were exported
+DIGEST_FILE_BYTES=0
+if [ -f /tmp/prod-convex-export-fixed.zip ]; then
+    DIGEST_FILE_BYTES="$(unzip -p /tmp/prod-convex-export-fixed.zip resume_digests/documents.jsonl 2>/dev/null | wc -c | tr -d ' ' || echo 0)"
+fi
+echo "Digest policy: DIGEST_BACKFILL_MODE=$DIGEST_BACKFILL_MODE export_digest_bytes=${DIGEST_FILE_BYTES:-0}"
+
+should_backfill_digests=0
+case "$DIGEST_BACKFILL_MODE" in
+    always|force|1|true|yes) should_backfill_digests=1 ;;
+    if-empty)
+        if [ "${DIGEST_FILE_BYTES:-0}" -lt 100 ]; then
+            should_backfill_digests=1
+        fi
+        ;;
+    skip|never|0|false|no|"") should_backfill_digests=0 ;;
+    *)
+        echo "Unknown DIGEST_BACKFILL_MODE=$DIGEST_BACKFILL_MODE (use skip|if-empty|always)" >&2
+        exit 2
+        ;;
+esac
+
+if [ "$should_backfill_digests" -eq 0 ]; then
+    echo "Skipping digest backfill — keeping imported production digests (search parity)."
+else
+    echo "Rebuilding resume digests (this can change search totals vs production)..."
+    digest_cursor=""
+    digest_total=0
+    digest_iteration=1
+    while true; do
+        call_args="$(CURSOR="$digest_cursor" DIGEST_BACKFILL_BATCH_SIZE="$DIGEST_BACKFILL_BATCH_SIZE" python3 <<'PYEOF'
 import json
 import os
 
@@ -277,14 +334,14 @@ print(json.dumps(args))
 PYEOF
 )"
 
-    echo "Backfilling resume_digests batch $digest_iteration..."
-    if ! output="$(docker exec trends-preview-convex bash -c "cd /app/packages/convex && npx convex run resumes_search:backfillResumeDigests '$call_args'" 2>&1)"; then
-        printf '%s\n' "$output"
-        echo "resume_digests backfill failed" >&2
-        exit 1
-    fi
+        echo "Backfilling resume_digests batch $digest_iteration..."
+        if ! output="$(docker exec trends-preview-convex bash -c "cd /app/packages/convex && npx convex run resumes_search:backfillResumeDigests '$call_args'" 2>&1)"; then
+            printf '%s\n' "$output"
+            echo "resume_digests backfill failed" >&2
+            exit 1
+        fi
 
-    parsed="$(OUTPUT="$output" python3 <<'PYEOF'
+        parsed="$(OUTPUT="$output" python3 <<'PYEOF'
 import json
 import os
 
@@ -300,22 +357,23 @@ cursor = value.get("cursor") or ""
 print(f"{processed}\t{is_done}\t{cursor}")
 PYEOF
 )"
-    processed="${parsed%%$'\t'*}"
-    rest="${parsed#*$'\t'}"
-    is_done="${rest%%$'\t'*}"
-    digest_cursor="${rest#*$'\t'}"
-    digest_total=$((digest_total + processed))
+        processed="${parsed%%$'\t'*}"
+        rest="${parsed#*$'\t'}"
+        is_done="${rest%%$'\t'*}"
+        digest_cursor="${rest#*$'\t'}"
+        digest_total=$((digest_total + processed))
 
-    if [ "$is_done" = "1" ]; then
-        break
-    fi
-    if [ -z "$digest_cursor" ]; then
-        echo "resume_digests backfill did not finish but returned no cursor" >&2
-        exit 1
-    fi
-    digest_iteration=$((digest_iteration + 1))
-done
-echo "Backfilled resume_digests for $digest_total resumes"
+        if [ "$is_done" = "1" ]; then
+            break
+        fi
+        if [ -z "$digest_cursor" ]; then
+            echo "resume_digests backfill did not finish but returned no cursor" >&2
+            exit 1
+        fi
+        digest_iteration=$((digest_iteration + 1))
+    done
+    echo "Backfilled resume_digests for $digest_total resumes"
+fi
 
 echo ""
 echo "=== Step 5: Restart API to pick up fresh data ==="
@@ -329,8 +387,13 @@ set -a; source "$PREVIEW_DIR/.env.preview" 2>/dev/null || true; set +a
 check_preview_endpoint "/api/blocks"
 check_preview_resume_page
 verify_preview_admin_login
-run_preview_ai_smoke
+# AI smoke is optional for data-restore; default skip unless explicitly enabled.
+case "${RUN_PREVIEW_AI_SMOKE:-0}" in
+    1|true|yes) run_preview_ai_smoke ;;
+    *) echo "Skipping AI smoke (set RUN_PREVIEW_AI_SMOKE=1 to enable)." ;;
+esac
 
 echo ""
 echo "=== Done ==="
 echo "Visit https://preview.pt-mes.com/hr/resumes to verify"
+echo "Parity check: bash deploy/preview-parity-check.sh"

@@ -69,14 +69,20 @@ Canonical paths on `ptcloud`:
 - Preview: `/home/ubuntu/trends-preview` (API `:3002`, Convex `:4210`, `preview.pt-mes.com`)
 
 ```bash
-# On ptcloud — never upgrade production during preview work
-sudo ASSUME_YES=1 bash deploy/backup-prod-complete.sh
-sudo bash deploy/preview-preflight.sh
-sudo ASSUME_YES=1 bash deploy/preview-clone-from-prod.sh
-sudo SKIP_PREVIEW_AI_SMOKE=1 bash deploy/restore-preview-full-state-from-prod.sh
-cd /home/ubuntu/trends-preview && sudo ASSUME_YES=1 make deploy   # → preview-upgrade.sh only
+# On ptcloud — preferred single entrypoint for DATA parity (prod → preview)
+# Architecture: docs/backup-restore-architecture.md
+sudo ASSUME_YES=1 DIGEST_BACKFILL_MODE=skip bash deploy/preview-sync-from-prod.sh --data-only
+bash deploy/preview-parity-check.sh
+
+# Optional: also pin preview app code to prod SHA
+sudo ASSUME_YES=1 bash deploy/preview-sync-from-prod.sh --with-code-pin
+
+# Upgrade preview app to latest main (code only — does not replace data)
+cd /home/ubuntu/trends-preview && sudo ASSUME_YES=1 make deploy
 bash deploy/preview-doctor.sh --full
 ```
+
+**Never** treat `preview-clone-from-prod` alone as a full clone — it pins **code**, not resumes/status/AI scores.
 
 `make deploy` / `./scripts/install.sh upgrade` from `/opt/trends` = **production**.  
 From `/home/ubuntu/trends-preview`, `make deploy` routes to `deploy/preview-upgrade.sh`.  

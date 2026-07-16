@@ -296,8 +296,9 @@ describe("preview restore export compatibility", () => {
     expect(restorePreviewScript).toContain("Materialized missing schema tables as empty");
   });
 
-  it("rebuilds resume digests in bounded batches after the replace-all preview import", () => {
-    expect(restorePreviewScript).toContain("Rebuild resume digests");
+  it("supports optional digest backfill in bounded batches after replace-all import", () => {
+    // Default is skip (parity-preserving); always/if-empty still use batched backfill.
+    expect(restorePreviewScript).toContain("DIGEST_BACKFILL_MODE");
     expect(restorePreviewScript).toContain("resumes_search:backfillResumeDigests");
     expect(restorePreviewScript).toContain('"limit":');
     expect(restorePreviewScript).toContain("DIGEST_BACKFILL_BATCH_SIZE");
@@ -505,6 +506,28 @@ describe("preview release helpers", () => {
     expect(commonLib).toContain('/opt/trends');
     expect(commonLib).toContain("/home/ubuntu/trends-preview");
     expect(commonLib).toContain("print_context_report");
+  });
+
+  it("preserves digests by default and soft-fails admin login on restore", () => {
+    expect(restorePreviewScript).toContain("DIGEST_BACKFILL_MODE");
+    expect(restorePreviewScript).toContain('DIGEST_BACKFILL_MODE:-skip');
+    expect(restorePreviewScript).toContain("Skipping digest backfill");
+    expect(restorePreviewScript).toContain("RESTORE_STRICT");
+    expect(restorePreviewScript).toContain("Data parity is independent of admin login");
+    expect(restorePreviewScript).toContain("RUN_PREVIEW_AI_SMOKE");
+  });
+
+  it("ships orchestrator + parity check for prod→preview fidelity", () => {
+    const syncScript = readFileSync(new URL("../deploy/preview-sync-from-prod.sh", import.meta.url), "utf8");
+    const parityScript = readFileSync(new URL("../deploy/preview-parity-check.sh", import.meta.url), "utf8");
+    expect(syncScript).toContain("preview-sync-from-prod");
+    expect(syncScript).toContain("backup-prod-complete.sh");
+    expect(syncScript).toContain("restore-preview-full-state-from-prod.sh");
+    expect(syncScript).toContain("preview-parity-check.sh");
+    expect(syncScript).toContain("DIGEST_BACKFILL_MODE");
+    expect(parityScript).toContain("candidate_actions");
+    expect(parityScript).toContain("summary");
+    expect(parityScript).toContain("PARITY OK");
   });
 });
 

@@ -36,6 +36,9 @@ Environment overrides:
   PREVIEW_CONVEX_URL    default: http://127.0.0.1:4210
   CONVEX_RESTORE_SCRIPT default: \$PROD_DIR/deploy/restore-preview-from-prod.sh
   SKIP_PREVIEW_AI_SMOKE set to 1/true/yes to skip the bounded AI analysis smoke
+  RUN_PREVIEW_AI_SMOKE  set to 1 to run AI smoke (default off for data restore)
+  DIGEST_BACKFILL_MODE  skip|if-empty|always (default skip — preserves prod search digests)
+  RESTORE_STRICT        set to 1 to hard-fail on admin login check
 EOF
 }
 
@@ -152,15 +155,26 @@ run_preview_ai_smoke() {
 
 restore_convex_state() {
     if [ ! -f "$CONVEX_RESTORE_SCRIPT" ]; then
-        echo "Missing Convex restore script: $CONVEX_RESTORE_SCRIPT" >&2
-        exit 1
+        # Prefer host mirror / preview tree scripts when prod tree lags.
+        if [ -f "$PREVIEW_DIR/deploy/restore-preview-from-prod.sh" ]; then
+            CONVEX_RESTORE_SCRIPT="$PREVIEW_DIR/deploy/restore-preview-from-prod.sh"
+        elif [ -f /home/ubuntu/trends/deploy/restore-preview-from-prod.sh ]; then
+            CONVEX_RESTORE_SCRIPT=/home/ubuntu/trends/deploy/restore-preview-from-prod.sh
+        else
+            echo "Missing Convex restore script: $CONVEX_RESTORE_SCRIPT" >&2
+            exit 1
+        fi
     fi
 
     log "=== Step 1: Restore production Convex state into preview ==="
-    case "${SKIP_PREVIEW_AI_SMOKE:-}" in
-        1|true|yes) bash "$CONVEX_RESTORE_SCRIPT" ;;
-        *) SKIP_PREVIEW_AI_SMOKE=1 bash "$CONVEX_RESTORE_SCRIPT" ;;
-    esac
+    log "Using CONVEX_RESTORE_SCRIPT=$CONVEX_RESTORE_SCRIPT"
+    log "DIGEST_BACKFILL_MODE=${DIGEST_BACKFILL_MODE:-skip}"
+    # Data restore must complete even if admin login / AI smoke would fail.
+    DIGEST_BACKFILL_MODE="${DIGEST_BACKFILL_MODE:-skip}" \
+    RUN_PREVIEW_AI_SMOKE="${RUN_PREVIEW_AI_SMOKE:-0}" \
+    SKIP_PREVIEW_AI_SMOKE="${SKIP_PREVIEW_AI_SMOKE:-1}" \
+    RESTORE_STRICT="${RESTORE_STRICT:-0}" \
+        bash "$CONVEX_RESTORE_SCRIPT"
 }
 
 restore_sqlite_state() {
@@ -235,11 +249,54 @@ restore_sqlite_state() {
     log "Preview SQLite backup directory: $preview_backup_dir"
 }
 
+stabilize_preview_convex() {
+    log ""
+    log "=== Stabilize preview Convex after import/swap ==="
+    if [ -f "$PREVIEW_DIR/docker-compose.preview.yml" ]; then
+        cd "$PREVIEW_DIR"
+        docker compose -f docker-compose.preview.yml up -d --force-recreate convex
+        local i=0
+        local code="000"
+        for i in $(seq 1 48); do
+            code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 3 "$PREVIEW_CONVEX_URL/version" || echo 000)"
+            if [ "$code" = "200" ]; then
+                log "Preview Convex /version → 200 after ${i} attempts"
+                break
+            fi
+            sleep 5
+        done
+        if [ "$code" != "200" ]; then
+            echo "Preview Convex did not become healthy after stabilize" >&2
+            exit 1
+        fi
+    fi
+    systemctl restart "$PREVIEW_API_SERVICE"
+    wait_for_preview_api
+}
+
 verify_preview() {
     log ""
     log "=== Step 3: Verify preview API ==="
-    check_endpoint "/api/blocks"
-    check_endpoint "$PREVIEW_RESUME_SMOKE_PATH"
+    # Retries: post-import Convex can reset sockets for 1–2 minutes.
+    local path="$1"
+    local attempts=20
+    local i=0
+    local status="000"
+    for i in $(seq 1 "$attempts"); do
+        status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$PREVIEW_API_URL$path" || echo 000)"
+        printf '  try %s %s → %s\n' "$i" "$path" "$status"
+        if [ "$status" = "200" ]; then
+            return 0
+        fi
+        sleep 3
+    done
+    echo "Preview endpoint failed after ${attempts} tries: $path returned $status" >&2
+    exit 1
+}
+
+verify_preview_endpoints() {
+    verify_preview "/api/blocks"
+    verify_preview "$PREVIEW_RESUME_SMOKE_PATH"
 }
 
 require_root
@@ -251,18 +308,30 @@ case "$MODE" in
     all)
         restore_convex_state
         restore_sqlite_state
-        verify_preview
-        run_preview_ai_smoke
+        stabilize_preview_convex
+        verify_preview_endpoints
+        case "${RUN_PREVIEW_AI_SMOKE:-0}" in
+            1|true|yes) run_preview_ai_smoke ;;
+            *) log "Skipping AI smoke (set RUN_PREVIEW_AI_SMOKE=1 to enable)." ;;
+        esac
         ;;
     sqlite-only)
         restore_sqlite_state
-        verify_preview
-        run_preview_ai_smoke
+        stabilize_preview_convex
+        verify_preview_endpoints
+        case "${RUN_PREVIEW_AI_SMOKE:-0}" in
+            1|true|yes) run_preview_ai_smoke ;;
+            *) log "Skipping AI smoke (set RUN_PREVIEW_AI_SMOKE=1 to enable)." ;;
+        esac
         ;;
     convex-only)
         restore_convex_state
-        verify_preview
-        run_preview_ai_smoke
+        stabilize_preview_convex
+        verify_preview_endpoints
+        case "${RUN_PREVIEW_AI_SMOKE:-0}" in
+            1|true|yes) run_preview_ai_smoke ;;
+            *) log "Skipping AI smoke (set RUN_PREVIEW_AI_SMOKE=1 to enable)." ;;
+        esac
         ;;
 esac
 
@@ -270,3 +339,4 @@ log ""
 log "=== Done ==="
 log "Preview full-state restore mode: $MODE"
 log "Visit https://preview.pt-mes.com/hr/resumes to verify"
+log "Parity: bash deploy/preview-parity-check.sh"
