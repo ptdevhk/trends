@@ -199,9 +199,10 @@ sudo -u "$PREVIEW_SERVICE_USER" bash -c "cd '$PREVIEW_DIR' && npm --workspace @t
 # Record build meta
 sudo -u "$PREVIEW_SERVICE_USER" bash -c "cd '$PREVIEW_DIR' && mkdir -p apps/web/dist && printf 'git_sha=%s\ngit_branch=%s\nbuilt_at=%s\n' '$TARGET_SHA' '$TARGET_BRANCH' '$(date -u +%Y-%m-%dT%H:%M:%SZ)' > apps/web/dist/.trends-build-meta"
 
-log_step "Restart preview Convex (schema push via container start)"
+log_step "Restart preview Convex (force-recreate after tree sync)"
+# Force-recreate so bind mounts track the current preview tree inode.
 cd "$PREVIEW_DIR"
-docker compose -f docker-compose.preview.yml up -d
+docker compose -f docker-compose.preview.yml up -d --force-recreate convex mcp
 # Give convex time; start-convex.sh runs convex dev --once for schema
 for i in $(seq 1 48); do
     code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 3 "$PREVIEW_CONVEX_URL/version" || echo 000)"

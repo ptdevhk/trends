@@ -168,22 +168,29 @@ EOF
 fi
 
 if [[ ! "${SKIP_DOCKER_RESTART:-}" =~ ^(1|true|yes)$ ]]; then
-    log_step "Restart preview Docker services (Convex + MCP only)"
+    log_step "Recreate preview Docker services (Convex + MCP only)"
+    # IMPORTANT: clone does `mv` of the preview tree. Existing containers keep
+    # the old directory inode on their bind mount, so plain `up -d` leaves
+    # Convex unhealthy and the SPA appears broken (API 500 / blank UI).
+    # Always force-recreate after a tree replace.
     if [[ -f "$PREVIEW_DIR/docker-compose.preview.yml" ]]; then
         cd "$PREVIEW_DIR"
-        docker compose -f docker-compose.preview.yml up -d
+        docker compose -f docker-compose.preview.yml up -d --force-recreate convex mcp
         # Wait for convex health if container exists
-        for i in $(seq 1 36); do
+        for i in $(seq 1 48); do
             status="$(docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' trends-preview-convex 2>/dev/null || echo missing)"
-            if [[ "$status" == "healthy" || "$status" == "running" ]]; then
-                code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 3 "$PREVIEW_CONVEX_URL/version" || echo 000)"
-                if [[ "$code" == "200" ]]; then
-                    log_info "Preview Convex ready (status=$status http=$code)"
-                    break
-                fi
+            code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 3 "$PREVIEW_CONVEX_URL/version" || echo 000)"
+            if [[ "$code" == "200" ]]; then
+                log_info "Preview Convex ready (status=$status http=$code)"
+                break
             fi
             sleep 5
         done
+        if [[ "$(curl -sS -o /dev/null -w '%{http_code}' --max-time 3 "$PREVIEW_CONVEX_URL/version" || echo 000)" != "200" ]]; then
+            log_error "Preview Convex did not become healthy after recreate"
+            docker logs trends-preview-convex --tail 40 2>&1 || true
+            exit 1
+        fi
     fi
     if [[ -x "$PREVIEW_DIR/deploy/sync-preview-convex-env.sh" ]]; then
         PREVIEW_DIR="$PREVIEW_DIR" bash "$PREVIEW_DIR/deploy/sync-preview-convex-env.sh" || true

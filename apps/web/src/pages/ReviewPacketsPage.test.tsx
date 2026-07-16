@@ -148,7 +148,7 @@ describe('ReviewPacketsPage', () => {
     await user.type(screen.getByLabelText('Session ID'), 'session-123')
     await user.type(screen.getByLabelText('Job description ID'), 'lathe-sales')
     await user.type(screen.getByLabelText('Resume IDs'), 'resume-1, resume-2\nresume-3')
-    await user.type(screen.getByLabelText('User comment'), 'Batch note')
+    await user.type(screen.getByLabelText('User Comment'), 'Batch note')
     await user.type(screen.getByLabelText('Reference note'), 'Internal handoff')
     await user.click(screen.getByRole('button', { name: 'Create packet' }))
 

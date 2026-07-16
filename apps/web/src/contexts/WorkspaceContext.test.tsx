@@ -21,6 +21,11 @@ vi.mock('@trends/shared', () => ({
     hr: { name: 'HR Team' },
   },
   isValidWorkspace: (s: string) => s === 'dev' || s === 'hr',
+  getWorkspaceDisplayName: (s: string) => {
+    if (s === 'dev') return 'Development'
+    if (s === 'hr') return 'HR Team'
+    return s
+  },
 }))
 
 import { WorkspaceProvider, useWorkspace } from '@/contexts/WorkspaceContext'

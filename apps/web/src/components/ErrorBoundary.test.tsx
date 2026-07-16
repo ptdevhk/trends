@@ -57,9 +57,11 @@ describe('ErrorBoundary', () => {
         spy.mockRestore()
     })
 
-    it('falls back to /dev/resumes for unknown workspace paths', () => {
+    it('falls back to /dev/resumes for reserved/invalid workspace paths', () => {
         const spy = vi.spyOn(console, 'error').mockImplementation(() => { })
-        window.history.replaceState({}, '', '/unknown/system/settings?location=foo')
+        // "admin" is reserved (system namespace), not a workspace seat.
+        // Personal-format slugs like "unknown" are valid seats and must keep /{slug}/resumes.
+        window.history.replaceState({}, '', '/admin/system/settings?location=foo')
 
         render(
             <ErrorBoundary>
@@ -69,6 +71,22 @@ describe('ErrorBoundary', () => {
 
         const homeLink = screen.getByRole('link', { name: /go home/i })
         expect(homeLink).toHaveAttribute('href', '/dev/resumes')
+
+        spy.mockRestore()
+    })
+
+    it('keeps personal workspace home href for dynamic seat paths', () => {
+        const spy = vi.spyOn(console, 'error').mockImplementation(() => { })
+        window.history.replaceState({}, '', '/alice/system/settings?location=foo')
+
+        render(
+            <ErrorBoundary>
+                <ThrowError />
+            </ErrorBoundary>
+        )
+
+        const homeLink = screen.getByRole('link', { name: /go home/i })
+        expect(homeLink).toHaveAttribute('href', '/alice/resumes')
 
         spy.mockRestore()
     })

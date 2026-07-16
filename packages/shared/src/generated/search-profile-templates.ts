@@ -553,9 +553,12 @@ export function buildSearchProfileCriteria(profile: SharedSearchProfileTemplate[
 /**
  * Templates for a workspace seat.
  * - Exact workspace match when present (dev/hr YAML fan-out).
- * - Personal / unlisted seats inherit the **global default** set (prefer `hr`
+ * - Personal / unlisted seats inherit the global default set (prefer hr
  *   copies, else any unique profile id) so quick-start profiles auto-init
  *   for every user workspace.
+ *
+ * Note: do not use markdown bold (**...**) in this block comment — the
+ * sequence star-star-slash terminates the comment early for esbuild.
  */
 export function getWorkspaceSearchProfileTemplates(workspaceSlug?: string): SharedSearchProfileTemplate[] {
   const normalizedWorkspaceSlug = normalizeTemplateWorkspaceSlug(workspaceSlug);
