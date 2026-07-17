@@ -1,5 +1,17 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
-import { fetchCurrentAuth, loginWithLocalPassword, logout as logoutApi, type CurrentAuth, type AuthUser, type WorkspaceMembership, type WorkspaceRole } from '@/lib/auth'
+import { toast } from 'sonner'
+import {
+  fetchCurrentAuth,
+  loginWithLocalPassword,
+  logout as logoutApi,
+  readAuthQueryToken,
+  silentLoginWithDeskToken,
+  stripAuthQueryParam,
+  type CurrentAuth,
+  type AuthUser,
+  type WorkspaceMembership,
+  type WorkspaceRole,
+} from '@/lib/auth'
 
 type AuthState = {
   user: AuthUser | null
@@ -27,6 +39,19 @@ export function useAuth() {
   return useContext(AuthContext)
 }
 
+function silentLoginErrorMessage(code: string): string {
+  switch (code) {
+    case 'not_configured':
+      return 'Desk login is not configured on this server.'
+    case 'invalid_token':
+      return 'Desk login link is invalid or expired.'
+    case 'disabled':
+      return 'Desk account is disabled or missing HR access.'
+    default:
+      return code || 'Desk login failed.'
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [auth, setAuth] = useState<CurrentAuth | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -38,7 +63,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   useEffect(() => {
-    void refresh()
+    let cancelled = false
+
+    async function boot() {
+      const deskToken = typeof window !== 'undefined' ? readAuthQueryToken() : null
+      if (deskToken) {
+        // Always strip so a failed token does not re-fire on every navigation/remount.
+        stripAuthQueryParam()
+        const silent = await silentLoginWithDeskToken(deskToken)
+        if (cancelled) {
+          return
+        }
+        if (!silent.success) {
+          toast.error(silentLoginErrorMessage(silent.error))
+        }
+      }
+
+      if (cancelled) {
+        return
+      }
+      await refresh()
+    }
+
+    void boot()
+    return () => {
+      cancelled = true
+    }
   }, [refresh])
 
   const login = useCallback(async (username: string, password: string): Promise<CurrentAuth | null> => {

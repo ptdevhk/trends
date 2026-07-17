@@ -240,6 +240,51 @@ export async function loginWithLocalPassword(username: string, password: string)
   return data
 }
 
+export type SilentLoginResult =
+  | { success: true; login: LocalLoginResponse }
+  | { success: false; error: string; status?: number }
+
+/**
+ * Exchange a shared HR desk URL token for a normal session cookie.
+ * Error strings match API codes: not_configured | invalid_token | disabled | …
+ */
+export async function silentLoginWithDeskToken(token: string): Promise<SilentLoginResult> {
+  const { data, error, response } = await rawApiClient.POST<LocalLoginResponse | { success: false; error: string }>(
+    '/api/auth/silent-login',
+    { body: { token } },
+  )
+  if (data && 'success' in data && data.success === true) {
+    return { success: true, login: data }
+  }
+  const status = response?.status ?? readStatus(error) ?? readStatus(data)
+  const message =
+    readErrorMessage(data) ?? readErrorMessage(error) ?? defaultErrorForStatus(status, 'Silent login failed')
+  const result: SilentLoginResult = { success: false, error: message }
+  if (status !== undefined) {
+    result.status = status
+  }
+  return result
+}
+
+/** Remove only the `auth` query param; keep filters and hash. Returns true if the URL changed. */
+export function stripAuthQueryParam(url: URL = new URL(window.location.href)): boolean {
+  if (!url.searchParams.has('auth')) {
+    return false
+  }
+  url.searchParams.delete('auth')
+  const next = `${url.pathname}${url.search}${url.hash}`
+  window.history.replaceState(window.history.state, '', next)
+  return true
+}
+
+export function readAuthQueryToken(search: string = window.location.search): string | null {
+  const value = new URLSearchParams(search).get('auth')
+  if (!value || !value.trim()) {
+    return null
+  }
+  return value
+}
+
 export async function logout(): Promise<boolean> {
   const { data, error } = await rawApiClient.POST<{ success: boolean }>('/api/auth/logout')
   return !error && data?.success === true

@@ -21,7 +21,10 @@ import {
   loginWithLocalPassword,
   logout,
   preapproveProviderMembership,
+  readAuthQueryToken,
   revokeProviderMembership,
+  silentLoginWithDeskToken,
+  stripAuthQueryParam,
 } from './auth'
 
 const user = {
@@ -81,6 +84,46 @@ describe('auth helpers', () => {
     expect(mockApiClient.POST).toHaveBeenCalledWith('/api/auth/login', {
       body: { username: 'admin', password: 'secret' },
     })
+  })
+
+  it('silent-login exchanges desk token', async () => {
+    const loginResponse = {
+      success: true as const,
+      user,
+      memberships: authMe.memberships,
+      csrfToken: 'csrf-token',
+      expiresAt: '2026-06-06T00:00:00.000Z',
+    }
+    mockApiClient.POST.mockResolvedValueOnce({ data: loginResponse })
+
+    await expect(silentLoginWithDeskToken('desk-secret')).resolves.toEqual({
+      success: true,
+      login: loginResponse,
+    })
+    expect(mockApiClient.POST).toHaveBeenCalledWith('/api/auth/silent-login', {
+      body: { token: 'desk-secret' },
+    })
+  })
+
+  it('silent-login surfaces API error codes', async () => {
+    mockApiClient.POST.mockResolvedValueOnce({
+      data: { success: false, error: 'invalid_token' },
+      response: { status: 401 },
+    })
+
+    await expect(silentLoginWithDeskToken('bad')).resolves.toEqual({
+      success: false,
+      error: 'invalid_token',
+      status: 401,
+    })
+  })
+
+  it('reads and strips auth query param', () => {
+    expect(readAuthQueryToken('?location=China&auth=secret&q=x')).toBe('secret')
+    window.history.replaceState({}, '', '/hr/resumes?location=China&auth=secret&q=x')
+    expect(stripAuthQueryParam()).toBe(true)
+    expect(window.location.search).toBe('?location=China&q=x')
+    expect(stripAuthQueryParam()).toBe(false)
   })
 
   it('logs out through the auth endpoint', async () => {

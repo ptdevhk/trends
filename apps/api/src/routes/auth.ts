@@ -1,3 +1,5 @@
+import { timingSafeEqual } from "node:crypto";
+
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import type { Context } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
@@ -10,10 +12,16 @@ import {
   resetOnSuccess,
 } from "../middleware/login-rate-limit.js";
 import { AuthEventStorage } from "../services/auth-event-storage.js";
-import type { AuthEvent } from "../services/auth-event-types.js";
 import { AuthSessionService, hashSecret } from "../services/auth-session-service.js";
 import { AuthStorage } from "../services/auth-storage.js";
-import type { AuthContext, AuthProvider, AuthUser, WorkspaceMembership, WorkspaceRole } from "../services/auth-types.js";
+import {
+  hasWorkspaceRole,
+  type AuthContext,
+  type AuthProvider,
+  type AuthUser,
+  type WorkspaceMembership,
+  type WorkspaceRole,
+} from "../services/auth-types.js";
 import { config } from "../services/config.js";
 import { hashPassword, verifyPassword } from "../services/local-password-provider.js";
 import { CasdoorOidcProvider } from "../services/oidc-provider.js";
@@ -28,13 +36,55 @@ function currentSessionTokenHash(c: Context): string | undefined {
   return token ? hashSecret(token) : undefined;
 }
 
+type HrDemoSilentLoginConfig = {
+  username?: string;
+  /** Plaintext desk token (compared via hashSecret). */
+  token?: string;
+  /** Precomputed hashSecret(token) when plaintext is not available. */
+  tokenHash?: string;
+};
+
 type AuthRoutesOptions = {
   storage?: AuthStorage;
   eventStorage?: AuthEventStorage;
   ttlSeconds?: number;
   oidcEnabled?: boolean;
   oidcProvider?: CasdoorOidcProvider;
+  /** Test/bootstrap override for shared HR demo silent login. Defaults to config.auth.hrDemo. */
+  hrDemoSilentLogin?: HrDemoSilentLoginConfig;
 };
+
+function safeEqualUtf8(left: string, right: string): boolean {
+  const leftBytes = Buffer.from(left);
+  const rightBytes = Buffer.from(right);
+  return leftBytes.length === rightBytes.length && timingSafeEqual(leftBytes, rightBytes);
+}
+
+/**
+ * Normalize env/test overrides to a single expected hash once at route setup.
+ * Prefer precomputed tokenHash; otherwise hash the plaintext token.
+ */
+function resolveHrDemoSilentLoginConfig(
+  override?: HrDemoSilentLoginConfig,
+): { username: string; expectedTokenHash: string } {
+  const username = (override?.username ?? config.auth.hrDemo.username).trim() || "hr-demo";
+  const configuredHash = (override?.tokenHash ?? config.auth.hrDemo.tokenHash).trim();
+  if (configuredHash) {
+    return { username, expectedTokenHash: configuredHash };
+  }
+  const token = (override?.token ?? config.auth.hrDemo.token).trim();
+  return {
+    username,
+    expectedTokenHash: token ? hashSecret(token) : "",
+  };
+}
+
+function matchesHrDemoToken(presented: string, expectedTokenHash: string): boolean {
+  if (!presented || !expectedTokenHash) {
+    return false;
+  }
+  return safeEqualUtf8(hashSecret(presented), expectedTokenHash);
+}
 
 const cookieOptions = {
   httpOnly: true,
@@ -124,6 +174,10 @@ const AuthEventSchema = z.object({
 const LoginRequestSchema = z.object({
   username: z.string().min(1),
   password: z.string().min(1),
+});
+
+const SilentLoginRequestSchema = z.object({
+  token: z.string().min(1),
 });
 
 const LoginResponseSchema = z.object({
@@ -343,6 +397,7 @@ export function createAuthRoutes(options: AuthRoutesOptions = {}) {
   let sessions: AuthSessionService | undefined;
   const oidcEnabled = options.oidcEnabled ?? config.auth.oidc.enabled;
   const oidcProvider = options.oidcProvider ?? new CasdoorOidcProvider(config.auth.oidc);
+  const hrDemoSilentLogin = resolveHrDemoSilentLoginConfig(options.hrDemoSilentLogin);
 
   function getStorage(): AuthStorage {
     storage ??= new AuthStorage(config.projectRoot);
@@ -457,6 +512,134 @@ export function createAuthRoutes(options: AuthRoutesOptions = {}) {
       workspaceSlug,
       sessionId: result.sessionId,
       metadata: { username },
+    });
+    return c.json(result.body, 200);
+  });
+
+  const silentLoginRoute = createRoute({
+    method: "post",
+    path: "/api/auth/silent-login",
+    tags: ["auth"],
+    request: {
+      body: {
+        content: {
+          "application/json": {
+            schema: SilentLoginRequestSchema,
+          },
+        },
+      },
+    },
+    responses: {
+      200: {
+        description: "Authenticated shared HR desk user via static token",
+        content: {
+          "application/json": {
+            schema: LoginResponseSchema,
+          },
+        },
+      },
+      401: {
+        description: "Silent login failed (not_configured | invalid_token | disabled)",
+        content: {
+          "application/json": {
+            schema: ErrorResponseSchema,
+          },
+        },
+      },
+      429: {
+        description: "Account temporarily locked due to repeated failures",
+        content: {
+          "application/json": {
+            schema: ErrorResponseSchema,
+          },
+        },
+      },
+    },
+  });
+
+  app.openapi(silentLoginRoute, async (c) => {
+    const { token } = c.req.valid("json");
+    const workspaceSlug = c.var.workspaceSlug;
+    const clientIp = extractClientIp(c.req);
+    const deskUsername = hrDemoSilentLogin.username;
+    const expectedTokenHash = hrDemoSilentLogin.expectedTokenHash;
+
+    const attempt = checkLoginAttempt(deskUsername, clientIp);
+    if (!attempt.allowed) {
+      getEventStorage().append({
+        type: "login_throttled",
+        provider: "local",
+        workspaceSlug,
+        reason: "account_lockout",
+        metadata: {
+          username: deskUsername,
+          method: "desk_token",
+          retryAfterSeconds: attempt.retryAfterSeconds,
+        },
+      });
+      c.header("Retry-After", String(attempt.retryAfterSeconds));
+      return c.json(
+        {
+          success: false as const,
+          error: `Account temporarily locked. Try again in ${attempt.retryAfterSeconds}s.`,
+        },
+        429,
+      );
+    }
+
+    if (!expectedTokenHash) {
+      getEventStorage().append({
+        type: "login_failure",
+        provider: "local",
+        workspaceSlug,
+        reason: "not_configured",
+        metadata: { method: "desk_token", username: deskUsername },
+      });
+      return c.json({ success: false as const, error: "not_configured" }, 401);
+    }
+
+    if (!matchesHrDemoToken(token, expectedTokenHash)) {
+      recordLoginFailure(deskUsername, clientIp);
+      getEventStorage().append({
+        type: "login_failure",
+        provider: "local",
+        workspaceSlug,
+        reason: "invalid_token",
+        metadata: { method: "desk_token", username: deskUsername },
+      });
+      return c.json({ success: false as const, error: "invalid_token" }, 401);
+    }
+
+    const authStorage = getStorage();
+    const identity = authStorage.findIdentity("local", deskUsername, "local");
+    const user = identity ? authStorage.findUser(identity.userId) : null;
+    const memberships = user ? authStorage.listMemberships(user.id) : [];
+    const hasHrSeat = user
+      ? hasWorkspaceRole(memberships, "hr", ["user", "admin"])
+      : false;
+
+    if (!user || !hasHrSeat) {
+      recordLoginFailure(deskUsername, clientIp);
+      getEventStorage().append({
+        type: "login_failure",
+        provider: "local",
+        workspaceSlug,
+        userId: identity?.userId,
+        reason: "disabled",
+        metadata: { method: "desk_token", username: deskUsername },
+      });
+      return c.json({ success: false as const, error: "disabled" }, 401);
+    }
+
+    resetOnSuccess(deskUsername, clientIp);
+    const result = await createSessionResponse(user, authStorage, getSessions(), c);
+    getEventStorage().append({
+      type: "login_success",
+      userId: user.id,
+      provider: "local",
+      workspaceSlug,
+      sessionId: result.sessionId,
+      metadata: { method: "desk_token", username: deskUsername },
     });
     return c.json(result.body, 200);
   });
@@ -877,27 +1060,20 @@ export function createAuthRoutes(options: AuthRoutesOptions = {}) {
     if (!auth) {
       return c.json({ success: false as const, error: "Authentication required" }, 401);
     }
-
     const workspaceSlug = c.var.workspaceSlug;
-    const workspaceRole = auth.memberships.find(
-      (m) => m.workspaceSlug === workspaceSlug,
-    )?.role;
-
+    const workspaceRole = auth.memberships.find((m) => m.workspaceSlug === workspaceSlug)?.role;
     if (workspaceRole !== "admin") {
       return c.json({ success: false as const, error: "Admin access required" }, 403);
     }
-
     const query = c.req.valid("query");
     const limit = query.limit ? parseInt(query.limit, 10) : 50;
     const filterWorkspace = query.workspaceSlug ?? workspaceSlug;
-
     const events = getEventStorage().listRecent({
       limit: Math.min(limit, 200),
-      type: query.type as AuthEvent["type"] | undefined,
+      type: query.type,
       userId: query.userId,
       workspaceSlug: filterWorkspace,
     });
-
     return c.json({ success: true as const, events }, 200);
   });
 
@@ -945,7 +1121,6 @@ export function createAuthRoutes(options: AuthRoutesOptions = {}) {
     if (workspaceSlug !== c.var.workspaceSlug) {
       return c.json({ success: false as const, error: "Admin access required" }, 403);
     }
-
     const authStorage = getStorage();
     return c.json({
       success: true as const,
@@ -1013,16 +1188,15 @@ export function createAuthRoutes(options: AuthRoutesOptions = {}) {
     if (adminError) {
       return c.json(adminError.body, adminError.status);
     }
+
     const auth = c.var.auth;
     if (!auth) {
       return c.json({ success: false as const, error: "Authentication required" }, 401);
     }
-
     const input = c.req.valid("json");
     if (input.workspaceSlug !== c.var.workspaceSlug) {
       return c.json({ success: false as const, error: "Admin access required" }, 403);
     }
-
     const authStorage = getStorage();
     authStorage.preapproveProviderMembership({
       ...input,
@@ -1041,7 +1215,6 @@ export function createAuthRoutes(options: AuthRoutesOptions = {}) {
       workspaceSlug: input.workspaceSlug,
       role: input.role,
     });
-
     return c.json({
       success: true as const,
       preapproval,
@@ -1094,16 +1267,15 @@ export function createAuthRoutes(options: AuthRoutesOptions = {}) {
     if (adminError) {
       return c.json(adminError.body, adminError.status);
     }
+
     const auth = c.var.auth;
     if (!auth) {
       return c.json({ success: false as const, error: "Authentication required" }, 401);
     }
-
     const input = c.req.valid("json");
     if (input.workspaceSlug !== c.var.workspaceSlug) {
       return c.json({ success: false as const, error: "Admin access required" }, 403);
     }
-
     const authStorage = getStorage();
     authStorage.revokeProviderMembershipPreapproval({
       ...input,
@@ -1122,7 +1294,6 @@ export function createAuthRoutes(options: AuthRoutesOptions = {}) {
       workspaceSlug: input.workspaceSlug,
       role: revoked.role,
     });
-
     return c.json({
       success: true as const,
       revoked,

@@ -35,6 +35,7 @@
     "verify:workflow-dataset": "tsx scripts/resume/verify-workflow-dataset.ts",
     "clear:workspace-demo-resumes": "tsx scripts/resume/clear-workspace-demo-resumes.ts",
     "auth:bootstrap-demo": "tsx scripts/auth/manage-user.ts --username demo-admin --email demo-admin@example.com --display-name \"Demo Admin\" --workspace dev --role admin --replace-memberships --password-env AUTH_BOOTSTRAP_PASSWORD --output json",
+    "auth:bootstrap-hr-demo": "tsx scripts/auth/manage-user.ts --username hr-demo --email hr-demo@local --display-name \"hr-demo\" --workspace hr --role user --replace-memberships --password-env AUTH_HR_DEMO_PASSWORD --output json",
     "verify:industry-scores": "tsx scripts/verify-industry-scores.ts",
     "verify:industry-scores:round-trip": "tsx scripts/verify-industry-scores.ts --sample sample-job5156-detail-enriched --round-trip",
     "e2e": "tsx scripts/e2e-smoke.ts"

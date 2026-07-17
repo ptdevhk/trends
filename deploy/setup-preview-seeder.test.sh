@@ -10,6 +10,7 @@ envt="$ROOT/env.preview"
 grep -q "preview-seed-auth" "$setup" || { echo "FAIL: setup-preview must call preview-seed-auth"; exit 1; }
 grep -q "BOOTSTRAP_HR_DEMO_USER" "$envt" || { echo "FAIL: env.preview missing BOOTSTRAP_HR_DEMO_USER"; exit 1; }
 grep -q "AUTH_HR_DEMO_PASSWORD" "$envt" || { echo "FAIL: env.preview missing AUTH_HR_DEMO_PASSWORD"; exit 1; }
+grep -q "AUTH_HR_DEMO_TOKEN" "$envt" || { echo "FAIL: env.preview missing AUTH_HR_DEMO_TOKEN (silent login)"; exit 1; }
 grep -q "hr-demo" "$seed" || { echo "FAIL: preview-seed-auth must seed hr-demo"; exit 1; }
 grep -q "manage-user.ts" "$seed" || { echo "FAIL: manage-user.ts not invoked in seed"; exit 1; }
 # Failed product path must not be reseeded

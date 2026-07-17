@@ -129,6 +129,91 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/silent-login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        token: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Authenticated shared HR desk user via static token */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            user: {
+                                id: string;
+                                email?: string;
+                                displayName?: string;
+                                /** @enum {string} */
+                                status: "active" | "disabled";
+                            };
+                            memberships: {
+                                userId: string;
+                                workspaceSlug: string;
+                                /** @enum {string} */
+                                role: "user" | "admin";
+                            }[];
+                            csrfToken: string;
+                            expiresAt: string;
+                        };
+                    };
+                };
+                /** @description Silent login failed (not_configured | invalid_token | disabled) */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Account temporarily locked due to repeated failures */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/me": {
         parameters: {
             query?: never;
@@ -12114,6 +12199,32 @@ export interface paths {
                 };
                 /** @description Invalid payload */
                 400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Authentication required */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Workspace access required */
+                403: {
                     headers: {
                         [name: string]: unknown;
                     };

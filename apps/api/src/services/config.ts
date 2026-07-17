@@ -42,6 +42,23 @@ export const config = {
       .map((origin) => origin.trim())
       .filter((origin) => origin.length > 0),
     convexWriteSecret: process.env.CONVEX_WRITE_SECRET || "",
+    /**
+     * Shared HR demo silent-login secret (migration bookmarks).
+     * Maps to the canonical preview/prod HR seat (`hr-demo` by default).
+     * Prefer AUTH_HR_DEMO_TOKEN_HASH (sha256 base64url via hashSecret) when the
+     * plaintext must not sit in env; otherwise AUTH_HR_DEMO_TOKEN.
+     * AUTH_HR_DESK_* names remain accepted as temporary aliases.
+     */
+    hrDemo: {
+      username: (
+        process.env.AUTH_HR_DEMO_USERNAME
+        || process.env.BOOTSTRAP_HR_DEMO_USER
+        || process.env.AUTH_HR_DESK_USERNAME
+        || "hr-demo"
+      ).trim() || "hr-demo",
+      token: process.env.AUTH_HR_DEMO_TOKEN || process.env.AUTH_HR_DESK_TOKEN || "",
+      tokenHash: process.env.AUTH_HR_DEMO_TOKEN_HASH || process.env.AUTH_HR_DESK_TOKEN_HASH || "",
+    },
     oidc: {
       enabled: process.env.AUTH_OIDC_ENABLED === "true",
       provider: "casdoor" as const,

@@ -147,6 +147,133 @@ describe("auth routes", () => {
     });
   });
 
+  async function seedHrDemoUser(storage: AuthStorage, role: "user" | "admin" = "user") {
+    const user = storage.createUser({ email: "hr-demo@example.com", displayName: "hr-demo" });
+    storage.linkIdentity({
+      userId: user.id,
+      provider: "local",
+      providerSubject: "hr-demo",
+      providerTenant: "local",
+      email: user.email,
+      displayName: user.displayName,
+    });
+    storage.upsertMembership({ userId: user.id, workspaceSlug: "hr", role });
+    return user;
+  }
+
+  it("silent-login establishes a full desk session when token and hr-demo seat are valid", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "trends-auth-silent-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    await seedHrDemoUser(storage);
+    const app = createTestApp(storage, eventStorage, {
+      hrDemoSilentLogin: { token: "desk-secret-token", username: "hr-demo" },
+    });
+
+    const response = await app.request("/api/auth/silent-login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Workspace-Slug": "hr" },
+      body: JSON.stringify({ token: "desk-secret-token" }),
+    });
+
+    expect(response.status).toBe(200);
+    const setCookie = response.headers.get("Set-Cookie") ?? "";
+    expect(setCookie).toContain(`${config.auth.sessionCookieName}=`);
+    expect(setCookie).toContain(`${config.auth.csrfCookieName}=`);
+    await expect(response.json()).resolves.toMatchObject({
+      success: true,
+      csrfToken: expect.any(String),
+      user: { displayName: "hr-demo" },
+      memberships: [{ workspaceSlug: "hr", role: "user" }],
+    });
+
+    const events = eventStorage.listRecent({ limit: 10, type: "login_success" });
+    expect(events[0]).toMatchObject({
+      type: "login_success",
+      provider: "local",
+      metadata: { method: "desk_token", username: "hr-demo" },
+    });
+  });
+
+  it("silent-login accepts precomputed token hash config", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "trends-auth-silent-hash-"));
+    const storage = new AuthStorage(root);
+    await seedHrDemoUser(storage);
+    const token = "hash-mode-secret";
+    const app = createTestApp(storage, undefined, {
+      hrDemoSilentLogin: { tokenHash: hashSecret(token), username: "hr-demo" },
+    });
+
+    const response = await app.request("/api/auth/silent-login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Workspace-Slug": "hr" },
+      body: JSON.stringify({ token }),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ success: true });
+  });
+
+  it("silent-login returns not_configured when no desk token is set", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "trends-auth-silent-nc-"));
+    const storage = new AuthStorage(root);
+    await seedHrDemoUser(storage);
+    const app = createTestApp(storage, undefined, {
+      hrDemoSilentLogin: { token: "", tokenHash: "", username: "hr-demo" },
+    });
+
+    const response = await app.request("/api/auth/silent-login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Workspace-Slug": "hr" },
+      body: JSON.stringify({ token: "anything" }),
+    });
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toEqual({ success: false, error: "not_configured" });
+  });
+
+  it("silent-login returns invalid_token for wrong secret", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "trends-auth-silent-bad-"));
+    const storage = new AuthStorage(root);
+    await seedHrDemoUser(storage);
+    const app = createTestApp(storage, undefined, {
+      hrDemoSilentLogin: { token: "correct-token", username: "hr-demo" },
+    });
+
+    const response = await app.request("/api/auth/silent-login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Workspace-Slug": "hr" },
+      body: JSON.stringify({ token: "wrong-token" }),
+    });
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toEqual({ success: false, error: "invalid_token" });
+  });
+
+  it("silent-login returns disabled when hr-demo has no hr membership", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "trends-auth-silent-dis-"));
+    const storage = new AuthStorage(root);
+    const user = storage.createUser({ email: "hr-demo@example.com", displayName: "hr-demo" });
+    storage.linkIdentity({
+      userId: user.id,
+      provider: "local",
+      providerSubject: "hr-demo",
+      providerTenant: "local",
+    });
+    const app = createTestApp(storage, undefined, {
+      hrDemoSilentLogin: { token: "desk-secret-token", username: "hr-demo" },
+    });
+
+    const response = await app.request("/api/auth/silent-login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Workspace-Slug": "hr" },
+      body: JSON.stringify({ token: "desk-secret-token" }),
+    });
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toEqual({ success: false, error: "disabled" });
+  });
+
   it("returns current user and active workspace role", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "trends-auth-routes-"));
     const storage = new AuthStorage(root);
