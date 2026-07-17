@@ -13,18 +13,47 @@ import { cn } from '@/lib/utils'
 type CompanyPolicyBadgesProps = {
   hits: CompanyPolicyMatchHit[]
   className?: string
-  /** Show compact badges only (list cards) vs full warning strip */
+  /** Compact chips in header row vs one-line notice under header */
   variant?: 'badges' | 'banner'
+}
+
+function shortCompanyLabel(hit: CompanyPolicyMatchHit): string {
+  const parts = hit.displayName.split(/\s*\/\s*/).map((part) => part.trim()).filter(Boolean)
+  if (parts.length === 0) {
+    return hit.displayName
+  }
+  return parts.reduce((shortest, part) => (part.length < shortest.length ? part : shortest), parts[0]!)
+}
+
+/** Workspace-relative policies settings path (no WorkspaceProvider required). */
+function companyPoliciesHref(): string {
+  if (typeof window !== 'undefined') {
+    const seg = window.location.pathname.split('/').filter(Boolean)[0]
+    if (seg && !['login', 'api', 's', 'explanation'].includes(seg)) {
+      return `/${seg}/settings/policies?tab=companies`
+    }
+  }
+  return '/hr/settings/policies?tab=companies'
 }
 
 function badgeClass(preset: CompanyPolicyMatchHit['preset']): string {
   if (preset === 'no_hire') {
-    return 'border-red-300 bg-red-50 text-red-700'
+    return 'border-red-200 bg-red-50 text-red-700'
   }
   if (preset === 'known_good') {
-    return 'border-emerald-300 bg-emerald-50 text-emerald-800'
+    return 'border-emerald-200 bg-emerald-50 text-emerald-800'
   }
   return 'border-slate-200 bg-slate-50 text-slate-700'
+}
+
+function noticeClass(preset: CompanyPolicyMatchHit['preset']): string {
+  if (preset === 'no_hire') {
+    return 'border-red-200 bg-red-50 text-red-800'
+  }
+  if (preset === 'known_good') {
+    return 'border-emerald-200 bg-emerald-50 text-emerald-900'
+  }
+  return 'border-slate-200 bg-slate-50 text-slate-800'
 }
 
 export function CompanyPolicyBadges({
@@ -33,6 +62,8 @@ export function CompanyPolicyBadges({
   variant = 'badges',
 }: CompanyPolicyBadgesProps) {
   const { t } = useTranslation()
+  const policiesHref = companyPoliciesHref()
+
   const visible = useMemo(
     () => hits.filter((hit) => hit.preset === 'no_hire' || hit.preset === 'known_good'),
     [hits],
@@ -43,68 +74,46 @@ export function CompanyPolicyBadges({
   }
 
   if (variant === 'banner') {
-    const noHire = visible.filter((hit) => hit.preset === 'no_hire')
-    const knownGood = visible.filter((hit) => hit.preset === 'known_good')
     return (
       <div className={cn('space-y-1', className)} data-testid="company-policy-banner">
-        {noHire.map((hit) => (
-          <div
-            key={`no-hire-${hit.companyKey}`}
-            className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800"
-            data-testid="company-policy-warning"
-            data-company-key={hit.companyKey}
-          >
-            <span className="font-semibold">
-              {t('settings.policies.runtime.noHireWarning', {
-                defaultValue: 'No-hire employer',
-              })}
-              {': '}
-            </span>
-            {hit.displayName}
-            <span className="text-red-700/80">
-              {' '}
-              (
-              {t('settings.policies.runtime.matchedAs', {
-                defaultValue: 'matched',
-              })}
-              : {hit.matchedEmployer})
-            </span>
-            <div className="mt-0.5 text-[11px] text-red-700/80">
-              {t('settings.policies.runtime.scoreUnchanged', {
-                defaultValue: 'Operational policy only — AI score is unchanged.',
-              })}
+        {visible.map((hit) => {
+          const shortName = shortCompanyLabel(hit)
+          const kindLabel =
+            hit.preset === 'no_hire'
+              ? t('settings.policies.runtime.noHireShort', { defaultValue: 'No-hire' })
+              : t('settings.policies.runtime.knownGoodShort', { defaultValue: 'Known-good' })
+          return (
+            <div
+              key={`${hit.preset}-${hit.companyKey}`}
+              className={cn(
+                'flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border px-3 py-1.5 text-xs',
+                noticeClass(hit.preset),
+              )}
+              data-testid={
+                hit.preset === 'no_hire' ? 'company-policy-warning' : 'company-policy-known-good'
+              }
+              data-company-key={hit.companyKey}
+            >
+              <span className="font-semibold">
+                {kindLabel}
+                {': '}
+                {shortName}
+              </span>
+              {hit.matchedEmployer && hit.matchedEmployer !== shortName ? (
+                <span className="opacity-80 truncate max-w-[14rem]" title={hit.matchedEmployer}>
+                  ({hit.matchedEmployer})
+                </span>
+              ) : null}
+              <a
+                href={policiesHref}
+                className="ml-auto shrink-0 font-medium underline-offset-2 hover:underline"
+                data-testid="company-policy-manage-link"
+              >
+                {t('settings.policies.runtime.manageLink', { defaultValue: 'Manage' })}
+              </a>
             </div>
-          </div>
-        ))}
-        {knownGood.map((hit) => (
-          <div
-            key={`good-${hit.companyKey}`}
-            className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900"
-            data-testid="company-policy-known-good"
-            data-company-key={hit.companyKey}
-          >
-            <span className="font-semibold">
-              {t('settings.policies.runtime.knownGoodSignal', {
-                defaultValue: 'Known-good employer',
-              })}
-              {': '}
-            </span>
-            {hit.displayName}
-            <span className="text-emerald-800/80">
-              {' '}
-              (
-              {t('settings.policies.runtime.matchedAs', {
-                defaultValue: 'matched',
-              })}
-              : {hit.matchedEmployer})
-            </span>
-            <div className="mt-0.5 text-[11px] text-emerald-800/80">
-              {t('settings.policies.runtime.scoreUnchanged', {
-                defaultValue: 'Operational policy only — AI score is unchanged.',
-              })}
-            </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
     )
   }
@@ -113,37 +122,42 @@ export function CompanyPolicyBadges({
     <TooltipProvider>
       <div className={cn('flex flex-wrap gap-1', className)} data-testid="company-policy-badges">
         {visible.map((hit) => {
-          const label =
+          const shortName = shortCompanyLabel(hit)
+          const chipLabel =
             hit.preset === 'no_hire'
-              ? t('settings.policies.runtime.noHireBadge', { defaultValue: 'No-hire co.' })
-              : t('settings.policies.runtime.knownGoodBadge', { defaultValue: 'Known-good co.' })
+              ? t('settings.policies.runtime.noHireShort', { defaultValue: 'No-hire' })
+              : t('settings.policies.runtime.knownGoodShort', { defaultValue: 'Known-good' })
           return (
             <Tooltip key={hit.companyKey}>
               <TooltipTrigger asChild>
                 <Badge
                   variant="outline"
-                  className={cn('text-[10px] cursor-help', badgeClass(hit.preset))}
+                  className={cn('max-w-[9rem] truncate text-[10px] cursor-help', badgeClass(hit.preset))}
                   data-testid={
                     hit.preset === 'no_hire'
                       ? 'company-policy-badge-no-hire'
                       : 'company-policy-badge-known-good'
                   }
                   data-company-key={hit.companyKey}
+                  title={`${chipLabel}: ${shortName}`}
                 >
-                  {label}: {hit.displayName}
+                  {chipLabel}
+                  {shortName ? ` · ${shortName}` : ''}
                 </Badge>
               </TooltipTrigger>
-              <TooltipContent className="max-w-xs text-xs">
-                <p className="font-medium">{hit.displayName}</p>
-                <p>
-                  {t('settings.policies.runtime.matchedAs', { defaultValue: 'matched' })}:{' '}
-                  {hit.matchedEmployer}
+              <TooltipContent className="max-w-xs space-y-1 text-xs">
+                <p className="font-medium">
+                  {chipLabel}: {shortName}
                 </p>
-                <p className="opacity-80">
-                  {t('settings.policies.runtime.scoreUnchanged', {
-                    defaultValue: 'Operational policy only — AI score is unchanged.',
-                  })}
-                </p>
+                {hit.matchedEmployer ? (
+                  <p className="opacity-80">{hit.matchedEmployer}</p>
+                ) : null}
+                <a
+                  href={policiesHref}
+                  className="inline-block font-medium text-primary underline-offset-2 hover:underline"
+                >
+                  {t('settings.policies.runtime.manageLink', { defaultValue: 'Manage' })}
+                </a>
               </TooltipContent>
             </Tooltip>
           )

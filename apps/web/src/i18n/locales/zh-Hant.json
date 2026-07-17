@@ -941,17 +941,20 @@
         "aliasAdded": "別名已新增"
       },
       "runtime": {
-        "noHireBadge": "禁止錄用公司",
-        "knownGoodBadge": "已知優質公司",
-        "noHireWarning": "禁止錄用雇主",
-        "knownGoodSignal": "已知優質雇主",
+        "noHireBadge": "禁止錄用",
+        "knownGoodBadge": "已知優質",
+        "noHireWarning": "禁止錄用",
+        "knownGoodSignal": "已知優質",
         "matchedAs": "匹配",
         "scoreUnchanged": "僅營運策略提示 — AI 分數不變。",
-        "showHidden": "顯示公司策略隱藏",
-        "hiddenCount": "{{count}} 條因公司策略隱藏",
-        "workflowBlockedToast": "公司策略禁止錄用已阻止操作：{{name}}。僅營運策略 — AI 分數不變。",
+        "showHidden": "顯示隱藏",
+        "hiddenCount": "公司策略隱藏 {{count}}",
+        "workflowBlockedToast": "公司策略禁止錄用已阻止操作：{{name}}",
         "workflowBlockedTitle": "已被公司策略阻止",
-        "bulkSkipped": "已跳過 {{count}} 條禁止錄用公司策略履歷"
+        "bulkSkipped": "已跳過 {{count}} 條禁止錄用履歷",
+        "noHireShort": "禁止錄用",
+        "knownGoodShort": "已知優質",
+        "manageLink": "管理"
       }
     }
   },

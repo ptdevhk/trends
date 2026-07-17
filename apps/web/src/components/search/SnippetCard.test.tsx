@@ -42,6 +42,10 @@ vi.mock('@/hooks/useCompanyPolicyIndex', () => ({
   }),
 }))
 
+vi.mock('@/contexts/WorkspaceContext', () => ({
+  useWorkspace: () => ({ slug: 'hr' }),
+}))
+
 vi.mock('@/components/search/SnippetCardExpanded', () => ({
   SnippetCardExpanded: ({
     item,

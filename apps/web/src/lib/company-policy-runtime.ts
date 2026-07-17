@@ -57,8 +57,8 @@ export function toastCompanyPolicyWorkflowBlocked(
   displayName?: string,
 ): string {
   return t('settings.policies.runtime.workflowBlockedToast', {
-    defaultValue:
-      'Blocked by company policy (No-hire): {{name}}. Operational only — AI score unchanged.',
+    defaultValue: 'Blocked by company policy (No-hire): {{name}}.',
     name: displayName ?? 'company',
   })
 }
+

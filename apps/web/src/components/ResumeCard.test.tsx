@@ -33,6 +33,10 @@ vi.mock('@/hooks/useCompanyPolicyIndex', () => ({
   }),
 }))
 
+vi.mock('@/contexts/WorkspaceContext', () => ({
+  useWorkspace: () => ({ slug: 'hr' }),
+}))
+
 describe('ResumeCard brand-hit badges', () => {
   it('renders deduped brand names without debug metadata', () => {
     render(

@@ -1154,17 +1154,20 @@
         "aliasAdded": "别名已添加"
       },
       "runtime": {
-        "noHireBadge": "禁止录用公司",
-        "knownGoodBadge": "已知优质公司",
-        "noHireWarning": "禁止录用雇主",
-        "knownGoodSignal": "已知优质雇主",
+        "noHireBadge": "禁止录用",
+        "knownGoodBadge": "已知优质",
+        "noHireWarning": "禁止录用",
+        "knownGoodSignal": "已知优质",
         "matchedAs": "匹配",
         "scoreUnchanged": "仅运营策略提示 — AI 分数不变。",
-        "showHidden": "显示公司策略隐藏",
-        "hiddenCount": "{{count}} 条因公司策略隐藏",
-        "workflowBlockedToast": "公司策略禁止录用已阻止操作：{{name}}。仅运营策略 — AI 分数不变。",
+        "showHidden": "显示隐藏",
+        "hiddenCount": "公司策略隐藏 {{count}}",
+        "workflowBlockedToast": "公司策略禁止录用已阻止操作：{{name}}",
         "workflowBlockedTitle": "已被公司策略阻止",
-        "bulkSkipped": "已跳过 {{count}} 条禁止录用公司策略简历"
+        "bulkSkipped": "已跳过 {{count}} 条禁止录用简历",
+        "noHireShort": "禁止录用",
+        "knownGoodShort": "已知优质",
+        "manageLink": "管理"
       }
     },
     "account": {

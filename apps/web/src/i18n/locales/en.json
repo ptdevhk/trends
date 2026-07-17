@@ -924,17 +924,20 @@
         "aliasAdded": "Alias added"
       },
       "runtime": {
-        "noHireBadge": "No-hire co.",
-        "knownGoodBadge": "Known-good co.",
-        "noHireWarning": "No-hire employer",
-        "knownGoodSignal": "Known-good employer",
+        "noHireBadge": "No-hire",
+        "knownGoodBadge": "Known-good",
+        "noHireWarning": "No-hire",
+        "knownGoodSignal": "Known-good",
         "matchedAs": "matched",
         "scoreUnchanged": "Operational policy only — AI score is unchanged.",
-        "showHidden": "Show company-policy hidden",
+        "showHidden": "Show hidden",
         "hiddenCount": "{{count}} hidden by company policy",
-        "workflowBlockedToast": "Blocked by company policy (No-hire): {{name}}. Operational only — AI score unchanged.",
+        "workflowBlockedToast": "Blocked by company policy (No-hire): {{name}}.",
         "workflowBlockedTitle": "Blocked by company policy",
-        "bulkSkipped": "Skipped {{count}} no-hire company-policy row(s)"
+        "bulkSkipped": "Skipped {{count}} no-hire row(s)",
+        "noHireShort": "No-hire",
+        "knownGoodShort": "Known-good",
+        "manageLink": "Manage"
       }
     },
     "account": {

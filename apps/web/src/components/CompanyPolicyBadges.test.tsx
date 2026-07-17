@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { CompanyPolicyBadges } from './CompanyPolicyBadges'
 import type { CompanyPolicyMatchHit } from '@trends/shared'
@@ -12,7 +12,7 @@ vi.mock('react-i18next', () => ({
 const noHireHit: CompanyPolicyMatchHit = {
   companyKey: 'pro-technic-machinery',
   displayName: '宝力机械 / Pro-Technic Machinery',
-  matchedEmployer: '东莞宝力机械',
+  matchedEmployer: '香港宝力机械有限公司东莞代表处',
   preset: 'no_hire',
   effects: {
     visibility: 'hide',
@@ -23,12 +23,31 @@ const noHireHit: CompanyPolicyMatchHit = {
 }
 
 describe('CompanyPolicyBadges', () => {
-  it('renders no-hire badge and banner without implying score change', () => {
-    render(<CompanyPolicyBadges hits={[noHireHit]} />)
-    expect(screen.getByTestId('company-policy-badge-no-hire')).toBeInTheDocument()
+  beforeEach(() => {
+    window.history.replaceState({}, '', '/hr/resumes')
+  })
+  afterEach(() => {
+    window.history.replaceState({}, '', '/')
+  })
 
+  it('renders a short chip without score jargon', () => {
+    render(<CompanyPolicyBadges hits={[noHireHit]} />)
+    const chip = screen.getByTestId('company-policy-badge-no-hire')
+    expect(chip).toHaveTextContent(/No-hire/)
+    expect(chip).toHaveTextContent(/宝力机械/)
+    expect(chip).not.toHaveTextContent(/AI score/i)
+    expect(chip).not.toHaveTextContent(/Operational/i)
+    expect(chip).not.toHaveTextContent(/Pro-Technic Machinery/)
+  })
+
+  it('banner is one line with manage link to policies settings', () => {
     render(<CompanyPolicyBadges hits={[noHireHit]} variant="banner" />)
-    expect(screen.getByTestId('company-policy-warning')).toBeInTheDocument()
-    expect(screen.getAllByText(/AI score is unchanged/i).length).toBeGreaterThan(0)
+    const banner = screen.getByTestId('company-policy-warning')
+    expect(banner).toHaveTextContent(/No-hire/)
+    expect(banner).toHaveTextContent(/宝力机械/)
+    expect(banner).not.toHaveTextContent(/AI score/i)
+    expect(banner).not.toHaveTextContent(/Operational/i)
+    const link = screen.getByTestId('company-policy-manage-link')
+    expect(link).toHaveAttribute('href', '/hr/settings/policies?tab=companies')
   })
 })
