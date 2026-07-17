@@ -200,6 +200,7 @@
     "archiveFailed": "归档简历失败",
     "clearAnalyses": "重置 AI 分析",
     "clearAnalysesFailed": "清除分析失败",
+    "clearAnalysesConfirm": "仅清除 AI 分析与确认分，以便重新跑分。HR 候选人状态、备注及入选/淘汰决策会保留。AI 分数操作不可撤销。",
     "hardReset": "硬重置并重新导入",
     "taggingEnvelope": "标注信封",
     "archiveSelected": "归档选中 ({{count}})",
@@ -884,7 +885,16 @@
     "adminUsersTempPasswordCopied": "密码已复制到剪贴板",
     "adminUsersTempPasswordWarning": "请立即复制。关闭此对话框后将无法再次显示。",
     "adminUsersEmpty": "无用户。",
-    "adminUsersLoading": "正在加载用户..."
+    "adminUsersLoading": "正在加载用户...",
+    "hrDemoSilentTitle": "HR 演示静默登录",
+    "hrDemoSilentDescription": "共享工作台书签令牌（AUTH_HR_DEMO_TOKEN）。在 /hr/resumes 深链上附加 ?auth=… 即可无密码进入完整成员工作台。",
+    "hrDemoSilentTokenCopied": "已复制静默登录令牌",
+    "hrDemoSilentCopyToken": "复制令牌",
+    "hrDemoSilentLinkCopied": "已复制静默登录链接",
+    "hrDemoSilentCopyLink": "复制完整 URL",
+    "hrDemoSilentHint": "如需可在路径后追加筛选参数，例如 &location=China&q=CNC。请将令牌视同共享密码妥善保管。",
+    "hrDemoSilentNotConfigured": "请在 API 主机设置 AUTH_HR_DEMO_TOKEN 并重启服务，以启用静默登录书签。",
+    "hrDemoSilentHashOnly": "当前仅配置了 AUTH_HR_DEMO_TOKEN_HASH，管理界面无法展示明文令牌。如需新的可分享链接，请通过环境变量轮换。"
   },
   "searchProfiles": {
     "deleteError": "删除配置失败",

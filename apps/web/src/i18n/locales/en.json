@@ -200,6 +200,7 @@
     "archiveFailed": "Failed to archive resumes",
     "clearAnalyses": "Reset AI Analyses",
     "clearAnalysesFailed": "Failed to clear analyses",
+    "clearAnalysesConfirm": "Clear AI analysis and confirm scores only so scoring can be re-run. HR candidate status, notes, and shortlist/reject decisions are preserved. This cannot be undone for AI scores.",
     "hardReset": "Hard Reset & Re-ingest",
     "taggingEnvelope": "Tagging Envelope",
     "archiveSelected": "Archive Selected ({{count}})",
@@ -1302,7 +1303,16 @@
     "adminUsersTempPasswordCopied": "Password copied to clipboard",
     "adminUsersTempPasswordWarning": "Copy this now. It will not be shown again after you close this dialog.",
     "adminUsersEmpty": "No users found.",
-    "adminUsersLoading": "Loading users..."
+    "adminUsersLoading": "Loading users...",
+    "hrDemoSilentTitle": "HR demo silent login",
+    "hrDemoSilentDescription": "Shared desk bookmark token (AUTH_HR_DEMO_TOKEN). Append as ?auth=… on /hr/resumes deep links for passwordless full member desk access.",
+    "hrDemoSilentTokenCopied": "Silent login token copied",
+    "hrDemoSilentCopyToken": "Copy token",
+    "hrDemoSilentLinkCopied": "Silent login link copied",
+    "hrDemoSilentCopyLink": "Copy full URL",
+    "hrDemoSilentHint": "Paste filters after the path if needed, e.g. &location=China&q=CNC. Treat the token like a shared password.",
+    "hrDemoSilentNotConfigured": "Set AUTH_HR_DEMO_TOKEN on the API host and restart the service to enable silent login bookmarks.",
+    "hrDemoSilentHashOnly": "Only AUTH_HR_DEMO_TOKEN_HASH is configured — the plaintext token cannot be revealed from the admin UI. Rotate via env if you need a new shareable link."
   },
   "platforms": {
     "zhihu": "Zhihu",

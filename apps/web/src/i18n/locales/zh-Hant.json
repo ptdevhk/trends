@@ -200,6 +200,7 @@
     "archiveFailed": "歸檔簡歷失敗",
     "clearAnalyses": "重置 AI 分析",
     "clearAnalysesFailed": "清除分析失敗",
+    "clearAnalysesConfirm": "僅清除 AI 分析與確認分，以便重新跑分。HR 候選人狀態、備註及入選/淘汰決策會保留。AI 分數操作不可撤銷。",
     "hardReset": "硬重置並重新匯入",
     "taggingEnvelope": "標註信封",
     "archiveSelected": "歸檔選取 ({{count}})",
@@ -1302,7 +1303,16 @@
     "adminUsersTempPasswordCopied": "密碼已複製到剪貼簿",
     "adminUsersTempPasswordWarning": "請立即複製。關閉此對話框後將無法再次顯示。",
     "adminUsersEmpty": "無用戶。",
-    "adminUsersLoading": "正在載入用戶..."
+    "adminUsersLoading": "正在載入用戶...",
+    "hrDemoSilentTitle": "HR 演示靜默登入",
+    "hrDemoSilentDescription": "共用工作台書籤權杖（AUTH_HR_DEMO_TOKEN）。在 /hr/resumes 深鏈上附加 ?auth=… 即可免密碼進入完整成員工作台。",
+    "hrDemoSilentTokenCopied": "已複製靜默登入權杖",
+    "hrDemoSilentCopyToken": "複製權杖",
+    "hrDemoSilentLinkCopied": "已複製靜默登入連結",
+    "hrDemoSilentCopyLink": "複製完整 URL",
+    "hrDemoSilentHint": "如需可在路徑後追加篩選參數，例如 &location=China&q=CNC。請將權杖視同共用密碼妥善保管。",
+    "hrDemoSilentNotConfigured": "請在 API 主機設定 AUTH_HR_DEMO_TOKEN 並重啟服務，以啟用靜默登入書籤。",
+    "hrDemoSilentHashOnly": "目前僅設定 AUTH_HR_DEMO_TOKEN_HASH，管理介面無法顯示明文權杖。如需新的可分享連結，請透過環境變數輪換。"
   },
   "platforms": {
     "zhihu": "知乎",
