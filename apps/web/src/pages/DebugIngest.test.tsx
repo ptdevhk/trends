@@ -270,7 +270,7 @@ describe('DebugIngest reset database dialog', () => {
     })
   })
 
-  it('clears analyses across multiple batches and reports the total cleared count', async () => {
+  it('requires confirmation before clearing AI analyses and preserves HR-status messaging', async () => {
     const user = userEvent.setup()
     clearAnalysesMutation
       .mockResolvedValueOnce({ cleared: 25, hasMore: true, cursor: 'cursor-1' })
@@ -279,6 +279,16 @@ describe('DebugIngest reset database dialog', () => {
     render(<DebugIngest />)
 
     await user.click(screen.getByRole('button', { name: 'Reset AI Analyses' }))
+
+    expect(clearAnalysesMutation).not.toHaveBeenCalled()
+    expect(
+      screen.getByText(
+        'Clear AI analysis and confirm scores only so scoring can be re-run. HR candidate status, notes, and shortlist/reject decisions are preserved. This cannot be undone for AI scores.'
+      )
+    ).toBeInTheDocument()
+
+    const confirmButtons = screen.getAllByRole('button', { name: 'Reset AI Analyses' })
+    await user.click(confirmButtons[confirmButtons.length - 1]!)
 
     await waitFor(() => {
       expect(clearAnalysesMutation).toHaveBeenNthCalledWith(1, { cursor: undefined })

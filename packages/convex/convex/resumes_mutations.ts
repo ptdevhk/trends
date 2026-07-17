@@ -285,6 +285,27 @@ export const listResumeUsageBatch = internalQuery({
 // Public mutations
 // ---------------------------------------------------------------------------
 
+function hasNonEmptyAnalyses(
+    analyses: Record<string, unknown> | undefined,
+): boolean {
+    return analyses !== undefined && Object.keys(analyses).length > 0;
+}
+
+/**
+ * Reset AI Analyses — AI-only clear contract.
+ *
+ * CLEARS (so AI scoring can re-run cleanly):
+ * - cold `resume_analyses` (archive / surgical key removal)
+ * - hot transitional `resume.analysis` / `resume.analyses`
+ * - hot `confirmedScore` / `confirmedAt` (L4 confirm scores)
+ * - digest display score fields (via doUpsertResumeDigest)
+ *
+ * MUST NEVER TOUCH (HR-critical preference data):
+ * - `candidate_status` (status, notes, history)
+ * - `resume_digest_statuses` (workspace status overlay)
+ * - `candidate_blocks`
+ * - resume content / identityKey / externalId / ingestData / source
+ */
 export const clearAnalyses = mutation({
     args: {
         resumeIds: v.optional(v.array(v.id("resumes"))),
@@ -317,9 +338,9 @@ export const clearAnalyses = mutation({
         for (const resume of resumes) {
             if (!resume) continue;
 
-            // Phase 4 Step 3a: clear is cold-authoritative. Resolve the active
-            // cold analysis (legacy hot fallback) to decide skip + surgical
-            // matching; the cold row is the only thing we patch.
+            // Resolve active analysis from cold (legacy hot fallback) to decide
+            // skip + surgical matching. Writers then clear BOTH cold and hot so
+            // readActiveResumeAnalysis cannot resurrect scores after reset.
             const coldRow = await ctx.db
                 .query("resume_analyses")
                 .withIndex("by_resume", (q) => q.eq("resumeId", resume._id))
@@ -327,27 +348,50 @@ export const clearAnalyses = mutation({
             const activeAnalysis = coldRow && coldRow.status !== "archived"
                 ? { analysis: coldRow.analysis, analyses: coldRow.analyses }
                 : { analysis: resume.analysis, analyses: resume.analyses };
-            const hasAnalysis = activeAnalysis.analysis !== undefined
-                || (activeAnalysis.analyses !== undefined && Object.keys(activeAnalysis.analyses).length > 0);
-            if (!hasAnalysis) continue;
+            // Clear when hot transitional AI fields OR an active cold blob remain.
+            // activeAnalysis alone is insufficient: hot confirmedScore can linger
+            // after cold archive, and hot leftovers can resurrect via fallback.
+            const hasHotAi = resume.analysis !== undefined
+                || hasNonEmptyAnalyses(resume.analyses)
+                || resume.confirmedScore !== undefined
+                || resume.confirmedAt !== undefined;
+            const hasActiveCold = Boolean(
+                coldRow
+                && coldRow.status !== "archived"
+                && (
+                    coldRow.analysis !== undefined
+                    || hasNonEmptyAnalyses(coldRow.analyses)
+                ),
+            );
+            if (!hasHotAi && !hasActiveCold) continue;
 
-            // Surgical (jobDescriptionId) clear → remove matching keys from the
-            // cold map; archive only if the map is empty AND no current analysis.
-            if (args.jobDescriptionId && activeAnalysis.analyses) {
-                const analyses = { ...activeAnalysis.analyses };
+            if (args.jobDescriptionId) {
+                // Surgical clear for one JD: remove matching map keys + current
+                // analysis when it targets that JD. Touch only AI fields.
+                const jdId = args.jobDescriptionId;
+                const analysesSource = activeAnalysis.analyses ?? resume.analyses ?? {};
+                const analyses = { ...analysesSource };
                 const matchingKeys = Object.keys(analyses).filter((key) =>
-                    isResumeAnalysisKeyForJobDescription(key, args.jobDescriptionId)
+                    isResumeAnalysisKeyForJobDescription(key, jdId)
                 );
-                if (matchingKeys.length > 0) {
-                    for (const key of matchingKeys) {
-                        delete analyses[key];
-                    }
-                    const isCurrentAnalysis = activeAnalysis.analysis?.jobDescriptionId === args.jobDescriptionId;
-                    // Sync cold row: archive only if map is now empty AND no current analysis.
-                    if (coldRow && !args.dryRun) {
-                        const remainingKeys = Object.keys(analyses).length;
-                        const hasCurrent = isCurrentAnalysis ? false : activeAnalysis.analysis !== undefined;
-                        if (remainingKeys === 0 && !hasCurrent) {
+                const isCurrentAnalysis = activeAnalysis.analysis?.jobDescriptionId === jdId
+                    || resume.analysis?.jobDescriptionId === jdId;
+
+                if (matchingKeys.length === 0 && !isCurrentAnalysis) {
+                    continue;
+                }
+
+                for (const key of matchingKeys) {
+                    delete analyses[key];
+                }
+                const remainingKeys = Object.keys(analyses).length;
+                const hasCurrentAfter = isCurrentAnalysis
+                    ? false
+                    : activeAnalysis.analysis !== undefined;
+
+                if (!args.dryRun) {
+                    if (coldRow) {
+                        if (remainingKeys === 0 && !hasCurrentAfter) {
                             await ctx.db.patch(coldRow._id, {
                                 status: "archived",
                                 archivedAt: Date.now(),
@@ -363,23 +407,53 @@ export const clearAnalyses = mutation({
                             });
                         }
                     }
-                    cleared += 1;
-                }
-            } else {
-                // Non-surgical clear: always archive the cold row.
-                if (coldRow && !args.dryRun) {
-                    await ctx.db.patch(coldRow._id, {
-                        status: "archived",
-                        archivedAt: Date.now(),
-                        updatedAt: Date.now(),
+
+                    const hotAnalyses = resume.analyses ? { ...resume.analyses } : undefined;
+                    if (hotAnalyses) {
+                        for (const key of Object.keys(hotAnalyses)) {
+                            if (isResumeAnalysisKeyForJobDescription(key, jdId)) {
+                                delete hotAnalyses[key];
+                            }
+                        }
+                    }
+                    await ctx.db.patch(resume._id, {
+                        analysis: isCurrentAnalysis ? undefined : resume.analysis,
+                        analyses: hotAnalyses && Object.keys(hotAnalyses).length > 0
+                            ? hotAnalyses
+                            : undefined,
                     });
                 }
-                cleared += 1;
+            } else {
+                // Full AI reset: archive cold + wipe hot AI fields.
+                // Never touches HR status / notes / identity.
+                if (!args.dryRun) {
+                    if (coldRow) {
+                        await ctx.db.patch(coldRow._id, {
+                            status: "archived",
+                            archivedAt: Date.now(),
+                            analysis: undefined,
+                            analyses: {},
+                            updatedAt: Date.now(),
+                        });
+                    }
+                    await ctx.db.patch(resume._id, {
+                        analysis: undefined,
+                        analyses: undefined,
+                        confirmedScore: undefined,
+                        confirmedAt: undefined,
+                    });
+                }
             }
-            // After a cold-authoritative clear, re-sync the digest so display
-            // fields drop (the archived cold row is now filtered on read).
+
+            cleared += 1;
+
+            // Re-sync digest display fields after AI clear. identityKey is
+            // preserved inside doUpsertResumeDigest so HR status joins survive.
             if (!args.dryRun) {
-                await doUpsertResumeDigest(ctx, resume);
+                const latest = await ctx.db.get(resume._id);
+                if (latest) {
+                    await doUpsertResumeDigest(ctx, latest);
+                }
             }
         }
 

@@ -217,11 +217,13 @@ describe("resumes: clearAnalyses", () => {
       return ctx.db.query("resumes").collect();
     });
 
-    // Phase 4 Step 3a: the cold row is archived (hot analysis fields are no
-    // longer cleared — they're no longer authoritative).
+    // Full AI reset archives cold AND clears transitional hot AI fields so
+    // re-run cannot resurrect scores via hot fallback. Content is preserved.
     const coldRow = await getResumeAnalysesColdRow(t, resumeId);
     expect(coldRow).not.toBeNull();
     expect(coldRow?.status).toBe("archived");
+    expect(resumes[0].analysis).toBeUndefined();
+    expect(resumes[0].analyses).toBeUndefined();
     // Other fields preserved
     expect(resumes[0].content).toEqual({ name: "Analyzed" });
   });

@@ -184,6 +184,7 @@ export default function DebugIngest() {
   const [resettingDatabase, setResettingDatabase] = useState(false)
   const [deletingResumes, setDeletingResumes] = useState(false)
   const [hardResetDialogOpen, setHardResetDialogOpen] = useState(false)
+  const [clearAnalysesDialogOpen, setClearAnalysesDialogOpen] = useState(false)
   const [resetDialogOpen, setResetDialogOpen] = useState(false)
 
   const apiBaseUrl = useMemo(() => {
@@ -398,6 +399,7 @@ export default function DebugIngest() {
         totalCleared += result.cleared
         cursor = result.hasMore ? (result.cursor ?? undefined) : undefined
       } while (cursor)
+      setClearAnalysesDialogOpen(false)
       toast.success(
         t('debugIngest.clearAnalysesSuccess', {
           cleared: totalCleared,
@@ -641,7 +643,7 @@ export default function DebugIngest() {
             defaultValue: `Archive Selected (${selectedResumeIds.size})`,
           })}
         </Button>
-        <Button variant="destructive" onClick={() => void clearAnalyses()} disabled={clearingAnalyses}>
+        <Button variant="destructive" onClick={() => setClearAnalysesDialogOpen(true)} disabled={clearingAnalyses}>
           <Trash2 className={`mr-2 h-4 w-4 ${clearingAnalyses ? 'animate-spin' : ''}`} />
           {t('debugIngest.clearAnalyses', { defaultValue: 'Reset AI Analyses' })}
         </Button>
@@ -654,6 +656,55 @@ export default function DebugIngest() {
           {t('debugIngest.resetDatabase', { defaultValue: 'Clear Resume Database' })}
         </Button>
       </div>
+
+      <Dialog
+        open={clearAnalysesDialogOpen}
+        onOpenChange={(open: boolean) => {
+          if (!clearingAnalyses) {
+            setClearAnalysesDialogOpen(open)
+          }
+        }}
+      >
+        <DialogContent
+          onEscapeKeyDown={(event: { preventDefault: () => void }) => {
+            if (clearingAnalyses) {
+              event.preventDefault()
+            }
+          }}
+          onPointerDownOutside={(event: { preventDefault: () => void }) => {
+            if (clearingAnalyses) {
+              event.preventDefault()
+            }
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>{t('debugIngest.clearAnalyses', { defaultValue: 'Reset AI Analyses' })}</DialogTitle>
+            <DialogDescription>
+              {t('debugIngest.clearAnalysesConfirm', {
+                defaultValue:
+                  'Clear AI analysis and confirm scores only so scoring can be re-run. HR candidate status, notes, and shortlist/reject decisions are preserved. This cannot be undone for AI scores.',
+              })}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setClearAnalysesDialogOpen(false)}
+              disabled={clearingAnalyses}
+            >
+              {t('common.cancel', { defaultValue: 'Cancel' })}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => void clearAnalyses()}
+              disabled={clearingAnalyses}
+            >
+              <Trash2 className={`mr-2 h-4 w-4 ${clearingAnalyses ? 'animate-spin' : ''}`} />
+              {t('debugIngest.clearAnalyses', { defaultValue: 'Reset AI Analyses' })}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={hardResetDialogOpen}

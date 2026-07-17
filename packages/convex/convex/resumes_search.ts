@@ -919,10 +919,24 @@ export async function doUpsertResumeDigest(
     // over-count of cleared (archived) analyses.
     const activeAnalysis = await readActiveResumeAnalysis(ctx, resume);
     const digest = buildResumeDigest(resume, Date.now(), activeAnalysis);
+
+    // HR status joins on digest.identityKey ↔ candidate_status.identityKey.
+    // Never wipe identityKey via Convex patch(undefined): prefer resume, then
+    // keep whatever the existing digest already has. Omit the field entirely
+    // when neither source has a key so insert/patch cannot clear it.
+    const identityKey = resume.identityKey ?? existing?.identityKey;
+    const { identityKey: _omitIdentityKey, ...digestWithoutIdentityKey } = digest;
+    const patch = identityKey !== undefined
+        ? { ...digestWithoutIdentityKey, identityKey }
+        : digestWithoutIdentityKey;
+
     if (existing) {
-        await ctx.db.patch(existing._id, digest);
+        await ctx.db.patch(existing._id, patch);
     } else {
-        await ctx.db.insert("resume_digests", digest);
+        await ctx.db.insert("resume_digests", {
+            ...patch,
+            resumeId: resume._id,
+        });
     }
 }
 
