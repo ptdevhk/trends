@@ -148,10 +148,17 @@ print_context_report() {
         git_branch="$(git -C "$app_dir" rev-parse --abbrev-ref HEAD 2>/dev/null || echo n/a)"
         git_commit="$(git -C "$app_dir" rev-parse --short HEAD 2>/dev/null || echo n/a)"
     elif [[ -f "$app_dir/.trends-source-meta" ]]; then
+        # Read meta in a subshell so SOURCE_REF / SOURCE_* do not clobber the
+        # caller's deploy environment (preview-upgrade SOURCE_REF=vX.Y.Z).
         # shellcheck disable=SC1090
-        source "$app_dir/.trends-source-meta"
-        git_branch="${SOURCE_BRANCH:-n/a}"
-        git_commit="${SOURCE_SHA_SHORT:-${SOURCE_SHA:-n/a}}"
+        eval "$(
+            set -a
+            # shellcheck source=/dev/null
+            source "$app_dir/.trends-source-meta"
+            set +a
+            printf 'git_branch=%q\n' "${SOURCE_BRANCH:-n/a}"
+            printf 'git_commit=%q\n' "${SOURCE_SHA_SHORT:-${SOURCE_SHA:-n/a}}"
+        )"
     fi
     if [[ -f "$app_dir/version" ]]; then
         app_version="$(tr -d '[:space:]' < "$app_dir/version")"

@@ -64,10 +64,14 @@ if [[ "$PREVIEW_DIR" == "$PROD_DIR" ]]; then
     exit 1
 fi
 
-SOURCE_REF="${SOURCE_REF:-origin/main}"
+# Capture before any context helpers source .trends-source-meta (which also
+# defines SOURCE_REF and would otherwise pin upgrades to the previous tag).
+REQUESTED_SOURCE_REF="${SOURCE_REF:-origin/main}"
+SOURCE_REF="$REQUESTED_SOURCE_REF"
 
 log_step "Preview upgrade preflight"
 print_context_report "preview-before" "$PREVIEW_DIR" "$PREVIEW_ENV_FILE"
+SOURCE_REF="$REQUESTED_SOURCE_REF"
 
 # Prefer cwd check when operator is in preview tree
 if is_preview_path "$(pwd -P)"; then

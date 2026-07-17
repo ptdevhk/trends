@@ -114,7 +114,7 @@ vi.mock('react-router-dom', () => ({
 }))
 
 vi.mock('convex/react', () => ({
-  useQuery: (...args: unknown[]) => useQueryMock(...(args as [])),
+  useQuery: (...args: unknown[]) => (useQueryMock as (...a: unknown[]) => unknown)(...args),
   useMutation: () => useMutationMock(),
 }))
 
