@@ -1856,6 +1856,28 @@ export function useResumeSearchState() {
     )
   }, [deferredFilteredResults])
 
+  /** Replace selection with an explicit key set (e.g. policy-visible universe). */
+  const replaceSelection = useCallback((keys: Iterable<string>) => {
+    setSelectedIds(new Set(keys))
+  }, [])
+
+  /** Drop keys that are no longer in the allowed universe (hide filter, etc.). */
+  const pruneSelection = useCallback((allowedKeys: Iterable<string>) => {
+    const allowed = allowedKeys instanceof Set ? allowedKeys : new Set(allowedKeys)
+    setSelectedIds((current) => {
+      let changed = false
+      const next = new Set<string>()
+      for (const key of current) {
+        if (allowed.has(key)) {
+          next.add(key)
+        } else {
+          changed = true
+        }
+      }
+      return changed ? next : current
+    })
+  }, [])
+
   const clearSelection = useCallback(() => {
     setSelectedIds(new Set())
   }, [])
@@ -1950,7 +1972,8 @@ export function useResumeSearchState() {
         return
       }
 
-      let selectedItems = filteredResults.filter((item) => selectedIds.has(item.key))
+      // Prefer currently rendered/deferred list membership for bulk scope.
+      let selectedItems = deferredFilteredResults.filter((item) => selectedIds.has(item.key))
       if (selectedItems.length === 0) {
         return
       }
@@ -2004,7 +2027,16 @@ export function useResumeSearchState() {
 
       clearSelection()
     },
-    [blockCandidates, clearSelection, exportResults, filteredResults, saveAction, selectedIds, t, updateCandidateStatus],
+    [
+      blockCandidates,
+      clearSelection,
+      deferredFilteredResults,
+      exportResults,
+      saveAction,
+      selectedIds,
+      t,
+      updateCandidateStatus,
+    ],
   )
 
   return {
@@ -2081,6 +2113,8 @@ export function useResumeSearchState() {
     selectedIds,
     selectAll,
     selectHighScore,
+    replaceSelection,
+    pruneSelection,
     clearSelection,
     toggleSelectItem,
   }

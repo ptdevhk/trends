@@ -526,9 +526,10 @@ export const seedCanonicalCompanies = mutation({
   args: {
     workspaceSlug: v.optional(v.string()),
     /**
-     * When true (default for API seed button), append workspace no-hire
-     * policies for both Pro-Technic and Polywell if none exist yet.
-     * Accepts legacy `seedKnownGoodForWorkspace` callers via BFF mapping.
+     * When true, (re)apply workspace **no-hire** for both Pro-Technic and Polywell.
+     * Seed button always means "reset these two to no-hire" — if the latest
+     * policy is already no-hire, skip; otherwise append a new revision
+     * (including after HR set them to "none" / known-good).
      */
     seedNoHireForWorkspace: v.optional(v.boolean()),
     createdBy: v.optional(v.string()),
@@ -599,8 +600,10 @@ export const seedCanonicalCompanies = mutation({
     }
 
     let policiesSeeded = 0;
+    let lastPolicyRevision: number | null = null;
     if (args.seedNoHireForWorkspace) {
       const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
+      const effects = policyEffectsFromPreset("no_hire");
       for (const seed of CANONICAL_SEED_COMPANIES) {
         const companyKey = seed.companyKey;
         const existing = await latestPolicyRevision(ctx, {
@@ -608,16 +611,22 @@ export const seedCanonicalCompanies = mutation({
           scopeId: workspaceSlug,
           companyKey,
         });
-        // Only seed when no workspace policy exists yet (do not clobber HR edits).
-        if (existing) {
+        // Already at no-hire — leave as-is (idempotent re-seed).
+        const alreadyNoHire =
+          existing != null &&
+          existing.visibility === "hide" &&
+          existing.workflow === "blocked" &&
+          existing.rankingEffect === "band_known_bad";
+        if (alreadyNoHire) {
           continue;
         }
-        const effects = policyEffectsFromPreset("no_hire");
+        // Re-apply no-hire after "none" / known_good / missing policy.
+        const nextRevision = (existing?.revision ?? 0) + 1;
         await ctx.db.insert("company_policy_revisions", {
           companyKey,
           scopeType: "workspace",
           scopeId: workspaceSlug,
-          revision: 1,
+          revision: nextRevision,
           visibility: effects.visibility,
           workflow: effects.workflow,
           rankingEffect: effects.rankingEffect,
@@ -627,6 +636,7 @@ export const seedCanonicalCompanies = mutation({
           createdBy: args.createdBy ?? "seed",
         });
         policiesSeeded += 1;
+        lastPolicyRevision = nextRevision;
       }
     }
 
@@ -635,7 +645,7 @@ export const seedCanonicalCompanies = mutation({
       companiesUpdated,
       aliasesCreated,
       policiesSeeded,
-      policyRevision: policiesSeeded > 0 ? 1 : null,
+      policyRevision: lastPolicyRevision,
     };
   },
 });

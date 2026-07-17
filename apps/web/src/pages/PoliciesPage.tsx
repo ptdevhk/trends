@@ -88,7 +88,7 @@ function CompaniesTab() {
     toast.success(
       t('settings.policies.toasts.seedSuccess', {
         defaultValue:
-          'Seeded {{created}} new / {{updated}} updated companies; {{policies}} no-hire policies',
+          'Companies ok ({{created}} new / {{updated}} updated). Applied no-hire to {{policies}} company(ies) (skipped if already no-hire).',
         created: result.companiesCreated ?? 0,
         updated: result.companiesUpdated ?? 0,
         policies: result.policiesSeeded ?? 0,
@@ -184,7 +184,7 @@ function CompaniesTab() {
                 {seeding
                   ? t('settings.policies.seeding', { defaultValue: 'Seeding…' })
                   : t('settings.policies.seedCanonical', {
-                      defaultValue: 'Seed Pro-Technic + Polywell (no-hire)',
+                      defaultValue: 'Reset Pro-Technic + Polywell to no-hire',
                     })}
               </Button>
             </div>

@@ -69,6 +69,66 @@ describe("companies (convex-test)", () => {
     }
   });
 
+  it("re-seeds no-hire after policies were cleared to none", async () => {
+    const t = createTest();
+    await t.mutation(api.companies.seedCanonicalCompanies, {
+      writeSecret: WRITE_SECRET,
+      seedNoHireForWorkspace: true,
+      workspaceSlug: "hr",
+    });
+
+    // HR sets both to "none"
+    for (const companyKey of ["pro-technic-machinery", "polywell"] as const) {
+      await t.mutation(api.companies.appendPolicyRevision, {
+        companyKey,
+        scopeType: "workspace",
+        scopeId: "hr",
+        rankingEffect: "none",
+        visibility: "default",
+        workflow: "default",
+        reasonCodes: [],
+        writeSecret: WRITE_SECRET,
+        createdBy: "hr",
+      });
+    }
+
+    let policies = await t.query(api.companies.listPoliciesForScope, {
+      scopeType: "workspace",
+      scopeId: "hr",
+      writeSecret: WRITE_SECRET,
+    });
+    expect(policies.every((p) => p.effects?.rankingEffect === "none")).toBe(true);
+
+    // Re-click seed → force both back to no-hire
+    const reseed = await t.mutation(api.companies.seedCanonicalCompanies, {
+      writeSecret: WRITE_SECRET,
+      seedNoHireForWorkspace: true,
+      workspaceSlug: "hr",
+    });
+    expect(reseed.policiesSeeded).toBe(2);
+
+    policies = await t.query(api.companies.listPoliciesForScope, {
+      scopeType: "workspace",
+      scopeId: "hr",
+      writeSecret: WRITE_SECRET,
+    });
+    expect(policies).toHaveLength(2);
+    for (const policy of policies) {
+      expect(policy.effects?.visibility).toBe("hide");
+      expect(policy.effects?.workflow).toBe("blocked");
+      expect(policy.effects?.rankingEffect).toBe("band_known_bad");
+      expect(policy.revision).toBeGreaterThanOrEqual(2);
+    }
+
+    // Idempotent: already no-hire → no new revisions
+    const again = await t.mutation(api.companies.seedCanonicalCompanies, {
+      writeSecret: WRITE_SECRET,
+      seedNoHireForWorkspace: true,
+      workspaceSlug: "hr",
+    });
+    expect(again.policiesSeeded).toBe(0);
+  });
+
   it("appends policy revisions and resolves workspace over global", async () => {
     const t = createTest();
     await t.mutation(api.companies.seedCanonicalCompanies, {

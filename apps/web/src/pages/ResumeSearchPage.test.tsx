@@ -595,6 +595,8 @@ function createResumeSearchState(overrides: Record<string, unknown> = {}) {
     selectedIds: new Set<string>(),
     selectAll: vi.fn(),
     selectHighScore: vi.fn(),
+    replaceSelection: vi.fn(),
+    pruneSelection: vi.fn(),
     clearSelection: vi.fn(),
     toggleSelectItem: vi.fn(),
     actionsByResume: {},

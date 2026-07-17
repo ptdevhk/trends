@@ -92,4 +92,29 @@ describe('BulkActionBar', () => {
         expect(screen.getByText('214')).toBeInTheDocument()
         expect(screen.getByText('interviewed_pass')).toBeInTheDocument()
     })
+
+    it('places company-policy hide chips on the main selection row', async () => {
+        const user = userEvent.setup()
+        const onShow = vi.fn()
+        render(
+            <MemoryRouter>
+                <BulkActionBar
+                    {...defaultProps}
+                    companyPolicyHiddenCount={2}
+                    showCompanyPolicyHidden={false}
+                    onShowCompanyPolicyHiddenChange={onShow}
+                />
+            </MemoryRouter>,
+        )
+
+        const bar = screen.getByTestId('bulk-action-bar')
+        const toggle = screen.getByTestId('company-policy-hidden-toggle')
+        expect(bar).toContainElement(toggle)
+        // Inline with selection row (no separate footer section)
+        expect(bar.querySelector('[class*="border-t"]')).toBeNull()
+        expect(screen.getByTestId('company-policy-hidden-count')).toHaveTextContent(/2/)
+
+        await user.click(screen.getByTestId('company-policy-show-hidden'))
+        expect(onShow).toHaveBeenCalledWith(true)
+    })
 })

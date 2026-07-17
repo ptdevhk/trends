@@ -1117,7 +1117,7 @@
       "companiesTitle": "公司注册表与策略",
       "companiesDescription": "管理此工作区的已知优质/禁止录用公司。策略不改写 AI 分数；搜索侧执行将在后续切片落地。",
       "searchPlaceholder": "搜索公司、别名或 key…",
-      "seedCanonical": "种子 宝力机械 + 宝惠（禁止录用）",
+      "seedCanonical": "重置 宝力机械 + 宝惠 为禁止录用",
       "seeding": "种子中…",
       "empty": "尚无公司。请先种子规范公司或在下方新增。",
       "noAliases": "无别名",
@@ -1143,7 +1143,7 @@
         "actions": "操作"
       },
       "toasts": {
-        "seedSuccess": "已种子 {{created}} 新建 / {{updated}} 更新公司；{{policies}} 条禁止录用策略",
+        "seedSuccess": "公司已就绪（{{created}} 新建 / {{updated}} 更新）。已对 {{policies}} 家公司应用禁止录用（已是禁止录用则跳过）。",
         "seedFailed": "种子公司失败",
         "createRequired": "公司 key 与显示名称为必填",
         "createFailed": "创建公司失败",

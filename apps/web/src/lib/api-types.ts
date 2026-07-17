@@ -592,6 +592,78 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/hr-demo-silent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description HR demo silent-login configuration for admin operators */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            configured: boolean;
+                            revealable: boolean;
+                            username: string;
+                            token: string | null;
+                            tokenFingerprint: string | null;
+                            samplePath: string | null;
+                            /** @enum {string} */
+                            paramName: "auth";
+                        };
+                    };
+                };
+                /** @description Authentication required */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Admin access required */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/events": {
         parameters: {
             query?: never;
@@ -7616,6 +7688,294 @@ export interface paths {
         };
         trace?: never;
     };
+    "/api/companies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List company registry entries */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Company registry list */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            items: {
+                                _id: string;
+                                companyKey: string;
+                                status: string;
+                                displayName: string;
+                                nameCn?: string;
+                                nameEn?: string;
+                                mergedIntoCompanyKey?: string;
+                                createdAt: number;
+                                updatedAt: number;
+                                createdBy?: string;
+                                aliases: {
+                                    aliasDisplay: string;
+                                    aliasNormalized: string;
+                                    source: string;
+                                }[];
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Create or update a company registry entry */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        companyKey: string;
+                        displayName: string;
+                        nameCn?: string;
+                        nameEn?: string;
+                        /** @enum {string} */
+                        status?: "provisional" | "confirmed" | "merged";
+                    };
+                };
+            };
+            responses: {
+                /** @description Company upserted */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            companyKey: string;
+                            created: boolean;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/companies/aliases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add an alias to a company */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        companyKey: string;
+                        alias: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Alias added */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            created: boolean;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/companies/seed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Seed canonical companies (Pro-Technic, Polywell) and optional workspace no-hire policies for both */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        seedNoHireForWorkspace?: boolean;
+                        seedKnownGoodForWorkspace?: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description Seed result */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            companiesCreated: number;
+                            companiesUpdated: number;
+                            aliasesCreated: number;
+                            policiesSeeded: number;
+                            policyRevision: number | null;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/company-policies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List effective workspace company policies */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Workspace company policies */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            items: {
+                                companyKey: string;
+                                displayName: string;
+                                nameCn?: string;
+                                nameEn?: string;
+                                status: string;
+                                scopeType: string;
+                                scopeId: string;
+                                revision: number;
+                                effects: {
+                                    visibility?: string;
+                                    workflow?: string;
+                                    rankingEffect?: string;
+                                    reasonCodes?: string[];
+                                    summary?: string;
+                                } | null;
+                                createdAt: number;
+                                createdBy?: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Append a workspace company policy revision */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        companyKey: string;
+                        /** @enum {string} */
+                        preset?: "known_good" | "no_hire" | "none";
+                        /** @enum {string} */
+                        visibility?: "default" | "hide";
+                        /** @enum {string} */
+                        workflow?: "default" | "blocked";
+                        /** @enum {string} */
+                        rankingEffect?: "none" | "band_known_good" | "band_known_bad" | "boost" | "demote";
+                        reasonCodes?: string[];
+                        summary?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Policy revision appended */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            revision: number;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/candidate-status": {
         parameters: {
             query?: never;
@@ -14561,7 +14921,7 @@ export interface components {
             status: "healthy" | "degraded" | "unhealthy";
             /** @example 2026-02-11T15:03:47+08:00 */
             timestamp: string;
-            /** @example 0.4.6 */
+            /** @example 0.4.13 */
             version?: string;
         };
         TrendsResponse: {

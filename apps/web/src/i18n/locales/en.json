@@ -887,7 +887,7 @@
       "companiesTitle": "Company registry & policy",
       "companiesDescription": "Manage known-good and no-hire companies for this workspace. Policy does not change AI score; search enforcement comes later.",
       "searchPlaceholder": "Search company, alias, or key…",
-      "seedCanonical": "Seed Pro-Technic + Polywell (no-hire)",
+      "seedCanonical": "Reset Pro-Technic + Polywell to no-hire",
       "seeding": "Seeding…",
       "empty": "No companies yet. Seed canonical companies or add one below.",
       "noAliases": "No aliases",
@@ -913,7 +913,7 @@
         "actions": "Actions"
       },
       "toasts": {
-        "seedSuccess": "Seeded {{created}} new / {{updated}} updated companies; {{policies}} no-hire policies",
+        "seedSuccess": "Companies ok ({{created}} new / {{updated}} updated). Applied no-hire to {{policies}} company(ies) (skipped if already no-hire).",
         "seedFailed": "Failed to seed companies",
         "createRequired": "Company key and display name are required",
         "createFailed": "Failed to create company",

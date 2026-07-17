@@ -1384,6 +1384,26 @@ export function useResumeListState(loadSearchHistory = false) {
     setSelectedIds(new Set(displayedResumes.map((entry) => entry.key)))
   }, [displayedResumes])
 
+  const replaceSelection = useCallback((keys: Iterable<string>) => {
+    setSelectedIds(new Set(keys))
+  }, [])
+
+  const pruneSelection = useCallback((allowedKeys: Iterable<string>) => {
+    const allowed = allowedKeys instanceof Set ? allowedKeys : new Set(allowedKeys)
+    setSelectedIds((current) => {
+      let changed = false
+      const next = new Set<string>()
+      for (const key of current) {
+        if (allowed.has(key)) {
+          next.add(key)
+        } else {
+          changed = true
+        }
+      }
+      return changed ? next : current
+    })
+  }, [])
+
   const handleSelectHighScore = useCallback(() => {
     setSelectedIds(
       new Set(
@@ -2151,6 +2171,8 @@ export function useResumeListState(loadSearchHistory = false) {
     handleClearTagFilters,
     handleSelectAll,
     handleSelectHighScore,
+    replaceSelection,
+    pruneSelection,
     handleClearSelection,
     handleToggleSelect,
     handleBulkAction,

@@ -11,6 +11,7 @@ import { CheckCircle, XCircle, Download, Users, Ban } from 'lucide-react'
 import { CANDIDATE_STATUS_VALUES, type CandidateStatus } from '@/types/resume'
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
+import { CompanyPolicyHiddenToggle } from '@/components/CompanyPolicyHiddenToggle'
 import { cn } from '@/lib/utils'
 import type { ResumeExportFormat } from '@/types/resume'
 
@@ -41,6 +42,12 @@ interface BulkActionBarProps {
     onStatusFilterChange?: (statuses: CandidateStatus[] | undefined) => void
     /** Facet counts by status for chip labels */
     statusFacetCounts?: Record<string, number>
+    /** Company-policy hide: count of resumes omitted by visibility=hide */
+    companyPolicyHiddenCount?: number
+    /** Whether hidden company-policy rows are currently shown */
+    showCompanyPolicyHidden?: boolean
+    /** Toggle recovery of company-policy-hidden resumes */
+    onShowCompanyPolicyHiddenChange?: (show: boolean) => void
 }
 
 export function BulkActionBar({
@@ -61,9 +68,15 @@ export function BulkActionBar({
     onStatusToggle,
     onStatusFilterChange,
     statusFacetCounts,
+    companyPolicyHiddenCount = 0,
+    showCompanyPolicyHidden = false,
+    onShowCompanyPolicyHiddenChange,
 }: BulkActionBarProps) {
     const { t } = useTranslation()
     const [loading, setLoading] = useState<string | null>(null)
+    const showCompanyPolicyControl =
+        typeof onShowCompanyPolicyHiddenChange === 'function' &&
+        (companyPolicyHiddenCount > 0 || showCompanyPolicyHidden)
     const totalCountLabel = `${totalCount}${totalCountIsLowerBound ? '+' : ''}`
     const allStatusActive = statusFilter?.length === ALL_STATUS_FILTERS.length
         && ALL_STATUS_FILTERS.every((status) => statusFilter.includes(status))
@@ -94,7 +107,11 @@ export function BulkActionBar({
     }, [onBulkAction, exportFormat])
 
     return (
-        <div className="flex flex-wrap items-center gap-2 p-3 rounded-lg bg-muted/50 border">
+        <div
+            className="rounded-lg border bg-muted/50"
+            data-testid="bulk-action-bar"
+        >
+            <div className="flex flex-wrap items-center gap-2 p-3">
             {/* Selection Info */}
             <div className="flex items-center gap-2 text-sm">
                 <Users className="h-4 w-4 text-muted-foreground" />
@@ -126,6 +143,19 @@ export function BulkActionBar({
                     </div>
                 </>
             )}
+
+            {/* Company-policy hide — same row as selection / status chips */}
+            {showCompanyPolicyControl ? (
+                <>
+                    <div className="h-6 w-px bg-border" />
+                    <CompanyPolicyHiddenToggle
+                        variant="bar"
+                        hiddenCount={companyPolicyHiddenCount}
+                        showHidden={showCompanyPolicyHidden}
+                        onShowHiddenChange={onShowCompanyPolicyHiddenChange!}
+                    />
+                </>
+            ) : null}
 
             {/* Divider */}
             <div className="h-6 w-px bg-border" />
@@ -281,6 +311,7 @@ export function BulkActionBar({
                         <Download className={cn('h-4 w-4', loading === 'export' && 'animate-spin')} />
                     </Button>
                 </div>
+            </div>
             </div>
         </div>
     )

@@ -205,6 +205,8 @@ const baseMockState = {
   handleToggleExperienceLevel: vi.fn(),
   handleSelectAll: vi.fn(),
   handleSelectHighScore: vi.fn(),
+  replaceSelection: vi.fn(),
+  pruneSelection: vi.fn(),
   handleClearSelection: vi.fn(),
   handleToggleSelect: vi.fn(),
   handleBulkAction: vi.fn(),

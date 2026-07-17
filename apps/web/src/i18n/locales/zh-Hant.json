@@ -904,7 +904,7 @@
       "companiesTitle": "公司登錄表與策略",
       "companiesDescription": "管理此工作區的已知優質／禁止錄用公司。策略不改寫 AI 分數；搜尋側執行將在後續切片落地。",
       "searchPlaceholder": "搜尋公司、別名或 key…",
-      "seedCanonical": "種子 寶力機械 + 寶惠（禁止錄用）",
+      "seedCanonical": "重置 寶力機械 + 寶惠 為禁止錄用",
       "seeding": "種子中…",
       "empty": "尚無公司。請先種子規範公司或在下方新增。",
       "noAliases": "無別名",
@@ -930,7 +930,7 @@
         "actions": "操作"
       },
       "toasts": {
-        "seedSuccess": "已種子 {{created}} 新建 / {{updated}} 更新公司；{{policies}} 條禁止錄用策略",
+        "seedSuccess": "公司已就緒（{{created}} 新建 / {{updated}} 更新）。已對 {{policies}} 家公司套用禁止錄用（已是禁止錄用則跳過）。",
         "seedFailed": "種子公司失敗",
         "createRequired": "公司 key 與顯示名稱為必填",
         "createFailed": "建立公司失敗",

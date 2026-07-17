@@ -1,6 +1,6 @@
 import { formatKeywordQuery, parseKeywordQuery } from '@trends/shared'
 import { RefreshCw } from 'lucide-react'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AnalysisTaskMonitor } from '@/components/AnalysisTaskMonitor'
 import { BulkActionBar } from '@/components/BulkActionBar'
@@ -25,7 +25,6 @@ import { useAiSearchSummary } from '@/hooks/useAiSearchSummary'
 import { useIndustryKeywords } from '@/hooks/useIndustryKeywords'
 import { useResumeSearchState } from '@/hooks/useResumeSearchState'
 import { useCompanyPolicyListFilter } from '@/hooks/useCompanyPolicyListFilter'
-import { CompanyPolicyHiddenToggle } from '@/components/CompanyPolicyHiddenToggle'
 import { useAuth } from '@/contexts/AuthContext'
 import { rawApiClient } from '@/lib/api-helpers'
 import { isResumeAiSummaryEnabled } from '@/lib/feature-flags'
@@ -114,10 +113,9 @@ export function ResumeSearchPage() {
     handleRatingComment,
     handleCandidateStatusChange,
     handleToggleBlock,
-    highScoreCount,
     selectedIds,
-    selectAll,
-    selectHighScore,
+    replaceSelection,
+    pruneSelection,
     clearSelection,
     toggleSelectItem,
   } = useResumeSearchState()
@@ -145,6 +143,43 @@ export function ResumeSearchPage() {
     showHidden: showCompanyPolicyHidden,
     setShowHidden: setShowCompanyPolicyHidden,
   } = useCompanyPolicyListFilter(filteredResults, resolveSearchResumeEmployers)
+
+  // Selection + counts must use the same universe as the list (policy-visible).
+  const policyVisibleKeys = useMemo(
+    () => new Set(policyVisibleResults.map((item) => item.key)),
+    [policyVisibleResults],
+  )
+  const selectedVisibleCount = useMemo(() => {
+    let count = 0
+    for (const key of selectedIds) {
+      if (policyVisibleKeys.has(key)) {
+        count += 1
+      }
+    }
+    return count
+  }, [policyVisibleKeys, selectedIds])
+  const policyVisibleHighScoreCount = useMemo(
+    () =>
+      policyVisibleResults.filter(
+        (item) => typeof item.score === 'number' && item.score >= 80,
+      ).length,
+    [policyVisibleResults],
+  )
+  const selectAllVisible = useCallback(() => {
+    replaceSelection(policyVisibleResults.map((item) => item.key))
+  }, [policyVisibleResults, replaceSelection])
+  const selectHighScoreVisible = useCallback(() => {
+    replaceSelection(
+      policyVisibleResults
+        .filter((item) => typeof item.score === 'number' && item.score >= 80)
+        .map((item) => item.key),
+    )
+  }, [policyVisibleResults, replaceSelection])
+
+  // Drop selections that disappeared behind company-policy hide.
+  useEffect(() => {
+    pruneSelection(policyVisibleKeys)
+  }, [policyVisibleKeys, pruneSelection])
   const aiSummary = useAiSearchSummary({
     enabled: resumeAiSummaryEnabled,
     query: activeQuery,
@@ -564,28 +599,26 @@ export function ResumeSearchPage() {
                 </ErrorBoundary>
               )}
 
-              <div className="sticky top-14 z-20 -mx-1 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-1 py-1 space-y-2">
+              <div className="sticky top-14 z-20 -mx-1 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-1 py-1">
                 <BulkActionBar
                   totalCount={policyVisibleResults.length}
                   totalCountIsLowerBound={hasMore}
-                  selectedCount={selectedIds.size}
-                  highScoreCount={highScoreCount}
+                  selectedCount={selectedVisibleCount}
+                  highScoreCount={policyVisibleHighScoreCount}
                   exportFormat={exportFormat}
                   disabled={!canManageCandidateData}
                   onExportFormatChange={setExportFormat}
-                  onSelectAll={selectAll}
-                  onSelectHighScore={() => selectHighScore()}
+                  onSelectAll={selectAllVisible}
+                  onSelectHighScore={selectHighScoreVisible}
                   onClearSelection={clearSelection}
                   onBulkAction={handleBulkActionWithScroll}
                   statusFilter={parsedState.filters.status}
                   onStatusFilterChange={setStatusFilters}
                   onStatusToggle={toggleStatus}
                   statusFacetCounts={facetCounts?.statuses?.reduce((acc, { value, count }) => ({ ...acc, [value]: count }), {} as Record<string, number>)}
-                />
-                <CompanyPolicyHiddenToggle
-                  hiddenCount={companyPolicyHiddenCount}
-                  showHidden={showCompanyPolicyHidden}
-                  onShowHiddenChange={setShowCompanyPolicyHidden}
+                  companyPolicyHiddenCount={companyPolicyHiddenCount}
+                  showCompanyPolicyHidden={showCompanyPolicyHidden}
+                  onShowCompanyPolicyHiddenChange={setShowCompanyPolicyHidden}
                 />
               </div>
 

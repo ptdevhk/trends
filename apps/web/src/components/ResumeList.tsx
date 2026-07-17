@@ -21,7 +21,6 @@ import {
 } from '@/components/ShareLinkButton'
 import { useResumeListState } from '@/hooks/useResumeListState'
 import { useCompanyPolicyListFilter } from '@/hooks/useCompanyPolicyListFilter'
-import { CompanyPolicyHiddenToggle } from '@/components/CompanyPolicyHiddenToggle'
 import { useSyncNotifications } from '@/hooks/useSyncNotifications'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { buildResumeKey, hasIngestData } from '@/lib/resume-scoring'
@@ -100,7 +99,6 @@ export function ResumeList() {
     selectedExperienceLevel,
     activeTagFilters,
     activeCompanyFilters,
-    highScoreCount,
     blockedCount,
     bulkExportFormat,
     displayedResumes: displayedResumesRaw,
@@ -123,8 +121,8 @@ export function ResumeList() {
     handleToggleTag,
     handleToggleCompany,
     handleToggleExperienceLevel,
-    handleSelectAll,
-    handleSelectHighScore,
+    replaceSelection,
+    pruneSelection,
     handleClearSelection,
     handleToggleSelect,
     handleBulkAction,
@@ -167,6 +165,37 @@ export function ResumeList() {
     showHidden: showCompanyPolicyHidden,
     setShowHidden: setShowCompanyPolicyHidden,
   } = useCompanyPolicyListFilter(displayedResumesRaw, resolveListResumeEmployers)
+
+  const policyVisibleKeys = useMemo(
+    () => new Set(displayedResumes.map((entry) => entry.key)),
+    [displayedResumes],
+  )
+  const selectedVisibleCount = useMemo(() => {
+    let count = 0
+    for (const key of selectedIds) {
+      if (policyVisibleKeys.has(key)) {
+        count += 1
+      }
+    }
+    return count
+  }, [policyVisibleKeys, selectedIds])
+  const policyVisibleHighScoreCount = useMemo(
+    () => displayedResumes.filter((entry) => (entry.match?.score ?? 0) >= 80).length,
+    [displayedResumes],
+  )
+  const handleSelectAllVisible = useCallback(() => {
+    replaceSelection(displayedResumes.map((entry) => entry.key))
+  }, [displayedResumes, replaceSelection])
+  const handleSelectHighScoreVisible = useCallback(() => {
+    replaceSelection(
+      displayedResumes
+        .filter((entry) => (entry.match?.score ?? 0) >= 80)
+        .map((entry) => entry.key),
+    )
+  }, [displayedResumes, replaceSelection])
+  useEffect(() => {
+    pruneSelection(policyVisibleKeys)
+  }, [policyVisibleKeys, pruneSelection])
 
   const [detailResume, setDetailResume] = useState<ResumeItem | ConvexResumeItem | null>(null)
   const [detailResumeId, setDetailResumeId] = useState<ConvexResumeItem['resumeId'] | null>(null)
@@ -527,21 +556,19 @@ export function ResumeList() {
         <div className="flex items-center justify-between py-2">
           <BulkActionBar
             totalCount={displayedResumes.length}
-            selectedCount={selectedIds.size}
-            highScoreCount={highScoreCount}
+            selectedCount={selectedVisibleCount}
+            highScoreCount={policyVisibleHighScoreCount}
             exportFormat={bulkExportFormat}
             onExportFormatChange={setBulkExportFormat}
-            onSelectAll={handleSelectAll}
-            onSelectHighScore={handleSelectHighScore}
+            onSelectAll={handleSelectAllVisible}
+            onSelectHighScore={handleSelectHighScoreVisible}
             onClearSelection={handleClearSelection}
             onBulkAction={handleBulkAction}
             blockedCount={blockedCount}
             blocksSettingsPath={`/${workspaceSlug}/settings/policies`}
-          />
-          <CompanyPolicyHiddenToggle
-            hiddenCount={companyPolicyHiddenCount}
-            showHidden={showCompanyPolicyHidden}
-            onShowHiddenChange={setShowCompanyPolicyHidden}
+            companyPolicyHiddenCount={companyPolicyHiddenCount}
+            showCompanyPolicyHidden={showCompanyPolicyHidden}
+            onShowCompanyPolicyHiddenChange={setShowCompanyPolicyHidden}
           />
         </div>
       </div>
