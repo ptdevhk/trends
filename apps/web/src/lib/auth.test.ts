@@ -21,6 +21,7 @@ import {
   loginWithLocalPassword,
   logout,
   preapproveProviderMembership,
+  fetchHrDemoSilentLoginInfo,
   readAuthQueryToken,
   revokeProviderMembership,
   silentLoginWithDeskToken,
@@ -124,6 +125,29 @@ describe('auth helpers', () => {
     expect(stripAuthQueryParam()).toBe(true)
     expect(window.location.search).toBe('?location=China&q=x')
     expect(stripAuthQueryParam()).toBe(false)
+  })
+
+  it('fetches HR demo silent-login admin info', async () => {
+    document.cookie = 'trends_csrf=csrf-token; path=/'
+    mockApiClient.GET.mockResolvedValueOnce({
+      data: {
+        success: true,
+        configured: true,
+        revealable: true,
+        username: 'hr-demo',
+        token: 'desk-secret',
+        tokenFingerprint: 'abc…xyz',
+        samplePath: '/hr/resumes?auth=desk-secret',
+        paramName: 'auth',
+      },
+    })
+
+    await expect(fetchHrDemoSilentLoginInfo()).resolves.toMatchObject({
+      success: true,
+      token: 'desk-secret',
+      samplePath: '/hr/resumes?auth=desk-secret',
+    })
+    expect(mockApiClient.GET).toHaveBeenCalledWith('/api/auth/hr-demo-silent')
   })
 
   it('logs out through the auth endpoint', async () => {

@@ -6,10 +6,12 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import {
+  fetchHrDemoSilentLoginInfo,
   fetchProviderMemberships,
   preapproveProviderMembership,
   revokeProviderMembership,
   type AuthProvider,
+  type HrDemoSilentLoginInfo,
   type ProviderMembershipApiError,
   type ProviderMembershipPreapproval,
   type ProviderMembershipsResponse,
@@ -161,6 +163,7 @@ export function SystemSettingsAuthPage() {
   const [submitting, setSubmitting] = useState(false)
   const [form, setForm] = useState<FormState>(() => createInitialForm(slug))
   const [temporaryPasswordBanner, setTemporaryPasswordBanner] = useState<string | null>(null)
+  const [hrDemoSilent, setHrDemoSilent] = useState<HrDemoSilentLoginInfo | null>(null)
   const providerIdentities = state?.identities.filter((identity) => identity.provider === form.provider) ?? []
   const anonymousResumeSearchEnabled = slug === 'hr'
   const currentRoleLabel = auth.workspaceRole === 'admin'
@@ -173,21 +176,31 @@ export function SystemSettingsAuthPage() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const result = await fetchProviderMemberships()
+      const [result, silentInfo] = await Promise.all([
+        fetchProviderMemberships(),
+        fetchHrDemoSilentLoginInfo(),
+      ])
       if (result.success === false) {
         setState(null)
         setAccessError(result)
         setAccessDenied(true)
+        setHrDemoSilent(null)
         return
       }
       setState(result)
       setAccessError(null)
       setAccessDenied(false)
+      if (silentInfo.success === true) {
+        setHrDemoSilent(silentInfo)
+      } else {
+        setHrDemoSilent(null)
+      }
     } catch (error) {
       reportUiError('Failed to load provider membership state', error)
       setState(null)
       setAccessError(null)
       setAccessDenied(true)
+      setHrDemoSilent(null)
     } finally {
       setLoading(false)
     }
@@ -317,6 +330,128 @@ export function SystemSettingsAuthPage() {
           })}
         </p>
       </div>
+
+      {hrDemoSilent ? (
+        <Card data-testid="hr-demo-silent-login-panel" className="border-sky-200 bg-sky-50/40">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">
+              {t('debugConfig.hrDemoSilentTitle', { defaultValue: 'HR demo silent login' })}
+            </CardTitle>
+            <CardDescription>
+              {t('debugConfig.hrDemoSilentDescription', {
+                defaultValue:
+                  'Shared desk bookmark token (AUTH_HR_DEMO_TOKEN). Append as ?auth=… on /hr/resumes deep links for passwordless full member desk access.',
+              })}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <dl className="grid gap-2 sm:grid-cols-2">
+              <div>
+                <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Username</dt>
+                <dd className="font-mono">{hrDemoSilent.username}</dd>
+              </div>
+              <div>
+                <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Status</dt>
+                <dd>
+                  {!hrDemoSilent.configured ? (
+                    <Pill active={false}>not configured</Pill>
+                  ) : hrDemoSilent.revealable ? (
+                    <Pill>configured · revealable</Pill>
+                  ) : (
+                    <Pill active={false}>configured · hash only</Pill>
+                  )}
+                </dd>
+              </div>
+            </dl>
+
+            {hrDemoSilent.configured && hrDemoSilent.tokenFingerprint ? (
+              <p className="text-xs text-muted-foreground">
+                Fingerprint: <code className="font-mono">{hrDemoSilent.tokenFingerprint}</code>
+              </p>
+            ) : null}
+
+            {hrDemoSilent.revealable && hrDemoSilent.token ? (
+              <>
+                <div className="space-y-1">
+                  <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    AUTH_HR_DEMO_TOKEN
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <code
+                      data-testid="hr-demo-silent-token"
+                      className="rounded bg-white px-2 py-1 font-mono text-sm break-all border"
+                    >
+                      {hrDemoSilent.token}
+                    </code>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      data-testid="copy-hr-demo-silent-token"
+                      onClick={() => {
+                        void navigator.clipboard.writeText(hrDemoSilent.token ?? '')
+                        toast.success(t('debugConfig.hrDemoSilentTokenCopied', {
+                          defaultValue: 'Silent login token copied',
+                        }))
+                      }}
+                    >
+                      <Copy className="mr-1 h-3 w-3" />
+                      {t('debugConfig.hrDemoSilentCopyToken', { defaultValue: 'Copy token' })}
+                    </Button>
+                  </div>
+                </div>
+                {hrDemoSilent.samplePath ? (
+                  <div className="space-y-1">
+                    <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Sample HR path
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <code
+                        data-testid="hr-demo-silent-sample-path"
+                        className="rounded bg-white px-2 py-1 font-mono text-xs break-all border"
+                      >
+                        {hrDemoSilent.samplePath}
+                      </code>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        data-testid="copy-hr-demo-silent-sample"
+                        onClick={() => {
+                          const absolute = `${window.location.origin}${hrDemoSilent.samplePath}`
+                          void navigator.clipboard.writeText(absolute)
+                          toast.success(t('debugConfig.hrDemoSilentLinkCopied', {
+                            defaultValue: 'Silent login link copied',
+                          }))
+                        }}
+                      >
+                        <Copy className="mr-1 h-3 w-3" />
+                        {t('debugConfig.hrDemoSilentCopyLink', { defaultValue: 'Copy full URL' })}
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {t('debugConfig.hrDemoSilentHint', {
+                        defaultValue:
+                          'Paste filters after the path if needed, e.g. &location=China&q=CNC. Treat the token like a shared password.',
+                      })}
+                    </p>
+                  </div>
+                ) : null}
+              </>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                {!hrDemoSilent.configured
+                  ? t('debugConfig.hrDemoSilentNotConfigured', {
+                      defaultValue:
+                        'Set AUTH_HR_DEMO_TOKEN on the API host and restart the service to enable silent login bookmarks.',
+                    })
+                  : t('debugConfig.hrDemoSilentHashOnly', {
+                      defaultValue:
+                        'Only AUTH_HR_DEMO_TOKEN_HASH is configured — the plaintext token cannot be revealed from the admin UI. Rotate via env if you need a new shareable link.',
+                    })}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      ) : null}
 
       {temporaryPasswordBanner !== null && (
         <div

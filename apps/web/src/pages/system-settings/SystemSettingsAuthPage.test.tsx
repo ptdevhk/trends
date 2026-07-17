@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockFetchProviderMemberships = vi.hoisted(() => vi.fn())
+const mockFetchHrDemoSilentLoginInfo = vi.hoisted(() => vi.fn())
 const mockPreapproveProviderMembership = vi.hoisted(() => vi.fn())
 const mockRevokeProviderMembership = vi.hoisted(() => vi.fn())
 const mockToast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }))
@@ -20,6 +21,7 @@ const authMock = vi.hoisted(() => ({
 
 vi.mock('@/lib/auth', () => ({
   fetchProviderMemberships: mockFetchProviderMemberships,
+  fetchHrDemoSilentLoginInfo: mockFetchHrDemoSilentLoginInfo,
   preapproveProviderMembership: mockPreapproveProviderMembership,
   revokeProviderMembership: mockRevokeProviderMembership,
 }))
@@ -101,6 +103,16 @@ describe('SystemSettingsAuthPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockFetchProviderMemberships.mockResolvedValue(providerMemberships)
+    mockFetchHrDemoSilentLoginInfo.mockResolvedValue({
+      success: true,
+      configured: true,
+      revealable: true,
+      username: 'hr-demo',
+      token: 'preview-desk-secret',
+      tokenFingerprint: 'abc123…wxyz',
+      samplePath: '/hr/resumes?auth=preview-desk-secret',
+      paramName: 'auth',
+    })
   })
 
   it('renders provider identities, preapprovals, grants, form controls, and events', async () => {
@@ -130,6 +142,15 @@ describe('SystemSettingsAuthPage', () => {
     expect(screen.getByTestId('users-panel')).toBeInTheDocument()
     expect(screen.getByTestId('users-panel')).toHaveAttribute('data-operator-id', 'admin-1')
     expect(screen.getByText('Provider-derived grants')).toBeInTheDocument()
+  })
+
+  it('shows HR demo silent-login token for admin operators', async () => {
+    render(<SystemSettingsAuthPage />)
+
+    expect(await screen.findByTestId('hr-demo-silent-login-panel')).toBeInTheDocument()
+    expect(screen.getByTestId('hr-demo-silent-token')).toHaveTextContent('preview-desk-secret')
+    expect(screen.getByTestId('hr-demo-silent-sample-path')).toHaveTextContent('/hr/resumes?auth=preview-desk-secret')
+    expect(mockFetchHrDemoSilentLoginInfo).toHaveBeenCalled()
   })
 
   it('creates a provider preapproval from the form', async () => {

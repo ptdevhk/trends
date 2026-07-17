@@ -266,6 +266,30 @@ export async function silentLoginWithDeskToken(token: string): Promise<SilentLog
   return result
 }
 
+export type HrDemoSilentLoginInfo = {
+  success: true
+  configured: boolean
+  revealable: boolean
+  username: string
+  token: string | null
+  tokenFingerprint: string | null
+  samplePath: string | null
+  paramName: 'auth'
+}
+
+export type HrDemoSilentLoginInfoResult = HrDemoSilentLoginInfo | ProviderMembershipApiError
+
+/** Admin-only: reveal env-backed AUTH_HR_DEMO_TOKEN for bookmark handoff. */
+export async function fetchHrDemoSilentLoginInfo(): Promise<HrDemoSilentLoginInfoResult> {
+  const { data, error, response } = await rawApiClient.GET<HrDemoSilentLoginInfo | ProviderMembershipApiError>(
+    '/api/auth/hr-demo-silent',
+  )
+  if (data && 'success' in data && data.success === true) {
+    return data
+  }
+  return providerMembershipApiError(data, error, response, 'Failed to load HR demo silent-login config')
+}
+
 /** Remove only the `auth` query param; keep filters and hash. Returns true if the URL changed. */
 export function stripAuthQueryParam(url: URL = new URL(window.location.href)): boolean {
   if (!url.searchParams.has('auth')) {

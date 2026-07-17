@@ -900,6 +900,91 @@ describe("auth routes", () => {
   });
 });
 
+describe("GET /api/auth/hr-demo-silent", () => {
+  afterEach(() => {
+    resetResumeScreeningDb();
+  });
+
+  it("reveals plaintext desk token to workspace admins when configured", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "trends-auth-hr-demo-silent-"));
+    const storage = new AuthStorage(root);
+    const admin = storage.createUser({ email: "admin@example.com", displayName: "Admin" });
+    storage.linkIdentity({
+      userId: admin.id,
+      provider: "local",
+      providerSubject: "admin",
+      providerTenant: "local",
+    });
+    storage.upsertMembership({ userId: admin.id, workspaceSlug: "dev", role: "admin" });
+    const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
+    const session = sessions.createSession(admin.id);
+    const app = createTestApp(storage, undefined, {
+      hrDemoSilentLogin: { token: "preview-desk-secret", username: "hr-demo" },
+    });
+
+    const response = await app.request("/api/auth/hr-demo-silent", {
+      headers: {
+        "X-Workspace-Slug": "dev",
+        Cookie: `${config.auth.sessionCookieName}=${session.token}`,
+      },
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      success: true,
+      configured: true,
+      revealable: true,
+      username: "hr-demo",
+      token: "preview-desk-secret",
+      samplePath: "/hr/resumes?auth=preview-desk-secret",
+      paramName: "auth",
+    });
+  });
+
+  it("rejects unauthenticated callers", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "trends-auth-hr-demo-silent-unauth-"));
+    const storage = new AuthStorage(root);
+    const app = createTestApp(storage, undefined, {
+      hrDemoSilentLogin: { token: "secret", username: "hr-demo" },
+    });
+
+    const response = await app.request("/api/auth/hr-demo-silent", {
+      headers: { "X-Workspace-Slug": "dev" },
+    });
+
+    expect(response.status).toBe(401);
+  });
+
+  it("reports hash-only config without revealing a token", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "trends-auth-hr-demo-silent-hash-"));
+    const storage = new AuthStorage(root);
+    const admin = storage.createUser({ email: "admin@example.com", displayName: "Admin" });
+    storage.upsertMembership({ userId: admin.id, workspaceSlug: "dev", role: "admin" });
+    const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
+    const session = sessions.createSession(admin.id);
+    const tokenHash = hashSecret("hash-only-secret");
+    const app = createTestApp(storage, undefined, {
+      hrDemoSilentLogin: { tokenHash, username: "hr-demo" },
+    });
+
+    const response = await app.request("/api/auth/hr-demo-silent", {
+      headers: {
+        "X-Workspace-Slug": "dev",
+        Cookie: `${config.auth.sessionCookieName}=${session.token}`,
+      },
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      success: true,
+      configured: true,
+      revealable: false,
+      token: null,
+      samplePath: null,
+    });
+  });
+});
+
 describe("GET /api/auth/options", () => {
   afterEach(() => {
     resetResumeScreeningDb();

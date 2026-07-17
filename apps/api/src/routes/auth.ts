@@ -63,19 +63,21 @@ function safeEqualUtf8(left: string, right: string): boolean {
 /**
  * Normalize env/test overrides to a single expected hash once at route setup.
  * Prefer precomputed tokenHash; otherwise hash the plaintext token.
+ * Plaintext is kept only for admin reveal (hash-only deploys cannot re-show the secret).
  */
 function resolveHrDemoSilentLoginConfig(
   override?: HrDemoSilentLoginConfig,
-): { username: string; expectedTokenHash: string } {
+): { username: string; expectedTokenHash: string; plaintextToken: string } {
   const username = (override?.username ?? config.auth.hrDemo.username).trim() || "hr-demo";
+  const plaintextToken = (override?.token ?? config.auth.hrDemo.token).trim();
   const configuredHash = (override?.tokenHash ?? config.auth.hrDemo.tokenHash).trim();
   if (configuredHash) {
-    return { username, expectedTokenHash: configuredHash };
+    return { username, expectedTokenHash: configuredHash, plaintextToken };
   }
-  const token = (override?.token ?? config.auth.hrDemo.token).trim();
   return {
     username,
-    expectedTokenHash: token ? hashSecret(token) : "",
+    expectedTokenHash: plaintextToken ? hashSecret(plaintextToken) : "",
+    plaintextToken,
   };
 }
 
@@ -1016,6 +1018,69 @@ export function createAuthRoutes(options: AuthRoutesOptions = {}) {
       success: true as const,
       localPasswordEnabled: true as const,
       casdoorEnabled: oidcEnabled,
+    }, 200);
+  });
+
+  // GET /api/auth/hr-demo-silent — system-admin reveal of shared HR desk token (env-backed)
+  const hrDemoSilentRoute = createRoute({
+    method: "get",
+    path: "/api/auth/hr-demo-silent",
+    tags: ["auth"],
+    responses: {
+      200: {
+        description: "HR demo silent-login configuration for admin operators",
+        content: {
+          "application/json": {
+            schema: z.object({
+              success: z.literal(true),
+              configured: z.boolean(),
+              revealable: z.boolean(),
+              username: z.string(),
+              token: z.string().nullable(),
+              tokenFingerprint: z.string().nullable(),
+              samplePath: z.string().nullable(),
+              paramName: z.literal("auth"),
+            }),
+          },
+        },
+      },
+      401: {
+        description: "Authentication required",
+        content: { "application/json": { schema: ErrorResponseSchema } },
+      },
+      403: {
+        description: "Admin access required",
+        content: { "application/json": { schema: ErrorResponseSchema } },
+      },
+    },
+  });
+
+  app.openapi(hrDemoSilentRoute, (c) => {
+    const adminError = getAdminAccessError(c);
+    if (adminError) {
+      return c.json(adminError.body, adminError.status);
+    }
+
+    const desk = hrDemoSilentLogin;
+    const configured = Boolean(desk.expectedTokenHash);
+    const revealable = Boolean(desk.plaintextToken);
+    const token = revealable ? desk.plaintextToken : null;
+    const tokenFingerprint = desk.expectedTokenHash
+      ? `${desk.expectedTokenHash.slice(0, 6)}…${desk.expectedTokenHash.slice(-4)}`
+      : null;
+    const samplePath = token
+      ? `/hr/resumes?auth=${encodeURIComponent(token)}`
+      : null;
+
+    return c.json({
+      success: true as const,
+      configured,
+      revealable,
+      username: desk.username,
+      token,
+      tokenFingerprint,
+      samplePath,
+      paramName: "auth" as const,
     }, 200);
   });
 
