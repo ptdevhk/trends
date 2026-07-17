@@ -223,6 +223,35 @@ describe("bffMatchesResumeFilters — minRoleYears", () => {
     const doc = makeDoc(); // verifiedRoleYears: { sales: 5 }
     expect(bffMatchesResumeFilters(doc, BASE_TEXT, { minRoleYears: 3 })).toBe(true);
   });
+
+  it("MY Seek talentsearch rows pass minRoleYears via direct-role years without industry verify", () => {
+    const doc = makeDoc({
+      source: "hk.employer.seek.com",
+      sourceKey: "seek",
+      ingestData: {
+        market: "MY",
+        verifiedRoleYears: {},
+        roleSignals: [{
+          type: "sales",
+          signalCount: 1,
+          years: 4,
+          roleRelevantYears: 4,
+          industryVerifiedRelevantYears: 0,
+          industryVerifiedYears: 0,
+          matchedSignals: ["Sales Manager"],
+          matchedWorkEntries: [{
+            jobTitle: "Sales Manager",
+            years: 4,
+            industryVerified: false,
+            directRoleMatch: true,
+            matchedSignals: ["Sales Manager"],
+          }],
+        }],
+      },
+    });
+    expect(bffMatchesResumeFilters(doc, BASE_TEXT, { minRoleYears: 1 })).toBe(true);
+    expect(bffMatchesResumeFilters(doc, BASE_TEXT, { roleFilterType: "sales", minRoleYears: 1 })).toBe(true);
+  });
 });
 
 // ---------------------------------------------------------------------------

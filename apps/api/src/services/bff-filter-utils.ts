@@ -5,6 +5,7 @@
  */
 import {
   formatLocationHierarchySearchText,
+  getRoleRelevantSignalYears,
   getVerifiedRoleSignalYears,
   type AnalysisRoleSignalLike,
   isLocationMatch,
@@ -137,9 +138,19 @@ export function bffMatchesResumeFilters(
     const storedRoleYears = roleFilterKey
       ? toOptionalNumber(verifiedRoleYears[roleFilterKey]) ?? 0
       : Math.max(...Object.values(verifiedRoleYears).map((v) => toOptionalNumber(v) ?? 0), 0);
-    const roleYears = storedRoleYears > 0
+    let roleYears = storedRoleYears > 0
       ? storedRoleYears
       : getVerifiedRoleSignalYears(roleSignals, roleFilterKey);
+    // MY / Seek: industry DB coverage is thin — fall back to direct-role years
+    // so minRoleYears does not systematically zero talentsearch results.
+    if (roleYears <= 0 && roleSignals.length > 0) {
+      const market = typeof ingestData.market === "string" ? ingestData.market.trim().toUpperCase() : "";
+      const sourceKey = (typeof doc.sourceKey === "string" ? doc.sourceKey : undefined)
+        ?? resolveResumeAnalysisSourceKey({ source: toStringValue(doc.source) ?? undefined });
+      if (market === "MY" || sourceKey === "seek") {
+        roleYears = getRoleRelevantSignalYears(roleSignals, roleFilterKey);
+      }
+    }
     if (roleYears < filters.minRoleYears) return false;
   }
 

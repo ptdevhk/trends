@@ -241,6 +241,76 @@ describe("matchesResumeListFilters", () => {
 
     expect(matchesResumeListFilters(resume, { roleFilterType: "sales", minRoleYears: 1 })).toBe(false);
   });
+
+  it("MY Seek talentsearch resumes pass minRoleYears via direct-role years without industry verify", () => {
+    const resume = makeResume({
+      source: "hk.employer.seek.com",
+      sourceKey: "seek",
+      externalId: "hk.employer.seek.com:profile:uuid-talent-1",
+      content: {
+        name: "Carol White",
+        experience: "",
+        workHistory: [{ jobTitle: "Sales Manager", companyName: "Acme MY", years: "?", startDate: "2019-01", endDate: "2024-06" }],
+      },
+      ingestData: {
+        market: "MY",
+        verifiedRoleYears: {},
+        roleSignals: [{
+          type: "sales",
+          signalCount: 1,
+          years: 5.5,
+          roleRelevantYears: 5.5,
+          industryVerifiedRelevantYears: 0,
+          industryVerifiedYears: 0,
+          matchedSignals: ["Sales Manager"],
+          matchedWorkEntries: [{
+            jobTitle: "Sales Manager",
+            companyName: "Acme MY",
+            years: 5.5,
+            industryVerified: false,
+            directRoleMatch: true,
+            matchedSignals: ["Sales Manager"],
+          }],
+        }],
+      },
+    }) as Parameters<typeof matchesResumeListFilters>[0];
+
+    // Talent-search profile filter: minRoleYears only (no roleFilterType on YAML)
+    expect(matchesResumeListFilters(resume, { minRoleYears: 1 })).toBe(true);
+    expect(matchesResumeListFilters(resume, { roleFilterType: "sales", minRoleYears: 1 })).toBe(true);
+    // Still project market for UI
+    const projected = projectResumeListDoc(resume as any);
+    expect(projected.ingestData?.market).toBe("MY");
+  });
+
+  it("CN resumes still require industry-verified years for minRoleYears", () => {
+    const resume = makeResume({
+      source: "hr.job5156.com",
+      sourceKey: "job5156",
+      ingestData: {
+        market: "CN",
+        verifiedRoleYears: {},
+        roleSignals: [{
+          type: "sales",
+          signalCount: 1,
+          years: 6,
+          roleRelevantYears: 6,
+          industryVerifiedRelevantYears: 0,
+          industryVerifiedYears: 0,
+          matchedSignals: ["销售"],
+          matchedWorkEntries: [{
+            jobTitle: "销售工程师",
+            years: 6,
+            industryVerified: false,
+            directRoleMatch: true,
+            matchedSignals: ["销售"],
+          }],
+        }],
+      },
+    }) as Parameters<typeof matchesResumeListFilters>[0];
+
+    expect(matchesResumeListFilters(resume, { roleFilterType: "sales", minRoleYears: 1 })).toBe(false);
+  });
 });
 
 // ---------------------------------------------------------------------------

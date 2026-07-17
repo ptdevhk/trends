@@ -20,6 +20,7 @@ import {
     parseRawSalaryRange,
     resolveResumeAnalysisSourceKey,
     getVerifiedRoleSignalYears,
+    getRoleRelevantSignalYears,
 } from "@trends/shared";
 import {
     toStringValue,
@@ -463,6 +464,15 @@ export function hasMatchingRoleSignal(resume: Doc<"resumes">, roleType: string |
     return roleSignals.some((signal) => signal.type?.trim().toLowerCase() === key);
 }
 
+/**
+ * Resolve role years for the minRoleYears search gate.
+ *
+ * CN resumes keep the strict industry-verified gate (industry DB coverage is
+ * high). MY / Seek resumes often lack industry-DB verification even when they
+ * have direct sales titles, so fall back to role-relevant (direct-role) years
+ * when verified years are 0 — otherwise every Seek talentsearch row is
+ * systematically zeroed by minRoleYears: 1.
+ */
 export function getResumeRoleYears(resume: Doc<"resumes">, roleType: string | undefined): number {
     const key = toOptionalStringValue(roleType)?.trim().toLowerCase() ?? "";
 
@@ -485,9 +495,31 @@ export function getResumeRoleYears(resume: Doc<"resumes">, roleType: string | un
     }
 
     const roleSignals = resume.ingestData?.roleSignals;
-    return Array.isArray(roleSignals) && roleSignals.length > 0
-        ? getVerifiedRoleSignalYears(roleSignals, key)
-        : 0;
+    if (!Array.isArray(roleSignals) || roleSignals.length === 0) {
+        return 0;
+    }
+
+    const verifiedYears = getVerifiedRoleSignalYears(roleSignals, key);
+    if (verifiedYears > 0) {
+        return verifiedYears;
+    }
+
+    if (shouldUseRoleRelevantYearsFallback(resume)) {
+        return getRoleRelevantSignalYears(roleSignals, key);
+    }
+
+    return 0;
+}
+
+function shouldUseRoleRelevantYearsFallback(resume: Doc<"resumes">): boolean {
+    const market = toOptionalStringValue(resume.ingestData?.market)?.trim().toUpperCase();
+    if (market === "MY") {
+        return true;
+    }
+
+    const sourceKey = resume.sourceKey
+        ?? resolveResumeAnalysisSourceKey({ source: resume.source });
+    return sourceKey === "seek";
 }
 
 // ---------------------------------------------------------------------------

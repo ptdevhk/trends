@@ -12,6 +12,7 @@ import {
   buildSeekTalentSearchUrl,
   getActiveSearchProfileSource,
   getEffectiveFilterCapabilities,
+  getPreferredLaunchableSearchProfileSource,
   getSearchProfileCollectionSource,
   getSearchProfileCollectUrl,
   isSeekOnlyProfile,
@@ -147,6 +148,46 @@ describe('search-profile-sources', () => {
       enabled: true,
       priority: 1,
     })
+  })
+
+  it('selects seek talentsearch as active source for seek-malaysia-talent-search shape', () => {
+    const sources = [
+      { type: SEARCH_PROFILE_SOURCE_TYPES.job5156, enabled: false, priority: 3 },
+      { type: SEARCH_PROFILE_SOURCE_TYPES.job51, enabled: false, priority: 3 },
+      {
+        type: SEARCH_PROFILE_SOURCE_TYPES.seek,
+        enabled: true,
+        priority: 1,
+        mode: 'talentsearch' as const,
+        jobUrl: 'https://hk.employer.seek.com/talentsearch?searchQuery=CNC&market=MY&keywords=CNC',
+        collectLimit: 500,
+        maxPages: 25,
+      },
+    ]
+
+    const active = getActiveSearchProfileSource(sources)
+    expect(active?.type).toBe('seek')
+    expect(active?.mode).toBe('talentsearch')
+    expect(resolveSeekModeFromUrl(active?.jobUrl)).toBe('talentsearch')
+    expect(getSearchProfileCollectUrl(sources)).toContain('/talentsearch')
+    expect(getPreferredLaunchableSearchProfileSource(sources)?.type).toBe('seek')
+    expect(isSeekOnlyProfile(sources)).toBe(true)
+  })
+
+  it('does not prefer disabled job5156 over enabled seek when priorities match', () => {
+    // Historical pollution: editor defaults enabled job5156 at priority 1 next to seek.
+    // After fix, disabled job5156 must not become the active launch source.
+    const active = getActiveSearchProfileSource([
+      { type: SEARCH_PROFILE_SOURCE_TYPES.job5156, enabled: false, priority: 1 },
+      {
+        type: SEARCH_PROFILE_SOURCE_TYPES.seek,
+        enabled: true,
+        priority: 1,
+        mode: 'talentsearch',
+        jobUrl: 'https://hk.employer.seek.com/talentsearch?searchQuery=CNC&market=MY',
+      },
+    ])
+    expect(active?.type).toBe('seek')
   })
 
   it('builds a generic Seek collect URL that preserves spaced locations', () => {

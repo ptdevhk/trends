@@ -225,7 +225,14 @@ function normalizeSourcePriority(value: number | undefined): string {
     return typeof value === 'number' && Number.isFinite(value) ? String(Math.trunc(value)) : ''
 }
 
-function toSourcesFormState(sources: SearchProfileSource[] | undefined): SourceFormState {
+/**
+ * Hydrate editor source checkboxes from stored profile sources.
+ *
+ * Absent source types must be treated as disabled — do NOT fall back to
+ * DEFAULT_SOURCES_FORM.job5156Enabled (true). New-profile create still uses
+ * DEFAULT_SOURCES_FORM directly; edit hydration must mirror stored data.
+ */
+export function toSourcesFormState(sources: SearchProfileSource[] | undefined): SourceFormState {
     if (!Array.isArray(sources) || sources.length === 0) {
         return DEFAULT_SOURCES_FORM
     }
@@ -246,16 +253,17 @@ function toSourcesFormState(sources: SearchProfileSource[] | undefined): SourceF
     const seekSource = seekSources[0]
 
     return {
-        job5156Enabled: job5156Source?.enabled ?? DEFAULT_SOURCES_FORM.job5156Enabled,
+        // Missing source type ⇒ disabled (false). Only use DEFAULT for priority/url blanks.
+        job5156Enabled: job5156Source?.enabled === true,
         job5156Priority: normalizeSourcePriority(job5156Source?.priority) || DEFAULT_SOURCES_FORM.job5156Priority,
         job5156CollectLimit: typeof job5156Source?.collectLimit === 'number' ? String(job5156Source.collectLimit) : '',
         job5156MaxPages: typeof job5156Source?.maxPages === 'number' ? String(job5156Source.maxPages) : '',
-        job51Enabled: job51Source?.enabled ?? DEFAULT_SOURCES_FORM.job51Enabled,
+        job51Enabled: job51Source?.enabled === true,
         job51Priority: normalizeSourcePriority(job51Source?.priority) || DEFAULT_SOURCES_FORM.job51Priority,
         job51UnsafeLimits: job51Source?.unsafeLimits === true,
         job51CollectLimit: typeof job51Source?.job51CollectLimit === 'number' ? String(job51Source.job51CollectLimit) : '',
         job51MaxPages: typeof job51Source?.job51MaxPages === 'number' ? String(job51Source.job51MaxPages) : '',
-        seekEnabled: seekSource?.enabled ?? DEFAULT_SOURCES_FORM.seekEnabled,
+        seekEnabled: seekSource?.enabled === true,
         seekPriority: normalizeSourcePriority(seekSource?.priority) || DEFAULT_SOURCES_FORM.seekPriority,
         seekJobUrl: seekSource?.jobUrl ?? DEFAULT_SOURCES_FORM.seekJobUrl,
         seekCollectLimit: typeof seekSource?.collectLimit === 'number' ? String(seekSource.collectLimit) : '',
@@ -300,7 +308,13 @@ function splitKnownSources(sources: SearchProfileSource[] | undefined): {
     }
 }
 
-function buildSourcesPayload(sourceForm: SourceFormState, additionalSources: SearchProfileSource[]): SearchProfileSource[] {
+/**
+ * Build the sources array for create/update payloads from editor form state.
+ * Disabled known source rows are written as `enabled: false` so re-open does
+ * not re-apply create defaults. Additional (secondary seek / unknown) sources
+ * are preserved verbatim ahead of the known rows.
+ */
+export function buildSourcesPayload(sourceForm: SourceFormState, additionalSources: SearchProfileSource[]): SearchProfileSource[] {
     const sources: SearchProfileSource[] = [...additionalSources]
 
     const job5156CollectLimit = parseOptionalNumber(sourceForm.job5156CollectLimit)
@@ -673,8 +687,8 @@ export function SearchProfileEditorDialog({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
+            <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-hidden flex flex-col gap-0 p-0">
+                <DialogHeader className="shrink-0 px-6 pt-6 pb-2">
                     <DialogTitle>
                         {profileId
                             ? t('searchProfiles.editTitle', { defaultValue: 'Edit Profile' })
@@ -682,7 +696,7 @@ export function SearchProfileEditorDialog({
                     </DialogTitle>
                 </DialogHeader>
 
-                <div className="grid gap-4 py-2">
+                <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto px-6 py-2">
                     <div className="grid gap-2">
                         <Label htmlFor="profile-name">{t('searchProfiles.fields.name', { defaultValue: 'Name' })}</Label>
                         <Input
@@ -1186,7 +1200,7 @@ export function SearchProfileEditorDialog({
                     </div>
                 </div>
 
-                <DialogFooter>
+                <DialogFooter className="shrink-0 border-t bg-background px-6 py-4 sm:justify-end">
                     <Button variant="outline" onClick={() => onOpenChange(false)}>
                         {t('searchProfiles.cancel', { defaultValue: 'Cancel' })}
                     </Button>

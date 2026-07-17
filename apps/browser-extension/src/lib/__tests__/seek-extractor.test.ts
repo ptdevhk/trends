@@ -551,6 +551,70 @@ describe("seek-extractor", () => {
       expect(result[0].name).toBe("Carol White");
       expect(result[0].profileId).toBe("uuid-abc");
     });
+
+    it("detects talentsearch mode from profile list URL and produces identity/source host", () => {
+      const talentUrl =
+        "https://hk.employer.seek.com/talentsearch?searchQuery=CNC&market=MY&pageNumber=1&keywords=CNC";
+      const deps = createMockDeps({
+        win: {
+          location: {
+            pathname: "/talentsearch",
+            href: talentUrl,
+            hostname: "hk.employer.seek.com",
+            search: "?searchQuery=CNC&market=MY&pageNumber=1&keywords=CNC",
+          },
+        },
+        apiSnapshot: {
+          seekTalentSearch: [
+            {
+              id: "relay-2",
+              profileGuid: "uuid-talent-my",
+              firstName: "Aisha",
+              lastName: "Rahman",
+              currentJobTitle: "Sales Engineer",
+              currentLocation: "Kuala Lumpur",
+            },
+          ],
+          seekTalentSearchRequest: {
+            variables: {
+              language: "en",
+              input: {
+                pageNumber: 1,
+                originalNaturalLanguageQuery: "CNC",
+                searchMode: "NATURAL_LANGUAGE",
+              },
+            },
+          },
+        },
+      });
+      // jsdom window must also reflect talentsearch list path for mode helpers
+      window.history.pushState({}, "", talentUrl.replace("https://hk.employer.seek.com", ""));
+      Object.defineProperty(window, "location", {
+        value: {
+          pathname: "/talentsearch",
+          href: talentUrl,
+          hostname: "hk.employer.seek.com",
+          search: "?searchQuery=CNC&market=MY&pageNumber=1&keywords=CNC",
+        },
+        writable: true,
+      });
+
+      const extractor = createSeekExtractor(deps);
+      expect(extractor.isSeekTalentSearchListPage()).toBe(true);
+      expect(extractor.getCurrentSeekMode()).toBe("talentsearch");
+
+      const resumes = extractor.extractSeekTalentSearchResumes();
+      expect(resumes).toHaveLength(1);
+      expect(resumes[0].name).toBe("Aisha Rahman");
+      expect(resumes[0].profileId).toBe("uuid-talent-my");
+      // List extract attaches externalId/source on the full extract path; talent list
+      // objects at least carry identity for submit pipeline.
+      expect(resumes[0].profileId).toMatch(/uuid-talent-my/);
+
+      const context = extractor.buildSeekCollectionContext();
+      expect(context.seekMode).toBe("talentsearch");
+      expect(context.captureMode).toBe("graphql-talentsearch");
+    });
   });
 
   describe("enrichSeekResumesWithDetail", () => {

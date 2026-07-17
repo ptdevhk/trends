@@ -3,6 +3,7 @@ import path from "node:path";
 import {
   buildWorkHistoryEntryText,
   formatLocationHierarchySearchText,
+  getRoleRelevantSignalYears,
   getVerifiedRoleSignalYears,
   isLocationMatch,
   isRecord,
@@ -14,6 +15,7 @@ import {
   parseExperienceYears,
   parseProductClass,
   parseRawSalaryRange,
+  resolveResumeAnalysisSourceKey,
   selectLatestWorkHistory,
 } from "@trends/shared";
 
@@ -428,9 +430,28 @@ function getResumeItemRoleYears(item: ResumeItem, roleType?: string): number {
   }
 
   const roleSignals = item.ingestData?.roleSignals;
-  return Array.isArray(roleSignals) && roleSignals.length > 0
-    ? getVerifiedRoleSignalYears(roleSignals, normalizedRoleType)
-    : 0;
+  if (!Array.isArray(roleSignals) || roleSignals.length === 0) {
+    return 0;
+  }
+
+  const verifiedYears = getVerifiedRoleSignalYears(roleSignals, normalizedRoleType);
+  if (verifiedYears > 0) {
+    return verifiedYears;
+  }
+
+  // MY / Seek: industry DB is sparse — use direct-role years so minRoleYears
+  // does not systematically exclude talentsearch resumes with real sales titles.
+  const market = typeof item.ingestData?.market === "string"
+    ? item.ingestData.market.trim().toUpperCase()
+    : "";
+  const sourceKey = resolveResumeAnalysisSourceKey({
+    source: typeof item.source === "string" ? item.source : undefined,
+  });
+  if (market === "MY" || sourceKey === "seek") {
+    return getRoleRelevantSignalYears(roleSignals, normalizedRoleType);
+  }
+
+  return 0;
 }
 
 function hasResumeItemRole(item: ResumeItem, roleType?: string): boolean {
