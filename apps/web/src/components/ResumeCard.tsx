@@ -7,6 +7,11 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { AiFeedbackButtons } from '@/components/AiFeedbackButtons'
 import { ConfirmedScoreBadge } from '@/components/ConfirmedScoreBadge'
+import { toast } from 'sonner'
+import { isAdvancingCandidateStatus } from '@trends/shared'
+import { CompanyPolicyBadges } from '@/components/CompanyPolicyBadges'
+import { useCompanyPolicyIndex } from '@/hooks/useCompanyPolicyIndex'
+import { getResumeCompanyPolicyState, toastCompanyPolicyWorkflowBlocked } from '@/lib/company-policy-runtime'
 import { StarRating } from '@/components/StarRating'
 import { CandidateNotesDialog } from '@/components/CandidateNotesDialog'
 import type { ResumeItem } from '@/hooks/useResumes'
@@ -216,6 +221,26 @@ export const ResumeCard = memo(function ResumeCard({
       text: buildWorkHistoryEntryText(item),
     }))
     .filter(({ text }) => text.length > 0)
+  const { matchResume } = useCompanyPolicyIndex(true)
+  const companyPolicyState = useMemo(
+    () =>
+      getResumeCompanyPolicyState(
+        {
+          workHistory: resume.workHistory,
+          companyHits,
+        },
+        matchResume,
+      ),
+    [companyHits, matchResume, resume.workHistory],
+  )
+  const companyPolicyHits = companyPolicyState.hits
+  const guardWorkflowAdvance = (fn: () => void) => {
+    if (!companyPolicyState.workflowBlocked) {
+      fn()
+      return
+    }
+    toast.error(toastCompanyPolicyWorkflowBlocked(t, companyPolicyState.primary?.displayName))
+  }
   const presentationResume = useMemo(
     () => sanitizeResumeRecordForSurface(resume, 'presentation', fieldUsagePolicy),
     [fieldUsagePolicy, resume],
@@ -412,6 +437,7 @@ export const ResumeCard = memo(function ResumeCard({
           <span className="text-muted-foreground">{resume.expectedSalary}</span>
         ) : null}
         {scoreNode}
+        <CompanyPolicyBadges hits={companyPolicyHits} />
         {experienceBadge ? (
           <Badge
             variant="outline"
@@ -519,6 +545,12 @@ export const ResumeCard = memo(function ResumeCard({
         ))}
       </div>
 
+      {companyPolicyHits.length > 0 ? (
+        <div className="border-b px-4 py-2">
+          <CompanyPolicyBadges hits={companyPolicyHits} variant="banner" />
+        </div>
+      ) : null}
+
       <div className="flex flex-col gap-4 p-4 lg:flex-row">
         <div className="flex items-start gap-3">
           <Checkbox
@@ -583,8 +615,17 @@ export const ResumeCard = memo(function ResumeCard({
                 <Button
                   variant={actionType === 'shortlist' ? 'default' : 'ghost'}
                   size="icon"
-                  onClick={() => onAction?.('shortlist')}
+                  disabled={companyPolicyState.workflowBlocked}
+                  title={
+                    companyPolicyState.workflowBlocked
+                      ? t('settings.policies.runtime.workflowBlockedTitle', {
+                          defaultValue: 'Blocked by company policy',
+                        })
+                      : undefined
+                  }
+                  onClick={() => guardWorkflowAdvance(() => onAction?.('shortlist'))}
                   aria-label={t('resumes.actions.shortlist')}
+                  data-testid="resume-card-shortlist"
                 >
                   <CheckCircle className="h-4 w-4" />
                 </Button>
@@ -606,6 +647,19 @@ export const ResumeCard = memo(function ResumeCard({
                   onChange={(event) => {
                     const nextStatus = STATUS_OPTIONS.find((item) => item.value === event.target.value)
                     if (!nextStatus || nextStatus.value === candidateStatus) {
+                      return
+                    }
+
+                    if (isAdvancingCandidateStatus(nextStatus.value)) {
+                      guardWorkflowAdvance(() => {
+                        if (nextStatus.value === 'interviewed_reject' || nextStatus.value === 'withdrawn') {
+                          setPendingStatus(nextStatus.value)
+                          setNoteInput(statusNotes)
+                          setPromptDialogOpen(true)
+                          return
+                        }
+                        onCandidateStatusChange?.(nextStatus.value)
+                      })
                       return
                     }
 

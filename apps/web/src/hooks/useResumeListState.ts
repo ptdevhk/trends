@@ -1515,14 +1515,41 @@ export function useResumeListState(loadSearchHistory = false) {
       }
 
       try {
+        let entriesForAction = selectedEntries
+        if (action === 'shortlist') {
+          const { matchResumeCompanyPolicyCached } = await import('@/hooks/useCompanyPolicyIndex')
+          const { isCompanyWorkflowBlocked } = await import('@trends/shared')
+          const allowed = selectedEntries.filter((entry) => {
+            const ingest = hasIngestData(entry.resume) ? entry.resume.ingestData : undefined
+            const hits = matchResumeCompanyPolicyCached({
+              workHistory: entry.resume.workHistory,
+              companyHits: ingest?.companyHits,
+            })
+            return !isCompanyWorkflowBlocked(hits)
+          })
+          const skipped = selectedEntries.length - allowed.length
+          if (skipped > 0) {
+            toast.message(
+              t('settings.policies.runtime.bulkSkipped', {
+                defaultValue: 'Skipped {{count}} no-hire company-policy row(s)',
+                count: skipped,
+              }),
+            )
+          }
+          entriesForAction = allowed
+          if (entriesForAction.length === 0) {
+            return
+          }
+        }
+
         if (action === 'shortlist' || action === 'reject') {
-          selectedEntries.forEach((entry) => {
+          entriesForAction.forEach((entry) => {
             sendLearningFeedback(action, entry.key, entry.resume)
           })
         }
 
         await Promise.all(
-          selectedEntries.map((entry) =>
+          entriesForAction.map((entry) =>
             saveAction({ resumeId: entry.key, actionType: action })
           )
         )
@@ -1531,14 +1558,14 @@ export function useResumeListState(loadSearchHistory = false) {
         if (action === 'shortlist' || action === 'reject') {
           const targetStatus = action === 'shortlist' ? 'shortlisted' : 'rejected'
           await Promise.all(
-            selectedEntries.map((entry) =>
+            entriesForAction.map((entry) =>
               updateCandidateStatus(entry.identityKey, targetStatus)
             )
           )
         }
 
         const actionLabels: Record<string, string> = { shortlist: 'shortlisted', reject: 'rejected' }
-        toast.success(t('bulk.actionDone', { count: selectedEntries.length, action: actionLabels[action] || action, defaultValue: `${selectedEntries.length} resumes ${actionLabels[action] || action}` }))
+        toast.success(t('bulk.actionDone', { count: entriesForAction.length, action: actionLabels[action] || action, defaultValue: `${entriesForAction.length} resumes ${actionLabels[action] || action}` }))
       } catch (error) {
         console.error('Bulk action failed', error)
         toast.error(t('bulk.actionFailed', { defaultValue: 'Bulk action failed. Please try again.' }))

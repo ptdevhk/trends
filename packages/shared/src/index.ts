@@ -13,6 +13,7 @@ export * from "./keyword-query.js";
 export * from "./summaries.js";
 export * from "./salary.js";
 export * from "./market.js";
+export * from "./company-policy.js";
 export * from "./resume-filter-helpers.js";
 export * from "./generated/search-profile-templates.js";
 export * from "./collection-guards.js";

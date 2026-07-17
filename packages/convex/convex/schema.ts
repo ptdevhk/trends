@@ -690,4 +690,65 @@ export default defineSchema({
         .index("by_workspace_decision", ["workspaceSlug", "decisionType"])
         .index("by_workspace_outcome", ["workspaceSlug", "outcome"])
         .index("by_expires_at", ["expiresAt"]),
+
+    // K3: shared company registry (immutable companyKey; policy is separate)
+    companies: defineTable({
+        companyKey: v.string(),
+        status: v.union(
+            v.literal("provisional"),
+            v.literal("confirmed"),
+            v.literal("merged"),
+        ),
+        displayName: v.string(),
+        nameCn: v.optional(v.string()),
+        nameEn: v.optional(v.string()),
+        mergedIntoCompanyKey: v.optional(v.string()),
+        createdAt: v.number(),
+        updatedAt: v.number(),
+        createdBy: v.optional(v.string()),
+    })
+        .index("by_company_key", ["companyKey"])
+        .index("by_status", ["status"]),
+
+    company_aliases: defineTable({
+        companyKey: v.string(),
+        aliasNormalized: v.string(),
+        aliasDisplay: v.string(),
+        source: v.union(
+            v.literal("seed"),
+            v.literal("operator"),
+            v.literal("observed"),
+        ),
+        createdAt: v.number(),
+    })
+        .index("by_alias", ["aliasNormalized"])
+        .index("by_company", ["companyKey"]),
+
+    // Append-only company policy revisions (most recent revision per scope wins)
+    company_policy_revisions: defineTable({
+        companyKey: v.string(),
+        scopeType: v.union(
+            v.literal("workspace"),
+            v.literal("market"),
+            v.literal("global"),
+        ),
+        scopeId: v.string(),
+        revision: v.number(),
+        visibility: v.optional(v.union(v.literal("default"), v.literal("hide"))),
+        workflow: v.optional(v.union(v.literal("default"), v.literal("blocked"))),
+        rankingEffect: v.optional(v.union(
+            v.literal("none"),
+            v.literal("band_known_good"),
+            v.literal("band_known_bad"),
+            v.literal("boost"),
+            v.literal("demote"),
+        )),
+        reasonCodes: v.optional(v.array(v.string())),
+        summary: v.optional(v.string()),
+        createdAt: v.number(),
+        createdBy: v.optional(v.string()),
+    })
+        .index("by_scope_company", ["scopeType", "scopeId", "companyKey"])
+        .index("by_company", ["companyKey"])
+        .index("by_scope", ["scopeType", "scopeId"]),
 });

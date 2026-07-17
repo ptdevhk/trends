@@ -308,11 +308,11 @@ export const SETTINGS_NAV_ITEMS: SurfaceNavDefinition[] = [
     matchesSuffixes: ["/resumes"],
   },
   {
-    id: "blocks",
-    titleKey: "settings.blocks.nav",
-    defaultTitle: "Blacklist",
-    hrefSuffix: "/settings/blocks",
-    matchesSuffixes: ["/settings/blocks"],
+    id: "policies",
+    titleKey: "settings.policies.nav",
+    defaultTitle: "Policies",
+    hrefSuffix: "/settings/policies",
+    matchesSuffixes: ["/settings/policies", "/settings/blocks"],
   },
   {
     id: "profiles",

@@ -891,6 +891,68 @@
       "passwordTooShort": "密碼至少需要 8 個字元",
       "passwordsDoNotMatch": "密碼不相符",
       "changeFailed": "變更密碼失敗"
+    },
+    "policies": {
+      "nav": "策略",
+      "title": "策略",
+      "description": "管理此工作區的候選人封鎖與公司級營運策略。",
+      "tabsLabel": "策略分區",
+      "tabs": {
+        "candidates": "候選人",
+        "companies": "公司"
+      },
+      "companiesTitle": "公司登錄表與策略",
+      "companiesDescription": "管理此工作區的已知優質／禁止錄用公司。策略不改寫 AI 分數；搜尋側執行將在後續切片落地。",
+      "searchPlaceholder": "搜尋公司、別名或 key…",
+      "seedCanonical": "種子 寶力機械 + 寶惠（禁止錄用）",
+      "seeding": "種子中…",
+      "empty": "尚無公司。請先種子規範公司或在下方新增。",
+      "noAliases": "無別名",
+      "aliasPlaceholder": "新增別名",
+      "addAlias": "新增",
+      "noPolicy": "尚無工作區策略",
+      "addCompanyTitle": "新增公司",
+      "addCompanyDescription": "建立已確認公司條目。寶力機械與寶惠必須使用不同 key。",
+      "companyKeyPlaceholder": "company-key（如 acme-cnc）",
+      "displayNamePlaceholder": "顯示名稱",
+      "nameCnPlaceholder": "中文名（可選）",
+      "nameEnPlaceholder": "英文名（可選）",
+      "createCompany": "儲存公司",
+      "presets": {
+        "knownGood": "已知優質",
+        "noHire": "禁止錄用",
+        "none": "無"
+      },
+      "columns": {
+        "company": "公司",
+        "aliases": "別名",
+        "policy": "工作區策略",
+        "actions": "操作"
+      },
+      "toasts": {
+        "seedSuccess": "已種子 {{created}} 新建 / {{updated}} 更新公司；{{policies}} 條禁止錄用策略",
+        "seedFailed": "種子公司失敗",
+        "createRequired": "公司 key 與顯示名稱為必填",
+        "createFailed": "建立公司失敗",
+        "createSuccess": "公司已儲存",
+        "policyFailed": "更新策略失敗",
+        "policyUpdated": "公司策略已更新",
+        "aliasFailed": "新增別名失敗",
+        "aliasAdded": "別名已新增"
+      },
+      "runtime": {
+        "noHireBadge": "禁止錄用公司",
+        "knownGoodBadge": "已知優質公司",
+        "noHireWarning": "禁止錄用雇主",
+        "knownGoodSignal": "已知優質雇主",
+        "matchedAs": "匹配",
+        "scoreUnchanged": "僅營運策略提示 — AI 分數不變。",
+        "showHidden": "顯示公司策略隱藏",
+        "hiddenCount": "{{count}} 條因公司策略隱藏",
+        "workflowBlockedToast": "公司策略禁止錄用已阻止操作：{{name}}。僅營運策略 — AI 分數不變。",
+        "workflowBlockedTitle": "已被公司策略阻止",
+        "bulkSkipped": "已跳過 {{count}} 條禁止錄用公司策略履歷"
+      }
     }
   },
   "debug": {

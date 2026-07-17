@@ -37,6 +37,17 @@ vi.mock('@/components/AiFeedbackButtons', () => ({
   AiFeedbackButtons: () => null,
 }))
 
+vi.mock('@/hooks/useCompanyPolicyIndex', () => ({
+  useCompanyPolicyIndex: () => ({
+    aliasIndex: new Map(),
+    loading: false,
+    error: null,
+    load: vi.fn(),
+    hasPolicies: false,
+    matchResume: () => [],
+  }),
+}))
+
 describe('ResumeDetail latest work history', () => {
   it('renders only the latest three work history entries', () => {
     render(

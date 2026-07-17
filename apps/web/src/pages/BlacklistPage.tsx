@@ -10,7 +10,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
-export function BlacklistPage() {
+export function BlacklistPage({ embedded = false }: { embedded?: boolean } = {}) {
   const { t } = useTranslation()
   const { items, loading, error, unblockCandidate, updateBlockReason } = useCandidateBlocks()
   const [search, setSearch] = useState('')
@@ -164,15 +164,17 @@ export function BlacklistPage() {
 
   return (
     <div className="space-y-6" data-testid="blacklist-page">
-      <PageHeader
-        title={t('settings.blocks.title', { defaultValue: 'Blacklist Management' })}
-        description={t('settings.blocks.description', { defaultValue: 'View and manage blocked candidates for this workspace.' })}
-        actions={
-          <Badge variant="secondary" data-testid="blacklist-count-badge">
-            {t('settings.blocks.countBadge', { defaultValue: '{{count}} blocked', count: items.length })}
-          </Badge>
-        }
-      />
+      {!embedded ? (
+        <PageHeader
+          title={t('settings.blocks.title', { defaultValue: 'Blacklist Management' })}
+          description={t('settings.blocks.description', { defaultValue: 'View and manage blocked candidates for this workspace.' })}
+          actions={
+            <Badge variant="secondary" data-testid="blacklist-count-badge">
+              {t('settings.blocks.countBadge', { defaultValue: '{{count}} blocked', count: items.length })}
+            </Badge>
+          }
+        />
+      ) : null}
 
       <Card>
         <CardHeader className="gap-4">

@@ -31,6 +31,17 @@ vi.mock('react-i18next', () => ({
   }),
 }))
 
+vi.mock('@/hooks/useCompanyPolicyIndex', () => ({
+  useCompanyPolicyIndex: () => ({
+    aliasIndex: new Map(),
+    loading: false,
+    error: null,
+    load: vi.fn(),
+    hasPolicies: false,
+    matchResume: () => [],
+  }),
+}))
+
 vi.mock('@/components/search/SnippetCardExpanded', () => ({
   SnippetCardExpanded: ({
     item,

@@ -20,6 +20,8 @@ import {
   type PublicShareCreateResult,
 } from '@/components/ShareLinkButton'
 import { useResumeListState } from '@/hooks/useResumeListState'
+import { useCompanyPolicyListFilter } from '@/hooks/useCompanyPolicyListFilter'
+import { CompanyPolicyHiddenToggle } from '@/components/CompanyPolicyHiddenToggle'
 import { useSyncNotifications } from '@/hooks/useSyncNotifications'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { buildResumeKey, hasIngestData } from '@/lib/resume-scoring'
@@ -101,7 +103,7 @@ export function ResumeList() {
     highScoreCount,
     blockedCount,
     bulkExportFormat,
-    displayedResumes,
+    displayedResumes: displayedResumesRaw,
     loadedConvexResumeCount,
     canLoadMoreResumes,
     convexLoadingMore,
@@ -149,6 +151,22 @@ export function ResumeList() {
   useSyncNotifications(backgroundEnhancementsEnabled)
   const { slug: workspaceSlug } = useWorkspace()
   const { resolve: brandDisplayResolve } = useBrandDisplayMap()
+  const resolveListResumeEmployers = useCallback(
+    (entry: { resume: ResumeItem | ConvexResumeItem }) => {
+      const ingest = hasIngestData(entry.resume) ? entry.resume.ingestData : undefined
+      return {
+        workHistory: entry.resume.workHistory,
+        companyHits: ingest?.companyHits,
+      }
+    },
+    [],
+  )
+  const {
+    visibleItems: displayedResumes,
+    hiddenCount: companyPolicyHiddenCount,
+    showHidden: showCompanyPolicyHidden,
+    setShowHidden: setShowCompanyPolicyHidden,
+  } = useCompanyPolicyListFilter(displayedResumesRaw, resolveListResumeEmployers)
 
   const [detailResume, setDetailResume] = useState<ResumeItem | ConvexResumeItem | null>(null)
   const [detailResumeId, setDetailResumeId] = useState<ConvexResumeItem['resumeId'] | null>(null)
@@ -518,7 +536,12 @@ export function ResumeList() {
             onClearSelection={handleClearSelection}
             onBulkAction={handleBulkAction}
             blockedCount={blockedCount}
-            blocksSettingsPath={`/${workspaceSlug}/settings/blocks`}
+            blocksSettingsPath={`/${workspaceSlug}/settings/policies`}
+          />
+          <CompanyPolicyHiddenToggle
+            hiddenCount={companyPolicyHiddenCount}
+            showHidden={showCompanyPolicyHidden}
+            onShowHiddenChange={setShowCompanyPolicyHidden}
           />
         </div>
       </div>

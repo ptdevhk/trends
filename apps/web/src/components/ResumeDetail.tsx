@@ -20,6 +20,8 @@ import { getScoreClassName } from '@/lib/score-classes'
 import { cn } from '@/lib/utils'
 import { useBrandDisplayMap } from '@/hooks/useBrandDisplayMap'
 import { useResumeFieldUsagePolicy } from '@/contexts/ResumeFieldUsagePolicyContext'
+import { CompanyPolicyBadges } from '@/components/CompanyPolicyBadges'
+import { useCompanyPolicyIndex } from '@/hooks/useCompanyPolicyIndex'
 
 import type { AiFeedbackSentiment, AiFeedbackTarget, MatchingResult } from '@/types/resume'
 
@@ -174,6 +176,15 @@ export function ResumeDetail({
     [ingestData?.brandHits],
   )
   const experienceBadge = getExperienceBadge(ingestData?.experienceLevel, t)
+  const { matchResume } = useCompanyPolicyIndex(Boolean(resume))
+  const companyPolicyHits = useMemo(
+    () =>
+      matchResume({
+        workHistory: presentationResume?.workHistory ?? resume?.workHistory,
+        companyHits: ingestData?.companyHits,
+      }),
+    [ingestData?.companyHits, matchResume, presentationResume?.workHistory, resume?.workHistory],
+  )
   const profileUrl = resume?.profileUrl?.trim()
   const hasProfileUrl = isSafeProfileUrl(profileUrl)
   const sourceLabel = getResumeSourceLabel(resume)
@@ -237,7 +248,13 @@ export function ResumeDetail({
                   {experienceBadge.label}
                 </Badge>
               ) : null}
+              <CompanyPolicyBadges hits={companyPolicyHits} />
             </div>
+            {companyPolicyHits.length > 0 ? (
+              <div className="mt-2">
+                <CompanyPolicyBadges hits={companyPolicyHits} variant="banner" />
+              </div>
+            ) : null}
             <div
               data-testid="resume-detail-primary-grid"
               className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4"

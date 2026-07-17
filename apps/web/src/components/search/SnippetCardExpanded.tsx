@@ -1,4 +1,4 @@
-import { buildWorkHistoryDateRange, normalizeWorkHistoryEntry, sanitizeResumeRecordForSurface, selectLatestWorkHistory } from '@trends/shared'
+import { buildWorkHistoryDateRange, isAdvancingCandidateStatus, normalizeWorkHistoryEntry, sanitizeResumeRecordForSurface, selectLatestWorkHistory } from '@trends/shared'
 import { BriefcaseBusiness, Bug, ChevronDown, Copy, ExternalLink, MapPin, School, Sparkles } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -9,6 +9,8 @@ import { useResumeFieldUsagePolicy } from '@/contexts/ResumeFieldUsagePolicyCont
 import { cn } from '@/lib/utils'
 import { getResumeContentLocale, getExperienceBadge, isSafeProfileUrl, summarizeBrandHits, toDisplayMatchBreakdown } from '@/lib/resume-scoring'
 import { useBrandDisplayMap } from '@/hooks/useBrandDisplayMap'
+import { useCompanyPolicyIndex } from '@/hooks/useCompanyPolicyIndex'
+import { getResumeCompanyPolicyState, toastCompanyPolicyWorkflowBlocked } from '@/lib/company-policy-runtime'
 import type { ResumeSearchResultItem } from '@/components/search/search-types'
 
 import type { CandidateStatus } from '@/types/resume'
@@ -104,6 +106,26 @@ export function SnippetCardExpanded({
   const fieldUsagePolicy = useResumeFieldUsagePolicy()
   const contentLocale = getResumeContentLocale(item.resume)
   const [showDebug, setShowDebug] = useState(false)
+  const { matchResume } = useCompanyPolicyIndex(true)
+  const companyPolicyState = useMemo(
+    () =>
+      getResumeCompanyPolicyState(
+        {
+          workHistory: item.resume.workHistory,
+          companyHits: item.resume.ingestData?.companyHits,
+        },
+        matchResume,
+      ),
+    [item.resume.ingestData?.companyHits, item.resume.workHistory, matchResume],
+  )
+  const workflowBlocked = companyPolicyState.workflowBlocked
+  const guardWorkflowAdvance = (fn: () => void) => {
+    if (!workflowBlocked) {
+      fn()
+      return
+    }
+    toast.error(toastCompanyPolicyWorkflowBlocked(t, companyPolicyState.primary?.displayName))
+  }
   const analysis = item.analysis ?? item.resume.analysis
   const displayBreakdown = toDisplayMatchBreakdown(analysis?.breakdown)
   const hasAiAnalysis = item.scoreSource === 'ai' && Boolean(analysis)
@@ -385,9 +407,14 @@ export function SnippetCardExpanded({
                     value={candidateStatus}
                     onChange={(event) => {
                       const nextStatus = event.target.value as CandidateStatus
-                      if (nextStatus) {
-                        onCandidateStatusChange(item.identityKey, nextStatus)
+                      if (!nextStatus) {
+                        return
                       }
+                      if (isAdvancingCandidateStatus(nextStatus)) {
+                        guardWorkflowAdvance(() => onCandidateStatusChange(item.identityKey, nextStatus))
+                        return
+                      }
+                      onCandidateStatusChange(item.identityKey, nextStatus)
                     }}
                   >
                     {statusOptions.map((opt) => (
@@ -404,7 +431,18 @@ export function SnippetCardExpanded({
                     variant={candidateStatus === 'shortlisted' ? 'default' : 'outline'}
                     size="sm"
                     className="justify-start gap-2"
-                    onClick={() => onCandidateStatusChange(item.identityKey, 'shortlisted')}
+                    disabled={workflowBlocked}
+                    title={
+                      workflowBlocked
+                        ? t('settings.policies.runtime.workflowBlockedTitle', {
+                            defaultValue: 'Blocked by company policy',
+                          })
+                        : undefined
+                    }
+                    onClick={() =>
+                      guardWorkflowAdvance(() => onCandidateStatusChange(item.identityKey, 'shortlisted'))
+                    }
+                    data-testid="snippet-shortlist"
                   >
                     <BriefcaseBusiness className="h-3.5 w-3.5" />
                     {t('resumes.actions.shortlist', { defaultValue: '入选' })}
@@ -422,7 +460,18 @@ export function SnippetCardExpanded({
                     variant="outline"
                     size="sm"
                     className="justify-start gap-2"
-                    onClick={() => onCandidateStatusChange(item.identityKey, 'contacted')}
+                    disabled={workflowBlocked}
+                    title={
+                      workflowBlocked
+                        ? t('settings.policies.runtime.workflowBlockedTitle', {
+                            defaultValue: 'Blocked by company policy',
+                          })
+                        : undefined
+                    }
+                    onClick={() =>
+                      guardWorkflowAdvance(() => onCandidateStatusChange(item.identityKey, 'contacted'))
+                    }
+                    data-testid="snippet-contact"
                   >
                     <ExternalLink className="h-3.5 w-3.5" />
                     {t('resumes.actions.contact', { defaultValue: '联系' })}

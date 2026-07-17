@@ -875,6 +875,68 @@
         "bulkUnblockFailed": "Failed to unblock selected candidates"
       }
     },
+    "policies": {
+      "nav": "Policies",
+      "title": "Policies",
+      "description": "Manage candidate blocks and company-level operational policy for this workspace.",
+      "tabsLabel": "Policy sections",
+      "tabs": {
+        "candidates": "Candidates",
+        "companies": "Companies"
+      },
+      "companiesTitle": "Company registry & policy",
+      "companiesDescription": "Manage known-good and no-hire companies for this workspace. Policy does not change AI score; search enforcement comes later.",
+      "searchPlaceholder": "Search company, alias, or key…",
+      "seedCanonical": "Seed Pro-Technic + Polywell (no-hire)",
+      "seeding": "Seeding…",
+      "empty": "No companies yet. Seed canonical companies or add one below.",
+      "noAliases": "No aliases",
+      "aliasPlaceholder": "Add alias",
+      "addAlias": "Add",
+      "noPolicy": "No workspace policy yet",
+      "addCompanyTitle": "Add company",
+      "addCompanyDescription": "Create a confirmed company entry. Keep 宝力机械 and 宝惠 as separate keys.",
+      "companyKeyPlaceholder": "company-key (e.g. acme-cnc)",
+      "displayNamePlaceholder": "Display name",
+      "nameCnPlaceholder": "Chinese name (optional)",
+      "nameEnPlaceholder": "English name (optional)",
+      "createCompany": "Save company",
+      "presets": {
+        "knownGood": "Known good",
+        "noHire": "No-hire",
+        "none": "None"
+      },
+      "columns": {
+        "company": "Company",
+        "aliases": "Aliases",
+        "policy": "Workspace policy",
+        "actions": "Actions"
+      },
+      "toasts": {
+        "seedSuccess": "Seeded {{created}} new / {{updated}} updated companies; {{policies}} no-hire policies",
+        "seedFailed": "Failed to seed companies",
+        "createRequired": "Company key and display name are required",
+        "createFailed": "Failed to create company",
+        "createSuccess": "Company saved",
+        "policyFailed": "Failed to update policy",
+        "policyUpdated": "Company policy updated",
+        "aliasFailed": "Failed to add alias",
+        "aliasAdded": "Alias added"
+      },
+      "runtime": {
+        "noHireBadge": "No-hire co.",
+        "knownGoodBadge": "Known-good co.",
+        "noHireWarning": "No-hire employer",
+        "knownGoodSignal": "Known-good employer",
+        "matchedAs": "matched",
+        "scoreUnchanged": "Operational policy only — AI score is unchanged.",
+        "showHidden": "Show company-policy hidden",
+        "hiddenCount": "{{count}} hidden by company policy",
+        "workflowBlockedToast": "Blocked by company policy (No-hire): {{name}}. Operational only — AI score unchanged.",
+        "workflowBlockedTitle": "Blocked by company policy",
+        "bulkSkipped": "Skipped {{count}} no-hire company-policy row(s)"
+      }
+    },
     "account": {
       "nav": "Account",
       "title": "Account",

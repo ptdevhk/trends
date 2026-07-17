@@ -1105,6 +1105,68 @@
       "empty": "目前没有已屏蔽候选人。",
       "nav": "黑名单"
     },
+    "policies": {
+      "nav": "策略",
+      "title": "策略",
+      "description": "管理此工作区的候选人屏蔽与公司级运营策略。",
+      "tabsLabel": "策略分区",
+      "tabs": {
+        "candidates": "候选人",
+        "companies": "公司"
+      },
+      "companiesTitle": "公司注册表与策略",
+      "companiesDescription": "管理此工作区的已知优质/禁止录用公司。策略不改写 AI 分数；搜索侧执行将在后续切片落地。",
+      "searchPlaceholder": "搜索公司、别名或 key…",
+      "seedCanonical": "种子 宝力机械 + 宝惠（禁止录用）",
+      "seeding": "种子中…",
+      "empty": "尚无公司。请先种子规范公司或在下方新增。",
+      "noAliases": "无别名",
+      "aliasPlaceholder": "添加别名",
+      "addAlias": "添加",
+      "noPolicy": "尚无工作区策略",
+      "addCompanyTitle": "新增公司",
+      "addCompanyDescription": "创建已确认公司条目。宝力机械与宝惠必须使用不同 key。",
+      "companyKeyPlaceholder": "company-key（如 acme-cnc）",
+      "displayNamePlaceholder": "显示名称",
+      "nameCnPlaceholder": "中文名（可选）",
+      "nameEnPlaceholder": "英文名（可选）",
+      "createCompany": "保存公司",
+      "presets": {
+        "knownGood": "已知优质",
+        "noHire": "禁止录用",
+        "none": "无"
+      },
+      "columns": {
+        "company": "公司",
+        "aliases": "别名",
+        "policy": "工作区策略",
+        "actions": "操作"
+      },
+      "toasts": {
+        "seedSuccess": "已种子 {{created}} 新建 / {{updated}} 更新公司；{{policies}} 条禁止录用策略",
+        "seedFailed": "种子公司失败",
+        "createRequired": "公司 key 与显示名称为必填",
+        "createFailed": "创建公司失败",
+        "createSuccess": "公司已保存",
+        "policyFailed": "更新策略失败",
+        "policyUpdated": "公司策略已更新",
+        "aliasFailed": "添加别名失败",
+        "aliasAdded": "别名已添加"
+      },
+      "runtime": {
+        "noHireBadge": "禁止录用公司",
+        "knownGoodBadge": "已知优质公司",
+        "noHireWarning": "禁止录用雇主",
+        "knownGoodSignal": "已知优质雇主",
+        "matchedAs": "匹配",
+        "scoreUnchanged": "仅运营策略提示 — AI 分数不变。",
+        "showHidden": "显示公司策略隐藏",
+        "hiddenCount": "{{count}} 条因公司策略隐藏",
+        "workflowBlockedToast": "公司策略禁止录用已阻止操作：{{name}}。仅运营策略 — AI 分数不变。",
+        "workflowBlockedTitle": "已被公司策略阻止",
+        "bulkSkipped": "已跳过 {{count}} 条禁止录用公司策略简历"
+      }
+    },
     "account": {
       "nav": "账号",
       "title": "账号",

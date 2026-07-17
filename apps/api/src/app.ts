@@ -21,6 +21,7 @@ import {
   publicSharesRoutes,
   actionsRoutes,
   blocksRoutes,
+  companiesRoutes,
   candidateStatusRoutes,
   searchProfilesRoutes,
   searchAnalyticsRoutes,
@@ -101,6 +102,7 @@ export const openApiConfig = {
     { name: "public-shares", description: "Public immutable resume search snapshots" },
     { name: "actions", description: "Candidate actions" },
     { name: "blocks", description: "Candidate blocklist management" },
+    { name: "companies", description: "Company registry and company policy management" },
     { name: "candidate-status", description: "Candidate interview status tracking" },
     { name: "Search Profiles", description: "Search profile management" },
     { name: "Search Analytics", description: "Search quality telemetry and suggestions" },
@@ -242,6 +244,7 @@ export function createApp(options: CreateAppOptions = {}) {
   app.route("/", publicSharesRoutes);
   app.route("/", actionsRoutes);
   app.route("/", blocksRoutes);
+  app.route("/", companiesRoutes);
   app.route("/", candidateStatusRoutes);
   app.route("/worker", workerRoutes);
   app.route("/api/worker", workerRoutes);

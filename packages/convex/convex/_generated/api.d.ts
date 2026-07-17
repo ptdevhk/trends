@@ -17,6 +17,7 @@ import type * as audit from "../audit.js";
 import type * as bias_audit from "../bias_audit.js";
 import type * as candidate_blocks from "../candidate_blocks.js";
 import type * as candidate_status from "../candidate_status.js";
+import type * as companies from "../companies.js";
 import type * as crons from "../crons.js";
 import type * as embeddings from "../embeddings.js";
 import type * as ingest_agent from "../ingest_agent.js";
@@ -74,6 +75,7 @@ declare const fullApi: ApiFromModules<{
   bias_audit: typeof bias_audit;
   candidate_blocks: typeof candidate_blocks;
   candidate_status: typeof candidate_status;
+  companies: typeof companies;
   crons: typeof crons;
   embeddings: typeof embeddings;
   ingest_agent: typeof ingest_agent;

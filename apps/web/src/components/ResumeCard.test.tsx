@@ -22,6 +22,17 @@ vi.mock('react-i18next', () => ({
   }),
 }))
 
+vi.mock('@/hooks/useCompanyPolicyIndex', () => ({
+  useCompanyPolicyIndex: () => ({
+    aliasIndex: new Map(),
+    loading: false,
+    error: null,
+    load: vi.fn(),
+    hasPolicies: false,
+    matchResume: () => [],
+  }),
+}))
+
 describe('ResumeCard brand-hit badges', () => {
   it('renders deduped brand names without debug metadata', () => {
     render(

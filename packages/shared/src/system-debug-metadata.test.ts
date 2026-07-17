@@ -89,11 +89,18 @@ describe('SYSTEM_NAV_ITEMS', () => {
 })
 
 describe('SETTINGS_NAV_ITEMS', () => {
-  it('includes home, profiles, and export fields entries', () => {
+  it('includes home, profiles, policies, and export fields entries', () => {
     const ids = SETTINGS_NAV_ITEMS.map((item) => item.id)
     expect(ids).toContain('home')
     expect(ids).toContain('profiles')
+    expect(ids).toContain('policies')
     expect(ids).toContain('export-fields')
+  })
+
+  it('routes policies to the unified settings surface and still matches legacy blocks', () => {
+    const policies = SETTINGS_NAV_ITEMS.find((item) => item.id === 'policies')
+    expect(policies?.hrefSuffix).toBe('/settings/policies')
+    expect(policies?.matchesSuffixes).toContain('/settings/blocks')
   })
 
   it('marks export fields as regular workspace settings', () => {

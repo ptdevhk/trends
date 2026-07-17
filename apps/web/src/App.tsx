@@ -41,9 +41,9 @@ const LazyDebugIngest = lazy(() => import('@/pages/DebugIngest'))
 const LazyArchivedResumes = lazy(() => import('@/pages/ArchivedResumes'))
 const LazyDebugAiTaggingResults = lazy(() => import('@/pages/DebugAiTaggingResults'))
 
-const LazyBlacklistPage = lazy(async () => {
-  const module = await import('@/pages/BlacklistPage')
-  return { default: module.BlacklistPage }
+const LazyPoliciesPage = lazy(async () => {
+  const module = await import('@/pages/PoliciesPage')
+  return { default: module.PoliciesPage }
 })
 
 const LazySearchProfilesPage = lazy(async () => {
@@ -534,14 +534,18 @@ function App() {
             </Route>
 
             <Route path="settings" element={<SettingsLayout />}>
-              <Route index element={<Navigate to="blocks" replace />} />
+              <Route index element={<Navigate to="policies" replace />} />
               <Route
-                path="blocks"
+                path="policies"
                 element={(
                   <RouteSuspense>
-                    <LazyBlacklistPage />
+                    <LazyPoliciesPage />
                   </RouteSuspense>
                 )}
+              />
+              <Route
+                path="blocks"
+                element={<Navigate to="../policies" replace />}
               />
               <Route
                 path="profiles"

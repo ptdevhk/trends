@@ -24,6 +24,8 @@ import { Button } from '@/components/ui/button'
 import { useAiSearchSummary } from '@/hooks/useAiSearchSummary'
 import { useIndustryKeywords } from '@/hooks/useIndustryKeywords'
 import { useResumeSearchState } from '@/hooks/useResumeSearchState'
+import { useCompanyPolicyListFilter } from '@/hooks/useCompanyPolicyListFilter'
+import { CompanyPolicyHiddenToggle } from '@/components/CompanyPolicyHiddenToggle'
 import { useAuth } from '@/contexts/AuthContext'
 import { rawApiClient } from '@/lib/api-helpers'
 import { isResumeAiSummaryEnabled } from '@/lib/feature-flags'
@@ -42,6 +44,13 @@ export function ResumeSearchPage() {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
   const [filtersOpen, setFiltersOpen] = useState(false)
   const { hotKeywords, quickStartProfiles } = useIndustryKeywords()
+  const resolveSearchResumeEmployers = useCallback(
+    (item: { resume: { workHistory?: unknown; ingestData?: { companyHits?: string[] } } }) => ({
+      workHistory: item.resume.workHistory as Array<{ companyName?: string; raw?: string }> | undefined,
+      companyHits: item.resume.ingestData?.companyHits,
+    }),
+    [],
+  )
   const {
     activeQuery,
     activeSort,
@@ -130,6 +139,12 @@ export function ResumeSearchPage() {
       ),
     ]
   }, [selectedClusterTags, selectedRawTags, taxonomyClusters])
+  const {
+    visibleItems: policyVisibleResults,
+    hiddenCount: companyPolicyHiddenCount,
+    showHidden: showCompanyPolicyHidden,
+    setShowHidden: setShowCompanyPolicyHidden,
+  } = useCompanyPolicyListFilter(filteredResults, resolveSearchResumeEmployers)
   const aiSummary = useAiSearchSummary({
     enabled: resumeAiSummaryEnabled,
     query: activeQuery,
@@ -138,7 +153,7 @@ export function ResumeSearchPage() {
     selectedTags: selectedSummaryTags,
     selectedCompanies: parsedState.selectedCompanies,
     selectedExperienceLevel: parsedState.selectedExperienceLevel,
-    results: filteredResults,
+    results: policyVisibleResults,
   })
   const shareState = useMemo(() => ({
     location: parsedState.location,
@@ -311,7 +326,7 @@ export function ResumeSearchPage() {
       minScore: parsedState.filters.minMatchScore,
       minRoleYears: committedMinRoleYears,
       isFilterTransitionPending: isFilterPending,
-      loadedCount: filteredResults.length,
+      loadedCount: policyVisibleResults.length,
       minAge: parsedState.filters.minAge,
       maxAge: parsedState.filters.maxAge,
       minSalary: parsedState.filters.minSalary,
@@ -344,7 +359,7 @@ export function ResumeSearchPage() {
       clearFacetFilters,
       committedMinRoleYears,
       facetCounts,
-      filteredResults.length,
+      policyVisibleResults.length,
       isFilterPending,
       parsedState.filters.idOrNameSearch,
       setIdOrNameSearchFilter,
@@ -441,7 +456,7 @@ export function ResumeSearchPage() {
           <ErrorBoundary fallback={<InlineErrorFallback message={errorSearchBarLabel} retryLabel={reloadPageLabel} onRetry={() => window.location.reload()} />}>
             <SearchHeader
               activeQuery={activeQuery}
-              activeResultCount={filteredResults.length}
+              activeResultCount={policyVisibleResults.length}
               activeResultCountIsLowerBound={hasMore}
               collectedTodayCount={loadedCollectedTodayCount}
               jobDescriptionId={parsedState.jobDescriptionId}
@@ -549,9 +564,9 @@ export function ResumeSearchPage() {
                 </ErrorBoundary>
               )}
 
-              <div className="sticky top-14 z-20 -mx-1 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-1 py-1">
+              <div className="sticky top-14 z-20 -mx-1 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-1 py-1 space-y-2">
                 <BulkActionBar
-                  totalCount={filteredResults.length}
+                  totalCount={policyVisibleResults.length}
                   totalCountIsLowerBound={hasMore}
                   selectedCount={selectedIds.size}
                   highScoreCount={highScoreCount}
@@ -567,13 +582,18 @@ export function ResumeSearchPage() {
                   onStatusToggle={toggleStatus}
                   statusFacetCounts={facetCounts?.statuses?.reduce((acc, { value, count }) => ({ ...acc, [value]: count }), {} as Record<string, number>)}
                 />
+                <CompanyPolicyHiddenToggle
+                  hiddenCount={companyPolicyHiddenCount}
+                  showHidden={showCompanyPolicyHidden}
+                  onShowHiddenChange={setShowCompanyPolicyHidden}
+                />
               </div>
 
               <ErrorBoundary fallback={<InlineErrorFallback message={errorResultsLabel} retryLabel={reloadPageLabel} onRetry={() => window.location.reload()} />}>
                 <SearchResultsList
                   expandedIds={expandedIds}
                   hasMore={hasMore}
-                  items={filteredResults}
+                  items={policyVisibleResults}
                   loading={loading}
                   loadingMore={loadingMore}
                   showAiScore={aiModeEnabled}

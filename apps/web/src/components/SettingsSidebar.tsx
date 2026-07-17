@@ -5,7 +5,7 @@ import {
   type SurfaceNavDefinition,
 } from '@trends/shared'
 import { Link, useLocation } from 'react-router-dom'
-import { Ban, Home, Key, Search, SlidersHorizontal, X } from 'lucide-react'
+import { Home, Key, Scale, Search, SlidersHorizontal, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
@@ -22,7 +22,7 @@ type NavItem = SurfaceNavDefinition & {
 
 const NAV_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   home: Home,
-  blocks: Ban,
+  policies: Scale,
   profiles: Search,
   'export-fields': SlidersHorizontal,
   account: Key,

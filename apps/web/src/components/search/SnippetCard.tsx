@@ -30,6 +30,8 @@ import { getScoreClassName } from '@/lib/score-classes'
 import { cn } from '@/lib/utils'
 import type { CandidateActionType, CandidateStatus, AiFeedbackSentiment, AiFeedbackTarget } from '@/types/resume'
 import { ConfirmedScoreBadge } from '@/components/ConfirmedScoreBadge'
+import { CompanyPolicyBadges } from '@/components/CompanyPolicyBadges'
+import { useCompanyPolicyIndex } from '@/hooks/useCompanyPolicyIndex'
 
 type SnippetCardProps = {
   expanded: boolean
@@ -136,6 +138,15 @@ export const SnippetCard = memo(function SnippetCard({
   const companyHits = (item.resume.ingestData?.companyHits ?? []).slice(0, 3)
   const { resolve: resolveBrand } = useBrandDisplayMap()
   const brandSummary = summarizeBrandHits(item.resume.ingestData?.brandHits)
+  const { matchResume } = useCompanyPolicyIndex(true)
+  const companyPolicyHits = useMemo(
+    () =>
+      matchResume({
+        workHistory: item.resume.workHistory,
+        companyHits: item.resume.ingestData?.companyHits,
+      }),
+    [item.resume.ingestData?.companyHits, item.resume.workHistory, matchResume],
+  )
   const score = item.score
   const hasAiScore = showAiScore && item.scoreSource === 'ai' && typeof score === 'number'
   const hasRuleScore = !showAiScore && typeof score === 'number'
@@ -296,7 +307,14 @@ export const SnippetCard = memo(function SnippetCard({
             {resolveBrand(brand)}
           </Badge>
         ))}
+        <CompanyPolicyBadges hits={companyPolicyHits} />
       </div>
+
+      {companyPolicyHits.length > 0 ? (
+        <div className="border-b px-4 py-2">
+          <CompanyPolicyBadges hits={companyPolicyHits} variant="banner" />
+        </div>
+      ) : null}
 
       {/* Main card body */}
       <div className="flex flex-col gap-4 p-4 lg:flex-row">

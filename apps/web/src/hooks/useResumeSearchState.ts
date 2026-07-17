@@ -2,6 +2,7 @@ import { deriveMarketFromSourceKey, formatKeywordQuery, isSalesRequiredContext, 
 import { matchesSalaryFilter } from '@/hooks/resume-filter-helpers'
 import { useMutation, useQuery } from 'convex/react'
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, useTransition } from 'react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { logSearchEvent } from '@/lib/search-analytics'
 import { api } from '../../../../packages/convex/convex/_generated/api'
@@ -725,6 +726,7 @@ function ensureStoredSessionKey(storageKey: string): string {
 }
 
 export function useResumeSearchState() {
+  const { t } = useTranslation()
   const { isAuthenticated } = useAuth()
   const { slug } = useWorkspace()
   const { parsedState, syncToUrl } = useUrlSearchState()
@@ -1948,9 +1950,34 @@ export function useResumeSearchState() {
         return
       }
 
-      const selectedItems = filteredResults.filter((item) => selectedIds.has(item.key))
+      let selectedItems = filteredResults.filter((item) => selectedIds.has(item.key))
       if (selectedItems.length === 0) {
         return
+      }
+
+      if (action === 'shortlist' || action === 'star') {
+        const { matchResumeCompanyPolicyCached } = await import('@/hooks/useCompanyPolicyIndex')
+        const { isCompanyWorkflowBlocked } = await import('@trends/shared')
+        const allowed = selectedItems.filter((item) => {
+          const hits = matchResumeCompanyPolicyCached({
+            workHistory: item.resume.workHistory,
+            companyHits: item.resume.ingestData?.companyHits,
+          })
+          return !isCompanyWorkflowBlocked(hits)
+        })
+        const skipped = selectedItems.length - allowed.length
+        if (skipped > 0) {
+          toast.message(
+            t('settings.policies.runtime.bulkSkipped', {
+              defaultValue: 'Skipped {{count}} no-hire company-policy row(s)',
+              count: skipped,
+            }),
+          )
+        }
+        selectedItems = allowed
+        if (selectedItems.length === 0) {
+          return
+        }
       }
 
       if (action === 'block') {
@@ -1977,7 +2004,7 @@ export function useResumeSearchState() {
 
       clearSelection()
     },
-    [blockCandidates, clearSelection, exportResults, filteredResults, saveAction, selectedIds, updateCandidateStatus],
+    [blockCandidates, clearSelection, exportResults, filteredResults, saveAction, selectedIds, t, updateCandidateStatus],
   )
 
   return {

@@ -157,7 +157,7 @@ test.describe('Blacklist page', () => {
       },
     ])
 
-    await page.goto('/dev/settings/blocks')
+    await page.goto('/dev/settings/policies')
     await page.waitForLoadState('networkidle')
     await expect.poll(() => getListRequestCount()).toBeGreaterThan(0)
     await expect(page.getByTestId('blacklist-page')).toBeVisible()
@@ -198,7 +198,7 @@ test.describe('Blacklist page', () => {
       },
     ])
 
-    await page.goto('/dev/settings/blocks')
+    await page.goto('/dev/settings/policies')
     await page.waitForLoadState('networkidle')
     await expect.poll(() => getListRequestCount()).toBeGreaterThan(0)
     await expect(page.getByTestId('blacklist-page')).toBeVisible()
