@@ -16,6 +16,7 @@ jobDescription: seek-malaysia-sales
 
 filters:
   minRoleYears: 1
+  roleFilterType: sales
   maxExperience: null
   locations:
     - Malaysia

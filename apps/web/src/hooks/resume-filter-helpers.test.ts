@@ -226,15 +226,21 @@ describe('toStatusFilterList', () => {
 })
 
 describe('getRoleYears', () => {
-  function makeResume(roleSignals: Array<{
-    type: string
-    years: number
-    roleRelevantYears?: number
-    industryVerifiedYears?: number
-    industryVerifiedRelevantYears?: number
-    matchedWorkEntries?: Array<{ years: number; directRoleMatch: boolean; industryVerified: boolean; matchedSignals: string[] }>
-  }>, verifiedRoleYears?: Record<string, number>): Pick<ConvexResumeItem, 'ingestData'> {
+  function makeResume(
+    roleSignals: Array<{
+      type: string
+      years: number
+      roleRelevantYears?: number
+      industryVerifiedYears?: number
+      industryVerifiedRelevantYears?: number
+      matchedWorkEntries?: Array<{ years: number; directRoleMatch: boolean; industryVerified: boolean; matchedSignals: string[] }>
+    }>,
+    verifiedRoleYears?: Record<string, number>,
+    options?: { market?: string; source?: string; sourceKey?: string },
+  ): Pick<ConvexResumeItem, 'ingestData' | 'source'> & { sourceKey?: string } {
     return {
+      source: options?.source ?? 'hr.job5156.com',
+      ...(options?.sourceKey ? { sourceKey: options.sourceKey } : {}),
       ingestData: {
         evidenceText: '',
         industryTags: [],
@@ -242,6 +248,7 @@ describe('getRoleYears', () => {
         brandHits: [],
         companyHits: [],
         industryDbV2Raw: 0,
+        ...(options?.market ? { market: options.market } : {}),
         roleSignals: roleSignals.map((s) => ({
           type: s.type,
           matchedSignals: [],
@@ -291,7 +298,7 @@ describe('getRoleYears', () => {
     expect(getRoleYears(resume, 'sales')).toBe(4)
   })
 
-  it('does not count direct unverified sales work-history years', () => {
+  it('does not count direct unverified sales work-history years for CN sources', () => {
     const resume = makeResume([{
       type: 'sales',
       years: 6.75,
@@ -300,8 +307,37 @@ describe('getRoleYears', () => {
       matchedWorkEntries: [
         { years: 6.75, directRoleMatch: true, industryVerified: false, matchedSignals: ['销售'] },
       ],
-    }])
+    }], undefined, { market: 'CN', source: 'hr.job5156.com', sourceKey: 'job5156' })
     expect(getRoleYears(resume, 'sales')).toBe(0)
+  })
+
+  it('MY Seek talentsearch: counts direct-role years when industry verify is 0 (minRoleYears=1 path)', () => {
+    const resume = makeResume([{
+      type: 'sales',
+      years: 5.5,
+      roleRelevantYears: 5.5,
+      industryVerifiedRelevantYears: 0,
+      industryVerifiedYears: 0,
+      matchedWorkEntries: [
+        { years: 5.5, directRoleMatch: true, industryVerified: false, matchedSignals: ['Sales Manager'] },
+      ],
+    }], {}, { market: 'MY', source: 'hk.employer.seek.com', sourceKey: 'seek' })
+    expect(getRoleYears(resume, 'sales')).toBe(5.5)
+    // Empty roleType (URL minRoleYears without roleType) still uses best relevant years on MY
+    expect(getRoleYears(resume, '')).toBe(5.5)
+  })
+
+  it('Seek sourceKey alone triggers role-relevant fallback even without market field', () => {
+    const resume = makeResume([{
+      type: 'sales',
+      years: 3,
+      roleRelevantYears: 3,
+      industryVerifiedRelevantYears: 0,
+      matchedWorkEntries: [
+        { years: 3, directRoleMatch: true, industryVerified: false, matchedSignals: ['Sales Engineer'] },
+      ],
+    }], undefined, { source: 'my.employer.seek.com', sourceKey: 'seek' })
+    expect(getRoleYears(resume, 'sales')).toBe(3)
   })
 
   it('does not count non-direct sales work-history mentions', () => {
@@ -313,7 +349,7 @@ describe('getRoleYears', () => {
       matchedWorkEntries: [
         { years: 5, directRoleMatch: false, industryVerified: false, matchedSignals: ['销售'] },
       ],
-    }])
+    }], undefined, { market: 'MY', source: 'hk.employer.seek.com', sourceKey: 'seek' })
     expect(getRoleYears(resume, 'sales')).toBe(0)
   })
 

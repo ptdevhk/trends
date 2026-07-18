@@ -3,6 +3,30 @@ import { buildWorkHistoryDateRange, buildWorkHistoryEntryText, normalizeWorkHist
 import type { ResumeWorkHistoryItem } from "../types/resume.js";
 
 const PRESENT_END_PATTERN = /(\d{4})[-./年](\d{1,2})?[^0-9]*(?:至今|目前|今|present|current|now|ongoing)/iu;
+/** English month names used by Seek EN talentsearch workHistory.raw lines. */
+const EN_MONTHS: Record<string, number> = {
+  jan: 1, january: 1,
+  feb: 2, february: 2,
+  mar: 3, march: 3,
+  apr: 4, april: 4,
+  may: 5,
+  jun: 6, june: 6,
+  jul: 7, july: 7,
+  aug: 8, august: 8,
+  sep: 9, sept: 9, september: 9,
+  oct: 10, october: 10,
+  nov: 11, november: 11,
+  dec: 12, december: 12,
+};
+const EN_MONTH_ALT = Object.keys(EN_MONTHS).join("|");
+/** e.g. "Apr 2012 - Present" or "Sep 2023 - Oct 2024" */
+const EN_DATE_RANGE_PATTERN = new RegExp(
+  `\\b(${EN_MONTH_ALT})\\s+(\\d{4})\\s*[-–—to]+\\s*(?:(${EN_MONTH_ALT})\\s+(\\d{4})|(present|current|now|ongoing))\\b`,
+  "iu",
+);
+/** e.g. "(14 years 2 months)" or "(1 year)" — Seek list cards include these. */
+const EN_EXPLICIT_DURATION_PATTERN =
+  /\(\s*(\d+)\s*years?(?:\s+(\d+)\s*months?)?\s*\)/iu;
 
 function computeMonthsDiff(startYear: number, startMonth: number, endYear: number, endMonth: number): number {
   const diff = (endYear - startYear) * 12 + (endMonth - startMonth);
@@ -13,16 +37,33 @@ function resolveAnchorDate(anchorDate: Date | undefined): Date {
   return anchorDate ?? new Date();
 }
 
+function resolveEnglishMonth(token: string | undefined): number | null {
+  if (!token) return null;
+  const month = EN_MONTHS[token.trim().toLowerCase()];
+  return typeof month === "number" ? month : null;
+}
+
 export function parseRoleYears(raw: string, anchorDate?: Date): number {
   const text = raw.trim();
   if (!text) {
     return 0;
   }
 
+  // CN explicit duration: (3年2月)
   const explicitDuration = text.match(/\((\d+)\s*年(?:(\d+)\s*月)?\)/u);
   if (explicitDuration) {
     const years = Number(explicitDuration[1] || 0);
     const months = Number(explicitDuration[2] || 0);
+    if (Number.isFinite(years) && Number.isFinite(months)) {
+      return years + (months / 12);
+    }
+  }
+
+  // Seek EN explicit duration: (14 years 2 months) / (1 year)
+  const enExplicitDuration = text.match(EN_EXPLICIT_DURATION_PATTERN);
+  if (enExplicitDuration) {
+    const years = Number(enExplicitDuration[1] || 0);
+    const months = Number(enExplicitDuration[2] || 0);
     if (Number.isFinite(years) && Number.isFinite(months)) {
       return years + (months / 12);
     }
@@ -39,6 +80,32 @@ export function parseRoleYears(raw: string, anchorDate?: Date): number {
       const years = computeMonthsDiff(startYear, startMonth, endYear, endMonth);
       if (years > 0) {
         return years;
+      }
+    }
+  }
+
+  // Seek EN mon-yyyy ranges: "Apr 2012 - Present" / "Sep 2023 - Oct 2024"
+  const enRange = text.match(EN_DATE_RANGE_PATTERN);
+  if (enRange) {
+    const startMonth = resolveEnglishMonth(enRange[1]);
+    const startYear = Number(enRange[2]);
+    if (startMonth && Number.isFinite(startYear)) {
+      let endYear: number;
+      let endMonth: number;
+      if (enRange[5]) {
+        // Present / current / now / ongoing
+        const resolvedAnchorDate = resolveAnchorDate(anchorDate);
+        endYear = resolvedAnchorDate.getFullYear();
+        endMonth = resolvedAnchorDate.getMonth() + 1;
+      } else {
+        endMonth = resolveEnglishMonth(enRange[3]) ?? 1;
+        endYear = Number(enRange[4]);
+      }
+      if (Number.isFinite(endYear) && Number.isFinite(endMonth)) {
+        const years = computeMonthsDiff(startYear, startMonth, endYear, endMonth);
+        if (years > 0) {
+          return years;
+        }
       }
     }
   }

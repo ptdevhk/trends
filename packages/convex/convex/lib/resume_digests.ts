@@ -2,6 +2,7 @@ import {
     type AnalysisRoleSignalLike,
     buildLatestWorkHistoryEvidence,
     formatLocationHierarchySearchText,
+    getRoleRelevantSignalYears,
     getVerifiedRoleSignalYears,
     isRecord,
     matchesResumeDigestFilters,
@@ -9,6 +10,7 @@ import {
     normalizeResumeLocationHierarchy,
     parseRawSalaryRange,
     resolveExperienceYears,
+    resolveResumeAnalysisSourceKey,
 } from "@trends/shared";
 import type { Doc } from "../_generated/dataModel";
 import {
@@ -237,6 +239,13 @@ function collectRoleTypes(resume: Doc<"resumes">, roleYearsByType: Record<string
     return Array.from(out).sort();
 }
 
+/**
+ * Build digest roleYearsByType used by list/search minRoleYears gates.
+ *
+ * Prefer industry-verified years. For MY market / Seek sources (thin industry
+ * DB), fall back to direct-role years so talentsearch rows are not stored as
+ * 0 years and systematically dropped when minRoleYears=1.
+ */
 function collectRoleYearsByType(resume: Doc<"resumes">): Record<string, number> {
     const raw = resume.ingestData as Record<string, unknown> | null | undefined;
     if (!raw) return {};
@@ -253,17 +262,36 @@ function collectRoleYearsByType(resume: Doc<"resumes">): Record<string, number> 
     }
 
     const roleSignals = parseAnalysisRoleSignals(raw.roleSignals);
+    const allowRoleRelevantFallback = shouldDigestUseRoleRelevantYearsFallback(resume, raw);
+
     for (const signal of roleSignals) {
         const key = signal.type.trim().toLowerCase();
         if (!key) {
             continue;
         }
-        const years = getVerifiedRoleSignalYears(roleSignals, key, signal.verifyIn);
+        let years = getVerifiedRoleSignalYears(roleSignals, key, signal.verifyIn);
+        if (years <= 0 && allowRoleRelevantFallback) {
+            years = getRoleRelevantSignalYears(roleSignals, key, signal.verifyIn);
+        }
         if (years > 0) {
             result[key] = Math.max(result[key] ?? 0, years);
         }
     }
     return result;
+}
+
+function shouldDigestUseRoleRelevantYearsFallback(
+    resume: Doc<"resumes">,
+    ingestData: Record<string, unknown>,
+): boolean {
+    const market = typeof ingestData.market === "string" ? ingestData.market.trim().toUpperCase() : "";
+    if (market === "MY") {
+        return true;
+    }
+
+    const sourceKey = resume.sourceKey
+        ?? resolveResumeAnalysisSourceKey({ source: resume.source });
+    return sourceKey === "seek";
 }
 
 function parseAnalysisRoleSignals(value: unknown): AnalysisRoleSignalLike[] {

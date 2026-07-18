@@ -1,6 +1,13 @@
 import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
-import { formatKeywordQuery, formatLocationHierarchySearchText, getVerifiedRoleSignalYears, normalizeKeywordPhrases, parseRawSalaryRange } from '@trends/shared'
-import { resolveResumeAnalysisSourceKey } from '@trends/shared'
+import {
+  formatKeywordQuery,
+  formatLocationHierarchySearchText,
+  getRoleRelevantSignalYears,
+  getVerifiedRoleSignalYears,
+  normalizeKeywordPhrases,
+  parseRawSalaryRange,
+  resolveResumeAnalysisSourceKey,
+} from '@trends/shared'
 import type { ExperienceLevelFilter, UrlSearchState } from '@/hooks/useUrlSearchState'
 
 import { CANDIDATE_STATUS_VALUES, type CandidateStatus, type ResumeFilters } from '@/types/resume'
@@ -85,9 +92,39 @@ export function toStatusFilterList(values: CandidateStatus[] | undefined): Candi
   return Array.from(unique).sort()
 }
 
+type RoleYearsResume = Pick<ConvexResumeItem, 'ingestData' | 'source'> & {
+  sourceKey?: string
+}
+
+/**
+ * MY / Seek industry-DB coverage is thin. When verified role years are 0,
+ * fall back to direct-role (role-relevant) years so minRoleYears does not
+ * systematically zero talentsearch results. CN stays verified-only.
+ * Mirrors Convex getResumeRoleYears / BFF / resume-service.
+ */
+function shouldUseRoleRelevantYearsFallback(resume: RoleYearsResume): boolean {
+  const market = typeof resume.ingestData?.market === 'string'
+    ? resume.ingestData.market.trim().toUpperCase()
+    : ''
+  if (market === 'MY') {
+    return true
+  }
+
+  const sourceKey = resume.sourceKey
+    ?? resolveResumeAnalysisSourceKey({ source: resume.source })
+  return sourceKey === 'seek'
+}
+
 export function hasMatchingRoleSignal(resume: Pick<ConvexResumeItem, 'ingestData'>, roleType: string | undefined): boolean {
   const normalizedRoleType = normalizeFilterToken(roleType ?? '')
   if (!normalizedRoleType) {
+    return true
+  }
+
+  // Match Convex hasMatchingRoleSignal: precomputed verifiedRoleYears counts
+  // even when roleSignals are sparse / not yet re-ingested.
+  const stored = resume.ingestData?.verifiedRoleYears?.[normalizedRoleType]
+  if (typeof stored === 'number' && Number.isFinite(stored)) {
     return true
   }
 
@@ -99,24 +136,49 @@ export function hasMatchingRoleSignal(resume: Pick<ConvexResumeItem, 'ingestData
   return roleSignals.some((signal) => normalizeFilterToken(signal.type) === normalizedRoleType)
 }
 
-export function getRoleYears(resume: Pick<ConvexResumeItem, 'ingestData'>, roleType: string): number {
+export function getRoleYears(resume: RoleYearsResume, roleType: string): number {
   const roleSignals = resume.ingestData?.roleSignals
   if (!Array.isArray(roleSignals) || roleSignals.length === 0) {
+    // Still honor stored verifiedRoleYears when signals are absent
+    const normalizedRoleType = normalizeFilterToken(roleType)
+    if (normalizedRoleType) {
+      const stored = resume.ingestData?.verifiedRoleYears?.[normalizedRoleType]
+      if (typeof stored === 'number' && Number.isFinite(stored) && stored > 0) {
+        return stored
+      }
+      return 0
+    }
+    const verifiedRoleYears = resume.ingestData?.verifiedRoleYears
+    if (!verifiedRoleYears) {
+      return 0
+    }
+    return Math.max(
+      ...Object.values(verifiedRoleYears).map((value) =>
+        typeof value === 'number' && Number.isFinite(value) ? value : 0
+      ),
+      0,
+    )
+  }
+
+  const useRoleRelevantFallback = shouldUseRoleRelevantYearsFallback(resume)
+  const normalizedRoleType = normalizeFilterToken(roleType)
+
+  if (normalizedRoleType) {
+    const stored = resume.ingestData?.verifiedRoleYears?.[normalizedRoleType]
+    if (typeof stored === 'number' && Number.isFinite(stored) && stored > 0) {
+      return stored
+    }
+    const verified = getVerifiedRoleSignalYears(roleSignals, normalizedRoleType)
+    if (verified > 0) {
+      return verified
+    }
+    if (useRoleRelevantFallback) {
+      return getRoleRelevantSignalYears(roleSignals, normalizedRoleType)
+    }
     return 0
   }
 
-  // Use verified-only years for the search gate, matching the server-side
-  // getResumeRoleYears / getVerifiedRoleSignalYears logic.
-  const normalizedRoleType = normalizeFilterToken(roleType)
-  if (normalizedRoleType) {
-    const stored = resume.ingestData?.verifiedRoleYears?.[normalizedRoleType]
-    if (typeof stored === 'number' && Number.isFinite(stored)) {
-      return stored
-    }
-    return getVerifiedRoleSignalYears(roleSignals, normalizedRoleType)
-  }
-
-  // No specific role type: return the best verified years across all signals
+  // No specific role type: best years across all signals
   return roleSignals.reduce((maxYears, signal) => {
     const key = normalizeFilterToken(signal.type)
     if (!key) {
@@ -127,7 +189,13 @@ export function getRoleYears(resume: Pick<ConvexResumeItem, 'ingestData'>, roleT
       return stored
     }
     const verified = getVerifiedRoleSignalYears(roleSignals, key)
-    return Math.max(maxYears, verified)
+    if (verified > maxYears) {
+      return verified
+    }
+    if (useRoleRelevantFallback) {
+      return Math.max(maxYears, getRoleRelevantSignalYears(roleSignals, key))
+    }
+    return maxYears
   }, 0)
 }
 

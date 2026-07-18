@@ -6,6 +6,7 @@
  * normalizeResumeListFilters, getIngestRuleScore.
  */
 import { describe, expect, it } from "vitest";
+import { matchesResumeDigestFilters } from "@trends/shared";
 import { buildResumeDigest } from "../convex/lib/resume_digests.js";
 import {
   projectResumeListDoc,
@@ -359,9 +360,12 @@ describe("buildResumeDigest", () => {
     expect(digest.roleYearsByType).toEqual({ sales: 3 });
   });
 
-  it("keeps unverified role signal types separate from verified digest role years", () => {
+  it("keeps unverified role signal types separate from verified digest role years for CN", () => {
     const resume = makeResume({
+      source: "hr.job5156.com",
+      sourceKey: "job5156",
       ingestData: {
+        market: "CN",
         roleSignals: [{
           type: "sales",
           signalCount: 1,
@@ -370,6 +374,13 @@ describe("buildResumeDigest", () => {
           industryVerifiedRelevantYears: 0,
           industryVerifiedYears: 0,
           matchedSignals: ["销售"],
+          matchedWorkEntries: [{
+            jobTitle: "销售工程师",
+            years: 2,
+            industryVerified: false,
+            directRoleMatch: true,
+            matchedSignals: ["销售"],
+          }],
         }],
       },
     }) as Parameters<typeof buildResumeDigest>[0];
@@ -378,6 +389,43 @@ describe("buildResumeDigest", () => {
 
     expect(digest.roleTypes).toEqual(["sales"]);
     expect(digest.roleYearsByType).toEqual({});
+  });
+
+  it("MY Seek digests store direct-role years when industry verify is 0 (minRoleYears=1 path)", () => {
+    const resume = makeResume({
+      source: "hk.employer.seek.com",
+      sourceKey: "seek",
+      externalId: "hk.employer.seek.com:profile:uuid-1",
+      ingestData: {
+        market: "MY",
+        verifiedRoleYears: {},
+        roleSignals: [{
+          type: "sales",
+          signalCount: 1,
+          years: 5.5,
+          roleRelevantYears: 5.5,
+          industryVerifiedRelevantYears: 0,
+          industryVerifiedYears: 0,
+          matchedSignals: ["Sales Manager"],
+          matchedWorkEntries: [{
+            jobTitle: "Sales Manager",
+            companyName: "Acme MY",
+            years: 5.5,
+            industryVerified: false,
+            directRoleMatch: true,
+            matchedSignals: ["Sales Manager"],
+          }],
+        }],
+      },
+    }) as Parameters<typeof buildResumeDigest>[0];
+
+    const digest = buildResumeDigest(resume, Date.UTC(2026, 5, 4));
+
+    expect(digest.roleTypes).toEqual(["sales"]);
+    expect(digest.roleYearsByType).toEqual({ sales: 5.5 });
+    // Digest filter used by Convex list path (live search gate)
+    expect(matchesResumeDigestFilters(digest as any, { minRoleYears: 1, roleFilterType: "sales" })).toBe(true);
+    expect(matchesResumeDigestFilters(digest as any, { minRoleYears: 1 })).toBe(true);
   });
 });
 

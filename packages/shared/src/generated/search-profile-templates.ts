@@ -442,6 +442,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
       "filters": {
         "maxExperience": null,
         "minRoleYears": 1,
+        "roleFilterType": "sales",
         "locations": [
           "Malaysia"
         ]
@@ -496,6 +497,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
       "filters": {
         "maxExperience": null,
         "minRoleYears": 1,
+        "roleFilterType": "sales",
         "locations": [
           "Malaysia"
         ]

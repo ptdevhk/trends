@@ -54,6 +54,24 @@ describe("parseRoleYears", () => {
   it("returns 0 when end date is before start date", () => {
     expect(parseRoleYears("2025-01~2020-01")).toBe(0);
   });
+
+  it("parses Seek EN explicit duration (N years M months)", () => {
+    expect(parseRoleYears("(14 years 2 months)")).toBeCloseTo(14 + 2 / 12, 5);
+    expect(parseRoleYears("(1 year)")).toBe(1);
+  });
+
+  it("parses Seek EN mon-yyyy range with Present", () => {
+    const anchor = new Date(2026, 6, 18); // Jul 2026
+    const raw =
+      "Senior Technical Sales Engineer · SIKA Kimia Sdn Bhd · Apr 2012 - Present (14 years 2 months)";
+    // Prefer explicit EN duration when present
+    expect(parseRoleYears(raw, anchor)).toBeCloseTo(14 + 2 / 12, 5);
+  });
+
+  it("parses Seek EN mon-yyyy closed range when duration missing", () => {
+    const raw = "Sales Engineer · Prosdata Engineering · Sep 2023 - Oct 2024";
+    expect(parseRoleYears(raw)).toBeCloseTo(1 + 1 / 12, 5);
+  });
 });
 
 describe("computeEntryRoleYears", () => {
@@ -78,6 +96,15 @@ describe("computeEntryRoleYears", () => {
     };
     const result = computeEntryRoleYears(entry);
     expect(result).toBeGreaterThan(0);
+  });
+
+  it("computes years from Seek EN talentsearch raw workHistory lines", () => {
+    const entry: ResumeWorkHistoryItem = {
+      raw: "Sales and Service Engineer · Fanuc Mechatronic Malaysia Sdn Bhd · Feb 2017 - Sep 2023 (6 years 8 months)",
+      companyName: "Fanuc Mechatronic Malaysia Sdn Bhd",
+      jobTitle: "Sales and Service Engineer",
+    };
+    expect(computeEntryRoleYears(entry)).toBeCloseTo(6 + 8 / 12, 5);
   });
 });
 

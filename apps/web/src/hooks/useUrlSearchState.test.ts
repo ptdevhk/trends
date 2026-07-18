@@ -102,6 +102,47 @@ describe('useUrlSearchState location parsing', () => {
     expect(state.filters.roleFilterType).toBe('sales')
   })
 
+  it('serializes MY CNC Sales default workflow URL with minRoleYears=1 and roleType=sales', () => {
+    const currentParams = new URLSearchParams()
+    useSearchParamsMock.mockReturnValue([currentParams, setSearchParamsMock])
+
+    const { result } = renderHook(() => useUrlSearchState())
+
+    const nextState: UrlSearchState = {
+      query: 'CNC Sales',
+      location: 'Malaysia',
+      keywords: ['CNC', 'Sales'],
+      requiredKeywords: [],
+      jobDescriptionId: undefined,
+      selectedTags: [],
+      selectedCompanies: [],
+      selectedSources: [],
+      selectedBrands: [],
+      selectedExperienceLevel: undefined,
+      filters: {
+        locations: ['Malaysia'],
+        minRoleYears: 1,
+        roleFilterType: 'sales',
+      },
+    }
+
+    result.current.syncToUrl(nextState)
+
+    const [updater] = setSearchParamsMock.mock.calls[0] ?? []
+    expect(typeof updater).toBe('function')
+    const updatedParams = updater(new URLSearchParams()) as URLSearchParams
+    expect(updatedParams.get('location')).toBe('Malaysia')
+    expect(updatedParams.get('q')).toBe('CNC Sales')
+    expect(updatedParams.get('minRoleYears')).toBe('1')
+    expect(updatedParams.get('roleType')).toBe('sales')
+
+    // Round-trip parse must restore filters for seek-malaysia-* QuickStart apply
+    const reparsed = parseUrlSearchState(updatedParams)
+    expect(reparsed.filters.minRoleYears).toBe(1)
+    expect(reparsed.filters.roleFilterType).toBe('sales')
+    expect(reparsed.location).toBe('Malaysia')
+  })
+
   it('serializes canonical OR phrase queries when syncing to the URL', () => {
     const currentParams = new URLSearchParams()
     useSearchParamsMock.mockReturnValue([currentParams, setSearchParamsMock])
