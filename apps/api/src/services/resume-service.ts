@@ -3,8 +3,6 @@ import path from "node:path";
 import {
   buildWorkHistoryEntryText,
   formatLocationHierarchySearchText,
-  getRoleRelevantSignalYears,
-  getVerifiedRoleSignalYears,
   isLocationMatch,
   isRecord,
   normalizeEducationLevel,
@@ -15,7 +13,7 @@ import {
   parseExperienceYears,
   parseProductClass,
   parseRawSalaryRange,
-  resolveResumeAnalysisSourceKey,
+  resolveGateRoleYears,
   selectLatestWorkHistory,
 } from "@trends/shared";
 
@@ -410,48 +408,15 @@ function normalizeRoleType(value: string | undefined): string {
 }
 
 function getResumeItemRoleYears(item: ResumeItem, roleType?: string): number {
-  const normalizedRoleType = normalizeRoleType(roleType);
-  const verifiedRoleYears = item.ingestData?.verifiedRoleYears;
-  if (verifiedRoleYears && normalizedRoleType) {
-    const storedYears = verifiedRoleYears[normalizedRoleType];
-    if (typeof storedYears === "number" && Number.isFinite(storedYears) && storedYears > 0) {
-      return storedYears;
-    }
-  } else if (verifiedRoleYears) {
-    const storedMax = Math.max(
-      ...Object.values(verifiedRoleYears).map((value) =>
-        typeof value === "number" && Number.isFinite(value) ? value : 0
-      ),
-      0
-    );
-    if (storedMax > 0) {
-      return storedMax;
-    }
-  }
-
-  const roleSignals = item.ingestData?.roleSignals;
-  if (!Array.isArray(roleSignals) || roleSignals.length === 0) {
-    return 0;
-  }
-
-  const verifiedYears = getVerifiedRoleSignalYears(roleSignals, normalizedRoleType);
-  if (verifiedYears > 0) {
-    return verifiedYears;
-  }
-
-  // MY / Seek: industry DB is sparse — use direct-role years so minRoleYears
-  // does not systematically exclude talentsearch resumes with real sales titles.
-  const market = typeof item.ingestData?.market === "string"
-    ? item.ingestData.market.trim().toUpperCase()
-    : "";
-  const sourceKey = resolveResumeAnalysisSourceKey({
-    source: typeof item.source === "string" ? item.source : undefined,
-  });
-  if (market === "MY" || sourceKey === "seek") {
-    return getRoleRelevantSignalYears(roleSignals, normalizedRoleType);
-  }
-
-  return 0;
+  return resolveGateRoleYears(
+    item.ingestData?.roleSignals,
+    roleType,
+    {
+      market: typeof item.ingestData?.market === "string" ? item.ingestData.market : undefined,
+      source: typeof item.source === "string" ? item.source : undefined,
+    },
+    item.ingestData?.verifiedRoleYears,
+  );
 }
 
 function hasResumeItemRole(item: ResumeItem, roleType?: string): boolean {

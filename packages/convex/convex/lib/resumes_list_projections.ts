@@ -19,8 +19,7 @@ import {
     isLocationMatch,
     parseRawSalaryRange,
     resolveResumeAnalysisSourceKey,
-    getVerifiedRoleSignalYears,
-    getRoleRelevantSignalYears,
+    resolveGateRoleYears,
 } from "@trends/shared";
 import {
     toStringValue,
@@ -466,60 +465,19 @@ export function hasMatchingRoleSignal(resume: Doc<"resumes">, roleType: string |
 
 /**
  * Resolve role years for the minRoleYears search gate.
- *
- * CN resumes keep the strict industry-verified gate (industry DB coverage is
- * high). MY / Seek resumes often lack industry-DB verification even when they
- * have direct sales titles, so fall back to role-relevant (direct-role) years
- * when verified years are 0 — otherwise every Seek talentsearch row is
- * systematically zeroed by minRoleYears: 1.
+ * Delegates to shared {@link resolveGateRoleYears} (MY/Seek role-relevant fallback).
  */
 export function getResumeRoleYears(resume: Doc<"resumes">, roleType: string | undefined): number {
-    const key = toOptionalStringValue(roleType)?.trim().toLowerCase() ?? "";
-
-    const verifiedRoleYears = resume.ingestData?.verifiedRoleYears;
-    if (!key) {
-        const storedMax = Math.max(
-            ...Object.values(verifiedRoleYears ?? {}).map((value) =>
-                typeof value === "number" && Number.isFinite(value) ? value : 0
-            ),
-            0
-        );
-        if (storedMax > 0) {
-            return storedMax;
-        }
-    } else {
-        const stored = resume.ingestData?.verifiedRoleYears?.[key];
-        if (typeof stored === "number" && Number.isFinite(stored) && stored > 0) {
-            return stored;
-        }
-    }
-
-    const roleSignals = resume.ingestData?.roleSignals;
-    if (!Array.isArray(roleSignals) || roleSignals.length === 0) {
-        return 0;
-    }
-
-    const verifiedYears = getVerifiedRoleSignalYears(roleSignals, key);
-    if (verifiedYears > 0) {
-        return verifiedYears;
-    }
-
-    if (shouldUseRoleRelevantYearsFallback(resume)) {
-        return getRoleRelevantSignalYears(roleSignals, key);
-    }
-
-    return 0;
-}
-
-function shouldUseRoleRelevantYearsFallback(resume: Doc<"resumes">): boolean {
-    const market = toOptionalStringValue(resume.ingestData?.market)?.trim().toUpperCase();
-    if (market === "MY") {
-        return true;
-    }
-
-    const sourceKey = resume.sourceKey
-        ?? resolveResumeAnalysisSourceKey({ source: resume.source });
-    return sourceKey === "seek";
+    return resolveGateRoleYears(
+        resume.ingestData?.roleSignals,
+        roleType,
+        {
+            market: resume.ingestData?.market,
+            sourceKey: resume.sourceKey,
+            source: resume.source,
+        },
+        resume.ingestData?.verifiedRoleYears,
+    );
 }
 
 // ---------------------------------------------------------------------------

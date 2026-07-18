@@ -327,10 +327,104 @@ export function getVerifiedRoleSignalYears(
 }
 
 /**
+ * Scope for the minRoleYears search gate: when industry-DB coverage is thin
+ * (MY market or Seek source), callers may fall back from verified years to
+ * direct-role years. CN Job5156/51job stay verified-only.
+ */
+export type RoleYearsGateScope = {
+  market?: string | null;
+  sourceKey?: string | null;
+  source?: string | null;
+};
+
+/**
+ * True when minRoleYears may use {@link getRoleRelevantSignalYears} after
+ * verified years are 0. Shared by Convex list filters, digests, BFF, API, web.
+ */
+export function shouldUseRoleRelevantYearsFallback(scope: RoleYearsGateScope): boolean {
+  const market = typeof scope.market === "string" ? scope.market.trim().toUpperCase() : "";
+  if (market === "MY") {
+    return true;
+  }
+
+  return resolveResumeAnalysisSourceKey({
+    sourceKey: scope.sourceKey,
+    source: scope.source,
+  }) === "seek";
+}
+
+/**
+ * Resolve years for the minRoleYears search gate for one role type (or the
+ * best across all types when `roleType` is empty). Prefers precomputed
+ * `verifiedRoleYears`, then industry-verified signal years, then (MY/Seek only)
+ * role-relevant years.
+ */
+export function resolveGateRoleYears(
+  roleSignals: AnalysisRoleSignalLike[] | undefined,
+  roleType: string | undefined,
+  scope: RoleYearsGateScope,
+  verifiedRoleYears?: Record<string, number> | null,
+): number {
+  const key = typeof roleType === "string" ? roleType.trim().toLowerCase() : "";
+  const allowRoleRelevantFallback = shouldUseRoleRelevantYearsFallback(scope);
+
+  if (key) {
+    const stored = verifiedRoleYears?.[key];
+    if (typeof stored === "number" && Number.isFinite(stored) && stored > 0) {
+      return stored;
+    }
+  } else if (verifiedRoleYears) {
+    const storedMax = Math.max(
+      ...Object.values(verifiedRoleYears).map((value) =>
+        typeof value === "number" && Number.isFinite(value) ? value : 0
+      ),
+      0
+    );
+    if (storedMax > 0) {
+      return storedMax;
+    }
+  }
+
+  if (!Array.isArray(roleSignals) || roleSignals.length === 0) {
+    return 0;
+  }
+
+  if (key) {
+    const verifiedYears = getVerifiedRoleSignalYears(roleSignals, key);
+    if (verifiedYears > 0) {
+      return verifiedYears;
+    }
+    if (allowRoleRelevantFallback) {
+      return getRoleRelevantSignalYears(roleSignals, key);
+    }
+    return 0;
+  }
+
+  return roleSignals.reduce((maxYears, signal) => {
+    const signalKey = typeof signal.type === "string" ? signal.type.trim().toLowerCase() : "";
+    if (!signalKey) {
+      return maxYears;
+    }
+    const stored = verifiedRoleYears?.[signalKey];
+    if (typeof stored === "number" && Number.isFinite(stored) && stored > maxYears) {
+      return stored;
+    }
+    const verifiedYears = getVerifiedRoleSignalYears(roleSignals, signalKey);
+    if (verifiedYears > maxYears) {
+      return verifiedYears;
+    }
+    if (allowRoleRelevantFallback) {
+      return Math.max(maxYears, getRoleRelevantSignalYears(roleSignals, signalKey));
+    }
+    return maxYears;
+  }, 0);
+}
+
+/**
  * Broad display/ranking variant that counts role-relevant years for the
  * requested role type. This is intentionally broader than
  * `getVerifiedRoleSignalYears` and must not be used for verified role-year
- * search gates.
+ * search gates without the MY/Seek gate helpers above.
  *
  * Precedence per signal:
  *  1. If matched work entries carry `directRoleMatch`, sum years where it is

@@ -5,13 +5,12 @@
  */
 import {
   formatLocationHierarchySearchText,
-  getRoleRelevantSignalYears,
-  getVerifiedRoleSignalYears,
   type AnalysisRoleSignalLike,
   isLocationMatch,
   isRecord,
   normalizeResumeLocationHierarchy,
   parseRawSalaryRange,
+  resolveGateRoleYears,
   resolveResumeAnalysisSourceKey,
 } from "@trends/shared";
 import { normalizeEducationLevel } from "./resume-service.js";
@@ -131,26 +130,27 @@ export function bffMatchesResumeFilters(
 
   if (typeof filters.minRoleYears === "number" && filters.minRoleYears > 0) {
     const verifiedRoleYears = isRecord(ingestData.verifiedRoleYears)
-      ? ingestData.verifiedRoleYears as Record<string, unknown>
-      : {};
-    const roleSignals = Array.isArray(ingestData.roleSignals) ? (ingestData.roleSignals as AnalysisRoleSignalLike[]) : [];
-    const roleFilterKey = filters.roleFilterType?.trim().toLowerCase() ?? "";
-    const storedRoleYears = roleFilterKey
-      ? toOptionalNumber(verifiedRoleYears[roleFilterKey]) ?? 0
-      : Math.max(...Object.values(verifiedRoleYears).map((v) => toOptionalNumber(v) ?? 0), 0);
-    let roleYears = storedRoleYears > 0
-      ? storedRoleYears
-      : getVerifiedRoleSignalYears(roleSignals, roleFilterKey);
-    // MY / Seek: industry DB coverage is thin — fall back to direct-role years
-    // so minRoleYears does not systematically zero talentsearch results.
-    if (roleYears <= 0 && roleSignals.length > 0) {
-      const market = typeof ingestData.market === "string" ? ingestData.market.trim().toUpperCase() : "";
-      const sourceKey = (typeof doc.sourceKey === "string" ? doc.sourceKey : undefined)
-        ?? resolveResumeAnalysisSourceKey({ source: toStringValue(doc.source) ?? undefined });
-      if (market === "MY" || sourceKey === "seek") {
-        roleYears = getRoleRelevantSignalYears(roleSignals, roleFilterKey);
-      }
-    }
+      ? Object.fromEntries(
+        Object.entries(ingestData.verifiedRoleYears as Record<string, unknown>)
+          .flatMap(([key, value]) => {
+            const years = toOptionalNumber(value);
+            return years === undefined ? [] : [[key, years] as const];
+          }),
+      )
+      : undefined;
+    const roleSignals = Array.isArray(ingestData.roleSignals)
+      ? (ingestData.roleSignals as AnalysisRoleSignalLike[])
+      : undefined;
+    const roleYears = resolveGateRoleYears(
+      roleSignals,
+      filters.roleFilterType,
+      {
+        market: typeof ingestData.market === "string" ? ingestData.market : undefined,
+        sourceKey: typeof doc.sourceKey === "string" ? doc.sourceKey : undefined,
+        source: toStringValue(doc.source) ?? undefined,
+      },
+      verifiedRoleYears,
+    );
     if (roleYears < filters.minRoleYears) return false;
   }
 

@@ -10,7 +10,7 @@ import {
     normalizeResumeLocationHierarchy,
     parseRawSalaryRange,
     resolveExperienceYears,
-    resolveResumeAnalysisSourceKey,
+    shouldUseRoleRelevantYearsFallback,
 } from "@trends/shared";
 import type { Doc } from "../_generated/dataModel";
 import {
@@ -262,7 +262,11 @@ function collectRoleYearsByType(resume: Doc<"resumes">): Record<string, number> 
     }
 
     const roleSignals = parseAnalysisRoleSignals(raw.roleSignals);
-    const allowRoleRelevantFallback = shouldDigestUseRoleRelevantYearsFallback(resume, raw);
+    const allowRoleRelevantFallback = shouldUseRoleRelevantYearsFallback({
+        market: typeof raw.market === "string" ? raw.market : undefined,
+        sourceKey: resume.sourceKey,
+        source: resume.source,
+    });
 
     for (const signal of roleSignals) {
         const key = signal.type.trim().toLowerCase();
@@ -278,20 +282,6 @@ function collectRoleYearsByType(resume: Doc<"resumes">): Record<string, number> 
         }
     }
     return result;
-}
-
-function shouldDigestUseRoleRelevantYearsFallback(
-    resume: Doc<"resumes">,
-    ingestData: Record<string, unknown>,
-): boolean {
-    const market = typeof ingestData.market === "string" ? ingestData.market.trim().toUpperCase() : "";
-    if (market === "MY") {
-        return true;
-    }
-
-    const sourceKey = resume.sourceKey
-        ?? resolveResumeAnalysisSourceKey({ source: resume.source });
-    return sourceKey === "seek";
 }
 
 function parseAnalysisRoleSignals(value: unknown): AnalysisRoleSignalLike[] {
