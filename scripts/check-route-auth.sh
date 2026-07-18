@@ -88,12 +88,13 @@ has_admin_guard() {
 
 has_workspace_user_guard() {
   local file="$1"
-  grep -q 'requireWorkspaceUser' "$file" 2>/dev/null
+  # Middleware or inline member gate (same membership check as requireWorkspaceUser).
+  grep -Eq 'requireWorkspaceUser|getWorkspaceUserAccessError' "$file" 2>/dev/null
 }
 
 has_workspace_read_guard() {
   local file="$1"
-  grep -Eq 'requireWorkspaceUser|requireWorkspacePermission' "$file" 2>/dev/null
+  grep -Eq 'requireWorkspaceUser|requireWorkspacePermission|getWorkspaceUserAccessError' "$file" 2>/dev/null
 }
 
 ROUTE_POLICY_BASES=""

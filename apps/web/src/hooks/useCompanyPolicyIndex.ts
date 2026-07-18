@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import {
   buildCompanyPolicyAliasIndex,
   matchResumeCompanyPolicies,
@@ -33,10 +33,13 @@ export function useCompanyPolicyIndex(enabled: boolean = true) {
       }
       policiesByCompanyKey.set(item.companyKey, item.effects as CompanyPolicyEffects)
     }
-    const next = buildCompanyPolicyAliasIndex(companies, policiesByCompanyKey)
-    lastAliasIndex = next
-    return next
+    return buildCompanyPolicyAliasIndex(companies, policiesByCompanyKey)
   }, [companies, policies])
+
+  // Keep the module cache for bulk handlers; do not mutate module state during render.
+  useEffect(() => {
+    lastAliasIndex = aliasIndex
+  }, [aliasIndex])
 
   const matchResume = useMemo(() => {
     return (input: {

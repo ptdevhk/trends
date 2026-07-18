@@ -8,6 +8,7 @@ vi.mock("../middleware/maintenance.js", () => ({
 
 import { createApp } from "../app";
 import { resetResumeScreeningDb } from "../services/database";
+import { parseJsonBody } from "../test-utils";
 import { createAuthHeaders } from "./test-auth-helpers";
 
 type ConvexCall = {
@@ -109,8 +110,12 @@ describe("companies routes", () => {
 
     expect(companies.status).toBe(200);
     expect(policies.status).toBe(200);
-    const companiesBody = await companies.json();
-    const policiesBody = await policies.json();
+    const companiesBody = await parseJsonBody<{
+      items: Array<{ companyKey: string }>;
+    }>(companies);
+    const policiesBody = await parseJsonBody<{
+      items: Array<{ effects: { rankingEffect: string } }>;
+    }>(policies);
     expect(companiesBody.items[0].companyKey).toBe("pro-technic-machinery");
     expect(policiesBody.items[0].effects.rankingEffect).toBe("band_known_good");
   });
@@ -145,7 +150,7 @@ describe("companies routes", () => {
     });
 
     expect(response.status).toBe(200);
-    const body = await response.json();
+    const body = await parseJsonBody<{ revision: number }>(response);
     expect(body.revision).toBe(2);
     expect(calls).toHaveLength(1);
   });
@@ -178,7 +183,11 @@ describe("companies routes", () => {
       body: JSON.stringify({ seedNoHireForWorkspace: true }),
     });
     expect(response.status).toBe(200);
-    const body = await response.json();
+    const body = await parseJsonBody<{
+      companiesCreated: number;
+      policiesSeeded: number;
+      policyRevision: number;
+    }>(response);
     expect(body.companiesCreated).toBe(2);
     expect(body.policiesSeeded).toBe(2);
     expect(body.policyRevision).toBe(1);

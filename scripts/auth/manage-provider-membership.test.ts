@@ -212,6 +212,8 @@ describe("manage-provider-membership CLI", () => {
 
   it("rejects unknown preapprove workspaces before mutating storage", () => {
     const root = mkdtempSync(path.join(tmpdir(), "trends-provider-membership-invalid-preapprove-"));
+    // Reserved route slug — not a system team and not a valid personal seat.
+    const invalidWorkspace = "admin";
 
     expect(() => {
       const command = parseProviderMembershipArgs([
@@ -223,7 +225,7 @@ describe("manage-provider-membership CLI", () => {
         "--provider-tenant",
         "tenant-1",
         "--workspace",
-        "prod",
+        invalidWorkspace,
         "--role",
         "user",
         "--operator-id",
@@ -241,6 +243,8 @@ describe("manage-provider-membership CLI", () => {
   it("rejects unknown revoke workspaces before mutating storage", () => {
     const root = mkdtempSync(path.join(tmpdir(), "trends-provider-membership-invalid-revoke-"));
     const storage = new AuthStorage(root);
+    // Reserved route slug — not a system team and not a valid personal seat.
+    const invalidWorkspace = "admin";
     storage.preapproveProviderMembership({
       provider: "casdoor",
       providerSubject: "sub-1",
@@ -260,7 +264,7 @@ describe("manage-provider-membership CLI", () => {
         "--provider-tenant",
         "tenant-1",
         "--workspace",
-        "prod",
+        invalidWorkspace,
         "--operator-id",
         "ops@example.com",
         "--output",

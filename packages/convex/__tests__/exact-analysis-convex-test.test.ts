@@ -188,9 +188,11 @@ describe("analysis_tasks:dispatchExact", () => {
         externalId: `valid-${scenario}`,
         workspaceSlug: "dev",
       });
+      // System teams (dev/hr) share the operational corpus for analysis; use a
+      // personal seat stamp to exercise workspace isolation.
       const invalidId = await seedResume(t, {
         externalId: `invalid-${scenario}`,
-        workspaceSlug: scenario === "workspace" ? "hr" : "dev",
+        workspaceSlug: scenario === "workspace" ? "alice-desk" : "dev",
         ...(scenario === "archived" ? { isArchived: true } : {}),
       });
       if (scenario === "missing") {
@@ -198,7 +200,11 @@ describe("analysis_tasks:dispatchExact", () => {
       }
 
       await expect(dispatchExact(t, [validId, invalidId])).rejects.toThrow(
-        scenario === "missing" ? /no longer exists/ : scenario,
+        scenario === "missing"
+          ? /no longer exists/
+          : scenario === "archived"
+            ? /archived/
+            : /belongs to workspace/,
       );
       expect(await storedTasks(t)).toEqual([]);
       expect(await scheduledFunctions(t)).toEqual([]);
@@ -677,7 +683,8 @@ describe("analysis_tasks:getExactStatus", () => {
     await t.run(async (ctx) => {
       await ctx.db.delete(missingId);
       await ctx.db.patch(archivedId, { isArchived: true });
-      await ctx.db.patch(wrongWorkspaceId, { workspaceSlug: "hr" });
+      // Personal seat stamp stays isolated from system-team callers (dev/hr share corpus).
+      await ctx.db.patch(wrongWorkspaceId, { workspaceSlug: "alice-desk" });
     });
     await completeTask(t, dispatch.taskId);
 

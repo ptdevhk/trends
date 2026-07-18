@@ -358,7 +358,8 @@ describe("analysis_tasks:getExactAuditExportPage", () => {
     const explicitDevId = await seedResume(t, 10, { workspaceSlug: "dev" });
     const legacyDevId = await seedResume(t, 11, { workspaceSlug: undefined });
     await seedResume(t, 12, { workspaceSlug: "dev", isArchived: true });
-    const existingHrId = await seedResume(t, 13, { workspaceSlug: "hr" });
+    // Personal seat is foreign to system-team callers; hr shares the operational corpus with dev.
+    const existingForeignId = await seedResume(t, 13, { workspaceSlug: "alice-desk" });
     const devTaskId = await seedCompletedExactTask(t, [explicitDevId]);
 
     const devPage = await getAuditPage(t, {
@@ -377,6 +378,7 @@ describe("analysis_tasks:getExactAuditExportPage", () => {
       targeted: 1,
       ready: 0,
     });
+    expect(String(existingForeignId)).not.toEqual(String(explicitDevId));
 
     const hrResumeId = await seedResume(t, 14, { workspaceSlug: "hr" });
     const hrTaskId = await seedCompletedExactTask(t, [hrResumeId], { workspaceSlug: "hr" });
@@ -386,10 +388,13 @@ describe("analysis_tasks:getExactAuditExportPage", () => {
       writeSecret: WRITE_SECRET,
       limit: 100,
     });
+    // hr shares the system-team/unscoped corpus with dev; personal seats stay excluded.
     expect(hrPage?.page.map((row) => row.currentResumeId)).toEqual([
-      String(existingHrId),
+      String(explicitDevId),
+      String(legacyDevId),
       String(hrResumeId),
     ]);
+    expect(hrPage?.page.map((row) => row.currentResumeId)).not.toContain(String(existingForeignId));
   });
 
   it("returns exact source-locale cold evidence and complete task, identity, score, ingest, and cohort provenance", async () => {
@@ -750,7 +755,8 @@ describe("analysis_tasks:getExactAuditExportPage", () => {
 
   it("returns stable task provenance on every page and continues after an empty filtered page", async () => {
     const t = createTest();
-    await seedResume(t, 60, { workspaceSlug: "hr" });
+    // Personal seat is filtered out for system-team callers (hr would be shared corpus).
+    await seedResume(t, 60, { workspaceSlug: "alice-desk" });
     const targetId = await seedResume(t, 61, { workspaceSlug: "dev" });
     const taskId = await seedCompletedExactTask(t, [targetId]);
 

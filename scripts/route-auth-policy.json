@@ -19,13 +19,17 @@
     "class": "workspace-write",
     "reason": "Candidate status mutations require authenticated workspace membership while candidate appeal remains a candidate-facing path."
   },
+  "companies.ts": {
+    "class": "workspace-write",
+    "reason": "Company registry and company-policy routes require authenticated workspace membership through requireWorkspaceUser."
+  },
   "config.ts": {
     "class": "admin",
     "reason": "Runtime configuration reads and writes are admin-only through getAdminAccessError checks."
   },
   "filter-presets.ts": {
-    "class": "admin",
-    "reason": "Filter preset administration is guarded by getAdminAccessError checks."
+    "class": "workspace-write",
+    "reason": "Workspace filter preset reads and member-managed overrides require authenticated workspace membership through getWorkspaceUserAccessError."
   },
   "health.ts": {
     "class": "public",
@@ -36,8 +40,8 @@
     "reason": "Industry taxonomy lookup data is public product metadata."
   },
   "job-descriptions.ts": {
-    "class": "admin",
-    "reason": "Job description operations are guarded by getAdminAccessError checks."
+    "class": "workspace-write",
+    "reason": "Job description reads and member-managed writes require authenticated workspace membership through getWorkspaceUserAccessError."
   },
   "notifications.ts": {
     "class": "admin",
@@ -104,8 +108,8 @@
     "reason": "Search analytics accepts client telemetry rather than workspace membership-gated operational writes."
   },
   "search-profiles.ts": {
-    "class": "admin",
-    "reason": "Search profile administration uses requireAdmin middleware."
+    "class": "workspace-write",
+    "reason": "Search profile list/run/CRUD requires authenticated workspace membership through requireWorkspaceUser."
   },
   "search.ts": {
     "class": "public",
