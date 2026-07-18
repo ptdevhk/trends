@@ -12,6 +12,7 @@ import {
   resetOnSuccess,
 } from "../middleware/login-rate-limit.js";
 import { AuthEventStorage } from "../services/auth-event-storage.js";
+import { AUTH_EVENT_TYPES } from "../services/auth-event-types.js";
 import { AuthSessionService, hashSecret } from "../services/auth-session-service.js";
 import { AuthStorage } from "../services/auth-storage.js";
 import {
@@ -1092,7 +1093,7 @@ export function createAuthRoutes(options: AuthRoutesOptions = {}) {
     request: {
       query: z.object({
         limit: z.string().optional(),
-        type: z.string().optional(),
+        type: z.enum(AUTH_EVENT_TYPES).optional(),
         userId: z.string().optional(),
         workspaceSlug: z.string().optional(),
       }),

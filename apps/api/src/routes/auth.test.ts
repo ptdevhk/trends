@@ -1095,6 +1095,61 @@ describe("GET /api/auth/events", () => {
     expect(body.success).toBe(true);
     expect(body.events).toHaveLength(2);
   });
+
+  it("filters events by AuthEventType query param for workspace admins", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "trends-auth-events-type-filter-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    await seedLocalUser(storage);
+
+    eventStorage.append({ type: "login_success", userId: "u1", workspaceSlug: "hr" });
+    eventStorage.append({ type: "login_failure", workspaceSlug: "hr" });
+    eventStorage.append({ type: "logout", userId: "u1", workspaceSlug: "hr" });
+
+    const adminUser = storage.findUser(storage.findIdentity("local", "hr-admin", "local")!.userId)!;
+    const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
+    const session = sessions.createSession(adminUser.id);
+    const app = createTestAppWithEvents(storage, eventStorage);
+
+    const response = await app.request("/api/auth/events?type=login_success", {
+      headers: {
+        "X-Workspace-Slug": "hr",
+        "X-CSRF-Token": session.csrfToken,
+        Cookie: `${config.auth.sessionCookieName}=${session.token}`,
+      },
+    });
+
+    expect(response.status).toBe(200);
+    const body = await parseJsonBody<{
+      success: unknown;
+      events: Array<{ type: string }>;
+    }>(response);
+    expect(body.success).toBe(true);
+    expect(body.events).toHaveLength(1);
+    expect(body.events[0]?.type).toBe("login_success");
+  });
+
+  it("rejects unknown event type query values", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "trends-auth-events-type-invalid-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    await seedLocalUser(storage);
+
+    const adminUser = storage.findUser(storage.findIdentity("local", "hr-admin", "local")!.userId)!;
+    const sessions = new AuthSessionService(storage, { ttlSeconds: 3600 });
+    const session = sessions.createSession(adminUser.id);
+    const app = createTestAppWithEvents(storage, eventStorage);
+
+    const response = await app.request("/api/auth/events?type=not_a_real_event", {
+      headers: {
+        "X-Workspace-Slug": "hr",
+        "X-CSRF-Token": session.csrfToken,
+        Cookie: `${config.auth.sessionCookieName}=${session.token}`,
+      },
+    });
+
+    expect(response.status).toBe(400);
+  });
 });
 
 describe("provider membership admin routes", () => {
