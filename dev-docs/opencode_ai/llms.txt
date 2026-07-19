@@ -659,6 +659,18 @@ Example configuration using wildcards to control multiple tools from an MCP serv
 
 --------------------------------
 
+### Running a custom command
+
+Source: https://opencode.ai/docs/commands
+
+Example of executing a custom command in the TUI.
+
+```bash
+/my-command
+```
+
+--------------------------------
+
 ### opencode.json
 
 Source: https://opencode.ai/docs/commands
@@ -673,18 +685,6 @@ Example of using the `description` option to provide a brief description for a c
     }
   }
 }
-```
-
---------------------------------
-
-### Running a custom command
-
-Source: https://opencode.ai/docs/commands
-
-Example of executing a custom command in the TUI.
-
-```bash
-/my-command
 ```
 
 --------------------------------
@@ -1090,18 +1090,6 @@ This example shows how to configure both local directory and Git repository refe
 
 --------------------------------
 
-### Start OpenCode TUI (Bash)
-
-Source: https://opencode.ai/docs/cli
-
-Starts the OpenCode terminal user interface by default when no arguments are provided.
-
-```bash
-opencode
-```
-
---------------------------------
-
 ### Basic Usage of `opencode serve`
 
 Source: https://opencode.ai/docs/server
@@ -1110,6 +1098,18 @@ Shows the command-line syntax for running the opencode server with optional para
 
 ```bash
 opencode serve [--port <number>] [--hostname <string>] [--cors <origin>]
+```
+
+--------------------------------
+
+### Start OpenCode TUI (Bash)
+
+Source: https://opencode.ai/docs/cli
+
+Starts the OpenCode terminal user interface by default when no arguments are provided.
+
+```bash
+opencode
 ```
 
 --------------------------------
@@ -1126,6 +1126,18 @@ opencode serve
 
 --------------------------------
 
+### Install xsel for Copy/Paste on X11 Linux
+
+Source: https://opencode.ai/docs/troubleshooting
+
+Install xsel on X11-based Linux systems as an alternative to xclip for enabling copy/paste functionality in OpenCode.
+
+```bash
+apt install -y xsel
+```
+
+--------------------------------
+
 ### Configure Instruction Files for the Model in opencode.json
 
 Source: https://opencode.ai/docs/config
@@ -1137,18 +1149,6 @@ Provide an array of paths and glob patterns to instruction files, such as `CONTR
   "$schema": "https://opencode.ai/config.json",
   "instructions": ["CONTRIBUTING.md", "docs/guidelines.md", ".cursor/rules/*.md"]
 }
-```
-
---------------------------------
-
-### Install xsel for Copy/Paste on X11 Linux
-
-Source: https://opencode.ai/docs/troubleshooting
-
-Install xsel on X11-based Linux systems as an alternative to xclip for enabling copy/paste functionality in OpenCode.
-
-```bash
-apt install -y xsel
 ```
 
 --------------------------------
@@ -1192,6 +1192,18 @@ Configure a Cloudflare Worker script to cache JSON API responses for five minute
 
 --------------------------------
 
+### OpenCode Models Command Overview
+
+Source: https://opencode.ai/docs/cli
+
+Displays all available models from configured providers, formatted as `provider/model`. Optionally filter by a specific provider.
+
+```bash
+opencode models [provider]
+```
+
+--------------------------------
+
 ### Install Xvfb for Headless Copy/Paste on Linux
 
 Source: https://opencode.ai/docs/troubleshooting
@@ -1224,14 +1236,14 @@ $ /connect
 
 --------------------------------
 
-### OpenCode Models Command Overview
+### Start OpenCode server in WSL for external connections
 
-Source: https://opencode.ai/docs/cli
+Source: https://opencode.ai/docs/windows-wsl
 
-Displays all available models from configured providers, formatted as `provider/model`. Optionally filter by a specific provider.
+Command to start the OpenCode server in WSL, making it accessible from outside the WSL environment by specifying the hostname and port.
 
 ```bash
-opencode models [provider]
+opencode serve --hostname 0.0.0.0 --port 4096
 ```
 
 --------------------------------
@@ -1248,14 +1260,21 @@ opencode run Explain the use of context in Go
 
 --------------------------------
 
-### Start OpenCode server in WSL for external connections
+### opencode.json
 
-Source: https://opencode.ai/docs/windows-wsl
+Source: https://opencode.ai/docs/tools
 
-Command to start the OpenCode server in WSL, making it accessible from outside the WSL environment by specifying the hostname and port.
+Example configuration for tool permissions, allowing, denying, or asking for approval for specific tools.
 
-```bash
-opencode serve --hostname 0.0.0.0 --port 4096
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "permission": {
+    "edit": "deny",
+    "bash": "ask",
+    "webfetch": "allow"
+  }
+}
 ```
 
 --------------------------------
@@ -1299,25 +1318,6 @@ export const MyPlugin = async ({ project, client, $, directory, worktree }) => {
 
   return {
     // Hook implementations go here
-  }
-}
-```
-
---------------------------------
-
-### opencode.json
-
-Source: https://opencode.ai/docs/tools
-
-Example configuration for tool permissions, allowing, denying, or asking for approval for specific tools.
-
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "permission": {
-    "edit": "deny",
-    "bash": "ask",
-    "webfetch": "allow"
   }
 }
 ```
@@ -1368,6 +1368,18 @@ Example of overriding the model for a specific agent.
 
 --------------------------------
 
+### OpenCode Auth Command Overview
+
+Source: https://opencode.ai/docs/cli
+
+Provides the general syntax for managing credentials and logging in for various providers using the OpenCode CLI.
+
+```bash
+opencode auth [command]
+```
+
+--------------------------------
+
 ### tui.json
 
 Source: https://opencode.ai/docs/themes
@@ -1378,6 +1390,21 @@ Example of specifying a theme in the tui.json configuration file.
 {
   "$schema": "https://opencode.ai/tui.json",
   "theme": "tokyonight"
+}
+```
+
+--------------------------------
+
+### opencode.json
+
+Source: https://opencode.ai/docs/models
+
+Example OpenCode configuration file specifying a model.
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "anthropic/claude-sonnet-4-20250514"
 }
 ```
 
@@ -1397,20 +1424,5 @@ This snippet shows a basic OpenCode configuration file using JSONC format, inclu
   "server": {
     "port": 4096,
   },
-}
-```
-
---------------------------------
-
-### opencode.json
-
-Source: https://opencode.ai/docs/models
-
-Example OpenCode configuration file specifying a model.
-
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "model": "anthropic/claude-sonnet-4-20250514"
 }
 ```

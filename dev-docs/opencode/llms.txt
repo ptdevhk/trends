@@ -466,6 +466,18 @@ mint dev
 
 --------------------------------
 
+### Install Claude Code globally
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/ai-tools/claude-code.mdx
+
+Command to install the Claude Code CLI tool using npm.
+
+```bash
+npm install -g @anthropic-ai/claude-code
+```
+
+--------------------------------
+
 ### Ask OpenCode a question
 
 Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
@@ -475,18 +487,6 @@ Example of asking OpenCode to explain a part of the codebase.
 ```txt
 @packages/functions/src/api/index.ts
 How is authentication handled in @packages/functions/src/api/index.ts
-```
-
---------------------------------
-
-### Install Claude Code globally
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/ai-tools/claude-code.mdx
-
-Command to install the Claude Code CLI tool using npm.
-
-```bash
-npm install -g @anthropic-ai/claude-code
 ```
 
 --------------------------------
@@ -679,6 +679,31 @@ const currentProject = await client.project.current()
 
 --------------------------------
 
+### Code group with multiple languages
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/ai-tools/cursor.mdx
+
+Example of a code group demonstrating API calls in Node.js, Python, and cURL.
+
+```javascript
+const response = await fetch('/api/endpoint', {
+  headers: { Authorization: `Bearer ${apiKey}` }
+});
+```
+
+```python
+import requests
+response = requests.get('/api/endpoint',
+  headers={'Authorization': f'Bearer {api_key}'})
+```
+
+```curl
+curl -X GET '/api/endpoint' \
+  -H 'Authorization: Bearer YOUR_API_KEY'
+```
+
+--------------------------------
+
 ### Complete opencode.json Configuration Example
 
 Source: https://github.com/anomalyco/opencode/blob/dev/packages/core/src/plugin/skill/customize-opencode.md
@@ -778,27 +803,24 @@ Illustrates the full structure and all available optional fields within the open
 
 --------------------------------
 
-### Code group with multiple languages
+### tmpdir with custom cleanup
 
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/ai-tools/cursor.mdx
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/opencode/test/AGENTS.md
 
-Example of a code group demonstrating API calls in Node.js, Python, and cURL.
+Example showing how to use a custom `dispose` function for specific cleanup logic.
 
-```javascript
-const response = await fetch('/api/endpoint', {
-  headers: { Authorization: `Bearer ${apiKey}` }
-});
-```
-
-```python
-import requests
-response = requests.get('/api/endpoint',
-  headers={'Authorization': f'Bearer {api_key}'})
-```
-
-```curl
-curl -X GET '/api/endpoint' \
-  -H 'Authorization: Bearer YOUR_API_KEY'
+```typescript
+await using tmp = await tmpdir({
+  init: async (dir) => {
+    const specialDir = path.join(dir, "special")
+    await fs.mkdir(specialDir)
+    return specialDir
+  },
+  dispose: async (dir) => {
+    // Custom cleanup logic
+    await fs.rm(path.join(dir, "special"), { recursive: true })
+  },
+})
 ```
 
 --------------------------------
@@ -832,28 +854,6 @@ await client.session.prompt({
   body: {
     noReply: true,
     parts: [{ type: "text", text: "You are a helpful assistant." }],
-  },
-})
-```
-
---------------------------------
-
-### tmpdir with custom cleanup
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/opencode/test/AGENTS.md
-
-Example showing how to use a custom `dispose` function for specific cleanup logic.
-
-```typescript
-await using tmp = await tmpdir({
-  init: async (dir) => {
-    const specialDir = path.join(dir, "special")
-    await fs.mkdir(specialDir)
-    return specialDir
-  },
-  dispose: async (dir) => {
-    // Custom cleanup logic
-    await fs.rm(path.join(dir, "special"), { recursive: true })
   },
 })
 ```
@@ -967,6 +967,18 @@ it.instance("uses the temp directory", () =>
 
 --------------------------------
 
+### Connect to LLM provider
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
+
+Run the /connect command in the TUI to configure an LLM provider.
+
+```txt
+/connect
+```
+
+--------------------------------
+
 ### Flow configuration
 
 Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/gitlab.mdx
@@ -1042,18 +1054,6 @@ variables:
   - ANTHROPIC_API_KEY
   - GITLAB_TOKEN_OPENCODE
   - GITLAB_HOST
-```
-
---------------------------------
-
-### Connect to LLM provider
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
-
-Run the /connect command in the TUI to configure an LLM provider.
-
-```txt
-/connect
 ```
 
 --------------------------------
