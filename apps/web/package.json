@@ -15,6 +15,7 @@
     "test:e2e:blacklist": "npm --prefix ../.. --workspace @trends/shared run build && playwright test -c playwright.config.ts e2e/blacklist.spec.ts",
     "test:e2e:provider-membership-admin": "npm --prefix ../.. --workspace @trends/shared run build && playwright test -c playwright.config.ts e2e/provider-membership-admin.spec.ts",
     "test:e2e:resume-role-filter": "npm --prefix ../.. --workspace @trends/shared run build && playwright test -c playwright.config.ts e2e/resume-role-filter.spec.ts",
+    "test:e2e:my-scoring": "npm --prefix ../.. --workspace @trends/shared run build && playwright test -c playwright.config.ts e2e/my-market-industry-db-placeholder.spec.ts",
     "lint": "eslint ."
   },
   "dependencies": {

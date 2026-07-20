@@ -6,7 +6,7 @@
 		preview-backup-prod on-host-backup-prod-complete on-host-preview-preflight on-host-preview-clone-from-prod on-host-preview-upgrade on-host-preview-isolate preview-deploy preview-restore-data preview-doctor preview-smoke \
 		install-deps fetch-docs clean check help docker docker-build docker-down \
 		check-python check-node check-node-tests-types check-build \
-		test test-python test-node test-resume test-extension-keyword-mode test-api-search-profiles test-worker-resume-tasks test-collect-url-smoke \
+		test test-python test-node test-resume test-extension-keyword-mode test-api-search-profiles test-worker-resume-tasks test-collect-url-smoke my-scoring my-scoring-e2e \
 		migration-test migration-test-fresh-sandbox \
 		build-static build-static-fresh build-extension-zip serve-static \
 		i18n-check i18n-sync i18n-convert i18n-translate i18n-build \
@@ -1456,6 +1456,22 @@ test-api-search-profiles:                  ## Run search-profiles dispatch keywo
 		npm run test:api:search-profiles; \
 	fi
 
+my-scoring:                                ## Run MY market scoring unit + integration tests
+	@echo "Running MY scoring unit/integration suite..."
+	@if command -v bun > /dev/null 2>&1; then \
+		bun run test:scoring:my; \
+	else \
+		npm run test:scoring:my; \
+	fi
+
+my-scoring-e2e:                            ## Run MY market scoring Playwright e2e (dev:fast webServer)
+	@echo "Running MY scoring e2e..."
+	@if command -v bun > /dev/null 2>&1; then \
+		bun run test:scoring:my:e2e; \
+	else \
+		npm run test:scoring:my:e2e; \
+	fi
+
 test-worker-resume-tasks:                  ## Run worker resume task keyword assembly tests
 	@echo "Running worker resume task tests..."
 	@uv run pytest apps/worker/tests/test_resume_tasks.py tests/test_resume_tasks.py -q
@@ -1602,6 +1618,8 @@ help:
 	@echo "  test-node      Run Node.js tests only"
 	@echo "  test-extension-keyword-mode Run extension keyword mode precedence regression"
 	@echo "  test-api-search-profiles Run API route test for profile-run keyword dispatch"
+	@echo "  my-scoring     Run MY market scoring unit + integration tests"
+	@echo "  my-scoring-e2e Run MY market scoring Playwright e2e"
 	@echo "  test-worker-resume-tasks Run worker keyword assembly tests"
 	@echo "  test-collect-url-smoke Run Collect button URL smoke check"
 	@echo "  auth-workspace-smoke Run auth/session/CSRF workspace smoke (requires AUTH_SMOKE_EMAIL/PASSWORD)"

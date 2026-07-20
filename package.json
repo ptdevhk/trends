@@ -28,6 +28,8 @@
     "test": "vitest run",
     "test:extension:keyword-mode": "tsx scripts/test-extension-keyword-mode.ts",
     "test:api:search-profiles": "vitest run apps/api/src/routes/search-profiles.test.ts",
+    "test:scoring:my": "vitest run packages/shared/src/scoring/resume-score-semantics.test.ts packages/shared/src/scoring/related-exp-evaluator.test.ts packages/convex/__tests__/analysis_normalization.test.ts apps/api/src/services/ai-matching.test.ts apps/api/src/services/__tests__/ai-matching-service.test.ts apps/api/src/services/rule-scoring.test.ts apps/api/src/services/__tests__/rule-scoring-service.test.ts apps/api/src/services/ingest-compute-service.test.ts apps/api/src/services/resume-ai-prompt-service.my-contract.test.ts apps/api/src/routes/resumes_match.test.ts && npm --workspace @trends/web run test -- src/lib/resume-scoring.test.ts",
+    "test:scoring:my:e2e": "npm --workspace @trends/shared run build && npm --workspace @trends/web run test:e2e:my-scoring",
     "test:e2e:collect-url": "tsx scripts/e2e-smoke.ts --collect-only",
     "test:e2e:live-job5156-detail": "tsx scripts/e2e-smoke.ts --live-job5156-detail https://hr.job5156.com/resume/view/987654",
     "test:e2e:live-seek-my": "tsx scripts/e2e-smoke.ts --live-seek-my-recommended https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1",
