@@ -13,6 +13,16 @@ import { getLatestIngestRun, listResearchNews } from "./research-service.js";
 
 export const SHOWCASE_SEED_INGEST_RUN_ID = "showcase-seed-v1";
 
+/** Deterministic timestamp from contentHash for idempotent evidence.seenAt */
+export function stableSeenAtFromHash(contentHash: string): number {
+  let h = 0;
+  for (let i = 0; i < contentHash.length; i += 1) {
+    h = (h * 31 + contentHash.charCodeAt(i)) >>> 0;
+  }
+  // Fixed epoch window so values stay stable across seeds
+  return 1_700_000_000_000 + (h % 1_000_000_000);
+}
+
 export type ShowcaseCompanyCard = {
   companyKey: string;
   displayName: string;
@@ -90,7 +100,6 @@ export async function seedResearchShowcase(
     newsUpserted: 0,
     signalsUpserted: 0,
   };
-  const now = Date.now();
   const companies = allShowcaseCompanies(pack);
 
   for (const company of companies) {
@@ -98,14 +107,15 @@ export async function seedResearchShowcase(
 
     for (const signal of company.signals) {
       const contentHash = showcaseContentHash(company.companyKey, signal.kind);
-      const capturedAt = now;
+      // Stable seenAt from hash so re-seeds match Convex soft-dedupe keys exactly
+      const seenAt = stableSeenAtFromHash(contentHash);
       await callConvexMutation("research_news:upsertItem", {
         writeSecret: config.auth.convexWriteSecret,
         sourceId: "showcase",
         platform: "showcase",
         title: signal.title,
         contentHash,
-        capturedAt,
+        capturedAt: seenAt,
         rawSnippet: signal.snippet,
         url: `https://showcase.local/research/${company.companyKey}/${signal.kind}`,
       });
@@ -120,11 +130,11 @@ export async function seedResearchShowcase(
         evidence: {
           title: signal.title,
           platform: "showcase",
-          seenAt: capturedAt,
+          seenAt,
           snippet: signal.snippet,
           url: `https://showcase.local/research/${company.companyKey}/${signal.kind}`,
         },
-        capturedAt,
+        capturedAt: seenAt,
         ingestRunId: seedIngestRunId,
       });
       counters.signalsUpserted += 1;
@@ -173,7 +183,8 @@ async function cardForCompany(
     ...(company.nameEn ? { nameEn: company.nameEn } : {}),
     kindCounts,
     signalCount,
-    showcase: showcase || signalCount > 0,
+    // Only curated seed rows — never label live-only density as showcase
+    showcase,
     href: `/${teamSlug}/research/${encodeURIComponent(company.companyKey)}?persona=hr`,
   };
 }
