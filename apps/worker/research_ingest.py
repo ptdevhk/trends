@@ -24,6 +24,8 @@ from apps.worker.research_ports import (
     RssPort,
     StaticHotlistPort,
     StaticRssPort,
+    resolve_newsnow_api_url,
+    resolve_newsnow_proxy_url,
 )
 from apps.worker.research_project import project_signals_for_items
 
@@ -101,11 +103,15 @@ class ResearchIngestJob:
         if hotlist_port is not None:
             self.hotlist_port = hotlist_port
         else:
-            api_url = os.environ.get("RESEARCH_HOTLIST_API_URL")
-            base_url = os.environ.get("RESEARCH_HOTLIST_BASE_URL")
+            api_url = resolve_newsnow_api_url()
+            proxy_url = resolve_newsnow_proxy_url()
+            base_url = (os.environ.get("RESEARCH_HOTLIST_BASE_URL") or "").strip() or None
             # Prefer NewsNow-compatible API; path-style BASE_URL only when API unset
             if api_url or not base_url:
-                self.hotlist_port = NewsNowHotlistPort(api_url=api_url or None)
+                self.hotlist_port = NewsNowHotlistPort(
+                    api_url=api_url,
+                    proxy_url=proxy_url,
+                )
             else:
                 self.hotlist_port = HttpHotlistPort(base_url=base_url)
         self.rss_port = rss_port or HttpRssPort()

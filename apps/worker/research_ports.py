@@ -10,12 +10,13 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import os
 import re
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Protocol
+from typing import Any, Callable, Dict, List, Mapping, Optional, Protocol
 from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
+from urllib.request import ProxyHandler, Request, build_opener, urlopen
 
 logger = logging.getLogger(__name__)
 
@@ -126,27 +127,54 @@ def parse_newsnow_payload(
 DEFAULT_NEWSNOW_API_URL = "https://newsnow.busiyi.world/api/s"
 
 
+def resolve_newsnow_api_url(env: Optional[Mapping[str, str]] = None) -> Optional[str]:
+    """Return RESEARCH_HOTLIST_API_URL when set (non-empty), else None (use default)."""
+    source = env if env is not None else os.environ
+    value = str(source.get("RESEARCH_HOTLIST_API_URL", "") or "").strip()
+    return value or None
+
+
+def resolve_newsnow_proxy_url(env: Optional[Mapping[str, str]] = None) -> Optional[str]:
+    """Return RESEARCH_HOTLIST_PROXY_URL when set (non-empty), else None."""
+    source = env if env is not None else os.environ
+    value = str(source.get("RESEARCH_HOTLIST_PROXY_URL", "") or "").strip()
+    return value or None
+
+
+def newsnow_request_url(api_url: Optional[str], platform_id: str) -> str:
+    """Build the NewsNow-compatible request URL (testable without network)."""
+    base = (api_url or DEFAULT_NEWSNOW_API_URL).rstrip("/")
+    return f"{base}?id={platform_id}&latest"
+
+
 @dataclass
 class NewsNowHotlistPort:
     """NewsNow-compatible hotlist: GET {api}?id={platform}&latest."""
 
     api_url: Optional[str] = None
+    proxy_url: Optional[str] = None
     timeout_seconds: float = 15.0
     max_retries: int = 2
     getter: Optional[Callable[[str], Optional[str]]] = None
 
     def fetch(self, platform_id: str, captured_at: int) -> List[NormalizedNewsItem]:
-        base = (self.api_url or DEFAULT_NEWSNOW_API_URL).rstrip("/")
-        url = f"{base}?id={platform_id}&latest"
+        url = newsnow_request_url(self.api_url, platform_id)
         body = self._get(url)
         if not body:
             return []
         return parse_newsnow_payload(platform_id, body, captured_at)
 
+    def _opener(self):
+        if self.proxy_url:
+            proxy = self.proxy_url.strip()
+            return build_opener(ProxyHandler({"http": proxy, "https": proxy}))
+        return build_opener()
+
     def _get(self, url: str) -> Optional[str]:
         if self.getter is not None:
             return self.getter(url)
         last_error: Optional[Exception] = None
+        opener = self._opener()
         for attempt in range(self.max_retries + 1):
             try:
                 request = Request(
@@ -162,7 +190,7 @@ class NewsNowHotlistPort:
                         "Cache-Control": "no-cache",
                     },
                 )
-                with urlopen(request, timeout=self.timeout_seconds) as response:
+                with opener.open(request, timeout=self.timeout_seconds) as response:
                     return response.read().decode("utf-8", errors="replace")
             except (HTTPError, URLError, TimeoutError, OSError) as error:
                 last_error = error

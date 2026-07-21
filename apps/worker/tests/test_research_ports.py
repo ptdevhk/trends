@@ -56,3 +56,75 @@ def test_newsnow_port_builds_query_and_parses():
     assert "id=weibo" in calls[0]
     assert "latest" in calls[0]
     assert items[0].title == "T1"
+
+
+def test_resolve_newsnow_api_url_from_env():
+    from apps.worker.research_ports import resolve_newsnow_api_url
+
+    assert resolve_newsnow_api_url({}) is None
+    assert resolve_newsnow_api_url({"RESEARCH_HOTLIST_API_URL": "  "}) is None
+    assert (
+        resolve_newsnow_api_url({"RESEARCH_HOTLIST_API_URL": "https://alt.example/api/s"})
+        == "https://alt.example/api/s"
+    )
+
+
+def test_resolve_newsnow_proxy_url_from_env():
+    from apps.worker.research_ports import resolve_newsnow_proxy_url
+
+    assert resolve_newsnow_proxy_url({}) is None
+    assert (
+        resolve_newsnow_proxy_url({"RESEARCH_HOTLIST_PROXY_URL": "http://proxy.local:8080"})
+        == "http://proxy.local:8080"
+    )
+
+
+def test_newsnow_request_url_uses_alternate_api():
+    from apps.worker.research_ports import DEFAULT_NEWSNOW_API_URL, newsnow_request_url
+
+    assert newsnow_request_url(None, "weibo") == f"{DEFAULT_NEWSNOW_API_URL}?id=weibo&latest"
+    assert (
+        newsnow_request_url("https://alt.example/api/s/", "baidu")
+        == "https://alt.example/api/s?id=baidu&latest"
+    )
+
+
+def test_newsnow_port_uses_proxy_handler_when_proxy_url_set(monkeypatch):
+    """Drive shipped _opener/proxy_url: ProxyHandler is installed when proxy is set."""
+    from urllib.request import ProxyHandler
+
+    from apps.worker.research_ports import NewsNowHotlistPort
+
+    seen = {}
+
+    def fake_build_opener(*handlers):
+        seen["handlers"] = handlers
+
+        class _Resp:
+            def read(self):
+                return b'{"status":"success","items":[{"title":"via-proxy","id":"p1"}]}'
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+        class _Opener:
+            def open(self, request, timeout=None):
+                seen["opened_url"] = request.full_url
+                return _Resp()
+
+        return _Opener()
+
+    monkeypatch.setattr("apps.worker.research_ports.build_opener", fake_build_opener)
+    port = NewsNowHotlistPort(
+        api_url="https://alt.example/api/s",
+        proxy_url="http://proxy.local:8080",
+    )
+    items = port.fetch("weibo", captured_at=1)
+    assert len(items) == 1
+    assert items[0].title == "via-proxy"
+    assert any(isinstance(h, ProxyHandler) for h in seen["handlers"])
+    assert "id=weibo" in seen["opened_url"]
+    assert seen["opened_url"].startswith("https://alt.example/api/s")

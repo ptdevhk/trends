@@ -134,6 +134,32 @@ def test_ingest_writes_news_and_finishes_run():
     assert finish["newsInserted"] == 1
 
 
+def test_research_ingest_job_wires_api_url_and_proxy_from_env(monkeypatch):
+    """Shipped ResearchIngestJob constructor applies RESEARCH_HOTLIST_* env to NewsNow port."""
+    from apps.worker.research_ports import NewsNowHotlistPort
+
+    monkeypatch.setenv("RESEARCH_HOTLIST_API_URL", "https://alt.example/api/s")
+    monkeypatch.setenv("RESEARCH_HOTLIST_PROXY_URL", "http://proxy.local:8080")
+    monkeypatch.delenv("RESEARCH_HOTLIST_BASE_URL", raising=False)
+
+    rec = RecordingConvex()
+    client = ResearchConvexClient(
+        convex_url="https://example.convex.cloud",
+        write_secret="secret",
+        mutator=rec.mutator,
+        querier=rec.querier,
+    )
+    job = ResearchIngestJob(
+        client=client,
+        platforms=[],
+        rss_feeds=[],
+        now_ms=lambda: 1,
+    )
+    assert isinstance(job.hotlist_port, NewsNowHotlistPort)
+    assert job.hotlist_port.api_url == "https://alt.example/api/s"
+    assert job.hotlist_port.proxy_url == "http://proxy.local:8080"
+
+
 def test_ingest_continues_when_one_platform_raises():
     """Soft-fail: one platform raises, another still upserts news."""
     rec = RecordingConvex()
