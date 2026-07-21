@@ -21,13 +21,16 @@ function renderMockLink(
   to: string,
   state: unknown,
   className: string | ((options: { isActive: boolean }) => string) | undefined,
-  children: ReactNode
+  children: ReactNode,
+  extra: Record<string, unknown> = {},
 ) {
   const resolvedClassName = typeof className === 'function' ? className({ isActive: false }) : className
+  const testId = typeof extra['data-testid'] === 'string' ? extra['data-testid'] : undefined
   return (
     <a
       href={to}
       data-kind={kind}
+      data-testid={testId}
       data-reset={state !== null && typeof state === 'object' && 'resetResumeSearch' in state
         && state.resetResumeSearch === true ? 'true' : 'false'}
       className={resolvedClassName}
@@ -44,6 +47,7 @@ vi.mock('react-i18next', () => ({
         'app.title': 'Trends',
         'app.subtitle': 'Trends',
         'nav.resumes': 'Resumes',
+        'nav.research': 'Research',
         'nav.reviewPackets': 'Review packets',
         'nav.settings': 'Settings',
         'nav.system': 'System from i18n',
@@ -70,12 +74,14 @@ vi.mock('react-router-dom', () => ({
     state,
     className,
     children,
+    ...rest
   }: {
     to: string
     state?: unknown
     className?: string | ((options: { isActive: boolean }) => string)
     children: ReactNode
-  }) => renderMockLink('nav-link', to, state, className, children),
+    'data-testid'?: string
+  }) => renderMockLink('nav-link', to, state, className, children, rest),
 }))
 
 vi.mock('@/contexts/WorkspaceContext', () => ({
@@ -134,12 +140,32 @@ describe('Header', () => {
     })
   })
 
-  it('does not attach resume reset state to review packets, settings, or system links', () => {
+  it('links Research nav to workspace research index without resume reset state', () => {
+    mockState.slug = 'hr'
+    render(<Header />)
+
+    const researchLinks = screen.getAllByRole('link', { name: 'Research' })
+    expect(researchLinks.length).toBeGreaterThanOrEqual(1)
+    researchLinks.forEach((link) => {
+      expect(link).toHaveAttribute('href', '/hr/research')
+      expect(link).toHaveAttribute('data-reset', 'false')
+      expect(link).toHaveAttribute('data-testid', 'nav-research')
+    })
+  })
+
+  it('does not attach resume reset state to research, review packets, settings, or system links', () => {
     mockAuthState.memberships = [{ userId: 'demo-admin', workspaceSlug: 'dev', role: 'admin' }]
     mockAuthState.user = { id: 'demo-admin', status: 'active', displayName: 'Demo Admin' }
     mockAuthState.isAuthenticated = true
 
     render(<Header />)
+
+    const researchLinks = screen.getAllByRole('link', { name: 'Research' })
+    expect(researchLinks).toHaveLength(2)
+    researchLinks.forEach((link) => {
+      expect(link).toHaveAttribute('href', '/dev/research')
+      expect(link).toHaveAttribute('data-reset', 'false')
+    })
 
     const reviewPacketLinks = screen.getAllByRole('link', { name: 'Review packets' })
     expect(reviewPacketLinks).toHaveLength(2)

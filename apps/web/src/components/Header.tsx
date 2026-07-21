@@ -21,6 +21,7 @@ export function Header({ leftAction }: HeaderProps = {}) {
   const { slug, isPublicSurface } = useWorkspace()
   const { memberships } = useAuth()
   const resumesPath = isPublicSurface ? '/resumes' : `/${slug}/resumes`
+  const researchPath = `/${slug}/research`
   const reviewPacketsPath = `/${slug}/review-packets`
   const showReviewPackets = isReviewPacketsEnabled()
   const settingsPath = `/${slug}/settings`
@@ -53,6 +54,20 @@ export function Header({ leftAction }: HeaderProps = {}) {
             >
               {t('nav.resumes')}
             </NavLink>
+            {showWorkspaceNav ? (
+              <NavLink
+                to={researchPath}
+                data-testid="nav-research"
+                className={({ isActive }: { isActive: boolean }) =>
+                  cn(
+                    'transition-colors hover:text-foreground',
+                    isActive ? 'text-foreground' : 'text-muted-foreground'
+                  )
+                }
+              >
+                {t('nav.research', { defaultValue: 'Research' })}
+              </NavLink>
+            ) : null}
             {showWorkspaceNav && showReviewPackets ? (
               <NavLink
                 to={reviewPacketsPath}
@@ -110,6 +125,20 @@ export function Header({ leftAction }: HeaderProps = {}) {
             >
               {t('nav.resumes')}
             </NavLink>
+            {showWorkspaceNav ? (
+              <NavLink
+                to={researchPath}
+                data-testid="nav-research"
+                className={({ isActive }: { isActive: boolean }) =>
+                  cn(
+                    'transition-colors hover:text-foreground',
+                    isActive ? 'text-foreground' : 'text-muted-foreground'
+                  )
+                }
+              >
+                {t('nav.research', { defaultValue: 'Research' })}
+              </NavLink>
+            ) : null}
             {showWorkspaceNav && showReviewPackets ? (
               <NavLink
                 to={reviewPacketsPath}

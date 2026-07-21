@@ -37,7 +37,7 @@ function companyPoliciesHref(): string {
 }
 
 /** Workspace-relative research page for a company (HR persona default). */
-function companyResearchHref(companyKey: string): string {
+export function companyResearchHref(companyKey: string): string {
   if (typeof window !== 'undefined') {
     const seg = window.location.pathname.split('/').filter(Boolean)[0]
     if (seg && !['login', 'api', 's', 'explanation'].includes(seg)) {

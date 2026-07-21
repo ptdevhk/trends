@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import { CompanyPolicyBadges } from './CompanyPolicyBadges'
+import { CompanyPolicyBadges, companyResearchHref } from './CompanyPolicyBadges'
 import type { CompanyPolicyMatchHit } from '@trends/shared'
 
 vi.mock('react-i18next', () => ({
@@ -47,6 +47,15 @@ describe('CompanyPolicyBadges', () => {
       'href',
       '/hr/research/pro-technic-machinery?persona=hr',
     )
+  })
+
+  it('companyResearchHref uses workspace segment and hr persona', () => {
+    window.history.replaceState({}, '', '/hr/resumes')
+    expect(companyResearchHref('pro-technic-machinery')).toBe(
+      '/hr/research/pro-technic-machinery?persona=hr',
+    )
+    window.history.replaceState({}, '', '/dev/resumes?q=x')
+    expect(companyResearchHref('polywell')).toBe('/dev/research/polywell?persona=hr')
   })
 
   it('banner is one line with manage link to policies settings', () => {
