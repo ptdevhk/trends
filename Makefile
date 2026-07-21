@@ -563,20 +563,23 @@ preview-gate:
 	ssh "$$SSH_HOST" 'bash /home/ubuntu/trends/deploy/preview-migration-gate.sh 2>/dev/null || \
 		bash /home/ubuntu/trends-preview/deploy/preview-migration-gate.sh'
 
-# Full preview deploy: sync code from origin/main, install, build, restart services.
+# Full preview deploy: sync code from SOURCE_REF (default origin/main), install, build, restart.
 # Requires SSH access to ptcloud. Prefer on-host preview-upgrade when already on the host.
+# Example: SOURCE_REF=v0.4.14 make preview-deploy
 preview-deploy:
 	@SSH_HOST="$${SSH_HOST:-ptcloud}"; \
-	echo "→ deploying preview to $$SSH_HOST via preview-upgrade.sh"; \
-	ssh "$$SSH_HOST" 'set -e; \
+	SOURCE_REF="$${SOURCE_REF:-origin/main}"; \
+	echo "→ deploying preview to $$SSH_HOST via preview-upgrade.sh (SOURCE_REF=$$SOURCE_REF)"; \
+	ssh "$$SSH_HOST" "set -e; \
+		export SOURCE_REF='$$SOURCE_REF' ASSUME_YES=1; \
 		if [ -x /home/ubuntu/trends-preview/deploy/preview-upgrade.sh ]; then \
-			cd /home/ubuntu/trends-preview && sudo ASSUME_YES=1 bash deploy/preview-upgrade.sh; \
+			cd /home/ubuntu/trends-preview && sudo env ASSUME_YES=1 SOURCE_REF=\"$$SOURCE_REF\" bash deploy/preview-upgrade.sh; \
 		elif [ -x /home/ubuntu/trends/deploy/preview-upgrade.sh ]; then \
-			sudo ASSUME_YES=1 bash /home/ubuntu/trends/deploy/preview-upgrade.sh; \
+			sudo env ASSUME_YES=1 SOURCE_REF=\"$$SOURCE_REF\" bash /home/ubuntu/trends/deploy/preview-upgrade.sh; \
 		else \
 			sudo bash /home/ubuntu/trends/deploy/setup-preview.sh; \
 			sudo systemctl restart trends-preview-api; \
-		fi'; \
+		fi"; \
 	echo "→ verifying endpoints"; \
 	ssh "$$SSH_HOST" "curl -s -o /dev/null -w 'Web: %{http_code}\n' https://preview.pt-mes.com/ && \
 		curl -s -o /dev/null -w 'API: %{http_code}\n' http://127.0.0.1:3002/api/blocks"

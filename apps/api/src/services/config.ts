@@ -30,7 +30,7 @@ export const config = {
   workerUrl: process.env.WORKER_URL || "http://localhost:8000",
   projectRoot,
   timezone,
-  version: "0.4.13",
+  version: "0.4.14",
   auth: {
     sessionCookieName: process.env.AUTH_SESSION_COOKIE_NAME || "trends_session",
     csrfCookieName: process.env.AUTH_CSRF_COOKIE_NAME || "trends_csrf",
