@@ -15,6 +15,7 @@ from typing import Any, Callable, Dict, List, Optional, Sequence
 import yaml
 
 from apps.worker.research_convex import ResearchConvexClient
+from apps.worker.research_industry_bridge import IndustryBridgeResolver
 from apps.worker.research_ports import (
     HttpHotlistPort,
     HttpRssPort,
@@ -174,9 +175,11 @@ class ResearchIngestJob:
                 if result and result.get("id"):
                     news_item_ids[item.content_hash] = result["id"]
 
+            # C: industry-data resolveEntity surface first, then K3 resolveAlias fallback
+            resolver = IndustryBridgeResolver(fallback=self.client)
             drafts, unresolved = project_signals_for_items(
                 collected,
-                self.client,
+                resolver,
                 ingest_run_id=run_id,
                 news_item_ids=news_item_ids,
             )

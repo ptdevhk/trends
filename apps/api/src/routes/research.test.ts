@@ -257,4 +257,46 @@ describe("research routes", () => {
     expect(body.seedIngestRunId).toBe("showcase-seed-v1");
     expect(showcaseMocks.seedResearchShowcase).toHaveBeenCalled();
   });
+
+  it("lists CNC industry browse with nameCn-first and fanuc / pro-technic keys", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
+    const app = createApp();
+    const response = await app.request("/api/research/industry?limit=80", {
+      headers: auth.headers,
+    });
+    expect(response.status).toBe(200);
+    const body = await parseJsonBody(response);
+    expect(body.success).toBe(true);
+    expect(Array.isArray(body.items)).toBe(true);
+    expect(body.items.length).toBeGreaterThan(5);
+    const fanuc = body.items.find((i: { companyKey: string }) => i.companyKey === "fanuc");
+    const pro = body.items.find(
+      (i: { companyKey: string }) => i.companyKey === "pro-technic-machinery",
+    );
+    expect(fanuc).toBeTruthy();
+    expect(fanuc.nameCn).toBe("发那科");
+    expect(String(fanuc.displayName).startsWith("发那科")).toBe(true);
+    expect(pro).toBeTruthy();
+    expect(pro.nameCn).toBe("宝力机械");
+  });
+
+  it("resolves 发那科 → fanuc and 宝力机械 → pro-technic-machinery", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
+    const app = createApp();
+    const r1 = await app.request(
+      `/api/research/industry/resolve?q=${encodeURIComponent("发那科")}`,
+      { headers: auth.headers },
+    );
+    expect(r1.status).toBe(200);
+    const b1 = await parseJsonBody(r1);
+    expect(b1.hit?.companyKey).toBe("fanuc");
+
+    const r2 = await app.request(
+      `/api/research/industry/resolve?q=${encodeURIComponent("宝力机械")}`,
+      { headers: auth.headers },
+    );
+    expect(r2.status).toBe(200);
+    const b2 = await parseJsonBody(r2);
+    expect(b2.hit?.companyKey).toBe("pro-technic-machinery");
+  });
 });

@@ -126,13 +126,15 @@ const miniPack: ResearchShowcasePack = {
   ],
   fromResumeDesk: [
     {
-      companyKey: "globalfoundries",
-      displayName: "GlobalFoundries",
-      aliases: ["GlobalFoundries"],
+      companyKey: "makino",
+      displayName: "牧野 / MAKINO",
+      nameCn: "牧野",
+      nameEn: "MAKINO",
+      aliases: ["牧野", "MAKINO"],
       signals: [
-        { kind: "hiring_signal", title: "GF hire" },
-        { kind: "market_move", title: "GF market" },
-        { kind: "company_mention", title: "GF mention" },
+        { kind: "hiring_signal", title: "牧野招聘" },
+        { kind: "market_move", title: "牧野市场" },
+        { kind: "company_mention", title: "牧野提及" },
       ],
     },
   ],
@@ -161,7 +163,7 @@ describe("research-showcase-service", () => {
       .filter((c) => c.path === "research_news:upsertItem")
       .map((c) => c.args.contentHash);
     expect(newsHashes).toContain("showcase:v1:pro-technic-machinery:hiring_signal");
-    expect(newsHashes).toContain("showcase:v1:globalfoundries:hiring_signal");
+    expect(newsHashes).toContain("showcase:v1:makino:hiring_signal");
 
     const signalArgs = mutationCalls.filter((c) => c.path === "research_signals:upsert");
     expect(signalArgs.length).toBe(7);
@@ -214,10 +216,10 @@ describe("research-showcase-service", () => {
     expect(pro2!.kindCounts).toEqual(pro1!.kindCounts);
     expect(Object.values(pro2!.kindCounts).every((n) => n === 1)).toBe(true);
 
-    const gf = hub2.fromResumeDesk.find((c) => c.companyKey === "globalfoundries");
-    expect(gf?.signalCount).toBe(3);
-    expect(gf?.showcase).toBe(true);
-    expect(Object.values(gf!.kindCounts).every((n) => n === 1)).toBe(true);
+    const mk = hub2.fromResumeDesk.find((c) => c.companyKey === "makino");
+    expect(mk?.signalCount).toBe(3);
+    expect(mk?.showcase).toBe(true);
+    expect(Object.values(mk!.kindCounts).every((n) => n === 1)).toBe(true);
   });
 
   it("repairs historical duplicate showcase-seed rows then leaves kindCounts at 1", async () => {

@@ -1,7 +1,9 @@
-# Research Showcase Hub pack (operator seed). Not live market intel.
+# Research Showcase Hub pack — CNC / 精密机械 first, zh-Hans titles.
+# Not live market intel. Seed via POST /api/research/showcase/seed.
 version: v1
 seedIngestRunId: showcase-seed-v1
 
+# Golden: legacy K3 employers + CNC brands (companyKey = resolveEntity.canonicalKey except overrides)
 golden:
   - companyKey: pro-technic-machinery
     displayName: 宝力机械 / Pro-Technic Machinery
@@ -14,17 +16,17 @@ golden:
       - Pro-Technic Machinery
     signals:
       - kind: company_mention
-        title: 宝力机械出现在行业媒体报道
-        snippet: Showcase — company mention for HR desk demo
+        title: 宝力机械出现在机床行业媒体报道
+        snippet: 展示数据 — 企业提及（精密机械）
       - kind: hiring_signal
-        title: 宝力机械招聘销售与应用工程师
-        snippet: Showcase — hiring language for persona=hr ranking
+        title: 宝力机械招聘数控机床销售与应用工程师
+        snippet: 展示数据 — 招聘信号（HR 人格排序）
       - kind: market_move
-        title: 宝力机械推进智能产线升级
-        snippet: Showcase — market / product shift
+        title: 宝力机械推进智能产线与五轴加工升级
+        snippet: 展示数据 — 市场/产品动向
       - kind: sales_trigger
-        title: 宝力机械扩产并签署设备合作
-        snippet: Showcase — expansion / partnership trigger
+        title: 宝力机械扩产并签署设备合作意向
+        snippet: 展示数据 — 扩产/合作销售触发
 
   - companyKey: polywell
     displayName: 宝惠 / Polywell
@@ -36,81 +38,138 @@ golden:
       - Polywell Machinery
     signals:
       - kind: company_mention
-        title: Polywell brand noted in supplier shortlist
-        snippet: Showcase — separate from Pro-Technic (no BaoLi umbrella)
+        title: 宝惠品牌出现在供应商短名单
+        snippet: 展示数据 — 与宝力机械分键，无 BaoLi 混用
       - kind: hiring_signal
-        title: Polywell hiring service technicians
-        snippet: Showcase — hiring_signal
+        title: 宝惠招聘服务与调试技师
+        snippet: 展示数据 — 招聘信号
       - kind: market_move
-        title: Polywell enters new regional channel
-        snippet: Showcase — market_move
+        title: 宝惠进入新区域渠道
+        snippet: 展示数据 — 市场动向
       - kind: sales_trigger
-        title: Polywell wins mid-size tooling order
-        snippet: Showcase — sales_trigger
+        title: 宝惠拿下中型工装订单
+        snippet: 展示数据 — 销售触发
 
+  - companyKey: fanuc
+    displayName: 发那科 / FANUC
+    nameCn: 发那科
+    nameEn: FANUC
+    aliases:
+      - 发那科
+      - FANUC
+      - Fanuc
+    signals:
+      - kind: company_mention
+        title: 发那科数控系统出现在行业技术综述
+        snippet: 展示数据 — CNC 品牌提及
+      - kind: hiring_signal
+        title: 发那科相关渠道招聘应用工程师
+        snippet: 展示数据 — 招聘
+      - kind: market_move
+        title: 发那科推进智能制造与机器人集成方案
+        snippet: 展示数据 — 市场动向
+      - kind: sales_trigger
+        title: 发那科自动化产线项目招标窗口
+        snippet: 展示数据 — 销售触发
+
+  - companyKey: mazak
+    displayName: 山崎马扎克 / MAZAK
+    nameCn: 山崎马扎克
+    nameEn: MAZAK
+    aliases:
+      - 山崎马扎克
+      - MAZAK
+      - Mazak
+    signals:
+      - kind: company_mention
+        title: 山崎马扎克机床出现在金属切削展会报道
+        snippet: 展示数据 — 企业提及
+      - kind: hiring_signal
+        title: 山崎马扎克销售工程师岗位开放
+        snippet: 展示数据 — 招聘
+      - kind: market_move
+        title: 山崎马扎克五轴与复合加工新品动向
+        snippet: 展示数据 — 市场
+      - kind: sales_trigger
+        title: 山崎马扎克重点客户扩产采购意向
+        snippet: 展示数据 — 销售触发
+
+# CNC brand / domestic OEM desk set (replaces non-CNC MY fillers)
 fromResumeDesk:
-  - companyKey: globalfoundries
-    displayName: GlobalFoundries
-    nameEn: GlobalFoundries
+  - companyKey: makino
+    displayName: 牧野 / MAKINO
+    nameCn: 牧野
+    nameEn: MAKINO
     aliases:
-      - GlobalFoundries
-      - 格芯
+      - 牧野
+      - MAKINO
+      - Makino
     signals:
       - kind: company_mention
-        title: GlobalFoundries mentioned in semiconductor hiring roundup
-        snippet: Showcase — resume-desk employer
+        title: 牧野机床出现在精密模具加工案例
+        snippet: 展示数据 — CNC 雇主
       - kind: hiring_signal
-        title: GlobalFoundries opens process engineer roles
-        snippet: Showcase — hiring
+        title: 牧野渠道招聘工艺与销售工程师
+        snippet: 展示数据 — 招聘
       - kind: market_move
-        title: GlobalFoundries capacity expansion update
-        snippet: Showcase — market
+        title: 牧野高速加工中心产线升级动态
+        snippet: 展示数据 — 市场
 
-  - companyKey: siemens-malaysia
-    displayName: Siemens Malaysia
-    nameEn: Siemens Malaysia
+  - companyKey: brother
+    displayName: 兄弟 / BROTHER
+    nameCn: 兄弟
+    nameEn: BROTHER
     aliases:
-      - Siemens Malaysia
-      - Siemens
+      - 兄弟
+      - BROTHER
+      - Brother
+      - Brother Industries
     signals:
       - kind: company_mention
-        title: Siemens Malaysia referenced in industrial automation brief
-        snippet: Showcase
+        title: 兄弟加工中心出现在 3C 结构件产线报道
+        snippet: 展示数据
       - kind: hiring_signal
-        title: Siemens Malaysia hiring sales engineers
-        snippet: Showcase — hiring
+        title: 兄弟机床销售与服务岗位
+        snippet: 展示数据 — 招聘
       - kind: sales_trigger
-        title: Siemens Malaysia partner expansion for factory automation
-        snippet: Showcase — sales
+        title: 兄弟设备批量导入与渠道扩容
+        snippet: 展示数据 — 销售
 
-  - companyKey: nestle-malaysia
-    displayName: Nestlé Malaysia
-    nameEn: Nestlé Malaysia
+  - companyKey: qiaofeng
+    displayName: 乔锋 / QIAOFENG
+    nameCn: 乔锋
+    nameEn: QIAOFENG
     aliases:
-      - Nestlé Malaysia
-      - Nestle Malaysia
-      - Nestlé
+      - 乔锋
+      - 乔锋智能
+      - 乔锋智能装备股份有限公司
+      - QIAOFENG
     signals:
       - kind: company_mention
-        title: Nestlé Malaysia in FMCG operations digest
-        snippet: Showcase
+        title: 乔锋国产加工中心出现在行业榜单
+        snippet: 展示数据 — 国产 OEM
+      - kind: hiring_signal
+        title: 乔锋招聘数控机床销售
+        snippet: 展示数据 — 招聘
       - kind: market_move
-        title: Nestlé Malaysia plant modernization notes
-        snippet: Showcase — market
-      - kind: sales_trigger
-        title: Nestlé Malaysia supplier RFQ window
-        snippet: Showcase — sales
+        title: 乔锋推进高端五轴国产替代
+        snippet: 展示数据 — 市场
 
-  - companyKey: hino-motors-malaysia
-    displayName: Hino Motors Malaysia
-    nameEn: Hino Motors Malaysia
+  - companyKey: cgj
+    displayName: 创世纪 / CGJ
+    nameCn: 创世纪
+    nameEn: CGJ
     aliases:
-      - Hino Motors Malaysia
-      - Hino
+      - 创世纪
+      - 深圳市创世纪机械有限公司
+      - CGJ
     signals:
       - kind: company_mention
-        title: Hino Motors Malaysia in commercial vehicle notes
-        snippet: Showcase
+        title: 创世纪机床出现在华南金属切削展
+        snippet: 展示数据 — 国产主流
       - kind: hiring_signal
-        title: Hino Motors Malaysia recruiting service advisors
-        snippet: Showcase — hiring
+        title: 创世纪招聘应用与销售工程师
+        snippet: 展示数据 — 招聘
+      - kind: sales_trigger
+        title: 创世纪签署区域经销合作
+        snippet: 展示数据 — 销售

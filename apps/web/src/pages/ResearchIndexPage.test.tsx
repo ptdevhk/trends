@@ -31,32 +31,66 @@ const showcasePayload = {
     {
       companyKey: 'pro-technic-machinery',
       displayName: '宝力机械 / Pro-Technic',
+      nameCn: '宝力机械',
+      nameEn: 'Pro-Technic',
       kindCounts: { hiring_signal: 1, sales_trigger: 1, market_move: 1 },
       signalCount: 3,
       showcase: true,
       href: '/hr/research/pro-technic-machinery?persona=hr',
     },
     {
-      companyKey: 'polywell',
-      displayName: 'Polywell',
+      companyKey: 'fanuc',
+      displayName: '发那科 / FANUC',
+      nameCn: '发那科',
+      nameEn: 'FANUC',
       kindCounts: { hiring_signal: 1 },
       signalCount: 1,
       showcase: true,
-      href: '/hr/research/polywell?persona=hr',
+      href: '/hr/research/fanuc?persona=hr',
     },
   ],
   fromResumeDesk: [
     {
-      companyKey: 'globalfoundries',
-      displayName: 'GlobalFoundries',
+      companyKey: 'makino',
+      displayName: '牧野 / MAKINO',
+      nameCn: '牧野',
+      nameEn: 'MAKINO',
       kindCounts: { hiring_signal: 1 },
       signalCount: 1,
       showcase: true,
-      href: '/hr/research/globalfoundries?persona=hr',
+      href: '/hr/research/makino?persona=hr',
     },
   ],
   pulse: [{ title: 'Pulse headline', platform: 'showcase', capturedAt: 1 }],
   meta: { lastIngest: null, showcaseSeedVersion: 'v1', seedIngestRunId: 'showcase-seed-v1' },
+}
+
+const industryPayload = {
+  success: true,
+  items: [
+    {
+      companyKey: 'fanuc',
+      nameCn: '发那科',
+      nameEn: 'FANUC',
+      displayName: '发那科 / FANUC',
+      entityId: 'brand:fanuc',
+      kind: 'brand',
+      type: '加工中心/数控车床',
+      aliases: ['发那科', 'FANUC'],
+      cnc: true,
+    },
+    {
+      companyKey: 'pro-technic-machinery',
+      nameCn: '宝力机械',
+      nameEn: 'Pro-Technic Machinery',
+      displayName: '宝力机械 / Pro-Technic Machinery',
+      entityId: 'override:pro-technic-machinery',
+      kind: 'override',
+      type: '金属切削机床',
+      aliases: ['宝力机械'],
+      cnc: true,
+    },
+  ],
 }
 
 describe('ResearchIndexPage hub', () => {
@@ -66,6 +100,9 @@ describe('ResearchIndexPage hub', () => {
     getMock.mockImplementation(async (path: string) => {
       if (path === '/api/research/showcase') {
         return { data: showcasePayload }
+      }
+      if (path === '/api/research/industry') {
+        return { data: industryPayload }
       }
       return { data: { success: true, items: [] } }
     })
@@ -78,7 +115,7 @@ describe('ResearchIndexPage hub', () => {
     expect(source).toContain('ResearchIndexPage')
   })
 
-  it('renders golden and resume-desk cards with persona=hr hrefs and showcase label', async () => {
+  it('renders golden, CNC desk, industry browse with nameCn-first and showcase label', async () => {
     render(
       <MemoryRouter>
         <ResearchIndexPage />
@@ -94,8 +131,20 @@ describe('ResearchIndexPage hub', () => {
     const pro = cards.find((el) => el.getAttribute('data-company-key') === 'pro-technic-machinery')
     expect(pro).toBeTruthy()
     expect(pro).toHaveAttribute('href', '/hr/research/pro-technic-machinery?persona=hr')
+    expect(pro).toHaveTextContent('宝力机械')
     expect(screen.getAllByTestId('showcase-data-badge').length).toBeGreaterThan(0)
+    expect(screen.getAllByTestId('showcase-data-badge')[0]).toHaveTextContent('展示数据')
     expect(screen.getByTestId('research-pulse-item')).toHaveTextContent('Pulse headline')
+
+    await waitFor(() => {
+      expect(screen.getByTestId('research-section-industry')).toBeInTheDocument()
+    })
+    const industryCards = screen.getAllByTestId('industry-browse-card')
+    expect(industryCards.length).toBeGreaterThanOrEqual(2)
+    const fanuc = industryCards.find((el) => el.getAttribute('data-company-key') === 'fanuc')
+    expect(fanuc).toBeTruthy()
+    expect(fanuc).toHaveTextContent('发那科')
+    expect(fanuc).toHaveAttribute('href', '/hr/research/fanuc?persona=hr')
   })
 
   it('seed CTA posts to showcase seed endpoint', async () => {

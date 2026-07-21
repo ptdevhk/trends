@@ -44,6 +44,45 @@ type SearchResponse = {
   items?: CompanyHit[]
 }
 
+type IndustryBrowseItem = {
+  companyKey: string
+  nameCn: string
+  nameEn?: string
+  displayName: string
+  entityId: string
+  kind: string
+  origin?: string
+  type?: string
+  aliases: string[]
+  cnc: boolean
+}
+
+type IndustryBrowseResponse = {
+  success: boolean
+  items?: IndustryBrowseItem[]
+}
+
+const KIND_LABEL_ZH: Record<string, string> = {
+  company_mention: '提及',
+  hiring_signal: '招聘',
+  market_move: '市场',
+  sales_trigger: '销售',
+}
+
+function kindLabel(kind: string): string {
+  return KIND_LABEL_ZH[kind] ?? kind
+}
+
+function primaryLabel(nameCn?: string, displayName?: string, nameEn?: string): string {
+  if (nameCn && nameCn.trim()) {
+    return nameCn.trim()
+  }
+  if (displayName && displayName.trim()) {
+    return displayName.trim()
+  }
+  return nameEn?.trim() || ''
+}
+
 function CompanyCardGrid({
   cards,
   emptyLabel,
@@ -56,33 +95,39 @@ function CompanyCardGrid({
   }
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      {cards.map((card) => (
-        <Link
-          key={card.companyKey}
-          to={card.href}
-          data-testid="showcase-company-card"
-          data-company-key={card.companyKey}
-          className="block rounded-lg border border-slate-200 p-3 transition-colors hover:border-blue-300 hover:bg-slate-50"
-        >
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="font-medium text-sm">{card.displayName}</span>
-            {card.showcase ? (
-              <Badge variant="secondary" data-testid="showcase-data-badge">
-                Showcase data
-              </Badge>
-            ) : null}
-          </div>
-          <div className="mt-1 font-mono text-xs text-muted-foreground">{card.companyKey}</div>
-          <div className="mt-2 flex flex-wrap gap-1">
-            <Badge variant="outline">{card.signalCount} signals</Badge>
-            {Object.entries(card.kindCounts).map(([kind, count]) => (
-              <Badge key={kind} variant="outline" className="text-[10px]">
-                {kind}:{count}
-              </Badge>
-            ))}
-          </div>
-        </Link>
-      ))}
+      {cards.map((card) => {
+        const title = primaryLabel(card.nameCn, card.displayName, card.nameEn)
+        return (
+          <Link
+            key={card.companyKey}
+            to={card.href}
+            data-testid="showcase-company-card"
+            data-company-key={card.companyKey}
+            className="block rounded-lg border border-slate-200 p-3 transition-colors hover:border-blue-300 hover:bg-slate-50"
+          >
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-medium text-sm">{title}</span>
+              {card.nameEn && card.nameCn ? (
+                <span className="text-xs text-muted-foreground">{card.nameEn}</span>
+              ) : null}
+              {card.showcase ? (
+                <Badge variant="secondary" data-testid="showcase-data-badge">
+                  展示数据
+                </Badge>
+              ) : null}
+            </div>
+            <div className="mt-1 font-mono text-xs text-muted-foreground">{card.companyKey}</div>
+            <div className="mt-2 flex flex-wrap gap-1">
+              <Badge variant="outline">{card.signalCount} 条信号</Badge>
+              {Object.entries(card.kindCounts).map(([kind, count]) => (
+                <Badge key={kind} variant="outline" className="text-[10px]">
+                  {kindLabel(kind)}:{count}
+                </Badge>
+              ))}
+            </div>
+          </Link>
+        )
+      })}
     </div>
   )
 }
@@ -103,6 +148,10 @@ export function ResearchIndexPage() {
   const [seeding, setSeeding] = useState(false)
   const [ingesting, setIngesting] = useState(false)
 
+  const [industry, setIndustry] = useState<IndustryBrowseItem[]>([])
+  const [industryLoading, setIndustryLoading] = useState(true)
+  const [industryError, setIndustryError] = useState<string | null>(null)
+
   const loadShowcase = useCallback(async () => {
     setShowcaseLoading(true)
     setShowcaseError(null)
@@ -112,7 +161,7 @@ export function ResearchIndexPage() {
     setShowcaseLoading(false)
     if (apiError || !data?.success) {
       setShowcaseError(
-        t('research.showcaseLoadError', { defaultValue: 'Failed to load showcase hub' }),
+        t('research.showcaseLoadError', { defaultValue: '展示数据加载失败' }),
       )
       setShowcase(null)
       return
@@ -120,9 +169,28 @@ export function ResearchIndexPage() {
     setShowcase(data)
   }, [t])
 
+  const loadIndustry = useCallback(async () => {
+    setIndustryLoading(true)
+    setIndustryError(null)
+    const { data, error: apiError } = await rawApiClient.GET<IndustryBrowseResponse>(
+      '/api/research/industry',
+      { params: { query: { limit: 48 } } },
+    )
+    setIndustryLoading(false)
+    if (apiError || !data?.success) {
+      setIndustryError(
+        t('research.industryLoadError', { defaultValue: '行业品牌目录加载失败' }),
+      )
+      setIndustry([])
+      return
+    }
+    setIndustry(Array.isArray(data.items) ? data.items : [])
+  }, [t])
+
   useEffect(() => {
     void loadShowcase()
-  }, [loadShowcase])
+    void loadIndustry()
+  }, [loadShowcase, loadIndustry])
 
   const seedShowcase = useCallback(async () => {
     setSeeding(true)
@@ -154,7 +222,7 @@ export function ResearchIndexPage() {
     )
     setLoading(false)
     if (apiError || !data?.success) {
-      setError(t('research.searchError', { defaultValue: 'Company search failed' }))
+      setError(t('research.searchError', { defaultValue: '企业搜索失败' }))
       setItems([])
       return
     }
@@ -172,9 +240,9 @@ export function ResearchIndexPage() {
   return (
     <div className="space-y-6 p-4" data-testid="research-index-page">
       <PageHeader
-        title={t('research.indexTitle', { defaultValue: 'Research' })}
+        title={t('research.indexTitle', { defaultValue: '行业研究' })}
         description={t('research.indexDescription', {
-          defaultValue: 'Company hiring and market signals for the HR desk.',
+          defaultValue: '精密机械 / 数控机床企业信号 — 面向 HR 简历台（简体中文优先）。',
         })}
       />
 
@@ -187,8 +255,8 @@ export function ResearchIndexPage() {
           data-testid="research-seed-showcase"
         >
           {seeding
-            ? t('research.seedingShowcase', { defaultValue: 'Seeding showcase…' })
-            : t('research.seedShowcase', { defaultValue: 'Load showcase data' })}
+            ? t('research.seedingShowcase', { defaultValue: '正在加载展示数据…' })
+            : t('research.seedShowcase', { defaultValue: '加载展示数据' })}
         </Button>
         <Button
           type="button"
@@ -199,12 +267,12 @@ export function ResearchIndexPage() {
           data-testid="research-run-ingest"
         >
           {ingesting
-            ? t('research.ingesting', { defaultValue: 'Running ingest…' })
-            : t('research.runIngest', { defaultValue: 'Run live ingest' })}
+            ? t('research.ingesting', { defaultValue: '正在抓取…' })
+            : t('research.runIngest', { defaultValue: '运行实时抓取' })}
         </Button>
         {showcase?.meta?.seedIngestRunId ? (
           <span className="text-xs text-muted-foreground" data-testid="research-seed-meta">
-            Seed id: {showcase.meta.seedIngestRunId}
+            种子 id: {showcase.meta.seedIngestRunId}
           </span>
         ) : null}
       </div>
@@ -219,18 +287,18 @@ export function ResearchIndexPage() {
         <Card data-testid="research-showcase-empty-cta">
           <CardHeader>
             <CardTitle className="text-base">
-              {t('research.showcaseEmptyTitle', { defaultValue: 'No showcase density yet' })}
+              {t('research.showcaseEmptyTitle', { defaultValue: '尚无展示密度' })}
             </CardTitle>
             <CardDescription>
               {t('research.showcaseEmptyBody', {
                 defaultValue:
-                  'Live hotlist rarely hits industrial aliases. Load curated showcase companies and multi-kind signals for the HR demo path.',
+                  '实时热榜很少命中机床别名。请加载数控/精密机械展示企业与多类型信号，用于 HR 演示路径。',
               })}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <Button type="button" disabled={seeding} onClick={() => void seedShowcase()}>
-              {t('research.seedShowcase', { defaultValue: 'Load showcase data' })}
+              {t('research.seedShowcase', { defaultValue: '加载展示数据' })}
             </Button>
           </CardContent>
         </Card>
@@ -238,41 +306,85 @@ export function ResearchIndexPage() {
 
       <section data-testid="research-section-golden">
         <h2 className="mb-2 text-sm font-semibold">
-          {t('research.sectionGolden', { defaultValue: 'Start here' })}
+          {t('research.sectionGolden', { defaultValue: '从这里开始（展示）' })}
         </h2>
         {showcaseLoading ? (
-          <p className="text-sm text-muted-foreground">Loading…</p>
+          <p className="text-sm text-muted-foreground">加载中…</p>
         ) : (
           <CompanyCardGrid
             cards={golden}
-            emptyLabel={t('research.goldenEmpty', { defaultValue: 'No golden companies yet.' })}
+            emptyLabel={t('research.goldenEmpty', { defaultValue: '暂无金色展示企业。' })}
           />
         )}
       </section>
 
       <section data-testid="research-section-resume-desk">
         <h2 className="mb-2 text-sm font-semibold">
-          {t('research.sectionResumeDesk', { defaultValue: 'From your resume desk' })}
+          {t('research.sectionResumeDesk', { defaultValue: '数控品牌台（展示）' })}
         </h2>
         {showcaseLoading ? (
-          <p className="text-sm text-muted-foreground">Loading…</p>
+          <p className="text-sm text-muted-foreground">加载中…</p>
         ) : (
           <CompanyCardGrid
             cards={fromDesk}
             emptyLabel={t('research.resumeDeskEmpty', {
-              defaultValue: 'No resume-desk showcase employers yet.',
+              defaultValue: '暂无品牌展示企业。',
             })}
           />
         )}
       </section>
 
+      <section data-testid="research-section-industry">
+        <h2 className="mb-2 text-sm font-semibold">
+          {t('research.sectionIndustry', { defaultValue: '行业品牌目录（industry-data）' })}
+        </h2>
+        <p className="mb-2 text-xs text-muted-foreground">
+          {t('research.sectionIndustryHint', {
+            defaultValue: '来自 config/industry-data，简体名称优先；点击进入企业研究页。',
+          })}
+        </p>
+        {industryError ? (
+          <p className="text-sm text-red-600" data-testid="research-industry-error">
+            {industryError}
+          </p>
+        ) : null}
+        {industryLoading ? (
+          <p className="text-sm text-muted-foreground">加载中…</p>
+        ) : industry.length === 0 ? (
+          <p className="text-sm text-muted-foreground" data-testid="research-industry-empty">
+            {t('research.industryEmpty', { defaultValue: '暂无行业目录项。' })}
+          </p>
+        ) : (
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3" data-testid="research-industry-grid">
+            {industry.map((item) => (
+              <Link
+                key={item.companyKey}
+                to={`/${teamSlug}/research/${encodeURIComponent(item.companyKey)}?persona=hr`}
+                data-testid="industry-browse-card"
+                data-company-key={item.companyKey}
+                className="block rounded-lg border border-slate-200 p-2 text-sm transition-colors hover:border-blue-300 hover:bg-slate-50"
+              >
+                <div className="font-medium">{item.nameCn || item.displayName}</div>
+                {item.nameEn ? (
+                  <div className="text-xs text-muted-foreground">{item.nameEn}</div>
+                ) : null}
+                <div className="mt-1 font-mono text-[10px] text-muted-foreground">
+                  {item.companyKey}
+                  {item.type ? ` · ${item.type}` : ''}
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
+      </section>
+
       <section data-testid="research-section-pulse">
         <h2 className="mb-2 text-sm font-semibold">
-          {t('research.sectionPulse', { defaultValue: 'Market pulse' })}
+          {t('research.sectionPulse', { defaultValue: '市场动态' })}
         </h2>
         {pulse.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            {t('research.pulseEmpty', { defaultValue: 'No recent news items.' })}
+            {t('research.pulseEmpty', { defaultValue: '暂无近期资讯。' })}
           </p>
         ) : (
           <ul className="space-y-1 text-sm">
@@ -295,7 +407,7 @@ export function ResearchIndexPage() {
 
       <section data-testid="research-section-search">
         <h2 className="mb-2 text-sm font-semibold">
-          {t('research.sectionSearch', { defaultValue: 'Search companies' })}
+          {t('research.sectionSearch', { defaultValue: '搜索企业' })}
         </h2>
         <form
           className="flex flex-wrap gap-2"
@@ -308,15 +420,15 @@ export function ResearchIndexPage() {
             value={q}
             onChange={(event) => setQ(event.target.value)}
             placeholder={t('research.searchPlaceholder', {
-              defaultValue: 'Company name, alias, or key…',
+              defaultValue: '企业名称、别名或 key…',
             })}
             className="max-w-md"
             data-testid="research-company-search"
           />
           <Button type="submit" disabled={loading} data-testid="research-company-search-submit">
             {loading
-              ? t('research.searching', { defaultValue: 'Searching…' })
-              : t('research.search', { defaultValue: 'Search' })}
+              ? t('research.searching', { defaultValue: '搜索中…' })
+              : t('research.search', { defaultValue: '搜索' })}
           </Button>
         </form>
         {error ? (
@@ -327,7 +439,7 @@ export function ResearchIndexPage() {
         {!loading && searched && items.length === 0 && !error ? (
           <p className="mt-2 text-sm text-muted-foreground" data-testid="research-search-empty">
             {t('research.searchEmpty', {
-              defaultValue: 'No companies matched. Seed showcase or try another query.',
+              defaultValue: '无匹配企业。可先加载展示数据或换关键词。',
             })}
           </p>
         ) : null}
@@ -339,7 +451,7 @@ export function ResearchIndexPage() {
                 className="text-blue-600 hover:underline"
                 data-testid="research-search-result"
               >
-                {item.displayName}
+                {primaryLabel(item.nameCn, item.displayName, item.nameEn)}
                 <span className="ml-2 font-mono text-xs text-muted-foreground">
                   {item.companyKey}
                 </span>

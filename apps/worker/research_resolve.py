@@ -77,11 +77,29 @@ def resolve_first_company(
     extra_aliases: Optional[List[str]] = None,
 ) -> Optional[Dict[str, Any]]:
     """
-    Try extra aliases first, then extracted candidates.
+    Try extra aliases first, then industry surfaces in text (if resolver supports it),
+    then extracted candidates.
     Returns resolveAlias row { companyKey, ... } or None.
     """
-    aliases = list(extra_aliases or [])
-    aliases.extend(extract_candidate_aliases(title, snippet))
+    aliases: List[str] = []
+    seen = set()
+
+    def add_many(items: List[str]) -> None:
+        for alias in items:
+            a = (alias or "").strip()
+            if a and a not in seen:
+                seen.add(a)
+                aliases.append(a)
+
+    add_many(list(extra_aliases or []))
+    # Industry bridge: short brand CN (e.g. 发那科) inside long CJK runs
+    present = getattr(resolver, "surfaces_present_in", None)
+    if callable(present):
+        try:
+            add_many(list(present(title, snippet) or []))
+        except Exception as error:  # noqa: BLE001
+            logger.warning("surfaces_present_in failed: %s", error)
+    add_many(extract_candidate_aliases(title, snippet))
     for alias in aliases:
         try:
             hit = resolver.resolve_alias(alias)

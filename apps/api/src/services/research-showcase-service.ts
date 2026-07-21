@@ -9,6 +9,7 @@ import {
   type ResearchShowcasePack,
   type ShowcaseCompanyTemplate,
 } from "./research-showcase-pack.js";
+import { findLegacyOverride } from "./research-industry-bridge.js";
 import { getLatestIngestRun, listResearchNews } from "./research-service.js";
 
 export const SHOWCASE_SEED_INGEST_RUN_ID = "showcase-seed-v1";
@@ -65,10 +66,36 @@ export function getShowcasePack(): ResearchShowcasePack {
   return loadResearchShowcasePack();
 }
 
+function seedAliasesForCompany(company: ShowcaseCompanyTemplate): string[] {
+  const aliases = new Set<string>();
+  for (const a of company.aliases) {
+    if (a.trim()) {
+      aliases.add(a.trim());
+    }
+  }
+  if (company.nameCn?.trim()) {
+    aliases.add(company.nameCn.trim());
+  }
+  if (company.nameEn?.trim()) {
+    aliases.add(company.nameEn.trim());
+  }
+  // Bridge overrides: ensure 宝力/宝惠 surfaces land on legacy keys
+  const override =
+    findLegacyOverride(company.companyKey) ||
+    (company.nameCn ? findLegacyOverride(company.nameCn) : null);
+  if (override && override.companyKey === company.companyKey) {
+    for (const s of override.surfaces) {
+      aliases.add(s);
+    }
+  }
+  return [...aliases];
+}
+
 async function upsertCompanyAndAliases(
   company: ShowcaseCompanyTemplate,
   counters: { companiesUpserted: number; aliasesCreated: number },
 ): Promise<void> {
+  // Identity: pack companyKey is already bridge-aligned (canonicalKey or legacy override)
   await callConvexMutation("companies:upsert", {
     writeSecret: config.auth.convexWriteSecret,
     companyKey: company.companyKey,
@@ -80,7 +107,7 @@ async function upsertCompanyAndAliases(
   });
   counters.companiesUpserted += 1;
 
-  for (const alias of company.aliases) {
+  for (const alias of seedAliasesForCompany(company)) {
     const value = await callConvexMutation("companies:addAlias", {
       writeSecret: config.auth.convexWriteSecret,
       companyKey: company.companyKey,

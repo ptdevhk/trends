@@ -11,18 +11,29 @@ import {
 const REPO_ROOT = resolve(import.meta.dirname, "../../../../");
 
 describe("research-showcase-pack", () => {
-  it("loads real config pack with golden pro-technic and valid kinds only", () => {
+  it("loads CNC zh-Hans pack: golden pro-technic + fanuc; no MY non-CNC primary fillers", () => {
     const pack = loadResearchShowcasePack(REPO_ROOT);
     expect(pack.version).toBe("v1");
     expect(pack.seedIngestRunId).toBe("showcase-seed-v1");
-    const keys = pack.golden.map((c) => c.companyKey);
-    expect(keys).toContain("pro-technic-machinery");
-    expect(keys).toContain("polywell");
+    const goldenKeys = pack.golden.map((c) => c.companyKey);
+    const deskKeys = pack.fromResumeDesk.map((c) => c.companyKey);
+    expect(goldenKeys).toContain("pro-technic-machinery");
+    expect(goldenKeys).toContain("polywell");
+    expect(goldenKeys).toContain("fanuc");
+    expect(deskKeys).toContain("makino");
+    expect(deskKeys).toContain("qiaofeng");
+    // Non-CNC MY fillers demoted from primary set
+    expect(deskKeys).not.toContain("globalfoundries");
+    expect(deskKeys).not.toContain("nestle-malaysia");
+    expect(deskKeys).not.toContain("hino-motors-malaysia");
     expect(pack.fromResumeDesk.length).toBeGreaterThanOrEqual(3);
 
     for (const company of [...pack.golden, ...pack.fromResumeDesk]) {
+      expect(company.nameCn && company.nameCn.length > 0).toBe(true);
       for (const signal of company.signals) {
         expect(SHOWCASE_SIGNAL_KINDS).toContain(signal.kind);
+        // zh-Hans first: titles contain CJK
+        expect(/[\u4e00-\u9fff]/.test(signal.title)).toBe(true);
       }
     }
 

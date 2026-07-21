@@ -13,6 +13,10 @@ import {
   getResearchShowcase,
   seedResearchShowcase,
 } from "../services/research-showcase-service.js";
+import {
+  listResearchIndustryBrowse,
+  resolveResearchCompanySurface,
+} from "../services/research-industry-bridge-service.js";
 
 const app = new OpenAPIHono();
 
@@ -332,6 +336,95 @@ const showcaseSeedRoute = createRoute({
 app.openapi(showcaseSeedRoute, async (c) => {
   const result = await seedResearchShowcase();
   return c.json({ success: true as const, ...result }, 200);
+});
+
+const industryBrowseRoute = createRoute({
+  method: "get",
+  path: "/api/research/industry",
+  tags: ["research"],
+  summary: "CNC-first industry-data browse (resolveEntity inventory → research keys)",
+  request: {
+    query: z.object({
+      limit: z.coerce.number().optional(),
+      includeNonCnc: z.coerce.boolean().optional(),
+    }),
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.literal(true),
+            items: z.array(
+              z.object({
+                companyKey: z.string(),
+                nameCn: z.string(),
+                nameEn: z.string().optional(),
+                displayName: z.string(),
+                entityId: z.string(),
+                kind: z.enum(["brand", "company", "override"]),
+                origin: z.string().optional(),
+                type: z.string().optional(),
+                aliases: z.array(z.string()),
+                cnc: z.boolean(),
+              }),
+            ),
+          }),
+        },
+      },
+      description: "CNC industry browse list (nameCn-first)",
+    },
+  },
+});
+
+app.openapi(industryBrowseRoute, async (c) => {
+  const query = c.req.valid("query");
+  const items = listResearchIndustryBrowse({
+    limit: query.limit,
+    includeNonCnc: query.includeNonCnc === true,
+  });
+  return c.json({ success: true as const, items }, 200);
+});
+
+const industryResolveRoute = createRoute({
+  method: "get",
+  path: "/api/research/industry/resolve",
+  tags: ["research"],
+  summary: "Map free-text surface to research companyKey (override + resolveEntity)",
+  request: {
+    query: z.object({
+      q: z.string().min(1),
+    }),
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.literal(true),
+            hit: z
+              .object({
+                companyKey: z.string(),
+                nameCn: z.string(),
+                nameEn: z.string().optional(),
+                displayName: z.string(),
+                matchTier: z.string(),
+                entityId: z.string().optional(),
+                source: z.enum(["override", "resolveEntity"]),
+              })
+              .nullable(),
+          }),
+        },
+      },
+      description: "Resolved research company or null",
+    },
+  },
+});
+
+app.openapi(industryResolveRoute, async (c) => {
+  const { q } = c.req.valid("query");
+  const hit = resolveResearchCompanySurface(q);
+  return c.json({ success: true as const, hit }, 200);
 });
 
 export default app;
