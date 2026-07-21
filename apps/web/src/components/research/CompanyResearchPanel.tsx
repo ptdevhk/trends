@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
@@ -29,14 +29,24 @@ export type ResearchSignalView = {
   capturedAt: number
 }
 
+export const RESEARCH_SIGNAL_KINDS = [
+  'hiring_signal',
+  'sales_trigger',
+  'market_move',
+  'company_mention',
+] as const
+
 export type CompanyResearchPanelProps = {
   companyKey: string
   signals: ResearchSignalView[]
   persona: ResearchPersona | string
   onPersonaChange?: (persona: ResearchPersona) => void
+  selectedKinds?: string[]
+  onSelectedKindsChange?: (kinds: string[]) => void
   loading?: boolean
   error?: string | null
   teamSlug?: string
+  emptyExtra?: ReactNode
   className?: string
 }
 
@@ -45,9 +55,12 @@ export function CompanyResearchPanel({
   signals,
   persona,
   onPersonaChange,
+  selectedKinds,
+  onSelectedKindsChange,
   loading = false,
   error = null,
   teamSlug,
+  emptyExtra,
   className,
 }: CompanyResearchPanelProps) {
   const { t } = useTranslation()
@@ -56,6 +69,25 @@ export function CompanyResearchPanel({
     () => rankSignalsForPersona(signals, activePersona),
     [signals, activePersona],
   )
+  const filtered = useMemo(() => {
+    if (!selectedKinds?.length) {
+      return ranked
+    }
+    const set = new Set(selectedKinds)
+    return ranked.filter((s) => set.has(s.kind))
+  }, [ranked, selectedKinds])
+
+  const toggleKind = (kind: string) => {
+    if (!onSelectedKindsChange) {
+      return
+    }
+    const current = selectedKinds ?? []
+    if (current.includes(kind)) {
+      onSelectedKindsChange(current.filter((k) => k !== kind))
+    } else {
+      onSelectedKindsChange([...current, kind])
+    }
+  }
 
   return (
     <Card className={cn('w-full', className)} data-testid="company-research-panel">
@@ -94,6 +126,31 @@ export function CompanyResearchPanel({
             ))}
           </div>
         </div>
+        {onSelectedKindsChange ? (
+          <div
+            className="flex flex-wrap gap-1"
+            data-testid="kind-filter"
+            role="group"
+            aria-label={t('research.kindFilter', { defaultValue: 'Signal kinds' })}
+          >
+            {RESEARCH_SIGNAL_KINDS.map((kind) => {
+              const active = (selectedKinds ?? []).includes(kind)
+              return (
+                <Button
+                  key={kind}
+                  type="button"
+                  size="sm"
+                  variant={active ? 'default' : 'outline'}
+                  data-testid={`kind-filter-${kind}`}
+                  data-active={active ? 'true' : 'false'}
+                  onClick={() => toggleKind(kind)}
+                >
+                  {kind}
+                </Button>
+              )
+            })}
+          </div>
+        ) : null}
       </CardHeader>
       <CardContent>
         {loading ? (
@@ -106,13 +163,16 @@ export function CompanyResearchPanel({
             {error}
           </p>
         ) : null}
-        {!loading && !error && ranked.length === 0 ? (
-          <p data-testid="company-research-empty" className="text-sm text-muted-foreground">
-            {t('research.empty', { defaultValue: 'No research signals for this company yet.' })}
-          </p>
+        {!loading && !error && filtered.length === 0 ? (
+          <div data-testid="company-research-empty" className="space-y-2 text-sm text-muted-foreground">
+            <p>
+              {t('research.empty', { defaultValue: 'No research signals for this company yet.' })}
+            </p>
+            {emptyExtra}
+          </div>
         ) : null}
         <ul className="space-y-3" data-testid="company-research-signal-list">
-          {ranked.map((signal, index) => {
+          {filtered.map((signal, index) => {
             const key = signal._id ?? `${signal.kind}-${signal.capturedAt}-${index}`
             const evidenceUrl = signal.evidence.url
             return (

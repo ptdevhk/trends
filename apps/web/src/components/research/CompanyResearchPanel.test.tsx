@@ -93,4 +93,21 @@ describe('CompanyResearchPanel', () => {
     expect(links.length).toBeGreaterThan(0)
     expect(links[0]).toHaveAttribute('href', expect.stringContaining('https://'))
   })
+
+  it('filters signals by selected kinds', () => {
+    render(
+      <MemoryRouter>
+        <CompanyResearchPanel
+          companyKey="pro-technic-machinery"
+          signals={fixtureSignals}
+          persona="hr"
+          selectedKinds={['hiring_signal']}
+          onSelectedKindsChange={() => {}}
+        />
+      </MemoryRouter>,
+    )
+    const rows = screen.getAllByTestId('company-research-signal')
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toHaveAttribute('data-kind', 'hiring_signal')
+  })
 })
