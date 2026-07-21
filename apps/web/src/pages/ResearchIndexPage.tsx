@@ -3,12 +3,18 @@ import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { formatDistanceToNow } from 'date-fns/formatDistanceToNow'
 import { PageHeader } from '@/components/PageHeader'
+import {
+  PulseKeywordsDialog,
+  type PulseKeywordsDialogState,
+} from '@/components/research/PulseKeywordsDialog'
 import { ResearchCompanyPredictInput } from '@/components/research/ResearchCompanyPredictInput'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { rawApiClient } from '@/lib/api-helpers'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
+
+const PULSE_CHIP_VISIBLE = 8
 
 type CompanyHit = {
   companyKey: string
@@ -61,6 +67,29 @@ type IndustryBrowseItem = {
 type IndustryBrowseResponse = {
   success: boolean
   items?: IndustryBrowseItem[]
+}
+
+type PulseNewsItem = {
+  title: string
+  platform: string
+  url?: string
+  capturedAt: number
+  matchedKeywords?: string[]
+}
+
+type PulseResponse = {
+  success: boolean
+  items?: PulseNewsItem[]
+  meta?: {
+    filtered: boolean
+    effectiveKeywords: string[]
+    rawCount: number
+    matchedCount: number
+  }
+}
+
+type PulseKeywordsResponse = PulseKeywordsDialogState & {
+  success: boolean
 }
 
 const KIND_LABEL_ZH: Record<string, string> = {
@@ -168,6 +197,17 @@ export function ResearchIndexPage() {
   const [industryLoading, setIndustryLoading] = useState(true)
   const [industryError, setIndustryError] = useState<string | null>(null)
 
+  const [pulseItems, setPulseItems] = useState<PulseNewsItem[]>([])
+  const [pulseMeta, setPulseMeta] = useState<PulseResponse['meta'] | null>(null)
+  const [pulseLoading, setPulseLoading] = useState(true)
+  const [pulseError, setPulseError] = useState<string | null>(null)
+  const [pulseShowAll, setPulseShowAll] = useState(false)
+  const [pulseFocusKeyword, setPulseFocusKeyword] = useState<string | null>(null)
+
+  const [keywordsState, setKeywordsState] = useState<PulseKeywordsDialogState | null>(null)
+  const [keywordsDialogOpen, setKeywordsDialogOpen] = useState(false)
+  const [keywordsSaving, setKeywordsSaving] = useState(false)
+
   const loadShowcase = useCallback(async () => {
     setShowcaseLoading(true)
     setShowcaseError(null)
@@ -183,7 +223,9 @@ export function ResearchIndexPage() {
       return
     }
     setShowcase(data)
-  }, [t])
+    // t is i18n; intentionally omit from deps to avoid remount loops when t identity changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const loadIndustry = useCallback(async () => {
     setIndustryLoading(true)
@@ -201,12 +243,57 @@ export function ResearchIndexPage() {
       return
     }
     setIndustry(Array.isArray(data.items) ? data.items : [])
-  }, [t])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const loadPulse = useCallback(async (opts?: { all?: boolean }) => {
+    const all = opts?.all === true
+    setPulseLoading(true)
+    setPulseError(null)
+    const { data, error: apiError } = await rawApiClient.GET<PulseResponse>(
+      '/api/research/pulse',
+      {
+        params: {
+          query: {
+            limit: 12,
+            ...(all ? { all: 1 } : {}),
+          },
+        },
+      },
+    )
+    setPulseLoading(false)
+    if (apiError || !data?.success) {
+      setPulseError(t('research.pulseLoadError', { defaultValue: '市场动态加载失败' }))
+      setPulseItems([])
+      setPulseMeta(null)
+      return
+    }
+    setPulseItems(Array.isArray(data.items) ? data.items : [])
+    setPulseMeta(data.meta ?? null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const loadKeywords = useCallback(async () => {
+    const { data, error: apiError } = await rawApiClient.GET<PulseKeywordsResponse>(
+      '/api/research/pulse/keywords',
+    )
+    if (apiError || !data?.success) {
+      setKeywordsState(null)
+      return
+    }
+    setKeywordsState({
+      seed: data.seed,
+      workspace: data.workspace,
+      effective: data.effective,
+    })
+  }, [])
 
   useEffect(() => {
     void loadShowcase()
     void loadIndustry()
-  }, [loadShowcase, loadIndustry])
+    void loadPulse()
+    void loadKeywords()
+  }, [loadShowcase, loadIndustry, loadPulse, loadKeywords])
 
   const seedShowcase = useCallback(async () => {
     setSeeding(true)
@@ -222,11 +309,48 @@ export function ResearchIndexPage() {
     setIngesting(true)
     try {
       await rawApiClient.POST('/api/research/ingest/run', { body: {} })
-      await loadShowcase()
+      await Promise.all([loadShowcase(), loadPulse()])
     } finally {
       setIngesting(false)
     }
-  }, [loadShowcase])
+  }, [loadShowcase, loadPulse])
+
+  const handleShowAllPulse = useCallback(() => {
+    setPulseShowAll(true)
+    setPulseFocusKeyword(null)
+    void loadPulse({ all: true })
+  }, [loadPulse])
+
+  const handlePulseChipClick = useCallback((kw: string) => {
+    setPulseFocusKeyword((prev) => (prev === kw ? null : kw))
+  }, [])
+
+  const handleSaveKeywords = useCallback(
+    async (body: { enabled: string[]; excluded: string[]; custom: string[] }) => {
+      setKeywordsSaving(true)
+      try {
+        const { data, error: apiError } = await rawApiClient.PUT<PulseKeywordsResponse>(
+          '/api/research/pulse/keywords',
+          { body },
+        )
+        if (apiError || !data?.success) {
+          return
+        }
+        setKeywordsState({
+          seed: data.seed,
+          workspace: data.workspace,
+          effective: data.effective,
+        })
+        setKeywordsDialogOpen(false)
+        setPulseShowAll(false)
+        setPulseFocusKeyword(null)
+        await loadPulse({ all: false })
+      } finally {
+        setKeywordsSaving(false)
+      }
+    },
+    [loadPulse],
+  )
 
   const search = useCallback(async () => {
     setLoading(true)
@@ -247,11 +371,36 @@ export function ResearchIndexPage() {
 
   const golden = showcase?.golden ?? []
   const fromDesk = showcase?.fromResumeDesk ?? []
-  const pulse = showcase?.pulse ?? []
   const needsSeed =
     !showcaseLoading &&
     golden.every((c) => c.signalCount === 0) &&
     fromDesk.every((c) => c.signalCount === 0)
+
+  const effectiveKeywords =
+    keywordsState?.effective ?? pulseMeta?.effectiveKeywords ?? []
+
+  const visibleChips = effectiveKeywords.slice(0, PULSE_CHIP_VISIBLE)
+  const moreChipCount = Math.max(0, effectiveKeywords.length - PULSE_CHIP_VISIBLE)
+
+  const displayPulseItems = useMemo(() => {
+    if (!pulseFocusKeyword) return pulseItems
+    const focus = pulseFocusKeyword
+    return pulseItems.filter((item) => {
+      const matched = item.matchedKeywords ?? []
+      if (matched.some((m) => m === focus)) return true
+      // Fallback: substring match on title when matchedKeywords empty (e.g. all=1)
+      const hay = `${item.title}`.normalize('NFKC')
+      const needle = focus.normalize('NFKC')
+      return hay.includes(needle)
+    })
+  }, [pulseItems, pulseFocusKeyword])
+
+  const softEmpty =
+    !pulseLoading &&
+    !pulseShowAll &&
+    pulseMeta != null &&
+    pulseMeta.matchedCount === 0 &&
+    pulseMeta.rawCount > 0
 
   const showcaseSuggestions = useMemo(
     () =>
@@ -408,16 +557,105 @@ export function ResearchIndexPage() {
       </section>
 
       <section data-testid="research-section-pulse">
-        <h2 className="mb-2 text-sm font-semibold">
-          {t('research.sectionPulse', { defaultValue: '市场动态' })}
-        </h2>
-        {pulse.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold">
+            {t('research.sectionPulse', { defaultValue: '市场动态' })}
+          </h2>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => setKeywordsDialogOpen(true)}
+            data-testid="research-manage-keywords"
+          >
+            {t('research.pulseKeywords.manage', { defaultValue: '管理关键词' })}
+          </Button>
+        </div>
+
+        {effectiveKeywords.length > 0 ? (
+          <div
+            className="mb-2 flex flex-wrap items-center gap-1.5"
+            data-testid="research-pulse-chips"
+          >
+            {visibleChips.map((kw) => {
+              const active = pulseFocusKeyword === kw
+              return (
+                <button
+                  key={kw}
+                  type="button"
+                  data-testid="research-pulse-chip"
+                  data-keyword={kw}
+                  data-active={active ? 'true' : 'false'}
+                  onClick={() => handlePulseChipClick(kw)}
+                  className={
+                    active
+                      ? 'rounded-full border border-blue-500 bg-blue-50 px-2 py-0.5 text-xs text-blue-700'
+                      : 'rounded-full border border-slate-200 bg-white px-2 py-0.5 text-xs text-slate-700 hover:border-blue-300'
+                  }
+                >
+                  {kw}
+                </button>
+              )
+            })}
+            {moreChipCount > 0 ? (
+              <span
+                className="text-xs text-muted-foreground"
+                data-testid="research-pulse-chips-more"
+              >
+                +{moreChipCount}
+              </span>
+            ) : null}
+            {pulseFocusKeyword ? (
+              <button
+                type="button"
+                className="text-xs text-blue-600 hover:underline"
+                data-testid="research-pulse-clear-focus"
+                onClick={() => setPulseFocusKeyword(null)}
+              >
+                {t('research.pulseKeywords.clearFocus', { defaultValue: '清除筛选' })}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+
+        {pulseError ? (
+          <p className="text-sm text-red-600" data-testid="research-pulse-error">
+            {pulseError}
+          </p>
+        ) : null}
+
+        {softEmpty ? (
+          <div
+            className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm"
+            data-testid="research-pulse-soft-empty"
+          >
+            <p className="text-amber-900">
+              {t('research.pulseKeywords.softEmpty', {
+                defaultValue: '当前关键词未命中近期资讯，可显示全部或调整关键词。',
+              })}
+            </p>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="mt-2"
+              onClick={handleShowAllPulse}
+              data-testid="research-pulse-show-all"
+            >
+              {t('research.pulseKeywords.showAll', { defaultValue: '显示全部' })}
+            </Button>
+          </div>
+        ) : null}
+
+        {pulseLoading ? (
+          <p className="text-sm text-muted-foreground">加载中…</p>
+        ) : displayPulseItems.length === 0 && !softEmpty ? (
+          <p className="text-sm text-muted-foreground" data-testid="research-pulse-empty">
             {t('research.pulseEmpty', { defaultValue: '暂无近期资讯。' })}
           </p>
         ) : (
           <ul className="space-y-2 text-sm">
-            {pulse.slice(0, 12).map((item, index) => {
+            {displayPulseItems.map((item, index) => {
               const relative = formatPulseRelativeTime(item.capturedAt)
               return (
                 <li
@@ -452,12 +690,30 @@ export function ResearchIndexPage() {
                   ) : (
                     <span>{item.title}</span>
                   )}
+                  {(item.matchedKeywords ?? []).slice(0, 3).map((mk) => (
+                    <Badge
+                      key={mk}
+                      variant="secondary"
+                      className="text-[10px] font-normal"
+                      data-testid="research-pulse-matched-kw"
+                    >
+                      {mk}
+                    </Badge>
+                  ))}
                 </li>
               )
             })}
           </ul>
         )}
       </section>
+
+      <PulseKeywordsDialog
+        open={keywordsDialogOpen}
+        onOpenChange={setKeywordsDialogOpen}
+        initial={keywordsState}
+        saving={keywordsSaving}
+        onSave={handleSaveKeywords}
+      />
 
       <section data-testid="research-section-search">
         <h2 className="mb-2 text-sm font-semibold">
