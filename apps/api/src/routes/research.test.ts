@@ -239,7 +239,9 @@ describe("research routes", () => {
       companiesUpserted: 6,
       aliasesCreated: 10,
       newsUpserted: 12,
+      newsCreated: 12,
       signalsUpserted: 12,
+      signalsCreated: 12,
       seedIngestRunId: "showcase-seed-v1",
     });
     const app = createApp();
@@ -251,6 +253,7 @@ describe("research routes", () => {
     const body = await parseJsonBody(response);
     expect(body.success).toBe(true);
     expect(body.signalsUpserted).toBe(12);
+    expect(body.signalsCreated).toBe(12);
     expect(body.seedIngestRunId).toBe("showcase-seed-v1");
     expect(showcaseMocks.seedResearchShowcase).toHaveBeenCalled();
   });

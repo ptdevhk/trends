@@ -2817,7 +2817,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get current skills knowledge version */
+        /** Get current skills knowledge version and ingest-compute epoch */
         get: {
             parameters: {
                 query?: never;
@@ -2837,6 +2837,7 @@ export interface paths {
                             /** @enum {boolean} */
                             success: true;
                             version: number;
+                            ingestComputeEpoch: number;
                         };
                     };
                 };
@@ -2880,6 +2881,89 @@ export interface paths {
                             missingSearchText: number;
                             missingVerifiedRoleYears: number;
                             hasRoleSignals: number;
+                            missingIngestComputeEpoch: number;
+                            laggingIngestComputeEpoch: number;
+                            currentIngestComputeEpoch: number;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/resumes/search-freshness": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Search-data freshness doctor: ingestComputeEpoch lag counts + golden MY/CN minRoleYears totals */
+        get: {
+            parameters: {
+                query?: {
+                    scanLimit?: number;
+                    skipGolden?: boolean | null;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Freshness report */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            currentSkillsVersion: number;
+                            currentIngestComputeEpoch: number;
+                            apiReachable: boolean;
+                            lag: {
+                                scanned: number;
+                                withIngestData: number;
+                                skillsStale: number;
+                                computeStale: number;
+                                missingEpoch: number;
+                                currentEpoch: number;
+                                scanComplete: boolean;
+                            };
+                            goldenQueries: {
+                                id: string;
+                                location: string;
+                                q: string;
+                                minRoleYears: number;
+                                roleType?: string;
+                                minTotalFloor: number;
+                                total: number | null;
+                                ok: boolean | null;
+                                error?: string;
+                            }[];
+                            exitCodeHint: number;
+                            messages: string[];
+                        };
+                    };
+                };
+                /** @description Doctor failed */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
                         };
                     };
                 };
@@ -4520,7 +4604,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Trigger re-ingest for resumes with stale skills version */
+        /** Schedule re-ingest for stale resumes (skillsVersion and/or ingestComputeEpoch). Default mode=any. */
         post: {
             parameters: {
                 query?: never;
@@ -4532,6 +4616,9 @@ export interface paths {
                 content: {
                     "application/json": {
                         limit?: number;
+                        /** @enum {string} */
+                        mode?: "skills" | "compute" | "any";
+                        dryRun?: boolean;
                     };
                 };
             };
@@ -4545,6 +4632,16 @@ export interface paths {
                         "application/json": {
                             /** @enum {boolean} */
                             success: true;
+                            scheduled?: number;
+                            batches?: number;
+                            currentVersion?: number;
+                            currentIngestComputeEpoch?: number;
+                            hasMore?: boolean;
+                            mode?: string;
+                            dryRun?: boolean;
+                            skillsStaleCount?: number;
+                            computeStaleCount?: number;
+                            matchedCount?: number;
                             processed?: number;
                             skipped?: number;
                         };
@@ -7965,6 +8062,415 @@ export interface paths {
                             /** @enum {boolean} */
                             success: true;
                             revision: number;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/research/news": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List recent native research news items */
+        get: {
+            parameters: {
+                query?: {
+                    limit?: number | null;
+                    platform?: string;
+                    since?: number | null;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Recent news items */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            items: {
+                                _id: string;
+                                sourceId: string;
+                                platform: string;
+                                title: string;
+                                contentHash: string;
+                                capturedAt: number;
+                                externalId?: string;
+                                url?: string;
+                                rank?: number;
+                                publishedAt?: number;
+                                rawSnippet?: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/research/companies/{companyKey}/signals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List company research signals ranked by persona */
+        get: {
+            parameters: {
+                query?: {
+                    persona?: "hr" | "sales";
+                    limit?: number | null;
+                };
+                header?: never;
+                path: {
+                    companyKey: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Company signals */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            /** @enum {string} */
+                            persona: "hr" | "sales";
+                            items: {
+                                _id: string;
+                                companyKey: string;
+                                kind: string;
+                                title: string;
+                                summary?: string;
+                                evidence: {
+                                    newsItemId?: string;
+                                    title: string;
+                                    url?: string;
+                                    platform: string;
+                                    seenAt: number;
+                                    snippet?: string;
+                                };
+                                score?: number;
+                                capturedAt: number;
+                                ingestRunId?: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/research/companies/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Search/resolve companies for research UI and CLI */
+        get: {
+            parameters: {
+                query?: {
+                    q?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Company search hits */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            items: {
+                                companyKey: string;
+                                displayName: string;
+                                nameCn?: string;
+                                nameEn?: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/research/ingest/run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Operator trigger: proxy to worker research ingest */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Ingest trigger result */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                            mode: string;
+                            started_at?: string;
+                            finished_at?: string;
+                            message: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/research/parity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Latest research parity run (durable kill-switch ledger) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Latest parity row or null */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            parity?: unknown;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/research/ingest/latest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Latest research ingest run for desk empty-state / operator feedback */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Latest ingest run or null */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            run?: unknown;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/research/showcase": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Research showcase hub payload (golden + resume-desk cards + pulse) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Showcase hub DTO */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            golden: {
+                                companyKey: string;
+                                displayName: string;
+                                nameCn?: string;
+                                nameEn?: string;
+                                kindCounts: {
+                                    [key: string]: number;
+                                };
+                                signalCount: number;
+                                showcase: boolean;
+                                href: string;
+                            }[];
+                            fromResumeDesk: {
+                                companyKey: string;
+                                displayName: string;
+                                nameCn?: string;
+                                nameEn?: string;
+                                kindCounts: {
+                                    [key: string]: number;
+                                };
+                                signalCount: number;
+                                showcase: boolean;
+                                href: string;
+                            }[];
+                            pulse: {
+                                title: string;
+                                platform: string;
+                                url?: string;
+                                capturedAt: number;
+                            }[];
+                            meta: {
+                                lastIngest?: unknown;
+                                showcaseSeedVersion: string;
+                                seedIngestRunId: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/research/showcase/seed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Idempotent operator seed for showcase hub density */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Seed counters (signalsCreated=0 on pure re-seed) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            companiesUpserted: number;
+                            aliasesCreated: number;
+                            newsUpserted: number;
+                            newsCreated: number;
+                            signalsUpserted: number;
+                            signalsCreated: number;
+                            seedIngestRunId: string;
                         };
                     };
                 };

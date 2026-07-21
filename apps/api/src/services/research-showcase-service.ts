@@ -54,7 +54,10 @@ export type SeedResearchShowcaseResult = {
   companiesUpserted: number;
   aliasesCreated: number;
   newsUpserted: number;
+  newsCreated: number;
   signalsUpserted: number;
+  /** Rows with created:true from research_signals:upsert (0 on pure re-seed) */
+  signalsCreated: number;
   seedIngestRunId: string;
 };
 
@@ -90,6 +93,103 @@ async function upsertCompanyAndAliases(
   }
 }
 
+async function upsertShowcaseSignal(
+  company: ShowcaseCompanyTemplate,
+  signal: ShowcaseCompanyTemplate["signals"][number],
+  seedIngestRunId: string,
+  counters: {
+    newsUpserted: number;
+    newsCreated: number;
+    signalsUpserted: number;
+    signalsCreated: number;
+  },
+): Promise<void> {
+  const contentHash = showcaseContentHash(company.companyKey, signal.kind);
+  const seenAt = stableSeenAtFromHash(contentHash);
+  const newsResult = await callConvexMutation("research_news:upsertItem", {
+    writeSecret: config.auth.convexWriteSecret,
+    sourceId: "showcase",
+    platform: "showcase",
+    title: signal.title,
+    contentHash,
+    capturedAt: seenAt,
+    rawSnippet: signal.snippet,
+    url: `https://showcase.local/research/${company.companyKey}/${signal.kind}`,
+  });
+  counters.newsUpserted += 1;
+  if (isRecord(newsResult) && newsResult.created === true) {
+    counters.newsCreated += 1;
+  }
+
+  // Soft-dedupe identity: companyKey + kind + ingestRunId (created:false on re-seed)
+  const signalResult = await callConvexMutation("research_signals:upsert", {
+    writeSecret: config.auth.convexWriteSecret,
+    companyKey: company.companyKey,
+    kind: signal.kind,
+    title: signal.title,
+    summary: signal.snippet,
+    evidence: {
+      title: signal.title,
+      platform: "showcase",
+      seenAt,
+      snippet: signal.snippet,
+      url: `https://showcase.local/research/${company.companyKey}/${signal.kind}`,
+    },
+    capturedAt: seenAt,
+    ingestRunId: seedIngestRunId,
+  });
+  counters.signalsUpserted += 1;
+  if (isRecord(signalResult) && signalResult.created === true) {
+    counters.signalsCreated += 1;
+  }
+}
+
+/** If pre-fix data left multiple showcase-seed rows per kind, wipe and re-apply pack once. */
+async function repairShowcaseSeedDuplicates(
+  company: ShowcaseCompanyTemplate,
+  seedIngestRunId: string,
+  counters: {
+    newsUpserted: number;
+    newsCreated: number;
+    signalsUpserted: number;
+    signalsCreated: number;
+  },
+): Promise<void> {
+  const value = await callConvexQuery("research_signals:listByCompany", {
+    writeSecret: config.auth.convexWriteSecret,
+    companyKey: company.companyKey,
+    limit: 100,
+  });
+  const rows = Array.isArray(value) ? value : [];
+  const byKind = new Map<string, number>();
+  for (const row of rows) {
+    if (!isRecord(row)) {
+      continue;
+    }
+    const ingestRunId = typeof row.ingestRunId === "string" ? row.ingestRunId : "";
+    if (!ingestRunId.startsWith("showcase-seed")) {
+      continue;
+    }
+    const kind = typeof row.kind === "string" ? row.kind : "";
+    if (!kind) {
+      continue;
+    }
+    byKind.set(kind, (byKind.get(kind) ?? 0) + 1);
+  }
+  const needsRepair = [...byKind.values()].some((n) => n > 1);
+  if (!needsRepair) {
+    return;
+  }
+  await callConvexMutation("research_signals:deleteByCompanyIngestRunPrefix", {
+    writeSecret: config.auth.convexWriteSecret,
+    companyKey: company.companyKey,
+    ingestRunIdPrefix: "showcase-seed",
+  });
+  for (const signal of company.signals) {
+    await upsertShowcaseSignal(company, signal, seedIngestRunId, counters);
+  }
+}
+
 export async function seedResearchShowcase(
   pack: ResearchShowcasePack = getShowcasePack(),
 ): Promise<SeedResearchShowcaseResult> {
@@ -98,61 +198,30 @@ export async function seedResearchShowcase(
     companiesUpserted: 0,
     aliasesCreated: 0,
     newsUpserted: 0,
+    newsCreated: 0,
     signalsUpserted: 0,
+    signalsCreated: 0,
   };
   const companies = allShowcaseCompanies(pack);
 
   for (const company of companies) {
     await upsertCompanyAndAliases(company, counters);
 
-    // Drop prior showcase-seed rows so re-seed is exactly the pack (no historical dups)
-    await callConvexMutation("research_signals:deleteByCompanyIngestRunPrefix", {
-      writeSecret: config.auth.convexWriteSecret,
-      companyKey: company.companyKey,
-      ingestRunIdPrefix: "showcase-seed",
-    });
-
     for (const signal of company.signals) {
-      const contentHash = showcaseContentHash(company.companyKey, signal.kind);
-      // Stable seenAt from hash so re-seeds match Convex soft-dedupe keys exactly
-      const seenAt = stableSeenAtFromHash(contentHash);
-      await callConvexMutation("research_news:upsertItem", {
-        writeSecret: config.auth.convexWriteSecret,
-        sourceId: "showcase",
-        platform: "showcase",
-        title: signal.title,
-        contentHash,
-        capturedAt: seenAt,
-        rawSnippet: signal.snippet,
-        url: `https://showcase.local/research/${company.companyKey}/${signal.kind}`,
-      });
-      counters.newsUpserted += 1;
-
-      await callConvexMutation("research_signals:upsert", {
-        writeSecret: config.auth.convexWriteSecret,
-        companyKey: company.companyKey,
-        kind: signal.kind,
-        title: signal.title,
-        summary: signal.snippet,
-        evidence: {
-          title: signal.title,
-          platform: "showcase",
-          seenAt,
-          snippet: signal.snippet,
-          url: `https://showcase.local/research/${company.companyKey}/${signal.kind}`,
-        },
-        capturedAt: seenAt,
-        ingestRunId: seedIngestRunId,
-      });
-      counters.signalsUpserted += 1;
+      await upsertShowcaseSignal(company, signal, seedIngestRunId, counters);
     }
+
+    // One-time repair for historical dups (pre company+kind+ingestRunId dedupe)
+    await repairShowcaseSeedDuplicates(company, seedIngestRunId, counters);
   }
 
   return {
     companiesUpserted: counters.companiesUpserted,
     aliasesCreated: counters.aliasesCreated,
     newsUpserted: counters.newsUpserted,
+    newsCreated: counters.newsCreated,
     signalsUpserted: counters.signalsUpserted,
+    signalsCreated: counters.signalsCreated,
     seedIngestRunId,
   };
 }
