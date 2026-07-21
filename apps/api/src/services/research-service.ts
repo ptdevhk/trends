@@ -230,3 +230,10 @@ export async function getLatestParity(): Promise<unknown | null> {
   });
   return value ?? null;
 }
+
+export async function getLatestIngestRun(): Promise<unknown | null> {
+  const value = await callConvexQuery("research_ops:latestIngestRun", {
+    writeSecret: config.auth.convexWriteSecret,
+  });
+  return value ?? null;
+}

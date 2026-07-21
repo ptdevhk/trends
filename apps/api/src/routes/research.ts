@@ -2,6 +2,7 @@ import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 
 import { requireWorkspaceUser } from "../middleware/auth.js";
 import {
+  getLatestIngestRun,
   getLatestParity,
   listCompanySignals,
   listResearchNews,
@@ -217,6 +218,31 @@ const parityRoute = createRoute({
 app.openapi(parityRoute, async (c) => {
   const parity = await getLatestParity();
   return c.json({ success: true as const, parity }, 200);
+});
+
+const latestIngestRoute = createRoute({
+  method: "get",
+  path: "/api/research/ingest/latest",
+  tags: ["research"],
+  summary: "Latest research ingest run for desk empty-state / operator feedback",
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.literal(true),
+            run: z.unknown().nullable(),
+          }),
+        },
+      },
+      description: "Latest ingest run or null",
+    },
+  },
+});
+
+app.openapi(latestIngestRoute, async (c) => {
+  const run = await getLatestIngestRun();
+  return c.json({ success: true as const, run }, 200);
 });
 
 export default app;

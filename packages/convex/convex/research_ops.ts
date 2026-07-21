@@ -186,6 +186,20 @@ export const recordParityRun = mutation({
   },
 });
 
+export const latestIngestRun = query({
+  args: {
+    writeSecret: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    requireReadSecret(args.writeSecret);
+    return await ctx.db
+      .query("research_ingest_runs")
+      .withIndex("by_started_at")
+      .order("desc")
+      .first();
+  },
+});
+
 export const latestParity = query({
   args: {
     writeSecret: v.optional(v.string()),

@@ -123,6 +123,33 @@ describe("research_ops (convex-test)", () => {
     expect(latest?.green).toBe(true);
   });
 
+  it("returns latest ingest run by startedAt", async () => {
+    const t = createTest();
+    await t.mutation(api.research_ops.startIngestRun, {
+      writeSecret: WRITE_SECRET,
+      runId: "old",
+      startedAt: 1000,
+      enabledPlatforms: ["weibo"],
+    });
+    await t.mutation(api.research_ops.finishIngestRun, {
+      writeSecret: WRITE_SECRET,
+      runId: "old",
+      finishedAt: 1100,
+      status: "success",
+      newsInserted: 1,
+    });
+    await t.mutation(api.research_ops.startIngestRun, {
+      writeSecret: WRITE_SECRET,
+      runId: "new",
+      startedAt: 2000,
+      enabledPlatforms: ["weibo"],
+    });
+    const latest = await t.query(api.research_ops.latestIngestRun, {
+      writeSecret: WRITE_SECRET,
+    });
+    expect(latest?.runId).toBe("new");
+  });
+
   it("does not inflate greenStreak when the same parityRunId is re-upserted", async () => {
     const t = createTest();
     const base = {

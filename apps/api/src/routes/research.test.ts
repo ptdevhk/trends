@@ -145,6 +145,23 @@ describe("research routes", () => {
     ).toBe(true);
   });
 
+  it("returns latest ingest run from Convex ops", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      if (call.pathName === "research_ops:latestIngestRun") {
+        return convexSuccess({ runId: "run-9", status: "success", newsInserted: 2 });
+      }
+      return convexSuccess(null);
+    });
+    const app = createApp();
+    const response = await app.request("/api/research/ingest/latest", { headers: auth.headers });
+    expect(response.status).toBe(200);
+    const body = await parseJsonBody(response);
+    expect(body.run.runId).toBe("run-9");
+    expect(body.run.newsInserted).toBe(2);
+  });
+
   it("returns parity payload from Convex ops", async () => {
     const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
