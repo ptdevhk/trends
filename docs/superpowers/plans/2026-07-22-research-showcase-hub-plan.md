@@ -48,13 +48,13 @@
 - Produces: `loadResearchShowcasePack(root?: string): ShowcasePack`
 - Pack fields: `version`, `golden[]`, `fromResumeDesk[]`, each with `companyKey`, `displayName`, `nameCn?`, `nameEn?`, `aliases[]`, `signals: { kind, title, snippet? }[]`
 
-- [ ] **Step 1: Write YAML pack** with pro-technic, polywell + at least siemens-malaysia, globalfoundries, nestle-malaysia, hino-motors-malaysia (aliases + ≥2 kinds each; golden ≥3 kinds).
+- [x] **Step 1: Write YAML pack** with pro-technic, polywell + at least siemens-malaysia, globalfoundries, nestle-malaysia, hino-motors-malaysia (aliases + ≥2 kinds each; golden ≥3 kinds).
 
-- [ ] **Step 2: Failing test** — load pack, assert golden includes `pro-technic-machinery`, kinds valid.
+- [x] **Step 2: Failing test** — load pack, assert golden includes `pro-technic-machinery`, kinds valid.
 
-- [ ] **Step 3: Implement loader** (read file + yaml parse + validate kinds).
+- [x] **Step 3: Implement loader** (read file + yaml parse + validate kinds).
 
-- [ ] **Step 4: Pass + commit**
+- [x] **Step 4: Pass + commit**
 
 ```bash
 bunx vitest run apps/api/src/services/research-showcase-pack.test.ts
@@ -75,11 +75,11 @@ git commit -m "feat(research): add showcase company pack config"
 - For each company: `companies:upsert` + aliases; for each signal template: `research_news:upsertItem` + `research_signals:upsert` with nested evidence, `ingestRunId: "showcase-seed-v1"`, `contentHash: showcase:v1:{companyKey}:{kind}`  
 - `getResearchShowcase(teamSlug: string): Promise<ShowcaseResponse>` — list pack companies via signals listByCompany counts + recent news for pulse
 
-- [ ] **Step 1: Unit test seed with mocked `callConvexMutation` / `callConvexQuery`** — assert mutation paths and stable contentHash args.
+- [x] **Step 1: Unit test seed with mocked `callConvexMutation` / `callConvexQuery`** — assert mutation paths and stable contentHash args.
 
-- [ ] **Step 2: Implement seed + getShowcase** using existing `callConvexMutation` / `callConvexQuery` + `config.auth.convexWriteSecret`.
+- [x] **Step 2: Implement seed + getShowcase** using existing `callConvexMutation` / `callConvexQuery` + `config.auth.convexWriteSecret`.
 
-- [ ] **Step 3: Pass + commit**
+- [x] **Step 3: Pass + commit**
 
 ```bash
 bunx vitest run apps/api/src/services/research-showcase-service.test.ts
@@ -98,11 +98,11 @@ git commit -m "feat(research): showcase seed and hub aggregation service"
 - `GET /api/research/showcase` → `{ success, golden, fromResumeDesk, pulse, meta }`
 - `POST /api/research/showcase/seed` → `{ success, ...counts }`
 
-- [ ] **Step 1: Route tests** with mocked service or fetch to Convex.
+- [x] **Step 1: Route tests** with mocked service or fetch to Convex.
 
-- [ ] **Step 2: Wire OpenAPI routes** (workspace auth same as other research routes).
+- [x] **Step 2: Wire OpenAPI routes** (workspace auth same as other research routes).
 
-- [ ] **Step 3: Pass + commit**
+- [x] **Step 3: Pass + commit**
 
 ```bash
 bunx vitest run apps/api/src/routes/research.test.ts
@@ -125,11 +125,11 @@ git commit -m "feat(research): API for showcase hub and seed"
 - Badge text: “Showcase data” when `showcase: true`
 - Keep search section
 
-- [ ] **Step 1: Component tests** with mocked `rawApiClient` — renders golden section when fixture payload present; seed button triggers POST.
+- [x] **Step 1: Component tests** with mocked `rawApiClient` — renders golden section when fixture payload present; seed button triggers POST.
 
-- [ ] **Step 2: Implement hub layout.**
+- [x] **Step 2: Implement hub layout.**
 
-- [ ] **Step 3: Pass + commit**
+- [x] **Step 3: Pass + commit**
 
 ```bash
 npm --workspace @trends/web run test -- src/pages/ResearchIndexPage
@@ -140,13 +140,21 @@ git commit -m "feat(research): showcase hub UI with company cards and seed CTA"
 
 ### Task 5: Manual smoke + checklist
 
-- [ ] **Step 1:** Dev stack up; login hr-demo; open `/hr/research`.
+- [x] **Step 1:** Dev stack up; login hr-demo; open `/hr/research`.
 
-- [ ] **Step 2:** Click Load/Seed showcase; verify cards for pro-technic + polywell + ≥3 resume-desk companies.
+- [x] **Step 2:** Click Load/Seed showcase; verify cards for pro-technic + polywell + ≥3 resume-desk companies.
 
-- [ ] **Step 3:** Open pro-technic page; confirm multi-kind signals.
+- [x] **Step 3:** Open pro-technic page; confirm multi-kind signals.
 
-- [ ] **Step 4:** Capture notes under scratch if in harness; no origin push.
+- [x] **Step 4:** Capture notes under scratch if in harness; no origin push.
+
+### Skeptic follow-ups (post Task 5)
+
+- [x] Honest hub `showcase` labels (ingestRunId `showcase-seed*` only; never live density).
+- [x] Soft-dedupe company+kind+ingestRunId; hub kindCounts only count showcase-seed rows.
+- [x] Repair historical multi-row kinds only when needed (no always-delete-before-seed).
+- [x] Seed returns `signalsCreated` / `newsCreated`; pure re-seed asserts both `0`.
+- [x] Live smoke: seed×2 → seed2.signalsCreated=0; pro-technic kindCounts all 1.
 
 ---
 
