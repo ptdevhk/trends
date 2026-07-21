@@ -1,83 +1,629 @@
 [
-  { "id": 1, "nameCn": "发那科", "nameEn": "FANUC", "type": "加工中心/数控车床", "origin": "international" },
-  { "id": 2, "nameCn": "山崎马扎克", "nameEn": "MAZAK", "type": "加工中心/数控车床", "origin": "international" },
-  { "id": 3, "nameCn": "牧野", "nameEn": "MAKINO", "type": "加工中心/火花机", "origin": "international" },
-  { "id": 4, "nameCn": "德马吉", "nameEn": "DMG MORI", "type": "加工中心/数控车床", "origin": "international" },
-  { "id": 5, "nameCn": "兄弟", "nameEn": "BROTHER", "type": "加工中心/数控车床", "origin": "international" },
-  { "id": 6, "nameCn": "斯大", "nameEn": "STAR", "type": "加工中心/数控车床", "origin": "international" },
-  { "id": 7, "nameCn": "斗山", "nameEn": "DOOSAN", "type": "加工中心/数控车床", "origin": "international" },
-  { "id": 8, "nameCn": "米科朗", "nameEn": "MIKRON", "type": "加工中心/数控车床", "origin": "international" },
-  { "id": 9, "nameCn": "西铁城", "nameEn": "CITIZEN", "type": "加工中心/走心机", "origin": "international" },
-  { "id": 10, "nameCn": "阿奇", "nameEn": "AGIE", "type": "火花机/线切割", "origin": "international" },
-  { "id": 11, "nameCn": "夏米尔", "nameEn": "CHARMILLES", "type": "加工中心/火花机", "origin": "international" },
-  { "id": 12, "nameCn": "哈挺", "nameEn": "HARDINGE", "type": "加工中心/数控车床", "origin": "international" },
-  { "id": 13, "nameCn": "罗德斯", "nameEn": "ROEDERS", "type": "加工中心/数控车床", "origin": "international" },
-  { "id": 14, "nameCn": "大隈", "nameEn": "OKUMA", "type": "加工中心/数控车床", "origin": "international" },
-  { "id": 15, "nameCn": "安田", "nameEn": "YASDA", "type": "加工中心/数控车床", "origin": "international" },
-  { "id": 16, "nameCn": "丰田工机", "nameEn": "TOYODA", "type": "加工中心/数控车床", "origin": "international" },
-  { "id": 17, "nameCn": "雷尼绍", "nameEn": "RENISHAW", "type": "测量/加工中心", "origin": "international" },
-  { "id": 18, "nameCn": "马波斯", "nameEn": "MARPOSS", "type": "测量/加工中心", "origin": "international" },
-  { "id": 19, "nameCn": "丽驰", "nameEn": "LITZ", "type": "加工中心/数控车床", "origin": "international" },
-  { "id": 20, "nameCn": "大阪机工", "nameEn": "OKK", "type": "加工中心/数控车床", "origin": "international" },
-  { "id": 21, "nameCn": "宫野", "nameEn": "MIYANO", "type": "加工中心/走心机", "origin": "international" },
-  { "id": 22, "nameCn": "山特维克", "nameEn": "SANDVIK", "type": "刀具/工装", "origin": "international" },
-  { "id": 23, "nameCn": "松浦", "nameEn": "MATSUURA", "type": "加工中心/数控车床", "origin": "international" },
-  { "id": 24, "nameCn": "高松", "nameEn": "TAKAMATSU", "type": "加工中心/走心机", "origin": "international" },
-  { "id": 25, "nameCn": "沙迪克", "nameEn": "SODICK", "type": "加工中心/火花机", "origin": "international" },
-  { "id": 26, "nameCn": "三菱", "nameEn": "MITSUBISHI", "type": "加工中心/火花机", "origin": "international" },
-  { "id": 27, "nameCn": "仓敷", "nameEn": "KURAKI", "type": "加工中心/数控车床", "origin": "international" },
-  { "id": 28, "nameCn": "冈本", "nameEn": "OKAMOTO", "type": "磨床", "origin": "international" },
-  { "id": 29, "nameCn": "泷泽", "nameEn": "TAKISAWA", "type": "加工中心/走心机", "origin": "international" },
-  { "id": 30, "nameCn": "津上", "nameEn": "TSUGAMI", "type": "加工中心/走心机", "origin": "international" },
-  { "id": 31, "nameCn": "哈默", "nameEn": "HERMLE", "type": "加工中心/数控车床", "origin": "international" },
-  { "id": 32, "nameCn": "赫克", "nameEn": "HURCO", "type": "加工中心/数控车床", "origin": "international" },
-  { "id": 33, "nameCn": "现代威亚", "nameEn": "HYUNDAI WIA", "type": "加工中心/数控车床", "origin": "international" },
-  { "id": 34, "nameCn": "海德汉", "nameEn": "HEIDENHAIN", "type": "数控系统", "origin": "international" },
-  { "id": 35, "nameCn": "菲迪亚", "nameEn": "FIDIA", "type": "加工中心/数控车床", "origin": "international" },
-  { "id": 36, "nameCn": "特纳斯", "nameEn": "TORNOS", "type": "走心机", "origin": "international" },
-  { "id": 37, "nameCn": "野村", "nameEn": "NOMURA", "type": "走心机", "origin": "international" },
-  { "id": 38, "nameCn": "哈斯", "nameEn": "HAAS", "type": "加工中心/走心机", "origin": "international" },
-  { "id": 39, "nameCn": "西门子", "nameEn": "SIEMENS", "type": "数控系统/SMT", "origin": "international" },
-  { "id": 40, "nameCn": "海克斯康", "nameEn": "HEXAGON", "type": "测量扫描", "origin": "international" },
-  { "id": 41, "nameCn": "蔡司", "nameEn": "ZEISS", "type": "测量扫描", "origin": "international" },
-  { "id": 42, "nameCn": "基恩士", "nameEn": "KEYENCE", "type": "测量扫描", "origin": "international" },
-  { "id": 43, "nameCn": "三丰", "nameEn": "MITUTOYO", "type": "测量扫描", "origin": "international" },
-  { "id": 44, "nameCn": "温泽", "nameEn": "WENZEL", "type": "测量扫描", "origin": "international" },
-  { "id": 45, "nameCn": "形创", "nameEn": "CREAFORM", "type": "测量扫描", "origin": "international" },
-  { "id": 46, "nameCn": "天萨", "nameEn": "TESA", "type": "测量扫描", "origin": "international" },
-  { "id": 47, "nameCn": "马尔", "nameEn": "MAHR", "type": "测量扫描", "origin": "international" },
-  { "id": 48, "nameCn": "GOM", "nameEn": "GOM ATOS", "type": "测量扫描", "origin": "international" },
-  { "id": 49, "nameCn": "乔治费歇尔", "nameEn": "GF MACHINING", "type": "加工中心/火花机", "origin": "international" },
-  { "id": 50, "nameCn": "东芝", "nameEn": "TOSHIBA", "type": "加工中心/数控车床", "origin": "international" },
-  { "id": 51, "nameCn": "台达", "nameEn": "DELTA", "type": "火花机/线切割", "origin": "international" },
-  { "id": 52, "nameCn": "西部", "nameEn": "SEIBU", "type": "火花机/线切割", "origin": "international" },
-  { "id": 53, "nameCn": "巴鲁法蒂", "nameEn": "BARUFFALDI", "type": "走心机/刀塔", "origin": "international" },
-  { "id": 54, "nameCn": "富士", "nameEn": "FUJI", "type": "SMT", "origin": "international" },
-  { "id": 55, "nameCn": "松下", "nameEn": "PANASONIC", "type": "SMT", "origin": "international" },
-  { "id": 56, "nameCn": "雅马哈", "nameEn": "YAMAHA", "type": "SMT", "origin": "international" },
-  { "id": 57, "nameCn": "JUKI", "nameEn": "JUKI", "type": "SMT", "origin": "international" },
-  { "id": 58, "nameCn": "创世纪", "nameEn": "CGJ", "type": "加工中心/数控车床", "origin": "domestic" },
-  { "id": 59, "nameCn": "台群", "nameEn": "TAIQUN", "type": "加工中心/数控车床", "origin": "domestic" },
-  { "id": 60, "nameCn": "沈阳机床", "nameEn": "SMTCL", "type": "加工中心/数控车床", "origin": "domestic" },
-  { "id": 61, "nameCn": "润星科技", "nameEn": "RUNXING", "type": "加工中心/数控车床", "origin": "domestic" },
-  { "id": 62, "nameCn": "秦川机床", "nameEn": "QINCHUAN", "type": "加工中心/数控车床", "origin": "domestic" },
-  { "id": 63, "nameCn": "汉川", "nameEn": "HANCHUAN", "type": "加工中心/数控车床", "origin": "domestic" },
-  { "id": 64, "nameCn": "纽威", "nameEn": "NEWAY", "type": "走心机/刀塔", "origin": "domestic" },
-  { "id": 65, "nameCn": "程泰", "nameEn": "GOODWAY", "type": "走心机/刀塔", "origin": "domestic" },
-  { "id": 66, "nameCn": "海德曼", "nameEn": "HEIDEMAN", "type": "走心机/刀塔", "origin": "domestic" },
-  { "id": 67, "nameCn": "思瑞测量", "nameEn": "CHOTEST", "type": "测量扫描", "origin": "domestic" },
-  { "id": 68, "nameCn": "天准科技", "nameEn": "TZTEK", "type": "测量扫描", "origin": "domestic" },
-  { "id": 69, "nameCn": "中图仪器", "nameEn": "SINOAGE", "type": "测量扫描", "origin": "domestic" },
-  { "id": 70, "nameCn": "乔锋", "nameEn": "QIAOFENG", "type": "加工中心/数控车床", "origin": "domestic" },
-  { "id": 71, "nameCn": "苏三光", "nameEn": "SSG", "type": "火花机/线切割", "origin": "domestic" },
-  { "id": 72, "nameCn": "群基", "nameEn": "CHUNGCHI", "type": "火花机/线切割", "origin": "domestic" },
-  { "id": 73, "nameCn": "庆鸿", "nameEn": "CHMER", "type": "火花机/线切割", "origin": "domestic" },
-  { "id": 74, "nameCn": "台正", "nameEn": "TAIZHENG", "type": "加工中心/火花机", "origin": "domestic" },
-  { "id": 75, "nameCn": "领威科技", "nameEn": "LINGWEI", "type": "加工中心/数控车床", "origin": "domestic" },
-  { "id": 76, "nameCn": "雄群数控", "nameEn": "XIONGQUN", "type": "加工中心/数控车床", "origin": "domestic" },
-  { "id": 77, "nameCn": "精雕", "nameEn": "JINGDIAO", "type": "加工中心/数控车床", "origin": "domestic" },
-  { "id": 78, "nameCn": "不二越", "nameEn": "NACHI", "type": "工业机器人/刀具", "origin": "international" },
-  { "id": 79, "nameCn": "法如", "nameEn": "FARO", "type": "测量扫描", "origin": "international" },
-  { "id": 80, "nameCn": "蕙勒", "nameEn": "HUILE", "type": "加工中心/数控车床", "origin": "domestic" },
-  { "id": 81, "nameCn": "唯思凌科", "nameEn": "WSLK", "type": "加工中心/数控车床", "origin": "domestic" }
+  {
+    "id": 1,
+    "nameCn": "发那科",
+    "nameEn": "FANUC",
+    "type": "加工中心/数控车床",
+    "origin": "international"
+  },
+  {
+    "id": 2,
+    "nameCn": "山崎马扎克",
+    "nameEn": "MAZAK",
+    "type": "加工中心/数控车床",
+    "origin": "international"
+  },
+  {
+    "id": 3,
+    "nameCn": "牧野",
+    "nameEn": "MAKINO",
+    "type": "加工中心/火花机",
+    "origin": "international"
+  },
+  {
+    "id": 4,
+    "nameCn": "德马吉",
+    "nameEn": "DMG MORI",
+    "type": "加工中心/数控车床",
+    "origin": "international"
+  },
+  {
+    "id": 5,
+    "nameCn": "兄弟",
+    "nameEn": "BROTHER",
+    "type": "加工中心/数控车床",
+    "origin": "international",
+    "aliases": [
+      "Brother Industries",
+      "Brother"
+    ],
+    "productClass": "complete_machine"
+  },
+  {
+    "id": 6,
+    "nameCn": "斯大",
+    "nameEn": "STAR",
+    "type": "加工中心/数控车床",
+    "origin": "international",
+    "aliases": [
+      "STAR Micronics",
+      "Star"
+    ],
+    "productClass": "complete_machine"
+  },
+  {
+    "id": 7,
+    "nameCn": "斗山",
+    "nameEn": "DOOSAN",
+    "type": "加工中心/数控车床",
+    "origin": "international"
+  },
+  {
+    "id": 8,
+    "nameCn": "米科朗",
+    "nameEn": "MIKRON",
+    "type": "加工中心/数控车床",
+    "origin": "international"
+  },
+  {
+    "id": 9,
+    "nameCn": "西铁城",
+    "nameEn": "CITIZEN",
+    "type": "加工中心/走心机",
+    "origin": "international"
+  },
+  {
+    "id": 10,
+    "nameCn": "阿奇",
+    "nameEn": "AGIE",
+    "type": "火花机/线切割",
+    "origin": "international"
+  },
+  {
+    "id": 11,
+    "nameCn": "夏米尔",
+    "nameEn": "CHARMILLES",
+    "type": "加工中心/火花机",
+    "origin": "international"
+  },
+  {
+    "id": 12,
+    "nameCn": "哈挺",
+    "nameEn": "HARDINGE",
+    "type": "加工中心/数控车床",
+    "origin": "international"
+  },
+  {
+    "id": 13,
+    "nameCn": "罗德斯",
+    "nameEn": "ROEDERS",
+    "type": "加工中心/数控车床",
+    "origin": "international"
+  },
+  {
+    "id": 14,
+    "nameCn": "大隈",
+    "nameEn": "OKUMA",
+    "type": "加工中心/数控车床",
+    "origin": "international"
+  },
+  {
+    "id": 15,
+    "nameCn": "安田",
+    "nameEn": "YASDA",
+    "type": "加工中心/数控车床",
+    "origin": "international"
+  },
+  {
+    "id": 16,
+    "nameCn": "丰田工机",
+    "nameEn": "TOYODA",
+    "type": "加工中心/数控车床",
+    "origin": "international",
+    "familyId": "jtekt-toyoda",
+    "aliases": [
+      "捷太格特",
+      "JTEKT",
+      "ジェイテクト",
+      "JTEKT机床",
+      "捷太格特机床"
+    ],
+    "productClass": "complete_machine"
+  },
+  {
+    "id": 17,
+    "nameCn": "雷尼绍",
+    "nameEn": "RENISHAW",
+    "type": "测量/加工中心",
+    "origin": "international"
+  },
+  {
+    "id": 18,
+    "nameCn": "马波斯",
+    "nameEn": "MARPOSS",
+    "type": "测量/加工中心",
+    "origin": "international"
+  },
+  {
+    "id": 19,
+    "nameCn": "丽驰",
+    "nameEn": "LITZ",
+    "type": "加工中心/数控车床",
+    "origin": "international"
+  },
+  {
+    "id": 20,
+    "nameCn": "大阪机工",
+    "nameEn": "OKK",
+    "type": "加工中心/数控车床",
+    "origin": "international"
+  },
+  {
+    "id": 21,
+    "nameCn": "宫野",
+    "nameEn": "MIYANO",
+    "type": "加工中心/走心机",
+    "origin": "international"
+  },
+  {
+    "id": 22,
+    "nameCn": "山特维克",
+    "nameEn": "SANDVIK",
+    "type": "刀具/工装",
+    "origin": "international"
+  },
+  {
+    "id": 23,
+    "nameCn": "松浦",
+    "nameEn": "MATSUURA",
+    "type": "加工中心/数控车床",
+    "origin": "international"
+  },
+  {
+    "id": 24,
+    "nameCn": "高松",
+    "nameEn": "TAKAMATSU",
+    "type": "加工中心/走心机",
+    "origin": "international"
+  },
+  {
+    "id": 25,
+    "nameCn": "沙迪克",
+    "nameEn": "SODICK",
+    "type": "加工中心/火花机",
+    "origin": "international"
+  },
+  {
+    "id": 26,
+    "nameCn": "三菱",
+    "nameEn": "MITSUBISHI",
+    "type": "加工中心/火花机",
+    "origin": "international"
+  },
+  {
+    "id": 27,
+    "nameCn": "仓敷",
+    "nameEn": "KURAKI",
+    "type": "加工中心/数控车床",
+    "origin": "international"
+  },
+  {
+    "id": 28,
+    "nameCn": "冈本",
+    "nameEn": "OKAMOTO",
+    "type": "磨床",
+    "origin": "international"
+  },
+  {
+    "id": 29,
+    "nameCn": "泷泽",
+    "nameEn": "TAKISAWA",
+    "type": "加工中心/走心机",
+    "origin": "international"
+  },
+  {
+    "id": 30,
+    "nameCn": "津上",
+    "nameEn": "TSUGAMI",
+    "type": "加工中心/走心机",
+    "origin": "international"
+  },
+  {
+    "id": 31,
+    "nameCn": "哈默",
+    "nameEn": "HERMLE",
+    "type": "加工中心/数控车床",
+    "origin": "international"
+  },
+  {
+    "id": 32,
+    "nameCn": "赫克",
+    "nameEn": "HURCO",
+    "type": "加工中心/数控车床",
+    "origin": "international"
+  },
+  {
+    "id": 33,
+    "nameCn": "现代威亚",
+    "nameEn": "HYUNDAI WIA",
+    "type": "加工中心/数控车床",
+    "origin": "international"
+  },
+  {
+    "id": 34,
+    "nameCn": "海德汉",
+    "nameEn": "HEIDENHAIN",
+    "type": "数控系统",
+    "origin": "international"
+  },
+  {
+    "id": 35,
+    "nameCn": "菲迪亚",
+    "nameEn": "FIDIA",
+    "type": "加工中心/数控车床",
+    "origin": "international"
+  },
+  {
+    "id": 36,
+    "nameCn": "特纳斯",
+    "nameEn": "TORNOS",
+    "type": "走心机",
+    "origin": "international"
+  },
+  {
+    "id": 37,
+    "nameCn": "野村",
+    "nameEn": "NOMURA",
+    "type": "走心机",
+    "origin": "international"
+  },
+  {
+    "id": 38,
+    "nameCn": "哈斯",
+    "nameEn": "HAAS",
+    "type": "加工中心/走心机",
+    "origin": "international"
+  },
+  {
+    "id": 39,
+    "nameCn": "西门子",
+    "nameEn": "SIEMENS",
+    "type": "数控系统/SMT",
+    "origin": "international"
+  },
+  {
+    "id": 40,
+    "nameCn": "海克斯康",
+    "nameEn": "HEXAGON",
+    "type": "测量扫描",
+    "origin": "international"
+  },
+  {
+    "id": 41,
+    "nameCn": "蔡司",
+    "nameEn": "ZEISS",
+    "type": "测量扫描",
+    "origin": "international",
+    "aliases": [
+      "卡尔蔡司",
+      "Carl Zeiss",
+      "Zeiss"
+    ],
+    "productClass": "other"
+  },
+  {
+    "id": 42,
+    "nameCn": "基恩士",
+    "nameEn": "KEYENCE",
+    "type": "测量扫描",
+    "origin": "international"
+  },
+  {
+    "id": 43,
+    "nameCn": "三丰",
+    "nameEn": "MITUTOYO",
+    "type": "测量扫描",
+    "origin": "international"
+  },
+  {
+    "id": 44,
+    "nameCn": "温泽",
+    "nameEn": "WENZEL",
+    "type": "测量扫描",
+    "origin": "international"
+  },
+  {
+    "id": 45,
+    "nameCn": "形创",
+    "nameEn": "CREAFORM",
+    "type": "测量扫描",
+    "origin": "international"
+  },
+  {
+    "id": 46,
+    "nameCn": "天萨",
+    "nameEn": "TESA",
+    "type": "测量扫描",
+    "origin": "international"
+  },
+  {
+    "id": 47,
+    "nameCn": "马尔",
+    "nameEn": "MAHR",
+    "type": "测量扫描",
+    "origin": "international"
+  },
+  {
+    "id": 48,
+    "nameCn": "GOM",
+    "nameEn": "GOM ATOS",
+    "type": "测量扫描",
+    "origin": "international"
+  },
+  {
+    "id": 49,
+    "nameCn": "乔治费歇尔",
+    "nameEn": "GF MACHINING",
+    "type": "加工中心/火花机",
+    "origin": "international"
+  },
+  {
+    "id": 50,
+    "nameCn": "东芝",
+    "nameEn": "TOSHIBA",
+    "type": "加工中心/数控车床",
+    "origin": "international"
+  },
+  {
+    "id": 51,
+    "nameCn": "台达",
+    "nameEn": "DELTA",
+    "type": "火花机/线切割",
+    "origin": "international"
+  },
+  {
+    "id": 52,
+    "nameCn": "西部",
+    "nameEn": "SEIBU",
+    "type": "火花机/线切割",
+    "origin": "international"
+  },
+  {
+    "id": 53,
+    "nameCn": "巴鲁法蒂",
+    "nameEn": "BARUFFALDI",
+    "type": "走心机/刀塔",
+    "origin": "international"
+  },
+  {
+    "id": 54,
+    "nameCn": "富士",
+    "nameEn": "FUJI",
+    "type": "SMT",
+    "origin": "international"
+  },
+  {
+    "id": 55,
+    "nameCn": "松下",
+    "nameEn": "PANASONIC",
+    "type": "SMT",
+    "origin": "international"
+  },
+  {
+    "id": 56,
+    "nameCn": "雅马哈",
+    "nameEn": "YAMAHA",
+    "type": "SMT",
+    "origin": "international"
+  },
+  {
+    "id": 57,
+    "nameCn": "JUKI",
+    "nameEn": "JUKI",
+    "type": "SMT",
+    "origin": "international"
+  },
+  {
+    "id": 58,
+    "nameCn": "创世纪",
+    "nameEn": "CGJ",
+    "type": "加工中心/数控车床",
+    "origin": "domestic",
+    "aliases": [
+      "创世纪机床",
+      "广东创世纪"
+    ],
+    "productClass": "complete_machine"
+  },
+  {
+    "id": 59,
+    "nameCn": "台群",
+    "nameEn": "TAIQUN",
+    "type": "加工中心/数控车床",
+    "origin": "domestic"
+  },
+  {
+    "id": 60,
+    "nameCn": "沈阳机床",
+    "nameEn": "SMTCL",
+    "type": "加工中心/数控车床",
+    "origin": "domestic"
+  },
+  {
+    "id": 61,
+    "nameCn": "润星科技",
+    "nameEn": "RUNXING",
+    "type": "加工中心/数控车床",
+    "origin": "domestic"
+  },
+  {
+    "id": 62,
+    "nameCn": "秦川机床",
+    "nameEn": "QINCHUAN",
+    "type": "加工中心/数控车床",
+    "origin": "domestic"
+  },
+  {
+    "id": 63,
+    "nameCn": "汉川",
+    "nameEn": "HANCHUAN",
+    "type": "加工中心/数控车床",
+    "origin": "domestic"
+  },
+  {
+    "id": 64,
+    "nameCn": "纽威",
+    "nameEn": "NEWAY",
+    "type": "走心机/刀塔",
+    "origin": "domestic"
+  },
+  {
+    "id": 65,
+    "nameCn": "程泰",
+    "nameEn": "GOODWAY",
+    "type": "走心机/刀塔",
+    "origin": "domestic"
+  },
+  {
+    "id": 66,
+    "nameCn": "海德曼",
+    "nameEn": "HEIDEMAN",
+    "type": "走心机/刀塔",
+    "origin": "domestic"
+  },
+  {
+    "id": 67,
+    "nameCn": "思瑞测量",
+    "nameEn": "CHOTEST",
+    "type": "测量扫描",
+    "origin": "domestic"
+  },
+  {
+    "id": 68,
+    "nameCn": "天准科技",
+    "nameEn": "TZTEK",
+    "type": "测量扫描",
+    "origin": "domestic"
+  },
+  {
+    "id": 69,
+    "nameCn": "中图仪器",
+    "nameEn": "SINOAGE",
+    "type": "测量扫描",
+    "origin": "domestic"
+  },
+  {
+    "id": 70,
+    "nameCn": "乔锋",
+    "nameEn": "QIAOFENG",
+    "type": "加工中心/数控车床",
+    "origin": "domestic",
+    "aliases": [
+      "乔锋智能",
+      "乔锋智能装备",
+      "乔锋智能装备股份有限公司"
+    ],
+    "productClass": "complete_machine"
+  },
+  {
+    "id": 71,
+    "nameCn": "苏三光",
+    "nameEn": "SSG",
+    "type": "火花机/线切割",
+    "origin": "domestic"
+  },
+  {
+    "id": 72,
+    "nameCn": "群基",
+    "nameEn": "CHUNGCHI",
+    "type": "火花机/线切割",
+    "origin": "domestic"
+  },
+  {
+    "id": 73,
+    "nameCn": "庆鸿",
+    "nameEn": "CHMER",
+    "type": "火花机/线切割",
+    "origin": "domestic"
+  },
+  {
+    "id": 74,
+    "nameCn": "台正",
+    "nameEn": "TAIZHENG",
+    "type": "加工中心/火花机",
+    "origin": "domestic"
+  },
+  {
+    "id": 75,
+    "nameCn": "领威科技",
+    "nameEn": "LINGWEI",
+    "type": "加工中心/数控车床",
+    "origin": "domestic"
+  },
+  {
+    "id": 76,
+    "nameCn": "雄群数控",
+    "nameEn": "XIONGQUN",
+    "type": "加工中心/数控车床",
+    "origin": "domestic"
+  },
+  {
+    "id": 77,
+    "nameCn": "精雕",
+    "nameEn": "JINGDIAO",
+    "type": "加工中心/数控车床",
+    "origin": "domestic"
+  },
+  {
+    "id": 78,
+    "nameCn": "不二越",
+    "nameEn": "NACHI",
+    "type": "工业机器人/刀具",
+    "origin": "international"
+  },
+  {
+    "id": 79,
+    "nameCn": "法如",
+    "nameEn": "FARO",
+    "type": "测量扫描",
+    "origin": "international"
+  },
+  {
+    "id": 80,
+    "nameCn": "蕙勒",
+    "nameEn": "HUILE",
+    "type": "加工中心/数控车床",
+    "origin": "domestic",
+    "aliases": [
+      "蕙勒数控",
+      "蕙勒机床"
+    ],
+    "productClass": "complete_machine"
+  },
+  {
+    "id": 81,
+    "nameCn": "唯思凌科",
+    "nameEn": "WSLK",
+    "type": "加工中心/数控车床",
+    "origin": "domestic",
+    "aliases": [
+      "唯思凌科数控",
+      "唯思凌科机床"
+    ],
+    "productClass": "complete_machine"
+  },
+  {
+    "id": 82,
+    "nameCn": "芝浦",
+    "nameEn": "SHIBAURA",
+    "type": "加工中心/数控车床",
+    "origin": "international",
+    "aliases": [
+      "芝浦机械",
+      "Shibaura Machine",
+      "Shibaura",
+      "Toshiba Machine"
+    ],
+    "productClass": "complete_machine"
+  }
 ]

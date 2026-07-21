@@ -1329,24 +1329,45 @@ export class IngestComputeService {
     }
 
     // Strict employer matching against Industry DB companies (Tier 1 only).
+    // R1: brand/company surface resolve via resolveEntity (aliases + family) when matchBrands is empty.
     for (const employerMatch of verifiedEmployers) {
-      if (this.industryDataService.matchBrands(employerMatch.companyNameCn).length === 0) {
+      const brandMatches = this.industryDataService.matchBrands(employerMatch.companyNameCn);
+      const resolved =
+        brandMatches.length > 0
+          ? null
+          : this.industryDataService.resolveEntity(employerMatch.companyNameCn);
+      const isBrandHit =
+        brandMatches.length > 0 ||
+        (resolved !== null &&
+          resolved.kind === "brand" &&
+          (resolved.matchTier === "exact" ||
+            resolved.matchTier === "alias" ||
+            resolved.matchTier === "partial"));
+      if (!isBrandHit) {
         continue;
       }
 
-      const key = `${employerMatch.key}|workHistory|employer`;
+      const brandKey =
+        resolved && resolved.kind === "brand" && resolved.canonicalKey
+          ? resolved.canonicalKey
+          : employerMatch.key;
+      const key = `${brandKey}|workHistory|employer`;
       if (dedupe.has(key)) {
         continue;
       }
       dedupe.add(key);
-      const meta = resolveBrandMeta(employerMatch.key);
+      const meta = resolveBrandMeta(brandKey);
+      const origin =
+        resolved?.origin && resolved.origin !== "unknown"
+          ? normalizeBrandOrigin(resolved.origin)
+          : meta.origin;
       hits.push({
-        brand: employerMatch.key,
+        brand: brandKey,
         source: "workHistory",
         context: "employer",
         role: "employer",
         companyId: employerMatch.companyId,
-        origin: meta.origin,
+        origin,
         productClass: meta.productClass,
       });
     }
@@ -1367,12 +1388,27 @@ export class IngestComputeService {
     const brands = this.industryDataService.loadBrands();
     const patterns = this.skillsKnowledgeService.getCompanyPatterns();
 
+    const validProductClasses = new Set<ProductClass>([
+      "complete_machine",
+      "tool_accessory",
+      "industrial_component",
+      "other",
+    ]);
+
     for (const brand of brands) {
       const origin = normalizeBrandOrigin(brand.origin);
-      const productClass = classifyBrandProductClass(brand.type);
+      const declared =
+        typeof brand.productClass === "string"
+          ? (brand.productClass as ProductClass)
+          : undefined;
+      const productClass =
+        declared && validProductClasses.has(declared)
+          ? declared
+          : classifyBrandProductClass(brand.type);
       const keys = [
         brand.nameEn,
         brand.nameCn,
+        ...(brand.aliases ?? []),
       ]
         .map((value) => (typeof value === "string" ? normalizeCompanyPatternIdentifier(value) : ""))
         .filter((value) => value.length > 0);

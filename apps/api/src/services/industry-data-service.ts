@@ -2,6 +2,16 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { findProjectRoot } from "./db.js";
+import {
+    resolveEntity as resolveEntityPure,
+    type ResolvedEntity,
+    type ResolveMatchTier,
+} from "./industry-entity-resolve.js";
+import {
+    makeUnresolvedEvent,
+    type UnresolvedEvent,
+    type UnresolvedReason,
+} from "./industry-unresolved-queue.js";
 
 // Type definitions
 export interface CompanyEntry {
@@ -25,7 +35,14 @@ export interface BrandEntry {
     nameEn?: string;
     type: string;
     origin: "international" | "domestic" | "agent";
+    /** Shared family for rename clusters (e.g. jtekt-toyoda). */
+    familyId?: string;
+    /** Extra surface forms (CN/EN aliases) beyond nameCn/nameEn. */
+    aliases?: string[];
+    productClass?: string;
 }
+
+export type { ResolvedEntity, ResolveMatchTier, UnresolvedEvent, UnresolvedReason };
 
 export interface VerificationResult {
     verified: boolean;
@@ -486,12 +503,28 @@ export class IndustryDataService {
                     const origin: BrandEntry["origin"] =
                         rawOrigin === "international" || rawOrigin === "domestic" || rawOrigin === "agent"
                             ? rawOrigin : "international";
+                    const aliases = Array.isArray(item.aliases)
+                        ? item.aliases
+                              .map((a) => String(a).trim())
+                              .filter((a) => a.length > 0)
+                        : undefined;
+                    const familyId =
+                        typeof item.familyId === "string" && item.familyId.trim()
+                            ? item.familyId.trim()
+                            : undefined;
+                    const productClass =
+                        typeof item.productClass === "string" && item.productClass.trim()
+                            ? item.productClass.trim()
+                            : undefined;
                     return {
                         id: typeof item.id === "number" ? item.id : 0,
                         nameCn: String(item.nameCn ?? ""),
                         nameEn: item.nameEn ? String(item.nameEn) : undefined,
                         type: String(item.type ?? ""),
                         origin,
+                        ...(familyId ? { familyId } : {}),
+                        ...(aliases && aliases.length > 0 ? { aliases } : {}),
+                        ...(productClass ? { productClass } : {}),
                     };
                 }).filter((b) => b.nameCn);
             }
@@ -630,18 +663,94 @@ export class IndustryDataService {
     }
 
     /**
-     * Match brands in text
+     * Match brands in text (CN/EN names + optional aliases from brands.json).
      */
     matchBrands(text: string): BrandEntry[] {
         const data = this.loadAll();
         const normalizedText = text.toLowerCase();
 
         return data.brands.filter((b) => {
-            return (
+            if (
                 normalizedText.includes(b.nameCn.toLowerCase()) ||
                 (b.nameEn && normalizedText.includes(b.nameEn.toLowerCase()))
+            ) {
+                return true;
+            }
+            return (b.aliases ?? []).some((alias) =>
+                normalizedText.includes(alias.toLowerCase())
             );
         });
+    }
+
+    /**
+     * Single deterministic resolve path for brand/company surface forms (R1).
+     * Dual-read: brands.json (primary, with aliases/familyId) + companies from keywords-structured.md.
+     * Never calls network/LLM.
+     */
+    resolveEntity(surface: string): ResolvedEntity {
+        const data = this.loadAll();
+        return resolveEntityPure(surface, data.brands, data.companies);
+    }
+
+    /**
+     * Emit an offline unresolved event when resolve misses or keyword-tier is low-confidence (R2).
+     * Pure record — caller persists via industry-unresolved-store if desired.
+     */
+    emitUnresolved(
+        surface: string,
+        reason: UnresolvedReason = "miss",
+        nearbyScore?: number
+    ): UnresolvedEvent {
+        return makeUnresolvedEvent(surface, reason, nearbyScore);
+    }
+
+    /**
+     * Resolve + optional unresolved emit for miss / low-confidence keyword tiers.
+     * keyword_match with confidence < 0.7 is treated as low_confidence_keyword.
+     */
+    resolveWithUnresolvedHint(
+        surface: string,
+        nearbyScore?: number
+    ): { resolved: ResolvedEntity; unresolved?: UnresolvedEvent } {
+        const resolved = this.resolveEntity(surface);
+        if (resolved.matchTier === "miss") {
+            return {
+                resolved,
+                unresolved: this.emitUnresolved(surface, "miss", nearbyScore),
+            };
+        }
+
+        // Low-confidence industry keyword path (verifyCompanyIndustry tier) —
+        // surface may still be brand-partial; only emit when resolve is not a strong brand hit.
+        if (resolved.matchTier === "partial" && resolved.confidence < 0.7) {
+            return {
+                resolved,
+                unresolved: this.emitUnresolved(
+                    surface,
+                    "low_confidence_keyword",
+                    nearbyScore
+                ),
+            };
+        }
+
+        const industry = this.verifyCompanyIndustry(surface);
+        if (
+            industry.matchType === "keyword_match" &&
+            industry.confidence < 0.7 &&
+            resolved.matchTier !== "exact" &&
+            resolved.matchTier !== "alias"
+        ) {
+            return {
+                resolved,
+                unresolved: this.emitUnresolved(
+                    surface,
+                    "low_confidence_keyword",
+                    nearbyScore
+                ),
+            };
+        }
+
+        return { resolved };
     }
 
     /**
