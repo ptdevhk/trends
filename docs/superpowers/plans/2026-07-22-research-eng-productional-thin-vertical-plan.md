@@ -60,7 +60,7 @@
   - `parse_newsnow_payload(platform_id: str, payload: dict | str, captured_at: int) -> list[NormalizedNewsItem]`
   - Raises or returns empty on bad status (see steps)
 
-- [ ] **Step 1: Write fixture file**
+- [x] **Step 1: Write fixture file**
 
 ```json
 {
@@ -80,7 +80,7 @@
 }
 ```
 
-- [ ] **Step 2: Write failing tests**
+- [x] **Step 2: Write failing tests**
 
 ```python
 # apps/worker/tests/test_research_ports.py
@@ -114,7 +114,7 @@ def test_parse_newsnow_accepts_cache_status():
     assert items[0].platform == "baidu"
 ```
 
-- [ ] **Step 3: Run tests — expect fail**
+- [x] **Step 3: Run tests — expect fail**
 
 ```bash
 cd /Users/karlchow/Desktop/code/trends
@@ -123,7 +123,7 @@ uv run pytest apps/worker/tests/test_research_ports.py -q
 
 Expected: FAIL — `parse_newsnow_payload` missing
 
-- [ ] **Step 4: Implement pure parser in `research_ports.py`**
+- [x] **Step 4: Implement pure parser in `research_ports.py`**
 
 ```python
 def parse_newsnow_payload(
@@ -173,7 +173,7 @@ def parse_newsnow_payload(
     return result
 ```
 
-- [ ] **Step 5: Run tests — expect pass**
+- [x] **Step 5: Run tests — expect pass**
 
 ```bash
 uv run pytest apps/worker/tests/test_research_ports.py -q
@@ -181,7 +181,7 @@ uv run pytest apps/worker/tests/test_research_ports.py -q
 
 Expected: PASS
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add apps/worker/research_ports.py apps/worker/tests/test_research_ports.py apps/worker/tests/fixtures/newsnow_weibo_success.json
@@ -202,7 +202,7 @@ git commit -m "feat(research): parse NewsNow-shaped hotlist payloads"
 - Default API: `https://newsnow.busiyi.world/api/s`
 - Request: `GET {api_url}?id={platform_id}&latest`
 
-- [ ] **Step 1: Write failing test with injectable getter**
+- [x] **Step 1: Write failing test with injectable getter**
 
 ```python
 def test_newsnow_port_builds_query_and_parses(monkeypatch):
@@ -224,7 +224,7 @@ def test_newsnow_port_builds_query_and_parses(monkeypatch):
     assert items[0].title == "T1"
 ```
 
-- [ ] **Step 2: Run — expect fail; implement `NewsNowHotlistPort`**
+- [x] **Step 2: Run — expect fail; implement `NewsNowHotlistPort`**
 
 ```python
 DEFAULT_NEWSNOW_API_URL = "https://newsnow.busiyi.world/api/s"
@@ -253,7 +253,7 @@ class NewsNowHotlistPort:
 
 Keep `HttpHotlistPort` for optional `RESEARCH_HOTLIST_BASE_URL` path-style endpoints if already used; document NewsNow as the product default.
 
-- [ ] **Step 3: Tests pass; commit**
+- [x] **Step 3: Tests pass; commit**
 
 ```bash
 uv run pytest apps/worker/tests/test_research_ports.py -q
@@ -276,7 +276,7 @@ git commit -m "feat(research): NewsNow hotlist port for live platform fetch"
 - Per-platform / per-feed: try/except or empty on failure; continue; do not fail whole run solely because one platform returned empty
 - Whole-run still fails on Convex write errors
 
-- [ ] **Step 1: Failing test — soft-fail hotlist**
+- [x] **Step 1: Failing test — soft-fail hotlist**
 
 ```python
 class BoomHotlist:
@@ -303,7 +303,7 @@ def test_ingest_continues_when_one_platform_raises():
 
 Use a hotlist fake that raises on first platform and returns one item on second; assert news upsert still called.
 
-- [ ] **Step 2: Implement soft-fail loops + default NewsNow port**
+- [x] **Step 2: Implement soft-fail loops + default NewsNow port**
 
 ```python
 # research_ingest.py __init__
@@ -332,7 +332,7 @@ for feed in self.rss_feeds:
         logger.warning("[ResearchIngest] rss %s failed: %s", feed.get("id"), error)
 ```
 
-- [ ] **Step 3: Document flags in `.env.example`**
+- [x] **Step 3: Document flags in `.env.example`**
 
 ```bash
 # Research Eng native ingest (Convex news_items + research_signals)
@@ -343,7 +343,7 @@ for feed in self.rss_feeds:
 # LEGACY_TRENDRADAR_CRAWL=1          # shadow only; not required for product path
 ```
 
-- [ ] **Step 4: Tests pass; commit**
+- [x] **Step 4: Tests pass; commit**
 
 ```bash
 uv run pytest apps/worker/tests/test_research_ingest.py apps/worker/tests/test_research_ports.py -q
@@ -366,7 +366,7 @@ git commit -m "feat(research): default NewsNow ingest with soft-fail sources"
 - Produces: `api.research_ops.latestIngestRun` → latest by `startedAt` desc or null
 - Produces: `GET /api/research/ingest/latest` → `{ success, run }`
 
-- [ ] **Step 1: Failing convex-test**
+- [x] **Step 1: Failing convex-test**
 
 ```ts
 it("returns latest ingest run by startedAt", async () => {
@@ -397,7 +397,7 @@ it("returns latest ingest run by startedAt", async () => {
 });
 ```
 
-- [ ] **Step 2: Implement query**
+- [x] **Step 2: Implement query**
 
 ```ts
 export const latestIngestRun = query({
@@ -413,7 +413,7 @@ export const latestIngestRun = query({
 });
 ```
 
-- [ ] **Step 3: BFF service + route + test (mock Convex query path `research_ops:latestIngestRun`)**
+- [x] **Step 3: BFF service + route + test (mock Convex query path `research_ops:latestIngestRun`)**
 
 ```ts
 // research-service.ts
@@ -433,7 +433,7 @@ app.openapi(latestIngestRoute, async (c) => {
 });
 ```
 
-- [ ] **Step 4: Run tests; commit**
+- [x] **Step 4: Run tests; commit**
 
 ```bash
 bunx vitest run packages/convex/__tests__/research-ops-convex-test.test.ts apps/api/src/routes/research.test.ts
@@ -456,7 +456,7 @@ git commit -m "feat(research): expose latest ingest run for desk UX"
 - Calls `GET /api/research/companies/search?q=`
 - Navigates to `/${teamSlug}/research/${companyKey}?persona=hr`
 
-- [ ] **Step 1: Failing route mount test**
+- [x] **Step 1: Failing route mount test**
 
 ```ts
 // ResearchIndexPage.test.tsx + App structural check
@@ -467,7 +467,7 @@ it("App mounts research index and company routes", () => {
 });
 ```
 
-- [ ] **Step 2: Implement `ResearchIndexPage`**
+- [x] **Step 2: Implement `ResearchIndexPage`**
 
 Minimal UI:
 
@@ -477,7 +477,7 @@ Minimal UI:
 - Result list links to company page
 - Empty query hint: type company name or key
 
-- [ ] **Step 3: Wire App.tsx**
+- [x] **Step 3: Wire App.tsx**
 
 ```tsx
 const LazyResearchIndexPage = lazy(async () => {
@@ -489,7 +489,7 @@ const LazyResearchIndexPage = lazy(async () => {
 <Route path="research/:companyKey" element={... existing ...} />
 ```
 
-- [ ] **Step 4: Web tests; commit**
+- [x] **Step 4: Web tests; commit**
 
 ```bash
 npm --workspace @trends/web run test -- src/pages/ResearchIndexPage src/pages/ResearchCompanyPage
@@ -513,7 +513,7 @@ git commit -m "feat(research): add research index company search"
 - Empty: show message + latest ingest snippet + Run ingest
 - Ingest: `rawApiClient.POST('/api/research/ingest/run')` then refetch signals + latest
 
-- [ ] **Step 1: Panel tests — kind filter**
+- [x] **Step 1: Panel tests — kind filter**
 
 ```tsx
 it("filters signals by selected kinds", () => {
@@ -533,7 +533,7 @@ it("filters signals by selected kinds", () => {
 });
 ```
 
-- [ ] **Step 2: Implement filter chips + ranking then filter**
+- [x] **Step 2: Implement filter chips + ranking then filter**
 
 ```ts
 // after rankSignalsForPersona:
@@ -544,7 +544,7 @@ const filtered = selectedKinds?.length
 
 Sync `selectedKinds` from `searchParams.get('kinds')?.split(',').filter(Boolean)`.
 
-- [ ] **Step 3: Empty state + ingest control on page**
+- [x] **Step 3: Empty state + ingest control on page**
 
 ```tsx
 // ResearchCompanyPage
@@ -573,7 +573,7 @@ UI:
 - Empty `data-testid="company-research-empty"` includes CTA when no signals
 - Show `latestRun.status` / `finishedAt` / counters when present
 
-- [ ] **Step 4: Tests pass; commit**
+- [x] **Step 4: Tests pass; commit**
 
 ```bash
 npm --workspace @trends/web run test -- src/components/research src/pages/ResearchCompanyPage
@@ -594,7 +594,7 @@ git commit -m "feat(research): kind filters, empty state, and ingest button"
 - Badge chip tooltip or small link → `companyResearchHref(companyKey)`
 - Banner research link already exists; ensure badge variant exposes research navigation
 
-- [ ] **Step 1: Extend test**
+- [x] **Step 1: Extend test**
 
 ```ts
 it("badge variant links to research page for company", () => {
@@ -609,7 +609,7 @@ it("badge variant links to research page for company", () => {
 
 If badge variant currently has no research link, add one next to chip or inside tooltip content as `<a data-testid="company-policy-research-link">`.
 
-- [ ] **Step 2: Implement minimal link; tests pass; commit**
+- [x] **Step 2: Implement minimal link; tests pass; commit**
 
 ```bash
 npm --workspace @trends/web run test -- src/components/CompanyPolicyBadges.test.tsx
@@ -624,7 +624,7 @@ git commit -m "feat(research): deep link from policy badges to research page"
 **Files:**
 - Optional: short note under `docs/superpowers/research/` only if smoke findings need durability (skip if clean)
 
-- [ ] **Step 1: Ensure stack**
+- [x] **Step 1: Ensure stack**
 
 ```bash
 ./scripts/clean-dev.sh
@@ -632,7 +632,7 @@ git commit -m "feat(research): deep link from policy badges to research page"
 # wait for web :5173 api :3000 convex :3210
 ```
 
-- [ ] **Step 2: Once-run ingest (live)**
+- [x] **Step 2: Once-run ingest (live)**
 
 ```bash
 # with CONVEX_URL + CONVEX_WRITE_SECRET set, force enable:
@@ -643,14 +643,14 @@ RESEARCH_INGEST_ENABLED=1 uv run python -c "from apps.worker.research_ingest imp
 
 Expected: True / success; Convex has new `news_items` and possibly signals if aliases hit.
 
-- [ ] **Step 3: Desk checklist**
+- [x] **Step 3: Desk checklist**
 
 1. Open `http://localhost:5173/hr/research` — search 宝力 / pro-technic  
 2. Open company page — persona toggle + kind filters  
 3. Empty or populated empty-state / list; click Run ingest  
 4. From policies or resume policy badge — research deep link  
 
-- [ ] **Step 4: Capture smoke notes to scratch if in goal harness; otherwise stop**
+- [x] **Step 4: Capture smoke notes to scratch if in goal harness; otherwise stop**
 
 Do **not** claim PR7; do **not** fabricate parity greens.
 
