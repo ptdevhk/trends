@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { formatDistanceToNow } from 'date-fns/formatDistanceToNow'
 import { PageHeader } from '@/components/PageHeader'
+import { ResearchCompanyPredictInput } from '@/components/research/ResearchCompanyPredictInput'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
 import { rawApiClient } from '@/lib/api-helpers'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
 
@@ -81,6 +82,21 @@ function primaryLabel(nameCn?: string, displayName?: string, nameEn?: string): s
     return displayName.trim()
   }
   return nameEn?.trim() || ''
+}
+
+function formatPulseRelativeTime(capturedAt: number): string {
+  if (!Number.isFinite(capturedAt) || capturedAt <= 0) {
+    return ''
+  }
+  const date = new Date(capturedAt)
+  if (Number.isNaN(date.getTime())) {
+    return ''
+  }
+  try {
+    return formatDistanceToNow(date, { addSuffix: true })
+  } catch {
+    return ''
+  }
 }
 
 function CompanyCardGrid({
@@ -237,6 +253,19 @@ export function ResearchIndexPage() {
     golden.every((c) => c.signalCount === 0) &&
     fromDesk.every((c) => c.signalCount === 0)
 
+  const showcaseSuggestions = useMemo(
+    () =>
+      golden
+        .filter((c) => c.companyKey)
+        .slice(0, 4)
+        .map((c) => ({
+          companyKey: c.companyKey,
+          nameCn: primaryLabel(c.nameCn, c.displayName, c.nameEn) || c.companyKey,
+          ...(c.nameEn ? { nameEn: c.nameEn } : {}),
+        })),
+    [golden],
+  )
+
   return (
     <div className="space-y-6 p-4" data-testid="research-index-page">
       <PageHeader
@@ -387,20 +416,45 @@ export function ResearchIndexPage() {
             {t('research.pulseEmpty', { defaultValue: '暂无近期资讯。' })}
           </p>
         ) : (
-          <ul className="space-y-1 text-sm">
-            {pulse.slice(0, 12).map((item, index) => (
-              <li key={`${item.title}-${index}`} data-testid="research-pulse-item">
-                <span className="text-xs text-muted-foreground">{item.platform}</span>
-                {' · '}
-                {item.url ? (
-                  <a href={item.url} className="text-blue-600 hover:underline" target="_blank" rel="noreferrer">
-                    {item.title}
-                  </a>
-                ) : (
-                  item.title
-                )}
-              </li>
-            ))}
+          <ul className="space-y-2 text-sm">
+            {pulse.slice(0, 12).map((item, index) => {
+              const relative = formatPulseRelativeTime(item.capturedAt)
+              return (
+                <li
+                  key={`${item.title}-${index}`}
+                  data-testid="research-pulse-item"
+                  className="flex flex-wrap items-baseline gap-x-2 gap-y-1"
+                >
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] font-normal"
+                    data-testid="research-pulse-platform"
+                  >
+                    {item.platform}
+                  </Badge>
+                  {relative ? (
+                    <span
+                      className="text-xs text-muted-foreground"
+                      data-testid="research-pulse-time"
+                    >
+                      {relative}
+                    </span>
+                  ) : null}
+                  {item.url ? (
+                    <a
+                      href={item.url}
+                      className="text-blue-600 hover:underline"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {item.title}
+                    </a>
+                  ) : (
+                    <span>{item.title}</span>
+                  )}
+                </li>
+              )
+            })}
           </ul>
         )}
       </section>
@@ -410,21 +464,20 @@ export function ResearchIndexPage() {
           {t('research.sectionSearch', { defaultValue: '搜索企业' })}
         </h2>
         <form
-          className="flex flex-wrap gap-2"
+          className="flex flex-wrap items-start gap-2"
           onSubmit={(event) => {
             event.preventDefault()
             void search()
           }}
         >
-          <Input
-            value={q}
-            onChange={(event) => setQ(event.target.value)}
-            placeholder={t('research.searchPlaceholder', {
-              defaultValue: '企业名称、别名或 key…',
-            })}
-            className="max-w-md"
-            data-testid="research-company-search"
-          />
+          <div className="min-w-[16rem] flex-1 max-w-md">
+            <ResearchCompanyPredictInput
+              teamSlug={teamSlug}
+              value={q}
+              onValueChange={setQ}
+              showcaseSuggestions={showcaseSuggestions}
+            />
+          </div>
           <Button type="submit" disabled={loading} data-testid="research-company-search-submit">
             {loading
               ? t('research.searching', { defaultValue: '搜索中…' })

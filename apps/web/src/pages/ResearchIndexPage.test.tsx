@@ -61,7 +61,13 @@ const showcasePayload = {
       href: '/hr/research/makino?persona=hr',
     },
   ],
-  pulse: [{ title: 'Pulse headline', platform: 'showcase', capturedAt: 1 }],
+  pulse: [
+    {
+      title: 'Pulse headline',
+      platform: 'showcase',
+      capturedAt: Date.now() - 60_000,
+    },
+  ],
   meta: { lastIngest: null, showcaseSeedVersion: 'v1', seedIngestRunId: 'showcase-seed-v1' },
 }
 
@@ -135,6 +141,14 @@ describe('ResearchIndexPage hub', () => {
     expect(screen.getAllByTestId('showcase-data-badge').length).toBeGreaterThan(0)
     expect(screen.getAllByTestId('showcase-data-badge')[0]).toHaveTextContent('展示数据')
     expect(screen.getByTestId('research-pulse-item')).toHaveTextContent('Pulse headline')
+    expect(screen.getByTestId('research-pulse-platform')).toHaveTextContent('showcase')
+    expect(screen.getByTestId('research-pulse-time')).toBeInTheDocument()
+
+    // Predictive search combobox is primary in 搜索企业
+    const searchInput = screen.getByTestId('research-company-search')
+    expect(searchInput).toHaveAttribute('role', 'combobox')
+    expect(screen.getByTestId('research-predict-root')).toBeInTheDocument()
+    expect(screen.getByTestId('research-company-search-submit')).toBeInTheDocument()
 
     await waitFor(() => {
       expect(screen.getByTestId('research-section-industry')).toBeInTheDocument()
@@ -145,6 +159,27 @@ describe('ResearchIndexPage hub', () => {
     expect(fanuc).toBeTruthy()
     expect(fanuc).toHaveTextContent('发那科')
     expect(fanuc).toHaveAttribute('href', '/hr/research/fanuc?persona=hr')
+  })
+
+  it('search section renders predictive combobox with listbox on focus', async () => {
+    render(
+      <MemoryRouter>
+        <ResearchIndexPage />
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('research-section-search')).toBeInTheDocument()
+    })
+
+    const input = screen.getByTestId('research-company-search')
+    expect(input).toHaveAttribute('role', 'combobox')
+    fireEvent.focus(input)
+
+    // Empty focus: showcase golden suggestions when no recent opens
+    await waitFor(() => {
+      expect(screen.getByTestId('research-predict-listbox')).toBeInTheDocument()
+    })
   })
 
   it('seed CTA posts to showcase seed endpoint', async () => {

@@ -32,6 +32,9 @@ type Props = {
   showcaseSuggestions?: Array<{ companyKey: string; nameCn: string; nameEn?: string }>
   debounceMs?: number
   onNavigate?: (href: string) => void
+  /** Controlled query value (shared with hub list-search submit) */
+  value?: string
+  onValueChange?: (value: string) => void
 }
 
 const LISTBOX_ID = 'research-predict-listbox'
@@ -59,6 +62,8 @@ export function ResearchCompanyPredictInput({
   showcaseSuggestions = [],
   debounceMs = 250,
   onNavigate,
+  value: valueProp,
+  onValueChange,
 }: Props) {
   const { t } = useTranslation()
   const routerNavigate = useNavigate()
@@ -66,7 +71,18 @@ export function ResearchCompanyPredictInput({
     routerNavigate(href)
   })
 
-  const [q, setQ] = useState('')
+  const [uncontrolledQ, setUncontrolledQ] = useState('')
+  const isControlled = valueProp !== undefined
+  const q = isControlled ? valueProp : uncontrolledQ
+  const setQ = useCallback(
+    (next: string) => {
+      if (!isControlled) {
+        setUncontrolledQ(next)
+      }
+      onValueChange?.(next)
+    },
+    [isControlled, onValueChange],
+  )
   const [focused, setFocused] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
