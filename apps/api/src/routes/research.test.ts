@@ -6,6 +6,16 @@ vi.mock("../middleware/maintenance.js", () => ({
   },
 }));
 
+const showcaseMocks = vi.hoisted(() => ({
+  getResearchShowcase: vi.fn(),
+  seedResearchShowcase: vi.fn(),
+}));
+
+vi.mock("../services/research-showcase-service.js", () => ({
+  getResearchShowcase: showcaseMocks.getResearchShowcase,
+  seedResearchShowcase: showcaseMocks.seedResearchShowcase,
+}));
+
 import { createApp } from "../app";
 import { resetResumeScreeningDb } from "../services/database";
 import { parseJsonBody } from "../test-utils";
@@ -47,6 +57,8 @@ function convexSuccess(value: unknown): Response {
 describe("research routes", () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    showcaseMocks.getResearchShowcase.mockReset();
+    showcaseMocks.seedResearchShowcase.mockReset();
     resetResumeScreeningDb();
   });
 
@@ -177,5 +189,69 @@ describe("research routes", () => {
     const body = await parseJsonBody(response);
     expect(body.parity.parityRunId).toBe("p1");
     expect(body.parity.greenStreak).toBe(2);
+  });
+
+  it("returns showcase hub payload from service", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
+    showcaseMocks.getResearchShowcase.mockResolvedValue({
+      golden: [
+        {
+          companyKey: "pro-technic-machinery",
+          displayName: "Pro-Technic",
+          kindCounts: { hiring_signal: 1, sales_trigger: 1 },
+          signalCount: 2,
+          showcase: true,
+          href: "/hr/research/pro-technic-machinery?persona=hr",
+        },
+      ],
+      fromResumeDesk: [
+        {
+          companyKey: "globalfoundries",
+          displayName: "GlobalFoundries",
+          kindCounts: { hiring_signal: 1 },
+          signalCount: 1,
+          showcase: true,
+          href: "/hr/research/globalfoundries?persona=hr",
+        },
+      ],
+      pulse: [{ title: "t", platform: "showcase", capturedAt: 1 }],
+      meta: {
+        lastIngest: null,
+        showcaseSeedVersion: "v1",
+        seedIngestRunId: "showcase-seed-v1",
+      },
+    });
+    const app = createApp();
+    const response = await app.request("/api/research/showcase", { headers: auth.headers });
+    expect(response.status).toBe(200);
+    const body = await parseJsonBody(response);
+    expect(body.success).toBe(true);
+    expect(body.golden[0].companyKey).toBe("pro-technic-machinery");
+    expect(body.golden[0].signalCount).toBe(2);
+    expect(body.fromResumeDesk.length).toBe(1);
+    expect(Array.isArray(body.pulse)).toBe(true);
+    expect(showcaseMocks.getResearchShowcase).toHaveBeenCalled();
+  });
+
+  it("seeds showcase via POST", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
+    showcaseMocks.seedResearchShowcase.mockResolvedValue({
+      companiesUpserted: 6,
+      aliasesCreated: 10,
+      newsUpserted: 12,
+      signalsUpserted: 12,
+      seedIngestRunId: "showcase-seed-v1",
+    });
+    const app = createApp();
+    const response = await app.request("/api/research/showcase/seed", {
+      method: "POST",
+      headers: auth.headers,
+    });
+    expect(response.status).toBe(200);
+    const body = await parseJsonBody(response);
+    expect(body.success).toBe(true);
+    expect(body.signalsUpserted).toBe(12);
+    expect(body.seedIngestRunId).toBe("showcase-seed-v1");
+    expect(showcaseMocks.seedResearchShowcase).toHaveBeenCalled();
   });
 });

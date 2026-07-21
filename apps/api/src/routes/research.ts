@@ -9,6 +9,10 @@ import {
   searchResearchCompanies,
   triggerResearchIngest,
 } from "../services/research-service.js";
+import {
+  getResearchShowcase,
+  seedResearchShowcase,
+} from "../services/research-showcase-service.js";
 
 const app = new OpenAPIHono();
 
@@ -243,6 +247,89 @@ const latestIngestRoute = createRoute({
 app.openapi(latestIngestRoute, async (c) => {
   const run = await getLatestIngestRun();
   return c.json({ success: true as const, run }, 200);
+});
+
+const ShowcaseCompanyCardSchema = z.object({
+  companyKey: z.string(),
+  displayName: z.string(),
+  nameCn: z.string().optional(),
+  nameEn: z.string().optional(),
+  kindCounts: z.record(z.string(), z.number()),
+  signalCount: z.number(),
+  showcase: z.boolean(),
+  href: z.string(),
+});
+
+const showcaseRoute = createRoute({
+  method: "get",
+  path: "/api/research/showcase",
+  tags: ["research"],
+  summary: "Research showcase hub payload (golden + resume-desk cards + pulse)",
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.literal(true),
+            golden: z.array(ShowcaseCompanyCardSchema),
+            fromResumeDesk: z.array(ShowcaseCompanyCardSchema),
+            pulse: z.array(
+              z.object({
+                title: z.string(),
+                platform: z.string(),
+                url: z.string().optional(),
+                capturedAt: z.number(),
+              }),
+            ),
+            meta: z.object({
+              lastIngest: z.unknown().nullable(),
+              showcaseSeedVersion: z.string(),
+              seedIngestRunId: z.string(),
+            }),
+          }),
+        },
+      },
+      description: "Showcase hub DTO",
+    },
+  },
+});
+
+app.openapi(showcaseRoute, async (c) => {
+  const workspaceSlug =
+    c.req.header("X-Workspace-Slug")?.trim() ||
+    c.req.header("x-workspace-slug")?.trim() ||
+    "hr";
+  const payload = await getResearchShowcase(workspaceSlug);
+  return c.json({ success: true as const, ...payload }, 200);
+});
+
+const showcaseSeedRoute = createRoute({
+  method: "post",
+  path: "/api/research/showcase/seed",
+  tags: ["research"],
+  summary: "Idempotent operator seed for showcase hub density",
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.literal(true),
+            companiesUpserted: z.number(),
+            aliasesCreated: z.number(),
+            newsUpserted: z.number(),
+            signalsUpserted: z.number(),
+            seedIngestRunId: z.string(),
+          }),
+        },
+      },
+      description: "Seed counters",
+    },
+  },
+});
+
+app.openapi(showcaseSeedRoute, async (c) => {
+  const result = await seedResearchShowcase();
+  return c.json({ success: true as const, ...result }, 200);
 });
 
 export default app;

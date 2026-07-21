@@ -1,0 +1,116 @@
+# Research Showcase Hub pack (operator seed). Not live market intel.
+version: v1
+seedIngestRunId: showcase-seed-v1
+
+golden:
+  - companyKey: pro-technic-machinery
+    displayName: 宝力机械 / Pro-Technic Machinery
+    nameCn: 宝力机械
+    nameEn: Pro-Technic Machinery
+    aliases:
+      - 宝力机械
+      - 宝力机械有限公司
+      - Pro-Technic
+      - Pro-Technic Machinery
+    signals:
+      - kind: company_mention
+        title: 宝力机械出现在行业媒体报道
+        snippet: Showcase — company mention for HR desk demo
+      - kind: hiring_signal
+        title: 宝力机械招聘销售与应用工程师
+        snippet: Showcase — hiring language for persona=hr ranking
+      - kind: market_move
+        title: 宝力机械推进智能产线升级
+        snippet: Showcase — market / product shift
+      - kind: sales_trigger
+        title: 宝力机械扩产并签署设备合作
+        snippet: Showcase — expansion / partnership trigger
+
+  - companyKey: polywell
+    displayName: 宝惠 / Polywell
+    nameCn: 宝惠
+    nameEn: Polywell
+    aliases:
+      - 宝惠
+      - Polywell
+      - Polywell Machinery
+    signals:
+      - kind: company_mention
+        title: Polywell brand noted in supplier shortlist
+        snippet: Showcase — separate from Pro-Technic (no BaoLi umbrella)
+      - kind: hiring_signal
+        title: Polywell hiring service technicians
+        snippet: Showcase — hiring_signal
+      - kind: market_move
+        title: Polywell enters new regional channel
+        snippet: Showcase — market_move
+      - kind: sales_trigger
+        title: Polywell wins mid-size tooling order
+        snippet: Showcase — sales_trigger
+
+fromResumeDesk:
+  - companyKey: globalfoundries
+    displayName: GlobalFoundries
+    nameEn: GlobalFoundries
+    aliases:
+      - GlobalFoundries
+      - 格芯
+    signals:
+      - kind: company_mention
+        title: GlobalFoundries mentioned in semiconductor hiring roundup
+        snippet: Showcase — resume-desk employer
+      - kind: hiring_signal
+        title: GlobalFoundries opens process engineer roles
+        snippet: Showcase — hiring
+      - kind: market_move
+        title: GlobalFoundries capacity expansion update
+        snippet: Showcase — market
+
+  - companyKey: siemens-malaysia
+    displayName: Siemens Malaysia
+    nameEn: Siemens Malaysia
+    aliases:
+      - Siemens Malaysia
+      - Siemens
+    signals:
+      - kind: company_mention
+        title: Siemens Malaysia referenced in industrial automation brief
+        snippet: Showcase
+      - kind: hiring_signal
+        title: Siemens Malaysia hiring sales engineers
+        snippet: Showcase — hiring
+      - kind: sales_trigger
+        title: Siemens Malaysia partner expansion for factory automation
+        snippet: Showcase — sales
+
+  - companyKey: nestle-malaysia
+    displayName: Nestlé Malaysia
+    nameEn: Nestlé Malaysia
+    aliases:
+      - Nestlé Malaysia
+      - Nestle Malaysia
+      - Nestlé
+    signals:
+      - kind: company_mention
+        title: Nestlé Malaysia in FMCG operations digest
+        snippet: Showcase
+      - kind: market_move
+        title: Nestlé Malaysia plant modernization notes
+        snippet: Showcase — market
+      - kind: sales_trigger
+        title: Nestlé Malaysia supplier RFQ window
+        snippet: Showcase — sales
+
+  - companyKey: hino-motors-malaysia
+    displayName: Hino Motors Malaysia
+    nameEn: Hino Motors Malaysia
+    aliases:
+      - Hino Motors Malaysia
+      - Hino
+    signals:
+      - kind: company_mention
+        title: Hino Motors Malaysia in commercial vehicle notes
+        snippet: Showcase
+      - kind: hiring_signal
+        title: Hino Motors Malaysia recruiting service advisors
+        snippet: Showcase — hiring
