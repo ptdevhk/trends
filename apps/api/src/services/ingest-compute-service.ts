@@ -5,6 +5,7 @@ import {
   buildWorkHistoryEntryText,
   classifyBrandProductClass,
   computeVerifiedRoleYears,
+  CURRENT_INGEST_COMPUTE_EPOCH,
   formatLocationHierarchySearchText,
   isRecord,
   normalizeBrandOrigin,
@@ -80,6 +81,8 @@ export interface IngestResult {
   experienceLevel: string;
   computedAt: number;
   skillsVersion: number;
+  /** Algorithm revision (not skills catalog). See @trends/shared ingest-compute-epoch. */
+  ingestComputeEpoch: number;
 }
 
 export type TaggingProvenanceStage =
@@ -550,6 +553,7 @@ export class IngestComputeService {
       experienceLevel,
       computedAt,
       skillsVersion,
+      ingestComputeEpoch: CURRENT_INGEST_COMPUTE_EPOCH,
     };
   }
 

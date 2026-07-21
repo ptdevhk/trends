@@ -189,6 +189,7 @@ export function buildResumeIngestData(value: unknown): ResumeItem["ingestData"] 
     : undefined;
   const computedAt = toOptionalNumber(value.computedAt);
   const skillsVersion = toOptionalNumber(value.skillsVersion);
+  const ingestComputeEpoch = toOptionalNumber(value.ingestComputeEpoch);
 
   if (
     industryTags.length === 0
@@ -226,5 +227,6 @@ export function buildResumeIngestData(value: unknown): ResumeItem["ingestData"] 
     ...(market ? { market } : {}),
     ...(computedAt !== undefined ? { computedAt } : {}),
     ...(skillsVersion !== undefined ? { skillsVersion } : {}),
+    ...(ingestComputeEpoch !== undefined ? { ingestComputeEpoch } : {}),
   };
 }

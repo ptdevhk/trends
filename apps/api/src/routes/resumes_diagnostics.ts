@@ -3,7 +3,7 @@ import { callConvexMutation, callConvexQuery, isConvexPaginatedQueryPage } from 
 import { SkillsKnowledgeService } from "../services/skills-knowledge.js";
 import { config } from "../services/config.js";
 import { logger } from "../services/logger.js";
-import { resolveResumeDiagnosticsSourceKey } from "@trends/shared";
+import { CURRENT_INGEST_COMPUTE_EPOCH, resolveResumeDiagnosticsSourceKey } from "@trends/shared";
 import {
   AnalysisTasksResponseSchema,
   AnalysisTaskCancelResponseSchema,
@@ -16,7 +16,7 @@ import {
   ResumeDiagnosticsQuerySchema,
   ResumeDiagnosticsResponseSchema,
 } from "../schemas/index.js";
-import { requireAdmin } from "../middleware/auth.js";
+import { requireAdmin, requireAdminOrConvexWorker } from "../middleware/auth.js";
 import { requireWorkspacePermission } from "../services/workspace-permissions.js";
 
 const app = new OpenAPIHono();
@@ -26,20 +26,58 @@ app.use("/api/resumes/analysis-tasks", requireWorkspacePermission("resume:analys
 app.use("/api/resumes/analysis-tasks/*", requireWorkspacePermission("resume:analysis:run"));
 // Audit export remains workspace-admin only (compliance surface).
 app.use("/api/resumes/analysis-tasks/*/audit-export", requireAdmin);
-app.use("/api/resumes/skills-version", requireAdmin);
+// skills-version is read by Convex ingest_agent reIngestStaleResumes with write secret
+app.use("/api/resumes/skills-version", requireAdminOrConvexWorker);
 app.use("/api/resumes/field-coverage", requireAdmin);
 app.use("/api/resumes/diagnostics", requireAdmin);
 const skillsKnowledgeService = new SkillsKnowledgeService(config.projectRoot);
 
 const SimpleErrorSchema = z.object({ success: z.literal(false), error: z.string() });
 const AnalysisTasksSuccessSchema = AnalysisTasksResponseSchema;
-const SkillsVersionResponseSchema = z.object({ success: z.literal(true), version: z.number() });
+const SkillsVersionResponseSchema = z.object({
+  success: z.literal(true),
+  version: z.number(),
+  /** Algorithm epoch for roleSignals/years (distinct from skills catalog version). */
+  ingestComputeEpoch: z.number().int(),
+});
 const FieldCoverageResponseSchema = z.object({
   success: z.literal(true),
   scanned: z.number().int(),
   missingSearchText: z.number().int(),
   missingVerifiedRoleYears: z.number().int(),
   hasRoleSignals: z.number().int(),
+  missingIngestComputeEpoch: z.number().int(),
+  laggingIngestComputeEpoch: z.number().int(),
+  currentIngestComputeEpoch: z.number().int(),
+});
+const SearchFreshnessResponseSchema = z.object({
+  success: z.literal(true),
+  currentSkillsVersion: z.number().int(),
+  currentIngestComputeEpoch: z.number().int(),
+  apiReachable: z.boolean(),
+  lag: z.object({
+    scanned: z.number().int(),
+    withIngestData: z.number().int(),
+    skillsStale: z.number().int(),
+    computeStale: z.number().int(),
+    missingEpoch: z.number().int(),
+    currentEpoch: z.number().int(),
+    scanComplete: z.boolean(),
+  }),
+  goldenQueries: z.array(z.object({
+    id: z.string(),
+    location: z.string(),
+    q: z.string(),
+    minRoleYears: z.number(),
+    roleType: z.string().optional(),
+    minTotalFloor: z.number(),
+    total: z.number().nullable(),
+    ok: z.boolean().nullable(),
+    error: z.string().optional(),
+  })),
+  /** Non-zero when compute-stale above threshold or a golden floor fails while API is up */
+  exitCodeHint: z.number().int(),
+  messages: z.array(z.string()),
 });
 
 const ExactTaskAuditPageQuerySchema = z.object({
@@ -433,14 +471,18 @@ const getSkillsVersionRoute = createRoute({
   method: "get",
   path: "/api/resumes/skills-version",
   tags: ["resumes"],
-  summary: "Get current skills knowledge version",
+  summary: "Get current skills knowledge version and ingest-compute epoch",
   responses: {
     200: { content: { "application/json": { schema: SkillsVersionResponseSchema } }, description: "Skills version" },
   },
 });
 app.openapi(getSkillsVersionRoute, (c) => {
   const version = skillsKnowledgeService.getVersion();
-  return c.json({ success: true, version }, 200);
+  return c.json({
+    success: true,
+    version,
+    ingestComputeEpoch: CURRENT_INGEST_COMPUTE_EPOCH,
+  }, 200);
 });
 
 const getFieldCoverageRoute = createRoute({
@@ -453,7 +495,15 @@ const getFieldCoverageRoute = createRoute({
   },
 });
 app.openapi(getFieldCoverageRoute, async (c) => {
-  const total = { scanned: 0, missingSearchText: 0, missingVerifiedRoleYears: 0, hasRoleSignals: 0 };
+  const total = {
+    scanned: 0,
+    missingSearchText: 0,
+    missingVerifiedRoleYears: 0,
+    hasRoleSignals: 0,
+    missingIngestComputeEpoch: 0,
+    laggingIngestComputeEpoch: 0,
+    currentIngestComputeEpoch: CURRENT_INGEST_COMPUTE_EPOCH,
+  };
   let cursor: string | null = null;
 
   for (let i = 0; i < 100; i++) {
@@ -465,6 +515,8 @@ app.openapi(getFieldCoverageRoute, async (c) => {
       missingSearchText: number;
       missingVerifiedRoleYears: number;
       hasRoleSignals: number;
+      missingIngestComputeEpoch?: number;
+      laggingIngestComputeEpoch?: number;
       hasMore: boolean;
       cursor: string | null;
     };
@@ -472,12 +524,221 @@ app.openapi(getFieldCoverageRoute, async (c) => {
     total.missingSearchText += batch.missingSearchText;
     total.missingVerifiedRoleYears += batch.missingVerifiedRoleYears;
     total.hasRoleSignals += batch.hasRoleSignals;
+    total.missingIngestComputeEpoch += batch.missingIngestComputeEpoch ?? 0;
+    total.laggingIngestComputeEpoch += batch.laggingIngestComputeEpoch ?? 0;
 
     if (!batch.hasMore) break;
     cursor = batch.cursor;
   }
 
   return c.json({ success: true, ...total }, 200);
+});
+
+const COMPUTE_STALE_DOCTOR_THRESHOLD = 1;
+
+const getSearchFreshnessRoute = createRoute({
+  method: "get",
+  path: "/api/resumes/search-freshness",
+  tags: ["resumes"],
+  summary:
+    "Search-data freshness doctor: ingestComputeEpoch lag counts + golden MY/CN minRoleYears totals",
+  request: {
+    query: z.object({
+      scanLimit: z.coerce.number().int().min(1).max(1000).optional(),
+      /** When true, skip golden live search queries */
+      skipGolden: z.coerce.boolean().optional(),
+    }),
+  },
+  responses: {
+    200: {
+      content: { "application/json": { schema: SearchFreshnessResponseSchema } },
+      description: "Freshness report",
+    },
+    500: {
+      content: { "application/json": { schema: SimpleErrorSchema } },
+      description: "Doctor failed",
+    },
+  },
+});
+app.use("/api/resumes/search-freshness", requireAdmin);
+app.openapi(getSearchFreshnessRoute, async (c) => {
+  const { scanLimit, skipGolden } = c.req.valid("query");
+  const messages: string[] = [];
+  const currentSkillsVersion = skillsKnowledgeService.getVersion();
+  const currentEpoch = CURRENT_INGEST_COMPUTE_EPOCH;
+
+  let lag = {
+    scanned: 0,
+    withIngestData: 0,
+    skillsStale: 0,
+    computeStale: 0,
+    missingEpoch: 0,
+    currentEpoch: 0,
+    scanComplete: false,
+  };
+
+  try {
+    const { triggerReingestStaleSkillsVersion } = await import("./resumes.js");
+    const dry = await triggerReingestStaleSkillsVersion({
+      limit: scanLimit ?? 200,
+      mode: "any",
+      dryRun: true,
+    });
+    lag = {
+      scanned: scanLimit ?? 200,
+      withIngestData: Math.max(dry.skillsStaleCount, dry.computeStaleCount, dry.matchedCount),
+      skillsStale: dry.skillsStaleCount,
+      computeStale: dry.computeStaleCount,
+      missingEpoch: dry.computeStaleCount,
+      currentEpoch: dry.currentIngestComputeEpoch,
+      scanComplete: !dry.hasMore,
+    };
+    messages.push(
+      `dry-run reingest mode=${dry.mode}: matched=${dry.matchedCount} skillsStale=${dry.skillsStaleCount} computeStale=${dry.computeStaleCount} hasMore=${dry.hasMore}`,
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    messages.push(`lag scan failed: ${message}`);
+  }
+
+  const { SEARCH_FRESHNESS_GOLDEN_QUERIES } = await import("@trends/shared");
+  const workspaceSlug = c.req.header("X-Workspace-Slug") || "dev";
+  const goldenQueries: Array<{
+    id: string;
+    location: string;
+    q: string;
+    minRoleYears: number;
+    roleType?: string;
+    minTotalFloor: number;
+    total: number | null;
+    ok: boolean | null;
+    error?: string;
+  }> = [];
+
+  let apiReachable = true;
+  if (skipGolden === true) {
+    messages.push("golden queries skipped (skipGolden=true)");
+  } else {
+    for (const g of SEARCH_FRESHNESS_GOLDEN_QUERIES) {
+      const params = new URLSearchParams({
+        source: "convex",
+        location: g.location,
+        q: g.q,
+        minRoleYears: String(g.minRoleYears),
+        limit: "1",
+      });
+      if (g.roleType) {
+        params.set("roleType", g.roleType);
+      }
+      try {
+        // Internal call through same app — use full URL if available, else relative via c.env
+        const base = process.env.BFF_API_URL || process.env.API_URL || "http://127.0.0.1:3000";
+        const cookie = c.req.header("cookie") || "";
+        const response = await fetch(`${base.replace(/\/$/, "")}/api/resumes?${params}`, {
+          headers: {
+            "X-Workspace-Slug": workspaceSlug,
+            ...(cookie ? { cookie } : {}),
+          },
+        });
+        if (!response.ok) {
+          apiReachable = response.status !== 0;
+          goldenQueries.push({
+            id: g.id,
+            location: g.location,
+            q: g.q,
+            minRoleYears: g.minRoleYears,
+            roleType: g.roleType,
+            minTotalFloor: g.minTotalFloor,
+            total: null,
+            ok: null,
+            error: `HTTP ${response.status}`,
+          });
+          continue;
+        }
+        const body = await response.json() as {
+          success?: boolean;
+          summary?: { total?: number };
+          error?: string;
+        };
+        if (!body.success) {
+          goldenQueries.push({
+            id: g.id,
+            location: g.location,
+            q: g.q,
+            minRoleYears: g.minRoleYears,
+            roleType: g.roleType,
+            minTotalFloor: g.minTotalFloor,
+            total: null,
+            ok: null,
+            error: body.error || "search failed",
+          });
+          continue;
+        }
+        const total = typeof body.summary?.total === "number" ? body.summary.total : 0;
+        const ok = total >= g.minTotalFloor;
+        if (!ok) {
+          messages.push(
+            `golden ${g.id} total=${total} below floor ${g.minTotalFloor}`,
+          );
+        }
+        goldenQueries.push({
+          id: g.id,
+          location: g.location,
+          q: g.q,
+          minRoleYears: g.minRoleYears,
+          roleType: g.roleType,
+          minTotalFloor: g.minTotalFloor,
+          total,
+          ok,
+        });
+      } catch (error) {
+        apiReachable = false;
+        const message = error instanceof Error ? error.message : String(error);
+        goldenQueries.push({
+          id: g.id,
+          location: g.location,
+          q: g.q,
+          minRoleYears: g.minRoleYears,
+          roleType: g.roleType,
+          minTotalFloor: g.minTotalFloor,
+          total: null,
+          ok: null,
+          error: message,
+        });
+        messages.push(`golden ${g.id} unreachable: ${message}`);
+      }
+    }
+  }
+
+  let exitCodeHint = 0;
+  if (lag.computeStale >= COMPUTE_STALE_DOCTOR_THRESHOLD) {
+    exitCodeHint = 2;
+    messages.push(
+      `compute-stale rows detected (${lag.computeStale}); schedule: trends resume debug trigger-reingest --mode any --limit 200`,
+    );
+  }
+  if (apiReachable && goldenQueries.some((g) => g.ok === false)) {
+    exitCodeHint = exitCodeHint === 0 ? 3 : exitCodeHint;
+  }
+
+  return c.json({
+    success: true as const,
+    currentSkillsVersion,
+    currentIngestComputeEpoch: currentEpoch,
+    apiReachable,
+    lag: {
+      scanned: lag.scanned,
+      withIngestData: lag.withIngestData,
+      skillsStale: lag.skillsStale,
+      computeStale: lag.computeStale,
+      missingEpoch: lag.missingEpoch,
+      currentEpoch: typeof lag.currentEpoch === "number" ? lag.currentEpoch : currentEpoch,
+      scanComplete: lag.scanComplete,
+    },
+    goldenQueries,
+    exitCodeHint,
+    messages,
+  }, 200);
 });
 
 const listResumeDiagnosticsRoute = createRoute({

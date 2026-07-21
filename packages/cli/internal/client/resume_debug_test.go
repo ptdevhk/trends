@@ -63,19 +63,25 @@ func TestResumeDebugClientEndpoints(t *testing.T) {
 				Version: 42,
 			})
 		case r.Method == http.MethodPost && r.URL.Path == "/api/resumes/trigger-reingest":
-			var payload map[string]int
+			var payload map[string]any
 			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 				t.Fatalf("failed to decode trigger-reingest body: %v", err)
 			}
-			if got := payload["limit"]; got != 150 {
-				t.Fatalf("expected limit=150, got %d", got)
+			limit, _ := payload["limit"].(float64)
+			if int(limit) != 150 {
+				t.Fatalf("expected limit=150, got %v", payload["limit"])
+			}
+			if mode, _ := payload["mode"].(string); mode != "any" {
+				t.Fatalf("expected mode=any, got %v", payload["mode"])
 			}
 			_ = json.NewEncoder(w).Encode(ResumeTriggerReingestResponse{
-				Success:        true,
-				Scheduled:      150,
-				Batches:        3,
-				CurrentVersion: 9,
-				HasMore:        true,
+				Success:                   true,
+				Scheduled:                 150,
+				Batches:                   3,
+				CurrentVersion:            9,
+				CurrentIngestComputeEpoch: 1,
+				HasMore:                   true,
+				Mode:                      "any",
 			})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/resumes/diagnostics":
 			if got := r.URL.Query().Get("archived"); got != "true" {

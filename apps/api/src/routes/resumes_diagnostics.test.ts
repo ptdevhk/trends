@@ -866,14 +866,43 @@ describe("resumes_diagnostics", () => {
   });
 
   describe("GET /api/resumes/skills-version", () => {
-    it("returns version number", async () => {
+    it("returns skills version and ingestComputeEpoch for admin", async () => {
       const app = createTestApp();
       const response = await app.request("/api/resumes/skills-version");
 
       expect(response.status).toBe(200);
-      const payload = await parseJsonBody<{ success: unknown; version: number }>(response);
+      const payload = await parseJsonBody<{
+        success: unknown;
+        version: number;
+        ingestComputeEpoch: number;
+      }>(response);
       expect(payload.success).toBe(true);
       expect(typeof payload.version).toBe("number");
+      expect(typeof payload.ingestComputeEpoch).toBe("number");
+      expect(payload.ingestComputeEpoch).toBeGreaterThanOrEqual(1);
+    });
+
+    it("accepts Convex write-secret worker auth without browser session", async () => {
+      const app = createTestApp(null);
+      const response = await app.request("/api/resumes/skills-version", {
+        headers: { "X-Convex-Write-Secret": TEST_CONVEX_WRITE_SECRET },
+      });
+
+      expect(response.status).toBe(200);
+      const payload = await parseJsonBody<{
+        success: unknown;
+        version: number;
+        ingestComputeEpoch: number;
+      }>(response);
+      expect(payload.success).toBe(true);
+      expect(typeof payload.version).toBe("number");
+      expect(payload.ingestComputeEpoch).toBeGreaterThanOrEqual(1);
+    });
+
+    it("rejects unauthenticated requests without write secret", async () => {
+      const app = createTestApp(null);
+      const response = await app.request("/api/resumes/skills-version");
+      expect(response.status).toBeGreaterThanOrEqual(401);
     });
   });
 
@@ -885,6 +914,8 @@ describe("resumes_diagnostics", () => {
           missingSearchText: 10,
           missingVerifiedRoleYears: 5,
           hasRoleSignals: 150,
+          missingIngestComputeEpoch: 40,
+          laggingIngestComputeEpoch: 2,
           hasMore: false,
           cursor: null,
         }),
@@ -894,9 +925,19 @@ describe("resumes_diagnostics", () => {
       const response = await app.request("/api/resumes/field-coverage");
 
       expect(response.status).toBe(200);
-      const payload = await parseJsonBody<{ success: unknown; scanned: number; missingSearchText: number }>(response);
+      const payload = await parseJsonBody<{
+        success: unknown;
+        scanned: number;
+        missingSearchText: number;
+        missingIngestComputeEpoch: number;
+        laggingIngestComputeEpoch: number;
+        currentIngestComputeEpoch: number;
+      }>(response);
       expect(payload.success).toBe(true);
       expect(payload.scanned).toBe(200);
+      expect(payload.missingIngestComputeEpoch).toBe(40);
+      expect(payload.laggingIngestComputeEpoch).toBe(2);
+      expect(payload.currentIngestComputeEpoch).toBeGreaterThanOrEqual(1);
       expect(payload.missingSearchText).toBe(10);
     });
 

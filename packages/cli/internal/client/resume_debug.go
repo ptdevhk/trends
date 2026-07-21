@@ -61,16 +61,52 @@ type ResumeRescoreRequest struct {
 }
 
 type ResumeSkillsVersionResponse struct {
-	Success bool `json:"success"`
-	Version int  `json:"version"`
+	Success             bool `json:"success"`
+	Version             int  `json:"version"`
+	IngestComputeEpoch  int  `json:"ingestComputeEpoch,omitempty"`
 }
 
 type ResumeTriggerReingestResponse struct {
-	Success        bool `json:"success"`
-	Scheduled      int  `json:"scheduled"`
-	Batches        int  `json:"batches"`
-	CurrentVersion int  `json:"currentVersion"`
-	HasMore        bool `json:"hasMore"`
+	Success                   bool   `json:"success"`
+	Scheduled                 int    `json:"scheduled"`
+	Batches                   int    `json:"batches"`
+	CurrentVersion            int    `json:"currentVersion"`
+	CurrentIngestComputeEpoch int    `json:"currentIngestComputeEpoch,omitempty"`
+	HasMore                   bool   `json:"hasMore"`
+	Mode                      string `json:"mode,omitempty"`
+	DryRun                    bool   `json:"dryRun,omitempty"`
+	SkillsStaleCount          int    `json:"skillsStaleCount,omitempty"`
+	ComputeStaleCount         int    `json:"computeStaleCount,omitempty"`
+	MatchedCount              int    `json:"matchedCount,omitempty"`
+}
+
+type ResumeSearchFreshnessResponse struct {
+	Success                    bool   `json:"success"`
+	CurrentSkillsVersion       int    `json:"currentSkillsVersion"`
+	CurrentIngestComputeEpoch  int    `json:"currentIngestComputeEpoch"`
+	APIReachable               bool   `json:"apiReachable"`
+	ExitCodeHint               int    `json:"exitCodeHint"`
+	Messages                   []string `json:"messages,omitempty"`
+	Lag                        struct {
+		Scanned       int  `json:"scanned"`
+		WithIngestData int `json:"withIngestData"`
+		SkillsStale   int  `json:"skillsStale"`
+		ComputeStale  int  `json:"computeStale"`
+		MissingEpoch  int  `json:"missingEpoch"`
+		CurrentEpoch  int  `json:"currentEpoch"`
+		ScanComplete  bool `json:"scanComplete"`
+	} `json:"lag"`
+	GoldenQueries []struct {
+		ID            string  `json:"id"`
+		Location      string  `json:"location"`
+		Q             string  `json:"q"`
+		MinRoleYears  int     `json:"minRoleYears"`
+		RoleType      string  `json:"roleType,omitempty"`
+		MinTotalFloor int     `json:"minTotalFloor"`
+		Total         *int    `json:"total"`
+		OK            *bool   `json:"ok"`
+		Error         string  `json:"error,omitempty"`
+	} `json:"goldenQueries"`
 }
 
 type ExactReingestTarget struct {
@@ -296,9 +332,24 @@ func (c *Client) GetResumeSkillsVersion(ctx context.Context) (*ResumeSkillsVersi
 }
 
 func (c *Client) TriggerResumeReingest(ctx context.Context, limit int) (*ResumeTriggerReingestResponse, error) {
-	payload := map[string]int{}
+	return c.TriggerResumeReingestWithOptions(ctx, limit, "any", false)
+}
+
+func (c *Client) TriggerResumeReingestWithOptions(
+	ctx context.Context,
+	limit int,
+	mode string,
+	dryRun bool,
+) (*ResumeTriggerReingestResponse, error) {
+	payload := map[string]any{}
 	if limit > 0 {
 		payload["limit"] = limit
+	}
+	if strings.TrimSpace(mode) != "" {
+		payload["mode"] = strings.TrimSpace(mode)
+	}
+	if dryRun {
+		payload["dryRun"] = true
 	}
 
 	endpoint := fmt.Sprintf("%s/api/resumes/trigger-reingest", c.APIURL)
@@ -308,6 +359,28 @@ func (c *Client) TriggerResumeReingest(ctx context.Context, limit int) (*ResumeT
 	}
 	if !response.Success {
 		return nil, fmt.Errorf("resume trigger reingest request was not successful")
+	}
+	return &response, nil
+}
+
+func (c *Client) GetResumeSearchFreshness(ctx context.Context, scanLimit int, skipGolden bool) (*ResumeSearchFreshnessResponse, error) {
+	values := url.Values{}
+	if scanLimit > 0 {
+		values.Set("scanLimit", strconv.Itoa(scanLimit))
+	}
+	if skipGolden {
+		values.Set("skipGolden", "true")
+	}
+	endpoint := fmt.Sprintf("%s/api/resumes/search-freshness", c.APIURL)
+	if encoded := values.Encode(); encoded != "" {
+		endpoint = endpoint + "?" + encoded
+	}
+	var response ResumeSearchFreshnessResponse
+	if err := c.doJSON(ctx, http.MethodGet, endpoint, nil, &response); err != nil {
+		return nil, err
+	}
+	if !response.Success {
+		return nil, fmt.Errorf("resume search freshness request was not successful")
 	}
 	return &response, nil
 }

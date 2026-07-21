@@ -75,6 +75,7 @@ export type ResumeIngestData = {
   market?: string;
   computedAt?: number;
   skillsVersion?: number;
+  ingestComputeEpoch?: number;
 };
 
 export type ResumeItem = {

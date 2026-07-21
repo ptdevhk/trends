@@ -5,7 +5,14 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { action, internalAction, internalQuery, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import type { ResumeScanRow } from "./resumes";
-import { isRecord, type BrandOrigin, type ProductClass } from "@trends/shared";
+import {
+  CURRENT_INGEST_COMPUTE_EPOCH,
+  isRecord,
+  shouldSelectForReingest,
+  type BrandOrigin,
+  type ProductClass,
+  type StaleSelectionMode,
+} from "@trends/shared";
 import { computeProtectedAttributeHashes } from "./audit.js";
 import {
   collectResumeIdentityAliases,
@@ -90,8 +97,14 @@ function getBffApiUrl(): string {
 
 
 function isStaleSkillsVersion(resume: ResumeScanRow, currentVersion: number): boolean {
-  const version = resume.ingestData?.skillsVersion;
-  return typeof version !== "number" || version < currentVersion;
+  return shouldSelectForReingest(resume.ingestData, "skills", currentVersion);
+}
+
+function readIngestComputeEpochFromPayload(value: unknown): number {
+  if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+    return value;
+  }
+  return CURRENT_INGEST_COMPUTE_EPOCH;
 }
 
 const EXACT_REINGEST_BATCH_SIZE = 50;
@@ -713,6 +726,7 @@ export const processNewResumes = internalAction({
           experienceLevel: item.experienceLevel as string,
           computedAt: item.computedAt as number,
           skillsVersion: item.skillsVersion as number,
+          ingestComputeEpoch: readIngestComputeEpochFromPayload(item.ingestComputeEpoch),
         },
         companyPatternAliasTokens: (item.companyPatternAliasTokens as string) || "",
         primaryRuleScore: typeof item.primaryRuleScore === "number" ? item.primaryRuleScore : 0,
@@ -804,17 +818,52 @@ export const reIngestAllResumes = internalAction({
   },
 });
 
+function resolveStaleSelectionMode(value: string | undefined): StaleSelectionMode {
+  if (value === "skills" || value === "compute" || value === "any") {
+    return value;
+  }
+  return "any";
+}
+
+export type ReIngestStaleResult = {
+  scheduled: number;
+  batches: number;
+  currentVersion: number;
+  currentIngestComputeEpoch: number;
+  hasMore: boolean;
+  mode: StaleSelectionMode;
+  dryRun: boolean;
+  /** Rows seen in this scan that are skills-stale (may exceed scheduled when dry-run/count capped). */
+  skillsStaleCount: number;
+  /** Rows seen in this scan that are compute-stale. */
+  computeStaleCount: number;
+  /** Rows selected under `mode` in this scan (before limit truncate for schedule). */
+  matchedCount: number;
+};
+
 export const reIngestStaleResumes = internalAction({
   args: {
     limit: v.optional(v.number()),
+    /** skills | compute | any (default any — skills lag OR compute epoch lag) */
+    mode: v.optional(v.string()),
+    /** When true, scan and count only — do not schedule processNewResumes */
+    dryRun: v.optional(v.boolean()),
   },
-  handler: async (
-    ctx,
-    args
-  ): Promise<{ scheduled: number; batches: number; currentVersion: number; hasMore: boolean }> => {
+  handler: async (ctx, args): Promise<ReIngestStaleResult> => {
     const limit = Math.max(1, Math.min(args.limit ?? 200, 1000));
+    const mode = resolveStaleSelectionMode(args.mode);
+    const dryRun = args.dryRun === true;
     const bffUrl = getBffApiUrl();
-    const versionResponse = await fetch(`${bffUrl}/api/resumes/skills-version`);
+    const versionHeaders: Record<string, string> = {
+      Accept: "application/json",
+    };
+    const writeSecret = readOptionalString(process.env.CONVEX_WRITE_SECRET);
+    if (writeSecret) {
+      versionHeaders["X-Convex-Write-Secret"] = writeSecret;
+    }
+    const versionResponse = await fetch(`${bffUrl}/api/resumes/skills-version`, {
+      headers: versionHeaders,
+    });
 
     if (!versionResponse.ok) {
       const text = await versionResponse.text();
@@ -831,11 +880,20 @@ export const reIngestStaleResumes = internalAction({
       throw new Error("Invalid skills version response: version must be a number");
     }
 
+    const currentEpoch =
+      typeof versionPayload.ingestComputeEpoch === "number"
+        && Number.isFinite(versionPayload.ingestComputeEpoch)
+        ? versionPayload.ingestComputeEpoch
+        : CURRENT_INGEST_COMPUTE_EPOCH;
+
     const batchSize = 50;
     let cursor: string | undefined;
     const resumeIds: Id<"resumes">[] = [];
     let hasMore = false;
     let batches = 0;
+    let skillsStaleCount = 0;
+    let computeStaleCount = 0;
+    let matchedCount = 0;
 
     while (resumeIds.length < limit) {
       const batch: {
@@ -844,21 +902,31 @@ export const reIngestStaleResumes = internalAction({
         page: ResumeScanRow[];
       } = await ctx.runQuery(internal.resumes.listResumeScanBatch, { cursor });
 
-      const staleIds = batch.page
-        .filter((resume) => resume.ingestData !== undefined && isStaleSkillsVersion(resume, currentVersion))
-        .map((resume) => resume._id);
-      const remaining = limit - resumeIds.length;
-
-      if (staleIds.length > remaining) {
-        resumeIds.push(...staleIds.slice(0, remaining));
-        hasMore = true;
-        break;
+      for (const resume of batch.page) {
+        // Skills path historically required ingestData present.
+        const hasIngest = resume.ingestData !== undefined;
+        if (hasIngest && shouldSelectForReingest(resume.ingestData, "skills", currentVersion, currentEpoch)) {
+          skillsStaleCount += 1;
+        }
+        if (hasIngest && shouldSelectForReingest(resume.ingestData, "compute", currentVersion, currentEpoch)) {
+          computeStaleCount += 1;
+        }
+        const selected =
+          hasIngest
+          && shouldSelectForReingest(resume.ingestData, mode, currentVersion, currentEpoch);
+        if (!selected) {
+          continue;
+        }
+        matchedCount += 1;
+        if (resumeIds.length < limit) {
+          resumeIds.push(resume._id);
+        } else {
+          hasMore = true;
+        }
       }
 
-      resumeIds.push(...staleIds);
-
-      if (resumeIds.length === limit) {
-        hasMore = !batch.isDone;
+      if (resumeIds.length >= limit) {
+        hasMore = hasMore || !batch.isDone;
         break;
       }
 
@@ -869,12 +937,18 @@ export const reIngestStaleResumes = internalAction({
       cursor = batch.continueCursor;
     }
 
-    if (resumeIds.length === 0) {
+    if (dryRun || resumeIds.length === 0) {
       return {
         scheduled: 0,
         batches: 0,
         currentVersion,
+        currentIngestComputeEpoch: currentEpoch,
         hasMore,
+        mode,
+        dryRun,
+        skillsStaleCount,
+        computeStaleCount,
+        matchedCount: Math.min(matchedCount, limit),
       };
     }
 
@@ -889,7 +963,13 @@ export const reIngestStaleResumes = internalAction({
       scheduled: resumeIds.length,
       batches,
       currentVersion,
+      currentIngestComputeEpoch: currentEpoch,
       hasMore,
+      mode,
+      dryRun: false,
+      skillsStaleCount,
+      computeStaleCount,
+      matchedCount: resumeIds.length,
     };
   },
 });

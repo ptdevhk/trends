@@ -65,7 +65,7 @@ import { BrandDisplayResolver } from "../services/brand-display-resolver.js";
 import { logger } from "../services/logger.js";
 import { requireAdmin } from "../middleware/auth.js";
 
-import { isRecord } from "@trends/shared";
+import { CURRENT_INGEST_COMPUTE_EPOCH, isRecord } from "@trends/shared";
 import type { ResumeItem } from "../types/resume.js";
 import type { ResumeIndex } from "../services/resume-index.js";
 import {
@@ -151,9 +151,22 @@ const RescoreRequestSchema = z.object({
 const MatchRescoreResponseSchema = MatchResponseSchema;
 const TriggerReingestRequestSchema = z.object({
   limit: z.number().int().min(1).max(1000).optional(),
+  /** skills = skillsVersion lag only; compute = ingestComputeEpoch lag; any = either (default) */
+  mode: z.enum(["skills", "compute", "any"]).optional(),
+  dryRun: z.boolean().optional(),
 });
 const TriggerReingestResponseSchema = z.object({
   success: z.literal(true),
+  scheduled: z.number().int().optional(),
+  batches: z.number().int().optional(),
+  currentVersion: z.number().int().optional(),
+  currentIngestComputeEpoch: z.number().int().optional(),
+  hasMore: z.boolean().optional(),
+  mode: z.string().optional(),
+  dryRun: z.boolean().optional(),
+  skillsStaleCount: z.number().int().optional(),
+  computeStaleCount: z.number().int().optional(),
+  matchedCount: z.number().int().optional(),
   processed: z.number().int().optional(),
   skipped: z.number().int().optional(),
 });
@@ -775,12 +788,34 @@ function removeServerSideFilters(filters: ResumeFilters): ResumeFilters {
 
 
 
-export async function triggerReingestStaleSkillsVersion(limit: number): Promise<{
+export type TriggerReingestOptions = {
+  limit?: number;
+  mode?: "skills" | "compute" | "any";
+  dryRun?: boolean;
+};
+
+export type TriggerReingestResult = {
   scheduled: number;
   batches: number;
   currentVersion: number;
+  currentIngestComputeEpoch: number;
   hasMore: boolean;
-}> {
+  mode: string;
+  dryRun: boolean;
+  skillsStaleCount: number;
+  computeStaleCount: number;
+  matchedCount: number;
+};
+
+export async function triggerReingestStaleSkillsVersion(
+  limitOrOptions: number | TriggerReingestOptions = 200,
+): Promise<TriggerReingestResult> {
+  const options: TriggerReingestOptions =
+    typeof limitOrOptions === "number" ? { limit: limitOrOptions } : limitOrOptions;
+  const limit = options.limit ?? 200;
+  const mode = options.mode ?? "any";
+  const dryRun = options.dryRun === true;
+
   const convexUrl = resolveConvexUrl().replace(/\/$/, "");
   const response = await fetch(`${convexUrl}/api/action`, {
     method: "POST",
@@ -790,7 +825,7 @@ export async function triggerReingestStaleSkillsVersion(limit: number): Promise<
     },
     body: JSON.stringify({
       path: "migrations:reIngestStaleSkillsVersion",
-      args: { limit },
+      args: { limit, mode, dryRun },
     }),
   });
 
@@ -818,8 +853,20 @@ export async function triggerReingestStaleSkillsVersion(limit: number): Promise<
   return {
     scheduled: typeof result.scheduled === "number" ? result.scheduled : 0,
     batches: typeof result.batches === "number" ? result.batches : 0,
-    currentVersion: typeof result.currentVersion === "number" ? result.currentVersion : skillsKnowledgeService.getVersion(),
+    currentVersion:
+      typeof result.currentVersion === "number"
+        ? result.currentVersion
+        : skillsKnowledgeService.getVersion(),
+    currentIngestComputeEpoch:
+      typeof result.currentIngestComputeEpoch === "number"
+        ? result.currentIngestComputeEpoch
+        : CURRENT_INGEST_COMPUTE_EPOCH,
     hasMore: result.hasMore === true,
+    mode: typeof result.mode === "string" ? result.mode : mode,
+    dryRun: result.dryRun === true || dryRun,
+    skillsStaleCount: typeof result.skillsStaleCount === "number" ? result.skillsStaleCount : 0,
+    computeStaleCount: typeof result.computeStaleCount === "number" ? result.computeStaleCount : 0,
+    matchedCount: typeof result.matchedCount === "number" ? result.matchedCount : 0,
   };
 }
 
@@ -1161,7 +1208,8 @@ const triggerReingestRoute = createRoute({
   method: "post",
   path: "/api/resumes/trigger-reingest",
   tags: ["resumes"],
-  summary: "Trigger re-ingest for resumes with stale skills version",
+  summary:
+    "Schedule re-ingest for stale resumes (skillsVersion and/or ingestComputeEpoch). Default mode=any.",
   request: {
     body: {
       content: { "application/json": { schema: TriggerReingestRequestSchema } },
@@ -1174,10 +1222,14 @@ const triggerReingestRoute = createRoute({
   },
 });
 app.openapi(triggerReingestRoute, async (c) => {
-  const { limit } = c.req.valid("json");
+  const { limit, mode, dryRun } = c.req.valid("json");
 
   try {
-    const result = await triggerReingestStaleSkillsVersion(limit ?? 200);
+    const result = await triggerReingestStaleSkillsVersion({
+      limit: limit ?? 200,
+      mode: mode ?? "any",
+      dryRun: dryRun === true,
+    });
     return c.json({ success: true as const, ...result }, 200);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

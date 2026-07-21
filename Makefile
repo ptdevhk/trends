@@ -31,7 +31,14 @@
 # Default target
 .DEFAULT_GOAL := help
 
-.PHONY: seed-matches clear-matches verify-critical-path verify-workflow-dataset benchmark-critical-path benchmark-critical-path-seeded benchmark-parallelism-matrix benchmark-dev-resume-latency verify-dev-resume-latency
+.PHONY: seed-matches clear-matches verify-critical-path verify-workflow-dataset benchmark-critical-path benchmark-critical-path-seeded benchmark-parallelism-matrix benchmark-dev-resume-latency verify-dev-resume-latency doctor-search-freshness
+
+# Search-data freshness: ingestComputeEpoch lag + golden MY/CN minRoleYears totals.
+# Auth: TRENDS_AUTH_USERNAME / TRENDS_AUTH_PASSWORD (e.g. demo-admin).
+# Exit 2 = compute-stale; exit 3 = golden floor fail; 0 = ok or API unreachable (explicit).
+doctor-search-freshness:
+	@npx tsx scripts/search-data-freshness-doctor.ts --api-url "$${API_URL:-http://localhost:3000}" --workspace "$${WORKSPACE:-dev}" --json; \
+	exit $$?
 
 # =============================================================================
 # Development (Full Experience)

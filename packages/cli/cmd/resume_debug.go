@@ -266,6 +266,7 @@ func newResumeDebugCmd() *cobra.Command {
 		newResumeDebugRescoreCmd(),
 		newResumeDebugSkillsVersionCmd(),
 		newResumeDebugTriggerReingestCmd(),
+		newResumeDebugSearchFreshnessCmd(),
 		newResumeDebugExactReingestCmd(),
 		newResumeDebugAIScoreCmd(),
 		newResumeDebugWorkflowDatasetCmd(),
@@ -516,28 +517,85 @@ func newResumeDebugSkillsVersionCmd() *cobra.Command {
 
 func newResumeDebugTriggerReingestCmd() *cobra.Command {
 	var limit int
+	var mode string
+	var dryRun bool
 
 	cmd := &cobra.Command{
 		Use:   "trigger-reingest",
-		Short: "Trigger stale-skills-version resume reingest",
+		Short: "Schedule re-ingest for skills- and/or ingestComputeEpoch-stale resumes",
+		Long: `Selects resumes whose skillsVersion and/or ingestComputeEpoch lag the code.
+
+Modes:
+  skills  — skills catalog version lag only (legacy)
+  compute — ingestComputeEpoch lag only (parser / roleSignals materialization)
+  any     — either lag (default; use after algorithm fixes without skills bump)
+
+Use --dry-run to count skillsStale vs computeStale without scheduling work.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			response, err := newAPIClient().TriggerResumeReingest(context.Background(), limit)
+			response, err := newAPIClient().TriggerResumeReingestWithOptions(context.Background(), limit, mode, dryRun)
 			if err != nil {
 				return err
 			}
 
-			headers := []string{"scheduled", "batches", "current_version", "has_more"}
+			headers := []string{
+				"scheduled", "batches", "current_version", "current_epoch",
+				"mode", "dry_run", "skills_stale", "compute_stale", "matched", "has_more",
+			}
 			rows := [][]string{{
 				strconv.Itoa(response.Scheduled),
 				strconv.Itoa(response.Batches),
 				strconv.Itoa(response.CurrentVersion),
+				strconv.Itoa(response.CurrentIngestComputeEpoch),
+				response.Mode,
+				fmt.Sprintf("%t", response.DryRun),
+				strconv.Itoa(response.SkillsStaleCount),
+				strconv.Itoa(response.ComputeStaleCount),
+				strconv.Itoa(response.MatchedCount),
 				fmt.Sprintf("%t", response.HasMore),
 			}}
 			return writeOutput(cmd, headers, rows, response)
 		},
 	}
 
-	cmd.Flags().IntVar(&limit, "limit", 200, "Maximum stale resumes to schedule")
+	cmd.Flags().IntVar(&limit, "limit", 200, "Maximum stale resumes to schedule (or count in dry-run)")
+	cmd.Flags().StringVar(&mode, "mode", "any", "Stale selection: skills | compute | any")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Count stale rows without scheduling reingest")
+	return cmd
+}
+
+func newResumeDebugSearchFreshnessCmd() *cobra.Command {
+	var scanLimit int
+	var skipGolden bool
+
+	cmd := &cobra.Command{
+		Use:   "search-freshness",
+		Short: "Doctor: ingestComputeEpoch lag + golden MY/CN minRoleYears search totals",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			response, err := newAPIClient().GetResumeSearchFreshness(context.Background(), scanLimit, skipGolden)
+			if err != nil {
+				return err
+			}
+			headers := []string{"skills_version", "epoch", "compute_stale", "skills_stale", "exit_hint", "api_reachable"}
+			rows := [][]string{{
+				strconv.Itoa(response.CurrentSkillsVersion),
+				strconv.Itoa(response.CurrentIngestComputeEpoch),
+				strconv.Itoa(response.Lag.ComputeStale),
+				strconv.Itoa(response.Lag.SkillsStale),
+				strconv.Itoa(response.ExitCodeHint),
+				fmt.Sprintf("%t", response.APIReachable),
+			}}
+			if err := writeOutput(cmd, headers, rows, response); err != nil {
+				return err
+			}
+			if response.ExitCodeHint != 0 {
+				return fmt.Errorf("search freshness doctor exit hint %d", response.ExitCodeHint)
+			}
+			return nil
+		},
+	}
+
+	cmd.Flags().IntVar(&scanLimit, "scan-limit", 200, "Max resumes to scan for lag counts")
+	cmd.Flags().BoolVar(&skipGolden, "skip-golden", false, "Skip live golden search queries")
 	return cmd
 }
 

@@ -40,6 +40,7 @@ Use this skill when the user asks to operate backend services from terminal comm
 - `./bin/trends resume debug match-runs --job-description lathe-sales --limit 20`
 - `./bin/trends resume debug clear-matches --job-description lathe-sales`
 - `./bin/trends resume debug skills-version`
+- `./bin/trends resume debug search-freshness` (ingestComputeEpoch lag + golden MY/CN totals; or `make doctor-search-freshness`)
 - `./bin/trends resume debug clear-analyses --job-description lathe-sales --resume-id resume-1`
 - `./bin/trends resume debug clear-analyses --dry-run`
 - `./bin/trends resume debug hard-reset-reingest --dry-run`
@@ -47,6 +48,8 @@ Use this skill when the user asks to operate backend services from terminal comm
 - `./bin/trends resume debug reset-database --dry-run`
 - `./bin/trends resume debug reset-database --yes`
 - `./bin/trends resume debug trigger-reingest --limit 200`
+- `./bin/trends resume debug trigger-reingest --mode any --dry-run` (count skills-stale vs compute-stale)
+- `./bin/trends resume debug trigger-reingest --mode compute --limit 200` (algorithm epoch lag only)
 - `./bin/trends resume analyze --query "CNC 销售" --limit 50`
 - `./bin/trends resume analyze --job-description lathe-sales --dry-run`
 - `./bin/trends resume analyze --query "CNC Sales" --min-experience 3 --locations "Dongguan,Shenzhen"`
@@ -77,7 +80,8 @@ Use this skill when the user asks to operate backend services from terminal comm
 - The preferred snapshot verification flow is: `resume snapshot` -> `resume restore` -> `resume search` / `resume match --mode rules_only` -> `resume debug ai-score`; use `resume debug matches` or `match-runs` only for persisted review-lane validation.
 - `trends resume match` remains the API-backed path; when `source=convex` and AI scoring is needed for debug, use `trends resume debug ai-score`.
 - `trends resume debug rescore` currently mirrors the backend restriction and is sample-only.
-- `trends resume debug trigger-reingest` is the stale-skills-version reingest path, not a generic arbitrary reingest.
+- `trends resume debug trigger-reingest` selects by **skillsVersion lag and/or ingestComputeEpoch lag** (`--mode skills|compute|any`, default `any`). It is not a full hard-reset; use `--dry-run` to report skillsStale vs computeStale counts. After pure algorithm fixes (e.g. Seek EN year parse), bump `CURRENT_INGEST_COMPUTE_EPOCH` in `@trends/shared` and schedule `--mode compute` — do not rely on skillsVersion alone.
+- Return-to-laptop / post-deploy: `make doctor-search-freshness` (or `resume debug search-freshness`) after git pull + API up; exit 2 means compute-stale rows need reingest, exit 3 means golden MY/CN minRoleYears floors failed.
 - For migration commands, report the exact `convex run` output back to the user.
 - All destructive commands (`hard-reset-reingest`, `reset-database`, `clear-analyses`) require `--yes` to execute; use `--dry-run` to preview without mutating.
 - `hard-reset-reingest` is a two-phase operation (clear data then schedule re-ingest); if scheduling fails after clearing, output shows `phase: "failed_scheduling"` with partial results.

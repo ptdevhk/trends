@@ -4,7 +4,7 @@ import path from "node:path";
 
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 
-import { buildLatestWorkHistoryEvidence } from "@trends/shared";
+import { buildLatestWorkHistoryEvidence, CURRENT_INGEST_COMPUTE_EPOCH } from "@trends/shared";
 
 import { IngestComputeService, buildResumeIndex } from "./ingest-compute-service";
 
@@ -364,6 +364,44 @@ describe("IngestComputeService", () => {
     expect(result.resumeId).toBe("resume-123");
     expect(result.computedAt).toBeGreaterThan(0);
     expect(result.skillsVersion).toBe(42);  // from TEST_SKILLS_MD
+    expect(result.ingestComputeEpoch).toBe(CURRENT_INGEST_COMPUTE_EPOCH);
+  });
+
+  it("stamps ingestComputeEpoch and parses Seek EN work-history years for sales roleSignals", () => {
+    // Regression class: pre-epoch rows stored years=0 for EN ranges; recompute with
+    // current epoch must materialize roleRelevantYears for minRoleYears digests.
+    const seekEnResume = {
+      data: [
+        {
+          name: "Erijamshah Hassim",
+          location: "Selangor, MY",
+          source: "hk.employer.seek.com",
+          workHistory: [
+            {
+              raw: "Computer Numerical Control Technician · Techfast Precision · Jul 2017 - Aug 2023 (6 years 2 months)",
+              companyName: "Techfast Precision",
+              jobTitle: "Computer Numerical Control Technician",
+            },
+            {
+              raw: "Sales Assistant · PS Food & Beverage · Dec 2016 - Jun 2017 (7 months)",
+              companyName: "PS Food & Beverage",
+              jobTitle: "Sales Assistant",
+            },
+          ],
+        },
+      ],
+    };
+    const result = service.computeOne("resume-my-seek-en", seekEnResume, "seek");
+    expect(result.ingestComputeEpoch).toBe(CURRENT_INGEST_COMPUTE_EPOCH);
+    expect(result.market).toBe("MY");
+    const sales = result.roleSignals.find((s) => s.type === "sales");
+    expect(sales).toBeDefined();
+    expect(sales!.years).toBeGreaterThan(0);
+    expect(sales!.roleRelevantYears).toBeGreaterThan(0);
+    const mwe = sales!.matchedWorkEntries?.find((e) =>
+      (e.jobTitle || "").toLowerCase().includes("sales"),
+    );
+    expect(mwe?.years).toBeGreaterThan(0);
   });
 
   it("should compute role signals and experience years from work history", () => {

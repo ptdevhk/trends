@@ -6,6 +6,7 @@ import { v } from "convex/values";
 
 import {
     computeVerifiedRoleYears,
+    CURRENT_INGEST_COMPUTE_EPOCH,
     isRecord,
 } from "@trends/shared";
 import {
@@ -344,10 +345,19 @@ export const fieldCoverage = query({
         let missingVerifiedRoleYears = 0;
         let hasRoleSignals = 0;
         let hasVerifiedRoleYears = 0;
+        let missingIngestComputeEpoch = 0;
+        let laggingIngestComputeEpoch = 0;
+        const currentEpoch = CURRENT_INGEST_COMPUTE_EPOCH;
 
         for (const resume of resumes.page) {
             if (!resume.searchText) {
                 missingSearchText += 1;
+            }
+            const epoch = resume.ingestData?.ingestComputeEpoch;
+            if (typeof epoch !== "number" || !Number.isFinite(epoch)) {
+                missingIngestComputeEpoch += 1;
+            } else if (epoch < currentEpoch) {
+                laggingIngestComputeEpoch += 1;
             }
             if (resume.ingestData?.roleSignals && resume.ingestData.roleSignals.length > 0) {
                 hasRoleSignals += 1;
@@ -368,6 +378,8 @@ export const fieldCoverage = query({
             missingVerifiedRoleYears,
             hasRoleSignals,
             hasVerifiedRoleYears,
+            missingIngestComputeEpoch,
+            laggingIngestComputeEpoch,
             hasMore: !resumes.isDone,
             cursor: resumes.isDone ? null : resumes.continueCursor,
         };

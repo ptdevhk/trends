@@ -85,6 +85,7 @@ export type ResumeListProjectedDoc = {
         market?: string;
         computedAt: number;
         skillsVersion: number;
+        ingestComputeEpoch?: number;
     };
 };
 
@@ -294,6 +295,9 @@ export function projectResumeListIngestData(
         ...(ingestData.market === undefined ? {} : { market: ingestData.market }),
         computedAt: ingestData.computedAt,
         skillsVersion: ingestData.skillsVersion,
+        ...(typeof ingestData.ingestComputeEpoch === "number"
+            ? { ingestComputeEpoch: ingestData.ingestComputeEpoch }
+            : {}),
     };
 }
 

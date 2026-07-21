@@ -110,6 +110,8 @@ export const ingestDataValidator = v.object({
     experienceLevel: v.string(),
     computedAt: v.number(),
     skillsVersion: v.number(),
+    /** Algorithm revision for roleSignals/years materialization; optional for pre-epoch rows */
+    ingestComputeEpoch: v.optional(v.number()),
     verifiedRoleYears: v.optional(v.record(v.string(), v.number())),
 });
 
