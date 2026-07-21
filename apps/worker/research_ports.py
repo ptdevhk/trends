@@ -13,7 +13,7 @@ import logging
 import re
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Protocol
+from typing import Any, Callable, Dict, List, Optional, Protocol
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -120,6 +120,55 @@ def parse_newsnow_payload(
         )
     return result
 
+
+
+
+DEFAULT_NEWSNOW_API_URL = "https://newsnow.busiyi.world/api/s"
+
+
+@dataclass
+class NewsNowHotlistPort:
+    """NewsNow-compatible hotlist: GET {api}?id={platform}&latest."""
+
+    api_url: Optional[str] = None
+    timeout_seconds: float = 15.0
+    max_retries: int = 2
+    getter: Optional[Callable[[str], Optional[str]]] = None
+
+    def fetch(self, platform_id: str, captured_at: int) -> List[NormalizedNewsItem]:
+        base = (self.api_url or DEFAULT_NEWSNOW_API_URL).rstrip("/")
+        url = f"{base}?id={platform_id}&latest"
+        body = self._get(url)
+        if not body:
+            return []
+        return parse_newsnow_payload(platform_id, body, captured_at)
+
+    def _get(self, url: str) -> Optional[str]:
+        if self.getter is not None:
+            return self.getter(url)
+        last_error: Optional[Exception] = None
+        for attempt in range(self.max_retries + 1):
+            try:
+                request = Request(
+                    url,
+                    headers={
+                        "Accept": "application/json, text/plain, */*",
+                        "User-Agent": "trends-research-ingest/1.0",
+                    },
+                )
+                with urlopen(request, timeout=self.timeout_seconds) as response:
+                    return response.read().decode("utf-8", errors="replace")
+            except (HTTPError, URLError, TimeoutError, OSError) as error:
+                last_error = error
+                logger.warning(
+                    "NewsNow fetch attempt %s failed for %s: %s",
+                    attempt + 1,
+                    url,
+                    error,
+                )
+        if last_error:
+            logger.error("NewsNow fetch exhausted retries for %s: %s", url, last_error)
+        return None
 
 class HotlistPort(Protocol):
     def fetch(self, platform_id: str, captured_at: int) -> List[NormalizedNewsItem]: ...

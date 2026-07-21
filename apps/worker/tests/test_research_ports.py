@@ -34,3 +34,25 @@ def test_parse_newsnow_accepts_cache_status():
     )
     assert len(items) == 1
     assert items[0].platform == "baidu"
+
+
+def test_newsnow_port_builds_query_and_parses():
+    from apps.worker.research_ports import NewsNowHotlistPort
+
+    calls = []
+
+    def fake_get(url: str) -> str:
+        calls.append(url)
+        return json.dumps(
+            {
+                "status": "success",
+                "items": [{"title": "T1", "url": "http://x", "id": "1"}],
+            }
+        )
+
+    port = NewsNowHotlistPort(api_url="https://example.test/api/s", getter=fake_get)
+    items = port.fetch("weibo", captured_at=9)
+    assert len(items) == 1
+    assert "id=weibo" in calls[0]
+    assert "latest" in calls[0]
+    assert items[0].title == "T1"
