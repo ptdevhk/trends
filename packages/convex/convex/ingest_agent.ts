@@ -95,11 +95,6 @@ function getBffApiUrl(): string {
   return process.env.BFF_API_URL || "http://localhost:3000";
 }
 
-
-function isStaleSkillsVersion(resume: ResumeScanRow, currentVersion: number): boolean {
-  return shouldSelectForReingest(resume.ingestData, "skills", currentVersion);
-}
-
 function readIngestComputeEpochFromPayload(value: unknown): number {
   if (typeof value === "number" && Number.isFinite(value) && value > 0) {
     return value;
