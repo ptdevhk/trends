@@ -122,31 +122,32 @@ export const recordParityRun = mutation({
   handler: async (ctx, args) => {
     requireWriteSecret(args.writeSecret);
 
-    // Compute greenStreak from previous latest row
-    const previous = await ctx.db
+    const existing = await ctx.db
+      .query("research_parity_runs")
+      .withIndex("by_parity_run_id", (q) => q.eq("parityRunId", args.parityRunId))
+      .first();
+
+    // Predecessor for greenStreak must exclude this parityRunId so re-upserts
+    // do not treat the row as its own predecessor (would inflate the kill-switch).
+    const recent = await ctx.db
       .query("research_parity_runs")
       .withIndex("by_evaluated_at")
       .order("desc")
-      .first();
+      .take(32);
+    const previous = recent.find((row) => row.parityRunId !== args.parityRunId) ?? null;
 
     let greenStreak = 0;
     if (args.green) {
-      greenStreak = (previous?.greenStreak ?? 0) + 1;
-      // If previous was not green, start streak at 1
-      if (previous && !previous.green) {
-        greenStreak = 1;
-      }
       if (!previous) {
+        greenStreak = 1;
+      } else if (previous.green) {
+        greenStreak = previous.greenStreak + 1;
+      } else {
         greenStreak = 1;
       }
     } else {
       greenStreak = 0;
     }
-
-    const existing = await ctx.db
-      .query("research_parity_runs")
-      .withIndex("by_parity_run_id", (q) => q.eq("parityRunId", args.parityRunId))
-      .first();
 
     if (existing) {
       await ctx.db.patch(existing._id, {

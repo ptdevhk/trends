@@ -122,4 +122,69 @@ describe("research_ops (convex-test)", () => {
     expect(latest?.greenStreak).toBe(1);
     expect(latest?.green).toBe(true);
   });
+
+  it("does not inflate greenStreak when the same parityRunId is re-upserted", async () => {
+    const t = createTest();
+    const base = {
+      writeSecret: WRITE_SECRET,
+      windowStart: 0,
+      windowEnd: 1000,
+      enabledPlatforms: ["weibo"],
+      nativeTotal: 10,
+      shadowTotal: 10,
+      aggregateRatio: 0.9,
+      platformBreakdown: [
+        {
+          platform: "weibo",
+          nativeCount: 10,
+          shadowCount: 10,
+          ratio: 1,
+          zeroWithShadow: false,
+        },
+      ],
+      goldenCompanyResults: [
+        { companyKey: "pro-technic-machinery", signalCount: 2, pass: true },
+      ],
+      nativeNonEmpty: true,
+      green: true,
+    };
+
+    const first = await t.mutation(api.research_ops.recordParityRun, {
+      ...base,
+      parityRunId: "same-id",
+      evaluatedAt: 1000,
+    });
+    expect(first.created).toBe(true);
+    expect(first.greenStreak).toBe(1);
+
+    // Re-upsert same parityRunId must not treat itself as predecessor (1→2→…)
+    const again = await t.mutation(api.research_ops.recordParityRun, {
+      ...base,
+      parityRunId: "same-id",
+      evaluatedAt: 1500,
+    });
+    expect(again.created).toBe(false);
+    expect(again.greenStreak).toBe(1);
+
+    const third = await t.mutation(api.research_ops.recordParityRun, {
+      ...base,
+      parityRunId: "same-id",
+      evaluatedAt: 2000,
+    });
+    expect(third.greenStreak).toBe(1);
+
+    const latest = await t.query(api.research_ops.latestParity, {
+      writeSecret: WRITE_SECRET,
+    });
+    expect(latest?.parityRunId).toBe("same-id");
+    expect(latest?.greenStreak).toBe(1);
+
+    // A new id after a prior green still advances from that stored streak once
+    const next = await t.mutation(api.research_ops.recordParityRun, {
+      ...base,
+      parityRunId: "next-id",
+      evaluatedAt: 3000,
+    });
+    expect(next.greenStreak).toBe(2);
+  });
 });
