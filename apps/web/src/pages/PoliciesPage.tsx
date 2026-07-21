@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
@@ -16,6 +16,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
+import { useWorkspace } from '@/contexts/WorkspaceContext'
 
 type PoliciesTab = 'candidates' | 'companies'
 
@@ -32,6 +33,8 @@ function presetLabel(preset: CompanyPolicyPreset, t: (key: string, options?: Rec
 
 function CompaniesTab() {
   const { t } = useTranslation()
+  const { workspaceSlug } = useWorkspace()
+  const teamSlug = workspaceSlug || 'hr'
   const {
     companies,
     policies,
@@ -230,6 +233,15 @@ function CompaniesTab() {
                             <Badge variant="secondary">{company.status}</Badge>
                             {company.nameCn ? <Badge variant="outline">{company.nameCn}</Badge> : null}
                             {company.nameEn ? <Badge variant="outline">{company.nameEn}</Badge> : null}
+                            <Link
+                              to={`/${teamSlug}/research/${encodeURIComponent(company.companyKey)}?persona=hr`}
+                              className="text-xs text-blue-600 hover:underline"
+                              data-testid="company-research-deep-link"
+                            >
+                              {t('settings.policies.researchLink', {
+                                defaultValue: 'Research (HR)',
+                              })}
+                            </Link>
                           </div>
                         </div>
                       </TableCell>

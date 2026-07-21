@@ -49,5 +49,10 @@ describe('CompanyPolicyBadges', () => {
     expect(banner).not.toHaveTextContent(/Operational/i)
     const link = screen.getByTestId('company-policy-manage-link')
     expect(link).toHaveAttribute('href', '/hr/settings/policies?tab=companies')
+    const research = screen.getByTestId('company-policy-research-link')
+    expect(research).toHaveAttribute(
+      'href',
+      '/hr/research/pro-technic-machinery?persona=hr',
+    )
   })
 })
