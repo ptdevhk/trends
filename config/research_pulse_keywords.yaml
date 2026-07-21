@@ -1,0 +1,13 @@
+version: v1
+groups:
+  - id: cnc-core
+    label: 数控机床
+    keywords: [数控, 加工中心, 五轴, 机床]
+  - id: brands
+    label: 重点品牌
+    keywords: [发那科, 马扎克, 牧野, 创世纪, 乔锋, 宝力机械, 宝惠]
+  - id: hiring-sales
+    label: 招聘与商机
+    keywords: [招聘, 扩产, 中标, 采购, 订单, 签约]
+defaults:
+  enabledGroupIds: [cnc-core, brands, hiring-sales]
