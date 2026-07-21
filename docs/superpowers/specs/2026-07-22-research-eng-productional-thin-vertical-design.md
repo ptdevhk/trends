@@ -1,9 +1,9 @@
 # Research Eng Productional Thin Vertical — Design
 
-**Status:** Draft for user review (brainstorm 2026-07-22)  
+**Status:** Approved 2026-07-22  
 **Branch context:** local `main` (Research Eng P1 already merged)  
 **Predecessor:** `docs/superpowers/specs/2026-07-21-research-eng-full-distill-design.md` (P1 shipped)  
-**Implementation plan:** *to be written after this spec is approved* (`docs/superpowers/plans/2026-07-22-research-eng-productional-thin-vertical-plan.md`)
+**Implementation plan:** `docs/superpowers/plans/2026-07-22-research-eng-productional-thin-vertical-plan.md`
 
 ## Goal
 
@@ -216,4 +216,4 @@ No new CRM shell or required top-nav item (P1 lock preserved); research index ma
 
 - §1 Goal & architecture: approved in brainstorm  
 - §2 Data/UX/tests + extras: approved with “all three” UX extras  
-- This written spec: **pending user review** before `writing-plans`
+- This written spec: **approved** 2026-07-22; implementation plan written
