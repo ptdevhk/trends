@@ -299,6 +299,7 @@ const showcaseRoute = createRoute({
                 platform: z.string(),
                 url: z.string().optional(),
                 capturedAt: z.number(),
+                matchedKeywords: z.array(z.string()).optional(),
               }),
             ),
             meta: z.object({

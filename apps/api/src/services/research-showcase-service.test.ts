@@ -87,10 +87,19 @@ vi.mock("./convex-utils.js", () => ({
         {
           _id: "n1",
           sourceId: "showcase",
-          platform: "showcase",
-          title: "pulse title",
-          contentHash: "h",
-          capturedAt: 1,
+          platform: "weibo",
+          title: "发那科扩产",
+          contentHash: "h1",
+          capturedAt: 200,
+          url: "https://example.com/fanuc",
+        },
+        {
+          _id: "n2",
+          sourceId: "showcase",
+          platform: "weibo",
+          title: "娱乐热搜无关",
+          contentHash: "h2",
+          capturedAt: 100,
         },
       ];
     }
@@ -263,5 +272,18 @@ describe("research-showcase-service", () => {
     expect(pro!.signalCount).toBe(0);
     expect(pro!.showcase).toBe(false);
     expect(pro!.kindCounts).toEqual({});
+  });
+
+  it("hub pulse uses keyword-filtered getResearchPulse (not raw listResearchNews)", async () => {
+    const hub = await getResearchShowcase("hr");
+    // Seed defaults include 发那科; non-matching 娱乐 title is dropped
+    expect(hub.pulse).toHaveLength(1);
+    expect(hub.pulse[0]).toMatchObject({
+      title: "发那科扩产",
+      platform: "weibo",
+      url: "https://example.com/fanuc",
+      capturedAt: 200,
+    });
+    expect(hub.pulse[0]!.matchedKeywords).toContain("发那科");
   });
 });

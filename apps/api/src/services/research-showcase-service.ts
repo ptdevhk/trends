@@ -10,7 +10,8 @@ import {
   type ShowcaseCompanyTemplate,
 } from "./research-showcase-pack.js";
 import { findLegacyOverride } from "./research-industry-bridge.js";
-import { getLatestIngestRun, listResearchNews } from "./research-service.js";
+import { getResearchPulse } from "./research-pulse-service.js";
+import { getLatestIngestRun } from "./research-service.js";
 
 export const SHOWCASE_SEED_INGEST_RUN_ID = "showcase-seed-v1";
 
@@ -43,6 +44,7 @@ export type ResearchShowcaseResponse = {
     platform: string;
     url?: string;
     capturedAt: number;
+    matchedKeywords?: string[];
   }>;
   meta: {
     lastIngest: unknown | null;
@@ -307,12 +309,13 @@ export async function getResearchShowcase(teamSlug: string): Promise<ResearchSho
     pack.fromResumeDesk.map((c) => cardForCompany(c, slug, seedIngestRunId)),
   );
 
-  const news = await listResearchNews({ limit: 12 });
-  const pulse = news.map((n) => ({
+  const pulseResult = await getResearchPulse(slug, { limit: 12, all: false });
+  const pulse = pulseResult.items.map((n) => ({
     title: n.title,
     platform: n.platform,
     ...(n.url ? { url: n.url } : {}),
     capturedAt: n.capturedAt,
+    ...(n.matchedKeywords?.length ? { matchedKeywords: n.matchedKeywords } : {}),
   }));
 
   const lastIngest = await getLatestIngestRun();
