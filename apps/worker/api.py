@@ -38,7 +38,7 @@ from mcp_server.utils.errors import DataNotFoundError
 from apps.worker import __version__
 from apps.worker.timezone import bootstrap_worker_timezone
 from apps.worker.status_store import resolve_worker_status_path
-from apps.worker.tasks import run_crawl_analyze, run_workspace_summary
+from apps.worker.tasks import run_crawl_analyze, run_research_ingest, run_workspace_summary
 from trendradar.utils.time import format_iso_offset_time
 
 WORKER_TIMEZONE = bootstrap_worker_timezone()
@@ -251,6 +251,38 @@ async def trigger_worker_crawl():
         started_at=started_at,
         finished_at=finished_at,
         message="Crawl task completed",
+    )
+
+
+@router.post("/worker/research/ingest", response_model=WorkerTriggerResponse, tags=["Research"])
+async def trigger_research_ingest():
+    """
+    Trigger a one-time Research Eng native ingest (Convex news + signals).
+    Operator path; scheduled path uses RESEARCH_INGEST_ENABLED + APScheduler.
+    """
+    started_at = format_iso_offset_time(timezone=WORKER_TIMEZONE)
+    # Force-enable for manual operator trigger regardless of env gate
+    import os
+
+    previous = os.environ.get("RESEARCH_INGEST_ENABLED")
+    os.environ["RESEARCH_INGEST_ENABLED"] = "1"
+    try:
+        success = await asyncio.to_thread(run_research_ingest)
+    finally:
+        if previous is None:
+            os.environ.pop("RESEARCH_INGEST_ENABLED", None)
+        else:
+            os.environ["RESEARCH_INGEST_ENABLED"] = previous
+    finished_at = format_iso_offset_time(timezone=WORKER_TIMEZONE)
+
+    if not success:
+        raise HTTPException(status_code=500, detail="Research ingest failed")
+
+    return WorkerTriggerResponse(
+        mode="research-ingest",
+        started_at=started_at,
+        finished_at=finished_at,
+        message="Research ingest completed",
     )
 
 

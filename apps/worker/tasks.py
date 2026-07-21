@@ -30,10 +30,8 @@ def run_crawl_analyze(config_overrides: Optional[Dict[str, Any]] = None) -> bool
     """
     Execute a full crawl and analyze cycle.
 
-    This is the main scheduled task that:
-    1. Loads configuration (with optional overrides)
-    2. Creates a NewsAnalyzer instance
-    3. Runs the full crawl -> store -> analyze -> report -> notify pipeline
+    Legacy TrendRadar shadow path — only runs when LEGACY_TRENDRADAR_CRAWL=1.
+    Product research ingest is run_research_ingest (Convex-native).
 
     Args:
         config_overrides: Optional dictionary of config values to override
@@ -44,6 +42,13 @@ def run_crawl_analyze(config_overrides: Optional[Dict[str, Any]] = None) -> bool
     # Skip during maintenance mode (restore quiesce)
     if _is_maintenance_mode():
         logger.info("[Task] Skipping crawl cycle — maintenance mode active")
+        return True
+
+    # Dual-run: legacy crawl is opt-in for shadow parity only
+    from apps.worker.research_ingest import legacy_trendradar_crawl_enabled
+
+    if not legacy_trendradar_crawl_enabled():
+        logger.info("[Task] Skipping crawl_analyze — LEGACY_TRENDRADAR_CRAWL not enabled (shadow only)")
         return True
 
     timezone = resolve_worker_timezone()
@@ -82,6 +87,20 @@ def run_crawl_analyze(config_overrides: Optional[Dict[str, Any]] = None) -> bool
         logger.error(f"[Task] crawl_analyze failed after {elapsed:.1f}s: {e}")
         logger.debug(traceback.format_exc())
         return False
+
+
+def run_research_ingest(config_overrides: Optional[Dict[str, Any]] = None) -> bool:
+    """
+    Research Eng native ingest: hotlist/RSS → Convex news_items + research_signals.
+    Gated by RESEARCH_INGEST_ENABLED=1.
+    """
+    if _is_maintenance_mode():
+        logger.info("[Task] Skipping research ingest — maintenance mode active")
+        return True
+
+    from apps.worker.research_ingest import run_research_ingest as _run
+
+    return _run(config_overrides=config_overrides)
 
 
 def run_crawl_only(config_overrides: Optional[Dict[str, Any]] = None) -> bool:
