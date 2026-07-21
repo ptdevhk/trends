@@ -68,6 +68,7 @@ func init() {
 		newJDCmd(),
 		newSystemCmd(),
 		newWorkerCmd(),
+		newResearchCmd(),
 		newMigrateCmd(),
 		newMCPCmd(),
 	)

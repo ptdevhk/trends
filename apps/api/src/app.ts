@@ -22,6 +22,7 @@ import {
   actionsRoutes,
   blocksRoutes,
   companiesRoutes,
+  researchRoutes,
   candidateStatusRoutes,
   searchProfilesRoutes,
   searchAnalyticsRoutes,
@@ -245,6 +246,7 @@ export function createApp(options: CreateAppOptions = {}) {
   app.route("/", actionsRoutes);
   app.route("/", blocksRoutes);
   app.route("/", companiesRoutes);
+  app.route("/", researchRoutes);
   app.route("/", candidateStatusRoutes);
   app.route("/worker", workerRoutes);
   app.route("/api/worker", workerRoutes);
