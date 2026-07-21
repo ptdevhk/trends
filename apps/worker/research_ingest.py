@@ -19,6 +19,7 @@ from apps.worker.research_ports import (
     HttpHotlistPort,
     HttpRssPort,
     HotlistPort,
+    NewsNowHotlistPort,
     NormalizedNewsItem,
     RssPort,
     StaticHotlistPort,
@@ -97,9 +98,16 @@ class ResearchIngestJob:
         now_ms: Optional[Callable[[], int]] = None,
     ):
         self.client = client or ResearchConvexClient()
-        self.hotlist_port = hotlist_port or HttpHotlistPort(
-            base_url=os.environ.get("RESEARCH_HOTLIST_BASE_URL") or None
-        )
+        if hotlist_port is not None:
+            self.hotlist_port = hotlist_port
+        else:
+            api_url = os.environ.get("RESEARCH_HOTLIST_API_URL")
+            base_url = os.environ.get("RESEARCH_HOTLIST_BASE_URL")
+            # Prefer NewsNow-compatible API; path-style BASE_URL only when API unset
+            if api_url or not base_url:
+                self.hotlist_port = NewsNowHotlistPort(api_url=api_url or None)
+            else:
+                self.hotlist_port = HttpHotlistPort(base_url=base_url)
         self.rss_port = rss_port or HttpRssPort()
         self.platforms = list(platforms) if platforms is not None else load_enabled_platforms()
         self.rss_feeds = list(rss_feeds) if rss_feeds is not None else load_rss_feeds()
@@ -130,12 +138,26 @@ class ResearchIngestJob:
 
         try:
             for platform_id in self.platforms:
-                items = self.hotlist_port.fetch(platform_id, started_at)
-                collected.extend(items)
+                try:
+                    items = self.hotlist_port.fetch(platform_id, started_at)
+                    collected.extend(items)
+                except Exception as error:  # noqa: BLE001 — soft-fail per platform
+                    logger.warning(
+                        "[ResearchIngest] hotlist %s failed: %s",
+                        platform_id,
+                        error,
+                    )
 
             for feed in self.rss_feeds:
-                items = self.rss_port.fetch(feed["id"], feed["url"], started_at)
-                collected.extend(items)
+                try:
+                    items = self.rss_port.fetch(feed["id"], feed["url"], started_at)
+                    collected.extend(items)
+                except Exception as error:  # noqa: BLE001 — soft-fail per feed
+                    logger.warning(
+                        "[ResearchIngest] rss %s failed: %s",
+                        feed.get("id"),
+                        error,
+                    )
 
             for item in collected:
                 result = self.client.upsert_news_item(item.to_convex_args())

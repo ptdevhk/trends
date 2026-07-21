@@ -134,6 +134,43 @@ def test_ingest_writes_news_and_finishes_run():
     assert finish["newsInserted"] == 1
 
 
+def test_ingest_continues_when_one_platform_raises():
+    """Soft-fail: one platform raises, another still upserts news."""
+    rec = RecordingConvex()
+    client = ResearchConvexClient(
+        convex_url="https://example.convex.cloud",
+        write_secret="secret",
+        mutator=rec.mutator,
+        querier=rec.querier,
+    )
+
+    class MixedHotlist:
+        def fetch(self, platform_id: str, captured_at: int):
+            if platform_id == "bad":
+                raise RuntimeError("upstream")
+            return StaticHotlistPort(
+                items_by_platform={
+                    "weibo": [{"title": "ok title", "external_id": "e-ok", "url": "http://ok"}],
+                }
+            ).fetch(platform_id, captured_at)
+
+    job = ResearchIngestJob(
+        client=client,
+        hotlist_port=MixedHotlist(),
+        rss_port=StaticRssPort(),
+        platforms=["bad", "weibo"],
+        rss_feeds=[],
+        now_ms=lambda: 1000,
+    )
+    ok = job.run()
+    assert ok is True
+    paths = [p for p, _ in rec.mutations]
+    assert "research_news:upsertItem" in paths
+    finish = [a for p, a in rec.mutations if p == "research_ops:finishIngestRun"][0]
+    assert finish["status"] == "success"
+    assert finish["newsInserted"] == 1
+
+
 def test_research_ingest_enabled_flag():
     assert research_ingest_enabled({"RESEARCH_INGEST_ENABLED": "1"}) is True
     assert research_ingest_enabled({"RESEARCH_INGEST_ENABLED": "true"}) is True
