@@ -103,6 +103,61 @@ def run_research_ingest(config_overrides: Optional[Dict[str, Any]] = None) -> bo
     return _run(config_overrides=config_overrides)
 
 
+def run_research_parity(
+    platform_breakdown: Optional[list] = None,
+    golden_companies: Optional[list] = None,
+    *,
+    parity_run_id: Optional[str] = None,
+    window_start: Optional[int] = None,
+    window_end: Optional[int] = None,
+) -> Dict[str, Any]:
+    """
+    Evaluate parity decision and optionally persist to Convex research_parity_runs.
+    Pure comparison always runs; Convex write requires client credentials.
+    """
+    from apps.worker.research_parity import evaluate_research_parity
+
+    breakdown = platform_breakdown or []
+    golden = golden_companies or []
+    decision = evaluate_research_parity(breakdown, golden)
+    logger.info(
+        "[Task] research_parity green=%s ratio=%.3f reasons=%s",
+        decision["green"],
+        decision["aggregateRatio"],
+        decision.get("reasons"),
+    )
+
+    # Durable write when Convex is configured (dual-run ops path)
+    try:
+        from apps.worker.research_convex import ResearchConvexClient
+        import time
+        import uuid
+
+        client = ResearchConvexClient()
+        if client.convex_url and client.write_secret:
+            now = int(time.time() * 1000)
+            client.record_parity_run(
+                {
+                    "parityRunId": parity_run_id or f"parity-{uuid.uuid4().hex[:12]}",
+                    "evaluatedAt": now,
+                    "windowStart": window_start if window_start is not None else now - 1_800_000,
+                    "windowEnd": window_end if window_end is not None else now,
+                    "enabledPlatforms": [p.get("platform", "") for p in breakdown],
+                    "nativeTotal": decision["nativeTotal"],
+                    "shadowTotal": decision["shadowTotal"],
+                    "aggregateRatio": decision["aggregateRatio"],
+                    "platformBreakdown": decision["platformBreakdown"],
+                    "goldenCompanyResults": decision["goldenCompanyResults"],
+                    "nativeNonEmpty": decision["nativeNonEmpty"],
+                    "green": decision["green"],
+                }
+            )
+    except Exception as error:  # noqa: BLE001
+        logger.warning("[Task] research_parity Convex record skipped: %s", error)
+
+    return decision
+
+
 def run_crawl_only(config_overrides: Optional[Dict[str, Any]] = None) -> bool:
     """
     Execute only the crawl phase (no notifications).

@@ -1,0 +1,10 @@
+# Research Eng dual-run parity settings (kill-switch ledger is Convex research_parity_runs)
+version: 1
+aggregate_ratio_threshold: 0.80
+required_green_streak: 3
+golden_companies:
+  - companyKey: pro-technic-machinery
+  - companyKey: polywell
+# Enabled platforms for comparison windows are taken from config/config.yaml platforms + rss
+# unless overridden here:
+platforms: []
