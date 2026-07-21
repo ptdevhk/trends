@@ -51,6 +51,11 @@ const LazyResearchCompanyPage = lazy(async () => {
   return { default: module.ResearchCompanyPage }
 })
 
+const LazyResearchIndexPage = lazy(async () => {
+  const module = await import('@/pages/ResearchIndexPage')
+  return { default: module.ResearchIndexPage }
+})
+
 const LazySearchProfilesPage = lazy(async () => {
   const module = await import('@/pages/SearchProfilesPage')
   return { default: module.SearchProfilesPage }
@@ -535,6 +540,14 @@ function App() {
               ) : (
                 <Route path="review-packets" element={<PreserveSearchNavigate pathname="resumes" />} />
               )}
+              <Route
+                path="research"
+                element={(
+                  <RouteSuspense>
+                    <LazyResearchIndexPage />
+                  </RouteSuspense>
+                )}
+              />
               <Route
                 path="research/:companyKey"
                 element={(
