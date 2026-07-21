@@ -347,6 +347,7 @@ const industryBrowseRoute = createRoute({
     query: z.object({
       limit: z.coerce.number().optional(),
       includeNonCnc: z.coerce.boolean().optional(),
+      q: z.string().optional(),
     }),
   },
   responses: {
@@ -382,6 +383,7 @@ app.openapi(industryBrowseRoute, async (c) => {
   const items = listResearchIndustryBrowse({
     limit: query.limit,
     includeNonCnc: query.includeNonCnc === true,
+    q: query.q,
   });
   return c.json({ success: true as const, items }, 200);
 });

@@ -15,6 +15,7 @@ const defaultService = new IndustryDataService();
 export function listResearchIndustryBrowse(options?: {
   limit?: number;
   includeNonCnc?: boolean;
+  q?: string;
   industry?: IndustryDataService;
 }): BridgeEntity[] {
   const industry = options?.industry ?? defaultService;
@@ -23,6 +24,7 @@ export function listResearchIndustryBrowse(options?: {
   return listCncBridgeEntities(brands, companies, {
     limit: options?.limit ?? 60,
     includeNonCnc: options?.includeNonCnc,
+    q: options?.q,
   });
 }
 

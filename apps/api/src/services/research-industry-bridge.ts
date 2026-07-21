@@ -195,6 +195,25 @@ export function mapSurfaceToResearchCompany(
   };
 }
 
+export function filterBridgeEntities(entities: BridgeEntity[], q: string): BridgeEntity[] {
+  const raw = q.trim().toLowerCase();
+  if (!raw) return entities;
+  const norm = raw.replace(/[\s\u00A0]+/g, "");
+  return entities.filter((e) => {
+    const hay = [
+      e.companyKey,
+      e.nameCn,
+      e.nameEn ?? "",
+      e.displayName,
+      ...e.aliases,
+    ]
+      .join(" ")
+      .toLowerCase()
+      .replace(/[\s\u00A0]+/g, "");
+    return hay.includes(norm) || hay.includes(raw);
+  });
+}
+
 /**
  * CNC-first browse inventory: legacy overrides + CNC brands.
  * Overrides win on companyKey collision.
@@ -202,7 +221,7 @@ export function mapSurfaceToResearchCompany(
 export function listCncBridgeEntities(
   brands: ResolveBrandSource[],
   _companies: ResolveCompanySource[] = [],
-  options?: { limit?: number; includeNonCnc?: boolean },
+  options?: { limit?: number; includeNonCnc?: boolean; q?: string },
 ): BridgeEntity[] {
   const byKey = new Map<string, BridgeEntity>();
 
@@ -223,7 +242,11 @@ export function listCncBridgeEntities(
     byKey.set(entity.companyKey, entity);
   }
 
-  const list = [...byKey.values()].sort((a, b) => a.nameCn.localeCompare(b.nameCn, "zh-CN"));
+  let list = [...byKey.values()].sort((a, b) => a.nameCn.localeCompare(b.nameCn, "zh-CN"));
+  // Filter before limit so q is not applied only to a truncated prefix.
+  if (options?.q?.trim()) {
+    list = filterBridgeEntities(list, options.q);
+  }
   const limit = options?.limit;
   if (limit != null && limit > 0) {
     return list.slice(0, limit);

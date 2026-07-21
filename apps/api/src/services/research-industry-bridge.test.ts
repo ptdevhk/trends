@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import { IndustryDataService } from "./industry-data-service.js";
 import {
   displayNameCnFirst,
+  filterBridgeEntities,
   listCncBridgeEntities,
   mapSurfaceToResearchCompany,
   projectBrandToBridge,
@@ -96,6 +97,21 @@ describe("research-industry-bridge pure", () => {
       expect(e.nameCn.length).toBeGreaterThan(0);
       expect(e.displayName.includes(e.nameCn) || e.displayName === e.nameCn).toBe(true);
     }
+  });
+
+  it("filterBridgeEntities matches nameCn / nameEn / companyKey / aliases", () => {
+    const entities = listCncBridgeEntities(brands);
+    const fanucHits = filterBridgeEntities(entities, "发那");
+    expect(fanucHits.some((e) => e.companyKey === "fanuc")).toBe(true);
+    const enHits = filterBridgeEntities(entities, "fanuc");
+    expect(enHits.some((e) => e.companyKey === "fanuc")).toBe(true);
+    const baoli = filterBridgeEntities(entities, "宝力");
+    expect(baoli.some((e) => e.companyKey === "pro-technic-machinery")).toBe(true);
+  });
+
+  it("filterBridgeEntities empty q returns input unchanged", () => {
+    const entities = listCncBridgeEntities(brands);
+    expect(filterBridgeEntities(entities, "   ")).toEqual(entities);
   });
 });
 

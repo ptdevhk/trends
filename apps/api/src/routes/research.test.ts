@@ -280,6 +280,22 @@ describe("research routes", () => {
     expect(pro.nameCn).toBe("宝力机械");
   });
 
+  it("filters industry browse by q for fanuc / 发那科", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
+    const app = createApp();
+    const response = await app.request(
+      `/api/research/industry?limit=40&q=${encodeURIComponent("发那")}`,
+      { headers: auth.headers },
+    );
+    expect(response.status).toBe(200);
+    const body = await parseJsonBody(response);
+    expect(body.items.some((i: { companyKey: string }) => i.companyKey === "fanuc")).toBe(true);
+    for (const item of body.items) {
+      const hay = `${item.companyKey} ${item.nameCn} ${item.nameEn ?? ""}`.toLowerCase();
+      expect(hay.includes("fanuc") || hay.includes("发那") || item.nameCn.includes("发那")).toBe(true);
+    }
+  });
+
   it("resolves 发那科 → fanuc and 宝力机械 → pro-technic-machinery", async () => {
     const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
     const app = createApp();
