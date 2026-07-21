@@ -36,6 +36,17 @@ function companyPoliciesHref(): string {
   return '/hr/settings/policies?tab=companies'
 }
 
+/** Workspace-relative research page for a company (HR persona default). */
+function companyResearchHref(companyKey: string): string {
+  if (typeof window !== 'undefined') {
+    const seg = window.location.pathname.split('/').filter(Boolean)[0]
+    if (seg && !['login', 'api', 's', 'explanation'].includes(seg)) {
+      return `/${seg}/research/${encodeURIComponent(companyKey)}?persona=hr`
+    }
+  }
+  return `/hr/research/${encodeURIComponent(companyKey)}?persona=hr`
+}
+
 function badgeClass(preset: CompanyPolicyMatchHit['preset']): string {
   if (preset === 'no_hire') {
     return 'border-red-200 bg-red-50 text-red-700'
@@ -104,6 +115,13 @@ export function CompanyPolicyBadges({
                   ({hit.matchedEmployer})
                 </span>
               ) : null}
+              <a
+                href={companyResearchHref(hit.companyKey)}
+                className="shrink-0 font-medium underline-offset-2 hover:underline"
+                data-testid="company-policy-research-link"
+              >
+                {t('settings.policies.runtime.researchLink', { defaultValue: 'Research' })}
+              </a>
               <a
                 href={policiesHref}
                 className="ml-auto shrink-0 font-medium underline-offset-2 hover:underline"

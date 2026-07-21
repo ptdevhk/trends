@@ -30,10 +30,8 @@ def run_crawl_analyze(config_overrides: Optional[Dict[str, Any]] = None) -> bool
     """
     Execute a full crawl and analyze cycle.
 
-    This is the main scheduled task that:
-    1. Loads configuration (with optional overrides)
-    2. Creates a NewsAnalyzer instance
-    3. Runs the full crawl -> store -> analyze -> report -> notify pipeline
+    Legacy TrendRadar shadow path — only runs when LEGACY_TRENDRADAR_CRAWL=1.
+    Product research ingest is run_research_ingest (Convex-native).
 
     Args:
         config_overrides: Optional dictionary of config values to override
@@ -44,6 +42,13 @@ def run_crawl_analyze(config_overrides: Optional[Dict[str, Any]] = None) -> bool
     # Skip during maintenance mode (restore quiesce)
     if _is_maintenance_mode():
         logger.info("[Task] Skipping crawl cycle — maintenance mode active")
+        return True
+
+    # Dual-run: legacy crawl is opt-in for shadow parity only
+    from apps.worker.research_ingest import legacy_trendradar_crawl_enabled
+
+    if not legacy_trendradar_crawl_enabled():
+        logger.info("[Task] Skipping crawl_analyze — LEGACY_TRENDRADAR_CRAWL not enabled (shadow only)")
         return True
 
     timezone = resolve_worker_timezone()
@@ -82,6 +87,75 @@ def run_crawl_analyze(config_overrides: Optional[Dict[str, Any]] = None) -> bool
         logger.error(f"[Task] crawl_analyze failed after {elapsed:.1f}s: {e}")
         logger.debug(traceback.format_exc())
         return False
+
+
+def run_research_ingest(config_overrides: Optional[Dict[str, Any]] = None) -> bool:
+    """
+    Research Eng native ingest: hotlist/RSS → Convex news_items + research_signals.
+    Gated by RESEARCH_INGEST_ENABLED=1.
+    """
+    if _is_maintenance_mode():
+        logger.info("[Task] Skipping research ingest — maintenance mode active")
+        return True
+
+    from apps.worker.research_ingest import run_research_ingest as _run
+
+    return _run(config_overrides=config_overrides)
+
+
+def run_research_parity(
+    platform_breakdown: Optional[list] = None,
+    golden_companies: Optional[list] = None,
+    *,
+    parity_run_id: Optional[str] = None,
+    window_start: Optional[int] = None,
+    window_end: Optional[int] = None,
+) -> Dict[str, Any]:
+    """
+    Evaluate parity decision and optionally persist to Convex research_parity_runs.
+    Pure comparison always runs; Convex write requires client credentials.
+    """
+    from apps.worker.research_parity import evaluate_research_parity
+
+    breakdown = platform_breakdown or []
+    golden = golden_companies or []
+    decision = evaluate_research_parity(breakdown, golden)
+    logger.info(
+        "[Task] research_parity green=%s ratio=%.3f reasons=%s",
+        decision["green"],
+        decision["aggregateRatio"],
+        decision.get("reasons"),
+    )
+
+    # Durable write when Convex is configured (dual-run ops path)
+    try:
+        from apps.worker.research_convex import ResearchConvexClient
+        import time
+        import uuid
+
+        client = ResearchConvexClient()
+        if client.convex_url and client.write_secret:
+            now = int(time.time() * 1000)
+            client.record_parity_run(
+                {
+                    "parityRunId": parity_run_id or f"parity-{uuid.uuid4().hex[:12]}",
+                    "evaluatedAt": now,
+                    "windowStart": window_start if window_start is not None else now - 1_800_000,
+                    "windowEnd": window_end if window_end is not None else now,
+                    "enabledPlatforms": [p.get("platform", "") for p in breakdown],
+                    "nativeTotal": decision["nativeTotal"],
+                    "shadowTotal": decision["shadowTotal"],
+                    "aggregateRatio": decision["aggregateRatio"],
+                    "platformBreakdown": decision["platformBreakdown"],
+                    "goldenCompanyResults": decision["goldenCompanyResults"],
+                    "nativeNonEmpty": decision["nativeNonEmpty"],
+                    "green": decision["green"],
+                }
+            )
+    except Exception as error:  # noqa: BLE001
+        logger.warning("[Task] research_parity Convex record skipped: %s", error)
+
+    return decision
 
 
 def run_crawl_only(config_overrides: Optional[Dict[str, Any]] = None) -> bool:

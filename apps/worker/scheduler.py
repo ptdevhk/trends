@@ -28,6 +28,7 @@ from apscheduler.events import (
 
 from apps.worker.tasks import (
     run_crawl_analyze,
+    run_research_ingest,
     health_check,
     list_summary_profiles_runtime,
     run_skills_version_check,
@@ -35,6 +36,7 @@ from apps.worker.tasks import (
     normalize_summary_period,
     run_workspace_summary,
 )
+from apps.worker.research_ingest import research_ingest_enabled
 from apps.worker.timezone import bootstrap_worker_timezone, resolve_worker_timezone
 from apps.worker.profile_loader import ProfileLoader
 from apps.worker.resume_tasks import run_resume_crawl_task
@@ -228,6 +230,32 @@ class WorkerScheduler:
             name="Crawl & Analyze",
             kwargs=job_kwargs,
             replace_existing=True,
+        )
+
+    def add_research_ingest_job(self) -> None:
+        """Add Research Eng native ingest when RESEARCH_INGEST_ENABLED is set."""
+        if not research_ingest_enabled():
+            logger.info("Research ingest job disabled; set RESEARCH_INGEST_ENABLED=1 to enable")
+            return
+
+        job_kwargs = {"config_overrides": self.config_overrides}
+        if self.cron_expression:
+            trigger = CronTrigger.from_crontab(self.cron_expression, timezone=self.timezone)
+        else:
+            trigger = IntervalTrigger(minutes=self.interval_minutes, timezone=self.timezone)
+
+        self.scheduler.add_job(
+            run_research_ingest,
+            trigger=trigger,
+            id="research_ingest",
+            name="Research Ingest",
+            kwargs=job_kwargs,
+            replace_existing=True,
+        )
+        logger.info(
+            "Scheduled research ingest job (interval=%s min or cron=%s)",
+            self.interval_minutes,
+            self.cron_expression,
         )
 
     def add_custom_job(
@@ -436,6 +464,7 @@ class WorkerScheduler:
 
         # Add the main job
         self.add_crawl_job()
+        self.add_research_ingest_job()
         
         # Load dynamic profile jobs
         self.load_profile_jobs()
