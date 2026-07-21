@@ -110,26 +110,86 @@ CONVEX_RUNTIME_ENV_KEYS=(
 
 CONVEX_DIR="$PROJECT_ROOT/packages/convex"
 CONVEX_ENV_FILE="$CONVEX_DIR/.env.local"
+ROOT_ENV_FILE="$PROJECT_ROOT/.env"
+ROOT_ENV_LOCAL_FILE="$PROJECT_ROOT/.env.local"
+
+# Read KEY=value from env files without sourcing (secrets must not echo).
+# Preference order for each key: process env → packages/convex/.env.local →
+# root .env.local → root .env. Root .env often holds AI_API_KEY while only
+# packages/convex/.env.local is used for Convex URL; without this, AI_API_KEY
+# never reaches the local backend and analysis fails with Poe 401.
+read_env_file_value() {
+    local env_path="$1"
+    local key="$2"
+    local line
+    local value=""
+
+    if [ ! -f "$env_path" ]; then
+        return 0
+    fi
+
+    while IFS= read -r line || [ -n "$line" ]; do
+        case "$line" in
+            "$key="*) value="${line#*=}" ;;
+        esac
+    done < "$env_path"
+
+    value="${value%$'\r'}"
+    if [ "${#value}" -ge 2 ]; then
+        case "$value" in
+            \"*\") value="${value:1:${#value}-2}" ;;
+            \'*\') value="${value:1:${#value}-2}" ;;
+        esac
+    fi
+    printf '%s' "$value"
+}
+
+resolve_runtime_env_value() {
+    local key="$1"
+    local value="${!key:-}"
+
+    if [ -z "$value" ]; then
+        value="$(read_env_file_value "$CONVEX_ENV_FILE" "$key")"
+    fi
+    if [ -z "$value" ]; then
+        value="$(read_env_file_value "$ROOT_ENV_LOCAL_FILE" "$key")"
+    fi
+    if [ -z "$value" ]; then
+        value="$(read_env_file_value "$ROOT_ENV_FILE" "$key")"
+    fi
+    printf '%s' "$value"
+}
 
 if [ ! -d "$CONVEX_DIR" ]; then
     echo "Skipping AI env sync: $CONVEX_DIR not found."
     exit 0
 fi
 
+# Anonymous local backends need this for non-interactive `convex env set`.
+if [ -z "${CONVEX_AGENT_MODE:-}" ] && [ -f "$SCRIPT_DIR/local-convex-write-secret.sh" ]; then
+    # shellcheck disable=SC1090
+    source "$SCRIPT_DIR/local-convex-write-secret.sh"
+    LOCAL_CONVEX_PROJECT_ROOT="$PROJECT_ROOT"
+    if is_local_anonymous_convex 2>/dev/null; then
+        export CONVEX_AGENT_MODE=anonymous
+    fi
+fi
+
 synced=0
 failed=0
+skipped_empty=0
 
 for key in "${CONVEX_RUNTIME_ENV_KEYS[@]}"; do
-    value="${!key:-}"
+    value="$(resolve_runtime_env_value "$key")"
     if [ -z "$value" ]; then
+        skipped_empty=$((skipped_empty + 1))
         continue
     fi
 
-    # Escape value for safe shell interpolation
-    escaped_value="$(printf '%s' "$value" | sed "s/'/'\\\\''/g")"
-
+    # Pass value as a separate argv — do not shell-quote into a single string
+    # (previous escaping could corrupt keys or leave placeholders).
     if [ -f "$CONVEX_ENV_FILE" ]; then
-        if (cd "$CONVEX_DIR" && npx convex env set --env-file "$CONVEX_ENV_FILE" "$key" "$escaped_value" >/dev/null 2>&1); then
+        if (cd "$CONVEX_DIR" && npx convex env set --env-file "$CONVEX_ENV_FILE" "$key" "$value" >/dev/null 2>&1); then
             synced=$((synced + 1))
             echo "  Synced $key to Convex"
         else
@@ -137,7 +197,7 @@ for key in "${CONVEX_RUNTIME_ENV_KEYS[@]}"; do
             failed=$((failed + 1))
         fi
     else
-        if (cd "$CONVEX_DIR" && npx convex env set "$key" "$escaped_value" >/dev/null 2>&1); then
+        if (cd "$CONVEX_DIR" && npx convex env set "$key" "$value" >/dev/null 2>&1); then
             synced=$((synced + 1))
             echo "  Synced $key to Convex"
         else
@@ -150,9 +210,16 @@ done
 if [ "$synced" -gt 0 ]; then
     echo "Synced $synced runtime env var(s) to Convex deployment."
 elif [ "$failed" -eq 0 ]; then
-    echo "No managed runtime env vars found in environment."
+    echo "No managed runtime env vars found in environment (checked process env, packages/convex/.env.local, .env.local, .env)."
 fi
 
 if [ "$failed" -gt 0 ]; then
     echo "WARNING: $failed Convex env var(s) failed to sync."
+fi
+
+# Lightweight integrity check: AI_API_KEY must not be a short redacted placeholder.
+# (CLI sometimes printed sk-... when get was used wrong; set must store full secret.)
+_ai_key_len="$(resolve_runtime_env_value AI_API_KEY | wc -c | tr -d ' ')"
+if [ "${_ai_key_len:-0}" -gt 0 ] && [ "${_ai_key_len:-0}" -lt 20 ]; then
+    echo "WARNING: AI_API_KEY looks too short (${_ai_key_len} chars). Poe/OpenAI keys are usually 40+ chars — analysis will 401."
 fi
