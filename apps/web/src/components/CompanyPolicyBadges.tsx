@@ -148,20 +148,26 @@ export function CompanyPolicyBadges({
           return (
             <Tooltip key={hit.companyKey}>
               <TooltipTrigger asChild>
-                <Badge
-                  variant="outline"
-                  className={cn('max-w-[9rem] truncate text-[10px] cursor-help', badgeClass(hit.preset))}
-                  data-testid={
-                    hit.preset === 'no_hire'
-                      ? 'company-policy-badge-no-hire'
-                      : 'company-policy-badge-known-good'
-                  }
-                  data-company-key={hit.companyKey}
-                  title={`${chipLabel}: ${shortName}`}
+                <a
+                  href={companyResearchHref(hit.companyKey)}
+                  data-testid="company-policy-research-link"
+                  className="inline-flex"
                 >
-                  {chipLabel}
-                  {shortName ? ` · ${shortName}` : ''}
-                </Badge>
+                  <Badge
+                    variant="outline"
+                    className={cn('max-w-[9rem] truncate text-[10px] cursor-pointer', badgeClass(hit.preset))}
+                    data-testid={
+                      hit.preset === 'no_hire'
+                        ? 'company-policy-badge-no-hire'
+                        : 'company-policy-badge-known-good'
+                    }
+                    data-company-key={hit.companyKey}
+                    title={`${chipLabel}: ${shortName}`}
+                  >
+                    {chipLabel}
+                    {shortName ? ` · ${shortName}` : ''}
+                  </Badge>
+                </a>
               </TooltipTrigger>
               <TooltipContent className="max-w-xs space-y-1 text-xs">
                 <p className="font-medium">

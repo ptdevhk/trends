@@ -40,6 +40,15 @@ describe('CompanyPolicyBadges', () => {
     expect(chip).not.toHaveTextContent(/Pro-Technic Machinery/)
   })
 
+  it('badge variant links to research page for company', () => {
+    render(<CompanyPolicyBadges hits={[noHireHit]} />)
+    const research = screen.getByTestId('company-policy-research-link')
+    expect(research).toHaveAttribute(
+      'href',
+      '/hr/research/pro-technic-machinery?persona=hr',
+    )
+  })
+
   it('banner is one line with manage link to policies settings', () => {
     render(<CompanyPolicyBadges hits={[noHireHit]} variant="banner" />)
     const banner = screen.getByTestId('company-policy-warning')
