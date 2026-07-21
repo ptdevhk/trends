@@ -57,7 +57,7 @@
   - `listResearchIndustryBrowse(options?: { limit?: number; includeNonCnc?: boolean; q?: string })`
   - Route query: `q?: string`
 
-- [ ] **Step 1: Failing pure tests for `q` filter**
+- [x] **Step 1: Failing pure tests for `q` filter**
 
 Add to `research-industry-bridge.test.ts`:
 
@@ -82,13 +82,13 @@ it("filterBridgeEntities empty q returns input unchanged", () => {
 
 (Use the same `brands` fixture already in that describe, or real config suite.)
 
-- [ ] **Step 2: Run test — expect FAIL** (filterBridgeEntities missing)
+- [x] **Step 2: Run test — expect FAIL** (filterBridgeEntities missing)
 
 ```bash
 bunx vitest run apps/api/src/services/research-industry-bridge.test.ts
 ```
 
-- [ ] **Step 3: Implement filter + wire options.q**
+- [x] **Step 3: Implement filter + wire options.q**
 
 In `research-industry-bridge.ts`:
 
@@ -135,7 +135,7 @@ export function listResearchIndustryBrowse(options?: {
 }
 ```
 
-- [ ] **Step 4: Route OpenAPI + handler**
+- [x] **Step 4: Route OpenAPI + handler**
 
 In `research.ts` industry browse query schema add:
 
@@ -153,7 +153,7 @@ const items = listResearchIndustryBrowse({
 });
 ```
 
-- [ ] **Step 5: Route test**
+- [x] **Step 5: Route test**
 
 In `research.test.ts`:
 
@@ -175,7 +175,7 @@ it("filters industry browse by q for fanuc / 发那科", async () => {
 });
 ```
 
-- [ ] **Step 6: Pass + commit**
+- [x] **Step 6: Pass + commit**
 
 ```bash
 bunx vitest run apps/api/src/services/research-industry-bridge.test.ts apps/api/src/routes/research.test.ts
@@ -202,7 +202,7 @@ git commit -m "feat(research): industry browse q filter for predictive search"
   - `loadResearchRecentCompanies(storage?: Storage): ResearchRecentCompany[]`
   - `upsertResearchRecentCompany(entry: Omit<ResearchRecentCompany, "openedAt"> & { openedAt?: number }, storage?: Storage): ResearchRecentCompany[]` — max **8**, newest first, dedupe by companyKey
 
-- [ ] **Step 1: Failing tests**
+- [x] **Step 1: Failing tests**
 
 ```typescript
 import { describe, expect, it } from 'vitest'
@@ -250,13 +250,13 @@ describe('research-recent-companies', () => {
 })
 ```
 
-- [ ] **Step 2: Run — expect FAIL**
+- [x] **Step 2: Run — expect FAIL**
 
 ```bash
 cd apps/web && bunx vitest run src/lib/research-recent-companies.test.ts
 ```
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```typescript
 export const RESEARCH_RECENT_KEY = 'trends.research.recentCompanies.v1'
@@ -323,7 +323,7 @@ export function upsertResearchRecentCompany(
 }
 ```
 
-- [ ] **Step 4: Pass + commit**
+- [x] **Step 4: Pass + commit**
 
 ```bash
 cd apps/web && bunx vitest run src/lib/research-recent-companies.test.ts
@@ -368,7 +368,7 @@ Behavior (from spec):
 - Row nameCn-first; keyboard combobox a11y; Enter selects active; Escape closes
 - Select → upsert recent + navigate `/${teamSlug}/research/${companyKey}?persona=hr`
 
-- [ ] **Step 1: Failing component tests**
+- [x] **Step 1: Failing component tests**
 
 Mock `rawApiClient` and recent storage:
 
@@ -382,13 +382,13 @@ Mock `rawApiClient` and recent storage:
 
 Use fake timers for debounce if needed (`vi.useFakeTimers()` + advance 250ms).
 
-- [ ] **Step 2: Run — expect FAIL**
+- [x] **Step 2: Run — expect FAIL**
 
 ```bash
 cd apps/web && bunx vitest run src/components/research/ResearchCompanyPredictInput.test.tsx
 ```
 
-- [ ] **Step 3: Implement combobox**
+- [x] **Step 3: Implement combobox**
 
 Skeleton structure:
 
@@ -420,7 +420,7 @@ export function ResearchCompanyPredictInput({ teamSlug, showcaseSuggestions = []
 
 Do **not** import full `GoogleSearchBar`. Copy only a11y/keyboard patterns.
 
-- [ ] **Step 4: Pass + commit**
+- [x] **Step 4: Pass + commit**
 
 ```bash
 cd apps/web && bunx vitest run src/components/research/ResearchCompanyPredictInput.test.tsx
@@ -441,7 +441,7 @@ git commit -m "feat(research): predictive company combobox for hub search"
 - Consumes: `ResearchCompanyPredictInput`, showcase golden for suggestions, existing pulse array
 - Produces: updated hub sections
 
-- [ ] **Step 1: Replace submit-only search UI with predict input**
+- [x] **Step 1: Replace submit-only search UI with predict input**
 
 In **搜索企业** section:
 - Render `<ResearchCompanyPredictInput teamSlug={teamSlug} showcaseSuggestions={golden mapped to nameCn/companyKey} />`
@@ -455,7 +455,7 @@ const [q, setQ] = useState('')
 // Button search still uses q
 ```
 
-- [ ] **Step 2: Pulse polish**
+- [x] **Step 2: Pulse polish**
 
 For each pulse item:
 - Badge/chip with `platform`
@@ -470,14 +470,14 @@ For each pulse item:
 
 If flaky/noisy, ship platform+time only and leave company chip for a one-line follow-up note in commit body.
 
-- [ ] **Step 3: Update hub tests**
+- [x] **Step 3: Update hub tests**
 
 - Mock `GET /api/research/industry` + resolve for predict if exercised via page
 - Assert `research-predict-listbox` or `research-company-search` role combobox present
 - Assert pulse item still renders; if platform chip added, `data-testid="research-pulse-platform"`
 - Showcase **展示数据** badge still present on golden cards
 
-- [ ] **Step 4: Pass + commit**
+- [x] **Step 4: Pass + commit**
 
 ```bash
 cd apps/web && bunx vitest run src/pages/ResearchIndexPage.test.tsx src/components/research/ResearchCompanyPredictInput.test.tsx
@@ -491,7 +491,7 @@ git commit -m "feat(research): hub wire predictive search and pulse chips"
 
 **Files:** none (verification only)
 
-- [ ] **Step 1: Run focused suites**
+- [x] **Step 1: Run focused suites**
 
 ```bash
 bunx vitest run \
@@ -506,7 +506,7 @@ cd apps/web && bunx vitest run \
 
 Expected: all pass.
 
-- [ ] **Step 2: Optional live smoke** (if API+auth up)
+- [x] **Step 2: Optional live smoke** (if API+auth up)
 
 ```bash
 # login hr-demo; GET /api/research/industry?q=发那 → fanuc
@@ -515,7 +515,7 @@ Expected: all pass.
 
 If auth unavailable, skip; unit evidence is sufficient per design.
 
-- [ ] **Step 3: Final commit only if dirty** (docs checklist)
+- [x] **Step 3: Final commit only if dirty** (docs checklist)
 
 Mark this plan file task boxes complete when executing.
 
