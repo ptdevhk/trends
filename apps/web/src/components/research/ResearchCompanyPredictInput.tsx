@@ -87,19 +87,21 @@ export function ResearchCompanyPredictInput({
     defaultValue: '企业预测加载失败',
   })
 
-  // Debounced industry + resolve fetch
+  // Debounced industry + resolve fetch.
+  // Bump generation on every trimmed change (including clear) so late responses
+  // cannot rewrite matchItems for a stale query; clear matches immediately so
+  // prior options are not clickable during the debounce window.
   useEffect(() => {
+    const requestId = ++requestIdRef.current
+    setMatchItems((prev) => (prev.length === 0 ? prev : []))
+    setError((prev) => (prev == null ? prev : null))
+
     if (!trimmed) {
-      // Avoid setState that forces a re-render when already clear.
-      setMatchItems((prev) => (prev.length === 0 ? prev : []))
       setLoading((prev) => (prev ? false : prev))
-      setError((prev) => (prev == null ? prev : null))
       return undefined
     }
 
-    const requestId = ++requestIdRef.current
     setLoading(true)
-    setError(null)
 
     const timer = window.setTimeout(() => {
       void (async () => {
@@ -313,7 +315,7 @@ export function ResearchCompanyPredictInput({
           className="absolute inset-x-0 top-[calc(100%+0.35rem)] z-30 max-h-72 overflow-auto rounded-lg border bg-background shadow-lg"
           aria-label={t('research.predictListLabel', { defaultValue: '企业预测' })}
         >
-          {loading && matchItems.length === 0 && !emptyQueryMode ? (
+          {loading && !emptyQueryMode ? (
             <li className="px-3 py-2 text-sm text-muted-foreground" role="presentation">
               {t('research.predictLoading', { defaultValue: '加载中…' })}
             </li>

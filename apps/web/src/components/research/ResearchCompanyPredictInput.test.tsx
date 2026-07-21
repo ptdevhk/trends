@@ -206,4 +206,53 @@ describe('ResearchCompanyPredictInput', () => {
       expect.objectContaining({ companyKey: 'fanuc', nameCn: '发那科' }),
     )
   })
+
+  it('type A then type B does not keep A options clickable after B is typed', async () => {
+    getMock.mockImplementation(async (path: string, opts?: { params?: { query?: { q?: string } } }) => {
+      const q = opts?.params?.query?.q ?? ''
+      if (path === '/api/research/industry') {
+        if (q === '发那') {
+          return { data: { success: true, items: [fanucIndustry] } }
+        }
+        if (q === '马扎') {
+          return { data: { success: true, items: [mazakIndustry] } }
+        }
+        return { data: { success: true, items: [] } }
+      }
+      if (path === '/api/research/industry/resolve') {
+        if (q === '发那') {
+          return { data: { success: true, hit: fanucIndustry } }
+        }
+        if (q === '马扎') {
+          return { data: { success: true, hit: mazakIndustry } }
+        }
+        return { data: { success: true, hit: null } }
+      }
+      return { data: { success: true } }
+    })
+
+    const onNavigate = vi.fn()
+    renderPredict(
+      <ResearchCompanyPredictInput teamSlug="hr" debounceMs={250} onNavigate={onNavigate} />,
+    )
+
+    const input = screen.getByTestId('research-company-search')
+    typeQuery(input, '发那')
+    await flushDebouncedFetch(250)
+
+    expect(screen.getByRole('option', { name: /发那科/ })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /山崎马扎克/ })).not.toBeInTheDocument()
+
+    // Query change must clear prior matches immediately (before debounce settles)
+    typeQuery(input, '马扎')
+
+    expect(screen.queryByRole('option', { name: /发那科/ })).not.toBeInTheDocument()
+    // During debounce: no stale A options clickable; loading may show
+    expect(screen.queryByRole('option')).not.toBeInTheDocument()
+
+    await flushDebouncedFetch(250)
+
+    expect(screen.queryByRole('option', { name: /发那科/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /山崎马扎克/ })).toBeInTheDocument()
+  })
 })
