@@ -751,4 +751,100 @@ export default defineSchema({
         .index("by_scope_company", ["scopeType", "scopeId", "companyKey"])
         .index("by_company", ["companyKey"])
         .index("by_scope", ["scopeType", "scopeId"]),
+
+    // Research Eng: native news items (full distill; no SQLite product path)
+    news_items: defineTable({
+        sourceId: v.string(),
+        platform: v.string(),
+        externalId: v.optional(v.string()),
+        title: v.string(),
+        url: v.optional(v.string()),
+        rank: v.optional(v.number()),
+        publishedAt: v.optional(v.number()),
+        capturedAt: v.number(),
+        rawSnippet: v.optional(v.string()),
+        contentHash: v.string(),
+    })
+        .index("by_captured_at", ["capturedAt"])
+        .index("by_content_hash", ["contentHash"])
+        .index("by_platform_captured", ["platform", "capturedAt"]),
+
+    // Research Eng: company-linked signals with nested evidence
+    research_signals: defineTable({
+        companyKey: v.string(),
+        kind: v.union(
+            v.literal("company_mention"),
+            v.literal("hiring_signal"),
+            v.literal("market_move"),
+            v.literal("sales_trigger"),
+        ),
+        title: v.string(),
+        summary: v.optional(v.string()),
+        evidence: v.object({
+            newsItemId: v.optional(v.id("news_items")),
+            title: v.string(),
+            url: v.optional(v.string()),
+            platform: v.string(),
+            seenAt: v.number(),
+            snippet: v.optional(v.string()),
+        }),
+        score: v.optional(v.number()),
+        capturedAt: v.number(),
+        ingestRunId: v.optional(v.string()),
+    })
+        .index("by_company_captured", ["companyKey", "capturedAt"])
+        .index("by_kind_captured", ["kind", "capturedAt"]),
+
+    // Research Eng: ingest run audit rows
+    research_ingest_runs: defineTable({
+        runId: v.string(),
+        startedAt: v.number(),
+        finishedAt: v.optional(v.number()),
+        status: v.union(
+            v.literal("running"),
+            v.literal("success"),
+            v.literal("failed"),
+        ),
+        enabledPlatforms: v.array(v.string()),
+        newsInserted: v.optional(v.number()),
+        newsUpdated: v.optional(v.number()),
+        signalsInserted: v.optional(v.number()),
+        unresolvedMentions: v.optional(v.number()),
+        error: v.optional(v.string()),
+    })
+        .index("by_run_id", ["runId"])
+        .index("by_started_at", ["startedAt"]),
+
+    // Research Eng: durable parity / kill-switch ledger
+    research_parity_runs: defineTable({
+        parityRunId: v.string(),
+        evaluatedAt: v.number(),
+        windowStart: v.number(),
+        windowEnd: v.number(),
+        enabledPlatforms: v.array(v.string()),
+        nativeTotal: v.number(),
+        shadowTotal: v.number(),
+        aggregateRatio: v.number(),
+        platformBreakdown: v.array(
+            v.object({
+                platform: v.string(),
+                nativeCount: v.number(),
+                shadowCount: v.number(),
+                ratio: v.number(),
+                zeroWithShadow: v.boolean(),
+            }),
+        ),
+        goldenCompanyResults: v.array(
+            v.object({
+                companyKey: v.string(),
+                signalCount: v.number(),
+                pass: v.boolean(),
+            }),
+        ),
+        nativeNonEmpty: v.boolean(),
+        green: v.boolean(),
+        greenStreak: v.number(),
+    })
+        .index("by_parity_run_id", ["parityRunId"])
+        .index("by_evaluated_at", ["evaluatedAt"]),
 });
