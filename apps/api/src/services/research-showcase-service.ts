@@ -174,12 +174,15 @@ async function cardForCompany(
     if (!isRecord(row)) {
       continue;
     }
+    const ingestRunId = typeof row.ingestRunId === "string" ? row.ingestRunId : "";
+    // Hub density cards only count curated showcase-seed rows (not live hotlist noise)
+    if (!ingestRunId.startsWith("showcase-seed")) {
+      continue;
+    }
+    showcase = true;
     const kind = typeof row.kind === "string" ? row.kind : "";
     if (kind) {
       kindCounts[kind] = (kindCounts[kind] ?? 0) + 1;
-    }
-    if (typeof row.ingestRunId === "string" && row.ingestRunId.startsWith("showcase-seed")) {
-      showcase = true;
     }
   }
   const signalCount = Object.values(kindCounts).reduce((a, b) => a + b, 0);

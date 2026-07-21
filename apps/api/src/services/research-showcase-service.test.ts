@@ -184,7 +184,7 @@ describe("research-showcase-service", () => {
     const pro = showcase.golden.find((c) => c.companyKey === "pro-technic-machinery");
     expect(pro).toBeTruthy();
     expect(pro!.signalCount).toBeGreaterThanOrEqual(3);
-    expect(pro!.kindCounts.hiring_signal).toBeGreaterThanOrEqual(1);
+    expect(pro!.kindCounts.hiring_signal).toBe(1);
     expect(pro!.href).toBe("/hr/research/pro-technic-machinery?persona=hr");
     expect(pro!.showcase).toBe(true);
     expect(showcase.fromResumeDesk.length).toBeGreaterThanOrEqual(3);
@@ -192,26 +192,17 @@ describe("research-showcase-service", () => {
     expect(showcase.meta.seedIngestRunId).toBe("showcase-seed-v1");
   });
 
-  it("does not label live-only density as showcase data", async () => {
-    const { callConvexQuery } = await import("./convex-utils.js");
-    // Inject via listByCompany mock path for a company only in query — use getResearchShowcase
-    // with pack companies: override query mock response by key live-only-co is not in pack.
-    // Instead assert pro with live-only mix: temporarily re-mock return for empty companies.
-    const emptyShowcaseCompanies = await callConvexQuery("research_signals:listByCompany", {
-      companyKey: "live-only-co",
-      writeSecret: "test-secret",
-    });
-    expect(Array.isArray(emptyShowcaseCompanies)).toBe(true);
-    const rows = emptyShowcaseCompanies as Array<{ kind: string; ingestRunId: string }>;
-    expect(rows[0].ingestRunId.startsWith("showcase-seed")).toBe(false);
-
-    // Build card logic through real getResearchShowcase path: add live-only to query for a pack company
-    // by re-seeding query mock — use vi.mocked after import
+  it("does not count live-only rows toward showcase hub density", async () => {
     const utils = await import("./convex-utils.js");
     vi.mocked(utils.callConvexQuery).mockImplementation(async (path: string, args: Record<string, unknown>) => {
       queryCalls.push({ path, args });
       if (path === "research_signals:listByCompany") {
-        return [{ kind: "hiring_signal", ingestRunId: "research-live-xyz" }];
+        // Mix: one live + one showcase hiring — hub must only count showcase
+        return [
+          { kind: "hiring_signal", ingestRunId: "research-live-xyz" },
+          { kind: "hiring_signal", ingestRunId: "showcase-seed-v1" },
+          { kind: "sales_trigger", ingestRunId: "showcase-seed-v1" },
+        ];
       }
       if (path === "research_news:listRecent") {
         return [];
@@ -223,11 +214,12 @@ describe("research-showcase-service", () => {
     });
 
     const hub = await getResearchShowcase("hr");
-    for (const card of [...hub.golden, ...hub.fromResumeDesk]) {
-      if (card.signalCount > 0) {
-        expect(card.showcase).toBe(false);
-      }
-    }
+    const pro = hub.golden.find((c) => c.companyKey === "pro-technic-machinery");
+    expect(pro).toBeTruthy();
+    expect(pro!.showcase).toBe(true);
+    expect(pro!.kindCounts.hiring_signal).toBe(1);
+    expect(pro!.kindCounts.sales_trigger).toBe(1);
+    expect(pro!.signalCount).toBe(2);
   });
 });
 
