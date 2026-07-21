@@ -1,0 +1,15 @@
+{
+  "status": "success",
+  "items": [
+    {
+      "title": "宝力机械扩产招聘",
+      "url": "https://example.com/a",
+      "mobileUrl": "https://m.example.com/a",
+      "id": "ext-1"
+    },
+    {
+      "title": "  ",
+      "url": "https://example.com/skip"
+    }
+  ]
+}

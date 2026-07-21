@@ -70,6 +70,57 @@ def stable_content_hash(
     return hashlib.sha256(material.encode("utf-8")).hexdigest()
 
 
+def parse_newsnow_payload(
+    platform_id: str,
+    payload: Any,
+    captured_at: int,
+) -> List[NormalizedNewsItem]:
+    """
+    Parse NewsNow-compatible JSON into NormalizedNewsItem list.
+    Accepts status success|cache only; skips blank titles.
+    """
+    if isinstance(payload, str):
+        try:
+            payload = json.loads(payload)
+        except json.JSONDecodeError:
+            return []
+    if not isinstance(payload, dict):
+        return []
+    status = payload.get("status")
+    if status not in ("success", "cache"):
+        return []
+    raw_items = payload.get("items") or []
+    result: List[NormalizedNewsItem] = []
+    for index, raw in enumerate(raw_items):
+        if not isinstance(raw, dict):
+            continue
+        title = raw.get("title")
+        if title is None or isinstance(title, float) or not str(title).strip():
+            continue
+        title = str(title).strip()
+        url = raw.get("url") or raw.get("mobileUrl") or raw.get("mobile_url")
+        external_id = raw.get("id") or raw.get("external_id")
+        content_hash = stable_content_hash(
+            platform=platform_id,
+            title=title,
+            url=str(url) if url else None,
+            external_id=str(external_id) if external_id else None,
+        )
+        result.append(
+            NormalizedNewsItem(
+                source_id=platform_id,
+                platform=platform_id,
+                title=title,
+                content_hash=content_hash,
+                captured_at=captured_at,
+                external_id=str(external_id) if external_id else None,
+                url=str(url) if url else None,
+                rank=index + 1,
+            )
+        )
+    return result
+
+
 class HotlistPort(Protocol):
     def fetch(self, platform_id: str, captured_at: int) -> List[NormalizedNewsItem]: ...
 
