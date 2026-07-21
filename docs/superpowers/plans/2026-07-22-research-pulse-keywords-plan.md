@@ -64,7 +64,7 @@
   - `filterNewsByKeywords<T extends { title: string; rawSnippet?: string; snippet?: string }>(items: T[], keywords: string[]): Array<T & { matchedKeywords: string[] }>`
   - `MAX_CUSTOM_KEYWORDS = 20`, `MAX_KEYWORD_LENGTH = 32`
 
-- [ ] **Step 1: Write seed YAML** (exact content from spec groups: cnc-core, brands, hiring-sales)
+- [x] **Step 1: Write seed YAML** (exact content from spec groups: cnc-core, brands, hiring-sales)
 
 ```yaml
 version: v1
@@ -82,7 +82,7 @@ defaults:
   enabledGroupIds: [cnc-core, brands, hiring-sales]
 ```
 
-- [ ] **Step 2: Failing pure tests**
+- [x] **Step 2: Failing pure tests**
 
 ```typescript
 import { describe, expect, it } from "vitest";
@@ -140,19 +140,19 @@ it("filterNewsByKeywords matches 发那科 and attaches matchedKeywords", () => 
 });
 ```
 
-- [ ] **Step 3: Run — expect FAIL**
+- [x] **Step 3: Run — expect FAIL**
 
 ```bash
 bunx vitest run apps/api/src/services/research-pulse-keywords.test.ts
 ```
 
-- [ ] **Step 4: Implement pack loader + pure helpers**
+- [x] **Step 4: Implement pack loader + pure helpers**
 
 `research-pulse-keywords-pack.ts`: read YAML (reuse `yaml` parse + project root resolution pattern from `research-showcase-pack.ts`), validate groups/keywords non-empty strings, build `defaultKeywords` from `defaults.enabledGroupIds`.
 
 `research-pulse-keywords.ts`: implement normalize, merge (spec rules), filter (substring; Latin case-insensitive on haystack/keyword).
 
-- [ ] **Step 5: Pass + commit**
+- [x] **Step 5: Pass + commit**
 
 ```bash
 bunx vitest run apps/api/src/services/research-pulse-keywords.test.ts
@@ -197,7 +197,7 @@ async setWorkspaceConfigValue(workspaceSlug: string, configKey: string, configVa
   - `getResearchPulse(workspaceSlug: string, opts: { limit?: number; all?: boolean }): Promise<{ items; meta }>`
   - Validate custom: max 20, each length ≤ 32; trim; drop empties; 400 on invalid
 
-- [ ] **Step 1: Service unit tests with mocked workspace + listResearchNews**
+- [x] **Step 1: Service unit tests with mocked workspace + listResearchNews**
 
 Mock `workspaceConfigService` and `listResearchNews` from `research-service.js`.
 
@@ -206,7 +206,7 @@ Cases:
 - put custom → get reflects custom in effective
 - pulse filters out non-matching titles; `all: true` returns unfiltered with `meta.filtered: false`
 
-- [ ] **Step 2: Implement service**
+- [x] **Step 2: Implement service**
 
 ```typescript
 export async function getPulseKeywordsState(workspaceSlug: string) {
@@ -257,7 +257,7 @@ export async function getResearchPulse(workspaceSlug: string, opts: { limit?: nu
 }
 ```
 
-- [ ] **Step 3: OpenAPI routes** (same auth middleware as other research routes)
+- [x] **Step 3: OpenAPI routes** (same auth middleware as other research routes)
 
 | Method | Path |
 |--------|------|
@@ -269,9 +269,9 @@ Workspace slug from `X-Workspace-Slug` / `c.var.workspaceSlug` — **match exist
 
 PUT body schema: `{ enabled: z.array(z.string()).optional(), excluded: ..., custom: ... }`
 
-- [ ] **Step 4: Route tests** with `createAuthHeaders` + mock service or real pure + mocked convex/workspace
+- [x] **Step 4: Route tests** with `createAuthHeaders` + mock service or real pure + mocked convex/workspace
 
-- [ ] **Step 5: Pass + commit**
+- [x] **Step 5: Pass + commit**
 
 ```bash
 bunx vitest run apps/api/src/services/research-pulse-keywords.test.ts apps/api/src/routes/research.test.ts
@@ -293,7 +293,7 @@ git commit -m "feat(research): pulse keywords API and filtered pulse feed"
 - Consumes: `getResearchPulse` or shared filter helper with workspaceSlug
 - Produces: `getResearchShowcase(teamSlug)` pulse array includes only filtered items (or full items with matchedKeywords) consistent with dedicated pulse
 
-- [ ] **Step 1: Change `getResearchShowcase` to call pulse helper**
+- [x] **Step 1: Change `getResearchShowcase` to call pulse helper**
 
 Replace raw `listResearchNews({ limit: 12 })` pulse build with:
 
@@ -310,9 +310,9 @@ const pulse = pulseResult.items.map((n) => ({
 
 Extend showcase response type optionally with `matchedKeywords` on pulse items (OpenAPI showcase schema may need optional field).
 
-- [ ] **Step 2: Update showcase service test** if it asserts pulse shape from mocks
+- [x] **Step 2: Update showcase service test** if it asserts pulse shape from mocks
 
-- [ ] **Step 3: Pass + commit**
+- [x] **Step 3: Pass + commit**
 
 ```bash
 bunx vitest run apps/api/src/services/research-showcase-service.test.ts apps/api/src/routes/research.test.ts
@@ -340,7 +340,7 @@ git commit -m "feat(research): showcase hub pulse uses keyword filter"
 
 Prefer loading pulse via **`GET /api/research/pulse`** on the hub (source of meta) instead of only showcase.pulse, **or** extend showcase response with `pulseMeta`. Spec prefers shared helper; **simplest hub path:** keep showcase load for golden/desk; **additionally** load `/api/research/pulse` for 市场动态 section so meta is available.
 
-- [ ] **Step 1: Failing UI tests**
+- [x] **Step 1: Failing UI tests**
 
 ```typescript
 // Mock GET /api/research/pulse → filtered empty with rawCount>0 → soft empty banner
@@ -350,7 +350,7 @@ Prefer loading pulse via **`GET /api/research/pulse`** on the hub (source of met
 // golden 展示数据 still present
 ```
 
-- [ ] **Step 2: Implement UI** (zh-Hans defaultValues)
+- [x] **Step 2: Implement UI** (zh-Hans defaultValues)
 
 Dialog minimum:
 - Show effective list as checkboxes for seed.defaultKeywords (unchecked = add to excluded on save)
@@ -359,7 +359,7 @@ Dialog minimum:
 
 Keep dialog inline in page if extract is heavy — extract preferred if file grows.
 
-- [ ] **Step 3: Pass + commit**
+- [x] **Step 3: Pass + commit**
 
 ```bash
 cd apps/web && bunx vitest run src/pages/ResearchIndexPage.test.tsx
@@ -376,14 +376,14 @@ git commit -m "feat(research): pulse keyword chips and settings dialog on hub"
 - Modify: `.env.example` (one-line comment for deferred ingest flag)
 - Modify: plan checkboxes when done
 
-- [ ] **Step 1: Add to `.env.example`**
+- [x] **Step 1: Add to `.env.example`**
 
 ```bash
 # Research pulse ingest filter (NOT implemented in v1 read-path-only design; reserved)
 # RESEARCH_PULSE_INGEST_FILTER=false
 ```
 
-- [ ] **Step 2: Run focused suites**
+- [x] **Step 2: Run focused suites**
 
 ```bash
 bunx vitest run \
@@ -396,7 +396,7 @@ cd apps/web && bunx vitest run src/pages/ResearchIndexPage.test.tsx
 
 Expected: all pass.
 
-- [ ] **Step 3: Commit env note + plan checkbox updates**
+- [x] **Step 3: Commit env note + plan checkbox updates**
 
 ```bash
 git add .env.example docs/superpowers/plans/2026-07-22-research-pulse-keywords-plan.md
