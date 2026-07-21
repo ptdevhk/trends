@@ -105,6 +105,13 @@ export async function seedResearchShowcase(
   for (const company of companies) {
     await upsertCompanyAndAliases(company, counters);
 
+    // Drop prior showcase-seed rows so re-seed is exactly the pack (no historical dups)
+    await callConvexMutation("research_signals:deleteByCompanyIngestRunPrefix", {
+      writeSecret: config.auth.convexWriteSecret,
+      companyKey: company.companyKey,
+      ingestRunIdPrefix: "showcase-seed",
+    });
+
     for (const signal of company.signals) {
       const contentHash = showcaseContentHash(company.companyKey, signal.kind);
       // Stable seenAt from hash so re-seeds match Convex soft-dedupe keys exactly

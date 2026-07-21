@@ -91,4 +91,71 @@ describe("research_signals (convex-test)", () => {
     expect(hiring).toHaveLength(1);
     expect(hiring[0].kind).toBe("hiring_signal");
   });
+
+  it("dedupes by companyKey+kind+ingestRunId for showcase seed re-upsert", async () => {
+    const t = createTest();
+    const first = await t.mutation(api.research_signals.upsert, {
+      writeSecret: WRITE_SECRET,
+      companyKey: "pro-technic-machinery",
+      kind: "hiring_signal",
+      title: "Old title",
+      evidence: { title: "Old title", platform: "showcase", seenAt: 100 },
+      capturedAt: 100,
+      ingestRunId: "showcase-seed-v1",
+    });
+    expect(first.created).toBe(true);
+
+    const second = await t.mutation(api.research_signals.upsert, {
+      writeSecret: WRITE_SECRET,
+      companyKey: "pro-technic-machinery",
+      kind: "hiring_signal",
+      title: "New title",
+      evidence: { title: "New title", platform: "showcase", seenAt: 999 },
+      capturedAt: 999,
+      ingestRunId: "showcase-seed-v1",
+    });
+    expect(second.created).toBe(false);
+    expect(second.id).toBe(first.id);
+
+    const rows = await t.query(api.research_signals.listByCompany, {
+      writeSecret: WRITE_SECRET,
+      companyKey: "pro-technic-machinery",
+    });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].title).toBe("New title");
+  });
+
+  it("deleteByCompanyIngestRunPrefix removes only matching showcase rows", async () => {
+    const t = createTest();
+    await t.mutation(api.research_signals.upsert, {
+      writeSecret: WRITE_SECRET,
+      companyKey: "polywell",
+      kind: "hiring_signal",
+      title: "seed",
+      evidence: { title: "seed", platform: "showcase", seenAt: 1 },
+      capturedAt: 1,
+      ingestRunId: "showcase-seed-v1",
+    });
+    await t.mutation(api.research_signals.upsert, {
+      writeSecret: WRITE_SECRET,
+      companyKey: "polywell",
+      kind: "market_move",
+      title: "live",
+      evidence: { title: "live", platform: "weibo", seenAt: 2 },
+      capturedAt: 2,
+      ingestRunId: "research-live-1",
+    });
+    const del = await t.mutation(api.research_signals.deleteByCompanyIngestRunPrefix, {
+      writeSecret: WRITE_SECRET,
+      companyKey: "polywell",
+      ingestRunIdPrefix: "showcase-seed",
+    });
+    expect(del.deleted).toBe(1);
+    const rows = await t.query(api.research_signals.listByCompany, {
+      writeSecret: WRITE_SECRET,
+      companyKey: "polywell",
+    });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].kind).toBe("market_move");
+  });
 });

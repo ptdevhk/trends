@@ -33,7 +33,9 @@ const evidenceValidator = v.object({
 
 /**
  * Insert a research signal. Evidence must be a nested object (not flattened).
- * Dedupes by companyKey + kind + evidence title + platform + seenAt when a close match exists.
+ * Soft-dedupe:
+ * - With ingestRunId: companyKey + kind + ingestRunId (curated/showcase seed identity)
+ * - Without: companyKey + kind + evidence title + platform + seenAt
  */
 export const upsert = mutation({
   args: {
@@ -51,22 +53,25 @@ export const upsert = mutation({
     requireWriteSecret(args.writeSecret);
     const companyKey = args.companyKey.trim().toLowerCase();
 
-    // Soft dedupe: same company + kind + evidence title within same ingest run
     const recent = await ctx.db
       .query("research_signals")
       .withIndex("by_company_captured", (q) => q.eq("companyKey", companyKey))
       .order("desc")
-      .take(50);
+      .take(100);
 
-    const existing = recent.find(
-      (row) =>
-        row.kind === args.kind &&
+    const existing = recent.find((row) => {
+      if (row.kind !== args.kind) {
+        return false;
+      }
+      if (args.ingestRunId) {
+        return row.ingestRunId === args.ingestRunId;
+      }
+      return (
         row.evidence.title === args.evidence.title &&
         row.evidence.platform === args.evidence.platform &&
-        (args.ingestRunId
-          ? row.ingestRunId === args.ingestRunId
-          : row.evidence.seenAt === args.evidence.seenAt),
-    );
+        row.evidence.seenAt === args.evidence.seenAt
+      );
+    });
 
     if (existing) {
       await ctx.db.patch(existing._id, {
@@ -75,6 +80,7 @@ export const upsert = mutation({
         evidence: args.evidence,
         score: args.score,
         ingestRunId: args.ingestRunId,
+        capturedAt: args.capturedAt,
       });
       return { id: existing._id, created: false };
     }
@@ -90,6 +96,34 @@ export const upsert = mutation({
       ingestRunId: args.ingestRunId,
     });
     return { id, created: true };
+  },
+});
+
+/**
+ * Delete all signals for a company with ingestRunId matching prefix (showcase re-seed cleanup).
+ */
+export const deleteByCompanyIngestRunPrefix = mutation({
+  args: {
+    writeSecret: v.optional(v.string()),
+    companyKey: v.string(),
+    ingestRunIdPrefix: v.string(),
+  },
+  handler: async (ctx, args) => {
+    requireWriteSecret(args.writeSecret);
+    const companyKey = args.companyKey.trim().toLowerCase();
+    const prefix = args.ingestRunIdPrefix;
+    const rows = await ctx.db
+      .query("research_signals")
+      .withIndex("by_company_captured", (q) => q.eq("companyKey", companyKey))
+      .collect();
+    let deleted = 0;
+    for (const row of rows) {
+      if (typeof row.ingestRunId === "string" && row.ingestRunId.startsWith(prefix)) {
+        await ctx.db.delete(row._id);
+        deleted += 1;
+      }
+    }
+    return { deleted };
   },
 });
 

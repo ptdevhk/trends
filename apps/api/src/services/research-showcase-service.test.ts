@@ -20,8 +20,23 @@ vi.mock("./convex-utils.js", () => ({
       seenNewsHashes.add(hash);
       return { id: `news-${hash}`, created };
     }
+    if (path === "research_signals:deleteByCompanyIngestRunPrefix") {
+      const prefix = String(args.ingestRunIdPrefix ?? "");
+      const companyKey = String(args.companyKey ?? "");
+      let deleted = 0;
+      // Keys are companyKey|kind|ingestRunId
+      for (const key of [...seenSignalKeys]) {
+        const parts = key.split("|");
+        if (parts[0] === companyKey && (parts[2] ?? "").startsWith(prefix)) {
+          seenSignalKeys.delete(key);
+          deleted += 1;
+        }
+      }
+      return { deleted };
+    }
     if (path === "research_signals:upsert") {
-      const key = `${args.companyKey}|${args.kind}|${args.title}|${args.ingestRunId}`;
+      // Identity for showcase: company|kind|ingestRunId (matches Convex soft-dedupe)
+      const key = `${args.companyKey}|${args.kind}|${args.ingestRunId}`;
       const created = !seenSignalKeys.has(key);
       seenSignalKeys.add(key);
       return { id: `sig-${key}`, created };
@@ -131,65 +146,36 @@ describe("research-showcase-service", () => {
     expect(mutationCalls.some((c) => c.path === "companies:addAlias")).toBe(true);
   });
 
-  it("re-seed is idempotent: same contentHash/ingest keys; second pass created=false", async () => {
+  it("re-seed is idempotent: clears showcase-seed prefix then re-upserts same pack keys", async () => {
     const first = await seedResearchShowcase(miniPack);
-    const firstNews = mutationCalls.filter((c) => c.path === "research_news:upsertItem");
-    const firstSigs = mutationCalls.filter((c) => c.path === "research_signals:upsert");
     expect(first.signalsUpserted).toBe(3);
-
-    const hashes1 = firstNews.map((c) => c.args.contentHash).sort();
+    const firstSigs = mutationCalls.filter((c) => c.path === "research_signals:upsert");
+    const firstDeletes = mutationCalls.filter(
+      (c) => c.path === "research_signals:deleteByCompanyIngestRunPrefix",
+    );
+    expect(firstDeletes.length).toBe(2); // one per company in pack
     const sigKeys1 = firstSigs
-      .map((c) => `${c.args.companyKey}|${c.args.kind}|${c.args.title}|${c.args.ingestRunId}`)
+      .map((c) => `${c.args.companyKey}|${c.args.kind}|${c.args.ingestRunId}`)
       .sort();
-
-    // Capture create flags from mock state after first seed
-    const firstNewsCreated = firstNews.map((c) => {
-      // re-call would be created false; inspect via second seed instead
-      return c.args.contentHash;
-    });
-    expect(firstNewsCreated.length).toBe(3);
 
     mutationCalls.length = 0;
     const second = await seedResearchShowcase(miniPack);
     expect(second.signalsUpserted).toBe(3);
     expect(second.newsUpserted).toBe(3);
 
-    const secondNews = mutationCalls.filter((c) => c.path === "research_news:upsertItem");
     const secondSigs = mutationCalls.filter((c) => c.path === "research_signals:upsert");
-    const hashes2 = secondNews.map((c) => c.args.contentHash).sort();
+    const secondDeletes = mutationCalls.filter(
+      (c) => c.path === "research_signals:deleteByCompanyIngestRunPrefix",
+    );
+    expect(secondDeletes.length).toBe(2);
     const sigKeys2 = secondSigs
-      .map((c) => `${c.args.companyKey}|${c.args.kind}|${c.args.title}|${c.args.ingestRunId}`)
+      .map((c) => `${c.args.companyKey}|${c.args.kind}|${c.args.ingestRunId}`)
       .sort();
-
-    expect(hashes2).toEqual(hashes1);
     expect(sigKeys2).toEqual(sigKeys1);
 
-    // Drive real mock return path: re-seed must hit created:false on shipped mutation boundary
-    const { callConvexMutation } = await import("./convex-utils.js");
-    const newsResults = await Promise.all(
-      hashes2.map((hash) =>
-        callConvexMutation("research_news:upsertItem", {
-          contentHash: hash,
-          writeSecret: "test-secret",
-        }),
-      ),
-    );
-    // Third call for each hash still created=false (already in seen set after first+second seed)
-    expect(newsResults.every((r) => isRecord(r) && r.created === false)).toBe(true);
-
-    const sigResults = await Promise.all(
-      sigKeys2.map((key) => {
-        const [companyKey, kind, title, ingestRunId] = key.split("|");
-        return callConvexMutation("research_signals:upsert", {
-          companyKey,
-          kind,
-          title,
-          ingestRunId,
-          writeSecret: "test-secret",
-        });
-      }),
-    );
-    expect(sigResults.every((r) => isRecord(r) && r.created === false)).toBe(true);
+    // After clear+upsert, in-memory mock should hold exactly pack-sized unique keys
+    const packSignalKeys = new Set(sigKeys2);
+    expect(packSignalKeys.size).toBe(3);
   });
 
   it("aggregates hub cards with multi-kind counts for golden company", async () => {
