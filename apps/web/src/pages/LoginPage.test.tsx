@@ -45,6 +45,15 @@ describe('LoginPage', () => {
     mockSearchParams.delete('redirectTo')
   })
 
+  async function submitLogin(username: string, password: string) {
+    const user = userEvent.setup()
+    render(<LoginPage />)
+    await user.type(screen.getByLabelText(/username/i), username)
+    await user.type(screen.getByLabelText(/password/i), password)
+    await user.click(screen.getByRole('button', { name: /sign in/i }))
+    return user
+  }
+
   it('renders username and password fields with a submit button', () => {
     render(<LoginPage />)
 
@@ -63,41 +72,30 @@ describe('LoginPage', () => {
 
   it('submits credentials and navigates to default path on success', async () => {
     mockLogin.mockResolvedValueOnce(loginResult('dev', 'user'))
-    const user = userEvent.setup()
-
-    render(<LoginPage />)
-
-    await user.type(screen.getByLabelText(/username/i), 'admin')
-    await user.type(screen.getByLabelText(/password/i), 'secret')
-    await user.click(screen.getByRole('button', { name: /sign in/i }))
+    await submitLogin('admin', 'secret')
 
     expect(mockLogin).toHaveBeenCalledWith('admin', 'secret')
     expect(mockNavigate).toHaveBeenCalledWith('/dev/resumes', { replace: true })
   })
 
-  it('routes a dev admin login to the system auth settings page by default', async () => {
+  it('routes a dev admin login to its workspace resumes desk by default', async () => {
     mockLogin.mockResolvedValueOnce(loginResult('dev', 'admin'))
-    const user = userEvent.setup()
+    await submitLogin('demo-admin', 'demo-admin')
 
-    render(<LoginPage />)
+    expect(mockNavigate).toHaveBeenCalledWith('/dev/resumes', { replace: true })
+  })
 
-    await user.type(screen.getByLabelText(/username/i), 'demo-admin')
-    await user.type(screen.getByLabelText(/password/i), 'demo-admin')
-    await user.click(screen.getByRole('button', { name: /sign in/i }))
+  it('routes an hr member login to /hr/resumes by default', async () => {
+    mockLogin.mockResolvedValueOnce(loginResult('hr', 'user'))
+    await submitLogin('hr-demo', 'secret')
 
-    expect(mockNavigate).toHaveBeenCalledWith('/admin/system/settings/auth', { replace: true })
+    expect(mockNavigate).toHaveBeenCalledWith('/hr/resumes', { replace: true })
   })
 
   it('navigates to redirectTo path on success', async () => {
     mockSearchParams.set('redirectTo', '/dev/settings')
     mockLogin.mockResolvedValueOnce(loginResult('dev', 'admin'))
-    const user = userEvent.setup()
-
-    render(<LoginPage />)
-
-    await user.type(screen.getByLabelText(/username/i), 'admin')
-    await user.type(screen.getByLabelText(/password/i), 'secret')
-    await user.click(screen.getByRole('button', { name: /sign in/i }))
+    await submitLogin('admin', 'secret')
 
     expect(mockNavigate).toHaveBeenCalledWith('/dev/settings', { replace: true })
   })
@@ -105,13 +103,7 @@ describe('LoginPage', () => {
   it('preserves an explicit system redirect only for dev admins', async () => {
     mockSearchParams.set('redirectTo', '/admin/system/settings/auth')
     mockLogin.mockResolvedValueOnce(loginResult('dev', 'admin'))
-    const user = userEvent.setup()
-
-    render(<LoginPage />)
-
-    await user.type(screen.getByLabelText(/username/i), 'demo-admin')
-    await user.type(screen.getByLabelText(/password/i), 'demo-admin')
-    await user.click(screen.getByRole('button', { name: /sign in/i }))
+    await submitLogin('demo-admin', 'demo-admin')
 
     expect(mockNavigate).toHaveBeenCalledWith('/admin/system/settings/auth', { replace: true })
   })
@@ -119,26 +111,22 @@ describe('LoginPage', () => {
   it('ignores an explicit system redirect for non-admin users', async () => {
     mockSearchParams.set('redirectTo', '/admin/system/settings/auth')
     mockLogin.mockResolvedValueOnce(loginResult('dev', 'user'))
-    const user = userEvent.setup()
-
-    render(<LoginPage />)
-
-    await user.type(screen.getByLabelText(/username/i), 'dev-user')
-    await user.type(screen.getByLabelText(/password/i), 'secret')
-    await user.click(screen.getByRole('button', { name: /sign in/i }))
+    await submitLogin('dev-user', 'secret')
 
     expect(mockNavigate).toHaveBeenCalledWith('/dev/resumes', { replace: true })
   })
 
+  it('ignores redirectTo for a workspace the user is not a member of', async () => {
+    mockSearchParams.set('redirectTo', '/dev/resumes?location=Malaysia')
+    mockLogin.mockResolvedValueOnce(loginResult('hr', 'user'))
+    await submitLogin('hr-demo', 'secret')
+
+    expect(mockNavigate).toHaveBeenCalledWith('/hr/resumes', { replace: true })
+  })
+
   it('shows error message on login failure', async () => {
     mockLogin.mockResolvedValueOnce(null)
-    const user = userEvent.setup()
-
-    render(<LoginPage />)
-
-    await user.type(screen.getByLabelText(/username/i), 'admin')
-    await user.type(screen.getByLabelText(/password/i), 'wrong')
-    await user.click(screen.getByRole('button', { name: /sign in/i }))
+    await submitLogin('admin', 'wrong')
 
     expect(screen.getByRole('alert')).toBeInTheDocument()
     expect(mockNavigate).not.toHaveBeenCalled()
@@ -147,13 +135,7 @@ describe('LoginPage', () => {
   it('disables form fields while submitting', async () => {
     let resolveLogin: (value: ReturnType<typeof loginResult>) => void
     mockLogin.mockImplementationOnce(() => new Promise<ReturnType<typeof loginResult>>((resolve) => { resolveLogin = resolve }))
-    const user = userEvent.setup()
-
-    render(<LoginPage />)
-
-    await user.type(screen.getByLabelText(/username/i), 'admin')
-    await user.type(screen.getByLabelText(/password/i), 'secret')
-    await user.click(screen.getByRole('button', { name: /sign in/i }))
+    await submitLogin('admin', 'secret')
 
     expect(screen.getByLabelText(/username/i)).toBeDisabled()
     expect(screen.getByLabelText(/password/i)).toBeDisabled()

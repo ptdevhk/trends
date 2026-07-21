@@ -469,6 +469,33 @@ function isReseedOnDriftEnabled(): boolean {
     return value === "true" || value === "1" || value === "yes";
 }
 
+/**
+ * Full YAML refresh for a stored row: normalize template over existing id,
+ * stamp seedSource + templateHash, and persist. Used by legacy/half-stamped
+ * adoption and optional drift reseed (not additive backfills).
+ */
+async function refreshSeededProfileFromYaml(args: {
+    existing: ResolvedCustomProfileRecord;
+    templateProfile: SearchProfile;
+    templateHash: string;
+    workspaceSlug: string;
+}): Promise<void> {
+    const { existing, templateProfile, templateHash, workspaceSlug } = args;
+    const refreshedProfile = searchProfileService.normalizeProfileInput(
+        { ...templateProfile, id: existing.profile.id },
+        existing.profile,
+    );
+    refreshedProfile.id = existing.profile.id;
+    await updateCustomProfile(
+        existing.storageId,
+        toStoredProfilePayload(refreshedProfile, {
+            seededFromConfig: true,
+            templateHash,
+        }),
+        workspaceSlug,
+    );
+}
+
 async function ensureWorkspaceSeedProfiles(workspaceSlug: string): Promise<void> {
     const existingRecords = await listCustomProfileRecords(workspaceSlug, { includeDeleted: true });
     const existingByLogicalId = new Map<string, ResolvedCustomProfileRecord>(
@@ -490,62 +517,61 @@ async function ensureWorkspaceSeedProfiles(workspaceSlug: string): Promise<void>
             continue;
         }
 
-        const isSoftDeleted = typeof existing.deletedAt === "number";
-        if (isSoftDeleted) {
+        if (typeof existing.deletedAt === "number") {
             continue;
         }
 
-        // Legacy adoption: profile exists by profileId but was seeded before the
-        // stamping mechanism was added — no seedSource or templateHash. Treat it
-        // the same as a drifted seeded profile when the operator opts in via
-        // SEARCH_PROFILES_RESEED_ON_DRIFT. Without the flag, log and skip.
-        const isLegacyUnstamped = !existing.seededFromConfig
-            && !existing.templateHash
-            && existing.logicalId === logicalId;
-
-        if (isLegacyUnstamped) {
-            // Always adopt — legacy unstamped profiles were auto-seeded from config
-            // before the stamping mechanism was added. They have no user edits to
-            // protect, so it's safe to refresh from YAML unconditionally.
-            const refreshedProfile = searchProfileService.normalizeProfileInput(
-                { ...profile, id: existing.profile.id },
-                existing.profile,
-            );
-            refreshedProfile.id = existing.profile.id;
-            await updateCustomProfile(
-                existing.storageId,
-                toStoredProfilePayload(refreshedProfile, {
-                    seededFromConfig: true,
-                    templateHash: currentHash,
-                }),
+        // Unstamped rows (legacy pre-stamp seed OR half-stamped seedSource without
+        // templateHash). Always full-refresh from YAML — never hash-only stamp onto
+        // stale filters (that permanently skips drift reseed / leaves MY QuickStart
+        // without roleFilterType=sales).
+        if (!existing.templateHash) {
+            const kind = existing.seededFromConfig ? "half-stamped" : "legacy";
+            await refreshSeededProfileFromYaml({
+                existing,
+                templateProfile: profile,
+                templateHash: currentHash,
                 workspaceSlug,
-            );
+            });
             logger.warn(
-                `adopted legacy profile "${logicalId}" (workspace=${workspaceSlug}): ` +
-                `stamped seedSource + templateHash, refreshed filters from YAML.`,
+                `adopted ${kind} profile "${logicalId}" (workspace=${workspaceSlug}): ` +
+                `refreshed filters from YAML and stamped seedSource + templateHash.`,
                 { route: "search-profiles" },
             );
             continue;
         }
 
-        // Half-stamped fix: seeded profile with seedSource but no templateHash.
-        // This happens when a profile was PUT via the API editor (which stamps
-        // seedSource) before the templateHash field was added to the PUT path.
-        // Always safe to stamp — no user edits are clobbered.
-        const isHalfStamped = existing.seededFromConfig
-            && !existing.templateHash;
-
-        if (isHalfStamped) {
+        // Safe additive migrate: seeded rows missing template-defined roleFilterType
+        // (common after minExperience → minRoleYears migrations and MY talentsearch
+        // seed updates). Always backfill — does not wait on RESEED_ON_DRIFT so
+        // QuickStart URLs gain &roleType=sales without operator env churn.
+        // Only injects roleFilterType; other user/filter edits stay intact.
+        const templateRoleFilter = readString(profile.filters?.roleFilterType)?.trim();
+        const existingRoleFilter = readString(existing.profile.filters?.roleFilterType)?.trim();
+        if (existing.seededFromConfig && templateRoleFilter && !existingRoleFilter) {
+            const patchedProfile = searchProfileService.normalizeProfileInput(
+                {
+                    ...existing.profile,
+                    id: existing.profile.id,
+                    filters: {
+                        ...(existing.profile.filters ?? {}),
+                        roleFilterType: templateRoleFilter,
+                    },
+                },
+                existing.profile,
+            );
+            patchedProfile.id = existing.profile.id;
             await updateCustomProfile(
                 existing.storageId,
-                toStoredProfilePayload(existing.profile, {
+                toStoredProfilePayload(patchedProfile, {
                     seededFromConfig: true,
-                    templateHash: currentHash,
+                    templateHash: existing.templateHash,
                 }),
                 workspaceSlug,
             );
             logger.warn(
-                `stamped missing templateHash on half-stamped profile "${logicalId}" (workspace=${workspaceSlug}).`,
+                `backfilled missing roleFilterType on "${logicalId}" (workspace=${workspaceSlug}) ` +
+                `from YAML template (${templateRoleFilter}).`,
                 { route: "search-profiles" },
             );
             continue;
@@ -556,9 +582,7 @@ async function ensureWorkspaceSeedProfiles(workspaceSlug: string): Promise<void>
         // SEARCH_PROFILES_RESEED_ON_DRIFT — refresh clobbers any user edits to
         // the profile's sources / quickStart / filters / schedule, so it must
         // be explicit. Without the env flag, log the drift and skip.
-        const hasDrift = existing.seededFromConfig
-            && typeof existing.templateHash === "string"
-            && existing.templateHash !== currentHash;
+        const hasDrift = existing.seededFromConfig && existing.templateHash !== currentHash;
         if (!hasDrift) {
             continue;
         }
@@ -573,22 +597,15 @@ async function ensureWorkspaceSeedProfiles(workspaceSlug: string): Promise<void>
             continue;
         }
 
-        const refreshedProfile = searchProfileService.normalizeProfileInput(
-            { ...profile, id: existing.profile.id },
-            existing.profile,
-        );
-        refreshedProfile.id = existing.profile.id;
-        await updateCustomProfile(
-            existing.storageId,
-            toStoredProfilePayload(refreshedProfile, {
-                seededFromConfig: true,
-                templateHash: currentHash,
-            }),
+        await refreshSeededProfileFromYaml({
+            existing,
+            templateProfile: profile,
+            templateHash: currentHash,
             workspaceSlug,
-        );
+        });
         logger.warn(
             `refreshed "${logicalId}" (workspace=${workspaceSlug}) from YAML template ` +
-            `(hash ${existing.templateHash ?? "unknown"} → ${currentHash}).`,
+            `(hash ${existing.templateHash} → ${currentHash}).`,
             { route: "search-profiles" },
         );
     }

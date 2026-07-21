@@ -60,88 +60,38 @@ describe("search-profiles legacy adoption", () => {
         process.env = { ...originalEnv };
     });
 
-    it("adopts legacy unstamped profiles when SEARCH_PROFILES_RESEED_ON_DRIFT=true", async () => {
-        process.env.SEARCH_PROFILES_RESEED_ON_DRIFT = "true";
-
-        const legacyConvexRecord = {
-            _id: "storage-id-1",
-            profileId: "test-legacy-profile",
-            name: "Test Legacy Profile",
-            profile: {
-                id: "test-legacy-profile",
-                filters: { minExperience: 1, minAge: 25, maxAge: 40 },
-            },
-            criteria: {
-                keywords: ["CNC", "Sales"],
-                locations: ["China"],
-            },
-        };
-
-        const template = {
-            profile: {
-                id: "test-legacy-profile",
-                name: "Test Legacy Profile",
-                status: "active" as const,
-                location: "China",
-                keywords: ["CNC", "Sales"],
-                filters: {
-                    minRoleYears: 1,
-                    roleFilterType: "sales",
-                    minAge: 25,
-                    maxAge: 40,
-                    locations: ["China"],
-                },
-            },
-        };
-
-        vi.mocked(shared.getWorkspaceSearchProfileTemplates).mockReturnValue([template]);
-
+    function mockConvexListAndUpdate(listRecords: unknown[]) {
         const calls: ConvexCall[] = [];
         vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
             const call = parseConvexCall(input, init);
             calls.push(call);
 
             if (call.pathName === "search_profiles:list") {
-                return convexSuccess([legacyConvexRecord]);
+                return convexSuccess(listRecords);
             }
             if (call.pathName === "search_profiles:update") {
-                // Return a valid record that toSearchProfile can parse
+                const args = call.args;
+                const profile = isRecord(args.profile) ? args.profile : {};
+                const listRecord = listRecords[0];
+                const base = isRecord(listRecord) ? listRecord : {};
                 return convexSuccess({
-                    _id: "storage-id-1",
-                    profileId: "test-legacy-profile",
-                    name: "Test Legacy Profile",
+                    ...base,
                     profile: {
-                        id: "test-legacy-profile",
-                        seedSource: "config/search-profiles",
-                        filters: { minRoleYears: 1, roleFilterType: "sales" },
+                        ...(isRecord(base.profile) ? base.profile : {}),
+                        ...profile,
                     },
-                    criteria: { keywords: ["CNC", "Sales"], locations: ["China"] },
                 });
             }
             throw new Error(`Unexpected convex path: ${call.pathName}`);
         });
+        return calls;
+    }
 
-        const app = createApp();
-        const response = await app.request("/api/search-profiles/stats", {
-            headers: { "X-Workspace-Slug": "dev" },
-        });
-
-        expect(response.status).toBe(200);
-
-        // Verify the adoption mutation was called
-        const updateCalls = calls.filter((c) => c.pathName === "search_profiles:update");
-        expect(updateCalls).toHaveLength(1);
-        expect(updateCalls[0]!.args).toMatchObject({
-            id: "storage-id-1",
-            workspaceSlug: "dev",
-        });
-
-        // Verify the profile payload has seedSource and templateHash stamps
-        const profilePayload = updateCalls[0]!.args.profile as Record<string, unknown>;
-        expect(profilePayload.seedSource).toBe("config/search-profiles");
-        expect(typeof profilePayload.templateHash).toBe("string");
-        expect((profilePayload.templateHash as string).length).toBeGreaterThan(0);
-    });
+    function updatePayloads(calls: ConvexCall[]) {
+        return calls
+            .filter((c) => c.pathName === "search_profiles:update")
+            .map((c) => c.args.profile as Record<string, unknown>);
+    }
 
     it("adopts legacy unstamped profiles unconditionally (no flag required)", async () => {
         delete process.env.SEARCH_PROFILES_RESEED_ON_DRIFT;
@@ -160,7 +110,7 @@ describe("search-profiles legacy adoption", () => {
             },
         };
 
-        const template = {
+        vi.mocked(shared.getWorkspaceSearchProfileTemplates).mockReturnValue([{
             profile: {
                 id: "test-legacy-profile",
                 name: "Test Legacy Profile",
@@ -169,48 +119,19 @@ describe("search-profiles legacy adoption", () => {
                 keywords: ["CNC", "Sales"],
                 filters: { minRoleYears: 1, roleFilterType: "sales" },
             },
-        };
+        }]);
 
-        vi.mocked(shared.getWorkspaceSearchProfileTemplates).mockReturnValue([template]);
-
-        const calls: ConvexCall[] = [];
-        vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
-            const call = parseConvexCall(input, init);
-            calls.push(call);
-
-            if (call.pathName === "search_profiles:list") {
-                return convexSuccess([legacyConvexRecord]);
-            }
-            if (call.pathName === "search_profiles:update") {
-                // Return a valid record that toSearchProfile can parse
-                return convexSuccess({
-                    _id: "storage-id-1",
-                    profileId: "test-legacy-profile",
-                    name: "Test Legacy Profile",
-                    profile: {
-                        id: "test-legacy-profile",
-                        seedSource: "config/search-profiles",
-                        filters: { minRoleYears: 1, roleFilterType: "sales" },
-                    },
-                    criteria: { keywords: ["CNC", "Sales"], locations: ["China"] },
-                });
-            }
-            throw new Error(`Unexpected convex path: ${call.pathName}`);
-        });
-
-        const app = createApp();
-        const response = await app.request("/api/search-profiles/stats", {
+        const calls = mockConvexListAndUpdate([legacyConvexRecord]);
+        const response = await createApp().request("/api/search-profiles/stats", {
             headers: { "X-Workspace-Slug": "dev" },
         });
 
         expect(response.status).toBe(200);
-
-        // Legacy profiles are always adopted — no flag required
-        const updateCalls = calls.filter((c) => c.pathName === "search_profiles:update");
-        expect(updateCalls).toHaveLength(1);
-        const profilePayload = updateCalls[0]!.args.profile as Record<string, unknown>;
-        expect(profilePayload.seedSource).toBe("config/search-profiles");
-        expect(typeof profilePayload.templateHash).toBe("string");
+        const payloads = updatePayloads(calls);
+        expect(payloads).toHaveLength(1);
+        expect(payloads[0]!.seedSource).toBe("config/search-profiles");
+        expect(typeof payloads[0]!.templateHash).toBe("string");
+        expect((payloads[0]!.templateHash as string).length).toBeGreaterThan(0);
     });
 
     it("does not adopt already-stamped profiles (normal drift path)", async () => {
@@ -226,11 +147,10 @@ describe("search-profiles legacy adoption", () => {
                 filters: { minRoleYears: 1, roleFilterType: "sales" },
             },
         };
-
-        // Compute real hash so the stamped record matches
         const realHash = shared.computeTemplateHash(template.profile);
 
-        const stampedConvexRecord = {
+        vi.mocked(shared.getWorkspaceSearchProfileTemplates).mockReturnValue([template]);
+        const calls = mockConvexListAndUpdate([{
             _id: "storage-id-2",
             profileId: "test-stamped-profile",
             name: "Test Stamped Profile",
@@ -244,30 +164,107 @@ describe("search-profiles legacy adoption", () => {
                 keywords: ["CNC", "Sales"],
                 locations: ["China"],
             },
-        };
+        }]);
 
-        vi.mocked(shared.getWorkspaceSearchProfileTemplates).mockReturnValue([template]);
-
-        const calls: ConvexCall[] = [];
-        vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
-            const call = parseConvexCall(input, init);
-            calls.push(call);
-
-            if (call.pathName === "search_profiles:list") {
-                return convexSuccess([stampedConvexRecord]);
-            }
-            throw new Error(`Unexpected convex path: ${call.pathName}`);
-        });
-
-        const app = createApp();
-        const response = await app.request("/api/search-profiles/stats", {
+        const response = await createApp().request("/api/search-profiles/stats", {
             headers: { "X-Workspace-Slug": "dev" },
         });
 
         expect(response.status).toBe(200);
+        expect(updatePayloads(calls)).toHaveLength(0);
+    });
 
-        // No update — stamped profile with matching hash has no drift
-        const updateCalls = calls.filter((c) => c.pathName === "search_profiles:update");
-        expect(updateCalls).toHaveLength(0);
+    it("refreshes half-stamped MY profiles from YAML (does not stamp hash onto stale filters)", async () => {
+        delete process.env.SEARCH_PROFILES_RESEED_ON_DRIFT;
+
+        vi.mocked(shared.getWorkspaceSearchProfileTemplates).mockReturnValue([{
+            profile: {
+                id: "seek-malaysia-talent-search",
+                name: "SEEK Malaysia CNC Sales — Talent Search",
+                status: "active" as const,
+                location: "Malaysia",
+                keywords: ["CNC", "Sales"],
+                filters: { minRoleYears: 1, roleFilterType: "sales", locations: ["Malaysia"] },
+            },
+        }]);
+
+        // seedSource set, templateHash missing, filters still pre-roleFilterType
+        const calls = mockConvexListAndUpdate([{
+            _id: "storage-half-1",
+            profileId: "seek-malaysia-talent-search",
+            name: "SEEK Malaysia CNC Sales — Talent Search",
+            profile: {
+                id: "seek-malaysia-talent-search",
+                seedSource: "config/search-profiles",
+                filters: { minRoleYears: 1, locations: ["Malaysia"] },
+            },
+            criteria: {
+                keywords: ["CNC", "Sales"],
+                locations: ["Malaysia"],
+            },
+        }]);
+
+        const response = await createApp().request("/api/search-profiles/stats", {
+            headers: { "X-Workspace-Slug": "hr" },
+        });
+
+        expect(response.status).toBe(200);
+        const payloads = updatePayloads(calls);
+        expect(payloads).toHaveLength(1);
+        expect(payloads[0]!.seedSource).toBe("config/search-profiles");
+        expect(typeof payloads[0]!.templateHash).toBe("string");
+        const filters = payloads[0]!.filters as Record<string, unknown>;
+        expect(filters.roleFilterType).toBe("sales");
+        expect(filters.minRoleYears).toBe(1);
+    });
+
+    it("backfills missing roleFilterType on stamped MY profiles without full reseed flag", async () => {
+        delete process.env.SEARCH_PROFILES_RESEED_ON_DRIFT;
+
+        vi.mocked(shared.getWorkspaceSearchProfileTemplates).mockReturnValue([{
+            profile: {
+                id: "seek-malaysia-sales",
+                name: "SEEK Malaysia CNC Sales",
+                status: "active" as const,
+                location: "Malaysia",
+                keywords: ["CNC", "Sales"],
+                filters: { minRoleYears: 1, roleFilterType: "sales", locations: ["Malaysia"] },
+            },
+        }]);
+
+        // Fully stamped but lacks roleFilterType — additive backfill only
+        const calls = mockConvexListAndUpdate([{
+            _id: "storage-my-sales",
+            profileId: "seek-malaysia-sales",
+            name: "SEEK Malaysia CNC Sales",
+            profile: {
+                id: "seek-malaysia-sales",
+                seedSource: "config/search-profiles",
+                templateHash: "old-hash-without-role",
+                filters: { minRoleYears: 1, locations: ["Malaysia"], maxAge: 45 },
+            },
+            criteria: {
+                keywords: ["CNC", "Sales"],
+                locations: ["Malaysia"],
+            },
+        }]);
+
+        const response = await createApp().request("/api/search-profiles", {
+            headers: { "X-Workspace-Slug": "hr" },
+        });
+
+        expect(response.status).toBe(200);
+        const body = await response.json() as {
+            success: boolean;
+            profiles: Array<{ id: string; filters?: { roleFilterType?: string; minRoleYears?: number } }>;
+        };
+        expect(body.success).toBe(true);
+
+        const payloads = updatePayloads(calls);
+        expect(payloads).toHaveLength(1);
+        const filters = payloads[0]!.filters as Record<string, unknown>;
+        expect(filters.roleFilterType).toBe("sales");
+        expect(filters.minRoleYears).toBe(1);
+        expect(filters.maxAge).toBe(45);
     });
 });
