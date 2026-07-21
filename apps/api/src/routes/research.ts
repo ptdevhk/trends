@@ -17,21 +17,37 @@ import {
   listResearchIndustryBrowse,
   resolveResearchCompanySurface,
 } from "../services/research-industry-bridge-service.js";
+import {
+  getPulseKeywordsState,
+  getResearchPulse,
+  putPulseKeywords,
+  PulseKeywordsValidationError,
+} from "../services/research-pulse-service.js";
 
 const app = new OpenAPIHono();
 
+const RESEARCH_AUTH_METHODS = new Set(["GET", "POST", "PUT"]);
+
 app.use("/api/research", async (c, next) => {
-  if (["GET", "POST"].includes(c.req.method)) {
+  if (RESEARCH_AUTH_METHODS.has(c.req.method)) {
     return requireWorkspaceUser(c, next);
   }
   await next();
 });
 app.use("/api/research/*", async (c, next) => {
-  if (["GET", "POST"].includes(c.req.method)) {
+  if (RESEARCH_AUTH_METHODS.has(c.req.method)) {
     return requireWorkspaceUser(c, next);
   }
   await next();
 });
+
+function resolveResearchWorkspaceSlug(c: { req: { header: (name: string) => string | undefined } }): string {
+  return (
+    c.req.header("X-Workspace-Slug")?.trim() ||
+    c.req.header("x-workspace-slug")?.trim() ||
+    "hr"
+  );
+}
 
 const NewsItemSchema = z.object({
   _id: z.string(),
@@ -299,10 +315,7 @@ const showcaseRoute = createRoute({
 });
 
 app.openapi(showcaseRoute, async (c) => {
-  const workspaceSlug =
-    c.req.header("X-Workspace-Slug")?.trim() ||
-    c.req.header("x-workspace-slug")?.trim() ||
-    "hr";
+  const workspaceSlug = resolveResearchWorkspaceSlug(c);
   const payload = await getResearchShowcase(workspaceSlug);
   return c.json({ success: true as const, ...payload }, 200);
 });
@@ -427,6 +440,160 @@ app.openapi(industryResolveRoute, async (c) => {
   const { q } = c.req.valid("query");
   const hit = resolveResearchCompanySurface(q);
   return c.json({ success: true as const, hit }, 200);
+});
+
+const PulseKeywordGroupSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  keywords: z.array(z.string()),
+});
+
+const PulseKeywordsWorkspaceSchema = z.object({
+  version: z.literal(1),
+  enabled: z.array(z.string()),
+  excluded: z.array(z.string()),
+  custom: z.array(z.string()),
+});
+
+const PulseKeywordsStateSchema = z.object({
+  success: z.literal(true),
+  seed: z.object({
+    version: z.string(),
+    groups: z.array(PulseKeywordGroupSchema),
+    defaultKeywords: z.array(z.string()),
+  }),
+  workspace: PulseKeywordsWorkspaceSchema,
+  effective: z.array(z.string()),
+});
+
+const getPulseKeywordsRoute = createRoute({
+  method: "get",
+  path: "/api/research/pulse/keywords",
+  tags: ["research"],
+  summary: "Get research pulse keyword seed, workspace overlay, and effective list",
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: PulseKeywordsStateSchema,
+        },
+      },
+      description: "Pulse keywords state",
+    },
+  },
+});
+
+app.openapi(getPulseKeywordsRoute, async (c) => {
+  const workspaceSlug = resolveResearchWorkspaceSlug(c);
+  const state = await getPulseKeywordsState(workspaceSlug);
+  return c.json({ success: true as const, ...state }, 200);
+});
+
+const putPulseKeywordsRoute = createRoute({
+  method: "put",
+  path: "/api/research/pulse/keywords",
+  tags: ["research"],
+  summary: "Upsert workspace research pulse keyword overlay",
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            enabled: z.array(z.string()).optional(),
+            excluded: z.array(z.string()).optional(),
+            custom: z.array(z.string()).optional(),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: PulseKeywordsStateSchema,
+        },
+      },
+      description: "Updated pulse keywords state",
+    },
+    400: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.literal(false),
+            error: z.string(),
+          }),
+        },
+      },
+      description: "Validation error",
+    },
+  },
+});
+
+app.openapi(putPulseKeywordsRoute, async (c) => {
+  const workspaceSlug = resolveResearchWorkspaceSlug(c);
+  const body = c.req.valid("json");
+  try {
+    const state = await putPulseKeywords(workspaceSlug, body);
+    return c.json({ success: true as const, ...state }, 200);
+  } catch (error) {
+    if (error instanceof PulseKeywordsValidationError) {
+      return c.json({ success: false as const, error: error.message }, 400);
+    }
+    throw error;
+  }
+});
+
+const getPulseRoute = createRoute({
+  method: "get",
+  path: "/api/research/pulse",
+  tags: ["research"],
+  summary: "Keyword-filtered research pulse (市场动态) feed",
+  request: {
+    query: z.object({
+      limit: z.coerce.number().optional(),
+      all: z.string().optional(),
+    }),
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.literal(true),
+            items: z.array(
+              z.object({
+                title: z.string(),
+                platform: z.string(),
+                url: z.string().optional(),
+                capturedAt: z.number(),
+                matchedKeywords: z.array(z.string()),
+              }),
+            ),
+            meta: z.object({
+              filtered: z.boolean(),
+              effectiveKeywords: z.array(z.string()),
+              rawCount: z.number(),
+              matchedCount: z.number(),
+            }),
+          }),
+        },
+      },
+      description: "Filtered or unfiltered pulse items",
+    },
+  },
+});
+
+app.openapi(getPulseRoute, async (c) => {
+  const workspaceSlug = resolveResearchWorkspaceSlug(c);
+  const query = c.req.valid("query");
+  const allRaw = (query.all ?? "").toLowerCase();
+  const all = allRaw === "1" || allRaw === "true" || allRaw === "yes" || allRaw === "on";
+  const result = await getResearchPulse(workspaceSlug, {
+    limit: query.limit,
+    all,
+  });
+  return c.json({ success: true as const, ...result }, 200);
 });
 
 export default app;

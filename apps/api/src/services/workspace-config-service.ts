@@ -720,6 +720,14 @@ export class WorkspaceConfigService {
     return entry?.configValue;
   }
 
+  async setWorkspaceConfigValue(
+    workspaceSlug: string,
+    configKey: string,
+    configValue: unknown,
+  ): Promise<void> {
+    await this.upsertWorkspaceConfigEntry(workspaceSlug, configKey, configValue);
+  }
+
   async setAgentOverrides(workspaceSlug: string, configValue: unknown): Promise<void> {
     await this.upsertWorkspaceConfigEntry(workspaceSlug, AGENT_OVERRIDES_KEY, configValue);
   }

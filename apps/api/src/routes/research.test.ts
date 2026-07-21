@@ -11,13 +11,30 @@ const showcaseMocks = vi.hoisted(() => ({
   seedResearchShowcase: vi.fn(),
 }));
 
+const pulseMocks = vi.hoisted(() => ({
+  getPulseKeywordsState: vi.fn(),
+  putPulseKeywords: vi.fn(),
+  getResearchPulse: vi.fn(),
+}));
+
 vi.mock("../services/research-showcase-service.js", () => ({
   getResearchShowcase: showcaseMocks.getResearchShowcase,
   seedResearchShowcase: showcaseMocks.seedResearchShowcase,
 }));
 
+vi.mock("../services/research-pulse-service.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../services/research-pulse-service.js")>();
+  return {
+    ...actual,
+    getPulseKeywordsState: pulseMocks.getPulseKeywordsState,
+    putPulseKeywords: pulseMocks.putPulseKeywords,
+    getResearchPulse: pulseMocks.getResearchPulse,
+  };
+});
+
 import { createApp } from "../app";
 import { resetResumeScreeningDb } from "../services/database";
+import { PulseKeywordsValidationError } from "../services/research-pulse-service";
 import { parseJsonBody } from "../test-utils";
 import { createAuthHeaders } from "./test-auth-helpers";
 
@@ -54,11 +71,24 @@ function convexSuccess(value: unknown): Response {
   });
 }
 
+const sampleKeywordsState = {
+  seed: {
+    version: "v1",
+    groups: [{ id: "cnc-core", label: "数控机床", keywords: ["数控", "发那科"] }],
+    defaultKeywords: ["数控", "发那科"],
+  },
+  workspace: { version: 1 as const, enabled: [] as string[], excluded: [] as string[], custom: [] as string[] },
+  effective: ["数控", "发那科"],
+};
+
 describe("research routes", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     showcaseMocks.getResearchShowcase.mockReset();
     showcaseMocks.seedResearchShowcase.mockReset();
+    pulseMocks.getPulseKeywordsState.mockReset();
+    pulseMocks.putPulseKeywords.mockReset();
+    pulseMocks.getResearchPulse.mockReset();
     resetResumeScreeningDb();
   });
 
@@ -314,5 +344,122 @@ describe("research routes", () => {
     expect(r2.status).toBe(200);
     const b2 = await parseJsonBody(r2);
     expect(b2.hit?.companyKey).toBe("pro-technic-machinery");
+  });
+
+  it("GET /api/research/pulse/keywords returns seed + workspace + effective", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
+    pulseMocks.getPulseKeywordsState.mockResolvedValue(sampleKeywordsState);
+    const app = createApp();
+    const response = await app.request("/api/research/pulse/keywords", {
+      headers: auth.headers,
+    });
+    expect(response.status).toBe(200);
+    const body = await parseJsonBody(response);
+    expect(body.success).toBe(true);
+    expect(body.effective).toEqual(["数控", "发那科"]);
+    expect(body.seed.defaultKeywords).toContain("数控");
+    expect(pulseMocks.getPulseKeywordsState).toHaveBeenCalledWith("hr");
+  });
+
+  it("PUT /api/research/pulse/keywords upserts and returns state", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
+    pulseMocks.putPulseKeywords.mockResolvedValue({
+      ...sampleKeywordsState,
+      workspace: { version: 1, enabled: [], excluded: [], custom: ["刀塔"] },
+      effective: [...sampleKeywordsState.effective, "刀塔"],
+    });
+    const app = createApp();
+    const response = await app.request("/api/research/pulse/keywords", {
+      method: "PUT",
+      headers: { ...auth.headers, "Content-Type": "application/json" },
+      body: JSON.stringify({ custom: ["刀塔"] }),
+    });
+    expect(response.status).toBe(200);
+    const body = await parseJsonBody(response);
+    expect(body.success).toBe(true);
+    expect(body.workspace.custom).toEqual(["刀塔"]);
+    expect(body.effective).toContain("刀塔");
+    expect(pulseMocks.putPulseKeywords).toHaveBeenCalledWith("hr", { custom: ["刀塔"] });
+  });
+
+  it("PUT /api/research/pulse/keywords returns 400 on validation error", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
+    pulseMocks.putPulseKeywords.mockRejectedValue(
+      new PulseKeywordsValidationError("custom exceeds max of 20 keywords"),
+    );
+    const app = createApp();
+    const response = await app.request("/api/research/pulse/keywords", {
+      method: "PUT",
+      headers: { ...auth.headers, "Content-Type": "application/json" },
+      body: JSON.stringify({ custom: Array.from({ length: 21 }, (_, i) => `k${i}`) }),
+    });
+    expect(response.status).toBe(400);
+    const body = await parseJsonBody(response);
+    expect(body.success).toBe(false);
+    expect(String(body.error)).toMatch(/20/);
+  });
+
+  it("GET /api/research/pulse returns filtered feed; all=1 unfiltered", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
+    pulseMocks.getResearchPulse
+      .mockResolvedValueOnce({
+        items: [
+          {
+            title: "发那科扩产",
+            platform: "weibo",
+            capturedAt: 1,
+            matchedKeywords: ["发那科"],
+          },
+        ],
+        meta: {
+          filtered: true,
+          effectiveKeywords: ["发那科"],
+          rawCount: 10,
+          matchedCount: 1,
+        },
+      })
+      .mockResolvedValueOnce({
+        items: [
+          { title: "发那科扩产", platform: "weibo", capturedAt: 1, matchedKeywords: [] },
+          { title: "娱乐", platform: "weibo", capturedAt: 0, matchedKeywords: [] },
+        ],
+        meta: {
+          filtered: false,
+          effectiveKeywords: ["发那科"],
+          rawCount: 2,
+          matchedCount: 2,
+        },
+      });
+
+    const app = createApp();
+    const filtered = await app.request("/api/research/pulse?limit=12", {
+      headers: auth.headers,
+    });
+    expect(filtered.status).toBe(200);
+    const filteredBody = await parseJsonBody(filtered);
+    expect(filteredBody.meta.filtered).toBe(true);
+    expect(filteredBody.items[0].matchedKeywords).toContain("发那科");
+    expect(pulseMocks.getResearchPulse).toHaveBeenCalledWith("hr", {
+      limit: 12,
+      all: false,
+    });
+
+    const all = await app.request("/api/research/pulse?all=1", {
+      headers: auth.headers,
+    });
+    expect(all.status).toBe(200);
+    const allBody = await parseJsonBody(all);
+    expect(allBody.meta.filtered).toBe(false);
+    expect(allBody.items.length).toBe(2);
+    expect(pulseMocks.getResearchPulse).toHaveBeenLastCalledWith("hr", {
+      limit: undefined,
+      all: true,
+    });
+  });
+
+  it("rejects pulse keywords without session", async () => {
+    const app = createApp();
+    const response = await app.request("/api/research/pulse/keywords");
+    expect(response.status).toBe(401);
   });
 });
