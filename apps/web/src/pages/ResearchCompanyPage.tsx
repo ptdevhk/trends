@@ -8,6 +8,10 @@ import {
   CompanyResearchPanel,
   type ResearchSignalView,
 } from '@/components/research/CompanyResearchPanel'
+import {
+  ResearchHotlistFeed,
+  type ResearchHotlistFeedItem,
+} from '@/components/research/ResearchHotlistFeed'
 import { rawApiClient } from '@/lib/api-helpers'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { upsertResearchRecentCompany } from '@/lib/research-recent-companies'
@@ -17,6 +21,14 @@ import {
   shouldAutoRefreshCompany,
   writeLastCompanyRefreshAt,
 } from '@/lib/research-company-refresh'
+import { cn } from '@/lib/utils'
+
+type CompanySurfaceTab = 'brand' | 'hotlist'
+
+function parseCompanySurfaceTab(raw: string | null): CompanySurfaceTab {
+  if (raw === 'hotlist' || raw === 'brand') return raw
+  return 'brand'
+}
 
 type SignalsResponse = {
   success: boolean
@@ -85,6 +97,17 @@ type IndustryBrowseResponse = {
   }>
 }
 
+type PulseResponse = {
+  success: boolean
+  items?: ResearchHotlistFeedItem[]
+  meta?: {
+    filtered: boolean
+    effectiveKeywords: string[]
+    rawCount: number
+    matchedCount: number
+  }
+}
+
 function metaFromHit(hit: {
   companyKey: string
   nameCn?: string
@@ -110,6 +133,7 @@ export function ResearchCompanyPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const companyKey = decodeURIComponent(companyKeyParam ?? '').trim()
   const persona = normalizeResearchPersona(searchParams.get('persona'))
+  const surfaceTab = parseCompanySurfaceTab(searchParams.get('tab'))
   const selectedKinds = useMemo(() => {
     const raw = searchParams.get('kinds')
     if (!raw) {
@@ -128,11 +152,28 @@ export function ResearchCompanyPage() {
   const [error, setError] = useState<string | null>(null)
   const [latestRun, setLatestRun] = useState<LatestIngestResponse['run']>(null)
   const [ingesting, setIngesting] = useState(false)
+  const [hotlistItems, setHotlistItems] = useState<ResearchHotlistFeedItem[]>([])
+  const [hotlistLoading, setHotlistLoading] = useState(false)
+  const [hotlistError, setHotlistError] = useState<string | null>(null)
+  const [hotlistLoaded, setHotlistLoaded] = useState(false)
 
   const setPersona = useCallback(
     (next: ResearchPersona) => {
       const params = new URLSearchParams(searchParams)
       params.set('persona', next)
+      setSearchParams(params, { replace: true })
+    },
+    [searchParams, setSearchParams],
+  )
+
+  const setSurfaceTab = useCallback(
+    (next: CompanySurfaceTab) => {
+      const params = new URLSearchParams(searchParams)
+      if (next === 'brand') {
+        params.delete('tab')
+      } else {
+        params.set('tab', next)
+      }
       setSearchParams(params, { replace: true })
     },
     [searchParams, setSearchParams],
@@ -150,6 +191,19 @@ export function ResearchCompanyPage() {
     },
     [searchParams, setSearchParams],
   )
+
+  const highlightTerms = useMemo(() => {
+    const terms: string[] = []
+    if (companyMeta?.nameCn) terms.push(companyMeta.nameCn)
+    if (companyMeta?.nameEn) terms.push(companyMeta.nameEn)
+    if (companyMeta?.displayName) terms.push(companyMeta.displayName)
+    if (companyKey) terms.push(companyKey)
+    // Common brand aliases for CNC desk (visual only — not a company claim)
+    if (companyKey === 'fanuc' || companyMeta?.nameCn === '发那科') {
+      terms.push('发那科', 'FANUC', 'fanuc')
+    }
+    return [...new Set(terms.map((t) => t.trim()).filter(Boolean))]
+  }, [companyKey, companyMeta])
 
   const loadCompanyMeta = useCallback(async () => {
     if (!companyKey) {
@@ -243,6 +297,33 @@ export function ResearchCompanyPage() {
     }
   }, [])
 
+  const loadHotlist = useCallback(async () => {
+    setHotlistLoading(true)
+    setHotlistError(null)
+    const { data, error: apiError } = await rawApiClient.GET<PulseResponse>(
+      '/api/research/pulse',
+      {
+        params: {
+          query: {
+            limit: 20,
+            all: 1,
+            hotlistOnly: 1,
+          },
+        },
+      },
+    )
+    setHotlistLoading(false)
+    setHotlistLoaded(true)
+    if (apiError || !data?.success) {
+      setHotlistError(
+        t('research.companyHotlistLoadError', { defaultValue: '综合热榜加载失败' }),
+      )
+      setHotlistItems([])
+      return
+    }
+    setHotlistItems(Array.isArray(data.items) ? data.items : [])
+  }, [t])
+
   useEffect(() => {
     let cancelled = false
     void (async () => {
@@ -255,6 +336,12 @@ export function ResearchCompanyPage() {
       cancelled = true
     }
   }, [loadSignals, loadCompanyMeta, loadLatest])
+
+  // Lazy-load 综合热榜 when the tab is selected (same feed as hub; no company gate).
+  useEffect(() => {
+    if (surfaceTab !== 'hotlist' || hotlistLoaded || hotlistLoading) return
+    void loadHotlist()
+  }, [surfaceTab, hotlistLoaded, hotlistLoading, loadHotlist])
 
   useEffect(() => {
     if (!companyKey) return
@@ -272,10 +359,13 @@ export function ResearchCompanyPage() {
       await rawApiClient.POST('/api/research/ingest/run', { body: {} })
       await loadSignals()
       await loadLatest()
+      if (surfaceTab === 'hotlist' || hotlistLoaded) {
+        await loadHotlist()
+      }
     } finally {
       setIngesting(false)
     }
-  }, [loadLatest, loadSignals])
+  }, [loadLatest, loadSignals, loadHotlist, surfaceTab, hotlistLoaded])
 
   // Phase C: optional background refresh after first paint (never blocks initial load).
   useEffect(() => {
@@ -371,32 +461,115 @@ export function ResearchCompanyPage() {
           {latestSummary}
         </p>
       ) : null}
-      <CompanyResearchPanel
-        companyKey={companyKey || '—'}
-        companyName={companyMeta?.nameCn || companyMeta?.displayName}
-        nameEn={companyMeta?.nameEn}
-        companyType={companyMeta?.type}
-        signals={signals}
-        meta={signalsMeta}
-        persona={persona}
-        onPersonaChange={setPersona}
-        selectedKinds={selectedKinds}
-        onSelectedKindsChange={setSelectedKinds}
-        loading={loading}
-        error={error}
-        teamSlug={teamSlug}
-        emptyExtra={(
-          <Button
-            type="button"
-            size="sm"
-            disabled={ingesting}
-            onClick={() => void runIngest()}
-            data-testid="research-run-ingest-empty"
-          >
-            {t('research.runIngestCta', { defaultValue: '运行抓取以获取信号' })}
-          </Button>
-        )}
-      />
+
+      <div
+        className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5"
+        role="tablist"
+        aria-label={t('research.companySurfaceTabs', { defaultValue: '研究视图' })}
+        data-testid="research-company-surface-tabs"
+      >
+        <button
+          type="button"
+          role="tab"
+          aria-selected={surfaceTab === 'brand'}
+          data-testid="research-company-tab-brand"
+          data-active={surfaceTab === 'brand' ? 'true' : 'false'}
+          className={cn(
+            'rounded-md px-3 py-1.5 text-sm transition-colors',
+            surfaceTab === 'brand'
+              ? 'bg-white font-medium text-slate-900 shadow-sm'
+              : 'text-slate-600 hover:text-slate-900',
+          )}
+          onClick={() => setSurfaceTab('brand')}
+        >
+          {t('research.tabBrand', { defaultValue: '品牌动态' })}
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={surfaceTab === 'hotlist'}
+          data-testid="research-company-tab-hotlist"
+          data-active={surfaceTab === 'hotlist' ? 'true' : 'false'}
+          className={cn(
+            'rounded-md px-3 py-1.5 text-sm transition-colors',
+            surfaceTab === 'hotlist'
+              ? 'bg-white font-medium text-slate-900 shadow-sm'
+              : 'text-slate-600 hover:text-slate-900',
+          )}
+          onClick={() => setSurfaceTab('hotlist')}
+        >
+          {t('research.tabHotlist', { defaultValue: '综合热榜' })}
+        </button>
+      </div>
+
+      {surfaceTab === 'brand' ? (
+        <div data-testid="research-company-brand-panel" role="tabpanel">
+          <CompanyResearchPanel
+            companyKey={companyKey || '—'}
+            companyName={companyMeta?.nameCn || companyMeta?.displayName}
+            nameEn={companyMeta?.nameEn}
+            companyType={companyMeta?.type}
+            signals={signals}
+            meta={signalsMeta}
+            persona={persona}
+            onPersonaChange={setPersona}
+            selectedKinds={selectedKinds}
+            onSelectedKindsChange={setSelectedKinds}
+            loading={loading}
+            error={error}
+            teamSlug={teamSlug}
+            emptyExtra={(
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={ingesting}
+                  onClick={() => void runIngest()}
+                  data-testid="research-run-ingest-empty"
+                >
+                  {t('research.runIngestCta', { defaultValue: '运行抓取以获取信号' })}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setSurfaceTab('hotlist')}
+                  data-testid="research-open-hotlist-from-empty"
+                >
+                  {t('research.openHotlistTab', { defaultValue: '查看综合热榜' })}
+                </Button>
+              </div>
+            )}
+          />
+        </div>
+      ) : (
+        <div data-testid="research-company-hotlist-panel" role="tabpanel" className="space-y-2">
+          <p className="text-xs text-muted-foreground" data-testid="research-company-hotlist-hint">
+            {t('research.companyHotlistHint', {
+              defaultValue:
+                '综合热榜来自选定的 NewsNow 平台，不按本企业过滤。高亮仅表示标题可能包含品牌别名，不代表已归属为本企业信号。',
+            })}
+          </p>
+          <ResearchHotlistFeed
+            teamSlug={teamSlug}
+            items={hotlistItems}
+            loading={hotlistLoading}
+            error={hotlistError}
+            highlightTerms={highlightTerms}
+            listTestId="research-company-hotlist-feed"
+            itemTestId="research-company-hotlist-item"
+          />
+          <div className="pt-1">
+            <Link
+              to={`/${teamSlug}/research`}
+              className="text-xs text-blue-600 hover:underline"
+              data-testid="research-hotlist-back-hub"
+            >
+              {t('research.hotlistBackHub', { defaultValue: '在研究首页查看完整综合热榜' })}
+            </Link>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

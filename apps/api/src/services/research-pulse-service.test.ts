@@ -190,4 +190,45 @@ describe("research-pulse-service", () => {
     ]);
     expect(all.items[1]!.matchedKeywords).toEqual([]);
   });
+
+  it("getResearchPulse: hotlistOnly drops rss:* platforms", async () => {
+    getWorkspaceConfigValueMock.mockResolvedValue({
+      version: 1,
+      enabled: [],
+      excluded: [],
+      custom: [],
+    });
+    resolveResearchCompanySurfaceMock.mockReturnValue(null);
+    listResearchNewsMock.mockResolvedValue([
+      {
+        _id: "1",
+        sourceId: "s",
+        platform: "weibo",
+        title: "热榜头条",
+        contentHash: "h1",
+        capturedAt: 300,
+      },
+      {
+        _id: "2",
+        sourceId: "s",
+        platform: "rss:gnews-fanuc-cn",
+        title: "发那科 RSS",
+        contentHash: "h2",
+        capturedAt: 200,
+      },
+      {
+        _id: "3",
+        sourceId: "s",
+        platform: "zhihu",
+        title: "知乎热榜",
+        contentHash: "h3",
+        capturedAt: 100,
+      },
+    ]);
+
+    const result = await getResearchPulse("hr", { limit: 12, all: true, hotlistOnly: true });
+    expect(result.meta.rawCount).toBe(2);
+    expect(result.items.map((i) => i.platform)).toEqual(["weibo", "zhihu"]);
+    expect(result.items.every((i) => !i.platform.startsWith("rss:"))).toBe(true);
+  });
 });

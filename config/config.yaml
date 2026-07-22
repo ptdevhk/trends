@@ -98,9 +98,30 @@ rss:
       # max_age_days: 7               # 示例：推送7天内的文章（更新较慢的博客）
 
     # CNC / brand news for Research Eng company projection (real hosts via Google News RSS)
+    # Brand pack: golden desk brands + hiring/topic queries → research_signals via projector
     - id: "gnews-fanuc-cn"
       name: "Google News 发那科"
       url: "https://news.google.com/rss/search?q=%E5%8F%91%E9%82%A3%E7%A7%91&hl=zh-CN&gl=CN&ceid=CN:zh-Hans"
+      max_age_days: 7
+
+    - id: "gnews-fanuc-hire"
+      name: "Google News 发那科 招聘"
+      url: "https://news.google.com/rss/search?q=%E5%8F%91%E9%82%A3%E7%A7%91+%E6%8B%9B%E8%81%98&hl=zh-CN&gl=CN&ceid=CN:zh-Hans"
+      max_age_days: 7
+
+    - id: "gnews-fanuc-en"
+      name: "Google News FANUC CNC"
+      url: "https://news.google.com/rss/search?q=FANUC+CNC&hl=en-US&gl=US&ceid=US:en"
+      max_age_days: 7
+
+    - id: "gnews-mazak-cn"
+      name: "Google News 马扎克"
+      url: "https://news.google.com/rss/search?q=%E9%A9%AC%E6%89%8E%E5%85%8B&hl=zh-CN&gl=CN&ceid=CN:zh-Hans"
+      max_age_days: 7
+
+    - id: "gnews-makino-cn"
+      name: "Google News 牧野"
+      url: "https://news.google.com/rss/search?q=%E7%89%A7%E9%87%8E+%E6%9C%BA%E5%BA%8A&hl=zh-CN&gl=CN&ceid=CN:zh-Hans"
       max_age_days: 7
 
     - id: "gnews-cnc-machine"
@@ -108,11 +129,16 @@ rss:
       url: "https://news.google.com/rss/search?q=%E6%95%B0%E6%8E%A7+%E6%9C%BA%E5%BA%8A&hl=zh-CN&gl=CN&ceid=CN:zh-Hans"
       max_age_days: 7
 
-    - id: "gnews-fanuc-en"
-      name: "Google News FANUC CNC"
-      url: "https://news.google.com/rss/search?q=FANUC+CNC&hl=en-US&gl=US&ceid=US:en"
+    - id: "gnews-cnc-hiring"
+      name: "Google News 数控 招聘"
+      url: "https://news.google.com/rss/search?q=%E6%95%B0%E6%8E%A7+%E6%8B%9B%E8%81%98&hl=zh-CN&gl=CN&ceid=CN:zh-Hans"
       max_age_days: 7
-    
+
+    - id: "gnews-robot-cnc"
+      name: "Google News 工业机器人 机床"
+      url: "https://news.google.com/rss/search?q=%E5%B7%A5%E4%B8%9A%E6%9C%BA%E5%99%A8%E4%BA%BA+%E6%9C%BA%E5%BA%8A&hl=zh-CN&gl=CN&ceid=CN:zh-Hans"
+      max_age_days: 7
+
     - id: "yahoo-finance"
       name: "雅虎财经"
       url: "https://finance.yahoo.com/news/rssindex"
