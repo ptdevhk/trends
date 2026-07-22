@@ -61,3 +61,27 @@ def test_project_title_uses_bridge_for_fanuc_without_k3_alias():
     assert drafts[0].company_key == "fanuc"
     kinds = {d.kind for d in drafts}
     assert "company_mention" in kinds
+
+
+def test_project_title_bridge_live_weibo_hiring_url():
+    """Live NewsNow-shaped rows keep real URL + non-showcase platform on projected signals."""
+
+    class EmptyK3:
+        def resolve_alias(self, alias: str):
+            return None
+
+    resolver = IndustryBridgeResolver(fallback=EmptyK3())
+    drafts = project_title(
+        "发那科招聘应用工程师",
+        resolver=resolver,
+        platform="weibo",
+        url="https://weibo.com/real/fanuc-hire",
+        seen_at=1000,
+        ingest_run_id="research-xyz",
+    )
+    assert drafts
+    assert all(d.company_key == "fanuc" for d in drafts)
+    assert any(d.kind == "hiring_signal" for d in drafts)
+    assert all(d.evidence.get("platform") == "weibo" for d in drafts)
+    assert all(d.evidence.get("url") == "https://weibo.com/real/fanuc-hire" for d in drafts)
+    assert all(d.ingest_run_id == "research-xyz" for d in drafts)
