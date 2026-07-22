@@ -73,9 +73,12 @@ def test_unresolved_mentions_skipped_and_counted():
             raw_snippet="未知公司",
         )
     ]
-    drafts, unresolved = project_signals_for_items(items, resolver, ingest_run_id="r1")
+    drafts, unresolved, unresolved_items = project_signals_for_items(
+        items, resolver, ingest_run_id="r1"
+    )
     assert drafts == []
     assert unresolved == 1
+    assert len(unresolved_items) == 1
 
 
 def test_classify_kinds_heuristics():

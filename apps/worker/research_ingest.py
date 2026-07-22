@@ -177,7 +177,7 @@ class ResearchIngestJob:
 
             # C: industry-data resolveEntity surface first, then K3 resolveAlias fallback
             resolver = IndustryBridgeResolver(fallback=self.client)
-            drafts, unresolved = project_signals_for_items(
+            drafts, unresolved, unresolved_items = project_signals_for_items(
                 collected,
                 resolver,
                 ingest_run_id=run_id,
@@ -187,6 +187,29 @@ class ResearchIngestJob:
                 sig_result = self.client.upsert_signal(draft.to_convex_args())
                 if sig_result and sig_result.get("created", True):
                     signals_inserted += 1
+
+            if unresolved_items:
+                try:
+                    from apps.worker.research_unresolved import (
+                        append_research_unresolved_to_queue,
+                        samples_from_unresolved_items,
+                    )
+
+                    samples = samples_from_unresolved_items(unresolved_items)
+                    appended = append_research_unresolved_to_queue(
+                        Path(__file__).resolve().parents[2],
+                        samples,
+                    )
+                    if appended:
+                        logger.info(
+                            "[ResearchIngest] appended %s unresolved samples to industry queue",
+                            appended,
+                        )
+                except Exception as queue_error:  # noqa: BLE001 — soft-fail steward path
+                    logger.warning(
+                        "[ResearchIngest] unresolved queue append failed: %s",
+                        queue_error,
+                    )
 
             self.client.finish_ingest_run(
                 run_id,

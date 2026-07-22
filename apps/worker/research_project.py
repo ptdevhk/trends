@@ -146,14 +146,15 @@ def project_signals_for_items(
     ingest_run_id: Optional[str] = None,
     news_item_ids: Optional[Dict[str, str]] = None,
     alias_hints: Optional[Dict[str, List[str]]] = None,
-) -> tuple[List[SignalDraft], int]:
+) -> tuple[List[SignalDraft], int, List[NormalizedNewsItem]]:
     """
     Project signals for a batch of news items.
-    Returns (drafts, unresolved_mention_count).
+    Returns (drafts, unresolved_mention_count, unresolved_items_with_candidates).
     Unresolved mentions are skipped (not emitted) and counted.
     """
     drafts: List[SignalDraft] = []
     unresolved = 0
+    unresolved_items: List[NormalizedNewsItem] = []
     id_map = news_item_ids or {}
     hints = alias_hints or {}
 
@@ -176,6 +177,7 @@ def project_signals_for_items(
 
             if extract_candidate_aliases(item.title, item.raw_snippet):
                 unresolved += 1
+                unresolved_items.append(item)
             continue
         drafts.extend(item_drafts)
-    return drafts, unresolved
+    return drafts, unresolved, unresolved_items
