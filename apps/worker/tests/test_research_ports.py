@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from apps.worker.research_ports import parse_newsnow_payload
+from apps.worker.research_ports import parse_newsnow_payload, url_matches_expected_domain
 
 FIXTURE = Path(__file__).parent / "fixtures" / "newsnow_weibo_success.json"
 
@@ -24,6 +24,26 @@ def test_parse_newsnow_success_maps_items():
 def test_parse_newsnow_rejects_bad_status():
     items = parse_newsnow_payload("weibo", {"status": "error", "items": [{"title": "x"}]}, 1)
     assert items == []
+
+
+def test_domain_safety_drops_mismatch():
+    assert url_matches_expected_domain("https://www.weibo.com/x", "weibo.com") is True
+    assert url_matches_expected_domain("https://evil.example/x", "weibo.com") is False
+    payload = {
+        "status": "success",
+        "items": [
+            {"title": "ok", "url": "https://www.weibo.com/x"},
+            {"title": "bad", "url": "https://evil.example/x"},
+        ],
+    }
+    items = parse_newsnow_payload(
+        "weibo",
+        payload,
+        1,
+        expected_domain="weibo.com",
+    )
+    assert len(items) == 1
+    assert "weibo.com" in (items[0].url or "")
 
 
 def test_parse_newsnow_accepts_cache_status():

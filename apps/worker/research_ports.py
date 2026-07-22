@@ -71,14 +71,39 @@ def stable_content_hash(
     return hashlib.sha256(material.encode("utf-8")).hexdigest()
 
 
+def url_matches_expected_domain(url: Optional[str], expected_domain: Optional[str]) -> bool:
+    """
+    Soft domain safety: when expected_domain is set and url is present,
+    require hostname to equal or end with expected_domain.
+    Missing url or missing expected_domain → keep item.
+    """
+    domain = (expected_domain or "").strip().lower().lstrip(".")
+    if not domain:
+        return True
+    if not url or not str(url).strip():
+        return True
+    try:
+        from urllib.parse import urlparse
+
+        host = (urlparse(str(url)).hostname or "").lower()
+    except Exception:  # noqa: BLE001
+        return False
+    if not host:
+        return False
+    return host == domain or host.endswith("." + domain)
+
+
 def parse_newsnow_payload(
     platform_id: str,
     payload: Any,
     captured_at: int,
+    *,
+    expected_domain: Optional[str] = None,
 ) -> List[NormalizedNewsItem]:
     """
     Parse NewsNow-compatible JSON into NormalizedNewsItem list.
     Accepts status success|cache only; skips blank titles.
+    When expected_domain is set, drops items whose url host mismatches.
     """
     if isinstance(payload, str):
         try:
@@ -100,11 +125,14 @@ def parse_newsnow_payload(
             continue
         title = str(title).strip()
         url = raw.get("url") or raw.get("mobileUrl") or raw.get("mobile_url")
+        url_str = str(url) if url else None
+        if not url_matches_expected_domain(url_str, expected_domain):
+            continue
         external_id = raw.get("id") or raw.get("external_id")
         content_hash = stable_content_hash(
             platform=platform_id,
             title=title,
-            url=str(url) if url else None,
+            url=url_str,
             external_id=str(external_id) if external_id else None,
         )
         result.append(
@@ -115,7 +143,7 @@ def parse_newsnow_payload(
                 content_hash=content_hash,
                 captured_at=captured_at,
                 external_id=str(external_id) if external_id else None,
-                url=str(url) if url else None,
+                url=url_str,
                 rank=index + 1,
             )
         )
