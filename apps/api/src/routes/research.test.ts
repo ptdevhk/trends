@@ -239,6 +239,79 @@ describe("research routes", () => {
     expect(body.items[1].evidence.platform).toBe("showcase");
   });
 
+  it("excludes demo-seed from live and omits synthetic from product items", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url =
+        typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+      if (url.includes("/api/query") || url.includes("/api/mutation")) {
+        const call = parseConvexCall(input, init);
+        if (call.pathName === "research_signals:listByCompany") {
+          return convexSuccess([
+            {
+              _id: "demo-hire",
+              companyKey: "pro-technic-machinery",
+              kind: "hiring_signal",
+              title: "demo hire",
+              evidence: {
+                title: "demo hire",
+                platform: "rss:demo",
+                url: "https://example.com/news/2",
+                seenAt: 1,
+              },
+              capturedAt: 5,
+              ingestRunId: "demo-seed",
+            },
+            {
+              _id: "seed-hire",
+              companyKey: "pro-technic-machinery",
+              kind: "hiring_signal",
+              title: "seed hire",
+              evidence: { title: "seed hire", platform: "showcase", seenAt: 2 },
+              capturedAt: 4,
+              ingestRunId: "showcase-seed-v1",
+            },
+            {
+              _id: "live-hire",
+              companyKey: "pro-technic-machinery",
+              kind: "hiring_signal",
+              title: "live hire",
+              evidence: {
+                title: "live hire",
+                platform: "weibo",
+                url: "https://weibo.com/real/1",
+                seenAt: 3,
+              },
+              capturedAt: 3,
+              ingestRunId: "research-xyz",
+            },
+          ]);
+        }
+      }
+      return convexSuccess(null);
+    });
+
+    const app = createApp();
+    const response = await app.request(
+      "/api/research/companies/pro-technic-machinery/signals?persona=hr",
+      { headers: auth.headers },
+    );
+    expect(response.status).toBe(200);
+    const body = await parseJsonBody(response);
+    expect(body.meta.liveCount).toBe(1);
+    expect(body.meta.showcaseCount).toBe(1);
+    expect(body.items.length).toBe(2);
+    expect(body.items[0].evidence.url).toBe("https://weibo.com/real/1");
+    expect(body.items.some((i: { ingestRunId?: string }) => i.ingestRunId === "demo-seed")).toBe(
+      false,
+    );
+    expect(
+      body.items.some((i: { evidence?: { url?: string } }) =>
+        String(i.evidence?.url ?? "").includes("example.com"),
+      ),
+    ).toBe(false);
+  });
+
   it("proxies ingest trigger to worker research endpoint with effective platforms", async () => {
     const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
     platformMocks.getHotlistPlatformsState.mockResolvedValue({
