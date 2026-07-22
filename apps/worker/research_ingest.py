@@ -225,12 +225,23 @@ class ResearchIngestJob:
 
 
 def run_research_ingest(config_overrides: Optional[Dict[str, Any]] = None) -> bool:
-    """Entry point for scheduler / operator trigger."""
+    """Entry point for scheduler / operator trigger.
+
+    When config_overrides contains platforms (list), that list is used instead of
+    config/config.yaml platforms.sources. Missing key → YAML fallback.
+    Empty list is valid (no hotlist platforms this run).
+    """
     if not research_ingest_enabled():
         logger.info("[ResearchIngest] skipped — RESEARCH_INGEST_ENABLED not set")
         return True
-    job = ResearchIngestJob()
-    return job.run(config_overrides=config_overrides)
+    overrides = config_overrides or {}
+    job_kwargs: Dict[str, Any] = {}
+    if "platforms" in overrides and isinstance(overrides["platforms"], (list, tuple)):
+        job_kwargs["platforms"] = [
+            str(p).strip() for p in overrides["platforms"] if str(p).strip()
+        ]
+    job = ResearchIngestJob(**job_kwargs)
+    return job.run(config_overrides=overrides)
 
 
 # Re-export static ports for tests

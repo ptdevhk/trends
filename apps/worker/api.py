@@ -254,11 +254,21 @@ async def trigger_worker_crawl():
     )
 
 
+class ResearchIngestRequest(BaseModel):
+    """Optional body for operator research ingest trigger."""
+
+    platforms: Optional[List[str]] = Field(
+        default=None,
+        description="NewsNow platform ids to fetch; omit to use config/config.yaml platforms",
+    )
+
+
 @router.post("/worker/research/ingest", response_model=WorkerTriggerResponse, tags=["Research"])
-async def trigger_research_ingest():
+async def trigger_research_ingest(body: ResearchIngestRequest = ResearchIngestRequest()):
     """
     Trigger a one-time Research Eng native ingest (Convex news + signals).
     Operator path; scheduled path uses RESEARCH_INGEST_ENABLED + APScheduler.
+    Optional JSON body: { "platforms": ["weibo", "cls-hot"] }.
     """
     started_at = format_iso_offset_time(timezone=WORKER_TIMEZONE)
     # Force-enable for manual operator trigger regardless of env gate
@@ -266,8 +276,14 @@ async def trigger_research_ingest():
 
     previous = os.environ.get("RESEARCH_INGEST_ENABLED")
     os.environ["RESEARCH_INGEST_ENABLED"] = "1"
+    overrides = {}
+    if body.platforms is not None:
+        overrides["platforms"] = body.platforms
     try:
-        success = await asyncio.to_thread(run_research_ingest)
+        success = await asyncio.to_thread(
+            run_research_ingest,
+            overrides if overrides else None,
+        )
     finally:
         if previous is None:
             os.environ.pop("RESEARCH_INGEST_ENABLED", None)

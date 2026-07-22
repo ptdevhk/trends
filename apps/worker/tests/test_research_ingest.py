@@ -215,6 +215,59 @@ def test_run_research_ingest_respects_enable_gate():
         assert run_research_ingest() is True
 
 
+def test_run_research_ingest_builds_job_with_override_platforms(monkeypatch):
+    """config_overrides platforms list is passed into ResearchIngestJob."""
+    seen: Dict[str, Any] = {}
+
+    class CaptureJob:
+        def __init__(self, **kwargs):
+            seen["platforms"] = kwargs.get("platforms")
+
+        def run(self, config_overrides=None):
+            seen["config_overrides"] = config_overrides
+            return True
+
+    monkeypatch.setenv("RESEARCH_INGEST_ENABLED", "1")
+    monkeypatch.setattr("apps.worker.research_ingest.ResearchIngestJob", CaptureJob)
+    assert run_research_ingest({"platforms": ["cls-hot", "weibo"]}) is True
+    assert seen["platforms"] == ["cls-hot", "weibo"]
+
+
+def test_ingest_job_fetches_only_constructor_platforms():
+    """Platforms list on the job limits which hotlist sources are fetched."""
+    rec = RecordingConvex()
+    client = ResearchConvexClient(
+        convex_url="https://example.convex.cloud",
+        write_secret="secret",
+        mutator=rec.mutator,
+        querier=rec.querier,
+    )
+    fetched: List[str] = []
+
+    class TrackingHotlist:
+        def fetch(self, platform_id: str, captured_at: int):
+            fetched.append(platform_id)
+            return StaticHotlistPort(
+                items_by_platform={
+                    "weibo": [{"title": "w", "external_id": "w1", "url": "https://weibo.com/1"}],
+                    "zhihu": [{"title": "z", "external_id": "z1", "url": "https://zhihu.com/1"}],
+                }
+            ).fetch(platform_id, captured_at)
+
+    job = ResearchIngestJob(
+        client=client,
+        hotlist_port=TrackingHotlist(),
+        rss_port=StaticRssPort(),
+        platforms=["weibo"],
+        rss_feeds=[],
+        now_ms=lambda: 1000,
+    )
+    assert job.run() is True
+    assert fetched == ["weibo"]
+    titles = [a["title"] for p, a in rec.mutations if p == "research_news:upsertItem"]
+    assert titles == ["w"]
+
+
 def test_scheduler_registers_research_job_when_enabled():
     with patch.dict("os.environ", {"RESEARCH_INGEST_ENABLED": "1"}, clear=False):
         s = WorkerScheduler.__new__(WorkerScheduler)
