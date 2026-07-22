@@ -238,6 +238,12 @@ grep -q 'next_cursor = out.get("cursor")' "$ROOT/deploy/search-freshness-gate.sh
 grep -q 'if not out.get("hasMore"):' "$ROOT/deploy/search-freshness-gate.sh" \
   && pass "gate stops immediately at terminal hasMore=false" \
   || fail "gate does not stop immediately at terminal hasMore=false"
+grep -q 'SCHEDULE_API_URL="$(preview_public_bff_url)"' "$ROOT/deploy/search-freshness-gate.sh" \
+  && pass "preview authenticated scheduling uses public HTTPS for secure cookies" \
+  || fail "preview authenticated scheduling still uses loopback HTTP"
+grep -q 'python3 - "$SCHEDULE_API_URL"' "$ROOT/deploy/search-freshness-gate.sh" \
+  && pass "gate passes the authenticated scheduling origin to the paced loop" \
+  || fail "gate does not pass the authenticated scheduling origin"
 grep -q 'lagScanFailed' "$ROOT/deploy/search-freshness-gate.sh" \
   && pass "gate schedules on lagScanFailed" \
   || fail "gate missing lagScanFailed schedule trigger"

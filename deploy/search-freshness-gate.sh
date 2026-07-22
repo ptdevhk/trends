@@ -75,6 +75,13 @@ if [[ -z "$API_URL" ]]; then
   fi
 fi
 
+# Preview auth cookies are Secure, so protected scheduling calls must use the
+# public HTTPS origin even when the read-only doctor uses host loopback.
+SCHEDULE_API_URL="$API_URL"
+if [[ "$ROLE" == "preview" ]]; then
+  SCHEDULE_API_URL="$(preview_public_bff_url)"
+fi
+
 log() { printf '[search-freshness-gate] %s\n' "$*"; }
 warn() { printf '[search-freshness-gate] WARN: %s\n' "$*" >&2; }
 err() { printf '[search-freshness-gate] ERROR: %s\n' "$*" >&2; }
@@ -228,7 +235,7 @@ REINGEST_SLEEP_SECS="${REINGEST_SLEEP_SECS:-8}"
 if [[ "$should_schedule" -eq 1 ]]; then
   log "Scheduling cursor-paced compute reingest limit=$REINGEST_LIMIT batch=$REINGEST_BATCH (mode=any)"
   # Use API trigger-reingest as admin — paced to keep Convex healthy
-  python3 - "$API_URL" "$WORKSPACE" "$TRENDS_AUTH_USERNAME" "$TRENDS_AUTH_PASSWORD" \
+  python3 - "$SCHEDULE_API_URL" "$WORKSPACE" "$TRENDS_AUTH_USERNAME" "$TRENDS_AUTH_PASSWORD" \
     "$REINGEST_LIMIT" "$REINGEST_BATCH" "$REINGEST_SLEEP_SECS" <<'PY' || warn "reingest schedule failed"
 import json, sys, time, urllib.request, http.cookiejar
 api, ws, user, pw, limit_s, batch_s, sleep_s = sys.argv[1:8]
@@ -296,7 +303,7 @@ if scheduled_total == 0 and remaining == limit:
     sys.exit(1)
 PY
   log "Reingest scheduled (background, paced). Re-run this gate after compute settles."
-  log "Manual: trends resume debug trigger-reingest --mode any --limit $REINGEST_LIMIT --api-url $API_URL --workspace $WORKSPACE"
+  log "Manual: trends resume debug trigger-reingest --mode any --limit $REINGEST_LIMIT --api-url $SCHEDULE_API_URL --workspace $WORKSPACE"
 fi
 
 if [[ "$DOCTOR_RC" -eq 3 ]]; then
