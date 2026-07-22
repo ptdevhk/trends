@@ -195,20 +195,31 @@ export async function searchResearchCompanies(q: string): Promise<
     }));
 }
 
-export async function triggerResearchIngest(): Promise<{
+export async function triggerResearchIngest(opts?: {
+  platforms?: string[];
+}): Promise<{
   success: boolean;
   mode: string;
   started_at?: string;
   finished_at?: string;
   message: string;
+  platforms?: string[];
 }> {
   const workerUrl = (process.env.WORKER_URL || process.env.TRENDS_WORKER_URL || "http://localhost:8000").replace(
     /\/$/,
     "",
   );
+  const body =
+    opts?.platforms != null
+      ? { platforms: opts.platforms }
+      : {};
   const response = await fetch(`${workerUrl}/worker/research/ingest`, {
     method: "POST",
-    headers: { Accept: "application/json" },
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
   });
   if (!response.ok) {
     const text = await response.text();
@@ -221,6 +232,7 @@ export async function triggerResearchIngest(): Promise<{
     ...(typeof payload.started_at === "string" ? { started_at: payload.started_at } : {}),
     ...(typeof payload.finished_at === "string" ? { finished_at: payload.finished_at } : {}),
     message: typeof payload.message === "string" ? payload.message : "Research ingest completed",
+    ...(opts?.platforms != null ? { platforms: opts.platforms } : {}),
   };
 }
 

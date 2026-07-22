@@ -184,12 +184,19 @@ describe("research routes", () => {
     expect(calls.some((c) => c.pathName === "research_signals:listByCompany")).toBe(true);
   });
 
-  it("proxies ingest trigger to worker research endpoint", async () => {
+  it("proxies ingest trigger to worker research endpoint with effective platforms", async () => {
     const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+    platformMocks.getHotlistPlatformsState.mockResolvedValue({
+      ...samplePlatformsState,
+      effective: ["weibo", "cls-hot"],
+    });
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url =
         typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
       if (url.includes("/worker/research/ingest")) {
+        const body = init?.body ? JSON.parse(String(init.body)) : {};
+        expect(Array.isArray(body.platforms)).toBe(true);
+        expect(body.platforms).toEqual(["weibo", "cls-hot"]);
         return new Response(
           JSON.stringify({
             success: true,
@@ -212,6 +219,8 @@ describe("research routes", () => {
     expect(response.status).toBe(200);
     const body = await parseJsonBody(response);
     expect(body.mode).toBe("research-ingest");
+    expect(body.platforms).toEqual(["weibo", "cls-hot"]);
+    expect(platformMocks.getHotlistPlatformsState).toHaveBeenCalledWith("hr");
     expect(
       fetchSpy.mock.calls.some((call) => {
         const url =

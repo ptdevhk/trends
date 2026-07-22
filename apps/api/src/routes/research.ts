@@ -200,7 +200,7 @@ const ingestRunRoute = createRoute({
   method: "post",
   path: "/api/research/ingest/run",
   tags: ["research"],
-  summary: "Operator trigger: proxy to worker research ingest",
+  summary: "Operator trigger: proxy to worker research ingest (workspace platform set)",
   responses: {
     200: {
       content: {
@@ -211,6 +211,7 @@ const ingestRunRoute = createRoute({
             started_at: z.string().optional(),
             finished_at: z.string().optional(),
             message: z.string(),
+            platforms: z.array(z.string()).optional(),
           }),
         },
       },
@@ -220,7 +221,9 @@ const ingestRunRoute = createRoute({
 });
 
 app.openapi(ingestRunRoute, async (c) => {
-  const result = await triggerResearchIngest();
+  const workspaceSlug = resolveResearchWorkspaceSlug(c);
+  const { effective } = await getHotlistPlatformsState(workspaceSlug);
+  const result = await triggerResearchIngest({ platforms: effective });
   return c.json(result, 200);
 });
 
