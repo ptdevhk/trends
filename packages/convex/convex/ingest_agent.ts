@@ -828,6 +828,7 @@ export type ReIngestStaleResult = {
   currentVersion: number;
   currentIngestComputeEpoch: number;
   hasMore: boolean;
+  cursor: string | null;
   mode: StaleSelectionMode;
   dryRun: boolean;
   /** Rows seen in this scan that are skills-stale (may exceed scheduled when dry-run/count capped). */
@@ -841,6 +842,7 @@ export type ReIngestStaleResult = {
 export const reIngestStaleResumes = internalAction({
   args: {
     limit: v.optional(v.number()),
+    cursor: v.optional(v.string()),
     /** skills | compute | any (default any — skills lag OR compute epoch lag) */
     mode: v.optional(v.string()),
     /** When true, scan and count only — do not schedule processNewResumes */
@@ -884,9 +886,9 @@ export const reIngestStaleResumes = internalAction({
         : CURRENT_INGEST_COMPUTE_EPOCH;
 
     const batchSize = 50;
-    let cursor: string | undefined;
+    let cursor = args.cursor;
+    let nextCursor: string | null = null;
     const resumeIds: Id<"resumes">[] = [];
-    let hasMore = false;
     let batches = 0;
     let skillsStaleCount = 0;
     let computeStaleCount = 0;
@@ -897,7 +899,15 @@ export const reIngestStaleResumes = internalAction({
         continueCursor: string;
         isDone: boolean;
         page: ResumeScanRow[];
-      } = await ctx.runQuery(internal.resumes.listResumeScanBatch, { cursor });
+      } = await ctx.runQuery(internal.resumes.listResumeScanBatch, {
+        cursor,
+        limit: Math.min(batchSize, limit - resumeIds.length),
+      });
+
+      if (!batch.isDone && !batch.continueCursor) {
+        throw new Error("Resume scan returned an unfinished page without a continuation cursor");
+      }
+      nextCursor = batch.isDone ? null : batch.continueCursor;
 
       for (const resume of batch.page) {
         // Skills path historically required ingestData present.
@@ -915,15 +925,10 @@ export const reIngestStaleResumes = internalAction({
           continue;
         }
         matchedCount += 1;
-        if (resumeIds.length < limit) {
-          resumeIds.push(resume._id);
-        } else {
-          hasMore = true;
-        }
+        resumeIds.push(resume._id);
       }
 
       if (resumeIds.length >= limit) {
-        hasMore = hasMore || !batch.isDone;
         break;
       }
 
@@ -934,6 +939,8 @@ export const reIngestStaleResumes = internalAction({
       cursor = batch.continueCursor;
     }
 
+    const hasMore = nextCursor !== null;
+
     if (dryRun || resumeIds.length === 0) {
       return {
         scheduled: 0,
@@ -941,6 +948,7 @@ export const reIngestStaleResumes = internalAction({
         currentVersion,
         currentIngestComputeEpoch: currentEpoch,
         hasMore,
+        cursor: nextCursor,
         mode,
         dryRun,
         skillsStaleCount,
@@ -962,6 +970,7 @@ export const reIngestStaleResumes = internalAction({
       currentVersion,
       currentIngestComputeEpoch: currentEpoch,
       hasMore,
+      cursor: nextCursor,
       mode,
       dryRun: false,
       skillsStaleCount,

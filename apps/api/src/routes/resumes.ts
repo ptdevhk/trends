@@ -151,6 +151,7 @@ const RescoreRequestSchema = z.object({
 const MatchRescoreResponseSchema = MatchResponseSchema;
 const TriggerReingestRequestSchema = z.object({
   limit: z.number().int().min(1).max(1000).optional(),
+  cursor: z.string().min(1).max(4_096).optional(),
   /** skills = skillsVersion lag only; compute = ingestComputeEpoch lag; any = either (default) */
   mode: z.enum(["skills", "compute", "any"]).optional(),
   dryRun: z.boolean().optional(),
@@ -161,7 +162,8 @@ const TriggerReingestResponseSchema = z.object({
   batches: z.number().int().optional(),
   currentVersion: z.number().int().optional(),
   currentIngestComputeEpoch: z.number().int().optional(),
-  hasMore: z.boolean().optional(),
+  hasMore: z.boolean(),
+  cursor: z.string().nullable(),
   mode: z.string().optional(),
   dryRun: z.boolean().optional(),
   skillsStaleCount: z.number().int().optional(),
@@ -790,6 +792,7 @@ function removeServerSideFilters(filters: ResumeFilters): ResumeFilters {
 
 export type TriggerReingestOptions = {
   limit?: number;
+  cursor?: string;
   mode?: "skills" | "compute" | "any";
   dryRun?: boolean;
 };
@@ -800,6 +803,7 @@ export type TriggerReingestResult = {
   currentVersion: number;
   currentIngestComputeEpoch: number;
   hasMore: boolean;
+  cursor: string | null;
   mode: string;
   dryRun: boolean;
   skillsStaleCount: number;
@@ -814,6 +818,7 @@ export async function triggerReingestStaleSkillsVersion(
     typeof limitOrOptions === "number" ? { limit: limitOrOptions } : limitOrOptions;
   const limit = options.limit ?? 200;
   const mode = options.mode ?? "any";
+  const cursor = options.cursor;
   const dryRun = options.dryRun === true;
 
   const convexUrl = resolveConvexUrl().replace(/\/$/, "");
@@ -825,7 +830,7 @@ export async function triggerReingestStaleSkillsVersion(
     },
     body: JSON.stringify({
       path: "migrations:reIngestStaleSkillsVersion",
-      args: { limit, mode, dryRun },
+      args: { limit, cursor, mode, dryRun },
     }),
   });
 
@@ -862,6 +867,7 @@ export async function triggerReingestStaleSkillsVersion(
         ? result.currentIngestComputeEpoch
         : CURRENT_INGEST_COMPUTE_EPOCH,
     hasMore: result.hasMore === true,
+    cursor: typeof result.cursor === "string" && result.cursor.length > 0 ? result.cursor : null,
     mode: typeof result.mode === "string" ? result.mode : mode,
     dryRun: result.dryRun === true || dryRun,
     skillsStaleCount: typeof result.skillsStaleCount === "number" ? result.skillsStaleCount : 0,
@@ -1222,11 +1228,12 @@ const triggerReingestRoute = createRoute({
   },
 });
 app.openapi(triggerReingestRoute, async (c) => {
-  const { limit, mode, dryRun } = c.req.valid("json");
+  const { limit, cursor, mode, dryRun } = c.req.valid("json");
 
   try {
     const result = await triggerReingestStaleSkillsVersion({
       limit: limit ?? 200,
+      cursor,
       mode: mode ?? "any",
       dryRun: dryRun === true,
     });

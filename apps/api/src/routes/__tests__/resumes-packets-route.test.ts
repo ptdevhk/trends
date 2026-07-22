@@ -481,6 +481,54 @@ describe("resumes packets route", () => {
     expect(payload.reingest!.batches).toBe(2);
   });
 
+  it("threads a stale-reingest continuation cursor through the API", async () => {
+    root = createFixtureRoot();
+    const { createApp } = await loadModules(root);
+    const actionBodies: Array<Record<string, unknown>> = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {
+      const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      if (body.path === "migrations:reIngestStaleSkillsVersion") {
+        actionBodies.push(body);
+      }
+      return convexSuccess({
+        scheduled: 2,
+        batches: 1,
+        currentVersion: 1,
+        currentIngestComputeEpoch: 1,
+        hasMore: true,
+        cursor: "cursor:next",
+        mode: "any",
+        dryRun: false,
+        skillsStaleCount: 2,
+        computeStaleCount: 2,
+        matchedCount: 2,
+      });
+    });
+
+    const app = createAdminApp(createApp);
+    const response = await app.request("/api/resumes/trigger-reingest", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Workspace-Slug": "dev",
+      },
+      body: JSON.stringify({ limit: 2, cursor: "cursor:start", mode: "any" }),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      success: true,
+      scheduled: 2,
+      hasMore: true,
+      cursor: "cursor:next",
+    });
+    expect(actionBodies).toHaveLength(1);
+    expect(actionBodies[0]).toMatchObject({
+      path: "migrations:reIngestStaleSkillsVersion",
+      args: { limit: 2, cursor: "cursor:start", mode: "any", dryRun: false },
+    });
+  });
+
   // -----------------------------------------------------------------------
   // Form-based export download (POST /api/resumes/export/download)
   // -----------------------------------------------------------------------

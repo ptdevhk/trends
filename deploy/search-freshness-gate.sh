@@ -220,22 +220,20 @@ if [[ "$SCHEDULE_REINGEST" == "1" ]]; then
   fi
 fi
 
-# Bounded batches + inter-batch sleep avoid Convex "too many system operations" overload
-# that previously greenwashed lag-scan failures while golden floors stayed soft.
+# Cursor-continuation batches + inter-batch sleep avoid Convex overload while
+# ensuring each paced call advances past the rows scheduled by the prior call.
 REINGEST_BATCH="${REINGEST_BATCH:-25}"
-REINGEST_PASSES="${REINGEST_PASSES:-4}"
 REINGEST_SLEEP_SECS="${REINGEST_SLEEP_SECS:-8}"
 
 if [[ "$should_schedule" -eq 1 ]]; then
-  log "Scheduling paced compute reingest limit=$REINGEST_LIMIT batch=$REINGEST_BATCH passes=$REINGEST_PASSES (mode=any)"
+  log "Scheduling cursor-paced compute reingest limit=$REINGEST_LIMIT batch=$REINGEST_BATCH (mode=any)"
   # Use API trigger-reingest as admin — paced to keep Convex healthy
   python3 - "$API_URL" "$WORKSPACE" "$TRENDS_AUTH_USERNAME" "$TRENDS_AUTH_PASSWORD" \
-    "$REINGEST_LIMIT" "$REINGEST_BATCH" "$REINGEST_PASSES" "$REINGEST_SLEEP_SECS" <<'PY' || warn "reingest schedule failed"
+    "$REINGEST_LIMIT" "$REINGEST_BATCH" "$REINGEST_SLEEP_SECS" <<'PY' || warn "reingest schedule failed"
 import json, sys, time, urllib.request, http.cookiejar
-api, ws, user, pw, limit_s, batch_s, passes_s, sleep_s = sys.argv[1:9]
+api, ws, user, pw, limit_s, batch_s, sleep_s = sys.argv[1:8]
 limit = int(limit_s)
 batch = max(1, min(int(batch_s), limit))
-passes = max(1, int(passes_s))
 sleep_secs = max(0, float(sleep_s))
 cj = http.cookiejar.CookieJar()
 opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj))
@@ -253,11 +251,15 @@ if not body.get("success"):
 csrf = body.get("csrfToken") or ""
 scheduled_total = 0
 remaining = limit
-for i in range(passes):
-    if remaining <= 0:
-        break
+cursor = None
+call_count = 0
+while remaining > 0:
+    call_count += 1
     n = min(batch, remaining)
-    payload = json.dumps({"limit": n, "mode": "any", "dryRun": False}).encode()
+    payload_obj = {"limit": n, "mode": "any", "dryRun": False}
+    if cursor is not None:
+        payload_obj["cursor"] = cursor
+    payload = json.dumps(payload_obj).encode()
     req = urllib.request.Request(
         api.rstrip("/") + "/api/resumes/trigger-reingest",
         data=payload,
@@ -274,10 +276,15 @@ for i in range(passes):
             out = json.loads(r.read().decode())
         sched = int(out.get("scheduled") or 0)
         scheduled_total += sched
-        print(f"pass {i+1}/{passes}: scheduled={sched} matched={out.get('matchedCount')} hasMore={out.get('hasMore')}")
-        remaining -= n
-        if not out.get("hasMore") and sched == 0:
+        remaining -= sched
+        print(f"call {call_count}: scheduled={sched} matched={out.get('matchedCount')} hasMore={out.get('hasMore')}")
+        if not out.get("hasMore"):
             break
+        next_cursor = out.get("cursor")
+        if not isinstance(next_cursor, str) or not next_cursor or next_cursor == cursor:
+            print("trigger-reingest returned hasMore without a new cursor", file=sys.stderr)
+            break
+        cursor = next_cursor
     except Exception as e:
         print("trigger-reingest error:", e, file=sys.stderr)
         # Do not hard-fail the whole gate on one overloaded batch — caller still sees doctor rc
@@ -296,7 +303,7 @@ if [[ "$DOCTOR_RC" -eq 3 ]]; then
   err "Golden MY/CN minRoleYears floors failed — search parity is bad (often zero roleRelevantYears)."
   err "Repair: ensure BFF_API_URL reachable from Convex, then paced reingest:"
   err "  trends resume debug trigger-reingest --mode any --limit $REINGEST_LIMIT --api-url $API_URL"
-  err "  (or re-run this gate; it schedules REINGEST_BATCH×REINGEST_PASSES with sleep)"
+  err "  (or re-run this gate; it schedules cursor-paced REINGEST_BATCH calls with sleep)"
   if [[ "$GATE_STRICT" == "1" ]]; then
     exit 3
   fi

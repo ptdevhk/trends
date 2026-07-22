@@ -220,10 +220,24 @@ fi
 grep -q 'diag_rc=\$?' "$ROOT/deploy/search-freshness-gate.sh" && pass "gate captures diagnose_bff via diag_rc=\$?" || fail "diag_rc capture missing"
 grep -q 'node_rc' "$ROOT/deploy/search-freshness-gate.sh" && pass "node diagnose returns via node_rc" || fail "node_rc path missing"
 
-# Paced reingest + strict lag: prevent greenwash when lag-scan fails or golden soft
+# Cursor-paced reingest + strict lag: prevent duplicate scheduling and greenwash
 grep -q 'REINGEST_BATCH' "$ROOT/deploy/search-freshness-gate.sh" \
   && pass "gate paces reingest via REINGEST_BATCH" \
   || fail "gate missing REINGEST_BATCH paced reingest"
+if grep -q 'REINGEST_PASSES' "$ROOT/deploy/search-freshness-gate.sh"; then
+  fail "gate still caps cursor progress with REINGEST_PASSES"
+else
+  pass "gate derives paced calls from REINGEST_LIMIT"
+fi
+grep -q 'payload_obj\["cursor"\] = cursor' "$ROOT/deploy/search-freshness-gate.sh" \
+  && pass "gate sends the server continuation cursor" \
+  || fail "gate does not send the server continuation cursor"
+grep -q 'next_cursor = out.get("cursor")' "$ROOT/deploy/search-freshness-gate.sh" \
+  && pass "gate advances to the returned continuation cursor" \
+  || fail "gate does not advance the continuation cursor"
+grep -q 'if not out.get("hasMore"):' "$ROOT/deploy/search-freshness-gate.sh" \
+  && pass "gate stops immediately at terminal hasMore=false" \
+  || fail "gate does not stop immediately at terminal hasMore=false"
 grep -q 'lagScanFailed' "$ROOT/deploy/search-freshness-gate.sh" \
   && pass "gate schedules on lagScanFailed" \
   || fail "gate missing lagScanFailed schedule trigger"

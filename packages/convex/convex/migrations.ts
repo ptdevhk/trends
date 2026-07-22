@@ -576,6 +576,7 @@ type ReIngestStaleSkillsVersionResult = {
     currentVersion: number;
     currentIngestComputeEpoch: number;
     hasMore: boolean;
+    cursor: string | null;
     mode: string;
     dryRun: boolean;
     skillsStaleCount: number;
@@ -1242,6 +1243,7 @@ export const backfillManual51jobStructuredContent = mutation({
 export const reIngestStaleSkillsVersion = action({
     args: {
         limit: v.optional(v.number()),
+        cursor: v.optional(v.string()),
         /** skills | compute | any — default any (skills lag OR ingestComputeEpoch lag) */
         mode: v.optional(v.string()),
         dryRun: v.optional(v.boolean()),
@@ -1249,6 +1251,7 @@ export const reIngestStaleSkillsVersion = action({
     handler: async (ctx, args): Promise<ReIngestStaleSkillsVersionResult> => {
         return await ctx.runAction(internal.ingest_agent.reIngestStaleResumes, {
             limit: args.limit,
+            cursor: args.cursor,
             mode: args.mode,
             dryRun: args.dryRun,
         });

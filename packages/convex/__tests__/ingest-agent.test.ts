@@ -17,8 +17,20 @@ const reIngestAllResumesHandler = (reIngestAllResumes as unknown as ConvexHandle
 >)._handler
 
 const reIngestStaleResumesHandler = (reIngestStaleResumes as unknown as ConvexHandler<
-  { limit?: number },
-  { scheduled: number; batches: number; currentVersion: number; hasMore: boolean }
+  { limit?: number; cursor?: string },
+  {
+    scheduled: number
+    batches: number
+    currentVersion: number
+    currentIngestComputeEpoch: number
+    hasMore: boolean
+    cursor: string | null
+    mode: string
+    dryRun: boolean
+    skillsStaleCount: number
+    computeStaleCount: number
+    matchedCount: number
+  }
 >)._handler
 
 function makeBffResponse(status: number, body: unknown) {
@@ -344,7 +356,7 @@ describe("reIngestAllResumes", () => {
 describe("reIngestStaleResumes", () => {
   it("returns zero scheduled when all resumes have current version", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      makeBffResponse(200, { version: 2 }),
+      makeBffResponse(200, { version: 2, ingestComputeEpoch: 1 }),
     )
 
     const ctx = {
@@ -356,7 +368,7 @@ describe("reIngestStaleResumes", () => {
             {
               _id: "r1",
               content: {},
-              ingestData: { skillsVersion: 2 },
+              ingestData: { skillsVersion: 2, ingestComputeEpoch: 1 },
               primaryRuleScore: 0,
               searchText: "",
             },
@@ -370,19 +382,20 @@ describe("reIngestStaleResumes", () => {
 
     const result = await reIngestStaleResumesHandler(ctx as never, {})
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       scheduled: 0,
       batches: 0,
       currentVersion: 2,
       hasMore: false,
+      cursor: null,
     })
     fetchSpy.mockRestore()
   })
 
   it("schedules only stale resumes for re-ingest", async () => {
     const scheduledPayloads: Array<{ resumeIds: string[] }> = []
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      makeBffResponse(200, { version: 3 }),
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
+      makeBffResponse(200, { version: 3, ingestComputeEpoch: 1 }),
     )
 
     const ctx = {
@@ -394,21 +407,21 @@ describe("reIngestStaleResumes", () => {
             {
               _id: "stale-1",
               content: {},
-              ingestData: { skillsVersion: 1 },
+              ingestData: { skillsVersion: 1, ingestComputeEpoch: 1 },
               primaryRuleScore: 0,
               searchText: "",
             },
             {
               _id: "current-1",
               content: {},
-              ingestData: { skillsVersion: 3 },
+              ingestData: { skillsVersion: 3, ingestComputeEpoch: 1 },
               primaryRuleScore: 0,
               searchText: "",
             },
             {
               _id: "stale-2",
               content: {},
-              ingestData: { skillsVersion: 2 },
+              ingestData: { skillsVersion: 2, ingestComputeEpoch: 1 },
               primaryRuleScore: 0,
               searchText: "",
             },
@@ -436,7 +449,7 @@ describe("reIngestStaleResumes", () => {
   it("skips resumes with undefined ingestData (never ingested)", async () => {
     const scheduledPayloads: Array<{ resumeIds: string[] }> = []
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      makeBffResponse(200, { version: 2 }),
+      makeBffResponse(200, { version: 2, ingestComputeEpoch: 1 }),
     )
 
     const ctx = {
@@ -455,7 +468,7 @@ describe("reIngestStaleResumes", () => {
             {
               _id: "stale-1",
               content: {},
-              ingestData: { skillsVersion: 1 },
+              ingestData: { skillsVersion: 1, ingestComputeEpoch: 1 },
               primaryRuleScore: 0,
               searchText: "",
             },
@@ -479,20 +492,20 @@ describe("reIngestStaleResumes", () => {
   it("respects the limit parameter", async () => {
     const scheduledPayloads: Array<{ resumeIds: string[] }> = []
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      makeBffResponse(200, { version: 3 }),
+      makeBffResponse(200, { version: 3, ingestComputeEpoch: 1 }),
     )
 
     let queryCount = 0
     const ctx = {
-      async runQuery() {
+      async runQuery(_fn: unknown, args: { limit?: number }) {
         queryCount += 1
         return {
-          continueCursor: queryCount < 2 ? "more" : "",
-          isDone: queryCount >= 2,
-          page: Array.from({ length: 60 }, (_, i) => ({
+          continueCursor: `cursor:${queryCount}`,
+          isDone: false,
+          page: Array.from({ length: args.limit ?? 50 }, (_, i) => ({
             _id: `stale-${queryCount * 60 + i}`,
             content: {},
-            ingestData: { skillsVersion: 1 },
+            ingestData: { skillsVersion: 1, ingestComputeEpoch: 1 },
             primaryRuleScore: 0,
             searchText: "",
           })),
@@ -554,7 +567,7 @@ describe("reIngestStaleResumes", () => {
   it("handles multi-page scanning with cursor", async () => {
     const scheduledPayloads: Array<{ resumeIds: string[] }> = []
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      makeBffResponse(200, { version: 2 }),
+      makeBffResponse(200, { version: 2, ingestComputeEpoch: 1 }),
     )
 
     let queryCount = 0
@@ -566,8 +579,8 @@ describe("reIngestStaleResumes", () => {
             continueCursor: "page2",
             isDone: false,
             page: [
-              { _id: "s1", content: {}, ingestData: { skillsVersion: 1 }, primaryRuleScore: 0, searchText: "" },
-              { _id: "c1", content: {}, ingestData: { skillsVersion: 2 }, primaryRuleScore: 0, searchText: "" },
+              { _id: "s1", content: {}, ingestData: { skillsVersion: 1, ingestComputeEpoch: 1 }, primaryRuleScore: 0, searchText: "" },
+              { _id: "c1", content: {}, ingestData: { skillsVersion: 2, ingestComputeEpoch: 1 }, primaryRuleScore: 0, searchText: "" },
             ],
           }
         }
@@ -575,7 +588,7 @@ describe("reIngestStaleResumes", () => {
           continueCursor: "",
           isDone: true,
           page: [
-            { _id: "s2", content: {}, ingestData: { skillsVersion: 1 }, primaryRuleScore: 0, searchText: "" },
+            { _id: "s2", content: {}, ingestData: { skillsVersion: 1, ingestComputeEpoch: 1 }, primaryRuleScore: 0, searchText: "" },
           ],
         }
       },
@@ -593,6 +606,66 @@ describe("reIngestStaleResumes", () => {
     expect(result.hasMore).toBe(false)
     expect(scheduledPayloads).toEqual([
       { resumeIds: ["s1", "s2"] },
+    ])
+    fetchSpy.mockRestore()
+  })
+
+  it("continues from an opaque cursor so paced calls schedule disjoint resumes", async () => {
+    const scheduledPayloads: Array<{ resumeIds: string[] }> = []
+    const queryArgs: Array<{ cursor?: string; limit?: number }> = []
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
+      makeBffResponse(200, { version: 3, ingestComputeEpoch: 1 }),
+    )
+
+    const pages = {
+      start: {
+        continueCursor: "cursor:next",
+        isDone: false,
+        page: ["stale-1", "stale-2"],
+      },
+      "cursor:next": {
+        continueCursor: "",
+        isDone: true,
+        page: ["stale-3", "stale-4"],
+      },
+    } as const
+    const ctx = {
+      async runQuery(_fn: unknown, args: { cursor?: string; limit?: number }) {
+        queryArgs.push(args)
+        const page = pages[args.cursor ?? "start"]
+        return {
+          ...page,
+          page: page.page.map((_id) => ({
+            _id,
+            content: {},
+            ingestData: { skillsVersion: 1, ingestComputeEpoch: 1 },
+            primaryRuleScore: 0,
+            searchText: "",
+          })),
+        }
+      },
+      scheduler: {
+        async runAfter(_delay: number, _fn: unknown, payload: { resumeIds: string[] }) {
+          scheduledPayloads.push(payload)
+        },
+      },
+    }
+
+    const first = await reIngestStaleResumesHandler(ctx as never, { limit: 2 })
+    const second = await reIngestStaleResumesHandler(ctx as never, {
+      limit: 2,
+      cursor: first.cursor ?? undefined,
+    })
+
+    expect(first).toMatchObject({ scheduled: 2, hasMore: true, cursor: "cursor:next" })
+    expect(second).toMatchObject({ scheduled: 2, hasMore: false, cursor: null })
+    expect(queryArgs).toEqual([
+      { cursor: undefined, limit: 2 },
+      { cursor: "cursor:next", limit: 2 },
+    ])
+    expect(scheduledPayloads).toEqual([
+      { resumeIds: ["stale-1", "stale-2"] },
+      { resumeIds: ["stale-3", "stale-4"] },
     ])
     fetchSpy.mockRestore()
   })

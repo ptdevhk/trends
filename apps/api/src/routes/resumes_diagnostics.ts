@@ -56,7 +56,7 @@ const SearchFreshnessResponseSchema = z.object({
   currentIngestComputeEpoch: z.number().int(),
   apiReachable: z.boolean(),
   /** True when dry-run lag scan threw (timeout / overload); not a clean zero-stale. */
-  lagScanFailed: z.boolean().optional(),
+  lagScanFailed: z.boolean(),
   lag: z.object({
     scanned: z.number().int(),
     withIngestData: z.number().int(),

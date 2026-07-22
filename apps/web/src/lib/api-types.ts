@@ -2929,7 +2929,7 @@ export interface paths {
                             currentSkillsVersion: number;
                             currentIngestComputeEpoch: number;
                             apiReachable: boolean;
-                            lagScanFailed?: boolean;
+                            lagScanFailed: boolean;
                             lag: {
                                 scanned: number;
                                 withIngestData: number;
@@ -4617,6 +4617,7 @@ export interface paths {
                 content: {
                     "application/json": {
                         limit?: number;
+                        cursor?: string;
                         /** @enum {string} */
                         mode?: "skills" | "compute" | "any";
                         dryRun?: boolean;
@@ -4637,7 +4638,8 @@ export interface paths {
                             batches?: number;
                             currentVersion?: number;
                             currentIngestComputeEpoch?: number;
-                            hasMore?: boolean;
+                            hasMore: boolean;
+                            cursor: string | null;
                             mode?: string;
                             dryRun?: boolean;
                             skillsStaleCount?: number;
