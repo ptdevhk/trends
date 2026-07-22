@@ -12,6 +12,17 @@ Complete, operator-facing runbook for refreshing the **preview** site on `ptclou
 - Never run `make deploy` / `./scripts/install.sh upgrade` from `/opt/trends` while performing a *preview* upgrade.
 - Stop immediately if backup, import, migration, service restart, or health check fails.
 
+**Code upgrade ≠ search freshness (non-negotiable):**
+
+- App version bumps and `preview-upgrade.sh` refresh **code only**. They do **not** recompute `roleRelevantYears` / digests for every resume.
+- Preview Convex runs in **Docker**. It must call the host BFF via `BFF_API_URL=https://preview.pt-mes.com` (synced into Convex env). Container-local `http://localhost:3000` is wrong and breaks reingest.
+- After every preview (and production) upgrade, run the search-freshness gate:
+  - `bash deploy/search-freshness-gate.sh --role preview --api-url http://127.0.0.1:3002`
+  - or `make doctor-search-freshness` (local) / doctor `--full` on preview
+- Exit **3** = golden MY/CN `minRoleYears` floors failed (often zero years on Seek MY). Repair with bounded reingest, not another version bump:
+  - `trends resume debug trigger-reingest --mode any --limit 200 --api-url http://127.0.0.1:3002`
+- Production equivalent: `bash deploy/search-freshness-gate.sh --role production --api-url http://127.0.0.1:3000` (hooked into `scripts/install.sh` full upgrade).
+
 Canonical script directory after code lands on the host:
 
 | Location | Purpose |
@@ -552,12 +563,21 @@ docker ps --filter name=trends-preview --format 'table {{.Names}}\t{{.Status}}'
 ss -tlnp | grep -E ':(3000|3002|3210|4210)\s' || true
 ```
 
-### 11.2 Doctor
+### 11.2 Doctor + search freshness
 
 ```bash
 bash "$PREVIEW_DIR/deploy/preview-doctor.sh" --full
 # Optional recovery (preview only):
 # bash "$PREVIEW_DIR/deploy/preview-doctor.sh" --recover --full
+
+# Code upgrade ≠ computed role years. Gate golden MY/CN floors + compute lag:
+bash "$PREVIEW_DIR/deploy/search-freshness-gate.sh" --role preview --api-url http://127.0.0.1:3002
+
+# Convex (Docker) must reach host BFF — never container localhost:3000:
+#   BFF_API_URL=https://preview.pt-mes.com in .env.preview
+#   PREVIEW_DIR=... bash deploy/sync-preview-convex-env.sh --sync-only
+# Repair lag / zero roleRelevantYears:
+#   trends resume debug trigger-reingest --mode any --limit 200 --api-url http://127.0.0.1:3002
 ```
 
 ### 11.3 HTTP health
@@ -873,6 +893,7 @@ make preview-smoke
 | `deploy/restore-preview-from-prod.sh` | Convex export/import |
 | `deploy/restore-preview-full-state-from-prod.sh` | Convex + SQLite |
 | `deploy/preview-doctor.sh` | Health + recovery |
+| `deploy/search-freshness-gate.sh` | Post-upgrade BFF + golden MY/CN floors + optional reingest |
 | `deploy/setup-preview.sh` | Legacy full preview bootstrap from `origin/main` |
 | `scripts/install.sh` | **Production only** |
 | `deploy/README-restore.md` | Restore quiesce notes |

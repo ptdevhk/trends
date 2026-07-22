@@ -23,6 +23,13 @@ BACKUP_ROOT="${BACKUP_ROOT:-/var/backups/trends}"
 PROD_SERVICE_USER="${PROD_SERVICE_USER:-trends}"
 PREVIEW_SERVICE_USER="${PREVIEW_SERVICE_USER:-ubuntu}"
 
+# BFF host/port helpers (single source for helper scripts — no extra hardcodes)
+# shellcheck source=lib-bff-defaults.sh
+if [[ -f "${BASH_SOURCE[0]%/*}/lib-bff-defaults.sh" ]]; then
+  # shellcheck disable=SC1091
+  source "${BASH_SOURCE[0]%/*}/lib-bff-defaults.sh"
+fi
+
 log_info()  { printf '[INFO] %s\n' "$*"; }
 log_warn()  { printf '[WARN] %s\n' "$*" >&2; }
 log_error() { printf '[ERROR] %s\n' "$*" >&2; }

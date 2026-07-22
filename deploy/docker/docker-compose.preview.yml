@@ -69,6 +69,14 @@ services:
       - UDF_CACHE_MAX_SIZE=50000000
       # Match self-hosted/docker/docker-compose.yml override (2 days vs 14 day default).
       - DOCUMENT_RETENTION_DELAY=172800
+      # Convex actions call the host BFF for ingest-compute + skills-version.
+      # Docker cannot use container-local production-port loopback; UFW also
+      # blocks docker-bridge → host preview API port. Public HTTPS is durable.
+      # Defaults from deploy/lib-bff-defaults.sh / .env.preview (PREVIEW_PUBLIC_HOST).
+      # Also synced into Convex deployment env via sync-preview-convex-env.sh.
+      - TRENDS_DEPLOYMENT_ROLE=${TRENDS_DEPLOYMENT_ROLE:-preview}
+      - PREVIEW_PUBLIC_HOST=${PREVIEW_PUBLIC_HOST:-preview.pt-mes.com}
+      - BFF_API_URL=${BFF_API_URL:-https://${PREVIEW_PUBLIC_HOST:-preview.pt-mes.com}}
     command: ["sh", "/app/start-convex.sh"]
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:3210/version', r => {process.exit(r.statusCode === 200 ? 0 : 1)})"]

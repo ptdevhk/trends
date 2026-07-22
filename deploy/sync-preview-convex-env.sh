@@ -25,6 +25,13 @@ CONVEX_SECRET_ENV_KEYS=(
     CONVEX_WRITE_SECRET
 )
 
+# Convex actions call the host BFF; without these, reingest targets container-local
+# loopback inside Docker and fails (connection refused). Defaults: lib-bff-defaults.sh.
+CONVEX_BFF_ENV_KEYS=(
+    BFF_API_URL
+    TRENDS_DEPLOYMENT_ROLE
+)
+
 PROD_ENV_CANDIDATES=()
 if [ -n "${PROD_ENV:-}" ]; then
     PROD_ENV_CANDIDATES+=("$PROD_ENV")
@@ -218,13 +225,66 @@ sync_convex_env() {
         exit 1
     fi
 
-    for key in "${AI_ENV_KEYS[@]}" "${CONVEX_SECRET_ENV_KEYS[@]}"; do
+    # Ensure durable defaults when .env.preview predates BFF wiring.
+    # Defaults from lib-bff-defaults.sh / PREVIEW_PUBLIC_HOST — not hard-coded hosts here.
+    # shellcheck source=lib-bff-defaults.sh
+    if [ -f "$(dirname "$0")/lib-bff-defaults.sh" ]; then
+        # shellcheck disable=SC1091
+        source "$(dirname "$0")/lib-bff-defaults.sh"
+    fi
+    local preview_bff_default
+    if type preview_public_bff_url >/dev/null 2>&1; then
+        preview_bff_default="$(preview_public_bff_url)"
+    else
+        preview_bff_default="https://${PREVIEW_PUBLIC_HOST:-preview.pt-mes.com}"
+    fi
+    # Repair missing OR container-local BFF in .env.preview before any Convex env set.
+    # Without this, a bad container-local value would be synced into Convex.
+    if type ensure_bff_env_lines >/dev/null 2>&1; then
+        local ensure_rc=0
+        set +e
+        ensure_bff_env_lines "$PREVIEW_ENV" preview "$preview_bff_default"
+        ensure_rc=$?
+        set -e
+        case "$ensure_rc" in
+          1) echo "Set BFF_API_URL=${preview_bff_default} in $PREVIEW_ENV before Convex sync." ;;
+          2) echo "Repaired BFF_API_URL → ${preview_bff_default} in $PREVIEW_ENV before Convex sync." ;;
+        esac
+    fi
+    # Always push role default when still empty after ensure
+    if [ -z "$(read_env_value "$PREVIEW_ENV" BFF_API_URL)" ]; then
+        echo "WARN: BFF_API_URL still empty in $PREVIEW_ENV — pushing ${preview_bff_default} to Convex only" >&2
+        if docker exec -e CONVEX_ENV_VALUE="$preview_bff_default" "$CONVEX_CONTAINER" bash -lc \
+            'cd /app/packages/convex && npx convex env set BFF_API_URL "$CONVEX_ENV_VALUE" >/dev/null'; then
+            synced=$((synced + 1))
+            echo "Synced BFF_API_URL (default ${preview_bff_default}) into preview Convex env."
+        fi
+    fi
+    if [ -z "$(read_env_value "$PREVIEW_ENV" TRENDS_DEPLOYMENT_ROLE)" ]; then
+        if docker exec -e CONVEX_ENV_VALUE="preview" "$CONVEX_CONTAINER" bash -lc \
+            'cd /app/packages/convex && npx convex env set TRENDS_DEPLOYMENT_ROLE "$CONVEX_ENV_VALUE" >/dev/null'; then
+            synced=$((synced + 1))
+            echo "Synced TRENDS_DEPLOYMENT_ROLE=preview into preview Convex env."
+        fi
+    fi
+
+    for key in "${AI_ENV_KEYS[@]}" "${CONVEX_SECRET_ENV_KEYS[@]}" "${CONVEX_BFF_ENV_KEYS[@]}"; do
         value="$(read_env_value "$PREVIEW_ENV" "$key")"
         if [ -z "$value" ]; then
             if [[ " ${CONVEX_SECRET_ENV_KEYS[*]} " == *" $key "* ]]; then
                 echo "WARN: $key empty in $PREVIEW_ENV — candidate status/blocks will fail with Unauthorized Convex read" >&2
             fi
+            if [[ " ${CONVEX_BFF_ENV_KEYS[*]} " == *" $key "* ]]; then
+                # Defaults applied above when empty.
+                continue
+            fi
             continue
+        fi
+        # Never push container-local BFF into Convex even if ensure was skipped
+        if [[ "$key" == "BFF_API_URL" ]] && type is_container_local_bff_url >/dev/null 2>&1 \
+            && is_container_local_bff_url "$value"; then
+            echo "WARN: refusing to sync container-local BFF_API_URL=$value; using ${preview_bff_default}" >&2
+            value="$preview_bff_default"
         fi
 
         if docker exec -e CONVEX_ENV_VALUE="$value" "$CONVEX_CONTAINER" bash -lc "cd /app/packages/convex && npx convex env set '$key' \"\$CONVEX_ENV_VALUE\" >/dev/null"; then

@@ -8,6 +8,7 @@ import type { ResumeScanRow } from "./resumes";
 import {
   CURRENT_INGEST_COMPUTE_EPOCH,
   isRecord,
+  resolveBffApiUrl,
   shouldSelectForReingest,
   type BrandOrigin,
   type ProductClass,
@@ -90,9 +91,10 @@ interface TaggingEnvelope {
  */
 
 function getBffApiUrl(): string {
-  // Environment variable for BFF URL (default to localhost for dev)
-  // In production, set BFF_API_URL to deployed BFF URL
-  return process.env.BFF_API_URL || "http://localhost:3000";
+  // Shared resolver (packages/shared bff-api-url): explicit BFF_API_URL wins.
+  // Preview Docker: TRENDS_DEPLOYMENT_ROLE=preview + public BFF origin (not container loopback).
+  // Production host: loopback on production API port via resolveBffApiUrl defaults.
+  return resolveBffApiUrl(process.env);
 }
 
 function readIngestComputeEpochFromPayload(value: unknown): number {

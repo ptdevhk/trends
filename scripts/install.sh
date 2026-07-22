@@ -2034,6 +2034,80 @@ install_flow() {
     print_caddy_block
 }
 
+run_search_freshness_gate_production() {
+    # Code deploy does not recompute role years / digests. Fail closed on golden floor miss
+    # when credentials exist; schedule bounded reingest on compute lag.
+    local gate="$INSTALL_DIR/deploy/search-freshness-gate.sh"
+    local bff_lib="$INSTALL_DIR/deploy/lib-bff-defaults.sh"
+    if [[ ! -x "$gate" ]]; then
+        log_warn "search-freshness-gate.sh missing at $gate — skip post-upgrade freshness"
+        return 0
+    fi
+    # shellcheck source=../deploy/lib-bff-defaults.sh
+    if [[ -f "$bff_lib" ]]; then
+        # shellcheck disable=SC1090
+        source "$bff_lib"
+    fi
+    local prod_api="${PROD_API_URL:-http://${LOOPBACK_HOST:-127.0.0.1}:${PROD_API_PORT:-3000}}"
+    local prod_bff
+    if type default_bff_api_url_for_role >/dev/null 2>&1; then
+        prod_bff="$(default_bff_api_url_for_role production)"
+    else
+        prod_bff="$prod_api"
+    fi
+    # Always ensure + repair BFF_API_URL in live env (missing OR wrong container-local).
+    local env_live="${CONFIG_DIR:-/etc/trends}/env"
+    if [[ -f "$env_live" ]]; then
+        local ensure_rc=0
+        if type ensure_bff_env_lines >/dev/null 2>&1; then
+            set +e
+            ensure_bff_env_lines "$env_live" production "$prod_bff"
+            ensure_rc=$?
+            set -e
+            case "$ensure_rc" in
+              1) log_info "Added BFF_API_URL=${prod_bff} to $env_live" ;;
+              2) log_info "Repaired BFF_API_URL → ${prod_bff} in $env_live" ;;
+            esac
+        elif ! grep -q '^BFF_API_URL=' "$env_live" 2>/dev/null; then
+            {
+                echo ""
+                echo "# Convex→host BFF (added by install upgrade)"
+                echo "BFF_API_URL=${prod_bff}"
+                echo "TRENDS_DEPLOYMENT_ROLE=production"
+            } >> "$env_live"
+            log_info "Added BFF_API_URL=${prod_bff} to $env_live"
+        fi
+        chmod 600 "$env_live" || true
+    fi
+    log_info "Running production search-freshness gate…"
+    set +e
+    GATE_STRICT="${PROD_FRESHNESS_STRICT:-1}" SCHEDULE_REINGEST="${PROD_SCHEDULE_REINGEST:-1}" \
+      PROD_API_URL="$prod_api" \
+      bash "$gate" --role production --api-url "$prod_api" --workspace "${BOOTSTRAP_ADMIN_WORKSPACE:-dev}"
+    local rc=$?
+    set -e
+    if [[ "$rc" -eq 0 ]]; then
+        log_info "Search freshness gate OK"
+        return 0
+    fi
+    if [[ "$rc" -eq 3 ]]; then
+        log_error "Search freshness golden floors failed after upgrade."
+        log_error "App version is fine; computed role years need reingest:"
+        log_error "  bash $gate --role production --api-url $prod_api"
+        log_error "  or: trends resume debug trigger-reingest --mode any --limit 200"
+        if [[ "${PROD_FRESHNESS_STRICT:-1}" == "1" ]]; then
+            return 1
+        fi
+        return 0
+    fi
+    if [[ "$rc" -eq 4 ]]; then
+        log_error "BFF_API_URL misconfigured for production Convex"
+        return 1
+    fi
+    log_warn "Search freshness gate exit=$rc"
+    return 0
+}
+
 full_upgrade_steps() {
     clone_or_update_repo
     sync_dependencies
@@ -2054,6 +2128,7 @@ full_upgrade_steps() {
     restart_units
     wait_for_api_health
     seed_bootstrap_admins
+    run_search_freshness_gate_production
 }
 
 upgrade_flow() {

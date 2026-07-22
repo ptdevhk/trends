@@ -16,11 +16,18 @@
 # Pass --full to additionally tail recent journal logs.
 set -euo pipefail
 
-PREVIEW_DIR=/home/ubuntu/trends-preview
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib-preview-common.sh
+source "$SCRIPT_DIR/lib-preview-common.sh" 2>/dev/null || true
+# shellcheck source=lib-bff-defaults.sh
+source "$SCRIPT_DIR/lib-bff-defaults.sh" 2>/dev/null || true
+
+PREVIEW_DIR="${PREVIEW_DIR:-/home/ubuntu/trends-preview}"
 COMPOSE_FILE="$PREVIEW_DIR/docker-compose.preview.yml"
-CONVEX_PORT=4210
-API_PORT=3002
-PUBLIC_HOST=preview.pt-mes.com
+CONVEX_PORT="${PREVIEW_CONVEX_PORT:-4210}"
+API_PORT="${PREVIEW_API_PORT:-3002}"
+PUBLIC_HOST="${PREVIEW_PUBLIC_HOST:-preview.pt-mes.com}"
+PREVIEW_BFF_RECOMMENDED="$(type preview_public_bff_url >/dev/null 2>&1 && preview_public_bff_url || printf 'https://%s' "$PUBLIC_HOST")"
 RESUME_SMOKE_PATH="/api/resumes?source=convex&paged=true&limit=1"
 
 RECOVER=0
@@ -43,11 +50,11 @@ info()  { printf '  · %s\n' "$*"; }
 FAIL=0
 SUDO=$([ "$(id -u)" -eq 0 ] && echo "" || echo "sudo")
 
-echo "=== Preview Doctor (preview.pt-mes.com) ==="
+echo "=== Preview Doctor ($PUBLIC_HOST) ==="
 date -u +%Y-%m-%dT%H:%M:%SZ
 
 echo
-echo "[1/6] Public Caddy"
+echo "[1/7] Public Caddy"
 PUB=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 "https://$PUBLIC_HOST/" || echo 000)
 [ "$PUB" = "200" ] && ok "https://$PUBLIC_HOST/ → $PUB" || fail "https://$PUBLIC_HOST/ → $PUB"
 
@@ -180,11 +187,56 @@ else
 fi
 
 echo
-echo "[6/6] Caddy preview vhost"
-if $SUDO grep -q 'preview.pt-mes.com' /etc/caddy/Caddyfile; then
-    ok "preview.pt-mes.com block present in /etc/caddy/Caddyfile"
+echo "[6/7] Caddy preview vhost"
+if $SUDO grep -qF "$PUBLIC_HOST" /etc/caddy/Caddyfile; then
+    ok "$PUBLIC_HOST block present in /etc/caddy/Caddyfile"
 else
-    fail "preview.pt-mes.com block missing from /etc/caddy/Caddyfile"
+    fail "$PUBLIC_HOST block missing from /etc/caddy/Caddyfile"
+fi
+
+echo
+echo "[7/7] Convex→BFF + search freshness"
+BFF_IN_ENV=""
+if [ -f "$ENV_FILE" ]; then
+    BFF_IN_ENV=$(grep -E '^BFF_API_URL=' "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '"' || true)
+fi
+if [ -z "$BFF_IN_ENV" ]; then
+    warn "BFF_API_URL missing in $ENV_FILE — Convex reingest may target container loopback"
+    warn "Fix: set BFF_API_URL=${PREVIEW_BFF_RECOMMENDED} and run deploy/sync-preview-convex-env.sh --sync-only"
+elif type is_container_local_bff_url >/dev/null 2>&1 && is_container_local_bff_url "$BFF_IN_ENV"; then
+    fail "BFF_API_URL=$BFF_IN_ENV is container-local; use ${PREVIEW_BFF_RECOMMENDED}"
+else
+    ok "BFF_API_URL set ($BFF_IN_ENV)"
+fi
+# Live Convex env (best-effort)
+if docker ps --format '{{.Names}}' | grep -q trends-preview-convex; then
+    CONVEX_BFF=$(docker exec trends-preview-convex bash -lc 'cd /app/packages/convex && npx convex env get BFF_API_URL 2>/dev/null' || true)
+    if [ -n "$CONVEX_BFF" ]; then
+        if type is_container_local_bff_url >/dev/null 2>&1 && is_container_local_bff_url "$CONVEX_BFF"; then
+            fail "Convex env BFF_API_URL is container-local: $CONVEX_BFF"
+        else
+            ok "Convex env BFF_API_URL=$CONVEX_BFF"
+        fi
+    else
+        warn "Convex env BFF_API_URL unset — run sync-preview-convex-env.sh --sync-only"
+    fi
+fi
+if [ $FULL -eq 1 ] && [ -x "$SCRIPT_DIR/search-freshness-gate.sh" ] && [ -n "${AUTH_BOOTSTRAP_PASSWORD:-}" ]; then
+    info "Running search-freshness-gate (full mode)…"
+    set +e
+    local_preview_api="${PREVIEW_API_URL:-http://${LOOPBACK_HOST:-127.0.0.1}:${API_PORT}}"
+    GATE_STRICT=0 SCHEDULE_REINGEST=0 PREVIEW_API_URL="$local_preview_api" PREVIEW_PUBLIC_HOST="$PUBLIC_HOST" \
+      bash "$SCRIPT_DIR/search-freshness-gate.sh" \
+        --role preview --api-url "$local_preview_api" --workspace "${ADMIN_WS:-dev}" 2>&1 | sed 's/^/    /'
+    GATE_RC=${PIPESTATUS[0]}
+    set -e
+    if [ "$GATE_RC" -eq 0 ]; then
+        ok "search-freshness-gate exit 0"
+    elif [ "$GATE_RC" -eq 3 ]; then
+        fail "search-freshness-gate golden floors failed (exit 3) — schedule compute reingest"
+    else
+        warn "search-freshness-gate exit=$GATE_RC"
+    fi
 fi
 
 echo

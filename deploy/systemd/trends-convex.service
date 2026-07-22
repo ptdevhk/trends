@@ -12,6 +12,11 @@ EnvironmentFile=-/etc/trends/env
 Environment=NODE_ENV=production
 Environment=CONVEX_AGENT_MODE=anonymous
 Environment=CONVEX_LOCAL_BACKEND_STARTUP_TIMEOUT_SECS=120
+# Host BFF for ingest-compute / skills-version.
+# Prefer BFF_API_URL from EnvironmentFile=/etc/trends/env (see deploy/env.production).
+# Unit fallback matches deploy/lib-bff-defaults.sh production loopback.
+Environment=TRENDS_DEPLOYMENT_ROLE=production
+Environment=BFF_API_URL=http://127.0.0.1:3000
 # Local-backend memory knobs (same family as preview docker-compose).
 # Defaults in convex-backend knobs.rs are much larger (~1GiB shared UDF cache).
 # Keep these set so long-lived prod backends do not balloon RSS over weeks.

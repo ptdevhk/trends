@@ -4,6 +4,7 @@ export * from "./job-description-content.js";
 export * from "./work-history-evidence.js";
 export * from "./analysis-key.js";
 export * from "./ingest-compute-epoch.js";
+export * from "./bff-api-url.js";
 export * from "./generated/resume-ai-prompts.js";
 export * from "./resume-field-usage-policy.js";
 export * from "./resume-ai-locale.js";

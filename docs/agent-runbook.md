@@ -80,9 +80,14 @@ sudo ASSUME_YES=1 bash deploy/preview-sync-from-prod.sh --with-code-pin
 # Upgrade preview app to latest main (code only — does not replace data)
 cd /home/ubuntu/trends-preview && sudo ASSUME_YES=1 make deploy
 bash deploy/preview-doctor.sh --full
+# Code deploy does not recompute role years. Fail closed on golden floor miss:
+bash deploy/search-freshness-gate.sh --role preview --api-url http://127.0.0.1:3002
+# Convex (Docker) must use BFF_API_URL=https://preview.pt-mes.com — never localhost:3000
 ```
 
 **Never** treat `preview-clone-from-prod` alone as a full clone — it pins **code**, not resumes/status/AI scores.
+
+**Search freshness after upgrade/migration:** app version green ≠ MY/CN `minRoleYears` search healthy. Preview Convex must reach host BFF (`BFF_API_URL`); then schedule `trigger-reingest --mode any|compute` when doctor exit 2/3.
 
 `make deploy` / `./scripts/install.sh upgrade` from `/opt/trends` = **production**.  
 From `/home/ubuntu/trends-preview`, `make deploy` routes to `deploy/preview-upgrade.sh`.  

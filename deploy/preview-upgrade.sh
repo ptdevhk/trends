@@ -283,6 +283,55 @@ if [[ "$HEALTH" != "200" || "$CV" != "200" ]]; then
     exit 1
 fi
 
+# Always ensure + repair BFF_API_URL on live .env.preview (missing OR container-local wrong).
+PREVIEW_BFF_DEFAULT="$(default_bff_api_url_for_role preview)"
+set +e
+ensure_bff_env_lines "$PREVIEW_ENV_FILE" preview "$PREVIEW_BFF_DEFAULT"
+ensure_rc=$?
+set -e
+case "$ensure_rc" in
+  1) log_info "Added BFF_API_URL=${PREVIEW_BFF_DEFAULT} to $PREVIEW_ENV_FILE" ;;
+  2) log_info "Repaired BFF_API_URL → ${PREVIEW_BFF_DEFAULT} in $PREVIEW_ENV_FILE" ;;
+esac
+chmod 600 "$PREVIEW_ENV_FILE"
+chown "$PREVIEW_SERVICE_USER:$PREVIEW_SERVICE_USER" "$PREVIEW_ENV_FILE" || true
+if [[ -x "$PREVIEW_DIR/deploy/sync-preview-convex-env.sh" ]]; then
+    PREVIEW_DIR="$PREVIEW_DIR" bash "$PREVIEW_DIR/deploy/sync-preview-convex-env.sh" --sync-only || true
+fi
+
+log_step "Search-data freshness gate (code deploy ≠ computed role years)"
+# GATE_STRICT=0 for lag after schedule: upgrade succeeds but golden floor hard-fails.
+# Operators re-run gate after reingest. Set PREVIEW_FRESHNESS_STRICT=1 to fail upgrade on floor miss.
+FRESHNESS_SCRIPT="$SCRIPT_DIR/search-freshness-gate.sh"
+[[ -x "$FRESHNESS_SCRIPT" ]] || FRESHNESS_SCRIPT="$PREVIEW_DIR/deploy/search-freshness-gate.sh"
+if [[ -x "$FRESHNESS_SCRIPT" ]]; then
+    set +e
+    PREVIEW_DIR="$PREVIEW_DIR" PREVIEW_ENV_FILE="$PREVIEW_ENV_FILE" \
+      PREVIEW_API_URL="$PREVIEW_API_URL" PREVIEW_PUBLIC_HOST="$PREVIEW_PUBLIC_HOST" \
+      GATE_STRICT="${PREVIEW_FRESHNESS_STRICT:-1}" SCHEDULE_REINGEST="${PREVIEW_SCHEDULE_REINGEST:-1}" \
+      bash "$FRESHNESS_SCRIPT" --role preview --api-url "$PREVIEW_API_URL" --workspace dev
+    FRESH_RC=$?
+    set -e
+    if [[ "$FRESH_RC" -eq 0 ]]; then
+        log_info "Search freshness gate OK"
+    elif [[ "$FRESH_RC" -eq 3 ]]; then
+        log_error "Search freshness golden floors failed (MY/CN minRoleYears). Code is up but search parity is bad."
+        log_error "Ensure Convex BFF_API_URL=${PREVIEW_BFF_DEFAULT}, then:"
+        log_error "  bash $FRESHNESS_SCRIPT --role preview --api-url $PREVIEW_API_URL"
+        log_error "  or: trends resume debug trigger-reingest --mode any --limit 200 --api-url $PREVIEW_API_URL"
+        if [[ "${PREVIEW_FRESHNESS_STRICT:-1}" == "1" ]]; then
+            exit 1
+        fi
+    elif [[ "$FRESH_RC" -eq 4 ]]; then
+        log_error "BFF_API_URL misconfigured for preview Convex — reingest cannot reach host BFF"
+        exit 1
+    else
+        log_warn "Search freshness gate exit=$FRESH_RC (see log); code deploy completed"
+    fi
+else
+    log_warn "search-freshness-gate.sh missing — skip freshness check"
+fi
+
 cat <<EOF
 
 === Preview upgrade complete ===
@@ -299,4 +348,6 @@ Data restore (if needed): sudo bash $SCRIPT_DIR/restore-preview-full-state-from-
 Seed auth: bash $SCRIPT_DIR/preview-seed-auth.sh
 Gate: bash $SCRIPT_DIR/preview-migration-gate.sh
 Doctor: bash $PREVIEW_DIR/deploy/preview-doctor.sh --full
+Search freshness: bash $PREVIEW_DIR/deploy/search-freshness-gate.sh --role preview --api-url $PREVIEW_API_URL
+Note: app upgrade is code-only; golden MY/CN floors need compute reingest when role years are zero/stale.
 EOF

@@ -8761,12 +8761,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Keyword-filtered research pulse (市场动态) feed */
+        /** Keyword-filtered research pulse (综合热榜) feed */
         get: {
             parameters: {
                 query?: {
                     limit?: number | null;
                     all?: string;
+                    hotlistOnly?: string;
                 };
                 header?: never;
                 path?: never;
@@ -15888,7 +15889,7 @@ export interface components {
             status: "healthy" | "degraded" | "unhealthy";
             /** @example 2026-02-11T15:03:47+08:00 */
             timestamp: string;
-            /** @example 0.4.15 */
+            /** @example 0.4.16 */
             version?: string;
         };
         TrendsResponse: {

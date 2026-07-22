@@ -14,4 +14,4 @@ Usage:
     uv run python -m apps.worker
 """
 
-__version__ = "0.4.15"
+__version__ = "0.4.16"

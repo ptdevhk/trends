@@ -4,7 +4,7 @@ info:
   description: |
     BFF (Backend for Frontend) API for Chinese news hot topic aggregator.
     Provides access to trending news, search functionality, and system health status.
-  version: 0.4.15
+  version: 0.4.16
   contact:
     name: Trends
 
