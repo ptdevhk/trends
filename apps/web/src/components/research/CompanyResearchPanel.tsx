@@ -77,6 +77,23 @@ function isRealExternalUrl(url: string | undefined): boolean {
   }
 }
 
+/** Strip accidental HTML from RSS description so UI never shows raw <a href=...>. */
+function plainTextSummary(value: string | undefined): string {
+  if (!value) return ''
+  return value
+    .replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<a\b[^>]*>([\s\S]*?)<\/a>/gi, '$1')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 function SignalListItem({
   signal,
   index,
@@ -96,6 +113,7 @@ function SignalListItem({
   const realEvidence = isRealExternalUrl(evidenceUrl)
   const live = isLiveResearchSignal(signal)
   const isShowcase = !live
+  const summaryText = plainTextSummary(signal.summary)
 
   return (
     <li
@@ -115,8 +133,10 @@ function SignalListItem({
         ) : null}
         <span className="font-medium text-sm">{signal.title}</span>
       </div>
-      {signal.summary ? (
-        <p className="mt-1 text-sm text-muted-foreground">{signal.summary}</p>
+      {summaryText ? (
+        <p className="mt-1 text-sm text-muted-foreground" data-testid="company-research-summary">
+          {summaryText}
+        </p>
       ) : null}
       <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
         <span>{signal.evidence.platform}</span>

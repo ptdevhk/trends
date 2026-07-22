@@ -78,4 +78,30 @@ describe('CompanyResearchPanel live-first honesty', () => {
       'https://weibo.com/real/1',
     )
   })
+
+  it('strips raw HTML from summary so UI never shows literal <a href>', () => {
+    const withHtmlSummary: ResearchSignalView = {
+      ...liveHire,
+      summary:
+        '<a href="https://news.google.com/rss/articles/ABC?oc=5" target="_blank">提质升级|FANUC</a>&nbsp;<font color="#6f6f6f">nfplus.nfnews.com</font>',
+    }
+    render(
+      <MemoryRouter>
+        <CompanyResearchPanel
+          companyKey="fanuc"
+          signals={[withHtmlSummary]}
+          meta={{ liveCount: 1, showcaseCount: 0, liveFirst: true }}
+          persona="hr"
+        />
+      </MemoryRouter>,
+    )
+    const summary = screen.getByTestId('company-research-summary')
+    expect(summary).toHaveTextContent('提质升级|FANUC')
+    expect(summary).toHaveTextContent('nfplus.nfnews.com')
+    expect(summary.textContent).not.toMatch(/<a\s|href=/)
+    expect(screen.getByTestId('company-research-evidence-link')).toHaveAttribute(
+      'href',
+      'https://weibo.com/real/1',
+    )
+  })
 })

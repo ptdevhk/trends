@@ -5,7 +5,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from apps.worker.research_ports import parse_newsnow_payload, url_matches_expected_domain
+from apps.worker.research_ports import (
+    parse_newsnow_payload,
+    parse_rss_xml,
+    strip_html_to_text,
+    url_matches_expected_domain,
+)
 
 FIXTURE = Path(__file__).parent / "fixtures" / "newsnow_weibo_success.json"
 
@@ -44,6 +49,39 @@ def test_domain_safety_drops_mismatch():
     )
     assert len(items) == 1
     assert "weibo.com" in (items[0].url or "")
+
+
+def test_strip_html_to_text_removes_anchor_markup():
+    raw = (
+        '<a href="https://news.google.com/rss/articles/ABC?oc=5" target="_blank">'
+        "提质升级，智造未来|FANUC</a>&nbsp;&nbsp;"
+        '<font color="#6f6f6f">nfplus.nfnews.com</font>'
+    )
+    clean = strip_html_to_text(raw)
+    assert "<a" not in clean
+    assert "href=" not in clean
+    assert "FANUC" in clean
+    assert "nfplus.nfnews.com" in clean
+
+
+def test_parse_rss_xml_strips_html_description():
+    xml = """<?xml version="1.0"?>
+    <rss version="2.0"><channel>
+      <item>
+        <title>发那科新闻</title>
+        <link>https://news.google.com/rss/articles/XYZ</link>
+        <description><![CDATA[<a href="https://news.google.com/rss/articles/XYZ" target="_blank">发那科新闻</a>&nbsp;<font>source.com</font>]]></description>
+        <guid>XYZ</guid>
+      </item>
+    </channel></rss>
+    """
+    items = parse_rss_xml("gnews-fanuc-cn", xml, captured_at=1)
+    assert len(items) == 1
+    assert items[0].url == "https://news.google.com/rss/articles/XYZ"
+    assert items[0].raw_snippet is not None
+    assert "<a" not in items[0].raw_snippet
+    assert "href=" not in items[0].raw_snippet
+    assert "发那科新闻" in items[0].raw_snippet
 
 
 def test_parse_newsnow_accepts_cache_status():

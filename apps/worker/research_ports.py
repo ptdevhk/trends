@@ -385,6 +385,28 @@ class HttpRssPort:
         return None
 
 
+def strip_html_to_text(value: Optional[str]) -> str:
+    """Remove HTML tags/entities from RSS description/title for clean UI text."""
+    if not value:
+        return ""
+    text = str(value)
+    # Drop script/style blocks
+    text = re.sub(r"(?is)<(script|style)[^>]*>.*?</\1>", " ", text)
+    # Prefer anchor inner text when present
+    text = re.sub(r"(?is)<a\b[^>]*>(.*?)</a>", r"\1", text)
+    text = re.sub(r"(?is)<[^>]+>", " ", text)
+    text = (
+        text.replace("&nbsp;", " ")
+        .replace("&amp;", "&")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", '"')
+        .replace("&#39;", "'")
+    )
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
+
+
 def parse_rss_xml(feed_id: str, xml_text: str, captured_at: int) -> List[NormalizedNewsItem]:
     """Minimal RSS 2.0 item parser for thin-port ingest."""
     try:
@@ -401,11 +423,13 @@ def parse_rss_xml(feed_id: str, xml_text: str, captured_at: int) -> List[Normali
 
     for node in channel_items:
         title = _child_text(node, "title") or _child_text(node, "{http://www.w3.org/2005/Atom}title")
+        title = strip_html_to_text(title)
         if not title:
             continue
         link = _child_text(node, "link") or _atom_link(node)
         guid = _child_text(node, "guid") or _child_text(node, "{http://www.w3.org/2005/Atom}id") or link
         summary = _child_text(node, "description") or _child_text(node, "{http://www.w3.org/2005/Atom}summary")
+        summary = strip_html_to_text(summary) if summary else None
         content_hash = stable_content_hash(
             platform=f"rss:{feed_id}",
             title=title,
@@ -416,7 +440,7 @@ def parse_rss_xml(feed_id: str, xml_text: str, captured_at: int) -> List[Normali
             NormalizedNewsItem(
                 source_id=feed_id,
                 platform=f"rss:{feed_id}",
-                title=title.strip(),
+                title=title,
                 content_hash=content_hash,
                 captured_at=captured_at,
                 external_id=guid,
@@ -429,9 +453,19 @@ def parse_rss_xml(feed_id: str, xml_text: str, captured_at: int) -> List[Normali
 
 def _child_text(node: ET.Element, tag: str) -> Optional[str]:
     child = node.find(tag)
-    if child is None or child.text is None:
+    if child is None:
         return None
-    return child.text.strip()
+    # ElementTree may leave text only in .text and tails in children for mixed content
+    parts: List[str] = []
+    if child.text:
+        parts.append(child.text)
+    for sub in list(child):
+        if sub.text:
+            parts.append(sub.text)
+        if sub.tail:
+            parts.append(sub.tail)
+    text = "".join(parts).strip()
+    return text or None
 
 
 def _atom_link(node: ET.Element) -> Optional[str]:
