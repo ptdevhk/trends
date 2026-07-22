@@ -356,16 +356,27 @@ class StaticRssPort:
         return result
 
 
+# Cap per-feed RSS items so brand Google News packs cannot flood Convex upserts
+# or drown NewsNow rows out of listRecent(top-N by capturedAt).
+DEFAULT_RSS_MAX_ITEMS_PER_FEED = 20
+
+
 @dataclass
 class HttpRssPort:
     timeout_seconds: float = 15.0
     max_retries: int = 2
+    max_items_per_feed: int = DEFAULT_RSS_MAX_ITEMS_PER_FEED
 
     def fetch(self, feed_id: str, feed_url: str, captured_at: int) -> List[NormalizedNewsItem]:
         body = self._get_with_retries(feed_url)
         if not body:
             return []
-        return parse_rss_xml(feed_id, body, captured_at)
+        return parse_rss_xml(
+            feed_id,
+            body,
+            captured_at,
+            max_items=self.max_items_per_feed,
+        )
 
     def _get_with_retries(self, url: str) -> Optional[str]:
         last_error: Optional[Exception] = None
@@ -407,8 +418,17 @@ def strip_html_to_text(value: Optional[str]) -> str:
     return text
 
 
-def parse_rss_xml(feed_id: str, xml_text: str, captured_at: int) -> List[NormalizedNewsItem]:
-    """Minimal RSS 2.0 item parser for thin-port ingest."""
+def parse_rss_xml(
+    feed_id: str,
+    xml_text: str,
+    captured_at: int,
+    max_items: Optional[int] = DEFAULT_RSS_MAX_ITEMS_PER_FEED,
+) -> List[NormalizedNewsItem]:
+    """Minimal RSS 2.0 item parser for thin-port ingest.
+
+    max_items caps how many channel items we keep (feed order). None = no cap.
+    Default keeps brand gnews packs from flooding Convex upserts / listRecent.
+    """
     try:
         root = ET.fromstring(xml_text)
     except ET.ParseError:
@@ -422,6 +442,8 @@ def parse_rss_xml(feed_id: str, xml_text: str, captured_at: int) -> List[Normali
         channel_items = root.findall(".//{http://www.w3.org/2005/Atom}entry")
 
     for node in channel_items:
+        if max_items is not None and len(items) >= max_items:
+            break
         title = _child_text(node, "title") or _child_text(node, "{http://www.w3.org/2005/Atom}title")
         title = strip_html_to_text(title)
         if not title:

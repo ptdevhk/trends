@@ -4,6 +4,7 @@ const getWorkspaceConfigValueMock = vi.fn();
 const setWorkspaceConfigValueMock = vi.fn();
 const listResearchNewsMock = vi.fn();
 const resolveResearchCompanySurfaceMock = vi.fn();
+const getHotlistPlatformsStateMock = vi.fn();
 
 vi.mock("./workspace-config-service.js", () => ({
   workspaceConfigService: {
@@ -15,11 +16,15 @@ vi.mock("./workspace-config-service.js", () => ({
 }));
 
 vi.mock("./research-service.js", () => ({
-  listResearchNews: (params: { limit?: number }) => listResearchNewsMock(params),
+  listResearchNews: (params: { limit?: number; platform?: string }) => listResearchNewsMock(params),
 }));
 
 vi.mock("./research-industry-bridge-service.js", () => ({
   resolveResearchCompanySurface: (surface: string) => resolveResearchCompanySurfaceMock(surface),
+}));
+
+vi.mock("./research-hotlist-platforms-service.js", () => ({
+  getHotlistPlatformsState: (workspaceSlug: string) => getHotlistPlatformsStateMock(workspaceSlug),
 }));
 
 import {
@@ -39,6 +44,7 @@ describe("research-pulse-service", () => {
     setWorkspaceConfigValueMock.mockReset();
     listResearchNewsMock.mockReset();
     resolveResearchCompanySurfaceMock.mockReset();
+    getHotlistPlatformsStateMock.mockReset();
   });
 
   it("getPulseKeywordsState: no workspace config → effective = seed defaults", async () => {
@@ -191,7 +197,7 @@ describe("research-pulse-service", () => {
     expect(all.items[1]!.matchedKeywords).toEqual([]);
   });
 
-  it("getResearchPulse: hotlistOnly drops rss:* platforms", async () => {
+  it("getResearchPulse: hotlistOnly queries per platform so RSS cannot crowd out NewsNow", async () => {
     getWorkspaceConfigValueMock.mockResolvedValue({
       version: 1,
       enabled: [],
@@ -199,34 +205,64 @@ describe("research-pulse-service", () => {
       custom: [],
     });
     resolveResearchCompanySurfaceMock.mockReturnValue(null);
-    listResearchNewsMock.mockResolvedValue([
-      {
-        _id: "1",
-        sourceId: "s",
-        platform: "weibo",
-        title: "热榜头条",
-        contentHash: "h1",
-        capturedAt: 300,
-      },
-      {
-        _id: "2",
-        sourceId: "s",
-        platform: "rss:gnews-fanuc-cn",
-        title: "发那科 RSS",
-        contentHash: "h2",
-        capturedAt: 200,
-      },
-      {
-        _id: "3",
-        sourceId: "s",
-        platform: "zhihu",
-        title: "知乎热榜",
-        contentHash: "h3",
-        capturedAt: 100,
-      },
-    ]);
+    getHotlistPlatformsStateMock.mockResolvedValue({
+      seed: { version: "v1", groups: [], defaults: ["weibo", "zhihu"], catalogIds: ["weibo", "zhihu"] },
+      workspace: { version: 1, enabled: [], excluded: [] },
+      effective: ["weibo", "zhihu"],
+    });
+    // Shipped path: listResearchNews({ platform }) per effective hotlist id — never a global mix
+    // that is dominated by rss:gnews-* rows.
+    listResearchNewsMock.mockImplementation(async (params: { platform?: string }) => {
+      if (params.platform === "weibo") {
+        return [
+          {
+            _id: "1",
+            sourceId: "s",
+            platform: "weibo",
+            title: "热榜头条",
+            contentHash: "h1",
+            capturedAt: 300,
+          },
+        ];
+      }
+      if (params.platform === "zhihu") {
+        return [
+          {
+            _id: "3",
+            sourceId: "s",
+            platform: "zhihu",
+            title: "知乎热榜",
+            contentHash: "h3",
+            capturedAt: 100,
+          },
+        ];
+      }
+      // Global unfiltered path would return RSS-only — must not be used when hotlistOnly.
+      return [
+        {
+          _id: "2",
+          sourceId: "s",
+          platform: "rss:gnews-fanuc-cn",
+          title: "发那科 RSS",
+          contentHash: "h2",
+          capturedAt: 999,
+        },
+      ];
+    });
 
     const result = await getResearchPulse("hr", { limit: 12, all: true, hotlistOnly: true });
+    expect(getHotlistPlatformsStateMock).toHaveBeenCalledWith("hr");
+    expect(listResearchNewsMock).toHaveBeenCalledWith(
+      expect.objectContaining({ platform: "weibo" }),
+    );
+    expect(listResearchNewsMock).toHaveBeenCalledWith(
+      expect.objectContaining({ platform: "zhihu" }),
+    );
+    // Must not rely on global listRecent without platform filter
+    const globalCalls = listResearchNewsMock.mock.calls.filter(
+      (call) => call[0] && call[0].platform == null,
+    );
+    expect(globalCalls).toHaveLength(0);
     expect(result.meta.rawCount).toBe(2);
     expect(result.items.map((i) => i.platform)).toEqual(["weibo", "zhihu"]);
     expect(result.items.every((i) => !i.platform.startsWith("rss:"))).toBe(true);
