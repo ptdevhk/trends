@@ -126,7 +126,7 @@ More crawl titles resolve to CNC `companyKey`; misses feed pack improvement.
 |------|--------|
 | **B1 Resolve** | Keep industry bridge → K3 fallback as single worker resolve path; document as spine for research + hub search |
 | **B2 Pack** | `config/industry-data/brands.json` (+ keywords) remains brand surface source; expand aliases for golden CNC brands as PRs |
-| **B3 Unresolved queue** | On ingest, record samples when title has candidate surfaces but no resolve (cap per run); store path TBD thin: Convex table **or** `output/industry-data/unresolved-queue.jsonl` (prefer existing industry unresolved patterns if present) |
+| **B3 Unresolved queue** | On ingest, record samples when title has candidate surfaces but no resolve (cap per run); reuse existing industry unresolved store (`output/industry-data/unresolved-queue.json` via `industry-unresolved-store` / queue pure helpers), extended with research-source tags if needed — not a second queue product |
 | **B4 Steward** | Human reviews queue → industry-data PR and/or `companies:addAlias`; never auto-write policy |
 
 ### Acceptance (B)
