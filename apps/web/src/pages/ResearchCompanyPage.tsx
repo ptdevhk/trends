@@ -10,11 +10,17 @@ import {
 } from '@/components/research/CompanyResearchPanel'
 import { rawApiClient } from '@/lib/api-helpers'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
+import { upsertResearchRecentCompany } from '@/lib/research-recent-companies'
 
 type SignalsResponse = {
   success: boolean
   persona?: string
   items?: ResearchSignalView[]
+  meta?: {
+    liveCount: number
+    showcaseCount: number
+    liveFirst?: boolean
+  }
 }
 
 type LatestIngestResponse = {
@@ -30,10 +36,71 @@ type LatestIngestResponse = {
   } | null
 }
 
+type CompanyMeta = {
+  companyKey: string
+  nameCn?: string
+  nameEn?: string
+  displayName: string
+  type?: string
+  source?: string
+}
+
+type IndustryResolveResponse = {
+  success: boolean
+  hit?: {
+    companyKey: string
+    nameCn: string
+    nameEn?: string
+    displayName: string
+    matchTier?: string
+    entityId?: string
+    source?: string
+  } | null
+}
+
+type SearchResponse = {
+  success: boolean
+  items?: Array<{
+    companyKey: string
+    displayName: string
+    nameCn?: string
+    nameEn?: string
+  }>
+}
+
+type IndustryBrowseResponse = {
+  success: boolean
+  items?: Array<{
+    companyKey: string
+    nameCn: string
+    nameEn?: string
+    displayName: string
+    type?: string
+  }>
+}
+
+function metaFromHit(hit: {
+  companyKey: string
+  nameCn?: string
+  nameEn?: string
+  displayName: string
+  type?: string
+  source?: string
+}): CompanyMeta {
+  return {
+    companyKey: hit.companyKey,
+    displayName: hit.displayName,
+    ...(hit.nameCn ? { nameCn: hit.nameCn } : {}),
+    ...(hit.nameEn ? { nameEn: hit.nameEn } : {}),
+    ...(hit.type ? { type: hit.type } : {}),
+    ...(hit.source ? { source: hit.source } : {}),
+  }
+}
+
 export function ResearchCompanyPage() {
   const { t } = useTranslation()
   const { companyKey: companyKeyParam } = useParams()
-  const { workspaceSlug } = useWorkspace()
+  const { slug } = useWorkspace()
   const [searchParams, setSearchParams] = useSearchParams()
   const companyKey = decodeURIComponent(companyKeyParam ?? '').trim()
   const persona = normalizeResearchPersona(searchParams.get('persona'))
@@ -49,6 +116,8 @@ export function ResearchCompanyPage() {
   }, [searchParams])
 
   const [signals, setSignals] = useState<ResearchSignalView[]>([])
+  const [signalsMeta, setSignalsMeta] = useState<SignalsResponse['meta'] | null>(null)
+  const [companyMeta, setCompanyMeta] = useState<CompanyMeta | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [latestRun, setLatestRun] = useState<LatestIngestResponse['run']>(null)
@@ -76,6 +145,63 @@ export function ResearchCompanyPage() {
     [searchParams, setSearchParams],
   )
 
+  const loadCompanyMeta = useCallback(async () => {
+    if (!companyKey) {
+      setCompanyMeta(null)
+      return
+    }
+
+    // Prefer industry resolve (nameCn-first brands + overrides), then search, then industry browse by key.
+    const resolve = await rawApiClient.GET<IndustryResolveResponse>(
+      '/api/research/industry/resolve',
+      { params: { query: { q: companyKey } } },
+    )
+    if (resolve.data?.success && resolve.data.hit?.companyKey) {
+      setCompanyMeta(metaFromHit(resolve.data.hit))
+      return
+    }
+
+    const search = await rawApiClient.GET<SearchResponse>('/api/research/companies/search', {
+      params: { query: { q: companyKey } },
+    })
+    const exact = (search.data?.items ?? []).find((item) => item.companyKey === companyKey)
+    if (exact) {
+      setCompanyMeta(
+        metaFromHit({
+          companyKey: exact.companyKey,
+          displayName: exact.displayName,
+          nameCn: exact.nameCn,
+          nameEn: exact.nameEn,
+          source: 'search',
+        }),
+      )
+      return
+    }
+
+    const industry = await rawApiClient.GET<IndustryBrowseResponse>('/api/research/industry', {
+      params: { query: { q: companyKey, limit: 20 } },
+    })
+    const industryHit = (industry.data?.items ?? []).find((item) => item.companyKey === companyKey)
+    if (industryHit) {
+      setCompanyMeta(
+        metaFromHit({
+          companyKey: industryHit.companyKey,
+          displayName: industryHit.displayName,
+          nameCn: industryHit.nameCn,
+          nameEn: industryHit.nameEn,
+          type: industryHit.type,
+          source: 'industry',
+        }),
+      )
+      return
+    }
+
+    setCompanyMeta({
+      companyKey,
+      displayName: companyKey,
+    })
+  }, [companyKey])
+
   const loadSignals = useCallback(async () => {
     if (!companyKey) {
       setLoading(false)
@@ -95,10 +221,12 @@ export function ResearchCompanyPage() {
         }),
       )
       setSignals([])
+      setSignalsMeta(null)
       setLoading(false)
       return
     }
     setSignals(Array.isArray(data.items) ? data.items : [])
+    setSignalsMeta(data.meta ?? null)
     setLoading(false)
   }, [companyKey, persona, t])
 
@@ -112,7 +240,7 @@ export function ResearchCompanyPage() {
   useEffect(() => {
     let cancelled = false
     void (async () => {
-      await loadSignals()
+      await Promise.all([loadSignals(), loadCompanyMeta()])
       if (!cancelled) {
         await loadLatest()
       }
@@ -120,7 +248,17 @@ export function ResearchCompanyPage() {
     return () => {
       cancelled = true
     }
-  }, [loadSignals, loadLatest])
+  }, [loadSignals, loadCompanyMeta, loadLatest])
+
+  useEffect(() => {
+    if (!companyKey) return
+    const nameCn = companyMeta?.nameCn || companyMeta?.displayName || companyKey
+    upsertResearchRecentCompany({
+      companyKey,
+      nameCn,
+      ...(companyMeta?.nameEn ? { nameEn: companyMeta.nameEn } : {}),
+    })
+  }, [companyKey, companyMeta])
 
   const runIngest = useCallback(async () => {
     setIngesting(true)
@@ -133,7 +271,19 @@ export function ResearchCompanyPage() {
     }
   }, [loadLatest, loadSignals])
 
-  const teamSlug = workspaceSlug || 'hr'
+  const teamSlug = slug || 'hr'
+  const pageTitle =
+    companyMeta?.nameCn ||
+    companyMeta?.displayName ||
+    companyKey ||
+    t('research.pageTitle', { defaultValue: 'Research' })
+  const pageDescription = [
+    companyMeta?.nameEn,
+    companyKey || null,
+    companyMeta?.type,
+  ]
+    .filter(Boolean)
+    .join(' · ')
 
   const latestSummary =
     latestRun == null
@@ -147,24 +297,21 @@ export function ResearchCompanyPage() {
 
   return (
     <div className="space-y-4 p-4" data-testid="research-company-page">
-      <PageHeader
-        title={t('research.pageTitle', { defaultValue: 'Research' })}
-        description={companyKey || undefined}
-      />
+      <PageHeader title={pageTitle} description={pageDescription || undefined} />
       <div className="flex flex-wrap items-center gap-3 text-sm">
         <Link
           to={`/${teamSlug}/research`}
           className="text-blue-600 hover:underline"
           data-testid="research-back-to-index"
         >
-          {t('research.backToIndex', { defaultValue: 'Company search' })}
+          {t('research.backToIndex', { defaultValue: '返回研究首页' })}
         </Link>
         <Link
           to={`/${teamSlug}/settings/policies?tab=companies`}
           className="text-blue-600 hover:underline"
           data-testid="research-back-to-policies"
         >
-          {t('research.backToPolicies', { defaultValue: 'Company policies' })}
+          {t('research.backToPolicies', { defaultValue: '企业策略' })}
         </Link>
         <Button
           type="button"
@@ -175,8 +322,8 @@ export function ResearchCompanyPage() {
           data-testid="research-run-ingest"
         >
           {ingesting
-            ? t('research.ingesting', { defaultValue: 'Running ingest…' })
-            : t('research.runIngest', { defaultValue: 'Run ingest' })}
+            ? t('research.ingesting', { defaultValue: '正在抓取…' })
+            : t('research.runIngest', { defaultValue: '运行抓取' })}
         </Button>
       </div>
       {latestSummary ? (
@@ -186,7 +333,11 @@ export function ResearchCompanyPage() {
       ) : null}
       <CompanyResearchPanel
         companyKey={companyKey || '—'}
+        companyName={companyMeta?.nameCn || companyMeta?.displayName}
+        nameEn={companyMeta?.nameEn}
+        companyType={companyMeta?.type}
         signals={signals}
+        meta={signalsMeta}
         persona={persona}
         onPersonaChange={setPersona}
         selectedKinds={selectedKinds}
@@ -202,7 +353,7 @@ export function ResearchCompanyPage() {
             onClick={() => void runIngest()}
             data-testid="research-run-ingest-empty"
           >
-            {t('research.runIngestCta', { defaultValue: 'Run ingest to fetch signals' })}
+            {t('research.runIngestCta', { defaultValue: '运行抓取以获取信号' })}
           </Button>
         )}
       />

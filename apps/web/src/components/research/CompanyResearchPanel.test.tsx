@@ -1,113 +1,81 @@
 import { describe, expect, it, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { CompanyResearchPanel, type ResearchSignalView } from './CompanyResearchPanel'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (_key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? _key,
+    t: (_key: string, opts?: { defaultValue?: string }) => opts?.defaultValue ?? _key,
   }),
 }))
 
-const fixtureSignals: ResearchSignalView[] = [
-  {
-    _id: '1',
-    companyKey: 'pro-technic-machinery',
-    kind: 'sales_trigger',
-    title: 'Sales item',
-    evidence: { title: 'Sales item', platform: 'weibo', seenAt: 1, url: 'https://example.com/s' },
-    capturedAt: 1,
+const liveHire: ResearchSignalView = {
+  _id: 'live-hire',
+  companyKey: 'fanuc',
+  kind: 'hiring_signal',
+  title: 'live hire',
+  capturedAt: 2,
+  ingestRunId: 'research-xyz',
+  evidence: {
+    title: 'live hire',
+    platform: 'weibo',
+    url: 'https://weibo.com/real/1',
+    seenAt: 2,
   },
-  {
-    _id: '2',
-    companyKey: 'pro-technic-machinery',
-    kind: 'hiring_signal',
-    title: 'Hire item',
-    evidence: { title: 'Hire item', platform: 'rss', seenAt: 2, url: 'https://example.com/h' },
-    capturedAt: 2,
+}
+
+const seedSales: ResearchSignalView = {
+  _id: 'seed-sales',
+  companyKey: 'fanuc',
+  kind: 'sales_trigger',
+  title: 'seed sales',
+  capturedAt: 9,
+  ingestRunId: 'showcase-seed-v1',
+  evidence: {
+    title: 'seed sales',
+    platform: 'showcase',
+    url: 'https://showcase.local/x',
+    seenAt: 9,
   },
-  {
-    _id: '3',
-    companyKey: 'pro-technic-machinery',
-    kind: 'company_mention',
-    title: 'Mention',
-    evidence: { title: 'Mention', platform: 'weibo', seenAt: 3 },
-    capturedAt: 3,
-  },
-]
+}
 
-describe('CompanyResearchPanel', () => {
-  it('re-ranks the same fixture signals when persona toggles hr vs sales', () => {
-    const onPersonaChange = vi.fn()
-    const { rerender } = render(
-      <MemoryRouter>
-        <CompanyResearchPanel
-          companyKey="pro-technic-machinery"
-          signals={fixtureSignals}
-          persona="hr"
-          onPersonaChange={onPersonaChange}
-        />
-      </MemoryRouter>,
-    )
-
-    const listHr = screen.getAllByTestId('company-research-signal')
-    expect(listHr.map((el) => el.getAttribute('data-kind'))).toEqual([
-      'hiring_signal',
-      'company_mention',
-      'sales_trigger',
-    ])
-
-    fireEvent.click(screen.getByTestId('persona-sales'))
-    expect(onPersonaChange).toHaveBeenCalledWith('sales')
-
-    rerender(
-      <MemoryRouter>
-        <CompanyResearchPanel
-          companyKey="pro-technic-machinery"
-          signals={fixtureSignals}
-          persona="sales"
-          onPersonaChange={onPersonaChange}
-        />
-      </MemoryRouter>,
-    )
-
-    const listSales = screen.getAllByTestId('company-research-signal')
-    expect(listSales.map((el) => el.getAttribute('data-kind'))).toEqual([
-      'sales_trigger',
-      'company_mention',
-      'hiring_signal',
-    ])
-  })
-
-  it('shows evidence links when url is present', () => {
+describe('CompanyResearchPanel live-first honesty', () => {
+  it('shows live-only banner when all signals are showcase', () => {
     render(
       <MemoryRouter>
         <CompanyResearchPanel
-          companyKey="pro-technic-machinery"
-          signals={fixtureSignals}
+          companyKey="fanuc"
+          companyName="发那科"
+          signals={[seedSales]}
+          meta={{ liveCount: 0, showcaseCount: 1, liveFirst: true }}
           persona="hr"
         />
       </MemoryRouter>,
     )
-    const links = screen.getAllByTestId('company-research-evidence-link')
-    expect(links.length).toBeGreaterThan(0)
-    expect(links[0]).toHaveAttribute('href', expect.stringContaining('https://'))
+    expect(screen.getByTestId('research-live-empty-banner')).toBeInTheDocument()
+    expect(screen.getByTestId('research-section-showcase')).toBeInTheDocument()
+    expect(screen.queryByTestId('research-section-live')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('company-research-evidence-link')).not.toBeInTheDocument()
+    expect(screen.getByTestId('company-research-evidence-seed')).toBeInTheDocument()
   })
 
-  it('filters signals by selected kinds', () => {
+  it('renders live section before showcase when both present', () => {
     render(
       <MemoryRouter>
         <CompanyResearchPanel
-          companyKey="pro-technic-machinery"
-          signals={fixtureSignals}
+          companyKey="fanuc"
+          signals={[liveHire, seedSales]}
+          meta={{ liveCount: 1, showcaseCount: 1, liveFirst: true }}
           persona="hr"
-          selectedKinds={['hiring_signal']}
-          onSelectedKindsChange={() => {}}
         />
       </MemoryRouter>,
     )
-    const rows = screen.getAllByTestId('company-research-signal')
-    expect(rows).toHaveLength(1)
-    expect(rows[0]).toHaveAttribute('data-kind', 'hiring_signal')
+    const live = screen.getByTestId('research-section-live')
+    const seed = screen.getByTestId('research-section-showcase')
+    expect(live.compareDocumentPosition(seed) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.getByTestId('company-research-evidence-link')).toHaveAttribute(
+      'href',
+      'https://weibo.com/real/1',
+    )
   })
 })
