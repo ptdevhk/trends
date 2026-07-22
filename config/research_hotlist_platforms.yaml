@@ -1,0 +1,50 @@
+# Research Eng hotlist platform catalog (NewsNow-compatible IDs).
+# Desk "数据源" + workspace overlay research.hotlistPlatforms merge against this pack.
+version: v1
+groups:
+  - id: general-cn
+    label: 综合热榜
+    platforms:
+      - id: weibo
+        name: 微博
+        expectedDomain: weibo.com
+      - id: zhihu
+        name: 知乎
+        expectedDomain: zhihu.com
+      - id: baidu
+        name: 百度热搜
+        expectedDomain: baidu.com
+      - id: toutiao
+        name: 今日头条
+        expectedDomain: toutiao.com
+      - id: thepaper
+        name: 澎湃新闻
+      - id: ifeng
+        name: 凤凰网
+      - id: tieba
+        name: 贴吧
+  - id: finance-cn
+    label: 财经
+    platforms:
+      - id: wallstreetcn-hot
+        name: 华尔街见闻
+        expectedDomain: wallstreetcn.com
+      - id: cls-hot
+        name: 财联社热门
+  - id: video-cn
+    label: 视频
+    platforms:
+      - id: douyin
+        name: 抖音
+      - id: bilibili-hot-search
+        name: bilibili 热搜
+        expectedDomain: bilibili.com
+
+# Defaults bias CNC/HR desk toward finance + major CN portals (not pure entertainment).
+defaults:
+  - weibo
+  - zhihu
+  - baidu
+  - wallstreetcn-hot
+  - cls-hot
+  - thepaper
