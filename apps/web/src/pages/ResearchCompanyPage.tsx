@@ -419,7 +419,7 @@ export function ResearchCompanyPage() {
     latestRun == null
       ? null
       : t('research.latestIngestSummary', {
-          defaultValue: 'Last ingest: {{status}} · news +{{news}} · signals +{{signals}}',
+          defaultValue: '最近抓取：{{status}} · 资讯 +{{news}} · 信号 +{{signals}}',
           status: latestRun.status ?? 'unknown',
           news: latestRun.newsInserted ?? 0,
           signals: latestRun.signalsInserted ?? 0,

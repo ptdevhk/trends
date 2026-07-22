@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { formatDistanceToNow } from 'date-fns/formatDistanceToNow'
+import { zhCN } from 'date-fns/locale/zh-CN'
 import { PageHeader } from '@/components/PageHeader'
 import {
   PulseKeywordsDialog,
@@ -12,6 +13,7 @@ import {
   type HotlistPlatformsDialogState,
 } from '@/components/research/HotlistPlatformsDialog'
 import { ResearchCompanyPredictInput } from '@/components/research/ResearchCompanyPredictInput'
+import { researchSignalKindLabel } from '@/components/research/research-signal-kind-label'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -114,17 +116,6 @@ type HotlistPlatformsResponse = HotlistPlatformsDialogState & {
   success: boolean
 }
 
-const KIND_LABEL_ZH: Record<string, string> = {
-  company_mention: '提及',
-  hiring_signal: '招聘',
-  market_move: '市场',
-  sales_trigger: '销售',
-}
-
-function kindLabel(kind: string): string {
-  return KIND_LABEL_ZH[kind] ?? kind
-}
-
 function primaryLabel(nameCn?: string, displayName?: string, nameEn?: string): string {
   if (nameCn && nameCn.trim()) {
     return nameCn.trim()
@@ -144,7 +135,7 @@ function formatPulseRelativeTime(capturedAt: number): string {
     return ''
   }
   try {
-    return formatDistanceToNow(date, { addSuffix: true })
+    return formatDistanceToNow(date, { addSuffix: true, locale: zhCN })
   } catch {
     return ''
   }
@@ -192,7 +183,7 @@ function CompanyCardGrid({
               <Badge variant="outline">{card.signalCount} 条信号</Badge>
               {Object.entries(card.kindCounts).map(([kind, count]) => (
                 <Badge key={kind} variant="outline" className="text-[10px]">
-                  {kindLabel(kind)}:{count}
+                  {researchSignalKindLabel(kind)}:{count}
                 </Badge>
               ))}
             </div>
@@ -704,6 +695,7 @@ export function ResearchIndexPage() {
                   data-testid="research-pulse-chip"
                   data-keyword={kw}
                   data-active={active ? 'true' : 'false'}
+                  aria-label={`${kw} (${hitCount})`}
                   onClick={() => handlePulseChipClick(kw)}
                   className={
                     active
@@ -715,12 +707,13 @@ export function ResearchIndexPage() {
                   <span
                     className={
                       active
-                        ? 'ml-1 rounded-full bg-blue-100 px-1 text-[10px] text-blue-700'
-                        : 'ml-1 rounded-full bg-slate-100 px-1 text-[10px] text-slate-600'
+                        ? 'ml-1 rounded-full bg-blue-100 px-1 tabular-nums text-[10px] text-blue-700'
+                        : 'ml-1 rounded-full bg-slate-100 px-1 tabular-nums text-[10px] text-slate-600'
                     }
                     data-testid={`research-pulse-chip-count-${kw === '发那科' ? 'fanuc' : kw}`}
+                    aria-hidden="true"
                   >
-                    {hitCount}
+                    ({hitCount})
                   </span>
                 </button>
               )

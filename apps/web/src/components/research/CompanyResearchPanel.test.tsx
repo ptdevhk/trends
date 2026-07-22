@@ -79,6 +79,32 @@ describe('CompanyResearchPanel live-first honesty', () => {
     )
   })
 
+  it('shows ZH kind labels on filters and signal badges, not raw hiring_signal tokens', () => {
+    render(
+      <MemoryRouter>
+        <CompanyResearchPanel
+          companyKey="fanuc"
+          signals={[liveHire, seedSales]}
+          meta={{ liveCount: 1, showcaseCount: 1, liveFirst: true }}
+          persona="hr"
+          selectedKinds={['hiring_signal', 'sales_trigger', 'market_move', 'company_mention']}
+          onSelectedKindsChange={() => {}}
+        />
+      </MemoryRouter>,
+    )
+    const kindFilter = screen.getByTestId('kind-filter')
+    expect(kindFilter).toHaveTextContent('招聘')
+    expect(kindFilter).toHaveTextContent('销售')
+    expect(kindFilter).toHaveTextContent('市场')
+    expect(kindFilter).toHaveTextContent('提及')
+    expect(kindFilter.textContent).not.toMatch(/hiring_signal|sales_trigger/)
+    const kindBadges = screen.getAllByTestId('company-research-kind-label')
+    expect(kindBadges.some((el) => el.textContent === '招聘')).toBe(true)
+    expect(kindBadges.some((el) => el.textContent === '销售')).toBe(true)
+    expect(screen.getByTestId('research-section-live-count')).toHaveTextContent('(1)')
+    expect(screen.getByTestId('research-section-showcase-count')).toHaveTextContent('(1)')
+  })
+
   it('strips raw HTML from summary so UI never shows literal <a href>', () => {
     const withHtmlSummary: ResearchSignalView = {
       ...liveHire,

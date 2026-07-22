@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { formatDistanceToNow } from 'date-fns/formatDistanceToNow'
+import { zhCN } from 'date-fns/locale/zh-CN'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 
@@ -33,7 +34,7 @@ export type ResearchHotlistFeedProps = {
 function formatRelativeTime(capturedAt: number): string | null {
   if (!Number.isFinite(capturedAt) || capturedAt <= 0) return null
   try {
-    return formatDistanceToNow(new Date(capturedAt), { addSuffix: true })
+    return formatDistanceToNow(new Date(capturedAt), { addSuffix: true, locale: zhCN })
   } catch {
     return null
   }

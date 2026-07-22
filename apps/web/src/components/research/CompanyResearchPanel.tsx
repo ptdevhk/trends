@@ -6,6 +6,7 @@ import {
   normalizeResearchPersona,
   type ResearchPersona,
 } from '@trends/shared'
+import { researchSignalKindLabel } from '@/components/research/research-signal-kind-label'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -125,7 +126,9 @@ function SignalListItem({
       className="rounded-md border border-slate-100 p-3"
     >
       <div className="flex flex-wrap items-center gap-2">
-        <Badge variant="secondary">{signal.kind}</Badge>
+        <Badge variant="secondary" data-testid="company-research-kind-label">
+          {researchSignalKindLabel(signal.kind)}
+        </Badge>
         {isShowcase ? (
           <Badge variant="outline" data-testid="company-research-showcase-badge">
             {t('research.showcaseBadge', { defaultValue: '展示数据' })}
@@ -243,7 +246,7 @@ export function CompanyResearchPanel({
             className="inline-flex rounded-md border border-slate-200 p-0.5"
             data-testid="persona-toggle"
             role="group"
-            aria-label={t('research.personaToggle', { defaultValue: 'Persona' })}
+            aria-label={t('research.personaToggle', { defaultValue: '视角' })}
           >
             {(['hr', 'sales'] as const).map((value) => (
               <Button
@@ -257,7 +260,7 @@ export function CompanyResearchPanel({
               >
                 {value === 'hr'
                   ? t('research.personaHr', { defaultValue: 'HR' })
-                  : t('research.personaSales', { defaultValue: 'Sales' })}
+                  : t('research.personaSales', { defaultValue: '销售' })}
               </Button>
             ))}
           </div>
@@ -267,10 +270,11 @@ export function CompanyResearchPanel({
             className="flex flex-wrap gap-1"
             data-testid="kind-filter"
             role="group"
-            aria-label={t('research.kindFilter', { defaultValue: 'Signal kinds' })}
+            aria-label={t('research.kindFilter', { defaultValue: '信号类型' })}
           >
             {RESEARCH_SIGNAL_KINDS.map((kind) => {
               const active = (selectedKinds ?? []).includes(kind)
+              const label = researchSignalKindLabel(kind)
               return (
                 <Button
                   key={kind}
@@ -279,9 +283,10 @@ export function CompanyResearchPanel({
                   variant={active ? 'default' : 'outline'}
                   data-testid={`kind-filter-${kind}`}
                   data-active={active ? 'true' : 'false'}
+                  aria-label={label}
                   onClick={() => toggleKind(kind)}
                 >
-                  {kind}
+                  {label}
                 </Button>
               )
             })}
@@ -291,7 +296,7 @@ export function CompanyResearchPanel({
       <CardContent className="space-y-4">
         {loading ? (
           <p data-testid="company-research-loading" className="text-sm text-muted-foreground">
-            {t('research.loading', { defaultValue: 'Loading signals…' })}
+            {t('research.loading', { defaultValue: '正在加载信号…' })}
           </p>
         ) : null}
         {error ? (
@@ -313,7 +318,7 @@ export function CompanyResearchPanel({
         {!loading && !error && filtered.length === 0 ? (
           <div data-testid="company-research-empty" className="space-y-2 text-sm text-muted-foreground">
             <p>
-              {t('research.empty', { defaultValue: 'No research signals for this company yet.' })}
+              {t('research.empty', { defaultValue: '暂无该企业的研究信号。' })}
             </p>
             {emptyExtra}
           </div>
@@ -323,7 +328,12 @@ export function CompanyResearchPanel({
           <div data-testid="research-section-live">
             <h3 className="mb-2 text-sm font-semibold">
               {t('research.sectionLive', { defaultValue: '实时信号' })}
-              <span className="ml-2 text-xs font-normal text-muted-foreground">{liveSignals.length}</span>
+              <span
+                className="ml-2 text-xs font-normal tabular-nums text-muted-foreground"
+                data-testid="research-section-live-count"
+              >
+                ({liveSignals.length})
+              </span>
             </h3>
             <ul className="space-y-3" data-testid="company-research-signal-list-live">
               {liveSignals.map((signal, index) => (
@@ -344,8 +354,11 @@ export function CompanyResearchPanel({
           <div data-testid="research-section-showcase">
             <h3 className="mb-2 text-sm font-semibold">
               {t('research.sectionShowcase', { defaultValue: '展示数据' })}
-              <span className="ml-2 text-xs font-normal text-muted-foreground">
-                {showcaseSignals.length}
+              <span
+                className="ml-2 text-xs font-normal tabular-nums text-muted-foreground"
+                data-testid="research-section-showcase-count"
+              >
+                ({showcaseSignals.length})
               </span>
             </h3>
             <ul className="space-y-3" data-testid="company-research-signal-list-showcase">
