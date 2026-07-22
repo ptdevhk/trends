@@ -23,6 +23,11 @@ import {
   putPulseKeywords,
   PulseKeywordsValidationError,
 } from "../services/research-pulse-service.js";
+import {
+  getHotlistPlatformsState,
+  putHotlistPlatforms,
+  HotlistPlatformsValidationError,
+} from "../services/research-hotlist-platforms-service.js";
 
 const app = new OpenAPIHono();
 
@@ -569,6 +574,15 @@ const getPulseRoute = createRoute({
                 url: z.string().optional(),
                 capturedAt: z.number(),
                 matchedKeywords: z.array(z.string()),
+                resolvedCompanies: z
+                  .array(
+                    z.object({
+                      companyKey: z.string(),
+                      nameCn: z.string(),
+                      nameEn: z.string().optional(),
+                    }),
+                  )
+                  .optional(),
               }),
             ),
             meta: z.object({
@@ -576,6 +590,13 @@ const getPulseRoute = createRoute({
               effectiveKeywords: z.array(z.string()),
               rawCount: z.number(),
               matchedCount: z.number(),
+              keywordHits: z.array(
+                z.object({
+                  keyword: z.string(),
+                  hitCount: z.number(),
+                  sampleTitles: z.array(z.string()),
+                }),
+              ),
             }),
           }),
         },
@@ -595,6 +616,113 @@ app.openapi(getPulseRoute, async (c) => {
     all,
   });
   return c.json({ success: true as const, ...result }, 200);
+});
+
+const HotlistPlatformSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  expectedDomain: z.string().optional(),
+});
+
+const HotlistPlatformGroupSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  platforms: z.array(HotlistPlatformSchema),
+});
+
+const HotlistPlatformsWorkspaceSchema = z.object({
+  version: z.literal(1),
+  enabled: z.array(z.string()),
+  excluded: z.array(z.string()),
+});
+
+const HotlistPlatformsStateSchema = z.object({
+  success: z.literal(true),
+  seed: z.object({
+    version: z.string(),
+    groups: z.array(HotlistPlatformGroupSchema),
+    defaults: z.array(z.string()),
+    catalogIds: z.array(z.string()),
+  }),
+  workspace: HotlistPlatformsWorkspaceSchema,
+  effective: z.array(z.string()),
+});
+
+const getHotlistPlatformsRoute = createRoute({
+  method: "get",
+  path: "/api/research/platforms",
+  tags: ["research"],
+  summary: "Get research hotlist platform catalog, workspace overlay, and effective ingest set",
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: HotlistPlatformsStateSchema,
+        },
+      },
+      description: "Hotlist platforms state",
+    },
+  },
+});
+
+app.openapi(getHotlistPlatformsRoute, async (c) => {
+  const workspaceSlug = resolveResearchWorkspaceSlug(c);
+  const state = await getHotlistPlatformsState(workspaceSlug);
+  return c.json({ success: true as const, ...state }, 200);
+});
+
+const putHotlistPlatformsRoute = createRoute({
+  method: "put",
+  path: "/api/research/platforms",
+  tags: ["research"],
+  summary: "Upsert workspace research hotlist platform overlay (ingest set)",
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            enabled: z.array(z.string()).optional(),
+            excluded: z.array(z.string()).optional(),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: HotlistPlatformsStateSchema,
+        },
+      },
+      description: "Updated hotlist platforms state",
+    },
+    400: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.literal(false),
+            error: z.string(),
+          }),
+        },
+      },
+      description: "Validation error",
+    },
+  },
+});
+
+app.openapi(putHotlistPlatformsRoute, async (c) => {
+  const workspaceSlug = resolveResearchWorkspaceSlug(c);
+  const body = c.req.valid("json");
+  try {
+    const state = await putHotlistPlatforms(workspaceSlug, body);
+    return c.json({ success: true as const, ...state }, 200);
+  } catch (error) {
+    if (error instanceof HotlistPlatformsValidationError) {
+      return c.json({ success: false as const, error: error.message }, 400);
+    }
+    throw error;
+  }
 });
 
 export default app;

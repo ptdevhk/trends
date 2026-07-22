@@ -17,6 +17,11 @@ const pulseMocks = vi.hoisted(() => ({
   getResearchPulse: vi.fn(),
 }));
 
+const platformMocks = vi.hoisted(() => ({
+  getHotlistPlatformsState: vi.fn(),
+  putHotlistPlatforms: vi.fn(),
+}));
+
 vi.mock("../services/research-showcase-service.js", () => ({
   getResearchShowcase: showcaseMocks.getResearchShowcase,
   seedResearchShowcase: showcaseMocks.seedResearchShowcase,
@@ -32,9 +37,20 @@ vi.mock("../services/research-pulse-service.js", async (importOriginal) => {
   };
 });
 
+vi.mock("../services/research-hotlist-platforms-service.js", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("../services/research-hotlist-platforms-service.js")>();
+  return {
+    ...actual,
+    getHotlistPlatformsState: platformMocks.getHotlistPlatformsState,
+    putHotlistPlatforms: platformMocks.putHotlistPlatforms,
+  };
+});
+
 import { createApp } from "../app";
 import { resetResumeScreeningDb } from "../services/database";
 import { PulseKeywordsValidationError } from "../services/research-pulse-service";
+import { HotlistPlatformsValidationError } from "../services/research-hotlist-platforms-service";
 import { parseJsonBody } from "../test-utils";
 import { createAuthHeaders } from "./test-auth-helpers";
 
@@ -81,6 +97,26 @@ const sampleKeywordsState = {
   effective: ["数控", "发那科"],
 };
 
+const samplePlatformsState = {
+  seed: {
+    version: "v1",
+    groups: [
+      {
+        id: "general-cn",
+        label: "综合热榜",
+        platforms: [
+          { id: "weibo", name: "微博" },
+          { id: "cls-hot", name: "财联社热门" },
+        ],
+      },
+    ],
+    defaults: ["weibo", "cls-hot"],
+    catalogIds: ["weibo", "cls-hot"],
+  },
+  workspace: { version: 1 as const, enabled: [] as string[], excluded: [] as string[] },
+  effective: ["weibo", "cls-hot"],
+};
+
 describe("research routes", () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -89,6 +125,8 @@ describe("research routes", () => {
     pulseMocks.getPulseKeywordsState.mockReset();
     pulseMocks.putPulseKeywords.mockReset();
     pulseMocks.getResearchPulse.mockReset();
+    platformMocks.getHotlistPlatformsState.mockReset();
+    platformMocks.putHotlistPlatforms.mockReset();
     resetResumeScreeningDb();
   });
 
@@ -409,6 +447,7 @@ describe("research routes", () => {
             platform: "weibo",
             capturedAt: 1,
             matchedKeywords: ["发那科"],
+            resolvedCompanies: [{ companyKey: "fanuc", nameCn: "发那科", nameEn: "FANUC" }],
           },
         ],
         meta: {
@@ -416,18 +455,26 @@ describe("research routes", () => {
           effectiveKeywords: ["发那科"],
           rawCount: 10,
           matchedCount: 1,
+          keywordHits: [{ keyword: "发那科", hitCount: 1, sampleTitles: ["发那科扩产"] }],
         },
       })
       .mockResolvedValueOnce({
         items: [
-          { title: "发那科扩产", platform: "weibo", capturedAt: 1, matchedKeywords: [] },
+          {
+            title: "发那科扩产",
+            platform: "weibo",
+            capturedAt: 1,
+            matchedKeywords: ["发那科"],
+            resolvedCompanies: [{ companyKey: "fanuc", nameCn: "发那科", nameEn: "FANUC" }],
+          },
           { title: "娱乐", platform: "weibo", capturedAt: 0, matchedKeywords: [] },
         ],
         meta: {
           filtered: false,
           effectiveKeywords: ["发那科"],
           rawCount: 2,
-          matchedCount: 2,
+          matchedCount: 1,
+          keywordHits: [{ keyword: "发那科", hitCount: 1, sampleTitles: ["发那科扩产"] }],
         },
       });
 
@@ -439,6 +486,16 @@ describe("research routes", () => {
     const filteredBody = await parseJsonBody(filtered);
     expect(filteredBody.meta.filtered).toBe(true);
     expect(filteredBody.items[0].matchedKeywords).toContain("发那科");
+    expect(filteredBody.items[0].resolvedCompanies[0]).toEqual({
+      companyKey: "fanuc",
+      nameCn: "发那科",
+      nameEn: "FANUC",
+    });
+    expect(filteredBody.meta.keywordHits[0]).toEqual({
+      keyword: "发那科",
+      hitCount: 1,
+      sampleTitles: ["发那科扩产"],
+    });
     expect(pulseMocks.getResearchPulse).toHaveBeenCalledWith("hr", {
       limit: 12,
       all: false,
@@ -451,6 +508,7 @@ describe("research routes", () => {
     const allBody = await parseJsonBody(all);
     expect(allBody.meta.filtered).toBe(false);
     expect(allBody.items.length).toBe(2);
+    expect(allBody.meta.keywordHits[0].hitCount).toBe(1);
     expect(pulseMocks.getResearchPulse).toHaveBeenLastCalledWith("hr", {
       limit: undefined,
       all: true,
@@ -461,5 +519,60 @@ describe("research routes", () => {
     const app = createApp();
     const response = await app.request("/api/research/pulse/keywords");
     expect(response.status).toBe(401);
+  });
+
+  it("GET /api/research/platforms returns seed + effective", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
+    platformMocks.getHotlistPlatformsState.mockResolvedValue(samplePlatformsState);
+    const app = createApp();
+    const response = await app.request("/api/research/platforms", {
+      headers: auth.headers,
+    });
+    expect(response.status).toBe(200);
+    const body = await parseJsonBody(response);
+    expect(body.success).toBe(true);
+    expect(body.effective).toContain("weibo");
+    expect(body.seed.groups.length).toBeGreaterThan(0);
+    expect(platformMocks.getHotlistPlatformsState).toHaveBeenCalledWith("hr");
+  });
+
+  it("PUT /api/research/platforms upserts overlay", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
+    platformMocks.putHotlistPlatforms.mockResolvedValue({
+      ...samplePlatformsState,
+      workspace: { version: 1, enabled: ["weibo", "cls-hot"], excluded: [] },
+      effective: ["weibo", "cls-hot"],
+    });
+    const app = createApp();
+    const response = await app.request("/api/research/platforms", {
+      method: "PUT",
+      headers: { ...auth.headers, "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled: ["weibo", "cls-hot"], excluded: [] }),
+    });
+    expect(response.status).toBe(200);
+    const body = await parseJsonBody(response);
+    expect(body.success).toBe(true);
+    expect(body.effective).toEqual(["weibo", "cls-hot"]);
+    expect(platformMocks.putHotlistPlatforms).toHaveBeenCalledWith("hr", {
+      enabled: ["weibo", "cls-hot"],
+      excluded: [],
+    });
+  });
+
+  it("PUT /api/research/platforms returns 400 on unknown id", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
+    platformMocks.putHotlistPlatforms.mockRejectedValue(
+      new HotlistPlatformsValidationError("enabled contains unknown platform id: nope"),
+    );
+    const app = createApp();
+    const response = await app.request("/api/research/platforms", {
+      method: "PUT",
+      headers: { ...auth.headers, "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled: ["nope"] }),
+    });
+    expect(response.status).toBe(400);
+    const body = await parseJsonBody(response);
+    expect(body.success).toBe(false);
+    expect(String(body.error)).toMatch(/unknown platform/i);
   });
 });
