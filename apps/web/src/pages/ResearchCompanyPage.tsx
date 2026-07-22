@@ -11,6 +11,12 @@ import {
 import { rawApiClient } from '@/lib/api-helpers'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { upsertResearchRecentCompany } from '@/lib/research-recent-companies'
+import {
+  isCompanyOnOpenRefreshEnabled,
+  readLastCompanyRefreshAt,
+  shouldAutoRefreshCompany,
+  writeLastCompanyRefreshAt,
+} from '@/lib/research-company-refresh'
 
 type SignalsResponse = {
   success: boolean
@@ -270,6 +276,40 @@ export function ResearchCompanyPage() {
       setIngesting(false)
     }
   }, [loadLatest, loadSignals])
+
+  // Phase C: optional background refresh after first paint (never blocks initial load).
+  useEffect(() => {
+    if (!companyKey || loading) return
+    const enabled = isCompanyOnOpenRefreshEnabled()
+    const now = Date.now()
+    const last = readLastCompanyRefreshAt(companyKey)
+    if (
+      !shouldAutoRefreshCompany({
+        enabled,
+        companyKey,
+        now,
+        lastRefreshAt: last,
+      })
+    ) {
+      return
+    }
+    let cancelled = false
+    writeLastCompanyRefreshAt(companyKey, now)
+    void (async () => {
+      try {
+        await rawApiClient.POST('/api/research/ingest/run', { body: {} })
+        if (!cancelled) {
+          await loadSignals()
+          await loadLatest()
+        }
+      } catch {
+        /* soft-fail: keep painted rows */
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [companyKey, loading, loadSignals, loadLatest])
 
   const teamSlug = slug || 'hr'
   const pageTitle =
