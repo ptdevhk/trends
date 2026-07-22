@@ -141,10 +141,15 @@ const listSignalsRoute = createRoute({
             success: z.literal(true),
             persona: z.enum(["hr", "sales"]),
             items: z.array(SignalSchema),
+            meta: z.object({
+              liveCount: z.number(),
+              showcaseCount: z.number(),
+              liveFirst: z.literal(true),
+            }),
           }),
         },
       },
-      description: "Company signals",
+      description: "Company signals (live-first, persona ranked)",
     },
   },
 });
@@ -157,7 +162,15 @@ app.openapi(listSignalsRoute, async (c) => {
     persona: query.persona,
     limit: query.limit,
   });
-  return c.json({ success: true as const, persona: result.persona, items: result.items }, 200);
+  return c.json(
+    {
+      success: true as const,
+      persona: result.persona,
+      items: result.items,
+      meta: result.meta,
+    },
+    200,
+  );
 });
 
 const searchCompaniesRoute = createRoute({

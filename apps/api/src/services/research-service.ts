@@ -1,7 +1,7 @@
 import {
   isRecord,
   normalizeResearchPersona,
-  rankSignalsForPersona,
+  partitionAndRankSignalsForPersona,
   type ResearchPersona,
 } from "@trends/shared";
 
@@ -125,7 +125,11 @@ export async function listCompanySignals(params: {
   companyKey: string;
   persona?: string;
   limit?: number;
-}): Promise<{ persona: ResearchPersona; items: ResearchSignal[] }> {
+}): Promise<{
+  persona: ResearchPersona;
+  items: ResearchSignal[];
+  meta: { liveCount: number; showcaseCount: number; liveFirst: true };
+}> {
   const persona = normalizeResearchPersona(params.persona);
   const value = await callConvexQuery("research_signals:listByCompany", {
     writeSecret: config.auth.convexWriteSecret,
@@ -138,9 +142,11 @@ export async function listCompanySignals(params: {
   const items = value
     .map(parseSignal)
     .filter((item): item is ResearchSignal => item != null);
+  const partitioned = partitionAndRankSignalsForPersona(items, persona);
   return {
     persona,
-    items: rankSignalsForPersona(items, persona),
+    items: partitioned.items,
+    meta: partitioned.meta,
   };
 }
 

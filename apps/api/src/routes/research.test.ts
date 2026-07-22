@@ -155,6 +155,7 @@ describe("research routes", () => {
               title: "sales",
               evidence: { title: "sales", platform: "weibo", seenAt: 1 },
               capturedAt: 1,
+              ingestRunId: "research-live-1",
             },
             {
               _id: "s2",
@@ -163,6 +164,7 @@ describe("research routes", () => {
               title: "hire",
               evidence: { title: "hire", platform: "weibo", seenAt: 2 },
               capturedAt: 2,
+              ingestRunId: "research-live-1",
             },
           ]);
         }
@@ -181,7 +183,60 @@ describe("research routes", () => {
     expect(body.persona).toBe("hr");
     expect(body.items[0].kind).toBe("hiring_signal");
     expect(body.items[1].kind).toBe("sales_trigger");
+    expect(body.meta).toEqual({ liveCount: 2, showcaseCount: 0, liveFirst: true });
     expect(calls.some((c) => c.pathName === "research_signals:listByCompany")).toBe(true);
+  });
+
+  it("lists company signals live-first with meta when mixed showcase and live", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url =
+        typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+      if (url.includes("/api/query") || url.includes("/api/mutation")) {
+        const call = parseConvexCall(input, init);
+        if (call.pathName === "research_signals:listByCompany") {
+          return convexSuccess([
+            {
+              _id: "seed-sales",
+              companyKey: "fanuc",
+              kind: "sales_trigger",
+              title: "seed sales",
+              evidence: { title: "seed sales", platform: "showcase", seenAt: 1 },
+              capturedAt: 9,
+              ingestRunId: "showcase-seed-v1",
+            },
+            {
+              _id: "live-hire",
+              companyKey: "fanuc",
+              kind: "hiring_signal",
+              title: "live hire",
+              evidence: {
+                title: "live hire",
+                platform: "weibo",
+                url: "https://weibo.com/real/1",
+                seenAt: 2,
+              },
+              capturedAt: 2,
+              ingestRunId: "research-xyz",
+            },
+          ]);
+        }
+      }
+      return convexSuccess(null);
+    });
+
+    const app = createApp();
+    const response = await app.request("/api/research/companies/fanuc/signals?persona=hr", {
+      headers: auth.headers,
+    });
+    expect(response.status).toBe(200);
+    const body = await parseJsonBody(response);
+    expect(body.meta.liveCount).toBe(1);
+    expect(body.meta.showcaseCount).toBe(1);
+    expect(body.meta.liveFirst).toBe(true);
+    expect(body.items[0].evidence.platform).not.toBe("showcase");
+    expect(body.items[0].kind).toBe("hiring_signal");
+    expect(body.items[1].evidence.platform).toBe("showcase");
   });
 
   it("proxies ingest trigger to worker research endpoint with effective platforms", async () => {
