@@ -206,10 +206,12 @@ else
   echo
 fi
 
-# Schedule reingest on lag (exit 2) or when JSON says computeStale
+# Schedule reingest on lag (exit 2) or when JSON says computeStale / lagScanFailed
 should_schedule=0
 if [[ "$SCHEDULE_REINGEST" == "1" ]]; then
   if [[ "$DOCTOR_RC" -eq 2 ]]; then
+    should_schedule=1
+  elif echo "$DOCTOR_OUT" | grep -q '"lagScanFailed": true'; then
     should_schedule=1
   elif echo "$DOCTOR_OUT" | grep -q '"computeStale": [1-9]'; then
     should_schedule=1
@@ -218,12 +220,23 @@ if [[ "$SCHEDULE_REINGEST" == "1" ]]; then
   fi
 fi
 
+# Bounded batches + inter-batch sleep avoid Convex "too many system operations" overload
+# that previously greenwashed lag-scan failures while golden floors stayed soft.
+REINGEST_BATCH="${REINGEST_BATCH:-25}"
+REINGEST_PASSES="${REINGEST_PASSES:-4}"
+REINGEST_SLEEP_SECS="${REINGEST_SLEEP_SECS:-8}"
+
 if [[ "$should_schedule" -eq 1 ]]; then
-  log "Scheduling bounded compute reingest limit=$REINGEST_LIMIT (mode=any)"
-  # Use API trigger-reingest as admin
-  python3 - "$API_URL" "$WORKSPACE" "$TRENDS_AUTH_USERNAME" "$TRENDS_AUTH_PASSWORD" "$REINGEST_LIMIT" <<'PY' || warn "reingest schedule failed"
-import json, sys, urllib.request, http.cookiejar
-api, ws, user, pw, limit = sys.argv[1:6]
+  log "Scheduling paced compute reingest limit=$REINGEST_LIMIT batch=$REINGEST_BATCH passes=$REINGEST_PASSES (mode=any)"
+  # Use API trigger-reingest as admin — paced to keep Convex healthy
+  python3 - "$API_URL" "$WORKSPACE" "$TRENDS_AUTH_USERNAME" "$TRENDS_AUTH_PASSWORD" \
+    "$REINGEST_LIMIT" "$REINGEST_BATCH" "$REINGEST_PASSES" "$REINGEST_SLEEP_SECS" <<'PY' || warn "reingest schedule failed"
+import json, sys, time, urllib.request, http.cookiejar
+api, ws, user, pw, limit_s, batch_s, passes_s, sleep_s = sys.argv[1:9]
+limit = int(limit_s)
+batch = max(1, min(int(batch_s), limit))
+passes = max(1, int(passes_s))
+sleep_secs = max(0, float(sleep_s))
 cj = http.cookiejar.CookieJar()
 opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj))
 req = urllib.request.Request(
@@ -238,47 +251,68 @@ if not body.get("success"):
     print("login failed", body, file=sys.stderr)
     sys.exit(1)
 csrf = body.get("csrfToken") or ""
-payload = json.dumps({"limit": int(limit), "mode": "any", "dryRun": False}).encode()
-req = urllib.request.Request(
-    api.rstrip("/") + "/api/resumes/trigger-reingest",
-    data=payload,
-    headers={
-        "Content-Type": "application/json",
-        "X-Workspace-Slug": ws,
-        "X-CSRF-Token": csrf,
-        "Accept": "application/json",
-    },
-    method="POST",
-)
-try:
-    with opener.open(req, timeout=180) as r:
-        print(r.read().decode()[:1500])
-except Exception as e:
-    print("trigger-reingest error:", e, file=sys.stderr)
+scheduled_total = 0
+remaining = limit
+for i in range(passes):
+    if remaining <= 0:
+        break
+    n = min(batch, remaining)
+    payload = json.dumps({"limit": n, "mode": "any", "dryRun": False}).encode()
+    req = urllib.request.Request(
+        api.rstrip("/") + "/api/resumes/trigger-reingest",
+        data=payload,
+        headers={
+            "Content-Type": "application/json",
+            "X-Workspace-Slug": ws,
+            "X-CSRF-Token": csrf,
+            "Accept": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with opener.open(req, timeout=180) as r:
+            out = json.loads(r.read().decode())
+        sched = int(out.get("scheduled") or 0)
+        scheduled_total += sched
+        print(f"pass {i+1}/{passes}: scheduled={sched} matched={out.get('matchedCount')} hasMore={out.get('hasMore')}")
+        remaining -= n
+        if not out.get("hasMore") and sched == 0:
+            break
+    except Exception as e:
+        print("trigger-reingest error:", e, file=sys.stderr)
+        # Do not hard-fail the whole gate on one overloaded batch — caller still sees doctor rc
+        break
+    if sleep_secs and remaining > 0:
+        time.sleep(sleep_secs)
+print(f"total_scheduled={scheduled_total}")
+if scheduled_total == 0 and remaining == limit:
     sys.exit(1)
 PY
-  log "Reingest scheduled (background). Re-run this gate after compute settles."
+  log "Reingest scheduled (background, paced). Re-run this gate after compute settles."
   log "Manual: trends resume debug trigger-reingest --mode any --limit $REINGEST_LIMIT --api-url $API_URL --workspace $WORKSPACE"
 fi
 
 if [[ "$DOCTOR_RC" -eq 3 ]]; then
   err "Golden MY/CN minRoleYears floors failed — search parity is bad (often zero roleRelevantYears)."
-  err "Repair: ensure BFF_API_URL reachable from Convex, then:"
+  err "Repair: ensure BFF_API_URL reachable from Convex, then paced reingest:"
   err "  trends resume debug trigger-reingest --mode any --limit $REINGEST_LIMIT --api-url $API_URL"
+  err "  (or re-run this gate; it schedules REINGEST_BATCH×REINGEST_PASSES with sleep)"
   if [[ "$GATE_STRICT" == "1" ]]; then
     exit 3
   fi
 fi
 
 if [[ "$DOCTOR_RC" -eq 2 ]]; then
-  warn "Compute-stale rows detected — reingest scheduled or required"
-  # If we scheduled, exit 0 with warning so upgrade can complete; re-check after drain.
-  if [[ "$SCHEDULE_REINGEST" == "1" ]]; then
-    log "Upgrade may complete; re-check golden floors after reingest drains"
-    exit 0
-  fi
+  warn "Compute-stale rows or lag-scan failure — reingest scheduled or required"
+  # Scheduling alone is not parity. When GATE_STRICT=1, fail so upgrade cannot
+  # claim green while MY minRoleYears still under-repairs (historical false green).
   if [[ "$GATE_STRICT" == "1" ]]; then
+    err "GATE_STRICT=1 — exit 2 until doctor returns 0 after reingest drains"
     exit 2
+  fi
+  if [[ "$SCHEDULE_REINGEST" == "1" ]]; then
+    log "GATE_STRICT=0 — upgrade may complete; re-check golden floors after reingest drains"
+    exit 0
   fi
   log "GATE_STRICT=0 — treating compute lag as non-fatal"
   exit 0

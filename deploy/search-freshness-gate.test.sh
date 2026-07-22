@@ -220,5 +220,25 @@ fi
 grep -q 'diag_rc=\$?' "$ROOT/deploy/search-freshness-gate.sh" && pass "gate captures diagnose_bff via diag_rc=\$?" || fail "diag_rc capture missing"
 grep -q 'node_rc' "$ROOT/deploy/search-freshness-gate.sh" && pass "node diagnose returns via node_rc" || fail "node_rc path missing"
 
+# Paced reingest + strict lag: prevent greenwash when lag-scan fails or golden soft
+grep -q 'REINGEST_BATCH' "$ROOT/deploy/search-freshness-gate.sh" \
+  && pass "gate paces reingest via REINGEST_BATCH" \
+  || fail "gate missing REINGEST_BATCH paced reingest"
+grep -q 'lagScanFailed' "$ROOT/deploy/search-freshness-gate.sh" \
+  && pass "gate schedules on lagScanFailed" \
+  || fail "gate missing lagScanFailed schedule trigger"
+# GATE_STRICT=1 must exit 2 on doctor rc 2 (not soft-exit 0 after schedule)
+if grep -A20 'DOCTOR_RC.*-eq 2' "$ROOT/deploy/search-freshness-gate.sh" | grep -q 'exit 2'; then
+  pass "gate GATE_STRICT path can exit 2 on compute lag"
+else
+  fail "gate no longer exits 2 under GATE_STRICT for doctor rc 2"
+fi
+# Golden floors raised above historical false-green band (~30 MY)
+if grep -q 'minTotalFloor: 100' "$ROOT/packages/shared/src/ingest-compute-epoch.ts"; then
+  pass "MY/CN golden minTotalFloor is 100 (was 10 false-green)"
+else
+  fail "golden minTotalFloor not raised to 100"
+fi
+
 echo "Summary: $FAIL failure(s)"
 [[ "$FAIL" -eq 0 ]]

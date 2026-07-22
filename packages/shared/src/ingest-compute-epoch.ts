@@ -124,7 +124,13 @@ export function shouldSelectForReingest(
   }
 }
 
-/** Golden search floors for search-data doctor (live API when reachable). */
+/**
+ * Golden search floors for search-data doctor (live API when reachable).
+ *
+ * Floors are intentionally well above the historical "green but wrong" band
+ * (preview once reported MY minRoleYears≈30 with ~139 zeroed sales years while
+ * local healthy corpus is ~142 for the same query). Floor 10 greenwashed that.
+ */
 export const SEARCH_FRESHNESS_GOLDEN_QUERIES = [
   {
     id: "my-cnc-sales-minRoleYears",
@@ -132,8 +138,8 @@ export const SEARCH_FRESHNESS_GOLDEN_QUERIES = [
     q: "CNC Sales",
     minRoleYears: 1,
     roleType: "sales",
-    /** Soft floor: empty/near-empty after epoch-stale data indicates compute lag */
-    minTotalFloor: 10,
+    /** Healthy MY SEEK CNC sales minRoleYears=1 corpus is ~140+; catch under-repair. */
+    minTotalFloor: 100,
   },
   {
     id: "cn-cnc-sales-minRoleYears",
@@ -141,6 +147,7 @@ export const SEARCH_FRESHNESS_GOLDEN_QUERIES = [
     q: "CNC 销售",
     minRoleYears: 1,
     roleType: "sales",
-    minTotalFloor: 10,
+    /** Healthy CN CNC sales minRoleYears=1 corpus is 250+ on full datasets. */
+    minTotalFloor: 100,
   },
 ] as const;

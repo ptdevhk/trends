@@ -55,6 +55,8 @@ const SearchFreshnessResponseSchema = z.object({
   currentSkillsVersion: z.number().int(),
   currentIngestComputeEpoch: z.number().int(),
   apiReachable: z.boolean(),
+  /** True when dry-run lag scan threw (timeout / overload); not a clean zero-stale. */
+  lagScanFailed: z.boolean().optional(),
   lag: z.object({
     scanned: z.number().int(),
     withIngestData: z.number().int(),
@@ -75,7 +77,10 @@ const SearchFreshnessResponseSchema = z.object({
     ok: z.boolean().nullable(),
     error: z.string().optional(),
   })),
-  /** Non-zero when compute-stale above threshold or a golden floor fails while API is up */
+  /**
+   * Non-zero when: lag scan failed (2), compute-stale above threshold (2),
+   * or a golden floor fails while API is up (3). Golden takes priority over 2.
+   */
   exitCodeHint: z.number().int(),
   messages: z.array(z.string()),
 });
@@ -576,6 +581,8 @@ app.openapi(getSearchFreshnessRoute, async (c) => {
     currentEpoch: 0,
     scanComplete: false,
   };
+  /** True when dry-run reingest lag scan could not run (timeout / Convex overload). */
+  let lagScanFailed = false;
 
   try {
     const { triggerReingestStaleSkillsVersion } = await import("./resumes.js");
@@ -597,6 +604,7 @@ app.openapi(getSearchFreshnessRoute, async (c) => {
       `dry-run reingest mode=${dry.mode}: matched=${dry.matchedCount} skillsStale=${dry.skillsStaleCount} computeStale=${dry.computeStaleCount} hasMore=${dry.hasMore}`,
     );
   } catch (error) {
+    lagScanFailed = true;
     const message = error instanceof Error ? error.message : String(error);
     messages.push(`lag scan failed: ${message}`);
   }
@@ -710,15 +718,23 @@ app.openapi(getSearchFreshnessRoute, async (c) => {
     }
   }
 
+  // Exit code priority: golden fail (3) > lag-scan fail / compute-stale (2) > ok (0).
+  // Lag-scan failure must NOT greenwash: previously exitCodeHint stayed 0 when
+  // Convex timed out but golden floor (then 10) still passed with under-repaired data.
   let exitCodeHint = 0;
-  if (lag.computeStale >= COMPUTE_STALE_DOCTOR_THRESHOLD) {
+  if (lagScanFailed) {
+    exitCodeHint = 2;
+    messages.push(
+      "lag scan failed — treat as compute-stale until dry-run reingest succeeds; do not trust golden alone",
+    );
+  } else if (lag.computeStale >= COMPUTE_STALE_DOCTOR_THRESHOLD) {
     exitCodeHint = 2;
     messages.push(
       `compute-stale rows detected (${lag.computeStale}); schedule: trends resume debug trigger-reingest --mode any --limit 200`,
     );
   }
   if (apiReachable && goldenQueries.some((g) => g.ok === false)) {
-    exitCodeHint = exitCodeHint === 0 ? 3 : exitCodeHint;
+    exitCodeHint = 3;
   }
 
   return c.json({
@@ -726,6 +742,7 @@ app.openapi(getSearchFreshnessRoute, async (c) => {
     currentSkillsVersion,
     currentIngestComputeEpoch: currentEpoch,
     apiReachable,
+    lagScanFailed,
     lag: {
       scanned: lag.scanned,
       withIngestData: lag.withIngestData,
