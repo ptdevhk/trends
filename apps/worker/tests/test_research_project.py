@@ -84,6 +84,41 @@ def test_classify_kinds_heuristics():
     assert "market_move" in classify_kinds("完成融资")
 
 
+def test_classify_hiring_cnc_phrasing():
+    kinds = classify_kinds("发那科相关渠道招聘应用工程师")
+    assert "hiring_signal" in kinds
+
+
+def test_project_title_live_url_preserved():
+    drafts = project_title(
+        "发那科扩产与加工中心订单",
+        company_key="fanuc",
+        platform="weibo",
+        url="https://weibo.com/real/123",
+        seen_at=1000,
+        ingest_run_id="research-xyz",
+    )
+    assert drafts
+    assert any(d.kind in ("sales_trigger", "market_move") for d in drafts)
+    assert all(d.evidence.get("url") == "https://weibo.com/real/123" for d in drafts)
+    assert all(d.evidence.get("platform") == "weibo" for d in drafts)
+
+
+def test_project_title_with_resolver_fanuc_hiring():
+    resolver = FakeResolver(
+        {"发那科": {"companyKey": "fanuc", "displayName": "发那科 / FANUC"}}
+    )
+    drafts = project_title(
+        "发那科招聘工程师",
+        resolver=resolver,
+        platform="zhihu",
+        url="https://www.zhihu.com/question/1",
+        seen_at=1,
+    )
+    assert drafts and drafts[0].company_key == "fanuc"
+    assert any(d.kind == "hiring_signal" for d in drafts)
+
+
 def test_extract_candidate_aliases_cjk():
     aliases = extract_candidate_aliases("宝力机械有限公司发布新产品")
     assert any("宝力" in a for a in aliases)

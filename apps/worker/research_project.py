@@ -15,9 +15,18 @@ from typing import Any, Dict, List, Optional, Sequence
 from apps.worker.research_ports import NormalizedNewsItem
 from apps.worker.research_resolve import AliasResolver, resolve_first_company
 
-HIRING_RE = re.compile(r"招聘|hiring|岗位|职位|招人|headcount|招聘会", re.IGNORECASE)
-SALES_RE = re.compile(r"采购|中标|扩产|合作|订单|签约|采购意向|招标", re.IGNORECASE)
-MARKET_RE = re.compile(r"融资|上市|并购|收购|投产|发布|涨价|降价|市占", re.IGNORECASE)
+HIRING_RE = re.compile(
+    r"招聘|hiring|岗位|职位|招人|headcount|招聘会|应用工程师|人才|校招|社招",
+    re.IGNORECASE,
+)
+SALES_RE = re.compile(
+    r"采购|中标|扩产|合作|订单|签约|采购意向|招标|扩能",
+    re.IGNORECASE,
+)
+MARKET_RE = re.compile(
+    r"融资|上市|并购|收购|投产|发布|涨价|降价|市占|加工中心|智能制造|数控系统",
+    re.IGNORECASE,
+)
 
 SIGNAL_KINDS = frozenset({"company_mention", "hiring_signal", "market_move", "sales_trigger"})
 
