@@ -1955,6 +1955,15 @@
     "showcaseLoadError": "展示数据加载失败",
     "stripEmpty": "暂无实时信号",
     "stripLink": "企业研究",
-    "stripLiveCount": "实时信号 {{count}}"
+    "stripLiveCount": "实时信号 {{count}}",
+    "companyHotlistHint": "综合热榜来自选定的 NewsNow 平台，不按本企业过滤。高亮仅表示标题可能包含品牌别名，不代表已归属为本企业信号。",
+    "companyHotlistLoadError": "综合热榜加载失败",
+    "companySurfaceTabs": "研究视图",
+    "hotlistBackHub": "在研究首页查看完整综合热榜",
+    "hotlistEmpty": "暂无近期热榜资讯。",
+    "hotlistLoading": "加载中…",
+    "openHotlistTab": "查看综合热榜",
+    "tabBrand": "品牌动态",
+    "tabHotlist": "综合热榜"
   }
 }
