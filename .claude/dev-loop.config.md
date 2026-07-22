@@ -14,8 +14,6 @@
 slug: trends
 vault: auto
 release_branch: main
-project_filter: trends
-cron_schedule: "7,22,37,52 * * * *"
 ```
 
 ## PRD layer
@@ -333,18 +331,12 @@ cli_entry_override: bin/trends
 ```yaml
 e2e_scripts:
   - scripts/e2e-smoke.ts
-e2e_prerequisites:
-  - "make chrome-debug"
-  - "make dev"
-e2e_optional_benchmarks:
-  - make benchmark-critical-path
-  - make benchmark-dev-resume-latency
 ```
 
 ## Release
 
 ```yaml
-bump_script: bash scripts/bump-version.sh
+bump_script: scripts/bump-version.sh
 publish_via: none
 # Production only — never run against /home/ubuntu/trends-preview.
 # Preview upgrades: cd /home/ubuntu/trends-preview && make deploy  (→ deploy/preview-upgrade.sh)
@@ -353,7 +345,7 @@ deploy_script: bash scripts/install.sh upgrade
 # Version-carrying package manifests (plus root `version` file used by bump-version.sh):
 # package.json, packages/convex, apps/api, apps/web, apps/browser-extension, apps/worker/pyproject.toml
 manifests_count: 6
-remote_hosts: [${SSH_HOST:-ptcloud}]
+remote_hosts: [ptcloud]
 ```
 
 ## CI Configuration
@@ -375,17 +367,23 @@ notes:
   prod_pin: "ptcloud prod is PINNED to tag v0.4.6-hotfix (commit 4ce93b90). DO NOT deploy main — auth (#1259-#1263), public sharing (#1254-#1257), and Phase 4 resume_analyses (#1264-#1290) are NOT production-ready. Run `git describe --tags` after any deploy to verify pin. See memory/prod-pinned-v046-hotfix.md for full details."
   config_docs: CLAUDE.md is canonical; AGENTS.md is symlink
   planning: EnterPlanMode gated — TDD-first pipeline uses superpowers:writing-plans for plan, then superpowers:test-driven-development for execute
-  gotcha: api-types.ts regenerates on make check after API schema edits — always stage it
-  gotcha: better-sqlite3 needs npm rebuild after Node version bumps
-  gotcha: Convex 16 MiB per-query byte limit — keep paginate batches ≤200 docs (~5.4MB)
-  gotcha: localhost:5173 only — never the external hostname when verifying
-  gotcha: BFF and Convex search filters MUST stay in lockstep (3 paths) — see concepts/bff-convex-filter-path-alignment
-  gotcha: Resume backups live at output/resume-backups/ — restore via `make local-restore-from-prod FILE=...`
-  gotcha: cmux task sandboxes (CMUX_TASK_RUN_JWT set, CMUX_IS_ORCHESTRATION_HEAD unset) MUST NOT run gh pr create — cmux handles it
+  gotchas:
+    - api-types.ts regenerates on make check after API schema edits — always stage it
+    - better-sqlite3 needs npm rebuild after Node version bumps
+    - Convex 16 MiB per-query byte limit — keep paginate batches ≤200 docs (~5.4MB)
+    - localhost:5173 only — never the external hostname when verifying
+    - BFF and Convex search filters MUST stay in lockstep (3 paths) — see concepts/bff-convex-filter-path-alignment
+    - Resume backups live at output/resume-backups/ — restore via `make local-restore-from-prod FILE=...`
+    - cmux task sandboxes (CMUX_TASK_RUN_JWT set, CMUX_IS_ORCHESTRATION_HEAD unset) MUST NOT run gh pr create — cmux handles it
+    - >-
+      Preview deploys MUST verify admin login after setup-preview.sh or
+      restore-preview-from-prod.sh. When AUTH_BOOTSTRAP_PASSWORD is set in
+      .env.preview, use the documented authenticated curl check. setup-preview.sh
+      fails hard on seeding errors, and restore-preview-from-prod.sh verifies login
+      in its verification block.
   merge_policy: Merge-bound work defaults to /dev-loop; manual branch/PR/merge sequencing is allowed only when the user explicitly asks for it or the task is local-only
-  gotcha: preview deploys MUST verify admin login after setup-preview.sh or restore-preview-from-prod.sh — if AUTH_BOOTSTRAP_PASSWORD is set in .env.preview, run: curl -s -X POST https://preview.pt-mes.com/api/auth/login -H 'Content-Type: application/json' -d '{"username":"admin","password":"<pw>"}' | grep -q '"success":true'; setup-preview.sh now fails hard on seeding errors; restore-preview-from-prod.sh auto-verifies in its verification block
   vault_drift: scoring + search concept pages drift fastest — re-check after PRs touching resumes.ts or aiScoring.ts
-  cron: "7,22,37,52 * * * *" durable, runs `/loop /dev-loop high` — auto-expires 7d, renew with CronCreate
+  scheduler: '7,22,37,52 * * * *; runs `/loop /dev-loop high`, auto-expires after 7d, and is renewed with CronCreate'
   oauth_blocker: WeChat OAuth requires business license, WeCom requires admin — external deps not available
   critical_path_test_seed: prod snapshot under output/resume-backups/ (~89k resumes); use it instead of local 51job collector for search/scoring tests
   tdd_test_locations:
