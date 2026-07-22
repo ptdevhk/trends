@@ -78,7 +78,9 @@ def load_rss_feeds(config_path: Optional[Path] = None) -> List[Dict[str, str]]:
     if not rss_cfg.get("enabled", True):
         return []
     feeds = []
-    for source in rss_cfg.get("sources") or []:
+    # config/config.yaml uses `feeds`; accept legacy `sources` as alias
+    raw_list = rss_cfg.get("feeds") or rss_cfg.get("sources") or []
+    for source in raw_list:
         if not isinstance(source, dict):
             continue
         if source.get("enabled") is False:

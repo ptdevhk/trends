@@ -296,3 +296,12 @@ def test_scheduler_skips_research_job_when_disabled():
         s.scheduler = MagicMock()
         s.add_research_ingest_job()
         s.scheduler.add_job.assert_not_called()
+
+
+def test_load_rss_feeds_reads_feeds_key():
+    """config.yaml uses rss.feeds (not sources); must load CNC Google News feeds."""
+    from apps.worker.research_ingest import load_rss_feeds
+    feeds = load_rss_feeds()
+    ids = {f["id"] for f in feeds}
+    assert "gnews-fanuc-cn" in ids
+    assert all("url" in f for f in feeds)
