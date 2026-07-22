@@ -21,6 +21,7 @@ import { cn } from '@/lib/utils'
 import { useBrandDisplayMap } from '@/hooks/useBrandDisplayMap'
 import { useResumeFieldUsagePolicy } from '@/contexts/ResumeFieldUsagePolicyContext'
 import { CompanyPolicyBadges } from '@/components/CompanyPolicyBadges'
+import { CompanyResearchStrip } from '@/components/research/CompanyResearchStrip'
 import { useCompanyPolicyIndex } from '@/hooks/useCompanyPolicyIndex'
 
 import type { AiFeedbackSentiment, AiFeedbackTarget, MatchingResult } from '@/types/resume'
@@ -253,6 +254,11 @@ export function ResumeDetail({
             {companyPolicyHits.length > 0 ? (
               <div className="mt-2">
                 <CompanyPolicyBadges hits={companyPolicyHits} variant="banner" />
+              </div>
+            ) : null}
+            {companyPolicyHits[0]?.companyKey ? (
+              <div className="mt-2">
+                <CompanyResearchStrip companyKey={companyPolicyHits[0].companyKey} />
               </div>
             ) : null}
             <div
