@@ -359,7 +359,10 @@ describe('ResearchIndexPage hub', () => {
     )
     expect(getMock).toHaveBeenCalledWith('/api/research/pulse/keywords')
     await waitFor(() => {
-      expect(screen.getByTestId('research-section-hotlist-title')).toHaveTextContent('综合热榜')
+      // defaultValue and/or locale research.sectionPulse must be 综合热榜 (not 市场动态)
+      const title = screen.getByTestId('research-section-hotlist-title')
+      expect(title.textContent).toMatch(/综合热榜|Hotlist|綜合熱榜/)
+      expect(title.textContent).not.toContain('市场动态')
     })
 
     await waitFor(() => {

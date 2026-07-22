@@ -14,6 +14,10 @@ import {
   MAX_KEYWORD_LENGTH,
   PULSE_KEYWORDS_CONFIG_KEY,
 } from "./research-pulse-keywords.js";
+import {
+  getHotlistPlatformsState,
+} from "./research-hotlist-platforms-service.js";
+import type { ResearchNewsItem } from "./research-service.js";
 
 export class PulseKeywordsValidationError extends Error {
   constructor(message: string) {
@@ -184,19 +188,59 @@ export function isHotlistPlatform(platform: string): boolean {
   return !p.startsWith("rss:");
 }
 
+/**
+ * Load recent news for 综合热榜. When hotlistOnly, query each effective
+ * NewsNow platform via listRecent(platform=) so brand RSS cannot crowd out
+ * weibo/zhihu/… from the global capturedAt top-N window.
+ */
+export async function loadPulseNewsSource(
+  workspaceSlug: string,
+  opts: { limit: number; all?: boolean; hotlistOnly?: boolean },
+): Promise<ResearchNewsItem[]> {
+  if (!opts.hotlistOnly) {
+    const fetchLimit = opts.all ? opts.limit : 100;
+    return listResearchNews({ limit: fetchLimit });
+  }
+
+  const { effective: platformIds } = await getHotlistPlatformsState(workspaceSlug);
+  if (platformIds.length === 0) {
+    return [];
+  }
+  // Per-platform slice: enough to fill limit after merge without huge reads.
+  const perPlatform = Math.min(
+    Math.max(Math.ceil(opts.limit / Math.min(platformIds.length, 4)) + 4, 8),
+    30,
+  );
+  const batches = await Promise.all(
+    platformIds.map((platform) =>
+      listResearchNews({ limit: perPlatform, platform }).catch(() => [] as ResearchNewsItem[]),
+    ),
+  );
+  const byHash = new Map<string, ResearchNewsItem>();
+  for (const batch of batches) {
+    for (const item of batch) {
+      if (!isHotlistPlatform(item.platform)) continue;
+      const key = item.contentHash || `${item.platform}:${item.title}:${item.capturedAt}`;
+      const prev = byHash.get(key);
+      if (!prev || item.capturedAt > prev.capturedAt) {
+        byHash.set(key, item);
+      }
+    }
+  }
+  return [...byHash.values()].sort((a, b) => b.capturedAt - a.capturedAt);
+}
+
 export async function getResearchPulse(
   workspaceSlug: string,
   opts: { limit?: number; all?: boolean; hotlistOnly?: boolean } = {},
 ): Promise<ResearchPulseResult> {
   const limit = Math.min(Math.max(opts.limit ?? 12, 1), 50);
   const { effective } = await getPulseKeywordsState(workspaceSlug);
-  // Fetch a wider window when hotlistOnly so RSS rows do not crowd out NewsNow.
-  const fetchLimit = opts.hotlistOnly
-    ? Math.min(Math.max(opts.all ? limit * 4 : 200, limit), 200)
-    : opts.all
-      ? limit
-      : 100;
-  const raw = await listResearchNews({ limit: fetchLimit });
+  const raw = await loadPulseNewsSource(workspaceSlug, {
+    limit,
+    all: opts.all,
+    hotlistOnly: opts.hotlistOnly,
+  });
   const sorted = [...raw]
     .filter((item) => (opts.hotlistOnly ? isHotlistPlatform(item.platform) : true))
     .sort((a, b) => b.capturedAt - a.capturedAt);

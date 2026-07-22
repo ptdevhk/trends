@@ -84,6 +84,21 @@ def test_parse_rss_xml_strips_html_description():
     assert "发那科新闻" in items[0].raw_snippet
 
 
+def test_parse_rss_xml_caps_items_per_feed():
+    """Shipped default cap keeps gnews packs from flooding Convex / listRecent."""
+    items_xml = "".join(
+        f"<item><title>T{i}</title><link>http://x/{i}</link><guid>g{i}</guid></item>"
+        for i in range(50)
+    )
+    xml = f'<?xml version="1.0"?><rss version="2.0"><channel>{items_xml}</channel></rss>'
+    capped = parse_rss_xml("gnews-flood", xml, captured_at=1, max_items=20)
+    assert len(capped) == 20
+    assert capped[0].title == "T0"
+    assert capped[-1].title == "T19"
+    uncapped = parse_rss_xml("gnews-flood", xml, captured_at=1, max_items=None)
+    assert len(uncapped) == 50
+
+
 def test_parse_newsnow_accepts_cache_status():
     items = parse_newsnow_payload(
         "baidu",
