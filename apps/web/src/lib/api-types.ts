@@ -2929,6 +2929,7 @@ export interface paths {
                             currentSkillsVersion: number;
                             currentIngestComputeEpoch: number;
                             apiReachable: boolean;
+                            lagScanFailed?: boolean;
                             lag: {
                                 scanned: number;
                                 withIngestData: number;
