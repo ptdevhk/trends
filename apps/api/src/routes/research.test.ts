@@ -807,6 +807,7 @@ describe("research routes", () => {
     expect(pulseMocks.getResearchPulse).toHaveBeenCalledWith("hr", {
       limit: 12,
       all: false,
+      hotlistOnly: false,
     });
 
     const all = await app.request("/api/research/pulse?all=1", {
@@ -820,6 +821,7 @@ describe("research routes", () => {
     expect(pulseMocks.getResearchPulse).toHaveBeenLastCalledWith("hr", {
       limit: undefined,
       all: true,
+      hotlistOnly: false,
     });
   });
 

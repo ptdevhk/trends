@@ -177,14 +177,29 @@ function resolvePulseMatchedCompanies(
   return resolved;
 }
 
+/** NewsNow hotlist platforms only — exclude RSS brand feeds (`rss:*`). */
+export function isHotlistPlatform(platform: string): boolean {
+  const p = platform.trim().toLowerCase();
+  if (!p) return false;
+  return !p.startsWith("rss:");
+}
+
 export async function getResearchPulse(
   workspaceSlug: string,
-  opts: { limit?: number; all?: boolean } = {},
+  opts: { limit?: number; all?: boolean; hotlistOnly?: boolean } = {},
 ): Promise<ResearchPulseResult> {
   const limit = Math.min(Math.max(opts.limit ?? 12, 1), 50);
   const { effective } = await getPulseKeywordsState(workspaceSlug);
-  const raw = await listResearchNews({ limit: opts.all ? limit : 100 });
-  const sorted = [...raw].sort((a, b) => b.capturedAt - a.capturedAt);
+  // Fetch a wider window when hotlistOnly so RSS rows do not crowd out NewsNow.
+  const fetchLimit = opts.hotlistOnly
+    ? Math.min(Math.max(opts.all ? limit * 4 : 200, limit), 200)
+    : opts.all
+      ? limit
+      : 100;
+  const raw = await listResearchNews({ limit: fetchLimit });
+  const sorted = [...raw]
+    .filter((item) => (opts.hotlistOnly ? isHotlistPlatform(item.platform) : true))
+    .sort((a, b) => b.capturedAt - a.capturedAt);
   const rawCount = sorted.length;
   const annotated = annotateNewsByKeywords(sorted, effective);
   const hits = annotated.filter((item) => item.matchedKeywords.length > 0);

@@ -596,11 +596,13 @@ const getPulseRoute = createRoute({
   method: "get",
   path: "/api/research/pulse",
   tags: ["research"],
-  summary: "Keyword-filtered research pulse (市场动态) feed",
+  summary: "Keyword-filtered research pulse (综合热榜) feed",
   request: {
     query: z.object({
       limit: z.coerce.number().optional(),
       all: z.string().optional(),
+      /** When true/1, exclude rss:* brand feeds so the feed is NewsNow hotlist only. */
+      hotlistOnly: z.string().optional(),
     }),
   },
   responses: {
@@ -653,9 +655,13 @@ app.openapi(getPulseRoute, async (c) => {
   const query = c.req.valid("query");
   const allRaw = (query.all ?? "").toLowerCase();
   const all = allRaw === "1" || allRaw === "true" || allRaw === "yes" || allRaw === "on";
+  const hotlistRaw = (query.hotlistOnly ?? "").toLowerCase();
+  const hotlistOnly =
+    hotlistRaw === "1" || hotlistRaw === "true" || hotlistRaw === "yes" || hotlistRaw === "on";
   const result = await getResearchPulse(workspaceSlug, {
     limit: query.limit,
     all,
+    hotlistOnly,
   });
   return c.json({ success: true as const, ...result }, 200);
 });

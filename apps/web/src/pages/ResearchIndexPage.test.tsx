@@ -63,7 +63,7 @@ const showcasePayload = {
       href: '/hr/research/makino?persona=hr',
     },
   ],
-  // Showcase may still return pulse; hub 市场动态 uses dedicated pulse endpoint.
+  // Showcase may still return pulse; hub 综合热榜 uses dedicated pulse endpoint.
   pulse: [
     {
       title: 'Showcase pulse (unused for section)',
@@ -349,7 +349,18 @@ describe('ResearchIndexPage hub', () => {
     await waitFor(() => {
       expect(getMock).toHaveBeenCalledWith('/api/research/pulse', expect.anything())
     })
+    const pulseCall = getMock.mock.calls.find((c) => c[0] === '/api/research/pulse')
+    expect(pulseCall?.[1]).toEqual(
+      expect.objectContaining({
+        params: expect.objectContaining({
+          query: expect.objectContaining({ hotlistOnly: 1 }),
+        }),
+      }),
+    )
     expect(getMock).toHaveBeenCalledWith('/api/research/pulse/keywords')
+    await waitFor(() => {
+      expect(screen.getByTestId('research-section-hotlist-title')).toHaveTextContent('综合热榜')
+    })
 
     await waitFor(() => {
       expect(screen.getByTestId('research-pulse-chips')).toBeInTheDocument()

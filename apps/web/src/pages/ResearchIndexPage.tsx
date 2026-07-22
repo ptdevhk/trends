@@ -289,6 +289,8 @@ export function ResearchIndexPage() {
         params: {
           query: {
             limit: 12,
+            // 综合热榜 = NewsNow platforms only (exclude rss:* brand feeds)
+            hotlistOnly: 1,
             ...(all ? { all: 1 } : {}),
           },
         },
@@ -296,7 +298,7 @@ export function ResearchIndexPage() {
     )
     setPulseLoading(false)
     if (apiError || !data?.success) {
-      setPulseError(t('research.pulseLoadError', { defaultValue: '市场动态加载失败' }))
+      setPulseError(t('research.pulseLoadError', { defaultValue: '综合热榜加载失败' }))
       setPulseItems([])
       setPulseMeta(null)
       return
@@ -671,10 +673,10 @@ export function ResearchIndexPage() {
         </ul>
       </section>
 
-      <section data-testid="research-section-pulse">
+      <section data-testid="research-section-pulse" data-surface="hotlist">
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold">
-            {t('research.sectionPulse', { defaultValue: '市场动态' })}
+          <h2 className="text-sm font-semibold" data-testid="research-section-hotlist-title">
+            {t('research.sectionPulse', { defaultValue: '综合热榜' })}
           </h2>
           <Button
             type="button"
