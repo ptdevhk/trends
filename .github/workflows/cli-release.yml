@@ -35,6 +35,7 @@ jobs:
         uses: actions/setup-go@v6
         with:
           go-version-file: packages/cli/go.mod
+          cache-dependency-path: packages/cli/go.sum
 
       - name: Resolve release version
         id: vars
