@@ -28,6 +28,7 @@ import {
   putHotlistPlatforms,
   HotlistPlatformsValidationError,
 } from "../services/research-hotlist-platforms-service.js";
+import { purgeDemoResearchSignals } from "../services/research-demo-purge-service.js";
 
 const app = new OpenAPIHono();
 
@@ -238,6 +239,31 @@ app.openapi(ingestRunRoute, async (c) => {
   const { effective } = await getHotlistPlatformsState(workspaceSlug);
   const result = await triggerResearchIngest({ platforms: effective });
   return c.json(result, 200);
+});
+
+const purgeDemoRoute = createRoute({
+  method: "post",
+  path: "/api/research/signals/purge-demo",
+  tags: ["research"],
+  summary: "Delete synthetic demo-* research_signals (ops cleanup)",
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.literal(true),
+            deleted: z.number(),
+          }),
+        },
+      },
+      description: "Purge result",
+    },
+  },
+});
+
+app.openapi(purgeDemoRoute, async (c) => {
+  const result = await purgeDemoResearchSignals();
+  return c.json({ success: true as const, deleted: result.deleted }, 200);
 });
 
 const parityRoute = createRoute({

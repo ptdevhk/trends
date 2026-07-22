@@ -239,6 +239,37 @@ describe("research routes", () => {
     expect(body.items[1].evidence.platform).toBe("showcase");
   });
 
+  it("POST /api/research/signals/purge-demo calls deleteByIngestRunPrefix with demo-", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
+    const calls: ConvexCall[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url =
+        typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+      if (url.includes("/api/query") || url.includes("/api/mutation")) {
+        const call = parseConvexCall(input, init);
+        calls.push(call);
+        if (call.pathName === "research_signals:deleteByIngestRunPrefix") {
+          expect(call.args.ingestRunIdPrefix).toBe("demo-");
+          return convexSuccess({ deleted: 3 });
+        }
+      }
+      return convexSuccess(null);
+    });
+
+    const app = createApp();
+    const response = await app.request("/api/research/signals/purge-demo", {
+      method: "POST",
+      headers: auth.headers,
+    });
+    expect(response.status).toBe(200);
+    const body = await parseJsonBody(response);
+    expect(body.success).toBe(true);
+    expect(body.deleted).toBe(3);
+    expect(calls.some((c) => c.pathName === "research_signals:deleteByIngestRunPrefix")).toBe(
+      true,
+    );
+  });
+
   it("excludes demo-seed from live and omits synthetic from product items", async () => {
     const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {

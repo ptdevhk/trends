@@ -127,6 +127,33 @@ export const deleteByCompanyIngestRunPrefix = mutation({
   },
 });
 
+/**
+ * Delete all research_signals whose ingestRunId starts with prefix (e.g. demo-seed purge).
+ * Ops path; full table scan — acceptable for local/dev volumes.
+ */
+export const deleteByIngestRunPrefix = mutation({
+  args: {
+    writeSecret: v.optional(v.string()),
+    ingestRunIdPrefix: v.string(),
+  },
+  handler: async (ctx, args) => {
+    requireWriteSecret(args.writeSecret);
+    const prefix = args.ingestRunIdPrefix;
+    if (!prefix || !prefix.trim()) {
+      throw new Error("ingestRunIdPrefix required");
+    }
+    const rows = await ctx.db.query("research_signals").collect();
+    let deleted = 0;
+    for (const row of rows) {
+      if (typeof row.ingestRunId === "string" && row.ingestRunId.startsWith(prefix)) {
+        await ctx.db.delete(row._id);
+        deleted += 1;
+      }
+    }
+    return { deleted };
+  },
+});
+
 export const listByCompany = query({
   args: {
     writeSecret: v.optional(v.string()),
