@@ -111,7 +111,7 @@ describe('Sidebar reset navigation', () => {
     const { container } = render(<SettingsSidebar />)
 
     expectResetLinks(container, '/dev/resumes', 2)
-    expectPlainLink(container, '/dev/settings/blocks')
+    expectPlainLink(container, '/dev/settings/policies')
   })
 
   it('attaches resume reset state to system sidebar home links only', () => {

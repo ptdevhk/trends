@@ -8151,7 +8151,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Company signals */
+                /** @description Company signals (live-first, persona ranked) */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -8180,6 +8180,12 @@ export interface paths {
                                 capturedAt: number;
                                 ingestRunId?: string;
                             }[];
+                            meta: {
+                                liveCount: number;
+                                showcaseCount: number;
+                                /** @enum {boolean} */
+                                liveFirst: true;
+                            };
                         };
                     };
                 };
@@ -8249,7 +8255,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Operator trigger: proxy to worker research ingest */
+        /** Operator trigger: proxy to worker research ingest (workspace platform set) */
         post: {
             parameters: {
                 query?: never;
@@ -8271,6 +8277,47 @@ export interface paths {
                             started_at?: string;
                             finished_at?: string;
                             message: string;
+                            platforms?: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/research/signals/purge-demo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Delete synthetic demo-* research_signals (ops cleanup) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Purge result */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            deleted: number;
                         };
                     };
                 };
@@ -8417,6 +8464,7 @@ export interface paths {
                                 platform: string;
                                 url?: string;
                                 capturedAt: number;
+                                matchedKeywords?: string[];
                             }[];
                             meta: {
                                 lastIngest?: unknown;
@@ -8476,6 +8524,419 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/research/industry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** CNC-first industry-data browse (resolveEntity inventory → research keys) */
+        get: {
+            parameters: {
+                query?: {
+                    limit?: number | null;
+                    includeNonCnc?: boolean | null;
+                    q?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description CNC industry browse list (nameCn-first) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            items: {
+                                companyKey: string;
+                                nameCn: string;
+                                nameEn?: string;
+                                displayName: string;
+                                entityId: string;
+                                /** @enum {string} */
+                                kind: "brand" | "company" | "override";
+                                origin?: string;
+                                type?: string;
+                                aliases: string[];
+                                cnc: boolean;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/research/industry/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Map free-text surface to research companyKey (override + resolveEntity) */
+        get: {
+            parameters: {
+                query: {
+                    q: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Resolved research company or null */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            hit: {
+                                companyKey: string;
+                                nameCn: string;
+                                nameEn?: string;
+                                displayName: string;
+                                matchTier: string;
+                                entityId?: string;
+                                /** @enum {string} */
+                                source: "override" | "resolveEntity";
+                            } | null;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/research/pulse/keywords": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get research pulse keyword seed, workspace overlay, and effective list */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Pulse keywords state */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            seed: {
+                                version: string;
+                                groups: {
+                                    id: string;
+                                    label: string;
+                                    keywords: string[];
+                                }[];
+                                defaultKeywords: string[];
+                            };
+                            workspace: {
+                                /** @enum {number} */
+                                version: 1;
+                                enabled: string[];
+                                excluded: string[];
+                                custom: string[];
+                            };
+                            effective: string[];
+                        };
+                    };
+                };
+            };
+        };
+        /** Upsert workspace research pulse keyword overlay */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        enabled?: string[];
+                        excluded?: string[];
+                        custom?: string[];
+                    };
+                };
+            };
+            responses: {
+                /** @description Updated pulse keywords state */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            seed: {
+                                version: string;
+                                groups: {
+                                    id: string;
+                                    label: string;
+                                    keywords: string[];
+                                }[];
+                                defaultKeywords: string[];
+                            };
+                            workspace: {
+                                /** @enum {number} */
+                                version: 1;
+                                enabled: string[];
+                                excluded: string[];
+                                custom: string[];
+                            };
+                            effective: string[];
+                        };
+                    };
+                };
+                /** @description Validation error */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/research/pulse": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Keyword-filtered research pulse (市场动态) feed */
+        get: {
+            parameters: {
+                query?: {
+                    limit?: number | null;
+                    all?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Filtered or unfiltered pulse items */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            items: {
+                                title: string;
+                                platform: string;
+                                url?: string;
+                                capturedAt: number;
+                                matchedKeywords: string[];
+                                resolvedCompanies?: {
+                                    companyKey: string;
+                                    nameCn: string;
+                                    nameEn?: string;
+                                }[];
+                            }[];
+                            meta: {
+                                filtered: boolean;
+                                effectiveKeywords: string[];
+                                rawCount: number;
+                                matchedCount: number;
+                                keywordHits: {
+                                    keyword: string;
+                                    hitCount: number;
+                                    sampleTitles: string[];
+                                }[];
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/research/platforms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get research hotlist platform catalog, workspace overlay, and effective ingest set */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Hotlist platforms state */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            seed: {
+                                version: string;
+                                groups: {
+                                    id: string;
+                                    label: string;
+                                    platforms: {
+                                        id: string;
+                                        name: string;
+                                        expectedDomain?: string;
+                                    }[];
+                                }[];
+                                defaults: string[];
+                                catalogIds: string[];
+                            };
+                            workspace: {
+                                /** @enum {number} */
+                                version: 1;
+                                enabled: string[];
+                                excluded: string[];
+                            };
+                            effective: string[];
+                        };
+                    };
+                };
+            };
+        };
+        /** Upsert workspace research hotlist platform overlay (ingest set) */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        enabled?: string[];
+                        excluded?: string[];
+                    };
+                };
+            };
+            responses: {
+                /** @description Updated hotlist platforms state */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            seed: {
+                                version: string;
+                                groups: {
+                                    id: string;
+                                    label: string;
+                                    platforms: {
+                                        id: string;
+                                        name: string;
+                                        expectedDomain?: string;
+                                    }[];
+                                }[];
+                                defaults: string[];
+                                catalogIds: string[];
+                            };
+                            workspace: {
+                                /** @enum {number} */
+                                version: 1;
+                                enabled: string[];
+                                excluded: string[];
+                            };
+                            effective: string[];
+                        };
+                    };
+                };
+                /** @description Validation error */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -15427,7 +15888,7 @@ export interface components {
             status: "healthy" | "degraded" | "unhealthy";
             /** @example 2026-02-11T15:03:47+08:00 */
             timestamp: string;
-            /** @example 0.4.14 */
+            /** @example 0.4.15 */
             version?: string;
         };
         TrendsResponse: {

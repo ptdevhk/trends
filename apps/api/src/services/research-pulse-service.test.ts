@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const getWorkspaceConfigValueMock = vi.fn();
 const setWorkspaceConfigValueMock = vi.fn();
 const listResearchNewsMock = vi.fn();
+const resolveResearchCompanySurfaceMock = vi.fn();
 
 vi.mock("./workspace-config-service.js", () => ({
   workspaceConfigService: {
@@ -15,6 +16,10 @@ vi.mock("./workspace-config-service.js", () => ({
 
 vi.mock("./research-service.js", () => ({
   listResearchNews: (params: { limit?: number }) => listResearchNewsMock(params),
+}));
+
+vi.mock("./research-industry-bridge-service.js", () => ({
+  resolveResearchCompanySurface: (surface: string) => resolveResearchCompanySurfaceMock(surface),
 }));
 
 import {
@@ -33,6 +38,7 @@ describe("research-pulse-service", () => {
     getWorkspaceConfigValueMock.mockReset();
     setWorkspaceConfigValueMock.mockReset();
     listResearchNewsMock.mockReset();
+    resolveResearchCompanySurfaceMock.mockReset();
   });
 
   it("getPulseKeywordsState: no workspace config → effective = seed defaults", async () => {
@@ -95,6 +101,20 @@ describe("research-pulse-service", () => {
       excluded: [],
       custom: ["发那科"],
     });
+    resolveResearchCompanySurfaceMock.mockImplementation((surface: string) => {
+      if (surface === "发那科") {
+        return {
+          companyKey: "fanuc",
+          nameCn: "发那科",
+          nameEn: "FANUC",
+          displayName: "发那科 / FANUC",
+          matchTier: "brand",
+          entityId: "brand:fanuc",
+          source: "resolveEntity",
+        };
+      }
+      return null;
+    });
     listResearchNewsMock.mockResolvedValue([
       {
         _id: "1",
@@ -120,10 +140,19 @@ describe("research-pulse-service", () => {
     expect(filtered.meta.filtered).toBe(true);
     expect(filtered.meta.rawCount).toBe(2);
     expect(filtered.meta.matchedCount).toBe(1);
+    expect(filtered.meta.keywordHits).toEqual(
+      expect.arrayContaining([
+        { keyword: "发那科", hitCount: 1, sampleTitles: ["发那科扩产"] },
+        { keyword: "数控", hitCount: 0, sampleTitles: [] },
+      ]),
+    );
     expect(filtered.items).toHaveLength(1);
     expect(filtered.items[0]!.title).toBe("发那科扩产");
     expect(filtered.items[0]!.matchedKeywords).toContain("发那科");
     expect(filtered.items[0]!.url).toBe("https://example.com/1");
+    expect(filtered.items[0]!.resolvedCompanies).toEqual([
+      { companyKey: "fanuc", nameCn: "发那科", nameEn: "FANUC" },
+    ]);
 
     listResearchNewsMock.mockClear();
     listResearchNewsMock.mockResolvedValue([
@@ -148,8 +177,17 @@ describe("research-pulse-service", () => {
     const all = await getResearchPulse("hr", { limit: 12, all: true });
     expect(listResearchNewsMock).toHaveBeenCalledWith({ limit: 12 });
     expect(all.meta.filtered).toBe(false);
-    expect(all.meta.matchedCount).toBe(2);
+    expect(all.meta.matchedCount).toBe(1);
+    expect(all.meta.keywordHits).toEqual(
+      expect.arrayContaining([
+        { keyword: "发那科", hitCount: 1, sampleTitles: ["发那科扩产"] },
+      ]),
+    );
     expect(all.items).toHaveLength(2);
-    expect(all.items.every((i) => i.matchedKeywords.length === 0)).toBe(true);
+    expect(all.items[0]!.matchedKeywords).toEqual(["发那科", "扩产"]);
+    expect(all.items[0]!.resolvedCompanies).toEqual([
+      { companyKey: "fanuc", nameCn: "发那科", nameEn: "FANUC" },
+    ]);
+    expect(all.items[1]!.matchedKeywords).toEqual([]);
   });
 });

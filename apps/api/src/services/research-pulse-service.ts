@@ -1,10 +1,13 @@
 import { listResearchNews } from "./research-service.js";
+import { resolveResearchCompanySurface } from "./research-industry-bridge-service.js";
 import { workspaceConfigService } from "./workspace-config-service.js";
 import {
-  filterNewsByKeywords,
+  analyzeKeywordHits,
+  annotateNewsByKeywords,
   loadResearchPulseKeywordsSeed,
   mergePulseKeywords,
   parsePulseKeywordsWorkspace,
+  type PulseKeywordHit,
   type PulseKeywordsSeed,
   type PulseKeywordsWorkspaceValue,
   MAX_CUSTOM_KEYWORDS,
@@ -31,6 +34,11 @@ export type PulseNewsItem = {
   url?: string;
   capturedAt: number;
   matchedKeywords: string[];
+  resolvedCompanies?: Array<{
+    companyKey: string;
+    nameCn: string;
+    nameEn?: string;
+  }>;
 };
 
 export type ResearchPulseResult = {
@@ -40,6 +48,7 @@ export type ResearchPulseResult = {
     effectiveKeywords: string[];
     rawCount: number;
     matchedCount: number;
+    keywordHits: PulseKeywordHit[];
   };
 };
 
@@ -132,6 +141,11 @@ function mapPulseItem(n: {
   url?: string;
   capturedAt: number;
   matchedKeywords: string[];
+  resolvedCompanies?: Array<{
+    companyKey: string;
+    nameCn: string;
+    nameEn?: string;
+  }>;
 }): PulseNewsItem {
   return {
     title: n.title,
@@ -139,7 +153,28 @@ function mapPulseItem(n: {
     ...(n.url ? { url: n.url } : {}),
     capturedAt: n.capturedAt,
     matchedKeywords: n.matchedKeywords,
+    ...(n.resolvedCompanies?.length ? { resolvedCompanies: n.resolvedCompanies } : {}),
   };
+}
+
+function resolvePulseMatchedCompanies(
+  matchedKeywords: string[],
+): Array<{ companyKey: string; nameCn: string; nameEn?: string }> {
+  const seen = new Set<string>();
+  const resolved: Array<{ companyKey: string; nameCn: string; nameEn?: string }> = [];
+  for (const keyword of matchedKeywords) {
+    const hit = resolveResearchCompanySurface(keyword);
+    if (!hit || seen.has(hit.companyKey)) {
+      continue;
+    }
+    seen.add(hit.companyKey);
+    resolved.push({
+      companyKey: hit.companyKey,
+      nameCn: hit.nameCn,
+      ...(hit.nameEn ? { nameEn: hit.nameEn } : {}),
+    });
+  }
+  return resolved;
 }
 
 export async function getResearchPulse(
@@ -151,28 +186,32 @@ export async function getResearchPulse(
   const raw = await listResearchNews({ limit: opts.all ? limit : 100 });
   const sorted = [...raw].sort((a, b) => b.capturedAt - a.capturedAt);
   const rawCount = sorted.length;
+  const annotated = annotateNewsByKeywords(sorted, effective);
+  const hits = annotated.filter((item) => item.matchedKeywords.length > 0);
+  const keywordHits = analyzeKeywordHits(annotated, effective);
 
   if (opts.all) {
     return {
-      items: sorted.slice(0, limit).map((n) =>
+      items: annotated.slice(0, limit).map((n) =>
         mapPulseItem({
           title: n.title,
           platform: n.platform,
           url: n.url,
           capturedAt: n.capturedAt,
-          matchedKeywords: [],
+          matchedKeywords: n.matchedKeywords,
+          resolvedCompanies: resolvePulseMatchedCompanies(n.matchedKeywords),
         }),
       ),
       meta: {
         filtered: false,
         effectiveKeywords: effective,
         rawCount,
-        matchedCount: rawCount,
+        matchedCount: hits.length,
+        keywordHits,
       },
     };
   }
 
-  const hits = filterNewsByKeywords(sorted, effective);
   const sliced = hits.slice(0, limit);
   return {
     items: sliced.map((n) =>
@@ -182,6 +221,7 @@ export async function getResearchPulse(
         url: n.url,
         capturedAt: n.capturedAt,
         matchedKeywords: n.matchedKeywords,
+        resolvedCompanies: resolvePulseMatchedCompanies(n.matchedKeywords),
       }),
     ),
     meta: {
@@ -189,6 +229,7 @@ export async function getResearchPulse(
       effectiveKeywords: effective,
       rawCount,
       matchedCount: hits.length,
+      keywordHits,
     },
   };
 }

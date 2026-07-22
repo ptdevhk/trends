@@ -33,8 +33,8 @@ function presetLabel(preset: CompanyPolicyPreset, t: (key: string, options?: Rec
 
 function CompaniesTab() {
   const { t } = useTranslation()
-  const { workspaceSlug } = useWorkspace()
-  const teamSlug = workspaceSlug || 'hr'
+  const { slug } = useWorkspace()
+  const teamSlug = slug || 'hr'
   const {
     companies,
     policies,

@@ -28,7 +28,7 @@ describe('research-recent-companies', () => {
     const list = loadResearchRecentCompanies(s)
     expect(list).toHaveLength(8)
     expect(list[0]?.companyKey).toBe('k9')
-    expect(list.at(-1)?.companyKey).toBe('k2')
+    expect(list[list.length - 1]?.companyKey).toBe('k2')
   })
 
   it('moves existing key to front', () => {

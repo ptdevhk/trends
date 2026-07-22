@@ -17,6 +17,12 @@ export type PulseKeywordsWorkspaceValue = {
   custom: string[];
 };
 
+export type PulseKeywordHit = {
+  keyword: string;
+  hitCount: number;
+  sampleTitles: string[];
+};
+
 export function emptyPulseKeywordsWorkspace(): PulseKeywordsWorkspaceValue {
   return { version: 1, enabled: [], excluded: [], custom: [] };
 }
@@ -106,6 +112,44 @@ function keywordMatchesHaystack(haystack: string, keyword: string): boolean {
   return hayLower.includes(kwLower);
 }
 
+function normalizeActiveKeywords(keywords: string[]): string[] {
+  const unique: string[] = [];
+  const seen = new Set<string>();
+  for (const keyword of keywords) {
+    const trimmed = keyword.trim();
+    if (!trimmed) continue;
+    const normalized = normalizePulseKeyword(trimmed);
+    if (seen.has(normalized)) continue;
+    seen.add(normalized);
+    unique.push(trimmed);
+  }
+  return unique;
+}
+
+function matchedKeywordsForItem<T extends { title: string; rawSnippet?: string; snippet?: string }>(
+  item: T,
+  activeKeywords: string[],
+): string[] {
+  const haystack = haystackForItem(item);
+  const matchedKeywords: string[] = [];
+  for (const keyword of activeKeywords) {
+    if (keywordMatchesHaystack(haystack, keyword)) {
+      matchedKeywords.push(keyword);
+    }
+  }
+  return matchedKeywords;
+}
+
+export function annotateNewsByKeywords<
+  T extends { title: string; rawSnippet?: string; snippet?: string },
+>(items: T[], keywords: string[]): Array<T & { matchedKeywords: string[] }> {
+  const activeKeywords = normalizeActiveKeywords(keywords);
+  return items.map((item) => ({
+    ...item,
+    matchedKeywords: matchedKeywordsForItem(item, activeKeywords),
+  }));
+}
+
 /**
  * Filter news by keyword substring match (OR). Attaches matchedKeywords.
  * Sort/limit is the caller's responsibility (pulse service).
@@ -113,23 +157,53 @@ function keywordMatchesHaystack(haystack: string, keyword: string): boolean {
 export function filterNewsByKeywords<
   T extends { title: string; rawSnippet?: string; snippet?: string },
 >(items: T[], keywords: string[]): Array<T & { matchedKeywords: string[] }> {
-  const active = keywords.map((k) => k.trim()).filter((k) => k.length > 0);
-  if (active.length === 0) {
-    return [];
-  }
+  return annotateNewsByKeywords(items, keywords).filter((item) => item.matchedKeywords.length > 0);
+}
 
-  const hits: Array<T & { matchedKeywords: string[] }> = [];
+export function analyzeKeywordHits<
+  T extends {
+    title: string;
+    rawSnippet?: string;
+    snippet?: string;
+    matchedKeywords?: string[];
+  },
+>(
+  items: T[],
+  keywords: string[],
+  opts: { sampleLimit?: number } = {},
+): PulseKeywordHit[] {
+  const activeKeywords = normalizeActiveKeywords(keywords);
+  const sampleLimit = Math.max(0, opts.sampleLimit ?? 2);
+  const entries = activeKeywords.map((keyword) => ({
+    keyword,
+    hitCount: 0,
+    sampleTitles: [] as string[],
+  }));
+  const indexByKeyword = new Map(entries.map((entry) => [normalizePulseKeyword(entry.keyword), entry]));
+
   for (const item of items) {
-    const haystack = haystackForItem(item);
-    const matchedKeywords: string[] = [];
-    for (const kw of active) {
-      if (keywordMatchesHaystack(haystack, kw)) {
-        matchedKeywords.push(kw);
+    const matchedKeywords = Array.isArray(item.matchedKeywords)
+      ? activeKeywords.filter((keyword) =>
+          item.matchedKeywords!.some(
+            (candidate) => normalizePulseKeyword(candidate) === normalizePulseKeyword(keyword),
+          ),
+        )
+      : matchedKeywordsForItem(item, activeKeywords);
+
+    for (const keyword of matchedKeywords) {
+      const entry = indexByKeyword.get(normalizePulseKeyword(keyword));
+      if (!entry) continue;
+      entry.hitCount += 1;
+      const title = item.title.trim();
+      if (
+        title &&
+        entry.sampleTitles.length < sampleLimit &&
+        !entry.sampleTitles.includes(title)
+      ) {
+        entry.sampleTitles.push(title);
       }
     }
-    if (matchedKeywords.length > 0) {
-      hits.push({ ...item, matchedKeywords });
-    }
   }
-  return hits;
+
+  return entries;
 }

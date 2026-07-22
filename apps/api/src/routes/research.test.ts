@@ -60,6 +60,132 @@ type ConvexCall = {
   args: Record<string, unknown>;
 };
 
+type ResearchSignalItem = {
+  kind: string;
+  ingestRunId?: string;
+  evidence: {
+    platform: string;
+    url?: string;
+  };
+};
+
+type ResearchSignalsResponse = {
+  success: boolean;
+  persona: string;
+  items: ResearchSignalItem[];
+  meta: {
+    liveCount: number;
+    showcaseCount: number;
+    liveFirst: boolean;
+  };
+};
+
+type PurgeDemoResponse = {
+  success: boolean;
+  deleted: number;
+};
+
+type ResearchIngestRunResponse = {
+  run: {
+    runId: string;
+    newsInserted?: number;
+  } | null;
+};
+
+type ResearchParityResponse = {
+  parity: {
+    parityRunId: string;
+    greenStreak: number;
+  } | null;
+};
+
+type ResearchShowcaseCompany = {
+  companyKey: string;
+  signalCount: number;
+};
+
+type ResearchShowcaseResponse = {
+  success: boolean;
+  golden: ResearchShowcaseCompany[];
+  fromResumeDesk: ResearchShowcaseCompany[];
+  pulse: Array<Record<string, unknown>>;
+};
+
+type ResearchShowcaseSeedResponse = {
+  success: boolean;
+  signalsUpserted: number;
+  signalsCreated: number;
+  seedIngestRunId: string;
+};
+
+type ResearchIndustryItem = {
+  companyKey: string;
+  nameCn: string;
+  nameEn?: string;
+  displayName: string;
+};
+
+type ResearchIndustryResponse = {
+  success: boolean;
+  items: ResearchIndustryItem[];
+};
+
+type ResearchIndustryResolveResponse = {
+  hit: {
+    companyKey: string;
+  } | null;
+};
+
+type ResearchPulseKeywordsResponse = {
+  success: boolean;
+  seed: {
+    groups: Array<Record<string, unknown>>;
+    defaultKeywords: string[];
+  };
+  workspace: {
+    custom: string[];
+  };
+  effective: string[];
+};
+
+type ResearchPulseItem = {
+  matchedKeywords: string[];
+  resolvedCompanies?: Array<{
+    companyKey: string;
+    nameCn: string;
+    nameEn?: string;
+  }>;
+};
+
+type ResearchPulseResponse = {
+  items: ResearchPulseItem[];
+  meta: {
+    filtered: boolean;
+    keywordHits: Array<{
+      keyword: string;
+      hitCount: number;
+      sampleTitles: string[];
+    }>;
+  };
+};
+
+type ResearchPlatformsResponse = {
+  success: boolean;
+  seed: {
+    groups: Array<Record<string, unknown>>;
+  };
+  workspace: {
+    enabled?: string[];
+    excluded?: string[];
+  };
+  effective: string[];
+};
+
+type ResearchIngestTriggerResponse = {
+  mode: string;
+  platforms: string[];
+};
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -178,7 +304,7 @@ describe("research routes", () => {
       { headers: auth.headers },
     );
     expect(response.status).toBe(200);
-    const body = await parseJsonBody(response);
+    const body = await parseJsonBody<ResearchSignalsResponse>(response);
     expect(body.success).toBe(true);
     expect(body.persona).toBe("hr");
     expect(body.items[0].kind).toBe("hiring_signal");
@@ -230,7 +356,7 @@ describe("research routes", () => {
       headers: auth.headers,
     });
     expect(response.status).toBe(200);
-    const body = await parseJsonBody(response);
+    const body = await parseJsonBody<ResearchSignalsResponse>(response);
     expect(body.meta.liveCount).toBe(1);
     expect(body.meta.showcaseCount).toBe(1);
     expect(body.meta.liveFirst).toBe(true);
@@ -262,7 +388,7 @@ describe("research routes", () => {
       headers: auth.headers,
     });
     expect(response.status).toBe(200);
-    const body = await parseJsonBody(response);
+    const body = await parseJsonBody<PurgeDemoResponse>(response);
     expect(body.success).toBe(true);
     expect(body.deleted).toBe(3);
     expect(calls.some((c) => c.pathName === "research_signals:deleteByIngestRunPrefix")).toBe(
@@ -328,7 +454,7 @@ describe("research routes", () => {
       { headers: auth.headers },
     );
     expect(response.status).toBe(200);
-    const body = await parseJsonBody(response);
+    const body = await parseJsonBody<ResearchSignalsResponse>(response);
     expect(body.meta.liveCount).toBe(1);
     expect(body.meta.showcaseCount).toBe(1);
     expect(body.items.length).toBe(2);
@@ -376,7 +502,7 @@ describe("research routes", () => {
       headers: auth.headers,
     });
     expect(response.status).toBe(200);
-    const body = await parseJsonBody(response);
+    const body = await parseJsonBody<ResearchIngestTriggerResponse>(response);
     expect(body.mode).toBe("research-ingest");
     expect(body.platforms).toEqual(["weibo", "cls-hot"]);
     expect(platformMocks.getHotlistPlatformsState).toHaveBeenCalledWith("hr");
@@ -405,7 +531,11 @@ describe("research routes", () => {
     const app = createApp();
     const response = await app.request("/api/research/ingest/latest", { headers: auth.headers });
     expect(response.status).toBe(200);
-    const body = await parseJsonBody(response);
+    const body = await parseJsonBody<ResearchIngestRunResponse>(response);
+    expect(body.run).toBeTruthy();
+    if (!body.run) {
+      throw new Error("Expected latest ingest run");
+    }
     expect(body.run.runId).toBe("run-9");
     expect(body.run.newsInserted).toBe(2);
   });
@@ -422,7 +552,11 @@ describe("research routes", () => {
     const app = createApp();
     const response = await app.request("/api/research/parity", { headers: auth.headers });
     expect(response.status).toBe(200);
-    const body = await parseJsonBody(response);
+    const body = await parseJsonBody<ResearchParityResponse>(response);
+    expect(body.parity).toBeTruthy();
+    if (!body.parity) {
+      throw new Error("Expected parity payload");
+    }
     expect(body.parity.parityRunId).toBe("p1");
     expect(body.parity.greenStreak).toBe(2);
   });
@@ -460,7 +594,7 @@ describe("research routes", () => {
     const app = createApp();
     const response = await app.request("/api/research/showcase", { headers: auth.headers });
     expect(response.status).toBe(200);
-    const body = await parseJsonBody(response);
+    const body = await parseJsonBody<ResearchShowcaseResponse>(response);
     expect(body.success).toBe(true);
     expect(body.golden[0].companyKey).toBe("pro-technic-machinery");
     expect(body.golden[0].signalCount).toBe(2);
@@ -486,7 +620,7 @@ describe("research routes", () => {
       headers: auth.headers,
     });
     expect(response.status).toBe(200);
-    const body = await parseJsonBody(response);
+    const body = await parseJsonBody<ResearchShowcaseSeedResponse>(response);
     expect(body.success).toBe(true);
     expect(body.signalsUpserted).toBe(12);
     expect(body.signalsCreated).toBe(12);
@@ -501,7 +635,7 @@ describe("research routes", () => {
       headers: auth.headers,
     });
     expect(response.status).toBe(200);
-    const body = await parseJsonBody(response);
+    const body = await parseJsonBody<ResearchIndustryResponse>(response);
     expect(body.success).toBe(true);
     expect(Array.isArray(body.items)).toBe(true);
     expect(body.items.length).toBeGreaterThan(5);
@@ -510,9 +644,15 @@ describe("research routes", () => {
       (i: { companyKey: string }) => i.companyKey === "pro-technic-machinery",
     );
     expect(fanuc).toBeTruthy();
+    if (!fanuc) {
+      throw new Error("Expected fanuc industry row");
+    }
     expect(fanuc.nameCn).toBe("发那科");
     expect(String(fanuc.displayName).startsWith("发那科")).toBe(true);
     expect(pro).toBeTruthy();
+    if (!pro) {
+      throw new Error("Expected pro-technic-machinery industry row");
+    }
     expect(pro.nameCn).toBe("宝力机械");
   });
 
@@ -524,7 +664,7 @@ describe("research routes", () => {
       { headers: auth.headers },
     );
     expect(response.status).toBe(200);
-    const body = await parseJsonBody(response);
+    const body = await parseJsonBody<ResearchIndustryResponse>(response);
     expect(body.items.some((i: { companyKey: string }) => i.companyKey === "fanuc")).toBe(true);
     for (const item of body.items) {
       const hay = `${item.companyKey} ${item.nameCn} ${item.nameEn ?? ""}`.toLowerCase();
@@ -540,7 +680,7 @@ describe("research routes", () => {
       { headers: auth.headers },
     );
     expect(r1.status).toBe(200);
-    const b1 = await parseJsonBody(r1);
+    const b1 = await parseJsonBody<ResearchIndustryResolveResponse>(r1);
     expect(b1.hit?.companyKey).toBe("fanuc");
 
     const r2 = await app.request(
@@ -548,7 +688,7 @@ describe("research routes", () => {
       { headers: auth.headers },
     );
     expect(r2.status).toBe(200);
-    const b2 = await parseJsonBody(r2);
+    const b2 = await parseJsonBody<ResearchIndustryResolveResponse>(r2);
     expect(b2.hit?.companyKey).toBe("pro-technic-machinery");
   });
 
@@ -560,7 +700,7 @@ describe("research routes", () => {
       headers: auth.headers,
     });
     expect(response.status).toBe(200);
-    const body = await parseJsonBody(response);
+    const body = await parseJsonBody<ResearchPulseKeywordsResponse>(response);
     expect(body.success).toBe(true);
     expect(body.effective).toEqual(["数控", "发那科"]);
     expect(body.seed.defaultKeywords).toContain("数控");
@@ -581,7 +721,7 @@ describe("research routes", () => {
       body: JSON.stringify({ custom: ["刀塔"] }),
     });
     expect(response.status).toBe(200);
-    const body = await parseJsonBody(response);
+    const body = await parseJsonBody<ResearchPulseKeywordsResponse>(response);
     expect(body.success).toBe(true);
     expect(body.workspace.custom).toEqual(["刀塔"]);
     expect(body.effective).toContain("刀塔");
@@ -651,10 +791,10 @@ describe("research routes", () => {
       headers: auth.headers,
     });
     expect(filtered.status).toBe(200);
-    const filteredBody = await parseJsonBody(filtered);
+    const filteredBody = await parseJsonBody<ResearchPulseResponse>(filtered);
     expect(filteredBody.meta.filtered).toBe(true);
     expect(filteredBody.items[0].matchedKeywords).toContain("发那科");
-    expect(filteredBody.items[0].resolvedCompanies[0]).toEqual({
+    expect(filteredBody.items[0]?.resolvedCompanies?.[0]).toEqual({
       companyKey: "fanuc",
       nameCn: "发那科",
       nameEn: "FANUC",
@@ -673,7 +813,7 @@ describe("research routes", () => {
       headers: auth.headers,
     });
     expect(all.status).toBe(200);
-    const allBody = await parseJsonBody(all);
+    const allBody = await parseJsonBody<ResearchPulseResponse>(all);
     expect(allBody.meta.filtered).toBe(false);
     expect(allBody.items.length).toBe(2);
     expect(allBody.meta.keywordHits[0].hitCount).toBe(1);
@@ -697,7 +837,7 @@ describe("research routes", () => {
       headers: auth.headers,
     });
     expect(response.status).toBe(200);
-    const body = await parseJsonBody(response);
+    const body = await parseJsonBody<ResearchPlatformsResponse>(response);
     expect(body.success).toBe(true);
     expect(body.effective).toContain("weibo");
     expect(body.seed.groups.length).toBeGreaterThan(0);
@@ -718,7 +858,7 @@ describe("research routes", () => {
       body: JSON.stringify({ enabled: ["weibo", "cls-hot"], excluded: [] }),
     });
     expect(response.status).toBe(200);
-    const body = await parseJsonBody(response);
+    const body = await parseJsonBody<ResearchPlatformsResponse>(response);
     expect(body.success).toBe(true);
     expect(body.effective).toEqual(["weibo", "cls-hot"]);
     expect(platformMocks.putHotlistPlatforms).toHaveBeenCalledWith("hr", {

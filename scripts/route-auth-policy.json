@@ -91,6 +91,10 @@
     "class": "workspace-read",
     "reason": "The operational resume list route uses workspace permission checks so hr can grant anonymous/everyone resume:search while operational overlays stay authenticated."
   },
+  "research.ts": {
+    "class": "workspace-write",
+    "reason": "Research news, pulse, showcase, industry browse, and operator trigger routes are gated through requireWorkspaceUser on the /api/research namespace."
+  },
   "rss.ts": {
     "class": "public",
     "reason": "RSS routes expose public feed data."

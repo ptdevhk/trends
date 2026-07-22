@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { resolve } from "node:path";
 import {
+  analyzeKeywordHits,
   emptyPulseKeywordsWorkspace,
   filterNewsByKeywords,
   loadResearchPulseKeywordsSeed,
@@ -99,5 +100,40 @@ describe("research-pulse-keywords", () => {
     const hits = filterNewsByKeywords(items, ["fanuc"]);
     expect(hits).toHaveLength(1);
     expect(hits[0]!.matchedKeywords).toEqual(["fanuc"]);
+  });
+
+  it("analyzeKeywordHits returns counts in input order with capped sample titles", () => {
+    const items = [
+      { title: "发那科推进加工中心扩产", platform: "weibo", capturedAt: 3 },
+      { title: "牧野机床订单增加", platform: "zhihu", capturedAt: 2 },
+      { title: "发那科新工厂招聘", platform: "news", capturedAt: 1 },
+    ];
+
+    const hits = analyzeKeywordHits(items, ["发那科", "加工中心", "牧野", "数控"], {
+      sampleLimit: 1,
+    });
+
+    expect(hits).toEqual([
+      {
+        keyword: "发那科",
+        hitCount: 2,
+        sampleTitles: ["发那科推进加工中心扩产"],
+      },
+      {
+        keyword: "加工中心",
+        hitCount: 1,
+        sampleTitles: ["发那科推进加工中心扩产"],
+      },
+      {
+        keyword: "牧野",
+        hitCount: 1,
+        sampleTitles: ["牧野机床订单增加"],
+      },
+      {
+        keyword: "数控",
+        hitCount: 0,
+        sampleTitles: [],
+      },
+    ]);
   });
 });

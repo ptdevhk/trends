@@ -103,6 +103,16 @@ export const MUTATIONS_REGISTRY: MutationRegistryEntry[] = [
     { file: "job_descriptions.ts", name: "delete_jd", quiesceAware: true, reason: "Blocked by BFF middleware" },
     { file: "job_descriptions.ts", name: "delete_batch", quiesceAware: true, reason: "Blocked by BFF middleware" },
 
+    { file: "research_news.ts", name: "upsertItem", quiesceAware: true, reason: "Showcase seed is blocked by BFF middleware; scheduled research ingest skips during maintenance via apps/worker/tasks.py" },
+
+    { file: "research_ops.ts", name: "startIngestRun", quiesceAware: true, reason: "Research ingest and parity writers run only after the worker maintenance-mode check" },
+    { file: "research_ops.ts", name: "finishIngestRun", quiesceAware: true, reason: "Research ingest and parity writers run only after the worker maintenance-mode check" },
+    { file: "research_ops.ts", name: "recordParityRun", quiesceAware: true, reason: "Research ingest and parity writers run only after the worker maintenance-mode check" },
+
+    { file: "research_signals.ts", name: "upsert", quiesceAware: true, reason: "Showcase seed is blocked by BFF middleware; scheduled research ingest skips during maintenance via apps/worker/tasks.py" },
+    { file: "research_signals.ts", name: "deleteByCompanyIngestRunPrefix", quiesceAware: true, reason: "Showcase cleanup is only reachable through BFF-maintained research seed flows" },
+    { file: "research_signals.ts", name: "deleteByIngestRunPrefix", quiesceAware: true, reason: "Demo purge is only reachable through BFF-maintained research ops routes" },
+
     { file: "resume_tasks.ts", name: "claim", quiesceAware: true, reason: "Blocked by BFF middleware" },
     { file: "resume_tasks.ts", name: "heartbeat", quiesceAware: true, reason: "Blocked by BFF middleware" },
     { file: "resume_tasks.ts", name: "failStalePending", quiesceAware: true, reason: "Blocked by BFF middleware" },

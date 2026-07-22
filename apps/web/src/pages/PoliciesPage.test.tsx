@@ -26,6 +26,12 @@ vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }))
 
+vi.mock('@/contexts/WorkspaceContext', () => ({
+  useWorkspace: () => ({
+    slug: 'hr',
+  }),
+}))
+
 import { PoliciesPage } from './PoliciesPage'
 
 function renderPolicies(initialEntry = '/hr/settings/policies') {
