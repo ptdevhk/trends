@@ -1,6 +1,6 @@
 ---
-version: 9
-updated_at: '2026-04-15'
+version: 10
+updated_at: '2026-07-23'
 description: >
   English locale variant for the resume skills knowledge.
   Maintained alongside the zh-Hans canonical source for localized authoring.
@@ -34,12 +34,11 @@ Skills are organized by domain tags. Each domain includes a canonical tag, displ
 
 Maps variant terms to canonical forms for search expansion and matching normalization.
 
-- 机床: 机械设备, 加工设备, machine tools, cnc machine, cnc machines, precision machinery
 - 车床: CNC车床, 数控车床, cnc lathe
 - 加工中心: machining center, machining-center, vertical machining center, horizontal machining center, 加工设备, machine tool, precision machining
 - 五轴: 5-axis, 五轴联动
 - 夹具: 治具, fixture
-- 数控: CNC, Computer Numerical Control, 数控加工
+- 数控: CNC, Computer Numerical Control, 数控加工, 机床, 机械设备, 加工设备, machine tools, cnc machine, cnc machines, precision machinery, 机械, 创世纪, 津上, tsugami, 冈本, okamoto
 - 销售: 业务, 商务, 销售员
 - 销售工程师: sales engineer, technical sales, technical sales engineer, 售前销售, 技术销售
 - 销售经理: sales manager, regional sales manager, territory sales manager
