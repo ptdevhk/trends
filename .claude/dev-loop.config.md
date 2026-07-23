@@ -364,7 +364,7 @@ ci_discovery: runtime
 notes:
   stack: Monorepo — React+Vite (web), Hono+OpenAPI (api), FastAPI (worker), Convex (data)
   deploy: production deploys via `make on-prod-deploy` on prod host (`SSH_HOST`, defaults to `ptcloud`) after `make on-prod-deploy-check`
-  prod_pin: "ptcloud prod is PINNED to tag v0.4.6-hotfix (commit 4ce93b90). DO NOT deploy main — auth (#1259-#1263), public sharing (#1254-#1257), and Phase 4 resume_analyses (#1264-#1290) are NOT production-ready. Run `git describe --tags` after any deploy to verify pin. See memory/prod-pinned-v046-hotfix.md for full details."
+  prod_pin: "ptcloud prod is PINNED to tag v0.4.16 (commit 64fa1dfb). Keep production on the exact tagged commit, not main. Run `git describe --tags --exact-match HEAD` after any deploy to verify the pin."
   config_docs: CLAUDE.md is canonical; AGENTS.md is symlink
   planning: EnterPlanMode gated — TDD-first pipeline uses superpowers:writing-plans for plan, then superpowers:test-driven-development for execute
   gotchas:
