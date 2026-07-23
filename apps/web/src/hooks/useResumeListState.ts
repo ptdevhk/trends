@@ -4,6 +4,7 @@ import {
   buildWorkHistoryEntryText,
   deriveMarketFromSourceKey,
   formatKeywordQuery,
+  isCompanyWorkflowBlocked,
   isLocationMatch,
   selectLatestWorkHistory,
 } from '@trends/shared'
@@ -24,6 +25,7 @@ import { useAnalysisTasks } from '@/contexts/AnalysisTasksContext'
 import { useCandidateActions } from '@/hooks/useCandidateActions'
 import { useCandidateBlocks } from '@/hooks/useCandidateBlocks'
 import { useCandidateStatus, type CandidateStatusRecord } from '@/hooks/useCandidateStatus'
+import { matchResumeCompanyPolicyCached } from '@/hooks/useCompanyPolicyIndex'
 import {
   areKeywordListsEqual,
   areUrlFiltersEqual,
@@ -1537,8 +1539,6 @@ export function useResumeListState(loadSearchHistory = false) {
       try {
         let entriesForAction = selectedEntries
         if (action === 'shortlist') {
-          const { matchResumeCompanyPolicyCached } = await import('@/hooks/useCompanyPolicyIndex')
-          const { isCompanyWorkflowBlocked } = await import('@trends/shared')
           const allowed = selectedEntries.filter((entry) => {
             const ingest = hasIngestData(entry.resume) ? entry.resume.ingestData : undefined
             const hits = matchResumeCompanyPolicyCached({

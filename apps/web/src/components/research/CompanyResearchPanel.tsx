@@ -37,6 +37,7 @@ export type SignalsMeta = {
   liveFirst?: boolean
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- exported constant shared by page filters and tests
 export const RESEARCH_SIGNAL_KINDS = [
   'hiring_signal',
   'sales_trigger',

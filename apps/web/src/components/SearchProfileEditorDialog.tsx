@@ -232,6 +232,7 @@ function normalizeSourcePriority(value: number | undefined): string {
  * DEFAULT_SOURCES_FORM.job5156Enabled (true). New-profile create still uses
  * DEFAULT_SOURCES_FORM directly; edit hydration must mirror stored data.
  */
+// eslint-disable-next-line react-refresh/only-export-components -- exported pure helper reused by tests
 export function toSourcesFormState(sources: SearchProfileSource[] | undefined): SourceFormState {
     if (!Array.isArray(sources) || sources.length === 0) {
         return DEFAULT_SOURCES_FORM
@@ -314,6 +315,7 @@ function splitKnownSources(sources: SearchProfileSource[] | undefined): {
  * not re-apply create defaults. Additional (secondary seek / unknown) sources
  * are preserved verbatim ahead of the known rows.
  */
+// eslint-disable-next-line react-refresh/only-export-components -- exported pure helper reused by tests
 export function buildSourcesPayload(sourceForm: SourceFormState, additionalSources: SearchProfileSource[]): SearchProfileSource[] {
     const sources: SearchProfileSource[] = [...additionalSources]
 

@@ -1,4 +1,4 @@
-import { deriveMarketFromSourceKey, formatKeywordQuery, isSalesRequiredContext, parseKeywordQuery, resolveLocationHierarchy } from '@trends/shared'
+import { deriveMarketFromSourceKey, formatKeywordQuery, isCompanyWorkflowBlocked, isSalesRequiredContext, parseKeywordQuery, resolveLocationHierarchy } from '@trends/shared'
 import { matchesSalaryFilter } from '@/hooks/resume-filter-helpers'
 import { useMutation, useQuery } from 'convex/react'
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, useTransition } from 'react'
@@ -12,6 +12,7 @@ import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { useCandidateActions } from '@/hooks/useCandidateActions'
 import { useCandidateBlocks } from '@/hooks/useCandidateBlocks'
 import { useCandidateStatus } from '@/hooks/useCandidateStatus'
+import { matchResumeCompanyPolicyCached } from '@/hooks/useCompanyPolicyIndex'
 
 import { useStableQuery } from '@/hooks/useStableQuery'
 import {
@@ -1979,8 +1980,6 @@ export function useResumeSearchState() {
       }
 
       if (action === 'shortlist' || action === 'star') {
-        const { matchResumeCompanyPolicyCached } = await import('@/hooks/useCompanyPolicyIndex')
-        const { isCompanyWorkflowBlocked } = await import('@trends/shared')
         const allowed = selectedItems.filter((item) => {
           const hits = matchResumeCompanyPolicyCached({
             workHistory: item.resume.workHistory,

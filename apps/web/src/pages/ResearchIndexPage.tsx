@@ -42,6 +42,8 @@ type ShowcaseCompanyCard = {
   href: string
 }
 
+const EMPTY_SHOWCASE_CARDS: ShowcaseCompanyCard[] = []
+
 type ShowcaseResponse = {
   success: boolean
   golden?: ShowcaseCompanyCard[]
@@ -95,6 +97,8 @@ type PulseKeywordHit = {
   hitCount: number
   sampleTitles: string[]
 }
+
+const EMPTY_PULSE_KEYWORD_HITS: PulseKeywordHit[] = []
 
 type PulseResponse = {
   success: boolean
@@ -433,8 +437,8 @@ export function ResearchIndexPage() {
     setItems(Array.isArray(data.items) ? data.items : [])
   }, [q, t])
 
-  const golden = showcase?.golden ?? []
-  const fromDesk = showcase?.fromResumeDesk ?? []
+  const golden = showcase?.golden ?? EMPTY_SHOWCASE_CARDS
+  const fromDesk = showcase?.fromResumeDesk ?? EMPTY_SHOWCASE_CARDS
   const needsSeed =
     !showcaseLoading &&
     golden.every((c) => c.signalCount === 0) &&
@@ -452,7 +456,7 @@ export function ResearchIndexPage() {
     ? industry
     : industry.slice(0, INDUSTRY_PREVIEW_COUNT)
   const industryHiddenCount = Math.max(0, industry.length - INDUSTRY_PREVIEW_COUNT)
-  const keywordHits = pulseMeta?.keywordHits ?? []
+  const keywordHits = pulseMeta?.keywordHits ?? EMPTY_PULSE_KEYWORD_HITS
   const keywordHitMap = useMemo(
     () => new Map(keywordHits.map((entry) => [entry.keyword, entry])),
     [keywordHits],

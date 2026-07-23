@@ -41,6 +41,8 @@ export type HotlistPlatformsDialogProps = {
   onSave: (body: { enabled: string[]; excluded: string[] }) => void | Promise<void>
 }
 
+const EMPTY_PLATFORM_IDS: string[] = []
+
 /**
  * 数据源: multi-select NewsNow platform ids for workspace ingest set.
  * Save sends enabled = currently checked catalog ids (must be non-empty).
@@ -63,7 +65,7 @@ export function HotlistPlatformsDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
-  const catalogOrder = initial?.seed.catalogIds ?? []
+  const catalogOrder = initial?.seed.catalogIds ?? EMPTY_PLATFORM_IDS
 
   const toggle = (id: string, next: boolean) => {
     setChecked((prev) => {

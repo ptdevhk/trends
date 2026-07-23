@@ -35,6 +35,7 @@ const AuthContext = createContext<AuthState>({
   refresh: async () => {},
 })
 
+// eslint-disable-next-line react-refresh/only-export-components -- canonical context pattern: provider + hook
 export function useAuth() {
   return useContext(AuthContext)
 }

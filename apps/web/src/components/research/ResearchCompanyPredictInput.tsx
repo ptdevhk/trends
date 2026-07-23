@@ -67,9 +67,6 @@ export function ResearchCompanyPredictInput({
 }: Props) {
   const { t } = useTranslation()
   const routerNavigate = useNavigate()
-  const navigate = onNavigate ?? ((href: string) => {
-    routerNavigate(href)
-  })
 
   const [uncontrolledQ, setUncontrolledQ] = useState('')
   const isControlled = valueProp !== undefined
@@ -236,9 +233,10 @@ export function ResearchCompanyPredictInput({
       setFocused(false)
       setActiveIndex(-1)
       const href = `/${teamSlug}/research/${encodeURIComponent(hit.companyKey)}?persona=hr`
-      navigate(href)
+      const navigateTo = onNavigate ?? routerNavigate
+      navigateTo(href)
     },
-    [navigate, teamSlug],
+    [onNavigate, routerNavigate, teamSlug],
   )
 
   const activeOptionId =

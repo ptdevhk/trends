@@ -41,6 +41,7 @@ function formatRelativeTime(capturedAt: number): string | null {
 }
 
 /** True when title contains any highlight term (case-insensitive for ASCII). */
+// eslint-disable-next-line react-refresh/only-export-components -- exported pure helper reused by tests
 export function titleMatchesHighlight(title: string, terms: string[] | undefined): boolean {
   if (!terms || terms.length === 0) return false
   const lower = title.toLowerCase()
