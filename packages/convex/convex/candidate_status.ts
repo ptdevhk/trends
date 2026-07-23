@@ -57,6 +57,98 @@ function isResumeEligibleForNoteImport(
         || (typeof recordWorkspaceSlug === "string" && recordWorkspaceSlug.trim() === "");
 }
 
+function resolveNoteImportAnalysisRichness(
+    resume: Pick<Doc<"resumes">, "_id" | "analysis" | "analyses">,
+    activeAnalysis: Pick<Doc<"resume_analyses">, "analysis" | "analyses"> | null,
+): number {
+    const analysis = activeAnalysis?.analysis ?? resume.analysis;
+    const analyses = activeAnalysis?.analyses ?? resume.analyses;
+    let richness = 0;
+    if (analysis !== undefined) {
+        richness += 1;
+    }
+    if (analyses && typeof analyses === "object" && !Array.isArray(analyses)) {
+        richness += Object.keys(analyses).length;
+    }
+    return richness;
+}
+
+async function selectPreferredResumeForNoteImport(
+    ctx: MutationCtx,
+    workspaceSlug: string,
+    matches: Doc<"resumes">[],
+    preferredProfileIdentityKeys: ReadonlySet<string>,
+): Promise<Doc<"resumes"> | null> {
+    const eligible = matches.filter((resume) =>
+        isResumeEligibleForNoteImport(resume.workspaceSlug, workspaceSlug)
+    );
+    if (eligible.length === 0) {
+        return null;
+    }
+    if (eligible.length === 1) {
+        return eligible[0];
+    }
+
+    const activeRows = await Promise.all(
+        eligible.map((resume) =>
+            ctx.db
+                .query("resume_analyses")
+                .withIndex("by_resume", (q) => q.eq("resumeId", resume._id))
+                .unique(),
+        ),
+    );
+    const activeAnalysisByResumeId = new Map<string, Doc<"resume_analyses">>();
+    activeRows.forEach((row) => {
+        if (row && row.status !== "archived") {
+            activeAnalysisByResumeId.set(row.resumeId, row);
+        }
+    });
+
+    return [...eligible].sort((left, right) => {
+        const leftMatchesPreferredProfile = left.identityKey
+            ? preferredProfileIdentityKeys.has(left.identityKey)
+            : false;
+        const rightMatchesPreferredProfile = right.identityKey
+            ? preferredProfileIdentityKeys.has(right.identityKey)
+            : false;
+        if (leftMatchesPreferredProfile !== rightMatchesPreferredProfile) {
+            return rightMatchesPreferredProfile ? 1 : -1;
+        }
+
+        const leftAnalysisRichness = resolveNoteImportAnalysisRichness(
+            left,
+            activeAnalysisByResumeId.get(String(left._id)) ?? null,
+        );
+        const rightAnalysisRichness = resolveNoteImportAnalysisRichness(
+            right,
+            activeAnalysisByResumeId.get(String(right._id)) ?? null,
+        );
+        if (leftAnalysisRichness !== rightAnalysisRichness) {
+            return rightAnalysisRichness - leftAnalysisRichness;
+        }
+
+        const leftIsWorkspaceScoped = belongsToWorkspace(left.workspaceSlug, workspaceSlug);
+        const rightIsWorkspaceScoped = belongsToWorkspace(right.workspaceSlug, workspaceSlug);
+        if (leftIsWorkspaceScoped !== rightIsWorkspaceScoped) {
+            return rightIsWorkspaceScoped ? 1 : -1;
+        }
+
+        const leftCrawledAt = typeof left.crawledAt === "number" ? left.crawledAt : 0;
+        const rightCrawledAt = typeof right.crawledAt === "number" ? right.crawledAt : 0;
+        if (leftCrawledAt !== rightCrawledAt) {
+            return rightCrawledAt - leftCrawledAt;
+        }
+
+        const leftPrimaryRuleScore = typeof left.primaryRuleScore === "number" ? left.primaryRuleScore : -1;
+        const rightPrimaryRuleScore = typeof right.primaryRuleScore === "number" ? right.primaryRuleScore : -1;
+        if (leftPrimaryRuleScore !== rightPrimaryRuleScore) {
+            return rightPrimaryRuleScore - leftPrimaryRuleScore;
+        }
+
+        return String(left._id).localeCompare(String(right._id));
+    })[0];
+}
+
 /**
  * Resolve a resume for HR feedback import after restore.
  * Portable restore re-mints Convex document IDs, so export CSV "Resume ID"
@@ -86,6 +178,11 @@ async function resolveResumeForNoteImport(
         externalId: (/^\d{6,}$/.test(resumeId) ? resumeId : "unknown"),
         source: undefined,
     });
+    const preferredProfileIdentityKeys = new Set(
+        aliases.profileUrlKeys.filter((identityKey) =>
+            identityKey.length > 0 && identityKey !== "externalId:unknown"
+        ),
+    );
 
     const externalCandidates = new Set<string>();
     for (const value of aliases.externalIds) {
@@ -114,11 +211,14 @@ async function resolveResumeForNoteImport(
             .query("resumes")
             .withIndex("by_externalId", (q) => q.eq("externalId", externalId))
             .collect();
-        const inWorkspace = matches.find((resume) =>
-            isResumeEligibleForNoteImport(resume.workspaceSlug, workspaceSlug)
+        const preferred = await selectPreferredResumeForNoteImport(
+            ctx,
+            workspaceSlug,
+            matches,
+            preferredProfileIdentityKeys,
         );
-        if (inWorkspace) {
-            return inWorkspace;
+        if (preferred) {
+            return preferred;
         }
     }
 
@@ -130,11 +230,14 @@ async function resolveResumeForNoteImport(
             .query("resumes")
             .withIndex("by_identityKey", (q) => q.eq("identityKey", identityKey))
             .collect();
-        const inWorkspace = matches.find((resume) =>
-            isResumeEligibleForNoteImport(resume.workspaceSlug, workspaceSlug)
+        const preferred = await selectPreferredResumeForNoteImport(
+            ctx,
+            workspaceSlug,
+            matches,
+            preferredProfileIdentityKeys,
         );
-        if (inWorkspace) {
-            return inWorkspace;
+        if (preferred) {
+            return preferred;
         }
     }
 

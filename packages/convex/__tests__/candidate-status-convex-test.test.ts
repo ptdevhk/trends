@@ -3,7 +3,7 @@
  *
  * Covers: list, listForBackup, getByIdentity, upsert (insert + update + history).
  */
-import { createTest } from "./test-helpers.js";
+import { createTest, seedResumeAnalysesColdRow } from "./test-helpers.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../convex/_generated/api.js";
 
@@ -1001,6 +1001,112 @@ describe("candidate_status: importNotesBatch", () => {
       identityKey: `profileUrl:ehire.51job.com/revision/talent/resume/detail?contenttype=&resumeid=${externalId}`,
     });
     expect(status?.notes).toBe("半导体，行业不匹配");
+  });
+
+  it("prefers the existing portable analyzed resume over a legacy duplicate when resolving by profile URL", async () => {
+    const t = createTest();
+    const profileUrl =
+      "https://ehire.51job.com/Revision/talent/resume/detail?contentType=&resumeId=250533275";
+    const portableIdentityKey =
+      "profileUrl:ehire.51job.com/revision/talent/resume/detail?contenttype=&resumeid=250533275";
+    const externalId = "250533275";
+
+    const legacyResumeId = await t.run(async (ctx) => {
+      return await ctx.db.insert("resumes", {
+        externalId,
+        content: { name: "Legacy Duplicate", profileUrl },
+        hash: "hash-legacy-duplicate",
+        tags: [],
+        crawledAt: 1_700_000_000_000,
+        source: "ehire.51job.com",
+        sourceKey: "ehire.51job.com",
+        workspaceSlug: "hr",
+      });
+    });
+    await t.mutation(api.resumes_search.upsertResumeDigestForTest, { resumeId: legacyResumeId });
+
+    const portableResumeId = await t.run(async (ctx) => {
+      return await ctx.db.insert("resumes", {
+        externalId,
+        identityKey: portableIdentityKey,
+        content: { name: "Portable Canonical", profileUrl },
+        hash: "hash-portable-canonical",
+        tags: [],
+        crawledAt: 1_699_000_000_000,
+        source: "ehire.51job.com",
+        sourceKey: "ehire.51job.com",
+        workspaceSlug: "hr",
+      });
+    });
+    await seedResumeAnalysesColdRow(t, portableResumeId, {
+      analysis: {
+        score: 88,
+        summary: "Keep the analyzed canonical duplicate",
+        highlights: ["CNC sales background"],
+        recommendation: "match",
+      },
+    });
+    await t.mutation(api.resumes_search.upsertResumeDigestForTest, { resumeId: portableResumeId });
+
+    const result = await t.mutation(api.candidate_status.importNotesBatch, {
+      workspaceSlug: "hr",
+      items: [{
+        resumeId: "k172ydnrexaqrhq66myhqqd1r18885k3",
+        profileUrl,
+        comments: "半导体，行业不匹配",
+      }],
+      writeSecret: WRITE_SECRET,
+    });
+
+    expect(result).toMatchObject({
+      requested: 1,
+      applied: 1,
+      notFound: 0,
+      results: [{
+        identityKey: portableIdentityKey,
+        outcome: "applied",
+      }],
+    });
+
+    const state = await t.run(async (ctx) => ({
+      legacyResume: await ctx.db.get(legacyResumeId),
+      portableResume: await ctx.db.get(portableResumeId),
+      digests: await ctx.db.query("resume_digests").collect(),
+      overlays: await ctx.db.query("resume_digest_statuses").collect(),
+    }));
+
+    expect(state.legacyResume?.identityKey).toBeUndefined();
+    expect(state.portableResume?.identityKey).toBe(portableIdentityKey);
+    expect(state.digests.find((digest) => digest.resumeId === legacyResumeId)?.identityKey).toBeUndefined();
+    expect(state.digests.find((digest) => digest.resumeId === portableResumeId)?.identityKey).toBe(portableIdentityKey);
+    expect(state.overlays).toEqual([
+      expect.objectContaining({
+        resumeId: portableResumeId,
+        identityKey: portableIdentityKey,
+        workspaceSlug: "hr",
+        status: "new",
+      }),
+    ]);
+
+    const status = await t.query(api.candidate_status.getByIdentity, {
+      workspaceSlug: "hr",
+      identityKey: portableIdentityKey,
+    });
+    expect(status?.notes).toBe("半导体，行业不匹配");
+
+    const detail = await t.query(api.resumes_search.getResumeDocsByIds, {
+      ids: [portableResumeId],
+    });
+    expect(detail).toEqual([
+      expect.objectContaining({
+        _id: portableResumeId,
+        identityKey: portableIdentityKey,
+        analysis: expect.objectContaining({
+          score: 88,
+          summary: "Keep the analyzed canonical duplicate",
+        }),
+      }),
+    ]);
   });
 
   it("rejects 101 note items atomically without changing status or overlays", async () => {
