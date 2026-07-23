@@ -199,10 +199,32 @@ function WorkspaceShell() {
 function PublicResumeRoute() {
   return (
     <AppProviders workspaceSlug={PUBLIC_RESUME_WORKSPACE} surface="public">
-      <MainShell>
-        <ResumesPage />
-      </MainShell>
+      <PublicResumeSurface />
     </AppProviders>
+  )
+}
+
+function PublicResumeSurface() {
+  const auth = useAuth()
+  const location = useLocation()
+
+  if (
+    !auth.isLoading
+    && auth.isAuthenticated
+    && hasWorkspaceMembership(auth.memberships, PUBLIC_RESUME_WORKSPACE)
+  ) {
+    return (
+      <Navigate
+        to={{ pathname: `/${PUBLIC_RESUME_WORKSPACE}/resumes`, search: location.search }}
+        replace
+      />
+    )
+  }
+
+  return (
+    <MainShell>
+      <ResumesPage />
+    </MainShell>
   )
 }
 

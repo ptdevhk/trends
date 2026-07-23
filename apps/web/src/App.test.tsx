@@ -144,6 +144,38 @@ describe('App routes', () => {
     expect(workspaceRef.get()).toBe('hr')
   })
 
+  it('redirects signed-in hr members from public resumes to the hr workspace desk', async () => {
+    authState.user = { id: 'hr-user', status: 'active', displayName: 'HR User' }
+    authState.memberships = [{ userId: 'hr-user', workspaceSlug: 'hr', role: 'user' }]
+    authState.workspaceRole = 'user'
+    authState.isAuthenticated = true
+    window.history.pushState({}, '', '/resumes?q=CNC')
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(window.location.pathname).toBe('/hr/resumes')
+      expect(window.location.search).toBe('?q=CNC')
+    })
+    expect(screen.getByText('Resume route rendered')).toBeInTheDocument()
+    expect(workspaceRef.get()).toBe('hr')
+  })
+
+  it('keeps the public resume route for signed-in users without hr membership', async () => {
+    authState.user = { id: 'dev-admin', status: 'active', displayName: 'Dev Admin' }
+    authState.memberships = [{ userId: 'dev-admin', workspaceSlug: 'dev', role: 'admin' }]
+    authState.workspaceRole = 'admin'
+    authState.isAuthenticated = true
+    window.history.pushState({}, '', '/resumes?q=CNC')
+
+    render(<App />)
+
+    expect(await screen.findByText('Resume route rendered')).toBeInTheDocument()
+    expect(window.location.pathname).toBe('/resumes')
+    expect(window.location.search).toBe('?q=CNC')
+    expect(workspaceRef.get()).toBe('hr')
+  })
+
   it('renders public share token routes with hr as the backing public workspace', async () => {
     window.history.pushState({}, '', '/s/public-token-1')
 
