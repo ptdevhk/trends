@@ -84,6 +84,44 @@ export const RELATED_EXP_CEILING_BY_RECOMMENDATION: Record<AnalysisRecommendatio
 } as const;
 
 const VALID_LLM_RECOMMENDATIONS = new Set<string>(["strong_match", "match", "potential", "no_match"]);
+const CN_MACHINE_TOOL_COMPANY_VERIFIED_SALES_FLOOR = 60;
+const CN_MACHINE_TOOL_COMPANY_VERIFIED_SALES_FLOOR_REASON = "cn_machine_tool_company_verified_sales_floor_v1";
+const CN_MACHINE_TOOL_POSITIVE_KEYWORDS = [
+    "cnc",
+    "数控",
+    "机床",
+    "加工中心",
+    "车床",
+    "磨床",
+    "铣床",
+    "电火花",
+    "线切割",
+    "走心机",
+].map((keyword) => keyword.toLowerCase());
+const CN_MACHINE_TOOL_EXCLUSION_KEYWORDS = [
+    "刀具",
+    "工具",
+    "砂轮",
+    "称重",
+    "称量",
+    "激光",
+    "automation",
+    "自动化",
+    "空压机",
+    "液压",
+    "减速机",
+    "测量",
+    "metrology",
+    "cmm",
+    "机器人",
+    "机械手",
+    "矿山",
+    "混凝土",
+    "工程机械",
+    "鞋机",
+    "木工",
+    "木材",
+].map((keyword) => keyword.toLowerCase());
 
 function toLLMRecommendation(value: unknown): AnalysisRecommendation | undefined {
     if (typeof value === "string" && VALID_LLM_RECOMMENDATIONS.has(value)) {
@@ -120,6 +158,32 @@ export function recommendationFromScore(score: number): AnalysisRecommendation {
 
 export function hasHanText(value: string): boolean {
     return /[\u4e00-\u9fff]/.test(value);
+}
+
+function buildNormalizedSummaryLine(
+    summary: string,
+    normalized: {
+        score: number;
+        recommendation: AnalysisRecommendation;
+    },
+): string {
+    return hasHanText(summary)
+        ? `系统归一化结果：score ${normalized.score}，recommendation ${normalized.recommendation}。`
+        : `Normalized result: score ${normalized.score}, recommendation ${normalized.recommendation}.`;
+}
+
+function ensureNormalizedSummaryLine(
+    summary: string,
+    normalized: {
+        score: number;
+        recommendation: AnalysisRecommendation;
+    },
+): string {
+    const normalizedLine = buildNormalizedSummaryLine(summary, normalized);
+    if (summary.includes(normalizedLine)) {
+        return summary;
+    }
+    return `${summary} ${normalizedLine}`.trim();
 }
 
 // ---------------------------------------------------------------------------
@@ -267,6 +331,201 @@ export function getResumeIngestData(resume: unknown): Record<string, unknown> {
     return {};
 }
 
+type NormalizedWorkHistoryEntry = {
+    companyName?: string;
+    jobTitle?: string;
+    description?: string;
+    raw?: string;
+};
+
+function getResumeWorkHistory(resume: unknown): NormalizedWorkHistoryEntry[] {
+    const root = isRecord(resume) ? resume : {};
+    const content = isRecord(root.content) ? root.content : {};
+    const rawWorkHistory = Array.isArray(root.workHistory)
+        ? root.workHistory
+        : (Array.isArray(content.workHistory) ? content.workHistory : []);
+
+    return rawWorkHistory.flatMap((entry) => {
+        if (!isRecord(entry)) {
+            return [];
+        }
+
+        return [{
+            companyName: typeof entry.companyName === "string" && entry.companyName.trim().length > 0
+                ? entry.companyName.trim()
+                : undefined,
+            jobTitle: typeof entry.jobTitle === "string" && entry.jobTitle.trim().length > 0
+                ? entry.jobTitle.trim()
+                : undefined,
+            description: typeof entry.description === "string" && entry.description.trim().length > 0
+                ? entry.description.trim()
+                : undefined,
+            raw: typeof entry.raw === "string" && entry.raw.trim().length > 0
+                ? entry.raw.trim()
+                : undefined,
+        }];
+    });
+}
+
+function normalizeComparableText(value: string | undefined): string {
+    return value?.trim().toLowerCase().replace(/\s+/g, " ") ?? "";
+}
+
+function workHistoryMatchesDirectSalesEntry(
+    workEntry: NormalizedWorkHistoryEntry,
+    matchedEntry: NormalizedMatchedWorkEntry,
+): boolean {
+    const workCompany = normalizeComparableText(workEntry.companyName);
+    const matchedCompany = normalizeComparableText(matchedEntry.companyName);
+    if (!workCompany || !matchedCompany) {
+        return false;
+    }
+
+    const companyMatches = workCompany.includes(matchedCompany) || matchedCompany.includes(workCompany);
+    if (!companyMatches) {
+        return false;
+    }
+
+    const workTitle = normalizeComparableText(workEntry.jobTitle);
+    const matchedTitle = normalizeComparableText(matchedEntry.jobTitle);
+    return !workTitle || !matchedTitle || workTitle === matchedTitle;
+}
+
+function buildWorkHistoryEntryDomainText(entry: NormalizedWorkHistoryEntry): string {
+    return [
+        entry.companyName,
+        entry.jobTitle,
+        entry.description,
+        entry.raw,
+    ].filter((value): value is string => typeof value === "string" && value.trim().length > 0).join(" ").toLowerCase();
+}
+
+function hasAnyKeyword(text: string, keywords: readonly string[]): boolean {
+    return keywords.some((keyword) => text.includes(keyword));
+}
+
+function getPrimarySalesSignal(resume: unknown): NormalizedRoleSignal | undefined {
+    const ingestData = getResumeIngestData(resume);
+    const salesSignals = parseRoleSignals(ingestData.roleSignals).filter((signal) => signal.type.trim().toLowerCase() === "sales");
+    if (salesSignals.length === 0) {
+        return undefined;
+    }
+
+    return salesSignals.sort((left, right) => {
+        const leftVerified = left.industryVerifiedRelevantYears ?? left.industryVerifiedYears ?? 0;
+        const rightVerified = right.industryVerifiedRelevantYears ?? right.industryVerifiedYears ?? 0;
+        if (rightVerified !== leftVerified) {
+            return rightVerified - leftVerified;
+        }
+
+        if (right.years !== left.years) {
+            return right.years - left.years;
+        }
+
+        return right.matchedSignals.length - left.matchedSignals.length;
+    })[0];
+}
+
+function inferCnMachineToolCompanyVerifiedSalesFloor(
+    resume: unknown,
+    relatedExpCtx: {
+        context: RelatedExpContextInput;
+        ingestEvidence: RelatedExpIngestEvidence;
+    } | undefined,
+    relatedExpEvidence: RelatedExpEvidenceResult | undefined,
+    llmRecommendation: AnalysisRecommendation | undefined,
+    currentEffectiveRelatedExp: number,
+): {
+    floor: number;
+    reason: string;
+} | undefined {
+    if (!relatedExpCtx || !relatedExpEvidence) {
+        return undefined;
+    }
+
+    if (relatedExpCtx.context.market?.trim().toUpperCase() !== "CN") {
+        return undefined;
+    }
+
+    if (relatedExpCtx.context.roleFilterType?.trim().toLowerCase() !== "sales") {
+        return undefined;
+    }
+
+    if (llmRecommendation !== "potential") {
+        return undefined;
+    }
+
+    if (relatedExpEvidence.coverage !== "full") {
+        return undefined;
+    }
+
+    if (currentEffectiveRelatedExp >= CN_MACHINE_TOOL_COMPANY_VERIFIED_SALES_FLOOR) {
+        return undefined;
+    }
+
+    const ingestData = getResumeIngestData(resume);
+    if (!hasCompanyHits(ingestData.companyHits)) {
+        return undefined;
+    }
+
+    if (hasNonEmployerBrandHits(ingestData.brandHits)) {
+        return undefined;
+    }
+
+    const salesSignal = getPrimarySalesSignal(resume);
+    if (!salesSignal) {
+        return undefined;
+    }
+
+    const verifiedYears = salesSignal.industryVerifiedRelevantYears ?? salesSignal.industryVerifiedYears ?? 0;
+    if (verifiedYears < 5) {
+        return undefined;
+    }
+
+    const directVerifiedEntries = (salesSignal.matchedWorkEntries ?? []).filter(
+        (entry) => entry.directRoleMatch === true && entry.industryVerified === true,
+    );
+    if (directVerifiedEntries.length === 0) {
+        return undefined;
+    }
+
+    const matchedWorkHistoryText = getResumeWorkHistory(resume)
+        .flatMap((entry) => {
+            const text = buildWorkHistoryEntryDomainText(entry);
+            if (!text) {
+                return [];
+            }
+
+            const matchesDirectEntry = directVerifiedEntries.some((directEntry) => workHistoryMatchesDirectSalesEntry(entry, directEntry));
+            return matchesDirectEntry ? [text] : [];
+        })
+        .join(" ");
+
+    const directEntryText = directVerifiedEntries.flatMap((entry) => [
+        entry.companyName,
+        entry.jobTitle,
+        ...entry.matchedSignals,
+    ]).filter((value): value is string => typeof value === "string" && value.trim().length > 0).join(" ").toLowerCase();
+
+    const machineToolSalesText = `${matchedWorkHistoryText} ${directEntryText}`.trim();
+    if (!machineToolSalesText) {
+        return undefined;
+    }
+
+    if (!hasAnyKeyword(machineToolSalesText, CN_MACHINE_TOOL_POSITIVE_KEYWORDS)) {
+        return undefined;
+    }
+
+    if (hasAnyKeyword(machineToolSalesText, CN_MACHINE_TOOL_EXCLUSION_KEYWORDS)) {
+        return undefined;
+    }
+
+    return {
+        floor: Math.min(CN_MACHINE_TOOL_COMPANY_VERIFIED_SALES_FLOOR, relatedExpEvidence.recommendationMax),
+        reason: CN_MACHINE_TOOL_COMPANY_VERIFIED_SALES_FLOOR_REASON,
+    };
+}
+
 export function computeDirectIndustryDbScoreFromResume(resume: unknown): number {
     const ingestData = getResumeIngestData(resume);
     const brandHits = hasNonEmployerBrandHits(ingestData.brandHits);
@@ -347,12 +606,7 @@ export function normalizeSummaryConsistency(
     }
 
     if (hasScoreMismatch || hasRecommendationMismatch) {
-        const normalizedLine = hasHanText(next)
-            ? `系统归一化结果：score ${normalized.score}，recommendation ${normalized.recommendation}。`
-            : `Normalized result: score ${normalized.score}, recommendation ${normalized.recommendation}.`;
-        if (!next.includes(normalizedLine)) {
-            next = `${next} ${normalizedLine}`.trim();
-        }
+        next = ensureNormalizedSummaryLine(next, normalized);
     }
 
     // Phase 2: forbid strong-match prose on low score bands (e.g. 刘先生 刀具 summary).
@@ -471,6 +725,23 @@ export function normalizeAnalysisResult(
         });
         // Lower-only: effectiveRaw already respects recommendationMax ceiling
         effectiveRelatedExp = relatedExpEvidence.effectiveRaw;
+
+        const floorAdjustment = inferCnMachineToolCompanyVerifiedSalesFloor(
+            resume,
+            relatedExpCtx,
+            relatedExpEvidence,
+            llmRecommendation,
+            effectiveRelatedExp,
+        );
+        if (floorAdjustment && floorAdjustment.floor > effectiveRelatedExp) {
+            relatedExpEvidence = {
+                ...relatedExpEvidence,
+                baseEffectiveRaw: effectiveRelatedExp,
+                effectiveRaw: floorAdjustment.floor,
+                adjustmentReason: floorAdjustment.reason,
+            };
+            effectiveRelatedExp = floorAdjustment.floor;
+        }
     }
 
     // relatedExpAuditFactor = the effective related-exp factor (0-100) after
@@ -496,14 +767,21 @@ export function normalizeAnalysisResult(
         ? result.concerns.filter((item): item is string => typeof item === "string")
         : [];
     const localeHint = hasHanText(rawSummary) ? "zh" : "en";
+    const normalizedSummary = normalizeSummaryConsistency(rawSummary, {
+        score,
+        recommendation,
+    });
+    const finalSummary = relatedExpEvidence?.adjustmentReason
+        ? ensureNormalizedSummaryLine(normalizedSummary, {
+            score,
+            recommendation,
+        })
+        : normalizedSummary;
 
     return {
         score,
         recommendation,
-        summary: normalizeSummaryConsistency(rawSummary, {
-            score,
-            recommendation,
-        }),
+        summary: finalSummary,
         highlights: Array.isArray(result.highlights)
             ? result.highlights.filter((item): item is string => typeof item === "string")
             : [],

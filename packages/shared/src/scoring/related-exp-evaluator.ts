@@ -55,10 +55,14 @@ export interface RelatedExpEvidenceResult {
     coverage: RelatedExpCoverage;
     /** Reasons why the ceiling was applied (empty when full coverage) */
     missingReasons: string[];
-    /** min(llmRaw, recommendationMax, evidenceBandMax) — lower-only */
+    /** Effective related-exp raw after evidence ceilings and any optional post-ceiling adjustment. */
     effectiveRaw: number;
     llmRaw: number;
     recommendationMax: number;
+    /** Optional: effectiveRaw before a post-ceiling floor/adjustment was applied. */
+    baseEffectiveRaw?: number;
+    /** Optional: stable identifier for a post-ceiling normalization rule that adjusted effectiveRaw. */
+    adjustmentReason?: string;
     /** Stable hash of the sorted context for provenance */
     contextHash: string;
     /** Version string for this rubric — bump when coverage logic changes */

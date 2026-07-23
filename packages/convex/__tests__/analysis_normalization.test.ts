@@ -820,6 +820,222 @@ describe("normalizeAnalysisResult with relatedExpContext (P1)", () => {
         );
         expect(result.relatedExpEvidence?.missingReasons.length).toBeGreaterThan(0);
     });
+
+    it("floors under-scored CN machine-tool sales to 60 when company-verified evidence is full (Yang-like)", () => {
+        const result = normalizeAnalysisResult(
+            {
+                recommendation: "potential",
+                summary: "候选人核心经历集中在香港宝力机械有限公司东莞代表处，最近岗位为销售工程师，明确负责代理CNC机床在华南地区的客户开发与销售；此前还有同公司3年多的业务跟单经历，说明其在机床销售链条中有连续积累。整体看，她具备较明确的CNC销售相关背景，但当前材料对销售成果、指标达成和客户规模的描述不充分，因此更适合列为有潜力的候选人。",
+                breakdown: { related_exp: 36 },
+            },
+            {
+                ingestData: {
+                    industryDbV2Raw: 10,
+                    companyHits: ["宝力机械有限公司"],
+                    roleSignals: [
+                        {
+                            type: "sales",
+                            matchedSignals: ["销售工程师", "销售", "客户开发", "业务"],
+                            signalCount: 7,
+                            occurrences: 3,
+                            years: 8.17,
+                            industryVerifiedYears: 5.17,
+                            roleRelevantYears: 8.17,
+                            industryVerifiedRelevantYears: 5.17,
+                            matchedWorkEntries: [
+                                {
+                                    companyName: "香港宝力机械有限公司东莞代表处",
+                                    jobTitle: "销售工程师",
+                                    years: 1.42,
+                                    industryVerified: true,
+                                    matchedSignals: ["销售工程师", "销售", "客户开发"],
+                                    directRoleMatch: true,
+                                },
+                                {
+                                    companyName: "莞市欣明五金制品有限公司",
+                                    jobTitle: "销售助理",
+                                    years: 3,
+                                    industryVerified: false,
+                                    matchedSignals: ["销售", "业务"],
+                                    directRoleMatch: true,
+                                },
+                                {
+                                    companyName: "香港宝力机械有限公司东莞代表处",
+                                    jobTitle: "业务跟单",
+                                    years: 3.75,
+                                    industryVerified: true,
+                                    matchedSignals: ["业务", "销售"],
+                                    directRoleMatch: true,
+                                },
+                            ],
+                            verifyIn: "workHistory",
+                        },
+                    ],
+                },
+                workHistory: [
+                    {
+                        companyName: "香港宝力机械有限公司东莞代表处",
+                        jobTitle: "销售工程师",
+                        description: "本人在宝力公司从销售跟单转到销售工程师，负责宝力公司代理的CNC机床在华南地区客户开发跟销售工作。",
+                    },
+                    {
+                        companyName: "莞市欣明五金制品有限公司",
+                        jobTitle: "销售助理",
+                        description: "对接、报价核算、订单跟进全流程执行。",
+                    },
+                    {
+                        companyName: "香港宝力机械有限公司东莞代表处",
+                        jobTitle: "业务跟单",
+                        description: "负责宝力公司代理的机床的业务销售跟单工作。",
+                    },
+                ],
+            },
+            {
+                context: { roleFilterType: "sales", minRoleYears: 1, market: "CN", locale: "zh" },
+                ingestEvidence: {
+                    directRoleMatch: true,
+                    industryVerifiedRelevantYears: 5.17,
+                    matchedWorkEntries: [
+                        "销售工程师 @ 香港宝力机械有限公司东莞代表处 (1.42y)",
+                        "销售助理 @ 莞市欣明五金制品有限公司 (3y)",
+                        "业务跟单 @ 香港宝力机械有限公司东莞代表处 (3.75y)",
+                    ],
+                },
+            },
+        );
+
+        expect(result.breakdown.related_exp).toBe(60);
+        expect(result.score).toBe(70);
+        expect(result.recommendation).toBe("match");
+        expect(result.relatedExpEvidence?.llmRaw).toBe(36);
+        expect(result.relatedExpEvidence?.baseEffectiveRaw).toBe(36);
+        expect(result.relatedExpEvidence?.adjustmentReason).toBe("cn_machine_tool_company_verified_sales_floor_v1");
+        expect(result.summary).toContain("系统归一化结果：score 70，recommendation match。");
+    });
+
+    it("does not floor generic verified industrial sales when machine-tool domain text is absent (Ban-like)", () => {
+        const result = normalizeAnalysisResult(
+            {
+                recommendation: "potential",
+                summary: "候选人最近一段经历为基恩士中国有限公司大客户销售，具备较完整的销售职责和持续6.75年的已验证销售经验。",
+                breakdown: { related_exp: 36 },
+            },
+            {
+                ingestData: {
+                    industryDbV2Raw: 10,
+                    companyHits: ["基恩士中国有限公司"],
+                    roleSignals: [
+                        {
+                            type: "sales",
+                            matchedSignals: ["销售", "大客户"],
+                            signalCount: 4,
+                            occurrences: 1,
+                            years: 6.75,
+                            industryVerifiedYears: 6.75,
+                            roleRelevantYears: 6.75,
+                            industryVerifiedRelevantYears: 6.75,
+                            matchedWorkEntries: [
+                                {
+                                    companyName: "基恩士（中国）有限公司",
+                                    jobTitle: "大客户销售",
+                                    years: 6.75,
+                                    industryVerified: true,
+                                    matchedSignals: ["销售", "大客户"],
+                                    directRoleMatch: true,
+                                },
+                            ],
+                            verifyIn: "workHistory",
+                        },
+                    ],
+                },
+                workHistory: [
+                    {
+                        companyName: "基恩士（中国）有限公司",
+                        jobTitle: "大客户销售",
+                        description: "通过电话以及实地拜访的形式对区域内客户的关键项目推进，最终完成产品的销售。",
+                    },
+                ],
+            },
+            {
+                context: { roleFilterType: "sales", minRoleYears: 1, market: "CN", locale: "zh" },
+                ingestEvidence: {
+                    directRoleMatch: true,
+                    industryVerifiedRelevantYears: 6.75,
+                    matchedWorkEntries: ["大客户销售 @ 基恩士（中国）有限公司 (6.75y)"],
+                },
+            },
+        );
+
+        expect(result.breakdown.related_exp).toBe(36);
+        expect(result.score).toBe(58);
+        expect(result.recommendation).toBe("potential");
+        expect(result.relatedExpEvidence?.adjustmentReason).toBeUndefined();
+        expect(result.summary).not.toContain("系统归一化结果：score 70，recommendation match。");
+    });
+
+    it("does not floor company-verified tool sales even when the text includes 数控 keywords", () => {
+        const result = normalizeAnalysisResult(
+            {
+                recommendation: "potential",
+                summary: "候选人长期在数控刀具相关行业从事销售类工作，但更偏刀具与工艺方案方向。",
+                breakdown: { related_exp: 36 },
+            },
+            {
+                ingestData: {
+                    industryDbV2Raw: 10,
+                    companyHits: ["nachi不二越中国有限公司"],
+                    roleSignals: [
+                        {
+                            type: "sales",
+                            matchedSignals: ["销售工程师", "销售", "业务开发", "业务"],
+                            signalCount: 6,
+                            occurrences: 3,
+                            years: 11.92,
+                            industryVerifiedYears: 8.34,
+                            roleRelevantYears: 5.42,
+                            industryVerifiedRelevantYears: 5.42,
+                            matchedWorkEntries: [
+                                {
+                                    companyName: "喜威一（北京）刀具有限公司",
+                                    jobTitle: "销售工程师",
+                                    years: 5.42,
+                                    industryVerified: true,
+                                    matchedSignals: ["销售工程师", "销售", "业务开发", "业务"],
+                                    directRoleMatch: true,
+                                },
+                            ],
+                            verifyIn: "workHistory",
+                        },
+                    ],
+                },
+                workHistory: [
+                    {
+                        companyName: "喜威一（北京）刀具有限公司",
+                        jobTitle: "销售工程师",
+                        description: "负责重庆地区刀具业务开发，配合代理商开发选型试切，促成订单。",
+                    },
+                    {
+                        companyName: "重庆丰利工具有限公司",
+                        jobTitle: "客户代表",
+                        description: "公司主要经营各类进口、国产数控刀具，以及刀具整体方案设计。",
+                    },
+                ],
+            },
+            {
+                context: { roleFilterType: "sales", minRoleYears: 1, market: "CN", locale: "zh" },
+                ingestEvidence: {
+                    directRoleMatch: true,
+                    industryVerifiedRelevantYears: 5.42,
+                    matchedWorkEntries: ["销售工程师 @ 喜威一（北京）刀具有限公司 (5.42y)"],
+                },
+            },
+        );
+
+        expect(result.breakdown.related_exp).toBe(36);
+        expect(result.score).toBe(58);
+        expect(result.recommendation).toBe("potential");
+        expect(result.relatedExpEvidence?.adjustmentReason).toBeUndefined();
+    });
 });
 
 // ---------------------------------------------------------------------------

@@ -156,10 +156,14 @@ export const relatedExpEvidenceValidator = v.object({
     coverage: v.string(),
     /** Reasons the ceiling was applied (empty when full coverage) */
     missingReasons: v.array(v.string()),
-    /** min(llmRaw, recommendationMax, evidenceBandMax) */
+    /** Effective related-exp raw after evidence ceilings and any optional post-ceiling adjustment. */
     effectiveRaw: v.number(),
     llmRaw: v.number(),
     recommendationMax: v.number(),
+    /** Optional: effectiveRaw before a post-ceiling floor/adjustment was applied. */
+    baseEffectiveRaw: v.optional(v.number()),
+    /** Optional: stable identifier for a post-ceiling normalization rule that adjusted effectiveRaw. */
+    adjustmentReason: v.optional(v.string()),
     contextHash: v.string(),
     rubricVersion: v.string(),
 });
