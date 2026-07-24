@@ -2,7 +2,7 @@ id: job5156-cn-cnc-sales
 name: China Job5156 CNC Sales
 description: China-wide Job5156 CNC sales search profile used for the landing quick start
 createdAt: "2026-03-28"
-updatedAt: "2026-03-28"
+updatedAt: "2026-07-24"
 status: active
 workspaceSlug: [dev, hr]
 seedLastRunOffsetMs: 3600000
@@ -28,13 +28,13 @@ schedule:
   enabled: false
   cron: "0 9 * * 1-5"
   timezone: Asia/Shanghai
-  maxCandidates: 200
+  maxCandidates: 50
 
 sources:
   - type: job5156
     enabled: true
     priority: 1
-    collectLimit: 200
+    collectLimit: 50
     maxPages: 10
   - type: seek
     enabled: false

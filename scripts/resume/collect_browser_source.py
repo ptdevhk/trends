@@ -24,19 +24,21 @@ from browser_cdp import (
     open_cdp_session,
 )
 
-DEFAULT_LIMIT = 20
+DEFAULT_LIMIT = 50
 DEFAULT_MAX_PAGES = 10
+DEFAULT_COLLECT_TIMEOUT_SEC = 180.0
+JOB51_COLLECT_TIMEOUT_SEC = 420.0
 
 SOURCE_URLS = {
     "job5156": "https://hr.job5156.com/search?keyword=CNC+%E9%94%80%E5%94%AE&tr_min_age=25&tr_max_age=40",
     "51job": "https://ehire.51job.com/Revision/talent/search?keyword=CNC+%E9%94%80%E5%94%AE&tr_min_age=25&tr_max_age=40",
-    "seek": "https://hk.employer.seek.com/candidates/recommended?jobId=92216704",
+    "seek": "https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1",
 }
 
 SOURCE_HOSTS = {
     "job5156": "hr.job5156.com",
     "51job": "ehire.51job.com",
-    "seek": "hk.employer.seek.com",
+    "seek": "my.employer.seek.com",
 }
 
 
@@ -46,6 +48,12 @@ def resolve_source_host(source: str, url: str) -> str:
 		if hostname:
 			return hostname
 	return SOURCE_HOSTS.get(source, "unknown")
+
+
+def resolve_collect_timeout_sec(source: str) -> float:
+    if source == "51job":
+        return JOB51_COLLECT_TIMEOUT_SEC
+    return DEFAULT_COLLECT_TIMEOUT_SEC
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -212,7 +220,13 @@ async def ensure_collect_method(client: Any, context_id: int | None) -> None:
         raise CDPError("Extension accessor does not expose collect(). Reload the browser extension.")
 
 
-async def collect_payload(client: Any, context_id: int | None, limit: int, max_pages: int) -> dict[str, Any]:
+async def collect_payload(
+    client: Any,
+    context_id: int | None,
+    source: str,
+    limit: int,
+    max_pages: int,
+) -> dict[str, Any]:
     payload = await eval_json(
         client,
         f"""(() => {{
@@ -223,7 +237,7 @@ async def collect_payload(client: Any, context_id: int | None, limit: int, max_p
           return api.collect({json.dumps({"limit": limit, "maxPages": max_pages})});
         }})()""",
         context_id=context_id,
-        timeout=180.0,
+        timeout=resolve_collect_timeout_sec(source),
     )
     if not isinstance(payload, dict):
         raise CDPError("Collector did not return a payload.")
@@ -260,7 +274,13 @@ async def run() -> int:
             return 0
 
         await ensure_collect_method(client, context_id)
-        payload = await collect_payload(client, context_id, limit=limit, max_pages=max_pages)
+        payload = await collect_payload(
+            client,
+            context_id,
+            source=args.source,
+            limit=limit,
+            max_pages=max_pages,
+        )
 
         print(json.dumps({
             "mode": "collect",

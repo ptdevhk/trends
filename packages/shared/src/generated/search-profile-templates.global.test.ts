@@ -24,4 +24,22 @@ describe('getWorkspaceSearchProfileTemplates global defaults', () => {
     // Fan-out registry still only lists system seats in raw templates
     expect(SEARCH_PROFILE_TEMPLATES.some((t) => t.workspaceSlug === 'demotest')).toBe(false)
   })
+
+  it('keeps seeded quick-start collection defaults at top50', () => {
+    const dev = getWorkspaceSearchProfileTemplates('dev')
+    const quickStarts = dev.filter((template) => template.profile.quickStart?.enabled)
+
+    expect(quickStarts.length).toBeGreaterThan(0)
+
+    for (const template of quickStarts) {
+      expect(template.profile.schedule?.maxCandidates).toBe(50)
+
+      const enabledSources = (template.profile.sources ?? []).filter((source) => source.enabled)
+      expect(enabledSources.length).toBeGreaterThan(0)
+
+      for (const source of enabledSources) {
+        expect(source.collectLimit).toBe(50)
+      }
+    }
+  })
 })

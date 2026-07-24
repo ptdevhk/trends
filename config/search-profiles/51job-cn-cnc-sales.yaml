@@ -2,7 +2,7 @@ id: 51job-cn-cnc-sales
 name: China 51job CNC Sales
 description: China-wide 51job CNC sales search profile used for the landing quick start
 createdAt: "2026-04-02"
-updatedAt: "2026-04-09"
+updatedAt: "2026-07-24"
 status: active
 workspaceSlug: [dev, hr]
 seedLastRunOffsetMs: 900000
@@ -26,12 +26,14 @@ schedule:
   enabled: false
   cron: "0 9 * * 1-5"
   timezone: Asia/Shanghai
-  maxCandidates: 200
+  maxCandidates: 50
 
 sources:
   - type: 51job
     enabled: true
     priority: 1
+    collectLimit: 50
+    maxPages: 1
   - type: job5156
     enabled: false
     priority: 2

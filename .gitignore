@@ -108,3 +108,4 @@ resume-backup-*.json
 # local env backups
 .env*.bak.*
 *.env.bak.*
+.worktrees

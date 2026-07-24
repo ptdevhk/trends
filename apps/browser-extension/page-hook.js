@@ -459,6 +459,15 @@
     const parsed = Number.parseInt(String(value || "").trim(), 10);
     return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
   };
+  const resolveCollectBridgeTimeoutMs = () => {
+    // 51job top50 collection enriches detail payloads in batches of 2 with a
+    // 5s inter-batch delay. That safe path can exceed 3 minutes, so keep extra
+    // headroom for the official snapshot workflow.
+    if (getSourceKey() === "51job") {
+      return 420000;
+    }
+    return 180000;
+  };
   const parseBridgeResponse = () => {
     const raw = readAttr(PAGE_BRIDGE_RESPONSE_ATTR);
     if (!raw) return null;
@@ -655,7 +664,9 @@
       extractRaw: (options) =>
         requestContentScriptSync("extractRaw", [options]),
       collect: (options) =>
-        requestContentScriptAsync("collect", [options], { timeoutMs: 180000 }),
+        requestContentScriptAsync("collect", [options], {
+          timeoutMs: resolveCollectBridgeTimeoutMs(),
+        }),
       getApiSnapshot: () => requestContentScriptSync("getApiSnapshot"),
       getPaginationInfo: () => requestContentScriptSync("getPaginationInfo"),
       isReady: () => requestContentScriptSync("isReady"),

@@ -20,7 +20,7 @@ import {
 const execFileAsync = promisify(execFileCallback);
 
 const DEFAULT_COUNT = 50;
-const DEFAULT_SEEK_COUNT = 20;
+const DEFAULT_SEEK_COUNT = 50;
 const DEFAULT_MAX_PAGES = 10;
 const DEFAULT_CDP_ENDPOINT = "http://127.0.0.1:9222";
 const DEFAULT_WAIT_TIMEOUT_SEC = 600;
@@ -31,7 +31,7 @@ const DEFAULT_JOB5156_URL =
 const DEFAULT_51JOB_URL =
   "https://ehire.51job.com/Revision/talent/search?keyword=CNC+%E9%94%80%E5%94%AE&tr_min_age=25&tr_max_age=40";
 const DEFAULT_SEEK_URL =
-  "https://hk.employer.seek.com/candidates/recommended?jobId=92216704";
+  "https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1";
 
 // Default sources — these run when no --source flags are given.
 // 51job-manual is excluded; it must be requested explicitly.

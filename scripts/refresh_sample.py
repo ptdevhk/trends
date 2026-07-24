@@ -30,6 +30,7 @@ from browser_cdp import (
 DEFAULT_KEYWORD = "销售"
 DEFAULT_SAMPLE = "sample-initial"
 DEFAULT_SOURCE = "job5156"
+DEFAULT_LIMIT = 50
 SEEK_HOST = "my.employer.seek.com"
 OUTPUT_DIR = Path(__file__).resolve().parent.parent / "output" / "resumes" / "samples"
 
@@ -324,7 +325,7 @@ async def run():
     parser.add_argument("--location", default="", help="Search location filter (e.g. 广东)")
     parser.add_argument("--min-age", type=int, default=None, help="Minimum age filter (inclusive)")
     parser.add_argument("--max-age", type=int, default=None, help="Maximum age filter (inclusive)")
-    parser.add_argument("--limit", type=int, default=200, help="Max total resumes to scrape")
+    parser.add_argument("--limit", type=int, default=DEFAULT_LIMIT, help="Max total resumes to scrape")
     parser.add_argument("--max-pages", type=int, default=10, help="Max pages to scrape")
     parser.add_argument("--sample", default=DEFAULT_SAMPLE, help="Sample file name")
     parser.add_argument("--port", type=int, default=CDP_PORT, help="CDP port")

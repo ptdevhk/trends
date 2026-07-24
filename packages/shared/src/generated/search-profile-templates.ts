@@ -77,7 +77,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
       "name": "China Job5156 CNC Sales",
       "description": "China-wide Job5156 CNC sales search profile used for the landing quick start",
       "createdAt": "2026-03-28",
-      "updatedAt": "2026-03-28",
+      "updatedAt": "2026-07-24",
       "status": "active",
       "location": "China",
       "keywords": [
@@ -101,14 +101,14 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
         "enabled": false,
         "cron": "0 9 * * 1-5",
         "timezone": "Asia/Shanghai",
-        "maxCandidates": 200
+        "maxCandidates": 50
       },
       "sources": [
         {
           "type": "job5156",
           "enabled": true,
           "priority": 1,
-          "collectLimit": 200,
+          "collectLimit": 50,
           "maxPages": 10
         },
         {
@@ -133,7 +133,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
       "name": "China Job5156 CNC Sales",
       "description": "China-wide Job5156 CNC sales search profile used for the landing quick start",
       "createdAt": "2026-03-28",
-      "updatedAt": "2026-03-28",
+      "updatedAt": "2026-07-24",
       "status": "active",
       "location": "China",
       "keywords": [
@@ -157,14 +157,14 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
         "enabled": false,
         "cron": "0 9 * * 1-5",
         "timezone": "Asia/Shanghai",
-        "maxCandidates": 200
+        "maxCandidates": 50
       },
       "sources": [
         {
           "type": "job5156",
           "enabled": true,
           "priority": 1,
-          "collectLimit": 200,
+          "collectLimit": 50,
           "maxPages": 10
         },
         {
@@ -189,7 +189,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
       "name": "China 51job CNC Sales",
       "description": "China-wide 51job CNC sales search profile used for the landing quick start",
       "createdAt": "2026-04-02",
-      "updatedAt": "2026-04-09",
+      "updatedAt": "2026-07-24",
       "status": "active",
       "location": "China",
       "keywords": [
@@ -212,13 +212,15 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
         "enabled": false,
         "cron": "0 9 * * 1-5",
         "timezone": "Asia/Shanghai",
-        "maxCandidates": 200
+        "maxCandidates": 50
       },
       "sources": [
         {
           "type": "51job",
           "enabled": true,
-          "priority": 1
+          "priority": 1,
+          "collectLimit": 50,
+          "maxPages": 1
         },
         {
           "type": "job5156",
@@ -242,7 +244,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
       "name": "China 51job CNC Sales",
       "description": "China-wide 51job CNC sales search profile used for the landing quick start",
       "createdAt": "2026-04-02",
-      "updatedAt": "2026-04-09",
+      "updatedAt": "2026-07-24",
       "status": "active",
       "location": "China",
       "keywords": [
@@ -265,13 +267,15 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
         "enabled": false,
         "cron": "0 9 * * 1-5",
         "timezone": "Asia/Shanghai",
-        "maxCandidates": 200
+        "maxCandidates": 50
       },
       "sources": [
         {
           "type": "51job",
           "enabled": true,
-          "priority": 1
+          "priority": 1,
+          "collectLimit": 50,
+          "maxPages": 1
         },
         {
           "type": "job5156",
@@ -295,7 +299,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
       "name": "SEEK Malaysia CNC Sales",
       "description": "Malaysia SEEK workflow for nationwide CNC sales hiring",
       "createdAt": "2026-03-17",
-      "updatedAt": "2026-04-24",
+      "updatedAt": "2026-07-24",
       "status": "active",
       "location": "Malaysia",
       "keywords": [
@@ -313,7 +317,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
       "schedule": {
         "enabled": false,
         "timezone": "Asia/Kuala_Lumpur",
-        "maxCandidates": 120
+        "maxCandidates": 50
       },
       "sources": [
         {
@@ -321,7 +325,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
           "enabled": true,
           "priority": 1,
           "jobUrl": "https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1",
-          "collectLimit": 100,
+          "collectLimit": 50,
           "maxPages": 5,
           "mode": "recommended"
         },
@@ -330,7 +334,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
           "enabled": true,
           "priority": 2,
           "jobUrl": "https://hk.employer.seek.com/talentsearch?searchQuery=CNC&market=MY&pageNumber=1&roleTitles=Sales+and+Marketing+Staff%2CSales+Supervisor%2CSales+Consultant%2CSales+Engineer%2CSales+Representative%2CSales+Associate%2CSales+Assistant%2CSales+Manager%2CSales+Executive%2CSales+Role&salaryType=MONTHLY&minSalary=0&salaryUnspecified=true&keywords=CNC&matchAll=false&sortBy=RELEVANCE",
-          "collectLimit": 500,
+          "collectLimit": 50,
           "maxPages": 25,
           "mode": "talentsearch"
         },
@@ -363,7 +367,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
       "name": "SEEK Malaysia CNC Sales",
       "description": "Malaysia SEEK workflow for nationwide CNC sales hiring",
       "createdAt": "2026-03-17",
-      "updatedAt": "2026-04-24",
+      "updatedAt": "2026-07-24",
       "status": "active",
       "location": "Malaysia",
       "keywords": [
@@ -381,7 +385,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
       "schedule": {
         "enabled": false,
         "timezone": "Asia/Kuala_Lumpur",
-        "maxCandidates": 120
+        "maxCandidates": 50
       },
       "sources": [
         {
@@ -389,7 +393,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
           "enabled": true,
           "priority": 1,
           "jobUrl": "https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1",
-          "collectLimit": 100,
+          "collectLimit": 50,
           "maxPages": 5,
           "mode": "recommended"
         },
@@ -398,7 +402,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
           "enabled": true,
           "priority": 2,
           "jobUrl": "https://hk.employer.seek.com/talentsearch?searchQuery=CNC&market=MY&pageNumber=1&roleTitles=Sales+and+Marketing+Staff%2CSales+Supervisor%2CSales+Consultant%2CSales+Engineer%2CSales+Representative%2CSales+Associate%2CSales+Assistant%2CSales+Manager%2CSales+Executive%2CSales+Role&salaryType=MONTHLY&minSalary=0&salaryUnspecified=true&keywords=CNC&matchAll=false&sortBy=RELEVANCE",
-          "collectLimit": 500,
+          "collectLimit": 50,
           "maxPages": 25,
           "mode": "talentsearch"
         },
@@ -431,7 +435,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
       "name": "SEEK Malaysia CNC Sales — Talent Search",
       "description": "Malaysia SEEK workflow targeting the Basic Talent Search lane (job-independent, ~500/run)",
       "createdAt": "2026-05-19",
-      "updatedAt": "2026-05-19",
+      "updatedAt": "2026-07-24",
       "status": "active",
       "location": "Malaysia",
       "keywords": [
@@ -450,7 +454,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
       "schedule": {
         "enabled": false,
         "timezone": "Asia/Kuala_Lumpur",
-        "maxCandidates": 500
+        "maxCandidates": 50
       },
       "sources": [
         {
@@ -458,7 +462,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
           "enabled": true,
           "priority": 1,
           "jobUrl": "https://hk.employer.seek.com/talentsearch?searchQuery=CNC&market=MY&pageNumber=1&roleTitles=Sales+and+Marketing+Staff%2CSales+Supervisor%2CSales+Consultant%2CSales+Engineer%2CSales+Representative%2CSales+Associate%2CSales+Assistant%2CSales+Manager%2CSales+Executive%2CSales+Role&salaryType=MONTHLY&minSalary=0&salaryUnspecified=true&keywords=CNC&matchAll=false&sortBy=RELEVANCE",
-          "collectLimit": 500,
+          "collectLimit": 50,
           "maxPages": 25,
           "mode": "talentsearch"
         }
@@ -486,7 +490,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
       "name": "SEEK Malaysia CNC Sales — Talent Search",
       "description": "Malaysia SEEK workflow targeting the Basic Talent Search lane (job-independent, ~500/run)",
       "createdAt": "2026-05-19",
-      "updatedAt": "2026-05-19",
+      "updatedAt": "2026-07-24",
       "status": "active",
       "location": "Malaysia",
       "keywords": [
@@ -505,7 +509,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
       "schedule": {
         "enabled": false,
         "timezone": "Asia/Kuala_Lumpur",
-        "maxCandidates": 500
+        "maxCandidates": 50
       },
       "sources": [
         {
@@ -513,7 +517,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
           "enabled": true,
           "priority": 1,
           "jobUrl": "https://hk.employer.seek.com/talentsearch?searchQuery=CNC&market=MY&pageNumber=1&roleTitles=Sales+and+Marketing+Staff%2CSales+Supervisor%2CSales+Consultant%2CSales+Engineer%2CSales+Representative%2CSales+Associate%2CSales+Assistant%2CSales+Manager%2CSales+Executive%2CSales+Role&salaryType=MONTHLY&minSalary=0&salaryUnspecified=true&keywords=CNC&matchAll=false&sortBy=RELEVANCE",
-          "collectLimit": 500,
+          "collectLimit": 50,
           "maxPages": 25,
           "mode": "talentsearch"
         }

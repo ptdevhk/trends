@@ -48,7 +48,7 @@ function baseOptions(
     apiUrl: "http://localhost:3000",
     workspace: "dev",
     count: 20,
-    seekCount: 20,
+    seekCount: 50,
     maxPages: 10,
     outDir: path.join(repoRoot, "output", "resume-backups"),
     sources: [source],
@@ -108,13 +108,13 @@ describe("snapshot-source-backups", () => {
     ]);
   });
 
-  it("defaults snapshot collection to 50 resumes per source and keeps Seek at 20", () => {
+  it("defaults snapshot collection to 50 resumes per source including Seek", () => {
     const args = parseCliArgs([]);
     expect(args.count).toBe(50);
-    expect(args.seekCount).toBe(20);
+    expect(args.seekCount).toBe(50);
   });
 
-  it("caps Seek snapshot collection at 20 resumes even when the global count is 50", async () => {
+  it("collects 50 SEEK resumes when the global count is 50", async () => {
     const repoRoot = await createTestRepoRoot();
     repoRoots.push(repoRoot);
     const exec = vi.fn(async (_command: string, args: string[]) => {
@@ -138,7 +138,7 @@ describe("snapshot-source-backups", () => {
           sourceHost: SOURCE_HOSTS.seek,
           url: DEFAULT_SEEK_URL,
           status: { sourceKey: "seek" },
-          payload: createCollectedPayload("seek", 20),
+          payload: createCollectedPayload("seek", 50),
         }),
         stderr: "",
       };
@@ -159,14 +159,14 @@ describe("snapshot-source-backups", () => {
     expect(collectArgs).toContain("--limit");
     const limitIndex = collectArgs.indexOf("--limit");
     expect(limitIndex).toBeGreaterThanOrEqual(0);
-    expect(collectArgs[limitIndex + 1]).toBe("20");
+    expect(collectArgs[limitIndex + 1]).toBe("50");
     expect(result.sources[0]).toMatchObject({
       alias: "seek",
       sourceHost: SOURCE_HOSTS.seek,
-      count: 20,
-      observedCount: 20,
+      count: 50,
+      observedCount: 50,
     });
-    await access(buildExpectedFilePath(repoRoot, "seek"));
+    await access(buildExpectedFilePath(repoRoot, "seek", 50));
   });
 
   it("resolves ~/ paths against the invoking sudo user home directory", async () => {
