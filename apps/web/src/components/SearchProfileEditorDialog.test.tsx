@@ -377,6 +377,141 @@ describe('SearchProfileEditorDialog JD hydration', () => {
     })
   })
 
+  it('syncs mirrored source-specific limits when max candidates changes so edits apply across profile types', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <SearchProfileEditorDialog
+        open
+        onOpenChange={vi.fn()}
+        profileId="multi-source-profile"
+        initialData={{
+          id: 'multi-source-profile',
+          name: 'Multi-source profile',
+          status: 'active',
+          location: 'Malaysia',
+          keywords: ['CNC', 'Sales'],
+          schedule: {
+            enabled: false,
+            maxCandidates: 500,
+          },
+          sources: [
+            {
+              type: 'job5156',
+              enabled: true,
+              priority: 1,
+              collectLimit: 500,
+              maxPages: 10,
+            },
+            {
+              type: '51job',
+              enabled: true,
+              priority: 2,
+              job51CollectLimit: 500,
+              job51MaxPages: 8,
+              unsafeLimits: true,
+            },
+            {
+              type: 'seek',
+              enabled: true,
+              priority: 3,
+              mode: 'talentsearch',
+              jobUrl: 'https://hk.employer.seek.com/talentsearch?searchQuery=CNC+Sales&market=MY&keywords=CNC',
+              collectLimit: 500,
+              maxPages: 25,
+            },
+          ],
+        }}
+      />
+    )
+
+    await user.clear(screen.getByLabelText('Max Candidates'))
+    await user.type(screen.getByLabelText('Max Candidates'), '120')
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      expect(putMock).toHaveBeenCalledWith('/api/search-profiles/multi-source-profile', {
+        body: expect.objectContaining({
+          schedule: expect.objectContaining({
+            maxCandidates: 120,
+          }),
+          sources: expect.arrayContaining([
+            expect.objectContaining({
+              type: 'job5156',
+              enabled: true,
+              collectLimit: 120,
+            }),
+            expect.objectContaining({
+              type: '51job',
+              enabled: true,
+              job51CollectLimit: 120,
+            }),
+            expect.objectContaining({
+              type: 'seek',
+              enabled: true,
+              collectLimit: 120,
+            }),
+          ]),
+        }),
+      })
+    })
+  })
+
+  it('keeps explicit source-specific overrides when max candidates changes', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <SearchProfileEditorDialog
+        open
+        onOpenChange={vi.fn()}
+        profileId="custom-override-profile"
+        initialData={{
+          id: 'custom-override-profile',
+          name: 'Custom override profile',
+          status: 'active',
+          location: 'Malaysia',
+          keywords: ['CNC', 'Sales'],
+          schedule: {
+            enabled: false,
+            maxCandidates: 500,
+          },
+          sources: [
+            {
+              type: 'seek',
+              enabled: true,
+              priority: 1,
+              mode: 'talentsearch',
+              jobUrl: 'https://hk.employer.seek.com/talentsearch?searchQuery=CNC+Sales&market=MY&keywords=CNC',
+              collectLimit: 250,
+              maxPages: 25,
+            },
+          ],
+        }}
+      />
+    )
+
+    await user.clear(screen.getByLabelText('Max Candidates'))
+    await user.type(screen.getByLabelText('Max Candidates'), '120')
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      expect(putMock).toHaveBeenCalledWith('/api/search-profiles/custom-override-profile', {
+        body: expect.objectContaining({
+          schedule: expect.objectContaining({
+            maxCandidates: 120,
+          }),
+          sources: expect.arrayContaining([
+            expect.objectContaining({
+              type: 'seek',
+              enabled: true,
+              collectLimit: 250,
+            }),
+          ]),
+        }),
+      })
+    })
+  })
+
   it('saves a profile whose only seek source is talent-search mode without rejection', async () => {
     const user = userEvent.setup()
 

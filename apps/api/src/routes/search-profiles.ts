@@ -1441,7 +1441,10 @@ app.openapi(updateProfileRoute, async (c) => {
         const jobDescriptionSync = await buildJobDescriptionSyncPayload(normalized, c.var.workspaceSlug);
         const profile = await updateCustomProfile(
             existingCustom.storageId,
-            toStoredProfilePayload(normalized, { seededFromConfig: existingCustom.seededFromConfig }),
+            toStoredProfilePayload(normalized, {
+                seededFromConfig: existingCustom.seededFromConfig,
+                templateHash: existingCustom.templateHash,
+            }),
             c.var.workspaceSlug,
             jobDescriptionSync,
         );

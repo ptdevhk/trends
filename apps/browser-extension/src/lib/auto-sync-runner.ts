@@ -16,6 +16,11 @@ export interface AutoSyncRunnerDeps extends Record<string, unknown> {
   isSeekProfileMode: () => boolean;
   resolveSeekAutoSyncPageWindow: (options?: unknown) => unknown;
   isSeekAutoSyncPageWindowReached: (pageWindow?: unknown, currentPage?: number) => boolean;
+  shouldStopSeekAutoSyncForPageWindow: (options: {
+    pageWindowReached: boolean;
+    limit?: number | null;
+    totalSubmitted?: number | null;
+  }) => boolean;
   resolveSeekAutoSyncCurrentPageSelection: (options?: unknown) => { remainingCapacity: number | null; selectedCount: number | null; hitLimitWithinPage: boolean; limitAlreadyReached: boolean };
   getSeekRequestedPageSize: () => number;
   getSeekCurrentCandidateCount: () => number;
@@ -81,6 +86,7 @@ export function createAutoSyncRunner(deps: AutoSyncRunnerDeps) {
     isSeekProfileMode,
     resolveSeekAutoSyncPageWindow,
     isSeekAutoSyncPageWindowReached,
+    shouldStopSeekAutoSyncForPageWindow,
     resolveSeekAutoSyncCurrentPageSelection,
     getSeekRequestedPageSize,
     getSeekCurrentCandidateCount,
@@ -325,12 +331,16 @@ export function createAutoSyncRunner(deps: AutoSyncRunnerDeps) {
           }
           if (
             isSeekListPage &&
-            isSeekAutoSyncPageWindowReached(seekPageWindow, currentPage)
+            shouldStopSeekAutoSyncForPageWindow({
+              pageWindowReached: isSeekAutoSyncPageWindowReached(seekPageWindow, currentPage),
+              limit,
+              totalSubmitted,
+            })
           ) {
             stopReason = "page-window-reached";
             break;
           }
-          if (!isSeekListPage && maxPages > 0 && pagesVisited >= maxPages) {
+          if (maxPages > 0 && pagesVisited >= maxPages) {
             stopReason = "max-pages-reached";
             break;
           }
@@ -431,18 +441,22 @@ export function createAutoSyncRunner(deps: AutoSyncRunnerDeps) {
           stopReason = "limit-reached";
           break;
         }
+        if (limit > 0 && totalSubmitted >= limit) {
+          stopReason = "limit-reached";
+          break;
+        }
         if (
           isSeekListPage &&
-          isSeekAutoSyncPageWindowReached(seekPageWindow, currentPage)
+          shouldStopSeekAutoSyncForPageWindow({
+            pageWindowReached: isSeekAutoSyncPageWindowReached(seekPageWindow, currentPage),
+            limit,
+            totalSubmitted,
+          })
         ) {
           stopReason = "page-window-reached";
           break;
         }
-        if (!isSeekListPage && limit > 0 && totalSubmitted >= limit) {
-          stopReason = "limit-reached";
-          break;
-        }
-        if (!isSeekListPage && maxPages > 0 && pagesVisited >= maxPages) {
+        if (maxPages > 0 && pagesVisited >= maxPages) {
           stopReason = "max-pages-reached";
           break;
         }

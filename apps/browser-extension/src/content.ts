@@ -83,6 +83,10 @@ import {
   JOB51_DETAIL_FETCH_CONCURRENCY,
   SEEK_DETAIL_FETCH_CONCURRENCY,
   SEEK_DETAIL_FETCH_DELAY_MS,
+  SEEK_TALENTSEARCH_DETAIL_FETCH_CONCURRENCY,
+  SEEK_TALENTSEARCH_DETAIL_FETCH_DELAY_MS,
+  SEEK_TALENTSEARCH_DETAIL_TIMEOUT_MS,
+  SEEK_DETAIL_PARAM,
   DEFAULT_SEEK_PAGE_SIZE,
   LATEST_AUTO_SYNC_SUMMARIES_STORAGE_KEY,
 } from "./lib/content-constants";
@@ -106,7 +110,7 @@ const INITIAL_URL_CAPTURED_PARAMS = (() => {
     // Always persist SEEK-specific search params that SEEK's SPA may strip
     // via history.replaceState. These are needed for the correct search context
     // and for page-hook.js to inject roleTitles into GraphQL requests.
-    const seekParams = ["keywords", "roleTitles", "matchAll", "tr_max_age"];
+    const seekParams = ["keywords", "roleTitles", "matchAll", "tr_max_age", SEEK_DETAIL_PARAM];
     for (const p of seekParams) {
       const v = url.searchParams.get(p);
       if (v !== null) {
@@ -290,6 +294,10 @@ const _seekExtractor = createSeekExtractor({
   waitForSeekProfileSnapshot: ((matchId: string, options: { timeoutMs: number }) => waitForSeekProfileSnapshot(matchId, options)) as unknown as (matchId: string, options: { timeoutMs: number }) => Promise<void>,
   SEEK_DETAIL_FETCH_CONCURRENCY,
   SEEK_DETAIL_FETCH_DELAY_MS,
+  SEEK_TALENTSEARCH_DETAIL_FETCH_CONCURRENCY,
+  SEEK_TALENTSEARCH_DETAIL_FETCH_DELAY_MS,
+  SEEK_TALENTSEARCH_DETAIL_TIMEOUT_MS,
+  SEEK_DETAIL_PARAM,
   delay: ((ms: number) => delay(ms)) as (ms: number) => Promise<void>,
   SELECTORS,
 });
@@ -315,6 +323,7 @@ const {
   resolveSeekAutoSyncPageSize,
   resolveSeekAutoSyncPageWindow,
   isSeekAutoSyncPageWindowReached,
+  shouldStopSeekAutoSyncForPageWindow,
   resolveSeekAutoSyncCurrentPageSelection,
   getSeekRequestedPageSize,
   getSeekCurrentCandidateCount,
@@ -668,6 +677,7 @@ const _snapshotCollector = createSnapshotCollector({
   enrichSeekResumesWithDetail,
   getPaginationInfo,
   isSeekAutoSyncPageWindowReached,
+  shouldStopSeekAutoSyncForPageWindow,
   waitForPagination,
   clearCapturedResultsForNextPage,
   goToNextPageInternal,
@@ -837,6 +847,7 @@ const _autoSyncRunner = createAutoSyncRunner({
   isSeekProfileMode,
   resolveSeekAutoSyncPageWindow,
   isSeekAutoSyncPageWindowReached,
+  shouldStopSeekAutoSyncForPageWindow,
   resolveSeekAutoSyncCurrentPageSelection,
   getSeekRequestedPageSize,
   getSeekCurrentCandidateCount,

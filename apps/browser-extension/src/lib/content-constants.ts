@@ -81,6 +81,17 @@ const JOB51_DETAIL_FETCH_TIMEOUT_MS = 8000;
 const JOB51_DETAIL_FETCH_CONCURRENCY = 2;
 const SEEK_DETAIL_FETCH_CONCURRENCY = 3;
 const SEEK_DETAIL_FETCH_DELAY_MS = 1000;
+// Talentsearch opens an SPA side panel per candidate; concurrent clicks race on
+// a single apiSnapshot.seekProfile slot and frequently hit the 12s timeout.
+// Keep serial + short timeout for the default detail path.
+const SEEK_TALENTSEARCH_DETAIL_FETCH_CONCURRENCY = 1;
+const SEEK_TALENTSEARCH_DETAIL_FETCH_DELAY_MS = 200;
+const SEEK_TALENTSEARCH_DETAIL_TIMEOUT_MS = 4000;
+// Talentsearch detail enrichment (GetTalentSearchProfileCompleteV3) is ON by
+// default so workHistory includes job descriptions used for latest-3 scoring.
+// List GraphQL only returns title/company/duration without description text.
+// Opt out for list-only speed runs: ?tr_seek_detail=0
+const SEEK_DETAIL_PARAM = "tr_seek_detail";
 const DEFAULT_SEEK_PAGE_SIZE = 20;
 const LATEST_AUTO_SYNC_SUMMARIES_STORAGE_KEY = "latestAutoSyncSummaries";
 
@@ -119,6 +130,10 @@ export {
   JOB51_DETAIL_FETCH_CONCURRENCY,
   SEEK_DETAIL_FETCH_CONCURRENCY,
   SEEK_DETAIL_FETCH_DELAY_MS,
+  SEEK_TALENTSEARCH_DETAIL_FETCH_CONCURRENCY,
+  SEEK_TALENTSEARCH_DETAIL_FETCH_DELAY_MS,
+  SEEK_TALENTSEARCH_DETAIL_TIMEOUT_MS,
+  SEEK_DETAIL_PARAM,
   DEFAULT_SEEK_PAGE_SIZE,
   LATEST_AUTO_SYNC_SUMMARIES_STORAGE_KEY,
 };

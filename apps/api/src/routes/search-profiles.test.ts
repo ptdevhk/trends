@@ -52,6 +52,12 @@ function convexSuccess(value: unknown): Response {
     );
 }
 
+function updatePayloads(calls: ConvexCall[]) {
+    return calls
+        .filter((c) => c.pathName === "search_profiles:update")
+        .map((c) => c.args.profile as Record<string, unknown>);
+}
+
 describe("search-profiles legacy adoption", () => {
     const originalEnv = { ...process.env };
 
@@ -85,12 +91,6 @@ describe("search-profiles legacy adoption", () => {
             throw new Error(`Unexpected convex path: ${call.pathName}`);
         });
         return calls;
-    }
-
-    function updatePayloads(calls: ConvexCall[]) {
-        return calls
-            .filter((c) => c.pathName === "search_profiles:update")
-            .map((c) => c.args.profile as Record<string, unknown>);
     }
 
     it("adopts legacy unstamped profiles unconditionally (no flag required)", async () => {
@@ -266,5 +266,126 @@ describe("search-profiles legacy adoption", () => {
         expect(filters.roleFilterType).toBe("sales");
         expect(filters.minRoleYears).toBe(1);
         expect(filters.maxAge).toBe(45);
+    });
+});
+
+describe("search-profiles seeded edits", () => {
+    const originalEnv = { ...process.env };
+
+    afterEach(() => {
+        vi.restoreAllMocks();
+        process.env = { ...originalEnv };
+    });
+
+    it("preserves templateHash on seeded profile updates so later refreshes do not overwrite edits", async () => {
+        const template = {
+            profile: {
+                id: "seek-malaysia-talent-search",
+                name: "SEEK Malaysia CNC Sales — Talent Search",
+                status: "active" as const,
+                location: "Malaysia",
+                keywords: ["CNC", "Sales"],
+                schedule: {
+                    enabled: false,
+                    maxCandidates: 500,
+                },
+                sources: [{
+                    type: "seek",
+                    enabled: true,
+                    priority: 1,
+                    mode: "talentsearch",
+                    jobUrl: "https://hk.employer.seek.com/talentsearch?searchQuery=CNC+Sales&market=MY&keywords=CNC",
+                    collectLimit: 500,
+                    maxPages: 25,
+                }],
+            },
+        };
+        const templateHash = shared.computeTemplateHash(template.profile);
+        vi.mocked(shared.getWorkspaceSearchProfileTemplates).mockReturnValue([template]);
+
+        const calls: ConvexCall[] = [];
+        const storedRecord: {
+            _id: string;
+            profileId: string;
+            name: string;
+            profile: Record<string, unknown>;
+            criteria: { keywords: string[]; locations: string[] };
+        } = {
+            _id: "storage-seeded-1",
+            profileId: "seek-malaysia-talent-search",
+            name: "SEEK Malaysia CNC Sales — Talent Search",
+            profile: {
+                ...template.profile,
+                seedSource: "config/search-profiles",
+                templateHash,
+            },
+            criteria: {
+                keywords: ["CNC", "Sales"],
+                locations: ["Malaysia"],
+            },
+        };
+
+        vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+            const call = parseConvexCall(input, init);
+            calls.push(call);
+
+            if (call.pathName === "system_settings:isMaintenanceMode") {
+                return convexSuccess(false);
+            }
+            if (call.pathName === "search_profiles:getById") {
+                return convexSuccess(storedRecord);
+            }
+            if (call.pathName === "search_profiles:list") {
+                return convexSuccess([storedRecord]);
+            }
+            if (call.pathName === "search_profiles:update") {
+                const nextProfile = isRecord(call.args.profile) ? call.args.profile : {};
+                storedRecord.name = typeof nextProfile.name === "string" ? nextProfile.name : storedRecord.name;
+                storedRecord.profile = nextProfile;
+                return convexSuccess(storedRecord);
+            }
+            throw new Error(`Unexpected convex path: ${call.pathName}`);
+        });
+
+        const updateResponse = await createApp().request("/api/search-profiles/seek-malaysia-talent-search", {
+            method: "PUT",
+            headers: {
+                "Content-Type": "application/json",
+                "X-Workspace-Slug": "hr",
+            },
+            body: JSON.stringify({
+                schedule: {
+                    enabled: false,
+                    maxCandidates: 120,
+                },
+                sources: [{
+                    type: "seek",
+                    enabled: true,
+                    priority: 1,
+                    mode: "talentsearch",
+                    jobUrl: "https://hk.employer.seek.com/talentsearch?searchQuery=CNC+Sales&market=MY&keywords=CNC",
+                    collectLimit: 120,
+                    maxPages: 25,
+                }],
+            }),
+        });
+
+        expect(updateResponse.status).toBe(200);
+
+        const listResponse = await createApp().request("/api/search-profiles", {
+            headers: { "X-Workspace-Slug": "hr" },
+        });
+
+        expect(listResponse.status).toBe(200);
+
+        const payloads = updatePayloads(calls);
+        expect(payloads).toHaveLength(1);
+        expect(payloads[0]!.templateHash).toBe(templateHash);
+        expect((storedRecord.profile.schedule as { maxCandidates?: number } | undefined)?.maxCandidates).toBe(120);
+        expect(
+            ((storedRecord.profile.sources as Array<Record<string, unknown>> | undefined)
+                ?.find((source) => source.type === "seek")
+                ?.collectLimit),
+        ).toBe(120);
     });
 });

@@ -49,6 +49,19 @@ function createMockDeps(overrides: Record<string, unknown> = {}): SnapshotCollec
       hasNextPage: false,
     })),
     isSeekAutoSyncPageWindowReached: vi.fn(() => false),
+    shouldStopSeekAutoSyncForPageWindow: vi.fn(({
+      pageWindowReached,
+      limit,
+      totalSubmitted,
+    }: {
+      pageWindowReached: boolean;
+      limit?: number | null;
+      totalSubmitted?: number | null;
+    }) => {
+      if (!pageWindowReached) return false;
+      if (typeof limit !== "number" || !Number.isFinite(limit) || limit <= 0) return true;
+      return (typeof totalSubmitted === "number" ? totalSubmitted : 0) >= limit;
+    }),
     waitForPagination: vi.fn(() => Promise.resolve()),
     clearCapturedResultsForNextPage: vi.fn(),
     goToNextPageInternal: vi.fn(() => false),

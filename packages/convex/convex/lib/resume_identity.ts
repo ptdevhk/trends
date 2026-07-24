@@ -154,6 +154,19 @@ function normalizeUrlForIdentity(parsed: URL): string {
     return `${parsed.hostname.toLowerCase()}${path}${query}`.toLowerCase();
 }
 
+function isSeekNameSearchProfileUrl(parsed: URL): boolean {
+    const path = parsed.pathname.toLowerCase().replace(/\/+$/, "") || "/";
+    // List-lane "open by name" URLs used when talentsearch cards have no stable profile path.
+    // These are NOT unique person identifiers (many candidates can share a name).
+    if (path === "/talentsearch/profiles/search" || path.endsWith("/talentsearch/profiles/search")) {
+        return true;
+    }
+    if (path === "/talentsearch" && readQueryParamCaseInsensitive(parsed, "searchQuery")) {
+        return true;
+    }
+    return false;
+}
+
 function normalizeSeekProfileUrlForIdentity(value: string, source: string | undefined): string | null {
     const parsed = parseUrlLike(value);
     if (!parsed) {
@@ -164,6 +177,13 @@ function normalizeSeekProfileUrlForIdentity(value: string, source: string | unde
     const normalizedSource = source?.trim().toLowerCase();
     const isSeekHost = hostname.endsWith(SEEK_HOST_SUFFIX) || normalizedSource?.endsWith(SEEK_HOST_SUFFIX);
     if (!isSeekHost) {
+        return null;
+    }
+
+    // Reject non-unique name-search URLs so identity falls through to externalId /
+    // profileGuid (UUID). Using name-search URLs as identityKey collapses distinct
+    // talentsearch candidates that share a display name (e.g. 100 submitted → 99 rows).
+    if (isSeekNameSearchProfileUrl(parsed)) {
         return null;
     }
 
@@ -215,6 +235,15 @@ export function normalizeResumeProfileUrl(value: string, source?: string): strin
             .replace(/#.*$/, "")
             .replace(/\/+$/, "");
         return fallback || null;
+    }
+
+    // Seek name-search URLs intentionally return null from the Seek normalizer.
+    // Do not re-accept them via the generic URL normalizer — they are not unique.
+    const hostname = parsed.hostname.toLowerCase();
+    const normalizedSource = source?.trim().toLowerCase();
+    const isSeekHost = hostname.endsWith(SEEK_HOST_SUFFIX) || normalizedSource?.endsWith(SEEK_HOST_SUFFIX);
+    if (isSeekHost && isSeekNameSearchProfileUrl(parsed)) {
+        return null;
     }
 
     return normalizeUrlForIdentity(parsed);

@@ -225,6 +225,89 @@ function normalizeSourcePriority(value: number | undefined): string {
     return typeof value === 'number' && Number.isFinite(value) ? String(Math.trunc(value)) : ''
 }
 
+function getPrimarySeekSource(sources: SearchProfileSource[] | undefined): SearchProfileSource | undefined {
+    return sources
+        ?.filter((source) => source.type === SEARCH_PROFILE_SOURCE_TYPES.seek)
+        .sort((left, right) => {
+            const leftPriority = typeof left.priority === 'number' ? left.priority : Number.POSITIVE_INFINITY
+            const rightPriority = typeof right.priority === 'number' ? right.priority : Number.POSITIVE_INFINITY
+            return leftPriority - rightPriority
+        })[0]
+}
+
+function shouldSyncMirroredSourceLimit(args: {
+    enabled: boolean
+    currentValue: string
+    baselineLimit: number | undefined
+    baselineScheduleLimit: number | undefined
+}): boolean {
+    if (!args.enabled) {
+        return false
+    }
+    if (typeof args.baselineLimit !== 'number' || typeof args.baselineScheduleLimit !== 'number') {
+        return false
+    }
+    if (args.baselineLimit !== args.baselineScheduleLimit) {
+        return false
+    }
+    return parseOptionalNumber(args.currentValue) === args.baselineLimit
+}
+
+function syncMirroredSourceLimitsWithMaxCandidates(
+    sourceForm: SourceFormState,
+    maxCandidates: string,
+    baselineProfile: SearchProfileDetails | null | undefined,
+): SourceFormState {
+    const baselineScheduleLimit = baselineProfile?.schedule?.maxCandidates
+    const job5156Source = baselineProfile?.sources?.find((source) => source.type === SEARCH_PROFILE_SOURCE_TYPES.job5156)
+    const job51Source = baselineProfile?.sources?.find((source) => source.type === SEARCH_PROFILE_SOURCE_TYPES.job51)
+    const seekSource = getPrimarySeekSource(baselineProfile?.sources)
+    const nextLimit = parseOptionalNumber(maxCandidates)
+    const nextLimitText = typeof nextLimit === 'number' ? String(nextLimit) : ''
+
+    const nextJob5156CollectLimit = shouldSyncMirroredSourceLimit({
+        enabled: sourceForm.job5156Enabled,
+        currentValue: sourceForm.job5156CollectLimit,
+        baselineLimit: job5156Source?.collectLimit,
+        baselineScheduleLimit,
+    })
+        ? nextLimitText
+        : sourceForm.job5156CollectLimit
+
+    const nextJob51CollectLimit = shouldSyncMirroredSourceLimit({
+        enabled: sourceForm.job51Enabled,
+        currentValue: sourceForm.job51CollectLimit,
+        baselineLimit: job51Source?.job51CollectLimit,
+        baselineScheduleLimit,
+    })
+        ? nextLimitText
+        : sourceForm.job51CollectLimit
+
+    const nextSeekCollectLimit = shouldSyncMirroredSourceLimit({
+        enabled: sourceForm.seekEnabled,
+        currentValue: sourceForm.seekCollectLimit,
+        baselineLimit: seekSource?.collectLimit,
+        baselineScheduleLimit,
+    })
+        ? nextLimitText
+        : sourceForm.seekCollectLimit
+
+    if (
+        nextJob5156CollectLimit === sourceForm.job5156CollectLimit
+        && nextJob51CollectLimit === sourceForm.job51CollectLimit
+        && nextSeekCollectLimit === sourceForm.seekCollectLimit
+    ) {
+        return sourceForm
+    }
+
+    return {
+        ...sourceForm,
+        job5156CollectLimit: nextJob5156CollectLimit,
+        job51CollectLimit: nextJob51CollectLimit,
+        seekCollectLimit: nextSeekCollectLimit,
+    }
+}
+
 /**
  * Hydrate editor source checkboxes from stored profile sources.
  *
@@ -244,14 +327,7 @@ export function toSourcesFormState(sources: SearchProfileSource[] | undefined): 
     // talent-search-only profile is editable alongside recommended-mode profiles.
     // Any additional seek sources beyond the first stay in `additional` and
     // round-trip through save unchanged.
-    const seekSources = sources
-        .filter((source) => source.type === SEARCH_PROFILE_SOURCE_TYPES.seek)
-        .sort((left, right) => {
-            const leftPriority = typeof left.priority === 'number' ? left.priority : Number.POSITIVE_INFINITY
-            const rightPriority = typeof right.priority === 'number' ? right.priority : Number.POSITIVE_INFINITY
-            return leftPriority - rightPriority
-        })
-    const seekSource = seekSources[0]
+    const seekSource = getPrimarySeekSource(sources)
 
     return {
         // Missing source type ⇒ disabled (false). Only use DEFAULT for priority/url blanks.
@@ -286,13 +362,7 @@ function splitKnownSources(sources: SearchProfileSource[] | undefined): {
     // Identify the highest-priority seek source — it maps to the editor's
     // single seek form row regardless of mode. All OTHER seek sources are
     // preserved verbatim via the `additional` lane and round-trip through save.
-    const seekSourceForForm = sources
-        .filter((source) => source.type === SEARCH_PROFILE_SOURCE_TYPES.seek)
-        .sort((left, right) => {
-            const leftPriority = typeof left.priority === 'number' ? left.priority : Number.POSITIVE_INFINITY
-            const rightPriority = typeof right.priority === 'number' ? right.priority : Number.POSITIVE_INFINITY
-            return leftPriority - rightPriority
-        })[0]
+    const seekSourceForForm = getPrimarySeekSource(sources)
 
     return {
         known: toSourcesFormState(sources),
@@ -413,6 +483,7 @@ export function SearchProfileEditorDialog({
         requestId: number
     } | null>(null)
     const latestHydrationRequestIdRef = useRef(0)
+    const originalProfileRef = useRef<SearchProfileDetails | null>(initialData ?? null)
 
     const effectiveCapabilities = useMemo(() => {
         const sources = buildSourcesPayload(sourceForm, additionalSources)
@@ -446,6 +517,7 @@ export function SearchProfileEditorDialog({
                 onOpenChange(false)
                 return
             }
+            originalProfileRef.current = data.profile
             setForm(toFormState(data.profile))
             const sourceState = splitKnownSources(data.profile.sources)
             setSourceForm(sourceState.known)
@@ -465,6 +537,7 @@ export function SearchProfileEditorDialog({
 
         // When opened
         if (initialData) {
+            originalProfileRef.current = initialData
             setForm(toFormState(initialData))
             const sourceState = splitKnownSources(initialData.sources)
             setSourceForm(sourceState.known)
@@ -475,6 +548,7 @@ export function SearchProfileEditorDialog({
         if (profileId) {
             void loadProfile(profileId)
         } else {
+            originalProfileRef.current = null
             setForm(DEFAULT_FORM)
             setSourceForm(DEFAULT_SOURCES_FORM)
             setAdditionalSources([])
@@ -625,9 +699,14 @@ export function SearchProfileEditorDialog({
 
         const hasSalaryRange = parsedMinSalary !== undefined || parsedMaxSalary !== undefined
         const hasFilters = parsedMinRoleYears !== undefined || parsedRoleFilterType !== undefined || parsedMaxExp !== undefined || parsedMinAge !== undefined || parsedMaxAge !== undefined || hasSalaryRange
+        const syncedSourceForm = syncMirroredSourceLimitsWithMaxCandidates(
+            sourceForm,
+            form.maxCandidates,
+            originalProfileRef.current,
+        )
         const sources = buildSourcesPayload({
-            ...sourceForm,
-            seekJobUrl: normalizedSeekJobUrl ?? sourceForm.seekJobUrl,
+            ...syncedSourceForm,
+            seekJobUrl: normalizedSeekJobUrl ?? syncedSourceForm.seekJobUrl,
         }, additionalSources)
 
         const payload = {

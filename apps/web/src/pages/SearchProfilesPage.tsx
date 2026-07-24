@@ -227,30 +227,23 @@ export function SearchProfilesPage() {
 
       const nextProfiles = data.profiles || []
       setProfiles(nextProfiles)
+      // Unblock the list + ?edit= editor as soon as summaries arrive.
+      // Detail/status hydration is secondary and used for schedule labels / Run Now.
+      setLoading(false)
 
-      const detailEntries = await Promise.all(
+      void Promise.all(
         nextProfiles.map(async (profile) => {
-          const detail = await fetchProfileDetail(profile.id)
-          return detail ? [profile.id, detail] as const : null
+          await fetchProfileDetail(profile.id)
         }),
       )
-
-      const nextDetails: Record<string, SearchProfileDetails> = {}
-      detailEntries.forEach((entry) => {
-        if (!entry) {
-          return
-        }
-        nextDetails[entry[0]] = entry[1]
-      })
-      setProfileDetails(nextDetails)
-
-      await Promise.all(nextProfiles.map(async (profile) => {
-        await fetchRunStatus(profile.id)
-      }))
+      void Promise.all(
+        nextProfiles.map(async (profile) => {
+          await fetchRunStatus(profile.id)
+        }),
+      )
     } catch (error) {
       reportUiError('Failed to load search profiles', error)
       toast.error(t('searchProfiles.loadError', { defaultValue: 'Failed to load profiles' }))
-    } finally {
       setLoading(false)
     }
   }, [fetchProfileDetail, fetchRunStatus, t])

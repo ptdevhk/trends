@@ -817,6 +817,31 @@
   __name(isMeaningfulJob5156WorkHistoryEntry, "isMeaningfulJob5156WorkHistoryEntry");
 
   // src/lib/seek-extractor.ts
+  function unwrapSeekProfileSnapshot(raw) {
+    if (!raw || typeof raw !== "object") return null;
+    let current = raw;
+    for (const key of [
+      "talentSearchProfileV3",
+      "talentSearchProfileV2",
+      "talentSearchProfileCompleteV2",
+      "getTalentSearchProfileCompleteV2"
+    ]) {
+      const nested = current[key];
+      if (nested && typeof nested === "object" && !Array.isArray(nested)) {
+        current = nested;
+        break;
+      }
+    }
+    const result = current.result;
+    if (result && typeof result === "object" && !Array.isArray(result)) {
+      const inner = result;
+      if (typeof inner.profileGuid === "string" || inner.profileId != null || Array.isArray(inner.workHistories) || typeof inner.firstName === "string") {
+        return inner;
+      }
+    }
+    return current;
+  }
+  __name(unwrapSeekProfileSnapshot, "unwrapSeekProfileSnapshot");
   function createSeekExtractor(deps) {
     const {
       getCurrentSourceKey: getCurrentSourceKey2,
@@ -836,17 +861,21 @@
       waitForSeekProfileSnapshot: waitForSeekProfileSnapshot2,
       SEEK_DETAIL_FETCH_CONCURRENCY: SEEK_DETAIL_FETCH_CONCURRENCY2,
       SEEK_DETAIL_FETCH_DELAY_MS: SEEK_DETAIL_FETCH_DELAY_MS2,
+      SEEK_TALENTSEARCH_DETAIL_FETCH_CONCURRENCY: SEEK_TALENTSEARCH_DETAIL_FETCH_CONCURRENCY2,
+      SEEK_TALENTSEARCH_DETAIL_FETCH_DELAY_MS: SEEK_TALENTSEARCH_DETAIL_FETCH_DELAY_MS2,
+      SEEK_TALENTSEARCH_DETAIL_TIMEOUT_MS: SEEK_TALENTSEARCH_DETAIL_TIMEOUT_MS2,
+      SEEK_DETAIL_PARAM: SEEK_DETAIL_PARAM2,
       delay: delay2,
       // Pagination selectors
       SELECTORS: SELECTORS2
     } = deps;
     function isSeekProfilePage2() {
-      return window.location.pathname.includes("/talentsearch/profile/");
+      return win.location.pathname.includes("/talentsearch/profile/");
     }
     __name(isSeekProfilePage2, "isSeekProfilePage");
     function isSeekTalentSearchListPage2() {
       if (getCurrentSourceKey2() !== SOURCE_KEYS2.SEEK) return false;
-      const { pathname, search } = window.location;
+      const { pathname, search } = win.location;
       if (pathname.includes("/talentsearch/profile/")) return false;
       return pathname === "/talentsearch" && search.length > 0;
     }
@@ -855,15 +884,15 @@
       if (getCurrentSourceKey2() !== SOURCE_KEYS2.SEEK) return null;
       if (isSeekProfilePage2()) return "profile";
       if (isSeekTalentSearchListPage2()) return "talentsearch";
-      if (window.location.pathname.includes("/candidates/recommended")) return "recommended";
+      if (win.location.pathname.includes("/candidates/recommended")) return "recommended";
       return null;
     }
     __name(getCurrentSeekMode2, "getCurrentSeekMode");
     function isSeekInlineProfileMode2() {
       if (getCurrentSourceKey2() !== SOURCE_KEYS2.SEEK) return false;
-      if (!window.location.pathname.includes("/candidates/recommended")) return false;
+      if (!win.location.pathname.includes("/candidates/recommended")) return false;
       const openProfileId = normalizeOptionalPositiveInt2(
-        new URL(window.location.href).searchParams.get("openProfileId")
+        new URL(win.location.href).searchParams.get("openProfileId")
       );
       return openProfileId !== null && hasSeekProfileSnapshot2();
     }
@@ -1008,6 +1037,18 @@
       return !!(normalizedCurrentPage && targetPageEnd && normalizedCurrentPage >= targetPageEnd);
     }
     __name(isSeekAutoSyncPageWindowReached2, "isSeekAutoSyncPageWindowReached");
+    function shouldStopSeekAutoSyncForPageWindow2(options) {
+      if (!options.pageWindowReached) {
+        return false;
+      }
+      const normalizedLimit = normalizeOptionalPositiveInt2(options.limit);
+      if (!normalizedLimit) {
+        return true;
+      }
+      const submitted = normalizeOptionalPositiveInt2(options.totalSubmitted) || 0;
+      return submitted >= normalizedLimit;
+    }
+    __name(shouldStopSeekAutoSyncForPageWindow2, "shouldStopSeekAutoSyncForPageWindow");
     function resolveSeekAutoSyncCurrentPageSelection2(options = {}) {
       const helpers = getSeekAutoSyncHelpers2();
       if (typeof helpers?.resolveSeekAutoSyncCurrentPageSelection === "function") {
@@ -1082,8 +1123,8 @@
     }
     __name(findSeekProfileTrigger2, "findSeekProfileTrigger");
     function extractSeekProfileResume2() {
-      const profile = apiSnapshot2.seekProfile;
-      if (!profile || typeof profile !== "object") return [];
+      const profile = unwrapSeekProfileSnapshot(apiSnapshot2.seekProfile);
+      if (!profile) return [];
       const request = getSeekProfileRequest2();
       const variables = request?.variables;
       const requestInput = variables?.input;
@@ -1095,6 +1136,7 @@
       const jobId = requestInput?.jobId != null ? String(requestInput.jobId) : jobIdFromUrl != null ? String(jobIdFromUrl) : void 0;
       const { profileId, profileType } = getSeekCandidateIdentity2(profile);
       const seekProfileGuid = typeof profile.profileGuid === "string" && profile.profileGuid ? profile.profileGuid : void 0;
+      const externalProfileKey = seekProfileGuid || profileId;
       const firstName = typeof profile.firstName === "string" ? profile.firstName.trim() : "";
       const lastName = typeof profile.lastName === "string" ? profile.lastName.trim() : "";
       const currentJobTitle = typeof profile.currentJobTitle === "string" ? profile.currentJobTitle.trim() : "";
@@ -1104,7 +1146,7 @@
         typeof profile.state === "string" ? profile.state.trim() : "",
         typeof profile.country === "string" ? profile.country.trim() : ""
       ].filter(Boolean).join(", ") || "";
-      const lastModifiedDate = typeof profile.lastModifiedDate === "string" ? profile.lastModifiedDate : "";
+      const lastModifiedDate = typeof profile.lastModifiedDate === "string" ? profile.lastModifiedDate : typeof profile.lastModifiedDurationLabel === "string" ? profile.lastModifiedDurationLabel : "";
       const workHistory = Array.isArray(profile.workHistories) ? profile.workHistories.map((item) => buildSeekWorkHistoryItem(item)).filter(Boolean) : [];
       const profileEducation = Array.isArray(profile.profileEducation) ? profile.profileEducation.map((item) => buildSeekProfileEducationItem(item)).filter(Boolean) : [];
       const licences = Array.isArray(profile.licences) ? profile.licences.map((item) => {
@@ -1118,7 +1160,7 @@
       const languages = Array.isArray(profile.languages) ? profile.languages.filter(
         (item) => typeof item === "string" && item.trim()
       ) : [];
-      const resumeSnippet = typeof profile.resumeSnippet === "string" ? profile.resumeSnippet.trim() : "";
+      const resumeSnippet = typeof profile.resumeSnippet === "string" && profile.resumeSnippet.trim() ? profile.resumeSnippet.trim() : typeof profile.personalSummary === "string" ? profile.personalSummary.trim() : "";
       const currentIndustry = typeof profile.currentIndustry === "string" ? profile.currentIndustry.trim() : "";
       const currentSubindustry = typeof profile.currentSubindustry === "string" ? profile.currentSubindustry.trim() : "";
       const rightToWork = typeof profile.rightToWork?.label === "string" ? profile.rightToWork.label.trim() : "";
@@ -1129,9 +1171,15 @@
           profileId,
           profileType,
           seekProfileGuid,
-          externalId: profileId ? `${win.location.hostname.toLowerCase()}:profile:${profileId}` : "",
+          externalId: externalProfileKey ? `${win.location.hostname.toLowerCase()}:profile:${externalProfileKey}` : "",
           name: [firstName, lastName].filter(Boolean).join(" ").trim(),
-          profileUrl: buildSeekProfileUrl2(profileId, jobId),
+          // Talentsearch: name-search URL is the only operator-visitable link.
+          // /candidates/<numericId> is invalid outside the recommended lane.
+          profileUrl: getCurrentSeekMode2() === "talentsearch" ? buildSeekNameSearchUrl2(
+            [firstName, lastName].filter(Boolean).join(" "),
+            profileUrl.searchParams.get("market") || void 0,
+            currentJobTitle
+          ) || buildSeekProfileUrl2(profileId, jobId) : buildSeekProfileUrl2(profileId, jobId),
           activityStatus: lastModifiedDate,
           age: "",
           experience: "",
@@ -1513,10 +1561,80 @@
       return getSeekNextPageLink2();
     }
     __name(getSeekNextPageLinkForMode2, "getSeekNextPageLinkForMode");
+    function readSeekDetailParamValue() {
+      try {
+        const params = new URLSearchParams(win.location.search || "");
+        const fromUrl = params.get(SEEK_DETAIL_PARAM2);
+        if (fromUrl != null && fromUrl !== "") {
+          return fromUrl.trim().toLowerCase();
+        }
+      } catch {
+      }
+      try {
+        if (typeof sessionStorage !== "undefined") {
+          const stored = sessionStorage.getItem(`tr_seek_param_${SEEK_DETAIL_PARAM2}`);
+          if (stored != null && stored !== "") {
+            return stored.trim().toLowerCase();
+          }
+        }
+      } catch {
+      }
+      return null;
+    }
+    __name(readSeekDetailParamValue, "readSeekDetailParamValue");
+    function isSeekDetailOptOutValue(value) {
+      return value === "0" || value === "false" || value === "off" || value === "no";
+    }
+    __name(isSeekDetailOptOutValue, "isSeekDetailOptOutValue");
+    function shouldEnrichSeekListWithDetail() {
+      if (getCurrentSeekMode2() !== "talentsearch") {
+        return true;
+      }
+      return !isSeekDetailOptOutValue(readSeekDetailParamValue());
+    }
+    __name(shouldEnrichSeekListWithDetail, "shouldEnrichSeekListWithDetail");
+    function resumeHasWorkHistoryDescriptions(resume, minDescribed = 1) {
+      const rec = resume;
+      const workHistory = Array.isArray(rec?.workHistory) ? rec.workHistory : [];
+      let described = 0;
+      for (const entry of workHistory) {
+        if (!entry || typeof entry !== "object") continue;
+        const description = typeof entry.description === "string" ? entry.description.trim() : "";
+        if (description) {
+          described += 1;
+          if (described >= minDescribed) return true;
+        }
+      }
+      return false;
+    }
+    __name(resumeHasWorkHistoryDescriptions, "resumeHasWorkHistoryDescriptions");
+    function dismissSeekProfilePanel() {
+      try {
+        const active = doc.querySelector?.("[data-role='heading']");
+        const target = doc.body || active;
+        if (target && typeof target.dispatchEvent === "function") {
+          target.dispatchEvent(
+            new KeyboardEvent("keydown", {
+              key: "Escape",
+              code: "Escape",
+              keyCode: 27,
+              which: 27,
+              bubbles: true,
+              cancelable: true
+            })
+          );
+        }
+      } catch {
+      }
+    }
+    __name(dismissSeekProfilePanel, "dismissSeekProfilePanel");
     async function enrichSingleSeekResumeWithDetail2(resume, cachedHeadings) {
       const rec = resume;
       const profileId = typeof rec?.profileId === "string" ? rec.profileId.trim() : "";
       if (!profileId) {
+        return resume;
+      }
+      if (resumeHasWorkHistoryDescriptions(resume, 1)) {
         return resume;
       }
       const isTalentSearch = getCurrentSeekMode2() === "talentsearch";
@@ -1525,20 +1643,26 @@
         return resume;
       }
       try {
+        apiSnapshot2.seekProfile = null;
         trigger.click();
         const matchId = isTalentSearch ? rec?.seekProfileGuid || profileId : profileId;
-        await waitForSeekProfileSnapshot2(matchId, { timeoutMs: 12e3 });
+        const timeoutMs = isTalentSearch ? SEEK_TALENTSEARCH_DETAIL_TIMEOUT_MS2 : 12e3;
+        await waitForSeekProfileSnapshot2(matchId, { timeoutMs });
         const [detailResume] = extractSeekProfileResume2();
         if (!detailResume) {
+          dismissSeekProfilePanel();
           return resume;
         }
         if (isTalentSearch) {
           const detailGuid = detailResume.seekProfileGuid || "";
           const detailProfileId = detailResume.profileId || "";
           if (detailGuid !== profileId && detailProfileId !== profileId) {
+            dismissSeekProfilePanel();
             return resume;
           }
-          return mergeSeekListResumeWithDetail(resume, detailResume, isTalentSearch);
+          const merged = mergeSeekListResumeWithDetail(resume, detailResume, isTalentSearch);
+          dismissSeekProfilePanel();
+          return merged;
         }
         if (detailResume.profileId !== profileId) {
           return resume;
@@ -1550,6 +1674,7 @@
           profileId,
           error
         );
+        dismissSeekProfilePanel();
         return resume;
       }
     }
@@ -1558,26 +1683,38 @@
       if (!Array.isArray(resumes) || resumes.length === 0) return [];
       if (getCurrentSourceKey2() !== SOURCE_KEYS2.SEEK) return resumes;
       if (isSeekProfileMode2()) return resumes;
+      if (!shouldEnrichSeekListWithDetail()) {
+        return resumes;
+      }
       const isTalentSearch = getCurrentSeekMode2() === "talentsearch";
       const cachedHeadings = isTalentSearch ? Array.from(doc.querySelectorAll('[data-role="heading"]')) : null;
+      const concurrency = isTalentSearch ? SEEK_TALENTSEARCH_DETAIL_FETCH_CONCURRENCY2 : SEEK_DETAIL_FETCH_CONCURRENCY2;
+      const interBatchDelayMs = isTalentSearch ? SEEK_TALENTSEARCH_DETAIL_FETCH_DELAY_MS2 : SEEK_DETAIL_FETCH_DELAY_MS2;
       const enriched = [];
-      for (let start = 0; start < resumes.length; start += SEEK_DETAIL_FETCH_CONCURRENCY2) {
-        const batch = resumes.slice(start, start + SEEK_DETAIL_FETCH_CONCURRENCY2);
+      for (let start = 0; start < resumes.length; start += concurrency) {
+        const batch = resumes.slice(start, start + concurrency);
         const batchResults = await Promise.all(
           batch.map((resume) => enrichSingleSeekResumeWithDetail2(resume, cachedHeadings))
         );
         enriched.push(...batchResults);
-        if (start + SEEK_DETAIL_FETCH_CONCURRENCY2 < resumes.length) {
-          await delay2(SEEK_DETAIL_FETCH_DELAY_MS2);
+        if (start + concurrency < resumes.length) {
+          await delay2(interBatchDelayMs);
         }
       }
       return enriched;
     }
     __name(enrichSeekResumesWithDetail2, "enrichSeekResumesWithDetail");
+    function escapeCssAttrValue(value) {
+      if (typeof CSS !== "undefined" && typeof CSS.escape === "function") {
+        return CSS.escape(value);
+      }
+      return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    }
+    __name(escapeCssAttrValue, "escapeCssAttrValue");
     function findSeekTalentSearchCardTrigger(profileId, resume, cachedHeadings) {
       if (!profileId) return null;
       const byAttr = doc.querySelector(
-        `[data-tr-candidate-id="${CSS.escape(profileId)}"]`
+        `[data-tr-candidate-id="${escapeCssAttrValue(profileId)}"]`
       );
       if (byAttr instanceof HTMLElement) return byAttr;
       const candidateName = typeof resume?.name === "string" ? resume.name.trim() : "";
@@ -1600,20 +1737,33 @@
       }
       const seekProfileGuid = base.seekProfileGuid || detail.seekProfileGuid || void 0;
       const numericProfileId = isTalentSearch && detail.profileId && /^\d+$/.test(String(detail.profileId)) ? String(detail.profileId) : void 0;
-      let profileUrl = detail.profileUrl || base.profileUrl;
-      if (numericProfileId) {
-        const seekRequest = getSeekTalentSearchRequest2();
-        const seekVariables = seekRequest?.variables;
-        const requestJobId = seekVariables?.input?.jobId;
-        const urlJobId = normalizeOptionalPositiveInt2(
-          new URL(win.location.href).searchParams.get("jobId")
-        );
-        const jobId = requestJobId != null ? String(requestJobId) : urlJobId != null ? String(urlJobId) : void 0;
-        profileUrl = buildSeekProfileUrl2(numericProfileId, jobId);
+      const baseProfileUrl = typeof base.profileUrl === "string" ? base.profileUrl : "";
+      const detailProfileUrl = typeof detail.profileUrl === "string" ? detail.profileUrl : "";
+      const isCandidatesOnlyUrl = /* @__PURE__ */ __name((url) => /\/candidates\/\d+(?:\?|$)/.test(url) && !/talentsearch/i.test(url), "isCandidatesOnlyUrl");
+      let profileUrl = isTalentSearch ? (
+        // Prefer list name-search URL; rebuild if base empty or detail forced candidates URL.
+        !isCandidatesOnlyUrl(baseProfileUrl) && baseProfileUrl ? baseProfileUrl : !isCandidatesOnlyUrl(detailProfileUrl) && detailProfileUrl ? detailProfileUrl : ""
+      ) : detailProfileUrl || baseProfileUrl;
+      if (isTalentSearch && (!profileUrl || isCandidatesOnlyUrl(profileUrl))) {
+        const name = typeof base.name === "string" && base.name.trim() || typeof detail.name === "string" && detail.name.trim() || "";
+        const market = new URL(win.location.href).searchParams.get("market") || void 0;
+        const roleTitle = typeof base.jobIntention === "string" && base.jobIntention.trim() || typeof detail.jobIntention === "string" && detail.jobIntention.trim() || void 0;
+        profileUrl = buildSeekNameSearchUrl2(name, market, roleTitle) || baseProfileUrl || detailProfileUrl;
       }
+      const baseWorkHistory = Array.isArray(base.workHistory) ? base.workHistory : [];
+      const detailWorkHistory = Array.isArray(detail.workHistory) ? detail.workHistory : [];
+      const countDescribed = /* @__PURE__ */ __name((entries) => entries.filter((entry) => {
+        if (!entry || typeof entry !== "object") return false;
+        const description = entry.description;
+        return typeof description === "string" && description.trim().length > 0;
+      }).length, "countDescribed");
+      const workHistory = countDescribed(detailWorkHistory) > 0 ? detailWorkHistory : detailWorkHistory.length > 0 ? detailWorkHistory : baseWorkHistory;
       return {
         ...base,
         ...detail,
+        workHistory,
+        // Keep list UUID externalId for talentsearch identity stability.
+        externalId: isTalentSearch ? base.externalId || detail.externalId : detail.externalId || base.externalId,
         ...seekProfileGuid ? { seekProfileGuid } : {},
         ...numericProfileId ? { profileId: numericProfileId } : {},
         ...profileUrl ? { profileUrl } : {},
@@ -1647,7 +1797,26 @@
       const rec = item;
       const companyName = typeof rec.companyName === "string" ? rec.companyName.trim() : "";
       const jobTitle = typeof rec.jobTitle === "string" ? rec.jobTitle.trim() : "";
-      const description = typeof rec.description === "string" ? rec.description.trim() : "";
+      const descriptionCandidates = [
+        rec.description,
+        rec.jobDescription,
+        rec.responsibilities,
+        rec.highlights
+      ];
+      let description = "";
+      for (const candidate of descriptionCandidates) {
+        if (typeof candidate === "string" && candidate.trim()) {
+          description = candidate.trim();
+          break;
+        }
+        if (Array.isArray(candidate)) {
+          const joined = candidate.map((line) => typeof line === "string" ? line.trim() : "").filter(Boolean).join("\n");
+          if (joined) {
+            description = joined;
+            break;
+          }
+        }
+      }
       const startDate = typeof rec.startDate === "string" ? rec.startDate.trim() : "";
       const endDate = typeof rec.endDate === "string" ? rec.endDate.trim() : "";
       const durationLabel = typeof rec.durationLabel === "string" ? rec.durationLabel.trim() : "";
@@ -1702,6 +1871,7 @@
       resolveSeekAutoSyncPageSize: resolveSeekAutoSyncPageSize2,
       resolveSeekAutoSyncPageWindow: resolveSeekAutoSyncPageWindow2,
       isSeekAutoSyncPageWindowReached: isSeekAutoSyncPageWindowReached2,
+      shouldStopSeekAutoSyncForPageWindow: shouldStopSeekAutoSyncForPageWindow2,
       resolveSeekAutoSyncCurrentPageSelection: resolveSeekAutoSyncCurrentPageSelection2,
       getSeekRequestedPageSize: getSeekRequestedPageSize2,
       getSeekCurrentCandidateCount: getSeekCurrentCandidateCount2,
@@ -3420,7 +3590,10 @@
         const deadline = Date.now() + timeoutMs;
         const check = /* @__PURE__ */ __name(() => {
           if (done) return;
-          const snapshot = apiSnapshot2.seekProfile;
+          const snapshot = unwrapSeekProfileSnapshot(apiSnapshot2.seekProfile);
+          if (snapshot && apiSnapshot2.seekProfile !== snapshot) {
+            apiSnapshot2.seekProfile = snapshot;
+          }
           const identity = snapshot ? getSeekCandidateIdentity2(snapshot) : null;
           const snapshotGuid = typeof snapshot?.profileGuid === "string" ? snapshot.profileGuid : "";
           if (identity?.profileId === String(profileId) || snapshotGuid === String(profileId)) {
@@ -3793,6 +3966,7 @@
       enrichSeekResumesWithDetail: enrichSeekResumesWithDetail2,
       getPaginationInfo: getPaginationInfo2,
       isSeekAutoSyncPageWindowReached: isSeekAutoSyncPageWindowReached2,
+      shouldStopSeekAutoSyncForPageWindow: shouldStopSeekAutoSyncForPageWindow2,
       waitForPagination: waitForPagination2,
       clearCapturedResultsForNextPage: clearCapturedResultsForNextPage2,
       goToNextPageInternal: goToNextPageInternal2,
@@ -3968,7 +4142,8 @@
       }
       if (kind === "seekProfile") {
         const data = getSeekPayloadData2(payload, kind);
-        apiSnapshot2.seekProfile = data?.talentSearchProfileV2 || data?.talentSearchProfileCompleteV2 || data?.getTalentSearchProfileCompleteV2 || data?.talentSearchProfileV3 || data || null;
+        const rawProfile = data?.talentSearchProfileV2 || data?.talentSearchProfileCompleteV2 || data?.getTalentSearchProfileCompleteV2 || data?.talentSearchProfileV3 || data || null;
+        apiSnapshot2.seekProfile = unwrapSeekProfileSnapshot(rawProfile);
         apiSnapshot2.seekProfileRequest = request || apiSnapshot2.seekProfileRequest || apiSnapshot2.seekRecommendedRequest || null;
         setApiRowsAttribute();
         return;
@@ -4060,15 +4235,19 @@
           stopReason = "limit-reached";
           break;
         }
-        if (isSeekListPage && isSeekAutoSyncPageWindowReached2(seekPageWindow, currentPage)) {
-          stopReason = "page-window-reached";
-          break;
-        }
-        if (!isSeekListPage && limit > 0 && collectedResumes.length >= limit) {
+        if (limit > 0 && collectedResumes.length >= limit) {
           stopReason = "limit-reached";
           break;
         }
-        if (!isSeekListPage && maxPages > 0 && pagesVisited >= maxPages) {
+        if (isSeekListPage && shouldStopSeekAutoSyncForPageWindow2({
+          pageWindowReached: isSeekAutoSyncPageWindowReached2(seekPageWindow, currentPage),
+          limit,
+          totalSubmitted: collectedResumes.length
+        })) {
+          stopReason = "page-window-reached";
+          break;
+        }
+        if (maxPages > 0 && pagesVisited >= maxPages) {
           stopReason = "max-pages-reached";
           break;
         }
@@ -6208,6 +6387,10 @@
   var JOB51_DETAIL_FETCH_CONCURRENCY = 2;
   var SEEK_DETAIL_FETCH_CONCURRENCY = 3;
   var SEEK_DETAIL_FETCH_DELAY_MS = 1e3;
+  var SEEK_TALENTSEARCH_DETAIL_FETCH_CONCURRENCY = 1;
+  var SEEK_TALENTSEARCH_DETAIL_FETCH_DELAY_MS = 200;
+  var SEEK_TALENTSEARCH_DETAIL_TIMEOUT_MS = 4e3;
+  var SEEK_DETAIL_PARAM = "tr_seek_detail";
   var DEFAULT_SEEK_PAGE_SIZE = 20;
   var LATEST_AUTO_SYNC_SUMMARIES_STORAGE_KEY = "latestAutoSyncSummaries";
 
@@ -6567,6 +6750,7 @@
       isSeekProfileMode: isSeekProfileMode2,
       resolveSeekAutoSyncPageWindow: resolveSeekAutoSyncPageWindow2,
       isSeekAutoSyncPageWindowReached: isSeekAutoSyncPageWindowReached2,
+      shouldStopSeekAutoSyncForPageWindow: shouldStopSeekAutoSyncForPageWindow2,
       resolveSeekAutoSyncCurrentPageSelection: resolveSeekAutoSyncCurrentPageSelection2,
       getSeekRequestedPageSize: getSeekRequestedPageSize2,
       getSeekCurrentCandidateCount: getSeekCurrentCandidateCount2,
@@ -6748,11 +6932,15 @@
               stopReason = "cancelled";
               break;
             }
-            if (isSeekListPage && isSeekAutoSyncPageWindowReached2(seekPageWindow, currentPage)) {
+            if (isSeekListPage && shouldStopSeekAutoSyncForPageWindow2({
+              pageWindowReached: isSeekAutoSyncPageWindowReached2(seekPageWindow, currentPage),
+              limit,
+              totalSubmitted
+            })) {
               stopReason = "page-window-reached";
               break;
             }
-            if (!isSeekListPage && maxPages > 0 && pagesVisited >= maxPages) {
+            if (maxPages > 0 && pagesVisited >= maxPages) {
               stopReason = "max-pages-reached";
               break;
             }
@@ -6834,15 +7022,19 @@
             stopReason = "limit-reached";
             break;
           }
-          if (isSeekListPage && isSeekAutoSyncPageWindowReached2(seekPageWindow, currentPage)) {
-            stopReason = "page-window-reached";
-            break;
-          }
-          if (!isSeekListPage && limit > 0 && totalSubmitted >= limit) {
+          if (limit > 0 && totalSubmitted >= limit) {
             stopReason = "limit-reached";
             break;
           }
-          if (!isSeekListPage && maxPages > 0 && pagesVisited >= maxPages) {
+          if (isSeekListPage && shouldStopSeekAutoSyncForPageWindow2({
+            pageWindowReached: isSeekAutoSyncPageWindowReached2(seekPageWindow, currentPage),
+            limit,
+            totalSubmitted
+          })) {
+            stopReason = "page-window-reached";
+            break;
+          }
+          if (maxPages > 0 && pagesVisited >= maxPages) {
             stopReason = "max-pages-reached";
             break;
           }
@@ -7115,7 +7307,7 @@
     try {
       const url = new URL(window.location.href);
       const val = url.searchParams.get(AUTO_SYNC_PARAM);
-      const seekParams = ["keywords", "roleTitles", "matchAll", "tr_max_age"];
+      const seekParams = ["keywords", "roleTitles", "matchAll", "tr_max_age", SEEK_DETAIL_PARAM];
       for (const p of seekParams) {
         const v = url.searchParams.get(p);
         if (v !== null) {
@@ -7298,6 +7490,10 @@
     waitForSeekProfileSnapshot: /* @__PURE__ */ __name(((matchId, options) => waitForSeekProfileSnapshot(matchId, options)), "waitForSeekProfileSnapshot"),
     SEEK_DETAIL_FETCH_CONCURRENCY,
     SEEK_DETAIL_FETCH_DELAY_MS,
+    SEEK_TALENTSEARCH_DETAIL_FETCH_CONCURRENCY,
+    SEEK_TALENTSEARCH_DETAIL_FETCH_DELAY_MS,
+    SEEK_TALENTSEARCH_DETAIL_TIMEOUT_MS,
+    SEEK_DETAIL_PARAM,
     delay: /* @__PURE__ */ __name(((ms) => delay(ms)), "delay"),
     SELECTORS
   });
@@ -7323,6 +7519,7 @@
     resolveSeekAutoSyncPageSize,
     resolveSeekAutoSyncPageWindow,
     isSeekAutoSyncPageWindowReached,
+    shouldStopSeekAutoSyncForPageWindow,
     resolveSeekAutoSyncCurrentPageSelection,
     getSeekRequestedPageSize,
     getSeekCurrentCandidateCount,
@@ -7643,6 +7840,7 @@
     enrichSeekResumesWithDetail,
     getPaginationInfo,
     isSeekAutoSyncPageWindowReached,
+    shouldStopSeekAutoSyncForPageWindow,
     waitForPagination,
     clearCapturedResultsForNextPage,
     goToNextPageInternal,
@@ -7801,6 +7999,7 @@
     isSeekProfileMode,
     resolveSeekAutoSyncPageWindow,
     isSeekAutoSyncPageWindowReached,
+    shouldStopSeekAutoSyncForPageWindow,
     resolveSeekAutoSyncCurrentPageSelection,
     getSeekRequestedPageSize,
     getSeekCurrentCandidateCount,

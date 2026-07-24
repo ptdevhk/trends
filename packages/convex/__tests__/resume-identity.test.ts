@@ -170,6 +170,41 @@ describe("deriveResumeIdentityKey", () => {
         expect(seekIdentity).not.toBe(job5156Identity);
         expect(job5156Identity).toBe("profileUrl:hr.job5156.com/api/com/resume/123456");
     });
+
+    it("does not use Seek talentsearch name-search profileUrl as identity (keeps UUID externalIds distinct)", () => {
+        const sharedNameSearchUrl =
+            "https://hk.employer.seek.com/talentsearch/profiles/search?searchQuery=Ahmad%20Razak&market=MY&pageNumber=1";
+        const first = deriveResumeIdentity({
+            externalId: "hk.employer.seek.com:profile:52a6b466-895d-11ea-8ede-005056b16351",
+            source: "hk.employer.seek.com",
+            content: {
+                profileUrl: sharedNameSearchUrl,
+                profileId: "52a6b466-895d-11ea-8ede-005056b16351",
+                seekProfileGuid: "52a6b466-895d-11ea-8ede-005056b16351",
+                name: "Ahmad Razak",
+            },
+        });
+        const second = deriveResumeIdentity({
+            externalId: "hk.employer.seek.com:profile:aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+            source: "hk.employer.seek.com",
+            content: {
+                profileUrl: sharedNameSearchUrl,
+                profileId: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+                seekProfileGuid: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+                name: "Ahmad Razak",
+            },
+        });
+
+        expect(first.source).toBe("externalId");
+        expect(second.source).toBe("externalId");
+        expect(first.identityKey).toBe(
+            "externalId:hk.employer.seek.com:profile:52a6b466-895d-11ea-8ede-005056b16351",
+        );
+        expect(second.identityKey).toBe(
+            "externalId:hk.employer.seek.com:profile:aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+        );
+        expect(first.identityKey).not.toBe(second.identityKey);
+    });
 });
 
 // ---------------------------------------------------------------------------

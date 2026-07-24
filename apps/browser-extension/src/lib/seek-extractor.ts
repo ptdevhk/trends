@@ -3,6 +3,47 @@
  * URL building, and auto-sync helpers. All dependencies injected from content.ts.
  */
 
+/**
+ * Seek GetTalentSearchProfileCompleteV3 returns
+ * `{ __typename, result: { profileGuid, workHistories, ... } }` (sometimes
+ * wrapped again under talentSearchProfileV3). Capture historically stored the
+ * wrapper, so waitForSeekProfileSnapshot never saw profileGuid and always
+ * timed out — serial enrichment then burned ~4s/card with no job descriptions.
+ */
+export function unwrapSeekProfileSnapshot(
+  raw: unknown,
+): Record<string, unknown> | null {
+  if (!raw || typeof raw !== "object") return null;
+  let current = raw as Record<string, unknown>;
+
+  for (const key of [
+    "talentSearchProfileV3",
+    "talentSearchProfileV2",
+    "talentSearchProfileCompleteV2",
+    "getTalentSearchProfileCompleteV2",
+  ]) {
+    const nested = current[key];
+    if (nested && typeof nested === "object" && !Array.isArray(nested)) {
+      current = nested as Record<string, unknown>;
+      break;
+    }
+  }
+
+  const result = current.result;
+  if (result && typeof result === "object" && !Array.isArray(result)) {
+    const inner = result as Record<string, unknown>;
+    if (
+      typeof inner.profileGuid === "string" ||
+      inner.profileId != null ||
+      Array.isArray(inner.workHistories) ||
+      typeof inner.firstName === "string"
+    ) {
+      return inner;
+    }
+  }
+
+  return current;
+}
 
 export interface SeekExtractorDeps extends Record<string, unknown> {
   getCurrentSourceKey: () => string;
@@ -19,6 +60,10 @@ export interface SeekExtractorDeps extends Record<string, unknown> {
   waitForSeekProfileSnapshot: (matchId: string, options: { timeoutMs: number }) => Promise<void>;
   SEEK_DETAIL_FETCH_CONCURRENCY: number;
   SEEK_DETAIL_FETCH_DELAY_MS: number;
+  SEEK_TALENTSEARCH_DETAIL_FETCH_CONCURRENCY: number;
+  SEEK_TALENTSEARCH_DETAIL_FETCH_DELAY_MS: number;
+  SEEK_TALENTSEARCH_DETAIL_TIMEOUT_MS: number;
+  SEEK_DETAIL_PARAM: string;
   delay: (ms: number) => Promise<void>;
   SELECTORS: Record<string, string>;
 }
@@ -42,18 +87,22 @@ export function createSeekExtractor(deps: SeekExtractorDeps) {
     waitForSeekProfileSnapshot,
     SEEK_DETAIL_FETCH_CONCURRENCY,
     SEEK_DETAIL_FETCH_DELAY_MS,
+    SEEK_TALENTSEARCH_DETAIL_FETCH_CONCURRENCY,
+    SEEK_TALENTSEARCH_DETAIL_FETCH_DELAY_MS,
+    SEEK_TALENTSEARCH_DETAIL_TIMEOUT_MS,
+    SEEK_DETAIL_PARAM,
     delay,
     // Pagination selectors
     SELECTORS,
   } = deps;
 
   function isSeekProfilePage() {
-    return window.location.pathname.includes("/talentsearch/profile/");
+    return win.location.pathname.includes("/talentsearch/profile/");
   }
 
   function isSeekTalentSearchListPage() {
     if (getCurrentSourceKey() !== SOURCE_KEYS.SEEK) return false;
-    const { pathname, search } = window.location;
+    const { pathname, search } = win.location;
     if (pathname.includes("/talentsearch/profile/")) return false;
     return pathname === "/talentsearch" && search.length > 0;
   }
@@ -62,15 +111,15 @@ export function createSeekExtractor(deps: SeekExtractorDeps) {
     if (getCurrentSourceKey() !== SOURCE_KEYS.SEEK) return null;
     if (isSeekProfilePage()) return "profile";
     if (isSeekTalentSearchListPage()) return "talentsearch";
-    if (window.location.pathname.includes("/candidates/recommended")) return "recommended";
+    if (win.location.pathname.includes("/candidates/recommended")) return "recommended";
     return null;
   }
 
   function isSeekInlineProfileMode() {
     if (getCurrentSourceKey() !== SOURCE_KEYS.SEEK) return false;
-    if (!window.location.pathname.includes("/candidates/recommended")) return false;
+    if (!win.location.pathname.includes("/candidates/recommended")) return false;
     const openProfileId = normalizeOptionalPositiveInt(
-      new URL(window.location.href).searchParams.get("openProfileId"),
+      new URL(win.location.href).searchParams.get("openProfileId"),
     );
     return openProfileId !== null && hasSeekProfileSnapshot();
   }
@@ -235,6 +284,29 @@ export function createSeekExtractor(deps: SeekExtractorDeps) {
     return !!(normalizedCurrentPage && targetPageEnd && normalizedCurrentPage >= targetPageEnd);
   }
 
+  /**
+   * Planned page windows assume full pages (ceil(limit / pageSize)).
+   * When a page returns fewer cards (or extract drops rows), remaining capacity
+   * can still be > 0 at targetPageEnd — e.g. limit 100 → only 99 collected.
+   * Only honor the window stop once the limit is met (or when there is no limit).
+   * Callers must still enforce maxPages as a hard cap when extending.
+   */
+  function shouldStopSeekAutoSyncForPageWindow(options: {
+    pageWindowReached: boolean;
+    limit?: number | null;
+    totalSubmitted?: number | null;
+  }): boolean {
+    if (!options.pageWindowReached) {
+      return false;
+    }
+    const normalizedLimit = normalizeOptionalPositiveInt(options.limit);
+    if (!normalizedLimit) {
+      return true;
+    }
+    const submitted = normalizeOptionalPositiveInt(options.totalSubmitted) || 0;
+    return submitted >= normalizedLimit;
+  }
+
   function resolveSeekAutoSyncCurrentPageSelection(options: Record<string, unknown> = {}) {
     const helpers = getSeekAutoSyncHelpers();
     if (typeof helpers?.resolveSeekAutoSyncCurrentPageSelection === "function") {
@@ -316,8 +388,8 @@ export function createSeekExtractor(deps: SeekExtractorDeps) {
   // ============================================================================
 
   function extractSeekProfileResume() {
-    const profile = apiSnapshot.seekProfile as Record<string, unknown> | null;
-    if (!profile || typeof profile !== "object") return [];
+    const profile = unwrapSeekProfileSnapshot(apiSnapshot.seekProfile);
+    if (!profile) return [];
 
     const request = getSeekProfileRequest();
     const variables = request?.variables as Record<string, unknown> | undefined;
@@ -338,6 +410,9 @@ export function createSeekExtractor(deps: SeekExtractorDeps) {
       typeof profile.profileGuid === "string" && profile.profileGuid
         ? profile.profileGuid
         : undefined;
+    // Prefer UUID externalId for talentsearch identity stability when V3 also
+    // returns a numeric profileId.
+    const externalProfileKey = seekProfileGuid || profileId;
     const firstName =
       typeof profile.firstName === "string" ? profile.firstName.trim() : "";
     const lastName =
@@ -361,7 +436,9 @@ export function createSeekExtractor(deps: SeekExtractorDeps) {
     const lastModifiedDate =
       typeof profile.lastModifiedDate === "string"
         ? profile.lastModifiedDate
-        : "";
+        : typeof profile.lastModifiedDurationLabel === "string"
+          ? profile.lastModifiedDurationLabel
+          : "";
     const workHistory = Array.isArray(profile.workHistories)
       ? profile.workHistories
           .map((item) => buildSeekWorkHistoryItem(item))
@@ -394,10 +471,13 @@ export function createSeekExtractor(deps: SeekExtractorDeps) {
           (item) => typeof item === "string" && item.trim(),
         )
       : [];
+    // V3 uses personalSummary; older payloads used resumeSnippet.
     const resumeSnippet =
-      typeof profile.resumeSnippet === "string"
+      typeof profile.resumeSnippet === "string" && profile.resumeSnippet.trim()
         ? profile.resumeSnippet.trim()
-        : "";
+        : typeof profile.personalSummary === "string"
+          ? profile.personalSummary.trim()
+          : "";
     const currentIndustry =
       typeof profile.currentIndustry === "string"
         ? profile.currentIndustry.trim()
@@ -420,11 +500,20 @@ export function createSeekExtractor(deps: SeekExtractorDeps) {
         profileId,
         profileType,
         seekProfileGuid,
-        externalId: profileId
-          ? `${win.location.hostname.toLowerCase()}:profile:${profileId}`
+        externalId: externalProfileKey
+          ? `${win.location.hostname.toLowerCase()}:profile:${externalProfileKey}`
           : "",
         name: [firstName, lastName].filter(Boolean).join(" ").trim(),
-        profileUrl: buildSeekProfileUrl(profileId, jobId),
+        // Talentsearch: name-search URL is the only operator-visitable link.
+        // /candidates/<numericId> is invalid outside the recommended lane.
+        profileUrl:
+          getCurrentSeekMode() === "talentsearch"
+            ? buildSeekNameSearchUrl(
+                [firstName, lastName].filter(Boolean).join(" "),
+                profileUrl.searchParams.get("market") || undefined,
+                currentJobTitle,
+              ) || buildSeekProfileUrl(profileId, jobId)
+            : buildSeekProfileUrl(profileId, jobId),
         activityStatus: lastModifiedDate,
         age: "",
         experience: "",
@@ -965,11 +1054,104 @@ export function createSeekExtractor(deps: SeekExtractorDeps) {
   // Seek Detail Enrichment
   // ============================================================================
 
+  /**
+   * Talentsearch list GraphQL returns name/location/workHistory titles only —
+   * not per-job description text. AI scoring uses the latest 3 job descriptions,
+   * so V3 side-panel enrichment is ON by default for talentsearch.
+   *
+   * Opt out for list-only speed: ?tr_seek_detail=0 (also: false|off|no).
+   * Recommended-lane collection always enriches.
+   *
+   * Prefer the live URL, then fall back to the sessionStorage capture written at
+   * document_start (SEEK's SPA often strips unknown `tr_*` query params).
+   */
+  function readSeekDetailParamValue(): string | null {
+    try {
+      const params = new URLSearchParams(win.location.search || "");
+      const fromUrl = params.get(SEEK_DETAIL_PARAM);
+      if (fromUrl != null && fromUrl !== "") {
+        return fromUrl.trim().toLowerCase();
+      }
+    } catch {
+      // fall through to sessionStorage
+    }
+    try {
+      if (typeof sessionStorage !== "undefined") {
+        const stored = sessionStorage.getItem(`tr_seek_param_${SEEK_DETAIL_PARAM}`);
+        if (stored != null && stored !== "") {
+          return stored.trim().toLowerCase();
+        }
+      }
+    } catch {
+      // ignore sessionStorage access errors
+    }
+    return null;
+  }
+
+  function isSeekDetailOptOutValue(value: string | null): boolean {
+    return value === "0" || value === "false" || value === "off" || value === "no";
+  }
+
+  function shouldEnrichSeekListWithDetail(): boolean {
+    if (getCurrentSeekMode() !== "talentsearch") {
+      return true;
+    }
+    // Default ON: list workHistory lacks job descriptions for latest-3 scoring.
+    return !isSeekDetailOptOutValue(readSeekDetailParamValue());
+  }
+
+  /** True when work history already has description text on any of the first N roles. */
+  function resumeHasWorkHistoryDescriptions(resume: unknown, minDescribed = 1): boolean {
+    const rec = resume as Record<string, unknown> | null | undefined;
+    const workHistory = Array.isArray(rec?.workHistory) ? rec.workHistory : [];
+    let described = 0;
+    for (const entry of workHistory) {
+      if (!entry || typeof entry !== "object") continue;
+      const description =
+        typeof (entry as Record<string, unknown>).description === "string"
+          ? ((entry as Record<string, unknown>).description as string).trim()
+          : "";
+      if (description) {
+        described += 1;
+        if (described >= minDescribed) return true;
+      }
+    }
+    return false;
+  }
+
+  function dismissSeekProfilePanel() {
+    try {
+      const active = doc.querySelector?.("[data-role='heading']") as Element | null;
+      // Prefer Escape so the SPA closes the side panel without navigation.
+      const target = (doc as { body?: HTMLElement }).body || active;
+      if (target && typeof (target as HTMLElement).dispatchEvent === "function") {
+        target.dispatchEvent(
+          new KeyboardEvent("keydown", {
+            key: "Escape",
+            code: "Escape",
+            keyCode: 27,
+            which: 27,
+            bubbles: true,
+            cancelable: true,
+          }),
+        );
+      }
+    } catch {
+      // Best-effort; next click still works if the previous panel stays open.
+    }
+  }
+
   async function enrichSingleSeekResumeWithDetail(resume: unknown, cachedHeadings: unknown) {
     const rec = resume as Record<string, unknown> | null | undefined;
     const profileId =
       typeof rec?.profileId === "string" ? rec.profileId.trim() : "";
     if (!profileId) {
+      return resume;
+    }
+
+    // Skip SPA panel open when list (or prior) data already has job descriptions.
+    // List-only talentsearch never hits this; re-enrich / recommended may.
+    if (resumeHasWorkHistoryDescriptions(resume, 1)) {
       return resume;
     }
 
@@ -982,12 +1164,16 @@ export function createSeekExtractor(deps: SeekExtractorDeps) {
     }
 
     try {
+      // Drop stale V3 payload so waiters cannot resolve against the previous card.
+      apiSnapshot.seekProfile = null;
       trigger.click();
       // For talentsearch, match by profileGuid (UUID); for recommended, match by numeric profileId
       const matchId = isTalentSearch ? (rec?.seekProfileGuid as string) || profileId : profileId;
-      await waitForSeekProfileSnapshot(matchId, { timeoutMs: 12000 });
+      const timeoutMs = isTalentSearch ? SEEK_TALENTSEARCH_DETAIL_TIMEOUT_MS : 12000;
+      await waitForSeekProfileSnapshot(matchId, { timeoutMs });
       const [detailResume] = extractSeekProfileResume() as (Record<string, unknown> | undefined)[];
       if (!detailResume) {
+        dismissSeekProfilePanel();
         return resume;
       }
       // For talentsearch, verify the detail profile matches by profileGuid or profileId
@@ -995,10 +1181,13 @@ export function createSeekExtractor(deps: SeekExtractorDeps) {
         const detailGuid = (detailResume.seekProfileGuid as string) || "";
         const detailProfileId = (detailResume.profileId as string) || "";
         if (detailGuid !== profileId && detailProfileId !== profileId) {
+          dismissSeekProfilePanel();
           return resume;
         }
         // Merge: talentsearch detail may provide numeric profileId from V3 response
-        return mergeSeekListResumeWithDetail(resume, detailResume, isTalentSearch);
+        const merged = mergeSeekListResumeWithDetail(resume, detailResume, isTalentSearch);
+        dismissSeekProfilePanel();
+        return merged;
       }
       if (detailResume.profileId !== profileId) {
         return resume;
@@ -1010,6 +1199,7 @@ export function createSeekExtractor(deps: SeekExtractorDeps) {
         profileId,
         error,
       );
+      dismissSeekProfilePanel();
       return resume;
     }
   }
@@ -1018,6 +1208,9 @@ export function createSeekExtractor(deps: SeekExtractorDeps) {
     if (!Array.isArray(resumes) || resumes.length === 0) return [];
     if (getCurrentSourceKey() !== SOURCE_KEYS.SEEK) return resumes;
     if (isSeekProfileMode()) return resumes;
+    if (!shouldEnrichSeekListWithDetail()) {
+      return resumes;
+    }
 
     // Cache DOM headings once for talentsearch card-finding (avoids O(N²) queries)
     const isTalentSearch = getCurrentSeekMode() === "talentsearch";
@@ -1025,15 +1218,24 @@ export function createSeekExtractor(deps: SeekExtractorDeps) {
       ? Array.from(doc.querySelectorAll('[data-role="heading"]'))
       : null;
 
+    // Talentsearch SPA only supports one open panel; serial enrichment avoids
+    // lost GraphQL responses on the shared apiSnapshot.seekProfile slot.
+    const concurrency = isTalentSearch
+      ? SEEK_TALENTSEARCH_DETAIL_FETCH_CONCURRENCY
+      : SEEK_DETAIL_FETCH_CONCURRENCY;
+    const interBatchDelayMs = isTalentSearch
+      ? SEEK_TALENTSEARCH_DETAIL_FETCH_DELAY_MS
+      : SEEK_DETAIL_FETCH_DELAY_MS;
+
     const enriched = [];
-    for (let start = 0; start < resumes.length; start += SEEK_DETAIL_FETCH_CONCURRENCY) {
-      const batch = resumes.slice(start, start + SEEK_DETAIL_FETCH_CONCURRENCY);
+    for (let start = 0; start < resumes.length; start += concurrency) {
+      const batch = resumes.slice(start, start + concurrency);
       const batchResults = await Promise.all(
         batch.map((resume) => enrichSingleSeekResumeWithDetail(resume, cachedHeadings)),
       );
       enriched.push(...batchResults);
-      if (start + SEEK_DETAIL_FETCH_CONCURRENCY < resumes.length) {
-        await delay(SEEK_DETAIL_FETCH_DELAY_MS);
+      if (start + concurrency < resumes.length) {
+        await delay(interBatchDelayMs);
       }
     }
     return enriched;
@@ -1048,11 +1250,18 @@ export function createSeekExtractor(deps: SeekExtractorDeps) {
    * element clicked via SPA event handlers. Find the card matching this profileId
    * (UUID) by checking data attributes or card index.
    */
+  function escapeCssAttrValue(value: string): string {
+    if (typeof CSS !== "undefined" && typeof CSS.escape === "function") {
+      return CSS.escape(value);
+    }
+    return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  }
+
   function findSeekTalentSearchCardTrigger(profileId: string, resume: unknown, cachedHeadings: unknown) {
     if (!profileId) return null;
     // Try matching by data-tr-candidate-id attribute (set during extraction)
     const byAttr = doc.querySelector(
-      `[data-tr-candidate-id="${CSS.escape(profileId)}"]`,
+      `[data-tr-candidate-id="${escapeCssAttrValue(profileId)}"]`,
     );
     if (byAttr instanceof HTMLElement) return byAttr;
     // Fallback: match heading elements that contain the candidate name.
@@ -1077,34 +1286,65 @@ export function createSeekExtractor(deps: SeekExtractorDeps) {
       return baseResume;
     }
 
-    // For talentsearch: if V3 detail provides a numeric profileId, use it for
-    // profileUrl construction but preserve the UUID seekProfileGuid
+    // Talentsearch: keep UUID seekProfileGuid; optional numeric profileId for
+    // diagnostics only. Never rewrite profileUrl to /candidates/<id> — that path
+    // is not visitable from the talentsearch lane (operators need name-search URLs).
     const seekProfileGuid = base.seekProfileGuid || detail.seekProfileGuid || undefined;
     const numericProfileId = isTalentSearch && detail.profileId && /^\d+$/.test(String(detail.profileId))
       ? String(detail.profileId)
       : undefined;
 
-    // If we got a numeric profileId from V3 detail, update the profileUrl
-    let profileUrl = detail.profileUrl || base.profileUrl;
-    if (numericProfileId) {
-      // Derive jobId from the current page URL or API request for recommended URL format
-      const seekRequest = getSeekTalentSearchRequest();
-      const seekVariables = seekRequest?.variables as Record<string, unknown> | undefined;
-      const requestJobId = (seekVariables?.input as Record<string, unknown> | undefined)?.jobId;
-      const urlJobId = normalizeOptionalPositiveInt(
-        new URL(win.location.href).searchParams.get("jobId"),
-      );
-      const jobId = requestJobId != null
-        ? String(requestJobId)
-        : urlJobId != null
-          ? String(urlJobId)
-          : undefined;
-      profileUrl = buildSeekProfileUrl(numericProfileId, jobId);
+    const baseProfileUrl = typeof base.profileUrl === "string" ? base.profileUrl : "";
+    const detailProfileUrl = typeof detail.profileUrl === "string" ? detail.profileUrl : "";
+    const isCandidatesOnlyUrl = (url: string) =>
+      /\/candidates\/\d+(?:\?|$)/.test(url) && !/talentsearch/i.test(url);
+    let profileUrl = isTalentSearch
+      ? // Prefer list name-search URL; rebuild if base empty or detail forced candidates URL.
+        (!isCandidatesOnlyUrl(baseProfileUrl) && baseProfileUrl
+          ? baseProfileUrl
+          : !isCandidatesOnlyUrl(detailProfileUrl) && detailProfileUrl
+            ? detailProfileUrl
+            : "")
+      : detailProfileUrl || baseProfileUrl;
+    if (isTalentSearch && (!profileUrl || isCandidatesOnlyUrl(profileUrl))) {
+      const name =
+        (typeof base.name === "string" && base.name.trim()) ||
+        (typeof detail.name === "string" && detail.name.trim()) ||
+        "";
+      const market =
+        new URL(win.location.href).searchParams.get("market") || undefined;
+      const roleTitle =
+        (typeof base.jobIntention === "string" && base.jobIntention.trim()) ||
+        (typeof detail.jobIntention === "string" && detail.jobIntention.trim()) ||
+        undefined;
+      profileUrl = buildSeekNameSearchUrl(name, market, roleTitle) || baseProfileUrl || detailProfileUrl;
     }
+
+    // Prefer workHistory that includes job descriptions (V3 detail). List-only
+    // titles/companies stay as fallback when detail workHistory is empty.
+    const baseWorkHistory = Array.isArray(base.workHistory) ? base.workHistory : [];
+    const detailWorkHistory = Array.isArray(detail.workHistory) ? detail.workHistory : [];
+    const countDescribed = (entries: unknown[]) =>
+      entries.filter((entry) => {
+        if (!entry || typeof entry !== "object") return false;
+        const description = (entry as Record<string, unknown>).description;
+        return typeof description === "string" && description.trim().length > 0;
+      }).length;
+    const workHistory =
+      countDescribed(detailWorkHistory) > 0
+        ? detailWorkHistory
+        : detailWorkHistory.length > 0
+          ? detailWorkHistory
+          : baseWorkHistory;
 
     return {
       ...base,
       ...detail,
+      workHistory,
+      // Keep list UUID externalId for talentsearch identity stability.
+      externalId: isTalentSearch
+        ? base.externalId || detail.externalId
+        : detail.externalId || base.externalId,
       ...(seekProfileGuid ? { seekProfileGuid } : {}),
       ...(numericProfileId ? { profileId: numericProfileId } : {}),
       ...(profileUrl ? { profileUrl } : {}),
@@ -1163,8 +1403,30 @@ export function createSeekExtractor(deps: SeekExtractorDeps) {
       typeof rec.companyName === "string" ? rec.companyName.trim() : "";
     const jobTitle =
       typeof rec.jobTitle === "string" ? rec.jobTitle.trim() : "";
-    const description =
-      typeof rec.description === "string" ? rec.description.trim() : "";
+    // V3 may use description / jobDescription / responsibilities; list often omits all.
+    const descriptionCandidates = [
+      rec.description,
+      rec.jobDescription,
+      rec.responsibilities,
+      rec.highlights,
+    ];
+    let description = "";
+    for (const candidate of descriptionCandidates) {
+      if (typeof candidate === "string" && candidate.trim()) {
+        description = candidate.trim();
+        break;
+      }
+      if (Array.isArray(candidate)) {
+        const joined = candidate
+          .map((line) => (typeof line === "string" ? line.trim() : ""))
+          .filter(Boolean)
+          .join("\n");
+        if (joined) {
+          description = joined;
+          break;
+        }
+      }
+    }
     const startDate =
       typeof rec.startDate === "string" ? rec.startDate.trim() : "";
     const endDate = typeof rec.endDate === "string" ? rec.endDate.trim() : "";
@@ -1241,6 +1503,7 @@ export function createSeekExtractor(deps: SeekExtractorDeps) {
     resolveSeekAutoSyncPageSize,
     resolveSeekAutoSyncPageWindow,
     isSeekAutoSyncPageWindowReached,
+    shouldStopSeekAutoSyncForPageWindow,
     resolveSeekAutoSyncCurrentPageSelection,
     getSeekRequestedPageSize,
     getSeekCurrentCandidateCount,

@@ -3,6 +3,8 @@
  * and snapshot payload collection. Dependencies injected from content.ts.
  */
 
+import { unwrapSeekProfileSnapshot } from "./seek-extractor";
+
 export interface SnapshotCollectorDeps extends Record<string, unknown> {
   apiSnapshot: Record<string, unknown>;
   getCurrentSourceKey: () => string;
@@ -33,6 +35,11 @@ export interface SnapshotCollectorDeps extends Record<string, unknown> {
   parseGuardFieldNames: (csv: string) => string[];
   applyCollectionGuards: (resume: unknown, fields: string[]) => unknown;
   isSeekAutoSyncPageWindowReached: (pageWindow: unknown, currentPage: number) => boolean;
+  shouldStopSeekAutoSyncForPageWindow: (options: {
+    pageWindowReached: boolean;
+    limit?: number | null;
+    totalSubmitted?: number | null;
+  }) => boolean;
   waitForPagination: (options?: unknown) => Promise<unknown>;
   clearCapturedResultsForNextPage: () => void;
   goToNextPageInternal: () => unknown;
@@ -70,6 +77,7 @@ export function createSnapshotCollector(deps: SnapshotCollectorDeps) {
     enrichSeekResumesWithDetail,
     getPaginationInfo,
     isSeekAutoSyncPageWindowReached,
+    shouldStopSeekAutoSyncForPageWindow,
     waitForPagination,
     clearCapturedResultsForNextPage,
     goToNextPageInternal,
@@ -270,13 +278,16 @@ export function createSnapshotCollector(deps: SnapshotCollectorDeps) {
     }
     if (kind === "seekProfile") {
       const data = getSeekPayloadData(payload, kind);
-      apiSnapshot.seekProfile =
+      const rawProfile =
         data?.talentSearchProfileV2 ||
         data?.talentSearchProfileCompleteV2 ||
         data?.getTalentSearchProfileCompleteV2 ||
         data?.talentSearchProfileV3 ||
         data ||
         null;
+      // Flatten V3 `{ result: { profileGuid, workHistories, ... } }` so waiters
+      // and extractors see profileGuid/workHistories at the top level.
+      apiSnapshot.seekProfile = unwrapSeekProfileSnapshot(rawProfile);
       apiSnapshot.seekProfileRequest =
         request ||
         apiSnapshot.seekProfileRequest ||
@@ -437,18 +448,22 @@ export function createSnapshotCollector(deps: SnapshotCollectorDeps) {
         stopReason = "limit-reached";
         break;
       }
+      if (limit > 0 && collectedResumes.length >= limit) {
+        stopReason = "limit-reached";
+        break;
+      }
       if (
         isSeekListPage &&
-        isSeekAutoSyncPageWindowReached(seekPageWindow, currentPage)
+        shouldStopSeekAutoSyncForPageWindow({
+          pageWindowReached: isSeekAutoSyncPageWindowReached(seekPageWindow, currentPage),
+          limit,
+          totalSubmitted: collectedResumes.length,
+        })
       ) {
         stopReason = "page-window-reached";
         break;
       }
-      if (!isSeekListPage && limit > 0 && collectedResumes.length >= limit) {
-        stopReason = "limit-reached";
-        break;
-      }
-      if (!isSeekListPage && maxPages > 0 && pagesVisited >= maxPages) {
+      if (maxPages > 0 && pagesVisited >= maxPages) {
         stopReason = "max-pages-reached";
         break;
       }

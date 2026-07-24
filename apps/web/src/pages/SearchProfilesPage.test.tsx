@@ -186,6 +186,61 @@ describe('SearchProfilesPage run behavior', () => {
     expect(setSearchParamsMock).not.toHaveBeenCalled()
   })
 
+  it('unblocks the list after summaries load without waiting on every profile detail', async () => {
+    let resolveDetail: ((value: unknown) => void) | null = null
+    getMock.mockImplementation(async (path: string) => {
+      if (path === '/api/search-profiles') {
+        return {
+          data: {
+            success: true,
+            profiles: [
+              {
+                id: 'profile-1',
+                name: 'Profile 1',
+                updatedAt: '2026-03-17T00:00:00.000Z',
+                status: 'active',
+                location: 'Kuala Lumpur MY',
+                keywords: ['Sales Engineer'],
+              },
+            ],
+          },
+        }
+      }
+
+      if (path === '/api/search-profiles/profile-1') {
+        return await new Promise((resolve) => {
+          resolveDetail = resolve
+        })
+      }
+
+      if (path === '/api/search-profiles/profile-1/status') {
+        return { data: { success: true, status: null } }
+      }
+
+      return { data: { success: true } }
+    })
+
+    render(<SearchProfilesPage />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Edit Profile 1' })).toBeInTheDocument()
+    })
+    expect(screen.queryByText('Loading profiles...')).not.toBeInTheDocument()
+
+    resolveDetail?.({
+      data: {
+        success: true,
+        profile: {
+          id: 'profile-1',
+          name: 'Profile 1',
+          status: 'active',
+          location: 'Kuala Lumpur MY',
+          keywords: ['Sales Engineer'],
+        },
+      },
+    })
+  })
+
   it('writes the edit query param when opening a profile editor from the list', async () => {
     const user = userEvent.setup()
 

@@ -3,6 +3,8 @@
  * resume extraction dispatch, detail backfill. Dependencies injected from content.ts.
  */
 
+import { unwrapSeekProfileSnapshot } from "./seek-extractor";
+
 export interface ExtractionPipelineDeps extends Record<string, unknown> {
   getCurrentSourceKey: () => string;
   SOURCE_KEYS: Record<string, string>;
@@ -324,7 +326,11 @@ export function createExtractionPipeline(deps: ExtractionPipelineDeps) {
 
       const check = () => {
         if (done) return;
-        const snapshot = apiSnapshot.seekProfile as Record<string, unknown> | null;
+        // Unwrap V3 envelope if capture stored the wrapper (defense in depth).
+        const snapshot = unwrapSeekProfileSnapshot(apiSnapshot.seekProfile);
+        if (snapshot && apiSnapshot.seekProfile !== snapshot) {
+          apiSnapshot.seekProfile = snapshot;
+        }
         const identity = snapshot ? getSeekCandidateIdentity(snapshot) : null;
         // Match by profileId (numeric) or profileGuid (UUID for talentsearch)
         const snapshotGuid =

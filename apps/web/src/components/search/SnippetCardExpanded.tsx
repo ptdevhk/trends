@@ -72,7 +72,14 @@ function buildWorkHistorySupplement(entry: {
   jobTitle?: string
   startDate?: string
   endDate?: string
+  description?: string
 }): string {
+  // Prefer explicit job description (Seek V3 / 51job detail) over raw leftovers.
+  const description = entry.description?.trim()
+  if (description) {
+    return description
+  }
+
   const raw = entry.raw?.trim()
   if (!raw) {
     return ''
@@ -89,6 +96,15 @@ function buildWorkHistorySupplement(entry: {
   }
 
   return remainder.replace(/\s+/g, ' ').replace(/^[·•|/~-]+|[·•|/~-]+$/g, '').trim()
+}
+
+/** Seek list raw often embeds "Mon YYYY - Mon YYYY (N years)" without startDate/endDate. */
+function extractDurationLabelFromRaw(raw: string | undefined): string {
+  if (!raw) return ''
+  const match = raw.match(
+    /((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{4}\s*[-–—]\s*(?:Present|Current|Now|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{4})(?:\s*\([^)]+\))?)/iu,
+  )
+  return match?.[1]?.trim() || ''
 }
 
 export function SnippetCardExpanded({
@@ -247,8 +263,11 @@ export function SnippetCardExpanded({
             <div className="space-y-2">
               {workHistory.length > 0 ? workHistory.map((entry, index) => {
                 const heading = [entry.companyName, entry.jobTitle].filter(Boolean).join(' · ')
-                const dateLine = buildWorkHistoryDateRange(entry.startDate, entry.endDate)
-                const supplement = buildWorkHistorySupplement(entry)
+                const dateLine =
+                  buildWorkHistoryDateRange(entry.startDate, entry.endDate)
+                  || extractDurationLabelFromRaw(entry.raw)
+                const description = entry.description?.trim() || ''
+                const supplement = description ? '' : buildWorkHistorySupplement(entry)
                 const fallbackLine = entry.raw.trim()
 
                 return (
@@ -263,6 +282,11 @@ export function SnippetCardExpanded({
                     )}
                     {dateLine ? (
                       <div className="mt-1 text-xs text-muted-foreground">{dateLine}</div>
+                    ) : null}
+                    {description ? (
+                      <div className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-600">
+                        {description}
+                      </div>
                     ) : null}
                     {supplement ? (
                       <div className="mt-1 text-xs text-slate-500">{supplement}</div>

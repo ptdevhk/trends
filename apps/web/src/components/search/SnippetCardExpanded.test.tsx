@@ -144,6 +144,33 @@ describe('SnippetCardExpanded', () => {
     expect(link).toHaveAttribute('target', '_blank')
   })
 
+  it('renders job description bullets for Seek-style work history on expand', () => {
+    render(
+      <SnippetCardExpanded
+        item={createResult(3, {
+          resume: createResume(3, {
+            workHistory: [
+              {
+                companyName: 'California Clothing (Guess Philippines)',
+                jobTitle: 'Sales Representative',
+                raw: 'Sales Representative · California Clothing (Guess Philippines) · Nov 2012 - Dec 2014 (2 years 2 months)',
+                description:
+                  'Assisted and encouraged customers in selecting and purchasing required products.\nAddressed customer’s needs.',
+              },
+            ],
+          }),
+        })}
+      />
+    )
+
+    expect(screen.getByText('California Clothing (Guess Philippines) · Sales Representative')).toBeInTheDocument()
+    expect(screen.getByText(/Nov 2012 - Dec 2014 \(2 years 2 months\)/i)).toBeInTheDocument()
+    expect(
+      screen.getByText(/Assisted and encouraged customers in selecting and purchasing required products/i),
+    ).toBeInTheDocument()
+    expect(screen.getByText(/Addressed customer’s needs/i)).toBeInTheDocument()
+  })
+
   it('renders a direct details button when requested and calls back on click', () => {
     const onViewDetails = vi.fn()
 

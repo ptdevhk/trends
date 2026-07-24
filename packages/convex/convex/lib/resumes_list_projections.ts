@@ -210,20 +210,22 @@ export function projectResumeBaseContent(
 }
 
 export function projectResumeListWorkHistory(workHistory: unknown): Array<Record<string, string>> {
+    // Latest-N only. Keep description + raw so expanded Seek/MY cards can show
+    // career-history detail (China cards already relied on richer raw/description).
     return selectLatestWorkHistory(workHistory).map((entry) => {
-        const projected = {
+        const projected: Record<string, string> = {
             ...(entry.companyName ? { companyName: entry.companyName } : {}),
             ...(entry.jobTitle ? { jobTitle: entry.jobTitle } : {}),
             ...(entry.startDate ? { startDate: entry.startDate } : {}),
             ...(entry.endDate ? { endDate: entry.endDate } : {}),
+            ...(entry.description
+                ? { description: entry.description.slice(0, 2000) }
+                : {}),
+            ...(entry.raw ? { raw: entry.raw.slice(0, 400) } : {}),
         };
 
-        if (Object.keys(projected).length > 0) {
-            return projected;
-        }
-
-        return entry.raw ? { raw: entry.raw.slice(0, 160) } : {};
-    });
+        return projected;
+    }).filter((entry) => Object.keys(entry).length > 0);
 }
 
 export function projectResumeListContent(resume: Doc<"resumes">): Record<string, unknown> {

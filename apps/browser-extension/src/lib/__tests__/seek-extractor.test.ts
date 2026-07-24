@@ -1,7 +1,11 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
 
-import { createSeekExtractor, type SeekExtractorDeps } from "../seek-extractor";
+import {
+  createSeekExtractor,
+  unwrapSeekProfileSnapshot,
+  type SeekExtractorDeps,
+} from "../seek-extractor";
 
 function createMockDeps(overrides: Record<string, unknown> = {}): SeekExtractorDeps {
   return {
@@ -40,6 +44,10 @@ function createMockDeps(overrides: Record<string, unknown> = {}): SeekExtractorD
     waitForSeekProfileSnapshot: vi.fn(),
     SEEK_DETAIL_FETCH_CONCURRENCY: 3,
     SEEK_DETAIL_FETCH_DELAY_MS: 1000,
+    SEEK_TALENTSEARCH_DETAIL_FETCH_CONCURRENCY: 1,
+    SEEK_TALENTSEARCH_DETAIL_FETCH_DELAY_MS: 200,
+    SEEK_TALENTSEARCH_DETAIL_TIMEOUT_MS: 4000,
+    SEEK_DETAIL_PARAM: "tr_seek_detail",
     delay: vi.fn(() => Promise.resolve()),
     SELECTORS: { seekPagination: ".seek-pagination", seekTalentSearchPagination: ".seek-ts-pagination" },
     ...overrides,
@@ -274,6 +282,52 @@ describe("seek-extractor", () => {
     });
   });
 
+  describe("shouldStopSeekAutoSyncForPageWindow", () => {
+    it("does not stop on page window when limit remains (short pages → 99/100)", () => {
+      const extractor = createSeekExtractor(createMockDeps());
+      expect(
+        extractor.shouldStopSeekAutoSyncForPageWindow({
+          pageWindowReached: true,
+          limit: 100,
+          totalSubmitted: 99,
+        }),
+      ).toBe(false);
+    });
+
+    it("stops on page window once the limit is met", () => {
+      const extractor = createSeekExtractor(createMockDeps());
+      expect(
+        extractor.shouldStopSeekAutoSyncForPageWindow({
+          pageWindowReached: true,
+          limit: 100,
+          totalSubmitted: 100,
+        }),
+      ).toBe(true);
+    });
+
+    it("stops on page window when there is no limit", () => {
+      const extractor = createSeekExtractor(createMockDeps());
+      expect(
+        extractor.shouldStopSeekAutoSyncForPageWindow({
+          pageWindowReached: true,
+          limit: null,
+          totalSubmitted: 40,
+        }),
+      ).toBe(true);
+    });
+
+    it("does not stop when page window is not reached", () => {
+      const extractor = createSeekExtractor(createMockDeps());
+      expect(
+        extractor.shouldStopSeekAutoSyncForPageWindow({
+          pageWindowReached: false,
+          limit: 100,
+          totalSubmitted: 20,
+        }),
+      ).toBe(false);
+    });
+  });
+
   describe("resolveSeekAutoSyncCurrentPageSelection", () => {
     it("returns full page when no limit", () => {
       const extractor = createSeekExtractor(createMockDeps());
@@ -412,6 +466,201 @@ describe("seek-extractor", () => {
       expect(result[0].name).toBe("John Doe");
       expect(result[0].jobIntention).toBe("Engineer");
       expect(result[0].location).toBe("KL");
+    });
+  });
+
+  describe("unwrapSeekProfileSnapshot", () => {
+    it("unwraps V3 { result: { profileGuid, workHistories } } envelopes", () => {
+      const unwrapped = unwrapSeekProfileSnapshot({
+        __typename: "TalentSearchProfileCompleteV3Response",
+        result: {
+          profileGuid: "guid-abc",
+          profileId: 12345,
+          firstName: "Zahra",
+          workHistories: [
+            {
+              companyName: "CNC Innovations",
+              jobTitle: "Senior Sales Role",
+              description: "Strategic sales and marketing leadership",
+            },
+          ],
+        },
+      });
+      expect(unwrapped?.profileGuid).toBe("guid-abc");
+      expect(unwrapped?.profileId).toBe(12345);
+      expect(Array.isArray(unwrapped?.workHistories)).toBe(true);
+      expect(
+        (unwrapped?.workHistories as Array<{ description?: string }>)[0]
+          ?.description,
+      ).toContain("Strategic sales");
+    });
+
+    it("unwraps talentSearchProfileV3.result GraphQL data shapes", () => {
+      const unwrapped = unwrapSeekProfileSnapshot({
+        talentSearchProfileV3: {
+          __typename: "TalentSearchProfileCompleteV3Response",
+          result: {
+            profileGuid: "guid-nested",
+            firstName: "A",
+            workHistories: [],
+          },
+        },
+      });
+      expect(unwrapped?.profileGuid).toBe("guid-nested");
+    });
+
+    it("returns flat profiles unchanged", () => {
+      const flat = {
+        profileGuid: "guid-flat",
+        profileId: "99",
+        firstName: "B",
+      };
+      expect(unwrapSeekProfileSnapshot(flat)).toEqual(flat);
+    });
+  });
+
+  describe("extractSeekProfileResume V3 result envelope", () => {
+    it("extracts workHistory descriptions from nested V3 result", () => {
+      const extractor = createSeekExtractor(
+        createMockDeps({
+          apiSnapshot: {
+            seekProfile: {
+              __typename: "TalentSearchProfileCompleteV3Response",
+              result: {
+                profileGuid: "64454550-aea1-11ec-bfb2-005056b16351",
+                profileId: 536401553,
+                firstName: "Zahra",
+                lastName: "Bahadori",
+                currentJobTitle: "Senior Sales Role",
+                currentLocation: "Penang, MY",
+                personalSummary: "Results-driven sales professional",
+                workHistories: [
+                  {
+                    companyName: "CNC Innovations",
+                    jobTitle: "Senior Sales Role",
+                    durationLabel: "May 2021 - Present (5 years 3 months)",
+                    description:
+                      "Strategic sales and marketing leadership\nIn-depth knowledge of high-performance engine parts",
+                  },
+                ],
+                skills: ["Sales", "Communication Skills"],
+              },
+            },
+            seekProfileRequest: null,
+          },
+          win: {
+            location: {
+              pathname: "/talentsearch",
+              href: "https://hk.employer.seek.com/talentsearch?market=MY",
+              hostname: "hk.employer.seek.com",
+              search: "?market=MY",
+            },
+          },
+        }),
+      );
+
+      const result = extractor.extractSeekProfileResume();
+      expect(result).toHaveLength(1);
+      expect(result[0]).toMatchObject({
+        seekProfileGuid: "64454550-aea1-11ec-bfb2-005056b16351",
+        name: "Zahra Bahadori",
+        jobIntention: "Senior Sales Role",
+        selfIntro: "Results-driven sales professional",
+        externalId:
+          "hk.employer.seek.com:profile:64454550-aea1-11ec-bfb2-005056b16351",
+      });
+      // Talentsearch must use name-search URLs, not /candidates/<numericId>
+      expect(result[0].profileUrl).toContain(
+        "/talentsearch/profiles/search?searchQuery=Zahra%20Bahadori",
+      );
+      expect(result[0].profileUrl).toContain("market=MY");
+      expect(result[0].profileUrl).not.toMatch(/\/candidates\/\d+/);
+      expect(result[0].workHistory?.[0]?.description).toContain(
+        "Strategic sales",
+      );
+      expect(result[0].skills).toEqual(["Sales", "Communication Skills"]);
+    });
+  });
+
+  describe("mergeSeekListResumeWithDetail talentsearch profileUrl", () => {
+    it("keeps list name-search profileUrl instead of /candidates/<id>", async () => {
+      const detailProfile = {
+        profileGuid: "guid-sam",
+        profileId: "541579092",
+        firstName: "Samuel",
+        lastName: "Krishnan",
+        currentJobTitle: "Sales",
+        currentLocation: "MY",
+        workHistories: [
+          {
+            companyName: "Acme",
+            jobTitle: "Sales",
+            description: "Sold things",
+            durationLabel: "2020 - Present",
+          },
+        ],
+      };
+      const apiSnapshot = {
+        seekTalentSearch: [] as unknown[],
+        seekProfile: detailProfile as unknown,
+        seekRecommendedCandidates: null as unknown,
+        seekTalentSearchRequest: null as unknown,
+        seekProfileRequest: null as unknown,
+        seekRecommendedRequest: null as unknown,
+      };
+      const waitForSeekProfileSnapshot = vi.fn(async () => {
+        apiSnapshot.seekProfile = detailProfile;
+      });
+      const click = vi.fn();
+      const trigger = Object.assign(document.createElement("button"), {
+        textContent: "Samuel Krishnan",
+      });
+      trigger.setAttribute("data-tr-candidate-id", "guid-sam");
+      trigger.click = click;
+      const listUrl =
+        "https://hk.employer.seek.com/talentsearch/profiles/search?searchQuery=Samuel%20Krishnan&market=MY&pageNumber=1";
+      const deps = createMockDeps({
+        getCurrentSourceKey: vi.fn(() => "seek"),
+        waitForSeekProfileSnapshot,
+        SEEK_TALENTSEARCH_DETAIL_FETCH_CONCURRENCY: 1,
+        SEEK_TALENTSEARCH_DETAIL_FETCH_DELAY_MS: 0,
+        SEEK_TALENTSEARCH_DETAIL_TIMEOUT_MS: 100,
+        SEEK_DETAIL_PARAM: "tr_seek_detail",
+        win: {
+          location: {
+            pathname: "/talentsearch",
+            href: "https://hk.employer.seek.com/talentsearch?searchQuery=CNC&market=MY",
+            hostname: "hk.employer.seek.com",
+            search: "?searchQuery=CNC&market=MY",
+          },
+        },
+        doc: {
+          querySelector: vi.fn((selector: string) =>
+            selector.includes("data-tr-candidate-id") ? trigger : null,
+          ),
+          querySelectorAll: vi.fn(() => [] as unknown as NodeListOf<Element>),
+          body: { dispatchEvent: vi.fn() },
+        },
+        apiSnapshot,
+      });
+      const extractor = createSeekExtractor(deps);
+      const input = [
+        {
+          profileId: "guid-sam",
+          seekProfileGuid: "guid-sam",
+          name: "Samuel Krishnan",
+          jobIntention: "Sales",
+          profileUrl: listUrl,
+          externalId: "hk.employer.seek.com:profile:guid-sam",
+          workHistory: [{ companyName: "Acme", jobTitle: "Sales", raw: "Sales · Acme" }],
+        },
+      ];
+
+      const result = await extractor.enrichSeekResumesWithDetail(input);
+      expect(result).toHaveLength(1);
+      expect(result[0].profileUrl).toBe(listUrl);
+      expect(result[0].profileUrl).not.toContain("/candidates/541579092");
+      expect(result[0].workHistory?.[0]?.description).toContain("Sold things");
     });
   });
 
@@ -658,9 +907,179 @@ describe("seek-extractor", () => {
     });
 
     it("constants are exported with expected values", async () => {
-      const { SEEK_DETAIL_FETCH_CONCURRENCY, SEEK_DETAIL_FETCH_DELAY_MS } = await import("../content-constants");
+      const {
+        SEEK_DETAIL_FETCH_CONCURRENCY,
+        SEEK_DETAIL_FETCH_DELAY_MS,
+        SEEK_TALENTSEARCH_DETAIL_FETCH_CONCURRENCY,
+        SEEK_TALENTSEARCH_DETAIL_FETCH_DELAY_MS,
+        SEEK_TALENTSEARCH_DETAIL_TIMEOUT_MS,
+        SEEK_DETAIL_PARAM,
+      } = await import("../content-constants");
       expect(SEEK_DETAIL_FETCH_CONCURRENCY).toBe(3);
       expect(SEEK_DETAIL_FETCH_DELAY_MS).toBe(1000);
+      expect(SEEK_TALENTSEARCH_DETAIL_FETCH_CONCURRENCY).toBe(1);
+      expect(SEEK_TALENTSEARCH_DETAIL_FETCH_DELAY_MS).toBe(200);
+      expect(SEEK_TALENTSEARCH_DETAIL_TIMEOUT_MS).toBe(4000);
+      expect(SEEK_DETAIL_PARAM).toBe("tr_seek_detail");
+    });
+
+    it("enriches talentsearch detail by default (job descriptions for latest-3 scoring)", async () => {
+      const detailProfile = {
+        profileGuid: "guid-1",
+        profileId: "12345",
+        firstName: "Alice",
+        lastName: "Tan",
+        currentJobTitle: "Sales",
+        currentLocation: "Penang, MY",
+        workHistories: [
+          {
+            companyName: "CNC BPO Solutions",
+            jobTitle: "Sales Representative",
+            description:
+              "Answer phones and respond to customer requests.\nSell product and place customer orders.",
+            durationLabel: "Oct 2011 - Nov 2012 (1 year 2 months)",
+          },
+        ],
+      };
+      const apiSnapshot = {
+        seekTalentSearch: [] as unknown[],
+        seekProfile: detailProfile as unknown,
+        seekRecommendedCandidates: null as unknown,
+        seekTalentSearchRequest: null as unknown,
+        seekProfileRequest: null as unknown,
+        seekRecommendedRequest: null as unknown,
+      };
+      // enrichSingle clears seekProfile then waits; restore V3 payload on wait.
+      const waitForSeekProfileSnapshot = vi.fn(async () => {
+        apiSnapshot.seekProfile = detailProfile;
+      });
+      const click = vi.fn();
+      const trigger = Object.assign(document.createElement("button"), {
+        textContent: "Alice Tan",
+      });
+      trigger.setAttribute("data-tr-candidate-id", "guid-1");
+      trigger.click = click;
+      const deps = createMockDeps({
+        getCurrentSourceKey: vi.fn(() => "seek"),
+        waitForSeekProfileSnapshot,
+        SEEK_TALENTSEARCH_DETAIL_FETCH_CONCURRENCY: 1,
+        SEEK_TALENTSEARCH_DETAIL_FETCH_DELAY_MS: 0,
+        SEEK_TALENTSEARCH_DETAIL_TIMEOUT_MS: 100,
+        SEEK_DETAIL_PARAM: "tr_seek_detail",
+        win: {
+          location: {
+            pathname: "/talentsearch",
+            href: "https://hk.employer.seek.com/talentsearch?searchQuery=CNC&market=MY",
+            hostname: "hk.employer.seek.com",
+            search: "?searchQuery=CNC&market=MY",
+          },
+        },
+        doc: {
+          querySelector: vi.fn((selector: string) =>
+            selector.includes("data-tr-candidate-id") ? trigger : null,
+          ),
+          querySelectorAll: vi.fn(() => [] as unknown as NodeListOf<Element>),
+          body: {
+            dispatchEvent: vi.fn(),
+          },
+        },
+        apiSnapshot,
+      });
+      const extractor = createSeekExtractor(deps);
+      const input = [
+        {
+          profileId: "guid-1",
+          seekProfileGuid: "guid-1",
+          name: "Alice Tan",
+          workHistory: [{ companyName: "X", jobTitle: "Sales", raw: "Sales · X" }],
+        },
+      ];
+
+      const result = await extractor.enrichSeekResumesWithDetail(input);
+
+      expect(click).toHaveBeenCalled();
+      expect(waitForSeekProfileSnapshot).toHaveBeenCalledWith("guid-1", { timeoutMs: 100 });
+      expect(result).toHaveLength(1);
+      const workHistory = (result[0] as { workHistory?: Array<{ description?: string }> })
+        .workHistory;
+      expect(workHistory?.[0]?.description).toContain("Answer phones");
+    });
+
+    it("skips talentsearch detail enrichment when tr_seek_detail=0 (list-only fast path)", async () => {
+      const waitForSeekProfileSnapshot = vi.fn();
+      const deps = createMockDeps({
+        getCurrentSourceKey: vi.fn(() => "seek"),
+        waitForSeekProfileSnapshot,
+        SEEK_DETAIL_PARAM: "tr_seek_detail",
+        win: {
+          location: {
+            pathname: "/talentsearch",
+            href: "https://hk.employer.seek.com/talentsearch?searchQuery=CNC&market=MY&tr_seek_detail=0",
+            hostname: "hk.employer.seek.com",
+            search: "?searchQuery=CNC&market=MY&tr_seek_detail=0",
+          },
+        },
+      });
+      const extractor = createSeekExtractor(deps);
+      const input = [
+        { profileId: "guid-1", name: "A", workHistory: [{ company: "X", title: "Sales" }] },
+        { profileId: "guid-2", name: "B", workHistory: [{ company: "Y", title: "Sales" }] },
+      ];
+
+      const result = await extractor.enrichSeekResumesWithDetail(input);
+
+      expect(result).toEqual(input);
+      expect(waitForSeekProfileSnapshot).not.toHaveBeenCalled();
+    });
+
+    it("skips SPA panel open when workHistory already has descriptions", async () => {
+      const waitForSeekProfileSnapshot = vi.fn();
+      const click = vi.fn();
+      const trigger = Object.assign(document.createElement("button"), {
+        textContent: "Alice Tan",
+      });
+      trigger.setAttribute("data-tr-candidate-id", "guid-1");
+      trigger.click = click;
+      const deps = createMockDeps({
+        getCurrentSourceKey: vi.fn(() => "seek"),
+        waitForSeekProfileSnapshot,
+        SEEK_DETAIL_PARAM: "tr_seek_detail",
+        win: {
+          location: {
+            pathname: "/talentsearch",
+            href: "https://hk.employer.seek.com/talentsearch?searchQuery=CNC&market=MY",
+            hostname: "hk.employer.seek.com",
+            search: "?searchQuery=CNC&market=MY",
+          },
+        },
+        doc: {
+          querySelector: vi.fn((selector: string) =>
+            selector.includes("data-tr-candidate-id") ? trigger : null,
+          ),
+          querySelectorAll: vi.fn(() => [] as unknown as NodeListOf<Element>),
+        },
+      });
+      const extractor = createSeekExtractor(deps);
+      const input = [
+        {
+          profileId: "guid-1",
+          seekProfileGuid: "guid-1",
+          name: "Alice Tan",
+          workHistory: [
+            {
+              companyName: "CNC BPO Solutions",
+              jobTitle: "Sales Representative",
+              description: "Already enriched description",
+            },
+          ],
+        },
+      ];
+
+      const result = await extractor.enrichSeekResumesWithDetail(input);
+
+      expect(result).toEqual(input);
+      expect(click).not.toHaveBeenCalled();
+      expect(waitForSeekProfileSnapshot).not.toHaveBeenCalled();
     });
   });
 });
