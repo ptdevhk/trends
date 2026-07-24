@@ -364,6 +364,7 @@ export function ResumeList() {
         activeTagFilters={activeTagFilters}
         activeCompanyFilters={activeCompanyFilters}
         activeExperienceLevelFilter={selectedExperienceLevel}
+        activeRoleFilterType={filters.roleFilterType}
         showAiScore={entry.match?.scoreSource === 'ai'}
         actionType={entry.action}
         onAction={(action) => handleCardAction(entry.key, action)}

@@ -37,6 +37,21 @@ vi.mock('@/contexts/WorkspaceContext', () => ({
   useWorkspace: () => ({ slug: 'hr' }),
 }))
 
+const baseResume = {
+  name: 'Alice',
+  profileUrl: 'https://example.com/resume-1',
+  activityStatus: 'Active',
+  age: '30',
+  experience: '8 years',
+  education: 'Bachelor',
+  location: 'Malaysia',
+  selfIntro: 'Test intro',
+  jobIntention: 'Sales Engineer',
+  expectedSalary: '10k-20k',
+  workHistory: [],
+  extractedAt: '2026-03-13T00:00:00.000Z',
+}
+
 describe('ResumeCard brand-hit badges', () => {
   it('shows a generic needs refresh badge when the resume requires refresh', () => {
     render(
@@ -244,5 +259,106 @@ describe('ResumeCard brand-hit badges', () => {
 
     expect(screen.queryByText('EN')).not.toBeInTheDocument()
     expect(screen.queryByText('ZH')).not.toBeInTheDocument()
+  })
+
+  it('prefers the active role filter badge over a stronger unrelated verified role badge', () => {
+    render(
+      <ResumeCard
+        resume={baseResume}
+        onViewDetails={vi.fn()}
+        activeRoleFilterType="sales"
+        roleSignals={[
+          {
+            type: 'sales',
+            matchedSignals: ['Sales Manager'],
+            signalCount: 1,
+            occurrences: 1,
+            years: 5.4,
+            roleRelevantYears: 5.4,
+            industryVerifiedRelevantYears: 0,
+            industryVerifiedYears: 0,
+            matchedWorkEntries: [{
+              companyName: 'Acme MY',
+              jobTitle: 'Sales Manager',
+              years: 5.4,
+              industryVerified: false,
+              matchedSignals: ['Sales Manager'],
+            }],
+            verifyIn: 'workHistory',
+          },
+          {
+            type: 'engineer',
+            matchedSignals: ['Application Engineer'],
+            signalCount: 1,
+            occurrences: 1,
+            years: 7,
+            roleRelevantYears: 7,
+            industryVerifiedRelevantYears: 7,
+            industryVerifiedYears: 7,
+            matchedWorkEntries: [{
+              companyName: 'Acme MY',
+              jobTitle: 'Application Engineer',
+              years: 7,
+              industryVerified: true,
+              matchedSignals: ['Application Engineer'],
+            }],
+            verifyIn: 'workHistory',
+          },
+        ]}
+      />
+    )
+
+    expect(screen.getByText('销售5.4年')).toBeInTheDocument()
+    expect(screen.queryByText('工程7年 (Industry verified)')).not.toBeInTheDocument()
+  })
+
+  it('keeps the strongest verified role badge when no active role filter is provided', () => {
+    render(
+      <ResumeCard
+        resume={baseResume}
+        onViewDetails={vi.fn()}
+        roleSignals={[
+          {
+            type: 'sales',
+            matchedSignals: ['Sales Manager'],
+            signalCount: 1,
+            occurrences: 1,
+            years: 5.4,
+            roleRelevantYears: 5.4,
+            industryVerifiedRelevantYears: 0,
+            industryVerifiedYears: 0,
+            matchedWorkEntries: [{
+              companyName: 'Acme MY',
+              jobTitle: 'Sales Manager',
+              years: 5.4,
+              industryVerified: false,
+              matchedSignals: ['Sales Manager'],
+            }],
+            verifyIn: 'workHistory',
+          },
+          {
+            type: 'engineer',
+            matchedSignals: ['Application Engineer'],
+            signalCount: 1,
+            occurrences: 1,
+            years: 7,
+            roleRelevantYears: 7,
+            industryVerifiedRelevantYears: 7,
+            industryVerifiedYears: 7,
+            matchedWorkEntries: [{
+              companyName: 'Acme MY',
+              jobTitle: 'Application Engineer',
+              years: 7,
+              industryVerified: true,
+              matchedSignals: ['Application Engineer'],
+            }],
+            verifyIn: 'workHistory',
+          },
+        ]}
+      />
+    )
+
+    expect(screen.getByText('工程7年 (Industry verified)')).toBeInTheDocument()
+    expect(screen.queryByText('销售5.4年')).not.toBeInTheDocument()
   })
 })

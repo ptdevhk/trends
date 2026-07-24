@@ -150,6 +150,78 @@ function buildFilterableConvexResumeRecord(
     };
 }
 
+function buildMyFallbackConvexResumeRecord(resumeId: string, location = "Malaysia") {
+    const record = buildConvexResumeRecord(resumeId, {
+        name: resumeId,
+        searchText: "CNC Sales Manager machine tools",
+        source: "hk.employer.seek.com",
+    });
+
+    return {
+        ...record,
+        source: "hk.employer.seek.com",
+        sourceKey: "seek",
+        content: {
+            ...record.content,
+            location,
+            experience: "8 years",
+            education: "Bachelor",
+            jobIntention: "Sales Engineer",
+            workHistory: [{ raw: "2019-2024 Sales Manager" }],
+        },
+        ingestData: {
+            ruleScores: {},
+            market: "MY",
+            industryTags: ["machine tools", "sales"],
+            synonymHits: ["cnc", "sales"],
+            brandHits: [],
+            companyHits: [],
+            experienceLevel: "mid",
+            computedAt: Date.now(),
+            skillsVersion: 1,
+            verifiedRoleYears: { engineer: 7 },
+            roleSignals: [
+                {
+                    type: "sales",
+                    matchedSignals: ["Sales Manager"],
+                    signalCount: 1,
+                    occurrences: 1,
+                    years: 5.4,
+                    industryVerifiedYears: 0,
+                    roleRelevantYears: 5.4,
+                    industryVerifiedRelevantYears: 0,
+                    matchedWorkEntries: [{
+                        jobTitle: "Sales Manager",
+                        years: 5.4,
+                        industryVerified: false,
+                        matchedSignals: ["Sales Manager"],
+                        directRoleMatch: true,
+                    }],
+                    verifyIn: "workHistory",
+                },
+                {
+                    type: "engineer",
+                    matchedSignals: ["Application Engineer"],
+                    signalCount: 1,
+                    occurrences: 1,
+                    years: 7,
+                    industryVerifiedYears: 7,
+                    roleRelevantYears: 7,
+                    industryVerifiedRelevantYears: 7,
+                    matchedWorkEntries: [{
+                        jobTitle: "Application Engineer",
+                        years: 7,
+                        industryVerified: true,
+                        matchedSignals: ["Application Engineer"],
+                        directRoleMatch: true,
+                    }],
+                    verifyIn: "workHistory",
+                },
+            ],
+        },
+    };
+}
+
 function createAuthenticatedApp() {
     return createApp({
         authContext: createAuthContext({ workspaceSlug: "dev", role: "user" }),
@@ -481,6 +553,64 @@ describe("BFF search dispatcher integration", () => {
             const payload = await parseJsonBody<{ success: unknown; data: { name: string }[] }>(response);
             expect(payload.success).toBe(true);
             expect(payload.data.map((item: { name: string }) => item.name)).toEqual(["r1"]);
+        });
+
+        it("keeps the reported MY roleType=sales query on the direct-role fallback path", async () => {
+            const calls: ConvexCall[] = [];
+            vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+                const call = parseConvexCall(input, init);
+                calls.push(call);
+
+                if (call.pathName === "resumes_search:scanResumeDigestPage") {
+                    return convexSuccess({
+                        docs: [
+                            buildDigestRow("my-sales-fallback", {
+                                searchText: "CNC Sales Manager machine tools",
+                                locationText: "Malaysia",
+                                roleTypes: ["sales", "engineer"],
+                                roleYearsByType: { sales: 5.4, engineer: 7 },
+                            }),
+                            buildDigestRow("my-engineer-only", {
+                                searchText: "CNC Application Engineer machine tools",
+                                locationText: "Malaysia",
+                                roleTypes: ["engineer"],
+                                roleYearsByType: { engineer: 7 },
+                            }),
+                        ],
+                        isDone: true,
+                        cursor: null,
+                    });
+                }
+                if (call.pathName === "resumes_search:getResumeDocsByIds") {
+                    const ids = Array.isArray(call.args.ids) ? call.args.ids : [];
+                    return convexSuccess(ids.map((id) => {
+                        if (id === "my-sales-fallback") {
+                            return buildMyFallbackConvexResumeRecord(String(id));
+                        }
+                        return buildFilterableConvexResumeRecord(String(id), {
+                            location: "Malaysia",
+                            verifiedRoleYears: { engineer: 7 },
+                        });
+                    }));
+                }
+                if (call.pathName === "candidate_status:list") {
+                    return convexSuccess([]);
+                }
+                throw new Error(`Unexpected convex path: ${call.pathName}`);
+            });
+
+            const app = createAuthenticatedApp();
+            const response = await app.request(
+                "/api/resumes?source=convex&q=CNC%20Sales&limit=5&minRoleYears=1&roleType=sales&location=Malaysia",
+            );
+
+            expect(response.status).toBe(200);
+            const payload = await parseJsonBody<{ success: unknown; data: { name: string }[] }>(response);
+            expect(payload.success).toBe(true);
+            expect(payload.data.map((item: { name: string }) => item.name)).toEqual(["my-sales-fallback"]);
+
+            const docCall = calls.find((call) => call.pathName === "resumes_search:getResumeDocsByIds");
+            expect(docCall?.args.ids).toEqual(["my-sales-fallback"]);
         });
     });
 

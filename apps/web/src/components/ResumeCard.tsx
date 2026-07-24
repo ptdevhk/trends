@@ -68,6 +68,7 @@ interface ResumeCardProps {
   activeTagFilters?: Set<string>
   activeCompanyFilters?: Set<string>
   activeExperienceLevelFilter?: ExperienceLevelFilter
+  activeRoleFilterType?: string
   showAiScore?: boolean
   actionType?: CandidateActionType
   onAction?: (actionType: CandidateActionType) => void
@@ -150,6 +151,21 @@ function selectPrimaryRoleSignal(roleSignals: ResumeRoleSignalLike[] | undefined
   })[0]
 }
 
+function selectDisplayRoleSignal(
+  roleSignals: ResumeRoleSignalLike[] | undefined,
+  activeRoleFilterType: string | undefined,
+): ResumeRoleSignalLike | undefined {
+  const normalizedRoleFilterType = activeRoleFilterType?.trim().toLowerCase()
+  if (normalizedRoleFilterType && Array.isArray(roleSignals)) {
+    const filteredSignals = roleSignals.filter((signal) => signal.type.trim().toLowerCase() === normalizedRoleFilterType)
+    if (filteredSignals.length > 0) {
+      return selectPrimaryRoleSignal(filteredSignals)
+    }
+  }
+
+  return selectPrimaryRoleSignal(roleSignals)
+}
+
 export function ResumeCardSkeleton() {
   return (
     <div className="p-4 border rounded-lg space-y-3">
@@ -209,6 +225,7 @@ export const ResumeCard = memo(function ResumeCard({
   activeTagFilters,
   activeCompanyFilters,
   activeExperienceLevelFilter,
+  activeRoleFilterType,
 }: ResumeCardProps) {
   const { t } = useTranslation()
   const fieldUsagePolicy = useResumeFieldUsagePolicy()
@@ -374,7 +391,7 @@ export const ResumeCard = memo(function ResumeCard({
     .slice(0, 3)
   const resolveBrand = brandDisplayResolve ?? ((brandId: string) => brandId.toUpperCase())
   const brandSummary = useMemo(() => summarizeBrandHits(brandHits), [brandHits])
-  const primaryRoleSignal = selectPrimaryRoleSignal(roleSignals)
+  const primaryRoleSignal = selectDisplayRoleSignal(roleSignals, activeRoleFilterType)
   const verifiedRoleYears = primaryRoleSignal ? getRoleVerifiedYears(primaryRoleSignal) : 0
   const roleRelevantYears = primaryRoleSignal ? getRoleRelevantYears(primaryRoleSignal) : 0
   const displayRoleYears = verifiedRoleYears > 0 ? verifiedRoleYears : roleRelevantYears
