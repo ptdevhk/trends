@@ -187,7 +187,7 @@ describe('SearchProfilesPage run behavior', () => {
   })
 
   it('unblocks the list after summaries load without waiting on every profile detail', async () => {
-    let resolveDetail: ((value: unknown) => void) | null = null
+    let resolveDetail: ((value: unknown) => void) | undefined
     getMock.mockImplementation(async (path: string) => {
       if (path === '/api/search-profiles') {
         return {
@@ -227,6 +227,7 @@ describe('SearchProfilesPage run behavior', () => {
     })
     expect(screen.queryByText('Loading profiles...')).not.toBeInTheDocument()
 
+    expect(resolveDetail).toBeDefined()
     resolveDetail?.({
       data: {
         success: true,
