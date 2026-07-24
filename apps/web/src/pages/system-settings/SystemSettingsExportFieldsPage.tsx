@@ -25,7 +25,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { useSettingsRequestJson } from '@/pages/system-settings/lib'
-import { EXPORT_CORE_FIELDS, EXPORT_DEBUG_FIELDS, EXPORT_DETAIL_FIELDS, isRecord } from '@trends/shared'
+import {
+  collapseDefaultExportFieldsConfig,
+  EXPORT_CORE_FIELDS,
+  isExportFieldKey,
+  isRecord,
+  resolveStoredExportFieldsConfig,
+  sortExportFieldsInCanonicalOrder,
+} from '@trends/shared'
 import type { ExportFieldKey } from '@trends/shared'
 import { FIELD_GROUPS, FIELD_LABELS } from './SystemSettingsExportFieldsPage.metadata'
 import { reportUiError } from '@/lib/ui-error-reporting'
@@ -41,13 +48,15 @@ function parseExportFieldsPayload(payload: unknown): ExportFieldsConfigState | n
   if (data === null || data === undefined) return null
   if (!isRecord(data)) return null
   if (!Array.isArray(data.fields)) return null
-  const fields = data.fields.filter((f): f is ExportFieldKey =>
-    typeof f === 'string' && f in FIELD_LABELS,
-  )
-  if (fields.length === 0) return null
-  return {
+  const fields = data.fields.filter((f): f is ExportFieldKey => isExportFieldKey(f))
+  const config = resolveStoredExportFieldsConfig({
     fields,
-    includeDebugWhenEnabled: typeof data.includeDebugWhenEnabled === 'boolean' ? data.includeDebugWhenEnabled : false,
+    includeDebugWhenEnabled: typeof data.includeDebugWhenEnabled === 'boolean' ? data.includeDebugWhenEnabled : undefined,
+  })
+  if (!config) return null
+  return {
+    fields: config.fields,
+    includeDebugWhenEnabled: config.includeDebugWhenEnabled === true,
   }
 }
 
@@ -158,6 +167,18 @@ export function SystemSettingsExportFieldsPage() {
     })
   }, [])
 
+  const applyConfigState = useCallback((config: ExportFieldsConfigState | null) => {
+    if (config) {
+      setSelectedFields(config.fields)
+      setIncludeDebug(config.includeDebugWhenEnabled)
+      setHasConfig(true)
+      return
+    }
+    setSelectedFields(getDefaultSelectedFields())
+    setIncludeDebug(false)
+    setHasConfig(false)
+  }, [])
+
   const loadData = useCallback(async () => {
     setLoading(true)
     setLoadError(null)
@@ -168,23 +189,14 @@ export function SystemSettingsExportFieldsPage() {
         throw new Error('Failed to load export fields config')
       }
 
-      const config = parseExportFieldsPayload(response)
-      if (config) {
-        setSelectedFields(config.fields)
-        setIncludeDebug(config.includeDebugWhenEnabled)
-        setHasConfig(true)
-      } else {
-        setSelectedFields(getDefaultSelectedFields())
-        setIncludeDebug(false)
-        setHasConfig(false)
-      }
+      applyConfigState(parseExportFieldsPayload(response))
     } catch (error) {
       reportUiError('Failed to load export fields config', error)
       setLoadError(t('resumes.error'))
     } finally {
       setLoading(false)
     }
-  }, [requestJson, t])
+  }, [applyConfigState, requestJson, t])
 
   useEffect(() => {
     loadData().catch((error) => {
@@ -266,17 +278,14 @@ export function SystemSettingsExportFieldsPage() {
   const handleSave = useCallback(async () => {
     setSaving(true)
     try {
-      await requestJson('/api/config/export-fields', {
+      const response = await requestJson('/api/config/export-fields', {
         method: 'PUT',
-        body: JSON.stringify({ fields: selectedFields, includeDebugWhenEnabled: includeDebug }),
+        body: JSON.stringify(collapseDefaultExportFieldsConfig({
+          fields: selectedFields,
+          includeDebugWhenEnabled: includeDebug,
+        })),
       })
-      if (selectedFields.length > 0) {
-        setHasConfig(true)
-      } else {
-        setSelectedFields(getDefaultSelectedFields())
-        setIncludeDebug(false)
-        setHasConfig(false)
-      }
+      applyConfigState(parseExportFieldsPayload(response))
       toast.success(t('debugConfig.saved'))
     } catch (error) {
       reportUiError('Failed to save export fields config', error)
@@ -284,7 +293,7 @@ export function SystemSettingsExportFieldsPage() {
     } finally {
       setSaving(false)
     }
-  }, [selectedFields, includeDebug, requestJson, t])
+  }, [applyConfigState, selectedFields, includeDebug, requestJson, t])
 
   const handleReset = useCallback(async () => {
     setSaving(true)
@@ -306,15 +315,7 @@ export function SystemSettingsExportFieldsPage() {
   }, [requestJson, t])
 
   const handleResetOrder = useCallback(() => {
-    setSelectedFields((current) => {
-      // Canonical default order is core -> detail -> debug, as defined in
-      // packages/shared/src/export-fields-config.ts. This preserves the
-      // user's current field selection while restoring the default ordering.
-      const canonicalOrder = [...EXPORT_CORE_FIELDS, ...EXPORT_DETAIL_FIELDS, ...EXPORT_DEBUG_FIELDS]
-      const orderIndex = new Map<ExportFieldKey, number>()
-      canonicalOrder.forEach((key, index) => orderIndex.set(key, index))
-      return [...current].sort((a, b) => (orderIndex.get(a) ?? 0) - (orderIndex.get(b) ?? 0))
-    })
+    setSelectedFields((current) => sortExportFieldsInCanonicalOrder(current))
     setHasConfig(true)
   }, [])
 

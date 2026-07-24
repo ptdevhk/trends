@@ -129,6 +129,48 @@ describe('SystemSettingsExportFieldsPage state', () => {
     expect(screen.getByRole('checkbox', { name: 'Include debug columns when debug mode is enabled' })).toBeChecked()
   })
 
+  it('normalizes legacy saved order into the current canonical order on load', async () => {
+    requestJsonMock.mockResolvedValueOnce({
+      success: true,
+      config: {
+        fields: [
+          'resumeId',
+          'name',
+          'jobIntention',
+          'location',
+          'education',
+          'age',
+          'expectedSalary',
+          'expectedSalaryMinCny',
+          'expectedSalaryMaxCny',
+          'aiScore',
+          'aiSummary',
+          'profileUrl',
+          'source',
+          'status',
+          'userRating',
+          'userComment',
+          'workHistory',
+        ],
+        includeDebugWhenEnabled: false,
+      },
+    })
+
+    render(<SystemSettingsExportFieldsPage />)
+
+    await waitFor(() => {
+      expect(fieldCheckbox('userComment')).toBeChecked()
+    })
+
+    const positionOf = (field: keyof typeof FIELD_LABELS) =>
+      removeFieldButton(field).closest('div')?.querySelector('.tabular-nums')?.textContent
+
+    expect(positionOf('resumeId')).toBe('1')
+    expect(positionOf('name')).toBe('2')
+    expect(positionOf('userComment')).toBe('3')
+    expect(Number(positionOf('workHistory'))).toBeLessThan(Number(positionOf('jobIntention')))
+  })
+
   it('adds a field from available into export order', async () => {
     const user = userEvent.setup()
     requestJsonMock.mockResolvedValueOnce({ success: true, config: null })
@@ -255,6 +297,27 @@ describe('SystemSettingsExportFieldsPage state', () => {
     expect(fieldCheckbox('experience')).not.toBeChecked()
     expect(addFieldButton('experience')).toBeInTheDocument()
     expect(screen.getByRole('checkbox', { name: 'Include debug columns when debug mode is enabled' })).not.toBeChecked()
+  })
+
+  it('saves the exact default selection using the empty sentinel and keeps no-config state', async () => {
+    const user = userEvent.setup()
+    requestJsonMock
+      .mockResolvedValueOnce({ success: true, config: null })
+      .mockResolvedValueOnce({ success: true, config: null })
+
+    render(<SystemSettingsExportFieldsPage />)
+
+    await waitFor(() => {
+      expect(fieldCheckbox('resumeId')).toBeChecked()
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/config/export-fields', {
+      method: 'PUT',
+      body: JSON.stringify({ fields: [] }),
+    })
+    expect(screen.getByText('Using default columns. Configure below to customize.')).toBeInTheDocument()
   })
 
   it('reset order re-sorts current selection to canonical order without calling the API', async () => {

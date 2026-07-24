@@ -1,4 +1,5 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
+import { EXPORT_CORE_FIELDS } from "@trends/shared";
 import {
   readString,
   readNumber,
@@ -27,6 +28,8 @@ import {
   parseLearningLogEntry,
   parseLearningLogConfig,
   parseRuleWeightsConfig,
+  parseExportFieldsConfig,
+  WorkspaceConfigService,
 } from "../workspace-config-service.js";
 
 describe("readString", () => {
@@ -548,5 +551,103 @@ describe("parseRuleWeightsConfig", () => {
   it("parses valid categoryWeights override", () => {
     const result = parseRuleWeightsConfig({ categoryWeights: { skillMatch: 0.2 } });
     expect(result).toEqual({ categoryWeights: { skillMatch: 0.2 } });
+  });
+});
+
+describe("parseExportFieldsConfig", () => {
+  it("treats snapshots that only restate the current defaults as the empty sentinel", () => {
+    expect(parseExportFieldsConfig({
+      fields: [...EXPORT_CORE_FIELDS],
+      includeDebugWhenEnabled: false,
+    })).toBeNull();
+  });
+
+  it("normalizes legacy default-ordered workspace snapshots while preserving extra selected fields", () => {
+    expect(parseExportFieldsConfig({
+      fields: [
+        "resumeId",
+        "name",
+        "jobIntention",
+        "location",
+        "education",
+        "age",
+        "expectedSalary",
+        "expectedSalaryMinCny",
+        "expectedSalaryMaxCny",
+        "aiScore",
+        "aiSummary",
+        "profileUrl",
+        "source",
+        "status",
+        "userRating",
+        "userComment",
+        "workHistory",
+      ],
+      includeDebugWhenEnabled: false,
+    })).toEqual({
+      fields: [
+        "resumeId",
+        "name",
+        "userComment",
+        "location",
+        "education",
+        "age",
+        "expectedSalary",
+        "expectedSalaryMinCny",
+        "expectedSalaryMaxCny",
+        "aiScore",
+        "aiSummary",
+        "profileUrl",
+        "source",
+        "status",
+        "userRating",
+        "workHistory",
+        "jobIntention",
+      ],
+      includeDebugWhenEnabled: false,
+    });
+  });
+});
+
+describe("WorkspaceConfigService export field persistence", () => {
+  const originalConvexUrl = process.env.CONVEX_URL;
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    if (originalConvexUrl === undefined) {
+      delete process.env.CONVEX_URL;
+    } else {
+      process.env.CONVEX_URL = originalConvexUrl;
+    }
+  });
+
+  it("stores the empty sentinel when saving the exact default selection", async () => {
+    process.env.CONVEX_URL = "http://convex.test";
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({ status: "success", value: "row-id" }),
+    } as Response);
+
+    const service = new WorkspaceConfigService(process.cwd());
+    await service.setExportFieldsConfig("hr", {
+      fields: [...EXPORT_CORE_FIELDS],
+      includeDebugWhenEnabled: false,
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith("http://convex.test/api/mutation", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        path: "workspace_config:upsert",
+        args: {
+          workspaceSlug: "hr",
+          configKey: "export-fields",
+          configValue: { fields: [] },
+        },
+      }),
+    });
   });
 });

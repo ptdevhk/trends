@@ -3,9 +3,11 @@ import path from "node:path";
 import JSON5 from "json5";
 import { logger } from "./logger.js";
 import {
+  collapseDefaultExportFieldsConfig,
   isRecord,
-  EXPORT_FIELD_KEYS,
+  isExportFieldKey,
   parseResumeFieldUsagePolicyOverrides,
+  resolveStoredExportFieldsConfig,
   resolveResumeFieldUsagePolicy,
   type ExportFieldKey,
   type ExportFieldsConfig,
@@ -560,14 +562,11 @@ export function parseExportFieldsConfig(value: unknown): ExportFieldsConfig | nu
   if (!isRecord(value)) return null;
   const fields = value.fields;
   if (!Array.isArray(fields)) return null;
-  const validFields = fields.filter(
-    (f): f is ExportFieldKey => typeof f === "string" && (EXPORT_FIELD_KEYS as readonly string[]).includes(f),
-  );
-  if (validFields.length === 0) return null;
+  const validFields = fields.filter((f): f is ExportFieldKey => isExportFieldKey(f));
   const includeDebugWhenEnabled = typeof value.includeDebugWhenEnabled === "boolean"
     ? value.includeDebugWhenEnabled
     : undefined;
-  return { fields: validFields, includeDebugWhenEnabled };
+  return resolveStoredExportFieldsConfig({ fields: validFields, includeDebugWhenEnabled });
 }
 
 const CUSTOM_KEYWORDS_KEY = "custom-keywords";
@@ -893,7 +892,11 @@ export class WorkspaceConfigService {
   }
 
   async setExportFieldsConfig(workspaceSlug: string, config: ExportFieldsConfig): Promise<void> {
-    await this.upsertWorkspaceConfigEntry(workspaceSlug, EXPORT_FIELDS_KEY, config);
+    await this.upsertWorkspaceConfigEntry(
+      workspaceSlug,
+      EXPORT_FIELDS_KEY,
+      collapseDefaultExportFieldsConfig(config),
+    );
   }
 }
 
