@@ -67,13 +67,122 @@
     return raw.replace(/\/+$/, "");
   }
 
-  async function testConnection(serverUrl, serverToken) {
+  function parseServerPermission(serverUrl) {
     const url = normalizeServerUrl(serverUrl);
-    if (!url) return { success: false, error: "请先填写 Server URL" };
+    if (!url) {
+      return { ok: false, error: "请先填写 Server URL" };
+    }
+
+    let parsed;
+    try {
+      parsed = new URL(url);
+    } catch {
+      return { ok: false, error: "Server URL 格式无效" };
+    }
+
+    const protocol = String(parsed.protocol || "").toLowerCase();
+    const hostname = String(parsed.hostname || "").toLowerCase();
+
+    if (protocol === "https:") {
+      return { ok: true, pattern: `https://${hostname}/*`, displayHost: parsed.host || hostname };
+    }
+
+    if (protocol === "http:" && (hostname === "localhost" || hostname === "127.0.0.1")) {
+      return { ok: true, pattern: `http://${hostname}/*`, displayHost: parsed.host || hostname };
+    }
+
+    return {
+      ok: false,
+      error: "仅支持 HTTPS 服务器；本地调试可使用 http://localhost 或 http://127.0.0.1",
+    };
+  }
+
+  function permissionsContains(origins) {
+    return new Promise((resolve, reject) => {
+      if (!chrome.permissions?.contains) {
+        resolve(true);
+        return;
+      }
+      chrome.permissions.contains({ origins }, (result) => {
+        const err = chrome.runtime?.lastError;
+        if (err) {
+          reject(new Error(err.message || String(err)));
+          return;
+        }
+        resolve(!!result);
+      });
+    });
+  }
+
+  function permissionsRequest(origins) {
+    return new Promise((resolve, reject) => {
+      if (!chrome.permissions?.request) {
+        resolve(false);
+        return;
+      }
+      chrome.permissions.request({ origins }, (granted) => {
+        const err = chrome.runtime?.lastError;
+        if (err) {
+          reject(new Error(err.message || String(err)));
+          return;
+        }
+        resolve(!!granted);
+      });
+    });
+  }
+
+  async function ensureServerPermission(serverUrl, { interactive = false } = {}) {
+    const permission = parseServerPermission(serverUrl);
+    if (!permission.ok) {
+      return { success: false, error: permission.error || "Server URL 权限校验失败" };
+    }
+
+    try {
+      const alreadyGranted = await permissionsContains([permission.pattern]);
+      if (alreadyGranted) {
+        return { success: true, pattern: permission.pattern, alreadyGranted: true };
+      }
+
+      if (!interactive) {
+        return {
+          success: false,
+          error: `请授权访问 ${permission.displayHost || permission.pattern}`,
+          needsPermission: true,
+          pattern: permission.pattern,
+        };
+      }
+
+      const granted = await permissionsRequest([permission.pattern]);
+      if (!granted) {
+        return {
+          success: false,
+          error: `未授予 ${permission.displayHost || permission.pattern} 的访问权限`,
+          needsPermission: true,
+          pattern: permission.pattern,
+        };
+      }
+
+      return { success: true, pattern: permission.pattern };
+    } catch (error) {
+      return {
+        success: false,
+        error: `权限请求失败: ${error?.message ? String(error.message) : String(error)}`,
+      };
+    }
+  }
+
+  async function testConnection(serverUrl, serverToken) {
+    const url = normalizeServerUrl(serverUrl) || DEFAULT_SERVER_URL;
+
+    const permissionResult = await ensureServerPermission(url, { interactive: true });
+    if (!permissionResult.success) {
+      return { success: false, error: permissionResult.error || "未授予服务器访问权限" };
+    }
 
     try {
       const response = await fetch(`${url}/health`, {
         method: "GET",
+        credentials: "omit",
         headers: { Accept: "application/json" },
       });
       if (!response.ok) {
@@ -92,6 +201,7 @@
     try {
       const response = await fetch(`${url}/api/resumes/verify-token`, {
         method: "POST",
+        credentials: "omit",
         headers: {
           Accept: "application/json",
           Authorization: `Bearer ${token}`,
@@ -188,6 +298,15 @@
         const keywordMode = keywordModeSpacedInput?.checked ? KEYWORD_MODE_SPACED : DEFAULT_KEYWORD_MODE;
         const collectLimit = collectLimitInput?.value || "";
         const maxPages = maxPagesInput?.value || "";
+        const permissionResult = await ensureServerPermission(
+          normalizeServerUrl(serverUrl) || DEFAULT_SERVER_URL,
+          { interactive: true },
+        );
+        if (!permissionResult.success) {
+          showMessage(permissionResult.error || "未授予服务器访问权限", "error");
+          if (btnSave) btnSave.disabled = false;
+          return;
+        }
         await saveConfig(serverUrl, serverToken, keywordMode, collectLimit, maxPages, {
           job5156: guardJob5156Input?.value || "",
           "51job": guard51jobInput?.value || "",

@@ -5185,6 +5185,12 @@
           hint: "\u70B9\u51FB\u6B64\u63D0\u793A\u6253\u5F00\u6269\u5C55\u8BBE\u7F6E\u5E76\u586B\u5199 Token"
         };
       }
+      if (message === "Server host permission not granted" || lowerMessage.includes("permission not granted") || lowerMessage.includes("\u672A\u6388\u4E88")) {
+        return {
+          message: "\u670D\u52A1\u5668\u6743\u9650\u672A\u6388\u6743",
+          hint: "\u70B9\u51FB\u6B64\u63D0\u793A\u6253\u5F00\u6269\u5C55\u8BBE\u7F6E\uFF0C\u5E76\u6388\u6743\u5F53\u524D Server URL"
+        };
+      }
       if (message.includes("401") || lowerMessage.includes("unauthorized")) {
         return {
           message: "\u8BA4\u8BC1\u5931\u8D25 - Token \u65E0\u6548\u6216\u5DF2\u8FC7\u671F",

@@ -254,11 +254,89 @@ function normalizeServerUrl(value) {
     return raw ? raw.replace(/\/+$/, '') : '';
 }
 
+function parseServerPermission(serverUrl) {
+    const url = normalizeServerUrl(serverUrl);
+    if (!url) {
+        return { ok: false, error: 'Server URL not configured' };
+    }
+
+    let parsed;
+    try {
+        parsed = new URL(url);
+    } catch {
+        return { ok: false, error: 'Server URL is invalid' };
+    }
+
+    const protocol = String(parsed.protocol || '').toLowerCase();
+    const hostname = String(parsed.hostname || '').toLowerCase();
+
+    if (protocol === 'https:') {
+        return { ok: true, pattern: `https://${hostname}/*`, displayHost: parsed.host || hostname };
+    }
+
+    if (protocol === 'http:' && (hostname === 'localhost' || hostname === '127.0.0.1')) {
+        return { ok: true, pattern: `http://${hostname}/*`, displayHost: parsed.host || hostname };
+    }
+
+    return {
+        ok: false,
+        error: 'Only HTTPS servers and local HTTP development URLs are supported',
+    };
+}
+
+function permissionsContainsOrigins(origins) {
+    return new Promise((resolve, reject) => {
+        if (!chrome.permissions?.contains) {
+            resolve(true);
+            return;
+        }
+        chrome.permissions.contains({ origins }, (result) => {
+            const lastError = getRuntimeLastError();
+            if (lastError) {
+                reject(new Error(lastError.message || String(lastError)));
+                return;
+            }
+            resolve(!!result);
+        });
+    });
+}
+
+async function getServerPermissionStatus(serverUrl) {
+    const permission = parseServerPermission(serverUrl);
+    if (!permission.ok) {
+        return {
+            granted: false,
+            reason: permission.error || 'Server URL permission is invalid',
+            pattern: null,
+        };
+    }
+
+    try {
+        const granted = await permissionsContainsOrigins([permission.pattern]);
+        return {
+            granted,
+            reason: granted ? null : 'Server host permission not granted',
+            pattern: permission.pattern,
+        };
+    } catch (error) {
+        return {
+            granted: false,
+            reason: error?.message ? String(error.message) : String(error),
+            pattern: permission.pattern,
+        };
+    }
+}
+
 async function getServerConfig() {
     const items = await storageLocalGet({ serverUrl: '', serverToken: '' });
+    const serverUrl = normalizeServerUrl(items.serverUrl) || DEFAULT_SERVER_URL;
+    const permissionStatus = await getServerPermissionStatus(serverUrl);
     return {
-        serverUrl: normalizeServerUrl(items.serverUrl) || DEFAULT_SERVER_URL,
+        serverUrl,
         serverToken: typeof items.serverToken === 'string' ? items.serverToken : '',
+        permissionGranted: permissionStatus.granted,
+        permissionPattern: permissionStatus.pattern,
+        permissionError: permissionStatus.reason,
     };
 }
 
@@ -468,11 +546,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === 'getServerConfig') {
         (async () => {
             try {
-                const { serverUrl, serverToken } = await getServerConfig();
+                const { serverUrl, serverToken, permissionGranted, permissionError } = await getServerConfig();
                 sendResponse({
                     success: true,
                     serverUrl,
                     tokenSet: !!serverToken,
+                    permissionGranted,
+                    permissionError: permissionError || null,
                 });
             } catch (error) {
                 console.warn('🎯 [BG] getServerConfig failed:', error);
@@ -485,14 +565,19 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === 'testServerConnection') {
         (async () => {
             try {
-                const { serverUrl } = await getServerConfig();
+                const { serverUrl, permissionGranted, permissionError } = await getServerConfig();
                 if (!serverUrl) {
                     sendResponse({ success: false, error: 'Server URL not configured' });
                     return;
                 }
+                if (!permissionGranted) {
+                    sendResponse({ success: false, error: permissionError || 'Server host permission not granted' });
+                    return;
+                }
 
-                const response = await fetch(`${serverUrl}/api/health`, {
+                const response = await fetch(`${serverUrl}/health`, {
                     method: 'GET',
+                    credentials: 'omit',
                     headers: { Accept: 'application/json' },
                 });
 
@@ -517,9 +602,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
         (async () => {
             try {
-                const { serverUrl, serverToken } = await getServerConfig();
+                const { serverUrl, serverToken, permissionGranted, permissionError } = await getServerConfig();
                 if (!serverUrl) {
                     sendResponse({ success: false, error: 'Server URL not configured' });
+                    return;
+                }
+                if (!permissionGranted) {
+                    sendResponse({ success: false, error: permissionError || 'Server host permission not granted' });
                     return;
                 }
                 if (!serverToken) {
@@ -533,6 +622,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
                 const response = await fetch(`${serverUrl}/api/resumes/submit`, {
                     method: 'POST',
+                    credentials: 'omit',
                     headers: {
                         'Content-Type': 'application/json',
                         Accept: 'application/json',

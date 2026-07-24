@@ -12,6 +12,7 @@ vi.mock("../middleware/maintenance.js", () => ({
 
 import { createApp } from "../app";
 import { config } from "../services/config";
+import { createAuthHeaders } from "./test-auth-helpers";
 import { parseJsonBody } from "../test-utils";
 
 type ConvexCall = {
@@ -402,5 +403,93 @@ describe("resume submit route", () => {
         fs.writeFileSync(statusFile, originalStatusFile, "utf8");
       }
     }
+  });
+
+  it("allows verify-token when a valid session cookie is present without requiring CSRF", async () => {
+    process.env.RESUME_SUBMIT_TOKEN = "test-token";
+    const auth = createAuthHeaders({ workspaceSlug: "dev", role: "user" });
+
+    const app = createApp({
+      authStorage: auth.storage,
+      authTtlSeconds: 3600,
+    });
+
+    const response = await app.request("/api/resumes/verify-token", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer test-token",
+        Cookie: auth.headers.Cookie,
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ success: true });
+  });
+
+  it("allows submit when a valid session cookie is present without requiring CSRF", async () => {
+    process.env.RESUME_SUBMIT_TOKEN = "test-token";
+    const auth = createAuthHeaders({ workspaceSlug: "dev", role: "user" });
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      if (call.pathName === "resume_tasks:submitResumes") {
+        return convexSuccess({
+          submitted: 1,
+          deduped: 0,
+          inserted: 1,
+          updated: 0,
+          unchanged: 0,
+        });
+      }
+      throw new Error(`Unexpected convex path: ${call.pathName}`);
+    });
+
+    const app = createApp({
+      authStorage: auth.storage,
+      authTtlSeconds: 3600,
+    });
+
+    const response = await app.request("/api/resumes/submit", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer test-token",
+        Cookie: auth.headers.Cookie,
+      },
+      body: JSON.stringify({
+        metadata: {
+          sourceUrl: "https://hr.job5156.com/search?keyword=%E9%94%80%E5%94%AE",
+          keyword: "销售",
+          generatedBy: "browser-extension@1.3.1",
+        },
+        resumes: [
+          {
+            resumeId: "R123456",
+            name: "Alex Chen",
+            profileUrl: "https://hr.job5156.com/resume/view/123456",
+            activityStatus: "Active today",
+            age: "28",
+            experience: "5 years",
+            education: "Bachelor",
+            location: "Shenzhen",
+            selfIntro: "认真敬业",
+            jobIntention: "Sales Manager",
+            expectedSalary: "10-15K",
+            workHistory: [{ raw: "2021-03 ~ 2023-08 Example Co. - Sales Manager" }],
+            extractedAt: "2026-03-12T01:02:03.000Z",
+          },
+        ],
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      success: true,
+      submitted: 1,
+      inserted: 1,
+      updated: 0,
+      unchanged: 0,
+      deduped: 0,
+    });
   });
 });

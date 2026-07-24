@@ -61,7 +61,7 @@ CLEAR_KEYS=(
 
 # Force-set keys (preview isolation)
 FORCE_SETS=(
-    "AUTH_ALLOWED_ORIGINS=https://${PREVIEW_PUBLIC_HOST}"
+    "AUTH_ALLOWED_ORIGINS=https://${PREVIEW_PUBLIC_HOST},chrome-extension://pafaiemddagkegcjcaihcomblnpjfmkf"
     "CONVEX_URL=http://127.0.0.1:4210"
     "CONVEX_PUBLIC_URL=https://${PREVIEW_PUBLIC_HOST}/convex"
 )

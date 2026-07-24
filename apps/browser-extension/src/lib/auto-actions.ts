@@ -1377,6 +1377,17 @@ export function createAutoActions(deps: AutoActionsDeps) {
       };
     }
 
+    if (
+      message === "Server host permission not granted" ||
+      lowerMessage.includes("permission not granted") ||
+      lowerMessage.includes("未授予")
+    ) {
+      return {
+        message: "服务器权限未授权",
+        hint: "点击此提示打开扩展设置，并授权当前 Server URL",
+      };
+    }
+
     if (message.includes("401") || lowerMessage.includes("unauthorized")) {
       return {
         message: "认证失败 - Token 无效或已过期",

@@ -66,6 +66,12 @@ const LOCAL_DEV_ORIGINS = new Set([
   "http://127.0.0.1:5174",
 ]);
 
+const CSRF_EXEMPT_API_PATHS = new Set([
+  "/api/web-vitals/report",
+  "/api/resumes/verify-token",
+  "/api/resumes/submit",
+]);
+
 function resolveCorsOrigin(origin: string): string | null {
   if (config.auth.allowedOrigins.includes(origin)) {
     return origin;
@@ -200,7 +206,7 @@ export function createApp(options: CreateAppOptions = {}) {
     },
   );
   app.use("/api/*", async (c, next) => {
-    if (c.req.path === "/api/web-vitals/report") {
+    if (CSRF_EXEMPT_API_PATHS.has(c.req.path)) {
       return next();
     }
     return authMiddleware.requireCsrf(c, next);

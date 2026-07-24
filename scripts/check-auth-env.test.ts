@@ -200,5 +200,18 @@ describe('checkAuthEnv', () => {
       }))
       expect(result.errors).toHaveLength(0)
     })
+
+    it('allows preview extension origins alongside the preview web origin', () => {
+      const result = checkAuthEnv(makeInput({
+        mode: 'preview',
+        CONVEX_WRITE_SECRET: 'secret',
+        AUTH_ALLOWED_ORIGINS: 'https://preview.pt-mes.com,chrome-extension://pafaiemddagkegcjcaihcomblnpjfmkf',
+        AUTH_BOOTSTRAP_PASSWORD: 'ops-secret',
+        AUTH_HR_DEMO_PASSWORD: 'hr-secret',
+        BOOTSTRAP_ADMIN_USERS: 'admin',
+        BOOTSTRAP_HR_DEMO_USER: 'hr-demo',
+      }))
+      expect(result.errors).toHaveLength(0)
+    })
   })
 })

@@ -311,6 +311,7 @@ function startRuntimeStatusPolling() {
 }
 
 async function refreshServerConfig() {
+    let permissionGranted = null;
     try {
         const response = await sendToBackground('getServerConfig');
         if (!response?.success) {
@@ -318,7 +319,8 @@ async function refreshServerConfig() {
             configuredServerUrl = '';
         } else {
             configuredServerUrl = normalizeServerUrl(response.serverUrl || DEFAULT_SERVER_URL);
-            serverConfigured = !!configuredServerUrl && !!response.tokenSet;
+            permissionGranted = response.permissionGranted !== false;
+            serverConfigured = !!configuredServerUrl && !!response.tokenSet && response.permissionGranted !== false;
         }
     } catch {
         serverConfigured = false;
@@ -330,6 +332,7 @@ async function refreshServerConfig() {
     }
     if (serverStatus) {
         if (serverConfigured) serverStatus.textContent = `Server: ${configuredServerUrl}`;
+        else if (configuredServerUrl && permissionGranted === false) serverStatus.textContent = 'Server 权限未授权';
         else if (configuredServerUrl) serverStatus.textContent = 'Token 未配置';
         else serverStatus.textContent = 'Server 未配置';
     }
