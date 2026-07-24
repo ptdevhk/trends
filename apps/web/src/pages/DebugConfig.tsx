@@ -85,7 +85,7 @@ export default function DebugConfig() {
             </h2>
             <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
               {t('debugConfig.settingsOverviewPageDescription', {
-                defaultValue: 'Use the local settings navigation above to move directly to runtime, config, keyword, or location management without scrolling through one giant page.',
+                defaultValue: 'Use the local settings navigation above to move directly to operations, runtime, config, auth, or export settings without scrolling through one giant page.',
               })}
             </p>
           </div>

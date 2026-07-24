@@ -86,15 +86,30 @@ describe('SYSTEM_NAV_ITEMS', () => {
     expect(home).toBeDefined()
     expect(home!.hrefSuffix).toBe('/resumes')
   })
+
+  it('does not expose the legacy setup wizard in system navigation', () => {
+    const ids = SYSTEM_NAV_ITEMS.map((item) => item.id)
+    expect(ids).not.toContain('setup')
+  })
 })
 
 describe('SETTINGS_NAV_ITEMS', () => {
-  it('includes home, profiles, policies, and export fields entries', () => {
+  it('includes home, setup, search setup, profiles, policies, and export fields entries', () => {
     const ids = SETTINGS_NAV_ITEMS.map((item) => item.id)
     expect(ids).toContain('home')
+    expect(ids).toContain('setup')
+    expect(ids).toContain('keywords')
     expect(ids).toContain('profiles')
     expect(ids).toContain('policies')
     expect(ids).toContain('export-fields')
+  })
+
+  it('routes setup and search setup through the workspace settings surface', () => {
+    const setup = SETTINGS_NAV_ITEMS.find((item) => item.id === 'setup')
+    const searchSetup = SETTINGS_NAV_ITEMS.find((item) => item.id === 'keywords')
+
+    expect(setup?.hrefSuffix).toBe('/settings/setup')
+    expect(searchSetup?.hrefSuffix).toBe('/settings/keywords')
   })
 
   it('routes policies to the unified settings surface and still matches legacy blocks', () => {
@@ -115,6 +130,12 @@ describe('SYSTEM_SETTINGS_NAV_ITEMS', () => {
     const ids = SYSTEM_SETTINGS_NAV_ITEMS.map((item) => item.id)
     expect(ids).toContain('overview')
     expect(ids).toContain('runtime')
+  })
+
+  it('does not expose relocated keyword or location editors in system settings navigation', () => {
+    const ids = SYSTEM_SETTINGS_NAV_ITEMS.map((item) => item.id)
+    expect(ids).not.toContain('keywords')
+    expect(ids).not.toContain('locations')
   })
 })
 

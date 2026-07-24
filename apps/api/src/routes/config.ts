@@ -557,9 +557,9 @@ const putSystemLocationRoute = createRoute({
 });
 
 app.openapi(putSystemLocationRoute, async (c) => {
-  const adminError = getAdminAccessError(c);
-  if (adminError) {
-    return c.json(adminError.body, adminError.status);
+  const memberError = getWorkspaceUserAccessError(c);
+  if (memberError) {
+    return c.json(memberError.body, memberError.status);
   }
   try {
     const { id } = c.req.valid("param");
@@ -611,9 +611,9 @@ const postCustomKeywordRoute = createRoute({
 });
 
 app.openapi(postCustomKeywordRoute, async (c) => {
-  const adminError = getAdminAccessError(c);
-  if (adminError) {
-    return c.json(adminError.body, adminError.status);
+  const memberError = getWorkspaceUserAccessError(c);
+  if (memberError) {
+    return c.json(memberError.body, memberError.status);
   }
   try {
     const data = c.req.valid("json");
@@ -668,9 +668,9 @@ const putCustomKeywordRoute = createRoute({
 });
 
 app.openapi(putCustomKeywordRoute, async (c) => {
-  const adminError = getAdminAccessError(c);
-  if (adminError) {
-    return c.json(adminError.body, adminError.status);
+  const memberError = getWorkspaceUserAccessError(c);
+  if (memberError) {
+    return c.json(memberError.body, memberError.status);
   }
   try {
     const { id } = c.req.valid("param");
@@ -726,9 +726,9 @@ const deleteCustomKeywordRoute = createRoute({
 });
 
 app.openapi(deleteCustomKeywordRoute, async (c) => {
-  const adminError = getAdminAccessError(c);
-  if (adminError) {
-    return c.json(adminError.body, adminError.status);
+  const memberError = getWorkspaceUserAccessError(c);
+  if (memberError) {
+    return c.json(memberError.body, memberError.status);
   }
   try {
     const { id } = c.req.valid("param");

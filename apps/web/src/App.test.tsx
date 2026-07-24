@@ -70,8 +70,28 @@ vi.mock('@/pages/PublicSharePage', () => ({
   PublicSharePage: () => <div>Public share route rendered</div>,
 }))
 
+vi.mock('@/layouts/SettingsLayout', async () => {
+  const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom')
+  return {
+    default: () => (
+      <div>
+        Settings layout rendered
+        <actual.Outlet />
+      </div>
+    ),
+  }
+})
+
 vi.mock('@/layouts/SystemLayout', () => ({
   default: () => <div>System layout rendered</div>,
+}))
+
+vi.mock('@/pages/SettingsSetupPage', () => ({
+  SettingsSetupPage: () => <div>Workspace setup route rendered</div>,
+}))
+
+vi.mock('@/pages/SettingsKeywordsPage', () => ({
+  SettingsKeywordsPage: () => <div>Workspace search setup route rendered</div>,
 }))
 
 describe('App routes', () => {
@@ -290,6 +310,50 @@ describe('App routes', () => {
     expect(await screen.findByText('Admin access required')).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Page not found' })).not.toBeInTheDocument()
     expect(screen.queryByText('System layout rendered')).not.toBeInTheDocument()
+  })
+
+  it('renders the canonical workspace setup route for authorized members', async () => {
+    authState.user = { id: 'dev-user', status: 'active', displayName: 'Dev User' }
+    authState.memberships = [{ userId: 'dev-user', workspaceSlug: 'dev', role: 'user' }]
+    authState.workspaceRole = 'user'
+    authState.isAuthenticated = true
+    window.history.pushState({}, '', '/dev/settings/setup')
+
+    render(<App />)
+
+    expect(await screen.findByText('Workspace setup route rendered')).toBeInTheDocument()
+    expect(screen.getByText('Settings layout rendered')).toBeInTheDocument()
+  })
+
+  it('redirects legacy admin setup routes to the workspace setup page', async () => {
+    authState.user = { id: 'dev-user', status: 'active', displayName: 'Dev User' }
+    authState.memberships = [{ userId: 'dev-user', workspaceSlug: 'dev', role: 'user' }]
+    authState.workspaceRole = 'user'
+    authState.isAuthenticated = true
+    window.history.pushState({}, '', '/admin/system/setup')
+
+    render(<App />)
+
+    await waitFor(() => expect(window.location.pathname).toBe('/dev/settings/setup'))
+    expect(screen.getByText('Workspace setup route rendered')).toBeInTheDocument()
+  })
+
+  it('redirects legacy admin keyword and location settings routes to workspace search setup', async () => {
+    authState.user = { id: 'dev-user', status: 'active', displayName: 'Dev User' }
+    authState.memberships = [{ userId: 'dev-user', workspaceSlug: 'dev', role: 'user' }]
+    authState.workspaceRole = 'user'
+    authState.isAuthenticated = true
+
+    window.history.pushState({}, '', '/admin/system/settings/keywords')
+    render(<App />)
+    await waitFor(() => expect(window.location.pathname).toBe('/dev/settings/keywords'))
+    expect(await screen.findByText('Workspace search setup route rendered')).toBeInTheDocument()
+
+    cleanup()
+    window.history.pushState({}, '', '/admin/system/settings/locations')
+    render(<App />)
+    await waitFor(() => expect(window.location.pathname).toBe('/dev/settings/keywords'))
+    expect(await screen.findByText('Workspace search setup route rendered')).toBeInTheDocument()
   })
 
   it.each(['/admin/resumes', '/admin/settings', '/admin/login'])(

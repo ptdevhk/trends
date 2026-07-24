@@ -23,6 +23,8 @@ vi.mock('@trends/shared', () => ({
   APP_SURFACE_IDENTITY: { appName: 'Trends', settingsBadgeLabel: 'ADMIN', settingsTitle: 'Settings' },
   SETTINGS_NAV_ITEMS: [
     { id: 'home', titleKey: 'nav.home', defaultTitle: 'Home', hrefSuffix: '/resumes', matchesSuffixes: ['/resumes'] },
+    { id: 'setup', titleKey: 'settings.setup.nav', defaultTitle: 'Setup', hrefSuffix: '/settings/setup', matchesSuffixes: ['/settings/setup'] },
+    { id: 'keywords', titleKey: 'settings.searchSetup.nav', defaultTitle: 'Search setup', hrefSuffix: '/settings/keywords', matchesSuffixes: ['/settings/keywords'] },
     { id: 'policies', titleKey: 'settings.policies.nav', defaultTitle: 'Policies', hrefSuffix: '/settings/policies', matchesSuffixes: ['/settings/policies', '/settings/blocks'] },
     { id: 'export-fields', titleKey: 'nav.exportFields', defaultTitle: 'Export Fields', hrefSuffix: '/settings/export-fields', matchesSuffixes: ['/settings/export-fields'] },
   ],
@@ -48,6 +50,8 @@ describe('SettingsSidebar', () => {
   it('renders navigation items', () => {
     renderWithRouter(<SettingsSidebar />)
     expect(screen.getByText('Home')).toBeInTheDocument()
+    expect(screen.getByText('Setup')).toBeInTheDocument()
+    expect(screen.getByText('Search setup')).toBeInTheDocument()
     expect(screen.getByText('Policies')).toBeInTheDocument()
     expect(screen.getByText('Export Fields')).toBeInTheDocument()
   })
@@ -62,9 +66,9 @@ describe('SettingsSidebar', () => {
   })
 
   it('highlights active navigation item', () => {
-    renderWithRouter(<SettingsSidebar />, '/dev/settings/policies')
-    const policiesLink = screen.getByText('Policies').closest('a')
-    expect(policiesLink?.className).toContain('bg-primary/10')
+    renderWithRouter(<SettingsSidebar />, '/dev/settings/keywords')
+    const searchSetupLink = screen.getByText('Search setup').closest('a')
+    expect(searchSetupLink?.className).toContain('bg-primary/10')
   })
 
   it('renders app version', () => {

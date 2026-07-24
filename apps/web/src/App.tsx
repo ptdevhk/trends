@@ -61,6 +61,16 @@ const LazySearchProfilesPage = lazy(async () => {
   return { default: module.SearchProfilesPage }
 })
 
+const LazySettingsKeywordsPage = lazy(async () => {
+  const module = await import('@/pages/SettingsKeywordsPage')
+  return { default: module.SettingsKeywordsPage }
+})
+
+const LazySettingsSetupPage = lazy(async () => {
+  const module = await import('@/pages/SettingsSetupPage')
+  return { default: module.SettingsSetupPage }
+})
+
 const LazySummaryRunsPage = lazy(async () => {
   const module = await import('@/pages/SummaryRunsPage')
   return { default: module.SummaryRunsPage }
@@ -73,11 +83,6 @@ const LazyAuditCompliancePage = lazy(async () => {
   return { default: module.AuditCompliancePage }
 })
 
-const LazySystemSetupPage = lazy(async () => {
-  const module = await import('@/pages/system-setup/SystemSetupPage')
-  return { default: module.SystemSetupPage }
-})
-
 const LazyCandidateExplanationPage = lazy(async () => {
   const module = await import('@/pages/CandidateExplanationPage')
   return { default: module.CandidateExplanationPage }
@@ -86,16 +91,6 @@ const LazyCandidateExplanationPage = lazy(async () => {
 const LazySystemSettingsConfigSourcesPage = lazy(async () => {
   const module = await import('@/pages/system-settings/SystemSettingsConfigSourcesPage')
   return { default: module.SystemSettingsConfigSourcesPage }
-})
-
-const LazySystemSettingsKeywordsPage = lazy(async () => {
-  const module = await import('@/pages/system-settings/SystemSettingsKeywordsPage')
-  return { default: module.SystemSettingsKeywordsPage }
-})
-
-const LazySystemSettingsLocationsPage = lazy(async () => {
-  const module = await import('@/pages/system-settings/SystemSettingsLocationsPage')
-  return { default: module.SystemSettingsLocationsPage }
 })
 
 const LazySystemSettingsOperationsPage = lazy(async () => {
@@ -333,6 +328,11 @@ function LegacyDevSystemRedirect() {
   return <Navigate to={{ pathname: `${SYSTEM_ROUTE_PREFIX}${suffix}`, search: location.search }} replace />
 }
 
+function LegacyAdminWorkspaceRedirect({ pathname }: { pathname: string }) {
+  const location = useLocation()
+  return <Navigate to={{ pathname, search: location.search }} replace />
+}
+
 function LoginRoute() {
   const auth = useAuth()
   const location = useLocation()
@@ -390,6 +390,18 @@ function App() {
           <Route path="/resumes" element={<PublicResumeRoute />} />
           <Route path="/s/:token" element={<PublicShareRoute />} />
           <Route path="/dev/system/*" element={<LegacyDevSystemRedirect />} />
+          <Route
+            path="/admin/system/setup"
+            element={<LegacyAdminWorkspaceRedirect pathname={`/${SYSTEM_AUTH_WORKSPACE}/settings/setup`} />}
+          />
+          <Route
+            path="/admin/system/settings/keywords"
+            element={<LegacyAdminWorkspaceRedirect pathname={`/${SYSTEM_AUTH_WORKSPACE}/settings/keywords`} />}
+          />
+          <Route
+            path="/admin/system/settings/locations"
+            element={<LegacyAdminWorkspaceRedirect pathname={`/${SYSTEM_AUTH_WORKSPACE}/settings/keywords`} />}
+          />
           <Route path="/login" element={<AppProviders workspaceSlug={SYSTEM_AUTH_WORKSPACE}><LoginRoute /></AppProviders>} />
           <Route path="/admin/system" element={<SystemWorkspaceShell />}>
             <Route
@@ -442,26 +454,10 @@ function App() {
                   )}
                 />
                 <Route
-                  path="keywords"
-                  element={(
-                    <RouteSuspense>
-                      <LazySystemSettingsKeywordsPage />
-                    </RouteSuspense>
-                  )}
-                />
-                <Route
                   path="taxonomy"
                   element={(
                     <RouteSuspense>
                       <LazySystemSettingsTaxonomyPage />
-                    </RouteSuspense>
-                  )}
-                />
-                <Route
-                  path="locations"
-                  element={(
-                    <RouteSuspense>
-                      <LazySystemSettingsLocationsPage />
                     </RouteSuspense>
                   )}
                 />
@@ -474,14 +470,6 @@ function App() {
                   )}
                 />
               </Route>
-              <Route
-                path="setup"
-                element={(
-                  <RouteSuspense>
-                    <LazySystemSetupPage />
-                  </RouteSuspense>
-                )}
-              />
               <Route
                 path="jds"
                 element={(
@@ -583,6 +571,22 @@ function App() {
 
             <Route path="settings" element={<SettingsLayout />}>
               <Route index element={<Navigate to="policies" replace />} />
+              <Route
+                path="setup"
+                element={(
+                  <RouteSuspense>
+                    <LazySettingsSetupPage />
+                  </RouteSuspense>
+                )}
+              />
+              <Route
+                path="keywords"
+                element={(
+                  <RouteSuspense>
+                    <LazySettingsKeywordsPage />
+                  </RouteSuspense>
+                )}
+              />
               <Route
                 path="policies"
                 element={(

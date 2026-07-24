@@ -228,13 +228,6 @@ export const SYSTEM_NAV_ITEMS: SurfaceNavDefinition[] = [
     matchesSuffixes: ["/system/settings"],
   },
   {
-    id: "setup",
-    titleKey: "nav.setup",
-    defaultTitle: "Setup Wizard",
-    hrefSuffix: "/system/setup",
-    matchesSuffixes: ["/system/setup"],
-  },
-  {
     id: "jds",
     titleKey: "nav.jds",
     defaultTitle: "Job Descriptions",
@@ -308,6 +301,20 @@ export const SETTINGS_NAV_ITEMS: SurfaceNavDefinition[] = [
     matchesSuffixes: ["/resumes"],
   },
   {
+    id: "setup",
+    titleKey: "settings.setup.nav",
+    defaultTitle: "Setup",
+    hrefSuffix: "/settings/setup",
+    matchesSuffixes: ["/settings/setup"],
+  },
+  {
+    id: "keywords",
+    titleKey: "settings.searchSetup.nav",
+    defaultTitle: "Search setup",
+    hrefSuffix: "/settings/keywords",
+    matchesSuffixes: ["/settings/keywords"],
+  },
+  {
     id: "policies",
     titleKey: "settings.policies.nav",
     defaultTitle: "Policies",
@@ -375,25 +382,11 @@ export const SYSTEM_SETTINGS_NAV_ITEMS: SurfaceNavDefinition[] = [
     matchesSuffixes: ["/system/settings/config-sources"],
   },
   {
-    id: "keywords",
-    titleKey: "debugConfig.settingsNavKeywords",
-    defaultTitle: "Keywords",
-    hrefSuffix: "/system/settings/keywords",
-    matchesSuffixes: ["/system/settings/keywords"],
-  },
-  {
     id: "taxonomy",
     titleKey: "debugConfig.settingsNavTaxonomy",
     defaultTitle: "Taxonomy",
     hrefSuffix: "/system/settings/taxonomy",
     matchesSuffixes: ["/system/settings/taxonomy"],
-  },
-  {
-    id: "locations",
-    titleKey: "debugConfig.settingsNavLocations",
-    defaultTitle: "Locations",
-    hrefSuffix: "/system/settings/locations",
-    matchesSuffixes: ["/system/settings/locations"],
   },
   {
     id: "export-fields",

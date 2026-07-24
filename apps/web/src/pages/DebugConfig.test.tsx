@@ -1,11 +1,9 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import SystemSettingsLayout from '@/layouts/SystemSettingsLayout'
 import DebugConfig from './DebugConfig'
 import { SystemSettingsConfigSourcesPage } from './system-settings/SystemSettingsConfigSourcesPage'
-import { SystemSettingsKeywordsPage } from './system-settings/SystemSettingsKeywordsPage'
-import { SystemSettingsLocationsPage } from './system-settings/SystemSettingsLocationsPage'
 
 const resetMutation = vi.fn(async () => ({ count: 0, cleared: 0 }))
 
@@ -54,8 +52,6 @@ function renderSettingsRoute(initialEntry: string) {
         <Route path="/:teamSlug/system/settings" element={<SystemSettingsLayout />}>
           <Route index element={<DebugConfig />} />
           <Route path="config-sources" element={<SystemSettingsConfigSourcesPage />} />
-          <Route path="keywords" element={<SystemSettingsKeywordsPage />} />
-          <Route path="locations" element={<SystemSettingsLocationsPage />} />
         </Route>
       </Routes>
     </MemoryRouter>,
@@ -213,20 +209,6 @@ describe('System settings routes', () => {
                   hrefSuffix: '/system/settings/config-sources',
                   matchesSuffixes: ['/system/settings/config-sources'],
                 },
-                {
-                  id: 'keywords',
-                  titleKey: 'debugConfig.settingsNavKeywords',
-                  defaultTitle: 'Keywords',
-                  hrefSuffix: '/system/settings/keywords',
-                  matchesSuffixes: ['/system/settings/keywords'],
-                },
-                {
-                  id: 'locations',
-                  titleKey: 'debugConfig.settingsNavLocations',
-                  defaultTitle: 'Locations',
-                  hrefSuffix: '/system/settings/locations',
-                  matchesSuffixes: ['/system/settings/locations'],
-                },
               ],
               debugPage: [],
             },
@@ -276,15 +258,17 @@ describe('System settings routes', () => {
     }))
   })
 
-  it('renders the overview hub with local settings navigation', () => {
+  it('renders the overview hub with local settings navigation', async () => {
     renderSettingsRoute('/admin/system/settings')
 
+    expect(await screen.findByRole('link', { name: 'Config sources' })).toBeInTheDocument()
     expect(screen.getByText('Settings overview')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Open each system settings area in its own page.' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Overview' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Operations' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'AI and agents' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Locations' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Keywords' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Locations' })).not.toBeInTheDocument()
   })
 
   it('loads config-source details on the config sources route', async () => {
@@ -292,41 +276,5 @@ describe('System settings routes', () => {
 
     expect(await screen.findByText('Canonical resume AI prompt source')).toBeInTheDocument()
     expect(screen.getAllByText('config/resume/ai-prompts.md').length).toBeGreaterThan(0)
-  })
-
-  it('renders the dedicated locations page without keyword or config source sections', async () => {
-    renderSettingsRoute('/admin/system/settings/locations')
-
-    await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'System location config' })).toBeInTheDocument()
-    })
-
-    expect(screen.getByText('Backed by Job5156 location data with per-chip visibility controls.')).toBeInTheDocument()
-    expect(screen.getAllByText('广东').length).toBeGreaterThan(0)
-    expect(screen.queryByRole('heading', { name: 'debugConfig.configSources' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'debugConfig.customKeywords' })).not.toBeInTheDocument()
-  })
-
-  it('renders the keywords route with editable and derived keyword data', async () => {
-    renderSettingsRoute('/admin/system/settings/keywords')
-
-    await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Keywords' })).toBeInTheDocument()
-    })
-
-    expect(screen.getAllByText('FANUC').length).toBeGreaterThan(0)
-    expect(screen.getByText('Mazak')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Add Keyword' })).toBeInTheDocument()
-  })
-
-  it('routes landing quick-start ownership to search profiles from the keywords page', async () => {
-    renderSettingsRoute('/admin/system/settings/keywords')
-
-    await waitFor(() => {
-      expect(screen.getByText('Landing quick starts')).toBeInTheDocument()
-      expect(screen.getByText('Search-first landing quick starts now live in the same Search Profiles workspace registry as every other profile.')).toBeInTheDocument()
-    })
-
-    expect(screen.getByRole('link', { name: 'Open Search Profiles' })).toHaveAttribute('href', '/dev/settings/profiles')
   })
 })

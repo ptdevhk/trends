@@ -676,7 +676,160 @@ describe('config route workspace access', () => {
     })
   })
 
-  it('updates a seeded custom keyword through a workspace override', async () => {
+  it('allows workspace users to update system location visibility', async () => {
+    const mergedConfig = {
+      tags: [],
+      categories: [],
+      systemLocations: [
+        {
+          id: 'gd',
+          keyword: '广东',
+          level: 'province',
+          visible: true,
+          markets: ['CN'],
+        },
+      ],
+      workflowSeeds: [],
+    }
+
+    const getCustomKeywordsSpy = vi.spyOn(workspaceConfigService, 'getCustomKeywords').mockResolvedValue(mergedConfig as never)
+    const getWorkspaceCustomKeywordsSpy = vi.spyOn(workspaceConfigService, 'getWorkspaceCustomKeywords').mockResolvedValue({
+      tags: [],
+      categories: [],
+      systemLocations: [],
+      workflowSeeds: [],
+    } as never)
+    const setWorkspaceCustomKeywordsSpy = vi.spyOn(workspaceConfigService, 'setWorkspaceCustomKeywords').mockResolvedValue()
+
+    const auth = createAuthHeaders({ workspaceSlug: 'dev', role: 'user' })
+    const app = createTestApp(auth.storage)
+    const response = await app.request('/api/config/custom-keywords/system-locations/gd', {
+      method: 'PUT',
+      headers: {
+        ...auth.headers,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ visible: false }),
+    })
+
+    expect(response.status).toBe(200)
+    expect(getCustomKeywordsSpy).toHaveBeenCalledWith('dev')
+    expect(getWorkspaceCustomKeywordsSpy).toHaveBeenCalledWith('dev')
+    expect(setWorkspaceCustomKeywordsSpy).toHaveBeenCalledWith('dev', expect.objectContaining({
+      systemLocations: [
+        expect.objectContaining({
+          id: 'gd',
+          keyword: '广东',
+          visible: false,
+        }),
+      ],
+    }))
+    expect(await response.json()).toEqual({
+      success: true,
+      item: {
+        id: 'gd',
+        keyword: '广东',
+        level: 'province',
+        visible: false,
+        markets: ['CN'],
+      },
+    })
+  })
+
+  it('allows workspace users to create custom keywords', async () => {
+    const baseConfig = {
+      tags: [],
+      categories: [],
+      systemLocations: [],
+      workflowSeeds: [],
+    }
+
+    const updatedConfig = {
+      ...baseConfig,
+      tags: [
+        {
+          id: 'lathe-sales',
+          keyword: '车床销售',
+          english: 'Lathe Sales',
+          category: 'role',
+          markets: ['CN', 'MY'],
+          visible: true,
+          source: 'workspace',
+        },
+      ],
+      categories: [
+        {
+          id: 'role',
+          name: 'Role',
+        },
+      ],
+    }
+
+    const getCustomKeywordsSpy = vi.spyOn(workspaceConfigService, 'getCustomKeywords')
+      .mockResolvedValueOnce(baseConfig as never)
+      .mockResolvedValueOnce(updatedConfig as never)
+    const getWorkspaceCustomKeywordsSpy = vi.spyOn(workspaceConfigService, 'getWorkspaceCustomKeywords').mockResolvedValue({
+      tags: [],
+      categories: [],
+      systemLocations: [],
+      workflowSeeds: [],
+    } as never)
+    const setWorkspaceCustomKeywordsSpy = vi.spyOn(workspaceConfigService, 'setWorkspaceCustomKeywords').mockResolvedValue()
+
+    const auth = createAuthHeaders({ workspaceSlug: 'dev', role: 'user' })
+    const app = createTestApp(auth.storage)
+    const response = await app.request('/api/config/custom-keywords', {
+      method: 'POST',
+      headers: {
+        ...auth.headers,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        id: 'lathe-sales',
+        keyword: '车床销售',
+        english: 'Lathe Sales',
+        category: 'role',
+        markets: ['CN', 'MY'],
+        visible: true,
+      }),
+    })
+
+    expect(response.status).toBe(201)
+    expect(getCustomKeywordsSpy).toHaveBeenCalledTimes(2)
+    expect(getWorkspaceCustomKeywordsSpy).toHaveBeenCalledWith('dev')
+    expect(setWorkspaceCustomKeywordsSpy).toHaveBeenCalledWith('dev', expect.objectContaining({
+      tags: [
+        expect.objectContaining({
+          id: 'lathe-sales',
+          keyword: '车床销售',
+          english: 'Lathe Sales',
+          category: 'role',
+          markets: ['CN', 'MY'],
+          visible: true,
+        }),
+      ],
+      categories: [
+        expect.objectContaining({
+          id: 'role',
+          name: 'role',
+        }),
+      ],
+    }))
+    expect(await response.json()).toEqual({
+      success: true,
+      tag: {
+        id: 'lathe-sales',
+        keyword: '车床销售',
+        english: 'Lathe Sales',
+        category: 'role',
+        markets: ['CN', 'MY'],
+        visible: true,
+        source: 'workspace',
+      },
+    })
+  })
+
+  it('allows workspace users to update a seeded custom keyword through a workspace override', async () => {
     const baseConfig = {
       tags: [
         {
@@ -725,7 +878,7 @@ describe('config route workspace access', () => {
     } as never)
     const setWorkspaceCustomKeywordsSpy = vi.spyOn(workspaceConfigService, 'setWorkspaceCustomKeywords').mockResolvedValue()
 
-    const auth = createAuthHeaders({ workspaceSlug: 'dev', role: 'admin' })
+    const auth = createAuthHeaders({ workspaceSlug: 'dev', role: 'user' })
     const app = createTestApp(auth.storage)
     const response = await app.request('/api/config/custom-keywords/seed-role-sales', {
       method: 'PUT',
@@ -769,6 +922,73 @@ describe('config route workspace access', () => {
         visible: false,
         source: 'workspace',
       },
+    })
+  })
+
+  it('allows workspace users to delete workspace-only custom keywords', async () => {
+    const mergedConfig = {
+      tags: [
+        {
+          id: 'lathe-sales',
+          keyword: '车床销售',
+          english: 'Lathe Sales',
+          category: 'role',
+          markets: ['CN'],
+          visible: true,
+          source: 'workspace',
+        },
+      ],
+      categories: [
+        {
+          id: 'role',
+          name: 'Role',
+        },
+      ],
+      systemLocations: [],
+      workflowSeeds: [],
+    }
+
+    const workspaceConfig = {
+      tags: [
+        {
+          id: 'lathe-sales',
+          keyword: '车床销售',
+          english: 'Lathe Sales',
+          category: 'role',
+          markets: ['CN'],
+          visible: true,
+          source: 'workspace',
+        },
+      ],
+      categories: [
+        {
+          id: 'role',
+          name: 'Role',
+        },
+      ],
+      systemLocations: [],
+      workflowSeeds: [],
+    }
+
+    const getCustomKeywordsSpy = vi.spyOn(workspaceConfigService, 'getCustomKeywords').mockResolvedValue(mergedConfig as never)
+    const getWorkspaceCustomKeywordsSpy = vi.spyOn(workspaceConfigService, 'getWorkspaceCustomKeywords').mockResolvedValue(workspaceConfig as never)
+    const setWorkspaceCustomKeywordsSpy = vi.spyOn(workspaceConfigService, 'setWorkspaceCustomKeywords').mockResolvedValue()
+
+    const auth = createAuthHeaders({ workspaceSlug: 'dev', role: 'user' })
+    const app = createTestApp(auth.storage)
+    const response = await app.request('/api/config/custom-keywords/lathe-sales', {
+      method: 'DELETE',
+      headers: auth.headers,
+    })
+
+    expect(response.status).toBe(200)
+    expect(getCustomKeywordsSpy).toHaveBeenCalledWith('dev')
+    expect(getWorkspaceCustomKeywordsSpy).toHaveBeenCalledWith('dev')
+    expect(setWorkspaceCustomKeywordsSpy).toHaveBeenCalledWith('dev', expect.objectContaining({
+      tags: [],
+    }))
+    expect(await response.json()).toEqual({
+      success: true,
     })
   })
 
