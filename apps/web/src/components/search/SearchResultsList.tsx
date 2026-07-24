@@ -346,6 +346,7 @@ export function SearchResultsList({
         <Suspense fallback={null}>
           <ResumeDetail
             resume={resolvedDetailResume}
+            refreshState={detailItem.refreshState}
             open={Boolean(detailItem)}
             onOpenChange={(open) => {
               if (!open) {

@@ -56,6 +56,7 @@ export type IngestDiagnosticsRow = {
         ruleScoreCount: number;
         computedAt: number;
         skillsVersion: number;
+        ingestComputeEpoch?: number;
         taggingEntries: IngestDiagnosticsTaggingEntry[];
     };
 };
@@ -226,6 +227,9 @@ export function projectIngestDiagnosticsRow(
             ruleScoreCount: countRuleScores(ingestData.ruleScores),
             computedAt: ingestData.computedAt,
             skillsVersion: ingestData.skillsVersion,
+            ...(typeof ingestData.ingestComputeEpoch === "number"
+                ? { ingestComputeEpoch: ingestData.ingestComputeEpoch }
+                : {}),
             taggingEntries: projectIngestDiagnosticsTaggingEntries(ingestData.taggingEnvelope),
         } : undefined,
     };

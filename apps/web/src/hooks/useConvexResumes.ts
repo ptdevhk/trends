@@ -105,6 +105,7 @@ export type ConvexIngestData = {
   experienceLevel: string
   computedAt?: number
   skillsVersion?: number
+  ingestComputeEpoch?: number
 }
 
 export type ConvexResumeItem = ResumeItem & {
@@ -174,6 +175,7 @@ export type ResumeListDocLike = {
     experienceLevel: string
     computedAt: number
     skillsVersion: number
+    ingestComputeEpoch?: number
   }
   source: string
   tags: string[]
@@ -538,6 +540,7 @@ export function parseIngestData(value: unknown): ConvexIngestData | undefined {
 
   const computedAt = toNumber(value.computedAt) ?? undefined
   const skillsVersion = toNumber(value.skillsVersion) ?? undefined
+  const ingestComputeEpoch = toNumber(value.ingestComputeEpoch) ?? undefined
 
   const taggingEnvelope = parseTaggingEnvelope(value.taggingEnvelope)
 
@@ -620,6 +623,7 @@ export function parseIngestData(value: unknown): ConvexIngestData | undefined {
     experienceLevel: toStringValue(value.experienceLevel) || 'unknown',
     computedAt,
     skillsVersion,
+    ingestComputeEpoch,
     market: toStringValue(value.market) || undefined,
   }
 }

@@ -143,6 +143,7 @@ function createResult(index: number, overrides: Partial<ResumeSearchResultItem> 
     scoreSource: overrides.scoreSource ?? 'ai',
     status: overrides.status ?? 'new',
     statusMeta: overrides.statusMeta,
+    refreshState: overrides.refreshState,
     resume: overrides.resume ?? createResume(index),
   }
 }
@@ -243,13 +244,23 @@ describe('SnippetCard', () => {
     render(
       <SnippetCard
         expanded={false}
-        item={createResult(1, { blocked: true })}
+        item={createResult(1, {
+          blocked: true,
+          refreshState: {
+            kind: 'analysis_stale',
+            isStale: true,
+            ingestStale: false,
+            analysisStale: true,
+            actions: ['rerun_analysis'],
+          },
+        })}
         itemKey="result-1"
         onToggleExpanded={vi.fn()}
       />
     )
 
     expect(screen.getByText('已屏蔽')).toBeInTheDocument()
+    expect(screen.getByText('Needs refresh')).toBeInTheDocument()
   })
 
   it('shows activity status badge when present', () => {

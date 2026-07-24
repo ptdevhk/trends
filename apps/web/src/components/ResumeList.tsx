@@ -214,6 +214,10 @@ export function ResumeList() {
     if (!detailKey) return undefined
     return displayedResumes.find((entry) => entry.key === detailKey)?.match
   }, [detailKey, displayedResumes])
+  const detailRefreshState = useMemo(() => {
+    if (!detailKey) return undefined
+    return displayedResumes.find((entry) => entry.key === detailKey)?.refreshState
+  }, [detailKey, displayedResumes])
   const { resume: detailResumeFromConvex, loading: detailResumeLoading } = useConvexResumeDetail(detailResumeId)
   const resolvedDetailResume = detailResumeFromConvex ?? detailResume
   const shouldVirtualize = displayedResumes.length > 40
@@ -373,6 +377,7 @@ export function ResumeList() {
           notes: entry.statusMeta.notes,
           updatedAt: entry.statusMeta.updatedAt,
         } : undefined}
+        refreshState={entry.refreshState}
         onToggleBlock={(reason) => handleToggleBlock(entry.identityKey, entry.blocked, reason)}
         onCandidateStatusChange={(status, notes) => handleCandidateStatusChange(entry.identityKey, status, notes)}
         onViewDetails={() => {
@@ -662,6 +667,7 @@ export function ResumeList() {
           <ResumeDetail
             resume={resolvedDetailResume}
             matchResult={detailMatch}
+            refreshState={detailRefreshState}
             open={Boolean(detailResume)}
             onOpenChange={(open) => {
               if (!open) {

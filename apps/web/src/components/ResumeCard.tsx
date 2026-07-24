@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { AiFeedbackButtons } from '@/components/AiFeedbackButtons'
 import { ConfirmedScoreBadge } from '@/components/ConfirmedScoreBadge'
+import { ResumeRefreshBadge } from '@/components/ResumeRefreshBadge'
 import { toast } from 'sonner'
 import { isAdvancingCandidateStatus } from '@trends/shared'
 import { CompanyPolicyBadges } from '@/components/CompanyPolicyBadges'
@@ -16,6 +17,7 @@ import { StarRating } from '@/components/StarRating'
 import { CandidateNotesDialog } from '@/components/CandidateNotesDialog'
 import type { ResumeItem } from '@/hooks/useResumes'
 import type { AiFeedbackSentiment, AiFeedbackTarget, CandidateActionType, CandidateStatus, MatchingResult } from '@/types/resume'
+import type { ResumeRefreshState } from '@/lib/resume-freshness'
 import type { ExperienceLevelFilter } from '@/lib/resume-scoring'
 import { getScoreClassName } from '@/lib/score-classes'
 import { cn } from '@/lib/utils'
@@ -93,6 +95,7 @@ interface ResumeCardProps {
   onRating?: (rating: number) => void
   onRatingComment?: (comment: string) => void
   confirmedScore?: number
+  refreshState?: ResumeRefreshState
 }
 
 const STATUS_OPTIONS: Array<{ value: CandidateStatus; labelKey: string }> = [
@@ -192,6 +195,7 @@ export const ResumeCard = memo(function ResumeCard({
   onRating,
   onRatingComment,
   confirmedScore,
+  refreshState,
   industryTags,
   companyHits,
   brandHits,
@@ -583,6 +587,7 @@ export const ResumeCard = memo(function ResumeCard({
             <Badge variant="outline" className={cn('text-[10px]', STATUS_BADGE_CLASS[candidateStatus])}>
               {statusLabel}
             </Badge>
+            <ResumeRefreshBadge refreshState={refreshState} />
             {statusUpdatedAtLabel ? (
               <span className="text-[10px] text-muted-foreground">{statusUpdatedAtLabel}</span>
             ) : null}

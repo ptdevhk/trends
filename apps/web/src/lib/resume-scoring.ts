@@ -14,7 +14,7 @@ import {
 import type { ResumeItem } from '@/hooks/useResumes'
 import type { ConvexResumeAnalysis } from '@/hooks/useConvexResumes'
 import type { MatchBreakdown, Recommendation } from '@/types/resume'
-import { buildResumeAnalysisLookupKeys } from '@/lib/analysis-utils'
+import { resolveStoredResumeAnalysis } from '@/lib/resume-freshness'
 
 export interface BrandHitLike {
   brand: string
@@ -225,20 +225,16 @@ export function getAnalysisForJob(
     locale?: string
   }
 ): ConvexResumeAnalysis | undefined {
-  const lookupKeys = buildResumeAnalysisLookupKeys(jobDescriptionId, keywords, options)
-  const hasCachedAnalyses = Boolean(resume.analyses && Object.keys(resume.analyses).length > 0)
-  const analysisFromCache = lookupKeys.find((lookupKey) => lookupKey && resume.analyses?.[lookupKey])
-  const analysis = analysisFromCache
-    ? resume.analyses?.[analysisFromCache]
-    : resume.analysis && (
-      lookupKeys.length === 0
-      || (
-        (!options?.sourceKey || !hasCachedAnalyses)
-        && lookupKeys.includes(resume.analysis.jobDescriptionId ?? '')
-      )
-    )
-      ? resume.analysis
-      : undefined
+  const analysis = resolveStoredResumeAnalysis({
+    resume,
+    analysisContext: {
+      jobDescriptionId,
+      keywords,
+      location: options?.location,
+      sourceKey: options?.sourceKey,
+      locale: options?.locale,
+    },
+  })
 
   if (!analysis) {
     return undefined

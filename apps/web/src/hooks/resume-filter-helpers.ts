@@ -353,13 +353,13 @@ export function getResumeLocationText(
 }
 
 export function resolveAnalysisSourceKeyForResume(
-  resume: Pick<ConvexResumeItem, 'source'> & { profileType?: string },
+  resume: { source?: string; profileType?: string },
   collectionSource: CollectionSource | undefined,
 ): string | undefined {
   return collectionSource?.type
     ?? resolveResumeAnalysisSourceKey({
       sourceKey: resume.profileType,
-      source: resume.source,
+      source: resume.source ?? '',
     })
 }
 

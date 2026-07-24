@@ -1,5 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
+  CURRENT_INGEST_COMPUTE_EPOCH,
   getLabelDescriptor,
   INGEST_BRAND_CONTEXT_LABELS,
   INGEST_BRAND_ROLE_LABELS,
@@ -20,8 +21,10 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { PageHeader } from '@/components/PageHeader'
+import { ResumeRefreshBadge } from '@/components/ResumeRefreshBadge'
 import { useResumeFieldUsagePolicy } from '@/contexts/ResumeFieldUsagePolicyContext'
 import { SourceFacetSelect } from '@/components/SourceFacetSelect'
+import { CURRENT_RESUME_SKILLS_VERSION, resolveResumeRefreshState } from '@/lib/resume-freshness'
 import { reportUiError } from '@/lib/ui-error-reporting'
 
 type IngestDiagnosticsResume = {
@@ -47,6 +50,7 @@ type IngestDiagnosticsResume = {
     ruleScoreCount: number
     computedAt: number
     skillsVersion: number
+    ingestComputeEpoch?: number
     taggingEntries: Array<{
       tag: string
       source: string
@@ -102,17 +106,30 @@ function formatTimestamp(value: number | undefined): string {
   return new Date(value).toLocaleString()
 }
 
-function parseSkillsVersionPayload(value: unknown): number | null {
+type CurrentIngestVersionState = {
+  version: number
+  ingestComputeEpoch: number
+}
+
+function parseSkillsVersionPayload(value: unknown): CurrentIngestVersionState | null {
   if (typeof value !== 'object' || value === null) {
     return null
   }
-  if (!('success' in value) || value.success !== true) {
+  const payload = value as Record<string, unknown>
+  if (payload.success !== true) {
     return null
   }
-  if (!('version' in value)) {
+  if (typeof payload.version !== 'number') {
     return null
   }
-  return typeof value.version === 'number' ? value.version : null
+
+  return {
+    version: payload.version,
+    ingestComputeEpoch:
+      typeof payload.ingestComputeEpoch === 'number'
+        ? payload.ingestComputeEpoch
+        : CURRENT_INGEST_COMPUTE_EPOCH,
+  }
 }
 
 function formatBrandHitLabel(
@@ -171,7 +188,7 @@ export default function DebugIngest() {
   const archiveResumesMutation = useMutation(api.resumes_mutations.archiveResumes)
 
   const [search, setSearch] = useState('')
-  const [skillsVersion, setSkillsVersion] = useState<number | null>(null)
+  const [skillsVersionState, setSkillsVersionState] = useState<CurrentIngestVersionState | null>(null)
   const [versionLoading, setVersionLoading] = useState(false)
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
   const [selectedResumeIds, setSelectedResumeIds] = useState<Set<string>>(new Set())
@@ -204,7 +221,7 @@ export default function DebugIngest() {
       if (version === null) {
         throw new Error('Invalid skills version response')
       }
-      setSkillsVersion(version)
+      setSkillsVersionState(version)
     } catch (error) {
       reportUiError('Failed to fetch skills version', error)
       toast.error(t('debugIngest.skillsVersionFailed', { defaultValue: 'Failed to load skills version' }))
@@ -297,16 +314,18 @@ export default function DebugIngest() {
     () => resumes.filter((resume) => resume.ingestData !== undefined).length,
     [resumes],
   )
+  const currentSkillsVersion = skillsVersionState?.version ?? CURRENT_RESUME_SKILLS_VERSION
+  const currentIngestComputeEpoch = skillsVersionState?.ingestComputeEpoch ?? CURRENT_INGEST_COMPUTE_EPOCH
 
   const staleCount = useMemo(() => {
-    if (skillsVersion === null) {
-      return 0
-    }
-    return resumes.filter((resume) => {
-      const version = resume.ingestData?.skillsVersion
-      return typeof version !== 'number' || version < skillsVersion
-    }).length
-  }, [resumes, skillsVersion])
+    return resumes.filter((resume) =>
+      resolveResumeRefreshState({
+        resume,
+        currentSkillsVersion,
+        currentIngestComputeEpoch,
+      }).ingestStale
+    ).length
+  }, [currentIngestComputeEpoch, currentSkillsVersion, resumes])
 
   const toggleExpanded = useCallback((resumeId: string) => {
     setExpandedIds((prev) => {
@@ -606,7 +625,7 @@ export default function DebugIngest() {
             <CardTitle className="text-sm">{t('debugIngest.skillsVersion', { defaultValue: 'Skills Version' })}</CardTitle>
           </CardHeader>
           <CardContent className="text-2xl font-semibold">
-            {versionLoading ? '...' : skillsVersion ?? '--'}
+            {versionLoading ? '...' : skillsVersionState?.version ?? '--'}
           </CardContent>
         </Card>
       </div>
@@ -947,8 +966,11 @@ export default function DebugIngest() {
                 const isExpanded = expandedIds.has(resumeId)
                 const isSelected = selectedResumeIds.has(resumeId)
                 const ingestData = resume.ingestData
-                const isStale = skillsVersion !== null
-                  && (typeof ingestData?.skillsVersion !== 'number' || ingestData.skillsVersion < skillsVersion)
+                const refreshState = resolveResumeRefreshState({
+                  resume,
+                  currentSkillsVersion,
+                  currentIngestComputeEpoch,
+                })
 
                 return (
                   <Fragment key={resumeId}>
@@ -978,14 +1000,10 @@ export default function DebugIngest() {
                       <TableCell>{ingestData?.skillsVersion ?? '--'}</TableCell>
                       <TableCell>{formatTimestamp(ingestData?.computedAt)}</TableCell>
                       <TableCell>
-                        {!ingestData ? (
-                          <Badge variant="outline" className="border-zinc-200 bg-zinc-50 text-zinc-600">
-                            {t('debugIngest.missing', { defaultValue: 'Missing' })}
-                          </Badge>
-                        ) : isStale ? (
-                          <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
-                            {t('debugIngest.staleBadge', { defaultValue: 'Stale' })}
-                          </Badge>
+                        {refreshState.isStale ? (
+                          <div className="flex flex-wrap items-center gap-1">
+                            <ResumeRefreshBadge refreshState={refreshState} mode="admin" />
+                          </div>
                         ) : (
                           <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
                             {t('debugIngest.fresh', { defaultValue: 'Fresh' })}

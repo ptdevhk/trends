@@ -12,6 +12,7 @@ import { Card } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { ResumeRefreshBadge } from '@/components/ResumeRefreshBadge'
 
 import {
   Tooltip,
@@ -221,6 +222,7 @@ export const SnippetCard = memo(function SnippetCard({
             {t('resumes.card.blocked', { defaultValue: '已屏蔽' })}
           </Badge>
         ) : null}
+        <ResumeRefreshBadge refreshState={item.refreshState} />
         {resumeSourceLabel ? (
           <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-700 text-[10px]">
             {resumeSourceLabel}

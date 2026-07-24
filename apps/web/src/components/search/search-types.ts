@@ -2,6 +2,7 @@ import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
 import type { SearchHistoryItem } from '@/hooks/useSession'
 import type { CandidateStatus } from '@/types/resume'
 import type { CandidateStatusRecord } from '@/hooks/useCandidateStatus'
+import type { ResumeRefreshState } from '@/lib/resume-freshness'
 
 export type SearchSortValue = 'score' | 'newest' | 'experience'
 export type SearchScoreSource = 'ai' | 'rule'
@@ -34,6 +35,7 @@ export type ResumeSearchResultItem = {
   scoreSource?: SearchScoreSource
   status: CandidateStatus
   statusMeta?: CandidateStatusRecord
+  refreshState?: ResumeRefreshState
 }
 
 export type ResumeSearchRecentItem = SearchHistoryItem

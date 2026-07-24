@@ -54,6 +54,7 @@ import {
   resolveResumeAnalysisSourceKey,
 } from '@/lib/analysis-utils'
 import { parseExperienceYears } from '@/lib/resume-filtering'
+import { resolveResumeRefreshState } from '@/lib/resume-freshness'
 import { getCollectionSourceMarket, resolveCollectionSource, getSourceLabelFromHostname } from '@/lib/search-profile-sources'
 import type { SearchHistoryItem } from '@/hooks/useSession'
 import {
@@ -925,6 +926,9 @@ export function useResumeSearchState() {
     return resumeQuery.resumes.map((resume) => {
       const identityKey = resume.identityKey?.trim() || resume.externalId
       const statusRecord = statusByIdentity[identityKey]
+      const analysisSourceKey = resolveResumeAnalysisSourceKey({
+        source: resume.source,
+      })
       const analysis = resolveSearchAnalysis(
         resume,
         parsedState.jobDescriptionId,
@@ -932,6 +936,16 @@ export function useResumeSearchState() {
         parsedState.location,
         currentPromptVersion,
       )
+      const refreshState = resolveResumeRefreshState({
+        resume,
+        analysisContext: {
+          jobDescriptionId: parsedState.jobDescriptionId,
+          keywords: analysisKeywords,
+          location: parsedState.location,
+          sourceKey: analysisSourceKey,
+        },
+        currentPromptVersion,
+      })
       const hasBrandHits = (resume.ingestData?.brandHits ?? []).some((hit) => hit.context !== 'employer')
       const hasCompanyHits = (resume.ingestData?.companyHits?.length ?? 0) > 0
       const normalizedAnalysis = analysis
@@ -968,10 +982,11 @@ export function useResumeSearchState() {
               ? 'ai'
               : 'rule'
             : undefined,
-        status: statusRecord?.status ?? 'new',
-        statusMeta: statusRecord,
-      }
-    })
+          status: statusRecord?.status ?? 'new',
+          statusMeta: statusRecord,
+          refreshState,
+        }
+      })
   }, [
     analysisKeywords,
     blocksByIdentity,

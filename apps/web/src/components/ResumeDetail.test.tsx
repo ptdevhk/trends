@@ -54,6 +54,13 @@ describe('ResumeDetail latest work history', () => {
       <ResumeDetail
         open
         onOpenChange={vi.fn()}
+        refreshState={{
+          kind: 'both_stale',
+          isStale: true,
+          ingestStale: true,
+          analysisStale: true,
+          actions: ['reingest', 'rerun_analysis'],
+        }}
         resume={{
           name: 'Alice',
           profileUrl: 'https://example.com/resume-1',
@@ -80,6 +87,7 @@ describe('ResumeDetail latest work history', () => {
     expect(screen.getByText('Recent Co · Recent Role')).toBeInTheDocument()
     expect(screen.getByText('Middle Co · Middle Role')).toBeInTheDocument()
     expect(screen.queryByText('Oldest Co · Old Role')).not.toBeInTheDocument()
+    expect(screen.getByText('Needs refresh')).toBeInTheDocument()
   })
 
   it('filters placeholder-only and education-like rows from work history', () => {

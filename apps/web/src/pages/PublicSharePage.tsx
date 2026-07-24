@@ -25,6 +25,7 @@ import { mapResumeDoc } from '@/hooks/useConvexResumes'
 import { useFacetCounts } from '@/hooks/useFacetCounts'
 import { apiBaseUrl } from '@/lib/api-client'
 import { rawApiClient } from '@/lib/api-helpers'
+import { resolveResumeAnalysisSourceKey } from '@/lib/analysis-utils'
 import {
   getRoleYears,
   matchesEducationFilter,
@@ -37,6 +38,7 @@ import {
   type ResumeExportRequestBody,
 } from '@/lib/resume-export'
 import { getResumeAge, parseExperienceYears } from '@/lib/resume-filtering'
+import { resolveResumeRefreshState } from '@/lib/resume-freshness'
 import { recommendationFromScore } from '@/lib/resume-scoring'
 import { getSourceLabelFromHostname } from '@/lib/search-profile-sources'
 import { normalizeOptionalString, normalizeStringList } from '@/lib/taxonomy'
@@ -690,6 +692,10 @@ function MemberPublicShareResults({
   const location = resolveReviewSessionLocation(member.searchRun.filters)
   const roleFilterType = getSnapshotFilterString(member.searchRun.filters, 'roleFilterType')
   const jobDescriptionId = resolveReviewSessionJobDescriptionId(member.searchRun.query)
+  const analysisKeywords = useMemo(
+    () => normalizeStringList(parseKeywordQuery(searchQuery ?? '').keywords),
+    [searchQuery],
+  )
   const reviewSessionId = useMemberReviewSession({
     enabled: member.canReview,
     member,
@@ -728,6 +734,17 @@ function MemberPublicShareResults({
       const statusMeta = statusByIdentity[identityKey]
       const block = blocksByIdentity[identityKey]
       const analysis = buildSnapshotAnalysis(snapshot) ?? resume.analysis
+      const refreshState = resolveResumeRefreshState({
+        resume,
+        analysisContext: {
+          jobDescriptionId,
+          keywords: analysisKeywords,
+          location,
+          sourceKey: resolveResumeAnalysisSourceKey({
+            source: resume.source,
+          }),
+        },
+      })
       const score = typeof snapshot?.score === 'number'
         ? snapshot.score
         : typeof analysis?.score === 'number'
@@ -744,9 +761,10 @@ function MemberPublicShareResults({
         scoreSource: typeof snapshot?.score === 'number' || analysis ? 'ai' : 'rule',
         status: statusMeta?.status ?? 'new',
         statusMeta,
+        refreshState,
       }
     })
-  }, [blocksByIdentity, docs, snapshotByKey, statusByIdentity])
+  }, [analysisKeywords, blocksByIdentity, docs, jobDescriptionId, location, snapshotByKey, statusByIdentity])
   const facetCounts = useFacetCounts(items)
   const statusFacetCounts = useMemo(() => getStatusFacetCounts(items), [items])
   const statusSummary = useMemo(() => getStatusSummary(items), [items])

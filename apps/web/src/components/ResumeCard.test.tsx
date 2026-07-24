@@ -38,6 +38,37 @@ vi.mock('@/contexts/WorkspaceContext', () => ({
 }))
 
 describe('ResumeCard brand-hit badges', () => {
+  it('shows a generic needs refresh badge when the resume requires refresh', () => {
+    render(
+      <ResumeCard
+        resume={{
+          name: 'Alice',
+          profileUrl: 'https://example.com/resume-1',
+          activityStatus: 'Active',
+          age: '30',
+          experience: '5 years',
+          education: 'Bachelor',
+          location: 'Dongguan',
+          selfIntro: 'Test intro',
+          jobIntention: 'Sales Engineer',
+          expectedSalary: '10k-20k',
+          workHistory: [],
+          extractedAt: '2026-03-13T00:00:00.000Z',
+        }}
+        refreshState={{
+          kind: 'ingest_stale',
+          isStale: true,
+          ingestStale: true,
+          analysisStale: false,
+          actions: ['reingest'],
+        }}
+        onViewDetails={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('Needs refresh')).toBeInTheDocument()
+  })
+
   it('renders deduped brand names without debug metadata', () => {
     render(
       <ResumeCard

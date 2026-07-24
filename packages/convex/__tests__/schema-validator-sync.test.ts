@@ -53,6 +53,7 @@ describe("ingestData validator sync", () => {
         "ruleScores",
         "experienceLevel",
         "computedAt",
+        "ingestComputeEpoch",
         "skillsVersion",
         "verifiedRoleYears",
     ].sort();

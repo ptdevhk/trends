@@ -12,9 +12,11 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { AiFeedbackButtons } from '@/components/AiFeedbackButtons'
+import { ResumeRefreshBadge } from '@/components/ResumeRefreshBadge'
 import { StarRating } from '@/components/StarRating'
 import type { ResumeItem } from '@/hooks/useResumes'
 import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
+import type { ResumeRefreshState } from '@/lib/resume-freshness'
 import { formatRoleYears, getExperienceBadge, getResumeContentLocale, getResumeSourceLabel, getRoleLabel, hasIngestData, isSafeProfileUrl, summarizeBrandHits, toDisplayMatchBreakdown } from '@/lib/resume-scoring'
 import { getScoreClassName } from '@/lib/score-classes'
 import { cn } from '@/lib/utils'
@@ -39,6 +41,7 @@ interface ResumeDetailProps {
   initialComment?: string
   onRating?: (rating: number) => void
   onRatingComment?: (comment: string) => void
+  refreshState?: ResumeRefreshState
 }
 
 function normalizeEvidenceValue(value: string | undefined): string {
@@ -107,6 +110,7 @@ export function ResumeDetail({
   initialComment,
   onRating,
   onRatingComment,
+  refreshState,
 }: ResumeDetailProps) {
   const { t } = useTranslation()
   const fieldUsagePolicy = useResumeFieldUsagePolicy()
@@ -229,6 +233,7 @@ export function ResumeDetail({
                   {sourceLabel}
                 </Badge>
               ) : null}
+              <ResumeRefreshBadge refreshState={refreshState} />
               {visibleIndustryTags.map((tag, index) => (
                 <Badge key={`it-${index}`} variant="outline" className="text-[10px] border-violet-200 bg-violet-50 text-violet-700">
                   {tag}

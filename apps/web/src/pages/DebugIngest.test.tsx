@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { toast } from 'sonner'
@@ -126,7 +126,7 @@ describe('DebugIngest reset database dialog', () => {
     globalThis.fetch = vi.fn(async () => ({
       ok: true,
       status: 200,
-      json: async () => ({ success: true, version: 1 }),
+      json: async () => ({ success: true, version: 3, ingestComputeEpoch: 1 }),
     })) as unknown as typeof fetch
   })
 
@@ -173,6 +173,44 @@ describe('DebugIngest reset database dialog', () => {
     await user.click(loadMoreButton)
 
     expect(loadMore).toHaveBeenCalledWith(100)
+  })
+
+  it('uses combined ingest freshness and shows a detailed re-ingest label when epoch is missing', async () => {
+    usePaginatedQueryMock.mockReturnValue({
+      results: [
+        {
+          resumeId: 'resume-1',
+          externalId: 'ext-1',
+          source: 'seek',
+          sourceKey: 'seek',
+          name: 'Freshness Candidate',
+          jobIntention: 'Sales Engineer',
+          location: 'Kuala Lumpur',
+          ingestData: {
+            industryTags: ['sales'],
+            companyHits: ['fanuc'],
+            brandHits: [],
+            experienceLevel: 'mid',
+            ruleScoreCount: 2,
+            computedAt: 1_700_000_000_000,
+            skillsVersion: 3,
+            taggingEntries: [],
+          },
+        },
+      ],
+      status: 'Exhausted',
+      isLoading: false,
+      loadMore,
+    })
+
+    render(<DebugIngest />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Re-ingest')).toBeInTheDocument()
+    })
+    const staleCountCard = screen.getByText('Loaded Stale / Missing').closest('.rounded-lg')
+    expect(staleCountCard).not.toBeNull()
+    expect(within(staleCountCard as HTMLElement).getByText('1')).toBeInTheDocument()
   })
 
   it('disables load more when pagination is exhausted', () => {

@@ -221,6 +221,7 @@ const ResumeIngestDataSchema = z
     market: z.string().optional(),
     computedAt: z.number().optional(),
     skillsVersion: z.number().optional(),
+    ingestComputeEpoch: z.number().optional(),
   })
   .openapi("ResumeIngestData");
 

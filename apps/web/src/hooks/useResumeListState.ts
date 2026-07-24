@@ -60,6 +60,7 @@ import { rawApiClient } from '@/lib/api-helpers'
 import {
   getCurrentResumeAiPromptVersion,
 } from '@/lib/analysis-utils'
+import { resolveResumeRefreshState } from '@/lib/resume-freshness'
 import { submitResumeExportDownload, type ResumeExportRequestBody } from '@/lib/resume-export'
 import { getResumeAge, parseExperienceYears } from '@/lib/resume-filtering'
 import { isResumeHomeResetState } from '@/lib/resume-home-navigation'
@@ -126,6 +127,7 @@ type EnrichedResume = {
   ruleScore?: number
   action?: CandidateActionType | undefined
   userRating?: number
+  refreshState: ReturnType<typeof resolveResumeRefreshState>
 }
 
 function resolveWorkspaceSlugFromPathname(pathname: string): string {
@@ -1234,6 +1236,16 @@ export function useResumeListState(loadSearchHistory = false) {
         const resumeKey = buildResumeKey(resume, index)
         const identityKey = getResumeIdentityKey(resume, resumeKey)
         const analysisSourceKey = resolveAnalysisSourceKeyForResume(resume, sessionCollectionSource)
+        const refreshState = resolveResumeRefreshState({
+          resume,
+          analysisContext: {
+            jobDescriptionId,
+            keywords: sessionKeywords,
+            location: sessionLocation,
+            sourceKey: analysisSourceKey,
+          },
+          currentPromptVersion: currentPromptVersion,
+        })
         const analysis = getAnalysisForJob(resume, jobDescriptionId, sessionKeywords, {
           location: sessionLocation,
           promptVersion: currentPromptVersion,
@@ -1283,12 +1295,23 @@ export function useResumeListState(loadSearchHistory = false) {
           ruleScore: resume._ruleScore || 0,
           action: actions[resumeKey],
           userRating: ratingsByResume[resumeKey],
+          refreshState,
         }
       })
     }
 
     return resumes.map((resume, index) => {
       const resumeKey = buildResumeKey(resume, index)
+      const refreshState = resolveResumeRefreshState({
+        resume,
+        analysisContext: {
+          jobDescriptionId,
+          keywords: sessionKeywords,
+          location: sessionLocation,
+          sourceKey: resolveAnalysisSourceKeyForResume(resume, sessionCollectionSource),
+        },
+        currentPromptVersion: currentPromptVersion,
+      })
       return {
         resume,
         key: resumeKey,
@@ -1300,6 +1323,7 @@ export function useResumeListState(loadSearchHistory = false) {
         ruleScore: 0,
         action: actions[resumeKey],
         userRating: ratingsByResume[resumeKey],
+        refreshState,
       }
     })
   }, [

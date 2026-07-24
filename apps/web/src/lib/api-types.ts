@@ -17135,6 +17135,7 @@ export interface components {
             market?: string;
             computedAt?: number;
             skillsVersion?: number;
+            ingestComputeEpoch?: number;
         };
         ResumeIngestBrandHit: {
             /** @example fanuc */
