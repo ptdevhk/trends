@@ -675,6 +675,15 @@ CONVEX_URL=http://127.0.0.1:4210 npx tsx scripts/verify-critical-path.ts \
   | tee "$LOG_DIR/preview-ai-smoke-${TS}.json"
 ```
 
+If `.env.preview` has `AI_ANALYSIS_ENABLED=false`, the analysis leg is
+intentionally unavailable on preview. In that case:
+
+- still treat doctor, auth login, isolation, and search-freshness gates as the
+  preview-host readiness decision surface
+- do **not** treat skipped preview-host AI smoke as a blocker by itself
+- run authoritative scoring verification on a local/auth-enabled stack instead
+  of forcing preview to exercise AI analysis
+
 ### 11.8 Notifications / external APIs isolation
 
 ```bash

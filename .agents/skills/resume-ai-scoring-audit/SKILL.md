@@ -7,7 +7,7 @@ description: Reproduce and audit Trends resume AI scoring against an HR-reviewed
 
 ## Overview
 
-Run a repeatable Trends resume scoring audit from a known resume backup/version to HR-reviewable CSV and JSON artifacts. Prefer repo CLI commands for restore, reset, analysis, and export; use the bundled audit script to join current exports back to the HR reference cohort by stable profile resume ID, not Convex resume ID.
+Run a repeatable Trends resume scoring audit from a known resume backup/version to HR-reviewable CSV and JSON artifacts. Prefer repo CLI commands for reset, analysis, and export; use the bundled audit script to join current exports back to the HR reference cohort by stable profile resume ID, not Convex resume ID. For restore, use the one-shot CLI only when the backup fits comfortably inside the API request limit; use the chunked restore script for large portable backups.
 
 ## Safety Rules
 
@@ -17,6 +17,8 @@ Run a repeatable Trends resume scoring audit from a known resume backup/version 
 - Start with an approved, versioned exact-target manifest for the HR cohort. Stop if it is missing; do not rebuild audit identity from a capped sample export.
 - Record the code commit, backup file, API URL, workspace, analysis target, output CSV, and audit JSON in the final report.
 - Do not mix scoring-policy experiments with audit tooling. If a scoring fix is rejected, rollback the fix separately and keep this skill focused on reproducible measurement.
+- On auth-enabled stacks, `./bin/trends` routes that hit protected APIs require `TRENDS_AUTH_USERNAME` and `TRENDS_AUTH_PASSWORD`. Bootstrap a local audit admin before the first authenticated restore, reingest, analyze, or export call; `scripts/auth/manage-user.ts` can seed the first admin directly in local AuthStorage/SQLite without relying on an existing HTTP admin session.
+- Large portable backups can exceed the API request limit for the one-shot restore route. When that happens, use `scripts/resume/restore-resumes.ts` / `make restore-resumes`, which chunk resume imports and replay candidate state only after every chunk succeeds.
 
 ## Workflow
 
@@ -26,26 +28,57 @@ Run commands from the Trends repo root.
 
 ```bash
 git rev-parse --short HEAD
+```
+
+2. On auth-enabled stacks, bootstrap a local audit admin and export CLI credentials before any protected `./bin/trends` call.
+
+```bash
+export TRENDS_AUTH_USERNAME="${TRENDS_AUTH_USERNAME:-audit-admin}"
+: "${TRENDS_AUTH_PASSWORD:?set TRENDS_AUTH_PASSWORD to a temporary local audit password first}"
+
+node --import tsx scripts/auth/manage-user.ts \
+  --username "$TRENDS_AUTH_USERNAME" \
+  --email "${TRENDS_AUTH_USERNAME}@local.dev" \
+  --display-name "Audit Admin" \
+  --workspace dev \
+  --role admin \
+  --password-env TRENDS_AUTH_PASSWORD \
+  --output json
+
 ./bin/trends system config --output json
 ./bin/trends resume list --limit 5 --output json
 ```
 
-2. Restore the target resume DB backup in replace mode.
+If the user already supplied a known-good local audit admin, skip the bootstrap and just export `TRENDS_AUTH_USERNAME` / `TRENDS_AUTH_PASSWORD` before continuing.
+On non-auth stacks, skip the bootstrap entirely and run `./bin/trends system config` / `./bin/trends resume list` directly.
+
+3. Restore the target resume DB backup in replace mode.
 
 ```bash
+# Small backups / when the one-shot API payload fits comfortably
 ./bin/trends resume restore <backup-file-or-run-dir> --mode replace --yes --api-url http://localhost:3000 --workspace dev --output json
+
+# Large portable backups / when the one-shot restore hits request-size limits
+FILE=<backup-file-or-run-dir> \
+MODE=replace \
+YES=1 \
+WORKSPACE=dev \
+API_URL=http://localhost:3000 \
+TRENDS_AUTH_USERNAME="$TRENDS_AUTH_USERNAME" \
+TRENDS_AUTH_PASSWORD="$TRENDS_AUTH_PASSWORD" \
+npx tsx scripts/resume/restore-resumes.ts
 ```
 
-Use `make local-restore-from-prod FILE=<path>` only when the user specifically wants the Makefile wrapper. Prefer the CLI for audit logs because it is easier to parameterize.
+Use `make local-restore-from-prod FILE=<path>` only when the user specifically wants the Makefile wrapper. For large backups, prefer `scripts/resume/restore-resumes.ts` because it chunks imports safely and returns a structured JSON receipt you can save into the audit run directory.
 
-3. Reset computed ingest and AI analysis, then schedule full reingest.
+4. Reset computed ingest and AI analysis, then schedule full reingest.
 
 ```bash
 ./bin/trends resume debug hard-reset-reingest --dry-run --api-url http://localhost:3000 --workspace dev --output json
 ./bin/trends resume debug hard-reset-reingest --yes --api-url http://localhost:3000 --workspace dev --output json
 ```
 
-4. Watch reingest and analysis readiness.
+5. Watch reingest and analysis readiness.
 
 ```bash
 ./bin/trends resume debug diagnostics --api-url http://localhost:3000 --workspace dev --output json
@@ -54,7 +87,7 @@ Use `make local-restore-from-prod FILE=<path>` only when the user specifically w
 
 If many resumes still lack ingest evidence, wait and re-check before dispatching AI scoring.
 
-5. Create a local run directory and select the approved exact-target manifest.
+6. Create a local run directory and select the approved exact-target manifest.
 
 ```bash
 STAMP="$(date -u +%Y-%m-%dT%H-%M-%S-%3NZ)"
@@ -73,7 +106,7 @@ The target manifest must preserve reference order and stable profile/external se
 ./bin/trends resume debug reingest --manifest "$TARGET_MANIFEST" --yes --wait --api-url http://localhost:3000 --workspace dev --output json
 ```
 
-6. Preview, dispatch, and wait on exact persisted analysis for the resolved cohort.
+7. Preview, dispatch, and wait on exact persisted analysis for the resolved cohort.
 
 The dry run is non-mutating and must report `mode: "exact"`, `requestedCount: 34`, `resolvedCount: 34`, 34 ordered targets/current IDs, and the expected analysis job-description ID and prompt version:
 
@@ -101,7 +134,7 @@ PY
 
 Retain the live JSON evidence: non-empty task ID, dispatch timestamp, expected analysis job-description ID, prompt version, and final verification with `allReady: true`, `ready: 34`, `pending: 0`, `invalid: 0`, and 34 ready targets. Each ready target's persisted `analyzedAt` must be newer than the dispatch timestamp.
 
-7. Export every active workspace resume through the completed exact task, then verify the installed artifact and CLI evidence.
+8. Export every active workspace resume through the completed exact task, then verify the installed artifact and CLI evidence.
 
 ```bash
 CURRENT_EXPORT="$RUN_DIR/resumes-exact-task-audit.csv"
@@ -152,7 +185,7 @@ print(json.dumps({"verified": True, **report}, ensure_ascii=False, sort_keys=Tru
 PY
 ```
 
-8. Extract the final HR cohort audit CSV/JSON from that authoritative task-bound export.
+9. Extract the final HR cohort audit CSV/JSON from that authoritative task-bound export.
 
 ```bash
 AUDIT_CSV="$RUN_DIR/hr-feedback-audit.csv"
@@ -167,7 +200,7 @@ python3 .agents/skills/resume-ai-scoring-audit/scripts/audit_hr_feedback_export.
   --expected-count 34
 ```
 
-9. Report audit facts.
+10. Report audit facts.
 
 Include exported active-row count, cohort size, missing current resumes, missing AI scores, task ID, dispatch and completion timestamps, expected analysis ID, prompt version, cohort-member and ready counts, file mode, byte count, SHA-256, high-score counts by HR category, min/median/max scores by HR category, output paths, and commands used.
 
