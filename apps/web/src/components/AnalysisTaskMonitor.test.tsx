@@ -97,6 +97,12 @@ describe('AnalysisTaskMonitor', () => {
     expect(screen.getByRole('button')).toBeInTheDocument()
   })
 
+  it('gives the history trigger an accessible name', () => {
+    mockAnalysisTasks([makeTask()])
+    render(<AnalysisTaskMonitor />)
+    expect(screen.getByRole('button', { name: /Analysis History|aiTasks\.monitor\.historyTitle/i })).toBeInTheDocument()
+  })
+
   it('shows active indicator styling when active tasks exist', () => {
     mockAnalysisTasks([makeTask({ status: 'processing' })])
     render(<AnalysisTaskMonitor />)

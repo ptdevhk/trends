@@ -18,7 +18,7 @@
     },
     "apps/api": {
       "name": "@trends/api",
-      "version": "0.4.21",
+      "version": "0.4.22",
       "dependencies": {
         "@hono/node-server": "^2.0.4",
         "@hono/zod-openapi": "^1.4.0",
@@ -50,7 +50,7 @@
     },
     "apps/browser-extension": {
       "name": "@trends/browser-extension",
-      "version": "0.4.21",
+      "version": "0.4.22",
       "devDependencies": {
         "@eslint/js": "^9.39.4",
         "chrome-types": "^0.1.429",
@@ -62,7 +62,7 @@
     },
     "apps/web": {
       "name": "@trends/web",
-      "version": "0.4.21",
+      "version": "0.4.22",
       "dependencies": {
         "@dnd-kit/core": "^6.3.1",
         "@dnd-kit/modifiers": "^9.0.0",
@@ -120,7 +120,7 @@
     },
     "packages/convex": {
       "name": "@trends/convex",
-      "version": "0.4.21",
+      "version": "0.4.22",
       "dependencies": {
         "@trends/shared": "*",
         "convex": "~1.39.1",
@@ -133,7 +133,7 @@
     },
     "packages/shared": {
       "name": "@trends/shared",
-      "version": "0.4.21",
+      "version": "0.4.22",
       "devDependencies": {
         "typescript": "^5.9.3",
       },

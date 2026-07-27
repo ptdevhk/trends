@@ -34,7 +34,9 @@ describe('ModeToggle', () => {
 
     expect(screen.getByText('AI Mode')).toBeInTheDocument()
     expect(screen.getByRole('switch', { name: 'AI Mode' })).toBeChecked()
-    expect(screen.getByText('3')).toBeInTheDocument()
+    const matchedBadge = screen.getByText('3')
+    expect(matchedBadge).toBeInTheDocument()
+    expect(matchedBadge.className).toContain('bg-sky-700')
   })
 
   it('toggles between ai and original states', async () => {

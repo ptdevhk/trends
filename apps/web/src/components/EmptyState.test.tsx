@@ -14,6 +14,7 @@ describe('EmptyState', () => {
 
         expect(screen.getByText('No items found')).toBeInTheDocument()
         expect(screen.getByText('Try adjusting your filters')).toBeInTheDocument()
+        expect(screen.getByText('Try adjusting your filters')).toHaveClass('text-foreground/70')
     })
 
     it('renders with an icon if provided', () => {

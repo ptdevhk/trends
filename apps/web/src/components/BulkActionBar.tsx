@@ -178,7 +178,7 @@ export function BulkActionBar({
                         >
                             {t('bulkActions.statusAll', '全部状态')}
                             {typeof allStatusCount === 'number' && (
-                                <span className="ml-1 opacity-70">
+                                <span className="ml-1 text-slate-700">
                                     {allStatusCount}
                                 </span>
                             )}
@@ -203,7 +203,7 @@ export function BulkActionBar({
                             >
                                 {t(`resumes.status.options.${status}`, status)}
                                 {typeof count === 'number' && count > 0 && (
-                                    <span className="ml-1 opacity-70">{count}</span>
+                                    <span className="ml-1 text-slate-700">{count}</span>
                                 )}
                             </button>
                         )
@@ -230,7 +230,7 @@ export function BulkActionBar({
                     size="sm"
                     onClick={onSelectHighScore}
                     disabled={disabled || highScoreCount === 0}
-                    className={cn(highScoreCount > 0 && 'text-emerald-600 hover:text-emerald-700')}
+                    className={cn(highScoreCount > 0 && 'text-emerald-700 hover:text-emerald-800')}
                 >
                     {t('bulkActions.selectHighScore', '选 80+ 分')} ({highScoreCount})
                 </Button>

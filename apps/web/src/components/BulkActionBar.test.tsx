@@ -75,7 +75,7 @@ describe('BulkActionBar', () => {
 
     it('switches to all candidate statuses from the status toolbar', async () => {
         const user = userEvent.setup()
-        render(
+        const { container } = render(
             <MemoryRouter>
                 <BulkActionBar
                     {...defaultProps}
@@ -91,6 +91,8 @@ describe('BulkActionBar', () => {
         expect(onStatusFilterChange).toHaveBeenCalledWith([...CANDIDATE_STATUS_VALUES])
         expect(screen.getByText('214')).toBeInTheDocument()
         expect(screen.getByText('interviewed_pass')).toBeInTheDocument()
+        expect(container.querySelector('.opacity-70')).toBeNull()
+        expect(screen.getByRole('button', { name: /选 80\+ 分/i }).className).toContain('text-emerald-700')
     })
 
     it('places company-policy hide chips on the main selection row', async () => {

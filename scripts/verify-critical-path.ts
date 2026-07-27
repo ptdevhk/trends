@@ -31,6 +31,10 @@ export type StageResults = {
     analysis: StageResult;
 };
 
+export type CollectionDispatchResult =
+    | { queued: true; taskId: string }
+    | { queued: false; reason: "maintenance" };
+
 export type VerificationReport = {
     mode: VerifyMode;
     keyword: string;
@@ -89,6 +93,27 @@ function printUsage(): void {
     console.log("  --analysis-timeout-sec=<number>   Analysis timeout in seconds (default: 300)");
     console.log("  --json                            Print machine-readable JSON output");
     console.log("  --help                            Show this help");
+}
+
+export function resolveCollectionDispatchTaskId(dispatchResult: CollectionDispatchResult): string | null {
+    if (!dispatchResult.queued) {
+        return null;
+    }
+
+    return String(dispatchResult.taskId);
+}
+
+export function hasTaskPollingTimedOut(input: {
+    pollStartedAtMs: number;
+    nowMs: number;
+    timeoutMs: number;
+    task: { startedAt?: number | null } | null;
+}): boolean {
+    const taskStartedAtMs = typeof input.task?.startedAt === "number"
+        ? Math.max(input.pollStartedAtMs, input.task.startedAt)
+        : input.pollStartedAtMs;
+
+    return input.nowMs - taskStartedAtMs >= input.timeoutMs;
 }
 
 function readCliValue(argv: string[], name: string): string | undefined {
@@ -537,17 +562,17 @@ async function sleep(ms: number): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function pollTaskById<TTask extends { _id: unknown; status: string }>(
+async function pollTaskById<TTask extends { _id: unknown; status: string; startedAt?: number | null }>(
     fetchTasks: () => Promise<TTask[]>,
     taskId: string,
     timeoutSec: number,
     isTerminal: (status: TTask["status"]) => boolean
 ): Promise<{ task: TTask | null; timedOut: boolean; elapsedMs: number }> {
-    const startedAt = Date.now();
+    const pollStartedAtMs = Date.now();
     const timeoutMs = timeoutSec * 1_000;
     let lastTask: TTask | null = null;
 
-    while (Date.now() - startedAt < timeoutMs) {
+    while (true) {
         const tasks = await fetchTasks();
         const matched = tasks.find((task) => String(task._id) === taskId) ?? null;
         if (matched) {
@@ -556,17 +581,27 @@ async function pollTaskById<TTask extends { _id: unknown; status: string }>(
                 return {
                     task: matched,
                     timedOut: false,
-                    elapsedMs: Date.now() - startedAt,
+                    elapsedMs: Date.now() - pollStartedAtMs,
                 };
             }
         }
+
+        if (hasTaskPollingTimedOut({
+            pollStartedAtMs,
+            nowMs: Date.now(),
+            timeoutMs,
+            task: lastTask,
+        })) {
+            break;
+        }
+
         await sleep(DEFAULT_POLL_INTERVAL_MS);
     }
 
     return {
         task: lastTask,
         timedOut: true,
-        elapsedMs: Date.now() - startedAt,
+        elapsedMs: Date.now() - pollStartedAtMs,
     };
 }
 
@@ -597,17 +632,35 @@ async function runLiveCollectionStage(
         );
     }
 
-    const taskId = await client.mutation(api.resume_tasks.dispatch, {
+    const dispatchResult = await client.mutation(api.resume_tasks.dispatch, {
         keyword: options.keyword,
         location: options.location,
         limit: DEFAULT_COLLECTION_LIMIT,
         maxPages: DEFAULT_COLLECTION_MAX_PAGES,
     });
-    logger.info(`[collection] dispatched live task ${String(taskId)}.`);
+    const taskId = resolveCollectionDispatchTaskId(dispatchResult);
+
+    if (!taskId) {
+        return stageFail(
+            {
+                mode: "live",
+                dispatchResult,
+                preflight: {
+                    stalePending,
+                    workerHealth,
+                },
+                resumesBefore: beforeResumes.length,
+                resumesAfter: beforeResumes.length,
+            },
+            "Collection dispatch was refused because maintenance mode is enabled."
+        );
+    }
+
+    logger.info(`[collection] dispatched live task ${taskId}.`);
 
     const pollResult = await pollTaskById(
         () => client.query(api.resume_tasks.list, {}),
-        String(taskId),
+        taskId,
         options.collectionTimeoutSec,
         isCollectionTerminal
     );
@@ -691,7 +744,7 @@ async function runLiveCollectionStage(
 
     return stagePass({
         mode: "live",
-        taskId: String(taskId),
+        taskId,
         taskStatus: task.status,
         taskLastStatus: task.lastStatus ?? null,
         progress: task.progress,

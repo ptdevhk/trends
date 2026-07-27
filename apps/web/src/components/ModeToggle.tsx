@@ -50,7 +50,7 @@ export function ModeToggle({ mode, onModeChange, aiStats, disabled }: ModeToggle
       </button>
 
       {isAiMode && aiStats ? (
-        <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-sky-500 px-2 text-xs font-semibold text-white">
+        <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-sky-700 px-2 text-xs font-semibold text-white">
           {aiStats.matched}
         </span>
       ) : null}

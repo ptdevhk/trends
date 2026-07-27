@@ -152,6 +152,7 @@ export function AnalysisTaskMonitor() {
   const activeTasks = tasks.filter((task) => task.status === 'pending' || task.status === 'processing')
   const finishedTasks = tasks.filter((task) => task.status === 'completed' || task.status === 'failed' || task.status === 'cancelled')
   const hasActive = activeTasks.length > 0
+  const historyTriggerLabel = t('aiTasks.monitor.historyTitle', 'Analysis History')
 
   return (
     <Dialog>
@@ -159,6 +160,8 @@ export function AnalysisTaskMonitor() {
         <Button
           variant="outline"
           size="icon"
+          aria-label={historyTriggerLabel}
+          title={historyTriggerLabel}
           className={`h-9 w-9 ${hasActive ? 'border-primary/50 text-primary bg-primary/5' : 'text-muted-foreground'}`}
         >
           {hasActive ? (
@@ -168,9 +171,9 @@ export function AnalysisTaskMonitor() {
           )}
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]">
-        <DialogHeader>
-          <DialogTitle>{t('aiTasks.monitor.historyTitle', 'Analysis History')}</DialogTitle>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+          <DialogTitle>{historyTriggerLabel}</DialogTitle>
           <DialogDescription className="sr-only">
             {t('aiTasks.monitor.historyDescription', 'View active and completed AI analysis tasks.')}
           </DialogDescription>

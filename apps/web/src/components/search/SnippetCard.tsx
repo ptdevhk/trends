@@ -158,7 +158,7 @@ export const SnippetCard = memo(function SnippetCard({
     : t('resumes.searchPage.card.rule', { defaultValue: '规则' })
   const scoreSourceClassName =
     item.scoreSource === 'ai'
-      ? 'bg-sky-600 text-white border-sky-700'
+      ? 'bg-sky-700 text-white border-sky-800'
       : 'bg-amber-500 text-white border-amber-600'
 
   // Status

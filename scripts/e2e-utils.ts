@@ -6,6 +6,8 @@ export interface E2EOptions {
     timeout: number;
 }
 
+export const COLLECTION_TASK_DISPATCHED_TOAST_PATTERN = /Collection task dispatched|采集任务已派发|採集任務已派發/i
+
 export const DEFAULT_OPTIONS: E2EOptions = {
     port: 9222,
     baseUrl: 'http://localhost:5173',

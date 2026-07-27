@@ -160,6 +160,7 @@ describe('SnippetCard', () => {
     render(
       <SnippetCard
         expanded
+        showAiScore
         item={createResult(1, {
           analysis: {
             score: 87.6,
@@ -181,7 +182,9 @@ describe('SnippetCard', () => {
     expect(screen.getByText('seek')).toBeInTheDocument()
     expect(screen.getByText('Senior')).toBeInTheDocument()
     expect(screen.getByText('88')).toBeInTheDocument()
-    expect(screen.getByText('AI')).toBeInTheDocument()
+    const aiBadge = screen.getByText('AI')
+    expect(aiBadge).toBeInTheDocument()
+    expect(aiBadge.className).toContain('bg-sky-700')
     // industryTags take priority over _provenance; visibleKeywords = industryTags.slice(0, 3)
     expect(screen.getByText('Machine Tools')).toBeInTheDocument()
     expect(screen.getByText('Automation')).toBeInTheDocument()

@@ -16,7 +16,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url))
 const CHECKER_PATH = path.join(REPO_ROOT, 'scripts/check-extension-zip-integrity.sh')
 const DEV_SCRIPT_PATH = path.join(REPO_ROOT, 'scripts/dev.sh')
-const VERSION = '1.3.6'
+const VERSION = '1.3.7'
 
 const tempDirs: string[] = []
 

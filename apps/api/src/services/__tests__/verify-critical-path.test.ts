@@ -4,7 +4,9 @@ import {
   buildVerificationReport,
   classifyDualCollectionResult,
   countIdentityDistinctHits,
+  hasTaskPollingTimedOut,
   reduceOverallStatus,
+  resolveCollectionDispatchTaskId,
   toJsonOutput,
   type StageResult,
 } from "../../../../../scripts/verify-critical-path";
@@ -69,6 +71,47 @@ describe("verify-critical-path dual mode fallback", () => {
     const result = classifyDualCollectionResult(live, seeded);
     expect(result.status).toBe("FAIL");
     expect(result.fallbackUsed).toBe(true);
+  });
+});
+
+describe("verify-critical-path collection dispatch helpers", () => {
+  it("extracts the queued task id without stringifying the whole result object", () => {
+    expect(
+      resolveCollectionDispatchTaskId({
+        queued: true,
+        taskId: "task-123" as Id<"collection_tasks">,
+      }),
+    ).toBe("task-123");
+  });
+
+  it("returns null when live collection dispatch is blocked by maintenance mode", () => {
+    expect(resolveCollectionDispatchTaskId({ queued: false, reason: "maintenance" })).toBeNull();
+  });
+});
+
+describe("verify-critical-path polling timeout windows", () => {
+  it("does not count pre-start queue time against a started collection task", () => {
+    expect(
+      hasTaskPollingTimedOut({
+        pollStartedAtMs: 0,
+        nowMs: 180_000,
+        timeoutMs: 180_000,
+        task: {
+          startedAt: 90_000,
+        },
+      }),
+    ).toBe(false);
+  });
+
+  it("still times out a task that never starts", () => {
+    expect(
+      hasTaskPollingTimedOut({
+        pollStartedAtMs: 0,
+        nowMs: 180_000,
+        timeoutMs: 180_000,
+        task: null,
+      }),
+    ).toBe(true);
   });
 });
 

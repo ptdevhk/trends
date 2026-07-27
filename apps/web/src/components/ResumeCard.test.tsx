@@ -211,6 +211,27 @@ describe('ResumeCard brand-hit badges', () => {
     expect(screen.queryByText('74')).not.toBeInTheDocument()
   })
 
+  it('uses the darker AI badge treatment for accessible contrast', () => {
+    render(
+      <ResumeCard
+        resume={baseResume}
+        matchResult={{
+          resumeId: 'resume-1',
+          score: 88,
+          recommendation: 'strong_match',
+          highlights: [],
+          concerns: [],
+          summary: 'Strong AI match',
+          matchedAt: '2026-03-13T00:00:00.000Z',
+          scoreSource: 'ai',
+        }}
+        onViewDetails={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('AI').className).toContain('bg-sky-700')
+  })
+
   it('shows a content-locale badge when the resume source maps to a locale', () => {
     render(
       <ResumeCard

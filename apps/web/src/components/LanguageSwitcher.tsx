@@ -8,7 +8,7 @@ const LANGUAGES = [
 ]
 
 export function LanguageSwitcher() {
-  const { i18n } = useTranslation()
+  const { i18n, t } = useTranslation()
 
   const currentLang = (() => {
     const lang = i18n.language
@@ -33,6 +33,7 @@ export function LanguageSwitcher() {
       options={LANGUAGES}
       value={currentLang}
       onChange={handleChange}
+      aria-label={t('resumes.detail.language', { defaultValue: 'Language:' })}
       className="w-32"
     />
   )

@@ -12,6 +12,11 @@ describe('LanguageSwitcher', () => {
     expect(screen.getByRole('combobox')).toBeInTheDocument()
   })
 
+  it('exposes an accessible name for the language selector', () => {
+    render(<LanguageSwitcher />)
+    expect(screen.getByRole('combobox', { name: /language|語言|语言/i })).toBeInTheDocument()
+  })
+
   it('renders three language options', () => {
     render(<LanguageSwitcher />)
     const options = screen.getAllByRole('option')

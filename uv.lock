@@ -2839,7 +2839,7 @@ wheels = [
 
 [[package]]
 name = "trends"
-version = "0.4.21"
+version = "0.4.22"
 source = { editable = "." }
 dependencies = [
     { name = "apscheduler" },
