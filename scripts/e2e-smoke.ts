@@ -35,7 +35,6 @@ const SEARCH_WITH_QUERY_URL = (baseUrl: string) =>
     `${baseUrl}/dev/resumes?q=${encodeURIComponent(DETERMINISTIC_SEARCH_QUERY)}`;
 const SEARCH_EMPTY_STATE_PATTERN = /没有匹配到简历|沒有符合的簡歷|No resumes matched this search|No resumes match this search/i;
 const SEARCH_RESULT_COUNT_PATTERN = /\d+\s*(条结果|條結果|results?)/i;
-const SEARCH_SESSION_KEY_PREFIX = 'trends.resume.search.sessionKey'
 const JOB5156_LOGIN_URL_PREFIX = 'https://hr.job5156.com/login'
 const JOB5156_SEARCH_URL_PREFIX = 'https://hr.job5156.com/search'
 const RUN_JOB5156_SMOKE_FLAG = '--run-job5156'
@@ -76,20 +75,7 @@ async function preferVisibleLocator(primary: Locator, fallback: Locator, timeout
     return usePrimary ? primary : fallback;
 }
 
-async function resetStoredSearchSessions(page: Page) {
-    await page.goto('about:blank')
-    await page.goto(DEFAULT_OPTIONS.baseUrl);
-    await page.evaluate((prefix) => {
-        for (const key of Object.keys(localStorage)) {
-            if (key.startsWith(prefix)) {
-                localStorage.removeItem(key)
-            }
-        }
-    }, SEARCH_SESSION_KEY_PREFIX)
-}
-
 async function loadDeterministicSearchResults(page: Page) {
-    await resetStoredSearchSessions(page)
     await page.goto(`${DEFAULT_OPTIONS.baseUrl}/dev/resumes`);
     await page.setViewportSize(SMOKE_VIEWPORT);
 
@@ -536,7 +522,6 @@ async function runErrorStateTest(page: Page) {
     console.log('Testing Error State & Recovery...');
 
     // 1. Navigate to the shell first, then intercept the deterministic search request.
-    await resetStoredSearchSessions(page);
     await page.goto(`${DEFAULT_OPTIONS.baseUrl}/dev/resumes`);
     await page.setViewportSize(SMOKE_VIEWPORT);
 

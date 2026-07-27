@@ -17,7 +17,7 @@ export function EmptyState({ icon: Icon, title, description, action }: EmptyStat
             )}
             <h3 className="text-lg font-medium text-foreground">{title}</h3>
             {description && (
-                <p className="mt-2 max-w-sm text-sm text-foreground/70">
+                <p className="mt-2 max-w-sm text-sm text-foreground">
                     {description}
                 </p>
             )}

@@ -122,6 +122,19 @@ export async function connectToChrome(options: E2EOptions = DEFAULT_OPTIONS) {
         const context = browser.contexts()[0]; // Use the first context (usually the one started by chrome-debug.sh)
         const page = context.pages().find(p => p.url().includes('localhost')) || await context.newPage();
 
+        await page.addInitScript((prefix) => {
+            try {
+                for (const key of Object.keys(localStorage)) {
+                    if (key.startsWith(prefix)) {
+                        localStorage.removeItem(key);
+                    }
+                }
+            } catch {
+                // Ignore opaque origins such as about:blank; the next same-origin load is the
+                // one that needs the storage cleared before the app initializes.
+            }
+        }, 'trends.resume.');
+
         await page.goto(options.baseUrl);
         return { browser, context, page };
     } catch (error) {
