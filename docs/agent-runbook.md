@@ -151,11 +151,15 @@ TARGET=all make sync-agent-governance
 - New fields on existing Convex tables should start as `v.optional(...)`.
 
 ## Browser Testing & Debugging
-- Start headed Chrome with CDP:
+- Start headed Chrome with CDP using the **global default-user** profile clone (not a new empty repo profile):
   ```bash
   make chrome-debug
+  # equivalent: bash scripts/chrome-debug.sh
+  # restart same profile: bash scripts/chrome-debug.sh --restart
   ```
-- Use `/playwright-cli` for browser automation.
+- Attach and automate with `/playwright-cli` (`playwright-cli attach`). Prefer attach over inventing `--repo-local-profile`.
+- Profile defaults: `chrome-debug-contract: v2` — `PROFILE_MODE=default-user` under Application Support / XDG. Use `--repo-local-profile` only for explicit isolation.
+- CLI: prefer `@playwright/cli` ≥ 0.1.17 (`npm install -g @playwright/cli@latest`).
 - Browser extension-specific guidance:
   - `{REPO_ROOT}/apps/browser-extension/CLAUDE.md`
 
