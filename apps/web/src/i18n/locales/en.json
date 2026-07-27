@@ -237,7 +237,11 @@
     "title": "Resume Search Results",
     "subtitle": "Sample data (dev mode)",
     "tableTitle": "Candidate List",
-    "refresh": "Refresh",
+    "refresh": {
+      "needsRefresh": "Needs refresh",
+      "reingest": "Re-ingest",
+      "rerunAnalysis": "Re-run analysis"
+    },
     "searchPlaceholder": "Search name or job intention...",
     "searchButton": "Search",
     "analyzeAll": "AI Mode",
@@ -848,6 +852,21 @@
     "noSuggestion": "No suggestion available"
   },
   "settings": {
+    "searchSetup": {
+      "title": "Search setup",
+      "description": "Configure the workspace keywords and location visibility that steer candidate discovery.",
+      "locationsTitle": "Locations",
+      "locationsDescription": "Choose which location chips stay visible for workspace search and onboarding.",
+      "profilesDescription": "Use Search Profiles for richer saved configurations after the initial keyword and location setup is in place.",
+      "brandKeywordsDescription": "Read-only brand reference data to help members align custom search keywords."
+    },
+    "setup": {
+      "title": "Setup",
+      "description": "Get started in 3 steps: install the extension, configure search setup, and launch your first collection from the resumes desk.",
+      "goToSearchSetup": "Go to Search Setup",
+      "step3Hint": "Use the resumes workspace to launch collection from Quick Start and review incoming candidates in the normal desk.",
+      "goToResumes": "Go to Resumes"
+    },
     "blocks": {
       "nav": "Blacklist",
       "title": "Blacklist Management",

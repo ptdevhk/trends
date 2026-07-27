@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { deriveMarketFromSourceKey } from '@trends/shared'
+import { deriveMarketFromSourceKey, getCurrentResumeAiPromptVersion } from '@trends/shared'
 import { buildKeywordAnalysisId } from './analysis-utils'
 import {
   buildLearningObservation,
@@ -504,9 +504,14 @@ describe('resume-scoring', () => {
   })
 
   it('prefers source-aware keyword-search cache entries when a source key is provided', () => {
+    // buildKeywordAnalysisId embeds the resume AI prompt version in its hash, and
+    // getAnalysisForJob's lookup path uses getCurrentResumeAiPromptVersion() as the
+    // fallback when no explicit version is threaded through. Use the live version so
+    // the cached keys line up with the lookup keys after prompt-version bumps.
+    const promptVersion = getCurrentResumeAiPromptVersion()
     const keywordKey = buildKeywordAnalysisId(['CNC', '销售'], {
       location: '东莞',
-      promptVersion: 2,
+      promptVersion,
     })
 
     expect(getAnalysisForJob({
@@ -516,7 +521,7 @@ describe('resume-scoring', () => {
           summary: 'manual lane keyword cache',
           highlights: [],
           recommendation: 'match',
-          promptVersion: 2,
+          promptVersion,
           jobDescriptionId: keywordKey,
         },
         [keywordKey]: {
@@ -524,13 +529,13 @@ describe('resume-scoring', () => {
           summary: 'legacy keyword cache',
           highlights: [],
           recommendation: 'potential',
-          promptVersion: 2,
+          promptVersion,
           jobDescriptionId: keywordKey,
         },
       },
     }, undefined, ['CNC', '销售'], {
       location: '东莞',
-      promptVersion: 2,
+      promptVersion,
       sourceKey: 'job5156',
     })).toEqual(expect.objectContaining({
       score: 79,

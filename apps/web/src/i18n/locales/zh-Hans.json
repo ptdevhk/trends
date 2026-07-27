@@ -237,7 +237,11 @@
     "title": "简历搜索结果",
     "subtitle": "样本数据（开发模式）",
     "tableTitle": "候选人列表",
-    "refresh": "刷新",
+    "refresh": {
+      "needsRefresh": "需要刷新",
+      "reingest": "重新导入",
+      "rerunAnalysis": "重新执行分析"
+    },
     "searchPlaceholder": "搜索姓名或求职意向...",
     "searchButton": "搜索",
     "summary": "样本 {{sample}} · 显示 {{returned}} / {{total}} 条",
@@ -1087,6 +1091,21 @@
     "lowKeywordMatch": "关键词可能与显示的简历不匹配。建议先收集新简历。"
   },
   "settings": {
+    "searchSetup": {
+      "title": "搜索设置",
+      "description": "设置工作区关键字与地区显示，引导候选人发掘。",
+      "locationsTitle": "地区",
+      "locationsDescription": "选择工作区搜索与入职导引中持续显示的地区标签。",
+      "profilesDescription": "在初次关键字与地区设置完成后，使用搜索配置文件建立更丰富的已保存配置。",
+      "brandKeywordsDescription": "只读品牌参考数据，协助成员对齐自定义搜索关键字。"
+    },
+    "setup": {
+      "title": "设置向导",
+      "description": "三步上手：安装扩展功能、配置搜索设置、从简历工作台启动首次收集。",
+      "goToSearchSetup": "前往搜索设置",
+      "step3Hint": "使用简历工作台从快速启动发起收集，并在常规工作台中检视导入的候选人。",
+      "goToResumes": "前往简历"
+    },
     "blocks": {
       "actions": {
         "unblock": "解除屏蔽"

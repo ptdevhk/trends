@@ -237,7 +237,11 @@
     "title": "簡歷搜尋結果",
     "subtitle": "樣本數據（開發模式）",
     "tableTitle": "候選人列表",
-    "refresh": "刷新",
+    "refresh": {
+      "needsRefresh": "需要刷新",
+      "reingest": "重新匯入",
+      "rerunAnalysis": "重新執行分析"
+    },
     "searchPlaceholder": "搜尋姓名或求職意向...",
     "searchButton": "搜尋",
     "summary": "樣本 {{sample}} · 顯示 {{returned}} / {{total}} 筆",
@@ -848,6 +852,21 @@
     "noSuggestion": "暫無可用建議"
   },
   "settings": {
+    "searchSetup": {
+      "title": "搜尋設定",
+      "description": "設定工作區關鍵字與地區顯示，引導候選人發掘。",
+      "locationsTitle": "地區",
+      "locationsDescription": "選擇工作區搜尋與入職導引中持續顯示的地區標籤。",
+      "profilesDescription": "在初次關鍵字與地區設定完成後，使用搜尋設定檔建立更豐富的已儲存組態。",
+      "brandKeywordsDescription": "唯讀品牌參考資料，協助成員對齊自訂搜尋關鍵字。"
+    },
+    "setup": {
+      "title": "設置嚮導",
+      "description": "三步上手：安裝擴充功能、配置搜尋設定、從簡歷工作台啟動首次收集。",
+      "goToSearchSetup": "前往搜尋設定",
+      "step3Hint": "使用簡歷工作台從快速啟動發起收集，並在常規工作台中檢視匯入的候選人。",
+      "goToResumes": "前往簡歷"
+    },
     "blocks": {
       "nav": "黑名單",
       "title": "黑名單管理",
