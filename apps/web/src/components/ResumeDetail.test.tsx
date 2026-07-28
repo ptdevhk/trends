@@ -245,6 +245,7 @@ describe('ResumeDetail latest work history', () => {
             experienceLevel: 'mid',
             computedAt: 1,
             skillsVersion: 1,
+            ruleScores: {},
             verifiedRoleYears: { sales: 5.4 },
             roleSignals: [
               {
