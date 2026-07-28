@@ -384,6 +384,33 @@ describe("ExportService", () => {
     expect(parsed.data[0]?.workHistory).toContain("2021-03 ~ 2023-08 Example Co. Sales Manager");
   });
 
+  it("preserves raw Seek date labels in export when structured dates are missing", async () => {
+    const service = new ExportService();
+    const entry: ResumeExportEntry = {
+      ...buildEntry("28"),
+      resume: {
+        ...buildEntry("28").resume,
+        workHistory: [
+          {
+            raw: "Sales Manager · TERRAN LLC. · Jul 2012 - Present (14 years 4 months)",
+            companyName: "TERRAN LLC.",
+            jobTitle: "Sales Manager",
+            description: "Led orthopedics implant sales.",
+          },
+        ],
+      },
+    };
+
+    const file = await service.exportResumes("csv", [entry], undefined, undefined, false, fullFieldsConfig);
+    const csv = file.content.toString("utf8");
+    const parsed = Papa.parse<Record<string, string>>(csv, { header: true });
+
+    expect(parsed.data[0]?.workHistory).toContain("Jul 2012 - Present (14 years 4 months)");
+    expect(parsed.data[0]?.workHistory).toContain("TERRAN LLC.");
+    expect(parsed.data[0]?.workHistory).toContain("Sales Manager");
+    expect(parsed.data[0]?.workHistory).toContain("Led orthopedics implant sales.");
+  });
+
   it("includes role evidence fields in CSV output", async () => {
     const service = new ExportService();
     const file = await service.exportResumes("csv", [buildEntry("27")], undefined, undefined, true);

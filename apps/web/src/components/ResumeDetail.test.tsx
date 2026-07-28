@@ -130,6 +130,40 @@ describe('ResumeDetail latest work history', () => {
     expect(screen.queryByText('2020~2023广东南方职业学院商务英语本科')).not.toBeInTheDocument()
   })
 
+  it('renders raw Seek date labels when structured start/end dates are missing', () => {
+    render(
+      <ResumeDetail
+        open
+        onOpenChange={vi.fn()}
+        resume={{
+          name: 'Nicole Lim',
+          profileUrl: 'https://example.com/nicole-lim',
+          activityStatus: 'Active',
+          age: '31',
+          experience: '8 years',
+          education: 'Bachelor',
+          location: 'Malaysia',
+          selfIntro: '',
+          jobIntention: 'Sales Manager',
+          expectedSalary: '12k-18k',
+          workHistory: [
+            {
+              raw: 'Sales Manager · TERRAN LLC. · Jul 2012 - Present (14 years 4 months)',
+              companyName: 'TERRAN LLC.',
+              jobTitle: 'Sales Manager',
+              description: 'Led orthopedics implant sales.',
+            },
+          ],
+          extractedAt: '2026-03-13T00:00:00.000Z',
+        }}
+      />,
+    )
+
+    expect(screen.getByText('TERRAN LLC. · Sales Manager')).toBeInTheDocument()
+    expect(screen.getByText('Jul 2012 - Present (14 years 4 months)')).toBeInTheDocument()
+    expect(screen.getByText('Led orthopedics implant sales.')).toBeInTheDocument()
+  })
+
   it('keeps excluded presentation fields hidden when expanded', async () => {
     const user = userEvent.setup()
 

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import {
-  buildWorkHistoryDateRange,
+  buildWorkHistoryDisplayDateLine,
   normalizeWorkHistoryEntry,
   RESUME_AI_PROMPT_LOCALE_TO_NATURAL_LANGUAGE,
   sanitizeResumeRecordForSurface,
@@ -369,9 +369,7 @@ export function ResumeDetail({
               <ul className="space-y-2 text-sm">
                 {workHistory.map((item, index) => {
                   const annotations = workHistoryAnnotations[index] ?? []
-                  const dateRange = buildWorkHistoryDateRange(item.startDate, item.endDate)
-                  const durationLabel = item.raw?.match(/[(（]([^)）]+)[)）]/)?.[1] || ''
-                  const dateLine = [dateRange, durationLabel ? `(${durationLabel})` : ''].filter(Boolean).join(' ')
+                  const dateLine = buildWorkHistoryDisplayDateLine(item)
                   const heading = [item.companyName, item.jobTitle].filter(Boolean).join(' · ')
                   return (
                     <li key={`${displayResume.name}-${index}`} className="rounded-md border border-border p-3 space-y-1">

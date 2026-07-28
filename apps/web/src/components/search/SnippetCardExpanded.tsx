@@ -1,4 +1,4 @@
-import { buildWorkHistoryDateRange, isAdvancingCandidateStatus, normalizeWorkHistoryEntry, sanitizeResumeRecordForSurface, selectLatestWorkHistory } from '@trends/shared'
+import { buildWorkHistoryDisplayDateLine, isAdvancingCandidateStatus, normalizeWorkHistoryEntry, sanitizeResumeRecordForSurface, selectLatestWorkHistory } from '@trends/shared'
 import { BriefcaseBusiness, Bug, ChevronDown, Copy, ExternalLink, MapPin, School, Sparkles } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -86,8 +86,8 @@ function buildWorkHistorySupplement(entry: {
   }
 
   let remainder = raw
-  const dateRange = buildWorkHistoryDateRange(entry.startDate, entry.endDate)
-  for (const token of [dateRange, entry.companyName, entry.jobTitle]) {
+  const dateLine = buildWorkHistoryDisplayDateLine(entry)
+  for (const token of [dateLine, entry.companyName, entry.jobTitle]) {
     const normalizedToken = token?.trim()
     if (!normalizedToken) {
       continue
@@ -96,15 +96,6 @@ function buildWorkHistorySupplement(entry: {
   }
 
   return remainder.replace(/\s+/g, ' ').replace(/^[·•|/~-]+|[·•|/~-]+$/g, '').trim()
-}
-
-/** Seek list raw often embeds "Mon YYYY - Mon YYYY (N years)" without startDate/endDate. */
-function extractDurationLabelFromRaw(raw: string | undefined): string {
-  if (!raw) return ''
-  const match = raw.match(
-    /((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{4}\s*[-–—]\s*(?:Present|Current|Now|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{4})(?:\s*\([^)]+\))?)/iu,
-  )
-  return match?.[1]?.trim() || ''
 }
 
 export function SnippetCardExpanded({
@@ -263,9 +254,7 @@ export function SnippetCardExpanded({
             <div className="space-y-2">
               {workHistory.length > 0 ? workHistory.map((entry, index) => {
                 const heading = [entry.companyName, entry.jobTitle].filter(Boolean).join(' · ')
-                const dateLine =
-                  buildWorkHistoryDateRange(entry.startDate, entry.endDate)
-                  || extractDurationLabelFromRaw(entry.raw)
+                const dateLine = buildWorkHistoryDisplayDateLine(entry)
                 const description = entry.description?.trim() || ''
                 const supplement = description ? '' : buildWorkHistorySupplement(entry)
                 const fallbackLine = entry.raw.trim()

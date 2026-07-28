@@ -1,7 +1,7 @@
 import ExcelJS from "exceljs";
 import Papa from "papaparse";
 import {
-  buildWorkHistoryEntryText,
+  buildWorkHistoryDisplayText,
   computeFinalAiScore,
   computeRelatedExpContribution,
   inferSeekMarket,
@@ -259,7 +259,7 @@ function toRow(
 ): ExportRow {
   const workHistory = Array.isArray(entry.resume.workHistory)
     ? entry.resume.workHistory
-      .map((item) => buildWorkHistoryEntryText(item))
+      .map((item) => buildWorkHistoryDisplayText(item))
       .filter((item) => item.trim().length > 0)
       .join(" | ")
     : "";

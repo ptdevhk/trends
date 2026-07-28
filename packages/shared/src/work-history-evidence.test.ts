@@ -3,6 +3,10 @@ import {
   normalizeWorkHistoryEntry,
   buildWorkHistoryDateRange,
   buildWorkHistoryEntryText,
+  buildWorkHistoryDisplayDateLine,
+  buildWorkHistoryDisplayText,
+  extractWorkHistoryDateLineFromRaw,
+  extractWorkHistoryDurationFromRaw,
 } from './work-history-evidence'
 
 describe('normalizeWorkHistoryEntry', () => {
@@ -100,5 +104,54 @@ describe('buildWorkHistoryEntryText', () => {
   it('handles partial fields', () => {
     const text = buildWorkHistoryEntryText({ companyName: 'Google' })
     expect(text).toBe('Google')
+  })
+})
+
+describe('raw work-history date helpers', () => {
+  it('extracts Seek month-year date ranges from raw work history', () => {
+    const raw = 'Sales Manager · TERRAN LLC. · Jul 2012 - Present (14 years 4 months)'
+    expect(extractWorkHistoryDateLineFromRaw(raw)).toBe('Jul 2012 - Present (14 years 4 months)')
+    expect(extractWorkHistoryDurationFromRaw(raw)).toBe('14 years 4 months')
+  })
+
+  it('extracts numeric date ranges from raw work history', () => {
+    const raw = '2019.04 - 至今（6年11个月） 东莞宝力机械 销售经理 负责机床销售与客户维护'
+    expect(extractWorkHistoryDateLineFromRaw(raw)).toBe('2019.04 - 至今（6年11个月）')
+    expect(extractWorkHistoryDurationFromRaw(raw)).toBe('6年11个月')
+  })
+})
+
+describe('buildWorkHistoryDisplayDateLine', () => {
+  it('uses structured dates and appends raw duration when present', () => {
+    const line = buildWorkHistoryDisplayDateLine({
+      raw: '2019-04 ~ 至今 (6年11个月) 东莞宝力机械 销售经理',
+      startDate: '2019-04',
+      endDate: '至今',
+    })
+    expect(line).toBe('2019-04 ~ 至今 (6年11个月)')
+  })
+
+  it('falls back to raw date labels when structured dates are missing', () => {
+    const line = buildWorkHistoryDisplayDateLine({
+      raw: 'Sales Manager · TERRAN LLC. · Jul 2012 - Present (14 years 4 months)',
+      companyName: 'TERRAN LLC.',
+      jobTitle: 'Sales Manager',
+    })
+    expect(line).toBe('Jul 2012 - Present (14 years 4 months)')
+  })
+})
+
+describe('buildWorkHistoryDisplayText', () => {
+  it('keeps raw-only date labels alongside structured fields for display/export', () => {
+    const text = buildWorkHistoryDisplayText({
+      raw: 'Sales Manager · TERRAN LLC. · Jul 2012 - Present (14 years 4 months)',
+      companyName: 'TERRAN LLC.',
+      jobTitle: 'Sales Manager',
+      description: 'Leads orthopedics implant sales.',
+    })
+    expect(text).toContain('Jul 2012 - Present (14 years 4 months)')
+    expect(text).toContain('TERRAN LLC.')
+    expect(text).toContain('Sales Manager')
+    expect(text).toContain('Leads orthopedics implant sales.')
   })
 })

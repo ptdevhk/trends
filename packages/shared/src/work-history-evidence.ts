@@ -4,6 +4,13 @@ function normalizeWhitespace(value: string): string {
   return value.replace(/\s+/g, " ").trim();
 }
 
+const RAW_ENGLISH_WORK_HISTORY_DATE_RANGE_PATTERN =
+  /((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{4}\s*[-–—]\s*(?:Present|Current|Now|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{4})(?:\s*[（(][^)）]+[)）])?)/iu;
+
+const RAW_NUMERIC_WORK_HISTORY_DATE_RANGE_PATTERN =
+  /(((?:19|20)\d{2}(?:[-./年]\d{1,2}(?:月)?)?\s*(?:~|至|到|-|–|—)\s*(?:(?:至今|目前|今|present|current|now|ongoing)|(?:19|20)\d{2}(?:[-./年]\d{1,2}(?:月)?)?))(?:\s*[（(][^)）]+[)）])?)/iu;
+
+const RAW_WORK_HISTORY_DURATION_PATTERN = /[（(]([^)）]+)[)）]/u;
 
 function toOptionalString(value: unknown): string | undefined {
   if (typeof value !== "string") {
@@ -185,6 +192,75 @@ export function buildWorkHistoryDateRange(startDate: unknown, endDate: unknown):
     return `${normalizedStartDate} ~ ${normalizedEndDate}`;
   }
   return normalizedStartDate || normalizedEndDate || "";
+}
+
+export function extractWorkHistoryDurationFromRaw(raw: unknown): string {
+  const normalizedRaw = toOptionalString(raw);
+  if (!normalizedRaw) {
+    return "";
+  }
+
+  return normalizedRaw.match(RAW_WORK_HISTORY_DURATION_PATTERN)?.[1]?.trim() || "";
+}
+
+export function extractWorkHistoryDateLineFromRaw(raw: unknown): string {
+  const normalizedRaw = toOptionalString(raw);
+  if (!normalizedRaw) {
+    return "";
+  }
+
+  for (const pattern of [
+    RAW_ENGLISH_WORK_HISTORY_DATE_RANGE_PATTERN,
+    RAW_NUMERIC_WORK_HISTORY_DATE_RANGE_PATTERN,
+  ]) {
+    const match = normalizedRaw.match(pattern)?.[1]?.trim();
+    if (match) {
+      return normalizeWhitespace(match);
+    }
+  }
+
+  const duration = extractWorkHistoryDurationFromRaw(normalizedRaw);
+  return duration ? `(${duration})` : "";
+}
+
+export function buildWorkHistoryDisplayDateLine(entry: unknown): string {
+  const normalized = normalizeWorkHistoryEntry(entry);
+  if (!normalized) {
+    return "";
+  }
+
+  const structuredDateRange = buildWorkHistoryDateRange(
+    normalized.startDate,
+    normalized.endDate,
+  );
+  if (structuredDateRange) {
+    const duration = extractWorkHistoryDurationFromRaw(normalized.raw);
+    return duration
+      ? `${structuredDateRange} (${duration})`
+      : structuredDateRange;
+  }
+
+  return extractWorkHistoryDateLineFromRaw(normalized.raw);
+}
+
+export function buildWorkHistoryDisplayText(entry: unknown): string {
+  const normalized = normalizeWorkHistoryEntry(entry);
+  if (!normalized) {
+    return "";
+  }
+
+  const structured = normalizeWhitespace(
+    [
+      buildWorkHistoryDisplayDateLine(normalized),
+      normalized.companyName,
+      normalized.jobTitle,
+      normalized.description,
+    ]
+      .filter((part): part is string => typeof part === "string" && part.length > 0)
+      .join(" "),
+  );
+
+  return structured || normalized.raw;
 }
 
 export function buildWorkHistoryEntryText(entry: unknown): string {
