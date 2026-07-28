@@ -99,6 +99,33 @@ CHECK_MIN_SCORE=80 bash deploy/preview-parity-check.sh
 | 5 | Stabilize Convex/API | force-recreate + restart |
 | 6 | Parity check | `preview-parity-check.sh` |
 
+## Selected historical backup rehearsal
+
+The live-production clone path above intentionally remains optimized for
+current-state parity. A separate attended controller,
+`deploy/preview-rehearse-backup.sh`, handles immutable historical
+`prod-complete-*` snapshots:
+
+```text
+strict manifest/artifact verification
+→ protect current preview
+→ install exact manifest source and stored data
+→ verify same-version baseline
+→ attended approval
+→ install exact target
+→ shared canonical Convex migrations
+→ snapshot-aware verification
+→ clean-browser evidence
+→ finish or explicit rollback
+```
+
+Historical restore never runs a new production Convex export. It materializes
+source and target trees with `git archive` without moving the controller
+checkout. Preview is the only mutation target; production identity and current
+parity are recorded as informational evidence. Explicit rollback restores the
+protected application and data, reinstalls that version's dependencies, and
+reapplies preview integration isolation instead of lifting it.
+
 ## Digest policy (critical)
 
 | Mode | When |

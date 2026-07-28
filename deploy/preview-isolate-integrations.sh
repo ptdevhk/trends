@@ -12,6 +12,7 @@ set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib-preview-common.sh
+# shellcheck disable=SC1091
 source "$SCRIPT_DIR/lib-preview-common.sh"
 
 APPLY=0
@@ -145,10 +146,17 @@ if [[ "$APPLY" -eq 1 ]]; then
     chown "$PREVIEW_SERVICE_USER:$PREVIEW_SERVICE_USER" "$PREVIEW_ENV_FILE"
     assert_preview_env_file "$PREVIEW_ENV_FILE" || exit 1
     log_info "Isolation applied. Env backup: $BACKUP_ENV"
-    if [[ -x "$PREVIEW_DIR/deploy/sync-preview-convex-env.sh" ]] || [[ -x "$SCRIPT_DIR/sync-preview-convex-env.sh" ]]; then
+    fixed_sync_script="$SCRIPT_DIR/sync-preview-convex-env.sh"
+    preview_sync_script="$PREVIEW_DIR/deploy/sync-preview-convex-env.sh"
+    sync_script=""
+    if [[ -x "$fixed_sync_script" ]]; then
+        sync_script="$fixed_sync_script"
+    elif [[ -x "$preview_sync_script" ]]; then
+        sync_script="$preview_sync_script"
+    fi
+    if [[ -n "$sync_script" ]]; then
         log_info "Re-syncing preview Convex AI env (does not re-enable Telegram)."
-        PREVIEW_DIR="$PREVIEW_DIR" bash "${PREVIEW_DIR}/deploy/sync-preview-convex-env.sh" --sync-only 2>/dev/null \
-            || PREVIEW_DIR="$PREVIEW_DIR" bash "$SCRIPT_DIR/sync-preview-convex-env.sh" --sync-only || true
+        PREVIEW_DIR="$PREVIEW_DIR" bash "$sync_script" --sync-only || true
     fi
 else
     log_info "Dry-run complete. Backup kept at $BACKUP_ENV"

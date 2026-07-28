@@ -7,6 +7,7 @@ Two restore scripts handle data sync between preview and prod:
 | Script | Direction | When to use |
 |--------|-----------|-------------|
 | `restore-preview-from-prod.sh` | prod → preview | Refresh preview with latest prod data |
+| `preview-rehearse-backup.sh` | selected `prod-complete-*` → preview | Phased historical baseline/upgrade rehearsal |
 | `restore-prod-from-preview.sh` | preview → prod | Promote preview changes to prod |
 
 For the **full preview clone + upgrade CLI runbook** (backup → clone prod version → data sync → upgrade), see:
@@ -23,7 +24,42 @@ Related helpers:
 | `preview-upgrade.sh` | Upgrade preview to latest (safe `make deploy` target) |
 | `preview-isolate-integrations.sh` | Clear Telegram / force preview URLs |
 | `restore-preview-full-state-from-prod.sh` | Convex + SQLite into preview |
+| `restore-preview-from-backup.sh` | Historical backup/target worker with explicit rollback |
+| `preview-run-migrations.sh` | Shared canonical migrations against preview only |
+| `preview-verify-snapshot.sh` | Baseline/upgraded snapshot-aware verification |
 | `preview-doctor.sh` | Health + recovery |
+
+## Current clone versus historical replay
+
+The existing `preview-clone-from-prod.sh` and
+`restore-preview-full-state-from-prod.sh` workflow clones the **current live
+production** application and data. It remains unchanged.
+
+The historical replay requires an explicit verified backup directory and exact
+target ref:
+
+```bash
+sudo make on-host-preview-rehearse-backup \
+  BACKUP_DIR=/var/backups/trends/prod-complete-20260722T191315Z \
+  TARGET_REF=v0.4.22
+```
+
+It stops after same-version baseline verification. After reviewing the run
+evidence, resume with `RUN_ID=<id>`. Upgraded verification stops again until a
+fresh clean-browser evidence file for both `admin/dev` and `hr-demo/hr` is
+provided. Failure preserves evidence and never rolls back automatically:
+
+```bash
+sudo make on-host-preview-rehearse-rollback RUN_ID=<id>
+```
+
+Production remains read-only. Current-production parity is informational only
+for historical runs. The only automatically replayed persistent-output member
+is `output/resumes/location-info/job5156-location-info.json`; worker state,
+telemetry, auto-tune data, news databases, generated HTML, tracked samples, and
+nested backups are excluded. Explicit rollback reinstalls the protected
+application version's dependencies, restores the protected data, and reapplies
+preview integration isolation; isolation is never lifted automatically.
 
 ## Quiesce behavior
 

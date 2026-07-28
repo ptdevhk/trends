@@ -20,6 +20,14 @@ const previewMcpDockerfile = readFileSync(new URL("../deploy/docker/Dockerfile.m
 const previewCompose = readFileSync(new URL("../deploy/docker/docker-compose.preview.yml", import.meta.url), "utf8");
 const previewConvexStartScript = readFileSync(new URL("../deploy/docker/start-convex.sh", import.meta.url), "utf8");
 const productionConvexService = readFileSync(new URL("../deploy/systemd/trends-convex.service", import.meta.url), "utf8");
+const rehearsalOrchestrator = readFileSync(new URL("../deploy/preview-rehearse-backup.sh", import.meta.url), "utf8");
+const completeBackupLibrary = readFileSync(new URL("../deploy/lib-complete-backup.sh", import.meta.url), "utf8");
+const migrationLibrary = readFileSync(new URL("../deploy/lib-convex-migrations.sh", import.meta.url), "utf8");
+const rehearsalRestoreWorker = readFileSync(new URL("../deploy/restore-preview-from-backup.sh", import.meta.url), "utf8");
+const rehearsalMigrationRunner = readFileSync(new URL("../deploy/preview-run-migrations.sh", import.meta.url), "utf8");
+const rehearsalVerifier = readFileSync(new URL("../deploy/preview-verify-snapshot.sh", import.meta.url), "utf8");
+const rehearsalBrowserSmoke = readFileSync(new URL("./preview-rehearsal-browser-smoke.ts", import.meta.url), "utf8");
+const rehearsalAllowlist = readFileSync(new URL("../deploy/preview-output-restore.allowlist", import.meta.url), "utf8");
 const removedSeedEnvVar = "SEED_" + "RESUMES";
 
 function getTargetRecipe(target: string): string {
@@ -106,20 +114,16 @@ describe("seed_and_migrate_convex migration order", () => {
   let body = "";
   let migrations: string[] = [];
 
-  function extractMigrationCalls(fnBody: string): string[] {
-    const calls: string[] = [];
-    for (const line of fnBody.split("\n")) {
-      const match = line.match(/^\s*run_convex_migration\s+"?\$convex_dir"?\s+"([^"]+)"/);
-      if (match?.[1]) {
-        calls.push(match[1]);
-      }
-    }
-    return calls;
-  }
-
   beforeAll(() => {
     body = extractShellFunction(installScript, "seed_and_migrate_convex");
-    migrations = extractMigrationCalls(body);
+    migrations = migrationLibrary
+      .slice(
+        migrationLibrary.indexOf("convex_migration_declarations()"),
+        migrationLibrary.indexOf("convex_migration_declaration_hash()"),
+      )
+      .split("\n")
+      .map((line) => line.match(/^([A-Za-z][A-Za-z0-9]*)\t/u)?.[1])
+      .filter((value): value is string => Boolean(value));
   });
 
   it("runs all migrations in dependency-correct order", () => {
@@ -135,13 +139,63 @@ describe("seed_and_migrate_convex migration order", () => {
   });
 
   it("passes batchSize to backfillManual51jobStructuredContent", () => {
-    expect(body).toContain('backfillManual51jobStructuredContent');
-    expect(body).toContain('{"batchSize":100}');
+    expect(migrationLibrary).toContain('backfillManual51jobStructuredContent\t{"batchSize":100}');
   });
 
   it("passes limit to backfillIngestData", () => {
-    expect(body).toContain("backfillIngestData");
-    expect(body).toContain('{"limit":100}');
+    expect(migrationLibrary).toContain('backfillIngestData\t{"limit":100}');
+  });
+
+  it("keeps production on the shared declaration stream through a compatibility wrapper", () => {
+    expect(body).toContain('run_convex_migration_sequence "$convex_dir"');
+    expect(installScript).toContain("run_convex_migration_loop");
+  });
+});
+
+describe("historical preview rehearsal repository contracts", () => {
+  it("exposes the five attended Make entrypoints and help text", () => {
+    for (const target of [
+      "on-host-preview-rehearse-backup",
+      "on-host-preview-rehearse-resume",
+      "on-host-preview-rehearse-rollback",
+      "on-host-preview-verify-snapshot",
+      "on-host-preview-run-migrations",
+    ]) {
+      expect(makefile).toContain(`${target}:`);
+      expect(makefile).toContain(target);
+    }
+  });
+
+  it("requires a selected backup and never runs a live production Convex export", () => {
+    expect(rehearsalOrchestrator).toContain("new run requires --backup-dir and --target-ref");
+    expect(completeBackupLibrary).toContain("complete_backup_validate");
+    expect(rehearsalRestoreWorker).not.toMatch(/PROD_DIR[\s\S]{0,200}convex export/u);
+  });
+
+  it("shares one migration declaration stream with validation last", () => {
+    expect(installScript).toContain("deploy/lib-convex-migrations.sh");
+    expect(rehearsalMigrationRunner).toContain("run_convex_migration_sequence");
+    expect(migrationLibrary.lastIndexOf("validateDataConsistency")).toBeGreaterThan(
+      migrationLibrary.lastIndexOf("backfillPrimaryRuleScore"),
+    );
+  });
+
+  it("stops at baseline approval, requires browser evidence, and keeps rollback explicit", () => {
+    expect(rehearsalOrchestrator).toContain("awaiting-approval");
+    expect(rehearsalOrchestrator).toContain("awaiting-browser-evidence");
+    expect(rehearsalOrchestrator).toContain("validate_browser_evidence");
+    expect(rehearsalOrchestrator).toContain("--phase rollback");
+    expect(rehearsalVerifier).toContain("--mode baseline|upgraded");
+    expect(rehearsalBrowserSmoke).toContain("newContext({ storageState: undefined })");
+  });
+
+  it("restores only the exact approved persistent output path", () => {
+    const entries = rehearsalAllowlist
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line && !line.startsWith("#"));
+    expect(entries).toEqual(["output/resumes/location-info/job5156-location-info.json"]);
+    expect(rehearsalAllowlist).not.toMatch(/[*?[]/u);
   });
 });
 

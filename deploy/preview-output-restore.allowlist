@@ -1,0 +1,4 @@
+# Exact ignored runtime files allowed from output-persistent.tgz.
+# Tracked samples and all worker/telemetry/news/backup state come from code or
+# remain excluded from historical replay.
+output/resumes/location-info/job5156-location-info.json

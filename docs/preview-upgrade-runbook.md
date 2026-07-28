@@ -11,10 +11,79 @@ Complete, operator-facing runbook for refreshing the **preview** site on `ptclou
 - Never import data into the production database.
 - Never run `make deploy` / `./scripts/install.sh upgrade` from `/opt/trends` while performing a *preview* upgrade.
 - Stop immediately if backup, import, migration, service restart, or health check fails.
+- A selected historical backup is not the same operation as the current
+  live-production clone. Use the historical rehearsal workflow below.
 
 **Code upgrade ≠ search freshness (non-negotiable):**
 
 - App version bumps and `preview-upgrade.sh` refresh **code only**. They do **not** recompute `roleRelevantYears` / digests for every resume.
+
+## Historical backup replay: exact v0.4.6 baseline to exact v0.4.22
+
+This attended workflow restores a selected verified `prod-complete-*` snapshot,
+proves the application/data at the manifest-recorded source version, and only
+then upgrades to an exact target and runs the canonical migrations.
+Run it from the fixed non-preview controller checkout (normally
+`/home/ubuntu/trends`), never from inside `/home/ubuntu/trends-preview`; exact
+historical code replacement must not replace the active controller.
+
+The first intended invocation is:
+
+```bash
+sudo make on-host-preview-rehearse-backup \
+  BACKUP_DIR=/var/backups/trends/prod-complete-20260722T191315Z \
+  TARGET_REF=v0.4.22
+```
+
+These are examples, not defaults. Preflight freezes the manifest source
+(`0.4.6`, `ec0695935f08554b582d788e6db543bb6edd3f61`) and exact target
+(`v0.4.22`, `d771f5a913dd3905c7e50759cd11c64d04340224`), verifies checksums and
+archive safety, then captures a rollback snapshot of the current preview.
+Production is read-only and no current-production export is performed.
+
+The new run stops after `verify-baseline` with `awaiting-approval`. Review the
+run directory under `/var/backups/trends/preview-rehearsals/<run-id>/`, then:
+
+```bash
+sudo make on-host-preview-rehearse-resume RUN_ID=<run-id>
+```
+
+After upgrade/migrations/upgraded verification, produce fresh browser evidence:
+
+```bash
+PREVIEW_REHEARSAL_ADMIN_PASSWORD='<secure-env-value>' \
+PREVIEW_REHEARSAL_HR_PASSWORD='<secure-env-value>' \
+bunx tsx scripts/preview-rehearsal-browser-smoke.ts \
+  --base-url https://preview.pt-mes.com \
+  --run-id <run-id> \
+  --target-sha d771f5a913dd3905c7e50759cd11c64d04340224 \
+  --output /secure/path/browser-evidence.json
+
+sudo make on-host-preview-rehearse-resume \
+  RUN_ID=<run-id> \
+  BROWSER_EVIDENCE=/secure/path/browser-evidence.json
+```
+
+The browser script creates a new context per identity, so stale cookies cannot
+make login appear healthy. Evidence is redacted and contains no passwords,
+cookies, CSRF tokens, or authorization headers.
+
+Failure stops immediately and preserves the run directory. Rollback is never
+automatic:
+
+```bash
+sudo make on-host-preview-rehearse-rollback RUN_ID=<run-id>
+```
+
+Explicit rollback restores the protected app/data state, reinstalls the
+protected version's dependencies, and reapplies preview integration isolation.
+Lifting isolation remains a separate manual action.
+
+The output archive allowlist contains only
+`output/resumes/location-info/job5156-location-info.json`. Tracked resume
+samples come from the frozen commit; worker status, auto-tune state, telemetry,
+news databases, generated HTML, and nested backups are recorded as skipped.
+Current-production parity is informational only for historical verification.
 - Preview Convex runs in **Docker**. It must call the host BFF via `BFF_API_URL=https://preview.pt-mes.com` (synced into Convex env). Container-local `http://localhost:3000` is wrong and breaks reingest.
 - After every preview (and production) upgrade, run the search-freshness gate:
   - `bash deploy/search-freshness-gate.sh --role preview --api-url http://127.0.0.1:3002`

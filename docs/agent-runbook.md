@@ -87,6 +87,14 @@ bash deploy/search-freshness-gate.sh --role preview --api-url http://127.0.0.1:3
 
 **Never** treat `preview-clone-from-prod` alone as a full clone — it pins **code**, not resumes/status/AI scores.
 
+For a selected historical `prod-complete-*` backup, do not use the live-clone
+scripts. Use the attended `on-host-preview-rehearse-*` targets documented in
+`docs/preview-upgrade-runbook.md`. They freeze the manifest source SHA and exact
+target SHA, stop after the same-version baseline, run the same canonical Convex
+migration declarations as production, require clean-browser evidence, and keep
+rollback explicit. Repository tests for this workflow must use generated
+fixtures and fake commands only; they must not SSH or contact preview/production.
+
 **Search freshness after upgrade/migration:** app version green ≠ MY/CN `minRoleYears` search healthy. Preview Convex must reach host BFF (`BFF_API_URL`); then schedule `trigger-reingest --mode any|compute` when doctor exit 2/3.
 
 `make deploy` / `./scripts/install.sh upgrade` from `/opt/trends` = **production**.  

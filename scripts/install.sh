@@ -69,6 +69,11 @@ log_info() { echo -e "${GREEN}[INFO]${NC} $*"; }
 log_warn() { echo -e "${YELLOW}[WARN]${NC} $*"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $*" >&2; }
 
+# Canonical migration declarations and batch runner shared with preview rehearsal.
+# shellcheck source=../deploy/lib-convex-migrations.sh
+# shellcheck disable=SC1091
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/deploy/lib-convex-migrations.sh"
+
 is_truthy() {
     [[ "${1:-}" =~ ^(1|true|yes)$ ]]
 }
@@ -331,146 +336,19 @@ run_as_service_user() {
     fi
 }
 
-run_convex_migration() {
+convex_migration_execute() {
     local convex_dir="$1"
     local migration_name="$2"
-    local migration_args="${3:-}"
-    local cursor=""
-    local iteration=1
-    local batch_count=0
-    local consecutive_noop=0
-    local max_consecutive_noop=3
-    local total_scanned=0
-    local total_updated=0
-    local saw_scanned=0
-    local saw_updated=0
-
-    log_info "Running Convex migration: $migration_name..."
-
-    while true; do
-        local call_args=""
-        local command="set -a && [ -f '$CONFIG_DIR/env' ] && source '$CONFIG_DIR/env' && set +a && cd '$convex_dir' && npx convex run migrations:$migration_name"
-
-        call_args="$(node - "$migration_args" "$cursor" <<'NODE'
-const baseArgs = process.argv[2] ? JSON.parse(process.argv[2]) : {};
-const cursor = process.argv[3];
-if (cursor) {
-  baseArgs.cursor = cursor;
-}
-process.stdout.write(JSON.stringify(baseArgs));
-NODE
-)"
-
-        if [[ "$call_args" != "{}" ]]; then
-            command="$command '$call_args'"
-        fi
-
-        local output=""
-        if ! output="$(run_as_service_user "$command" 2>&1)"; then
-            printf '%s\n' "$output"
-            log_warn "$migration_name failed.${call_args:+ $call_args}"
-            return 1
-        fi
-        batch_count=$((batch_count + 1))
-
-        local progress=""
-        progress="$(node - "$output" <<'NODE'
-const vm = require('node:vm');
-const source = (process.argv[2] ?? '').trim();
-const progressKeys = [
-  'updated',
-  'updatedResumes',
-  'patched',
-  'count',
-  'cleared',
-  'scheduled',
-  'movedEducationEntries',
-  'updatedProfileFields',
-];
-let hasMore = 0;
-let cursor = '';
-let updated = -1;
-let scanned = -1;
-
-try {
-  const value = vm.runInNewContext(`(${source})`);
-  if (value && typeof value === 'object' && !Array.isArray(value)) {
-    if (value.hasMore === true) {
-      hasMore = 1;
-      cursor = typeof value.cursor === 'string' ? value.cursor : '';
-    }
-    if (typeof value.scannedResumes === 'number') {
-      scanned = value.scannedResumes;
-    }
-    for (const key of progressKeys) {
-      if (typeof value[key] === 'number') {
-        updated = value[key];
-        break;
-      }
-    }
-  }
-} catch {
-  hasMore = 0;
+    local call_args="$3"
+    local command="set -a && [ -f '$CONFIG_DIR/env' ] && source '$CONFIG_DIR/env' && set +a && cd '$convex_dir' && npx convex run migrations:$migration_name"
+    if [[ "$call_args" != "{}" ]]; then
+        command="$command $(printf '%q' "$call_args")"
+    fi
+    run_as_service_user "$command"
 }
 
-process.stdout.write(`${hasMore}\t${Buffer.from(cursor, 'utf8').toString('base64')}\t${updated}\t${scanned}`);
-NODE
-)"
-
-        local has_more="${progress%%$'\t'*}"
-        local rest="${progress#*$'\t'}"
-        local cursor_b64="${rest%%$'\t'*}"
-        local trailing="${rest#*$'\t'}"
-        local batch_updated="${trailing%%$'\t'*}"
-        local batch_scanned="${trailing#*$'\t'}"
-
-        if [[ "$batch_updated" =~ ^-?[0-9]+$ ]] && [[ "$batch_updated" -ge 0 ]]; then
-            total_updated=$((total_updated + batch_updated))
-            saw_updated=1
-        fi
-
-        if [[ "$batch_scanned" =~ ^-?[0-9]+$ ]] && [[ "$batch_scanned" -ge 0 ]]; then
-            total_scanned=$((total_scanned + batch_scanned))
-            saw_scanned=1
-        fi
-
-        if [[ "$has_more" != "1" ]]; then
-            break
-        fi
-
-        if [[ "$batch_updated" == "0" ]]; then
-            consecutive_noop=$((consecutive_noop + 1))
-        else
-            consecutive_noop=0
-        fi
-
-        if [[ "$consecutive_noop" -ge "$max_consecutive_noop" ]]; then
-            log_info "$migration_name: $consecutive_noop consecutive batches with 0 updates, skipping remaining."
-            break
-        fi
-
-        if [[ -n "$cursor_b64" ]]; then
-            cursor="$(printf '%s' "$cursor_b64" | base64 --decode)"
-        else
-            cursor=""
-        fi
-        iteration=$((iteration + 1))
-
-        if [[ "$iteration" -gt 10000 ]]; then
-            log_warn "$migration_name exceeded the maximum batch iterations."
-            break
-        fi
-    done
-
-    local summary="Completed Convex migration: $migration_name (batches: $batch_count"
-    if [[ "$saw_scanned" -eq 1 ]]; then
-        summary="$summary, scanned: $total_scanned"
-    fi
-    if [[ "$saw_updated" -eq 1 ]]; then
-        summary="$summary, changed: $total_updated"
-    fi
-    summary="$summary)"
-    log_info "$summary"
+run_convex_migration() {
+    run_convex_migration_loop "$@"
 }
 
 create_service_user() {
@@ -1391,19 +1269,7 @@ seed_and_migrate_convex() {
     run_as_service_user "set -a && [ -f '$CONFIG_DIR/env' ] && source '$CONFIG_DIR/env' && set +a && cd '$INSTALL_DIR' && npx tsx '$seed_script' $seed_args" \
         || log_warn "Convex seed failed. Continuing with migrations."
 
-    run_convex_migration "$convex_dir" "backfillSourceKey"
-    run_convex_migration "$convex_dir" "backfillTaggingEnvelope"
-    run_convex_migration "$convex_dir" "backfillWorkspaceSlugs"
-    run_convex_migration "$convex_dir" "backfillJob5156ProfileUrls"
-    run_convex_migration "$convex_dir" "backfillJob5156WorkHistoryEducation"
-    run_convex_migration "$convex_dir" "backfillJob5156LocationHierarchy"
-    run_convex_migration "$convex_dir" "backfillManual51jobStructuredContent" '{"batchSize":100}'
-    run_convex_migration "$convex_dir" "backfillIngestData" '{"limit":100}'
-    run_convex_migration "$convex_dir" "backfillAge"
-    run_convex_migration "$convex_dir" "backfillSearchText"
-    run_convex_migration "$convex_dir" "backfillEvidenceText"
-    run_convex_migration "$convex_dir" "backfillPrimaryRuleScore"
-    run_convex_migration "$convex_dir" "validateDataConsistency"
+    run_convex_migration_sequence "$convex_dir"
 }
 
 resolve_env_file() {
@@ -2045,7 +1911,7 @@ run_search_freshness_gate_production() {
     fi
     # shellcheck source=../deploy/lib-bff-defaults.sh
     if [[ -f "$bff_lib" ]]; then
-        # shellcheck disable=SC1090
+        # shellcheck disable=SC1090,SC1091
         source "$bff_lib"
     fi
     local prod_api="${PROD_API_URL:-http://${LOOPBACK_HOST:-127.0.0.1}:${PROD_API_PORT:-3000}}"

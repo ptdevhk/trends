@@ -4,6 +4,7 @@
 		local-run-crawler local-run-mcp local-run-mcp-http local-run-worker local-run-worker-once run crawl mcp mcp-http worker worker-once \
 		on-prod-install on-prod-deploy on-prod-deploy-check on-prod-uninstall on-prod-refresh-env on-prod-preview-restore-full-state prod-install prod-deploy prod-deploy-check install deploy deploy-check uninstall refresh-env preview-restore-full-state restore-preview-full-state \
 		preview-backup-prod on-host-backup-prod-complete on-host-preview-preflight on-host-preview-clone-from-prod on-host-preview-upgrade on-host-preview-isolate preview-deploy preview-restore-data preview-doctor preview-smoke \
+		on-host-preview-rehearse-backup on-host-preview-rehearse-resume on-host-preview-rehearse-rollback on-host-preview-verify-snapshot on-host-preview-run-migrations \
 		install-deps fetch-docs clean check help docker docker-build docker-down \
 		check-python check-node check-node-tests-types check-build \
 		test test-python test-node test-resume test-extension-keyword-mode test-api-search-profiles test-worker-resume-tasks test-collect-url-smoke my-scoring my-scoring-e2e \
@@ -552,6 +553,46 @@ on-host-preview-seed-auth:
 # On-host: full migration gate (seed + doctor + parity)
 on-host-preview-gate:
 	bash ./deploy/preview-migration-gate.sh
+
+# On-host: selected historical backup replay.
+# This is distinct from the current live-production clone targets above.
+on-host-preview-rehearse-backup:
+	@if [ -z "$${BACKUP_DIR:-}" ] || [ -z "$${TARGET_REF:-}" ]; then \
+		echo "BACKUP_DIR=<prod-complete-dir> and TARGET_REF=<exact-ref> are required"; \
+		exit 2; \
+	fi
+	sudo env ASSUME_YES="$${ASSUME_YES:-}" \
+		PREVIEW_REHEARSAL_ROOT="$${PREVIEW_REHEARSAL_ROOT:-/var/backups/trends/preview-rehearsals}" \
+		bash ./deploy/preview-rehearse-backup.sh \
+		--backup-dir "$$BACKUP_DIR" --target-ref "$$TARGET_REF" \
+		$${ASSUME_YES:+--assume-yes}
+
+on-host-preview-rehearse-resume:
+	@if [ -z "$${RUN_ID:-}" ]; then echo "RUN_ID=<run-id> is required"; exit 2; fi
+	sudo env ASSUME_YES="$${ASSUME_YES:-}" \
+		PREVIEW_REHEARSAL_ROOT="$${PREVIEW_REHEARSAL_ROOT:-/var/backups/trends/preview-rehearsals}" \
+		bash ./deploy/preview-rehearse-backup.sh --run-id "$$RUN_ID" \
+		$${BROWSER_EVIDENCE:+--browser-evidence "$$BROWSER_EVIDENCE"} \
+		$${ASSUME_YES:+--assume-yes}
+
+on-host-preview-rehearse-rollback:
+	@if [ -z "$${RUN_ID:-}" ]; then echo "RUN_ID=<run-id> is required"; exit 2; fi
+	sudo env PREVIEW_REHEARSAL_ROOT="$${PREVIEW_REHEARSAL_ROOT:-/var/backups/trends/preview-rehearsals}" \
+		bash ./deploy/preview-rehearse-backup.sh --run-id "$$RUN_ID" --phase rollback
+
+on-host-preview-verify-snapshot:
+	@if [ -z "$${RUN_ID:-}" ] || [ -z "$${MODE:-}" ]; then \
+		echo "RUN_ID=<run-id> and MODE=baseline|upgraded are required"; exit 2; \
+	fi
+	sudo env PREVIEW_REHEARSAL_ROOT="$${PREVIEW_REHEARSAL_ROOT:-/var/backups/trends/preview-rehearsals}" \
+		bash ./deploy/preview-verify-snapshot.sh --mode "$$MODE" \
+		--run-dir "$${PREVIEW_REHEARSAL_ROOT:-/var/backups/trends/preview-rehearsals}/$$RUN_ID"
+
+on-host-preview-run-migrations:
+	@if [ -z "$${RUN_ID:-}" ]; then echo "RUN_ID=<run-id> is required"; exit 2; fi
+	sudo env PREVIEW_REHEARSAL_ROOT="$${PREVIEW_REHEARSAL_ROOT:-/var/backups/trends/preview-rehearsals}" \
+		bash ./deploy/preview-run-migrations.sh \
+		--run-dir "$${PREVIEW_REHEARSAL_ROOT:-/var/backups/trends/preview-rehearsals}/$$RUN_ID"
 
 preview-seed-auth:
 	@SSH_HOST="$${SSH_HOST:-ptcloud}"; \
@@ -1573,6 +1614,13 @@ help:
 	@echo "  on-prod-preview-restore-full-state"
 	@echo "                         Restore prod Convex + SQLite candidate actions into preview"
 	@echo "                         (alias: preview-restore-full-state/restore-preview-full-state)"
+	@echo "  on-host-preview-rehearse-backup"
+	@echo "                         Replay selected historical prod-complete backup; stops after baseline"
+	@echo "                         Requires BACKUP_DIR=<dir> TARGET_REF=<exact-ref>"
+	@echo "  on-host-preview-rehearse-resume Resume attended rehearsal at approval/browser gate (RUN_ID=...)"
+	@echo "  on-host-preview-rehearse-rollback Explicit evidence-preserving preview rollback (RUN_ID=...)"
+	@echo "  on-host-preview-verify-snapshot Manual snapshot verification (RUN_ID=... MODE=baseline|upgraded)"
+	@echo "  on-host-preview-run-migrations Manual canonical preview migrations (RUN_ID=...)"
 	@echo "  on-prod-uninstall      Remove systemd services, requires sudo (alias: uninstall)"
 	@echo "                         See ./scripts/install.sh --help for branch preflight, rollback backups, CI=true/1"
 	@echo ""
