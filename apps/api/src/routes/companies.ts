@@ -9,6 +9,11 @@ import {
   seedCanonicalCompanies,
   upsertCompany,
 } from "../services/company-policy-service.js";
+import {
+  deleteIndustryProfile,
+  listIndustryProfiles,
+  upsertIndustryProfile,
+} from "../services/company-industry-profile-service.js";
 
 const app = new OpenAPIHono();
 
@@ -26,6 +31,18 @@ app.use("/api/companies/*", async (c, next) => {
 });
 app.use("/api/company-policies", async (c, next) => {
   if (["GET", "POST"].includes(c.req.method)) {
+    return requireWorkspaceUser(c, next);
+  }
+  await next();
+});
+app.use("/api/company-industry-profiles", async (c, next) => {
+  if (["GET", "POST"].includes(c.req.method)) {
+    return requireWorkspaceUser(c, next);
+  }
+  await next();
+});
+app.use("/api/company-industry-profiles/*", async (c, next) => {
+  if (["GET", "POST", "DELETE"].includes(c.req.method)) {
     return requireWorkspaceUser(c, next);
   }
   await next();
@@ -307,6 +324,137 @@ app.openapi(appendPolicyRoute, async (c) => {
     summary: body.summary,
   });
   return c.json({ success: true as const, revision: result.revision }, 200);
+});
+
+// ---------------------------------------------------------------------------
+// Company industry profiles (reviewed catalog)
+// ---------------------------------------------------------------------------
+
+const IndustryClassEnum = z.enum([
+  "cnc", "automation", "metrology", "industrial", "non_industry", "unknown",
+]);
+const VerificationLevelEnum = z.enum(["verified", "candidate", "rejected"]);
+const EvidenceSourceEnum = z.enum(["seed", "manual", "worker_web"]);
+
+const IndustryProfileSchema = z.object({
+  _id: z.string(),
+  companyKey: z.string(),
+  industryClass: IndustryClassEnum,
+  verificationLevel: VerificationLevelEnum,
+  officialDomain: z.string().optional(),
+  evidenceSource: EvidenceSourceEnum,
+  summary: z.string().optional(),
+  sourceUrl: z.string().optional(),
+  sourceDomain: z.string().optional(),
+  sourceType: z.string().optional(),
+  msicCode: z.string().optional(),
+  msicDescription: z.string().optional(),
+  fetchedAt: z.number().optional(),
+  updatedAt: z.number(),
+  updatedBy: z.string().optional(),
+});
+
+const listIndustryProfilesRoute = createRoute({
+  method: "get",
+  path: "/api/company-industry-profiles",
+  tags: ["companies"],
+  summary: "List reviewed company-industry profiles",
+  request: {
+    query: z.object({
+      verificationLevel: VerificationLevelEnum.optional(),
+    }),
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({ success: z.literal(true), items: z.array(IndustryProfileSchema) }),
+        },
+      },
+      description: "Reviewed company-industry profiles",
+    },
+  },
+});
+
+app.openapi(listIndustryProfilesRoute, async (c) => {
+  const { verificationLevel } = c.req.valid("query");
+  const items = await listIndustryProfiles(verificationLevel);
+  return c.json({ success: true as const, items }, 200);
+});
+
+const upsertIndustryProfileRoute = createRoute({
+  method: "post",
+  path: "/api/company-industry-profiles",
+  tags: ["companies"],
+  summary: "Create or update a reviewed company-industry profile",
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            companyKey: z.string().min(1),
+            industryClass: IndustryClassEnum,
+            verificationLevel: VerificationLevelEnum,
+            officialDomain: z.string().optional(),
+            evidenceSource: EvidenceSourceEnum.optional(),
+            summary: z.string().optional(),
+            sourceUrl: z.string().optional(),
+            sourceDomain: z.string().optional(),
+            sourceType: z.string().optional(),
+            msicCode: z.string().optional(),
+            msicDescription: z.string().optional(),
+            fetchedAt: z.number().optional(),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({ success: z.literal(true), companyKey: z.string(), created: z.boolean() }),
+        },
+      },
+      description: "Profile upserted",
+    },
+  },
+});
+
+app.openapi(upsertIndustryProfileRoute, async (c) => {
+  const body = c.req.valid("json");
+  const actorId = getAuthenticatedActorId(c);
+  const result = await upsertIndustryProfile({
+    ...body,
+    updatedBy: actorId,
+  });
+  return c.json({ success: true as const, ...result }, 200);
+});
+
+const deleteIndustryProfileRoute = createRoute({
+  method: "delete",
+  path: "/api/company-industry-profiles/:companyKey",
+  tags: ["companies"],
+  summary: "Delete a reviewed company-industry profile",
+  request: {
+    params: z.object({ companyKey: z.string() }),
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({ success: z.literal(true), deleted: z.number() }),
+        },
+      },
+      description: "Profile deleted",
+    },
+  },
+});
+
+app.openapi(deleteIndustryProfileRoute, async (c) => {
+  const { companyKey } = c.req.valid("param");
+  const result = await deleteIndustryProfile(companyKey);
+  return c.json({ success: true as const, ...result }, 200);
 });
 
 export default app;

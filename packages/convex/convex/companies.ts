@@ -649,3 +649,136 @@ export const seedCanonicalCompanies = mutation({
     };
   },
 });
+
+// ---------------------------------------------------------------------------
+// Company industry profiles (reviewed catalog overlay)
+// ---------------------------------------------------------------------------
+
+const industryClassValidator = v.union(
+  v.literal("cnc"),
+  v.literal("automation"),
+  v.literal("metrology"),
+  v.literal("industrial"),
+  v.literal("non_industry"),
+  v.literal("unknown"),
+);
+
+const verificationLevelValidator = v.union(
+  v.literal("verified"),
+  v.literal("candidate"),
+  v.literal("rejected"),
+);
+
+const evidenceSourceValidator = v.union(
+  v.literal("seed"),
+  v.literal("manual"),
+  v.literal("worker_web"),
+);
+
+export const listIndustryProfiles = query({
+  args: {
+    writeSecret: v.optional(v.string()),
+    verificationLevel: v.optional(verificationLevelValidator),
+  },
+  handler: async (ctx, args) => {
+    requireReadSecret(args.writeSecret);
+    const rows = args.verificationLevel
+      ? await ctx.db
+          .query("company_industry_profiles")
+          .withIndex("by_verification", (q) => q.eq("verificationLevel", args.verificationLevel!))
+          .collect()
+      : await ctx.db.query("company_industry_profiles").collect();
+
+    return rows.sort((left, right) => left.companyKey.localeCompare(right.companyKey));
+  },
+});
+
+export const getIndustryProfile = query({
+  args: {
+    writeSecret: v.optional(v.string()),
+    companyKey: v.string(),
+  },
+  handler: async (ctx, args) => {
+    requireReadSecret(args.writeSecret);
+    const key = normalizeCompanyKey(args.companyKey);
+    const rows = await ctx.db
+      .query("company_industry_profiles")
+      .withIndex("by_company_key", (q) => q.eq("companyKey", key))
+      .collect();
+    return rows.length > 0 ? rows[0] : null;
+  },
+});
+
+export const upsertIndustryProfile = mutation({
+  args: {
+    writeSecret: v.optional(v.string()),
+    companyKey: v.string(),
+    industryClass: industryClassValidator,
+    verificationLevel: verificationLevelValidator,
+    officialDomain: v.optional(v.string()),
+    evidenceSource: v.optional(evidenceSourceValidator),
+    summary: v.optional(v.string()),
+    sourceUrl: v.optional(v.string()),
+    sourceDomain: v.optional(v.string()),
+    sourceType: v.optional(v.string()),
+    msicCode: v.optional(v.string()),
+    msicDescription: v.optional(v.string()),
+    fetchedAt: v.optional(v.number()),
+    updatedBy: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    requireWriteSecret(args.writeSecret);
+    const companyKey = normalizeCompanyKey(args.companyKey);
+    const now = Date.now();
+
+    const existing = await ctx.db
+      .query("company_industry_profiles")
+      .withIndex("by_company_key", (q) => q.eq("companyKey", companyKey))
+      .collect();
+
+    const payload = {
+      companyKey,
+      industryClass: args.industryClass,
+      verificationLevel: args.verificationLevel,
+      ...(args.officialDomain !== undefined ? { officialDomain: args.officialDomain } : {}),
+      evidenceSource: args.evidenceSource ?? "manual",
+      ...(args.summary !== undefined ? { summary: args.summary } : {}),
+      ...(args.sourceUrl !== undefined ? { sourceUrl: args.sourceUrl } : {}),
+      ...(args.sourceDomain !== undefined ? { sourceDomain: args.sourceDomain } : {}),
+      ...(args.sourceType !== undefined ? { sourceType: args.sourceType } : {}),
+      ...(args.msicCode !== undefined ? { msicCode: args.msicCode } : {}),
+      ...(args.msicDescription !== undefined ? { msicDescription: args.msicDescription } : {}),
+      ...(args.fetchedAt !== undefined ? { fetchedAt: args.fetchedAt } : {}),
+      updatedAt: now,
+      updatedBy: args.updatedBy ?? "system",
+    };
+
+    if (existing.length > 0) {
+      await ctx.db.patch(existing[0]._id, payload);
+      return { companyKey, created: false, _id: existing[0]._id };
+    }
+
+    const id = await ctx.db.insert("company_industry_profiles", payload);
+    return { companyKey, created: true, _id: id };
+  },
+});
+
+export const deleteIndustryProfile = mutation({
+  args: {
+    writeSecret: v.optional(v.string()),
+    companyKey: v.string(),
+  },
+  handler: async (ctx, args) => {
+    requireWriteSecret(args.writeSecret);
+    const companyKey = normalizeCompanyKey(args.companyKey);
+    const rows = await ctx.db
+      .query("company_industry_profiles")
+      .withIndex("by_company_key", (q) => q.eq("companyKey", companyKey))
+      .collect();
+    for (const row of rows) {
+      await ctx.db.delete(row._id);
+    }
+    return { deleted: rows.length };
+  },
+});
+

@@ -752,6 +752,45 @@ export default defineSchema({
         .index("by_company", ["companyKey"])
         .index("by_scope", ["scopeType", "scopeId"]),
 
+    // Reviewed company-industry profiles (mutable overlay on top of companyKey).
+    // Populated by attended bootstrap import or operator review. Runtime consumes
+    // only rows with verificationLevel="verified" for the 行业验证 badge and
+    // verified-only role-years gate.
+    company_industry_profiles: defineTable({
+        companyKey: v.string(),
+        industryClass: v.union(
+            v.literal("cnc"),
+            v.literal("automation"),
+            v.literal("metrology"),
+            v.literal("industrial"),
+            v.literal("non_industry"),
+            v.literal("unknown"),
+        ),
+        verificationLevel: v.union(
+            v.literal("verified"),
+            v.literal("candidate"),
+            v.literal("rejected"),
+        ),
+        officialDomain: v.optional(v.string()),
+        evidenceSource: v.union(
+            v.literal("seed"),
+            v.literal("manual"),
+            v.literal("worker_web"),
+        ),
+        summary: v.optional(v.string()),
+        sourceUrl: v.optional(v.string()),
+        sourceDomain: v.optional(v.string()),
+        sourceType: v.optional(v.string()),
+        msicCode: v.optional(v.string()),
+        msicDescription: v.optional(v.string()),
+        fetchedAt: v.optional(v.number()),
+        updatedAt: v.number(),
+        updatedBy: v.optional(v.string()),
+    })
+        .index("by_company_key", ["companyKey"])
+        .index("by_verification", ["verificationLevel"])
+        .index("by_industry_class", ["industryClass"]),
+
     // Research Eng: native news items (full distill; no SQLite product path)
     news_items: defineTable({
         sourceId: v.string(),
