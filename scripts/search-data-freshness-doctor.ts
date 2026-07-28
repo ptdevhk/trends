@@ -3,12 +3,13 @@
  * Search-data freshness doctor (local/dev + deploy hook).
  *
  * Reports current ingestComputeEpoch, lag counts via dry-run reingest,
- * and golden MY/CN minRoleYears search totals when the API is reachable.
+ * and golden MY/CN minRoleYears availability / semantic checks when the API
+ * is reachable.
  *
  * Exit codes:
  *   0 — ok (or API unreachable and only offline unit path used)
  *   2 — compute-stale rows above threshold
- *   3 — golden query floor failed
+ *   3 — golden query availability or semantic check failed
  *   1 — request/auth error
  *
  * Usage:
@@ -195,7 +196,7 @@ async function main(): Promise<number> {
     const reRes = await fetch(`${base}/api/resumes/trigger-reingest`, {
       method: "POST",
       headers: { ...headers, "Content-Type": "application/json" },
-      body: JSON.stringify({ limit: args.scanLimit, mode: "any", dryRun: true }),
+      body: JSON.stringify({ limit: args.scanLimit, mode: "compute", dryRun: true }),
     });
     if (reRes.ok) {
       report.dryRunReingest = await reRes.json();
@@ -214,7 +215,7 @@ async function main(): Promise<number> {
         location: g.location,
         q: g.q,
         minRoleYears: String(g.minRoleYears),
-        limit: "1",
+        limit: String(g.semanticSampleLimit),
       });
       if (g.roleType) {
         params.set("roleType", g.roleType);

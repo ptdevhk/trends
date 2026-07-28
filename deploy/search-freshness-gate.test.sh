@@ -253,11 +253,31 @@ if grep -A20 'DOCTOR_RC.*-eq 2' "$ROOT/deploy/search-freshness-gate.sh" | grep -
 else
   fail "gate no longer exits 2 under GATE_STRICT for doctor rc 2"
 fi
-# Golden floors raised above historical false-green band (~30 MY)
-if grep -q 'minTotalFloor: 100' "$ROOT/packages/shared/src/ingest-compute-epoch.ts"; then
-  pass "MY/CN golden minTotalFloor is 100 (was 10 false-green)"
+# Golden query config: MY availability floor is semantic-only, CN remains high-volume
+if grep -A16 'id: "my-cnc-sales-minRoleYears"' "$ROOT/packages/shared/src/ingest-compute-epoch.ts" | grep -q 'minTotalFloor: 1'; then
+  pass "MY golden minTotalFloor is 1 under verified-only semantics"
 else
-  fail "golden minTotalFloor not raised to 100"
+  fail "MY golden minTotalFloor should be 1"
+fi
+if grep -A12 'id: "cn-cnc-sales-minRoleYears"' "$ROOT/packages/shared/src/ingest-compute-epoch.ts" | grep -q 'minTotalFloor: 100'; then
+  pass "CN golden minTotalFloor remains 100"
+else
+  fail "CN golden minTotalFloor should remain 100"
+fi
+if grep -q '"mode": "compute"' "$ROOT/deploy/search-freshness-gate.sh"; then
+  pass "gate schedules compute-only reingest"
+else
+  fail "gate should schedule compute-only reingest"
+fi
+if grep -q -- '--mode compute' "$ROOT/deploy/search-freshness-gate.sh"; then
+  pass "gate manual instructions use --mode compute"
+else
+  fail "gate manual instructions should use --mode compute"
+fi
+if grep -q -- '--mode any' "$ROOT/deploy/search-freshness-gate.sh"; then
+  fail "gate still references --mode any"
+else
+  pass "gate no longer references --mode any"
 fi
 
 echo "Summary: $FAIL failure(s)"

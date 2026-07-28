@@ -555,7 +555,7 @@ describe("BFF search dispatcher integration", () => {
             expect(payload.data.map((item: { name: string }) => item.name)).toEqual(["r1"]);
         });
 
-        it("keeps the reported MY roleType=sales query on the direct-role fallback path", async () => {
+        it("keeps MY roleType/roleFilterType queries on the strict verified-only path", async () => {
             const calls: ConvexCall[] = [];
             vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
                 const call = parseConvexCall(input, init);
@@ -564,17 +564,29 @@ describe("BFF search dispatcher integration", () => {
                 if (call.pathName === "resumes_search:scanResumeDigestPage") {
                     return convexSuccess({
                         docs: [
+                            buildDigestRow("my-sales-verified", {
+                                searchText: "CNC Sales Manager machine tools",
+                                locationText: "Malaysia",
+                                roleTypes: ["sales"],
+                                roleYearsByType: { sales: 2.5 },
+                            }),
                             buildDigestRow("my-sales-fallback", {
                                 searchText: "CNC Sales Manager machine tools",
                                 locationText: "Malaysia",
                                 roleTypes: ["sales", "engineer"],
-                                roleYearsByType: { sales: 5.4, engineer: 7 },
+                                roleYearsByType: { engineer: 7 },
                             }),
                             buildDigestRow("my-engineer-only", {
                                 searchText: "CNC Application Engineer machine tools",
                                 locationText: "Malaysia",
                                 roleTypes: ["engineer"],
                                 roleYearsByType: { engineer: 7 },
+                            }),
+                            buildDigestRow("my-sales-below-minimum", {
+                                searchText: "CNC Sales Coordinator machine tools",
+                                locationText: "Malaysia",
+                                roleTypes: ["sales"],
+                                roleYearsByType: { sales: 0.5 },
                             }),
                         ],
                         isDone: true,
@@ -584,8 +596,20 @@ describe("BFF search dispatcher integration", () => {
                 if (call.pathName === "resumes_search:getResumeDocsByIds") {
                     const ids = Array.isArray(call.args.ids) ? call.args.ids : [];
                     return convexSuccess(ids.map((id) => {
+                        if (id === "my-sales-verified") {
+                            return buildFilterableConvexResumeRecord(String(id), {
+                                location: "Malaysia",
+                                verifiedRoleYears: { sales: 2.5 },
+                            });
+                        }
                         if (id === "my-sales-fallback") {
                             return buildMyFallbackConvexResumeRecord(String(id));
+                        }
+                        if (id === "my-sales-below-minimum") {
+                            return buildFilterableConvexResumeRecord(String(id), {
+                                location: "Malaysia",
+                                verifiedRoleYears: { sales: 0.5 },
+                            });
                         }
                         return buildFilterableConvexResumeRecord(String(id), {
                             location: "Malaysia",
@@ -596,6 +620,9 @@ describe("BFF search dispatcher integration", () => {
                 if (call.pathName === "candidate_status:list") {
                     return convexSuccess([]);
                 }
+                if (call.pathName === "candidate_blocks:list") {
+                    return convexSuccess([]);
+                }
                 throw new Error(`Unexpected convex path: ${call.pathName}`);
             });
 
@@ -603,14 +630,23 @@ describe("BFF search dispatcher integration", () => {
             const response = await app.request(
                 "/api/resumes?source=convex&q=CNC%20Sales&limit=5&minRoleYears=1&roleType=sales&location=Malaysia",
             );
+            const aliasResponse = await app.request(
+                "/api/resumes?source=convex&q=CNC%20Sales&limit=5&minRoleYears=1&roleFilterType=sales&location=Malaysia",
+            );
 
             expect(response.status).toBe(200);
             const payload = await parseJsonBody<{ success: unknown; data: { name: string }[] }>(response);
+            expect(aliasResponse.status).toBe(200);
+            const aliasPayload = await parseJsonBody<{ success: unknown; data: { name: string }[] }>(aliasResponse);
             expect(payload.success).toBe(true);
-            expect(payload.data.map((item: { name: string }) => item.name)).toEqual(["my-sales-fallback"]);
+            expect(aliasPayload.success).toBe(true);
+            expect(payload.data.map((item: { name: string }) => item.name)).toEqual(["my-sales-verified"]);
+            expect(aliasPayload.data.map((item: { name: string }) => item.name)).toEqual(["my-sales-verified"]);
 
-            const docCall = calls.find((call) => call.pathName === "resumes_search:getResumeDocsByIds");
-            expect(docCall?.args.ids).toEqual(["my-sales-fallback"]);
+            const docCalls = calls.filter((call) => call.pathName === "resumes_search:getResumeDocsByIds");
+            expect(docCalls).toHaveLength(2);
+            expect(docCalls[0]?.args.ids).toEqual(["my-sales-verified"]);
+            expect(docCalls[1]?.args.ids).toEqual(["my-sales-verified"]);
         });
     });
 

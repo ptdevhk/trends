@@ -471,17 +471,12 @@ export function hasMatchingRoleSignal(resume: Doc<"resumes">, roleType: string |
 
 /**
  * Resolve role years for the minRoleYears search gate.
- * Delegates to shared {@link resolveGateRoleYears} (MY/Seek role-relevant fallback).
+ * Delegates to shared {@link resolveGateRoleYears} using verified-only years.
  */
 export function getResumeRoleYears(resume: Doc<"resumes">, roleType: string | undefined): number {
     return resolveGateRoleYears(
         resume.ingestData?.roleSignals,
         roleType,
-        {
-            market: resume.ingestData?.market,
-            sourceKey: resume.sourceKey,
-            source: resume.source,
-        },
         resume.ingestData?.verifiedRoleYears,
     );
 }

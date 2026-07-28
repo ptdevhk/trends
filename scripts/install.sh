@@ -2091,10 +2091,10 @@ run_search_freshness_gate_production() {
         return 0
     fi
     if [[ "$rc" -eq 3 ]]; then
-        log_error "Search freshness golden floors failed after upgrade."
+        log_error "Search freshness availability / semantic checks failed after upgrade."
         log_error "App version is fine; computed role years need reingest:"
         log_error "  bash $gate --role production --api-url $prod_api"
-        log_error "  or: trends resume debug trigger-reingest --mode any --limit 200"
+        log_error "  or: trends resume debug trigger-reingest --mode compute --limit 200"
         if [[ "${PROD_FRESHNESS_STRICT:-1}" == "1" ]]; then
             return 1
         fi

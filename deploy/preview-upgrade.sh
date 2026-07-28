@@ -315,10 +315,10 @@ if [[ -x "$FRESHNESS_SCRIPT" ]]; then
     if [[ "$FRESH_RC" -eq 0 ]]; then
         log_info "Search freshness gate OK"
     elif [[ "$FRESH_RC" -eq 3 ]]; then
-        log_error "Search freshness golden floors failed (MY/CN minRoleYears). Code is up but search parity is bad."
+        log_error "Search freshness availability / semantic checks failed (MY/CN minRoleYears). Code is up but search parity is bad."
         log_error "Ensure Convex BFF_API_URL=${PREVIEW_BFF_DEFAULT}, then:"
         log_error "  bash $FRESHNESS_SCRIPT --role preview --api-url $PREVIEW_API_URL"
-        log_error "  or: trends resume debug trigger-reingest --mode any --limit 200 --api-url $PREVIEW_API_URL"
+        log_error "  or: trends resume debug trigger-reingest --mode compute --limit 200 --api-url $PREVIEW_API_URL"
         if [[ "${PREVIEW_FRESHNESS_STRICT:-1}" == "1" ]]; then
             exit 1
         fi

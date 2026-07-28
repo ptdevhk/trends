@@ -2947,6 +2947,8 @@ export interface paths {
                                 roleType?: string;
                                 minTotalFloor: number;
                                 total: number | null;
+                                checkedCount: number;
+                                semanticFailures: number;
                                 ok: boolean | null;
                                 error?: string;
                             }[];

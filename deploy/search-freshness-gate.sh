@@ -3,13 +3,13 @@
 #
 # Code deploy does not recompute role years. This gate:
 #   1) Sanity-checks BFF_API_URL for the deployment role (preview Docker vs prod host)
-#   2) Runs search-freshness doctor (compute lag + golden MY/CN floors)
+#   2) Runs search-freshness doctor (compute lag + golden availability / semantic checks)
 #   3) Optionally schedules bounded compute reingest when lag is detected
 #
 # Exit codes (aligned with scripts/search-data-freshness-doctor.ts):
 #   0 — ok
 #   2 — compute-stale rows above threshold (repair scheduled or needed)
-#   3 — golden query floor failed
+#   3 — golden query availability or semantic check failed
 #   1 — auth/request/config error
 #   4 — BFF URL misconfiguration for this role
 #
@@ -233,7 +233,7 @@ REINGEST_BATCH="${REINGEST_BATCH:-25}"
 REINGEST_SLEEP_SECS="${REINGEST_SLEEP_SECS:-8}"
 
 if [[ "$should_schedule" -eq 1 ]]; then
-  log "Scheduling cursor-paced compute reingest limit=$REINGEST_LIMIT batch=$REINGEST_BATCH (mode=any)"
+  log "Scheduling cursor-paced compute reingest limit=$REINGEST_LIMIT batch=$REINGEST_BATCH (mode=compute)"
   # Use API trigger-reingest as admin — paced to keep Convex healthy
   python3 - "$SCHEDULE_API_URL" "$WORKSPACE" "$TRENDS_AUTH_USERNAME" "$TRENDS_AUTH_PASSWORD" \
     "$REINGEST_LIMIT" "$REINGEST_BATCH" "$REINGEST_SLEEP_SECS" <<'PY' || warn "reingest schedule failed"
@@ -263,7 +263,7 @@ call_count = 0
 while remaining > 0:
     call_count += 1
     n = min(batch, remaining)
-    payload_obj = {"limit": n, "mode": "any", "dryRun": False}
+    payload_obj = {"limit": n, "mode": "compute", "dryRun": False}
     if cursor is not None:
         payload_obj["cursor"] = cursor
     payload = json.dumps(payload_obj).encode()
@@ -303,13 +303,13 @@ if scheduled_total == 0 and remaining == limit:
     sys.exit(1)
 PY
   log "Reingest scheduled (background, paced). Re-run this gate after compute settles."
-  log "Manual: trends resume debug trigger-reingest --mode any --limit $REINGEST_LIMIT --api-url $SCHEDULE_API_URL --workspace $WORKSPACE"
+  log "Manual: trends resume debug trigger-reingest --mode compute --limit $REINGEST_LIMIT --api-url $SCHEDULE_API_URL --workspace $WORKSPACE"
 fi
 
 if [[ "$DOCTOR_RC" -eq 3 ]]; then
-  err "Golden MY/CN minRoleYears floors failed — search parity is bad (often zero roleRelevantYears)."
+  err "Golden availability / semantic checks failed — sampled results are missing verified direct role evidence or fell below the expected floor."
   err "Repair: ensure BFF_API_URL reachable from Convex, then paced reingest:"
-  err "  trends resume debug trigger-reingest --mode any --limit $REINGEST_LIMIT --api-url $API_URL"
+  err "  trends resume debug trigger-reingest --mode compute --limit $REINGEST_LIMIT --api-url $API_URL"
   err "  (or re-run this gate; it schedules cursor-paced REINGEST_BATCH calls with sleep)"
   if [[ "$GATE_STRICT" == "1" ]]; then
     exit 3

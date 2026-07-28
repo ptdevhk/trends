@@ -29,6 +29,12 @@ export const INGEST_COMPUTE_EPOCH_HISTORY: readonly IngestComputeEpochReason[] =
       "Baseline: Seek EN work-history year parse + MY/Seek role-year materialization for minRoleYears digests",
     introduced: "2026-07-21",
   },
+  {
+    epoch: 2,
+    reason:
+      "Global verified-only requested-role minRoleYears + strict resume digest projection",
+    introduced: "2026-07-28",
+  },
 ] as const;
 
 /** Code-required ingest compute epoch stamped on every successful compute write. */
@@ -138,8 +144,13 @@ export const SEARCH_FRESHNESS_GOLDEN_QUERIES = [
     q: "CNC Sales",
     minRoleYears: 1,
     roleType: "sales",
-    /** Healthy MY SEEK CNC sales minRoleYears=1 corpus is ~140+; catch under-repair. */
-    minTotalFloor: 100,
+    /**
+     * Verified-only MY policy intentionally removes the fallback-only cohort.
+     * Availability floor stays at 1; semantic sampling verifies the returned
+     * rows truly carry verified direct sales evidence.
+     */
+    minTotalFloor: 1,
+    semanticSampleLimit: 10,
   },
   {
     id: "cn-cnc-sales-minRoleYears",
@@ -149,5 +160,6 @@ export const SEARCH_FRESHNESS_GOLDEN_QUERIES = [
     roleType: "sales",
     /** Healthy CN CNC sales minRoleYears=1 corpus is 250+ on full datasets. */
     minTotalFloor: 100,
+    semanticSampleLimit: 10,
   },
 ] as const;

@@ -327,46 +327,17 @@ export function getVerifiedRoleSignalYears(
 }
 
 /**
- * Scope for the minRoleYears search gate: when industry-DB coverage is thin
- * (MY market or Seek source), callers may fall back from verified years to
- * direct-role years. CN Job5156/51job stay verified-only.
- */
-export type RoleYearsGateScope = {
-  market?: string | null;
-  sourceKey?: string | null;
-  source?: string | null;
-};
-
-/**
- * True when minRoleYears may use {@link getRoleRelevantSignalYears} after
- * verified years are 0. Shared by Convex list filters, digests, BFF, API, web.
- */
-export function shouldUseRoleRelevantYearsFallback(scope: RoleYearsGateScope): boolean {
-  const market = typeof scope.market === "string" ? scope.market.trim().toUpperCase() : "";
-  if (market === "MY") {
-    return true;
-  }
-
-  return resolveResumeAnalysisSourceKey({
-    sourceKey: scope.sourceKey,
-    source: scope.source,
-  }) === "seek";
-}
-
-/**
  * Resolve years for the minRoleYears search gate for one role type (or the
  * best across all types when `roleType` is empty). Prefers precomputed
- * `verifiedRoleYears`, then industry-verified signal years, then (MY/Seek only)
- * role-relevant years.
+ * `verifiedRoleYears`, then industry-verified signal years. Never falls back
+ * to unverified role-relevant years.
  */
 export function resolveGateRoleYears(
   roleSignals: AnalysisRoleSignalLike[] | undefined,
   roleType: string | undefined,
-  scope: RoleYearsGateScope,
   verifiedRoleYears?: Record<string, number> | null,
 ): number {
   const key = typeof roleType === "string" ? roleType.trim().toLowerCase() : "";
-  const allowRoleRelevantFallback = shouldUseRoleRelevantYearsFallback(scope);
 
   if (key) {
     const stored = verifiedRoleYears?.[key];
@@ -394,9 +365,6 @@ export function resolveGateRoleYears(
     if (verifiedYears > 0) {
       return verifiedYears;
     }
-    if (allowRoleRelevantFallback) {
-      return getRoleRelevantSignalYears(roleSignals, key);
-    }
     return 0;
   }
 
@@ -413,9 +381,6 @@ export function resolveGateRoleYears(
     if (verifiedYears > maxYears) {
       return verifiedYears;
     }
-    if (allowRoleRelevantFallback) {
-      return Math.max(maxYears, getRoleRelevantSignalYears(roleSignals, signalKey));
-    }
     return maxYears;
   }, 0);
 }
@@ -424,7 +389,7 @@ export function resolveGateRoleYears(
  * Broad display/ranking variant that counts role-relevant years for the
  * requested role type. This is intentionally broader than
  * `getVerifiedRoleSignalYears` and must not be used for verified role-year
- * search gates without the MY/Seek gate helpers above.
+ * search gates.
  *
  * Precedence per signal:
  *  1. If matched work entries carry `directRoleMatch`, sum years where it is
