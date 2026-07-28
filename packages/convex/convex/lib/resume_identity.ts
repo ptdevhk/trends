@@ -167,6 +167,18 @@ function isSeekNameSearchProfileUrl(parsed: URL): boolean {
     return false;
 }
 
+// /candidates/recommended is a Seek results-list page. Without openProfileId it
+// is not a per-person identifier - every resume on the same page shares it.
+function isSeekRecommendedListUrl(parsed: URL): boolean {
+    const path = parsed.pathname.toLowerCase().replace(/\/+$/, "") || "/";
+    if (path !== "/candidates/recommended" && !path.endsWith("/candidates/recommended")) {
+        return false;
+    }
+    // With openProfileId the Seek normalizer already returns a per-person key.
+    const openProfileId = readQueryParamCaseInsensitive(parsed, "openProfileId");
+    return !openProfileId || !/^\d+$/.test(openProfileId);
+}
+
 function normalizeSeekProfileUrlForIdentity(value: string, source: string | undefined): string | null {
     const parsed = parseUrlLike(value);
     if (!parsed) {
@@ -190,6 +202,11 @@ function normalizeSeekProfileUrlForIdentity(value: string, source: string | unde
     const openProfileIdParam = readQueryParamCaseInsensitive(parsed, "openProfileId");
     if (openProfileIdParam && /^\d+$/.test(openProfileIdParam)) {
         return `${hostname}/candidates/${openProfileIdParam}`.toLowerCase();
+    }
+
+    // /candidates/recommended without openProfileId is a list page, not a person.
+    if (isSeekRecommendedListUrl(parsed)) {
+        return null;
     }
 
     // Numeric profileId: /candidates/{profileId} or /candidates/profiles/{profileId}/...
@@ -243,6 +260,10 @@ export function normalizeResumeProfileUrl(value: string, source?: string): strin
     const normalizedSource = source?.trim().toLowerCase();
     const isSeekHost = hostname.endsWith(SEEK_HOST_SUFFIX) || normalizedSource?.endsWith(SEEK_HOST_SUFFIX);
     if (isSeekHost && isSeekNameSearchProfileUrl(parsed)) {
+        return null;
+    }
+    // Seek recommended-list URLs (no openProfileId) are also non-unique.
+    if (isSeekHost && isSeekRecommendedListUrl(parsed)) {
         return null;
     }
 

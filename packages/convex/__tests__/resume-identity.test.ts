@@ -205,6 +205,29 @@ describe("deriveResumeIdentityKey", () => {
         );
         expect(first.identityKey).not.toBe(second.identityKey);
     });
+
+    it("does not use Seek /candidates/recommended list URL as identity (keeps externalIds distinct)", () => {
+        // Real capture shape: every resume on the same recommended results page
+        // shares the same profileUrl (jobId+pageNumber only, no openProfileId).
+        const sharedRecommendedUrl =
+            "https://hk.employer.seek.com/candidates/recommended?jobId=93388470&pageNumber=1";
+        const first = deriveResumeIdentity({
+            externalId: "hk.employer.seek.com:recommended:dom-93388470-1-1",
+            source: "hk.employer.seek.com",
+            content: { profileUrl: sharedRecommendedUrl },
+        });
+        const second = deriveResumeIdentity({
+            externalId: "hk.employer.seek.com:recommended:dom-93388470-1-2",
+            source: "hk.employer.seek.com",
+            content: { profileUrl: sharedRecommendedUrl },
+        });
+
+        expect(first.source).toBe("externalId");
+        expect(second.source).toBe("externalId");
+        expect(first.identityKey).toBe("externalId:hk.employer.seek.com:recommended:dom-93388470-1-1");
+        expect(second.identityKey).toBe("externalId:hk.employer.seek.com:recommended:dom-93388470-1-2");
+        expect(first.identityKey).not.toBe(second.identityKey);
+    });
 });
 
 // ---------------------------------------------------------------------------
