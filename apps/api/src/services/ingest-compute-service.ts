@@ -21,6 +21,7 @@ import {
 } from "@trends/shared";
 
 import { IndustryDataService } from "./industry-data-service.js";
+import { IndustryVerificationService } from "./industry-verification-service.js";
 import { logger } from "./logger.js";
 import { normalizeCompanyPatternIdentifier, SkillsKnowledgeService } from "./skills-knowledge.js";
 import { JobDescriptionService } from "./job-description-service.js";
@@ -458,6 +459,7 @@ export class IngestComputeService {
   private readonly skillsKnowledgeService: SkillsKnowledgeService;
   private readonly jobDescriptionService: JobDescriptionService;
   private readonly industryDataService: IndustryDataService;
+  private readonly industryVerificationService: IndustryVerificationService;
   private readonly projectRoot?: string;
   private brandMetaLookup: Map<string, { origin: BrandOrigin; productClass: ProductClass }> | null = null;
 
@@ -467,6 +469,7 @@ export class IngestComputeService {
     this.skillsKnowledgeService = new SkillsKnowledgeService(projectRoot);
     this.jobDescriptionService = new JobDescriptionService(projectRoot);
     this.industryDataService = new IndustryDataService(projectRoot);
+    this.industryVerificationService = new IndustryVerificationService(this.industryDataService);
   }
 
   /**
@@ -749,7 +752,11 @@ export class IngestComputeService {
 
       const companyName = normalizedEntry?.companyName || extractCompanyFromWorkHistory(entry) || undefined;
       const jobTitle = normalizedEntry?.jobTitle || undefined;
-      const industryVerification = this.industryDataService.verifyCompanyIndustry(companyName || "");
+      const industryVerdict = this.industryVerificationService.resolveVerdict(
+        companyName,
+        workHistoryText,
+      );
+      const industryVerified = industryVerdict.verdict === "verified";
 
       for (const [roleType, signals] of Object.entries(roleSignalLibrary)) {
         const matchedSignals = this.resolveRoleSignalMatches(entry, workHistoryText, signals);
@@ -823,7 +830,7 @@ export class IngestComputeService {
           existing.roleRelevantYears += years;
         }
 
-        if (industryVerification.verified) {
+        if (industryVerified) {
           existing.industryVerifiedYears += years;
           if (directRoleMatch) {
             existing.industryVerifiedRelevantYears += years;
@@ -834,7 +841,7 @@ export class IngestComputeService {
           companyName,
           jobTitle,
           years,
-          industryVerified: industryVerification.verified,
+          industryVerified,
           matchedSignals: matchedSignals.map((signal) => signal.label),
           directRoleMatch,
         });
