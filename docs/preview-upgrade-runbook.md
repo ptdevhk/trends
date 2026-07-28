@@ -16,7 +16,8 @@ Complete, operator-facing runbook for refreshing the **preview** site on `ptclou
 
 **Code upgrade ≠ search freshness (non-negotiable):**
 
-- App version bumps and `preview-upgrade.sh` refresh **code only**. They do **not** recompute `roleRelevantYears` / digests for every resume.
+- App version bumps and `preview-upgrade.sh` refresh **code only**. They do
+  **not** recompute verified role years / resume digests for every resume.
 
 ## Historical backup replay: exact v0.4.6 baseline to exact v0.4.22
 
@@ -88,7 +89,9 @@ Current-production parity is informational only for historical verification.
 - After every preview (and production) upgrade, run the search-freshness gate:
   - `bash deploy/search-freshness-gate.sh --role preview --api-url http://127.0.0.1:3002`
   - or `make doctor-search-freshness` (local) / doctor `--full` on preview
-- Exit **3** = golden MY/CN `minRoleYears` floors failed (often zero years on Seek MY). Repair with bounded reingest, not another version bump:
+- Exit **3** = verified-only golden MY/CN `minRoleYears` availability or
+  semantic checks failed. Treat this as a data/parity problem, not as a reason
+  to do another version bump:
   - `trends resume debug trigger-reingest --mode any --limit 200 --api-url http://127.0.0.1:3002`
 - Production equivalent: `bash deploy/search-freshness-gate.sh --role production --api-url http://127.0.0.1:3000` (hooked into `scripts/install.sh` full upgrade).
 
@@ -639,13 +642,13 @@ bash "$PREVIEW_DIR/deploy/preview-doctor.sh" --full
 # Optional recovery (preview only):
 # bash "$PREVIEW_DIR/deploy/preview-doctor.sh" --recover --full
 
-# Code upgrade ≠ computed role years. Gate golden MY/CN floors + compute lag:
+# Code upgrade ≠ computed verified role years. Gate golden MY/CN checks + compute lag:
 bash "$PREVIEW_DIR/deploy/search-freshness-gate.sh" --role preview --api-url http://127.0.0.1:3002
 
 # Convex (Docker) must reach host BFF — never container localhost:3000:
 #   BFF_API_URL=https://preview.pt-mes.com in .env.preview
 #   PREVIEW_DIR=... bash deploy/sync-preview-convex-env.sh --sync-only
-# Repair lag / zero roleRelevantYears:
+# Repair lag / stale verified-role projections:
 #   trends resume debug trigger-reingest --mode any --limit 200 --api-url http://127.0.0.1:3002
 ```
 

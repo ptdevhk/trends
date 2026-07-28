@@ -224,7 +224,7 @@ describe("bffMatchesResumeFilters — minRoleYears", () => {
     expect(bffMatchesResumeFilters(doc, BASE_TEXT, { minRoleYears: 3 })).toBe(true);
   });
 
-  it("MY Seek talentsearch rows pass minRoleYears via direct-role years without industry verify", () => {
+  it("MY Seek direct-role-only rows fail minRoleYears without verified years", () => {
     const doc = makeDoc({
       source: "hk.employer.seek.com",
       sourceKey: "seek",
@@ -249,8 +249,57 @@ describe("bffMatchesResumeFilters — minRoleYears", () => {
         }],
       },
     });
-    expect(bffMatchesResumeFilters(doc, BASE_TEXT, { minRoleYears: 1 })).toBe(true);
-    expect(bffMatchesResumeFilters(doc, BASE_TEXT, { roleFilterType: "sales", minRoleYears: 1 })).toBe(true);
+    expect(bffMatchesResumeFilters(doc, BASE_TEXT, { minRoleYears: 1 })).toBe(false);
+    expect(bffMatchesResumeFilters(doc, BASE_TEXT, { roleFilterType: "sales", minRoleYears: 1 })).toBe(false);
+  });
+
+  it("does not let verified engineer years satisfy a sales gate", () => {
+    const doc = makeDoc({
+      source: "hk.employer.seek.com",
+      sourceKey: "seek",
+      ingestData: {
+        market: "MY",
+        verifiedRoleYears: { engineer: 4 },
+        roleSignals: [{
+          type: "sales",
+          signalCount: 1,
+          occurrences: 1,
+          years: 4,
+          roleRelevantYears: 4,
+          industryVerifiedRelevantYears: 0,
+          industryVerifiedYears: 0,
+          matchedSignals: ["Sales Manager"],
+          matchedWorkEntries: [{
+            jobTitle: "Sales Manager",
+            years: 4,
+            industryVerified: false,
+            directRoleMatch: true,
+            matchedSignals: ["Sales Manager"],
+          }],
+          verifyIn: "workHistory",
+        }, {
+          type: "engineer",
+          signalCount: 1,
+          occurrences: 1,
+          years: 4,
+          roleRelevantYears: 4,
+          industryVerifiedRelevantYears: 4,
+          industryVerifiedYears: 4,
+          matchedSignals: ["Application Engineer"],
+          matchedWorkEntries: [{
+            jobTitle: "Application Engineer",
+            years: 4,
+            industryVerified: true,
+            directRoleMatch: true,
+            matchedSignals: ["Application Engineer"],
+          }],
+          verifyIn: "workHistory",
+        }],
+      },
+    });
+
+    expect(bffMatchesResumeFilters(doc, BASE_TEXT, { roleFilterType: "sales", minRoleYears: 1 })).toBe(false);
+    expect(bffMatchesResumeFilters(doc, BASE_TEXT, { roleFilterType: "engineer", minRoleYears: 1 })).toBe(true);
   });
 });
 

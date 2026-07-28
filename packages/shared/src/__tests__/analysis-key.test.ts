@@ -6,7 +6,6 @@ import {
   isSalesRequiredContext,
   resolveGateRoleYears,
   resolveResumeDiagnosticsSourceKey,
-  shouldUseRoleRelevantYearsFallback,
 } from "../analysis-key";
 
 describe("isSalesRequiredContext", () => {
@@ -157,7 +156,7 @@ describe("getRoleRelevantSignalYears", () => {
   });
 });
 
-describe("shouldUseRoleRelevantYearsFallback / resolveGateRoleYears", () => {
+describe("resolveGateRoleYears", () => {
   const directSalesSignals = [
     {
       type: "sales",
@@ -175,27 +174,65 @@ describe("shouldUseRoleRelevantYearsFallback / resolveGateRoleYears", () => {
     },
   ];
 
-  it("enables role-relevant fallback for MY market or Seek source", () => {
-    expect(shouldUseRoleRelevantYearsFallback({ market: "MY" })).toBe(true);
-    expect(shouldUseRoleRelevantYearsFallback({ sourceKey: "seek" })).toBe(true);
-    expect(shouldUseRoleRelevantYearsFallback({ source: "hk.employer.seek.com" })).toBe(true);
-    expect(shouldUseRoleRelevantYearsFallback({ market: "CN", sourceKey: "job5156" })).toBe(false);
-  });
-
-  it("uses direct-role years for MY/Seek when verified years are 0", () => {
-    expect(resolveGateRoleYears(directSalesSignals, "sales", { market: "MY" }, {})).toBe(5.5);
-    expect(resolveGateRoleYears(directSalesSignals, "sales", { sourceKey: "seek" }, {})).toBe(5.5);
-  });
-
-  it("keeps CN verified-only when industry verify is 0", () => {
-    expect(
-      resolveGateRoleYears(directSalesSignals, "sales", { market: "CN", sourceKey: "job5156" }, {}),
-    ).toBe(0);
+  it("does not fall back to unverified direct-role years for MY or Seek", () => {
+    expect(resolveGateRoleYears(directSalesSignals, "sales", {})).toBe(0);
+    expect(resolveGateRoleYears(directSalesSignals, "sales", { sales: 0 })).toBe(0);
   });
 
   it("prefers precomputed verifiedRoleYears when present", () => {
-    expect(
-      resolveGateRoleYears(directSalesSignals, "sales", { market: "MY" }, { sales: 3 }),
-    ).toBe(3);
+    expect(resolveGateRoleYears(directSalesSignals, "sales", { sales: 3 })).toBe(3);
+  });
+
+  it("returns the maximum verified years when roleType is empty", () => {
+    expect(resolveGateRoleYears([
+      {
+        type: "sales",
+        years: 2,
+        industryVerifiedRelevantYears: 2,
+        industryVerifiedYears: 2,
+      },
+      {
+        type: "engineer",
+        years: 4,
+        industryVerifiedRelevantYears: 4,
+        industryVerifiedYears: 4,
+      },
+    ], undefined, {})).toBe(4);
+  });
+
+  it("keeps verified years isolated by requested role type", () => {
+    const mixedSignals = [
+      {
+        type: "sales",
+        years: 5.5,
+        roleRelevantYears: 5.5,
+        industryVerifiedRelevantYears: 0,
+        industryVerifiedYears: 0,
+        matchedWorkEntries: [
+          {
+            years: 5.5,
+            directRoleMatch: true,
+            industryVerified: false,
+          },
+        ],
+      },
+      {
+        type: "engineer",
+        years: 7,
+        industryVerifiedRelevantYears: 7,
+        industryVerifiedYears: 7,
+        matchedWorkEntries: [
+          {
+            years: 7,
+            directRoleMatch: true,
+            industryVerified: true,
+          },
+        ],
+      },
+    ];
+
+    expect(resolveGateRoleYears(mixedSignals, "sales", {})).toBe(0);
+    expect(resolveGateRoleYears(mixedSignals, "engineer", {})).toBe(7);
+    expect(resolveGateRoleYears(mixedSignals, undefined, {})).toBe(7);
   });
 });

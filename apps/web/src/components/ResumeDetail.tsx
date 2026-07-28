@@ -58,9 +58,26 @@ function matchesStructuredWorkEntry(
   const candidateCompany = normalizeEvidenceValue(workEntry.companyName)
   const candidateJobTitle = normalizeEvidenceValue(workEntry.jobTitle)
 
-  const companyMatches = normalizedCompany && candidateCompany && normalizedCompany === candidateCompany
-  const titleMatches = normalizedJobTitle && candidateJobTitle && normalizedJobTitle === candidateJobTitle
-  return Boolean(companyMatches || titleMatches)
+  const hasCompanyOnBothSides = normalizedCompany.length > 0 && candidateCompany.length > 0
+  const hasTitleOnBothSides = normalizedJobTitle.length > 0 && candidateJobTitle.length > 0
+
+  if (hasCompanyOnBothSides && normalizedCompany !== candidateCompany) {
+    return false
+  }
+
+  if (hasCompanyOnBothSides && hasTitleOnBothSides) {
+    return normalizedJobTitle === candidateJobTitle
+  }
+
+  if (hasCompanyOnBothSides) {
+    return true
+  }
+
+  if (hasTitleOnBothSides) {
+    return normalizedJobTitle === candidateJobTitle
+  }
+
+  return false
 }
 
 function shouldRenderResumeDetailWorkHistoryEntry(

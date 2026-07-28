@@ -116,16 +116,11 @@ export function hasMatchingRoleSignal(resume: Pick<ConvexResumeItem, 'ingestData
   return roleSignals.some((signal) => normalizeFilterToken(signal.type) === normalizedRoleType)
 }
 
-/** minRoleYears gate years — shared MY/Seek fallback via resolveGateRoleYears. */
+/** minRoleYears gate years — verified-only shared resolver. */
 export function getRoleYears(resume: RoleYearsResume, roleType: string): number {
   return resolveGateRoleYears(
     resume.ingestData?.roleSignals,
     roleType,
-    {
-      market: resume.ingestData?.market,
-      sourceKey: resume.sourceKey,
-      source: resume.source,
-    },
     resume.ingestData?.verifiedRoleYears,
   )
 }

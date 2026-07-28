@@ -243,7 +243,7 @@ describe("matchesResumeListFilters", () => {
     expect(matchesResumeListFilters(resume, { roleFilterType: "sales", minRoleYears: 1 })).toBe(false);
   });
 
-  it("MY Seek talentsearch resumes pass minRoleYears via direct-role years without industry verify", () => {
+  it("MY Seek direct-role-only resumes still fail minRoleYears without verified years", () => {
     const resume = makeResume({
       source: "hk.employer.seek.com",
       sourceKey: "seek",
@@ -276,12 +276,56 @@ describe("matchesResumeListFilters", () => {
       },
     }) as Parameters<typeof matchesResumeListFilters>[0];
 
-    // Talent-search profile filter: minRoleYears only (no roleFilterType on YAML)
-    expect(matchesResumeListFilters(resume, { minRoleYears: 1 })).toBe(true);
-    expect(matchesResumeListFilters(resume, { roleFilterType: "sales", minRoleYears: 1 })).toBe(true);
+    expect(matchesResumeListFilters(resume, { minRoleYears: 1 })).toBe(false);
+    expect(matchesResumeListFilters(resume, { roleFilterType: "sales", minRoleYears: 1 })).toBe(false);
     // Still project market for UI
     const projected = projectResumeListDoc(resume as any);
     expect(projected.ingestData?.market).toBe("MY");
+  });
+
+  it("keeps verified engineer years from satisfying a sales gate", () => {
+    const resume = makeResume({
+      source: "hk.employer.seek.com",
+      sourceKey: "seek",
+      ingestData: {
+        market: "MY",
+        verifiedRoleYears: { engineer: 4 },
+        roleSignals: [{
+          type: "sales",
+          signalCount: 1,
+          years: 4,
+          roleRelevantYears: 4,
+          industryVerifiedRelevantYears: 0,
+          industryVerifiedYears: 0,
+          matchedSignals: ["Sales Manager"],
+          matchedWorkEntries: [{
+            jobTitle: "Sales Manager",
+            years: 4,
+            industryVerified: false,
+            directRoleMatch: true,
+            matchedSignals: ["Sales Manager"],
+          }],
+        }, {
+          type: "engineer",
+          signalCount: 1,
+          years: 4,
+          roleRelevantYears: 4,
+          industryVerifiedRelevantYears: 4,
+          industryVerifiedYears: 4,
+          matchedSignals: ["Application Engineer"],
+          matchedWorkEntries: [{
+            jobTitle: "Application Engineer",
+            years: 4,
+            industryVerified: true,
+            directRoleMatch: true,
+            matchedSignals: ["Application Engineer"],
+          }],
+        }],
+      },
+    }) as Parameters<typeof matchesResumeListFilters>[0];
+
+    expect(matchesResumeListFilters(resume, { roleFilterType: "sales", minRoleYears: 1 })).toBe(false);
+    expect(matchesResumeListFilters(resume, { roleFilterType: "engineer", minRoleYears: 1 })).toBe(true);
   });
 
   it("CN resumes still require industry-verified years for minRoleYears", () => {
@@ -391,7 +435,7 @@ describe("buildResumeDigest", () => {
     expect(digest.roleYearsByType).toEqual({});
   });
 
-  it("MY Seek digests store direct-role years when industry verify is 0 (minRoleYears=1 path)", () => {
+  it("MY Seek digests do not store direct-role fallback years when industry verify is 0", () => {
     const resume = makeResume({
       source: "hk.employer.seek.com",
       sourceKey: "seek",
@@ -422,10 +466,9 @@ describe("buildResumeDigest", () => {
     const digest = buildResumeDigest(resume, Date.UTC(2026, 5, 4));
 
     expect(digest.roleTypes).toEqual(["sales"]);
-    expect(digest.roleYearsByType).toEqual({ sales: 5.5 });
-    // Digest filter used by Convex list path (live search gate)
-    expect(matchesResumeDigestFilters(digest as any, { minRoleYears: 1, roleFilterType: "sales" })).toBe(true);
-    expect(matchesResumeDigestFilters(digest as any, { minRoleYears: 1 })).toBe(true);
+    expect(digest.roleYearsByType).toEqual({});
+    expect(matchesResumeDigestFilters(digest as any, { minRoleYears: 1, roleFilterType: "sales" })).toBe(false);
+    expect(matchesResumeDigestFilters(digest as any, { minRoleYears: 1 })).toBe(false);
   });
 });
 

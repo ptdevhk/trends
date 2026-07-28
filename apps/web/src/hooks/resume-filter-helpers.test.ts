@@ -311,7 +311,7 @@ describe('getRoleYears', () => {
     expect(getRoleYears(resume, 'sales')).toBe(0)
   })
 
-  it('MY Seek talentsearch: counts direct-role years when industry verify is 0 (minRoleYears=1 path)', () => {
+  it('does not count MY Seek direct-role years when industry verify is 0', () => {
     const resume = makeResume([{
       type: 'sales',
       years: 5.5,
@@ -322,12 +322,11 @@ describe('getRoleYears', () => {
         { years: 5.5, directRoleMatch: true, industryVerified: false, matchedSignals: ['Sales Manager'] },
       ],
     }], {}, { market: 'MY', source: 'hk.employer.seek.com', sourceKey: 'seek' })
-    expect(getRoleYears(resume, 'sales')).toBe(5.5)
-    // Empty roleType (URL minRoleYears without roleType) still uses best relevant years on MY
-    expect(getRoleYears(resume, '')).toBe(5.5)
+    expect(getRoleYears(resume, 'sales')).toBe(0)
+    expect(getRoleYears(resume, '')).toBe(0)
   })
 
-  it('Seek sourceKey alone triggers role-relevant fallback even without market field', () => {
+  it('does not use Seek sourceKey alone to enable unverified fallback', () => {
     const resume = makeResume([{
       type: 'sales',
       years: 3,
@@ -337,7 +336,7 @@ describe('getRoleYears', () => {
         { years: 3, directRoleMatch: true, industryVerified: false, matchedSignals: ['Sales Engineer'] },
       ],
     }], undefined, { source: 'my.employer.seek.com', sourceKey: 'seek' })
-    expect(getRoleYears(resume, 'sales')).toBe(3)
+    expect(getRoleYears(resume, 'sales')).toBe(0)
   })
 
   it('does not count non-direct sales work-history mentions', () => {
@@ -378,6 +377,32 @@ describe('getRoleYears', () => {
       { type: 'engineer', years: 8, industryVerifiedRelevantYears: 8 },
     ])
     expect(getRoleYears(resume, '')).toBe(8)
+  })
+
+  it('keeps verified years isolated by requested role type', () => {
+    const resume = makeResume([
+      {
+        type: 'sales',
+        years: 5.5,
+        roleRelevantYears: 5.5,
+        industryVerifiedRelevantYears: 0,
+        matchedWorkEntries: [
+          { years: 5.5, directRoleMatch: true, industryVerified: false, matchedSignals: ['Sales Manager'] },
+        ],
+      },
+      {
+        type: 'engineer',
+        years: 4,
+        industryVerifiedRelevantYears: 4,
+        matchedWorkEntries: [
+          { years: 4, directRoleMatch: true, industryVerified: true, matchedSignals: ['Application Engineer'] },
+        ],
+      },
+    ], { engineer: 4 }, { market: 'MY', source: 'hk.employer.seek.com', sourceKey: 'seek' })
+
+    expect(getRoleYears(resume, 'sales')).toBe(0)
+    expect(getRoleYears(resume, 'engineer')).toBe(4)
+    expect(getRoleYears(resume, '')).toBe(4)
   })
 
   it('is case-insensitive for roleType matching', () => {

@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -212,5 +212,116 @@ describe('ResumeDetail latest work history', () => {
     expect(screen.getByTestId('resume-detail-breakdown-grid').className).toContain('grid-cols-2')
     expect(screen.getByTestId('resume-detail-breakdown-grid').className).toContain('md:grid-cols-3')
     expect(screen.getByTestId('resume-detail-breakdown-grid').className).toContain('xl:grid-cols-5')
+  })
+
+  it('keeps repeated-title work-history evidence attached to the correct employer', () => {
+    render(
+      <ResumeDetail
+        open
+        onOpenChange={vi.fn()}
+        resume={{
+          name: 'Nicole Lim',
+          profileUrl: 'https://example.com/nicole-lim',
+          activityStatus: 'Active',
+          age: '31',
+          experience: '8 years',
+          education: 'Bachelor',
+          location: 'Malaysia',
+          selfIntro: '',
+          jobIntention: 'Sales Manager',
+          expectedSalary: '12k-18k',
+          workHistory: [
+            { companyName: 'TERRAN LLC.', jobTitle: 'Sales Manager', startDate: '2019-01', endDate: '2020-06', raw: 'TERRAN LLC. Sales Manager' },
+            { companyName: 'Symmetry Medical Malaysia Sdn. Bhd.', jobTitle: 'Sales Manager', startDate: '2020-07', endDate: '2022-08', raw: 'Symmetry Medical Malaysia Sdn. Bhd. Sales Manager' },
+            { companyName: 'CNC Mechatronics Sdn. Bhd.', jobTitle: 'Sales Manager', startDate: '2022-09', endDate: '至今', raw: 'CNC Mechatronics Sdn. Bhd. Sales Manager' },
+          ],
+          ingestData: {
+            evidenceText: '',
+            industryTags: ['machine tools'],
+            synonymHits: ['cnc'],
+            brandHits: [],
+            companyHits: ['CNC Mechatronics Sdn. Bhd.'],
+            industryDbV2Raw: 10,
+            experienceLevel: 'mid',
+            computedAt: 1,
+            skillsVersion: 1,
+            ruleScores: {},
+            verifiedRoleYears: { sales: 5.4 },
+            roleSignals: [
+              {
+                type: 'sales',
+                matchedSignals: ['sales'],
+                signalCount: 3,
+                occurrences: 3,
+                years: 9.1,
+                roleRelevantYears: 9.1,
+                industryVerifiedYears: 5.4,
+                industryVerifiedRelevantYears: 5.4,
+                verifyIn: 'workHistory',
+                matchedWorkEntries: [
+                  {
+                    companyName: 'TERRAN LLC.',
+                    jobTitle: 'Sales Manager',
+                    years: 1.5,
+                    industryVerified: false,
+                    directRoleMatch: true,
+                    matchedSignals: ['TERRAN-SALES'],
+                  },
+                  {
+                    companyName: 'Symmetry Medical Malaysia Sdn. Bhd.',
+                    jobTitle: 'Sales Manager',
+                    years: 2.2,
+                    industryVerified: false,
+                    directRoleMatch: true,
+                    matchedSignals: ['SYMMETRY-SALES'],
+                  },
+                  {
+                    companyName: 'CNC Mechatronics Sdn. Bhd.',
+                    jobTitle: 'Sales Manager',
+                    years: 5.4,
+                    industryVerified: true,
+                    directRoleMatch: true,
+                    matchedSignals: ['CNC-SALES'],
+                  },
+                ],
+              },
+            ],
+          },
+          extractedAt: '2026-03-13T00:00:00.000Z',
+        }}
+      />,
+    )
+
+    const terranCard = screen.getByText('TERRAN LLC. · Sales Manager').closest('li')
+    const symmetryCard = screen.getByText('Symmetry Medical Malaysia Sdn. Bhd. · Sales Manager').closest('li')
+    const cncCard = screen.getByText('CNC Mechatronics Sdn. Bhd. · Sales Manager').closest('li')
+
+    expect(terranCard).not.toBeNull()
+    expect(symmetryCard).not.toBeNull()
+    expect(cncCard).not.toBeNull()
+
+    const terran = within(terranCard!)
+    const symmetry = within(symmetryCard!)
+    const cnc = within(cncCard!)
+
+    expect(terran.getByText('TERRAN-SALES')).toBeInTheDocument()
+    expect(terran.queryByText('SYMMETRY-SALES')).not.toBeInTheDocument()
+    expect(terran.queryByText('CNC-SALES')).not.toBeInTheDocument()
+    expect(terran.queryByText('Industry verified')).not.toBeInTheDocument()
+    expect(terran.getByText(/1\.5/)).toBeInTheDocument()
+    expect(terran.queryByText(/5\.4/)).not.toBeInTheDocument()
+
+    expect(symmetry.getByText('SYMMETRY-SALES')).toBeInTheDocument()
+    expect(symmetry.queryByText('TERRAN-SALES')).not.toBeInTheDocument()
+    expect(symmetry.queryByText('CNC-SALES')).not.toBeInTheDocument()
+    expect(symmetry.queryByText('Industry verified')).not.toBeInTheDocument()
+    expect(symmetry.getByText(/2\.2/)).toBeInTheDocument()
+    expect(symmetry.queryByText(/5\.4/)).not.toBeInTheDocument()
+
+    expect(cnc.getByText('CNC-SALES')).toBeInTheDocument()
+    expect(cnc.queryByText('TERRAN-SALES')).not.toBeInTheDocument()
+    expect(cnc.queryByText('SYMMETRY-SALES')).not.toBeInTheDocument()
+    expect(cnc.getByText('Industry verified')).toBeInTheDocument()
+    expect(cnc.getByText(/5\.4/)).toBeInTheDocument()
   })
 })

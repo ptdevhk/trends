@@ -3,7 +3,13 @@ import { callConvexMutation, callConvexQuery, isConvexPaginatedQueryPage } from 
 import { SkillsKnowledgeService } from "../services/skills-knowledge.js";
 import { config } from "../services/config.js";
 import { logger } from "../services/logger.js";
-import { CURRENT_INGEST_COMPUTE_EPOCH, resolveResumeDiagnosticsSourceKey } from "@trends/shared";
+import {
+  CURRENT_INGEST_COMPUTE_EPOCH,
+  resolveGateRoleYears,
+  resolveResumeDiagnosticsSourceKey,
+  type AnalysisMatchedWorkEntryLike,
+  type AnalysisRoleSignalLike,
+} from "@trends/shared";
 import {
   AnalysisTasksResponseSchema,
   AnalysisTaskCancelResponseSchema,
@@ -74,12 +80,15 @@ const SearchFreshnessResponseSchema = z.object({
     roleType: z.string().optional(),
     minTotalFloor: z.number(),
     total: z.number().nullable(),
+    checkedCount: z.number().int(),
+    semanticFailures: z.number().int(),
     ok: z.boolean().nullable(),
     error: z.string().optional(),
   })),
   /**
    * Non-zero when: lag scan failed (2), compute-stale above threshold (2),
-   * or a golden floor fails while API is up (3). Golden takes priority over 2.
+   * or a golden availability / semantic check fails while API is up (3).
+   * Golden takes priority over 2.
    */
   exitCodeHint: z.number().int(),
   messages: z.array(z.string()),
@@ -216,6 +225,116 @@ function normalizeResumeDiagnosticsSourceKeys(values: string[] | undefined): str
   ));
 
   return resolved.length > 0 ? resolved : undefined;
+}
+
+function resolveRequestOrigin(requestUrl: string, headers: { get(name: string): string | undefined }): string | undefined {
+  const forwardedHost = headers.get("x-forwarded-host")?.split(",")[0]?.trim();
+  const forwardedProto = headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  const host = forwardedHost || headers.get("host")?.trim();
+
+  if (host) {
+    const protocol = forwardedProto
+      || (() => {
+        try {
+          return new URL(requestUrl).protocol.replace(/:$/, "");
+        } catch {
+          return "http";
+        }
+      })();
+    return `${protocol}://${host}`;
+  }
+
+  try {
+    return new URL(requestUrl).origin;
+  } catch {
+    return undefined;
+  }
+}
+
+function normalizeFiniteNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function normalizeGoldenQueryMatchedWorkEntry(value: unknown): AnalysisMatchedWorkEntryLike | undefined {
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+
+  const record = value as Record<string, unknown>;
+  return {
+    years: normalizeFiniteNumber(record.years),
+    directRoleMatch: typeof record.directRoleMatch === "boolean" ? record.directRoleMatch : undefined,
+    industryVerified: typeof record.industryVerified === "boolean" ? record.industryVerified : undefined,
+  };
+}
+
+function normalizeGoldenQueryRoleSignal(value: unknown): AnalysisRoleSignalLike | undefined {
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+
+  const record = value as Record<string, unknown>;
+  if (typeof record.type !== "string" || record.type.trim().length === 0) {
+    return undefined;
+  }
+
+  const matchedWorkEntries = Array.isArray(record.matchedWorkEntries)
+    ? record.matchedWorkEntries
+        .map((entry) => normalizeGoldenQueryMatchedWorkEntry(entry))
+        .filter((entry): entry is AnalysisMatchedWorkEntryLike => entry !== undefined)
+    : undefined;
+
+  return {
+    type: record.type,
+    verifyIn: typeof record.verifyIn === "string" ? record.verifyIn : undefined,
+    years: normalizeFiniteNumber(record.years),
+    roleRelevantYears: normalizeFiniteNumber(record.roleRelevantYears),
+    industryVerifiedYears: normalizeFiniteNumber(record.industryVerifiedYears),
+    industryVerifiedRelevantYears: normalizeFiniteNumber(record.industryVerifiedRelevantYears),
+    matchedWorkEntries,
+  };
+}
+
+function normalizeGoldenQueryVerifiedRoleYears(value: unknown): Record<string, number> | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const normalized: Record<string, number> = {};
+  for (const [key, rawValue] of Object.entries(value)) {
+    const years = normalizeFiniteNumber(rawValue);
+    const normalizedKey = key.trim().toLowerCase();
+    if (!normalizedKey || years === undefined) {
+      continue;
+    }
+    normalized[normalizedKey] = years;
+  }
+
+  return normalized;
+}
+
+function resolveGoldenQueryRoleYears(
+  row: unknown,
+  roleType: string | undefined,
+): number {
+  if (!row || typeof row !== "object") {
+    return 0;
+  }
+
+  const ingestData = (row as { ingestData?: unknown }).ingestData;
+  if (!ingestData || typeof ingestData !== "object") {
+    return 0;
+  }
+
+  const record = ingestData as Record<string, unknown>;
+  const roleSignals = Array.isArray(record.roleSignals)
+    ? record.roleSignals
+        .map((signal) => normalizeGoldenQueryRoleSignal(signal))
+        .filter((signal): signal is AnalysisRoleSignalLike => signal !== undefined)
+    : undefined;
+  const verifiedRoleYears = normalizeGoldenQueryVerifiedRoleYears(record.verifiedRoleYears);
+
+  return resolveGateRoleYears(roleSignals, roleType, verifiedRoleYears);
 }
 
 const listAnalysisTasksRoute = createRoute({
@@ -588,7 +707,7 @@ app.openapi(getSearchFreshnessRoute, async (c) => {
     const { triggerReingestStaleSkillsVersion } = await import("./resumes.js");
     const dry = await triggerReingestStaleSkillsVersion({
       limit: scanLimit ?? 200,
-      mode: "any",
+      mode: "compute",
       dryRun: true,
     });
     lag = {
@@ -619,6 +738,8 @@ app.openapi(getSearchFreshnessRoute, async (c) => {
     roleType?: string;
     minTotalFloor: number;
     total: number | null;
+    checkedCount: number;
+    semanticFailures: number;
     ok: boolean | null;
     error?: string;
   }> = [];
@@ -627,20 +748,25 @@ app.openapi(getSearchFreshnessRoute, async (c) => {
   if (skipGolden === true) {
     messages.push("golden queries skipped (skipGolden=true)");
   } else {
+    const requestOrigin = resolveRequestOrigin(c.req.url, {
+      get: (name: string) => c.req.header(name) ?? undefined,
+    });
     for (const g of SEARCH_FRESHNESS_GOLDEN_QUERIES) {
       const params = new URLSearchParams({
         source: "convex",
         location: g.location,
         q: g.q,
         minRoleYears: String(g.minRoleYears),
-        limit: "1",
+        limit: String(g.semanticSampleLimit),
       });
       if (g.roleType) {
         params.set("roleType", g.roleType);
       }
       try {
-        // Internal call through same app — use full URL if available, else relative via c.env
-        const base = process.env.BFF_API_URL || process.env.API_URL || "http://127.0.0.1:3000";
+        // Internal call through the same authenticated BFF surface when possible.
+        // Request origin comes first so attended local worktree stacks do not
+        // accidentally probe another checkout's API on a default port.
+        const base = process.env.BFF_API_URL || process.env.API_URL || requestOrigin || "http://127.0.0.1:3000";
         const cookie = c.req.header("cookie") || "";
         const response = await fetch(`${base.replace(/\/$/, "")}/api/resumes?${params}`, {
           headers: {
@@ -658,6 +784,8 @@ app.openapi(getSearchFreshnessRoute, async (c) => {
             roleType: g.roleType,
             minTotalFloor: g.minTotalFloor,
             total: null,
+            checkedCount: 0,
+            semanticFailures: 0,
             ok: null,
             error: `HTTP ${response.status}`,
           });
@@ -666,6 +794,7 @@ app.openapi(getSearchFreshnessRoute, async (c) => {
         const body = await response.json() as {
           success?: boolean;
           summary?: { total?: number };
+          data?: unknown[];
           error?: string;
         };
         if (!body.success) {
@@ -677,16 +806,31 @@ app.openapi(getSearchFreshnessRoute, async (c) => {
             roleType: g.roleType,
             minTotalFloor: g.minTotalFloor,
             total: null,
+            checkedCount: 0,
+            semanticFailures: 0,
             ok: null,
             error: body.error || "search failed",
           });
           continue;
         }
         const total = typeof body.summary?.total === "number" ? body.summary.total : 0;
-        const ok = total >= g.minTotalFloor;
-        if (!ok) {
+        const sampledRows = Array.isArray(body.data) ? body.data : [];
+        const checkedCount = sampledRows.length;
+        const semanticFailures = sampledRows.reduce<number>((count, row) => (
+          resolveGoldenQueryRoleYears(row, g.roleType) >= g.minRoleYears ? count : count + 1
+        ), 0);
+        const availabilityOk = total >= g.minTotalFloor;
+        const semanticOk = checkedCount > 0 && semanticFailures === 0;
+        const ok = availabilityOk && semanticOk;
+        if (!availabilityOk) {
           messages.push(
             `golden ${g.id} total=${total} below floor ${g.minTotalFloor}`,
+          );
+        } else if (checkedCount === 0) {
+          messages.push(`golden ${g.id} returned no auditable rows`);
+        } else if (semanticFailures > 0) {
+          messages.push(
+            `golden ${g.id} semantic failures=${semanticFailures}/${checkedCount}; sampled rows missed verified direct ${g.roleType ?? "role"} evidence`,
           );
         }
         goldenQueries.push({
@@ -697,6 +841,8 @@ app.openapi(getSearchFreshnessRoute, async (c) => {
           roleType: g.roleType,
           minTotalFloor: g.minTotalFloor,
           total,
+          checkedCount,
+          semanticFailures,
           ok,
         });
       } catch (error) {
@@ -710,6 +856,8 @@ app.openapi(getSearchFreshnessRoute, async (c) => {
           roleType: g.roleType,
           minTotalFloor: g.minTotalFloor,
           total: null,
+          checkedCount: 0,
+          semanticFailures: 0,
           ok: null,
           error: message,
         });
@@ -730,7 +878,7 @@ app.openapi(getSearchFreshnessRoute, async (c) => {
   } else if (lag.computeStale >= COMPUTE_STALE_DOCTOR_THRESHOLD) {
     exitCodeHint = 2;
     messages.push(
-      `compute-stale rows detected (${lag.computeStale}); schedule: trends resume debug trigger-reingest --mode any --limit 200`,
+      `compute-stale rows detected (${lag.computeStale}); schedule: trends resume debug trigger-reingest --mode compute --limit 200`,
     );
   }
   if (apiReachable && goldenQueries.some((g) => g.ok === false)) {

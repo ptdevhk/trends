@@ -878,6 +878,53 @@ describe("resumes_search: scanResumeDigestPage", () => {
         expect(row.roleYearsByType).toEqual({ sales: 3 });
     });
 
+    it("does not derive MY/Seek digest role years from unverified direct-role fallback signals", async () => {
+        const t = convexTest(schema, modules);
+        const resumeId = await seedResume(t, {
+            externalId: "digest-my-fallback",
+            identityKey: "profileUrl:example.com/candidates/digest-my-fallback",
+            source: "hk.employer.seek.com",
+            sourceKey: "seek",
+            searchText: "cnc sales manager",
+            content: {
+                name: "MY Fallback Candidate",
+                location: "Malaysia",
+                workHistory: [{ raw: "2019-2024 Sales Manager" }],
+            },
+            ingestData: {
+                ...MINIMAL_INGEST_DATA,
+                market: "MY",
+                verifiedRoleYears: {},
+                roleSignals: [{
+                    type: "sales",
+                    matchedSignals: ["Sales Manager"],
+                    signalCount: 1,
+                    occurrences: 1,
+                    years: 5.5,
+                    roleRelevantYears: 5.5,
+                    industryVerifiedYears: 0,
+                    industryVerifiedRelevantYears: 0,
+                    matchedWorkEntries: [{
+                        companyName: "Acme MY",
+                        jobTitle: "Sales Manager",
+                        years: 5.5,
+                        directRoleMatch: true,
+                        industryVerified: false,
+                        matchedSignals: ["Sales Manager"],
+                    }],
+                    verifyIn: "workHistory",
+                }],
+            },
+        });
+
+        await t.mutation(api.resumes_search.upsertResumeDigestForTest, { resumeId });
+        const result = await t.query(api.resumes_search.scanResumeDigestPage, { numItems: 1000 });
+
+        const row = result.docs[0];
+        expect(row.roleTypes).toEqual(["sales"]);
+        expect(row.roleYearsByType).toEqual({});
+    });
+
     it("returns digest projection without cold resume content or full ingestData", async () => {
         const t = convexTest(schema, modules);
         const resumeId = await seedResume(t, {

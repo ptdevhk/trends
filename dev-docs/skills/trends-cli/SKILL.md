@@ -81,7 +81,7 @@ Use this skill when the user asks to operate backend services from terminal comm
 - `trends resume match` remains the API-backed path; when `source=convex` and AI scoring is needed for debug, use `trends resume debug ai-score`.
 - `trends resume debug rescore` currently mirrors the backend restriction and is sample-only.
 - `trends resume debug trigger-reingest` selects by **skillsVersion lag and/or ingestComputeEpoch lag** (`--mode skills|compute|any`, default `any`). It is not a full hard-reset; use `--dry-run` to report skillsStale vs computeStale counts. After pure algorithm fixes (e.g. Seek EN year parse), bump `CURRENT_INGEST_COMPUTE_EPOCH` in `@trends/shared` and schedule `--mode compute` — do not rely on skillsVersion alone.
-- Return-to-laptop / post-deploy: `make doctor-search-freshness` (or `resume debug search-freshness`) after git pull + API up; exit 2 means compute-stale rows need reingest, exit 3 means golden MY/CN minRoleYears floors failed.
+- Return-to-laptop / post-deploy: `make doctor-search-freshness` (or `resume debug search-freshness`) after git pull + API up; exit 2 means compute-stale rows need reingest, exit 3 means the verified-only MY/CN golden availability or semantic checks failed.
 - For migration commands, report the exact `convex run` output back to the user.
 - All destructive commands (`hard-reset-reingest`, `reset-database`, `clear-analyses`) require `--yes` to execute; use `--dry-run` to preview without mutating.
 - `hard-reset-reingest` is a two-phase operation (clear data then schedule re-ingest); if scheduling fails after clearing, output shows `phase: "failed_scheduling"` with partial results.

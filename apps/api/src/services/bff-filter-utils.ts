@@ -144,11 +144,6 @@ export function bffMatchesResumeFilters(
     const roleYears = resolveGateRoleYears(
       roleSignals,
       filters.roleFilterType,
-      {
-        market: typeof ingestData.market === "string" ? ingestData.market : undefined,
-        sourceKey: typeof doc.sourceKey === "string" ? doc.sourceKey : undefined,
-        source: toStringValue(doc.source) ?? undefined,
-      },
       verifiedRoleYears,
     );
     if (roleYears < filters.minRoleYears) return false;

@@ -906,6 +906,320 @@ describe("resumes_diagnostics", () => {
     });
   });
 
+  describe("GET /api/resumes/search-freshness", () => {
+    it("uses the current request origin for golden queries when no BFF env override is set", async () => {
+      const originalBffApiUrl = process.env.BFF_API_URL;
+      const originalApiUrl = process.env.API_URL;
+      delete process.env.BFF_API_URL;
+      delete process.env.API_URL;
+
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+        const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+
+        if (url.endsWith("/api/action")) {
+          return convexSuccess({
+            scheduled: 0,
+            batches: 0,
+            currentVersion: 9,
+            currentIngestComputeEpoch: 2,
+            hasMore: false,
+            cursor: null,
+            mode: "compute",
+            dryRun: true,
+            skillsStaleCount: 0,
+            computeStaleCount: 0,
+            matchedCount: 0,
+          });
+        }
+
+        if (url.startsWith("http://127.0.0.1:3001/api/resumes?")) {
+          expect(init?.headers).toMatchObject({
+            "X-Workspace-Slug": "dev",
+            cookie: "trends-session=local-worktree",
+          });
+          const location = new URL(url).searchParams.get("location");
+          const total = location === "China" ? 150 : 2;
+          const signal = location === "China" ? "销售工程师" : "Sales Manager";
+          return new Response(JSON.stringify({
+            success: true,
+            summary: { total },
+            data: [{
+              name: `${location ?? "unknown"} verified`,
+              source: location === "China" ? "hr.job5156.com" : "hk.employer.seek.com",
+              sourceKey: location === "China" ? "job5156" : "seek",
+              ingestData: {
+                market: location === "China" ? "CN" : "MY",
+                verifiedRoleYears: { sales: 2 },
+                roleSignals: [{
+                  type: "sales",
+                  matchedSignals: [signal],
+                  signalCount: 1,
+                  occurrences: 1,
+                  years: 2,
+                  roleRelevantYears: 2,
+                  industryVerifiedYears: 2,
+                  industryVerifiedRelevantYears: 2,
+                  verifyIn: "workHistory",
+                  matchedWorkEntries: [{
+                    companyName: `${location ?? "unknown"} Co`,
+                    jobTitle: signal,
+                    years: 2,
+                    industryVerified: true,
+                    directRoleMatch: true,
+                    matchedSignals: [signal],
+                  }],
+                }],
+              },
+            }],
+          }), { status: 200, headers: { "Content-Type": "application/json" } });
+        }
+
+        throw new Error(`Unexpected fetch URL: ${url}`);
+      });
+
+      const app = createTestApp();
+      const response = await app.request("http://127.0.0.1:3001/api/resumes/search-freshness", {
+        headers: {
+          cookie: "trends-session=local-worktree",
+          "x-workspace-slug": "dev",
+        },
+      });
+
+      process.env.BFF_API_URL = originalBffApiUrl;
+      process.env.API_URL = originalApiUrl;
+
+      expect(response.status).toBe(200);
+      const payload = await parseJsonBody<{
+        success: boolean;
+        goldenQueries: Array<{ ok: boolean | null; error?: string }>;
+      }>(response);
+
+      expect(payload.success).toBe(true);
+      expect(payload.goldenQueries.every((query) => query.error === undefined)).toBe(true);
+      expect(payload.goldenQueries.every((query) => query.ok === true)).toBe(true);
+    });
+
+    it("fails the MY golden query when returned results lack verified direct sales evidence", async () => {
+      const originalBffApiUrl = process.env.BFF_API_URL;
+      process.env.BFF_API_URL = "http://bff.test";
+
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+        const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+
+        if (url.endsWith("/api/action")) {
+          const body = JSON.parse(typeof init?.body === "string" ? init.body : "{}") as {
+            path: string;
+            args: Record<string, unknown>;
+          };
+          expect(body.path).toBe("migrations:reIngestStaleSkillsVersion");
+          return convexSuccess({
+            scheduled: 0,
+            batches: 0,
+            currentVersion: 9,
+            currentIngestComputeEpoch: 2,
+            hasMore: false,
+            cursor: null,
+            mode: "any",
+            dryRun: true,
+            skillsStaleCount: 0,
+            computeStaleCount: 0,
+            matchedCount: 0,
+          });
+        }
+
+        if (url.startsWith("http://bff.test/api/resumes?")) {
+          const params = new URL(url).searchParams;
+          const location = params.get("location");
+
+          if (location === "Malaysia") {
+            return new Response(JSON.stringify({
+              success: true,
+              summary: { total: 3 },
+              data: [{
+                name: "MY fallback only",
+                source: "hk.employer.seek.com",
+                sourceKey: "seek",
+                ingestData: {
+                  market: "MY",
+                  verifiedRoleYears: {},
+                  roleSignals: [{
+                    type: "sales",
+                    matchedSignals: ["Sales Manager"],
+                    signalCount: 1,
+                    occurrences: 1,
+                    years: 5.4,
+                    roleRelevantYears: 5.4,
+                    industryVerifiedYears: 0,
+                    industryVerifiedRelevantYears: 0,
+                    verifyIn: "workHistory",
+                    matchedWorkEntries: [{
+                      companyName: "Fallback Co",
+                      jobTitle: "Sales Manager",
+                      years: 5.4,
+                      industryVerified: false,
+                      directRoleMatch: true,
+                      matchedSignals: ["Sales Manager"],
+                    }],
+                  }],
+                },
+              }],
+            }), { status: 200, headers: { "Content-Type": "application/json" } });
+          }
+
+          return new Response(JSON.stringify({
+            success: true,
+            summary: { total: 150 },
+            data: [{
+              name: "CN verified",
+              source: "hr.job5156.com",
+              sourceKey: "job5156",
+              ingestData: {
+                market: "CN",
+                verifiedRoleYears: { sales: 3 },
+                roleSignals: [{
+                  type: "sales",
+                  matchedSignals: ["销售工程师"],
+                  signalCount: 1,
+                  occurrences: 1,
+                  years: 3,
+                  roleRelevantYears: 3,
+                  industryVerifiedYears: 3,
+                  industryVerifiedRelevantYears: 3,
+                  verifyIn: "workHistory",
+                  matchedWorkEntries: [{
+                    companyName: "CN Co",
+                    jobTitle: "销售工程师",
+                    years: 3,
+                    industryVerified: true,
+                    directRoleMatch: true,
+                    matchedSignals: ["销售工程师"],
+                  }],
+                }],
+              },
+            }],
+          }), { status: 200, headers: { "Content-Type": "application/json" } });
+        }
+
+        throw new Error(`Unexpected fetch URL: ${url}`);
+      });
+
+      const app = createTestApp();
+      const response = await app.request("/api/resumes/search-freshness");
+
+      process.env.BFF_API_URL = originalBffApiUrl;
+
+      expect(response.status).toBe(200);
+      const payload = await parseJsonBody<{
+        success: boolean;
+        exitCodeHint: number;
+        goldenQueries: Array<{
+          id: string;
+          minTotalFloor: number;
+          semanticFailures?: number;
+          checkedCount?: number;
+          ok: boolean | null;
+        }>;
+      }>(response);
+
+      expect(payload.success).toBe(true);
+      expect(payload.exitCodeHint).toBe(3);
+      const my = payload.goldenQueries.find((query) => query.id === "my-cnc-sales-minRoleYears");
+      expect(my?.minTotalFloor).toBe(1);
+      expect(my?.checkedCount).toBe(1);
+      expect(my?.semanticFailures).toBe(1);
+      expect(my?.ok).toBe(false);
+    });
+
+    it("passes when sampled MY and CN results all show verified sales evidence", async () => {
+      const originalBffApiUrl = process.env.BFF_API_URL;
+      process.env.BFF_API_URL = "http://bff.test";
+
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+        const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+
+        if (url.endsWith("/api/action")) {
+          return convexSuccess({
+            scheduled: 0,
+            batches: 0,
+            currentVersion: 9,
+            currentIngestComputeEpoch: 2,
+            hasMore: false,
+            cursor: null,
+            mode: "any",
+            dryRun: true,
+            skillsStaleCount: 0,
+            computeStaleCount: 0,
+            matchedCount: 0,
+          });
+        }
+
+        if (url.startsWith("http://bff.test/api/resumes?")) {
+          const params = new URL(url).searchParams;
+          const location = params.get("location");
+          const total = location === "Malaysia" ? 2 : 150;
+          const signal = location === "Malaysia" ? "Sales Manager" : "销售工程师";
+          return new Response(JSON.stringify({
+            success: true,
+            summary: { total },
+            data: [{
+              name: `${location} verified`,
+              source: location === "Malaysia" ? "hk.employer.seek.com" : "hr.job5156.com",
+              sourceKey: location === "Malaysia" ? "seek" : "job5156",
+              ingestData: {
+                market: location === "Malaysia" ? "MY" : "CN",
+                verifiedRoleYears: { sales: 2 },
+                roleSignals: [{
+                  type: "sales",
+                  matchedSignals: [signal],
+                  signalCount: 1,
+                  occurrences: 1,
+                  years: 2,
+                  roleRelevantYears: 2,
+                  industryVerifiedYears: 2,
+                  industryVerifiedRelevantYears: 2,
+                  verifyIn: "workHistory",
+                  matchedWorkEntries: [{
+                    companyName: `${location} Co`,
+                    jobTitle: signal,
+                    years: 2,
+                    industryVerified: true,
+                    directRoleMatch: true,
+                    matchedSignals: [signal],
+                  }],
+                }],
+              },
+            }],
+          }), { status: 200, headers: { "Content-Type": "application/json" } });
+        }
+
+        throw new Error(`Unexpected fetch URL: ${url}`);
+      });
+
+      const app = createTestApp();
+      const response = await app.request("/api/resumes/search-freshness");
+
+      process.env.BFF_API_URL = originalBffApiUrl;
+
+      expect(response.status).toBe(200);
+      const payload = await parseJsonBody<{
+        success: boolean;
+        exitCodeHint: number;
+        goldenQueries: Array<{
+          id: string;
+          checkedCount?: number;
+          semanticFailures?: number;
+          ok: boolean | null;
+        }>;
+      }>(response);
+
+      expect(payload.success).toBe(true);
+      expect(payload.exitCodeHint).toBe(0);
+      expect(payload.goldenQueries.every((query) => query.checkedCount === 1)).toBe(true);
+      expect(payload.goldenQueries.every((query) => query.semanticFailures === 0)).toBe(true);
+      expect(payload.goldenQueries.every((query) => query.ok === true)).toBe(true);
+    });
+  });
+
   describe("GET /api/resumes/field-coverage", () => {
     it("returns aggregated stats for single page", async () => {
       vi.spyOn(globalThis, "fetch").mockResolvedValue(

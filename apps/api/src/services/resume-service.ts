@@ -411,10 +411,6 @@ function getResumeItemRoleYears(item: ResumeItem, roleType?: string): number {
   return resolveGateRoleYears(
     item.ingestData?.roleSignals,
     roleType,
-    {
-      market: typeof item.ingestData?.market === "string" ? item.ingestData.market : undefined,
-      source: typeof item.source === "string" ? item.source : undefined,
-    },
     item.ingestData?.verifiedRoleYears,
   );
 }

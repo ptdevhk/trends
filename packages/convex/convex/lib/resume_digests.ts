@@ -2,7 +2,6 @@ import {
     type AnalysisRoleSignalLike,
     buildLatestWorkHistoryEvidence,
     formatLocationHierarchySearchText,
-    getRoleRelevantSignalYears,
     getVerifiedRoleSignalYears,
     isRecord,
     matchesResumeDigestFilters,
@@ -10,7 +9,6 @@ import {
     normalizeResumeLocationHierarchy,
     parseRawSalaryRange,
     resolveExperienceYears,
-    shouldUseRoleRelevantYearsFallback,
 } from "@trends/shared";
 import type { Doc } from "../_generated/dataModel";
 import {
@@ -242,9 +240,8 @@ function collectRoleTypes(resume: Doc<"resumes">, roleYearsByType: Record<string
 /**
  * Build digest roleYearsByType used by list/search minRoleYears gates.
  *
- * Prefer industry-verified years. For MY market / Seek sources (thin industry
- * DB), fall back to direct-role years so talentsearch rows are not stored as
- * 0 years and systematically dropped when minRoleYears=1.
+ * Persist gate years exclusively from verified evidence. Keep roleTypes broad
+ * for UI/filter presence even when no verified years exist for that type.
  */
 function collectRoleYearsByType(resume: Doc<"resumes">): Record<string, number> {
     const raw = resume.ingestData as Record<string, unknown> | null | undefined;
@@ -262,21 +259,13 @@ function collectRoleYearsByType(resume: Doc<"resumes">): Record<string, number> 
     }
 
     const roleSignals = parseAnalysisRoleSignals(raw.roleSignals);
-    const allowRoleRelevantFallback = shouldUseRoleRelevantYearsFallback({
-        market: typeof raw.market === "string" ? raw.market : undefined,
-        sourceKey: resume.sourceKey,
-        source: resume.source,
-    });
 
     for (const signal of roleSignals) {
         const key = signal.type.trim().toLowerCase();
         if (!key) {
             continue;
         }
-        let years = getVerifiedRoleSignalYears(roleSignals, key, signal.verifyIn);
-        if (years <= 0 && allowRoleRelevantFallback) {
-            years = getRoleRelevantSignalYears(roleSignals, key, signal.verifyIn);
-        }
+        const years = getVerifiedRoleSignalYears(roleSignals, key, signal.verifyIn);
         if (years > 0) {
             result[key] = Math.max(result[key] ?? 0, years);
         }
