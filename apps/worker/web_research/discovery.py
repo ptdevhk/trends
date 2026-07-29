@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 # Market query packs (data, not code). "my" is the legacy default; "cn" is
 # the product-core pack (internal users are CN users), selected via config.
-def discovery_queries(employer_surface: str, market: str = "my") -> List[str]:
+def discovery_queries(employer_surface: str, market: str = "cn") -> List[str]:
     """Term-based templates: exact-phrase quoting over-constrains free
     providers (Google News ANDs quoted phrases; SME employers vanish)."""
     if market == "my":
