@@ -10,6 +10,7 @@ from apps.worker.web_research.http import GuardedWebResearchFetcher
 from apps.worker.web_research.search import (
     DuckDuckGoSearchProvider,
     GoogleNewsRssSearchProvider,
+    NewsNowSearchProvider,
 )
 
 _WEB_RESEARCH_ENV_KEYS = [
@@ -40,9 +41,11 @@ def test_build_discovery_job_from_env_builds_zero_key_chain(monkeypatch):
     monkeypatch.setenv("WEB_RESEARCH_ENABLED", "1")
     job = ier.build_discovery_job_from_env()
     assert isinstance(job, DiscoveryJob)
-    assert len(job.search_chain) == 2
-    assert isinstance(job.search_chain[0], DuckDuckGoSearchProvider)
-    assert isinstance(job.search_chain[1], GoogleNewsRssSearchProvider)
+    # Default market is "cn" (product core): NewsNow leads the zero-key chain.
+    assert len(job.search_chain) == 3
+    assert isinstance(job.search_chain[0], NewsNowSearchProvider)
+    assert isinstance(job.search_chain[1], DuckDuckGoSearchProvider)
+    assert isinstance(job.search_chain[2], GoogleNewsRssSearchProvider)
     assert isinstance(job.fetcher, GuardedWebResearchFetcher)
     assert job.config.enabled is True
 

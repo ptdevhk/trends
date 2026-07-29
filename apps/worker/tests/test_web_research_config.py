@@ -4,8 +4,8 @@ def test_disabled_by_default():
     cfg = load_web_research_config({})
     assert cfg.enabled is False
     assert cfg.monthly_cap == 1000
-    assert cfg.search_providers == ["duckduckgo", "google_news"]
-    assert cfg.market == "my"  # legacy default: MY pack; CN is opt-in
+    assert cfg.search_providers == ["newsnow", "duckduckgo", "google_news"]
+    assert cfg.market == "cn"  # core default: internal users are China users; MY is opt-in
 
 def test_enabled_with_tavily_key_selects_tavily():
     cfg = load_web_research_config({
@@ -13,18 +13,22 @@ def test_enabled_with_tavily_key_selects_tavily():
         "TAVILY_API_KEY": "tvly-x",
     })
     assert cfg.enabled is True
-    assert cfg.search_providers == ["tavily", "duckduckgo", "google_news"]
+    assert cfg.search_providers == [
+        "tavily", "newsnow", "duckduckgo", "google_news",
+    ]
 
 def test_brave_only_no_tavily():
     cfg = load_web_research_config({
         "WEB_RESEARCH_ENABLED": "true",
         "BRAVE_API_KEY": "brave-x",
     })
-    assert cfg.search_providers == ["brave", "duckduckgo", "google_news"]
+    assert cfg.search_providers == [
+        "brave", "newsnow", "duckduckgo", "google_news",
+    ]
 
-def test_default_market_is_my_legacy_default():
+def test_default_market_is_cn_core_default():
     cfg = load_web_research_config({})
-    assert cfg.market == "my"
+    assert cfg.market == "cn"
 
 def test_market_cn_respected():
     cfg = load_web_research_config({"WEB_RESEARCH_MARKET": "cn"})

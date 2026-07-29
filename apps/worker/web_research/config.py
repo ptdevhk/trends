@@ -10,10 +10,10 @@ class WebResearchConfig:
     fetch_provider: str = "guarded"
     monthly_cap: int = 1000
     queries_per_proposal: int = 3
-    # Target market for query packs + provider chain. Default "my" is the
-    # legacy default (existing MY proposals unchanged); "cn" (product core)
-    # opts into the NewsNow provider + CN query pack via WEB_RESEARCH_MARKET=cn.
-    market: str = "my"
+    # Target market for query packs + provider chain. Default "cn" because
+    # internal users are China users (CN is the product core); MY is the
+    # additional case via WEB_RESEARCH_MARKET=my.
+    market: str = "cn"
 
 def load_web_research_config(env: Optional[Dict[str, str]] = None) -> WebResearchConfig:
     source = env if env is not None else os.environ
@@ -21,7 +21,7 @@ def load_web_research_config(env: Optional[Dict[str, str]] = None) -> WebResearc
         "1", "true", "yes", "on",
     }
     market = (
-        str(source.get("WEB_RESEARCH_MARKET", "my")).strip().lower() or "my"
+        str(source.get("WEB_RESEARCH_MARKET", "cn")).strip().lower() or "cn"
     )
     providers: List[str] = []
     if source.get("TAVILY_API_KEY"):

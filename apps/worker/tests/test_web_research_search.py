@@ -166,8 +166,8 @@ def test_build_chain_orders_keyed_providers_first(monkeypatch):
     })
     chain = build_search_chain(cfg, fetcher=FakeFetcher({}))
     assert [type(p).__name__ for p in chain] == [
-        "TavilySearchProvider", "DuckDuckGoSearchProvider",
-        "GoogleNewsRssSearchProvider",
+        "TavilySearchProvider", "NewsNowSearchProvider",
+        "DuckDuckGoSearchProvider", "GoogleNewsRssSearchProvider",
     ]
 
 
@@ -176,8 +176,10 @@ def test_build_chain_zero_key_defaults(monkeypatch):
     monkeypatch.delenv("BRAVE_API_KEY", raising=False)
     cfg = load_web_research_config({"WEB_RESEARCH_ENABLED": "1"})
     chain = build_search_chain(cfg, fetcher=FakeFetcher({}))
+    # Default market is "cn" (product core): NewsNow leads the zero-key chain.
     assert [type(p).__name__ for p in chain] == [
-        "DuckDuckGoSearchProvider", "GoogleNewsRssSearchProvider",
+        "NewsNowSearchProvider", "DuckDuckGoSearchProvider",
+        "GoogleNewsRssSearchProvider",
     ]
 
 
