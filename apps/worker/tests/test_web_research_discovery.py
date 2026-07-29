@@ -147,10 +147,8 @@ def test_discovery_queries_are_term_based():
     assert "Malaysia" in queries[0]
 
 
-def test_discovery_queries_default_market_is_my():
-    assert discovery_queries("DSME Engineering Sdn Bhd") == (
-        discovery_queries("DSME Engineering Sdn Bhd", "my")
-    )
+def test_discovery_queries_default_market_is_cn():
+    assert discovery_queries("发那科") == discovery_queries("发那科", "cn")
 
 
 def test_discovery_queries_cn_pack_term_based():
