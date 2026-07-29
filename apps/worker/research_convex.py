@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from urllib.error import HTTPError, URLError
@@ -356,4 +357,20 @@ class ResearchConvexClient:
             self.convex_url,
             "companies:recordIndustryEvidenceFreshnessCheck",
             self._args(payload),
+        )
+
+    def get_web_research_quota(self, provider: str) -> Dict[str, Any]:
+        self.require_ready()
+        month = time.strftime("%Y-%m", time.gmtime())
+        return self._querier(
+            self.convex_url, "web_research:getQuota",
+            self._args({"provider": provider, "month": month}),
+        )
+
+    def record_web_research_quota_use(self, provider: str, credits: int) -> Any:
+        self.require_ready()
+        month = time.strftime("%Y-%m", time.gmtime())
+        return self._mutator(
+            self.convex_url, "web_research:recordUse",
+            self._args({"provider": provider, "month": month, "credits": credits}),
         )

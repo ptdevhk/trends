@@ -373,12 +373,14 @@ class IndustryEvidenceMaintenanceJob:
         now_ms: Optional[Callable[[], int]] = None,
         proposal_limit: int = 20,
         freshness_limit: int = 50,
+        discovery_job: Optional[Any] = None,
     ):
         self.client = client or ResearchConvexClient()
         self.now_ms = now_ms or (lambda: int(time.time() * 1000))
         self.researcher = researcher or IndustryEvidenceResearcher(now_ms=self.now_ms)
         self.proposal_limit = max(1, min(50, int(proposal_limit)))
         self.freshness_limit = max(1, min(100, int(freshness_limit)))
+        self.discovery_job = discovery_job
 
     def _research_open_proposals(self) -> None:
         proposals_by_id: Dict[str, Dict[str, Any]] = {}
@@ -404,6 +406,9 @@ class IndustryEvidenceMaintenanceJob:
             candidates = self.client.list_industry_evidence_sources(
                 proposal_id=proposal_id
             )
+            if not candidates and self.discovery_job is not None:
+                discovered = self.discovery_job.discover_for_proposal(proposal)
+                candidates = discovered.get("sources") or []
             result = self.researcher.enrich_proposal(proposal, candidates)
             for source in result["sources"]:
                 source.pop("domainGuardPassed", None)

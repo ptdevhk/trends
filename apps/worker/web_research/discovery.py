@@ -1,0 +1,79 @@
+from __future__ import annotations
+from typing import Any, Dict, List, Optional
+
+from apps.worker.industry_evidence_research import IndustryEvidenceResearcher
+from apps.worker.web_research.classify import classify_source
+from apps.worker.web_research.config import WebResearchConfig
+from apps.worker.web_research.search import SearchProvider
+
+# MY query pack (data, not code; CN pack is a later config addition)
+def discovery_queries(employer_surface: str, market: str = "my") -> List[str]:
+    if market == "my":
+        return [
+            f'"{employer_surface}" Malaysia official site',
+            f'"{employer_surface}" CNC',
+            f'"{employer_surface}" Sdn Bhd SSM',
+        ]
+    return [f'"{employer_surface}" official site']
+
+class DiscoveryJob:
+    def __init__(
+        self, *, search_chain: List[SearchProvider], fetcher,
+        client, config: WebResearchConfig,
+        researcher: Optional[IndustryEvidenceResearcher] = None,
+    ):
+        self.search_chain = search_chain
+        self.fetcher = fetcher
+        self.client = client
+        self.config = config
+        self.researcher = researcher or IndustryEvidenceResearcher(
+            fetcher=fetcher)
+
+    def _quota_ok(self, provider_name: str) -> bool:
+        quota = self.client.get_web_research_quota(provider_name)
+        return int(quota.get("used", 0)) < int(quota.get("cap", 1000))
+
+    def _search_all(self, query: str, max_results: int) -> List[Any]:
+        for provider in self.search_chain:
+            name = type(provider).__name__
+            if not self._quota_ok(name):
+                continue
+            results = provider.search(query, max_results)
+            self.client.record_web_research_quota_use(name, 1)
+            if results:
+                return results
+        return []
+
+    def discover_for_proposal(self, proposal: Dict[str, Any]) -> Dict[str, Any]:
+        employer = str(
+            proposal.get("normalizedEmployerSurface")
+            or proposal.get("companyKey") or ""
+        ).strip()
+        if not employer or not self.config.enabled:
+            return {"status": "needs_more_evidence", "sources": []}
+
+        seen: set[str] = set()
+        raw_candidates: List[Dict[str, Any]] = []
+        for query in discovery_queries(employer)[: self.config.queries_per_proposal]:
+            for hit in self._search_all(query, max_results=5):
+                if hit.url in seen:
+                    continue
+                seen.add(hit.url)
+                tier = classify_source(hit.url, employer)
+                raw_candidates.append({
+                    "url": hit.url,
+                    "sourceType": tier["sourceType"],
+                    "trustTier": tier["trustTier"],
+                })
+
+        if not raw_candidates:
+            return {"status": "needs_more_evidence", "sources": []}
+
+        # Reuse the existing governed enrichment (fetch + classify + rank)
+        result = self.researcher.enrich_proposal(proposal, raw_candidates)
+        return {
+            "status": result["status"],
+            "sources": result["sources"],
+            **({"suggestedIndustryClass": result["suggestedIndustryClass"]}
+               if result.get("suggestedIndustryClass") else {}),
+        }
