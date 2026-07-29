@@ -1,10 +1,13 @@
 from __future__ import annotations
+import logging
 from typing import Any, Dict, List, Optional
 
 from apps.worker.industry_evidence_research import IndustryEvidenceResearcher
 from apps.worker.web_research.classify import classify_source
 from apps.worker.web_research.config import WebResearchConfig
 from apps.worker.web_research.search import SearchProvider
+
+logger = logging.getLogger(__name__)
 
 # MY query pack (data, not code; CN pack is a later config addition)
 def discovery_queries(employer_surface: str, market: str = "my") -> List[str]:
@@ -49,7 +52,14 @@ class DiscoveryJob:
             fetcher=fetcher)
 
     def _quota_ok(self, provider_name: str) -> bool:
-        quota = self.client.get_web_research_quota(provider_name)
+        try:
+            quota = self.client.get_web_research_quota(provider_name)
+        except Exception as error:  # fail closed: skip, don't crash the run
+            logger.warning(
+                "[WebResearch] quota read failed for %s: %s",
+                provider_name, error,
+            )
+            return False
         return int(quota.get("used", 0)) < int(quota.get("cap", 1000))
 
     def _search_all(self, query: str, max_results: int) -> List[Any]:
@@ -57,7 +67,12 @@ class DiscoveryJob:
             name = type(provider).__name__
             if not self._quota_ok(name):
                 continue
-            results = provider.search(query, max_results)
+            try:
+                results = provider.search(query, max_results)
+            except Exception as error:  # soft-fail onward to next provider
+                logger.warning(
+                    "[WebResearch] provider %s failed: %s", name, error)
+                continue
             self.client.record_web_research_quota_use(name, 1)
             if results:
                 return results

@@ -178,3 +178,13 @@ def test_build_chain_zero_key_defaults(monkeypatch):
     assert [type(p).__name__ for p in chain] == [
         "DuckDuckGoSearchProvider", "GoogleNewsRssSearchProvider",
     ]
+
+
+def test_build_chain_skips_keyed_provider_when_env_key_absent(monkeypatch):
+    # config lists tavily (e.g. from a config file) but the env var the
+    # chain builder reads is missing: skip with a warning, no KeyError.
+    monkeypatch.delenv("TAVILY_API_KEY", raising=False)
+    cfg = load_web_research_config({"WEB_RESEARCH_ENABLED": "1"})
+    cfg.search_providers = ["tavily", "duckduckgo"]
+    chain = build_search_chain(cfg, fetcher=FakeFetcher({}))
+    assert [type(p).__name__ for p in chain] == ["DuckDuckGoSearchProvider"]

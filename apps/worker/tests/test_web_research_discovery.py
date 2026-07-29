@@ -33,6 +33,17 @@ class FakeClient:
     def record_web_research_quota_use(self, provider, credits):
         self.quota_calls.append((provider, credits))
 
+class RaisingSearch:
+    def __init__(self):
+        self.calls = []
+    def search(self, query, max_results):
+        self.calls.append(query)
+        raise RuntimeError("provider exploded")
+
+class QuotaErrorClient(FakeClient):
+    def get_web_research_quota(self, provider):
+        raise RuntimeError("convex unreachable")
+
 def _proposal():
     return {
         "proposalId": "p-1",
@@ -75,6 +86,45 @@ def test_quota_exhausted_short_circuits_no_search():
     out = job.discover_for_proposal(_proposal())
     assert out["status"] == "needs_more_evidence"
     assert search.calls == []  # hard stop: no provider call made
+
+def test_provider_exception_soft_fails_to_next_provider_in_chain():
+    failing = RaisingSearch()
+    working = StaticSearch([
+        SearchResult(url="https://www.newlinemachine.com/",
+                     title="New Line Machine Tool"),
+    ])
+    fetcher = StaticFetcher({
+        "https://www.newlinemachine.com/": {
+            "finalUrl": "https://www.newlinemachine.com/",
+            "title": "New Line Machine Tool",
+            "excerpt": "CNC machining center machine tool distributor",
+            "contentFingerprint": "sha256:x",
+            "domainGuardPassed": True,
+        },
+    })
+    job = DiscoveryJob(
+        search_chain=[failing, working], fetcher=fetcher,
+        client=FakeClient(),
+        config=load_web_research_config({"WEB_RESEARCH_ENABLED": "1"}),
+    )
+    out = job.discover_for_proposal(_proposal())
+    # first provider's RuntimeError must not abort the proposal
+    assert failing.calls, "first provider was attempted"
+    assert working.calls, "chain fell through to the next provider"
+    assert out["status"] == "ready_for_review"
+    assert out["sources"][0]["url"] == "https://www.newlinemachine.com/"
+
+def test_quota_read_failure_fails_closed_without_crashing_run():
+    search = StaticSearch([SearchResult(url="https://x.example/", title="x")])
+    job = DiscoveryJob(
+        search_chain=[search],
+        fetcher=StaticFetcher({}),
+        client=QuotaErrorClient(),
+        config=load_web_research_config({"WEB_RESEARCH_ENABLED": "1"}),
+    )
+    out = job.discover_for_proposal(_proposal())
+    assert out["status"] == "needs_more_evidence"  # no exception escapes
+    assert search.calls == []  # provider treated as exhausted: never called
 
 def test_discovery_disabled_config_returns_needs_more_evidence():
     search = StaticSearch([SearchResult(url="https://x.example/", title="x")])

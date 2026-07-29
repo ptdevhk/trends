@@ -80,6 +80,60 @@ describe("web_research quota (convex-test)", () => {
     expect(quota).toEqual({ used: 5, cap: 1000, month: "2026-07" });
   });
 
+  it.each([0, -5])(
+    "rejects recordUse with non-positive credits (%i)",
+    async (credits) => {
+      const t = createTest();
+      await expect(
+        t.mutation(api.web_research.recordUse, {
+          provider: "tavily",
+          month: "2026-07",
+          credits,
+          writeSecret: WRITE_SECRET,
+        }),
+      ).rejects.toThrow("credits must be positive");
+    },
+  );
+
+  it("tolerates duplicate provider+month rows (max-used wins)", async () => {
+    const t = createTest();
+    // Operator-error state: two ledger rows for the same provider+month.
+    await t.run((ctx) =>
+      ctx.db.insert("web_research_quota", {
+        provider: "tavily",
+        month: "2026-07",
+        used: 3,
+        cap: 1000,
+        updatedAt: Date.now(),
+      }),
+    );
+    await t.run((ctx) =>
+      ctx.db.insert("web_research_quota", {
+        provider: "tavily",
+        month: "2026-07",
+        used: 7,
+        cap: 500,
+        updatedAt: Date.now(),
+      }),
+    );
+
+    const quota = await t.query(api.web_research.getQuota, {
+      provider: "tavily",
+      month: "2026-07",
+      writeSecret: WRITE_SECRET,
+    });
+    expect(quota).toEqual({ used: 7, cap: 500, month: "2026-07" });
+
+    // recordUse patches the max-used row without throwing.
+    const result = await t.mutation(api.web_research.recordUse, {
+      provider: "tavily",
+      month: "2026-07",
+      credits: 2,
+      writeSecret: WRITE_SECRET,
+    });
+    expect(result).toEqual({ used: 9, cap: 500, month: "2026-07" });
+  });
+
   it("tracks different months for the same provider independently", async () => {
     const t = createTest();
     await t.mutation(api.web_research.recordUse, {

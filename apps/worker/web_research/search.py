@@ -1,9 +1,12 @@
 from __future__ import annotations
 import html
+import logging
 import re
 from dataclasses import dataclass
 from typing import Any, List, Optional, Protocol
 from urllib.parse import parse_qs, quote_plus, urlparse
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -162,11 +165,21 @@ def build_search_chain(config, *, fetcher) -> List[SearchProvider]:
     chain: List[SearchProvider] = []
     for name in config.search_providers:
         if name == "tavily":
+            api_key = os.environ.get("TAVILY_API_KEY")
+            if not api_key:
+                logger.warning(
+                    "[WebResearch] skipping tavily: TAVILY_API_KEY not set")
+                continue
             chain.append(TavilySearchProvider(
-                api_key=os.environ["TAVILY_API_KEY"], fetcher=fetcher))
+                api_key=api_key, fetcher=fetcher))
         elif name == "brave":
+            api_key = os.environ.get("BRAVE_API_KEY")
+            if not api_key:
+                logger.warning(
+                    "[WebResearch] skipping brave: BRAVE_API_KEY not set")
+                continue
             chain.append(BraveSearchProvider(
-                api_key=os.environ["BRAVE_API_KEY"], fetcher=fetcher))
+                api_key=api_key, fetcher=fetcher))
         elif name == "duckduckgo":
             chain.append(DuckDuckGoSearchProvider(fetcher=fetcher))
         elif name == "google_news":

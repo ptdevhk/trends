@@ -64,6 +64,48 @@ def test_guarded_web_research_fetcher_fetch_text_rejects_unsafe_url():
         fetcher.fetch_text("http://localhost/x")
 
 
+class _FakeRedirectResponse:
+    """urlopen stand-in: urllib has already followed the redirect, so the
+    response's geturl() reports the (unsafe) final target."""
+    def __init__(self, final_url, payload=b"{}"):
+        self._final_url = final_url
+        self._payload = payload
+        self.read_calls = 0
+    def __enter__(self):
+        return self
+    def __exit__(self, *exc):
+        return False
+    def geturl(self):
+        return self._final_url
+    def read(self, n=-1):
+        self.read_calls += 1
+        return self._payload
+
+
+def test_post_json_rejects_unsafe_redirect_before_reading_body(monkeypatch):
+    response = _FakeRedirectResponse("http://localhost/admin")
+    monkeypatch.setattr(
+        "apps.worker.web_research.http.urlopen",
+        lambda request, timeout: response,
+    )
+    fetcher = GuardedWebResearchFetcher(min_host_interval_seconds=0)
+    with pytest.raises(ValueError):
+        fetcher.post_json("https://api.tavily.com/search", {"query": "x"})
+    assert response.read_calls == 0  # body never read
+
+
+def test_get_json_rejects_unsafe_redirect_before_reading_body(monkeypatch):
+    response = _FakeRedirectResponse("http://localhost/admin")
+    monkeypatch.setattr(
+        "apps.worker.web_research.http.urlopen",
+        lambda request, timeout: response,
+    )
+    fetcher = GuardedWebResearchFetcher(min_host_interval_seconds=0)
+    with pytest.raises(ValueError):
+        fetcher.get_json("https://api.search.brave.com/res/v1/web/search?q=x")
+    assert response.read_calls == 0  # body never read
+
+
 def test_guarded_web_research_fetcher_zero_interval_and_default_init():
     fetcher = GuardedWebResearchFetcher(min_host_interval_seconds=0)
     assert fetcher._min_host_interval == 0.0

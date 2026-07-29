@@ -44,6 +44,19 @@ def _guard_url(url: str) -> None:
         raise ValueError("unsafe_or_unresolved_host")
 
 
+def _check_final_url(response) -> None:
+    """Re-guard the post-redirect target before the body is read. urllib
+    follows redirects before ``urlopen`` returns, so the initial ``_guard_url``
+    alone would let a redirect bounce an authenticated provider request (with
+    API-key headers) to an internal host."""
+    final_url = response.geturl()
+    if not safe_public_evidence_url(final_url):
+        raise ValueError("unsafe_redirect")
+    final_host = (urlparse(final_url).hostname or "").lower()
+    if not final_host or not _resolved_host_is_public(final_host):
+        raise ValueError("unsafe_redirect_host")
+
+
 class GuardedWebResearchFetcher:
     """Bounded public HTTP fetcher for discovery search + page fetch."""
 
@@ -87,12 +100,7 @@ class GuardedWebResearchFetcher:
         try:
             request = Request(url, headers={"User-Agent": USER_AGENT})
             with urlopen(request, timeout=self.timeout_seconds) as response:
-                final_url = response.geturl()
-                if not safe_public_evidence_url(final_url):
-                    raise ValueError("unsafe_redirect")
-                final_host = (urlparse(final_url).hostname or "").lower()
-                if not _resolved_host_is_public(final_host):
-                    raise ValueError("unsafe_redirect_host")
+                _check_final_url(response)
                 return response.read(MAX_BODY_BYTES).decode("utf-8", errors="replace")
         except (HTTPError, URLError, TimeoutError, socket.timeout) as error:
             raise RuntimeError(f"fetch_text_failed:{error}") from error
@@ -118,6 +126,7 @@ class GuardedWebResearchFetcher:
                 method="POST",
             )
             with urlopen(request, timeout=self.timeout_seconds) as response:
+                _check_final_url(response)
                 body = response.read(MAX_BODY_BYTES).decode("utf-8", errors="replace")
                 return json.loads(body)
         except (HTTPError, URLError, TimeoutError, socket.timeout) as error:
@@ -137,6 +146,7 @@ class GuardedWebResearchFetcher:
                 headers={"User-Agent": USER_AGENT, **(headers or {})},
             )
             with urlopen(request, timeout=self.timeout_seconds) as response:
+                _check_final_url(response)
                 body = response.read(MAX_BODY_BYTES).decode("utf-8", errors="replace")
                 return json.loads(body)
         except (HTTPError, URLError, TimeoutError, socket.timeout) as error:

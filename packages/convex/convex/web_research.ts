@@ -21,11 +21,15 @@ export const getQuota = query({
     args: { provider: v.string(), month: v.string(), writeSecret: v.string() },
     handler: async (ctx, args) => {
         requireReadSecret(args.writeSecret);
-        const row = await ctx.db
+        // Duplicate rows for the same provider+month are an operator-error
+        // state; .unique() would throw on them. Tolerate by picking the
+        // max-used row (the conservative ledger reading).
+        const rows = await ctx.db
             .query("web_research_quota")
             .withIndex("by_provider_month", (q) =>
                 q.eq("provider", args.provider).eq("month", args.month))
-            .unique();
+            .collect();
+        const row = rows.sort((a, b) => b.used - a.used)[0];
         return {
             used: row?.used ?? 0,
             cap: row?.cap ?? DEFAULT_MONTHLY_CAP,
@@ -43,11 +47,18 @@ export const recordUse = mutation({
     },
     handler: async (ctx, args) => {
         requireWriteSecret(args.writeSecret);
-        const row = await ctx.db
+        if (!Number.isFinite(args.credits) || args.credits <= 0) {
+            throw new Error("credits must be positive");
+        }
+        // Duplicate rows are an operator-error state; .unique() would throw
+        // on them. Patch the max-used row (the conservative ledger) and
+        // leave the others untouched.
+        const rows = await ctx.db
             .query("web_research_quota")
             .withIndex("by_provider_month", (q) =>
                 q.eq("provider", args.provider).eq("month", args.month))
-            .unique();
+            .collect();
+        const row = rows.sort((a, b) => b.used - a.used)[0];
         const used = (row?.used ?? 0) + args.credits;
         if (row) {
             await ctx.db.patch(row._id, { used, updatedAt: Date.now() });
@@ -60,6 +71,10 @@ export const recordUse = mutation({
                 updatedAt: Date.now(),
             });
         }
-        return { used, cap: DEFAULT_MONTHLY_CAP, month: args.month };
+        return {
+            used,
+            cap: row?.cap ?? DEFAULT_MONTHLY_CAP,
+            month: args.month,
+        };
     },
 });
