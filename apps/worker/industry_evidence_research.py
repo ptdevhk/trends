@@ -602,6 +602,33 @@ class IndustryEvidenceMaintenanceJob:
             return False
 
 
+def build_discovery_job_from_env() -> Optional[Any]:
+    """Build a DiscoveryJob when WEB_RESEARCH_ENABLED; None otherwise (default off).
+
+    Lazy imports keep the web_research package out of the import graph when
+    the feature is disabled.
+    """
+    from apps.worker.web_research.config import load_web_research_config
+
+    config = load_web_research_config()
+    if not config.enabled:
+        return None
+
+    from apps.worker.web_research.discovery import DiscoveryJob
+    from apps.worker.web_research.http import GuardedWebResearchFetcher
+    from apps.worker.web_research.search import build_search_chain
+
+    fetcher = GuardedWebResearchFetcher()
+    client = ResearchConvexClient()
+    search_chain = build_search_chain(config, fetcher=fetcher)
+    return DiscoveryJob(
+        search_chain=search_chain,
+        fetcher=fetcher,
+        client=client,
+        config=config,
+    )
+
+
 def run_industry_evidence_maintenance() -> bool:
     if not industry_evidence_maintenance_enabled():
         logger.info(
@@ -609,13 +636,15 @@ def run_industry_evidence_maintenance() -> bool:
             "INDUSTRY_EVIDENCE_MAINTENANCE_ENABLED not set"
         )
         return True
-    return IndustryEvidenceMaintenanceJob().run()
+    discovery_job = build_discovery_job_from_env()
+    return IndustryEvidenceMaintenanceJob(discovery_job=discovery_job).run()
 
 
 __all__ = [
     "GuardedEvidenceFetcher",
     "IndustryEvidenceMaintenanceJob",
     "IndustryEvidenceResearcher",
+    "build_discovery_job_from_env",
     "classify_industry_excerpt",
     "industry_evidence_maintenance_enabled",
     "run_industry_evidence_maintenance",

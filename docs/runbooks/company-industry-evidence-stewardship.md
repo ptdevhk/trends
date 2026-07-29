@@ -90,6 +90,30 @@ The apply step writes:
 
 IDs are deterministic, so an interrupted retry coalesces with the same proposals and sources. Approval also uses optimistic current-revision matching, preventing a stale bootstrap packet from silently overwriting newer truth.
 
+## Web research discovery
+
+Discovery is an optional, default-off worker capability. When a proposal has no candidate sources, the scheduled maintenance job may first search the public web, fetch the top hits, classify their trust, and feed them into the same governed enrichment path used for every other candidate. The output is still only a proposal: search → fetch → classify → proposal enrichment.
+
+Discovery runs for empty proposals only. If a proposal already has candidate sources, the maintenance job uses them and never searches.
+
+Enablement requires both flags, set in the local `.env` only (never committed):
+
+```bash
+INDUSTRY_EVIDENCE_MAINTENANCE_ENABLED=1
+WEB_RESEARCH_ENABLED=1
+```
+
+Provider keys are optional. Without keys, the chain is the free DuckDuckGo HTML endpoint only, which is the dev default — use it gently. With `TAVILY_API_KEY` and/or `BRAVE_API_KEY` present, the chain becomes Tavily and/or Brave first, with DuckDuckGo always last as the zero-key fallback. On each query the chain tries providers in order, skipping any provider whose monthly quota is exhausted, until one returns results.
+
+Every provider query is recorded in the `web_research_quota` Convex table. The cap is 1000 queries per provider per month; when a provider reaches its cap the worker stops calling it (hard stop — no search request is made). Inspect the ledger rows from the Convex dashboard after any attended dry-run.
+
+Governance does not change under discovery:
+
+- Automation never approves. Discovery output can at most move a proposal to `ready_for_review`; only an authenticated human reviewer advances a verdict revision.
+- `discovery` and `search_result` sources are never approval-safe evidence. Approve only durable public HTTP(S) pages.
+- Unreviewed evidence never reaches recruiters. Discovery-tier sources stay inside stewardship surfaces until a human approves a revision.
+- Hot paths stay network-free. All web access happens in the worker; search, scoring, and Resume Detail never fetch.
+
 ## Rollback
 
 Verdict revisions are immutable. Never delete or mutate the imported current revision.
