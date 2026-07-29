@@ -48,10 +48,9 @@ export function buildResumeDigest(
     );
     const rawIngestData = isRecord(resume.ingestData) ? resume.ingestData : undefined;
     const evidenceProjectionVersion = toNumber(rawIngestData?.evidenceProjectionVersion);
-    const strictEvidenceProjection =
-        rawIngestData && evidenceProjectionVersion !== undefined
-            ? collectStrictEvidenceProjection(rawIngestData)
-            : undefined;
+    const strictEvidenceProjection = rawIngestData
+        ? collectStrictEvidenceProjection(rawIngestData)
+        : undefined;
     const roleYearsByType = collectRoleYearsByType(resume, strictEvidenceProjection);
     const roleTypes = collectRoleTypes(resume, roleYearsByType);
     const evidenceProjection = collectEvidenceProjection(
@@ -256,6 +255,18 @@ function collectRoleTypes(resume: Doc<"resumes">, roleYearsByType: Record<string
  *
  * Persist gate years exclusively from verified evidence. Keep roleTypes broad
  * for UI/filter presence even when no verified years exist for that type.
+ *
+ * Two modes:
+ *
+ * - Evidence mode (any revision-backed evidence exists on the resume): only
+ *   revision-checked years from the projection may pass the gate. Legacy
+ *   aggregates are never trusted here, so superseded-revision totals cannot
+ *   satisfy minRoleYears.
+ * - Legacy mode (no revision-backed evidence anywhere — the common case
+ *   before companies are reviewed): fall back to the legacy verified
+ *   aggregates (verifiedRoleYears + verified role-signal years). Without
+ *   this, every unreviewed resume would compute zero gate years and
+ *   minRoleYears searches would silently return no results.
  */
 function collectRoleYearsByType(
     resume: Doc<"resumes">,
@@ -263,9 +274,57 @@ function collectRoleYearsByType(
 ): Record<string, number> {
     const raw = resume.ingestData as Record<string, unknown> | null | undefined;
     if (!raw) return {};
+
+    const roleSignals = parseAnalysisRoleSignals(raw.roleSignals);
+    const rawRoleSignals = Array.isArray(raw.roleSignals) ? raw.roleSignals : [];
+
     if (strictEvidenceProjection) {
-        return strictEvidenceProjection.roleYearsByType;
+        // Approved evidence revisions govern every role with a revisioned
+        // entry: affirmed roles get the revision-checked years, governed roles
+        // without revision-checked support are revoked outright. Roles with no
+        // revisioned entries at all (catalog not yet reviewed) keep their
+        // legacy verified aggregates below.
+        const governedRoles = new Set<string>();
+        const affirmed = new Map<string, number>();
+        for (const rawSignal of rawRoleSignals) {
+            if (!isRecord(rawSignal) || typeof rawSignal.type !== "string") continue;
+            const key = rawSignal.type.trim().toLowerCase();
+            if (!key || !Array.isArray(rawSignal.matchedWorkEntries)) continue;
+            for (const entry of rawSignal.matchedWorkEntries) {
+                if (!isRecord(entry)) continue;
+                const companyKey = typeof entry.companyKey === "string"
+                    ? entry.companyKey.trim().toLowerCase()
+                    : "";
+                const revisionId = typeof entry.verdictRevisionId === "string"
+                    ? entry.verdictRevisionId.trim()
+                    : "";
+                if (entry.industryVerified === true && companyKey && revisionId) {
+                    governedRoles.add(key);
+                }
+            }
+        }
+        for (const [key, years] of Object.entries(strictEvidenceProjection.roleYearsByType)) {
+            if (years > 0) affirmed.set(key, years);
+        }
+
+        if (governedRoles.size === 0 && affirmed.size === 0) {
+            // No revision-backed evidence anywhere (empty catalog): keep the
+            // legacy verified aggregates so unreviewed resumes still pass the
+            // minRoleYears gate.
+        } else {
+            const result: Record<string, number> = {};
+            for (const [key, years] of affirmed) {
+                result[key] = years;
+            }
+            // Evidence mode is active: only revision-checked years may pass
+            // the gate. Legacy aggregates (verifiedRoleYears, pre-evidence
+            // industryVerified entries) are never trusted in this mode — that
+            // is the guard that keeps superseded-revision totals from
+            // satisfying minRoleYears.
+            return result;
+        }
     }
+
     const result: Record<string, number> = {};
 
     const verifiedRoleYears = raw.verifiedRoleYears as Record<string, unknown> | null | undefined;
@@ -277,8 +336,6 @@ function collectRoleYearsByType(
             }
         }
     }
-
-    const roleSignals = parseAnalysisRoleSignals(raw.roleSignals);
 
     for (const signal of roleSignals) {
         const key = signal.type.trim().toLowerCase();

@@ -508,6 +508,126 @@ describe("buildResumeDigest", () => {
     expect(matchesResumeDigestFilters(digest as any, { minRoleYears: 1 })).toBe(false);
   });
 
+  it("keeps legacy verified gate years when the evidence catalog is empty", () => {
+    // Regression: epoch-3 ingest rows carry evidenceProjectionVersion even
+    // before any company has been evidence-reviewed (empty summaries). The
+    // strict projection computes zero revision-backed years, but replacing
+    // the whole roleYearsByType map with it empties minRoleYears search
+    // results for every unreviewed resume. The projection must only override
+    // roles it actually affirms or revokes.
+    const resume = makeResume({
+      source: "hk.employer.seek.com",
+      sourceKey: "seek",
+      externalId: "hk.employer.seek.com:profile:uuid-legacy",
+      ingestData: {
+        market: "MY",
+        evidenceProjectionVersion: 1,
+        industryEvidenceCatalogState: "ready",
+        verifiedIndustryEvidenceSummaries: [],
+        verifiedRoleYears: { sales: 4.16 },
+        roleSignals: [{
+          type: "sales",
+          signalCount: 5,
+          years: 9.58,
+          roleRelevantYears: 9.58,
+          industryVerifiedRelevantYears: 4.16,
+          industryVerifiedYears: 4.16,
+          matchedSignals: ["sales manager", "sales"],
+          matchedWorkEntries: [{
+            companyName: "BME Industries (M) Sdn Bhd",
+            jobTitle: "Sales Manager",
+            years: 5.42,
+            industryVerified: false,
+            directRoleMatch: true,
+            matchedSignals: ["sales manager", "sales"],
+            workEntryFingerprint: "work-64c3c6b7",
+          }, {
+            companyName: "Newline Machine Tool Sdn Bhd",
+            jobTitle: "Sales Manager",
+            years: 1.08,
+            industryVerified: true,
+            directRoleMatch: true,
+            matchedSignals: ["sales manager", "sales"],
+            workEntryFingerprint: "work-2706423e",
+          }, {
+            companyName: "Robo Machine Tools Sdn Bhd",
+            jobTitle: "Sales Manager",
+            years: 3.08,
+            industryVerified: true,
+            directRoleMatch: true,
+            matchedSignals: ["sales manager", "sales"],
+            workEntryFingerprint: "work-f67f9c7a",
+          }],
+          verifyIn: "workHistory",
+        }],
+      },
+    }) as Parameters<typeof buildResumeDigest>[0];
+
+    const digest = buildResumeDigest(resume, Date.UTC(2026, 5, 4));
+
+    expect(digest.roleTypes).toEqual(["sales"]);
+    expect(digest.roleYearsByType).toEqual({ sales: 4.16 });
+    expect(matchesResumeDigestFilters(digest as any, { minRoleYears: 1, roleFilterType: "sales" })).toBe(true);
+  });
+
+  it("lets the strict projection revoke legacy years for roles it governs", () => {
+    // When approved evidence exists but no revision-checked entry supports
+    // the role, the projection overrides the legacy aggregate down to zero.
+    const summary = {
+      companyKey: "acme-cnc",
+      companyName: "ACME CNC",
+      industryClass: "cnc",
+      verificationLevel: "verified",
+      verdictRevisionId: "revision-acme-1",
+      evidenceSummary: "Official catalog confirms CNC machine tools.",
+      verifiedYears: 3,
+      roleTypes: ["sales"],
+      reviewedAt: 100,
+      reviewedBy: "reviewer-1",
+      sourceCount: 1,
+      sourcePreviews: [],
+      additionalSourceCount: 0,
+    };
+    const resume = makeResume({
+      ingestData: {
+        evidenceProjectionVersion: 1,
+        industryEvidenceCatalogState: "ready",
+        verifiedIndustryEvidenceSummaries: [summary],
+        verifiedRoleYears: { sales: 99, engineer: 2 },
+        roleSignals: [{
+          type: "sales",
+          signalCount: 1,
+          years: 3,
+          industryVerifiedYears: 3,
+          industryVerifiedRelevantYears: 3,
+          matchedSignals: ["sales"],
+          matchedWorkEntries: [{
+            companyName: "ACME CNC",
+            companyKey: "acme-cnc",
+            jobTitle: "Sales Manager",
+            years: 3,
+            industryVerified: true,
+            verdictRevisionId: "revision-acme-1",
+            workEntryFingerprint: "work-1",
+            directRoleMatch: true,
+            matchedSignals: ["sales"],
+          }],
+          verifyIn: "workHistory",
+        }],
+      },
+    }) as Parameters<typeof buildResumeDigest>[0];
+
+    const digest = buildResumeDigest(resume, Date.UTC(2026, 5, 4));
+
+    // sales is affirmed by the revision-checked projection (not the legacy
+    // 99). engineer comes only from the pre-evidence legacy aggregate and has
+    // no revision-backed entry, so it is revoked alongside the other legacy
+    // years — the same guard that keeps mismatched-revision aggregates from
+    // satisfying the gate.
+    expect(digest.roleYearsByType).toEqual({ sales: 3 });
+    expect(matchesResumeDigestFilters(digest as any, { minRoleYears: 1, roleFilterType: "engineer" })).toBe(false);
+  });
+
   it("round-trips bounded revision-backed evidence into the digest and list projection", () => {
     const summary = {
       companyKey: "acme-cnc",
