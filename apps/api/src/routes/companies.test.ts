@@ -192,4 +192,374 @@ describe("companies routes", () => {
     expect(body.policiesSeeded).toBe(2);
     expect(body.policyRevision).toBe(1);
   });
+
+  it("lists governed industry proposals for an authenticated admin", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      expect(call).toMatchObject({
+        type: "query",
+        pathName: "companies:listIndustryProposals",
+      });
+      expect(call.args.status).toBe("ready_for_review");
+      return convexSuccess([
+        {
+          _id: "proposal-row",
+          proposalId: "proposal-1",
+          companyKey: "acme-cnc",
+          triggerReasons: ["scheduled_freshness"],
+          priority: 80,
+          status: "ready_for_review",
+          createdAt: 1,
+          updatedAt: 2,
+        },
+      ]);
+    });
+
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request(
+      "/api/company-industry-proposals?status=ready_for_review",
+      { headers: auth.headers },
+    );
+
+    expect(response.status).toBe(200);
+    const body = await parseJsonBody<{
+      items: Array<{ proposalId: string; status: string }>;
+    }>(response);
+    expect(body.items).toEqual([
+      expect.objectContaining({
+        proposalId: "proposal-1",
+        status: "ready_for_review",
+      }),
+    ]);
+  });
+
+  it("requires an admin for proposal review mutations", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const app = createApp({ authStorage: auth.storage });
+
+    const response = await app.request(
+      "/api/company-industry-proposals/proposal-1/approve",
+      {
+        method: "POST",
+        headers: {
+          ...auth.headers,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          revisionId: "revision-2",
+          verificationLevel: "verified",
+          industryClass: "cnc",
+          approvedSourceIds: ["source-1"],
+          evidenceSummary: "Official catalog confirms CNC products.",
+          decisionReason: "Reviewed primary evidence",
+          taxonomyVersion: "industry-v1",
+        }),
+      },
+    );
+
+    expect(response.status).toBe(403);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("approves an industry proposal with the authenticated actor", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+    const recomputeRun = {
+      runId: "run-1",
+      workspaceSlug: "hr",
+      companyKey: "acme-cnc",
+      targetRevisionId: "revision-2",
+      proposalId: "proposal-1",
+      requestedBy: auth.userId,
+      status: "running",
+      attempt: 1,
+      sourceDone: true,
+      pageCount: 1,
+      affectedCount: 0,
+      alreadyCurrentCount: 0,
+      scheduledCount: 0,
+      readyCount: 0,
+      failureCount: 0,
+      batchCount: 0,
+      failures: [],
+      createdAt: 10,
+      startedAt: 10,
+      updatedAt: 11,
+    };
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      if (call.pathName === "companies:approveIndustryProposal") {
+        expect(call.args).toMatchObject({
+          proposalId: "proposal-1",
+          revisionId: "revision-2",
+          reviewer: auth.userId,
+          verificationLevel: "verified",
+          approvedSourceIds: ["source-1"],
+        });
+        return convexSuccess({
+          proposalId: "proposal-1",
+          revisionId: "revision-2",
+          companyKey: "acme-cnc",
+        });
+      }
+      if (call.pathName === "companies:startIndustryRecomputeRun") {
+        expect(call.args).toMatchObject({
+          workspaceSlug: "hr",
+          companyKey: "acme-cnc",
+          targetRevisionId: "revision-2",
+          proposalId: "proposal-1",
+          requestedBy: auth.userId,
+        });
+        return convexSuccess({ ...recomputeRun, sourceDone: false, pageCount: 0 });
+      }
+      if (call.pathName === "companies:getIndustryRecomputeRun") {
+        return convexSuccess({ ...recomputeRun, sourceDone: false, pageCount: 0 });
+      }
+      if (call.pathName === "companies:getIndustryRecomputeRevisionState") {
+        return convexSuccess({
+          matchesTargetRevision: true,
+          currentRevisionId: "revision-2",
+        });
+      }
+      if (call.pathName === "companies:getNextIndustryRecomputeBatch") {
+        return convexSuccess(null);
+      }
+      if (call.pathName === "companies:listAffectedResumesByCompany") {
+        return convexSuccess({
+          items: [],
+          continueCursor: "",
+          isDone: true,
+        });
+      }
+      if (call.pathName === "companies:reserveIndustryRecomputePage") {
+        return convexSuccess(recomputeRun);
+      }
+      throw new Error(`Unexpected path ${call.pathName}`);
+    });
+
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request(
+      "/api/company-industry-proposals/proposal-1/approve",
+      {
+        method: "POST",
+        headers: {
+          ...auth.headers,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          revisionId: "revision-2",
+          verificationLevel: "verified",
+          industryClass: "cnc",
+          approvedSourceIds: ["source-1"],
+          evidenceSummary: "Official catalog confirms CNC products.",
+          decisionReason: "Reviewed primary evidence",
+          taxonomyVersion: "industry-v1",
+        }),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    const body = await parseJsonBody<{
+      revisionId: string;
+      recompute: { runId: string; status: string };
+    }>(response);
+    expect(body.revisionId).toBe("revision-2");
+    expect(body.recompute).toMatchObject({ runId: "run-1", status: "running" });
+  });
+
+  it("returns the materialized company evidence bundle to workspace members", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
+    const seen = new Set<string>();
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      seen.add(call.pathName);
+      if (call.pathName === "companies:getIndustryProfile") {
+        return convexSuccess({
+          _id: "profile-row",
+          companyKey: "acme-cnc",
+          industryClass: "cnc",
+          verificationLevel: "verified",
+          evidenceSource: "manual",
+          currentRevisionId: "revision-1",
+          updatedAt: 10,
+        });
+      }
+      if (call.pathName === "companies:listIndustryVerdictRevisions") {
+        return convexSuccess([
+          {
+            _id: "revision-row",
+            revisionId: "revision-1",
+            companyKey: "acme-cnc",
+            industryClass: "cnc",
+            verificationLevel: "verified",
+            approvedSourceIds: ["source-1"],
+            evidenceSummary: "Reviewed",
+            reviewedBy: "reviewer-1",
+            reviewedAt: 100,
+            decisionReason: "Confirmed",
+            taxonomyVersion: "industry-v1",
+            createdAt: 100,
+          },
+        ]);
+      }
+      if (call.pathName === "companies:listIndustryEvidenceSources") {
+        return convexSuccess([
+          {
+            _id: "source-row",
+            sourceId: "source-1",
+            companyKey: "acme-cnc",
+            url: "https://acme.example/products/cnc",
+            sourceDomain: "acme.example",
+            sourceType: "official_site",
+            trustTier: "primary",
+            fetchStatus: "fetched",
+            reviewStatus: "approved",
+            sourceState: "active",
+            createdAt: 1,
+            updatedAt: 2,
+          },
+        ]);
+      }
+      throw new Error(`Unexpected path ${call.pathName}`);
+    });
+
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request(
+      "/api/company-industry-bundles/acme-cnc",
+      { headers: auth.headers },
+    );
+
+    expect(response.status).toBe(200);
+    expect(seen).toEqual(
+      new Set([
+        "companies:getIndustryProfile",
+        "companies:listIndustryVerdictRevisions",
+        "companies:listIndustryEvidenceSources",
+      ]),
+    );
+    const body = await parseJsonBody<{
+      revisions: Array<{ revisionId: string }>;
+      sources: Array<{ sourceId: string }>;
+    }>(response);
+    expect(body.revisions[0]?.revisionId).toBe("revision-1");
+    expect(body.sources[0]?.sourceId).toBe("source-1");
+  });
+
+  it("accepts and coalesces a workspace recruiter evidence refresh request", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
+    const calls: ConvexCall[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+      if (call.pathName === "companies:getIndustryProfile") {
+        return convexSuccess({
+          _id: "profile-row",
+          companyKey: "acme-cnc",
+          industryClass: "cnc",
+          verificationLevel: "verified",
+          evidenceSource: "manual",
+          currentRevisionId: "revision-1",
+          updatedAt: 10,
+        });
+      }
+      if (call.pathName === "companies:upsertIndustryProposal") {
+        return convexSuccess({
+          proposalId: "proposal-open",
+          created: false,
+        });
+      }
+      if (call.pathName === "companies:resolveIndustryRefreshResumeReference") {
+        return convexSuccess({
+          resumeIdentity: "resume-1",
+          workEntryFingerprint: "work-1",
+        });
+      }
+      if (call.pathName === "companies:recordIndustryRefreshRequest") {
+        return convexSuccess({
+          requestId: "industry-refresh-request-1",
+          proposalId: "proposal-open",
+          created: true,
+        });
+      }
+      throw new Error(`Unexpected path ${call.pathName}`);
+    });
+
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request(
+      "/api/company-industry-refresh-requests",
+      {
+        method: "POST",
+        headers: {
+          ...auth.headers,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          companyKey: "acme-cnc",
+          verdictRevisionId: "revision-1",
+          resumeId: "resume-1",
+        }),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(await parseJsonBody(response)).toEqual({
+      success: true,
+      proposalId: "proposal-open",
+      coalesced: true,
+    });
+    const mutation = calls.find(
+      (call) => call.pathName === "companies:upsertIndustryProposal",
+    );
+    expect(mutation?.args).toMatchObject({
+      companyKey: "acme-cnc",
+      triggerReasons: ["recruiter_refresh_request"],
+      priority: 100,
+      currentRevisionId: "revision-1",
+      sampleReferences: [
+        {
+          workspaceSlug: "hr",
+          resumeIdentity: "resume-1",
+        },
+      ],
+    });
+    expect(mutation?.args.requestedBy).toBeTypeOf("string");
+    const requestRecord = calls.find(
+      (call) => call.pathName === "companies:recordIndustryRefreshRequest",
+    );
+    expect(requestRecord?.args).toMatchObject({
+      proposalId: "proposal-open",
+      companyKey: "acme-cnc",
+      verdictRevisionId: "revision-1",
+      workspaceSlug: "hr",
+      resumeIdentity: "resume-1",
+      reasonCode: "stale",
+    });
+  });
+
+  it("rejects refresh requests without an authenticated workspace session", async () => {
+    const calls: ConvexCall[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      calls.push(parseConvexCall(input, init));
+      return convexSuccess(null);
+    });
+
+    const response = await createApp().request(
+      "/api/company-industry-refresh-requests",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Workspace-Slug": "hr",
+        },
+        body: JSON.stringify({
+          companyKey: "acme-cnc",
+          verdictRevisionId: "revision-1",
+        }),
+      },
+    );
+
+    expect(response.status).toBe(401);
+    expect(calls).toHaveLength(0);
+  });
 });

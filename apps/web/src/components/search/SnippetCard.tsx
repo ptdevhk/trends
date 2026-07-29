@@ -34,6 +34,8 @@ import { ConfirmedScoreBadge } from '@/components/ConfirmedScoreBadge'
 import { CompanyPolicyBadges } from '@/components/CompanyPolicyBadges'
 import { useCompanyPolicyIndex } from '@/hooks/useCompanyPolicyIndex'
 import { useResumeWorkHistoryLimit } from '@/contexts/ResumeWorkHistoryLimitContext'
+import { IndustryEvidenceSummary } from '@/components/industry-evidence/IndustryEvidenceSummary'
+import { getVerifiedIndustryEvidenceSummaries } from '@/components/industry-evidence/industry-evidence'
 
 type SnippetCardProps = {
   expanded: boolean
@@ -147,6 +149,10 @@ export const SnippetCard = memo(function SnippetCard({
   const companyHits = (item.resume.ingestData?.companyHits ?? []).slice(0, 3)
   const { resolve: resolveBrand } = useBrandDisplayMap()
   const brandSummary = summarizeBrandHits(item.resume.ingestData?.brandHits)
+  const verifiedIndustryEvidenceSummaries = useMemo(
+    () => getVerifiedIndustryEvidenceSummaries(item.resume),
+    [item.resume],
+  )
   const { matchResume } = useCompanyPolicyIndex(true)
   const companyPolicyHits = useMemo(
     () =>
@@ -326,6 +332,14 @@ export const SnippetCard = memo(function SnippetCard({
         </div>
       ) : null}
 
+      {verifiedIndustryEvidenceSummaries.length > 0 ? (
+        <div className="border-b px-4 py-3">
+          <IndustryEvidenceSummary
+            summaries={verifiedIndustryEvidenceSummaries}
+          />
+        </div>
+      ) : null}
+
       {/* Main card body */}
       <div className="flex flex-col gap-4 p-4 lg:flex-row">
         {/* Checkbox + Avatar */}
@@ -462,6 +476,7 @@ export const SnippetCard = memo(function SnippetCard({
             : undefined}
           statusOptions={STATUS_OPTIONS}
           userRating={userRating}
+          showIndustryEvidence={false}
           onBlockTrigger={onToggleBlock
             ? () => {
               if (item.blocked) {

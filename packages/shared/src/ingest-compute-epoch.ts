@@ -35,6 +35,12 @@ export const INGEST_COMPUTE_EPOCH_HISTORY: readonly IngestComputeEpochReason[] =
       "Global verified-only requested-role minRoleYears + strict resume digest projection",
     introduced: "2026-07-28",
   },
+  {
+    epoch: 3,
+    reason:
+      "Revision-backed reviewed company-industry evidence, strict role-year projection, and recruiter evidence summaries",
+    introduced: "2026-07-29",
+  },
 ] as const;
 
 /** Code-required ingest compute epoch stamped on every successful compute write. */
@@ -44,7 +50,28 @@ export const CURRENT_INGEST_COMPUTE_EPOCH: number =
 export type IngestDataEpochFields = {
   skillsVersion?: number | null;
   ingestComputeEpoch?: number | null;
+  evidenceProjectionVersion?: number | null;
 };
+
+/**
+ * True when a materialized industry-evidence projection is missing or behind
+ * the caller's required projection revision. This stays independent from the
+ * general compute epoch so operators and UI can diagnose which contract is
+ * stale.
+ */
+export function isEvidenceProjectionStale(
+  ingestData: IngestDataEpochFields | null | undefined,
+  currentProjectionVersion: number,
+): boolean {
+  if (!ingestData) {
+    return true;
+  }
+  const version = ingestData.evidenceProjectionVersion;
+  if (typeof version !== "number" || !Number.isFinite(version)) {
+    return true;
+  }
+  return version < currentProjectionVersion;
+}
 
 /**
  * True when stored computed data is behind the code's ingest algorithm revision.

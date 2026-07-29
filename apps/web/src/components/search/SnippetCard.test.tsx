@@ -153,6 +153,43 @@ describe('SnippetCard', () => {
     vi.clearAllMocks()
   })
 
+  it('renders the compact approved evidence summary on an ordinary search result', () => {
+    render(
+      <SnippetCard
+        expanded={false}
+        item={createResult(1, {
+          resume: createResume(1, {
+            ingestData: {
+              industryTags: [],
+              synonymHits: [],
+              brandHits: [],
+              companyHits: [],
+              ruleScores: {},
+              experienceLevel: 'senior',
+              verifiedIndustryEvidenceSummaries: [{
+                companyKey: 'acme-cnc',
+                companyName: 'Acme CNC',
+                industryClass: 'cnc',
+                verificationLevel: 'verified',
+                verdictRevisionId: 'revision-1',
+                evidenceSummary: 'Human-approved CNC machinery evidence.',
+                reviewedAt: Date.UTC(2026, 6, 20),
+                sourceCount: 0,
+                sourcePreviews: [],
+                additionalSourceCount: 0,
+              }],
+            },
+          }),
+        })}
+        itemKey="result-1"
+        onToggleExpanded={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('CNC 行业验证')).toBeInTheDocument()
+    expect(screen.getByText('Human-approved CNC machinery evidence.')).toBeInTheDocument()
+  })
+
   it('renders headline, score, provenance keywords, and toggles expansion', async () => {
     const user = userEvent.setup()
     const onToggleExpanded = vi.fn()

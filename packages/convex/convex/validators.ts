@@ -13,6 +13,71 @@ const productClassValidator = v.union(
     v.literal("other"),
 );
 
+const industryClassValidator = v.union(
+    v.literal("cnc"),
+    v.literal("automation"),
+    v.literal("metrology"),
+    v.literal("industrial"),
+    v.literal("non_industry"),
+    v.literal("unknown"),
+);
+
+const industryEvidenceSourceTypeValidator = v.union(
+    v.literal("official_site"),
+    v.literal("registry"),
+    v.literal("taxonomy"),
+    v.literal("oem_partner"),
+    v.literal("trade_body"),
+    v.literal("directory"),
+    v.literal("reporting"),
+    v.literal("other"),
+);
+
+const industryEvidenceTrustTierValidator = v.union(
+    v.literal("primary"),
+    v.literal("authoritative"),
+    v.literal("corroborating"),
+);
+
+const industryEvidenceFreshnessValidator = v.union(
+    v.literal("fresh"),
+    v.literal("refresh_due"),
+    v.literal("checking"),
+    v.literal("changed"),
+    v.literal("unavailable"),
+    v.literal("conflict"),
+);
+
+const industryEvidenceSourcePreviewValidator = v.object({
+    sourceId: v.string(),
+    url: v.string(),
+    sourceDomain: v.string(),
+    sourceType: industryEvidenceSourceTypeValidator,
+    trustTier: industryEvidenceTrustTierValidator,
+    title: v.optional(v.string()),
+    evidenceExcerpt: v.optional(v.string()),
+    fetchedAt: v.optional(v.number()),
+    reviewedAt: v.optional(v.number()),
+});
+
+export const verifiedIndustryEvidenceSummaryValidator = v.object({
+    companyKey: v.string(),
+    companyName: v.string(),
+    industryClass: industryClassValidator,
+    verificationLevel: v.literal("verified"),
+    verdictRevisionId: v.string(),
+    evidenceSummary: v.string(),
+    verifiedYears: v.optional(v.number()),
+    roleTypes: v.optional(v.array(v.string())),
+    latestRoleAt: v.optional(v.number()),
+    reviewedAt: v.number(),
+    reviewedBy: v.optional(v.string()),
+    sourceCount: v.number(),
+    sourcePreviews: v.array(industryEvidenceSourcePreviewValidator),
+    additionalSourceCount: v.number(),
+    freshnessState: v.optional(industryEvidenceFreshnessValidator),
+});
+
 /**
  * Shared validator definitions for Convex schema shapes that are also used
  * in mutation/action args. Single source of truth — schema.ts and mutation
@@ -57,9 +122,12 @@ export const ingestDataValidator = v.object({
         industryVerifiedRelevantYears: v.optional(v.number()),
         matchedWorkEntries: v.optional(v.array(v.object({
             companyName: v.optional(v.string()),
+            companyKey: v.optional(v.string()),
             jobTitle: v.optional(v.string()),
             years: v.number(),
             industryVerified: v.boolean(),
+            verdictRevisionId: v.optional(v.string()),
+            workEntryFingerprint: v.optional(v.string()),
             matchedSignals: v.array(v.string()),
             directRoleMatch: v.optional(v.boolean()),
         }))),
@@ -113,6 +181,14 @@ export const ingestDataValidator = v.object({
     /** Algorithm revision for roleSignals/years materialization; optional for pre-epoch rows */
     ingestComputeEpoch: v.optional(v.number()),
     verifiedRoleYears: v.optional(v.record(v.string(), v.number())),
+    evidenceProjectionVersion: v.optional(v.number()),
+    verifiedIndustryEvidenceSummaries: v.optional(
+        v.array(verifiedIndustryEvidenceSummaryValidator),
+    ),
+    industryEvidenceCatalogState: v.optional(v.union(
+        v.literal("ready"),
+        v.literal("degraded"),
+    )),
 });
 
 // --- collection_tasks.results ---

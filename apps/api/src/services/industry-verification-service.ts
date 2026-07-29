@@ -9,6 +9,11 @@
  * this service owns the final badge/gate truth decision.
  */
 
+import type {
+  IndustryClass,
+  IndustryEvidenceSourcePreview,
+} from "@trends/shared";
+
 import { IndustryDataService, type CompanyEntry } from "./industry-data-service.js";
 
 export type IndustryVerdict = "verified" | "candidate" | "rejected";
@@ -26,6 +31,34 @@ export type EmployerSource =
 
 export type DutyEvidence = "positive" | "neutral" | "negative";
 
+export type IndustryVerificationCompatibilityMode =
+  | "legacy-seed"
+  | "strict-reviewed";
+
+export interface ReviewedIndustryProfileSnapshot {
+  companyKey: string;
+  companyName?: string;
+  industryClass: IndustryClass;
+  verificationLevel: "verified" | "rejected";
+  verdictRevisionId: string;
+  evidenceSummary: string;
+  reviewedAt: number;
+  reviewedBy?: string;
+  sourceCount: number;
+  sourcePreviews: IndustryEvidenceSourcePreview[];
+  additionalSourceCount?: number;
+  freshnessState?: import("@trends/shared").IndustryEvidenceFreshnessState;
+}
+
+export interface ResolveIndustryVerdictInput {
+  companyName?: string;
+  dutyText?: string;
+  targetIndustryClass?: IndustryClass;
+  resolvedCompanyKey?: string;
+  reviewedProfile?: ReviewedIndustryProfileSnapshot;
+  compatibilityMode: IndustryVerificationCompatibilityMode;
+}
+
 export interface IndustryVerdictResult {
   verdict: IndustryVerdict;
   strength: EmployerEvidenceStrength;
@@ -40,6 +73,13 @@ export interface IndustryVerdictResult {
   seedMatchType: "known_company" | "keyword_match" | "none";
   /** Resolved company entry when the seed matcher found a known company. */
   company?: CompanyEntry;
+  /** Human-approved immutable revision backing this result, when present. */
+  verdictRevisionId?: string;
+  reviewedIndustryClass?: IndustryClass;
+  evidenceSummary?: string;
+  reviewedAt?: number;
+  reviewedBy?: string;
+  compatibilityMode?: IndustryVerificationCompatibilityMode;
 }
 
 // --- Duty evidence cue lists (v1: small and explicit) ---
@@ -104,9 +144,24 @@ export class IndustryVerificationService {
   resolveVerdict(
     companyName: string | undefined,
     dutyText: string | undefined,
+  ): IndustryVerdictResult;
+  resolveVerdict(input: ResolveIndustryVerdictInput): IndustryVerdictResult;
+  resolveVerdict(
+    companyNameOrInput: string | ResolveIndustryVerdictInput | undefined,
+    legacyDutyText?: string,
   ): IndustryVerdictResult {
-    const employerName = (companyName ?? "").trim();
-    const duty = (dutyText ?? "").trim().toLowerCase();
+    const input: ResolveIndustryVerdictInput =
+      typeof companyNameOrInput === "object" && companyNameOrInput !== null
+        ? companyNameOrInput
+        : {
+            companyName: companyNameOrInput,
+            dutyText: legacyDutyText,
+            compatibilityMode: "legacy-seed",
+          };
+    const employerName = (input.companyName ?? "").trim();
+    const duty = (input.dutyText ?? "").trim().toLowerCase();
+    const targetIndustryClass = input.targetIndustryClass ?? "cnc";
+    const compatibilityMode = input.compatibilityMode;
     const reasonSummary: string[] = [];
     const dutyEvidence = this.classifyDutyEvidence(duty);
 
@@ -122,6 +177,7 @@ export class IndustryVerificationService {
         reasonSummary: ["empty employer name -> rejected"],
         needsReview: false,
         seedMatchType: "none",
+        compatibilityMode,
       };
     }
 
@@ -131,13 +187,97 @@ export class IndustryVerificationService {
       employerName,
       seed,
     );
-    const companyKey = seed.company
+    const seedCompanyKey = seed.company
       ? this.industryDataService.getCompanyKey(seed.company)
       : undefined;
+    const resolvedCompanyKey = input.resolvedCompanyKey?.trim().toLowerCase();
+    const companyKey = resolvedCompanyKey || seedCompanyKey;
 
     reasonSummary.push(`employer_source=${employerSource}`);
     reasonSummary.push(`employer_strength=${strength}`);
     reasonSummary.push(`duty_evidence=${dutyEvidence}`);
+
+    const reviewedProfile = input.reviewedProfile;
+    const reviewedCompanyKey = reviewedProfile?.companyKey.trim().toLowerCase();
+    if (
+      reviewedProfile &&
+      resolvedCompanyKey &&
+      reviewedCompanyKey !== resolvedCompanyKey
+    ) {
+      reasonSummary.push("reviewed profile companyKey mismatch -> ignored");
+    } else if (reviewedProfile) {
+      const reviewedFields = {
+        companyKey: reviewedProfile.companyKey,
+        verdictRevisionId: reviewedProfile.verdictRevisionId,
+        reviewedIndustryClass: reviewedProfile.industryClass,
+        evidenceSummary: reviewedProfile.evidenceSummary,
+        reviewedAt: reviewedProfile.reviewedAt,
+        ...(reviewedProfile.reviewedBy
+          ? { reviewedBy: reviewedProfile.reviewedBy }
+          : {}),
+        compatibilityMode,
+      };
+
+      if (reviewedProfile.verificationLevel === "rejected") {
+        return {
+          verdict: "rejected",
+          strength: "strong",
+          employerSource: "reviewed_profile",
+          dutyEvidence,
+          confidence: 1,
+          matchedKeywords: seed.matchedKeywords,
+          reasonSummary: [
+            ...reasonSummary,
+            "reviewed rejected verdict -> authoritative veto",
+          ],
+          needsReview: false,
+          seedMatchType: seed.matchType,
+          ...(seed.company ? { company: seed.company } : {}),
+          ...reviewedFields,
+        };
+      }
+
+      if (
+        this.isTaxonomyCompatible(
+          reviewedProfile.industryClass,
+          targetIndustryClass,
+        )
+      ) {
+        return {
+          verdict: "verified",
+          strength: "strong",
+          employerSource: "reviewed_profile",
+          dutyEvidence,
+          confidence: 1,
+          matchedKeywords: seed.matchedKeywords,
+          reasonSummary: [
+            ...reasonSummary,
+            "compatible reviewed verified revision -> verified",
+          ],
+          needsReview: false,
+          seedMatchType: seed.matchType,
+          ...(seed.company ? { company: seed.company } : {}),
+          ...reviewedFields,
+        };
+      }
+
+      return {
+        verdict: "candidate",
+        strength: "strong",
+        employerSource: "reviewed_profile",
+        dutyEvidence,
+        confidence: 1,
+        matchedKeywords: seed.matchedKeywords,
+        reasonSummary: [
+          ...reasonSummary,
+          `reviewed verified verdict is incompatible with target taxonomy ${targetIndustryClass}`,
+        ],
+        needsReview: true,
+        seedMatchType: seed.matchType,
+        ...(seed.company ? { company: seed.company } : {}),
+        ...reviewedFields,
+      };
+    }
 
     // 2. Resolve final verdict via promotion/veto rules.
     let verdict: IndustryVerdict;
@@ -183,6 +323,14 @@ export class IndustryVerificationService {
       reasonSummary.push("ambiguous short alias downgraded to candidate");
     }
 
+    if (compatibilityMode === "strict-reviewed" && verdict === "verified") {
+      verdict = "candidate";
+      needsReview = true;
+      reasonSummary.push(
+        "strict-reviewed mode requires an approved revision -> candidate",
+      );
+    }
+
     return {
       verdict,
       strength,
@@ -195,7 +343,26 @@ export class IndustryVerificationService {
       needsReview,
       seedMatchType: seed.matchType,
       ...(seed.company ? { company: seed.company } : {}),
+      compatibilityMode,
     };
+  }
+
+  private isTaxonomyCompatible(
+    reviewedIndustryClass: IndustryClass,
+    targetIndustryClass: IndustryClass,
+  ): boolean {
+    if (reviewedIndustryClass === targetIndustryClass) {
+      return true;
+    }
+    if (targetIndustryClass === "industrial") {
+      return [
+        "cnc",
+        "automation",
+        "metrology",
+        "industrial",
+      ].includes(reviewedIndustryClass);
+    }
+    return false;
   }
 
   private classifyEmployerEvidence(

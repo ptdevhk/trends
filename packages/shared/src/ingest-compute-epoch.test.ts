@@ -4,6 +4,7 @@ import {
   INGEST_COMPUTE_EPOCH_HISTORY,
   SEARCH_FRESHNESS_GOLDEN_QUERIES,
   isComputeStale,
+  isEvidenceProjectionStale,
   isIngestStale,
   isSkillsStale,
   shouldSelectForReingest,
@@ -67,12 +68,34 @@ describe("ingest-compute-epoch", () => {
   });
 
   it("appends epoch 2 for the global verified-only role-year projection change", () => {
-    expect(CURRENT_INGEST_COMPUTE_EPOCH).toBeGreaterThanOrEqual(2);
+    expect(INGEST_COMPUTE_EPOCH_HISTORY).toContainEqual(
+      expect.objectContaining({
+        epoch: 2,
+        introduced: "2026-07-28",
+      }),
+    );
+  });
+
+  it("appends epoch 3 for revision-backed evidence projections", () => {
+    expect(CURRENT_INGEST_COMPUTE_EPOCH).toBeGreaterThanOrEqual(3);
     expect(INGEST_COMPUTE_EPOCH_HISTORY.at(-1)).toMatchObject({
-      epoch: 2,
-      introduced: "2026-07-28",
+      epoch: 3,
+      introduced: "2026-07-29",
     });
-    expect(INGEST_COMPUTE_EPOCH_HISTORY.at(-1)?.reason).toContain("verified-only");
+    expect(INGEST_COMPUTE_EPOCH_HISTORY.at(-1)?.reason).toContain("Revision-backed");
+  });
+
+  it("tracks evidence projection freshness independently from compute and skills versions", () => {
+    const current = {
+      skillsVersion: 9,
+      ingestComputeEpoch: CURRENT_INGEST_COMPUTE_EPOCH,
+      evidenceProjectionVersion: 1,
+    };
+
+    expect(isEvidenceProjectionStale(current, 1)).toBe(false);
+    expect(isEvidenceProjectionStale({ ...current, evidenceProjectionVersion: 0 }, 1)).toBe(true);
+    expect(isEvidenceProjectionStale({ ...current, evidenceProjectionVersion: undefined }, 1)).toBe(true);
+    expect(isEvidenceProjectionStale(undefined, 1)).toBe(true);
   });
 
   it("drops the MY search floor to semantic availability while keeping a high CN floor", () => {

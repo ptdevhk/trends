@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useMutation } from 'convex/react'
-import { Activity, ArrowRight, Bot, FileText, Map, ShieldAlert, ShieldCheck, Tags } from 'lucide-react'
+import { Activity, ArrowRight, Bot, Factory, FileText, Map, ShieldAlert, ShieldCheck, Tags } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
@@ -29,6 +29,8 @@ function getSectionIcon(id: SystemSettingsSubpageDefinition['id']) {
       return ShieldCheck
     case 'config-sources':
       return FileText
+    case 'industry-verification':
+      return Factory
     case 'keywords':
       return Tags
     case 'locations':

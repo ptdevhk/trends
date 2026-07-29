@@ -58,9 +58,12 @@ interface RoleSignal {
   industryVerifiedRelevantYears?: number;
   matchedWorkEntries?: Array<{
     companyName?: string;
+    companyKey?: string;
     jobTitle?: string;
     years: number;
     industryVerified: boolean;
+    verdictRevisionId?: string;
+    workEntryFingerprint?: string;
     matchedSignals: string[];
     directRoleMatch?: boolean;
   }>;
@@ -538,6 +541,8 @@ export const getExactReingestReadiness = query({
     resumeIds: v.array(v.id("resumes")),
     dispatchedAt: v.number(),
     expectedSkillsVersion: v.number(),
+    expectedCompanyKey: v.optional(v.string()),
+    expectedVerdictRevisionId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     requireExactReingestWriteSecret(args.writeSecret);
@@ -554,7 +559,10 @@ export const getExactReingestReadiness = query({
     }
     const resumeIds = Array.from(new Set(args.resumeIds));
     const resumes = await Promise.all(resumeIds.map((resumeId) => ctx.db.get(resumeId)));
-    const targets = resumes.map((resume, index) => {
+    const expectedCompanyKey = args.expectedCompanyKey?.trim().toLowerCase();
+    const expectedVerdictRevisionId =
+      args.expectedVerdictRevisionId?.trim();
+    const targets = await Promise.all(resumes.map(async (resume, index) => {
       const currentResumeId = String(resumeIds[index]);
       if (!resume) {
         return {
@@ -601,6 +609,24 @@ export const getExactReingestReadiness = query({
       if (!phase2FieldsPresent) {
         reasons.push("phase_2_fields_missing");
       }
+      if (expectedCompanyKey && expectedVerdictRevisionId) {
+        const companyLinks = await ctx.db
+          .query("company_resume_links")
+          .withIndex("by_resume", (query) =>
+            query.eq("resumeId", resumeIds[index]),
+          )
+          .collect();
+        const companyLink = companyLinks.find(
+          (link) => link.companyKey === expectedCompanyKey,
+        );
+        if (!companyLink) {
+          reasons.push("industry_evidence_company_link_missing");
+        } else if (
+          companyLink.currentVerdictRevisionId !== expectedVerdictRevisionId
+        ) {
+          reasons.push("industry_evidence_revision_mismatch");
+        }
+      }
 
       return {
         currentResumeId,
@@ -610,7 +636,7 @@ export const getExactReingestReadiness = query({
         phase2FieldsPresent,
         reasons,
       };
-    });
+    }));
     const ready = targets.filter((target) => target.state === "ready").length;
     const pending = targets.filter((target) => target.state === "pending").length;
     const invalid = targets.filter((target) => target.state === "invalid").length;
@@ -646,7 +672,7 @@ export const processNewResumes = internalAction({
 
     try {
       // 1. Fetch resume documents
-      const resumes: Array<{ _id: Id<"resumes">; content: Record<string, unknown>; sourceKey?: string }> = await ctx.runQuery(internal.resumes_search.getResumesByIds, {
+      const resumes: Array<{ _id: Id<"resumes">; content: Record<string, unknown>; sourceKey?: string; workspaceSlug?: string }> = await ctx.runQuery(internal.resumes_search.getResumesByIds, {
         resumeIds,
       });
 
@@ -657,10 +683,11 @@ export const processNewResumes = internalAction({
 
       // 2. Prepare payload for BFF (include sourceKey for market derivation)
       const payload = {
-        resumes: resumes.map((resume: { _id: Id<"resumes">; content: Record<string, unknown>; sourceKey?: string }) => ({
+        resumes: resumes.map((resume: { _id: Id<"resumes">; content: Record<string, unknown>; sourceKey?: string; workspaceSlug?: string }) => ({
           resumeId: resume._id,
           content: resume.content,
           sourceKey: resume.sourceKey,
+          workspaceSlug: resume.workspaceSlug ?? "dev",
         })),
       };
 
@@ -724,6 +751,20 @@ export const processNewResumes = internalAction({
           computedAt: item.computedAt as number,
           skillsVersion: item.skillsVersion as number,
           ingestComputeEpoch: readIngestComputeEpochFromPayload(item.ingestComputeEpoch),
+          evidenceProjectionVersion:
+            typeof item.evidenceProjectionVersion === "number"
+              ? item.evidenceProjectionVersion
+              : undefined,
+          verifiedIndustryEvidenceSummaries:
+            Array.isArray(item.verifiedIndustryEvidenceSummaries)
+              ? item.verifiedIndustryEvidenceSummaries
+              : undefined,
+          industryEvidenceCatalogState:
+            item.industryEvidenceCatalogState === "ready"
+              ? ("ready" as const)
+              : item.industryEvidenceCatalogState === "degraded"
+                ? ("degraded" as const)
+                : undefined,
         },
         companyPatternAliasTokens: (item.companyPatternAliasTokens as string) || "",
         primaryRuleScore: typeof item.primaryRuleScore === "number" ? item.primaryRuleScore : 0,

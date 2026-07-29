@@ -223,9 +223,12 @@ export interface RequiredRoleRequirement {
 
 export interface MatchedWorkEntry {
   companyName?: string;
+  companyKey?: string;
   jobTitle?: string;
   years: number;
   industryVerified: boolean;
+  verdictRevisionId?: string;
+  workEntryFingerprint?: string;
   matchedSignals: string[];
   directRoleMatch?: boolean;
 }

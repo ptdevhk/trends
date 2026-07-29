@@ -13,6 +13,7 @@ import {
   parseExperienceYears,
   parseProductClass,
   parseRawSalaryRange,
+  parseVerifiedIndustryEvidenceSummary,
   resolveGateRoleYears,
   selectLatestWorkHistory,
 } from "@trends/shared";
@@ -174,14 +175,22 @@ export function normalizeMatchedWorkEntries(value: unknown): ResumeIngestMatched
       }
 
       const companyName = toStringValue(item.companyName) || undefined;
+      const companyKey = toStringValue(item.companyKey) || undefined;
       const jobTitle = toStringValue(item.jobTitle) || undefined;
+      const verdictRevisionId =
+        toStringValue(item.verdictRevisionId) || undefined;
+      const workEntryFingerprint =
+        toStringValue(item.workEntryFingerprint) || undefined;
       const directRoleMatch = typeof item.directRoleMatch === "boolean" ? item.directRoleMatch : undefined;
 
       return {
         ...(companyName ? { companyName } : {}),
+        ...(companyKey ? { companyKey } : {}),
         ...(jobTitle ? { jobTitle } : {}),
         years,
         industryVerified: item.industryVerified === true,
+        ...(verdictRevisionId ? { verdictRevisionId } : {}),
+        ...(workEntryFingerprint ? { workEntryFingerprint } : {}),
         matchedSignals: toStringArray(item.matchedSignals),
         ...(directRoleMatch === undefined ? {} : { directRoleMatch }),
       } satisfies ResumeIngestMatchedWorkEntry;
@@ -247,6 +256,21 @@ export function normalizeIngestData(value: unknown): ResumeIngestData | undefine
   const verifiedRoleYears = normalizeNumberRecord(value.verifiedRoleYears);
   const brandOrigin = parseBrandOrigin(value.brandOrigin);
   const productClass = parseProductClass(value.productClass);
+  const evidenceProjectionVersion = toOptionalNumber(
+    value.evidenceProjectionVersion,
+  );
+  const verifiedIndustryEvidenceSummaries = Array.isArray(
+    value.verifiedIndustryEvidenceSummaries,
+  )
+    ? value.verifiedIndustryEvidenceSummaries
+        .map(parseVerifiedIndustryEvidenceSummary)
+        .filter((summary) => summary !== null)
+    : undefined;
+  const industryEvidenceCatalogState =
+    value.industryEvidenceCatalogState === "ready" ||
+    value.industryEvidenceCatalogState === "degraded"
+      ? value.industryEvidenceCatalogState
+      : undefined;
 
   if (
     industryTags.length === 0
@@ -256,6 +280,8 @@ export function normalizeIngestData(value: unknown): ResumeIngestData | undefine
     && verifiedRoleYears === undefined
     && brandOrigin === undefined
     && productClass === undefined
+    && evidenceProjectionVersion === undefined
+    && !verifiedIndustryEvidenceSummaries?.length
   ) {
     return undefined;
   }
@@ -268,6 +294,13 @@ export function normalizeIngestData(value: unknown): ResumeIngestData | undefine
     ...(companyHits.length > 0 ? { companyHits } : {}),
     ...(roleSignals ? { roleSignals } : {}),
     ...(verifiedRoleYears ? { verifiedRoleYears } : {}),
+    ...(evidenceProjectionVersion !== undefined
+      ? { evidenceProjectionVersion }
+      : {}),
+    ...(verifiedIndustryEvidenceSummaries
+      ? { verifiedIndustryEvidenceSummaries }
+      : {}),
+    ...(industryEvidenceCatalogState ? { industryEvidenceCatalogState } : {}),
     ...(isRecord(value.ruleScores) && Object.keys(value.ruleScores).length > 0 ? { ruleScores: value.ruleScores as Record<string, number> } : {}),
     ...(typeof value.market === 'string' && value.market ? { market: value.market } : {}),
   };

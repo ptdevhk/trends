@@ -21,6 +21,10 @@ import {
 } from "../apps/api/src/services/industry-unresolved-store.js";
 import { IndustryDataService } from "../apps/api/src/services/industry-data-service.js";
 import { makeUnresolvedEvent } from "../apps/api/src/services/industry-unresolved-queue.js";
+import {
+  promoteIndustryMaintenanceCandidates,
+  unresolvedEventsToMaintenanceEvents,
+} from "../apps/api/src/services/industry-maintenance-trigger-service.js";
 
 function argValue(args: string[], name: string): string | undefined {
   const idx = args.indexOf(name);
@@ -38,6 +42,7 @@ function printHelp(): void {
 Commands:
   list     List aggregated unresolved keys
   record   Record a surface via resolve + optional persist
+  promote  Upsert the file queue into governed Convex review proposals
 
 Options:
   --root PATH           Project root (default: cwd)
@@ -50,7 +55,7 @@ Options:
 `);
 }
 
-function main(): void {
+async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const cmd = args[0];
   if (!cmd || cmd === "help" || cmd === "--help" || cmd === "-h") {
@@ -152,9 +157,35 @@ function main(): void {
     return;
   }
 
+  if (cmd === "promote") {
+    const file = readUnresolvedQueue(queuePath);
+    const result = await promoteIndustryMaintenanceCandidates(
+      unresolvedEventsToMaintenanceEvents(file.events),
+    );
+    console.log(
+      JSON.stringify(
+        {
+          ok: true,
+          source: queuePath,
+          diagnosticEventCount: file.events.length,
+          candidateCount: result.candidates.length,
+          created: result.created,
+          coalesced: result.coalesced,
+          degradedResolution: result.degradedResolution,
+        },
+        null,
+        2,
+      ),
+    );
+    return;
+  }
+
   console.error(`Unknown command: ${cmd}`);
   printHelp();
   process.exit(1);
 }
 
-main();
+void main().catch((error) => {
+  console.error(error instanceof Error ? error.message : String(error));
+  process.exit(1);
+});

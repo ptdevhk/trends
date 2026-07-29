@@ -27,6 +27,8 @@ import { useResumeWorkHistoryLimit } from '@/contexts/ResumeWorkHistoryLimitCont
 import { CompanyPolicyBadges } from '@/components/CompanyPolicyBadges'
 import { CompanyResearchStrip } from '@/components/research/CompanyResearchStrip'
 import { useCompanyPolicyIndex } from '@/hooks/useCompanyPolicyIndex'
+import { IndustryEvidenceDetail } from '@/components/industry-evidence/IndustryEvidenceSummary'
+import { getVerifiedIndustryEvidenceSummaries } from '@/components/industry-evidence/industry-evidence'
 
 import type { AiFeedbackSentiment, AiFeedbackTarget, MatchingResult } from '@/types/resume'
 
@@ -199,6 +201,10 @@ export function ResumeDetail({
   const brandSummary = useMemo(
     () => summarizeBrandHits(ingestData?.brandHits),
     [ingestData?.brandHits],
+  )
+  const verifiedIndustryEvidenceSummaries = useMemo(
+    () => getVerifiedIndustryEvidenceSummaries(resume),
+    [resume],
   )
   const experienceBadge = getExperienceBadge(ingestData?.experienceLevel, t)
   const { matchResume } = useCompanyPolicyIndex(Boolean(resume))
@@ -412,6 +418,13 @@ export function ResumeDetail({
               </ul>
             )}
           </div>
+
+          {verifiedIndustryEvidenceSummaries.length > 0 ? (
+            <IndustryEvidenceDetail
+              summaries={verifiedIndustryEvidenceSummaries}
+              resumeId={String(resume.resumeId ?? '') || undefined}
+            />
+          ) : null}
 
           {matchResult && (
             <div className="rounded-lg border bg-slate-50 dark:bg-slate-900 p-4">

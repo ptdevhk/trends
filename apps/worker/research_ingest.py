@@ -194,10 +194,21 @@ class ResearchIngestJob:
                 try:
                     from apps.worker.research_unresolved import (
                         append_research_unresolved_to_queue,
+                        promote_research_unresolved_to_proposals,
                         samples_from_unresolved_items,
                     )
 
                     samples = samples_from_unresolved_items(unresolved_items)
+                    promoted = promote_research_unresolved_to_proposals(
+                        self.client,
+                        samples,
+                    )
+                    if promoted:
+                        logger.info(
+                            "[ResearchIngest] promoted %s unresolved employer surfaces "
+                            "to governed proposals",
+                            promoted,
+                        )
                     appended = append_research_unresolved_to_queue(
                         Path(__file__).resolve().parents[2],
                         samples,

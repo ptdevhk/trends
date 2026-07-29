@@ -10,6 +10,7 @@ import type {
   ResumeSkillDetail,
   ResumeSnippet,
   ResumeWorkHistoryItem,
+  VerifiedIndustryEvidenceSummary,
   LocationHierarchy,
 } from "@trends/shared";
 
@@ -23,6 +24,7 @@ export type {
   ResumeSkillDetail,
   ResumeSnippet,
   ResumeWorkHistoryItem,
+  VerifiedIndustryEvidenceSummary,
 };
 
 export type ResumeIngestBrandHit = {
@@ -37,9 +39,12 @@ export type ResumeIngestBrandHit = {
 
 export type ResumeIngestMatchedWorkEntry = {
   companyName?: string;
+  companyKey?: string;
   jobTitle?: string;
   years: number;
   industryVerified: boolean;
+  verdictRevisionId?: string;
+  workEntryFingerprint?: string;
   matchedSignals: string[];
   directRoleMatch?: boolean;
 };
@@ -76,6 +81,9 @@ export type ResumeIngestData = {
   computedAt?: number;
   skillsVersion?: number;
   ingestComputeEpoch?: number;
+  evidenceProjectionVersion?: number;
+  verifiedIndustryEvidenceSummaries?: VerifiedIndustryEvidenceSummary[];
+  industryEvidenceCatalogState?: "ready" | "degraded";
 };
 
 export type ResumeItem = {

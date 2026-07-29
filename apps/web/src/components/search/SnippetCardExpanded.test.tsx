@@ -90,6 +90,40 @@ describe('SnippetCardExpanded', () => {
     )
   })
 
+  it('keeps the approved evidence summary visible in the expanded result', () => {
+    render(
+      <SnippetCardExpanded
+        item={createResult(1, {
+          resume: createResume(1, {
+            ingestData: {
+              industryTags: [],
+              synonymHits: [],
+              brandHits: [],
+              companyHits: [],
+              ruleScores: {},
+              experienceLevel: 'senior',
+              verifiedIndustryEvidenceSummaries: [{
+                companyKey: 'acme-cnc',
+                companyName: 'Acme CNC',
+                industryClass: 'cnc',
+                verificationLevel: 'verified',
+                verdictRevisionId: 'revision-1',
+                evidenceSummary: 'Human-approved CNC machinery evidence.',
+                reviewedAt: Date.UTC(2026, 6, 20),
+                sourceCount: 0,
+                sourcePreviews: [],
+                additionalSourceCount: 0,
+              }],
+            },
+          }),
+        })}
+      />,
+    )
+
+    expect(screen.getByText('CNC 行业验证')).toBeInTheDocument()
+    expect(screen.getByText('Acme CNC')).toBeInTheDocument()
+  })
+
   it('renders snapshot, metadata, signals, and a safe source-profile link', () => {
     render(
       <SnippetCardExpanded

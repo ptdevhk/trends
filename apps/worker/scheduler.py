@@ -28,6 +28,7 @@ from apscheduler.events import (
 
 from apps.worker.tasks import (
     run_crawl_analyze,
+    run_industry_evidence_maintenance,
     run_research_ingest,
     health_check,
     list_summary_profiles_runtime,
@@ -35,6 +36,9 @@ from apps.worker.tasks import (
     run_scoring_auto_tune,
     normalize_summary_period,
     run_workspace_summary,
+)
+from apps.worker.industry_evidence_research import (
+    industry_evidence_maintenance_enabled,
 )
 from apps.worker.research_ingest import research_ingest_enabled
 from apps.worker.timezone import bootstrap_worker_timezone, resolve_worker_timezone
@@ -258,6 +262,34 @@ class WorkerScheduler:
             self.cron_expression,
         )
 
+    def add_industry_evidence_maintenance_job(self) -> None:
+        """Add governed evidence research/freshness when explicitly enabled."""
+        if not industry_evidence_maintenance_enabled():
+            logger.info(
+                "Industry evidence maintenance disabled; set "
+                "INDUSTRY_EVIDENCE_MAINTENANCE_ENABLED=1 to enable"
+            )
+            return
+        interval_hours_raw = os.environ.get(
+            "INDUSTRY_EVIDENCE_MAINTENANCE_INTERVAL_HOURS",
+            "24",
+        )
+        try:
+            interval_hours = max(1, min(168, int(interval_hours_raw)))
+        except ValueError:
+            interval_hours = 24
+        self.scheduler.add_job(
+            run_industry_evidence_maintenance,
+            trigger=IntervalTrigger(hours=interval_hours, timezone=self.timezone),
+            id="industry_evidence_maintenance",
+            name="Industry Evidence Maintenance",
+            replace_existing=True,
+        )
+        logger.info(
+            "Scheduled industry evidence maintenance job every %s hour(s)",
+            interval_hours,
+        )
+
     def add_custom_job(
         self,
         func: Callable,
@@ -465,6 +497,7 @@ class WorkerScheduler:
         # Add the main job
         self.add_crawl_job()
         self.add_research_ingest_job()
+        self.add_industry_evidence_maintenance_job()
         
         # Load dynamic profile jobs
         self.load_profile_jobs()

@@ -153,7 +153,7 @@ export interface BrandKeywordItem {
 }
 
 export type AgentNumericField = 'batchSize' | 'parallelism' | 'timeout' | 'temperature'
-export type SystemSettingsSubpageId = 'overview' | 'operations' | 'runtime' | 'auth' | 'config-sources' | 'keywords' | 'taxonomy' | 'locations' | 'export-fields'
+export type SystemSettingsSubpageId = 'overview' | 'operations' | 'runtime' | 'auth' | 'config-sources' | 'keywords' | 'taxonomy' | 'industry-verification' | 'locations' | 'export-fields'
 
 export interface SystemSettingsSubpageDefinition {
   id: SystemSettingsSubpageId
@@ -192,6 +192,10 @@ const SYSTEM_SETTINGS_SUBPAGE_COPY: Record<SystemSettingsSubpageId, Pick<SystemS
   taxonomy: {
     descriptionKey: 'debugConfig.taxonomyPageDescription',
     defaultDescription: 'Manage grouped resume skill clusters used by the search facet sidebar.',
+  },
+  'industry-verification': {
+    descriptionKey: 'debugConfig.industryVerificationPageDescription',
+    defaultDescription: 'Review external company evidence, immutable verdict revisions, freshness, and targeted recomputation.',
   },
   locations: {
     descriptionKey: 'debugConfig.locationsPageDescription',
@@ -833,6 +837,7 @@ export function useSettingsRequestJson(): {
     const response = await fetch(`${apiBaseUrl}${path}`, {
       ...init,
       headers,
+      credentials: 'include',
     })
 
     if (!response.ok) {

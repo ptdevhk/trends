@@ -103,6 +103,23 @@ def run_research_ingest(config_overrides: Optional[Dict[str, Any]] = None) -> bo
     return _run(config_overrides=config_overrides)
 
 
+def run_industry_evidence_maintenance() -> bool:
+    """Research open proposals and refresh due approved sources.
+
+    The implementation is proposal/check-only and is skipped during restore
+    maintenance mode.
+    """
+    if _is_maintenance_mode():
+        logger.info("[Task] Skipping industry evidence maintenance — maintenance mode active")
+        return True
+
+    from apps.worker.industry_evidence_research import (
+        run_industry_evidence_maintenance as _run,
+    )
+
+    return _run()
+
+
 def run_research_parity(
     platform_breakdown: Optional[list] = None,
     golden_companies: Optional[list] = None,

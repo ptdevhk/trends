@@ -5,7 +5,13 @@ import type {
   RoleSignalSummary,
 } from "./rule-scoring.js";
 import type { ResumeItem } from "../types/resume.js";
-import { isRecord, parseBrandOrigin, parseProductClass } from "@trends/shared";
+import {
+  isRecord,
+  parseBrandOrigin,
+  parseProductClass,
+  parseVerifiedIndustryEvidenceSummary,
+  type VerifiedIndustryEvidenceSummary,
+} from "@trends/shared";
 
 // ── Shared helpers for resume ingest data parsing ────────────────────────
 // These functions handle type-safe extraction of ingest-data fields from
@@ -139,9 +145,14 @@ export function parseRoleSignals(value: unknown): RoleSignalSummary[] {
           }
           return [{
             companyName: toStringValue(entry.companyName) || undefined,
+            companyKey: toStringValue(entry.companyKey) || undefined,
             jobTitle: toStringValue(entry.jobTitle) || undefined,
             years: entryYears,
             industryVerified: entry.industryVerified === true,
+            verdictRevisionId:
+              toStringValue(entry.verdictRevisionId) || undefined,
+            workEntryFingerprint:
+              toStringValue(entry.workEntryFingerprint) || undefined,
             matchedSignals: toStringArray(entry.matchedSignals),
             ...(typeof entry.directRoleMatch === "boolean"
               ? { directRoleMatch: entry.directRoleMatch }
@@ -190,6 +201,24 @@ export function buildResumeIngestData(value: unknown): ResumeItem["ingestData"] 
   const computedAt = toOptionalNumber(value.computedAt);
   const skillsVersion = toOptionalNumber(value.skillsVersion);
   const ingestComputeEpoch = toOptionalNumber(value.ingestComputeEpoch);
+  const evidenceProjectionVersion = toOptionalNumber(
+    value.evidenceProjectionVersion,
+  );
+  const verifiedIndustryEvidenceSummaries = Array.isArray(
+    value.verifiedIndustryEvidenceSummaries,
+  )
+    ? value.verifiedIndustryEvidenceSummaries
+        .map(parseVerifiedIndustryEvidenceSummary)
+        .filter(
+          (summary): summary is VerifiedIndustryEvidenceSummary =>
+            summary !== null,
+        )
+    : undefined;
+  const industryEvidenceCatalogState =
+    value.industryEvidenceCatalogState === "ready" ||
+    value.industryEvidenceCatalogState === "degraded"
+      ? value.industryEvidenceCatalogState
+      : undefined;
 
   if (
     industryTags.length === 0
@@ -202,6 +231,8 @@ export function buildResumeIngestData(value: unknown): ResumeItem["ingestData"] 
     && !meaningfulExperienceLevel
     && !market
     && (!ruleScores || Object.keys(ruleScores).length === 0)
+    && evidenceProjectionVersion === undefined
+    && !verifiedIndustryEvidenceSummaries?.length
   ) {
     return undefined;
   }
@@ -228,5 +259,12 @@ export function buildResumeIngestData(value: unknown): ResumeItem["ingestData"] 
     ...(computedAt !== undefined ? { computedAt } : {}),
     ...(skillsVersion !== undefined ? { skillsVersion } : {}),
     ...(ingestComputeEpoch !== undefined ? { ingestComputeEpoch } : {}),
+    ...(evidenceProjectionVersion !== undefined
+      ? { evidenceProjectionVersion }
+      : {}),
+    ...(verifiedIndustryEvidenceSummaries
+      ? { verifiedIndustryEvidenceSummaries }
+      : {}),
+    ...(industryEvidenceCatalogState ? { industryEvidenceCatalogState } : {}),
   };
 }

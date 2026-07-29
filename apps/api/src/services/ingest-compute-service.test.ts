@@ -2,11 +2,12 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { describe, expect, it, beforeEach, afterEach } from "vitest";
+import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 
 import { buildLatestWorkHistoryEvidence, CURRENT_INGEST_COMPUTE_EPOCH } from "@trends/shared";
 
 import { IngestComputeService, buildResumeIndex } from "./ingest-compute-service";
+import * as maintenanceTriggers from "./industry-maintenance-trigger-service";
 
 const TEST_SKILLS_MD = `---
 version: 42
@@ -1006,6 +1007,230 @@ describe("IngestComputeService", () => {
     expect(results.every((item) => Array.isArray(item.brandHits))).toBe(true);
     expect(results.every((item) => Array.isArray(item.companyHits))).toBe(true);
     expect(results.every((item) => typeof item.companyPatternAliasTokens === "string")).toBe(true);
+  });
+
+  it("batch-prefetches reviewed catalog once and materializes revision-backed evidence", async () => {
+    const employerResolver = vi.fn(async () => ({
+      companyKeysByNormalizedSurface: new Map([
+        ["acme cnc", "acme-cnc"],
+        ["unknown industrial", "unknown-industrial"],
+      ]),
+      missingNormalizedSurfaces: [],
+      degraded: false,
+    }));
+    const catalogLoader = vi.fn(async () => ({
+      profiles: new Map([
+        [
+          "acme-cnc",
+          {
+            companyKey: "acme-cnc",
+            companyName: "ACME CNC",
+            industryClass: "cnc" as const,
+            verificationLevel: "verified" as const,
+            verdictRevisionId: "revision-acme-1",
+            evidenceSummary: "Official sources confirm CNC machine tools.",
+            reviewedAt: 100,
+            reviewedBy: "reviewer-1",
+            sourceCount: 1,
+            sourcePreviews: [
+              {
+                sourceId: "source-acme-1",
+                url: "https://acme.example/cnc",
+                sourceDomain: "acme.example",
+                sourceType: "official_site" as const,
+                trustTier: "primary" as const,
+              },
+            ],
+            additionalSourceCount: 0,
+          },
+        ],
+      ]),
+      missingCompanyKeys: ["unknown-industrial"],
+      diagnostics: [],
+      degraded: false,
+    }));
+    const catalogService = new IngestComputeService(tmpDir, {
+      employerResolver,
+      catalogLoader,
+    });
+    const makeResume = (companyName: string) => ({
+      data: [
+        {
+          ...SAMPLE_RESUME_JUNIOR.data[0],
+          workHistory: [
+            {
+              raw: `2021-01~2024-01 ${companyName} Sales Manager`,
+              companyName,
+              jobTitle: "Sales Manager",
+              description: "CNC machine tool sales",
+              startDate: "2021-01",
+              endDate: "2024-01",
+            },
+          ],
+        },
+      ],
+    });
+
+    const results = await catalogService.computeBatchWithCatalog(
+      [
+        { resumeId: "resume-reviewed", content: makeResume("ACME CNC") },
+        {
+          resumeId: "resume-unknown",
+          content: makeResume("Unknown Industrial"),
+        },
+      ],
+      "strict-reviewed",
+    );
+
+    expect(employerResolver).toHaveBeenCalledTimes(1);
+    expect(catalogLoader).toHaveBeenCalledTimes(1);
+    expect(catalogLoader).toHaveBeenCalledWith([
+      "acme-cnc",
+      "unknown-industrial",
+    ]);
+    expect(
+      results[0]?.roleSignals[0]?.matchedWorkEntries?.[0],
+    ).toMatchObject({
+      companyKey: "acme-cnc",
+      verdictRevisionId: "revision-acme-1",
+      industryVerified: true,
+      workEntryFingerprint: expect.any(String),
+    });
+    expect(results[0]?.verifiedIndustryEvidenceSummaries).toEqual([
+      expect.objectContaining({
+        companyKey: "acme-cnc",
+        verdictRevisionId: "revision-acme-1",
+        verificationLevel: "verified",
+        verifiedYears: expect.any(Number),
+      }),
+    ]);
+    expect(
+      results[1]?.roleSignals[0]?.matchedWorkEntries?.[0],
+    ).toMatchObject({
+      companyKey: "unknown-industrial",
+      industryVerified: false,
+    });
+    expect(results[1]?.verifiedIndustryEvidenceSummaries).toEqual([]);
+  });
+
+  it("degrades catalog failure without inventing reviewed verification", async () => {
+    const catalogService = new IngestComputeService(tmpDir, {
+      employerResolver: vi.fn(async () => ({
+        companyKeysByNormalizedSurface: new Map([
+          ["acme cnc", "acme-cnc"],
+        ]),
+        missingNormalizedSurfaces: [],
+        degraded: false,
+      })),
+      catalogLoader: vi.fn(async () => ({
+        profiles: new Map(),
+        missingCompanyKeys: ["acme-cnc"],
+        diagnostics: [],
+        degraded: true,
+        error: "Convex unavailable",
+      })),
+    });
+
+    const [result] = await catalogService.computeBatchWithCatalog(
+      [
+        {
+          resumeId: "resume-degraded",
+          content: {
+            data: [
+              {
+                ...SAMPLE_RESUME_JUNIOR.data[0],
+                workHistory: [
+                  {
+                    raw: "2021-01~2024-01 ACME CNC Sales Manager",
+                    companyName: "ACME CNC",
+                    jobTitle: "Sales Manager",
+                    description: "CNC machine tool sales",
+                    startDate: "2021-01",
+                    endDate: "2024-01",
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      ],
+      "strict-reviewed",
+    );
+
+    expect(
+      result?.roleSignals[0]?.matchedWorkEntries?.[0]?.industryVerified,
+    ).toBe(false);
+    expect(result?.verifiedIndustryEvidenceSummaries).toEqual([]);
+    expect(result?.industryEvidenceCatalogState).toBe("degraded");
+  });
+
+  it("soft-promotes high-value missing-profile employers with bounded resume references", async () => {
+    const promote = vi
+      .spyOn(maintenanceTriggers, "promoteIndustryMaintenanceCandidates")
+      .mockResolvedValue({
+        candidates: [],
+        created: 1,
+        coalesced: 0,
+        degradedResolution: false,
+      });
+    const catalogService = new IngestComputeService(tmpDir, {
+      employerResolver: vi.fn(async () => ({
+        companyKeysByNormalizedSurface: new Map([
+          ["acme cnc", "acme-cnc"],
+        ]),
+        missingNormalizedSurfaces: [],
+        degraded: false,
+      })),
+      catalogLoader: vi.fn(async () => ({
+        profiles: new Map(),
+        missingCompanyKeys: ["acme-cnc"],
+        diagnostics: [],
+        degraded: false,
+      })),
+    });
+
+    await catalogService.computeBatchWithCatalog(
+      [
+        {
+          resumeId: "resume-maintenance-1",
+          workspaceSlug: "my",
+          content: {
+            data: [
+              {
+                ...SAMPLE_RESUME_JUNIOR.data[0],
+                workHistory: [
+                  {
+                    raw: "2021-01~2024-01 ACME CNC Sales Manager",
+                    companyName: "ACME CNC",
+                    jobTitle: "Sales Manager",
+                    description: "CNC machine tool sales",
+                    startDate: "2021-01",
+                    endDate: "2024-01",
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      ],
+      "strict-reviewed",
+    );
+
+    expect(promote).toHaveBeenCalledTimes(1);
+    expect(promote.mock.calls[0]?.[0]).toEqual([
+      expect.objectContaining({
+        employerSurface: "ACME CNC",
+        companyKey: "acme-cnc",
+        missingApprovedProfile: true,
+        workspaceSlug: "my",
+        resumeIdentity: "resume-maintenance-1",
+        workEntryFingerprint: expect.stringMatching(/^work-/),
+      }),
+    ]);
+    const serialized = JSON.stringify(promote.mock.calls[0]?.[0]);
+    expect(serialized).not.toContain("description");
+    expect(serialized).not.toContain("CNC machine tool sales");
+    promote.mockRestore();
   });
 
   it("should clear skills cache before each computeBatch call", () => {

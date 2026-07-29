@@ -94,6 +94,52 @@ describe('parseBreakdown', () => {
     expect(parseBreakdown('string')).toBeUndefined()
   })
 
+  it('preserves reviewed industry evidence projections from Convex', () => {
+    const result = parseIngestData({
+      industryTags: ['cnc'],
+      synonymHits: [],
+      brandHits: [],
+      companyHits: [],
+      ruleScores: {},
+      experienceLevel: 'senior',
+      evidenceProjectionVersion: 1,
+      industryEvidenceCatalogState: 'ready',
+      industryEvidenceStale: false,
+      verifiedIndustryEvidenceSummaries: [
+        {
+          companyKey: 'acme-cnc-demo',
+          companyName: 'ACME CNC Demo',
+          industryClass: 'cnc',
+          verificationLevel: 'verified',
+          verdictRevisionId: 'revision-acme-cnc-demo-1',
+          evidenceSummary: 'Synthetic reviewed evidence.',
+          reviewedAt: 1_700_000_000_000,
+          sourceCount: 1,
+          sourcePreviews: [
+            {
+              sourceId: 'source-1',
+              url: 'https://example.com/acme-cnc',
+              sourceDomain: 'example.com',
+              sourceType: 'official_site',
+              trustTier: 'primary',
+            },
+          ],
+          additionalSourceCount: 0,
+        },
+      ],
+    })
+
+    expect(result).toMatchObject({
+      evidenceProjectionVersion: 1,
+      industryEvidenceCatalogState: 'ready',
+      industryEvidenceStale: false,
+    })
+    expect(result?.verifiedIndustryEvidenceSummaries).toHaveLength(1)
+    expect(result?.verifiedIndustryEvidenceSummaries?.[0]?.companyName).toBe(
+      'ACME CNC Demo',
+    )
+  })
+
   it('returns undefined for empty object', () => {
     expect(parseBreakdown({})).toBeUndefined()
   })

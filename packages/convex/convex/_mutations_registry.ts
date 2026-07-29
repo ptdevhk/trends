@@ -29,6 +29,7 @@ export const MUTATIONS_REGISTRY: MutationRegistryEntry[] = [
     // Quiesce toggle — must NOT be blocked by itself.
     // ---------------------------------------------------------------------
     { file: "system_settings.ts", name: "set", quiesceAware: false, reason: "This IS the quiesce toggle — must not block itself" },
+    { file: "system_settings.ts", name: "setResumeWorkHistoryLimit", quiesceAware: true, reason: "System-setting write is blocked by the BFF maintenance middleware" },
 
     // ---------------------------------------------------------------------
     // Migration mutations — must run during restore to complete the upgrade.
@@ -92,6 +93,25 @@ export const MUTATIONS_REGISTRY: MutationRegistryEntry[] = [
     { file: "companies.ts", name: "removeAlias", quiesceAware: true, reason: "Blocked by BFF middleware" },
     { file: "companies.ts", name: "appendPolicyRevision", quiesceAware: true, reason: "Blocked by BFF middleware" },
     { file: "companies.ts", name: "seedCanonicalCompanies", quiesceAware: true, reason: "Blocked by BFF middleware" },
+    { file: "companies.ts", name: "upsertIndustryProfile", quiesceAware: true, reason: "Admin industry-evidence stewardship via write-secret and BFF middleware" },
+    { file: "companies.ts", name: "deleteIndustryProfile", quiesceAware: true, reason: "Admin industry-evidence stewardship via write-secret and BFF middleware" },
+    { file: "companies.ts", name: "upsertIndustryProposal", quiesceAware: true, reason: "Industry maintenance proposal write via write-secret and BFF middleware" },
+    { file: "companies.ts", name: "recordIndustryRefreshRequest", quiesceAware: true, reason: "Authenticated workspace refresh request ledger via write-secret and BFF maintenance guard" },
+    { file: "companies.ts", name: "setIndustryProposalResearchState", quiesceAware: true, reason: "Industry maintenance worker state via write-secret and BFF maintenance guard" },
+    { file: "companies.ts", name: "upsertIndustryEvidenceSource", quiesceAware: true, reason: "Industry evidence write via write-secret and BFF/worker maintenance guard" },
+    { file: "companies.ts", name: "markIndustryEvidenceProfilesChecking", quiesceAware: true, reason: "Industry freshness maintenance via write-secret and BFF/worker maintenance guard" },
+    { file: "companies.ts", name: "recordIndustryEvidenceFreshnessCheck", quiesceAware: true, reason: "Industry freshness maintenance via write-secret and BFF/worker maintenance guard" },
+    { file: "companies.ts", name: "approveIndustryProposal", quiesceAware: true, reason: "Attended admin approval via write-secret and BFF middleware" },
+    { file: "companies.ts", name: "resolveIndustryProposal", quiesceAware: true, reason: "Attended admin review via write-secret and BFF middleware" },
+    { file: "companies.ts", name: "deleteIndustryVerdictRevision", quiesceAware: true, reason: "Admin revision maintenance via write-secret and BFF middleware" },
+    { file: "companies.ts", name: "startIndustryRecomputeRun", quiesceAware: true, reason: "Targeted exact reingest orchestration via write-secret and BFF middleware" },
+    { file: "companies.ts", name: "reserveIndustryRecomputePage", quiesceAware: true, reason: "Targeted exact reingest orchestration via write-secret and BFF middleware" },
+    { file: "companies.ts", name: "recordIndustryRecomputeBatchDispatch", quiesceAware: true, reason: "Targeted exact reingest orchestration via write-secret and BFF middleware" },
+    { file: "companies.ts", name: "recordIndustryRecomputeBatchFailure", quiesceAware: true, reason: "Targeted exact reingest orchestration via write-secret and BFF middleware" },
+    { file: "companies.ts", name: "recordIndustryRecomputeBatchReadiness", quiesceAware: true, reason: "Targeted exact reingest orchestration via write-secret and BFF middleware" },
+    { file: "companies.ts", name: "finalizeIndustryRecomputeRun", quiesceAware: true, reason: "Targeted exact reingest orchestration via write-secret and BFF middleware" },
+    { file: "companies.ts", name: "markIndustryRecomputeRunSuperseded", quiesceAware: true, reason: "Targeted exact reingest orchestration via write-secret and BFF middleware" },
+    { file: "companies.ts", name: "retryIndustryRecomputeRun", quiesceAware: true, reason: "Attended targeted recompute retry via write-secret and BFF middleware" },
 
     { file: "candidate_status.ts", name: "upsert", quiesceAware: true, reason: "Blocked by BFF middleware" },
     { file: "candidate_status.ts", name: "importNotesBatch", quiesceAware: true, reason: "Blocked by BFF middleware" },

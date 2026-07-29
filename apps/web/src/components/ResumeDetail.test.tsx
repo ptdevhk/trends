@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ResumeDetail } from './ResumeDetail'
+import type { ResumeItem } from '@/hooks/useResumes'
 
 const useResumeWorkHistoryLimitMock = vi.hoisted(() => vi.fn())
 
@@ -57,6 +58,49 @@ vi.mock('@/hooks/useCompanyPolicyIndex', () => ({
 describe('ResumeDetail work history', () => {
   beforeEach(() => {
     useResumeWorkHistoryLimitMock.mockReturnValue({ limit: 3, setLimit: vi.fn() })
+  })
+
+  it('renders the full materialized approved evidence revision surface', () => {
+    render(
+      <ResumeDetail
+        open
+        onOpenChange={vi.fn()}
+        resume={{
+          name: 'Alice',
+          profileUrl: 'https://example.com/resume-1',
+          activityStatus: 'Active',
+          age: '30',
+          experience: '5 years',
+          education: 'Bachelor',
+          location: 'Malaysia',
+          selfIntro: 'Test intro',
+          jobIntention: 'Sales Engineer',
+          expectedSalary: '10k-20k',
+          workHistory: [],
+          extractedAt: '2026-03-13T00:00:00.000Z',
+          resumeId: 'resume-1',
+          ingestData: {
+            verifiedIndustryEvidenceSummaries: [{
+              companyKey: 'acme-cnc',
+              companyName: 'Acme CNC',
+              industryClass: 'cnc',
+              verificationLevel: 'verified',
+              verdictRevisionId: 'revision-1',
+              evidenceSummary: 'Human-approved CNC machinery evidence.',
+              reviewedAt: Date.UTC(2026, 6, 20),
+              reviewedBy: 'Reviewer A',
+              sourceCount: 0,
+              sourcePreviews: [],
+            }],
+          },
+        } as unknown as ResumeItem}
+      />,
+    )
+
+    expect(screen.getByText('Approved industry evidence')).toBeInTheDocument()
+    expect(screen.getByText('revision-1')).toBeInTheDocument()
+    expect(screen.getByText('Reviewer A')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Request refresh for Acme CNC' })).toBeInTheDocument()
   })
 
   it('renders only the latest three stored work-history entries by default', () => {

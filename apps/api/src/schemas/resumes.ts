@@ -1,5 +1,13 @@
 import { z } from "@hono/zod-openapi";
 import {
+  INDUSTRY_CLASSES,
+  INDUSTRY_EVIDENCE_FRESHNESS_STATES,
+  INDUSTRY_EVIDENCE_SOURCE_TYPES,
+  INDUSTRY_EVIDENCE_TRUST_TIERS,
+  MAX_RECRUITER_INDUSTRY_EVIDENCE_SOURCES,
+  normalizeIndustryEvidenceUrl,
+} from "@trends/shared";
+import {
   ExactResumeResolvedTargetSchema,
   ExactResumeTargetSchema,
 } from "./exact-resume-targets.js";
@@ -174,13 +182,72 @@ const ResumeStructuredDetailsShape = {
 const ResumeIngestMatchedWorkEntrySchema = z
   .object({
     companyName: z.string().optional().openapi({ example: "FANUC" }),
+    companyKey: z.string().optional().openapi({ example: "fanuc" }),
     jobTitle: z.string().optional().openapi({ example: "Sales Engineer" }),
     years: z.number().openapi({ example: 3 }),
     industryVerified: z.boolean().openapi({ example: true }),
+    verdictRevisionId: z.string().optional().openapi({ example: "rev-fanuc-3" }),
+    workEntryFingerprint: z.string().optional().openapi({ example: "work-a1b2c3d4" }),
     matchedSignals: z.array(z.string()).openapi({ example: ["sales", "cnc"] }),
     directRoleMatch: z.boolean().optional().openapi({ example: true }),
   })
   .openapi("ResumeIngestMatchedWorkEntry");
+
+const IndustryEvidenceSourcePreviewSchema = z
+  .object({
+    sourceId: z.string().min(1),
+    url: z
+      .string()
+      .refine((value) => normalizeIndustryEvidenceUrl(value) !== null, {
+        message: "Industry evidence URL must be a safe public HTTP(S) URL",
+      }),
+    sourceDomain: z.string().min(1),
+    sourceType: z.enum(
+      INDUSTRY_EVIDENCE_SOURCE_TYPES.filter(
+        (sourceType) => sourceType !== "search_result",
+      ) as Exclude<
+        (typeof INDUSTRY_EVIDENCE_SOURCE_TYPES)[number],
+        "search_result"
+      >[],
+    ),
+    trustTier: z.enum(
+      INDUSTRY_EVIDENCE_TRUST_TIERS.filter(
+        (trustTier) => trustTier !== "discovery",
+      ) as Exclude<
+        (typeof INDUSTRY_EVIDENCE_TRUST_TIERS)[number],
+        "discovery"
+      >[],
+    ),
+    title: z.string().optional(),
+    evidenceExcerpt: z.string().optional(),
+    fetchedAt: z.number().optional(),
+    reviewedAt: z.number().optional(),
+  })
+  .openapi("IndustryEvidenceSourcePreview");
+
+const VerifiedIndustryEvidenceSummarySchema = z
+  .object({
+    companyKey: z.string().min(1),
+    companyName: z.string().min(1),
+    industryClass: z.enum(INDUSTRY_CLASSES),
+    verificationLevel: z.literal("verified"),
+    verdictRevisionId: z.string().min(1),
+    evidenceSummary: z.string().min(1),
+    verifiedYears: z.number().nonnegative().optional(),
+    roleTypes: z.array(z.string()).optional(),
+    latestRoleAt: z.number().optional(),
+    reviewedAt: z.number(),
+    reviewedBy: z.string().optional(),
+    sourceCount: z.number().int().nonnegative(),
+    sourcePreviews: z
+      .array(IndustryEvidenceSourcePreviewSchema)
+      .max(MAX_RECRUITER_INDUSTRY_EVIDENCE_SOURCES),
+    additionalSourceCount: z.number().int().nonnegative(),
+    freshnessState: z
+      .enum(INDUSTRY_EVIDENCE_FRESHNESS_STATES)
+      .optional(),
+  })
+  .openapi("VerifiedIndustryEvidenceSummary");
 
 const ResumeIngestRoleSignalSchema = z
   .object({
@@ -222,6 +289,11 @@ const ResumeIngestDataSchema = z
     computedAt: z.number().optional(),
     skillsVersion: z.number().optional(),
     ingestComputeEpoch: z.number().optional(),
+    evidenceProjectionVersion: z.number().int().nonnegative().optional(),
+    verifiedIndustryEvidenceSummaries: z
+      .array(VerifiedIndustryEvidenceSummarySchema)
+      .optional(),
+    industryEvidenceCatalogState: z.enum(["ready", "degraded"]).optional(),
   })
   .openapi("ResumeIngestData");
 

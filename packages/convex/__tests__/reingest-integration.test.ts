@@ -126,6 +126,9 @@ const BFF_INGEST_RESULT_INGEST_DATA_FIELDS = [
     "experienceLevel",
     "computedAt",
     "skillsVersion",
+    "evidenceProjectionVersion",
+    "verifiedIndustryEvidenceSummaries",
+    "industryEvidenceCatalogState",
 ] as const;
 
 // --- Tests ---
@@ -346,6 +349,9 @@ describe("Re-ingest pipeline integration", () => {
                 "experienceLevel",
                 "computedAt",
                 "skillsVersion",
+                "evidenceProjectionVersion",
+                "verifiedIndustryEvidenceSummaries",
+                "industryEvidenceCatalogState",
             ] as const;
 
             // Verify the mapping list matches the BFF output list

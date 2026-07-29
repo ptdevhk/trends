@@ -202,4 +202,612 @@ describe("companies (convex-test)", () => {
     });
     expect(resolved?.companyKey).toBe("acme-cnc");
   });
+
+  it("deduplicates open industry proposals by company and coalesces triggers", async () => {
+    const t = createTest();
+    await t.mutation(api.companies.upsert, {
+      companyKey: "acme-cnc",
+      displayName: "ACME CNC",
+      status: "confirmed",
+      writeSecret: WRITE_SECRET,
+    });
+
+    const first = await t.mutation(api.companies.upsertIndustryProposal, {
+      proposalId: "proposal-acme-1",
+      companyKey: "acme-cnc",
+      triggerReasons: ["unknown_employer"],
+      priority: 40,
+      sampleReferences: [
+        {
+          workspaceSlug: "hr",
+          resumeIdentity: "resume-1",
+          workEntryFingerprint: "entry-1",
+        },
+      ],
+      writeSecret: WRITE_SECRET,
+    });
+    const second = await t.mutation(api.companies.upsertIndustryProposal, {
+      proposalId: "proposal-acme-duplicate",
+      companyKey: "acme-cnc",
+      triggerReasons: ["high_value_candidate", "unknown_employer"],
+      priority: 90,
+      sampleReferences: [
+        {
+          workspaceSlug: "hr",
+          resumeIdentity: "resume-2",
+          workEntryFingerprint: "entry-2",
+        },
+      ],
+      writeSecret: WRITE_SECRET,
+    });
+
+    expect(second.proposalId).toBe(first.proposalId);
+    expect(second.created).toBe(false);
+
+    const proposals = await t.query(api.companies.listIndustryProposals, {
+      status: "new",
+      writeSecret: WRITE_SECRET,
+    });
+    expect(proposals).toHaveLength(1);
+    expect(proposals[0]?.priority).toBe(90);
+    expect(proposals[0]?.triggerReasons).toEqual([
+      "high_value_candidate",
+      "unknown_employer",
+    ]);
+    expect(proposals[0]?.sampleReferences).toHaveLength(2);
+  });
+
+  it("creates immutable verdict revisions and advances only the current profile projection", async () => {
+    const t = createTest();
+    await t.mutation(api.companies.upsert, {
+      companyKey: "acme-cnc",
+      displayName: "ACME CNC",
+      status: "confirmed",
+      writeSecret: WRITE_SECRET,
+    });
+    await t.mutation(api.companies.upsertIndustryProposal, {
+      proposalId: "proposal-acme-1",
+      companyKey: "acme-cnc",
+      triggerReasons: ["missing_approved_profile"],
+      priority: 80,
+      writeSecret: WRITE_SECRET,
+    });
+    await t.mutation(api.companies.upsertIndustryEvidenceSource, {
+      sourceId: "source-acme-official",
+      proposalId: "proposal-acme-1",
+      companyKey: "acme-cnc",
+      url: "https://acme.example.com/products",
+      sourceType: "official_site",
+      trustTier: "primary",
+      title: "ACME products",
+      evidenceExcerpt: "CNC machining centres and industrial automation.",
+      fetchStatus: "fetched",
+      contentFingerprint: "sha256:first",
+      writeSecret: WRITE_SECRET,
+    });
+
+    const firstApproval = await t.mutation(api.companies.approveIndustryProposal, {
+      proposalId: "proposal-acme-1",
+      revisionId: "revision-acme-1",
+      verificationLevel: "verified",
+      industryClass: "cnc",
+      approvedSourceIds: ["source-acme-official"],
+      evidenceSummary: "Official product evidence confirms CNC machinery.",
+      reviewer: "admin@example.com",
+      decisionReason: "Official first-party evidence.",
+      taxonomyVersion: "industry-taxonomy-v1",
+      writeSecret: WRITE_SECRET,
+    });
+    expect(firstApproval.revisionId).toBe("revision-acme-1");
+    expect(firstApproval.supersedesRevisionId).toBeUndefined();
+    const idempotentApproval = await t.mutation(
+      api.companies.approveIndustryProposal,
+      {
+        proposalId: "proposal-acme-1",
+        revisionId: "revision-acme-1",
+        verificationLevel: "verified",
+        industryClass: "cnc",
+        approvedSourceIds: ["source-acme-official"],
+        evidenceSummary: "Official product evidence confirms CNC machinery.",
+        reviewer: "admin@example.com",
+        decisionReason: "Official first-party evidence.",
+        taxonomyVersion: "industry-taxonomy-v1",
+        writeSecret: WRITE_SECRET,
+      },
+    );
+    expect(idempotentApproval).toEqual(firstApproval);
+
+    const firstProfile = await t.query(api.companies.getIndustryProfile, {
+      companyKey: "acme-cnc",
+      writeSecret: WRITE_SECRET,
+    });
+    expect(firstProfile).toMatchObject({
+      companyKey: "acme-cnc",
+      verificationLevel: "verified",
+      currentRevisionId: "revision-acme-1",
+      sourceCount: 1,
+      reviewedBy: "admin@example.com",
+    });
+    expect(firstProfile?.nextReviewAt).toBeGreaterThan(firstProfile?.reviewedAt ?? 0);
+
+    await t.mutation(api.companies.upsertIndustryProposal, {
+      proposalId: "proposal-acme-2",
+      companyKey: "acme-cnc",
+      triggerReasons: ["material_source_change"],
+      priority: 95,
+      currentRevisionId: "revision-acme-1",
+      writeSecret: WRITE_SECRET,
+    });
+    await t.mutation(api.companies.upsertIndustryEvidenceSource, {
+      sourceId: "source-acme-registry",
+      proposalId: "proposal-acme-2",
+      companyKey: "acme-cnc",
+      url: "https://registry.example.gov.my/acme",
+      sourceType: "registry",
+      trustTier: "authoritative",
+      title: "ACME registry",
+      evidenceExcerpt: "Registered machinery manufacturing activity.",
+      fetchStatus: "fetched",
+      contentFingerprint: "sha256:second",
+      writeSecret: WRITE_SECRET,
+    });
+
+    const secondApproval = await t.mutation(api.companies.approveIndustryProposal, {
+      proposalId: "proposal-acme-2",
+      revisionId: "revision-acme-2",
+      expectedCurrentRevisionId: "revision-acme-1",
+      verificationLevel: "verified",
+      industryClass: "industrial",
+      approvedSourceIds: ["source-acme-registry"],
+      evidenceSummary: "Registry evidence supports industrial machinery.",
+      reviewer: "admin@example.com",
+      decisionReason: "Material classification refinement.",
+      taxonomyVersion: "industry-taxonomy-v1",
+      writeSecret: WRITE_SECRET,
+    });
+    expect(secondApproval.supersedesRevisionId).toBe("revision-acme-1");
+
+    const revisions = await t.query(api.companies.listIndustryVerdictRevisions, {
+      companyKey: "acme-cnc",
+      writeSecret: WRITE_SECRET,
+    });
+    expect(revisions.map((revision) => revision.revisionId)).toEqual([
+      "revision-acme-2",
+      "revision-acme-1",
+    ]);
+    expect(revisions[0]?.supersedesRevisionId).toBe("revision-acme-1");
+
+    const currentProfile = await t.query(api.companies.getIndustryProfile, {
+      companyKey: "acme-cnc",
+      writeSecret: WRITE_SECRET,
+    });
+    expect(currentProfile?.currentRevisionId).toBe("revision-acme-2");
+
+  });
+
+  it("rejecting or requesting more evidence does not change current approved truth", async () => {
+    const t = createTest();
+    await t.mutation(api.companies.upsert, {
+      companyKey: "acme-cnc",
+      displayName: "ACME CNC",
+      status: "confirmed",
+      writeSecret: WRITE_SECRET,
+    });
+    await t.mutation(api.companies.upsertIndustryProfile, {
+      companyKey: "acme-cnc",
+      industryClass: "cnc",
+      verificationLevel: "verified",
+      evidenceSource: "manual",
+      currentRevisionId: "revision-existing",
+      writeSecret: WRITE_SECRET,
+    });
+    await t.mutation(api.companies.upsertIndustryProposal, {
+      proposalId: "proposal-review-only",
+      companyKey: "acme-cnc",
+      triggerReasons: ["recruiter_refresh_request"],
+      priority: 100,
+      currentRevisionId: "revision-existing",
+      writeSecret: WRITE_SECRET,
+    });
+
+    await t.mutation(api.companies.resolveIndustryProposal, {
+      proposalId: "proposal-review-only",
+      resolution: "needs_more_evidence",
+      reviewer: "admin@example.com",
+      reviewNote: "Need registry corroboration.",
+      writeSecret: WRITE_SECRET,
+    });
+
+    const profile = await t.query(api.companies.getIndustryProfile, {
+      companyKey: "acme-cnc",
+      writeSecret: WRITE_SECRET,
+    });
+    expect(profile?.currentRevisionId).toBe("revision-existing");
+
+    const proposal = await t.query(api.companies.getIndustryProposal, {
+      proposalId: "proposal-review-only",
+      writeSecret: WRITE_SECRET,
+    });
+    expect(proposal?.status).toBe("needs_more_evidence");
+  });
+
+  it("allows worker research to enrich only an open proposal", async () => {
+    const t = createTest();
+    await t.mutation(api.companies.upsert, {
+      companyKey: "acme-cnc",
+      displayName: "ACME CNC",
+      status: "confirmed",
+      writeSecret: WRITE_SECRET,
+    });
+    await t.mutation(api.companies.upsertIndustryProposal, {
+      proposalId: "proposal-worker-research",
+      companyKey: "acme-cnc",
+      triggerReasons: ["unknown_employer"],
+      priority: 70,
+      writeSecret: WRITE_SECRET,
+    });
+
+    await t.mutation(api.companies.setIndustryProposalResearchState, {
+      proposalId: "proposal-worker-research",
+      status: "researching",
+      writeSecret: WRITE_SECRET,
+    });
+    await t.mutation(api.companies.upsertIndustryEvidenceSource, {
+      sourceId: "source-worker-official",
+      proposalId: "proposal-worker-research",
+      companyKey: "acme-cnc",
+      url: "https://acme.example.com/cnc",
+      sourceType: "official_site",
+      trustTier: "primary",
+      fetchStatus: "fetched",
+      contentFingerprint: "sha256:worker",
+      suggestedIndustryClass: "cnc",
+      workerConfidence: 0.92,
+      writeSecret: WRITE_SECRET,
+    });
+    await t.mutation(api.companies.setIndustryProposalResearchState, {
+      proposalId: "proposal-worker-research",
+      status: "ready_for_review",
+      suggestedIndustryClass: "cnc",
+      suggestedVerificationLevel: "candidate",
+      materialChangeSummary: "Official product page mentions CNC machining centres.",
+      writeSecret: WRITE_SECRET,
+    });
+
+    const proposal = await t.query(api.companies.getIndustryProposal, {
+      proposalId: "proposal-worker-research",
+      writeSecret: WRITE_SECRET,
+    });
+    expect(proposal).toMatchObject({
+      status: "ready_for_review",
+      suggestedIndustryClass: "cnc",
+      suggestedVerificationLevel: "candidate",
+    });
+    expect(proposal?.researchStartedAt).toBeTypeOf("number");
+    expect(proposal?.readyForReviewAt).toBeTypeOf("number");
+
+    const profile = await t.query(api.companies.getIndustryProfile, {
+      companyKey: "acme-cnc",
+      writeSecret: WRITE_SECRET,
+    });
+    expect(profile).toBeNull();
+    const revisions = await t.query(api.companies.listIndustryVerdictRevisions, {
+      companyKey: "acme-cnc",
+      writeSecret: WRITE_SECRET,
+    });
+    expect(revisions).toEqual([]);
+  });
+
+  it("selects due approved sources and records unchanged freshness without changing truth", async () => {
+    const t = createTest();
+    await t.mutation(api.companies.upsert, {
+      companyKey: "acme-cnc",
+      displayName: "ACME CNC",
+      status: "confirmed",
+      writeSecret: WRITE_SECRET,
+    });
+    await t.mutation(api.companies.upsertIndustryProposal, {
+      proposalId: "proposal-freshness-bootstrap",
+      companyKey: "acme-cnc",
+      triggerReasons: ["missing_approved_profile"],
+      priority: 80,
+      writeSecret: WRITE_SECRET,
+    });
+    await t.mutation(api.companies.upsertIndustryEvidenceSource, {
+      sourceId: "source-freshness-official",
+      proposalId: "proposal-freshness-bootstrap",
+      companyKey: "acme-cnc",
+      url: "https://acme.example.com/products",
+      sourceType: "official_site",
+      trustTier: "primary",
+      fetchStatus: "fetched",
+      contentFingerprint: "sha256:stable",
+      writeSecret: WRITE_SECRET,
+    });
+    await t.mutation(api.companies.approveIndustryProposal, {
+      proposalId: "proposal-freshness-bootstrap",
+      revisionId: "revision-freshness-1",
+      verificationLevel: "verified",
+      industryClass: "cnc",
+      approvedSourceIds: ["source-freshness-official"],
+      evidenceSummary: "Approved CNC evidence.",
+      reviewer: "admin@example.com",
+      decisionReason: "Official evidence.",
+      taxonomyVersion: "industry-taxonomy-v1",
+      nextReviewAt: 100,
+      writeSecret: WRITE_SECRET,
+    });
+
+    const notDue = await t.query(api.companies.listDueIndustryEvidenceSources, {
+      now: 99,
+      writeSecret: WRITE_SECRET,
+    });
+    expect(notDue).toEqual([]);
+    const due = await t.query(api.companies.listDueIndustryEvidenceSources, {
+      now: 100,
+      writeSecret: WRITE_SECRET,
+    });
+    expect(due).toHaveLength(1);
+    expect(due[0]).toMatchObject({
+      sourceId: "source-freshness-official",
+      companyKey: "acme-cnc",
+      verdictRevisionId: "revision-freshness-1",
+      approvedSourceCount: 1,
+    });
+
+    await t.mutation(api.companies.markIndustryEvidenceProfilesChecking, {
+      profiles: [
+        {
+          companyKey: "acme-cnc",
+          verdictRevisionId: "revision-freshness-1",
+        },
+      ],
+      writeSecret: WRITE_SECRET,
+    });
+    await t.mutation(api.companies.recordIndustryEvidenceFreshnessCheck, {
+      checkId: "check-stable-1",
+      sourceId: "source-freshness-official",
+      companyKey: "acme-cnc",
+      verdictRevisionId: "revision-freshness-1",
+      checkedAt: 200,
+      outcome: "unchanged",
+      observedUrl: "https://acme.example.com/products",
+      observedContentFingerprint: "sha256:stable",
+      fetchStatus: "fetched",
+      writeSecret: WRITE_SECRET,
+    });
+
+    const profile = await t.query(api.companies.getIndustryProfile, {
+      companyKey: "acme-cnc",
+      writeSecret: WRITE_SECRET,
+    });
+    expect(profile).toMatchObject({
+      currentRevisionId: "revision-freshness-1",
+      verificationLevel: "verified",
+      freshnessState: "fresh",
+      nextReviewAt: 200 + 180 * 24 * 60 * 60 * 1_000,
+    });
+    const checks = await t.query(api.companies.listIndustryEvidenceChecks, {
+      companyKey: "acme-cnc",
+      writeSecret: WRITE_SECRET,
+    });
+    expect(checks).toHaveLength(1);
+    expect(checks[0]).toMatchObject({
+      checkId: "check-stable-1",
+      outcome: "unchanged",
+    });
+  });
+
+  it("requires a coalesced proposal for changed or unavailable evidence and preserves the badge", async () => {
+    const t = createTest();
+    await t.mutation(api.companies.upsert, {
+      companyKey: "acme-cnc",
+      displayName: "ACME CNC",
+      status: "confirmed",
+      writeSecret: WRITE_SECRET,
+    });
+    await t.mutation(api.companies.upsertIndustryProposal, {
+      proposalId: "proposal-current",
+      companyKey: "acme-cnc",
+      triggerReasons: ["missing_approved_profile"],
+      priority: 80,
+      writeSecret: WRITE_SECRET,
+    });
+    await t.mutation(api.companies.upsertIndustryEvidenceSource, {
+      sourceId: "source-current",
+      proposalId: "proposal-current",
+      companyKey: "acme-cnc",
+      url: "https://acme.example.com/products",
+      sourceType: "official_site",
+      trustTier: "primary",
+      fetchStatus: "fetched",
+      contentFingerprint: "sha256:old",
+      writeSecret: WRITE_SECRET,
+    });
+    await t.mutation(api.companies.approveIndustryProposal, {
+      proposalId: "proposal-current",
+      revisionId: "revision-current",
+      verificationLevel: "verified",
+      industryClass: "cnc",
+      approvedSourceIds: ["source-current"],
+      evidenceSummary: "Approved CNC evidence.",
+      reviewer: "admin@example.com",
+      decisionReason: "Official evidence.",
+      taxonomyVersion: "industry-taxonomy-v1",
+      nextReviewAt: 100,
+      writeSecret: WRITE_SECRET,
+    });
+
+    await expect(
+      t.mutation(api.companies.recordIndustryEvidenceFreshnessCheck, {
+        checkId: "check-change-without-proposal",
+        sourceId: "source-current",
+        companyKey: "acme-cnc",
+        verdictRevisionId: "revision-current",
+        checkedAt: 200,
+        outcome: "changed",
+        observedContentFingerprint: "sha256:new",
+        fetchStatus: "fetched",
+        writeSecret: WRITE_SECRET,
+      }),
+    ).rejects.toThrow(/requires a proposal/i);
+
+    const proposal = await t.mutation(api.companies.upsertIndustryProposal, {
+      proposalId: "proposal-source-unavailable",
+      companyKey: "acme-cnc",
+      triggerReasons: ["scheduled_freshness", "source_unavailable"],
+      priority: 100,
+      currentRevisionId: "revision-current",
+      materialChangeSummary: "All approved sources were unavailable.",
+      writeSecret: WRITE_SECRET,
+    });
+    await t.mutation(api.companies.recordIndustryEvidenceFreshnessCheck, {
+      checkId: "check-unavailable-1",
+      sourceId: "source-current",
+      companyKey: "acme-cnc",
+      verdictRevisionId: "revision-current",
+      proposalId: proposal.proposalId,
+      checkedAt: 200,
+      outcome: "unavailable",
+      fetchStatus: "unavailable",
+      httpStatus: 503,
+      errorCode: "temporary_outage",
+      writeSecret: WRITE_SECRET,
+    });
+
+    const profile = await t.query(api.companies.getIndustryProfile, {
+      companyKey: "acme-cnc",
+      writeSecret: WRITE_SECRET,
+    });
+    expect(profile).toMatchObject({
+      currentRevisionId: "revision-current",
+      verificationLevel: "verified",
+      freshnessState: "unavailable",
+    });
+    const revisions = await t.query(api.companies.listIndustryVerdictRevisions, {
+      companyKey: "acme-cnc",
+      writeSecret: WRITE_SECRET,
+    });
+    expect(revisions).toHaveLength(1);
+    expect(revisions[0]?.verificationLevel).toBe("verified");
+  });
+
+  it("records each authorized recruiter refresh request against the coalesced proposal", async () => {
+    const t = createTest();
+    await t.mutation(api.companies.upsert, {
+      companyKey: "acme-cnc",
+      displayName: "ACME CNC",
+      status: "confirmed",
+      writeSecret: WRITE_SECRET,
+    });
+    await t.mutation(api.companies.upsertIndustryProfile, {
+      companyKey: "acme-cnc",
+      industryClass: "cnc",
+      verificationLevel: "verified",
+      evidenceSource: "manual",
+      currentRevisionId: "revision-current",
+      writeSecret: WRITE_SECRET,
+    });
+    const resumeId = await t.run(async (ctx) =>
+      ctx.db.insert("resumes", {
+        externalId: "resume-1",
+        identityKey: "identity-resume-1",
+        content: {},
+        hash: "hash-resume-1",
+        tags: [],
+        crawledAt: 1,
+        source: "test",
+        workspaceSlug: "my",
+      }),
+    );
+    await t.run(async (ctx) => {
+      await ctx.db.insert("company_resume_links", {
+        workspaceSlug: "my",
+        companyKey: "acme-cnc",
+        resumeId,
+        resumeIdentity: "identity-resume-1",
+        matchedEmployerSurfaces: ["ACME CNC"],
+        workEntryFingerprints: ["work-1"],
+        currentVerdictRevisionId: "revision-current",
+        updatedAt: 1,
+      });
+    });
+    const proposal = await t.mutation(api.companies.upsertIndustryProposal, {
+      proposalId: "proposal-refresh-request",
+      companyKey: "acme-cnc",
+      triggerReasons: ["recruiter_refresh_request"],
+      priority: 100,
+      currentRevisionId: "revision-current",
+      requestedBy: "recruiter-1",
+      writeSecret: WRITE_SECRET,
+    });
+    const resolvedReference = await t.query(
+      api.companies.resolveIndustryRefreshResumeReference,
+      {
+        workspaceSlug: "my",
+        companyKey: "acme-cnc",
+        verdictRevisionId: "revision-current",
+        resumeReference: String(resumeId),
+        writeSecret: WRITE_SECRET,
+      },
+    );
+    expect(resolvedReference).toEqual({
+      resumeIdentity: "identity-resume-1",
+      workEntryFingerprint: "work-1",
+    });
+
+    const first = await t.mutation(api.companies.recordIndustryRefreshRequest, {
+      requestId: "refresh-request-1",
+      proposalId: proposal.proposalId,
+      companyKey: "acme-cnc",
+      verdictRevisionId: "revision-current",
+      workspaceSlug: "my",
+      requesterId: "recruiter-1",
+      reasonCode: "stale",
+      resumeIdentity: "identity-resume-1",
+      workEntryFingerprint: "work-1",
+      writeSecret: WRITE_SECRET,
+    });
+    const duplicate = await t.mutation(
+      api.companies.recordIndustryRefreshRequest,
+      {
+        requestId: "refresh-request-1",
+        proposalId: proposal.proposalId,
+        companyKey: "acme-cnc",
+        verdictRevisionId: "revision-current",
+        workspaceSlug: "my",
+        requesterId: "recruiter-1",
+        reasonCode: "stale",
+        resumeIdentity: "identity-resume-1",
+        workEntryFingerprint: "work-1",
+        writeSecret: WRITE_SECRET,
+      },
+    );
+    expect(first.created).toBe(true);
+    expect(duplicate.created).toBe(false);
+
+    const requests = await t.query(api.companies.listIndustryRefreshRequests, {
+      proposalId: proposal.proposalId,
+      writeSecret: WRITE_SECRET,
+    });
+    expect(requests).toHaveLength(1);
+    expect(requests[0]).toMatchObject({
+      companyKey: "acme-cnc",
+      verdictRevisionId: "revision-current",
+      workspaceSlug: "my",
+      requesterId: "recruiter-1",
+      reasonCode: "stale",
+      resumeIdentity: "identity-resume-1",
+      workEntryFingerprint: "work-1",
+    });
+
+    const profile = await t.query(api.companies.getIndustryProfile, {
+      companyKey: "acme-cnc",
+      writeSecret: WRITE_SECRET,
+    });
+    expect(profile).toMatchObject({
+      verificationLevel: "verified",
+      currentRevisionId: "revision-current",
+    });
+  });
 });

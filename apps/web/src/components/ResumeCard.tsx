@@ -45,6 +45,8 @@ import {
 import { Suspense, lazy, memo, useMemo, useState } from 'react'
 import { useResumeFieldUsagePolicy } from '@/contexts/ResumeFieldUsagePolicyContext'
 import { useResumeWorkHistoryLimit } from '@/contexts/ResumeWorkHistoryLimitContext'
+import { IndustryEvidenceSummary } from '@/components/industry-evidence/IndustryEvidenceSummary'
+import { getVerifiedIndustryEvidenceSummaries } from '@/components/industry-evidence/industry-evidence'
 
 const OutreachModal = lazy(() => import('./OutreachModal').then((m) => ({ default: m.OutreachModal })))
 import { Select } from '@/components/ui/select'
@@ -393,6 +395,10 @@ export const ResumeCard = memo(function ResumeCard({
     .slice(0, 3)
   const resolveBrand = brandDisplayResolve ?? ((brandId: string) => brandId.toUpperCase())
   const brandSummary = useMemo(() => summarizeBrandHits(brandHits), [brandHits])
+  const verifiedIndustryEvidenceSummaries = useMemo(
+    () => getVerifiedIndustryEvidenceSummaries(resume),
+    [resume],
+  )
   const primaryRoleSignal = selectDisplayRoleSignal(roleSignals, activeRoleFilterType)
   const verifiedRoleYears = primaryRoleSignal ? getRoleVerifiedYears(primaryRoleSignal) : 0
   const roleRelevantYears = primaryRoleSignal ? getRoleRelevantYears(primaryRoleSignal) : 0
@@ -571,6 +577,15 @@ export const ResumeCard = memo(function ResumeCard({
       {companyPolicyHits.length > 0 ? (
         <div className="border-b px-4 py-2">
           <CompanyPolicyBadges hits={companyPolicyHits} variant="banner" />
+        </div>
+      ) : null}
+
+      {verifiedIndustryEvidenceSummaries.length > 0 ? (
+        <div className="border-b px-4 py-3">
+          <IndustryEvidenceSummary
+            summaries={verifiedIndustryEvidenceSummaries}
+            preferredRoleTypes={activeRoleFilterType ? [activeRoleFilterType] : undefined}
+          />
         </div>
       ) : null}
 

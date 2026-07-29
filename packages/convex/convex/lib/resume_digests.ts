@@ -7,8 +7,10 @@ import {
     matchesResumeDigestFilters,
     normalizeEducationLevel,
     normalizeResumeLocationHierarchy,
+    parseVerifiedIndustryEvidenceSummary,
     parseRawSalaryRange,
     resolveExperienceYears,
+    type VerifiedIndustryEvidenceSummary,
 } from "@trends/shared";
 import type { Doc } from "../_generated/dataModel";
 import {
@@ -44,8 +46,19 @@ export function buildResumeDigest(
     const salary = parseRawSalaryRange(
         typeof content.expectedSalary === "string" ? content.expectedSalary : undefined,
     );
-    const roleYearsByType = collectRoleYearsByType(resume);
+    const rawIngestData = isRecord(resume.ingestData) ? resume.ingestData : undefined;
+    const evidenceProjectionVersion = toNumber(rawIngestData?.evidenceProjectionVersion);
+    const strictEvidenceProjection =
+        rawIngestData && evidenceProjectionVersion !== undefined
+            ? collectStrictEvidenceProjection(rawIngestData)
+            : undefined;
+    const roleYearsByType = collectRoleYearsByType(resume, strictEvidenceProjection);
     const roleTypes = collectRoleTypes(resume, roleYearsByType);
+    const evidenceProjection = collectEvidenceProjection(
+        rawIngestData,
+        evidenceProjectionVersion,
+        strictEvidenceProjection,
+    );
 
     return {
         resumeId: resume._id,
@@ -72,6 +85,7 @@ export function buildResumeDigest(
         experienceYears: resolveExperienceYears(typeof content.experience === "string" ? content.experience : undefined, content.workHistory) ?? undefined,
         roleTypes,
         roleYearsByType,
+        ...evidenceProjection,
         displayScore: resolveDisplayScore(activeAnalysis.analysis),
         displayRecommendation: resolveDisplayRecommendation(activeAnalysis.analysis),
         displayBreakdown: resolveDisplayBreakdown(activeAnalysis.analysis),
@@ -243,9 +257,15 @@ function collectRoleTypes(resume: Doc<"resumes">, roleYearsByType: Record<string
  * Persist gate years exclusively from verified evidence. Keep roleTypes broad
  * for UI/filter presence even when no verified years exist for that type.
  */
-function collectRoleYearsByType(resume: Doc<"resumes">): Record<string, number> {
+function collectRoleYearsByType(
+    resume: Doc<"resumes">,
+    strictEvidenceProjection?: ReturnType<typeof collectStrictEvidenceProjection>,
+): Record<string, number> {
     const raw = resume.ingestData as Record<string, unknown> | null | undefined;
     if (!raw) return {};
+    if (strictEvidenceProjection) {
+        return strictEvidenceProjection.roleYearsByType;
+    }
     const result: Record<string, number> = {};
 
     const verifiedRoleYears = raw.verifiedRoleYears as Record<string, unknown> | null | undefined;
@@ -271,6 +291,96 @@ function collectRoleYearsByType(resume: Doc<"resumes">): Record<string, number> 
         }
     }
     return result;
+}
+
+function collectEvidenceProjection(
+    raw: Record<string, unknown> | undefined,
+    evidenceProjectionVersion: number | undefined,
+    strictEvidenceProjection?: ReturnType<typeof collectStrictEvidenceProjection>,
+): Pick<
+    ResumeDigest,
+    | "evidenceProjectionVersion"
+    | "verifiedIndustryEvidenceSummaries"
+    | "industryEvidenceCatalogState"
+    | "industryEvidenceStale"
+> {
+    if (
+        evidenceProjectionVersion === undefined
+        || !raw
+        || !strictEvidenceProjection
+    ) {
+        return {};
+    }
+    return {
+        evidenceProjectionVersion,
+        verifiedIndustryEvidenceSummaries: strictEvidenceProjection.summaries,
+        ...(raw.industryEvidenceCatalogState === "ready"
+            || raw.industryEvidenceCatalogState === "degraded"
+            ? { industryEvidenceCatalogState: raw.industryEvidenceCatalogState }
+            : {}),
+        ...(strictEvidenceProjection.stale ? { industryEvidenceStale: true } : {}),
+    };
+}
+
+function collectStrictEvidenceProjection(raw: Record<string, unknown>): {
+    summaries: VerifiedIndustryEvidenceSummary[];
+    roleYearsByType: Record<string, number>;
+    stale: boolean;
+} {
+    const rawSummaries = Array.isArray(raw.verifiedIndustryEvidenceSummaries)
+        ? raw.verifiedIndustryEvidenceSummaries
+        : [];
+    const summaries = rawSummaries
+        .map(parseVerifiedIndustryEvidenceSummary)
+        .filter((item): item is VerifiedIndustryEvidenceSummary => item !== null);
+    const revisionByCompany = new Map(
+        summaries.map((summary) => [summary.companyKey, summary.verdictRevisionId]),
+    );
+    const roleYearsByType: Record<string, number> = {};
+    const fingerprintsByRole = new Map<string, Set<string>>();
+    let stale = summaries.length !== rawSummaries.length;
+
+    const roleSignals = Array.isArray(raw.roleSignals) ? raw.roleSignals : [];
+    for (const rawSignal of roleSignals) {
+        if (!isRecord(rawSignal) || typeof rawSignal.type !== "string") continue;
+        const roleType = rawSignal.type.trim().toLowerCase();
+        if (!roleType || !Array.isArray(rawSignal.matchedWorkEntries)) continue;
+        const seen = fingerprintsByRole.get(roleType) ?? new Set<string>();
+        let years = roleYearsByType[roleType] ?? 0;
+        for (const rawEntry of rawSignal.matchedWorkEntries) {
+            if (!isRecord(rawEntry) || rawEntry.industryVerified !== true) continue;
+            const companyKey =
+                typeof rawEntry.companyKey === "string"
+                    ? rawEntry.companyKey.trim().toLowerCase()
+                    : "";
+            const verdictRevisionId =
+                typeof rawEntry.verdictRevisionId === "string"
+                    ? rawEntry.verdictRevisionId.trim()
+                    : "";
+            const expectedRevision = revisionByCompany.get(companyKey);
+            if (!companyKey || !verdictRevisionId || expectedRevision !== verdictRevisionId) {
+                stale = true;
+                continue;
+            }
+            if (rawEntry.directRoleMatch !== true) continue;
+            const entryYears = toNumber(rawEntry.years);
+            if (entryYears === undefined || entryYears <= 0) continue;
+            const fingerprint =
+                typeof rawEntry.workEntryFingerprint === "string"
+                    && rawEntry.workEntryFingerprint.trim()
+                    ? rawEntry.workEntryFingerprint.trim()
+                    : `${companyKey}\u0000${verdictRevisionId}\u0000${entryYears}`;
+            if (seen.has(fingerprint)) continue;
+            seen.add(fingerprint);
+            years += entryYears;
+        }
+        fingerprintsByRole.set(roleType, seen);
+        if (years > 0) {
+            roleYearsByType[roleType] = Number(years.toFixed(2));
+        }
+    }
+
+    return { summaries, roleYearsByType, stale };
 }
 
 function parseAnalysisRoleSignals(value: unknown): AnalysisRoleSignalLike[] {

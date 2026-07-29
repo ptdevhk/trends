@@ -6,17 +6,21 @@ import {
   classifyBrandProductClass,
   computeVerifiedRoleYears,
   CURRENT_INGEST_COMPUTE_EPOCH,
+  CURRENT_INDUSTRY_EVIDENCE_PROJECTION_VERSION,
   formatLocationHierarchySearchText,
   isRecord,
   normalizeBrandOrigin,
+  normalizeCompanyAlias,
   normalizeEducationLevel,
   normalizeResumeLocationHierarchy,
   normalizeWorkHistoryEntry,
+  parseVerifiedIndustryEvidenceSummary,
   parseSalaryRange,
   selectLatestWorkHistory,
   type BrandOrigin,
   type KeywordMarket,
   type ProductClass,
+  type VerifiedIndustryEvidenceSummary,
   deriveMarketFromSourceKey,
 } from "@trends/shared";
 
@@ -30,11 +34,26 @@ import { resolveResumeId } from "./resume-id.js";
 import { computeEntryRoleYears, computeWorkHistoryYears, extractCompanyFromWorkHistory } from "./work-history.js";
 import type { ResumeItem, ResumeWorkHistoryItem } from "../types/resume.js";
 import type { ResumeIndex } from "./resume-index.js";
+import {
+  loadReviewedIndustryCatalog,
+  resolveCompanyKeysForEmployerSurfaces,
+  type EmployerSurfaceResolutionResult,
+  type ReviewedIndustryCatalogResult,
+} from "./company-industry-profile-service.js";
+import type {
+  IndustryVerificationCompatibilityMode,
+  ReviewedIndustryProfileSnapshot,
+} from "./industry-verification-service.js";
+import {
+  promoteIndustryMaintenanceCandidates,
+  type IndustryMaintenanceEvent,
+} from "./industry-maintenance-trigger-service.js";
 
 export interface IngestInput {
   resumeId: string;
   content: unknown;  // raw crawler JSON
   sourceKey?: string; // e.g. "seek", "51job", "job5156" — used to derive market
+  workspaceSlug?: string;
 }
 
 export type BrandContext = "employer" | "equipment" | "sales" | "technical" | "general";
@@ -84,6 +103,9 @@ export interface IngestResult {
   skillsVersion: number;
   /** Algorithm revision (not skills catalog). See @trends/shared ingest-compute-epoch. */
   ingestComputeEpoch: number;
+  evidenceProjectionVersion?: number;
+  verifiedIndustryEvidenceSummaries?: VerifiedIndustryEvidenceSummary[];
+  industryEvidenceCatalogState?: "ready" | "degraded";
 }
 
 export type TaggingProvenanceStage =
@@ -116,6 +138,45 @@ interface VerifiedEmployerMatch {
   key: string;
   companyId: number;
   companyNameCn: string;
+}
+
+interface IngestComputeCatalogContext {
+  compatibilityMode: IndustryVerificationCompatibilityMode;
+  companyKeysByNormalizedSurface: Map<string, string>;
+  profiles: Map<string, ReviewedIndustryProfileSnapshot>;
+  catalogState: "ready" | "degraded";
+}
+
+interface PreparedResumeContent {
+  item: ResumeItem;
+  latestWorkHistory: ResumeWorkHistoryItem[];
+}
+
+export interface IngestComputeServiceDependencies {
+  employerResolver?: (
+    employerSurfaces: string[],
+  ) => Promise<EmployerSurfaceResolutionResult>;
+  catalogLoader?: (
+    companyKeys: string[],
+  ) => Promise<ReviewedIndustryCatalogResult>;
+}
+
+function workEntryFingerprint(
+  entry: ResumeWorkHistoryItem,
+  companyName: string | undefined,
+  jobTitle: string | undefined,
+): string {
+  const normalized = [
+    normalizeCompanyAlias(companyName ?? ""),
+    normalizeText(jobTitle),
+    normalizeText(buildWorkHistoryEntryText(entry)),
+  ].join("\u0000");
+  let hash = 2166136261;
+  for (let index = 0; index < normalized.length; index += 1) {
+    hash ^= normalized.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return `work-${(hash >>> 0).toString(16).padStart(8, "0")}`;
 }
 
 
@@ -461,23 +522,46 @@ export class IngestComputeService {
   private readonly industryDataService: IndustryDataService;
   private readonly industryVerificationService: IndustryVerificationService;
   private readonly projectRoot?: string;
+  private readonly employerResolver: (
+    employerSurfaces: string[],
+  ) => Promise<EmployerSurfaceResolutionResult>;
+  private readonly catalogLoader: (
+    companyKeys: string[],
+  ) => Promise<ReviewedIndustryCatalogResult>;
   private brandMetaLookup: Map<string, { origin: BrandOrigin; productClass: ProductClass }> | null = null;
 
-  constructor(projectRoot?: string) {
+  constructor(
+    projectRoot?: string,
+    dependencies: IngestComputeServiceDependencies = {},
+  ) {
     this.projectRoot = projectRoot;
     this.ruleScoringService = new RuleScoringService(projectRoot);
     this.skillsKnowledgeService = new SkillsKnowledgeService(projectRoot);
     this.jobDescriptionService = new JobDescriptionService(projectRoot);
     this.industryDataService = new IndustryDataService(projectRoot);
     this.industryVerificationService = new IndustryVerificationService(this.industryDataService);
+    this.employerResolver =
+      dependencies.employerResolver ?? resolveCompanyKeysForEmployerSurfaces;
+    this.catalogLoader =
+      dependencies.catalogLoader ?? loadReviewedIndustryCatalog;
   }
 
   /**
    * Compute ingest data for a single resume
    */
   computeOne(resumeId: string, content: unknown, sourceKey?: string): IngestResult {
+    return this.computeOneInternal(resumeId, content, sourceKey);
+  }
+
+  private computeOneInternal(
+    resumeId: string,
+    content: unknown,
+    sourceKey?: string,
+    catalogContext?: IngestComputeCatalogContext,
+    preparedContent?: PreparedResumeContent,
+  ): IngestResult {
     const market = deriveMarketFromSourceKey(sourceKey);
-    const item = extractResumeItem(content);
+    const item = preparedContent?.item ?? extractResumeItem(content);
     const index = buildResumeIndex(item, 0);
     const searchText = index.searchText.toLowerCase();
     // Strict-mode contract: industryTags / synonymHits / experienceLevel must
@@ -497,7 +581,8 @@ export class IngestComputeService {
     // 3. Compute field-aware brandHits, then derive companyHits for backward compatibility
     //    MY market: run lookup against CN industry DB — international brands (Siemens, Caterpillar)
     //    may match even without a dedicated MY dataset. No matches → empty arrays naturally.
-    const latestWorkHistory = getLatestWorkHistory(item.workHistory);
+    const latestWorkHistory =
+      preparedContent?.latestWorkHistory ?? getLatestWorkHistory(item.workHistory);
     const verifiedEmployers = this.collectVerifiedEmployerMatches(latestWorkHistory);
     const brandHits = this.computeBrandHits(latestWorkHistory, index.companies, searchText, verifiedEmployers);
     const brandOrigin = aggregateBrandOrigin(brandHits);
@@ -505,7 +590,17 @@ export class IngestComputeService {
     const companyHits = verifiedEmployers.map((m) => m.key);
     const { raw: industryDbV2Raw, components: industryDbV2RawComponents } = computeIndustryDbV2Raw(companyHits, brandHits);
     const roleYearsAnchor = resolveRoleYearsAnchor(item);
-    const roleSignals = this.computeRoleSignals(latestWorkHistory, roleYearsAnchor);
+    const roleSignals = this.computeRoleSignals(
+      latestWorkHistory,
+      roleYearsAnchor,
+      catalogContext,
+    );
+    const verifiedIndustryEvidenceSummaries = catalogContext
+      ? this.buildVerifiedIndustryEvidenceSummaries(
+          roleSignals,
+          catalogContext.profiles,
+        )
+      : undefined;
     const companyPatternAliasTokens = this.buildCompanyAliasTokens(companyHits, brandHits);
 
     // 4. Compute ruleScores for all active JDs
@@ -557,6 +652,15 @@ export class IngestComputeService {
       computedAt,
       skillsVersion,
       ingestComputeEpoch: CURRENT_INGEST_COMPUTE_EPOCH,
+      ...(catalogContext
+        ? {
+            evidenceProjectionVersion:
+              CURRENT_INDUSTRY_EVIDENCE_PROJECTION_VERSION,
+            verifiedIndustryEvidenceSummaries:
+              verifiedIndustryEvidenceSummaries ?? [],
+            industryEvidenceCatalogState: catalogContext.catalogState,
+          }
+        : {}),
     };
   }
 
@@ -566,6 +670,153 @@ export class IngestComputeService {
   computeBatch(inputs: IngestInput[]): IngestResult[] {
     this.skillsKnowledgeService.clearCache();
     return inputs.map((input) => this.computeOne(input.resumeId, input.content, input.sourceKey));
+  }
+
+  async computeBatchWithCatalog(
+    inputs: IngestInput[],
+    compatibilityMode: IndustryVerificationCompatibilityMode = "legacy-seed",
+  ): Promise<IngestResult[]> {
+    this.skillsKnowledgeService.clearCache();
+    const preparedInputs = inputs.map((input) => {
+      const item = extractResumeItem(input.content);
+      return {
+        input,
+        preparedContent: {
+          item,
+          latestWorkHistory: getLatestWorkHistory(item.workHistory),
+        },
+      };
+    });
+    const employerSurfaces: string[] = [];
+    for (const { preparedContent } of preparedInputs) {
+      for (const entry of preparedContent.latestWorkHistory) {
+        const companyName =
+          normalizeWorkHistoryEntry(entry)?.companyName ||
+          extractCompanyFromWorkHistory(entry);
+        if (companyName?.trim()) {
+          employerSurfaces.push(companyName.trim());
+        }
+      }
+    }
+
+    const employerResolution = await this.employerResolver(employerSurfaces);
+    const companyKeysByNormalizedSurface = new Map(
+      employerResolution.companyKeysByNormalizedSurface,
+    );
+    const orderedCompanyKeys: string[] = [];
+    const seenCompanyKeys = new Set<string>();
+    for (const employerSurface of employerSurfaces) {
+      const normalizedSurface = normalizeCompanyAlias(employerSurface);
+      let companyKey = companyKeysByNormalizedSurface.get(normalizedSurface);
+      if (!companyKey) {
+        const seed =
+          this.industryDataService.verifyCompanyIndustry(employerSurface);
+        if (seed.company && seed.matchType === "known_company") {
+          companyKey = this.industryDataService.getCompanyKey(seed.company);
+          companyKeysByNormalizedSurface.set(normalizedSurface, companyKey);
+        }
+      }
+      if (companyKey && !seenCompanyKeys.has(companyKey)) {
+        seenCompanyKeys.add(companyKey);
+        orderedCompanyKeys.push(companyKey);
+      }
+    }
+
+    const catalog = await this.catalogLoader(orderedCompanyKeys);
+    const catalogContext: IngestComputeCatalogContext = {
+      compatibilityMode,
+      companyKeysByNormalizedSurface,
+      profiles: catalog.profiles,
+      catalogState:
+        employerResolution.degraded || catalog.degraded ? "degraded" : "ready",
+    };
+
+    const results = preparedInputs.map(({ input, preparedContent }) =>
+      this.computeOneInternal(
+        input.resumeId,
+        input.content,
+        input.sourceKey,
+        catalogContext,
+        preparedContent,
+      ),
+    );
+
+    const maintenanceEvents: IndustryMaintenanceEvent[] = [];
+    for (let inputIndex = 0; inputIndex < preparedInputs.length; inputIndex += 1) {
+      const preparedInput = preparedInputs[inputIndex];
+      const result = results[inputIndex];
+      const input = preparedInput?.input;
+      const workspaceSlug = input?.workspaceSlug?.trim();
+      if (!preparedInput || !input || !result || !workspaceSlug) continue;
+      for (const entry of preparedInput.preparedContent.latestWorkHistory) {
+        const normalizedEntry = normalizeWorkHistoryEntry(entry);
+        const companyName =
+          normalizedEntry?.companyName ||
+          extractCompanyFromWorkHistory(entry);
+        if (!companyName?.trim()) continue;
+        const normalizedSurface = normalizeCompanyAlias(companyName);
+        const companyKey =
+          companyKeysByNormalizedSurface.get(normalizedSurface);
+        const profile = companyKey
+          ? catalog.profiles.get(companyKey)
+          : undefined;
+        const fingerprint = workEntryFingerprint(
+          entry,
+          companyName,
+          normalizedEntry?.jobTitle,
+        );
+        const matchingEntries = result.roleSignals.flatMap(
+          (roleSignal) => roleSignal.matchedWorkEntries ?? [],
+        ).filter(
+          (matchedEntry) =>
+            matchedEntry.workEntryFingerprint === fingerprint &&
+            matchedEntry.directRoleMatch === true,
+        );
+        const directRoleYears = Math.max(
+          0,
+          ...matchingEntries.map((matchedEntry) => matchedEntry.years),
+        );
+        const missingApprovedProfile = Boolean(companyKey && !profile);
+        const evidenceConflict = Boolean(
+          profile?.verificationLevel === "rejected" && directRoleYears > 0,
+        );
+        const highValueUnknown =
+          !companyKey &&
+          (directRoleYears > 0 || result.primaryRuleScore >= 60);
+        if (
+          !missingApprovedProfile &&
+          !evidenceConflict &&
+          !highValueUnknown
+        ) {
+          continue;
+        }
+        maintenanceEvents.push({
+          employerSurface: companyName,
+          ...(companyKey ? { companyKey } : {}),
+          ...(!companyKey ? { unresolvedReason: "miss" as const } : {}),
+          nearbyScore: result.primaryRuleScore,
+          directRoleYears,
+          missingApprovedProfile,
+          evidenceConflict,
+          workspaceSlug,
+          resumeIdentity: input.resumeId,
+          workEntryFingerprint: fingerprint,
+        });
+      }
+    }
+    if (maintenanceEvents.length > 0 && !catalog.degraded) {
+      try {
+        await promoteIndustryMaintenanceCandidates(maintenanceEvents, {
+          resolveEmployerSurfaces: async () => employerResolution,
+        });
+      } catch (error) {
+        logger.warn("Industry maintenance proposal promotion failed", {
+          error: error instanceof Error ? error.message : String(error),
+          eventCount: maintenanceEvents.length,
+        });
+      }
+    }
+    return results;
   }
 
   /**
@@ -722,7 +973,11 @@ export class IngestComputeService {
     return salesDirectTitleSignals.some((signal) => rawText.includes(signal));
   }
 
-  private computeRoleSignals(workHistory: ResumeWorkHistoryItem[], anchorDate: Date): RoleSignalSummary[] {
+  private computeRoleSignals(
+    workHistory: ResumeWorkHistoryItem[],
+    anchorDate: Date,
+    catalogContext?: IngestComputeCatalogContext,
+  ): RoleSignalSummary[] {
     if (!Array.isArray(workHistory) || workHistory.length === 0) {
       return [];
     }
@@ -752,11 +1007,33 @@ export class IngestComputeService {
 
       const companyName = normalizedEntry?.companyName || extractCompanyFromWorkHistory(entry) || undefined;
       const jobTitle = normalizedEntry?.jobTitle || undefined;
-      const industryVerdict = this.industryVerificationService.resolveVerdict(
-        companyName,
-        workHistoryText,
-      );
+      const normalizedEmployerSurface = normalizeCompanyAlias(companyName ?? "");
+      const resolvedCompanyKey =
+        catalogContext?.companyKeysByNormalizedSurface.get(
+          normalizedEmployerSurface,
+        );
+      const reviewedProfile = resolvedCompanyKey
+        ? catalogContext?.profiles.get(resolvedCompanyKey)
+        : undefined;
+      const industryVerdict = catalogContext
+        ? this.industryVerificationService.resolveVerdict({
+            companyName,
+            dutyText: workHistoryText,
+            targetIndustryClass: "cnc",
+            resolvedCompanyKey,
+            reviewedProfile,
+            compatibilityMode: catalogContext.compatibilityMode,
+          })
+        : this.industryVerificationService.resolveVerdict(
+            companyName,
+            workHistoryText,
+          );
       const industryVerified = industryVerdict.verdict === "verified";
+      const entryFingerprint = workEntryFingerprint(
+        entry,
+        companyName,
+        jobTitle,
+      );
 
       for (const [roleType, signals] of Object.entries(roleSignalLibrary)) {
         const matchedSignals = this.resolveRoleSignalMatches(entry, workHistoryText, signals);
@@ -839,9 +1116,16 @@ export class IngestComputeService {
 
         existing.matchedWorkEntries.push({
           companyName,
+          ...(industryVerdict.companyKey
+            ? { companyKey: industryVerdict.companyKey }
+            : {}),
           jobTitle,
           years,
           industryVerified,
+          ...(industryVerdict.verdictRevisionId
+            ? { verdictRevisionId: industryVerdict.verdictRevisionId }
+            : {}),
+          workEntryFingerprint: entryFingerprint,
           matchedSignals: matchedSignals.map((signal) => signal.label),
           directRoleMatch,
         });
@@ -862,6 +1146,91 @@ export class IngestComputeService {
       matchedWorkEntries: value.matchedWorkEntries,
       verifyIn: "workHistory",
     }));
+  }
+
+  private buildVerifiedIndustryEvidenceSummaries(
+    roleSignals: RoleSignalSummary[],
+    profiles: Map<string, ReviewedIndustryProfileSnapshot>,
+  ): VerifiedIndustryEvidenceSummary[] {
+    const accumulators = new Map<
+      string,
+      {
+        profile: ReviewedIndustryProfileSnapshot;
+        companyName?: string;
+        verifiedYears: number;
+        fingerprints: Set<string>;
+        roleTypes: Set<string>;
+      }
+    >();
+
+    for (const roleSignal of roleSignals) {
+      for (const entry of roleSignal.matchedWorkEntries ?? []) {
+        if (
+          !entry.industryVerified ||
+          !entry.companyKey ||
+          !entry.verdictRevisionId
+        ) {
+          continue;
+        }
+        const profile = profiles.get(entry.companyKey);
+        if (
+          !profile ||
+          profile.verificationLevel !== "verified" ||
+          profile.verdictRevisionId !== entry.verdictRevisionId
+        ) {
+          continue;
+        }
+        const accumulator = accumulators.get(entry.companyKey) ?? {
+          profile,
+          companyName: entry.companyName,
+          verifiedYears: 0,
+          fingerprints: new Set<string>(),
+          roleTypes: new Set<string>(),
+        };
+        const fingerprint =
+          entry.workEntryFingerprint ??
+          `${entry.companyKey}\u0000${entry.companyName ?? ""}\u0000${entry.jobTitle ?? ""}`;
+        if (!accumulator.fingerprints.has(fingerprint)) {
+          accumulator.fingerprints.add(fingerprint);
+          accumulator.verifiedYears += Math.max(0, entry.years);
+        }
+        accumulator.roleTypes.add(roleSignal.type);
+        accumulators.set(entry.companyKey, accumulator);
+      }
+    }
+
+    return [...accumulators.values()]
+      .map(({ profile, companyName, verifiedYears, roleTypes }) =>
+        parseVerifiedIndustryEvidenceSummary({
+          companyKey: profile.companyKey,
+          companyName:
+            profile.companyName ?? companyName ?? profile.companyKey,
+          industryClass: profile.industryClass,
+          verificationLevel: profile.verificationLevel,
+          verdictRevisionId: profile.verdictRevisionId,
+          evidenceSummary: profile.evidenceSummary,
+          verifiedYears: Number(verifiedYears.toFixed(2)),
+          roleTypes: [...roleTypes].sort(),
+          reviewedAt: profile.reviewedAt,
+          reviewedBy: profile.reviewedBy,
+          sourceCount: profile.sourceCount,
+          sourcePreviews: profile.sourcePreviews,
+          additionalSourceCount:
+            profile.additionalSourceCount ??
+            Math.max(0, profile.sourceCount - profile.sourcePreviews.length),
+          freshnessState: profile.freshnessState,
+        }),
+      )
+      .filter(
+        (summary): summary is VerifiedIndustryEvidenceSummary =>
+          summary !== null,
+      )
+      .sort(
+        (left, right) =>
+          (right.verifiedYears ?? 0) - (left.verifiedYears ?? 0) ||
+          left.companyName.localeCompare(right.companyName) ||
+          left.companyKey.localeCompare(right.companyKey),
+      );
   }
 
   private resolveRoleSignalMatches(

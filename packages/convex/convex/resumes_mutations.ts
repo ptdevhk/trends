@@ -20,6 +20,7 @@ import {
     PAGINATE_MAX_ROWS_READ,
     resolveResumeScanBatchSize,
 } from "./lib/resumes_pagination.js";
+import { replaceCompanyResumeLinksForResume } from "./lib/company_resume_links.js";
 
 // ---------------------------------------------------------------------------
 // Workspace access guard (defense-in-depth)
@@ -196,6 +197,7 @@ export const updateIngestDataBatch = internalMutation({
             }
 
             await ctx.db.patch(update.resumeId, patch);
+            await replaceCompanyResumeLinksForResume(ctx, resume, update.ingestData);
             await ctx.runMutation(internal.resumes_search.upsertResumeDigest, { resumeId: update.resumeId });
         }));
     },

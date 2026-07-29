@@ -951,15 +951,24 @@ describe("resume-candidate-prep", () => {
     });
 
     it("uses provided ingestData over resume.ingestData", () => {
-      const resume = makeMinimalResume({ ingestData: { brandHits: [{ brand: "Old", role: "employer", source: "workHistory", context: "employer" }] } });
+      const resume = makeMinimalResume({
+        ingestData: {
+          industryTags: ["old-tag"],
+          brandHits: [{ brand: "Old", role: "employer", source: "workHistory", context: "employer" }],
+        },
+      });
       const result = prepareResumeCandidate({
         resume,
         resumeId: "res-1",
         indexData: makeMinimalIndex(),
-        ingestData: { brandHits: [{ brand: "New", role: "equipment", source: "workHistory", context: "employer" }] },
+        ingestData: {
+          industryTags: ["new-tag"],
+          brandHits: [{ brand: "New", role: "equipment", source: "workHistory", context: "employer" }],
+        },
       });
       expect(result.brandHits).toHaveLength(1);
       expect(result.brandHits[0]!.brand).toBe("New");
+      expect(result.resume.ingestData?.industryTags).toEqual(["new-tag"]);
     });
 
     it("parses brandHits, companyHits, roleSignals from ingestData", () => {
@@ -996,9 +1005,9 @@ describe("resume-candidate-prep", () => {
 
     it("applies a configured work-history limit to evidence, companies, and role signals", () => {
       const workHistory = [
-        { companyName: "Old Co", jobTitle: "Old Role", startDate: "2018-01", endDate: "2019-01" },
-        { companyName: "Recent Co", jobTitle: "Recent Role", startDate: "2023-01", endDate: "2024-01" },
-        { companyName: "Current Co", jobTitle: "Current Role", startDate: "2024-02", endDate: "至今" },
+        { raw: "", companyName: "Old Co", jobTitle: "Old Role", startDate: "2018-01", endDate: "2019-01" },
+        { raw: "", companyName: "Recent Co", jobTitle: "Recent Role", startDate: "2023-01", endDate: "2024-01" },
+        { raw: "", companyName: "Current Co", jobTitle: "Current Role", startDate: "2024-02", endDate: "至今" },
       ];
       const result = prepareResumeCandidate({
         resume: makeMinimalResume({ workHistory }),
@@ -1122,10 +1131,10 @@ describe("resume-candidate-prep", () => {
       const prepared = prepareResumeCandidate({
         resume: makeMinimalResume({
           workHistory: [
-            { companyName: "Oldest Co", jobTitle: "Role 1", startDate: "2018-01", endDate: "2019-01" },
-            { companyName: "Middle Co", jobTitle: "Role 2", startDate: "2020-01", endDate: "2021-01" },
-            { companyName: "Recent Co", jobTitle: "Role 3", startDate: "2022-01", endDate: "2023-01" },
-            { companyName: "Current Co", jobTitle: "Role 4", startDate: "2024-01", endDate: "至今" },
+            { raw: "", companyName: "Oldest Co", jobTitle: "Role 1", startDate: "2018-01", endDate: "2019-01" },
+            { raw: "", companyName: "Middle Co", jobTitle: "Role 2", startDate: "2020-01", endDate: "2021-01" },
+            { raw: "", companyName: "Recent Co", jobTitle: "Role 3", startDate: "2022-01", endDate: "2023-01" },
+            { raw: "", companyName: "Current Co", jobTitle: "Role 4", startDate: "2024-01", endDate: "至今" },
           ],
         }),
         resumeId: "res-limit-four",
@@ -1157,7 +1166,7 @@ describe("resume-candidate-prep", () => {
         skills: ["JavaScript", "React"],
         companies: ["Tech Corp"],
       });
-      const item = { resume, resumeId: "res-1", indexData, companyHits: ["Tech Corp"], roleSignals: [{ type: "engineer", matchedSignals: ["problem-solving"], signalCount: 1, occurrences: 1, years: 3, industryVerifiedYears: 3, verifyIn: "workHistory" as const }] };
+      const item = { resume, resumeId: "res-1", indexData, companyHits: ["Tech Corp"], roleSignals: [{ type: "engineer", matchedSignals: ["problem-solving"], signalCount: 1, occurrences: 1, years: 3, industryVerifiedYears: 3, verifyIn: "workHistory" as const }], workHistoryLimit: 3 };
       const payload = buildAiResumePayload(item);
       expect(payload.id).toBe("res-1");
       expect(payload.name).toBe("Alice Smith");
@@ -1174,7 +1183,7 @@ describe("resume-candidate-prep", () => {
     it("uses fallback name '未命名' when name is empty", () => {
       const resume = makeMinimalResume({ name: "" });
       const indexData = makeMinimalIndex();
-      const payload = buildAiResumePayload({ resume, resumeId: "res-1", indexData, companyHits: [], roleSignals: [] });
+      const payload = buildAiResumePayload({ resume, resumeId: "res-1", indexData, companyHits: [], roleSignals: [], workHistoryLimit: 3 });
       expect(payload.name).toBe("未命名");
     });
 
@@ -1185,14 +1194,14 @@ describe("resume-candidate-prep", () => {
         ],
       });
       const indexData = makeMinimalIndex({ companies: [] });
-      const payload = buildAiResumePayload({ resume, resumeId: "res-1", indexData, companyHits: [], roleSignals: [] });
+      const payload = buildAiResumePayload({ resume, resumeId: "res-1", indexData, companyHits: [], roleSignals: [], workHistoryLimit: 3 });
       expect(payload.companies).toContain("Startup Inc");
     });
 
     it("handles empty workHistory", () => {
       const resume = makeMinimalResume({ workHistory: [] });
       const indexData = makeMinimalIndex();
-      const payload = buildAiResumePayload({ resume, resumeId: "res-1", indexData, companyHits: [], roleSignals: [] });
+      const payload = buildAiResumePayload({ resume, resumeId: "res-1", indexData, companyHits: [], roleSignals: [], workHistoryLimit: 3 });
       expect(payload.workHistory).toBeUndefined();
     });
 
@@ -1204,6 +1213,7 @@ describe("resume-candidate-prep", () => {
         indexData: makeMinimalIndex(),
         companyHits: [],
         roleSignals: [],
+        workHistoryLimit: 3,
       });
       // resolveResumeAnalysisSourceKey returns undefined for unrecognized source keys
       expect(payload.sourceKey).toBeUndefined();

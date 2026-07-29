@@ -130,6 +130,15 @@ describe('SYSTEM_SETTINGS_NAV_ITEMS', () => {
     const ids = SYSTEM_SETTINGS_NAV_ITEMS.map((item) => item.id)
     expect(ids).toContain('overview')
     expect(ids).toContain('runtime')
+    expect(ids).toContain('industry-verification')
+  })
+
+  it('marks industry evidence stewardship as an admin system setting', () => {
+    const item = SYSTEM_SETTINGS_NAV_ITEMS.find((entry) => entry.id === 'industry-verification')
+    expect(item).toMatchObject({
+      hrefSuffix: '/system/settings/industry-verification',
+      requiresAdmin: true,
+    })
   })
 
   it('does not expose relocated keyword or location editors in system settings navigation', () => {

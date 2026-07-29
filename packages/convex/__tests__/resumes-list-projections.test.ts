@@ -507,6 +507,121 @@ describe("buildResumeDigest", () => {
     expect(matchesResumeDigestFilters(digest as any, { minRoleYears: 1, roleFilterType: "sales" })).toBe(false);
     expect(matchesResumeDigestFilters(digest as any, { minRoleYears: 1 })).toBe(false);
   });
+
+  it("round-trips bounded revision-backed evidence into the digest and list projection", () => {
+    const summary = {
+      companyKey: "acme-cnc",
+      companyName: "ACME CNC",
+      industryClass: "cnc",
+      verificationLevel: "verified",
+      verdictRevisionId: "revision-acme-1",
+      evidenceSummary: "Official catalog confirms CNC machine tools.",
+      verifiedYears: 3,
+      roleTypes: ["sales"],
+      reviewedAt: 100,
+      reviewedBy: "reviewer-1",
+      sourceCount: 1,
+      sourcePreviews: [{
+        sourceId: "source-1",
+        url: "https://acme.example/cnc",
+        sourceDomain: "acme.example",
+        sourceType: "official_site",
+        trustTier: "primary",
+      }],
+      additionalSourceCount: 0,
+    };
+    const resume = makeResume({
+      ingestData: {
+        evidenceProjectionVersion: 1,
+        industryEvidenceCatalogState: "ready",
+        verifiedIndustryEvidenceSummaries: [summary],
+        verifiedRoleYears: { sales: 99 },
+        roleSignals: [{
+          type: "sales",
+          signalCount: 1,
+          years: 3,
+          industryVerifiedYears: 3,
+          industryVerifiedRelevantYears: 3,
+          matchedSignals: ["sales"],
+          matchedWorkEntries: [{
+            companyName: "ACME CNC",
+            companyKey: "acme-cnc",
+            jobTitle: "Sales Manager",
+            years: 3,
+            industryVerified: true,
+            verdictRevisionId: "revision-acme-1",
+            workEntryFingerprint: "work-1",
+            directRoleMatch: true,
+            matchedSignals: ["sales"],
+          }],
+          verifyIn: "workHistory",
+        }],
+      },
+    }) as Parameters<typeof buildResumeDigest>[0];
+
+    const digest = buildResumeDigest(resume, Date.UTC(2026, 5, 4));
+    const projected = projectResumeListDoc(resume as any);
+
+    expect(digest.roleYearsByType).toEqual({ sales: 3 });
+    expect(digest.evidenceProjectionVersion).toBe(1);
+    expect(digest.verifiedIndustryEvidenceSummaries).toEqual([summary]);
+    expect(projected.ingestData?.verifiedIndustryEvidenceSummaries).toEqual([
+      summary,
+    ]);
+    expect(
+      projected.ingestData?.roleSignals?.[0]?.matchedWorkEntries?.[0],
+    ).toMatchObject({
+      companyKey: "acme-cnc",
+      verdictRevisionId: "revision-acme-1",
+      workEntryFingerprint: "work-1",
+    });
+  });
+
+  it("does not let mismatched revision aggregates satisfy strict digest years", () => {
+    const resume = makeResume({
+      ingestData: {
+        evidenceProjectionVersion: 1,
+        industryEvidenceCatalogState: "ready",
+        verifiedIndustryEvidenceSummaries: [{
+          companyKey: "acme-cnc",
+          companyName: "ACME CNC",
+          industryClass: "cnc",
+          verificationLevel: "verified",
+          verdictRevisionId: "revision-current",
+          evidenceSummary: "Reviewed.",
+          reviewedAt: 100,
+          sourceCount: 0,
+          sourcePreviews: [],
+          additionalSourceCount: 0,
+        }],
+        verifiedRoleYears: { sales: 8 },
+        roleSignals: [{
+          type: "sales",
+          signalCount: 1,
+          years: 8,
+          industryVerifiedYears: 8,
+          industryVerifiedRelevantYears: 8,
+          matchedSignals: ["sales"],
+          matchedWorkEntries: [{
+            companyKey: "acme-cnc",
+            years: 8,
+            industryVerified: true,
+            verdictRevisionId: "revision-superseded",
+            workEntryFingerprint: "work-1",
+            directRoleMatch: true,
+            matchedSignals: ["sales"],
+          }],
+          verifyIn: "workHistory",
+        }],
+      },
+    }) as Parameters<typeof buildResumeDigest>[0];
+
+    const digest = buildResumeDigest(resume, Date.UTC(2026, 5, 4));
+
+    expect(digest.roleTypes).toEqual(["sales"]);
+    expect(digest.roleYearsByType).toEqual({});
+    expect(digest.industryEvidenceStale).toBe(true);
+  });
 });
 
 // ---------------------------------------------------------------------------

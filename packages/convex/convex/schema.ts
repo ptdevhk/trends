@@ -9,6 +9,7 @@ import {
     jsonRecordValidator,
     jsonValueValidator,
     relatedExpContextValidator,
+    verifiedIndustryEvidenceSummaryValidator,
 } from "./validators.js";
 
 export default defineSchema({
@@ -250,9 +251,12 @@ export default defineSchema({
                 industryVerifiedRelevantYears: v.optional(v.number()),
                 matchedWorkEntries: v.optional(v.array(v.object({
                     companyName: v.optional(v.string()),
+                    companyKey: v.optional(v.string()),
                     jobTitle: v.optional(v.string()),
                     years: v.number(),
                     industryVerified: v.boolean(),
+                    verdictRevisionId: v.optional(v.string()),
+                    workEntryFingerprint: v.optional(v.string()),
                     matchedSignals: v.array(v.string()),
                     directRoleMatch: v.optional(v.boolean()),
                 }))),
@@ -519,6 +523,15 @@ export default defineSchema({
         experienceYears: v.optional(v.number()),
         roleTypes: v.optional(v.array(v.string())),
         roleYearsByType: v.optional(v.record(v.string(), v.number())),
+        evidenceProjectionVersion: v.optional(v.number()),
+        verifiedIndustryEvidenceSummaries: v.optional(
+            v.array(verifiedIndustryEvidenceSummaryValidator),
+        ),
+        industryEvidenceCatalogState: v.optional(v.union(
+            v.literal("ready"),
+            v.literal("degraded"),
+        )),
+        industryEvidenceStale: v.optional(v.boolean()),
         // Phase 3 display fields — denormalized from default analysis for zero-join list/search
         displayScore: v.optional(v.number()),
         displayRecommendation: v.optional(v.string()),
@@ -784,12 +797,343 @@ export default defineSchema({
         msicCode: v.optional(v.string()),
         msicDescription: v.optional(v.string()),
         fetchedAt: v.optional(v.number()),
+        currentRevisionId: v.optional(v.string()),
+        reviewedAt: v.optional(v.number()),
+        reviewedBy: v.optional(v.string()),
+        sourceCount: v.optional(v.number()),
+        freshnessState: v.optional(v.union(
+            v.literal("fresh"),
+            v.literal("refresh_due"),
+            v.literal("checking"),
+            v.literal("changed"),
+            v.literal("unavailable"),
+            v.literal("conflict"),
+        )),
+        nextReviewAt: v.optional(v.number()),
+        catalogVersion: v.optional(v.number()),
+        compatibilityState: v.optional(v.union(
+            v.literal("legacy_seed"),
+            v.literal("reviewed"),
+            v.literal("strict_reviewed"),
+        )),
         updatedAt: v.number(),
         updatedBy: v.optional(v.string()),
     })
         .index("by_company_key", ["companyKey"])
         .index("by_verification", ["verificationLevel"])
-        .index("by_industry_class", ["industryClass"]),
+        .index("by_industry_class", ["industryClass"])
+        .index("by_current_revision", ["currentRevisionId"])
+        .index("by_next_review", ["nextReviewAt"])
+        .index("by_freshness", ["freshnessState", "nextReviewAt"]),
+
+    company_industry_evidence_sources: defineTable({
+        sourceId: v.string(),
+        companyKey: v.optional(v.string()),
+        proposalId: v.optional(v.string()),
+        url: v.string(),
+        sourceDomain: v.string(),
+        sourceType: v.union(
+            v.literal("official_site"),
+            v.literal("registry"),
+            v.literal("taxonomy"),
+            v.literal("oem_partner"),
+            v.literal("trade_body"),
+            v.literal("directory"),
+            v.literal("reporting"),
+            v.literal("other"),
+            v.literal("search_result"),
+        ),
+        trustTier: v.union(
+            v.literal("primary"),
+            v.literal("authoritative"),
+            v.literal("corroborating"),
+            v.literal("discovery"),
+        ),
+        title: v.optional(v.string()),
+        evidenceExcerpt: v.optional(v.string()),
+        fetchedAt: v.optional(v.number()),
+        lastSuccessfulFetchAt: v.optional(v.number()),
+        contentFingerprint: v.optional(v.string()),
+        fetchStatus: v.union(
+            v.literal("pending"),
+            v.literal("fetched"),
+            v.literal("failed"),
+            v.literal("unavailable"),
+        ),
+        suggestedIndustryClass: v.optional(v.union(
+            v.literal("cnc"),
+            v.literal("automation"),
+            v.literal("metrology"),
+            v.literal("industrial"),
+            v.literal("non_industry"),
+            v.literal("unknown"),
+        )),
+        workerConfidence: v.optional(v.number()),
+        reviewStatus: v.union(
+            v.literal("unreviewed"),
+            v.literal("approved"),
+            v.literal("rejected"),
+            v.literal("disputed"),
+        ),
+        reviewedAt: v.optional(v.number()),
+        reviewedBy: v.optional(v.string()),
+        reviewerNote: v.optional(v.string()),
+        sourceState: v.union(
+            v.literal("active"),
+            v.literal("superseded"),
+            v.literal("unavailable"),
+            v.literal("disputed"),
+        ),
+        supersededBySourceId: v.optional(v.string()),
+        createdAt: v.number(),
+        updatedAt: v.number(),
+    })
+        .index("by_source_id", ["sourceId"])
+        .index("by_company_review", ["companyKey", "reviewStatus"])
+        .index("by_proposal", ["proposalId"])
+        .index("by_domain", ["sourceDomain"])
+        .index("by_fetch_status", ["fetchStatus", "lastSuccessfulFetchAt"]),
+
+    company_industry_evidence_checks: defineTable({
+        checkId: v.string(),
+        sourceId: v.string(),
+        companyKey: v.string(),
+        verdictRevisionId: v.string(),
+        proposalId: v.optional(v.string()),
+        checkedAt: v.number(),
+        outcome: v.union(
+            v.literal("unchanged"),
+            v.literal("changed"),
+            v.literal("unavailable"),
+            v.literal("conflict"),
+        ),
+        observedUrl: v.optional(v.string()),
+        observedDomain: v.optional(v.string()),
+        observedTitle: v.optional(v.string()),
+        observedExcerpt: v.optional(v.string()),
+        observedContentFingerprint: v.optional(v.string()),
+        fetchStatus: v.union(
+            v.literal("fetched"),
+            v.literal("failed"),
+            v.literal("unavailable"),
+        ),
+        httpStatus: v.optional(v.number()),
+        errorCode: v.optional(v.string()),
+        materialChangeSummary: v.optional(v.string()),
+        nextReviewAt: v.optional(v.number()),
+        createdAt: v.number(),
+    })
+        .index("by_check_id", ["checkId"])
+        .index("by_source_checked", ["sourceId", "checkedAt"])
+        .index("by_company_checked", ["companyKey", "checkedAt"])
+        .index("by_proposal", ["proposalId"]),
+
+    company_industry_review_proposals: defineTable({
+        proposalId: v.string(),
+        companyKey: v.optional(v.string()),
+        normalizedEmployerSurface: v.optional(v.string()),
+        triggerReasons: v.array(v.string()),
+        priority: v.number(),
+        sampleReferences: v.optional(v.array(v.object({
+            workspaceSlug: v.string(),
+            resumeIdentity: v.string(),
+            workEntryFingerprint: v.optional(v.string()),
+        }))),
+        currentRevisionId: v.optional(v.string()),
+        suggestedIndustryClass: v.optional(v.union(
+            v.literal("cnc"),
+            v.literal("automation"),
+            v.literal("metrology"),
+            v.literal("industrial"),
+            v.literal("non_industry"),
+            v.literal("unknown"),
+        )),
+        suggestedVerificationLevel: v.optional(v.union(
+            v.literal("verified"),
+            v.literal("candidate"),
+            v.literal("rejected"),
+        )),
+        materialChangeSummary: v.optional(v.string()),
+        status: v.union(
+            v.literal("new"),
+            v.literal("researching"),
+            v.literal("ready_for_review"),
+            v.literal("needs_more_evidence"),
+            v.literal("approved"),
+            v.literal("rejected"),
+            v.literal("superseded"),
+        ),
+        requestedBy: v.optional(v.string()),
+        researchStartedAt: v.optional(v.number()),
+        readyForReviewAt: v.optional(v.number()),
+        reviewedAt: v.optional(v.number()),
+        reviewedBy: v.optional(v.string()),
+        reviewNote: v.optional(v.string()),
+        approvedRevisionId: v.optional(v.string()),
+        recomputeRunId: v.optional(v.string()),
+        applicationState: v.optional(v.union(
+            v.literal("recompute_pending"),
+            v.literal("recompute_running"),
+            v.literal("applied"),
+            v.literal("partial_failure"),
+            v.literal("superseded"),
+        )),
+        appliedRevisionId: v.optional(v.string()),
+        appliedAt: v.optional(v.number()),
+        createdAt: v.number(),
+        updatedAt: v.number(),
+    })
+        .index("by_proposal_id", ["proposalId"])
+        .index("by_company_status", ["companyKey", "status"])
+        .index("by_surface_status", ["normalizedEmployerSurface", "status"])
+        .index("by_status_priority", ["status", "priority"]),
+
+    company_industry_refresh_requests: defineTable({
+        requestId: v.string(),
+        proposalId: v.string(),
+        companyKey: v.string(),
+        verdictRevisionId: v.string(),
+        workspaceSlug: v.string(),
+        requesterId: v.string(),
+        reasonCode: v.union(
+            v.literal("stale"),
+            v.literal("incomplete"),
+            v.literal("incorrect"),
+            v.literal("other"),
+        ),
+        note: v.optional(v.string()),
+        resumeIdentity: v.optional(v.string()),
+        workEntryFingerprint: v.optional(v.string()),
+        createdAt: v.number(),
+    })
+        .index("by_request_id", ["requestId"])
+        .index("by_proposal_created", ["proposalId", "createdAt"])
+        .index("by_company_created", ["companyKey", "createdAt"])
+        .index("by_workspace_created", ["workspaceSlug", "createdAt"]),
+
+    company_industry_verdict_revisions: defineTable({
+        revisionId: v.string(),
+        companyKey: v.string(),
+        industryClass: v.union(
+            v.literal("cnc"),
+            v.literal("automation"),
+            v.literal("metrology"),
+            v.literal("industrial"),
+            v.literal("non_industry"),
+            v.literal("unknown"),
+        ),
+        verificationLevel: v.union(
+            v.literal("verified"),
+            v.literal("rejected"),
+        ),
+        approvedSourceIds: v.array(v.string()),
+        evidenceSummary: v.string(),
+        reviewedBy: v.string(),
+        reviewedAt: v.number(),
+        decisionReason: v.string(),
+        taxonomyVersion: v.string(),
+        ruleVersion: v.optional(v.string()),
+        supersedesRevisionId: v.optional(v.string()),
+        proposalId: v.optional(v.string()),
+        createdAt: v.number(),
+    })
+        .index("by_revision_id", ["revisionId"])
+        .index("by_company_created", ["companyKey", "createdAt"])
+        .index("by_superseded_revision", ["supersedesRevisionId"]),
+
+    company_resume_links: defineTable({
+        workspaceSlug: v.string(),
+        companyKey: v.string(),
+        resumeId: v.id("resumes"),
+        resumeIdentity: v.string(),
+        matchedEmployerSurfaces: v.array(v.string()),
+        workEntryFingerprints: v.array(v.string()),
+        currentVerdictRevisionId: v.optional(v.string()),
+        updatedAt: v.number(),
+    })
+        .index("by_company", ["companyKey"])
+        .index("by_workspace_company", ["workspaceSlug", "companyKey"])
+        .index("by_resume", ["resumeId"]),
+
+    company_industry_recompute_runs: defineTable({
+        runId: v.string(),
+        workspaceSlug: v.string(),
+        companyKey: v.string(),
+        targetRevisionId: v.string(),
+        proposalId: v.optional(v.string()),
+        requestedBy: v.optional(v.string()),
+        status: v.union(
+            v.literal("queued"),
+            v.literal("running"),
+            v.literal("waiting"),
+            v.literal("completed"),
+            v.literal("partial_failed"),
+            v.literal("failed"),
+            v.literal("superseded"),
+        ),
+        attempt: v.number(),
+        cursor: v.optional(v.string()),
+        sourceDone: v.boolean(),
+        pageCount: v.number(),
+        affectedCount: v.number(),
+        alreadyCurrentCount: v.number(),
+        scheduledCount: v.number(),
+        readyCount: v.number(),
+        failureCount: v.number(),
+        batchCount: v.number(),
+        failures: v.array(v.object({
+            resumeId: v.optional(v.string()),
+            stage: v.string(),
+            message: v.string(),
+            occurredAt: v.number(),
+        })),
+        lastError: v.optional(v.string()),
+        supersededByRevisionId: v.optional(v.string()),
+        createdAt: v.number(),
+        startedAt: v.optional(v.number()),
+        completedAt: v.optional(v.number()),
+        updatedAt: v.number(),
+    })
+        .index("by_run_id", ["runId"])
+        .index("by_workspace_company_revision", [
+            "workspaceSlug",
+            "companyKey",
+            "targetRevisionId",
+        ])
+        .index("by_workspace_company_updated", [
+            "workspaceSlug",
+            "companyKey",
+            "updatedAt",
+        ])
+        .index("by_status_updated", ["status", "updatedAt"]),
+
+    company_industry_recompute_batches: defineTable({
+        batchId: v.string(),
+        runId: v.string(),
+        pageNumber: v.number(),
+        status: v.union(
+            v.literal("planned"),
+            v.literal("dispatched"),
+            v.literal("completed"),
+            v.literal("partial_failed"),
+            v.literal("failed"),
+        ),
+        resumeIds: v.array(v.id("resumes")),
+        dispatchedAt: v.optional(v.number()),
+        expectedSkillsVersion: v.optional(v.number()),
+        readyCount: v.optional(v.number()),
+        failureCount: v.optional(v.number()),
+        failures: v.optional(v.array(v.object({
+            resumeId: v.optional(v.string()),
+            stage: v.string(),
+            message: v.string(),
+        }))),
+        createdAt: v.number(),
+        updatedAt: v.number(),
+    })
+        .index("by_batch_id", ["batchId"])
+        .index("by_run", ["runId"])
+        .index("by_run_status", ["runId", "status"]),
 
     // Research Eng: native news items (full distill; no SQLite product path)
     news_items: defineTable({

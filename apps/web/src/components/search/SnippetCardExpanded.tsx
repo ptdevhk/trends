@@ -15,6 +15,8 @@ import { getResumeCompanyPolicyState, toastCompanyPolicyWorkflowBlocked } from '
 import type { ResumeSearchResultItem } from '@/components/search/search-types'
 
 import type { CandidateStatus } from '@/types/resume'
+import { IndustryEvidenceSummary } from '@/components/industry-evidence/IndustryEvidenceSummary'
+import { getVerifiedIndustryEvidenceSummaries } from '@/components/industry-evidence/industry-evidence'
 
 type SnippetCardExpandedProps = {
   item: ResumeSearchResultItem
@@ -26,6 +28,7 @@ type SnippetCardExpandedProps = {
   onBlockTrigger?: () => void
   onNoteTrigger?: () => void
   userRating?: number
+  showIndustryEvidence?: boolean
 }
 
 function formatSnakeCaseLabel(value: string): string {
@@ -109,6 +112,7 @@ export function SnippetCardExpanded({
   onBlockTrigger,
   onNoteTrigger,
   userRating,
+  showIndustryEvidence = true,
 }: SnippetCardExpandedProps) {
   const { t } = useTranslation()
   const fieldUsagePolicy = useResumeFieldUsagePolicy()
@@ -232,9 +236,19 @@ export function SnippetCardExpanded({
     : openSourceProfileLabel
   const { resolve: resolveBrand } = useBrandDisplayMap()
   const brandSummary = summarizeBrandHits(item.resume.ingestData?.brandHits)
+  const verifiedIndustryEvidenceSummaries = useMemo(
+    () => getVerifiedIndustryEvidenceSummaries(item.resume),
+    [item.resume],
+  )
 
   return (
     <div className="border-t bg-slate-50/70 px-5 py-5" lang={contentLocale}>
+      {showIndustryEvidence && verifiedIndustryEvidenceSummaries.length > 0 ? (
+        <IndustryEvidenceSummary
+          summaries={verifiedIndustryEvidenceSummaries}
+          className="mb-4 bg-white"
+        />
+      ) : null}
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.3fr),minmax(0,0.9fr)]">
         <div className="min-w-0 space-y-4">
           <div className="space-y-2">

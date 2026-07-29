@@ -1,5 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { isRecord, normalizeProfileUrlForDisplay, normalizeSharedResumeFields, parseKeywordQuery, inferSeekMarket } from '@trends/shared'
+import {
+  inferSeekMarket,
+  isRecord,
+  normalizeProfileUrlForDisplay,
+  normalizeSharedResumeFields,
+  parseKeywordQuery,
+  parseVerifiedIndustryEvidenceSummary,
+} from '@trends/shared'
 import { useQuery } from 'convex/react'
 import { useStablePaginatedQuery } from '@/hooks/useStablePaginatedQuery'
 import { api } from '../../../../packages/convex/convex/_generated/api'
@@ -9,6 +16,7 @@ import { withRetry } from '@/lib/retry'
 import { rawApiClient } from '@/lib/api-helpers'
 import type { CandidateStatus } from '@/types/resume'
 import type { ResumeItem } from './useResumes'
+import type { VerifiedIndustryEvidenceSummary } from '@trends/shared'
 
 export const DEFAULT_CONVEX_RESUME_LIMIT = 200
 export const CONVEX_RESUME_PAGE_SIZE = 200
@@ -77,15 +85,22 @@ export type ConvexIngestData = {
     industryVerifiedRelevantYears?: number
     matchedWorkEntries?: Array<{
       companyName?: string
+      companyKey?: string
       jobTitle?: string
       years: number
       industryVerified: boolean
+      verdictRevisionId?: string
+      workEntryFingerprint?: string
       matchedSignals: string[]
       directRoleMatch?: boolean
     }>
     verifyIn: string
   }>
   verifiedRoleYears?: Record<string, number>
+  evidenceProjectionVersion?: number
+  verifiedIndustryEvidenceSummaries?: VerifiedIndustryEvidenceSummary[]
+  industryEvidenceCatalogState?: 'ready' | 'degraded'
+  industryEvidenceStale?: boolean
   taggingEnvelope?: {
     schemaVersion: number
     generatedAt: number
@@ -162,15 +177,22 @@ export type ResumeListDocLike = {
       industryVerifiedRelevantYears?: number
       matchedWorkEntries?: Array<{
         companyName?: string
+        companyKey?: string
         jobTitle?: string
         years: number
         industryVerified: boolean
+        verdictRevisionId?: string
+        workEntryFingerprint?: string
         matchedSignals: string[]
         directRoleMatch?: boolean
       }>
       verifyIn: string
     }>
     verifiedRoleYears?: Record<string, number>
+    evidenceProjectionVersion?: number
+    verifiedIndustryEvidenceSummaries?: VerifiedIndustryEvidenceSummary[]
+    industryEvidenceCatalogState?: 'ready' | 'degraded'
+    industryEvidenceStale?: boolean
     ruleScores: unknown
     experienceLevel: string
     computedAt: number
@@ -541,6 +563,17 @@ export function parseIngestData(value: unknown): ConvexIngestData | undefined {
   const computedAt = toNumber(value.computedAt) ?? undefined
   const skillsVersion = toNumber(value.skillsVersion) ?? undefined
   const ingestComputeEpoch = toNumber(value.ingestComputeEpoch) ?? undefined
+  const evidenceProjectionVersion = toNumber(value.evidenceProjectionVersion) ?? undefined
+  const verifiedIndustryEvidenceSummaries = Array.isArray(
+    value.verifiedIndustryEvidenceSummaries,
+  )
+    ? value.verifiedIndustryEvidenceSummaries
+        .map(parseVerifiedIndustryEvidenceSummary)
+        .filter(
+          (summary): summary is VerifiedIndustryEvidenceSummary =>
+            summary !== null,
+        )
+    : undefined
 
   const taggingEnvelope = parseTaggingEnvelope(value.taggingEnvelope)
 
@@ -594,9 +627,14 @@ export function parseIngestData(value: unknown): ConvexIngestData | undefined {
 
                       return {
                         companyName: toStringValue(workEntry.companyName) || undefined,
+                        companyKey: toStringValue(workEntry.companyKey) || undefined,
                         jobTitle: toStringValue(workEntry.jobTitle) || undefined,
                         years: workEntryYears,
                         industryVerified: Boolean(workEntry.industryVerified),
+                        verdictRevisionId:
+                          toStringValue(workEntry.verdictRevisionId) || undefined,
+                        workEntryFingerprint:
+                          toStringValue(workEntry.workEntryFingerprint) || undefined,
                         matchedSignals: toStringArray(workEntry.matchedSignals),
                         directRoleMatch: typeof workEntry.directRoleMatch === 'boolean'
                           ? workEntry.directRoleMatch
@@ -619,6 +657,17 @@ export function parseIngestData(value: unknown): ConvexIngestData | undefined {
         }
       : {}),
     taggingEnvelope,
+    evidenceProjectionVersion,
+    verifiedIndustryEvidenceSummaries,
+    industryEvidenceCatalogState:
+      value.industryEvidenceCatalogState === 'ready' ||
+      value.industryEvidenceCatalogState === 'degraded'
+        ? value.industryEvidenceCatalogState
+        : undefined,
+    industryEvidenceStale:
+      typeof value.industryEvidenceStale === 'boolean'
+        ? value.industryEvidenceStale
+        : undefined,
     ruleScores: parseRuleScores(value.ruleScores),
     experienceLevel: toStringValue(value.experienceLevel) || 'unknown',
     computedAt,

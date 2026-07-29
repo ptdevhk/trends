@@ -389,6 +389,14 @@ export const SYSTEM_SETTINGS_NAV_ITEMS: SurfaceNavDefinition[] = [
     matchesSuffixes: ["/system/settings/taxonomy"],
   },
   {
+    id: "industry-verification",
+    titleKey: "debugConfig.settingsNavIndustryVerification",
+    defaultTitle: "Industry verification",
+    hrefSuffix: "/system/settings/industry-verification",
+    matchesSuffixes: ["/system/settings/industry-verification"],
+    requiresAdmin: true,
+  },
+  {
     id: "export-fields",
     titleKey: "debugConfig.settingsNavExportFields",
     defaultTitle: "Export Fields",

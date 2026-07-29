@@ -5583,6 +5583,7 @@ export interface paths {
                                 [key: string]: unknown;
                             };
                             sourceKey?: string;
+                            workspaceSlug?: string;
                         }[];
                     };
                 };
@@ -8067,6 +8068,1190 @@ export interface paths {
                             /** @enum {boolean} */
                             success: true;
                             revision: number;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/company-industry-profiles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List reviewed company-industry profiles */
+        get: {
+            parameters: {
+                query?: {
+                    verificationLevel?: "verified" | "candidate" | "rejected";
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Reviewed company-industry profiles */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            items: {
+                                _id: string;
+                                companyKey: string;
+                                /** @enum {string} */
+                                industryClass: "cnc" | "automation" | "metrology" | "industrial" | "non_industry" | "unknown";
+                                /** @enum {string} */
+                                verificationLevel: "verified" | "candidate" | "rejected";
+                                officialDomain?: string;
+                                /** @enum {string} */
+                                evidenceSource: "seed" | "manual" | "worker_web";
+                                summary?: string;
+                                sourceUrl?: string;
+                                sourceDomain?: string;
+                                sourceType?: string;
+                                msicCode?: string;
+                                msicDescription?: string;
+                                fetchedAt?: number;
+                                currentRevisionId?: string;
+                                reviewedAt?: number;
+                                reviewedBy?: string;
+                                sourceCount?: number;
+                                /** @enum {string} */
+                                freshnessState?: "fresh" | "refresh_due" | "checking" | "changed" | "unavailable" | "conflict";
+                                nextReviewAt?: number;
+                                catalogVersion?: number;
+                                /** @enum {string} */
+                                compatibilityState?: "legacy_seed" | "reviewed" | "strict_reviewed";
+                                updatedAt: number;
+                                updatedBy?: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Create or update a reviewed company-industry profile */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        companyKey: string;
+                        /** @enum {string} */
+                        industryClass: "cnc" | "automation" | "metrology" | "industrial" | "non_industry" | "unknown";
+                        /** @enum {string} */
+                        verificationLevel: "verified" | "candidate" | "rejected";
+                        officialDomain?: string;
+                        /** @enum {string} */
+                        evidenceSource?: "seed" | "manual" | "worker_web";
+                        summary?: string;
+                        sourceUrl?: string;
+                        sourceDomain?: string;
+                        sourceType?: string;
+                        msicCode?: string;
+                        msicDescription?: string;
+                        fetchedAt?: number;
+                    };
+                };
+            };
+            responses: {
+                /** @description Profile upserted */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            companyKey: string;
+                            created: boolean;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/company-industry-profiles/:companyKey": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a reviewed company-industry profile */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    companyKey: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Profile deleted */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            deleted: number;
+                        };
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/company-industry-proposals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List governed company-industry review proposals */
+        get: {
+            parameters: {
+                query?: {
+                    status?: "new" | "researching" | "ready_for_review" | "needs_more_evidence" | "approved" | "rejected" | "superseded";
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Proposal queue */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            items: {
+                                _id: string;
+                                proposalId: string;
+                                companyKey?: string;
+                                normalizedEmployerSurface?: string;
+                                triggerReasons: ("unknown_employer" | "weak_employer_evidence" | "high_value_candidate" | "frequent_employer" | "missing_approved_profile" | "evidence_conflict" | "scheduled_freshness" | "material_source_change" | "source_unavailable" | "recruiter_refresh_request")[];
+                                priority: number;
+                                sampleReferences?: {
+                                    workspaceSlug: string;
+                                    resumeIdentity: string;
+                                    workEntryFingerprint?: string;
+                                }[];
+                                currentRevisionId?: string;
+                                /** @enum {string} */
+                                suggestedIndustryClass?: "cnc" | "automation" | "metrology" | "industrial" | "non_industry" | "unknown";
+                                /** @enum {string} */
+                                suggestedVerificationLevel?: "verified" | "candidate" | "rejected";
+                                materialChangeSummary?: string;
+                                /** @enum {string} */
+                                status: "new" | "researching" | "ready_for_review" | "needs_more_evidence" | "approved" | "rejected" | "superseded";
+                                requestedBy?: string;
+                                researchStartedAt?: number;
+                                readyForReviewAt?: number;
+                                reviewedAt?: number;
+                                reviewedBy?: string;
+                                reviewNote?: string;
+                                createdAt: number;
+                                updatedAt: number;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Create or coalesce a governed company-industry proposal */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        proposalId: string;
+                        companyKey?: string;
+                        normalizedEmployerSurface?: string;
+                        triggerReasons: ("unknown_employer" | "weak_employer_evidence" | "high_value_candidate" | "frequent_employer" | "missing_approved_profile" | "evidence_conflict" | "scheduled_freshness" | "material_source_change" | "source_unavailable" | "recruiter_refresh_request")[];
+                        priority: number;
+                        sampleReferences?: {
+                            workspaceSlug: string;
+                            resumeIdentity: string;
+                            workEntryFingerprint?: string;
+                        }[];
+                        currentRevisionId?: string;
+                        /** @enum {string} */
+                        suggestedIndustryClass?: "cnc" | "automation" | "metrology" | "industrial" | "non_industry" | "unknown";
+                        /** @enum {string} */
+                        suggestedVerificationLevel?: "verified" | "candidate" | "rejected";
+                        materialChangeSummary?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Proposal created or coalesced; current truth is unchanged */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            proposalId: string;
+                            created: boolean;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/company-industry-proposals/:proposalId": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get one governed company-industry proposal */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    proposalId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Proposal detail */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            item: {
+                                _id: string;
+                                proposalId: string;
+                                companyKey?: string;
+                                normalizedEmployerSurface?: string;
+                                triggerReasons: ("unknown_employer" | "weak_employer_evidence" | "high_value_candidate" | "frequent_employer" | "missing_approved_profile" | "evidence_conflict" | "scheduled_freshness" | "material_source_change" | "source_unavailable" | "recruiter_refresh_request")[];
+                                priority: number;
+                                sampleReferences?: {
+                                    workspaceSlug: string;
+                                    resumeIdentity: string;
+                                    workEntryFingerprint?: string;
+                                }[];
+                                currentRevisionId?: string;
+                                /** @enum {string} */
+                                suggestedIndustryClass?: "cnc" | "automation" | "metrology" | "industrial" | "non_industry" | "unknown";
+                                /** @enum {string} */
+                                suggestedVerificationLevel?: "verified" | "candidate" | "rejected";
+                                materialChangeSummary?: string;
+                                /** @enum {string} */
+                                status: "new" | "researching" | "ready_for_review" | "needs_more_evidence" | "approved" | "rejected" | "superseded";
+                                requestedBy?: string;
+                                researchStartedAt?: number;
+                                readyForReviewAt?: number;
+                                reviewedAt?: number;
+                                reviewedBy?: string;
+                                reviewNote?: string;
+                                createdAt: number;
+                                updatedAt: number;
+                            } | null;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/company-industry-proposals/:proposalId/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Approve a proposal into an immutable verdict revision */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    proposalId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        revisionId: string;
+                        expectedCurrentRevisionId?: string;
+                        /** @enum {string} */
+                        verificationLevel: "verified" | "rejected";
+                        /** @enum {string} */
+                        industryClass: "cnc" | "automation" | "metrology" | "industrial" | "non_industry" | "unknown";
+                        approvedSourceIds: string[];
+                        evidenceSummary: string;
+                        decisionReason: string;
+                        taxonomyVersion: string;
+                        ruleVersion?: string;
+                        nextReviewAt?: number;
+                    };
+                };
+            };
+            responses: {
+                /** @description Approved immutable revision */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            proposalId: string;
+                            revisionId: string;
+                            companyKey: string;
+                            recompute: {
+                                runId: string;
+                                workspaceSlug: string;
+                                companyKey: string;
+                                targetRevisionId: string;
+                                proposalId?: string;
+                                requestedBy?: string;
+                                /** @enum {string} */
+                                status: "queued" | "running" | "waiting" | "completed" | "partial_failed" | "failed" | "superseded";
+                                attempt: number;
+                                cursor?: string;
+                                sourceDone: boolean;
+                                pageCount: number;
+                                affectedCount: number;
+                                alreadyCurrentCount: number;
+                                scheduledCount: number;
+                                readyCount: number;
+                                failureCount: number;
+                                batchCount: number;
+                                failures: {
+                                    resumeId?: string;
+                                    stage: string;
+                                    message: string;
+                                    occurredAt: number;
+                                }[];
+                                lastError?: string;
+                                supersededByRevisionId?: string;
+                                createdAt: number;
+                                startedAt?: number;
+                                completedAt?: number;
+                                updatedAt: number;
+                                operatorSummary: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/company-industry-proposals/:proposalId/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reject, supersede, or request more evidence for a proposal */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    proposalId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        resolution: "rejected" | "needs_more_evidence" | "superseded";
+                        reviewNote?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Proposal resolution */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            proposalId: string;
+                            /** @enum {string} */
+                            status: "new" | "researching" | "ready_for_review" | "needs_more_evidence" | "approved" | "rejected" | "superseded";
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/company-industry-evidence-sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List governed evidence sources by company or proposal */
+        get: {
+            parameters: {
+                query?: {
+                    companyKey?: string;
+                    proposalId?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Evidence source list */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            items: {
+                                _id: string;
+                                sourceId: string;
+                                companyKey?: string;
+                                proposalId?: string;
+                                /** Format: uri */
+                                url: string;
+                                sourceDomain: string;
+                                /** @enum {string} */
+                                sourceType: "official_site" | "registry" | "taxonomy" | "oem_partner" | "trade_body" | "directory" | "reporting" | "other" | "search_result";
+                                /** @enum {string} */
+                                trustTier: "primary" | "authoritative" | "corroborating" | "discovery";
+                                title?: string;
+                                evidenceExcerpt?: string;
+                                fetchedAt?: number;
+                                lastSuccessfulFetchAt?: number;
+                                contentFingerprint?: string;
+                                /** @enum {string} */
+                                fetchStatus: "pending" | "fetched" | "failed" | "unavailable";
+                                /** @enum {string} */
+                                suggestedIndustryClass?: "cnc" | "automation" | "metrology" | "industrial" | "non_industry" | "unknown";
+                                workerConfidence?: number;
+                                /** @enum {string} */
+                                reviewStatus: "unreviewed" | "approved" | "rejected" | "disputed";
+                                reviewedAt?: number;
+                                reviewedBy?: string;
+                                reviewerNote?: string;
+                                /** @enum {string} */
+                                sourceState: "active" | "superseded" | "unavailable" | "disputed";
+                                supersededBySourceId?: string;
+                                createdAt: number;
+                                updatedAt: number;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Create or update an unapproved evidence-source candidate */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        sourceId: string;
+                        companyKey?: string;
+                        proposalId?: string;
+                        /** Format: uri */
+                        url: string;
+                        /** @enum {string} */
+                        sourceType: "official_site" | "registry" | "taxonomy" | "oem_partner" | "trade_body" | "directory" | "reporting" | "other" | "search_result";
+                        /** @enum {string} */
+                        trustTier: "primary" | "authoritative" | "corroborating" | "discovery";
+                        title?: string;
+                        evidenceExcerpt?: string;
+                        fetchedAt?: number;
+                        contentFingerprint?: string;
+                        /** @enum {string} */
+                        fetchStatus: "pending" | "fetched" | "failed" | "unavailable";
+                        /** @enum {string} */
+                        suggestedIndustryClass?: "cnc" | "automation" | "metrology" | "industrial" | "non_industry" | "unknown";
+                        workerConfidence?: number;
+                    };
+                };
+            };
+            responses: {
+                /** @description Evidence source upserted without changing current truth */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            sourceId: string;
+                            created: boolean;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/company-industry-revisions/:companyKey": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List immutable verdict revisions for a company */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    companyKey: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Immutable revision history */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            items: {
+                                _id: string;
+                                revisionId: string;
+                                companyKey: string;
+                                /** @enum {string} */
+                                industryClass: "cnc" | "automation" | "metrology" | "industrial" | "non_industry" | "unknown";
+                                /** @enum {string} */
+                                verificationLevel: "verified" | "rejected";
+                                approvedSourceIds: string[];
+                                evidenceSummary: string;
+                                reviewedBy: string;
+                                reviewedAt: number;
+                                decisionReason: string;
+                                taxonomyVersion: string;
+                                ruleVersion?: string;
+                                supersedesRevisionId?: string;
+                                proposalId?: string;
+                                createdAt: number;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/company-industry-recompute-runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List durable targeted recompute runs for a company */
+        get: {
+            parameters: {
+                query: {
+                    companyKey: string;
+                    limit?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Targeted recompute run history */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            items: {
+                                runId: string;
+                                workspaceSlug: string;
+                                companyKey: string;
+                                targetRevisionId: string;
+                                proposalId?: string;
+                                requestedBy?: string;
+                                /** @enum {string} */
+                                status: "queued" | "running" | "waiting" | "completed" | "partial_failed" | "failed" | "superseded";
+                                attempt: number;
+                                cursor?: string;
+                                sourceDone: boolean;
+                                pageCount: number;
+                                affectedCount: number;
+                                alreadyCurrentCount: number;
+                                scheduledCount: number;
+                                readyCount: number;
+                                failureCount: number;
+                                batchCount: number;
+                                failures: {
+                                    resumeId?: string;
+                                    stage: string;
+                                    message: string;
+                                    occurredAt: number;
+                                }[];
+                                lastError?: string;
+                                supersededByRevisionId?: string;
+                                createdAt: number;
+                                startedAt?: number;
+                                completedAt?: number;
+                                updatedAt: number;
+                                operatorSummary: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/company-industry-recompute-runs/:runId": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get one durable targeted recompute run */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    runId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Targeted recompute run */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            item: {
+                                runId: string;
+                                workspaceSlug: string;
+                                companyKey: string;
+                                targetRevisionId: string;
+                                proposalId?: string;
+                                requestedBy?: string;
+                                /** @enum {string} */
+                                status: "queued" | "running" | "waiting" | "completed" | "partial_failed" | "failed" | "superseded";
+                                attempt: number;
+                                cursor?: string;
+                                sourceDone: boolean;
+                                pageCount: number;
+                                affectedCount: number;
+                                alreadyCurrentCount: number;
+                                scheduledCount: number;
+                                readyCount: number;
+                                failureCount: number;
+                                batchCount: number;
+                                failures: {
+                                    resumeId?: string;
+                                    stage: string;
+                                    message: string;
+                                    occurredAt: number;
+                                }[];
+                                lastError?: string;
+                                supersededByRevisionId?: string;
+                                createdAt: number;
+                                startedAt?: number;
+                                completedAt?: number;
+                                updatedAt: number;
+                                operatorSummary: string;
+                            } | null;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/company-industry-recompute-runs/:runId/advance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Advance one idempotent step of a targeted recompute run */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    runId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Updated recompute state */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            item: {
+                                runId: string;
+                                workspaceSlug: string;
+                                companyKey: string;
+                                targetRevisionId: string;
+                                proposalId?: string;
+                                requestedBy?: string;
+                                /** @enum {string} */
+                                status: "queued" | "running" | "waiting" | "completed" | "partial_failed" | "failed" | "superseded";
+                                attempt: number;
+                                cursor?: string;
+                                sourceDone: boolean;
+                                pageCount: number;
+                                affectedCount: number;
+                                alreadyCurrentCount: number;
+                                scheduledCount: number;
+                                readyCount: number;
+                                failureCount: number;
+                                batchCount: number;
+                                failures: {
+                                    resumeId?: string;
+                                    stage: string;
+                                    message: string;
+                                    occurredAt: number;
+                                }[];
+                                lastError?: string;
+                                supersededByRevisionId?: string;
+                                createdAt: number;
+                                startedAt?: number;
+                                completedAt?: number;
+                                updatedAt: number;
+                                operatorSummary: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/company-industry-recompute-runs/:runId/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Retry a failed targeted recompute run idempotently */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    runId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Retried recompute state */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            item: {
+                                runId: string;
+                                workspaceSlug: string;
+                                companyKey: string;
+                                targetRevisionId: string;
+                                proposalId?: string;
+                                requestedBy?: string;
+                                /** @enum {string} */
+                                status: "queued" | "running" | "waiting" | "completed" | "partial_failed" | "failed" | "superseded";
+                                attempt: number;
+                                cursor?: string;
+                                sourceDone: boolean;
+                                pageCount: number;
+                                affectedCount: number;
+                                alreadyCurrentCount: number;
+                                scheduledCount: number;
+                                readyCount: number;
+                                failureCount: number;
+                                batchCount: number;
+                                failures: {
+                                    resumeId?: string;
+                                    stage: string;
+                                    message: string;
+                                    occurredAt: number;
+                                }[];
+                                lastError?: string;
+                                supersededByRevisionId?: string;
+                                createdAt: number;
+                                startedAt?: number;
+                                completedAt?: number;
+                                updatedAt: number;
+                                operatorSummary: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/company-industry-bundles/:companyKey": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get the materialized approved profile, sources, and revision history */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    companyKey: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Approved company evidence and immutable history */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            profile: {
+                                _id: string;
+                                companyKey: string;
+                                /** @enum {string} */
+                                industryClass: "cnc" | "automation" | "metrology" | "industrial" | "non_industry" | "unknown";
+                                /** @enum {string} */
+                                verificationLevel: "verified" | "candidate" | "rejected";
+                                officialDomain?: string;
+                                /** @enum {string} */
+                                evidenceSource: "seed" | "manual" | "worker_web";
+                                summary?: string;
+                                sourceUrl?: string;
+                                sourceDomain?: string;
+                                sourceType?: string;
+                                msicCode?: string;
+                                msicDescription?: string;
+                                fetchedAt?: number;
+                                currentRevisionId?: string;
+                                reviewedAt?: number;
+                                reviewedBy?: string;
+                                sourceCount?: number;
+                                /** @enum {string} */
+                                freshnessState?: "fresh" | "refresh_due" | "checking" | "changed" | "unavailable" | "conflict";
+                                nextReviewAt?: number;
+                                catalogVersion?: number;
+                                /** @enum {string} */
+                                compatibilityState?: "legacy_seed" | "reviewed" | "strict_reviewed";
+                                updatedAt: number;
+                                updatedBy?: string;
+                            } | null;
+                            revisions: {
+                                _id: string;
+                                revisionId: string;
+                                companyKey: string;
+                                /** @enum {string} */
+                                industryClass: "cnc" | "automation" | "metrology" | "industrial" | "non_industry" | "unknown";
+                                /** @enum {string} */
+                                verificationLevel: "verified" | "rejected";
+                                approvedSourceIds: string[];
+                                evidenceSummary: string;
+                                reviewedBy: string;
+                                reviewedAt: number;
+                                decisionReason: string;
+                                taxonomyVersion: string;
+                                ruleVersion?: string;
+                                supersedesRevisionId?: string;
+                                proposalId?: string;
+                                createdAt: number;
+                            }[];
+                            sources: {
+                                _id: string;
+                                sourceId: string;
+                                companyKey?: string;
+                                proposalId?: string;
+                                /** Format: uri */
+                                url: string;
+                                sourceDomain: string;
+                                /** @enum {string} */
+                                sourceType: "official_site" | "registry" | "taxonomy" | "oem_partner" | "trade_body" | "directory" | "reporting" | "other" | "search_result";
+                                /** @enum {string} */
+                                trustTier: "primary" | "authoritative" | "corroborating" | "discovery";
+                                title?: string;
+                                evidenceExcerpt?: string;
+                                fetchedAt?: number;
+                                lastSuccessfulFetchAt?: number;
+                                contentFingerprint?: string;
+                                /** @enum {string} */
+                                fetchStatus: "pending" | "fetched" | "failed" | "unavailable";
+                                /** @enum {string} */
+                                suggestedIndustryClass?: "cnc" | "automation" | "metrology" | "industrial" | "non_industry" | "unknown";
+                                workerConfidence?: number;
+                                /** @enum {string} */
+                                reviewStatus: "unreviewed" | "approved" | "rejected" | "disputed";
+                                reviewedAt?: number;
+                                reviewedBy?: string;
+                                reviewerNote?: string;
+                                /** @enum {string} */
+                                sourceState: "active" | "superseded" | "unavailable" | "disputed";
+                                supersededBySourceId?: string;
+                                createdAt: number;
+                                updatedAt: number;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/company-industry-refresh-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Request governed refresh of current approved company evidence */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        companyKey: string;
+                        verdictRevisionId: string;
+                        resumeId?: string;
+                        /** @enum {string} */
+                        reasonCode?: "stale" | "incomplete" | "incorrect" | "other";
+                        note?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Refresh request accepted or coalesced without changing current truth */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            proposalId: string;
+                            coalesced: boolean;
+                        };
+                    };
+                };
+                /** @description Invalid refresh request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description No approved profile */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Stale revision */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
                         };
                     };
                 };
@@ -15882,6 +17067,82 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/system/resume-work-history-limit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get global resume work-history limit */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Effective global resume work-history limit */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            limit: number;
+                            defaultLimit: number;
+                            min: number;
+                            max: number;
+                        };
+                    };
+                };
+            };
+        };
+        /** Update global resume work-history limit */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        limit: number;
+                    };
+                };
+            };
+            responses: {
+                /** @description Updated global resume work-history limit */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            limit: number;
+                            defaultLimit: number;
+                            min: number;
+                            max: number;
+                        };
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -17138,6 +18399,10 @@ export interface components {
             computedAt?: number;
             skillsVersion?: number;
             ingestComputeEpoch?: number;
+            evidenceProjectionVersion?: number;
+            verifiedIndustryEvidenceSummaries?: components["schemas"]["VerifiedIndustryEvidenceSummary"][];
+            /** @enum {string} */
+            industryEvidenceCatalogState?: "ready" | "degraded";
         };
         ResumeIngestBrandHit: {
             /** @example fanuc */
@@ -17178,12 +18443,18 @@ export interface components {
         ResumeIngestMatchedWorkEntry: {
             /** @example FANUC */
             companyName?: string;
+            /** @example fanuc */
+            companyKey?: string;
             /** @example Sales Engineer */
             jobTitle?: string;
             /** @example 3 */
             years: number;
             /** @example true */
             industryVerified: boolean;
+            /** @example rev-fanuc-3 */
+            verdictRevisionId?: string;
+            /** @example work-a1b2c3d4 */
+            workEntryFingerprint?: string;
             /**
              * @example [
              *       "sales",
@@ -17193,6 +18464,39 @@ export interface components {
             matchedSignals: string[];
             /** @example true */
             directRoleMatch?: boolean;
+        };
+        VerifiedIndustryEvidenceSummary: {
+            companyKey: string;
+            companyName: string;
+            /** @enum {string} */
+            industryClass: "cnc" | "automation" | "metrology" | "industrial" | "non_industry" | "unknown";
+            /** @enum {string} */
+            verificationLevel: "verified";
+            verdictRevisionId: string;
+            evidenceSummary: string;
+            verifiedYears?: number;
+            roleTypes?: string[];
+            latestRoleAt?: number;
+            reviewedAt: number;
+            reviewedBy?: string;
+            sourceCount: number;
+            sourcePreviews: components["schemas"]["IndustryEvidenceSourcePreview"][];
+            additionalSourceCount: number;
+            /** @enum {string} */
+            freshnessState?: "fresh" | "refresh_due" | "checking" | "changed" | "unavailable" | "conflict";
+        };
+        IndustryEvidenceSourcePreview: {
+            sourceId: string;
+            url: string;
+            sourceDomain: string;
+            /** @enum {string} */
+            sourceType: "official_site" | "registry" | "taxonomy" | "oem_partner" | "trade_body" | "directory" | "reporting" | "other";
+            /** @enum {string} */
+            trustTier: "primary" | "authoritative" | "corroborating";
+            title?: string;
+            evidenceExcerpt?: string;
+            fetchedAt?: number;
+            reviewedAt?: number;
         };
         MatchResponse: {
             /** @enum {boolean} */

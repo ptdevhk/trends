@@ -251,3 +251,109 @@ class ResearchConvexClient:
             "research_ops:latestParity",
             self._args({}),
         )
+
+    def upsert_industry_proposal(self, payload: Dict[str, Any]) -> Any:
+        self.require_ready()
+        return self._mutator(
+            self.convex_url,
+            "companies:upsertIndustryProposal",
+            self._args(payload),
+        )
+
+    def list_industry_proposals(self, status: Optional[str] = None) -> List[Dict[str, Any]]:
+        self.require_ready()
+        payload: Dict[str, Any] = {}
+        if status:
+            payload["status"] = status
+        result = self._querier(
+            self.convex_url,
+            "companies:listIndustryProposals",
+            self._args(payload),
+        )
+        return result if isinstance(result, list) else []
+
+    def set_industry_proposal_research_state(self, payload: Dict[str, Any]) -> Any:
+        self.require_ready()
+        return self._mutator(
+            self.convex_url,
+            "companies:setIndustryProposalResearchState",
+            self._args(payload),
+        )
+
+    def list_industry_evidence_sources(
+        self,
+        *,
+        proposal_id: Optional[str] = None,
+        company_key: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        self.require_ready()
+        payload: Dict[str, Any] = {}
+        if proposal_id:
+            payload["proposalId"] = proposal_id
+        if company_key:
+            payload["companyKey"] = company_key
+        result = self._querier(
+            self.convex_url,
+            "companies:listIndustryEvidenceSources",
+            self._args(payload),
+        )
+        return result if isinstance(result, list) else []
+
+    def upsert_industry_evidence_source(self, payload: Dict[str, Any]) -> Any:
+        self.require_ready()
+        return self._mutator(
+            self.convex_url,
+            "companies:upsertIndustryEvidenceSource",
+            self._args(payload),
+        )
+
+    def list_due_industry_evidence_sources(
+        self,
+        now: int,
+        limit: int = 50,
+    ) -> List[Dict[str, Any]]:
+        self.require_ready()
+        result = self._querier(
+            self.convex_url,
+            "companies:listDueIndustryEvidenceSources",
+            self._args({"now": now, "limit": limit}),
+        )
+        return result if isinstance(result, list) else []
+
+    def mark_industry_evidence_profiles_checking(
+        self,
+        profiles: List[Dict[str, str]],
+    ) -> Any:
+        self.require_ready()
+        unique: List[Dict[str, str]] = []
+        seen = set()
+        for profile in profiles:
+            key = (
+                str(profile.get("companyKey") or ""),
+                str(profile.get("verdictRevisionId") or ""),
+            )
+            if not all(key) or key in seen:
+                continue
+            seen.add(key)
+            unique.append(
+                {
+                    "companyKey": key[0],
+                    "verdictRevisionId": key[1],
+                }
+            )
+        return self._mutator(
+            self.convex_url,
+            "companies:markIndustryEvidenceProfilesChecking",
+            self._args({"profiles": unique}),
+        )
+
+    def record_industry_evidence_freshness_check(
+        self,
+        payload: Dict[str, Any],
+    ) -> Any:
+        self.require_ready()
+        return self._mutator(
+            self.convex_url,
+            "companies:recordIndustryEvidenceFreshnessCheck",
+            self._args(payload),
+        )

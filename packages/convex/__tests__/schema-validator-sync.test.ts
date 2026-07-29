@@ -56,6 +56,9 @@ describe("ingestData validator sync", () => {
         "ingestComputeEpoch",
         "skillsVersion",
         "verifiedRoleYears",
+        "evidenceProjectionVersion",
+        "verifiedIndustryEvidenceSummaries",
+        "industryEvidenceCatalogState",
     ].sort();
 
     it("ingestDataValidator has all canonical fields", () => {

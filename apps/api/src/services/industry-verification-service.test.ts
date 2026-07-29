@@ -5,7 +5,10 @@ import path from "node:path";
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 
 import { IndustryDataService } from "./industry-data-service";
-import { IndustryVerificationService } from "./industry-verification-service";
+import {
+  IndustryVerificationService,
+  type ReviewedIndustryProfileSnapshot,
+} from "./industry-verification-service";
 
 const TEST_KEYWORDS_STRUCTURED_MD = `
 ## 重点企业 (Key Companies)
@@ -170,5 +173,146 @@ describe("IndustryVerificationService", () => {
     const result = service.resolveVerdict(undefined, undefined);
     expect(result.verdict).toBe("rejected");
     expect(result.strength).toBe("none");
+  });
+
+  it("gives a compatible reviewed verified revision precedence over lexical evidence", () => {
+    const reviewedProfile: ReviewedIndustryProfileSnapshot = {
+      companyKey: "acme-cnc",
+      industryClass: "cnc",
+      verificationLevel: "verified",
+      verdictRevisionId: "revision-1",
+      evidenceSummary: "Official catalog and registry confirm CNC machine tools.",
+      reviewedAt: 100,
+      reviewedBy: "reviewer-1",
+      sourceCount: 2,
+      sourcePreviews: [],
+    };
+
+    const result = service.resolveVerdict({
+      companyName: "Acme",
+      dutyText: "general management",
+      resolvedCompanyKey: "acme-cnc",
+      targetIndustryClass: "cnc",
+      reviewedProfile,
+      compatibilityMode: "strict-reviewed",
+    });
+
+    expect(result).toMatchObject({
+      verdict: "verified",
+      employerSource: "reviewed_profile",
+      companyKey: "acme-cnc",
+      verdictRevisionId: "revision-1",
+      evidenceSummary: reviewedProfile.evidenceSummary,
+      needsReview: false,
+    });
+  });
+
+  it("treats a reviewed rejection as an authoritative veto", () => {
+    const result = service.resolveVerdict({
+      companyName: "CNC Mechatronics",
+      dutyText: "CNC machine tool sales",
+      resolvedCompanyKey: "cnc-mechatronics",
+      targetIndustryClass: "cnc",
+      reviewedProfile: {
+        companyKey: "cnc-mechatronics",
+        industryClass: "non_industry",
+        verificationLevel: "rejected",
+        verdictRevisionId: "revision-rejected-1",
+        evidenceSummary: "Reviewed sources show a non-industrial business.",
+        reviewedAt: 101,
+        sourceCount: 1,
+        sourcePreviews: [],
+      },
+      compatibilityMode: "strict-reviewed",
+    });
+
+    expect(result.verdict).toBe("rejected");
+    expect(result.employerSource).toBe("reviewed_profile");
+    expect(result.verdictRevisionId).toBe("revision-rejected-1");
+    expect(result.reasonSummary).toContain("reviewed rejected verdict -> authoritative veto");
+  });
+
+  it("does not use a reviewed verified revision for an incompatible target taxonomy", () => {
+    const result = service.resolveVerdict({
+      companyName: "Acme Automation",
+      dutyText: "automation systems",
+      resolvedCompanyKey: "acme-automation",
+      targetIndustryClass: "cnc",
+      reviewedProfile: {
+        companyKey: "acme-automation",
+        industryClass: "automation",
+        verificationLevel: "verified",
+        verdictRevisionId: "revision-automation-1",
+        evidenceSummary: "Reviewed as industrial automation.",
+        reviewedAt: 102,
+        sourceCount: 1,
+        sourcePreviews: [],
+      },
+      compatibilityMode: "strict-reviewed",
+    });
+
+    expect(result.verdict).toBe("candidate");
+    expect(result.needsReview).toBe(true);
+    expect(result.reasonSummary).toContain(
+      "reviewed verified verdict is incompatible with target taxonomy cnc",
+    );
+  });
+
+  it("does not promote lexical or duty evidence without a reviewed profile in strict mode", () => {
+    const result = service.resolveVerdict({
+      companyName: "秦川机床集团",
+      dutyText: "CNC编程工程师",
+      resolvedCompanyKey: "qinchuan",
+      targetIndustryClass: "cnc",
+      compatibilityMode: "strict-reviewed",
+    });
+
+    expect(result.verdict).toBe("candidate");
+    expect(result.needsReview).toBe(true);
+    expect(result.employerSource).toBe("known_company");
+    expect(result.reasonSummary).toContain(
+      "strict-reviewed mode requires an approved revision -> candidate",
+    );
+  });
+
+  it("preserves legacy seed behavior only when compatibility mode explicitly allows it", () => {
+    const result = service.resolveVerdict({
+      companyName: "秦川机床集团",
+      dutyText: "CNC编程工程师",
+      resolvedCompanyKey: "qinchuan",
+      targetIndustryClass: "cnc",
+      compatibilityMode: "legacy-seed",
+    });
+
+    expect(result.verdict).toBe("verified");
+    expect(result.employerSource).toBe("known_company");
+    expect(result.verdictRevisionId).toBeUndefined();
+  });
+
+  it("rejects a reviewed snapshot whose company key does not match canonical resolution", () => {
+    const result = service.resolveVerdict({
+      companyName: "Acme",
+      dutyText: "CNC sales",
+      resolvedCompanyKey: "acme-cnc",
+      targetIndustryClass: "cnc",
+      reviewedProfile: {
+        companyKey: "other-company",
+        industryClass: "cnc",
+        verificationLevel: "verified",
+        verdictRevisionId: "revision-wrong-company",
+        evidenceSummary: "Wrong company.",
+        reviewedAt: 103,
+        sourceCount: 1,
+        sourcePreviews: [],
+      },
+      compatibilityMode: "strict-reviewed",
+    });
+
+    expect(result.verdict).toBe("candidate");
+    expect(result.needsReview).toBe(true);
+    expect(result.verdictRevisionId).toBeUndefined();
+    expect(result.reasonSummary).toContain(
+      "reviewed profile companyKey mismatch -> ignored",
+    );
   });
 });

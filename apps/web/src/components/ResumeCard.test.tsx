@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { ResumeCard } from './ResumeCard'
+import type { ResumeItem } from '@/hooks/useResumes'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -53,6 +54,44 @@ const baseResume = {
 }
 
 describe('ResumeCard brand-hit badges', () => {
+  it('renders only approved verified industry evidence from the materialized projection', () => {
+    render(
+      <ResumeCard
+        resume={{
+          ...baseResume,
+          ingestData: {
+            verifiedIndustryEvidenceSummaries: [{
+              companyKey: 'acme-cnc',
+              companyName: 'Acme CNC',
+              industryClass: 'cnc',
+              verificationLevel: 'verified',
+              verdictRevisionId: 'revision-1',
+              evidenceSummary: 'Human-approved CNC machinery evidence.',
+              reviewedAt: Date.UTC(2026, 6, 20),
+              sourceCount: 0,
+              sourcePreviews: [],
+            }, {
+              companyKey: 'candidate-company',
+              companyName: 'Candidate Company',
+              industryClass: 'cnc',
+              verificationLevel: 'candidate',
+              verdictRevisionId: 'candidate-revision',
+              evidenceSummary: 'Unreviewed candidate evidence.',
+              reviewedAt: Date.UTC(2026, 6, 20),
+              sourceCount: 0,
+              sourcePreviews: [],
+            }],
+          },
+        } as unknown as ResumeItem}
+        onViewDetails={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('CNC 行业验证')).toBeInTheDocument()
+    expect(screen.getByText('Acme CNC')).toBeInTheDocument()
+    expect(screen.queryByText('Candidate Company')).not.toBeInTheDocument()
+  })
+
   it('shows a generic needs refresh badge when the resume requires refresh', () => {
     render(
       <ResumeCard

@@ -29,6 +29,7 @@ import type * as lib_analysis_normalization from "../lib/analysis_normalization.
 import type * as lib_analysis_prompts from "../lib/analysis_prompts.js";
 import type * as lib_analysis_task_helpers from "../lib/analysis_task_helpers.js";
 import type * as lib_bias_metrics from "../lib/bias_metrics.js";
+import type * as lib_company_resume_links from "../lib/company_resume_links.js";
 import type * as lib_exact_analysis_task from "../lib/exact_analysis_task.js";
 import type * as lib_parallelism from "../lib/parallelism.js";
 import type * as lib_resume_analysis_read from "../lib/resume_analysis_read.js";
@@ -90,6 +91,7 @@ declare const fullApi: ApiFromModules<{
   "lib/analysis_prompts": typeof lib_analysis_prompts;
   "lib/analysis_task_helpers": typeof lib_analysis_task_helpers;
   "lib/bias_metrics": typeof lib_bias_metrics;
+  "lib/company_resume_links": typeof lib_company_resume_links;
   "lib/exact_analysis_task": typeof lib_exact_analysis_task;
   "lib/parallelism": typeof lib_parallelism;
   "lib/resume_analysis_read": typeof lib_resume_analysis_read;

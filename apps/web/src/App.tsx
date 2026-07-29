@@ -114,6 +114,11 @@ const LazySystemSettingsTaxonomyPage = lazy(async () => {
   return { default: module.SystemSettingsTaxonomyPage }
 })
 
+const LazySystemSettingsIndustryVerificationPage = lazy(async () => {
+  const module = await import('@/pages/system-settings/SystemSettingsIndustryVerificationPage')
+  return { default: module.SystemSettingsIndustryVerificationPage }
+})
+
 const LazySystemSettingsExportFieldsPage = lazy(async () => {
   const module = await import('@/pages/system-settings/SystemSettingsExportFieldsPage')
   return { default: module.SystemSettingsExportFieldsPage }
@@ -461,6 +466,14 @@ function App() {
                   element={(
                     <RouteSuspense>
                       <LazySystemSettingsTaxonomyPage />
+                    </RouteSuspense>
+                  )}
+                />
+                <Route
+                  path="industry-verification"
+                  element={(
+                    <RouteSuspense>
+                      <LazySystemSettingsIndustryVerificationPage />
                     </RouteSuspense>
                   )}
                 />

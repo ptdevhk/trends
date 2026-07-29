@@ -44,9 +44,12 @@ export interface KeyFactor {
 
 export type NormalizedMatchedWorkEntry = {
     companyName?: string;
+    companyKey?: string;
     jobTitle?: string;
     years: number;
     industryVerified: boolean;
+    verdictRevisionId?: string;
+    workEntryFingerprint?: string;
     matchedSignals: string[];
     directRoleMatch?: boolean;
 };
@@ -264,11 +267,24 @@ export function parseRoleSignals(value: unknown): NormalizedRoleSignal[] {
                     companyName: typeof entry.companyName === "string" && entry.companyName.trim().length > 0
                         ? entry.companyName.trim()
                         : undefined,
+                    companyKey: typeof entry.companyKey === "string" && entry.companyKey.trim().length > 0
+                        ? entry.companyKey.trim().toLowerCase()
+                        : undefined,
                     jobTitle: typeof entry.jobTitle === "string" && entry.jobTitle.trim().length > 0
                         ? entry.jobTitle.trim()
                         : undefined,
                     years: entryYears,
                     industryVerified: entry.industryVerified === true,
+                    verdictRevisionId:
+                        typeof entry.verdictRevisionId === "string"
+                        && entry.verdictRevisionId.trim().length > 0
+                            ? entry.verdictRevisionId.trim()
+                            : undefined,
+                    workEntryFingerprint:
+                        typeof entry.workEntryFingerprint === "string"
+                        && entry.workEntryFingerprint.trim().length > 0
+                            ? entry.workEntryFingerprint.trim()
+                            : undefined,
                     matchedSignals: matchedEntrySignals,
                     ...(typeof entry.directRoleMatch === "boolean"
                         ? { directRoleMatch: entry.directRoleMatch }

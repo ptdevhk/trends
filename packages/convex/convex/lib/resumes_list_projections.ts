@@ -19,8 +19,10 @@ import {
     normalizeEducationLevel,
     isLocationMatch,
     parseRawSalaryRange,
+    parseVerifiedIndustryEvidenceSummary,
     resolveResumeAnalysisSourceKey,
     resolveGateRoleYears,
+    type VerifiedIndustryEvidenceSummary,
 } from "@trends/shared";
 import {
     toStringValue,
@@ -73,9 +75,12 @@ export type ResumeListProjectedDoc = {
             industryVerifiedRelevantYears?: number;
             matchedWorkEntries?: Array<{
                 companyName?: string;
+                companyKey?: string;
                 jobTitle?: string;
                 years: number;
                 industryVerified: boolean;
+                verdictRevisionId?: string;
+                workEntryFingerprint?: string;
                 matchedSignals: string[];
                 directRoleMatch?: boolean;
             }>;
@@ -87,6 +92,9 @@ export type ResumeListProjectedDoc = {
         computedAt: number;
         skillsVersion: number;
         ingestComputeEpoch?: number;
+        evidenceProjectionVersion?: number;
+        verifiedIndustryEvidenceSummaries?: VerifiedIndustryEvidenceSummary[];
+        industryEvidenceCatalogState?: "ready" | "degraded";
     };
 };
 
@@ -282,9 +290,16 @@ export function projectResumeListIngestData(
                         ? {
                             matchedWorkEntries: signal.matchedWorkEntries.map((entry) => ({
                                 ...(entry.companyName ? { companyName: entry.companyName } : {}),
+                                ...(entry.companyKey ? { companyKey: entry.companyKey } : {}),
                                 ...(entry.jobTitle ? { jobTitle: entry.jobTitle } : {}),
                                 years: entry.years,
                                 industryVerified: entry.industryVerified,
+                                ...(entry.verdictRevisionId
+                                    ? { verdictRevisionId: entry.verdictRevisionId }
+                                    : {}),
+                                ...(entry.workEntryFingerprint
+                                    ? { workEntryFingerprint: entry.workEntryFingerprint }
+                                    : {}),
                                 matchedSignals: entry.matchedSignals,
                                 ...(typeof entry.directRoleMatch === "boolean"
                                     ? { directRoleMatch: entry.directRoleMatch }
@@ -304,6 +319,27 @@ export function projectResumeListIngestData(
         skillsVersion: ingestData.skillsVersion,
         ...(typeof ingestData.ingestComputeEpoch === "number"
             ? { ingestComputeEpoch: ingestData.ingestComputeEpoch }
+            : {}),
+        ...(typeof ingestData.evidenceProjectionVersion === "number"
+            ? { evidenceProjectionVersion: ingestData.evidenceProjectionVersion }
+            : {}),
+        ...(ingestData.verifiedIndustryEvidenceSummaries
+            ? {
+                verifiedIndustryEvidenceSummaries:
+                    ingestData.verifiedIndustryEvidenceSummaries
+                        .map(parseVerifiedIndustryEvidenceSummary)
+                        .filter(
+                            (summary): summary is VerifiedIndustryEvidenceSummary =>
+                                summary !== null,
+                        ),
+            }
+            : {}),
+        ...(ingestData.industryEvidenceCatalogState === "ready"
+            || ingestData.industryEvidenceCatalogState === "degraded"
+            ? {
+                industryEvidenceCatalogState:
+                    ingestData.industryEvidenceCatalogState,
+            }
             : {}),
     };
 }

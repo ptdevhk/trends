@@ -149,6 +149,7 @@ const IngestComputeRequestSchema = z.object({
     resumeId: z.string(),
     content: z.record(z.string(), z.unknown()),
     sourceKey: z.string().optional(),
+    workspaceSlug: z.string().optional(),
   })),
 });
 const IngestComputeResponseSchema = z.object({
@@ -685,7 +686,14 @@ app.openapi(ingestComputeRoute, async (c) => {
   const { resumes } = c.req.valid("json");
 
   try {
-    const results = ingestComputeService.computeBatch(resumes);
+    const compatibilityMode =
+      process.env.INDUSTRY_EVIDENCE_COMPATIBILITY_MODE === "strict-reviewed"
+        ? "strict-reviewed"
+        : "legacy-seed";
+    const results = await ingestComputeService.computeBatchWithCatalog(
+      resumes,
+      compatibilityMode,
+    );
     return c.json({ success: true as const, results }, 200);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

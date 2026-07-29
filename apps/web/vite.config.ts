@@ -2,6 +2,9 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 
+const apiPort = process.env.API_PORT || '3000'
+const mcpPort = process.env.MCP_PORT || '3333'
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
@@ -84,15 +87,15 @@ export default defineConfig({
     allowedHosts: true,
     proxy: {
       '/api': {
-        target: 'http://localhost:3000',
+        target: `http://localhost:${apiPort}`,
         changeOrigin: true,
       },
       '/worker': {
-        target: 'http://localhost:3000',
+        target: `http://localhost:${apiPort}`,
         changeOrigin: true,
       },
       '/mcp': {
-        target: 'http://localhost:3333',
+        target: `http://localhost:${mcpPort}`,
         changeOrigin: true,
       },
     },

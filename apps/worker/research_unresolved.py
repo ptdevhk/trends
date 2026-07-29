@@ -9,6 +9,7 @@ Compatible with apps/api industry-unresolved-store shape:
 from __future__ import annotations
 
 import json
+import hashlib
 import re
 import unicodedata
 from datetime import datetime, timezone
@@ -34,8 +35,10 @@ def default_unresolved_queue_path(project_root: Optional[Path] = None) -> Path:
 def normalize_surface_key(value: str) -> str:
     text = unicodedata.normalize("NFKC", value or "")
     text = text.casefold()
-    text = re.sub(r"[\s\u00A0]+", "", text)
-    text = re.sub(r"[^\w]+", "", text, flags=re.UNICODE)
+    text = re.sub(r"[\s\u00A0\u3000]+", " ", text)
+    # Mirror @trends/shared normalizeCompanyAlias so Python and TypeScript
+    # triggers coalesce on the same unresolved employer surface.
+    text = re.sub(r"[()（）\[\]【】.,，。·・'\"`]", "", text)
     return text.strip()
 
 
@@ -117,3 +120,43 @@ def append_research_unresolved_to_queue(
     }
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return len(new_events)
+
+
+def promote_research_unresolved_to_proposals(
+    client: Any,
+    samples: Sequence[Dict[str, Any]],
+    *,
+    max_per_run: int = MAX_SAMPLES_PER_RUN,
+) -> int:
+    """Make Convex proposals primary while keeping the JSON queue diagnostic-only.
+
+    Only the normalized employer surface and aggregate trigger/priority are sent.
+    News titles, snippets, and URLs are deliberately excluded from proposal
+    sample references because they are not resume evidence.
+    """
+    grouped: Dict[str, int] = {}
+    for sample in list(samples)[:max_per_run]:
+        surface = str(sample.get("surface") or "").strip()
+        normalized = normalize_surface_key(surface)
+        if normalized:
+            grouped[normalized] = grouped.get(normalized, 0) + 1
+
+    promoted = 0
+    for normalized, count in sorted(grouped.items()):
+        proposal_id = "industry-maintenance-" + hashlib.sha256(
+            f"surface:{normalized}".encode("utf-8")
+        ).hexdigest()[:20]
+        client.upsert_industry_proposal(
+            {
+                "proposalId": proposal_id,
+                "normalizedEmployerSurface": normalized,
+                "triggerReasons": (
+                    ["frequent_employer", "unknown_employer"]
+                    if count >= 3
+                    else ["unknown_employer"]
+                ),
+                "priority": min(100, 40 + max(0, count - 1) * 8),
+            }
+        )
+        promoted += 1
+    return promoted
