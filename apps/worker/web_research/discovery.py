@@ -8,13 +8,32 @@ from apps.worker.web_research.search import SearchProvider
 
 # MY query pack (data, not code; CN pack is a later config addition)
 def discovery_queries(employer_surface: str, market: str = "my") -> List[str]:
+    """Term-based templates: exact-phrase quoting over-constrains free
+    providers (Google News ANDs quoted phrases; SME employers vanish)."""
     if market == "my":
         return [
-            f'"{employer_surface}" Malaysia official site',
-            f'"{employer_surface}" CNC',
-            f'"{employer_surface}" Sdn Bhd SSM',
+            f"{employer_surface} Malaysia",
+            f"{employer_surface} CNC machine",
+            f"{employer_surface} machinery",
         ]
-    return [f'"{employer_surface}" official site']
+    return [f"{employer_surface} company"]
+
+
+def _employer_tokens(employer_surface: str) -> set[str]:
+    import re
+    stop = {"sdn", "bhd", "malaysia", "the", "and", "co", "company",
+            "inc", "ltd", "pte", "m"}
+    return {
+        t for t in re.findall(r"[a-z0-9]+", employer_surface.casefold())
+        if len(t) >= 3 and t not in stop
+    }
+
+
+def _hit_mentions_employer(hit: Any, tokens: set[str]) -> bool:
+    if not tokens:
+        return True  # degenerate surface: don't filter out everything
+    haystack = f"{hit.title} {hit.snippet} {hit.url}".casefold()
+    return any(tok in haystack for tok in tokens)
 
 class DiscoveryJob:
     def __init__(
@@ -52,11 +71,14 @@ class DiscoveryJob:
         if not employer or not self.config.enabled:
             return {"status": "needs_more_evidence", "sources": []}
 
+        tokens = _employer_tokens(employer)
         seen: set[str] = set()
         raw_candidates: List[Dict[str, Any]] = []
         for query in discovery_queries(employer)[: self.config.queries_per_proposal]:
             for hit in self._search_all(query, max_results=5):
                 if hit.url in seen:
+                    continue
+                if not _hit_mentions_employer(hit, tokens):
                     continue
                 seen.add(hit.url)
                 tier = classify_source(hit.url, employer)

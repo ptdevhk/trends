@@ -2,7 +2,7 @@ from apps.worker.industry_evidence_research import (
     IndustryEvidenceMaintenanceJob,
     IndustryEvidenceResearcher,
 )
-from apps.worker.web_research.discovery import DiscoveryJob
+from apps.worker.web_research.discovery import DiscoveryJob, discovery_queries
 from apps.worker.web_research.search import SearchResult
 from apps.worker.web_research.config import load_web_research_config
 
@@ -86,6 +86,49 @@ def test_discovery_disabled_config_returns_needs_more_evidence():
     out = job.discover_for_proposal(_proposal())
     assert out == {"status": "needs_more_evidence", "sources": []}
     assert search.calls == []
+
+
+def test_discovery_queries_are_term_based():
+    queries = discovery_queries("DSME Engineering Sdn Bhd")
+    assert queries, "expected at least one MY query template"
+    for q in queries:
+        assert '"' not in q  # no exact-phrase quoting: Google News ANDs phrases
+    assert "Malaysia" in queries[0]
+
+
+def test_discovery_filters_unrelated_hits():
+    kept_url = "https://theedgemalaysia.com/x"
+    dropped_url = "https://www.haasf1team.com/news"
+    search = StaticSearch([
+        SearchResult(url=kept_url,
+                     title="DSME Engineering expands in Penang",
+                     snippet=""),
+        SearchResult(url=dropped_url,
+                     title="Haas F1 Team to Promote HaasTooling.com",
+                     snippet="F1 racing news"),
+    ])
+    fetcher = StaticFetcher({
+        kept_url: {
+            "finalUrl": kept_url,
+            "title": "DSME Engineering expands in Penang",
+            "excerpt": "CNC machine tool distributor",
+            "contentFingerprint": "sha256:x",
+            "domainGuardPassed": True,
+        },
+    })
+    job = DiscoveryJob(
+        search_chain=[search], fetcher=fetcher, client=FakeClient(),
+        config=load_web_research_config({"WEB_RESEARCH_ENABLED": "1"}),
+    )
+    proposal = {
+        "proposalId": "p-1",
+        "normalizedEmployerSurface": "DSME Engineering Sdn Bhd",
+        "companyKey": None,
+    }
+    out = job.discover_for_proposal(proposal)
+    urls = [s["url"] for s in out["sources"]]
+    assert kept_url in urls
+    assert dropped_url not in urls
 
 
 # --- Step 5: maintenance-job wiring -------------------------------------
