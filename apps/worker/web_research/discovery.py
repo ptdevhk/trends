@@ -81,7 +81,13 @@ class DiscoveryJob:
                 if not _hit_mentions_employer(hit, tokens):
                     continue
                 seen.add(hit.url)
-                tier = classify_source(hit.url, employer)
+                if getattr(hit, "publisher_domain", ""):
+                    # classify on the publisher domain, not the
+                    # news.google.com redirect
+                    tier = classify_source(
+                        "https://" + hit.publisher_domain, employer)
+                else:
+                    tier = classify_source(hit.url, employer)
                 raw_candidates.append({
                     "url": hit.url,
                     "sourceType": tier["sourceType"],

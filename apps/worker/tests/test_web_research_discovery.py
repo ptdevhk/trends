@@ -131,6 +131,45 @@ def test_discovery_filters_unrelated_hits():
     assert dropped_url not in urls
 
 
+def test_discovery_classifies_google_news_hit_by_publisher_domain():
+    hit_url = "https://news.google.com/rss/articles/CBMiX"
+    search = StaticSearch([
+        SearchResult(
+            url=hit_url,
+            title="DSME Engineering expands Penang CNC plant",
+            snippet="The Edge Malaysia",
+            publisher_domain="theedgemalaysia.com",
+        ),
+    ])
+    fetcher = StaticFetcher({
+        hit_url: {
+            "finalUrl": "https://theedgemalaysia.com/article/dsme-penang",
+            "title": "DSME Engineering expands Penang CNC plant",
+            "excerpt": "DSME Engineering CNC machine tool distributor",
+            "contentFingerprint": "sha256:x",
+            "domainGuardPassed": True,
+        },
+    })
+    job = DiscoveryJob(
+        search_chain=[search], fetcher=fetcher, client=FakeClient(),
+        config=load_web_research_config({"WEB_RESEARCH_ENABLED": "1"}),
+    )
+    proposal = {
+        "proposalId": "p-1",
+        "normalizedEmployerSurface": "DSME Engineering Sdn Bhd",
+        "companyKey": None,
+    }
+    out = job.discover_for_proposal(proposal)
+    assert out["sources"], "expected the google news hit to be kept"
+    # classified on the publisher domain, not the news.google.com redirect
+    assert out["sources"][0]["sourceType"] == "reporting"
+    assert out["sources"][0]["trustTier"] == "corroborating"
+    # the fetch path follows the redirect and stores the real article url
+    assert out["sources"][0]["url"] == (
+        "https://theedgemalaysia.com/article/dsme-penang"
+    )
+
+
 # --- Step 5: maintenance-job wiring -------------------------------------
 
 class _RecordingDiscovery:

@@ -10,6 +10,9 @@ class SearchResult:
     url: str
     title: str
     snippet: str = ""
+    # Publisher host (e.g. from the Google News RSS <source url>) used to
+    # classify a redirect-url hit by its real publisher, not news.google.com.
+    publisher_domain: str = ""
 
 
 class SearchProvider(Protocol):
@@ -121,11 +124,22 @@ class GoogleNewsRssSearchProvider:
             source_el = item.find("source")
             source_name = source_el.text if source_el is not None else ""
             source_url = (source_el.get("url") or "") if source_el is not None else ""
-            target = source_url or link
+            link_host = ""
+            if source_url:
+                link_host = urlparse(source_url).hostname or ""
+            # Prefer the RSS <link> (a news.google.com redirect to the real
+            # article) over the publisher homepage in <source url>; the
+            # fetch path follows the redirect and stores the real article
+            # URL. Fall back to source_url when <link> is absent.
+            target = link or source_url
             if not target:
                 continue
-            results.append(SearchResult(url=target, title=title,
-                                        snippet=source_name or ""))
+            results.append(SearchResult(
+                url=target,
+                title=title,
+                snippet=source_name or "",
+                publisher_domain=link_host,
+            ))
             if len(results) >= max_results:
                 break
         return results

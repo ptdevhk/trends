@@ -46,19 +46,51 @@ GN_URL = (
 )
 
 
-def test_google_news_rss_prefers_source_url_and_uses_link_fallback():
+def test_search_result_publisher_domain_defaults_empty():
+    result = SearchResult(url="https://x.example/", title="x")
+    assert result.publisher_domain == ""
+
+
+def test_google_news_rss_emits_article_link_and_publisher_domain():
     provider = GoogleNewsRssSearchProvider(fetcher=FakeFetcher({GN_URL: GN_RSS}))
     results = provider.search("New Line Machine Tool", max_results=5)
     assert results == [
         SearchResult(
-            url="https://www.themalaysianreserve.com",
+            url="https://news.google.com/rss/articles/CBMiAAAAAAA",
             title="New Line Machine Tool expands CNC plant in Penang",
             snippet="The Malaysian Reserve",
+            publisher_domain="www.themalaysianreserve.com",
         ),
         SearchResult(
             url="https://news.google.com/rss/articles/CBMiBBBBBBB",
             title="Penang manufacturing investments rise",
             snippet="",
+            publisher_domain="",
+        ),
+    ]
+
+
+def test_google_news_rss_falls_back_to_source_url_when_link_absent():
+    rss_no_link = """<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <item>
+      <title>New Line Machine Tool expands CNC plant in Penang</title>
+      <source url="https://theedgemalaysia.com">The Edge Malaysia</source>
+    </item>
+  </channel>
+</rss>
+"""
+    provider = GoogleNewsRssSearchProvider(
+        fetcher=FakeFetcher({GN_URL: rss_no_link})
+    )
+    results = provider.search("New Line Machine Tool", max_results=5)
+    assert results == [
+        SearchResult(
+            url="https://theedgemalaysia.com",
+            title="New Line Machine Tool expands CNC plant in Penang",
+            snippet="The Edge Malaysia",
+            publisher_domain="theedgemalaysia.com",
         ),
     ]
 
@@ -67,7 +99,7 @@ def test_google_news_rss_respects_max_results():
     provider = GoogleNewsRssSearchProvider(fetcher=FakeFetcher({GN_URL: GN_RSS}))
     results = provider.search("New Line Machine Tool", max_results=1)
     assert len(results) == 1
-    assert results[0].url == "https://www.themalaysianreserve.com"
+    assert results[0].url == "https://news.google.com/rss/articles/CBMiAAAAAAA"
 
 
 def test_google_news_rss_bad_xml_returns_empty():

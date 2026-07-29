@@ -62,3 +62,39 @@ def test_guarded_web_research_fetcher_fetch_text_rejects_unsafe_url():
     fetcher = GuardedWebResearchFetcher()
     with pytest.raises(ValueError):
         fetcher.fetch_text("http://localhost/x")
+
+
+def test_guarded_web_research_fetcher_zero_interval_and_default_init():
+    fetcher = GuardedWebResearchFetcher(min_host_interval_seconds=0)
+    assert fetcher._min_host_interval == 0.0
+    default = GuardedWebResearchFetcher()
+    assert default._min_host_interval == 1.5
+    # default init still delegates page fetch to a GuardedEvidenceFetcher
+    assert default.page_fetcher is not None
+
+
+def test_throttle_sleeps_when_same_host_hit_twice_rapidly(monkeypatch):
+    fetcher = GuardedWebResearchFetcher(min_host_interval_seconds=999)
+    sleeps = []
+    monkeypatch.setattr(
+        "apps.worker.web_research.http.time.sleep",
+        lambda seconds: sleeps.append(seconds),
+    )
+    url = "https://example.com/a"
+    fetcher._throttle(url)
+    assert sleeps == []  # first hit never waits
+    fetcher._throttle(url)
+    assert len(sleeps) == 1
+    assert sleeps[0] > 0
+
+
+def test_throttle_is_per_host(monkeypatch):
+    fetcher = GuardedWebResearchFetcher(min_host_interval_seconds=999)
+    sleeps = []
+    monkeypatch.setattr(
+        "apps.worker.web_research.http.time.sleep",
+        lambda seconds: sleeps.append(seconds),
+    )
+    fetcher._throttle("https://a.example.com/x")
+    fetcher._throttle("https://b.example.com/y")
+    assert sleeps == []  # different hosts are independent
