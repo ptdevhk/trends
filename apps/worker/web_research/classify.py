@@ -7,6 +7,8 @@ _REGISTRY_DOMAINS = {"ssm.com.my", "mydata-ssm.com.my", "dosm.gov.my"}
 _DIRECTORY_DOMAINS = {
     "yellowpages.com.my", "yellowpages.com", "kompass.com",
     "alibaba.com", "made-in-china.com", "industrydirectory.com.my",
+    "tradingview.com", "klsescreener.com", "i3investor.com",
+    "edgeprop.my", "bursamalaysia.com", "marketwatch.com",
 }
 _REPORTING_DOMAINS = {
     "thestar.com.my", "nst.com.my", "theedgemalaysia.com",

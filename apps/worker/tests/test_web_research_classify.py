@@ -45,6 +45,15 @@ def test_malaysian_reserve_is_reporting():
     )
     assert out == {"sourceType": "reporting", "trustTier": "corroborating"}
 
+def test_market_data_portals_are_directory_corroborating():
+    for host in (
+        "https://www.tradingview.com/symbols/MYX-EMETALL/",
+        "https://www.klsescreener.com/v2/stocks/view/7214",
+        "https://www.edgeprop.my/content/12345",
+    ):
+        out = classify_source(host, "Eonmetall Group Bhd")
+        assert out == {"sourceType": "directory", "trustTier": "corroborating"}, host
+
 def test_my_sg_news_domains_are_reporting():
     for url in [
         "https://www.malaymail.com/news/malaysia/2026/01/01/foo/123",
