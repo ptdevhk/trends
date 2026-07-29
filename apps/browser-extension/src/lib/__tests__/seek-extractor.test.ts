@@ -205,6 +205,27 @@ describe("seek-extractor", () => {
     });
   });
 
+  describe("current talentsearch profile paths", () => {
+    it("treats /talentsearch/profiles/<guid> as profile mode", () => {
+      const extractor = createSeekExtractor(
+        createMockDeps({
+          win: {
+            location: {
+              pathname: "/talentsearch/profiles/37b9b758-1491-11ee-9c9a-005056a279c0",
+              href: "https://hk.employer.seek.com/talentsearch/profiles/37b9b758-1491-11ee-9c9a-005056a279c0?market=MY",
+              hostname: "hk.employer.seek.com",
+              search: "?market=MY",
+            },
+          },
+        }),
+      );
+
+      expect(extractor.isSeekProfilePage()).toBe(true);
+      expect(extractor.isSeekTalentSearchListPage()).toBe(false);
+      expect(extractor.getCurrentSeekMode()).toBe("profile");
+    });
+  });
+
   describe("resolveSeekAutoSyncPageWindow", () => {
     it("returns start page 1 by default", () => {
       const extractor = createSeekExtractor(createMockDeps());
@@ -575,10 +596,166 @@ describe("seek-extractor", () => {
       );
       expect(result[0].profileUrl).toContain("market=MY");
       expect(result[0].profileUrl).not.toMatch(/\/candidates\/\d+/);
-      expect(result[0].workHistory?.[0]?.description).toContain(
+      const zahraWorkHistory = result[0].workHistory as Array<{ description?: string }>;
+      expect(zahraWorkHistory[0]?.description).toContain(
         "Strategic sales",
       );
       expect(result[0].skills).toEqual(["Sales", "Communication Skills"]);
+    });
+
+    it("fills missing workHistory descriptions from resumeWorkHistories displayDescription", () => {
+      const extractor = createSeekExtractor(
+        createMockDeps({
+          apiSnapshot: {
+            seekProfile: {
+              __typename: "TalentSearchProfileCompleteV3Response",
+              result: {
+                profileGuid: "5839736c-3ce2-11e6-a1c8-005056b15d2d",
+                profileId: 539869853,
+                firstName: "SITI KHAIRUNNISA BINTI",
+                lastName: "ABDUL KADIR",
+                currentJobTitle: "Manufacturing Sales Engineer",
+                currentLocation: "Johor, MY",
+                workHistories: [
+                  {
+                    companyName: "Fastenal Malaysia Sdn Bhd",
+                    jobTitle: "Manufacturing Sales Engineer",
+                    durationLabel: "Jul 2023 - Present (3 years 1 month)",
+                    description: "",
+                  },
+                  {
+                    companyName: "Best Petrol & Diesel Sdn Bhd",
+                    jobTitle: "Sales Representative",
+                    durationLabel: "Mar 2023 - Present (3 years 5 months)",
+                    description: "",
+                  },
+                ],
+                resume: {
+                  resumeWorkHistories: [
+                    {
+                      companyName: "Fastenal Malaysia Sdn Bhd",
+                      jobTitle: "Manufacturing Sales Engineer",
+                      durationLabel: "Jul 2023 - Present (3 years 1 month)",
+                      displayDescription: [
+                        {
+                          isBullet: true,
+                          description:
+                            "Find new lead with call and send email to promote company product & service.",
+                        },
+                        {
+                          isBullet: true,
+                          description:
+                            "Working with production team to verify technical drawing and machining time.",
+                        },
+                      ],
+                    },
+                    {
+                      companyName: "Best Petrol & Diesel Sdn Bhd",
+                      jobTitle: "Sales Representative",
+                      durationLabel: "Mar 2023 - Present (3 years 5 months)",
+                      displayDescription: [
+                        {
+                          isBullet: true,
+                          description:
+                            "Find a potential lead to make a call with business owner.",
+                        },
+                      ],
+                    },
+                  ],
+                },
+              },
+            },
+            seekProfileRequest: null,
+          },
+          win: {
+            location: {
+              pathname: "/talentsearch",
+              href: "https://hk.employer.seek.com/talentsearch?market=MY",
+              hostname: "hk.employer.seek.com",
+              search: "?market=MY",
+            },
+          },
+        }),
+      );
+
+      const result = extractor.extractSeekProfileResume();
+      expect(result).toHaveLength(1);
+      const sitiWorkHistory = result[0].workHistory as Array<{ description?: string }>;
+      expect(sitiWorkHistory).toHaveLength(2);
+      expect(sitiWorkHistory[0]?.description).toContain(
+        "Find new lead with call and send email",
+      );
+      expect(sitiWorkHistory[0]?.description).toContain(
+        "Working with production team",
+      );
+      expect(sitiWorkHistory[1]?.description).toContain(
+        "Find a potential lead",
+      );
+    });
+
+    it("replaces Nicole-style section-label placeholders with nested V3 work details", () => {
+      const extractor = createSeekExtractor(
+        createMockDeps({
+          apiSnapshot: {
+            seekProfile: {
+              __typename: "TalentSearchProfileCompleteV3Response",
+              result: {
+                profileGuid: "nicole-guid",
+                profileId: 539869854,
+                firstName: "Nicole",
+                lastName: "Lim",
+                currentJobTitle: "Sales Manager",
+                currentLocation: "Penang, MY",
+                workHistories: [
+                  {
+                    companyName: "TERRAN LLC.",
+                    jobTitle: "Sales Manager",
+                    durationLabel: "Apr 2012 - Present (14 years 4 months)",
+                    description: "RESPONSIBILITIES: ACCOMPLISHMENT:",
+                  },
+                ],
+                resume: {
+                  resumeWorkHistories: [
+                    {
+                      companyName: "TERRAN LLC.",
+                      jobTitle: "Sales Manager",
+                      durationLabel: "Apr 2012 - Present (14 years 4 months)",
+                      displayDescription: [
+                        {
+                          isBullet: true,
+                          description:
+                            "Take the lead role in sales and marketing of Orthopedics Implants.",
+                        },
+                        {
+                          isBullet: true,
+                          description:
+                            "Responsible for the sales process from lead generation through contract execution.",
+                        },
+                      ],
+                    },
+                  ],
+                },
+              },
+            },
+            seekProfileRequest: null,
+          },
+          win: {
+            location: {
+              pathname: "/talentsearch",
+              href: "https://hk.employer.seek.com/talentsearch?market=MY",
+              hostname: "hk.employer.seek.com",
+              search: "?market=MY",
+            },
+          },
+        }),
+      );
+
+      const result = extractor.extractSeekProfileResume();
+      const workHistory = result[0].workHistory as Array<{ description?: string }>;
+
+      expect(workHistory[0]?.description).toContain("Take the lead role");
+      expect(workHistory[0]?.description).toContain("Responsible for the sales process");
+      expect(workHistory[0]?.description).not.toBe("RESPONSIBILITIES: ACCOMPLISHMENT:");
     });
   });
 
@@ -1080,6 +1257,639 @@ describe("seek-extractor", () => {
       expect(result).toEqual(input);
       expect(click).not.toHaveBeenCalled();
       expect(waitForSeekProfileSnapshot).not.toHaveBeenCalled();
+    });
+
+    it("replaces section-label placeholders from the open talentsearch dialog DOM", async () => {
+      document.body.innerHTML = `
+        <a href="/talentsearch/profiles/guid-1?market=MY&tracking=NATURAL_LANGUAGE_SEARCH">
+          <span data-role="heading">Alice Tan</span>
+        </a>
+      `;
+
+      try {
+        const anchor = document.querySelector("a") as HTMLAnchorElement;
+        let clickCount = 0;
+        anchor.click = () => {
+          clickCount += 1;
+          document.body.insertAdjacentHTML(
+            "beforeend",
+            `
+              <div role="dialog">
+                <h2>Alice Tan</h2>
+                <div>
+                  <h4>Career history</h4>
+                  <div>
+                    <span>Sales Representative</span>
+                    <span data-testid="subHeading">CNC BPO Solutions</span>
+                    <span data-testid="subHeadingSecondary">Oct 2011 - Nov 2012 (1 year 2 months)</span>
+                    <span data-testid="description">
+                      <span style="white-space: pre-wrap;">
+                        <p>Answer phones and respond to customer requests.</p>
+                        <p>Sell product and place customer orders.</p>
+                      </span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            `,
+          );
+        };
+
+        const waitForSeekProfileSnapshot = vi.fn(async () => {
+          throw new Error("dialog DOM should satisfy talentsearch enrichment before snapshot wait");
+        });
+        const deps = createMockDeps({
+          getCurrentSourceKey: vi.fn(() => "seek"),
+          waitForSeekProfileSnapshot,
+          SEEK_TALENTSEARCH_DETAIL_FETCH_CONCURRENCY: 1,
+          SEEK_TALENTSEARCH_DETAIL_FETCH_DELAY_MS: 0,
+          SEEK_TALENTSEARCH_DETAIL_TIMEOUT_MS: 100,
+          SEEK_DETAIL_PARAM: "tr_seek_detail",
+          win: {
+            location: {
+              pathname: "/talentsearch",
+              href: "https://hk.employer.seek.com/talentsearch?searchQuery=CNC&market=MY",
+              hostname: "hk.employer.seek.com",
+              search: "?searchQuery=CNC&market=MY",
+            },
+          },
+          doc: {
+            querySelector: (selector: string) => document.querySelector(selector),
+            querySelectorAll: (selector: string) => document.querySelectorAll(selector),
+            body: document.body,
+          },
+          apiSnapshot: {
+            seekTalentSearch: [] as unknown[],
+            seekProfile: null,
+            seekRecommendedCandidates: null as unknown,
+            seekTalentSearchRequest: null as unknown,
+            seekProfileRequest: null as unknown,
+            seekRecommendedRequest: null as unknown,
+          },
+        });
+        const extractor = createSeekExtractor(deps);
+        const input = [
+          {
+            profileId: "guid-1",
+            seekProfileGuid: "guid-1",
+            name: "Alice Tan",
+            workHistory: [{
+              companyName: "X",
+              jobTitle: "Sales",
+              raw: "Sales · X",
+              description: "RESPONSIBILITIES: ACCOMPLISHMENT:",
+            }],
+          },
+        ];
+
+        const result = await extractor.enrichSeekResumesWithDetail(input);
+
+        expect(clickCount).toBe(1);
+        expect(waitForSeekProfileSnapshot).not.toHaveBeenCalled();
+        expect(result).toHaveLength(1);
+        expect(result[0].workHistory?.[0]?.description).toContain("Answer phones");
+        expect(result[0].workHistory?.[0]?.jobTitle).toBe("Sales Representative");
+        expect(result[0].workHistory?.[0]?.companyName).toBe("CNC BPO Solutions");
+      } finally {
+        document.body.innerHTML = "";
+      }
+    });
+
+    it("closes a stale talentsearch panel via the real Close button before opening the next resume", async () => {
+      document.body.innerHTML = `
+        <div role="dialog">
+          <button type="button" aria-label="Close"></button>
+          <h2>Old Candidate</h2>
+          <div>
+            <h4>Career history</h4>
+            <div>
+              <span>Legacy Role</span>
+              <span data-testid="subHeading">Legacy Co</span>
+              <span data-testid="subHeadingSecondary">Jan 2020 - Jan 2021</span>
+            </div>
+          </div>
+        </div>
+        <a href="/talentsearch/profiles/guid-1?market=MY&tracking=NATURAL_LANGUAGE_SEARCH">
+          <span data-role="heading">Alice Tan</span>
+        </a>
+      `;
+
+      try {
+        const staleDialog = document.querySelector('[role="dialog"]') as HTMLElement;
+        const staleCloseButton = staleDialog.querySelector(
+          'button[aria-label="Close"]',
+        ) as HTMLButtonElement;
+        staleCloseButton.click = () => {
+          staleDialog.remove();
+        };
+
+        const anchor = document.querySelector("a") as HTMLAnchorElement;
+        let clickCount = 0;
+        anchor.click = () => {
+          clickCount += 1;
+          if (document.querySelector('[role="dialog"], dialog')) {
+            return;
+          }
+          document.body.insertAdjacentHTML(
+            "beforeend",
+            `
+              <div role="dialog">
+                <button type="button" aria-label="Close"></button>
+                <h2>Alice Tan</h2>
+                <div>
+                  <h4>Career history</h4>
+                  <div>
+                    <span>Sales Representative</span>
+                    <span data-testid="subHeading">CNC BPO Solutions</span>
+                    <span data-testid="subHeadingSecondary">Oct 2011 - Nov 2012 (1 year 2 months)</span>
+                    <span data-testid="description">
+                      <span style="white-space: pre-wrap;">
+                        <p>Answer phones and respond to customer requests.</p>
+                        <p>Sell product and place customer orders.</p>
+                      </span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            `,
+          );
+          const freshCloseButton = Array.from(
+            document.querySelectorAll('button[aria-label="Close"]'),
+          ).at(-1) as HTMLButtonElement | undefined;
+          if (freshCloseButton) {
+            freshCloseButton.click = () => {
+              freshCloseButton.closest('[role="dialog"], dialog')?.remove();
+            };
+          }
+        };
+
+        const waitForSeekProfileSnapshot = vi.fn(async () => {
+          throw new Error("stale panel close should allow dialog DOM enrichment before snapshot wait");
+        });
+        const deps = createMockDeps({
+          getCurrentSourceKey: vi.fn(() => "seek"),
+          waitForSeekProfileSnapshot,
+          SEEK_TALENTSEARCH_DETAIL_FETCH_CONCURRENCY: 1,
+          SEEK_TALENTSEARCH_DETAIL_FETCH_DELAY_MS: 0,
+          SEEK_TALENTSEARCH_DETAIL_TIMEOUT_MS: 100,
+          SEEK_DETAIL_PARAM: "tr_seek_detail",
+          delay: vi.fn(() => Promise.resolve()),
+          win: {
+            location: {
+              pathname: "/talentsearch",
+              href: "https://hk.employer.seek.com/talentsearch?searchQuery=CNC&market=MY",
+              hostname: "hk.employer.seek.com",
+              search: "?searchQuery=CNC&market=MY",
+            },
+          },
+          doc: {
+            querySelector: (selector: string) => document.querySelector(selector),
+            querySelectorAll: (selector: string) => document.querySelectorAll(selector),
+            body: document.body,
+          },
+          apiSnapshot: {
+            seekTalentSearch: [] as unknown[],
+            seekProfile: null,
+            seekRecommendedCandidates: null as unknown,
+            seekTalentSearchRequest: null as unknown,
+            seekProfileRequest: null as unknown,
+            seekRecommendedRequest: null as unknown,
+          },
+        });
+        const extractor = createSeekExtractor(deps);
+        const input = [
+          {
+            profileId: "guid-1",
+            seekProfileGuid: "guid-1",
+            name: "Alice Tan",
+            workHistory: [{ companyName: "X", jobTitle: "Sales", raw: "Sales · X" }],
+          },
+        ];
+
+        const result = await extractor.enrichSeekResumesWithDetail(input);
+
+        expect(clickCount).toBe(1);
+        expect(waitForSeekProfileSnapshot).not.toHaveBeenCalled();
+        expect(result).toHaveLength(1);
+        expect(result[0].workHistory).toHaveLength(1);
+        expect(result[0].workHistory?.[0]?.description).toContain("Answer phones");
+        expect(document.querySelector('[role="dialog"], dialog')).toBeNull();
+      } finally {
+        document.body.innerHTML = "";
+      }
+    });
+
+    it("retries once after Seek shows a temporary unavailable dialog and then succeeds", async () => {
+      document.body.innerHTML = `
+        <a href="/talentsearch/profiles/guid-1?market=MY&tracking=NATURAL_LANGUAGE_SEARCH">
+          <span data-role="heading">Alice Tan</span>
+        </a>
+      `;
+
+      try {
+        const anchor = document.querySelector("a") as HTMLAnchorElement;
+        let clickCount = 0;
+        anchor.click = () => {
+          clickCount += 1;
+          document.querySelector('[role="dialog"], dialog')?.remove();
+          if (clickCount === 1) {
+            document.body.insertAdjacentHTML(
+              "beforeend",
+              `
+                <div role="dialog">
+                  <button type="button" aria-label="Close"></button>
+                  <h2>We're working on it</h2>
+                  <p>We can't show this profile right now but we're doing our best to fix it. Try refreshing the page or check back later.</p>
+                </div>
+              `,
+            );
+          } else {
+            document.body.insertAdjacentHTML(
+              "beforeend",
+              `
+                <div role="dialog">
+                  <button type="button" aria-label="Close"></button>
+                  <h2>Alice Tan</h2>
+                  <div>
+                    <h4>Career history</h4>
+                    <div>
+                      <span>Sales Representative</span>
+                      <span data-testid="subHeading">CNC BPO Solutions</span>
+                      <span data-testid="subHeadingSecondary">Oct 2011 - Nov 2012 (1 year 2 months)</span>
+                      <span data-testid="description">
+                        <span style="white-space: pre-wrap;">
+                          <p>Answer phones and respond to customer requests.</p>
+                          <p>Sell product and place customer orders.</p>
+                        </span>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              `,
+            );
+          }
+          const latestCloseButton = Array.from(
+            document.querySelectorAll('button[aria-label="Close"]'),
+          ).at(-1) as HTMLButtonElement | undefined;
+          if (latestCloseButton) {
+            latestCloseButton.click = () => {
+              latestCloseButton.closest('[role="dialog"], dialog')?.remove();
+            };
+          }
+        };
+
+        const waitForSeekProfileSnapshot = vi.fn(async () => {
+          throw new Error("temporary unavailable dialog should retry via DOM before snapshot wait");
+        });
+        const delay = vi.fn((ms: number) => Promise.resolve(ms));
+        const deps = createMockDeps({
+          getCurrentSourceKey: vi.fn(() => "seek"),
+          waitForSeekProfileSnapshot,
+          SEEK_TALENTSEARCH_DETAIL_FETCH_CONCURRENCY: 1,
+          SEEK_TALENTSEARCH_DETAIL_FETCH_DELAY_MS: 0,
+          SEEK_TALENTSEARCH_DETAIL_TIMEOUT_MS: 100,
+          SEEK_DETAIL_PARAM: "tr_seek_detail",
+          delay,
+          win: {
+            location: {
+              pathname: "/talentsearch",
+              href: "https://hk.employer.seek.com/talentsearch?searchQuery=CNC&market=MY",
+              hostname: "hk.employer.seek.com",
+              search: "?searchQuery=CNC&market=MY",
+            },
+          },
+          doc: {
+            querySelector: (selector: string) => document.querySelector(selector),
+            querySelectorAll: (selector: string) => document.querySelectorAll(selector),
+            body: document.body,
+          },
+          apiSnapshot: {
+            seekTalentSearch: [] as unknown[],
+            seekProfile: null,
+            seekRecommendedCandidates: null as unknown,
+            seekTalentSearchRequest: null as unknown,
+            seekProfileRequest: null as unknown,
+            seekRecommendedRequest: null as unknown,
+          },
+        });
+        const extractor = createSeekExtractor(deps);
+        const input = [
+          {
+            profileId: "guid-1",
+            seekProfileGuid: "guid-1",
+            name: "Alice Tan",
+            workHistory: [{ companyName: "X", jobTitle: "Sales", raw: "Sales · X" }],
+          },
+        ];
+
+        const result = await extractor.enrichSeekResumesWithDetail(input);
+
+        expect(clickCount).toBe(2);
+        expect(waitForSeekProfileSnapshot).not.toHaveBeenCalled();
+        expect(delay).toHaveBeenCalledWith(1500);
+        expect(result).toHaveLength(1);
+        expect(result[0].workHistory?.[0]?.description).toContain("Answer phones");
+        expect(document.querySelector('[role="dialog"], dialog')).toBeNull();
+      } finally {
+        document.body.innerHTML = "";
+      }
+    });
+
+    it("skips the resume after a repeated Seek temporary unavailable dialog without waiting for snapshot", async () => {
+      document.body.innerHTML = `
+        <a href="/talentsearch/profiles/guid-1?market=MY&tracking=NATURAL_LANGUAGE_SEARCH">
+          <span data-role="heading">Alice Tan</span>
+        </a>
+      `;
+
+      try {
+        const anchor = document.querySelector("a") as HTMLAnchorElement;
+        let clickCount = 0;
+        anchor.click = () => {
+          clickCount += 1;
+          document.querySelector('[role="dialog"], dialog')?.remove();
+          document.body.insertAdjacentHTML(
+            "beforeend",
+            `
+              <div role="dialog">
+                <button type="button" aria-label="Close"></button>
+                <h2>We're working on it</h2>
+                <p>We can't show this profile right now but we're doing our best to fix it. Try refreshing the page or check back later.</p>
+              </div>
+            `,
+          );
+          const latestCloseButton = Array.from(
+            document.querySelectorAll('button[aria-label="Close"]'),
+          ).at(-1) as HTMLButtonElement | undefined;
+          if (latestCloseButton) {
+            latestCloseButton.click = () => {
+              latestCloseButton.closest('[role="dialog"], dialog')?.remove();
+            };
+          }
+        };
+
+        const waitForSeekProfileSnapshot = vi.fn(async () => {
+          throw new Error("repeated temporary unavailable dialog should skip before snapshot wait");
+        });
+        const delay = vi.fn((ms: number) => Promise.resolve(ms));
+        const deps = createMockDeps({
+          getCurrentSourceKey: vi.fn(() => "seek"),
+          waitForSeekProfileSnapshot,
+          SEEK_TALENTSEARCH_DETAIL_FETCH_CONCURRENCY: 1,
+          SEEK_TALENTSEARCH_DETAIL_FETCH_DELAY_MS: 0,
+          SEEK_TALENTSEARCH_DETAIL_TIMEOUT_MS: 100,
+          SEEK_DETAIL_PARAM: "tr_seek_detail",
+          delay,
+          win: {
+            location: {
+              pathname: "/talentsearch",
+              href: "https://hk.employer.seek.com/talentsearch?searchQuery=CNC&market=MY",
+              hostname: "hk.employer.seek.com",
+              search: "?searchQuery=CNC&market=MY",
+            },
+          },
+          doc: {
+            querySelector: (selector: string) => document.querySelector(selector),
+            querySelectorAll: (selector: string) => document.querySelectorAll(selector),
+            body: document.body,
+          },
+          apiSnapshot: {
+            seekTalentSearch: [] as unknown[],
+            seekProfile: null,
+            seekRecommendedCandidates: null as unknown,
+            seekTalentSearchRequest: null as unknown,
+            seekProfileRequest: null as unknown,
+            seekRecommendedRequest: null as unknown,
+          },
+        });
+        const extractor = createSeekExtractor(deps);
+        const input = [
+          {
+            profileId: "guid-1",
+            seekProfileGuid: "guid-1",
+            name: "Alice Tan",
+            workHistory: [{ companyName: "X", jobTitle: "Sales", raw: "Sales · X" }],
+          },
+        ];
+
+        const result = await extractor.enrichSeekResumesWithDetail(input);
+
+        expect(clickCount).toBe(2);
+        expect(waitForSeekProfileSnapshot).not.toHaveBeenCalled();
+        expect(delay).toHaveBeenCalledWith(1500);
+        expect(result).toEqual(input);
+        expect(document.querySelector('[role="dialog"], dialog')).toBeNull();
+      } finally {
+        document.body.innerHTML = "";
+      }
+    });
+
+    it("does not immediately retry when Seek returns a RATE_LIMIT_REACHED detail error", async () => {
+      document.body.innerHTML = `
+        <a href="/talentsearch/profiles/guid-1?market=MY&tracking=NATURAL_LANGUAGE_SEARCH">
+          <span data-role="heading">Alice Tan</span>
+        </a>
+      `;
+
+      try {
+        const anchor = document.querySelector("a") as HTMLAnchorElement;
+        let clickCount = 0;
+        const apiSnapshot = {
+          seekTalentSearch: [] as unknown[],
+          seekProfile: null,
+          seekProfileError: null as unknown,
+          seekRecommendedCandidates: null as unknown,
+          seekTalentSearchRequest: null as unknown,
+          seekProfileRequest: null as unknown,
+          seekRecommendedRequest: null as unknown,
+        };
+        anchor.click = () => {
+          clickCount += 1;
+          apiSnapshot.seekProfileError = {
+            code: "RATE_LIMIT_REACHED",
+            message: "Too many requests.",
+          };
+        };
+
+        const waitForSeekProfileSnapshot = vi.fn(async () => {
+          throw new Error("rate-limited detail should not fall through to snapshot wait");
+        });
+        const delay = vi.fn((ms: number) => Promise.resolve(ms));
+        const deps = createMockDeps({
+          getCurrentSourceKey: vi.fn(() => "seek"),
+          waitForSeekProfileSnapshot,
+          SEEK_TALENTSEARCH_DETAIL_FETCH_CONCURRENCY: 1,
+          SEEK_TALENTSEARCH_DETAIL_FETCH_DELAY_MS: 0,
+          SEEK_TALENTSEARCH_DETAIL_TIMEOUT_MS: 100,
+          SEEK_DETAIL_PARAM: "tr_seek_detail",
+          delay,
+          win: {
+            location: {
+              pathname: "/talentsearch",
+              href: "https://hk.employer.seek.com/talentsearch?searchQuery=CNC&market=MY",
+              hostname: "hk.employer.seek.com",
+              search: "?searchQuery=CNC&market=MY",
+            },
+          },
+          doc: {
+            querySelector: (selector: string) => document.querySelector(selector),
+            querySelectorAll: (selector: string) => document.querySelectorAll(selector),
+            body: document.body,
+          },
+          apiSnapshot,
+        });
+        const extractor = createSeekExtractor(deps);
+        const input = [
+          {
+            profileId: "guid-1",
+            seekProfileGuid: "guid-1",
+            name: "Alice Tan",
+            workHistory: [{ companyName: "X", jobTitle: "Sales", raw: "Sales · X" }],
+          },
+        ];
+
+        const result = await extractor.enrichSeekResumesWithDetail(input);
+
+        expect(clickCount).toBe(1);
+        expect(waitForSeekProfileSnapshot).not.toHaveBeenCalled();
+        expect(delay).not.toHaveBeenCalledWith(1500);
+        expect(result).toEqual(input);
+      } finally {
+        document.body.innerHTML = "";
+      }
+    });
+
+    it("backs off after repeated rate limits but still attempts later resumes", async () => {
+      document.body.innerHTML = `
+        <a href="/talentsearch/profiles/guid-1?market=MY&tracking=NATURAL_LANGUAGE_SEARCH">
+          <span data-role="heading">Alice Tan</span>
+        </a>
+        <a href="/talentsearch/profiles/guid-2?market=MY&tracking=NATURAL_LANGUAGE_SEARCH">
+          <span data-role="heading">Bob Lee</span>
+        </a>
+        <a href="/talentsearch/profiles/guid-3?market=MY&tracking=NATURAL_LANGUAGE_SEARCH">
+          <span data-role="heading">Carol Ng</span>
+        </a>
+      `;
+
+      try {
+        const apiSnapshot = {
+          seekTalentSearch: [] as unknown[],
+          seekProfile: null as unknown,
+          seekProfileError: null as unknown,
+          seekRecommendedCandidates: null as unknown,
+          seekTalentSearchRequest: null as unknown,
+          seekProfileRequest: null as unknown,
+          seekRecommendedRequest: null as unknown,
+        };
+        let clickCount = 0;
+        for (const anchor of Array.from(document.querySelectorAll("a"))) {
+          (anchor as HTMLAnchorElement).click = () => {
+            clickCount += 1;
+            document.querySelector('[role="dialog"], dialog')?.remove();
+            if (clickCount <= 2) {
+              apiSnapshot.seekProfileError = {
+                code: "RATE_LIMIT_REACHED",
+                message: "Too many requests.",
+              };
+              return;
+            }
+            apiSnapshot.seekProfileError = null;
+            document.body.insertAdjacentHTML(
+              "beforeend",
+              `
+                <div role="dialog">
+                  <button type="button" aria-label="Close"></button>
+                  <h2>Carol Ng</h2>
+                  <div>
+                    <h4>Career history</h4>
+                    <div>
+                      <span>Sales Engineer</span>
+                      <span data-testid="subHeading">CNC Motion</span>
+                      <span data-testid="subHeadingSecondary">Jan 2022 - Present (4 years)</span>
+                      <span data-testid="description">
+                        <span style="white-space: pre-wrap;">
+                          <p>Managed machine-tool accounts across Malaysia.</p>
+                        </span>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              `,
+            );
+            const closeButton = document.querySelector(
+              'button[aria-label="Close"]',
+            ) as HTMLButtonElement | null;
+            if (closeButton) {
+              closeButton.click = () => {
+                closeButton.closest('[role="dialog"], dialog')?.remove();
+              };
+            }
+          };
+        }
+
+        const delay = vi.fn((ms: number) => Promise.resolve(ms));
+        const waitForSeekProfileSnapshot = vi.fn(async () => {
+          throw new Error("rate-limited detail should not fall through to snapshot wait");
+        });
+        const deps = createMockDeps({
+          getCurrentSourceKey: vi.fn(() => "seek"),
+          waitForSeekProfileSnapshot,
+          SEEK_TALENTSEARCH_DETAIL_FETCH_CONCURRENCY: 1,
+          SEEK_TALENTSEARCH_DETAIL_FETCH_DELAY_MS: 0,
+          SEEK_TALENTSEARCH_DETAIL_TIMEOUT_MS: 100,
+          SEEK_DETAIL_PARAM: "tr_seek_detail",
+          delay,
+          win: {
+            location: {
+              pathname: "/talentsearch",
+              href: "https://hk.employer.seek.com/talentsearch?searchQuery=CNC&market=MY",
+              hostname: "hk.employer.seek.com",
+              search: "?searchQuery=CNC&market=MY",
+            },
+          },
+          doc: {
+            querySelector: (selector: string) => document.querySelector(selector),
+            querySelectorAll: (selector: string) => document.querySelectorAll(selector),
+            body: document.body,
+          },
+          apiSnapshot,
+        });
+        const extractor = createSeekExtractor(deps);
+        const input = [
+          {
+            profileId: "guid-1",
+            seekProfileGuid: "guid-1",
+            name: "Alice Tan",
+            workHistory: [{ companyName: "X", jobTitle: "Sales", raw: "Sales · X" }],
+          },
+          {
+            profileId: "guid-2",
+            seekProfileGuid: "guid-2",
+            name: "Bob Lee",
+            workHistory: [{ companyName: "Y", jobTitle: "Sales", raw: "Sales · Y" }],
+          },
+          {
+            profileId: "guid-3",
+            seekProfileGuid: "guid-3",
+            name: "Carol Ng",
+            workHistory: [{ companyName: "Z", jobTitle: "Sales", raw: "Sales · Z" }],
+          },
+        ];
+
+        const result = await extractor.enrichSeekResumesWithDetail(input);
+
+        expect(clickCount).toBe(3);
+        expect(waitForSeekProfileSnapshot).not.toHaveBeenCalled();
+        expect(
+          delay.mock.calls.some(([ms]) => typeof ms === "number" && ms >= 29_000),
+        ).toBe(true);
+        expect(result[2].workHistory?.[0]?.description).toContain(
+          "Managed machine-tool accounts across Malaysia.",
+        );
+      } finally {
+        document.body.innerHTML = "";
+      }
     });
   });
 });

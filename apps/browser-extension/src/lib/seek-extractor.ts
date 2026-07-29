@@ -3,6 +3,8 @@
  * URL building, and auto-sync helpers. All dependencies injected from content.ts.
  */
 
+import { isMeaningfulSeekWorkHistoryDescription } from "./seek-work-history-quality";
+
 /**
  * Seek GetTalentSearchProfileCompleteV3 returns
  * `{ __typename, result: { profileGuid, workHistories, ... } }` (sometimes
@@ -96,14 +98,65 @@ export function createSeekExtractor(deps: SeekExtractorDeps) {
     SELECTORS,
   } = deps;
 
+  const SEEK_TALENTSEARCH_DETAIL_RATE_LIMIT_COOLDOWN_MS = 30000;
+  const SEEK_TALENTSEARCH_DETAIL_RATE_LIMIT_MAX_HITS = 2;
+  const SEEK_TALENTSEARCH_DETAIL_SETTLE_MS = 300;
+  let seekTalentSearchDetailRateLimitHits = 0;
+  let seekTalentSearchDetailCooldownUntil = 0;
+
+  function getSeekProfileErrorInfo() {
+    const error =
+      apiSnapshot.seekProfileError && typeof apiSnapshot.seekProfileError === "object"
+        ? (apiSnapshot.seekProfileError as Record<string, unknown>)
+        : null;
+    if (!error) return null;
+    const code = typeof error.code === "string" ? error.code : "";
+    const message = typeof error.message === "string" ? error.message : "";
+    if (!code && !message) return null;
+    return { code, message };
+  }
+
+  function isSeekProfileRateLimitError() {
+    return getSeekProfileErrorInfo()?.code === "RATE_LIMIT_REACHED";
+  }
+
+  function resetSeekTalentSearchRateLimitState() {
+    seekTalentSearchDetailRateLimitHits = 0;
+    seekTalentSearchDetailCooldownUntil = 0;
+  }
+
+  function noteSeekTalentSearchRateLimit(profileId: string) {
+    seekTalentSearchDetailRateLimitHits += 1;
+    seekTalentSearchDetailCooldownUntil = Math.max(
+      seekTalentSearchDetailCooldownUntil,
+      Date.now() + SEEK_TALENTSEARCH_DETAIL_RATE_LIMIT_COOLDOWN_MS,
+    );
+    if (seekTalentSearchDetailRateLimitHits >= SEEK_TALENTSEARCH_DETAIL_RATE_LIMIT_MAX_HITS) {
+      console.warn(
+        "🎯 [Auto Sync] Seek detail rate-limited repeatedly; extending cooldown before the next talent-search detail attempt.",
+        { profileId, cooldownMs: SEEK_TALENTSEARCH_DETAIL_RATE_LIMIT_COOLDOWN_MS },
+      );
+      return;
+    }
+    console.warn(
+      "🎯 [Auto Sync] Seek detail rate-limited; backing off before the next talent-search detail attempt.",
+      { profileId, cooldownMs: SEEK_TALENTSEARCH_DETAIL_RATE_LIMIT_COOLDOWN_MS },
+    );
+  }
+
+  function isSeekProfilePath(pathname: string) {
+    return pathname.includes("/talentsearch/profile/")
+      || pathname.includes("/talentsearch/profiles/");
+  }
+
   function isSeekProfilePage() {
-    return win.location.pathname.includes("/talentsearch/profile/");
+    return isSeekProfilePath(win.location.pathname);
   }
 
   function isSeekTalentSearchListPage() {
     if (getCurrentSourceKey() !== SOURCE_KEYS.SEEK) return false;
     const { pathname, search } = win.location;
-    if (pathname.includes("/talentsearch/profile/")) return false;
+    if (isSeekProfilePath(pathname)) return false;
     return pathname === "/talentsearch" && search.length > 0;
   }
 
@@ -378,6 +431,7 @@ export function createSeekExtractor(deps: SeekExtractorDeps) {
       const href = link.getAttribute("href") || "";
       return (
         href.includes(`/talentsearch/profile/${encodeURIComponent(profileId)}`) ||
+        href.includes(`/talentsearch/profiles/${encodeURIComponent(profileId)}`) ||
         href.includes(`openProfileId=${encodeURIComponent(profileId)}`)
       );
     }) || null;
@@ -439,11 +493,24 @@ export function createSeekExtractor(deps: SeekExtractorDeps) {
         : typeof profile.lastModifiedDurationLabel === "string"
           ? profile.lastModifiedDurationLabel
           : "";
-    const workHistory = Array.isArray(profile.workHistories)
+    const profileWorkHistory = Array.isArray(profile.workHistories)
       ? profile.workHistories
           .map((item) => buildSeekWorkHistoryItem(item))
           .filter(Boolean)
       : [];
+    const resumeWorkHistory = Array.isArray(
+      (profile.resume as Record<string, unknown> | undefined)?.resumeWorkHistories,
+    )
+      ? (
+          (profile.resume as Record<string, unknown>).resumeWorkHistories as unknown[]
+        )
+          .map((item) => buildSeekWorkHistoryItem(item))
+          .filter(Boolean)
+      : [];
+    const workHistory = mergeSeekDetailWorkHistory(
+      profileWorkHistory,
+      resumeWorkHistory,
+    );
     const profileEducation = Array.isArray(profile.profileEducation)
       ? profile.profileEducation
           .map((item) => buildSeekProfileEducationItem(item))
@@ -865,7 +932,7 @@ export function createSeekExtractor(deps: SeekExtractorDeps) {
     }
 
     return doc.querySelectorAll(
-      'a[href*="/talentsearch/profile/"][href*="profilePosition="]',
+      'a[href*="/talentsearch/profiles/"], a[href*="/talentsearch/profile/"]',
     ).length;
   }
 
@@ -1111,7 +1178,7 @@ export function createSeekExtractor(deps: SeekExtractorDeps) {
         typeof (entry as Record<string, unknown>).description === "string"
           ? ((entry as Record<string, unknown>).description as string).trim()
           : "";
-      if (description) {
+      if (isMeaningfulSeekWorkHistoryDescription(description)) {
         described += 1;
         if (described >= minDescribed) return true;
       }
@@ -1119,25 +1186,241 @@ export function createSeekExtractor(deps: SeekExtractorDeps) {
     return false;
   }
 
-  function dismissSeekProfilePanel() {
+  function getSeekOpenSidePanelDialog() {
+    const dialogs = Array.from(
+      doc.querySelectorAll('[role="dialog"], dialog'),
+    );
+    return dialogs.find((dialog) => {
+      if (!(dialog instanceof Element)) return false;
+      const hasCloseButton = !!dialog.querySelector(
+        'button[aria-label="Close"], button[title="Close"]',
+      );
+      if (hasCloseButton) return true;
+      const text = normalizeSeekDialogText(dialog.textContent || "");
+      return /career history|cv preview|no interactions|we'?re working on it|can.?t show this profile right now/i.test(
+        text,
+      );
+    }) || null;
+  }
+
+  function isSeekTemporaryUnavailableDialog(dialog: Element | null | undefined) {
+    if (!(dialog instanceof Element)) return false;
+    return /we'?re working on it|can.?t show this profile right now/i.test(
+      normalizeSeekDialogText(dialog.textContent || ""),
+    );
+  }
+
+  function getSeekDialogCloseButton(dialog: Element | null | undefined) {
+    if (!(dialog instanceof Element)) return null;
+    const byAria = dialog.querySelector(
+      'button[aria-label="Close"], button[title="Close"]',
+    );
+    if (byAria instanceof HTMLElement) return byAria;
+    const byText = Array.from(dialog.querySelectorAll("button"))
+      .find((button) => /^close$/i.test(normalizeSeekDialogText(button.textContent || "")));
+    return byText instanceof HTMLElement ? byText : null;
+  }
+
+  async function dismissSeekProfilePanel(
+    { timeoutMs = 1200 }: { timeoutMs?: number } = {},
+  ) {
+    const dialog = getSeekOpenSidePanelDialog() || getSeekOpenProfileDialog();
+    if (!(dialog instanceof Element)) return;
+
     try {
-      const active = doc.querySelector?.("[data-role='heading']") as Element | null;
-      // Prefer Escape so the SPA closes the side panel without navigation.
-      const target = (doc as { body?: HTMLElement }).body || active;
-      if (target && typeof (target as HTMLElement).dispatchEvent === "function") {
-        target.dispatchEvent(
-          new KeyboardEvent("keydown", {
-            key: "Escape",
-            code: "Escape",
-            keyCode: 27,
-            which: 27,
-            bubbles: true,
-            cancelable: true,
-          }),
-        );
+      const closeButton = getSeekDialogCloseButton(dialog);
+      if (closeButton) {
+        closeButton.click();
+      } else {
+        const active = doc.querySelector?.("[data-role='heading']") as Element | null;
+        // Fallback to Escape if the explicit close control is unavailable.
+        const target = (doc as { body?: HTMLElement }).body || active;
+        if (target && typeof (target as HTMLElement).dispatchEvent === "function") {
+          target.dispatchEvent(
+            new KeyboardEvent("keydown", {
+              key: "Escape",
+              code: "Escape",
+              keyCode: 27,
+              which: 27,
+              bubbles: true,
+              cancelable: true,
+            }),
+          );
+        }
       }
     } catch {
       // Best-effort; next click still works if the previous panel stays open.
+    }
+
+    const deadline = Date.now() + Math.max(0, timeoutMs);
+    while (Date.now() < deadline) {
+      const remaining = getSeekOpenSidePanelDialog() || getSeekOpenProfileDialog();
+      if (!(remaining instanceof Element)) {
+        return;
+      }
+      await delay(50);
+    }
+  }
+
+  function normalizeSeekDialogText(value: unknown) {
+    return String(value || "")
+      .replace(/\u00a0/g, " ")
+      .replace(/\r/g, "")
+      .replace(/[ \t]+/g, " ")
+      .replace(/ *\n+ */g, "\n")
+      .trim();
+  }
+
+  function getSeekDialogText(node: Element | null | undefined) {
+    return normalizeSeekDialogText(node?.textContent || "");
+  }
+
+  function getSeekDialogMultilineText(node: Element | null | undefined) {
+    if (!(node instanceof Element)) return "";
+    const paragraphText = Array.from(node.querySelectorAll("p"))
+      .map((paragraph) => normalizeSeekDialogText(paragraph.textContent || ""))
+      .filter(Boolean);
+    if (paragraphText.length > 0) {
+      return paragraphText.join("\n");
+    }
+    return getSeekDialogText(node);
+  }
+
+  function getSeekOpenProfileDialog() {
+    const dialogs = Array.from(
+      doc.querySelectorAll('[role="dialog"], dialog'),
+    );
+    return dialogs.find((dialog) =>
+      /career history/i.test(dialog.textContent || ""),
+    ) || null;
+  }
+
+  function dialogMatchesSeekResume(dialog: Element, resume: unknown) {
+    const expectedName =
+      typeof (resume as Record<string, unknown> | null)?.name === "string"
+        ? ((resume as Record<string, unknown>).name as string).trim()
+        : "";
+    if (!expectedName) return true;
+
+    const headingTexts = Array.from(
+      dialog.querySelectorAll("h1, h2, h3, [role='heading']"),
+    )
+      .map((heading) => getSeekDialogText(heading))
+      .filter(Boolean);
+    return headingTexts.includes(expectedName);
+  }
+
+  function extractSeekProfileDialogResume(resume: unknown) {
+    const dialog = getSeekOpenProfileDialog();
+    if (!(dialog instanceof Element) || !dialogMatchesSeekResume(dialog, resume)) {
+      return null;
+    }
+
+    const careerHeading = Array.from(dialog.querySelectorAll("h1, h2, h3, h4"))
+      .find((heading) => /^career history$/i.test(getSeekDialogText(heading)));
+    const careerSection = careerHeading?.parentElement;
+    if (!(careerSection instanceof Element)) {
+      return null;
+    }
+
+    const workHistory = Array.from(careerSection.children)
+      .filter((child) => child !== careerHeading)
+      .map((child) => {
+        if (!(child instanceof Element)) return null;
+
+        const companyEl = child.querySelector('[data-testid="subHeading"]');
+        const durationEl = child.querySelector('[data-testid="subHeadingSecondary"]');
+        const descriptionEl = child.querySelector('[data-testid="description"]');
+        const jobTitleEl =
+          companyEl?.previousElementSibling instanceof Element
+            ? companyEl.previousElementSibling
+            : null;
+
+        const jobTitle = getSeekDialogText(jobTitleEl);
+        const companyName = getSeekDialogText(companyEl);
+        const duration = getSeekDialogText(durationEl);
+        const description = getSeekDialogMultilineText(descriptionEl);
+        const raw = [jobTitle, companyName, duration].filter(Boolean).join(" · ");
+
+        if (!raw && !description) return null;
+        return {
+          raw: raw || description,
+          companyName: companyName || undefined,
+          jobTitle: jobTitle || undefined,
+          description: description || undefined,
+        };
+      })
+      .filter(Boolean);
+
+    if (workHistory.length === 0) {
+      return null;
+    }
+
+    return { workHistory };
+  }
+
+  async function waitForSeekProfileDialogResume(
+    resume: unknown,
+    { timeoutMs = 0 }: { timeoutMs?: number } = {},
+  ) {
+    const effectiveTimeoutMs = Math.max(
+      0,
+      Math.min(
+        Number.isFinite(timeoutMs) ? timeoutMs : 0,
+        SEEK_TALENTSEARCH_DETAIL_TIMEOUT_MS,
+      ),
+    );
+    const deadline = Date.now() + effectiveTimeoutMs;
+
+    while (true) {
+      const dialogResume = extractSeekProfileDialogResume(resume) as Record<string, unknown> | null;
+      if (dialogResume && resumeHasWorkHistoryDescriptions(dialogResume, 1)) {
+        return dialogResume;
+      }
+
+      if (Date.now() >= deadline) {
+        return null;
+      }
+
+      await delay(100);
+    }
+  }
+
+  async function waitForSeekTalentSearchDialogOutcome(
+    resume: unknown,
+    { timeoutMs = 0 }: { timeoutMs?: number } = {},
+  ) {
+    const effectiveTimeoutMs = Math.max(
+      0,
+      Math.min(
+        Number.isFinite(timeoutMs) ? timeoutMs : 0,
+        SEEK_TALENTSEARCH_DETAIL_TIMEOUT_MS,
+      ),
+    );
+    const deadline = Date.now() + effectiveTimeoutMs;
+
+    while (true) {
+      if (isSeekProfileRateLimitError()) {
+        return {
+          kind: "rate-limited" as const,
+          error: getSeekProfileErrorInfo(),
+        };
+      }
+      const dialog = getSeekOpenSidePanelDialog() || getSeekOpenProfileDialog();
+      if (dialog instanceof Element && isSeekTemporaryUnavailableDialog(dialog)) {
+        return { kind: "unavailable" as const };
+      }
+
+      const dialogResume = extractSeekProfileDialogResume(resume) as Record<string, unknown> | null;
+      if (dialogResume && resumeHasWorkHistoryDescriptions(dialogResume, 1)) {
+        return { kind: "resume" as const, resume: dialogResume };
+      }
+
+      if (Date.now() >= deadline) {
+        return { kind: "timeout" as const };
+      }
+
+      await delay(100);
     }
   }
 
@@ -1156,6 +1439,12 @@ export function createSeekExtractor(deps: SeekExtractorDeps) {
     }
 
     const isTalentSearch = getCurrentSeekMode() === "talentsearch";
+    if (isTalentSearch) {
+      const cooldownMs = seekTalentSearchDetailCooldownUntil - Date.now();
+      if (cooldownMs > 0) {
+        await delay(cooldownMs);
+      }
+    }
     const trigger = isTalentSearch
       ? findSeekTalentSearchCardTrigger(profileId, resume, cachedHeadings)
       : findSeekProfileTrigger(profileId);
@@ -1163,44 +1452,120 @@ export function createSeekExtractor(deps: SeekExtractorDeps) {
       return resume;
     }
 
-    try {
-      // Drop stale V3 payload so waiters cannot resolve against the previous card.
-      apiSnapshot.seekProfile = null;
-      trigger.click();
-      // For talentsearch, match by profileGuid (UUID); for recommended, match by numeric profileId
-      const matchId = isTalentSearch ? (rec?.seekProfileGuid as string) || profileId : profileId;
-      const timeoutMs = isTalentSearch ? SEEK_TALENTSEARCH_DETAIL_TIMEOUT_MS : 12000;
-      await waitForSeekProfileSnapshot(matchId, { timeoutMs });
-      const [detailResume] = extractSeekProfileResume() as (Record<string, unknown> | undefined)[];
-      if (!detailResume) {
-        dismissSeekProfilePanel();
-        return resume;
+    const talentSearchUnavailableRetryDelayMs = 1500;
+    const talentSearchUnavailableMaxRetries = 1;
+    let attempt = 0;
+
+    while (true) {
+      if (attempt > 0 && isTalentSearch) {
+        await delay(talentSearchUnavailableRetryDelayMs);
       }
-      // For talentsearch, verify the detail profile matches by profileGuid or profileId
-      if (isTalentSearch) {
-        const detailGuid = (detailResume.seekProfileGuid as string) || "";
-        const detailProfileId = (detailResume.profileId as string) || "";
-        if (detailGuid !== profileId && detailProfileId !== profileId) {
-          dismissSeekProfilePanel();
+
+      try {
+        if (isTalentSearch) {
+          await dismissSeekProfilePanel();
+        }
+        // Drop stale V3 payload so waiters cannot resolve against the previous card.
+        apiSnapshot.seekProfile = null;
+        apiSnapshot.seekProfileError = null;
+        trigger.click();
+        const timeoutMs = isTalentSearch ? SEEK_TALENTSEARCH_DETAIL_TIMEOUT_MS : 12000;
+        if (isTalentSearch) {
+          const dialogOutcome = await waitForSeekTalentSearchDialogOutcome(resume, {
+            timeoutMs: Math.min(timeoutMs, 3000),
+          });
+          if (dialogOutcome.kind === "resume") {
+            resetSeekTalentSearchRateLimitState();
+            await delay(SEEK_TALENTSEARCH_DETAIL_SETTLE_MS);
+            await dismissSeekProfilePanel();
+            return mergeSeekListResumeWithDetail(resume, dialogOutcome.resume, true);
+          }
+          if (dialogOutcome.kind === "rate-limited") {
+            noteSeekTalentSearchRateLimit(profileId);
+            await dismissSeekProfilePanel();
+            return resume;
+          }
+          if (dialogOutcome.kind === "unavailable") {
+            await dismissSeekProfilePanel();
+            if (attempt < talentSearchUnavailableMaxRetries) {
+              attempt += 1;
+              continue;
+            }
+            return resume;
+          }
+        }
+        // For talentsearch, match by profileGuid (UUID); for recommended, match by numeric profileId
+        const matchId = isTalentSearch ? (rec?.seekProfileGuid as string) || profileId : profileId;
+        await waitForSeekProfileSnapshot(matchId, { timeoutMs });
+        const [detailResume] = extractSeekProfileResume() as (Record<string, unknown> | undefined)[];
+        if (!detailResume) {
+          const dialogResume = isTalentSearch
+            ? await waitForSeekProfileDialogResume(resume, { timeoutMs: 1000 })
+            : extractSeekProfileDialogResume(resume) as Record<string, unknown> | null;
+          if (isTalentSearch && dialogResume && resumeHasWorkHistoryDescriptions(dialogResume, 1)) {
+            await delay(SEEK_TALENTSEARCH_DETAIL_SETTLE_MS);
+          }
+          await dismissSeekProfilePanel();
+          if (dialogResume && resumeHasWorkHistoryDescriptions(dialogResume, 1)) {
+            return mergeSeekListResumeWithDetail(resume, dialogResume, isTalentSearch);
+          }
           return resume;
         }
-        // Merge: talentsearch detail may provide numeric profileId from V3 response
-        const merged = mergeSeekListResumeWithDetail(resume, detailResume, isTalentSearch);
-        dismissSeekProfilePanel();
-        return merged;
-      }
-      if (detailResume.profileId !== profileId) {
+        // For talentsearch, verify the detail profile matches by profileGuid or profileId
+        if (isTalentSearch) {
+          const detailGuid = (detailResume.seekProfileGuid as string) || "";
+          const detailProfileId = (detailResume.profileId as string) || "";
+          if (detailGuid !== profileId && detailProfileId !== profileId) {
+            await dismissSeekProfilePanel();
+            return resume;
+          }
+          // Merge: talentsearch detail may provide numeric profileId from V3 response
+          const merged = mergeSeekListResumeWithDetail(resume, detailResume, isTalentSearch);
+          resetSeekTalentSearchRateLimitState();
+          await delay(SEEK_TALENTSEARCH_DETAIL_SETTLE_MS);
+          await dismissSeekProfilePanel();
+          return merged;
+        }
+        if (detailResume.profileId !== profileId) {
+          return resume;
+        }
+        resetSeekTalentSearchRateLimitState();
+        return mergeSeekListResumeWithDetail(resume, detailResume, isTalentSearch);
+      } catch (error) {
+        const dialogResume = isTalentSearch
+          ? await waitForSeekProfileDialogResume(resume, { timeoutMs: 1000 })
+          : extractSeekProfileDialogResume(resume) as Record<string, unknown> | null;
+        if (dialogResume && resumeHasWorkHistoryDescriptions(dialogResume, 1)) {
+          if (isTalentSearch) {
+            await delay(SEEK_TALENTSEARCH_DETAIL_SETTLE_MS);
+          }
+          await dismissSeekProfilePanel();
+          return mergeSeekListResumeWithDetail(resume, dialogResume, isTalentSearch);
+        }
+        const unavailableDialog = isTalentSearch
+          ? getSeekOpenSidePanelDialog() || getSeekOpenProfileDialog()
+          : null;
+        if (
+          isSeekTemporaryUnavailableDialog(unavailableDialog)
+          && attempt < talentSearchUnavailableMaxRetries
+        ) {
+          await dismissSeekProfilePanel();
+          attempt += 1;
+          continue;
+        }
+        if (isTalentSearch && isSeekProfileRateLimitError()) {
+          noteSeekTalentSearchRateLimit(profileId);
+          await dismissSeekProfilePanel();
+          return resume;
+        }
+        console.warn(
+          "🎯 [Auto Sync] Failed to enrich Seek detail resume:",
+          profileId,
+          error,
+        );
+        await dismissSeekProfilePanel();
         return resume;
       }
-      return mergeSeekListResumeWithDetail(resume, detailResume, isTalentSearch);
-    } catch (error) {
-      console.warn(
-        "🎯 [Auto Sync] Failed to enrich Seek detail resume:",
-        profileId,
-        error,
-      );
-      dismissSeekProfilePanel();
-      return resume;
     }
   }
 
@@ -1259,6 +1624,10 @@ export function createSeekExtractor(deps: SeekExtractorDeps) {
 
   function findSeekTalentSearchCardTrigger(profileId: string, resume: unknown, cachedHeadings: unknown) {
     if (!profileId) return null;
+    const byCurrentHref = doc.querySelector(
+      `a[href*="/talentsearch/profiles/${escapeCssAttrValue(profileId)}"], a[href*="/talentsearch/profile/${escapeCssAttrValue(profileId)}"]`,
+    );
+    if (byCurrentHref instanceof HTMLElement) return byCurrentHref;
     // Try matching by data-tr-candidate-id attribute (set during extraction)
     const byAttr = doc.querySelector(
       `[data-tr-candidate-id="${escapeCssAttrValue(profileId)}"]`,
@@ -1328,7 +1697,7 @@ export function createSeekExtractor(deps: SeekExtractorDeps) {
       entries.filter((entry) => {
         if (!entry || typeof entry !== "object") return false;
         const description = (entry as Record<string, unknown>).description;
-        return typeof description === "string" && description.trim().length > 0;
+        return isMeaningfulSeekWorkHistoryDescription(description);
       }).length;
     const workHistory =
       countDescribed(detailWorkHistory) > 0
@@ -1395,6 +1764,163 @@ export function createSeekExtractor(deps: SeekExtractorDeps) {
     return prefix ? `${prefix}${period}` : "";
   }
 
+  function countSeekWorkHistoryDescriptions(entries: unknown[]) {
+    return entries.filter((entry) => {
+      if (!entry || typeof entry !== "object") return false;
+      const description = (entry as Record<string, unknown>).description;
+      return isMeaningfulSeekWorkHistoryDescription(description);
+    }).length;
+  }
+
+  function normalizeSeekWorkHistoryKeyPart(value: unknown) {
+    return typeof value === "string"
+      ? value.replace(/\s+/g, " ").trim().toLowerCase()
+      : "";
+  }
+
+  function getSeekWorkHistoryDurationLabel(entry: unknown) {
+    if (!entry || typeof entry !== "object") return "";
+    const rec = entry as Record<string, unknown>;
+    const durationLabel =
+      typeof rec.durationLabel === "string" ? rec.durationLabel.trim() : "";
+    if (durationLabel) return durationLabel;
+    const raw = typeof rec.raw === "string" ? rec.raw.trim() : "";
+    const parts = raw.split(" · ").map((part) => part.trim()).filter(Boolean);
+    return parts.length >= 3 ? parts[parts.length - 1] : "";
+  }
+
+  function buildSeekWorkHistoryKeys(entry: unknown) {
+    if (!entry || typeof entry !== "object") return [];
+    const rec = entry as Record<string, unknown>;
+    const title = normalizeSeekWorkHistoryKeyPart(rec.jobTitle);
+    const company = normalizeSeekWorkHistoryKeyPart(rec.companyName);
+    const duration = normalizeSeekWorkHistoryKeyPart(
+      getSeekWorkHistoryDurationLabel(entry),
+    );
+    return [
+      title && company && duration ? `${title}|${company}|${duration}` : "",
+      title && company ? `${title}|${company}` : "",
+      title && duration ? `${title}|${duration}` : "",
+      company && duration ? `${company}|${duration}` : "",
+    ].filter(Boolean);
+  }
+
+  function mergeSeekWorkHistoryEntry(
+    primaryEntry: Record<string, unknown>,
+    fallbackEntry: Record<string, unknown>,
+  ) {
+    const primaryDescription =
+      typeof primaryEntry.description === "string"
+        ? primaryEntry.description.trim()
+        : "";
+    const fallbackDescription =
+      typeof fallbackEntry.description === "string"
+        ? fallbackEntry.description.trim()
+        : "";
+
+    return {
+      ...fallbackEntry,
+      ...primaryEntry,
+      raw:
+        (typeof primaryEntry.raw === "string" && primaryEntry.raw.trim())
+          ? primaryEntry.raw
+          : fallbackEntry.raw,
+      companyName:
+        (typeof primaryEntry.companyName === "string" && primaryEntry.companyName.trim())
+          ? primaryEntry.companyName
+          : fallbackEntry.companyName,
+      jobTitle:
+        (typeof primaryEntry.jobTitle === "string" && primaryEntry.jobTitle.trim())
+          ? primaryEntry.jobTitle
+          : fallbackEntry.jobTitle,
+      description:
+        (isMeaningfulSeekWorkHistoryDescription(primaryDescription) && primaryDescription)
+        || (isMeaningfulSeekWorkHistoryDescription(fallbackDescription) && fallbackDescription)
+        || undefined,
+      durationLabel:
+        (typeof primaryEntry.durationLabel === "string" && primaryEntry.durationLabel.trim())
+          ? primaryEntry.durationLabel
+          : fallbackEntry.durationLabel,
+    };
+  }
+
+  function mergeSeekDetailWorkHistory(primaryEntries: unknown[], fallbackEntries: unknown[]) {
+    const primary = Array.isArray(primaryEntries) ? primaryEntries : [];
+    const fallback = Array.isArray(fallbackEntries) ? fallbackEntries : [];
+    const fallbackDescribedCount = countSeekWorkHistoryDescriptions(fallback);
+    if (fallback.length === 0 || fallbackDescribedCount === 0) {
+      return primary;
+    }
+
+    const fallbackByKey = new Map<string, number[]>();
+    for (const [index, entry] of fallback.entries()) {
+      if (!entry || typeof entry !== "object") continue;
+      const description = (entry as Record<string, unknown>).description;
+      if (!isMeaningfulSeekWorkHistoryDescription(description)) continue;
+      for (const key of buildSeekWorkHistoryKeys(entry)) {
+        const current = fallbackByKey.get(key) || [];
+        current.push(index);
+        fallbackByKey.set(key, current);
+      }
+    }
+
+    const usedFallbackIndexes = new Set<number>();
+    const merged = primary.map((entry, index) => {
+      if (!entry || typeof entry !== "object") return entry;
+      const primaryEntry = entry as Record<string, unknown>;
+      const primaryDescription =
+        typeof primaryEntry.description === "string"
+          ? primaryEntry.description.trim()
+          : "";
+      if (isMeaningfulSeekWorkHistoryDescription(primaryDescription)) {
+        return primaryEntry;
+      }
+
+      let matchedIndex: number | null = null;
+      for (const key of buildSeekWorkHistoryKeys(primaryEntry)) {
+        const candidates = fallbackByKey.get(key) || [];
+        const nextIndex = candidates.find((candidateIndex) => !usedFallbackIndexes.has(candidateIndex));
+        if (typeof nextIndex === "number") {
+          matchedIndex = nextIndex;
+          break;
+        }
+      }
+
+      if (matchedIndex === null) {
+        const sameIndexCandidate = fallback[index];
+        const sameIndexDescription =
+          sameIndexCandidate && typeof sameIndexCandidate === "object"
+            ? (sameIndexCandidate as Record<string, unknown>).description
+            : "";
+        if (
+          !usedFallbackIndexes.has(index)
+          && isMeaningfulSeekWorkHistoryDescription(sameIndexDescription)
+        ) {
+          matchedIndex = index;
+        }
+      }
+
+      if (matchedIndex === null) {
+        return primaryEntry;
+      }
+
+      usedFallbackIndexes.add(matchedIndex);
+      return mergeSeekWorkHistoryEntry(
+        primaryEntry,
+        fallback[matchedIndex] as Record<string, unknown>,
+      );
+    });
+
+    if (
+      countSeekWorkHistoryDescriptions(merged) === 0
+      && fallbackDescribedCount > 0
+    ) {
+      return fallback;
+    }
+
+    return merged;
+  }
+
   function buildSeekWorkHistoryItem(item: unknown) {
     if (!item || typeof item !== "object") return null;
 
@@ -1409,19 +1935,33 @@ export function createSeekExtractor(deps: SeekExtractorDeps) {
       rec.jobDescription,
       rec.responsibilities,
       rec.highlights,
+      rec.displayDescription,
     ];
     let description = "";
     for (const candidate of descriptionCandidates) {
-      if (typeof candidate === "string" && candidate.trim()) {
+      if (typeof candidate === "string" && isMeaningfulSeekWorkHistoryDescription(candidate)) {
         description = candidate.trim();
         break;
       }
       if (Array.isArray(candidate)) {
         const joined = candidate
-          .map((line) => (typeof line === "string" ? line.trim() : ""))
+          .map((line) => {
+            if (typeof line === "string") return line.trim();
+            if (line && typeof line === "object") {
+              const descriptionText =
+                typeof (line as Record<string, unknown>).description === "string"
+                  ? ((line as Record<string, unknown>).description as string).trim()
+                  : "";
+              if (!descriptionText) return "";
+              return (line as Record<string, unknown>).isBullet === true
+                ? `• ${descriptionText}`
+                : descriptionText;
+            }
+            return "";
+          })
           .filter(Boolean)
           .join("\n");
-        if (joined) {
+        if (isMeaningfulSeekWorkHistoryDescription(joined)) {
           description = joined;
           break;
         }
@@ -1443,6 +1983,7 @@ export function createSeekExtractor(deps: SeekExtractorDeps) {
       companyName: companyName || undefined,
       jobTitle: jobTitle || undefined,
       description: description || undefined,
+      durationLabel: durationLabel || undefined,
       startDate: startDate || undefined,
       endDate: endDate || undefined,
     };

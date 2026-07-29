@@ -7,13 +7,13 @@ import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
 
 const {
   buildWorkHistoryEntryTextMock,
+  getNormalizedWorkHistoryEntriesMock,
   sanitizeResumeRecordForSurfaceMock,
-  selectLatestWorkHistoryMock,
   useResumeFieldUsagePolicyMock,
 } = vi.hoisted(() => ({
   buildWorkHistoryEntryTextMock: vi.fn(),
+  getNormalizedWorkHistoryEntriesMock: vi.fn(),
   sanitizeResumeRecordForSurfaceMock: vi.fn(),
-  selectLatestWorkHistoryMock: vi.fn(),
   useResumeFieldUsagePolicyMock: vi.fn(),
 }))
 
@@ -22,8 +22,8 @@ vi.mock('@trends/shared', async (importOriginal) => {
   return {
     ...actual,
     buildWorkHistoryEntryText: (...args: unknown[]) => buildWorkHistoryEntryTextMock(...args),
+    getNormalizedWorkHistoryEntries: (...args: unknown[]) => getNormalizedWorkHistoryEntriesMock(...args),
     sanitizeResumeRecordForSurface: (...args: unknown[]) => sanitizeResumeRecordForSurfaceMock(...args),
-    selectLatestWorkHistory: (...args: unknown[]) => selectLatestWorkHistoryMock(...args),
   }
 })
 
@@ -88,7 +88,7 @@ describe('SnippetCardExpanded', () => {
     vi.clearAllMocks()
     useResumeFieldUsagePolicyMock.mockReturnValue({})
     sanitizeResumeRecordForSurfaceMock.mockImplementation((resume: ConvexResumeItem) => resume)
-    selectLatestWorkHistoryMock.mockImplementation((workHistory: ConvexResumeItem['workHistory']) => workHistory ?? [])
+    getNormalizedWorkHistoryEntriesMock.mockImplementation((workHistory: ConvexResumeItem['workHistory']) => workHistory ?? [])
     buildWorkHistoryEntryTextMock.mockImplementation((entry: { companyName?: string; jobTitle?: string }) =>
       [entry.jobTitle, entry.companyName].filter(Boolean).join(' @ ')
     )
@@ -223,7 +223,7 @@ describe('SnippetCardExpanded', () => {
     expect(screen.queryByRole('link', { name: /开源档案/i })).not.toBeInTheDocument()
   })
 
-  it('uses the shared latest-work-history limit instead of overriding it locally', () => {
+  it('renders the full stored work history in the expanded view', () => {
     render(
       <SnippetCardExpanded
         item={createResult(6, {
@@ -239,7 +239,11 @@ describe('SnippetCardExpanded', () => {
       />
     )
 
-    expect(selectLatestWorkHistoryMock).toHaveBeenCalledWith(expect.any(Array))
+    expect(getNormalizedWorkHistoryEntriesMock).toHaveBeenCalledWith(expect.any(Array))
+    expect(screen.getByText('Current Co · Current Role')).toBeInTheDocument()
+    expect(screen.getByText('Recent Co · Recent Role')).toBeInTheDocument()
+    expect(screen.getByText('Middle Co · Middle Role')).toBeInTheDocument()
+    expect(screen.getByText('Older Co · Older Role')).toBeInTheDocument()
   })
 
   it('shows AI pending text instead of rule scoring when AI mode is enabled and analysis is missing', () => {

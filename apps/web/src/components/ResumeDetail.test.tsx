@@ -48,8 +48,8 @@ vi.mock('@/hooks/useCompanyPolicyIndex', () => ({
   }),
 }))
 
-describe('ResumeDetail latest work history', () => {
-  it('renders only the latest three work history entries', () => {
+describe('ResumeDetail work history', () => {
+  it('renders the full stored work history in detail view', () => {
     render(
       <ResumeDetail
         open
@@ -86,7 +86,7 @@ describe('ResumeDetail latest work history', () => {
     expect(screen.getByText('Current Co · Current Role')).toBeInTheDocument()
     expect(screen.getByText('Recent Co · Recent Role')).toBeInTheDocument()
     expect(screen.getByText('Middle Co · Middle Role')).toBeInTheDocument()
-    expect(screen.queryByText('Oldest Co · Old Role')).not.toBeInTheDocument()
+    expect(screen.getByText('Oldest Co · Old Role')).toBeInTheDocument()
     expect(screen.getByText('Needs refresh')).toBeInTheDocument()
   })
 

@@ -4,6 +4,8 @@
  * dependency-injected module so content.ts stays thin.
  */
 
+import { isMeaningfulSeekWorkHistoryDescription } from "./seek-work-history-quality";
+
 export interface AutoSyncRunnerDeps extends Record<string, unknown> {
   getAutoSyncEnabled: () => boolean;
   setAutoSyncAttributes: (status: string, count?: number, pages?: number) => void;
@@ -165,6 +167,39 @@ export function createAutoSyncRunner(deps: AutoSyncRunnerDeps) {
     chrome,
   } = deps;
 
+  function isSeekTalentSearchListWorkflow() {
+    return (
+      getCurrentSourceKey() === SOURCE_KEYS.SEEK &&
+      !isSeekProfileMode() &&
+      window.location?.pathname === "/talentsearch"
+    );
+  }
+
+  function resumeHasWorkHistoryDescription(resume: unknown) {
+    if (!resume || typeof resume !== "object") {
+      return false;
+    }
+    const workHistory = Array.isArray(
+      (resume as Record<string, unknown>).workHistory,
+    )
+      ? ((resume as Record<string, unknown>).workHistory as unknown[])
+      : [];
+    return workHistory.some((entry) => {
+      if (!entry || typeof entry !== "object") {
+        return false;
+      }
+      const description = (entry as Record<string, unknown>).description;
+      return isMeaningfulSeekWorkHistoryDescription(description);
+    });
+  }
+
+  function filterSparseSeekTalentSearchResumes(resumes: unknown[]) {
+    if (!isSeekTalentSearchListWorkflow()) {
+      return resumes;
+    }
+    return resumes.filter((resume) => resumeHasWorkHistoryDescription(resume));
+  }
+
   async function runAutoSyncIfEnabled() {
     if (deps.state._autoSyncTriggered as boolean) return;
     const enabled = getAutoSyncEnabled();
@@ -305,6 +340,7 @@ export function createAutoSyncRunner(deps: AutoSyncRunnerDeps) {
           resumes.length > 0
         ) {
           resumes = await enrichSeekResumesWithDetail(resumes);
+          resumes = filterSparseSeekTalentSearchResumes(resumes);
         }
         if (resumes.length <= 0) {
           const ageRange = getCurrentAgeRange();

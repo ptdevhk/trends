@@ -2,11 +2,11 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import {
+  buildWorkHistoryDateRange,
   buildWorkHistoryDisplayDateLine,
   normalizeWorkHistoryEntry,
   RESUME_AI_PROMPT_LOCALE_TO_NATURAL_LANGUAGE,
   sanitizeResumeRecordForSurface,
-  selectLatestWorkHistory,
 } from '@trends/shared'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button, buttonVariants } from '@/components/ui/button'
@@ -140,7 +140,7 @@ export function ResumeDetail({
 
   const workHistory = useMemo(() => {
     if (!presentationResume?.workHistory?.length) return []
-    return selectLatestWorkHistory(presentationResume.workHistory)
+    return presentationResume.workHistory
       .map((entry) => normalizeWorkHistoryEntry(entry))
       .filter((entry): entry is NonNullable<typeof entry> => shouldRenderResumeDetailWorkHistoryEntry(entry))
   }, [presentationResume])

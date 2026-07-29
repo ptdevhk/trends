@@ -313,6 +313,7 @@ export function createExtractionPipeline(deps: ExtractionPipelineDeps) {
       apiSnapshot.seekRecommendedCandidates = null;
       apiSnapshot.seekRecommendedRequest = null;
       apiSnapshot.seekProfile = null;
+      apiSnapshot.seekProfileError = null;
       apiSnapshot.seekProfileRequest = null;
       apiSnapshot.seekTalentSearch = null;
       apiSnapshot.seekTalentSearchRequest = null;

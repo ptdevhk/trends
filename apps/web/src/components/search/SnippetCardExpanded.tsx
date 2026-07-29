@@ -1,4 +1,4 @@
-import { buildWorkHistoryDisplayDateLine, isAdvancingCandidateStatus, normalizeWorkHistoryEntry, sanitizeResumeRecordForSurface, selectLatestWorkHistory } from '@trends/shared'
+import { buildWorkHistoryDisplayDateLine, getNormalizedWorkHistoryEntries, isAdvancingCandidateStatus, sanitizeResumeRecordForSurface } from '@trends/shared'
 import { BriefcaseBusiness, Bug, ChevronDown, Copy, ExternalLink, MapPin, School, Sparkles } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -217,9 +217,7 @@ export function SnippetCardExpanded({
     [fieldUsagePolicy, item.resume]
   )
   const workHistory = useMemo(
-    () => selectLatestWorkHistory(presentationResume.workHistory)
-      .map((entry) => normalizeWorkHistoryEntry(entry))
-      .filter((entry): entry is NonNullable<ReturnType<typeof normalizeWorkHistoryEntry>> => entry !== null),
+    () => getNormalizedWorkHistoryEntries(presentationResume.workHistory),
     [presentationResume.workHistory]
   )
   const profileUrl = item.resume.profileUrl?.trim()

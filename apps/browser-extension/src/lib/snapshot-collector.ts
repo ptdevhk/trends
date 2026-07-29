@@ -168,6 +168,55 @@ export function createSnapshotCollector(deps: SnapshotCollectorDeps) {
     }
   }
 
+  function extractSeekProfileErrorInfo(payload: unknown) {
+    if (!payload || typeof payload !== "object") return null;
+
+    const topLevelErrors = Array.isArray((payload as Record<string, unknown>).errors)
+      ? ((payload as Record<string, unknown>).errors as unknown[])
+      : [];
+    for (const item of topLevelErrors) {
+      if (!item || typeof item !== "object") continue;
+      const record = item as Record<string, unknown>;
+      const extensions =
+        record.extensions && typeof record.extensions === "object"
+          ? (record.extensions as Record<string, unknown>)
+          : null;
+      const code =
+        typeof extensions?.code === "string" ? extensions.code : "";
+      const message = typeof record.message === "string" ? record.message : "";
+      if (code || message) {
+        return {
+          code: code || "GRAPHQL_ERROR",
+          message: message || code,
+        };
+      }
+    }
+
+    const data = getSeekPayloadData(payload, "seekProfile");
+    const possibleResponses = [
+      data?.talentSearchProfileV3,
+      data?.talentSearchProfileV2,
+      data?.talentSearchProfileCompleteV2,
+      data?.getTalentSearchProfileCompleteV2,
+      data,
+    ];
+    for (const item of possibleResponses) {
+      if (!item || typeof item !== "object") continue;
+      const record = item as Record<string, unknown>;
+      const typename =
+        typeof record.__typename === "string" ? record.__typename : "";
+      const error = typeof record.error === "string" ? record.error : "";
+      if (typename === "ResponseError" || error) {
+        return {
+          code: typename || "RESPONSE_ERROR",
+          message: error || typename,
+        };
+      }
+    }
+
+    return null;
+  }
+
   function updateApiSnapshot(message: Record<string, unknown>) {
     const {
       kind,
@@ -277,17 +326,19 @@ export function createSnapshotCollector(deps: SnapshotCollectorDeps) {
       return;
     }
     if (kind === "seekProfile") {
+      apiSnapshot.seekProfileError = extractSeekProfileErrorInfo(payload);
       const data = getSeekPayloadData(payload, kind);
       const rawProfile =
         data?.talentSearchProfileV2 ||
         data?.talentSearchProfileCompleteV2 ||
         data?.getTalentSearchProfileCompleteV2 ||
         data?.talentSearchProfileV3 ||
-        data ||
         null;
       // Flatten V3 `{ result: { profileGuid, workHistories, ... } }` so waiters
       // and extractors see profileGuid/workHistories at the top level.
-      apiSnapshot.seekProfile = unwrapSeekProfileSnapshot(rawProfile);
+      apiSnapshot.seekProfile = rawProfile
+        ? unwrapSeekProfileSnapshot(rawProfile)
+        : null;
       apiSnapshot.seekProfileRequest =
         request ||
         apiSnapshot.seekProfileRequest ||

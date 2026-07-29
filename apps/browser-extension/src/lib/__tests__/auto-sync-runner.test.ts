@@ -232,5 +232,45 @@ describe("auto-sync-runner", () => {
         "5",
       );
     });
+
+    it("does not submit sparse seek talent-search resumes after enrichment", async () => {
+      const submittedBatches: unknown[][] = [];
+      const deps = createMockDeps({
+        getCurrentSourceKey: vi.fn(() => "seek"),
+        window: { location: { pathname: "/talentsearch" } },
+        extractResumes: vi.fn(() => [
+          { name: "Detailed", workHistory: [{ description: "" }] },
+          { name: "Sparse", workHistory: [{ description: "" }] },
+        ]),
+        enrichSeekResumesWithDetail: vi.fn(async () => [
+          { name: "Detailed", workHistory: [{ description: "Closed enterprise deals." }] },
+          { name: "Sparse", workHistory: [{ description: "RESPONSIBILITIES: ACCOMPLISHMENT:" }] },
+        ]),
+        syncCurrentPageToServer: vi.fn(async (resumes: unknown[]) => {
+          submittedBatches.push(Array.isArray(resumes) ? resumes : []);
+          return {
+            success: true,
+            submitted: Array.isArray(resumes) ? resumes.length : 0,
+            inserted: Array.isArray(resumes) ? resumes.length : 0,
+            updated: 0,
+          };
+        }),
+        getPaginationInfo: vi.fn(() => ({
+          currentPage: 1,
+          totalPages: 1,
+          totalItems: 2,
+          hasNextPage: false,
+        })),
+      });
+      const runner = createAutoSyncRunner(deps);
+
+      await runner.runAutoSyncIfEnabled();
+
+      expect(submittedBatches).toHaveLength(1);
+      expect(submittedBatches[0]).toEqual([
+        { name: "Detailed", workHistory: [{ description: "Closed enterprise deals." }] },
+      ]);
+      expect(deps.setAutoSyncAttributes).toHaveBeenCalledWith("done", 1, 1);
+    });
   });
 });
