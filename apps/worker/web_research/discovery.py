@@ -88,11 +88,19 @@ class DiscoveryJob:
                         "https://" + hit.publisher_domain, employer)
                 else:
                     tier = classify_source(hit.url, employer)
-                raw_candidates.append({
+                candidate = {
                     "url": hit.url,
                     "sourceType": tier["sourceType"],
                     "trustTier": tier["trustTier"],
-                })
+                }
+                if getattr(hit, "title", ""):
+                    candidate["title"] = hit.title
+                if getattr(hit, "discovery_snippet", ""):
+                    # Excerpt-provided candidate: enrich uses the
+                    # publisher-provided summary instead of fetching the
+                    # (often homepage or JS-gated) URL.
+                    candidate["expectedExcerpt"] = hit.discovery_snippet
+                raw_candidates.append(candidate)
 
         if not raw_candidates:
             return {"status": "needs_more_evidence", "sources": []}

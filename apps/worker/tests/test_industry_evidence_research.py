@@ -7,6 +7,7 @@ from typing import Any, Dict, List
 from unittest.mock import MagicMock, patch
 
 from apps.worker.industry_evidence_research import (
+    MAX_EXCERPT_LENGTH,
     GuardedEvidenceFetcher,
     IndustryEvidenceMaintenanceJob,
     IndustryEvidenceResearcher,
@@ -161,6 +162,68 @@ def test_search_results_are_discovery_only_and_never_treated_as_proof():
     assert result["status"] == "needs_more_evidence"
     assert result["sources"][0]["trustTier"] == "discovery"
     assert result["suggestedVerificationLevel"] == "candidate"
+
+
+def test_expected_excerpt_candidate_skips_fetch_and_classifies_excerpt():
+    homepage = "https://theedgemalaysia.com"
+    excerpt = (
+        "ACME Engineering expands CNC machining centre capacity in Penang "
+        "The Edge Malaysia"
+    )
+    fetcher = StaticFetcher({})
+    researcher = IndustryEvidenceResearcher(fetcher=fetcher, now_ms=lambda: 100)
+
+    result = researcher.enrich_proposal(
+        {"proposalId": "proposal-excerpt", "companyKey": "acme"},
+        [
+            {
+                "url": homepage,
+                "sourceType": "reporting",
+                "trustTier": "corroborating",
+                "title": "ACME Engineering expands CNC capacity",
+                "expectedExcerpt": excerpt,
+            }
+        ],
+    )
+
+    assert fetcher.calls == [], (
+        "candidates carrying expectedExcerpt must not be fetched"
+    )
+    assert result["sources"], "expected the excerpt candidate to be kept"
+    source = result["sources"][0]
+    assert source["url"] == homepage
+    assert source["fetchStatus"] == "fetched"
+    assert source["evidenceExcerpt"] == excerpt
+    assert source["title"] == "ACME Engineering expands CNC capacity"
+    assert source["contentFingerprint"].startswith("sha256:")
+    assert source["domainGuardPassed"] is True
+    assert source["suggestedIndustryClass"] == "cnc"
+    assert result["status"] == "ready_for_review"
+    assert result["suggestedIndustryClass"] == "cnc"
+
+
+def test_expected_excerpt_capped_and_title_optional():
+    homepage = "https://theedgemalaysia.com"
+    long_excerpt = "CNC machine tools " + "x" * 2000
+    fetcher = StaticFetcher({})
+    researcher = IndustryEvidenceResearcher(fetcher=fetcher, now_ms=lambda: 100)
+
+    result = researcher.enrich_proposal(
+        {"proposalId": "proposal-excerpt-long"},
+        [
+            {
+                "url": homepage,
+                "sourceType": "reporting",
+                "trustTier": "corroborating",
+                "expectedExcerpt": long_excerpt,
+            }
+        ],
+    )
+
+    assert fetcher.calls == []
+    source = result["sources"][0]
+    assert len(source["evidenceExcerpt"]) == MAX_EXCERPT_LENGTH
+    assert "title" not in source
 
 
 def test_unsafe_urls_are_rejected_before_fetch():

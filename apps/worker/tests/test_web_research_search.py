@@ -30,11 +30,13 @@ GN_RSS = """<?xml version="1.0" encoding="UTF-8"?>
     <item>
       <title>New Line Machine Tool expands CNC plant in Penang</title>
       <link>https://news.google.com/rss/articles/CBMiAAAAAAA</link>
+      <description>&lt;a href="https://news.google.com/rss/articles/CBMiAAAAAAA"&gt;New Line Machine Tool expands CNC plant in Penang&lt;/a&gt;&#160;&#160;&lt;font color="#6f6f6f"&gt;The Malaysian Reserve&lt;/font&gt;</description>
       <source url="https://www.themalaysianreserve.com">The Malaysian Reserve</source>
     </item>
     <item>
       <title>Penang manufacturing investments rise</title>
       <link>https://news.google.com/rss/articles/CBMiBBBBBBB</link>
+      <description>&lt;a href="https://news.google.com/rss/articles/CBMiBBBBBBB"&gt;Penang manufacturing investments rise&lt;/a&gt;&#160;&#160;&lt;font color="#6f6f6f"&gt;Free Malaysia Today&lt;/font&gt;</description>
     </item>
   </channel>
 </rss>
@@ -49,57 +51,94 @@ GN_URL = (
 def test_search_result_publisher_domain_defaults_empty():
     result = SearchResult(url="https://x.example/", title="x")
     assert result.publisher_domain == ""
+    assert result.discovery_snippet == ""
 
 
-def test_google_news_rss_emits_article_link_and_publisher_domain():
+def test_google_news_rss_emits_publisher_homepage_real_title_and_description():
     provider = GoogleNewsRssSearchProvider(fetcher=FakeFetcher({GN_URL: GN_RSS}))
     results = provider.search("New Line Machine Tool", max_results=5)
     assert results == [
         SearchResult(
-            url="https://news.google.com/rss/articles/CBMiAAAAAAA",
+            url="https://www.themalaysianreserve.com",
             title="New Line Machine Tool expands CNC plant in Penang",
             snippet="The Malaysian Reserve",
             publisher_domain="www.themalaysianreserve.com",
+            discovery_snippet=(
+                "New Line Machine Tool expands CNC plant in Penang"
+                " The Malaysian Reserve"
+            ),
         ),
         SearchResult(
             url="https://news.google.com/rss/articles/CBMiBBBBBBB",
             title="Penang manufacturing investments rise",
             snippet="",
             publisher_domain="",
+            discovery_snippet=(
+                "Penang manufacturing investments rise Free Malaysia Today"
+            ),
         ),
     ]
 
 
-def test_google_news_rss_falls_back_to_source_url_when_link_absent():
-    rss_no_link = """<?xml version="1.0" encoding="UTF-8"?>
+def test_google_news_rss_falls_back_to_article_link_when_source_url_absent():
+    rss_no_source = """<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0">
   <channel>
     <item>
       <title>New Line Machine Tool expands CNC plant in Penang</title>
-      <source url="https://theedgemalaysia.com">The Edge Malaysia</source>
+      <link>https://news.google.com/rss/articles/CBMiCCCCCCC</link>
+      <description>&lt;a href="https://news.google.com/rss/articles/CBMiCCCCCCC"&gt;New Line Machine Tool expands CNC plant in Penang&lt;/a&gt;&#160;&#160;&lt;font color="#6f6f6f"&gt;The Edge Malaysia&lt;/font&gt;</description>
     </item>
   </channel>
 </rss>
 """
     provider = GoogleNewsRssSearchProvider(
-        fetcher=FakeFetcher({GN_URL: rss_no_link})
+        fetcher=FakeFetcher({GN_URL: rss_no_source})
     )
     results = provider.search("New Line Machine Tool", max_results=5)
     assert results == [
         SearchResult(
-            url="https://theedgemalaysia.com",
+            url="https://news.google.com/rss/articles/CBMiCCCCCCC",
             title="New Line Machine Tool expands CNC plant in Penang",
-            snippet="The Edge Malaysia",
-            publisher_domain="theedgemalaysia.com",
+            snippet="",
+            publisher_domain="",
+            discovery_snippet=(
+                "New Line Machine Tool expands CNC plant in Penang"
+                " The Edge Malaysia"
+            ),
         ),
     ]
+
+
+def test_google_news_rss_discovery_snippet_capped_at_800_chars():
+    long_text = "CNC machining news " + "x" * 2000
+    from xml.sax.saxutils import escape
+    desc = escape(f'<a href="https://x.example/a">{long_text}</a>')
+    rss_long = f"""<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <item>
+      <title>Long item</title>
+      <link>https://news.google.com/rss/articles/CBMiDDDDDDD</link>
+      <description>{desc}</description>
+      <source url="https://x.example">X Example</source>
+    </item>
+  </channel>
+</rss>
+"""
+    provider = GoogleNewsRssSearchProvider(
+        fetcher=FakeFetcher({GN_URL: rss_long})
+    )
+    results = provider.search("New Line Machine Tool", max_results=5)
+    assert len(results) == 1
+    assert len(results[0].discovery_snippet) == 800
 
 
 def test_google_news_rss_respects_max_results():
     provider = GoogleNewsRssSearchProvider(fetcher=FakeFetcher({GN_URL: GN_RSS}))
     results = provider.search("New Line Machine Tool", max_results=1)
     assert len(results) == 1
-    assert results[0].url == "https://news.google.com/rss/articles/CBMiAAAAAAA"
+    assert results[0].url == "https://www.themalaysianreserve.com"
 
 
 def test_google_news_rss_bad_xml_returns_empty():

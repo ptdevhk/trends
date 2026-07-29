@@ -267,37 +267,73 @@ class IndustryEvidenceResearcher:
                     f"{proposal_id}\0{url}\0{index}".encode("utf-8")
                 ).hexdigest()[:20]
             )
+            expected_excerpt = str(candidate.get("expectedExcerpt") or "").strip()
             try:
-                fetched = self.fetcher.fetch(url, expected_domain=expected_domain)
-                classification = classify_industry_excerpt(
-                    str(fetched.get("excerpt") or "")
-                )
-                source = {
-                    "sourceId": source_id,
-                    "proposalId": proposal_id,
-                    **({"companyKey": company_key} if company_key else {}),
-                    "url": str(fetched.get("finalUrl") or url),
-                    "sourceType": source_type,
-                    "trustTier": trust_tier,
-                    **(
-                        {"title": str(fetched["title"])[:300]}
-                        if fetched.get("title")
-                        else {}
-                    ),
-                    "evidenceExcerpt": str(fetched.get("excerpt") or "")[
-                        :MAX_EXCERPT_LENGTH
-                    ],
-                    "fetchedAt": self.now_ms(),
-                    "contentFingerprint": str(
-                        fetched.get("contentFingerprint") or ""
-                    ),
-                    "fetchStatus": "fetched",
-                    "suggestedIndustryClass": classification["industryClass"],
-                    "workerConfidence": classification["confidence"],
-                    "domainGuardPassed": bool(
-                        fetched.get("domainGuardPassed", True)
-                    ),
-                }
+                if expected_excerpt:
+                    # Excerpt-provided candidate (e.g. a Google News RSS hit
+                    # whose URL is a publisher homepage): use the
+                    # publisher-provided summary as the excerpt instead of
+                    # fetching the URL, which would return unrelated
+                    # homepage boilerplate or a JS interstitial.
+                    excerpt = expected_excerpt[:MAX_EXCERPT_LENGTH]
+                    classification = classify_industry_excerpt(excerpt)
+                    candidate_title = str(candidate.get("title") or "").strip()
+                    source = {
+                        "sourceId": source_id,
+                        "proposalId": proposal_id,
+                        **({"companyKey": company_key} if company_key else {}),
+                        "url": url,
+                        "sourceType": source_type,
+                        "trustTier": trust_tier,
+                        **(
+                            {"title": candidate_title[:300]}
+                            if candidate_title
+                            else {}
+                        ),
+                        "evidenceExcerpt": excerpt,
+                        "fetchedAt": self.now_ms(),
+                        "contentFingerprint": "sha256:"
+                        + hashlib.sha256(excerpt.encode("utf-8")).hexdigest(),
+                        "fetchStatus": "fetched",
+                        "suggestedIndustryClass": classification["industryClass"],
+                        "workerConfidence": classification["confidence"],
+                        # No fetch happened, so there is no redirect domain
+                        # to compare; default to passed.
+                        "domainGuardPassed": True,
+                    }
+                else:
+                    fetched = self.fetcher.fetch(
+                        url, expected_domain=expected_domain
+                    )
+                    classification = classify_industry_excerpt(
+                        str(fetched.get("excerpt") or "")
+                    )
+                    source = {
+                        "sourceId": source_id,
+                        "proposalId": proposal_id,
+                        **({"companyKey": company_key} if company_key else {}),
+                        "url": str(fetched.get("finalUrl") or url),
+                        "sourceType": source_type,
+                        "trustTier": trust_tier,
+                        **(
+                            {"title": str(fetched["title"])[:300]}
+                            if fetched.get("title")
+                            else {}
+                        ),
+                        "evidenceExcerpt": str(fetched.get("excerpt") or "")[
+                            :MAX_EXCERPT_LENGTH
+                        ],
+                        "fetchedAt": self.now_ms(),
+                        "contentFingerprint": str(
+                            fetched.get("contentFingerprint") or ""
+                        ),
+                        "fetchStatus": "fetched",
+                        "suggestedIndustryClass": classification["industryClass"],
+                        "workerConfidence": classification["confidence"],
+                        "domainGuardPassed": bool(
+                            fetched.get("domainGuardPassed", True)
+                        ),
+                    }
                 sources.append(source)
                 if (
                     source_type != "search_result"

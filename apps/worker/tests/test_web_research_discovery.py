@@ -18,6 +18,7 @@ class StaticFetcher:
     def __init__(self, pages):
         self.pages = pages
         self.fetched = []
+        self.calls = self.fetched
     def fetch(self, url, expected_domain=None):
         self.fetched.append(url)
         return dict(self.pages[url])
@@ -168,6 +169,47 @@ def test_discovery_classifies_google_news_hit_by_publisher_domain():
     assert out["sources"][0]["url"] == (
         "https://theedgemalaysia.com/article/dsme-penang"
     )
+
+
+def test_discovery_hit_with_discovery_snippet_is_enriched_without_fetch():
+    homepage = "https://theedgemalaysia.com"
+    snippet = (
+        "DSME Engineering expands Penang CNC plant with new machining "
+        "centres The Edge Malaysia"
+    )
+    search = StaticSearch([
+        SearchResult(
+            url=homepage,
+            title="DSME Engineering expands Penang CNC plant",
+            snippet="The Edge Malaysia",
+            publisher_domain="theedgemalaysia.com",
+            discovery_snippet=snippet,
+        ),
+    ])
+    fetcher = StaticFetcher({})
+    job = DiscoveryJob(
+        search_chain=[search], fetcher=fetcher, client=FakeClient(),
+        config=load_web_research_config({"WEB_RESEARCH_ENABLED": "1"}),
+    )
+    proposal = {
+        "proposalId": "p-1",
+        "normalizedEmployerSurface": "DSME Engineering Sdn Bhd",
+        "companyKey": None,
+    }
+    out = job.discover_for_proposal(proposal)
+    assert fetcher.calls == [], (
+        "excerpt-carrying hit must skip the fetch path entirely"
+    )
+    assert out["sources"], "expected the google news hit to be kept"
+    source = out["sources"][0]
+    assert source["url"] == homepage
+    assert source["fetchStatus"] == "fetched"
+    assert source["evidenceExcerpt"] == snippet
+    assert source["title"] == "DSME Engineering expands Penang CNC plant"
+    assert source["sourceType"] == "reporting"
+    assert source["trustTier"] == "corroborating"
+    assert source["contentFingerprint"].startswith("sha256:")
+    assert source["domainGuardPassed"] is True
 
 
 # --- Step 5: maintenance-job wiring -------------------------------------
