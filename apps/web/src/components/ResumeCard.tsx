@@ -44,6 +44,7 @@ import {
 } from '@/components/ui/tooltip'
 import { Suspense, lazy, memo, useMemo, useState } from 'react'
 import { useResumeFieldUsagePolicy } from '@/contexts/ResumeFieldUsagePolicyContext'
+import { useResumeWorkHistoryLimit } from '@/contexts/ResumeWorkHistoryLimitContext'
 
 const OutreachModal = lazy(() => import('./OutreachModal').then((m) => ({ default: m.OutreachModal })))
 import { Select } from '@/components/ui/select'
@@ -227,6 +228,7 @@ export const ResumeCard = memo(function ResumeCard({
   activeExperienceLevelFilter,
   activeRoleFilterType,
 }: ResumeCardProps) {
+  const { limit: workHistoryLimit } = useResumeWorkHistoryLimit()
   const { t } = useTranslation()
   const fieldUsagePolicy = useResumeFieldUsagePolicy()
   const [showOutreach, setShowOutreach] = useState(false)
@@ -236,7 +238,7 @@ export const ResumeCard = memo(function ResumeCard({
   const [blockDialogOpen, setBlockDialogOpen] = useState(false)
   const [blockNoteInput, setBlockNoteInput] = useState('')
   const [commentDialogOpen, setCommentDialogOpen] = useState(false)
-  const workHistory = selectLatestWorkHistory(resume.workHistory)
+  const workHistory = selectLatestWorkHistory(resume.workHistory, { limit: workHistoryLimit })
     .map((item) => ({
       item,
       text: buildWorkHistoryEntryText(item),

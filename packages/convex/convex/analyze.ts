@@ -1,12 +1,14 @@
 /// <reference path="./convex-env.d.ts" />
 import {
     buildBrandHitsPromptSegments,
+    buildLatestWorkHistoryEvidence,
     deriveMarketFromSourceKey,
     getResumeAiLocaleText,
     getResumeAiPromptDefinition,
     resolveResumeAnalysisSourceKey,
     sanitizeResumeRecordForSurface,
     isRecord,
+    normalizeResumeWorkHistoryLimit,
     selectLatestWorkHistory,
     type ResumeFieldUsagePolicy,
     type ResumeFieldUsagePolicyOverrides,
@@ -93,6 +95,7 @@ export function normalizeResume(
     options?: {
         locale?: string;
         fieldUsagePolicy?: ResumeFieldUsagePolicy | ResumeFieldUsagePolicyOverrides;
+        workHistoryLimit?: number;
     },
 ) {
     const localeText = getResumeAiLocaleText(options?.locale);
@@ -103,13 +106,16 @@ export function normalizeResume(
         ? root.ingestData
         : (isRecord(content.ingestData) ? content.ingestData : undefined);
 
-    const latestWorkHistory = selectLatestWorkHistory(content.workHistory);
+    const workHistoryLimit = normalizeResumeWorkHistoryLimit(options?.workHistoryLimit);
+    const latestWorkHistory = selectLatestWorkHistory(content.workHistory, {
+        limit: workHistoryLimit,
+    });
 
     // Extract companies from workHistory since resume content has no "companies" field
     const historyCompanies = latestWorkHistory
         .map((item) => item.companyName)
         .filter((item): item is string => typeof item === "string" && item.length > 0);
-    const existingCompanies = Array.isArray(content.companies)
+    const existingCompanies = latestWorkHistory.length === 0 && Array.isArray(content.companies)
         ? content.companies.filter((item): item is string => typeof item === "string" && item.length > 0)
         : [];
     const allCompanies = [...new Set([...existingCompanies, ...historyCompanies])];
@@ -120,21 +126,88 @@ export function normalizeResume(
         ? parseInt(rawExp.replace(/[^0-9]/g, ""), 10)
         : (typeof rawExp === "number" ? rawExp : 0);
 
-    const evidenceText = typeof ingestData?.evidenceText === "string"
-        ? ingestData.evidenceText
-        : "";
+    const selectedEvidenceText = buildLatestWorkHistoryEvidence(latestWorkHistory, {
+        limit: workHistoryLimit,
+    }).lines.join("\n");
+    const evidenceText = selectedEvidenceText
+        || (typeof ingestData?.evidenceText === "string" ? ingestData.evidenceText : "");
 
-    const companyHits = Array.isArray(ingestData?.companyHits)
+    const rawCompanyHits = Array.isArray(ingestData?.companyHits)
         ? ingestData.companyHits.filter(
             (item: unknown): item is string => typeof item === "string" && item.length > 0
         )
         : [];
+    const normalizedHistoryCompanies = historyCompanies.map((company) => company.trim().toLowerCase());
+    const companyHits = latestWorkHistory.length === 0
+        ? rawCompanyHits
+        : rawCompanyHits.filter((companyHit) => {
+            const normalizedHit = companyHit.trim().toLowerCase();
+            return normalizedHistoryCompanies.some((company) =>
+                company === normalizedHit
+                || company.includes(normalizedHit)
+                || normalizedHit.includes(company));
+        });
     const brandHits = buildBrandHitsPromptSegments({
         brandHits: ingestData?.brandHits,
         brandOrigin: typeof ingestData?.brandOrigin === "string" ? ingestData.brandOrigin : undefined,
         productClass: typeof ingestData?.productClass === "string" ? ingestData.productClass : undefined,
     });
-    const roleSignals = parseRoleSignals(ingestData?.roleSignals);
+    const parsedRoleSignals = parseRoleSignals(ingestData?.roleSignals);
+    const normalizedSelectedEntries = latestWorkHistory.map((entry) => ({
+        companyName: entry.companyName?.trim().toLowerCase() ?? "",
+        jobTitle: entry.jobTitle?.trim().toLowerCase() ?? "",
+    }));
+    const roleSignals = latestWorkHistory.length === 0
+        ? parsedRoleSignals
+        : parsedRoleSignals.flatMap((signal) => {
+            if (signal.verifyIn !== "workHistory") {
+                return [signal];
+            }
+            const matchedWorkEntries = (signal.matchedWorkEntries ?? []).filter((entry) => {
+                const companyName = entry.companyName?.trim().toLowerCase() ?? "";
+                const jobTitle = entry.jobTitle?.trim().toLowerCase() ?? "";
+                return normalizedSelectedEntries.some((selected) =>
+                    (!companyName || selected.companyName === companyName)
+                    && (!jobTitle || selected.jobTitle === jobTitle));
+            });
+            if (matchedWorkEntries.length === 0) {
+                return [];
+            }
+            const matchedSignals = Array.from(new Set(
+                matchedWorkEntries.flatMap((entry) => entry.matchedSignals),
+            ));
+            const years = Math.min(
+                signal.years,
+                matchedWorkEntries.reduce((sum, entry) => sum + Math.max(0, entry.years), 0),
+            );
+            const industryVerifiedYears = Math.min(
+                signal.industryVerifiedYears,
+                matchedWorkEntries.reduce(
+                    (sum, entry) => sum + (entry.industryVerified ? Math.max(0, entry.years) : 0),
+                    0,
+                ),
+            );
+            return [{
+                ...signal,
+                matchedSignals,
+                signalCount: matchedSignals.length,
+                occurrences: matchedWorkEntries.length,
+                years,
+                industryVerifiedYears,
+                ...(signal.roleRelevantYears === undefined
+                    ? {}
+                    : { roleRelevantYears: Math.min(signal.roleRelevantYears, years) }),
+                ...(signal.industryVerifiedRelevantYears === undefined
+                    ? {}
+                    : {
+                        industryVerifiedRelevantYears: Math.min(
+                            signal.industryVerifiedRelevantYears,
+                            industryVerifiedYears,
+                        ),
+                    }),
+                matchedWorkEntries,
+            }];
+        });
     const explicitMarket = typeof ingestData?.market === "string" ? ingestData.market.trim().toUpperCase() : "";
     const sourceKey = typeof root.sourceKey === "string"
         ? root.sourceKey
@@ -278,7 +351,11 @@ export const analyzeResume = action({
             ? JSON.stringify(args.matchingRules, null, 2)
             : (isEnglishLocale ? "Use the default scoring rules." : "使用默认评分标准");
         const promptVersion = getResumeAiPromptDefinition(locale).metadata.version;
-        const norm = normalizeResume(resume, { locale });
+        const workHistoryLimit = await ctx.runQuery(
+            internal.system_settings.getResumeWorkHistoryLimitInternal,
+            {},
+        );
+        const norm = normalizeResume(resume, { locale, workHistoryLimit });
         const prompt = hydrateUserPrompt(
             getUserPromptTemplate(locale),
             { title: jd.title, requirements: jd.requirements, matchingRules },

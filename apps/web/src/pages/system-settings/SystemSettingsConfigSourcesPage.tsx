@@ -80,7 +80,7 @@ export function SystemSettingsConfigSourcesPage() {
           latestWorkHistoryLimit: (resumeDisplayLimitsPayload as { latestWorkHistoryLimit: number }).latestWorkHistoryLimit,
           source: typeof (resumeDisplayLimitsPayload as { source?: unknown }).source === 'string'
             ? (resumeDisplayLimitsPayload as { source: string }).source
-            : 'packages/shared/src/work-history-evidence.ts',
+            : 'system_settings.resumeWorkHistoryLimit',
         })
       }
     } catch (error) {

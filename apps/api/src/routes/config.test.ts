@@ -12,6 +12,12 @@ import { workspaceConfigService } from '../services/workspace-config-service'
 import { createAuthHeaders } from './test-auth-helpers'
 import { parseJsonBody } from '../test-utils'
 
+const getEffectiveResumeWorkHistoryLimitMock = vi.hoisted(() => vi.fn().mockResolvedValue(3))
+
+vi.mock('../services/resume-work-history-limit', () => ({
+  getEffectiveResumeWorkHistoryLimit: getEffectiveResumeWorkHistoryLimitMock,
+}))
+
 function createTestApp(storage?: AuthStorage) {
   const app = new OpenAPIHono()
   app.use('*', workspaceMiddleware)
@@ -505,6 +511,7 @@ describe('config route workspace access', () => {
   })
 
   it('loads resume display limits payload', async () => {
+    getEffectiveResumeWorkHistoryLimitMock.mockResolvedValueOnce(5)
     const app = createTestApp()
     const response = await app.request('/api/config/resume-display-limits', {
       headers: {
@@ -515,9 +522,10 @@ describe('config route workspace access', () => {
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({
       success: true,
-      latestWorkHistoryLimit: 3,
-      source: 'packages/shared/src/work-history-evidence.ts',
+      latestWorkHistoryLimit: 5,
+      source: 'system_settings.resumeWorkHistoryLimit',
     })
+    expect(getEffectiveResumeWorkHistoryLimitMock).toHaveBeenCalledTimes(1)
   })
 
   it('loads config source detail by key', async () => {

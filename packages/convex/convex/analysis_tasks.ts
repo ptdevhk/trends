@@ -416,6 +416,7 @@ async function analyzeOneResume(
         keywords?: string[];
         location?: string;
         relatedExpContext?: RelatedExpContextInput;
+        workHistoryLimit: number;
     },
     apiKey: string,
     localeOverride?: string,
@@ -436,7 +437,10 @@ async function analyzeOneResume(
     const matchingRules = useKeywordPath
         ? buildKeywordMatchingRules(normalizedKeywords, locale)
         : (isEnglishLocale ? "Use the default scoring rules." : "使用默认评分标准");
-    const normalizedResume = normalizeResume(resume, { locale });
+    const normalizedResume = normalizeResume(resume, {
+        locale,
+        workHistoryLimit: config.workHistoryLimit,
+    });
     const relatedExpContext = hasRelatedExpContext(config.relatedExpContext)
         ? {
             ...config.relatedExpContext,
@@ -1287,6 +1291,10 @@ export const processAnalysisTask = internalAction({
             if (!task) {
                 throw new Error(`Analysis task not found: ${String(args.taskId)}`);
             }
+            const workHistoryLimit = await ctx.runQuery(
+                internal.system_settings.getResumeWorkHistoryLimitInternal,
+                {},
+            );
 
             const exactTaskMetadata = task.dispatchMode === "exact"
                 ? resolveExactTaskMetadata(task, task.workspaceSlug ?? "")
@@ -1425,6 +1433,7 @@ export const processAnalysisTask = internalAction({
                                     keywords: task.config.keywords,
                                     location: normalizedLocation,
                                     relatedExpContext: task.config.relatedExpContext,
+                                    workHistoryLimit,
                                 },
                                 apiKey,
                                 exactIdentity?.locale,

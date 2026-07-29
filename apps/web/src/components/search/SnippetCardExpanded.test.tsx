@@ -7,12 +7,10 @@ import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
 
 const {
   buildWorkHistoryEntryTextMock,
-  getNormalizedWorkHistoryEntriesMock,
   sanitizeResumeRecordForSurfaceMock,
   useResumeFieldUsagePolicyMock,
 } = vi.hoisted(() => ({
   buildWorkHistoryEntryTextMock: vi.fn(),
-  getNormalizedWorkHistoryEntriesMock: vi.fn(),
   sanitizeResumeRecordForSurfaceMock: vi.fn(),
   useResumeFieldUsagePolicyMock: vi.fn(),
 }))
@@ -22,7 +20,6 @@ vi.mock('@trends/shared', async (importOriginal) => {
   return {
     ...actual,
     buildWorkHistoryEntryText: (...args: unknown[]) => buildWorkHistoryEntryTextMock(...args),
-    getNormalizedWorkHistoryEntries: (...args: unknown[]) => getNormalizedWorkHistoryEntriesMock(...args),
     sanitizeResumeRecordForSurface: (...args: unknown[]) => sanitizeResumeRecordForSurfaceMock(...args),
   }
 })
@@ -88,7 +85,6 @@ describe('SnippetCardExpanded', () => {
     vi.clearAllMocks()
     useResumeFieldUsagePolicyMock.mockReturnValue({})
     sanitizeResumeRecordForSurfaceMock.mockImplementation((resume: ConvexResumeItem) => resume)
-    getNormalizedWorkHistoryEntriesMock.mockImplementation((workHistory: ConvexResumeItem['workHistory']) => workHistory ?? [])
     buildWorkHistoryEntryTextMock.mockImplementation((entry: { companyName?: string; jobTitle?: string }) =>
       [entry.jobTitle, entry.companyName].filter(Boolean).join(' @ ')
     )
@@ -223,7 +219,7 @@ describe('SnippetCardExpanded', () => {
     expect(screen.queryByRole('link', { name: /开源档案/i })).not.toBeInTheDocument()
   })
 
-  it('renders the full stored work history in the expanded view', () => {
+  it('renders only the latest three stored work-history entries by default', () => {
     render(
       <SnippetCardExpanded
         item={createResult(6, {
@@ -239,11 +235,10 @@ describe('SnippetCardExpanded', () => {
       />
     )
 
-    expect(getNormalizedWorkHistoryEntriesMock).toHaveBeenCalledWith(expect.any(Array))
     expect(screen.getByText('Current Co · Current Role')).toBeInTheDocument()
     expect(screen.getByText('Recent Co · Recent Role')).toBeInTheDocument()
     expect(screen.getByText('Middle Co · Middle Role')).toBeInTheDocument()
-    expect(screen.getByText('Older Co · Older Role')).toBeInTheDocument()
+    expect(screen.queryByText('Older Co · Older Role')).not.toBeInTheDocument()
   })
 
   it('shows AI pending text instead of rule scoring when AI mode is enabled and analysis is missing', () => {

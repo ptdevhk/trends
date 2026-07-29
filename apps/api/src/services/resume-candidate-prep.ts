@@ -16,6 +16,7 @@ import {
   normalizeWorkHistoryEntry,
   buildWorkHistoryEntryText,
   buildLatestWorkHistoryEvidence,
+  normalizeResumeWorkHistoryLimit,
   selectLatestWorkHistory,
   matchesResumeDigestFilters,
 } from "@trends/shared";
@@ -58,6 +59,7 @@ export type PreparedResumeCandidate = {
   brandHits: BrandHit[];
   companyHits: string[];
   roleSignals: RoleSignalSummary[];
+  workHistoryLimit: number;
 };
 
 export type ResumeMatchContext = {
@@ -337,8 +339,13 @@ function extractSkills(...texts: (string | undefined)[]): string[] | undefined {
   return Array.from(new Set(allParts)).slice(0, 20);
 }
 
-function getLatestWorkHistory(workHistory: ResumeItem["workHistory"] | undefined): ResumeItem["workHistory"] {
-  return selectLatestWorkHistory(workHistory ?? []);
+function getLatestWorkHistory(
+  workHistory: ResumeItem["workHistory"] | undefined,
+  limit?: number,
+): ResumeItem["workHistory"] {
+  return selectLatestWorkHistory(workHistory ?? [], {
+    limit: normalizeResumeWorkHistoryLimit(limit),
+  });
 }
 
 function extractCompanies(workHistory: ResumeItem["workHistory"]): string[] | undefined {
@@ -436,8 +443,8 @@ export function toResumeItemFromRecord(record: Record<string, unknown>, source?:
 // Candidate preparation
 // ---------------------------------------------------------------------------
 
-function createFallbackIndex(resume: ResumeItem, resumeId: string): ResumeIndex {
-  const latestWorkHistory = getLatestWorkHistory(resume.workHistory);
+function createFallbackIndex(resume: ResumeItem, resumeId: string, workHistoryLimit: number): ResumeIndex {
+  const latestWorkHistory = getLatestWorkHistory(resume.workHistory, workHistoryLimit);
   const locationText = formatLocationHierarchySearchText(resume.locationHierarchy) || resume.location || "";
   const text = [
     resume.name,
@@ -460,8 +467,99 @@ function createFallbackIndex(resume: ResumeItem, resumeId: string): ResumeIndex 
     industryTags: [],
     salaryRange: null,
     searchText: text,
-    evidenceText: buildLatestWorkHistoryEvidence(latestWorkHistory).text,
+    evidenceText: buildLatestWorkHistoryEvidence(latestWorkHistory, {
+      limit: workHistoryLimit,
+    }).text,
   };
+}
+
+function normalizeWorkHistoryIdentity(value: string | undefined): string {
+  return (value ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function filterCompanyHitsForWorkHistory(companyHits: string[], workHistory: ResumeItem["workHistory"]): string[] {
+  const selectedCompanies = workHistory
+    .map((entry) => normalizeWorkHistoryEntry(entry)?.companyName)
+    .map((company) => normalizeWorkHistoryIdentity(company))
+    .filter(Boolean);
+
+  if (selectedCompanies.length === 0) {
+    return [];
+  }
+
+  return companyHits.filter((companyHit) => {
+    const normalizedHit = normalizeWorkHistoryIdentity(companyHit);
+    return selectedCompanies.some((company) =>
+      company === normalizedHit
+      || company.includes(normalizedHit)
+      || normalizedHit.includes(company));
+  });
+}
+
+function filterRoleSignalsForWorkHistory(
+  roleSignals: RoleSignalSummary[],
+  workHistory: ResumeItem["workHistory"],
+): RoleSignalSummary[] {
+  const selectedEntries = workHistory
+    .map((entry) => normalizeWorkHistoryEntry(entry))
+    .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
+    .map((entry) => ({
+      companyName: normalizeWorkHistoryIdentity(entry.companyName),
+      jobTitle: normalizeWorkHistoryIdentity(entry.jobTitle),
+    }));
+
+  return roleSignals.flatMap((signal) => {
+    if (signal.verifyIn !== "workHistory") {
+      return [signal];
+    }
+
+    const matchedWorkEntries = (signal.matchedWorkEntries ?? []).filter((entry) => {
+      const companyName = normalizeWorkHistoryIdentity(entry.companyName);
+      const jobTitle = normalizeWorkHistoryIdentity(entry.jobTitle);
+      return selectedEntries.some((selected) =>
+        (!companyName || selected.companyName === companyName)
+        && (!jobTitle || selected.jobTitle === jobTitle));
+    });
+    if (matchedWorkEntries.length === 0) {
+      return [];
+    }
+
+    const matchedSignals = Array.from(new Set(
+      matchedWorkEntries.flatMap((entry) => entry.matchedSignals),
+    ));
+    const years = Math.min(
+      signal.years,
+      matchedWorkEntries.reduce((sum, entry) => sum + Math.max(0, entry.years), 0),
+    );
+    const industryVerifiedYears = Math.min(
+      signal.industryVerifiedYears,
+      matchedWorkEntries.reduce(
+        (sum, entry) => sum + (entry.industryVerified ? Math.max(0, entry.years) : 0),
+        0,
+      ),
+    );
+
+    return [{
+      ...signal,
+      matchedSignals,
+      signalCount: matchedSignals.length,
+      occurrences: matchedWorkEntries.length,
+      years,
+      industryVerifiedYears,
+      ...(signal.roleRelevantYears === undefined
+        ? {}
+        : { roleRelevantYears: Math.min(signal.roleRelevantYears, years) }),
+      ...(signal.industryVerifiedRelevantYears === undefined
+        ? {}
+        : {
+          industryVerifiedRelevantYears: Math.min(
+            signal.industryVerifiedRelevantYears,
+            industryVerifiedYears,
+          ),
+        }),
+      matchedWorkEntries,
+    }];
+  });
 }
 
 export function prepareResumeCandidate(params: {
@@ -471,7 +569,9 @@ export function prepareResumeCandidate(params: {
   primaryRuleScore?: number;
   provenance?: ResumeSearchProvenance[];
   ingestData?: unknown;
+  workHistoryLimit?: number;
 }): PreparedResumeCandidate {
+  const workHistoryLimit = normalizeResumeWorkHistoryLimit(params.workHistoryLimit);
   const rawIngestData = params.ingestData ?? params.resume.ingestData;
   const parsedIngestData = params.resume.ingestData ?? buildResumeIngestData(params.ingestData);
   // Always stamp the authoritative id (Convex document _id on the live path).
@@ -486,15 +586,31 @@ export function prepareResumeCandidate(params: {
         ingestData: parsedIngestData,
       }
     : baseResume;
+  const latestWorkHistory = getLatestWorkHistory(resume.workHistory, workHistoryLimit);
+  const fallbackIndex = createFallbackIndex(resume, params.resumeId, workHistoryLimit);
+  const hasSelectedWorkHistory = latestWorkHistory.length > 0;
+  const parsedCompanyHits = toStringArray(isRecord(rawIngestData) ? rawIngestData.companyHits : undefined);
+  const parsedRoleSignals = parseRoleSignals(isRecord(rawIngestData) ? rawIngestData.roleSignals : undefined);
   return {
     resume,
     resumeId: params.resumeId,
-    indexData: params.indexData ?? createFallbackIndex(resume, params.resumeId),
+    indexData: params.indexData && hasSelectedWorkHistory
+      ? {
+        ...params.indexData,
+        companies: fallbackIndex.companies,
+        evidenceText: fallbackIndex.evidenceText,
+      }
+      : (params.indexData ?? fallbackIndex),
     primaryRuleScore: params.primaryRuleScore,
     provenance: params.provenance,
     brandHits: parseBrandHits(isRecord(rawIngestData) ? rawIngestData.brandHits : undefined),
-    companyHits: toStringArray(isRecord(rawIngestData) ? rawIngestData.companyHits : undefined),
-    roleSignals: parseRoleSignals(isRecord(rawIngestData) ? rawIngestData.roleSignals : undefined),
+    companyHits: hasSelectedWorkHistory
+      ? filterCompanyHitsForWorkHistory(parsedCompanyHits, latestWorkHistory)
+      : parsedCompanyHits,
+    roleSignals: hasSelectedWorkHistory
+      ? filterRoleSignalsForWorkHistory(parsedRoleSignals, latestWorkHistory)
+      : parsedRoleSignals,
+    workHistoryLimit,
   };
 }
 
@@ -528,6 +644,7 @@ export async function prepareConvexCandidates(params: {
   jobDescriptionId?: string;
   paged?: boolean;
   resumeService: ResumeService;
+  workHistoryLimit?: number;
 }): Promise<{
   prepared: PreparedResumeCandidate[];
   keywordExpansion?: ResumeKeywordExpansion;
@@ -556,6 +673,7 @@ export async function prepareConvexCandidates(params: {
         resume,
         resumeId,
         ingestData: resumeRecord.ingestData,
+        workHistoryLimit: params.workHistoryLimit,
       }));
     });
 
@@ -678,6 +796,7 @@ export async function prepareConvexCandidates(params: {
             primaryRuleScore: toOptionalNumber(doc.primaryRuleScore),
             provenance,
             ingestData: doc.ingestData,
+            workHistoryLimit: params.workHistoryLimit,
           }));
         }
       }
@@ -737,6 +856,7 @@ export async function prepareConvexCandidates(params: {
             primaryRuleScore: toOptionalNumber(resumeRecord.primaryRuleScore),
             provenance: parseConvexProvenance(entry.provenance),
             ingestData: resumeRecord.ingestData,
+            workHistoryLimit: params.workHistoryLimit,
           }));
         }
 
@@ -795,6 +915,7 @@ export async function prepareConvexCandidates(params: {
         primaryRuleScore: toOptionalNumber(resumeRecord.primaryRuleScore),
         provenance: parseConvexProvenance(entry.provenance),
         ingestData: resumeRecord.ingestData,
+        workHistoryLimit: params.workHistoryLimit,
       })];
     });
 
@@ -836,6 +957,7 @@ export async function prepareConvexCandidates(params: {
         resumeId,
         primaryRuleScore: toOptionalNumber(item.primaryRuleScore),
         ingestData: item.ingestData,
+        workHistoryLimit: params.workHistoryLimit,
       })];
     }),
     total: params.paged && isRecord(value) ? (toOptionalNumber(value.total) ?? undefined) : undefined,
@@ -936,8 +1058,9 @@ export function buildAiResumePayload(item: {
   brandHits?: PreparedResumeCandidate["brandHits"];
   companyHits: string[];
   roleSignals: PreparedResumeCandidate["roleSignals"];
+  workHistoryLimit: number;
 }): import("./ai-matching.js").MatchingRequest["resume"] {
-  const latestWorkHistory = getLatestWorkHistory(item.resume.workHistory);
+  const latestWorkHistory = getLatestWorkHistory(item.resume.workHistory, item.workHistoryLimit);
   const ingestData = item.resume.ingestData;
   return {
     id: item.resumeId,
@@ -945,11 +1068,13 @@ export function buildAiResumePayload(item: {
     workExperience: item.indexData.experienceYears ?? undefined,
     education: item.resume.education || undefined,
     skills: item.indexData.skills,
-    companies: item.indexData.companies.length > 0 ? item.indexData.companies : extractCompanies(latestWorkHistory),
+    companies: extractCompanies(latestWorkHistory),
     brandHits: item.brandHits && item.brandHits.length > 0 ? item.brandHits : undefined,
     companyHits: item.companyHits,
     roleSignals: item.roleSignals,
-    workHistory: buildLatestWorkHistoryEvidence(latestWorkHistory).lines.join("\n") || undefined,
+    workHistory: buildLatestWorkHistoryEvidence(latestWorkHistory, {
+      limit: item.workHistoryLimit,
+    }).lines.join("\n") || undefined,
     sourceKey: resolveResumeAnalysisSourceKey({
       sourceKey: item.resume.profileType,
       source: item.resume.source,

@@ -38,7 +38,19 @@ export type WorkHistorySelectionOptions = {
   limit?: number;
 };
 
-export const LATEST_WORK_HISTORY_LIMIT = 3;
+export const DEFAULT_RESUME_WORK_HISTORY_LIMIT = 3;
+export const MIN_RESUME_WORK_HISTORY_LIMIT = 1;
+export const MAX_RESUME_WORK_HISTORY_LIMIT = 10;
+export const LATEST_WORK_HISTORY_LIMIT = DEFAULT_RESUME_WORK_HISTORY_LIMIT;
+
+export function normalizeResumeWorkHistoryLimit(value: unknown): number {
+  return typeof value === "number"
+    && Number.isInteger(value)
+    && value >= MIN_RESUME_WORK_HISTORY_LIMIT
+    && value <= MAX_RESUME_WORK_HISTORY_LIMIT
+    ? value
+    : DEFAULT_RESUME_WORK_HISTORY_LIMIT;
+}
 
 function toRawEntries(input: unknown): unknown[] {
   if (Array.isArray(input)) {

@@ -12,7 +12,8 @@ import {
   INGEST_BRAND_CONTEXT_LABELS,
   INGEST_BRAND_ROLE_LABELS,
   INGEST_BRAND_SOURCE_LABELS,
-  LATEST_WORK_HISTORY_LIMIT,
+  MAX_RESUME_WORK_HISTORY_LIMIT,
+  MIN_RESUME_WORK_HISTORY_LIMIT,
   SETTINGS_NAV_ITEMS,
   SYSTEM_SETTINGS_NAV_ITEMS,
   SYSTEM_CAPABILITY_DESCRIPTORS,
@@ -25,6 +26,7 @@ import { configSourceInspector, UnknownConfigSourceError } from "../services/con
 import { customKeywordService } from "../services/custom-keyword-service.js";
 import { workspaceConfigService } from "../services/workspace-config-service.js";
 import { logger } from "../services/logger.js";
+import { getEffectiveResumeWorkHistoryLimit } from "../services/resume-work-history-limit.js";
 
 const app = new OpenAPIHono();
 const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -199,7 +201,9 @@ const SystemMetadataSchema = z.object({
 });
 const ResumeDisplayLimitsSchema = z.object({
   success: z.literal(true),
-  latestWorkHistoryLimit: z.number().int().nonnegative(),
+  latestWorkHistoryLimit: z.number().int()
+    .min(MIN_RESUME_WORK_HISTORY_LIMIT)
+    .max(MAX_RESUME_WORK_HISTORY_LIMIT),
   source: z.string(),
 });
 
@@ -1124,8 +1128,8 @@ app.openapi(getResumeDisplayLimitsRoute, async (c) => {
   try {
     const payload = {
       success: true as const,
-      latestWorkHistoryLimit: LATEST_WORK_HISTORY_LIMIT,
-      source: "packages/shared/src/work-history-evidence.ts",
+      latestWorkHistoryLimit: await getEffectiveResumeWorkHistoryLimit(),
+      source: "system_settings.resumeWorkHistoryLimit",
     };
     const parsed = ResumeDisplayLimitsSchema.safeParse(payload);
     if (!parsed.success) {

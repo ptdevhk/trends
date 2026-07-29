@@ -123,16 +123,18 @@ describe("projectResumeDetailDoc", () => {
     expect(projected.externalId).toBe("ext-1");
   });
 
-  it("keeps the full stored work history in detail projection", async () => {
+  it("keeps at most the latest ten detailed entries in detail projection", async () => {
     const resume = makeResume({
       content: {
         name: "Alice",
-        workHistory: [
-          { companyName: "Newest Co", jobTitle: "Senior Engineer", raw: "Newest Co - Senior Engineer (2024-2026)" },
-          { companyName: "Recent Co", jobTitle: "Engineer", raw: "Recent Co - Engineer (2022-2024)" },
-          { companyName: "Middle Co", jobTitle: "Associate Engineer", raw: "Middle Co - Associate Engineer (2020-2022)" },
-          { companyName: "Oldest Co", jobTitle: "Intern", raw: "Oldest Co - Intern (2018-2020)" },
-        ],
+        workHistory: Array.from({ length: 11 }, (_, index) => ({
+          companyName: `Company ${index + 1}`,
+          jobTitle: `Role ${index + 1}`,
+          description: `Detailed responsibilities ${index + 1}`,
+          startDate: `${2015 + index}-01`,
+          endDate: `${2015 + index}-12`,
+          raw: `Company ${index + 1} - Role ${index + 1}`,
+        })),
       },
     });
     const mockCtx = {
@@ -150,13 +152,12 @@ describe("projectResumeDetailDoc", () => {
       ? projected.content.workHistory
       : [];
 
-    expect(workHistory).toHaveLength(4);
-    expect(workHistory).toEqual(expect.arrayContaining([
-      expect.objectContaining({ companyName: "Newest Co" }),
-      expect.objectContaining({ companyName: "Recent Co" }),
-      expect.objectContaining({ companyName: "Middle Co" }),
-      expect.objectContaining({ companyName: "Oldest Co" }),
-    ]));
+    expect(workHistory).toHaveLength(10);
+    expect(workHistory[0]).toEqual(expect.objectContaining({
+      companyName: "Company 11",
+      description: "Detailed responsibilities 11",
+    }));
+    expect(workHistory.map((entry) => entry.companyName)).not.toContain("Company 1");
   });
 });
 

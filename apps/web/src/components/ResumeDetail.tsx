@@ -7,6 +7,7 @@ import {
   normalizeWorkHistoryEntry,
   RESUME_AI_PROMPT_LOCALE_TO_NATURAL_LANGUAGE,
   sanitizeResumeRecordForSurface,
+  selectLatestWorkHistory,
 } from '@trends/shared'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button, buttonVariants } from '@/components/ui/button'
@@ -22,6 +23,7 @@ import { getScoreClassName } from '@/lib/score-classes'
 import { cn } from '@/lib/utils'
 import { useBrandDisplayMap } from '@/hooks/useBrandDisplayMap'
 import { useResumeFieldUsagePolicy } from '@/contexts/ResumeFieldUsagePolicyContext'
+import { useResumeWorkHistoryLimit } from '@/contexts/ResumeWorkHistoryLimitContext'
 import { CompanyPolicyBadges } from '@/components/CompanyPolicyBadges'
 import { CompanyResearchStrip } from '@/components/research/CompanyResearchStrip'
 import { useCompanyPolicyIndex } from '@/hooks/useCompanyPolicyIndex'
@@ -131,6 +133,7 @@ export function ResumeDetail({
 }: ResumeDetailProps) {
   const { t } = useTranslation()
   const fieldUsagePolicy = useResumeFieldUsagePolicy()
+  const { limit: workHistoryLimit } = useResumeWorkHistoryLimit()
   const [isInfoExpanded, setIsInfoExpanded] = useState(false)
   const presentationResume = useMemo(
     () => (resume ? sanitizeResumeRecordForSurface(resume, 'presentation', fieldUsagePolicy) : null),
@@ -140,10 +143,10 @@ export function ResumeDetail({
 
   const workHistory = useMemo(() => {
     if (!presentationResume?.workHistory?.length) return []
-    return presentationResume.workHistory
+    return selectLatestWorkHistory(presentationResume.workHistory, { limit: workHistoryLimit })
       .map((entry) => normalizeWorkHistoryEntry(entry))
       .filter((entry): entry is NonNullable<typeof entry> => shouldRenderResumeDetailWorkHistoryEntry(entry))
-  }, [presentationResume])
+  }, [presentationResume, workHistoryLimit])
   const workHistoryAnnotations = useMemo(() => {
     if (!resume || !hasIngestData(resume)) {
       return workHistory.map(() => [])

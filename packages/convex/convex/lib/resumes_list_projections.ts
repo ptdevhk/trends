@@ -7,6 +7,7 @@
 import type { Doc } from "../_generated/dataModel";
 import type { QueryCtx } from "../_generated/server";
 import {
+    MAX_RESUME_WORK_HISTORY_LIMIT,
     isRecord,
     normalizeResumeLocationHierarchy,
     computeExperienceFromWorkHistory,
@@ -210,9 +211,11 @@ export function projectResumeBaseContent(
 }
 
 export function projectResumeListWorkHistory(workHistory: unknown): Array<Record<string, string>> {
-    // Latest-N only. Keep description + raw so expanded Seek/MY cards can show
-    // career-history detail (China cards already relied on richer raw/description).
-    return selectLatestWorkHistory(workHistory).map((entry) => {
+    // Project the maximum configurable window. Presentation applies the
+    // effective global limit without requiring another detail fetch.
+    return selectLatestWorkHistory(workHistory, {
+        limit: MAX_RESUME_WORK_HISTORY_LIMIT,
+    }).map((entry) => {
         const projected: Record<string, string> = {
             ...(entry.companyName ? { companyName: entry.companyName } : {}),
             ...(entry.jobTitle ? { jobTitle: entry.jobTitle } : {}),
@@ -235,10 +238,10 @@ export function projectResumeListContent(resume: Doc<"resumes">): Record<string,
 
 export function projectResumeDetailContent(resume: Doc<"resumes">): Record<string, unknown> {
     const content = isRecord(resume.content) ? resume.content : {};
-    const workHistory = Array.isArray(content.workHistory)
-        ? content.workHistory
-        : [];
-    return projectResumeBaseContent(resume, workHistory);
+    return projectResumeBaseContent(
+        resume,
+        projectResumeListWorkHistory(content.workHistory),
+    );
 }
 
 export function projectResumeListIngestData(

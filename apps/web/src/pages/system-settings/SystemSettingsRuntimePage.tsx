@@ -1,10 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  DEFAULT_RESUME_WORK_HISTORY_LIMIT,
+  MAX_RESUME_WORK_HISTORY_LIMIT,
+  MIN_RESUME_WORK_HISTORY_LIMIT,
+} from '@trends/shared'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { useResumeWorkHistoryLimit } from '@/contexts/ResumeWorkHistoryLimitContext'
 import {
   parseAgentsConfigPayload,
   parseAIStatusPayload,
@@ -16,18 +22,54 @@ import {
 } from '@/pages/system-settings/lib'
 import { reportUiError } from '@/lib/ui-error-reporting'
 
+function parseResumeWorkHistoryLimitPayload(payload: unknown): number | null {
+  if (!payload || typeof payload !== 'object') {
+    return null
+  }
+
+  const { success, limit } = payload as { success?: unknown; limit?: unknown }
+  return success === true
+    && typeof limit === 'number'
+    && Number.isInteger(limit)
+    && limit >= MIN_RESUME_WORK_HISTORY_LIMIT
+    && limit <= MAX_RESUME_WORK_HISTORY_LIMIT
+    ? limit
+    : null
+}
+
+function parseResumeWorkHistoryLimitInput(rawValue: string): number | null {
+  const normalized = rawValue.trim()
+  if (!/^\d+$/.test(normalized)) {
+    return null
+  }
+
+  const value = Number(normalized)
+  return Number.isInteger(value)
+    && value >= MIN_RESUME_WORK_HISTORY_LIMIT
+    && value <= MAX_RESUME_WORK_HISTORY_LIMIT
+    ? value
+    : null
+}
+
 export function SystemSettingsRuntimePage() {
   const { t } = useTranslation()
   const { requestJson } = useSettingsRequestJson()
+  const { limit: workHistoryLimit, setLimit: setEffectiveWorkHistoryLimit } = useResumeWorkHistoryLimit()
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [aiStatus, setAiStatus] = useState<ReturnType<typeof parseAIStatusPayload>>(null)
   const [agentsConfig, setAgentsConfig] = useState<AgentsConfig | null>(null)
   const [savingAgentId, setSavingAgentId] = useState<string | null>(null)
+  const [workHistoryLimitInput, setWorkHistoryLimitInput] = useState(String(DEFAULT_RESUME_WORK_HISTORY_LIMIT))
+  const [savingWorkHistoryLimit, setSavingWorkHistoryLimit] = useState(false)
 
   const reviewStageCount = useMemo(
     () => agentsConfig?.agents.list.filter((agent) => agent.isBonded).length ?? 0,
     [agentsConfig],
+  )
+  const parsedWorkHistoryLimitInput = useMemo(
+    () => parseResumeWorkHistoryLimitInput(workHistoryLimitInput),
+    [workHistoryLimitInput],
   )
 
   const loadData = useCallback(async () => {
@@ -35,9 +77,14 @@ export function SystemSettingsRuntimePage() {
     setLoadError(null)
 
     try {
-      const [aiPayload, agentsPayload] = await Promise.all([
+      const workHistoryLimitPromise = requestJson('/api/system/resume-work-history-limit').catch((error) => {
+        reportUiError('Failed to load resume work-history limit', error)
+        return null
+      })
+      const [aiPayload, agentsPayload, workHistoryLimitPayload] = await Promise.all([
         requestJson('/api/config/ai-status'),
         requestJson('/api/config/agents'),
+        workHistoryLimitPromise,
       ])
 
       const parsedAiStatus = parseAIStatusPayload(aiPayload)
@@ -48,13 +95,17 @@ export function SystemSettingsRuntimePage() {
 
       setAiStatus(parsedAiStatus)
       setAgentsConfig(parsedAgentsConfig)
+      const nextWorkHistoryLimit = parseResumeWorkHistoryLimitPayload(workHistoryLimitPayload)
+        ?? DEFAULT_RESUME_WORK_HISTORY_LIMIT
+      setWorkHistoryLimitInput(String(nextWorkHistoryLimit))
+      setEffectiveWorkHistoryLimit(nextWorkHistoryLimit)
     } catch (error) {
       reportUiError('Failed to load runtime settings', error)
       setLoadError(t('resumes.error'))
     } finally {
       setLoading(false)
     }
-  }, [requestJson, t])
+  }, [requestJson, setEffectiveWorkHistoryLimit, t])
 
   useEffect(() => {
     loadData().catch((error) => {
@@ -166,6 +217,39 @@ export function SystemSettingsRuntimePage() {
     }
   }, [agentsConfig, requestJson, t])
 
+  const handleSaveWorkHistoryLimit = useCallback(async () => {
+    const nextLimit = parseResumeWorkHistoryLimitInput(workHistoryLimitInput)
+    if (nextLimit === null) {
+      toast.error(t('debugConfig.resumeWorkHistoryLimitValidation', {
+        defaultValue: 'Enter a whole number from 1 to 10.',
+      }))
+      return
+    }
+
+    setSavingWorkHistoryLimit(true)
+    try {
+      const payload = await requestJson('/api/system/resume-work-history-limit', {
+        method: 'PUT',
+        body: JSON.stringify({ limit: nextLimit }),
+      })
+      const savedLimit = parseResumeWorkHistoryLimitPayload(payload)
+      if (savedLimit === null) {
+        throw new Error('Invalid resume work-history limit save response')
+      }
+
+      setWorkHistoryLimitInput(String(savedLimit))
+      setEffectiveWorkHistoryLimit(savedLimit)
+      toast.success(t('debugConfig.resumeWorkHistoryLimitSaved', {
+        defaultValue: 'Resume work-history limit saved.',
+      }))
+    } catch (error) {
+      reportUiError('Failed to save resume work-history limit', error)
+      toast.error(t('debugConfig.saveError'))
+    } finally {
+      setSavingWorkHistoryLimit(false)
+    }
+  }, [requestJson, setEffectiveWorkHistoryLimit, t, workHistoryLimitInput])
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -197,6 +281,66 @@ export function SystemSettingsRuntimePage() {
           {loadError}
         </div>
       )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>
+            {t('debugConfig.resumeWorkHistoryLimitTitle', {
+              defaultValue: 'Resume work-history limit',
+            })}
+          </CardTitle>
+          <CardDescription>
+            {t('debugConfig.resumeWorkHistoryLimitDescription', {
+              defaultValue: 'Complete work history remains stored. Resume screens and future analysis runs use only the latest configured entries.',
+            })}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div className="w-full max-w-xs space-y-2">
+            <label htmlFor="resume-work-history-limit" className="text-sm font-medium">
+              {t('debugConfig.resumeWorkHistoryLimitLabel', {
+                defaultValue: 'Latest work-history entries',
+              })}
+            </label>
+            <Input
+              id="resume-work-history-limit"
+              type="number"
+              min={MIN_RESUME_WORK_HISTORY_LIMIT}
+              max={MAX_RESUME_WORK_HISTORY_LIMIT}
+              step={1}
+              value={workHistoryLimitInput}
+              onChange={(event) => setWorkHistoryLimitInput(event.target.value)}
+              aria-invalid={parsedWorkHistoryLimitInput === null}
+              disabled={loading || savingWorkHistoryLimit}
+            />
+            <p className="text-xs text-muted-foreground">
+              {t('debugConfig.resumeWorkHistoryLimitCurrent', {
+                defaultValue: 'Currently applied: {{count}}',
+                count: workHistoryLimit,
+              })}
+            </p>
+            {parsedWorkHistoryLimitInput === null && (
+              <p className="text-xs text-destructive" role="alert">
+                {t('debugConfig.resumeWorkHistoryLimitValidation', {
+                  defaultValue: 'Enter a whole number from 1 to 10.',
+                })}
+              </p>
+            )}
+          </div>
+          <Button
+            onClick={() => {
+              handleSaveWorkHistoryLimit().catch((error) => {
+                reportUiError('Unexpected handleSaveWorkHistoryLimit failure', error)
+              })
+            }}
+            disabled={loading || savingWorkHistoryLimit || parsedWorkHistoryLimitInput === null}
+          >
+            {savingWorkHistoryLimit
+              ? t('debugConfig.saving')
+              : t('debugConfig.resumeWorkHistoryLimitSave', { defaultValue: 'Save limit' })}
+          </Button>
+        </CardContent>
+      </Card>
 
       <div className="grid gap-6 2xl:grid-cols-[minmax(0,0.78fr)_minmax(0,1.22fr)]">
         <Card className="h-full">

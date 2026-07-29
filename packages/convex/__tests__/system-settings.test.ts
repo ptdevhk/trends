@@ -3,6 +3,42 @@ import { createTest } from "./test-helpers.js";
 import { api, internal } from "../convex/_generated/api.js";
 
 describe("system_settings", () => {
+    it("returns the default resume work-history limit when no row exists", async () => {
+        const t = createTest();
+        const result = await t.query(api.system_settings.getResumeWorkHistoryLimit, {});
+        expect(result).toBe(3);
+    });
+
+    it("sets and returns a validated resume work-history limit", async () => {
+        const t = createTest();
+        await t.mutation(api.system_settings.setResumeWorkHistoryLimit, {
+            limit: 5,
+            updatedBy: "admin@example.com",
+        });
+
+        expect(await t.query(api.system_settings.getResumeWorkHistoryLimit, {})).toBe(5);
+        expect(await t.query(api.system_settings.get, { key: "resumeWorkHistoryLimit" })).toBe(5);
+    });
+
+    it.each([0, 11, 2.5])("rejects invalid resume work-history limit %s", async (limit) => {
+        const t = createTest();
+        await expect(t.mutation(api.system_settings.setResumeWorkHistoryLimit, {
+            limit,
+            updatedBy: "admin@example.com",
+        })).rejects.toThrow("between 1 and 10");
+    });
+
+    it("falls back to three when a raw stored value is invalid", async () => {
+        const t = createTest();
+        await t.mutation(api.system_settings.set, {
+            key: "resumeWorkHistoryLimit",
+            value: 99,
+            updatedBy: "legacy-script",
+        });
+
+        expect(await t.query(api.system_settings.getResumeWorkHistoryLimit, {})).toBe(3);
+    });
+
     it("isMaintenanceMode returns false when no row exists", async () => {
         const t = createTest();
         const result = await t.query(api.system_settings.isMaintenanceMode, {});

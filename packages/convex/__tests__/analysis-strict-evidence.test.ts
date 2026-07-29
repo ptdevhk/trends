@@ -63,6 +63,55 @@ describe("normalizeResume strict evidence", () => {
     expect(normalized.companies).toBe("Current Co, Recent Co, Middle Co");
   });
 
+  it("honors a raised work-history limit for companies and strict evidence", () => {
+    const normalized = normalizeResume({
+      workHistory: [
+        { startDate: "2018-01", endDate: "2019-01", companyName: "Oldest Co", jobTitle: "Old Role" },
+        { startDate: "2021-01", endDate: "2022-01", companyName: "Middle Co", jobTitle: "Middle Role" },
+        { startDate: "2023-01", endDate: "2024-01", companyName: "Recent Co", jobTitle: "Recent Role" },
+        { startDate: "2024-02", endDate: "至今", companyName: "Current Co", jobTitle: "Current Role" },
+      ],
+      ingestData: {
+        evidenceText: "stale latest-three evidence",
+      },
+    } as unknown, { locale: "en", workHistoryLimit: 4 });
+
+    expect(normalized.companies).toBe("Current Co, Recent Co, Middle Co, Oldest Co");
+    expect(normalized.evidenceText).toContain("Oldest Co");
+    expect(normalized.evidenceText).not.toContain("stale latest-three evidence");
+  });
+
+  it("filters company and role evidence outside a lowered work-history limit", () => {
+    const normalized = normalizeResume({
+      workHistory: [
+        { startDate: "2023-01", endDate: "2024-01", companyName: "Recent Co", jobTitle: "Recent Role" },
+        { startDate: "2024-02", endDate: "至今", companyName: "Current Co", jobTitle: "Current Role" },
+      ],
+      ingestData: {
+        companyHits: ["Recent Co", "Current Co"],
+        roleSignals: [{
+          type: "sales",
+          years: 4,
+          industryVerifiedYears: 4,
+          matchedSignals: ["recent", "current"],
+          signalCount: 2,
+          occurrences: 2,
+          verifyIn: "workHistory",
+          matchedWorkEntries: [
+            { companyName: "Recent Co", jobTitle: "Recent Role", years: 2, industryVerified: true, matchedSignals: ["recent"] },
+            { companyName: "Current Co", jobTitle: "Current Role", years: 2, industryVerified: true, matchedSignals: ["current"] },
+          ],
+        }],
+      },
+    } as unknown, { locale: "en", workHistoryLimit: 1 });
+
+    expect(normalized.verifiedCompanies).toEqual(["Current Co"]);
+    expect(normalized.roleSignals[0]?.matchedWorkEntries).toEqual([
+      expect.objectContaining({ companyName: "Current Co" }),
+    ]);
+    expect(normalized.roleSignals[0]?.years).toBe(2);
+  });
+
   it("formats structured work-entry evidence in English when locale is en", () => {
     const normalized = normalizeResume({
       ingestData: {

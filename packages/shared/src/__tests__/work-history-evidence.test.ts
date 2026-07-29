@@ -5,7 +5,11 @@ import {
   buildWorkHistoryDateRange,
   buildWorkHistoryEntryText,
   buildWorkHistoryEvidence,
+  DEFAULT_RESUME_WORK_HISTORY_LIMIT,
+  MAX_RESUME_WORK_HISTORY_LIMIT,
+  MIN_RESUME_WORK_HISTORY_LIMIT,
   normalizeWorkHistoryEntry,
+  normalizeResumeWorkHistoryLimit,
   selectLatestWorkHistory,
 } from "../work-history-evidence";
 
@@ -144,4 +148,41 @@ describe("work-history evidence helpers", () => {
       "2021-03 ~ 2023-12 Mid Co. Engineer",
     ]);
   });
+
+  it("honors an explicit configured selection limit", () => {
+    const selected = selectLatestWorkHistory([
+      { companyName: "One", startDate: "2025-01", endDate: "至今" },
+      { companyName: "Two", startDate: "2024-01", endDate: "2024-12" },
+      { companyName: "Three", startDate: "2023-01", endDate: "2023-12" },
+      { companyName: "Four", startDate: "2022-01", endDate: "2022-12" },
+      { companyName: "Five", startDate: "2021-01", endDate: "2021-12" },
+    ], { limit: 5 });
+
+    expect(selected.map((entry) => entry.companyName)).toEqual([
+      "One",
+      "Two",
+      "Three",
+      "Four",
+      "Five",
+    ]);
+  });
+});
+
+describe("normalizeResumeWorkHistoryLimit", () => {
+  it("exposes the approved default and bounds", () => {
+    expect(DEFAULT_RESUME_WORK_HISTORY_LIMIT).toBe(3);
+    expect(MIN_RESUME_WORK_HISTORY_LIMIT).toBe(1);
+    expect(MAX_RESUME_WORK_HISTORY_LIMIT).toBe(10);
+  });
+
+  it.each([1, 3, 10])("accepts valid integer limit %s", (value) => {
+    expect(normalizeResumeWorkHistoryLimit(value)).toBe(value);
+  });
+
+  it.each([undefined, null, "3", 0, 11, 2.5, Number.NaN])(
+    "falls back to three for invalid value %s",
+    (value) => {
+      expect(normalizeResumeWorkHistoryLimit(value)).toBe(3);
+    },
+  );
 });

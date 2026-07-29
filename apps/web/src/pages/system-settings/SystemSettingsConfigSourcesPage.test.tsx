@@ -92,8 +92,8 @@ const mockSourceDetail = {
 
 const mockResumeDisplayLimits = {
   success: true,
-  latestWorkHistoryLimit: 3,
-  source: 'packages/shared/src/work-history-evidence.ts',
+  latestWorkHistoryLimit: 5,
+  source: 'system_settings.resumeWorkHistoryLimit',
 }
 
 describe('SystemSettingsConfigSourcesPage', () => {
@@ -129,7 +129,8 @@ describe('SystemSettingsConfigSourcesPage', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByText('3')).toBeInTheDocument()
+      expect(screen.getByText('5')).toBeInTheDocument()
+      expect(screen.getByText('system_settings.resumeWorkHistoryLimit')).toBeInTheDocument()
     })
   })
 

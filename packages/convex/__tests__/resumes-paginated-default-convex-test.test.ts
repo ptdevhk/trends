@@ -460,7 +460,7 @@ describe("resumes: listWithIngestDataPaginated", () => {
 // ---------------------------------------------------------------------------
 
 describe("resumes: getResumeDetail", () => {
-  it("projects only the latest three work history entries", async () => {
+  it("projects the bounded configurable work-history window", async () => {
     const t = createTest();
 
     const resumeId = await insertResume(t, {
@@ -481,9 +481,14 @@ describe("resumes: getResumeDetail", () => {
 
     expect(result).not.toBeNull();
     const workHistory = ((result as Record<string, unknown>).content as Record<string, unknown>)?.workHistory as Array<Record<string, unknown>>;
-    expect(workHistory).toHaveLength(3);
+    expect(workHistory).toHaveLength(4);
     const companyNames = workHistory.map((e: Record<string, unknown>) => e.companyName);
-    expect(companyNames).not.toContain("Oldest Co");
+    expect(companyNames).toEqual([
+      "Current Co",
+      "Recent Co",
+      "Middle Co",
+      "Oldest Co",
+    ]);
   });
 
   it("returns null for non-existent resume", async () => {

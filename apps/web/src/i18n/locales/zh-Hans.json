@@ -628,6 +628,13 @@
   "debugConfig": {
     "agentsDescription": "用于阈值、批量、并发与模型覆写的审核阶段执行设定",
     "runtimePageDescription": "查看 AI 连接状态与审核阶段执行设定。",
+    "resumeWorkHistoryLimitTitle": "简历工作经历条数",
+    "resumeWorkHistoryLimitDescription": "完整工作经历仍会保留。简历界面和后续分析只使用最新的已配置条数。",
+    "resumeWorkHistoryLimitLabel": "最新工作经历条数",
+    "resumeWorkHistoryLimitCurrent": "当前生效：{{count}}",
+    "resumeWorkHistoryLimitValidation": "请输入 1 到 10 之间的整数。",
+    "resumeWorkHistoryLimitSaved": "简历工作经历条数已保存。",
+    "resumeWorkHistoryLimitSave": "保存条数",
     "presetId": "ID",
     "trigger": "触发条件",
     "customKeywordId": "ID",

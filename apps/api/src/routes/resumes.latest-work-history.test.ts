@@ -1,5 +1,11 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { resolveResumeFieldUsagePolicy } from '@trends/shared'
+
+const getEffectiveResumeWorkHistoryLimitMock = vi.hoisted(() => vi.fn())
+
+vi.mock('../services/resume-work-history-limit', () => ({
+  getEffectiveResumeWorkHistoryLimit: getEffectiveResumeWorkHistoryLimitMock,
+}))
 
 import { createApp } from '../app'
 import { AIMatchingService } from '../services/ai-matching'
@@ -9,6 +15,10 @@ import { workspaceConfigService } from '../services/workspace-config-service'
 import { createAuthContext } from './test-auth-helpers'
 
 describe('resume routes latest work history', () => {
+  beforeEach(() => {
+    getEffectiveResumeWorkHistoryLimitMock.mockResolvedValue(3)
+  })
+
   afterEach(() => {
     vi.restoreAllMocks()
   })
@@ -90,6 +100,7 @@ describe('resume routes latest work history', () => {
     })
 
     expect(response.status).toBe(200)
+    expect(getEffectiveResumeWorkHistoryLimitMock).toHaveBeenCalledTimes(1)
     expect(loadSampleSpy).toHaveBeenCalled()
     expect(matchBatchSpy).toHaveBeenCalledTimes(1)
     const resumesArg = matchBatchSpy.mock.calls[0]?.[0]

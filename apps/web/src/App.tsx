@@ -17,6 +17,7 @@ import { AnalysisTasksProvider } from '@/contexts/AnalysisTasksContext'
 import { WorkspaceProvider, useWorkspace } from '@/contexts/WorkspaceContext'
 import { BrandDisplayMapProvider } from '@/contexts/BrandDisplayMapContext'
 import { ResumeFieldUsagePolicyProvider } from '@/contexts/ResumeFieldUsagePolicyContext'
+import { ResumeWorkHistoryLimitProvider } from '@/contexts/ResumeWorkHistoryLimitContext'
 import { isReviewPacketsEnabled } from '@/lib/feature-flags'
 import {
   canUseExplicitRedirect,
@@ -170,11 +171,13 @@ function AppProviders({
     >
       <AuthProvider>
         <AnalysisTasksProvider>
-          <ResumeFieldUsagePolicyProvider>
-            <BrandDisplayMapProvider>
-              {children}
-            </BrandDisplayMapProvider>
-          </ResumeFieldUsagePolicyProvider>
+          <ResumeWorkHistoryLimitProvider>
+            <ResumeFieldUsagePolicyProvider>
+              <BrandDisplayMapProvider>
+                {children}
+              </BrandDisplayMapProvider>
+            </ResumeFieldUsagePolicyProvider>
+          </ResumeWorkHistoryLimitProvider>
         </AnalysisTasksProvider>
       </AuthProvider>
     </WorkspaceProvider>

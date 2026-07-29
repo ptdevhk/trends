@@ -33,6 +33,7 @@ import type { CandidateActionType, CandidateStatus, AiFeedbackSentiment, AiFeedb
 import { ConfirmedScoreBadge } from '@/components/ConfirmedScoreBadge'
 import { CompanyPolicyBadges } from '@/components/CompanyPolicyBadges'
 import { useCompanyPolicyIndex } from '@/hooks/useCompanyPolicyIndex'
+import { useResumeWorkHistoryLimit } from '@/contexts/ResumeWorkHistoryLimitContext'
 
 type SnippetCardProps = {
   expanded: boolean
@@ -92,8 +93,14 @@ const STATUS_BADGE_CLASS: Record<CandidateStatus, string> = {
   withdrawn: 'border-amber-200 bg-amber-50 text-amber-700',
 }
 
-function getPrimaryHeadline(item: ResumeSearchResultItem, fallbackLabel: string): string {
-  const latestWorkEntry = item.resume.workHistory?.[0]
+function getPrimaryHeadline(
+  item: ResumeSearchResultItem,
+  fallbackLabel: string,
+  workHistoryLimit: number,
+): string {
+  const latestWorkEntry = selectLatestWorkHistory(item.resume.workHistory, {
+    limit: workHistoryLimit,
+  })[0]
   if (latestWorkEntry?.jobTitle) {
     return latestWorkEntry.jobTitle
   }
@@ -123,6 +130,7 @@ export const SnippetCard = memo(function SnippetCard({
   searchQuery,
 }: SnippetCardProps) {
   const { t } = useTranslation()
+  const { limit: workHistoryLimit } = useResumeWorkHistoryLimit()
   const contentLocale = getResumeContentLocale(item.resume)
   const resumeSourceLabel = getResumeSourceLabel(item.resume)
   const analysis = item.analysis ?? item.resume.analysis
@@ -169,13 +177,13 @@ export const SnippetCard = memo(function SnippetCard({
 
   // Work history
   const workHistory = useMemo(() =>
-    selectLatestWorkHistory(item.resume.workHistory)
+    selectLatestWorkHistory(item.resume.workHistory, { limit: workHistoryLimit })
       .map((entry) => ({
         entry,
         text: buildWorkHistoryEntryText(entry),
       }))
       .filter(({ text }) => text.length > 0),
-    [item.resume.workHistory],
+    [item.resume.workHistory, workHistoryLimit],
   )
 
   // Profile link
@@ -209,7 +217,7 @@ export const SnippetCard = memo(function SnippetCard({
   const collapseLabel = t('resumes.searchPage.card.collapse', {
     defaultValue: '收起',
   })
-  const primaryHeadline = getPrimaryHeadline(item, profileOverviewLabel)
+  const primaryHeadline = getPrimaryHeadline(item, profileOverviewLabel, workHistoryLimit)
 
   return (
     <Card className="overflow-hidden rounded-[1.5rem] border-slate-200 bg-white shadow-[0_18px_50px_-40px_rgba(15,23,42,0.7)]" lang={contentLocale}>

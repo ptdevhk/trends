@@ -2,7 +2,7 @@
 
 ## Status
 
-Approved for implementation on 2026-07-29.
+Implemented and verified on 2026-07-29.
 
 ## Problem
 
@@ -57,6 +57,15 @@ The card contains:
 - A dedicated save button and loading, success, and error states.
 
 The UI rejects invalid input before submission, while server validation remains authoritative.
+
+### Admin Navigation And Ownership
+
+The two system-settings pages have different responsibilities:
+
+- `/admin/system/settings/runtime` is the **editable source of control**. Administrators change and save the global limit here.
+- `/admin/system/settings/config-sources` is a **read-only inspection surface**. Its `Resume display limits` card reports the currently effective value and identifies the source as `system_settings.resumeWorkHistoryLimit`; it does not edit the setting.
+
+Changing the value on Runtime updates the shared web context immediately. Config Sources reports the same persisted effective value after loading or refreshing, preventing the former hard-coded default from being mistaken for a separate configuration.
 
 ### UI Data Flow
 
@@ -125,3 +134,15 @@ Candidate companies and textual work-history evidence are derived from the selec
 ## Rollout
 
 No data migration is required. Deploying without a `resumeWorkHistoryLimit` row produces the current intended default of three. An administrator may change the value after deployment. Existing analysis records remain valid snapshots of the configuration in effect when they were generated and update only when analysis is rerun.
+
+## Implementation Closeout
+
+The implementation is complete in the current working tree.
+
+- Shared, Convex, API, and SEEK regression suites: `491/491` passed.
+- Affected web suites: `102/102` passed.
+- `bun run check`: passed across package typechecks and web/browser-extension lint.
+- Shared, Convex, API, and web production builds: passed.
+- Browser verification changed the setting from `3` to `4`, confirmed Nicole Lim immediately displayed four detailed roles without recollection, then reset the value to `3` and confirmed only the latest three roles remained visible.
+- Nicole Lim's detailed TERRAN responsibilities remained intact throughout the verification.
+- Live API closeout returned `limit: 3`, and Config Sources reported `system_settings.resumeWorkHistoryLimit` with effective value `3`.

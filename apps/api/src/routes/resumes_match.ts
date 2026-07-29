@@ -38,6 +38,7 @@ import {
   prepareSampleCandidates,
 } from "./resumes_search.js";
 import { requireWorkspaceUser } from "../middleware/auth.js";
+import { getEffectiveResumeWorkHistoryLimit } from "../services/resume-work-history-limit.js";
 
 const app = new OpenAPIHono();
 const resumeService = new ResumeService(config.projectRoot);
@@ -337,6 +338,7 @@ app.openapi(matchResumesRoute, async (c) => {
   let prepared: PreparedResumeCandidate[] = [];
   let jdMeta: { title?: string } = {};
   let content = "";
+  const workHistoryLimit = await getEffectiveResumeWorkHistoryLimit();
 
   try {
     if (source === "convex") {
@@ -348,6 +350,7 @@ app.openapi(matchResumesRoute, async (c) => {
         limit,
         jobDescriptionId: normalizedJobDescriptionId,
         resumeService,
+        workHistoryLimit,
       })).prepared;
     } else {
       const sampleData = resumeService.loadSample(sampleName);
@@ -357,6 +360,7 @@ app.openapi(matchResumesRoute, async (c) => {
         indexMap: sampleData.indexes,
         resumeIds,
         limit,
+        workHistoryLimit,
       });
     }
 
@@ -659,6 +663,7 @@ app.openapi(matchStreamRoute, async (c) => {
   let prepared: PreparedResumeCandidate[] = [];
   let jdMeta: { title?: string } = {};
   let content = "";
+  const workHistoryLimit = await getEffectiveResumeWorkHistoryLimit();
 
   try {
     const sampleData = resumeService.loadSample(sampleName);
@@ -667,6 +672,7 @@ app.openapi(matchStreamRoute, async (c) => {
       indexMap: sampleData.indexes,
       resumeIds,
       limit,
+      workHistoryLimit,
     });
     if (normalizedJobDescriptionId) {
       const jdData = jobService.loadFile(normalizedJobDescriptionId);

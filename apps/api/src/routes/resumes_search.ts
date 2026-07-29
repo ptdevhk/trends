@@ -234,6 +234,7 @@ export function prepareSampleCandidates(params: {
   indexMap: Map<string, ResumeIndex>;
   resumeIds?: string[];
   limit?: number;
+  workHistoryLimit?: number;
 }): PreparedResumeCandidate[] {
   const resumeIdFilter = params.resumeIds?.length
     ? new Set(params.resumeIds)
@@ -249,6 +250,7 @@ export function prepareSampleCandidates(params: {
     resume: item.resume,
     resumeId: item.resumeId,
     indexData: params.indexMap.get(item.resumeId),
+    workHistoryLimit: params.workHistoryLimit,
   }));
 }
 

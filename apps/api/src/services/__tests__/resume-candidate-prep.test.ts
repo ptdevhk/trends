@@ -994,6 +994,52 @@ describe("resume-candidate-prep", () => {
       expect(result.indexData.experienceYears).toBeNull();
     });
 
+    it("applies a configured work-history limit to evidence, companies, and role signals", () => {
+      const workHistory = [
+        { companyName: "Old Co", jobTitle: "Old Role", startDate: "2018-01", endDate: "2019-01" },
+        { companyName: "Recent Co", jobTitle: "Recent Role", startDate: "2023-01", endDate: "2024-01" },
+        { companyName: "Current Co", jobTitle: "Current Role", startDate: "2024-02", endDate: "至今" },
+      ];
+      const result = prepareResumeCandidate({
+        resume: makeMinimalResume({ workHistory }),
+        resumeId: "res-configured-limit",
+        indexData: makeMinimalIndex({
+          companies: ["Old Co", "Recent Co", "Current Co"],
+          evidenceText: "old co recent co current co",
+        }),
+        ingestData: {
+          companyHits: ["Old Co", "Recent Co", "Current Co"],
+          roleSignals: [{
+            type: "sales",
+            years: 6,
+            industryVerifiedYears: 6,
+            matchedSignals: ["old", "recent", "current"],
+            signalCount: 3,
+            occurrences: 3,
+            verifyIn: "workHistory",
+            matchedWorkEntries: workHistory.map((entry) => ({
+              companyName: entry.companyName,
+              jobTitle: entry.jobTitle,
+              years: 2,
+              industryVerified: true,
+              matchedSignals: [entry.companyName],
+            })),
+          }],
+        },
+        workHistoryLimit: 1,
+      });
+
+      expect(result.workHistoryLimit).toBe(1);
+      expect(result.indexData.companies).toEqual(["Current Co"]);
+      expect(result.indexData.evidenceText).toContain("current co");
+      expect(result.indexData.evidenceText).not.toContain("recent co");
+      expect(result.companyHits).toEqual(["Current Co"]);
+      expect(result.roleSignals[0]?.matchedWorkEntries).toEqual([
+        expect.objectContaining({ companyName: "Current Co" }),
+      ]);
+      expect(result.roleSignals[0]?.years).toBe(2);
+    });
+
     it("preserves primaryRuleScore and provenance", () => {
       const result = prepareResumeCandidate({
         resume: makeMinimalResume(),
@@ -1072,6 +1118,31 @@ describe("resume-candidate-prep", () => {
 
   // ── buildAiResumePayload ─────────────────────────────────────────────────
   describe("buildAiResumePayload", () => {
+    it("includes additional recent entries when the configured limit is raised", () => {
+      const prepared = prepareResumeCandidate({
+        resume: makeMinimalResume({
+          workHistory: [
+            { companyName: "Oldest Co", jobTitle: "Role 1", startDate: "2018-01", endDate: "2019-01" },
+            { companyName: "Middle Co", jobTitle: "Role 2", startDate: "2020-01", endDate: "2021-01" },
+            { companyName: "Recent Co", jobTitle: "Role 3", startDate: "2022-01", endDate: "2023-01" },
+            { companyName: "Current Co", jobTitle: "Role 4", startDate: "2024-01", endDate: "至今" },
+          ],
+        }),
+        resumeId: "res-limit-four",
+        workHistoryLimit: 4,
+      });
+
+      const payload = buildAiResumePayload(prepared);
+
+      expect(payload.companies).toEqual([
+        "Current Co",
+        "Recent Co",
+        "Middle Co",
+        "Oldest Co",
+      ]);
+      expect(payload.workHistory).toContain("Oldest Co");
+    });
+
     it("builds AI matching payload from prepared candidate", () => {
       const resume = makeMinimalResume({
         name: "Alice Smith",

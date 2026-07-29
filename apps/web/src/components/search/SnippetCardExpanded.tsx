@@ -1,4 +1,4 @@
-import { buildWorkHistoryDisplayDateLine, getNormalizedWorkHistoryEntries, isAdvancingCandidateStatus, sanitizeResumeRecordForSurface } from '@trends/shared'
+import { buildWorkHistoryDisplayDateLine, isAdvancingCandidateStatus, sanitizeResumeRecordForSurface, selectLatestWorkHistory } from '@trends/shared'
 import { BriefcaseBusiness, Bug, ChevronDown, Copy, ExternalLink, MapPin, School, Sparkles } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { toast } from 'sonner'
 import { useResumeFieldUsagePolicy } from '@/contexts/ResumeFieldUsagePolicyContext'
+import { useResumeWorkHistoryLimit } from '@/contexts/ResumeWorkHistoryLimitContext'
 import { cn } from '@/lib/utils'
 import { getResumeContentLocale, getExperienceBadge, isSafeProfileUrl, summarizeBrandHits, toDisplayMatchBreakdown } from '@/lib/resume-scoring'
 import { useBrandDisplayMap } from '@/hooks/useBrandDisplayMap'
@@ -111,6 +112,7 @@ export function SnippetCardExpanded({
 }: SnippetCardExpandedProps) {
   const { t } = useTranslation()
   const fieldUsagePolicy = useResumeFieldUsagePolicy()
+  const { limit: workHistoryLimit } = useResumeWorkHistoryLimit()
   const contentLocale = getResumeContentLocale(item.resume)
   const [showDebug, setShowDebug] = useState(false)
   const { matchResume } = useCompanyPolicyIndex(true)
@@ -217,8 +219,8 @@ export function SnippetCardExpanded({
     [fieldUsagePolicy, item.resume]
   )
   const workHistory = useMemo(
-    () => getNormalizedWorkHistoryEntries(presentationResume.workHistory),
-    [presentationResume.workHistory]
+    () => selectLatestWorkHistory(presentationResume.workHistory, { limit: workHistoryLimit }),
+    [presentationResume.workHistory, workHistoryLimit]
   )
   const profileUrl = item.resume.profileUrl?.trim()
   const hasProfileUrl = isSafeProfileUrl(profileUrl)
