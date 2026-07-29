@@ -160,6 +160,57 @@ class GoogleNewsRssSearchProvider:
         return results
 
 
+class NewsNowSearchProvider:
+    """NewsNow-compatible upstream (ourongxing/newsnow), the CN-core zero-key
+    provider. Hotlists are not keyword-searchable upstream: fetch each
+    configured platform's hotlist and filter client-side by employer tokens."""
+
+    def __init__(self, *, fetcher: Any, platforms: List[str] | None = None,
+                 api_url: str | None = None, tokens: Optional[set] = None):
+        self.fetcher = fetcher  # object with get_json(url, headers=...) -> dict
+        self.platforms = platforms or [
+            "zhihu", "weibo", "baidu", "toutiao", "thepaper",
+        ]
+        self.api_url = (api_url or "https://newsnow.busiyi.world/api/s").rstrip("/")
+        self.tokens = tokens or set()  # employer tokens for filtering
+
+    def search(self, query: str, max_results: int) -> List[SearchResult]:
+        results: List[SearchResult] = []
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                          "AppleWebKit/537.36 (KHTML, like Gecko) "
+                          "Chrome/126.0 Safari/537.36",
+            "Accept": "application/json",
+            "Referer": self.api_url.rsplit("/api", 1)[0] + "/",
+        }
+        query_tokens = self.tokens or {
+            t for t in re.findall(r"[a-z0-9一-鿿]+", query.casefold())
+            if len(t) >= 2
+        }
+        for platform in self.platforms:
+            if len(results) >= max_results:
+                break
+            try:
+                data = self.fetcher.get_json(
+                    f"{self.api_url}?id={platform}&latest", headers=headers)
+            except Exception:
+                continue
+            for item in (data.get("items") or []):
+                title = str(item.get("title") or "").strip()
+                url = str(item.get("url") or "").strip()
+                if not title or not url:
+                    continue
+                haystack = title.casefold()
+                if query_tokens and not any(
+                        tok in haystack for tok in query_tokens):
+                    continue
+                results.append(SearchResult(
+                    url=url, title=title, snippet=f"NewsNow {platform}"))
+                if len(results) >= max_results:
+                    break
+        return results
+
+
 def build_search_chain(config, *, fetcher) -> List[SearchProvider]:
     import os
     chain: List[SearchProvider] = []
@@ -180,6 +231,13 @@ def build_search_chain(config, *, fetcher) -> List[SearchProvider]:
                 continue
             chain.append(BraveSearchProvider(
                 api_key=api_key, fetcher=fetcher))
+        elif name == "newsnow":
+            # Reuse the existing hotlist upstream override (self-hosted
+            # newsnow / TrendRadar) instead of a second env var.
+            chain.append(NewsNowSearchProvider(
+                fetcher=fetcher,
+                api_url=os.environ.get("RESEARCH_HOTLIST_API_URL") or None,
+            ))
         elif name == "duckduckgo":
             chain.append(DuckDuckGoSearchProvider(fetcher=fetcher))
         elif name == "google_news":

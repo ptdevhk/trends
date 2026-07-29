@@ -1,6 +1,7 @@
 from apps.worker.web_research.search import (
     DuckDuckGoSearchProvider,
     GoogleNewsRssSearchProvider,
+    NewsNowSearchProvider,
     SearchResult,
     build_search_chain,
 )
@@ -188,3 +189,167 @@ def test_build_chain_skips_keyed_provider_when_env_key_absent(monkeypatch):
     cfg.search_providers = ["tavily", "duckduckgo"]
     chain = build_search_chain(cfg, fetcher=FakeFetcher({}))
     assert [type(p).__name__ for p in chain] == ["DuckDuckGoSearchProvider"]
+
+
+# --- NewsNow provider (CN-core zero-key) ---------------------------------
+
+NEWSNOW_ZHIHU = {
+    "status": "success",
+    "items": [
+        {"title": "发那科 机床 价格", "url": "https://zhihu.com/q/1"},
+        {"title": "无关热搜", "url": "https://zhihu.com/q/2"},
+    ],
+}
+
+NEWSNOW_ZHIHU_URL = "https://newsnow.busiyi.world/api/s?id=zhihu&latest"
+
+
+class FakeJsonFetcher:
+    def __init__(self, payloads=None, errors=None):
+        self.payloads = payloads or {}
+        self.errors = errors or {}
+        self.calls = []
+
+    def get_json(self, url, headers=None):
+        self.calls.append(url)
+        if url in self.errors:
+            raise self.errors[url]
+        return self.payloads.get(url, {})
+
+
+def test_newsnow_filters_hotlist_items_by_employer_tokens():
+    fetcher = FakeJsonFetcher(payloads={NEWSNOW_ZHIHU_URL: NEWSNOW_ZHIHU})
+    provider = NewsNowSearchProvider(
+        fetcher=fetcher, platforms=["zhihu"], tokens={"发那科"})
+    results = provider.search("发那科 机床", max_results=5)
+    assert [r.url for r in results] == ["https://zhihu.com/q/1"]
+    assert results[0].title == "发那科 机床 价格"
+    assert "NewsNow" in results[0].snippet
+    assert fetcher.calls == [NEWSNOW_ZHIHU_URL]
+
+
+def test_newsnow_derives_tokens_from_query_when_tokens_unset():
+    fetcher = FakeJsonFetcher(payloads={NEWSNOW_ZHIHU_URL: NEWSNOW_ZHIHU})
+    provider = NewsNowSearchProvider(fetcher=fetcher, platforms=["zhihu"])
+    results = provider.search("发那科 机床", max_results=5)
+    assert [r.url for r in results] == ["https://zhihu.com/q/1"]
+
+
+def test_newsnow_respects_max_results():
+    payload = {
+        "status": "success",
+        "items": [
+            {"title": "发那科 机床 价格", "url": "https://zhihu.com/q/1"},
+            {"title": "发那科 数控 招聘", "url": "https://zhihu.com/q/2"},
+            {"title": "发那科 公司 官网", "url": "https://zhihu.com/q/3"},
+        ],
+    }
+    fetcher = FakeJsonFetcher(payloads={NEWSNOW_ZHIHU_URL: payload})
+    provider = NewsNowSearchProvider(
+        fetcher=fetcher, platforms=["zhihu"], tokens={"发那科"})
+    results = provider.search("发那科", max_results=2)
+    assert len(results) == 2
+    assert [r.url for r in results] == [
+        "https://zhihu.com/q/1", "https://zhihu.com/q/2",
+    ]
+
+
+def test_newsnow_platform_exception_soft_skipped():
+    fetcher = FakeJsonFetcher(
+        payloads={NEWSNOW_ZHIHU_URL: NEWSNOW_ZHIHU},
+        errors={
+            "https://newsnow.busiyi.world/api/s?id=weibo&latest":
+                RuntimeError("weibo 403"),
+        },
+    )
+    provider = NewsNowSearchProvider(
+        fetcher=fetcher, platforms=["weibo", "zhihu"], tokens={"发那科"})
+    results = provider.search("发那科", max_results=5)
+    assert [r.url for r in results] == ["https://zhihu.com/q/1"]
+    # weibo raised; zhihu still queried afterwards
+    assert fetcher.calls == [
+        "https://newsnow.busiyi.world/api/s?id=weibo&latest",
+        NEWSNOW_ZHIHU_URL,
+    ]
+
+
+def test_newsnow_rejects_items_without_title_or_url():
+    payload = {
+        "status": "success",
+        "items": [
+            {"title": "", "url": "https://zhihu.com/q/0"},
+            {"title": "发那科 机床", "url": ""},
+            {"title": "发那科 机床 价格", "url": "https://zhihu.com/q/1"},
+        ],
+    }
+    fetcher = FakeJsonFetcher(payloads={NEWSNOW_ZHIHU_URL: payload})
+    provider = NewsNowSearchProvider(
+        fetcher=fetcher, platforms=["zhihu"], tokens={"发那科"})
+    results = provider.search("发那科", max_results=5)
+    assert [r.url for r in results] == ["https://zhihu.com/q/1"]
+
+
+def test_newsnow_no_token_match_returns_empty():
+    fetcher = FakeJsonFetcher(payloads={NEWSNOW_ZHIHU_URL: NEWSNOW_ZHIHU})
+    provider = NewsNowSearchProvider(
+        fetcher=fetcher, platforms=["zhihu"], tokens={"不存在公司"})
+    assert provider.search("不存在公司", max_results=5) == []
+
+
+def test_build_chain_cn_market_places_newsnow_before_zero_key_fallbacks(monkeypatch):
+    monkeypatch.delenv("TAVILY_API_KEY", raising=False)
+    monkeypatch.delenv("BRAVE_API_KEY", raising=False)
+    cfg = load_web_research_config({
+        "WEB_RESEARCH_ENABLED": "1",
+        "WEB_RESEARCH_MARKET": "cn",
+    })
+    chain = build_search_chain(cfg, fetcher=FakeJsonFetcher())
+    assert [type(p).__name__ for p in chain] == [
+        "NewsNowSearchProvider", "DuckDuckGoSearchProvider",
+        "GoogleNewsRssSearchProvider",
+    ]
+
+
+def test_build_chain_my_market_omits_newsnow(monkeypatch):
+    monkeypatch.delenv("TAVILY_API_KEY", raising=False)
+    monkeypatch.delenv("BRAVE_API_KEY", raising=False)
+    cfg = load_web_research_config({
+        "WEB_RESEARCH_ENABLED": "1",
+        "WEB_RESEARCH_MARKET": "my",
+    })
+    chain = build_search_chain(cfg, fetcher=FakeJsonFetcher())
+    assert [type(p).__name__ for p in chain] == [
+        "DuckDuckGoSearchProvider", "GoogleNewsRssSearchProvider",
+    ]
+
+
+def test_build_chain_cn_market_keyed_providers_still_prepend(monkeypatch):
+    monkeypatch.setenv("TAVILY_API_KEY", "tvly-x")
+    monkeypatch.delenv("BRAVE_API_KEY", raising=False)
+    cfg = load_web_research_config({
+        "WEB_RESEARCH_ENABLED": "1",
+        "WEB_RESEARCH_MARKET": "cn",
+        "TAVILY_API_KEY": "tvly-x",
+    })
+    chain = build_search_chain(cfg, fetcher=FakeJsonFetcher())
+    assert [type(p).__name__ for p in chain] == [
+        "TavilySearchProvider", "NewsNowSearchProvider",
+        "DuckDuckGoSearchProvider", "GoogleNewsRssSearchProvider",
+    ]
+
+
+def test_build_chain_newsnow_uses_research_hotlist_api_url_override(monkeypatch):
+    monkeypatch.delenv("TAVILY_API_KEY", raising=False)
+    monkeypatch.delenv("BRAVE_API_KEY", raising=False)
+    monkeypatch.setenv("RESEARCH_HOTLIST_API_URL", "https://alt.example/api/s")
+    cfg = load_web_research_config({
+        "WEB_RESEARCH_ENABLED": "1",
+        "WEB_RESEARCH_MARKET": "cn",
+    })
+    chain = build_search_chain(cfg, fetcher=FakeJsonFetcher())
+    newsnow = chain[0]
+    assert type(newsnow).__name__ == "NewsNowSearchProvider"
+    assert newsnow.api_url == "https://alt.example/api/s"
+    monkeypatch.delenv("RESEARCH_HOTLIST_API_URL", raising=False)
+    chain = build_search_chain(cfg, fetcher=FakeJsonFetcher())
+    assert chain[0].api_url == "https://newsnow.busiyi.world/api/s"

@@ -9,7 +9,8 @@ from apps.worker.web_research.search import SearchProvider
 
 logger = logging.getLogger(__name__)
 
-# MY query pack (data, not code; CN pack is a later config addition)
+# Market query packs (data, not code). "my" is the legacy default; "cn" is
+# the product-core pack (internal users are CN users), selected via config.
 def discovery_queries(employer_surface: str, market: str = "my") -> List[str]:
     """Term-based templates: exact-phrase quoting over-constrains free
     providers (Google News ANDs quoted phrases; SME employers vanish)."""
@@ -19,6 +20,12 @@ def discovery_queries(employer_surface: str, market: str = "my") -> List[str]:
             f"{employer_surface} CNC machine",
             f"{employer_surface} machinery",
         ]
+    if market == "cn":
+        return [
+            f"{employer_surface} 公司",
+            f"{employer_surface} 机床",
+            f"{employer_surface} 数控",
+        ]
     return [f"{employer_surface} company"]
 
 
@@ -27,7 +34,7 @@ def _employer_tokens(employer_surface: str) -> set[str]:
     stop = {"sdn", "bhd", "malaysia", "the", "and", "co", "company",
             "inc", "ltd", "pte", "m"}
     return {
-        t for t in re.findall(r"[a-z0-9]+", employer_surface.casefold())
+        t for t in re.findall(r"[a-z0-9一-鿿]+", employer_surface.casefold())
         if len(t) >= 3 and t not in stop
     }
 
@@ -62,11 +69,17 @@ class DiscoveryJob:
             return False
         return int(quota.get("used", 0)) < int(quota.get("cap", 1000))
 
-    def _search_all(self, query: str, max_results: int) -> List[Any]:
+    def _search_all(self, query: str, max_results: int,
+                    tokens: Optional[set] = None) -> List[Any]:
         for provider in self.search_chain:
             name = type(provider).__name__
             if not self._quota_ok(name):
                 continue
+            if tokens is not None and hasattr(provider, "tokens"):
+                # Token-aware providers (e.g. NewsNowSearchProvider) filter
+                # client-side by employer tokens; hand them the current
+                # proposal's tokens before each search.
+                provider.tokens = set(tokens)
             try:
                 results = provider.search(query, max_results)
             except Exception as error:  # soft-fail onward to next provider
@@ -87,10 +100,11 @@ class DiscoveryJob:
             return {"status": "needs_more_evidence", "sources": []}
 
         tokens = _employer_tokens(employer)
+        market = getattr(self.config, "market", "my")
         seen: set[str] = set()
         raw_candidates: List[Dict[str, Any]] = []
-        for query in discovery_queries(employer)[: self.config.queries_per_proposal]:
-            for hit in self._search_all(query, max_results=5):
+        for query in discovery_queries(employer, market)[: self.config.queries_per_proposal]:
+            for hit in self._search_all(query, max_results=5, tokens=tokens):
                 if hit.url in seen:
                     continue
                 if not _hit_mentions_employer(hit, tokens):

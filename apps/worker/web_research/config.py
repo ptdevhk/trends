@@ -10,17 +10,28 @@ class WebResearchConfig:
     fetch_provider: str = "guarded"
     monthly_cap: int = 1000
     queries_per_proposal: int = 3
+    # Target market for query packs + provider chain. Default "my" is the
+    # legacy default (existing MY proposals unchanged); "cn" (product core)
+    # opts into the NewsNow provider + CN query pack via WEB_RESEARCH_MARKET=cn.
+    market: str = "my"
 
 def load_web_research_config(env: Optional[Dict[str, str]] = None) -> WebResearchConfig:
     source = env if env is not None else os.environ
     enabled = str(source.get("WEB_RESEARCH_ENABLED", "")).strip().lower() in {
         "1", "true", "yes", "on",
     }
+    market = (
+        str(source.get("WEB_RESEARCH_MARKET", "my")).strip().lower() or "my"
+    )
     providers: List[str] = []
     if source.get("TAVILY_API_KEY"):
         providers.append("tavily")
     if source.get("BRAVE_API_KEY"):
         providers.append("brave")
+    if market == "cn":
+        # CN-core zero-key provider: NewsNow hotlists filtered by employer
+        # tokens, ahead of the generic zero-key fallbacks.
+        providers.append("newsnow")
     providers.append("duckduckgo")  # zero-key, but bot-walled from many IPs
     providers.append("google_news")  # free zero-key RSS fallback, always last
     fetch_provider = "firecrawl" if source.get("FIRECRAWL_API_KEY") else "guarded"
@@ -28,4 +39,5 @@ def load_web_research_config(env: Optional[Dict[str, str]] = None) -> WebResearc
         enabled=enabled,
         search_providers=providers,
         fetch_provider=fetch_provider,
+        market=market,
     )

@@ -140,11 +140,127 @@ def test_discovery_disabled_config_returns_needs_more_evidence():
 
 
 def test_discovery_queries_are_term_based():
-    queries = discovery_queries("DSME Engineering Sdn Bhd")
+    queries = discovery_queries("DSME Engineering Sdn Bhd", "my")
     assert queries, "expected at least one MY query template"
     for q in queries:
         assert '"' not in q  # no exact-phrase quoting: Google News ANDs phrases
     assert "Malaysia" in queries[0]
+
+
+def test_discovery_queries_default_market_is_my():
+    assert discovery_queries("DSME Engineering Sdn Bhd") == (
+        discovery_queries("DSME Engineering Sdn Bhd", "my")
+    )
+
+
+def test_discovery_queries_cn_pack_term_based():
+    queries = discovery_queries("发那科", "cn")
+    assert len(queries) == 3
+    for q in queries:
+        assert '"' not in q
+    joined = " ".join(queries)
+    assert "公司" in joined
+    assert "机床" in joined
+    assert "数控" in joined
+    assert all(q.startswith("发那科") for q in queries)
+
+
+def test_discovery_queries_unknown_market_falls_back_to_generic():
+    assert discovery_queries("Acme Corp", "sg") == ["Acme Corp company"]
+
+
+class TokenAwareSearch:
+    """Duck-typed token-aware provider stand-in (mirrors NewsNowSearchProvider)."""
+    def __init__(self, results):
+        self.results = results
+        self.calls = []
+        self.tokens = set()
+        self.tokens_at_search = []
+
+    def search(self, query, max_results):
+        self.calls.append(query)
+        self.tokens_at_search.append(set(self.tokens))
+        return list(self.results)
+
+
+def test_token_aware_provider_receives_employer_tokens_before_search():
+    search = TokenAwareSearch([
+        SearchResult(url="https://www.newlinemachine.com/",
+                     title="New Line Machine Tool"),
+    ])
+    fetcher = StaticFetcher({
+        "https://www.newlinemachine.com/": {
+            "finalUrl": "https://www.newlinemachine.com/",
+            "title": "New Line Machine Tool",
+            "excerpt": "CNC machining center machine tool distributor",
+            "contentFingerprint": "sha256:x",
+            "domainGuardPassed": True,
+        },
+    })
+    job = DiscoveryJob(
+        search_chain=[search], fetcher=fetcher, client=FakeClient(),
+        config=load_web_research_config({"WEB_RESEARCH_ENABLED": "1"}),
+    )
+    out = job.discover_for_proposal(_proposal())
+    assert out["status"] == "ready_for_review"
+    assert search.calls, "provider was searched"
+    expected = {"new", "line", "machine", "tool"}
+    for tokens_seen in search.tokens_at_search:
+        assert tokens_seen == expected
+
+
+def test_tokenless_provider_not_given_tokens_attribute():
+    search = StaticSearch([
+        SearchResult(url="https://www.newlinemachine.com/",
+                     title="New Line Machine Tool"),
+    ])
+    fetcher = StaticFetcher({
+        "https://www.newlinemachine.com/": {
+            "finalUrl": "https://www.newlinemachine.com/",
+            "title": "New Line Machine Tool",
+            "excerpt": "CNC machining center machine tool distributor",
+            "contentFingerprint": "sha256:x",
+            "domainGuardPassed": True,
+        },
+    })
+    job = DiscoveryJob(
+        search_chain=[search], fetcher=fetcher, client=FakeClient(),
+        config=load_web_research_config({"WEB_RESEARCH_ENABLED": "1"}),
+    )
+    out = job.discover_for_proposal(_proposal())
+    assert out["status"] == "ready_for_review"
+    assert not hasattr(search, "tokens")
+
+
+def test_discovery_uses_config_market_for_query_pack():
+    search = StaticSearch([
+        SearchResult(url="https://www.newlinemachine.com/",
+                     title="New Line Machine Tool"),
+    ])
+    fetcher = StaticFetcher({
+        "https://www.newlinemachine.com/": {
+            "finalUrl": "https://www.newlinemachine.com/",
+            "title": "New Line Machine Tool",
+            "excerpt": "CNC machining center machine tool distributor",
+            "contentFingerprint": "sha256:x",
+            "domainGuardPassed": True,
+        },
+    })
+    job = DiscoveryJob(
+        search_chain=[search], fetcher=fetcher, client=FakeClient(),
+        config=load_web_research_config({
+            "WEB_RESEARCH_ENABLED": "1",
+            "WEB_RESEARCH_MARKET": "cn",
+        }),
+    )
+    proposal = {
+        "proposalId": "p-1",
+        "normalizedEmployerSurface": "发那科",
+        "companyKey": None,
+    }
+    job.discover_for_proposal(proposal)
+    assert any("公司" in q for q in search.calls)
+    assert not any("Malaysia" in q for q in search.calls)
 
 
 def test_discovery_filters_unrelated_hits():
