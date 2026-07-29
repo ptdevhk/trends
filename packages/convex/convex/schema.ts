@@ -1230,4 +1230,14 @@ export default defineSchema({
     })
         .index("by_parity_run_id", ["parityRunId"])
         .index("by_evaluated_at", ["evaluatedAt"]),
+
+    // Web research provider quota ledger (monthly credit cap, R4 free-tier lock)
+    web_research_quota: defineTable({
+        provider: v.string(),          // e.g. "duckduckgo" | "tavily" | "brave"
+        month: v.string(),             // "YYYY-MM" UTC
+        used: v.number(),
+        cap: v.number(),
+        updatedAt: v.number(),
+    })
+        .index("by_provider_month", ["provider", "month"]),
 });

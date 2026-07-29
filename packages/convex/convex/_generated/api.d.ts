@@ -61,6 +61,7 @@ import type * as sync_events from "../sync_events.js";
 import type * as system_settings from "../system_settings.js";
 import type * as taxonomy_clusters from "../taxonomy_clusters.js";
 import type * as validators from "../validators.js";
+import type * as web_research from "../web_research.js";
 import type * as workspace_config from "../workspace_config.js";
 
 import type {
@@ -123,6 +124,7 @@ declare const fullApi: ApiFromModules<{
   system_settings: typeof system_settings;
   taxonomy_clusters: typeof taxonomy_clusters;
   validators: typeof validators;
+  web_research: typeof web_research;
   workspace_config: typeof workspace_config;
 }>;
 
