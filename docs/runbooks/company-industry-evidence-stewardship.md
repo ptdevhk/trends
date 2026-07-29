@@ -103,7 +103,7 @@ INDUSTRY_EVIDENCE_MAINTENANCE_ENABLED=1
 WEB_RESEARCH_ENABLED=1
 ```
 
-Provider keys are optional. Without keys, the chain is the free DuckDuckGo HTML endpoint only, which is the dev default — use it gently. With `TAVILY_API_KEY` and/or `BRAVE_API_KEY` present, the chain becomes Tavily and/or Brave first, with DuckDuckGo always last as the zero-key fallback. On each query the chain tries providers in order, skipping any provider whose monthly quota is exhausted, until one returns results.
+Provider keys are optional. Without keys, the chain is the free DuckDuckGo HTML endpoint followed by the Google News RSS search endpoint — both zero-key dev defaults, use them gently. DuckDuckGo may be bot-walled (CAPTCHA) from some networks, in which case it returns zero results and the chain soft-fails onward to Google News RSS, which returns reporting-tier news hits classified against MY/SG and global business press domains. With `TAVILY_API_KEY` and/or `BRAVE_API_KEY` present, the chain becomes Tavily and/or Brave first, then DuckDuckGo, with Google News RSS always last as the zero-key fallback. On each query the chain tries providers in order, skipping any provider whose monthly quota is exhausted, until one returns results.
 
 Every provider query is recorded in the `web_research_quota` Convex table. The cap is 1000 queries per provider per month; when a provider reaches its cap the worker stops calling it (hard stop — no search request is made). Inspect the ledger rows from the Convex dashboard after any attended dry-run.
 

@@ -21,7 +21,8 @@ def load_web_research_config(env: Optional[Dict[str, str]] = None) -> WebResearc
         providers.append("tavily")
     if source.get("BRAVE_API_KEY"):
         providers.append("brave")
-    providers.append("duckduckgo")  # free zero-key fallback, always last
+    providers.append("duckduckgo")  # zero-key, but bot-walled from many IPs
+    providers.append("google_news")  # free zero-key RSS fallback, always last
     fetch_provider = "firecrawl" if source.get("FIRECRAWL_API_KEY") else "guarded"
     return WebResearchConfig(
         enabled=enabled,

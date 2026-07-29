@@ -92,6 +92,45 @@ class BraveSearchProvider:
         ]
 
 
+class GoogleNewsRssSearchProvider:
+    """Free, no-key Google News RSS search. Reporting-tier results only."""
+    BASE = "https://news.google.com/rss/search?q="
+
+    def __init__(self, *, fetcher: Any, hl: str = "en-MY", gl: str = "MY",
+                 ceid: str = "MY:en"):
+        self.fetcher = fetcher  # object with fetch_text(url) -> str
+        self.hl = hl
+        self.gl = gl
+        self.ceid = ceid
+
+    def search(self, query: str, max_results: int) -> List[SearchResult]:
+        import xml.etree.ElementTree as ET
+        url = (
+            self.BASE + quote_plus(query)
+            + f"&hl={self.hl}&gl={self.gl}&ceid={quote_plus(self.ceid)}"
+        )
+        raw = self.fetcher.fetch_text(url)
+        try:
+            root = ET.fromstring(raw)
+        except ET.ParseError:
+            return []
+        results: List[SearchResult] = []
+        for item in root.iter("item"):
+            title = item.findtext("title") or ""
+            link = item.findtext("link") or ""
+            source_el = item.find("source")
+            source_name = source_el.text if source_el is not None else ""
+            source_url = (source_el.get("url") or "") if source_el is not None else ""
+            target = source_url or link
+            if not target:
+                continue
+            results.append(SearchResult(url=target, title=title,
+                                        snippet=source_name or ""))
+            if len(results) >= max_results:
+                break
+        return results
+
+
 def build_search_chain(config, *, fetcher) -> List[SearchProvider]:
     import os
     chain: List[SearchProvider] = []
@@ -104,4 +143,6 @@ def build_search_chain(config, *, fetcher) -> List[SearchProvider]:
                 api_key=os.environ["BRAVE_API_KEY"], fetcher=fetcher))
         elif name == "duckduckgo":
             chain.append(DuckDuckGoSearchProvider(fetcher=fetcher))
+        elif name == "google_news":
+            chain.append(GoogleNewsRssSearchProvider(fetcher=fetcher))
     return chain

@@ -7,7 +7,10 @@ import pytest
 from apps.worker import industry_evidence_research as ier
 from apps.worker.web_research.discovery import DiscoveryJob
 from apps.worker.web_research.http import GuardedWebResearchFetcher
-from apps.worker.web_research.search import DuckDuckGoSearchProvider
+from apps.worker.web_research.search import (
+    DuckDuckGoSearchProvider,
+    GoogleNewsRssSearchProvider,
+)
 
 _WEB_RESEARCH_ENV_KEYS = [
     "WEB_RESEARCH_ENABLED",
@@ -31,14 +34,15 @@ def test_build_discovery_job_from_env_returns_none_when_empty(monkeypatch):
     assert ier.build_discovery_job_from_env() is None
 
 
-def test_build_discovery_job_from_env_builds_duckduckgo_chain(monkeypatch):
+def test_build_discovery_job_from_env_builds_zero_key_chain(monkeypatch):
     for key in _WEB_RESEARCH_ENV_KEYS:
         monkeypatch.delenv(key, raising=False)
     monkeypatch.setenv("WEB_RESEARCH_ENABLED", "1")
     job = ier.build_discovery_job_from_env()
     assert isinstance(job, DiscoveryJob)
-    assert len(job.search_chain) == 1
+    assert len(job.search_chain) == 2
     assert isinstance(job.search_chain[0], DuckDuckGoSearchProvider)
+    assert isinstance(job.search_chain[1], GoogleNewsRssSearchProvider)
     assert isinstance(job.fetcher, GuardedWebResearchFetcher)
     assert job.config.enabled is True
 
