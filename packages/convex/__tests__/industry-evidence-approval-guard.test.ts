@@ -126,3 +126,120 @@ describe("approveIndustryProposal evidence-source guard", () => {
     });
   });
 });
+
+describe("listVerifiedIndustryEmployerAliases", () => {
+  async function approveVerifiedCnc(t: ReturnType<typeof createTest>) {
+    await seedCompanyAndProposal(t, "proposal-1");
+    await t.mutation(api.companies.upsertIndustryEvidenceSource, {
+      sourceId: "source-1",
+      proposalId: "proposal-1",
+      companyKey: "acme-cnc",
+      url: "https://acme.example.com/products",
+      sourceType: "official_site",
+      trustTier: "primary",
+      fetchStatus: "fetched",
+      writeSecret: WRITE_SECRET,
+    });
+    await t.mutation(api.companies.approveIndustryProposal, approvalArgs());
+  }
+
+  it("returns verified employers with display name and sorted aliases", async () => {
+    const t = createTest();
+    await approveVerifiedCnc(t);
+    await t.mutation(api.companies.addAlias, {
+      companyKey: "acme-cnc",
+      alias: "ACME Machine Tools",
+      source: "operator",
+      writeSecret: WRITE_SECRET,
+    });
+    await t.mutation(api.companies.addAlias, {
+      companyKey: "acme-cnc",
+      alias: "ACME CNC Malaysia",
+      source: "operator",
+      writeSecret: WRITE_SECRET,
+    });
+
+    const rows = await t.query(
+      api.companies.listVerifiedIndustryEmployerAliases,
+      { writeSecret: WRITE_SECRET },
+    );
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      companyKey: "acme-cnc",
+      industryClass: "cnc",
+      displayName: "ACME CNC",
+      aliases: ["ACME CNC Malaysia", "ACME Machine Tools"],
+    });
+  });
+
+  it("excludes employers whose current verdict is rejected", async () => {
+    const t = createTest();
+    await seedCompanyAndProposal(t, "proposal-1");
+    await t.mutation(api.companies.upsertIndustryEvidenceSource, {
+      sourceId: "source-1",
+      proposalId: "proposal-1",
+      companyKey: "acme-cnc",
+      url: "https://acme.example.com/products",
+      sourceType: "official_site",
+      trustTier: "primary",
+      fetchStatus: "fetched",
+      writeSecret: WRITE_SECRET,
+    });
+    await t.mutation(api.companies.approveIndustryProposal, approvalArgs());
+
+    // Superseding rejection flips the profile to rejected. Source is still
+    // attached to proposal-1, so approve proposal-2 without source ids is not
+    // allowed — instead reference a fresh source attached to proposal-2.
+    await t.mutation(api.companies.upsertIndustryProposal, {
+      proposalId: "proposal-2",
+      companyKey: "acme-cnc",
+      triggerReasons: ["evidence_conflict"],
+      priority: 90,
+      writeSecret: WRITE_SECRET,
+    });
+    await t.mutation(api.companies.upsertIndustryEvidenceSource, {
+      sourceId: "source-2",
+      proposalId: "proposal-2",
+      companyKey: "acme-cnc",
+      url: "https://acme.example.com/notice",
+      sourceType: "official_site",
+      trustTier: "primary",
+      fetchStatus: "fetched",
+      writeSecret: WRITE_SECRET,
+    });
+    await t.mutation(
+      api.companies.approveIndustryProposal,
+      approvalArgs({
+        proposalId: "proposal-2",
+        revisionId: "revision-2",
+        verificationLevel: "rejected",
+        industryClass: "unknown",
+        approvedSourceIds: ["source-2"],
+      }),
+    );
+
+    const rows = await t.query(
+      api.companies.listVerifiedIndustryEmployerAliases,
+      { writeSecret: WRITE_SECRET },
+    );
+    expect(rows).toHaveLength(0);
+  });
+
+  it("skips verified profiles without a canonical company row", async () => {
+    const t = createTest();
+    await t.mutation(api.companies.upsertIndustryProfile, {
+      companyKey: "orphan-co",
+      industryClass: "cnc",
+      verificationLevel: "verified",
+      evidenceSource: "manual",
+      writeSecret: WRITE_SECRET,
+    });
+
+    const rows = await t.query(
+      api.companies.listVerifiedIndustryEmployerAliases,
+      { writeSecret: WRITE_SECRET },
+    );
+    expect(rows).toHaveLength(0);
+  });
+});

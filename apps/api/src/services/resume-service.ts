@@ -28,6 +28,7 @@ import { logger } from "./logger.js";
 import { extractCompanyFromWorkHistory } from "./work-history.js";
 import { SkillsKnowledgeService } from "./skills-knowledge.js";
 import { UnifiedSearchService, type UnifiedKeywordExpansion } from "./unified-search-service.js";
+import { verifiedEmployerCatalog } from "./verified-employer-catalog-service.js";
 
 import type {
   ResumeIngestBrandHit,
@@ -476,7 +477,13 @@ export class ResumeService {
     this.indexService = new ResumeIndexService(this.projectRoot);
     this.industryService = new IndustryDataService(this.projectRoot);
     this.skillsService = new SkillsKnowledgeService(this.projectRoot);
-    this.unifiedSearchService = new UnifiedSearchService(this.skillsService);
+    this.unifiedSearchService = new UnifiedSearchService(
+      this.skillsService,
+      verifiedEmployerCatalog,
+    );
+    // Warm the verified-employer catalog asynchronously; the bridge activates
+    // once loaded and silently degrades to synonyms-only expansion before that.
+    void verifiedEmployerCatalog.warm();
   }
 
   private getSamplesDir(): string {

@@ -5,7 +5,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { SkillsKnowledgeService } from "./skills-knowledge";
-import { UnifiedSearchService } from "./unified-search-service";
+import { UnifiedSearchService, type VerifiedEmployerCatalog } from "./unified-search-service";
 
 import type { ResumeItem } from "../types/resume";
 import type { ResumeIndex } from "./resume-index";
@@ -44,6 +44,60 @@ function createFixtureRoot(): string {
 
 function cleanupFixtureRoot(root: string): void {
   fs.rmSync(root, { recursive: true, force: true });
+}
+
+const TEST_SKILLS_MD_WITH_MACHINERY = `---
+version: 1
+updated_at: '2026-07-30'
+description: Test skills knowledge file with machinery domain
+---
+
+# Skills Knowledge
+
+## Domain Taxonomy
+
+### machinery
+- displayName: 机械
+- keywords: cnc, machine tools, 机床
+
+### sales
+- displayName: Sales
+- keywords: 销售, sales
+
+## Synonym Table
+
+- 销售: 业务, 商务, 销售员, sales
+
+## Company Patterns
+
+- MITSUBISHI [role: both] (aliases: 三菱, 三菱系统)
+`;
+
+function createMachineryFixtureRoot(): string {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "unified-search-machinery-"));
+  fs.mkdirSync(path.join(root, "config", "resume"), { recursive: true });
+  fs.writeFileSync(path.join(root, "config", "resume", "skills.md"), TEST_SKILLS_MD_WITH_MACHINERY, "utf8");
+  fs.writeFileSync(path.join(root, "pyproject.toml"), "", "utf8");
+  fs.mkdirSync(path.join(root, "output"), { recursive: true });
+  return root;
+}
+
+function catalogWith(employers: Array<{
+  companyKey: string;
+  industryClass: string;
+  displayName: string;
+  aliases?: string[];
+}>): VerifiedEmployerCatalog {
+  return {
+    getVerifiedEmployers: () =>
+      employers.map((employer) => ({
+        companyKey: employer.companyKey,
+        industryClass: employer.industryClass,
+        displayName: employer.displayName,
+        aliases: employer.aliases ?? [],
+        updatedAt: 1,
+      })),
+  };
 }
 
 describe("UnifiedSearchService", () => {
@@ -330,6 +384,108 @@ describe("UnifiedSearchService", () => {
       const results = service.searchUnified([resume], "销售");
 
       expect(results.results).toEqual([]);
+    } finally {
+      cleanupFixtureRoot(root);
+    }
+  });
+});
+
+describe("verified-employer keyword bridge", () => {
+  it("injects verified employer names and aliases into industry-scoped groups", () => {
+    const root = createMachineryFixtureRoot();
+
+    try {
+      const skillsService = new SkillsKnowledgeService(root);
+      const catalog = catalogWith([
+        {
+          companyKey: "eonmetall-group",
+          industryClass: "cnc",
+          displayName: "Eonmetall Group Bhd",
+          aliases: ["eonmetall group bhd", "eonmetall"],
+        },
+      ]);
+      const service = new UnifiedSearchService(skillsService, catalog);
+      const expansion = service.expandKeyword("cnc sales");
+
+      const cncGroup = expansion.groups.find((group) => group.original === "cnc");
+      expect(cncGroup?.variants).toContain("cnc");
+      expect(cncGroup?.variants).toContain("eonmetall group bhd");
+      expect(cncGroup?.variants).toContain("eonmetall");
+
+      const salesGroup = expansion.groups.find((group) => group.original === "sales");
+      expect(salesGroup?.variants).not.toContain("eonmetall group bhd");
+    } finally {
+      cleanupFixtureRoot(root);
+    }
+  });
+
+  it("bridges nothing for non-industry-scoped groups", () => {
+    const root = createMachineryFixtureRoot();
+
+    try {
+      const skillsService = new SkillsKnowledgeService(root);
+      const catalog = catalogWith([
+        {
+          companyKey: "eonmetall-group",
+          industryClass: "cnc",
+          displayName: "Eonmetall Group Bhd",
+          aliases: ["eonmetall"],
+        },
+      ]);
+      const service = new UnifiedSearchService(skillsService, catalog);
+      const expansion = service.expandKeyword("sales");
+
+      const salesGroup = expansion.groups.find((group) => group.original === "sales");
+      expect(salesGroup?.variants).not.toContain("eonmetall group bhd");
+      expect(salesGroup?.variants).not.toContain("eonmetall");
+    } finally {
+      cleanupFixtureRoot(root);
+    }
+  });
+
+  it("degrades to synonyms-only expansion when the catalog is empty", () => {
+    const root = createMachineryFixtureRoot();
+
+    try {
+      const skillsService = new SkillsKnowledgeService(root);
+      const service = new UnifiedSearchService(
+        skillsService,
+        catalogWith([]),
+      );
+      const expansion = service.expandKeyword("cnc");
+
+      const cncGroup = expansion.groups.find((group) => group.original === "cnc");
+      expect(cncGroup?.variants).toEqual(["cnc"]);
+    } finally {
+      cleanupFixtureRoot(root);
+    }
+  });
+
+  it("excludes employers whose industry class is not taxonomy-compatible", () => {
+    const root = createMachineryFixtureRoot();
+
+    try {
+      const skillsService = new SkillsKnowledgeService(root);
+      const catalog = catalogWith([
+        {
+          companyKey: "non-industry-co",
+          industryClass: "non_industry",
+          displayName: "Used Cars Sdn Bhd",
+          aliases: ["used cars"],
+        },
+        {
+          companyKey: "unknown-co",
+          industryClass: "unknown",
+          displayName: "Mystery Sdn Bhd",
+          aliases: ["mystery"],
+        },
+      ]);
+      const service = new UnifiedSearchService(skillsService, catalog);
+      const expansion = service.expandKeyword("cnc");
+
+      const cncGroup = expansion.groups.find((group) => group.original === "cnc");
+      expect(cncGroup?.variants).not.toContain("used cars sdn bhd");
+      expect(cncGroup?.variants).not.toContain("mystery sdn bhd");
     } finally {
       cleanupFixtureRoot(root);
     }

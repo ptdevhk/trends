@@ -76,18 +76,83 @@ function dedupeProvenance(items: UnifiedSearchProvenance[]): UnifiedSearchProven
   return deduped;
 }
 
+export interface VerifiedIndustryEmployer {
+  companyKey: string;
+  industryClass: string;
+  displayName: string;
+  aliases: string[];
+  updatedAt: number;
+}
+
+export interface VerifiedEmployerCatalog {
+  getVerifiedEmployers(): VerifiedIndustryEmployer[];
+}
+
+const EMPTY_VERIFIED_EMPLOYER_CATALOG: VerifiedEmployerCatalog = {
+  getVerifiedEmployers: () => [],
+};
+
+/**
+ * Map skills.md domain tags to governed industry classes. A keyword group
+ * matching one of these domain tags (via synonym expansion) becomes
+ * industry-scoped and bridges verified employers of the mapped class.
+ * Compatibility mirrors industry-verification-service isTaxonomyCompatible:
+ * the industrial umbrella accepts cnc/automation/metrology/industrial.
+ */
+const DOMAIN_TAG_TO_INDUSTRY_CLASSES: Record<string, string[]> = {
+  machinery: ["cnc", "automation", "metrology", "industrial"],
+  metrology: ["metrology"],
+};
+
+const INDUSTRY_COMPATIBLE_CLASSES = new Set([
+  "cnc",
+  "automation",
+  "metrology",
+  "industrial",
+]);
+
 export class UnifiedSearchService {
   private readonly skillsService: SkillsKnowledgeService;
+  private readonly verifiedEmployerCatalog: VerifiedEmployerCatalog;
   private readonly companyPatternAliasLookup: Map<string, string>;
   private readonly companyPatternsByCanonicalId: Map<string, ReturnType<SkillsKnowledgeService["getCompanyPatterns"]>[number]>;
 
-  constructor(skillsService: SkillsKnowledgeService) {
+  constructor(
+    skillsService: SkillsKnowledgeService,
+    verifiedEmployerCatalog?: VerifiedEmployerCatalog,
+  ) {
     this.skillsService = skillsService;
+    this.verifiedEmployerCatalog =
+      verifiedEmployerCatalog ?? EMPTY_VERIFIED_EMPLOYER_CATALOG;
     const companyPatterns = this.skillsService.getCompanyPatterns();
     this.companyPatternAliasLookup = buildCompanyPatternAliasLookup(companyPatterns);
     this.companyPatternsByCanonicalId = new Map(
       companyPatterns.map((pattern) => [pattern.name.toLowerCase(), pattern])
     );
+  }
+
+  /**
+   * Industry classes a keyword group is scoped to, based on the skills.md
+   * domain taxonomy matched through the group's synonym-expanded variants.
+   */
+  private industryClassesForGroup(variants: string[]): string[] {
+    const variantSet = new Set(variants.map((variant) => variant.toLowerCase()));
+    const classes = new Set<string>();
+    for (const domain of this.skillsService.getIndustryTaxonomy()) {
+      const mapped = DOMAIN_TAG_TO_INDUSTRY_CLASSES[domain.tag];
+      if (!mapped) {
+        continue;
+      }
+      const hitsDomain = domain.keywords.some((keyword) =>
+        variantSet.has(keyword.toLowerCase()),
+      );
+      if (hitsDomain) {
+        for (const industryClass of mapped) {
+          classes.add(industryClass);
+        }
+      }
+    }
+    return [...classes].sort();
   }
 
   expandKeyword(keyword: string): UnifiedKeywordExpansion {
@@ -139,6 +204,29 @@ export class UnifiedSearchService {
         const pattern = this.companyPatternsByCanonicalId.get(canonicalCompanyId);
         if (pattern) {
           for (const alias of pattern.allNames) {
+            pushVariant(alias);
+          }
+        }
+      }
+
+      // Verified-employer bridge: if this group is industry-scoped, inject
+      // the display names + aliases of companies whose current governed
+      // verdict is verified for a taxonomy-compatible industry class.
+      // Read-only; rejected/unknown profiles never bridge.
+      const bridgedClasses = this.industryClassesForGroup(variants);
+      if (bridgedClasses.length > 0) {
+        const bridgedClassSet = new Set(bridgedClasses);
+        for (const employer of this.verifiedEmployerCatalog.getVerifiedEmployers()) {
+          const compatible =
+            INDUSTRY_COMPATIBLE_CLASSES.has(employer.industryClass) &&
+            (bridgedClassSet.has(employer.industryClass) ||
+              (bridgedClasses.some((cls) => cls === "industrial") &&
+                INDUSTRY_COMPATIBLE_CLASSES.has(employer.industryClass)));
+          if (!compatible) {
+            continue;
+          }
+          pushVariant(employer.displayName);
+          for (const alias of employer.aliases) {
             pushVariant(alias);
           }
         }

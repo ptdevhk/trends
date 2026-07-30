@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { internalMutation, mutation, query } from "./_generated/server";
 import {
   CANONICAL_SEED_COMPANIES,
   MAX_RECRUITER_INDUSTRY_EVIDENCE_SOURCES,
@@ -768,6 +768,59 @@ export const getIndustryProfile = query({
       .withIndex("by_company_key", (q) => q.eq("companyKey", key))
       .collect();
     return rows.length > 0 ? rows[0] : null;
+  },
+});
+
+export const listVerifiedIndustryEmployerAliases = query({
+  args: {
+    writeSecret: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    requireReadSecret(args.writeSecret);
+    const profiles = await ctx.db
+      .query("company_industry_profiles")
+      .withIndex("by_verification", (q) => q.eq("verificationLevel", "verified"))
+      .collect();
+
+    const items = await mapWithConcurrency(profiles, 12, async (profile) => {
+      const [companies, aliases] = await Promise.all([
+        ctx.db
+          .query("companies")
+          .withIndex("by_company_key", (q) =>
+            q.eq("companyKey", profile.companyKey),
+          )
+          .collect(),
+        ctx.db
+          .query("company_aliases")
+          .withIndex("by_company", (q) =>
+            q.eq("companyKey", profile.companyKey),
+          )
+          .collect(),
+      ]);
+      const company = companies[0];
+      if (!company) {
+        return null;
+      }
+      return {
+        companyKey: profile.companyKey,
+        industryClass: profile.industryClass,
+        displayName: company.displayName,
+        aliases: aliases
+          .map((alias) => alias.aliasDisplay)
+          .filter((value) => typeof value === "string" && value.trim().length > 0)
+          .sort((left, right) => left.localeCompare(right)),
+        updatedAt: profile.updatedAt,
+      };
+    });
+
+    return items
+      .filter((item) => item !== null)
+      .sort(
+        (left, right) =>
+          right.updatedAt - left.updatedAt ||
+          left.companyKey.localeCompare(right.companyKey),
+      )
+      .slice(0, 500);
   },
 });
 
@@ -3010,5 +3063,49 @@ export const retryIndustryRecomputeRun = mutation({
       updatedAt: now,
     });
     return ctx.db.get(run._id);
+  },
+});
+
+export const attachProposalToCompany = mutation({
+  args: {
+    proposalId: v.string(),
+    companyKey: v.string(),
+    sourceCompanyKey: v.optional(v.string()),
+    writeSecret: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    requireWriteSecret(args.writeSecret);
+    const proposal = await findIndustryProposal(ctx, args.proposalId.trim());
+    if (!proposal) throw new Error(`Unknown proposalId: ${args.proposalId}`);
+    const companyKey = normalizeCompanyKey(args.companyKey);
+    const sources = await ctx.db
+      .query("company_industry_evidence_sources")
+      .withIndex("by_proposal", (q) => q.eq("proposalId", proposal.proposalId))
+      .collect();
+    const extraSources = args.sourceCompanyKey
+      ? (
+          await ctx.db
+            .query("company_industry_evidence_sources")
+            .withIndex("by_company_review", (q) =>
+              q.eq("companyKey", args.sourceCompanyKey),
+            )
+            .collect()
+        )
+      : [];
+    const now = Date.now();
+    await ctx.db.patch(proposal._id, { companyKey, updatedAt: now });
+    const seen = new Set<string>();
+    let patchedSources = 0;
+    for (const source of [...sources, ...extraSources]) {
+      if (seen.has(source._id)) continue;
+      seen.add(source._id);
+      await ctx.db.patch(source._id, {
+        companyKey,
+        proposalId: proposal.proposalId,
+        updatedAt: now,
+      });
+      patchedSources += 1;
+    }
+    return { proposalId: proposal.proposalId, companyKey, patchedSources };
   },
 });
