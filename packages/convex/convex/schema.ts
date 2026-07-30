@@ -885,6 +885,7 @@ export default defineSchema({
             v.literal("disputed"),
         ),
         supersededBySourceId: v.optional(v.string()),
+        relevanceDemoted: v.optional(v.boolean()),
         createdAt: v.number(),
         updatedAt: v.number(),
     })

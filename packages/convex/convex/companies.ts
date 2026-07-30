@@ -1650,6 +1650,7 @@ export const upsertIndustryEvidenceSource = mutation({
     fetchStatus: industryEvidenceFetchStatusValidator,
     suggestedIndustryClass: v.optional(industryClassValidator),
     workerConfidence: v.optional(v.number()),
+    relevanceDemoted: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     requireWriteSecret(args.writeSecret);
@@ -1711,6 +1712,9 @@ export const upsertIndustryEvidenceSource = mutation({
         : {}),
       ...(args.workerConfidence !== undefined
         ? { workerConfidence: Math.max(0, Math.min(1, args.workerConfidence)) }
+        : {}),
+      ...(args.relevanceDemoted !== undefined
+        ? { relevanceDemoted: args.relevanceDemoted }
         : {}),
       updatedAt: now,
     };
