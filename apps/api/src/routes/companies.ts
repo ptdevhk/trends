@@ -45,6 +45,8 @@ import {
 } from "../services/company-industry-revision-service.js";
 import { requestCompanyIndustryEvidenceRefresh } from "../services/company-industry-refresh-request-service.js";
 import { enqueueIndustryMaintenance } from "../services/industry-maintenance-pipeline-service.js";
+import { callConvexQuery } from "../services/convex-utils.js";
+import { config } from "../services/config.js";
 
 const app = new OpenAPIHono();
 
@@ -85,6 +87,8 @@ app.use("/api/company-industry-evidence-sources/*", requireAdmin);
 app.use("/api/company-industry-revisions/*", requireAdmin);
 app.use("/api/company-industry-recompute-runs", requireAdmin);
 app.use("/api/company-industry-recompute-runs/*", requireAdmin);
+app.use("/api/company-industry-maintenance-runs", requireAdmin);
+app.use("/api/company-industry-maintenance-runs/*", requireAdmin);
 app.use("/api/company-industry-bundles/*", requireWorkspaceUser);
 app.use("/api/company-industry-refresh-requests", requireWorkspaceUser);
 
@@ -1027,6 +1031,137 @@ app.openapi(getIndustryRecomputeRunRoute, async (c) => {
   const { runId } = c.req.valid("param");
   const item = await companyIndustryRecomputeService.get(runId);
   return c.json({ success: true as const, item }, 200);
+});
+
+// ---------------------------------------------------------------------------
+// Industry maintenance run registry + ledger read endpoints.
+// ---------------------------------------------------------------------------
+
+const listIndustryMaintenanceRunsRoute = createRoute({
+  method: "get",
+  path: "/api/company-industry-maintenance-runs",
+  tags: ["company-industry-evidence"],
+  summary: "List industry-evidence maintenance runs",
+  request: {
+    query: z.object({
+      status: z.enum(["queued", "running", "completed", "failed", "skipped"]).optional(),
+      limit: z.coerce.number().int().min(1).max(100).optional(),
+    }),
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.literal(true),
+            items: z.array(z.unknown()),
+          }),
+        },
+      },
+      description: "Maintenance run history",
+    },
+  },
+});
+
+app.openapi(listIndustryMaintenanceRunsRoute, async (c) => {
+  const { status, limit } = c.req.valid("query");
+  const items = await callConvexQuery("companies:listIndustryMaintenanceRuns", {
+    workspaceSlug: c.var.workspaceSlug,
+    ...(status ? { status } : {}),
+    ...(limit ? { limit } : {}),
+    writeSecret: config.auth.convexWriteSecret,
+  });
+  return c.json({ success: true as const, items: (items as unknown[]) ?? [] }, 200);
+});
+
+const getIndustryMaintenanceRunRoute = createRoute({
+  method: "get",
+  path: "/api/company-industry-maintenance-runs/:runId",
+  tags: ["company-industry-evidence"],
+  summary: "Get one industry-evidence maintenance run",
+  request: { params: z.object({ runId: z.string().min(1) }) },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.literal(true),
+            item: z.unknown().nullable(),
+          }),
+        },
+      },
+      description: "Maintenance run detail",
+    },
+  },
+});
+
+app.openapi(getIndustryMaintenanceRunRoute, async (c) => {
+  const { runId } = c.req.valid("param");
+  const item = await callConvexQuery("companies:getIndustryMaintenanceRun", {
+    runId,
+    writeSecret: config.auth.convexWriteSecret,
+  });
+  return c.json({ success: true as const, item: item ?? null }, 200);
+});
+
+const listIndustryMaintenanceLedgerByRunRoute = createRoute({
+  method: "get",
+  path: "/api/company-industry-maintenance-runs/:runId/ledger",
+  tags: ["company-industry-evidence"],
+  summary: "List per-proposal ledger rows for one maintenance run",
+  request: { params: z.object({ runId: z.string().min(1) }) },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.literal(true),
+            items: z.array(z.unknown()),
+          }),
+        },
+      },
+      description: "Maintenance run ledger",
+    },
+  },
+});
+
+app.openapi(listIndustryMaintenanceLedgerByRunRoute, async (c) => {
+  const { runId } = c.req.valid("param");
+  const items = await callConvexQuery("companies:listIndustryMaintenanceLedger", {
+    runId,
+    writeSecret: config.auth.convexWriteSecret,
+  });
+  return c.json({ success: true as const, items: (items as unknown[]) ?? [] }, 200);
+});
+
+const listIndustryMaintenanceLedgerByProposalRoute = createRoute({
+  method: "get",
+  path: "/api/company-industry-proposals/:proposalId/maintenance-ledger",
+  tags: ["company-industry-evidence"],
+  summary: "List maintenance ledger history for one proposal across runs",
+  request: { params: z.object({ proposalId: z.string().min(1) }) },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.literal(true),
+            items: z.array(z.unknown()),
+          }),
+        },
+      },
+      description: "Per-proposal maintenance ledger history",
+    },
+  },
+});
+
+app.openapi(listIndustryMaintenanceLedgerByProposalRoute, async (c) => {
+  const { proposalId } = c.req.valid("param");
+  const items = await callConvexQuery("companies:listIndustryMaintenanceLedger", {
+    proposalId,
+    writeSecret: config.auth.convexWriteSecret,
+  });
+  return c.json({ success: true as const, items: (items as unknown[]) ?? [] }, 200);
 });
 
 const advanceIndustryRecomputeRunRoute = createRoute({

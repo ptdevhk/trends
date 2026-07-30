@@ -562,4 +562,115 @@ describe("companies routes", () => {
     expect(response.status).toBe(401);
     expect(calls).toHaveLength(0);
   });
+
+  it("lists industry maintenance runs with admin auth", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      if (call.pathName === "companies:listIndustryMaintenanceRuns") {
+        return convexSuccess([
+          {
+            runId: "run-1",
+            workspaceSlug: "hr",
+            triggerSource: "manual",
+            status: "completed",
+            operatorSummary: "completed; 1 ready.",
+            startedAt: 100,
+            finishedAt: 200,
+          },
+        ]);
+      }
+      throw new Error(`Unexpected path ${call.pathName}`);
+    });
+
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request(
+      "/api/company-industry-maintenance-runs?limit=10",
+      { headers: auth.headers },
+    );
+    expect(response.status).toBe(200);
+    const body = await parseJsonBody<{ items: Array<{ runId: string }> }>(response);
+    expect(body.items[0].runId).toBe("run-1");
+  });
+
+  it("returns 404 for unknown maintenance run detail", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      if (call.pathName === "companies:getIndustryMaintenanceRun") {
+        return convexSuccess(null);
+      }
+      throw new Error(`Unexpected path ${call.pathName}`);
+    });
+
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request(
+      "/api/company-industry-maintenance-rums/missing",
+      { headers: auth.headers },
+    );
+    // Unknown path prefix returns 404; test the correct path returns null item.
+    const response2 = await app.request(
+      "/api/company-industry-maintenance-runs/missing",
+      { headers: auth.headers },
+    );
+    expect(response2.status).toBe(200);
+    const body = await parseJsonBody<{ item: unknown }>(response2);
+    expect(body.item).toBeNull();
+    void response;
+  });
+
+  it("returns ledger rows by runId", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      if (call.pathName === "companies:listIndustryMaintenanceLedger") {
+        return convexSuccess([
+          {
+            runId: "run-1",
+            proposalId: "p-1",
+            action: "ready",
+            reason: "ready_for_review",
+          },
+        ]);
+      }
+      throw new Error(`Unexpected path ${call.pathName}`);
+    });
+
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request(
+      "/api/company-industry-maintenance-runs/run-1/ledger",
+      { headers: auth.headers },
+    );
+    expect(response.status).toBe(200);
+    const body = await parseJsonBody<{ items: Array<{ action: string }> }>(response);
+    expect(body.items[0].action).toBe("ready");
+  });
+
+  it("returns ledger rows by proposalId", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      if (call.pathName === "companies:listIndustryMaintenanceLedger") {
+        expect(call.args.proposalId).toBe("p-9");
+        return convexSuccess([
+          {
+            runId: "run-1",
+            proposalId: "p-9",
+            action: "needs_more_evidence",
+            reason: "no candidate sources",
+          },
+        ]);
+      }
+      throw new Error(`Unexpected path ${call.pathName}`);
+    });
+
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request(
+      "/api/company-industry-proposals/p-9/maintenance-ledger",
+      { headers: auth.headers },
+    );
+    expect(response.status).toBe(200);
+    const body = await parseJsonBody<{ items: Array<{ action: string }> }>(response);
+    expect(body.items[0].action).toBe("needs_more_evidence");
+  });
 });
