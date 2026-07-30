@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { config } from "../config";
 import { SummaryDataService } from "./summary-data-service";
 
 describe("SummaryDataService", () => {
@@ -207,7 +208,10 @@ describe("SummaryDataService", () => {
     expect(report.window).toEqual({
       startAt: "2026-03-23T00:00:00+08:00",
       endAt: "2026-03-30T00:00:00+08:00",
-      timezone: "Asia/Hong_Kong",
+      // Window timezone follows config.timezone (env TIMEZONE wins over
+      // config.yaml). The dev shell sources .env (TIMEZONE=Asia/Hong_Kong),
+      // but bare vitest runs inherit the shell default (Asia/Shanghai).
+      timezone: config.timezone,
     });
     expect(report.totals).toEqual({
       newResumes: 8,
@@ -222,7 +226,7 @@ describe("SummaryDataService", () => {
       previousWindow: {
         startAt: "2026-03-16T00:00:00+08:00",
         endAt: "2026-03-23T00:00:00+08:00",
-        timezone: "Asia/Hong_Kong",
+        timezone: config.timezone,
       },
       totalsDelta: {
         sharedIngest: {

@@ -27,6 +27,35 @@ def _employer_tokens(employer_surface: str) -> set[str]:
     }
     return tokens
 
+
+# Ultra-generic English words that appear in virtually any news homepage or
+# boilerplate. Tokens in this set can never *on their own* prove employer
+# relevance (they caused the robo-machine-tools false-ready run).
+_GENERIC_TOKENS = {
+    "new", "line", "group", "global", "tech", "technology", "systems",
+    "system", "solutions", "industries", "industrial", "international",
+    "power", "star", "edge", "world", "holdings", "ventures", "capital",
+    "services", "engineering", "enterprise", "enterprises",
+    "equipment", "supply", "supplies", "online", "malaysia-news",
+}
+
+
+_PORTAL_SUFFIXES = (
+    "online", "news", "portal", "homepage", "home page",
+)
+
+
+_PORTAL_PHRASES = (
+    "malaysia news", "world news", "business news", "breaking news",
+    "make better decisions", "latest news",
+)
+
+
+def distinctive_employer_tokens(employer_surface: str) -> set[str]:
+    """Employer tokens minus ultra-generic words. Empty means the surface
+    has no distinctive vocabulary (fail-open handled by callers)."""
+    return _employer_tokens(employer_surface) - _GENERIC_TOKENS
+
 def classify_source(url: str, employer_surface: str) -> dict:
     host = (urlparse(url).hostname or "").lower().removeprefix("www.")
     # Google News RSS redirect URLs (arrive only when the RSS source url was
@@ -45,3 +74,53 @@ def classify_source(url: str, employer_surface: str) -> dict:
         return {"sourceType": "official_site", "trustTier": "primary"}
     # Default: unvetted search hit — never approval-safe
     return {"sourceType": "search_result", "trustTier": "discovery"}
+
+
+_GENERIC_TITLE_MARKERS = (
+    "home", "homepage", "news", "latest", "portal", "official site",
+)
+
+
+def excerpt_proves_employer(
+    employer_surface: str,
+    *,
+    title: str = "",
+    excerpt: str = "",
+) -> bool:
+    """Relevance-tightening gate: does the *content evidence* for a hit
+    provably mention the employer? URL is deliberately excluded — every
+    curated press homepage would pass on domain alone (the
+    robo-machine-tools failure mode, 2026-07-30).
+
+    Only *distinctive* tokens count: ultra-generic words ("new", "line",
+    "machine", "tools", …) appear in any English news homepage and must not
+    prove relevance on their own. Fails open when the surface has no
+    distinctive vocabulary at all, so single-word distinctive companies
+    still work.
+    """
+    tokens = distinctive_employer_tokens(employer_surface)
+    if not tokens:
+        return True
+    haystack = f"{title} {excerpt}".casefold()
+    return any(tok in haystack for tok in tokens)
+
+
+def looks_like_homepage_title(title: str) -> bool:
+    """Publisher-portal titles signal a homepage row rather than an
+    article-level source: 'NST Online', 'BBC Home', 'Killeen Daily Herald:
+    Killeen News, Sports, Weather', portal taglines like 'Malaysia News &
+    World Updates'."""
+    lowered = title.strip().casefold()
+    if not lowered:
+        return False
+    if any(marker in lowered for marker in _GENERIC_TITLE_MARKERS):
+        return True
+    if any(phrase in lowered for phrase in _PORTAL_PHRASES):
+        return True
+    words = [w.strip("|:–—-,. ") for w in lowered.split()]
+    if any(w in _PORTAL_SUFFIXES for w in words):
+        return True
+    # Publisher self-titles are short: "The Edge Malaysia", "Reuters".
+    if len(words) <= 3 and not any(ch.isdigit() for ch in lowered):
+        return True
+    return False

@@ -3,7 +3,11 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from apps.worker.industry_evidence_research import IndustryEvidenceResearcher
-from apps.worker.web_research.classify import classify_source
+from apps.worker.web_research.classify import (
+    classify_source,
+    excerpt_proves_employer,
+    looks_like_homepage_title,
+)
 from apps.worker.web_research.config import WebResearchConfig
 from apps.worker.web_research.search import SearchProvider
 
@@ -133,6 +137,28 @@ class DiscoveryJob:
 
         if not raw_candidates:
             return {"status": "needs_more_evidence", "sources": []}
+
+        # Relevance tightening: a hit whose *content* cannot be shown to
+        # mention the employer is demoted to discovery tier before governed
+        # enrichment, so curated-press homepage rows (the robo-machine-tools
+        # failure mode) can no longer masquerade as proof sources. Rows are
+        # kept for steward visibility, but they stay non-approval-safe.
+        #
+        # Demotion rules for a non-discovery candidate:
+        #  - excerpt-provided hit whose excerpt+title lacks the employer, or
+        #  - no excerpt at all AND a portal-style homepage title
+        #    ("NST Online", "The Edge Malaysia"): the content that would be
+        #    fetched is homepage boilerplate, which cannot prove relevance.
+        for candidate in raw_candidates:
+            if candidate["trustTier"] == "discovery":
+                continue
+            title = str(candidate.get("title") or "")
+            excerpt = str(candidate.get("expectedExcerpt") or "")
+            if excerpt_proves_employer(employer, title=title, excerpt=excerpt):
+                continue
+            if excerpt or looks_like_homepage_title(title):
+                candidate["trustTier"] = "discovery"
+                candidate["relevanceDemoted"] = True
 
         # Reuse the existing governed enrichment (fetch + classify + rank)
         result = self.researcher.enrich_proposal(proposal, raw_candidates)

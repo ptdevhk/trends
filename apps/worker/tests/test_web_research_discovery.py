@@ -479,3 +479,138 @@ def test_maintenance_job_without_discovery_job_preserves_existing_behavior():
     assert job.run() is True  # no discovery: empty candidates -> needs_more_evidence
     assert client.upserted == []
     assert client.states[-1]["status"] == "needs_more_evidence"
+
+# ---------------------------------------------------------------------------
+# Employer-relevance tightening (2026-07-30): generic hits whose excerpt
+# provably fails to mention the employer are demoted to discovery tier and
+# can no longer flip a proposal to ready_for_review on their own.
+# ---------------------------------------------------------------------------
+
+class ListingSearch:
+    """Returns curated MY press homepages with unrelated excerpts."""
+    def __init__(self, results):
+        self.results = results
+        self.calls = []
+    def search(self, query, max_results):
+        self.calls.append(query)
+        return list(self.results)
+
+
+def test_homepage_hits_without_employer_excerpt_cannot_flip_ready():
+    """The robo-machine-tools failure mode: curated reporting domains with
+    homepage titles and no excerpt must NOT count as proof sources."""
+    search = ListingSearch([
+        SearchResult(url="https://www.nst.com.my/", title="NST Online"),
+        SearchResult(url="https://theedgemalaysia.com/",
+                     title="The Edge Malaysia"),
+    ])
+    fetcher = StaticFetcher({
+        "https://www.nst.com.my/": {
+            "finalUrl": "https://www.nst.com.my/",
+            "title": "NST Online",
+            "excerpt": "Malaysia news, world updates, sports and lifestyle.",
+            "contentFingerprint": "sha256:a",
+            "domainGuardPassed": True,
+        },
+        "https://theedgemalaysia.com/": {
+            "finalUrl": "https://theedgemalaysia.com/",
+            "title": "The Edge Malaysia",
+            "excerpt": "Make better decisions with Malaysian business news.",
+            "contentFingerprint": "sha256:b",
+            "domainGuardPassed": True,
+        },
+    })
+    job = DiscoveryJob(
+        search_chain=[search], fetcher=fetcher, client=FakeClient(),
+        config=load_web_research_config({"WEB_RESEARCH_ENABLED": "1"}),
+    )
+    out = job.discover_for_proposal(_proposal())
+    assert out["status"] == "needs_more_evidence"
+    assert all(
+        source["trustTier"] == "discovery" for source in out["sources"]
+    ), "unproven homepage rows must be demoted to discovery tier"
+    # Rows are still recorded for steward visibility (not dropped silently);
+    # enrichment caps sources per proposal, so at least one survives.
+    assert len(out["sources"]) >= 1
+
+
+def test_homepage_hit_with_employer_excerpt_keeps_reviewable_tier():
+    """Excerpt-provided hit (GNews RSS description) that mentions the
+    employer keeps its reviewable tier and can flip ready_for_review."""
+    search = ListingSearch([
+        SearchResult(
+            url="https://www.thestar.com.my/",
+            title="New Line Machine Tool wins Penang machining contract",
+            discovery_snippet=(
+                "New Line Machine Tool Sdn Bhd secured a CNC machining "
+                "contract with a Penang aerospace supplier."
+            ),
+        ),
+    ])
+    job = DiscoveryJob(
+        search_chain=[search], fetcher=StaticFetcher({}), client=FakeClient(),
+        config=load_web_research_config({"WEB_RESEARCH_ENABLED": "1"}),
+    )
+    out = job.discover_for_proposal(_proposal())
+    assert out["status"] == "ready_for_review"
+    assert out["sources"][0]["trustTier"] == "corroborating"
+    assert out["sources"][0]["fetchStatus"] == "fetched"
+
+
+def test_mixed_proven_and_unproven_hits_only_proven_counts():
+    """A proposal with one proven excerpt hit + two homepage noise hits
+    flips ready via the proven hit alone; noise stays discovery tier."""
+    search = ListingSearch([
+        SearchResult(
+            url="https://www.thestar.com.my/",
+            title="New Line Machine Tool expands Penang plant",
+            discovery_snippet=(
+                "New Line Machine Tool Sdn Bhd expanded its CNC machine "
+                "tool distribution plant in Penang."
+            ),
+        ),
+        SearchResult(url="https://www.nst.com.my/", title="NST Online"),
+        SearchResult(url="https://themalaysianreserve.com/",
+                     title="The Malaysian Reserve"),
+    ])
+    fetcher = StaticFetcher({
+        "https://www.nst.com.my/": {
+            "finalUrl": "https://www.nst.com.my/",
+            "title": "NST Online",
+            "excerpt": "Malaysia news, world updates, sports and lifestyle.",
+            "contentFingerprint": "sha256:a",
+            "domainGuardPassed": True,
+        },
+        "https://themalaysianreserve.com/": {
+            "finalUrl": "https://themalaysianreserve.com/",
+            "title": "The Malaysian Reserve",
+            "excerpt": "Malaysian business and corporate news.",
+            "contentFingerprint": "sha256:c",
+            "domainGuardPassed": True,
+        },
+    })
+    job = DiscoveryJob(
+        search_chain=[search], fetcher=fetcher, client=FakeClient(),
+        config=load_web_research_config({"WEB_RESEARCH_ENABLED": "1"}),
+    )
+    out = job.discover_for_proposal(_proposal())
+    assert out["status"] == "ready_for_review"
+    tiers = {s["url"]: s["trustTier"] for s in out["sources"]}
+    assert tiers["https://www.thestar.com.my/"] == "corroborating"
+    assert tiers["https://www.nst.com.my/"] == "discovery"
+    # Discovery-tier rows rank below reviewable ones in enrichment's source
+    # cap; when present they must also be demoted. Assert across either the
+    # surviving row or (if capped away) its absence is acceptable — what
+    # matters is only the proven hit drove the status.
+    surviving = [
+        s for s in out["sources"]
+        if s["url"] == "https://themalaysianreserve.com/"
+    ]
+    assert not surviving or surviving[0]["trustTier"] == "discovery"
+    proof = [
+        s for s in out["sources"]
+        if s.get("fetchStatus") == "fetched"
+        and s.get("sourceType") != "search_result"
+        and s.get("trustTier") != "discovery"
+    ]
+    assert [s["url"] for s in proof] == ["https://www.thestar.com.my/"]

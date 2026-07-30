@@ -22,7 +22,7 @@ describe("analyze summary evidence lane", () => {
 
     expect(normalized.name).toBe("\u6768\u5148\u751F");
     expect(normalized.evidenceText).toContain("\u4E1A\u52A1\u5458");
-    expect(normalized.evidenceText).toContain("cnc\u7F16\u7A0B\u7EC4\u957F");
+    expect(normalized.evidenceText).toContain("CNC\u7F16\u7A0B\u7EC4\u957F");
     expect(normalized.evidenceText).not.toBe("\u672A\u586B\u5199");
     expect(normalized.verifiedCompanies).toEqual([]);
   });
@@ -69,7 +69,11 @@ describe("analyze summary evidence lane", () => {
         name: "\u5F20\u5148\u751F",
         education: "\u672C\u79D1",
         experience: "8\u5E74",
-        workHistory: [{ raw: "2020-2024 \u5927\u8FDE\u673A\u5E8A\u96C6\u56E2 \u9500\u552E\u7ECF\u7406" }],
+        workHistory: [{
+          companyName: "\u5927\u8FDE\u673A\u5E8A\u96C6\u56E2",
+          jobTitle: "\u9500\u552E\u7ECF\u7406",
+          raw: "2020-2024 \u5927\u8FDE\u673A\u5E8A\u96C6\u56E2 \u9500\u552E\u7ECF\u7406",
+        }],
       },
       ingestData: {
         evidenceText: "2020-2024 \u5927\u8FDE\u673A\u5E8A\u96C6\u56E2 \u9500\u552E\u7ECF\u7406",
@@ -77,7 +81,10 @@ describe("analyze summary evidence lane", () => {
       },
     } as unknown);
 
-    expect(normalized.verifiedCompanies).toEqual(["\u5927\u8FDE\u673A\u5E8A\u96C6\u56E2", "\u6C88\u9633\u673A\u5E8A"]);
+    // companyHits not mentioned in work history are filtered out of the
+    // verified-company lane (7b66ce41): only employers with content evidence
+    // reach the AI prompt as verified companies.
+    expect(normalized.verifiedCompanies).toEqual(["\u5927\u8FDE\u673A\u5E8A\u96C6\u56E2"]);
   });
 
   it("honors analysis field usage overrides on root content fields", () => {

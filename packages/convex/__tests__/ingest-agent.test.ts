@@ -257,8 +257,8 @@ describe("processNewResumes", () => {
     // Verify the BFF payload includes sourceKey
     const callArgs = fetchSpy.mock.calls[0]
     const body = JSON.parse(callArgs[1]?.body as string)
-    expect(body.resumes[0]).toEqual({ resumeId: "r1", content: { name: "Alice" }, sourceKey: "acme" })
-    expect(body.resumes[1]).toEqual({ resumeId: "r2", content: { name: "Bob" }, sourceKey: undefined })
+    expect(body.resumes[0]).toEqual({ resumeId: "r1", content: { name: "Alice" }, sourceKey: "acme", workspaceSlug: "dev" })
+    expect(body.resumes[1]).toEqual({ resumeId: "r2", content: { name: "Bob" }, sourceKey: undefined, workspaceSlug: "dev" })
 
     fetchSpy.mockRestore()
   })

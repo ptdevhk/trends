@@ -64,3 +64,15 @@ def test_my_sg_news_domains_are_reporting():
     ]:
         out = classify_source(url, "New Line Machine Tool Sdn Bhd")
         assert out == {"sourceType": "reporting", "trustTier": "corroborating"}, url
+
+def test_excerpt_proves_employer_generic_tokens_rejected():
+    from apps.worker.web_research.classify import excerpt_proves_employer
+    # "line"/"new" appear in any English news homepage; must not count.
+    assert not excerpt_proves_employer(
+        "New Line Machine Tool Sdn Bhd", title="NST Online")
+    # Distinctive token match works.
+    assert excerpt_proves_employer(
+        "New Line Machine Tool Sdn Bhd",
+        excerpt="New Line Machine Tool expanded its Penang plant.")
+    # Degenerate surface fails open.
+    assert excerpt_proves_employer("Sdn Bhd", title="anything")
