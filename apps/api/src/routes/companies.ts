@@ -44,6 +44,7 @@ import {
   listIndustryVerdictRevisions,
 } from "../services/company-industry-revision-service.js";
 import { requestCompanyIndustryEvidenceRefresh } from "../services/company-industry-refresh-request-service.js";
+import { enqueueIndustryMaintenance } from "../services/industry-maintenance-pipeline-service.js";
 
 const app = new OpenAPIHono();
 
@@ -795,6 +796,14 @@ app.openapi(approveIndustryProposalRoute, async (c) => {
     { proposalId, workspaceSlug: c.var.workspaceSlug, ...body },
     getAuthenticatedActorId(c),
   );
+  // Approval hook: enqueue a maintenance run so recycled needs_more_evidence
+  // proposals re-chew automatically after a human approval. Fire-and-forget;
+  // coalescing prevents duplicate runs if multiple approvals land in sequence.
+  void enqueueIndustryMaintenance({
+    workspaceSlug: c.var.workspaceSlug,
+    triggerSource: "approval",
+    triggerContext: proposalId,
+  });
   return c.json({ success: true as const, ...result }, 200);
 });
 

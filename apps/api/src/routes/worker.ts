@@ -1,8 +1,14 @@
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
+import { requireAdmin } from "../middleware/auth.js";
 import { config } from "../services/config.js";
 import { logger } from "../services/logger.js";
+import { enqueueIndustryMaintenance } from "../services/industry-maintenance-pipeline-service.js";
 
 const app = new OpenAPIHono();
+
+// Admin-gate the manual industry-maintenance trigger (other worker proxy routes
+// are intentionally open - they are also reachable from internal callers).
+app.use("/industry-maintenance", requireAdmin);
 
 async function proxyToJson(path: string, init: RequestInit): Promise<{ data: unknown; status: number }> {
     const response = await fetch(`${config.workerUrl}${path}`, init);
@@ -114,6 +120,51 @@ app.openapi(summaryRoute, async (c) => {
     } catch (error) {
         logger.error("Failed to proxy summary trigger:", error, { route: "worker" });
         return c.json({ error: "Failed to connect to worker API" }, 503);
+    }
+});
+
+const industryMaintenanceRoute = createRoute({
+    method: "post",
+    path: "/industry-maintenance",
+    tags: ["worker"],
+    summary: "Trigger industry-evidence maintenance run",
+    request: {
+        body: {
+            content: {
+                "application/json": {
+                    schema: z.object({ note: z.string().optional() }).optional(),
+                },
+            },
+        },
+    },
+    responses: {
+        200: {
+            content: {
+                "application/json": {
+                    schema: z.object({
+                        success: z.literal(true),
+                        runId: z.string().nullable(),
+                        coalesced: z.boolean(),
+                    }),
+                },
+            },
+            description: "Maintenance run enqueued",
+        },
+        503: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Worker unavailable" },
+    },
+});
+app.openapi(industryMaintenanceRoute, async (c) => {
+    const body = await c.req.json().catch(() => ({} as { note?: string }));
+    try {
+        const result = await enqueueIndustryMaintenance({
+            workspaceSlug: c.var.workspaceSlug,
+            triggerSource: "manual",
+            ...(body.note ? { triggerContext: body.note } : {}),
+        });
+        return c.json({ success: true as const, ...result }, 200);
+    } catch (error) {
+        logger.error("Failed to enqueue industry maintenance:", error, { route: "worker" });
+        return c.json({ error: "Failed to enqueue industry maintenance" }, 503);
     }
 });
 

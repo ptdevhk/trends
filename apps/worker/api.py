@@ -38,7 +38,12 @@ from mcp_server.utils.errors import DataNotFoundError
 from apps.worker import __version__
 from apps.worker.timezone import bootstrap_worker_timezone
 from apps.worker.status_store import resolve_worker_status_path
-from apps.worker.tasks import run_crawl_analyze, run_research_ingest, run_workspace_summary
+from apps.worker.tasks import (
+    run_crawl_analyze,
+    run_industry_evidence_maintenance,
+    run_research_ingest,
+    run_workspace_summary,
+)
 from trendradar.utils.time import format_iso_offset_time
 
 WORKER_TIMEZONE = bootstrap_worker_timezone()
@@ -299,6 +304,58 @@ async def trigger_research_ingest(body: ResearchIngestRequest = ResearchIngestRe
         started_at=started_at,
         finished_at=finished_at,
         message="Research ingest completed",
+    )
+
+
+class IndustryMaintenanceRequest(BaseModel):
+    """Optional body for operator industry-evidence maintenance trigger."""
+
+    runId: Optional[str] = Field(
+        default=None,
+        description="Existing run registry id (when triggered by the API pipeline); omit to self-register.",
+    )
+    trigger: str = Field(
+        default="manual",
+        description="Trigger source label when self-registering (manual/schedule).",
+    )
+
+
+@router.post("/worker/industry/maintenance", response_model=WorkerTriggerResponse, tags=["Industry"])
+async def trigger_industry_maintenance(body: IndustryMaintenanceRequest = IndustryMaintenanceRequest()):
+    """
+    Trigger governed industry-evidence maintenance (research open proposals +
+    freshness checks). Force-enables INDUSTRY_EVIDENCE_MAINTENANCE_ENABLED for
+    the call, mirroring the research-ingest operator trigger.
+
+    When ``runId`` is supplied the run is claimed + finished in the Convex
+    registry; when omitted a run is self-registered so history is complete.
+    """
+    started_at = format_iso_offset_time(timezone=WORKER_TIMEZONE)
+    import os
+
+    previous = os.environ.get("INDUSTRY_EVIDENCE_MAINTENANCE_ENABLED")
+    os.environ["INDUSTRY_EVIDENCE_MAINTENANCE_ENABLED"] = "1"
+    try:
+        success = await asyncio.to_thread(
+            run_industry_evidence_maintenance,
+            body.runId,
+            body.trigger,
+        )
+    finally:
+        if previous is None:
+            os.environ.pop("INDUSTRY_EVIDENCE_MAINTENANCE_ENABLED", None)
+        else:
+            os.environ["INDUSTRY_EVIDENCE_MAINTENANCE_ENABLED"] = previous
+    finished_at = format_iso_offset_time(timezone=WORKER_TIMEZONE)
+
+    if not success:
+        raise HTTPException(status_code=500, detail="Industry maintenance failed")
+
+    return WorkerTriggerResponse(
+        mode="industry-maintenance",
+        started_at=started_at,
+        finished_at=finished_at,
+        message="Industry maintenance completed",
     )
 
 

@@ -23,6 +23,7 @@ import {
   CandidateStatusBackupSchema,
 } from "../schemas/index.js";
 import { resolveResumeId } from "../services/resume-id.js";
+import { enqueueIndustryMaintenance } from "../services/industry-maintenance-pipeline-service.js";
 import { isRecord } from "@trends/shared";
 import {
   toOptionalNumber,
@@ -291,6 +292,22 @@ app.openapi(importResumesRoute, async (c) => {
   try {
     const payload = c.req.valid("json");
     const result = await submitResumeImport(payload, c.var.workspaceSlug);
+    // Restore/collect hook: enqueue an industry-maintenance run when the import
+    // inserted or updated at least one resume. Fire-and-forget; coalescing
+    // prevents trigger storms when multiple snapshot files import in sequence.
+    const inserted = typeof result.inserted === "number" ? result.inserted : 0;
+    const updated = typeof result.updated === "number" ? result.updated : 0;
+    if (inserted + updated >= 1) {
+      const sourceLabel =
+        typeof payload?.source === "string" && payload.source
+          ? payload.source
+          : "api-import";
+      void enqueueIndustryMaintenance({
+        workspaceSlug: c.var.workspaceSlug,
+        triggerSource: "restore",
+        triggerContext: sourceLabel,
+      });
+    }
     return c.json(result, 200);
   } catch (error) {
     logger.error("Failed to import resumes", error, { route: "resumes_import" });
