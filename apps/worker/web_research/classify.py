@@ -28,15 +28,19 @@ def _employer_tokens(employer_surface: str) -> set[str]:
     return tokens
 
 
-# Ultra-generic English words that appear in virtually any news homepage or
+# Ultra-generic words that appear in virtually any news homepage or
 # boilerplate. Tokens in this set can never *on their own* prove employer
-# relevance (they caused the robo-machine-tools false-ready run).
+# relevance (they caused the robo-machine-tools and southern-pipe
+# false-ready runs). Sector nouns ("industry", "pipe", "sports", …) are
+# included: "pipe industry" describes a sector, not a company.
 _GENERIC_TOKENS = {
     "new", "line", "group", "global", "tech", "technology", "systems",
     "system", "solutions", "industries", "industrial", "international",
     "power", "star", "edge", "world", "holdings", "ventures", "capital",
     "services", "engineering", "enterprise", "enterprises",
     "equipment", "supply", "supplies", "online", "malaysia-news",
+    "industry", "pipe", "southern", "sports", "sport", "lighting",
+    "automation", "precision", "technology", "corporation",
 }
 
 
@@ -93,14 +97,20 @@ def excerpt_proves_employer(
     robo-machine-tools failure mode, 2026-07-30).
 
     Only *distinctive* tokens count: ultra-generic words ("new", "line",
-    "machine", "tools", …) appear in any English news homepage and must not
-    prove relevance on their own. Fails open when the surface has no
-    distinctive vocabulary at all, so single-word distinctive companies
-    still work.
+    "industry", "pipe", …) appear in any English news homepage and must not
+    prove relevance on their own.
+
+    Fail-open only for a *degenerate* surface (no usable employer tokens at
+    all, e.g. "Sdn Bhd"). A surface whose entire vocabulary is generic
+    sector nouns fails closed instead — otherwise every business homepage
+    would "prove" it (the southern-pipe fail-open, 2026-07-30).
     """
+    all_tokens = _employer_tokens(employer_surface)
+    if not all_tokens:
+        return True
     tokens = distinctive_employer_tokens(employer_surface)
     if not tokens:
-        return True
+        return False
     haystack = f"{title} {excerpt}".casefold()
     return any(tok in haystack for tok in tokens)
 

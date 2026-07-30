@@ -614,3 +614,99 @@ def test_mixed_proven_and_unproven_hits_only_proven_counts():
         and s.get("trustTier") != "discovery"
     ]
     assert [s["url"] for s in proof] == ["https://www.thestar.com.my/"]
+
+def test_sector_token_surface_cannot_flip_ready_on_boilerplate():
+    """southern-pipe failure mode: sector nouns (industry/pipe/southern)
+    appear in any business homepage; with no distinctive token left the
+    surface fails open ONLY when there's truly nothing distinctive."""
+    search = ListingSearch([
+        SearchResult(url="https://theedgemalaysia.com/",
+                     title="The Edge Malaysia - Make Better Decisions"),
+    ])
+    fetcher = StaticFetcher({
+        "https://theedgemalaysia.com/": {
+            "finalUrl": "https://theedgemalaysia.com/",
+            "title": "The Edge Malaysia - Make Better Decisions",
+            "excerpt": "BURSA SGX Top Stocks, industry news and pipe reviews.",
+            "contentFingerprint": "sha256:z",
+            "domainGuardPassed": True,
+        },
+    })
+    job = DiscoveryJob(
+        search_chain=[search], fetcher=fetcher, client=FakeClient(),
+        config=load_web_research_config({"WEB_RESEARCH_ENABLED": "1"}),
+    )
+    out = job.discover_for_proposal({
+        "proposalId": "p-sp",
+        "normalizedEmployerSurface": "southern pipe industry malaysia sdn bhd",
+        "companyKey": None,
+    })
+    # Homepage title is portal-style → demoted even though sector tokens
+    # appear in the fetched boilerplate. Nothing reviewable may remain.
+    assert out["status"] == "needs_more_evidence"
+    assert not any(
+        s.get("trustTier") != "discovery" for s in out["sources"]
+    )
+
+# ---------------------------------------------------------------------------
+# Re-enrichment tightening: employer-relevance also gates the fetch path for
+# proposals that already have candidate sources (recycled needs_more_evidence
+# rows with homepage content must not re-flip ready_for_review).
+# ---------------------------------------------------------------------------
+
+def test_reenrichment_demotes_homepage_content_candidates():
+    from apps.worker.industry_evidence_research import (
+        IndustryEvidenceMaintenanceJob,
+    )
+
+    class C:
+        def __init__(self):
+            self.sources = [{
+                "sourceId": "s-1",
+                "proposalId": "p-sp",
+                "url": "https://theedgemalaysia.com/",
+                "sourceType": "reporting",
+                "trustTier": "corroborating",
+                "fetchStatus": "fetched",
+            }]
+            self.status_calls = []
+        def list_industry_proposals(self, status):
+            if status == "needs_more_evidence":
+                return [{
+                    "proposalId": "p-sp",
+                    "normalizedEmployerSurface":
+                        "southern pipe industry malaysia sdn bhd",
+                    "priority": 51,
+                }]
+            return []
+        def list_industry_evidence_sources(self, proposal_id=None, **kw):
+            return list(self.sources)
+        def set_industry_proposal_research_state(self, payload):
+            self.status_calls.append(payload)
+        def upsert_industry_evidence_source(self, payload):
+            for row in self.sources:
+                if row["sourceId"] == payload["sourceId"]:
+                    row.update(payload)
+        def list_due_industry_evidence_sources(self, *a, **k):
+            return []
+
+    client = C()
+    fetcher = StaticFetcher({
+        "https://theedgemalaysia.com/": {
+            "finalUrl": "https://theedgemalaysia.com/",
+            "title": "The Edge Malaysia - Make Better Decisions",
+            "excerpt": "The Edge Malaysia - Make Better Decisions Thursday "
+                       "30 Jul 2026 BURSA SGX Top Stories",
+            "contentFingerprint": "sha256:z",
+            "domainGuardPassed": True,
+        },
+    })
+    job = IndustryEvidenceMaintenanceJob(client=client, fetcher=fetcher) \
+        if False else IndustryEvidenceMaintenanceJob(client=client)
+    # researcher uses its own fetcher; build job with matching fetcher
+    job.researcher = IndustryEvidenceResearcher(fetcher=fetcher)
+    job.run()
+    final = client.status_calls[-1]
+    assert final["status"] == "needs_more_evidence", client.status_calls
+    # demoted rows recorded for steward visibility
+    assert client.sources[0]["trustTier"] == "discovery"

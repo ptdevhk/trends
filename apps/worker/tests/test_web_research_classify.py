@@ -76,3 +76,14 @@ def test_excerpt_proves_employer_generic_tokens_rejected():
         excerpt="New Line Machine Tool expanded its Penang plant.")
     # Degenerate surface fails open.
     assert excerpt_proves_employer("Sdn Bhd", title="anything")
+
+def test_excerpt_proves_employer_sector_only_surface_fails_closed():
+    from apps.worker.web_research.classify import excerpt_proves_employer
+    # Every token is a sector noun → no distinctive vocabulary → cannot
+    # prove relevance from content. Prevents southern-pipe fail-open.
+    assert not excerpt_proves_employer(
+        "southern pipe industry malaysia sdn bhd",
+        title="The Edge Malaysia - Make Better Decisions",
+        excerpt="BURSA SGX Top Stocks, industry news and pipe reviews.")
+    # Degenerate surface (no tokens at all) still fails open.
+    assert excerpt_proves_employer("Sdn Bhd", title="anything")

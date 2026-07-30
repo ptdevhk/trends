@@ -114,12 +114,32 @@ With `TAVILY_API_KEY` and/or `BRAVE_API_KEY` present, the keyed providers prepen
 
 Every provider query is recorded in the `web_research_quota` Convex table. The cap is 1000 queries per provider per month; when a provider reaches its cap the worker stops calling it (hard stop — no search request is made). Inspect the ledger rows from the Convex dashboard after any attended dry-run.
 
+### Employer-relevance tightening (2026-07-30)
+
+Discovery demotes unproven candidates to `discovery` tier before governed enrichment, so a hit can only flip a proposal to `ready_for_review` when its *content* provably mentions the employer:
+
+- Only distinctive employer tokens count. Ultra-generic words (`new`, `line`, `group`, `tech`, `power`, `star`, `edge`, `world`, `holdings`, `services`, `engineering`, …) appear in any English news homepage and never prove relevance on their own. A surface with no distinctive vocabulary fails open (no filtering).
+- The gate reads `title + excerpt` only — never the URL, because every curated press homepage passes on domain alone.
+- Excerpt-provided hits (Google News RSS descriptions) whose excerpt lacks the employer are demoted; excerpt-less hits with portal-style homepage titles (`NST Online`, `The Edge Malaysia`, taglines, short publisher self-titles) are demoted because their fetched content would be homepage boilerplate.
+- Demoted rows are **kept** on the proposal for steward visibility (marked `relevanceDemoted`) but are never approval-safe and cannot drive `ready_for_review` alone.
+
+This was the fix for the robo-machine-tools false-ready run: generic tokens (`robo`, `machine`, `tools`) matched manufacturing headlines, and curated MY press homepages counted as proof sources without any employer-specific content.
+
 Governance does not change under discovery:
 
 - Automation never approves. Discovery output can at most move a proposal to `ready_for_review`; only an authenticated human reviewer advances a verdict revision.
 - `discovery` and `search_result` sources are never approval-safe evidence. Approve only durable public HTTP(S) pages.
 - Unreviewed evidence never reaches recruiters. Discovery-tier sources stay inside stewardship surfaces until a human approves a revision.
 - Hot paths stay network-free. All web access happens in the worker; search, scoring, and Resume Detail never fetch.
+
+## Verified employers in recruiter search (keyword bridge)
+
+Approved verdicts drive recruiter search recall, not just the card badge. When a keyword group is industry-scoped (via the skills.md domain taxonomy — `machinery` maps to cnc/automation/metrology/industrial), `/api/resumes/keyword-expansion` injects the display names and aliases of companies whose **current** verdict revision is `verified` and taxonomy-compatible. A candidate whose employer is verified (e.g. Eonmetall Group Bhd, verified/cnc) then matches a "CNC Sales" search even when the raw resume text contains no CNC term.
+
+- Read-only and current: the feed (`companies:listVerifiedIndustryEmployerAliases`) reads live profiles, so superseding rejections remove an employer from expansion immediately. Rejected/unknown profiles never bridge.
+- Degraded catalog = synonyms-only expansion (silent, logged).
+- Query-time behavior: no re-ingest is required when the bridge or verdicts change; only the usual profile→recompute path updates cards.
+- The 60s TTL cache warms at API startup; the first expansion before warm returns synonyms-only.
 
 ## Rollback
 

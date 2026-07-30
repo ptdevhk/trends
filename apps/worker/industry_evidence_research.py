@@ -228,6 +228,42 @@ def _candidate_sort_key(candidate: Dict[str, Any]) -> tuple:
     )
 
 
+def _candidate_content_proves_employer(
+    employer_surface: str, candidate: Dict[str, Any]
+) -> bool:
+    """Re-enrichment relevance gate: does this candidate's *existing*
+    content (title or stored excerpt) provably mention the employer?
+    Candidates with no stored content yet are allowed through — they get
+    fetched, then their fetched content faces the same gate inside
+    enrich_proposal via the demoted-tier rules. Lazy import keeps
+    web_research out of the graph when discovery is disabled.
+    """
+    from apps.worker.web_research.classify import excerpt_proves_employer
+
+    title = str(candidate.get("title") or "")
+    excerpt = str(
+        candidate.get("expectedExcerpt")
+        or candidate.get("evidenceExcerpt")
+        or ""
+    )
+    if not title and not excerpt:
+        return True  # unknown content: fetch will decide
+    return excerpt_proves_employer(employer_surface, title=title, excerpt=excerpt)
+
+
+def _source_content_proves_employer(
+    employer_surface: str, source: Dict[str, Any]
+) -> bool:
+    """Fetched-source relevance gate for proof-source counting."""
+    from apps.worker.web_research.classify import excerpt_proves_employer
+
+    return excerpt_proves_employer(
+        employer_surface,
+        title=str(source.get("title") or ""),
+        excerpt=str(source.get("evidenceExcerpt") or ""),
+    )
+
+
 class IndustryEvidenceResearcher:
     def __init__(
         self,
@@ -256,6 +292,11 @@ class IndustryEvidenceResearcher:
             url = str(candidate.get("url") or "").strip()
             source_type = str(candidate.get("sourceType") or "other")
             trust_tier = str(candidate.get("trustTier") or "corroborating")
+            # Pre-demoted by the maintenance job's relevance gate (recycled
+            # homepage rows): honor it — never upgrade back to reviewable.
+            relevance_demoted = candidate.get("relevanceDemoted") is True
+            if relevance_demoted:
+                trust_tier = "discovery"
             if not safe_public_evidence_url(url):
                 continue
             if source_type == "search_result":
@@ -361,6 +402,10 @@ class IndustryEvidenceResearcher:
                     }
                 )
 
+        employer_surface = str(
+            proposal.get("normalizedEmployerSurface")
+            or proposal.get("companyKey") or ""
+        ).strip()
         strong_classes = {
             industry_class
             for industry_class, confidence in classifications
@@ -374,14 +419,26 @@ class IndustryEvidenceResearcher:
             key=lambda item: (-item[1], item[0]),
         )
         suggested_class = ranked_classes[0][0] if ranked_classes else None
-        proof_sources = [
-            source
-            for source in sources
-            if source.get("fetchStatus") == "fetched"
-            and source.get("sourceType") != "search_result"
-            and source.get("trustTier") != "discovery"
-            and source.get("domainGuardPassed") is not False
-        ]
+        proof_sources = []
+        for source in sources:
+            if (
+                source.get("fetchStatus") != "fetched"
+                or source.get("sourceType") == "search_result"
+                or source.get("trustTier") == "discovery"
+                or source.get("domainGuardPassed") is False
+            ):
+                continue
+            # Fetched-content relevance gate: even a reviewable-tier source
+            # only counts as proof when its fetched content provably
+            # mentions the employer. Fetched homepage boilerplate from a
+            # curated press domain can no longer flip a proposal on its own.
+            if employer_surface and not _source_content_proves_employer(
+                employer_surface, source
+            ):
+                source["trustTier"] = "discovery"
+                source["relevanceDemoted"] = True
+                continue
+            proof_sources.append(source)
         status = "ready_for_review" if proof_sources else "needs_more_evidence"
         summary = (
             f"Research found {len(proof_sources)} reviewable source(s)"
@@ -445,6 +502,25 @@ class IndustryEvidenceMaintenanceJob:
             if not candidates and self.discovery_job is not None:
                 discovered = self.discovery_job.discover_for_proposal(proposal)
                 candidates = discovered.get("sources") or []
+            # Relevance tightening also gates re-enrichment: recycled
+            # candidates whose employer cannot be proven from their existing
+            # content are demoted to discovery tier before fetch/classify,
+            # so homepage rows from earlier noisy runs cannot re-flip a
+            # proposal to ready_for_review.
+            employer_surface = str(
+                proposal.get("normalizedEmployerSurface")
+                or proposal.get("companyKey") or ""
+            ).strip()
+            for candidate in candidates:
+                if candidate.get("trustTier") == "discovery":
+                    continue
+                if not employer_surface:
+                    continue
+                if not _candidate_content_proves_employer(
+                    employer_surface, candidate
+                ):
+                    candidate["trustTier"] = "discovery"
+                    candidate["relevanceDemoted"] = True
             result = self.researcher.enrich_proposal(proposal, candidates)
             for source in result["sources"]:
                 source.pop("domainGuardPassed", None)
