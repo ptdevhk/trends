@@ -158,4 +158,53 @@ describe('SystemSettingsIndustryVerificationPage', () => {
       )
     })
   })
+
+  it('renders run history section with recent maintenance runs', async () => {
+    requestJsonMock.mockImplementation((path: string) => {
+      if (path.startsWith('/api/company-industry-proposals?')) {
+        return Promise.resolve({ success: true, items: [proposal] })
+      }
+      if (path === '/api/company-industry-evidence-sources?proposalId=proposal-1') {
+        return Promise.resolve({ success: true, items: [source] })
+      }
+      if (path === '/api/company-industry-bundles/acme-cnc') {
+        return Promise.resolve({ success: true, profile: { companyKey: 'acme-cnc', industryClass: 'cnc', verificationLevel: 'verified', currentRevisionId: 'revision-1' }, revisions: [], sources: [] })
+      }
+      if (path === '/api/company-industry-maintenance-runs?limit=20') {
+        return Promise.resolve({
+          success: true,
+          items: [
+            { runId: 'run-h1', triggerSource: 'manual', status: 'completed', operatorSummary: 'completed; 1 ready.', startedAt: 1000 },
+          ],
+        })
+      }
+      return Promise.resolve({ success: true })
+    })
+    render(<SystemSettingsIndustryVerificationPage />)
+
+    expect(await screen.findByText('completed; 1 ready.')).toBeInTheDocument()
+  })
+
+  it('shows empty-queue hint pointing at run history when queue is empty', async () => {
+    requestJsonMock.mockImplementation((path: string) => {
+      if (path.startsWith('/api/company-industry-proposals?')) {
+        return Promise.resolve({ success: true, items: [] })
+      }
+      if (path === '/api/company-industry-maintenance-runs?limit=20') {
+        return Promise.resolve({
+          success: true,
+          items: [
+            { runId: 'run-h2', triggerSource: 'restore', status: 'completed', operatorSummary: 'completed; 0 ready.', startedAt: 2000 },
+          ],
+        })
+      }
+      return Promise.resolve({ success: true })
+    })
+    render(<SystemSettingsIndustryVerificationPage />)
+
+    // Queue empty hint is shown.
+    expect(await screen.findByText('No proposals ready for review.')).toBeInTheDocument()
+    // Run history still renders.
+    expect(await screen.findByText('completed; 0 ready.')).toBeInTheDocument()
+  })
 })

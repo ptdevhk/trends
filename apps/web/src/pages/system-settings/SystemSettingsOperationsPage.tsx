@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useMutation } from 'convex/react'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
-import { Download } from 'lucide-react'
+import { Download, RefreshCw } from 'lucide-react'
 import { api } from '../../../../../packages/convex/convex/_generated/api'
 import { SchedulerStatus } from '@/components/SchedulerStatus'
 import { TaskMonitor } from '@/components/TaskMonitor'
@@ -47,9 +47,87 @@ function useExtensionVersion() {
   return version
 }
 
+function IndustryMaintenanceCard({ requestJson }: { requestJson: (path: string, init?: RequestInit) => Promise<unknown> }) {
+  const { t } = useTranslation()
+  const [lastRun, setLastRun] = useState<{ status: string; operatorSummary?: string; triggerSource?: string; startedAt?: number } | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  const loadLastRun = async () => {
+    try {
+      const result = await requestJson('/api/company-industry-maintenance-runs?limit=1') as { items?: Array<{ status: string; operatorSummary?: string; triggerSource?: string; startedAt?: number }> }
+      setLastRun(result?.items?.[0] ?? null)
+    } catch (error) {
+      reportUiError('Failed to load industry maintenance last run', error)
+    }
+  }
+
+  useEffect(() => {
+    void loadLastRun()
+  }, [])
+
+  const handleRunNow = async () => {
+    setBusy(true)
+    try {
+      const result = await requestJson('/api/worker/industry-maintenance', {
+        method: 'POST',
+        body: JSON.stringify({}),
+      }) as { runId?: string | null; coalesced?: boolean }
+      const runId = result?.runId ?? 'unknown'
+      toast.success(t('operations.industryMaintenanceTriggered', { defaultValue: `Maintenance run ${runId} enqueued` }))
+      // Refresh last run after a short delay so the new run appears.
+      setTimeout(() => { void loadLastRun() }, 2000)
+    } catch (error) {
+      reportUiError('Failed to trigger industry maintenance', error)
+      toast.error(t('operations.industryMaintenanceTriggerFailed', { defaultValue: 'Failed to trigger maintenance' }))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Card data-testid="ops-industry-maintenance-card">
+      <CardHeader>
+        <CardTitle>{t('operations.industryMaintenanceTitle', { defaultValue: 'Industry evidence maintenance' })}</CardTitle>
+        <CardDescription>
+          {t('operations.industryMaintenanceDescription', {
+            defaultValue: 'Research open proposals and refresh due approved sources.',
+          })}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {lastRun ? (
+          <div className="text-sm space-y-1">
+            <p>
+              <span className="font-medium">{t('operations.industryMaintenanceLastRun', { defaultValue: 'Last run' })}:</span>{' '}
+              <span className="font-mono text-xs">{lastRun.status}</span>
+              {lastRun.triggerSource ? ` · ${lastRun.triggerSource}` : ''}
+            </p>
+            {lastRun.operatorSummary ? <p className="text-muted-foreground">{lastRun.operatorSummary}</p> : null}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            {t('operations.industryMaintenanceNoHistory', { defaultValue: 'No maintenance runs yet.' })}
+          </p>
+        )}
+        <Button
+          data-testid="ops-run-industry-maintenance"
+          onClick={() => { handleRunNow().catch((error) => reportUiError('Unexpected handleRunNow failure', error)) }}
+          disabled={busy}
+          className="w-full sm:w-auto"
+        >
+          <RefreshCw className="mr-2 h-4 w-4" />
+          {busy
+            ? t('operations.industryMaintenanceRunning', { defaultValue: 'Running…' })
+            : t('operations.industryMaintenanceRunNow', { defaultValue: 'Run maintenance now' })}
+        </Button>
+      </CardContent>
+    </Card>
+  )
+}
+
 export function SystemSettingsOperationsPage() {
   const { t } = useTranslation()
-  const { apiBaseUrl } = useSettingsRequestJson()
+  const { apiBaseUrl, requestJson } = useSettingsRequestJson()
   const dispatchCollection = useMutation(api.resume_tasks.dispatch)
   const extensionVersion = useExtensionVersion()
 
@@ -111,6 +189,8 @@ export function SystemSettingsOperationsPage() {
           </CardContent>
         </Card>
       )}
+
+      <IndustryMaintenanceCard requestJson={requestJson} />
 
       <Card>
         <CardHeader>

@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { internalMutation, mutation, query } from "./_generated/server";
+import { mutation, query } from "./_generated/server";
 import {
   CANONICAL_SEED_COMPANIES,
   MAX_RECRUITER_INDUSTRY_EVIDENCE_SOURCES,
@@ -3146,7 +3146,6 @@ export const startIndustryMaintenanceRun = mutation({
     if (!runId) throw new Error("Industry maintenance run requires a runId");
     const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
 
-    const now = Date.now();
     const id = await ctx.db.insert("industry_maintenance_runs", {
       runId,
       workspaceSlug,
