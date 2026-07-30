@@ -72,10 +72,11 @@ One row per create/update/delete:
 | `action` | union(`create`, `update`, `delete`) | |
 | `actor` | string | admin user id / email |
 | `before` / `after` | optional `v.any()` | prior / new data payload |
+| `companyKey` | optional string | present when the edited entity maps to an employer; enables the audit join |
 | `gitSha` | optional string | set once auto-commit lands; `null` = commit failed |
 | `createdAt` | number | |
 
-Indexes: `by_entry (entryType, entryId)`, `by_created (createdAt)`, `by_company_key (companyKey)` (optional, for the audit-timeline join with maintenance ledger).
+Indexes: `by_entry (entryType, entryId)`, `by_created (createdAt)`, `by_company_key (companyKey)` (for the audit-timeline join with maintenance ledger).
 
 ### Reused unchanged
 
@@ -102,6 +103,7 @@ Indexes: `by_entry (entryType, entryId)`, `by_created (createdAt)`, `by_company_
 - `GET /api/industry-data/export`
 - `GET /api/industry-data/audit`
 - `POST /api/industry-data/trigger` — scoped trigger; body `{companyKey}` → `enqueueIndustryMaintenance({workspaceSlug, triggerSource:"manual", triggerContext: companyKey})`
+- `POST /api/industry-data/schedule` — pause/resume the scheduled run; body `{paused: boolean}` writes a Convex system flag (same pattern as the maintenance-mode guard) that the worker checks before a scheduled run. The configured schedule itself stays env-var/cron-driven — this only pauses/resumes execution, it does not edit the schedule.
 
 The existing `/api/industry/*` public read routes stay untouched (separate router, not gated).
 
