@@ -15,6 +15,7 @@ import os
 import re
 import socket
 import time
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Callable, Dict, List, Optional, Sequence
 from urllib.error import HTTPError, URLError
@@ -467,6 +468,7 @@ class IndustryEvidenceMaintenanceJob:
         proposal_limit: int = 20,
         freshness_limit: int = 50,
         discovery_job: Optional[Any] = None,
+        run_id: Optional[str] = None,
     ):
         self.client = client or ResearchConvexClient()
         self.now_ms = now_ms or (lambda: int(time.time() * 1000))
@@ -474,6 +476,72 @@ class IndustryEvidenceMaintenanceJob:
         self.proposal_limit = max(1, min(50, int(proposal_limit)))
         self.freshness_limit = max(1, min(100, int(freshness_limit)))
         self.discovery_job = discovery_job
+        # When run_id is set, the job emits a per-proposal ledger row at each
+        # decision point and finishes the run with accumulated counts. Ledger
+        # writes are best-effort (see ResearchConvexClient._safe_mutation).
+        self.run_id = run_id
+        self._counts: Dict[str, int] = {
+            "proposalsResearched": 0,
+            "readyCreated": 0,
+            "sourcesDemoted": 0,
+            "freshnessChecked": 0,
+            "freshnessRefreshed": 0,
+            "errors": 0,
+        }
+
+    def _ledger(
+        self,
+        proposal_id: str,
+        action: str,
+        reason: str,
+        *,
+        company_key: Optional[str] = None,
+        detail: Optional[Any] = None,
+    ) -> None:
+        """Emit a best-effort ledger row when a run_id is bound.
+
+        Never raises: observability failure must not abort maintenance.
+        """
+        if not self.run_id:
+            return
+        payload: Dict[str, Any] = {
+            "runId": self.run_id,
+            "proposalId": proposal_id,
+            "action": action,
+            "reason": reason,
+        }
+        if company_key:
+            payload["companyKey"] = company_key
+        if detail is not None:
+            payload["detail"] = detail
+        try:
+            self.client.append_maintenance_ledger(payload)
+        except Exception as error:  # noqa: BLE001 - best-effort observability
+            logger.warning("[MaintenanceLedger] append failed: %s", error)
+
+    def _finish_run(self, status: str, *, failure_message: Optional[str] = None) -> None:
+        """Best-effort finish of the bound run with an operator summary.
+
+        Never raises: observability failure must not abort maintenance.
+        """
+        if not self.run_id:
+            return
+        ready = self._counts["readyCreated"]
+        demoted = self._counts["sourcesDemoted"]
+        refreshed = self._counts["freshnessRefreshed"]
+        summary = f"{status}; {ready} ready, {demoted} demoted, {refreshed} refreshed."
+        payload: Dict[str, Any] = {
+            "runId": self.run_id,
+            "status": status,
+            "counts": dict(self._counts),
+            "operatorSummary": summary,
+        }
+        if failure_message:
+            payload["failureMessage"] = failure_message
+        try:
+            self.client.finish_maintenance_run(payload)
+        except Exception as error:  # noqa: BLE001 - best-effort observability
+            logger.warning("[MaintenanceLedger] finish failed: %s", error)
 
     def _research_open_proposals(self) -> None:
         proposals_by_id: Dict[str, Dict[str, Any]] = {}
@@ -511,6 +579,7 @@ class IndustryEvidenceMaintenanceJob:
                 proposal.get("normalizedEmployerSurface")
                 or proposal.get("companyKey") or ""
             ).strip()
+            demoted_count = 0
             for candidate in candidates:
                 if candidate.get("trustTier") == "discovery":
                     continue
@@ -521,6 +590,7 @@ class IndustryEvidenceMaintenanceJob:
                 ):
                     candidate["trustTier"] = "discovery"
                     candidate["relevanceDemoted"] = True
+                    demoted_count += 1
             result = self.researcher.enrich_proposal(proposal, candidates)
             for source in result["sources"]:
                 source.pop("domainGuardPassed", None)
@@ -539,6 +609,24 @@ class IndustryEvidenceMaintenanceJob:
                     "materialChangeSummary": result["materialChangeSummary"],
                 }
             )
+            self._counts["proposalsResearched"] += 1
+            self._counts["sourcesDemoted"] += demoted_count
+            # Ledger: record the proposal outcome.
+            if result["status"] == "ready_for_review":
+                self._counts["readyCreated"] += 1
+                self._ledger(
+                    proposal_id,
+                    "ready",
+                    "ready_for_review",
+                    company_key=str(proposal.get("companyKey") or "") or None,
+                )
+            else:
+                self._ledger(
+                    proposal_id,
+                    "needs_more_evidence",
+                    str(result.get("materialChangeSummary") or "needs_more_evidence"),
+                    company_key=str(proposal.get("companyKey") or "") or None,
+                )
 
     def _freshness_checks(self) -> None:
         due = self.client.list_due_industry_evidence_sources(
@@ -703,14 +791,32 @@ class IndustryEvidenceMaintenanceJob:
                 ),
             }
             self.client.record_industry_evidence_freshness_check(payload)
+            # Count + ledger each freshness observation.
+            self._counts["freshnessChecked"] += 1
+            outcome = observation["outcome"]
+            if outcome != "unchanged":
+                self._counts["freshnessRefreshed"] += 1
+            if self.run_id:
+                source_id = str(source.get("sourceId") or "")
+                self._ledger(
+                    "industry-freshness-" + hashlib.sha256(
+                        (source.get("companyKey", "") + "\0" + source_id).encode("utf-8")
+                    ).hexdigest()[:20],
+                    "freshness_refreshed" if outcome != "unchanged" else "freshness_ok",
+                    f"freshness {outcome}",
+                    company_key=str(source.get("companyKey") or "") or None,
+                )
 
     def run(self) -> bool:
         try:
             self._research_open_proposals()
             self._freshness_checks()
+            self._finish_run("completed")
             return True
         except Exception as error:  # noqa: BLE001
             logger.error("[IndustryEvidenceMaintenance] failed: %s", error)
+            self._counts["errors"] += 1
+            self._finish_run("failed", failure_message=str(error))
             return False
 
 
@@ -741,15 +847,53 @@ def build_discovery_job_from_env() -> Optional[Any]:
     )
 
 
-def run_industry_evidence_maintenance() -> bool:
+def run_industry_evidence_maintenance(
+    run_id: Optional[str] = None,
+    trigger: str = "schedule",
+) -> bool:
+    """Run governed industry-evidence maintenance.
+
+    When ``run_id`` is supplied, the run is expected to already exist in the
+    Convex registry (created by the API pipeline); this function claims it,
+    runs the job, and finishes it. When ``run_id`` is None (direct CLI or
+    scheduled invocation), a run is self-registered so history is complete.
+
+    The ``trigger`` labels the run source when self-registering.
+    """
+    client = ResearchConvexClient()
+
     if not industry_evidence_maintenance_enabled():
         logger.info(
             "[IndustryEvidenceMaintenance] skipped — "
             "INDUSTRY_EVIDENCE_MAINTENANCE_ENABLED not set"
         )
+        if run_id:
+            client.claim_maintenance_run(run_id)
+            client.finish_maintenance_run(
+                {
+                    "runId": run_id,
+                    "status": "skipped",
+                    "operatorSummary": "skipped; maintenance env gate disabled",
+                    "failureMessage": "INDUSTRY_EVIDENCE_MAINTENANCE_ENABLED not set",
+                }
+            )
         return True
+
+    if not run_id:
+        run_id = str(uuid.uuid4())
+        client.start_maintenance_run(
+            {
+                "runId": run_id,
+                "workspaceSlug": os.environ.get("WORKSPACE_SLUG", "dev").strip() or "dev",
+                "triggerSource": trigger,
+            }
+        )
+        client.claim_maintenance_run(run_id)
+
     discovery_job = build_discovery_job_from_env()
-    return IndustryEvidenceMaintenanceJob(discovery_job=discovery_job).run()
+    return IndustryEvidenceMaintenanceJob(
+        client=client, discovery_job=discovery_job, run_id=run_id
+    ).run()
 
 
 __all__ = [

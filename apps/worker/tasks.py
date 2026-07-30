@@ -103,21 +103,38 @@ def run_research_ingest(config_overrides: Optional[Dict[str, Any]] = None) -> bo
     return _run(config_overrides=config_overrides)
 
 
-def run_industry_evidence_maintenance() -> bool:
+def run_industry_evidence_maintenance(
+    run_id: Optional[str] = None,
+    trigger: str = "schedule",
+) -> bool:
     """Research open proposals and refresh due approved sources.
 
     The implementation is proposal/check-only and is skipped during restore
-    maintenance mode.
+    maintenance mode. ``run_id``/``trigger`` thread through to the run registry
+    so scheduled and manually-triggered runs appear in maintenance history.
     """
     if _is_maintenance_mode():
         logger.info("[Task] Skipping industry evidence maintenance — maintenance mode active")
+        if run_id:
+            from apps.worker.research_convex import ResearchConvexClient
+
+            client = ResearchConvexClient()
+            client.claim_maintenance_run(run_id)
+            client.finish_maintenance_run(
+                {
+                    "runId": run_id,
+                    "status": "skipped",
+                    "operatorSummary": "skipped; maintenance mode active",
+                    "failureMessage": "maintenance mode active",
+                }
+            )
         return True
 
     from apps.worker.industry_evidence_research import (
         run_industry_evidence_maintenance as _run,
     )
 
-    return _run()
+    return _run(run_id=run_id, trigger=trigger)
 
 
 def run_research_parity(

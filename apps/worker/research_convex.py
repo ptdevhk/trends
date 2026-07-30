@@ -374,3 +374,52 @@ class ResearchConvexClient:
             self.convex_url, "web_research:recordUse",
             self._args({"provider": provider, "month": month, "credits": credits}),
         )
+
+    # ------------------------------------------------------------------
+    # Industry maintenance run registry + ledger (best-effort).
+    # These wrap the Convex run-registry mutations. They must NEVER raise:
+    # observability failure must not abort maintenance. When the client is
+    # not configured (no URL/secret) or Convex is unreachable, the call logs
+    # a warning and returns None.
+    # ------------------------------------------------------------------
+
+    def _maintenance_ready(self) -> bool:
+        return bool(self.convex_url and self.write_secret)
+
+    def _safe_mutation(self, path: str, payload: Dict[str, Any]) -> Any:
+        if not self._maintenance_ready():
+            return None
+        try:
+            return self._mutator(self.convex_url, path, self._args(payload))
+        except Exception as error:  # noqa: BLE001 - best-effort observability
+            logger.warning("[MaintenanceLedger] %s failed: %s", path, error)
+            return None
+
+    def _safe_query(self, path: str, payload: Dict[str, Any]) -> Any:
+        if not self._maintenance_ready():
+            return None
+        try:
+            return self._querier(self.convex_url, path, self._args(payload))
+        except Exception as error:  # noqa: BLE001 - best-effort observability
+            logger.warning("[MaintenanceLedger] %s failed: %s", path, error)
+            return None
+
+    def start_maintenance_run(self, payload: Dict[str, Any]) -> Any:
+        return self._safe_mutation("companies:startIndustryMaintenanceRun", payload)
+
+    def claim_maintenance_run(self, run_id: str) -> Any:
+        return self._safe_mutation(
+            "companies:claimNextIndustryMaintenanceRun", {"runId": run_id}
+        )
+
+    def append_maintenance_ledger(self, payload: Dict[str, Any]) -> Any:
+        return self._safe_mutation("companies:appendIndustryMaintenanceLedger", payload)
+
+    def finish_maintenance_run(self, payload: Dict[str, Any]) -> Any:
+        return self._safe_mutation("companies:finishIndustryMaintenanceRun", payload)
+
+    def find_active_maintenance_run(self, workspace_slug: str) -> Any:
+        return self._safe_query(
+            "companies:findActiveIndustryMaintenanceRun",
+            {"workspaceSlug": workspace_slug},
+        )
