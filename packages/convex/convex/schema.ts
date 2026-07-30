@@ -1241,4 +1241,55 @@ export default defineSchema({
         updatedAt: v.number(),
     })
         .index("by_provider_month", ["provider", "month"]),
+
+    // Industry evidence maintenance run registry: one row per maintenance execution
+    // (schedule / restore / approval / manual trigger). Mirrors the recompute-run
+    // architecture; the worker writes here during maintenance, the API/UI read it.
+    industry_maintenance_runs: defineTable({
+        runId: v.string(),
+        workspaceSlug: v.string(),
+        triggerSource: v.union(
+            v.literal("schedule"),
+            v.literal("restore"),
+            v.literal("approval"),
+            v.literal("manual"),
+        ),
+        triggerContext: v.optional(v.string()),
+        status: v.union(
+            v.literal("queued"),
+            v.literal("running"),
+            v.literal("completed"),
+            v.literal("failed"),
+            v.literal("skipped"),
+        ),
+        startedAt: v.optional(v.number()),
+        finishedAt: v.optional(v.number()),
+        counts: v.optional(v.any()),
+        failureMessage: v.optional(v.string()),
+        operatorSummary: v.optional(v.string()),
+    })
+        .index("by_status", ["status"])
+        .index("by_workspace_time", ["workspaceSlug", "startedAt"]),
+
+    // Per-proposal debug ledger: one row per proposal action inside a maintenance
+    // run. Answers "why did/didn't employer X surface?" without terminal-log spelunking.
+    industry_maintenance_ledger: defineTable({
+        runId: v.string(),
+        proposalId: v.string(),
+        companyKey: v.optional(v.string()),
+        action: v.union(
+            v.literal("researched"),
+            v.literal("ready"),
+            v.literal("demoted"),
+            v.literal("recycled"),
+            v.literal("needs_more_evidence"),
+            v.literal("freshness_ok"),
+            v.literal("freshness_refreshed"),
+            v.literal("error"),
+        ),
+        reason: v.string(),
+        detail: v.optional(v.any()),
+    })
+        .index("by_run", ["runId"])
+        .index("by_proposal", ["proposalId"]),
 });
