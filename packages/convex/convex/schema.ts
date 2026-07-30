@@ -1292,4 +1292,48 @@ export default defineSchema({
     })
         .index("by_run", ["runId"])
         .index("by_proposal", ["proposalId"]),
+
+    // Admin-managed industry data entries (companies / keywords / brands /
+    // demoted URLs). Payloads mirror the industry-data YAML/JSON files; the
+    // admin UI writes here, readers project back to the file shape.
+    industry_data_entries: defineTable({
+        entryType: v.union(
+            v.literal("company"),
+            v.literal("keyword"),
+            v.literal("brand"),
+            v.literal("url"),
+        ),
+        entryId: v.string(),
+        data: v.any(),
+        sortOrder: v.optional(v.number()),
+        createdAt: v.number(),
+        updatedAt: v.number(),
+        updatedBy: v.string(),
+    })
+        .index("by_type", ["entryType"])
+        .index("by_entry_id", ["entryId"]),
+
+    // Append-only change log for industry data admin edits: one row per
+    // create / update / delete with before/after snapshots so changes are
+    // reviewable and attributable to a git commit (gitSha backfilled after
+    // the file-commit step).
+    industry_data_change_log: defineTable({
+        changeId: v.string(),
+        entryType: v.string(),
+        entryId: v.string(),
+        action: v.union(
+            v.literal("create"),
+            v.literal("update"),
+            v.literal("delete"),
+        ),
+        actor: v.string(),
+        before: v.optional(v.any()),
+        after: v.optional(v.any()),
+        companyKey: v.optional(v.string()),
+        gitSha: v.optional(v.string()),
+        createdAt: v.number(),
+    })
+        .index("by_entry", ["entryType", "entryId"])
+        .index("by_created", ["createdAt"])
+        .index("by_company_key", ["companyKey"]),
 });
