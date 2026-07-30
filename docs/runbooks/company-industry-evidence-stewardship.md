@@ -132,6 +132,46 @@ Governance does not change under discovery:
 - Unreviewed evidence never reaches recruiters. Discovery-tier sources stay inside stewardship surfaces until a human approves a revision.
 - Hot paths stay network-free. All web access happens in the worker; search, scoring, and Resume Detail never fetch.
 
+## Maintenance ops automation (2026-07-30)
+
+Governed maintenance runs automatically on a schedule and on data events, with an operator manual trigger and full run observability. Every run records a summary row and a per-proposal ledger in Convex so an operator can answer "why did/didn't employer X surface?" without terminal-log spelunking.
+
+### Triggers
+
+| Source | When | Hook |
+|---|---|---|
+| `schedule` | APScheduler 24h cadence (`INDUSTRY_EVIDENCE_MAINTENANCE_ENABLED=1`) | Worker self-registers a run row |
+| `restore` | After `make restore-resumes` / any import inserting ≥1 resume | API pipeline enqueues post-import |
+| `approval` | After a human approves a proposal (so recycled `needs_more_evidence` re-chews) | API pipeline enqueues post-approve |
+| `manual` | Operations page "Run maintenance now" button | `POST /api/worker/industry-maintenance` |
+
+### Coalescing
+
+If a run is already `queued` or `running` for the workspace, a new trigger appends its context onto that run instead of spawning a duplicate. Restoring 4 snapshot files produces 1 run, not 4.
+
+### Run registry + ledger
+
+- `industry_maintenance_runs` - one row per execution: `triggerSource`, `status` (`queued`/`running`/`completed`/`failed`/`skipped`), `counts` (proposalsResearched, readyCreated, sourcesDemoted, freshnessChecked, freshnessRefreshed, errors), `operatorSummary`.
+- `industry_maintenance_ledger` - one row per proposal action: `action` (`researched`/`ready`/`demoted`/`needs_more_evidence`/`freshness_ok`/`freshness_refreshed`/`error`) + human-readable `reason`.
+
+Ledger writes are best-effort: a Convex outage logs a warning and never aborts the run. Maintenance correctness does not depend on observability.
+
+### Admin surfaces
+
+- **Operations page** (`/system-settings/operations`): "Industry evidence maintenance" card shows the last run (status, trigger, summary) and a "Run maintenance now" button (admin-only, CSRF, busy state).
+- **Industry-verification page** (`/system-settings/industry-verification`): "Maintenance run history" section below the review queue. Expand a row to lazy-load its ledger with action-tone chips (green=ready, amber=demoted/needs_more, red=error). When the queue is empty the hint points at the history section.
+
+### Reading the ledger to debug "why didn't employer X surface?"
+
+1. Find the employer's proposal on the verification page, or query `GET /api/company-industry-proposals/:proposalId/maintenance-ledger`.
+2. The ledger rows show every maintenance decision for that proposal across runs: `demoted` (with the reason, e.g. "homepage-only evidence, demoted pre-fetch"), `needs_more_evidence` (with the shortfall), `ready`, or `error` (with the provider failure).
+3. Cross-reference with the run's `operatorSummary` for the overall outcome.
+
+### Env gates
+
+- `INDUSTRY_EVIDENCE_MAINTENANCE_ENABLED=1` enables scheduled maintenance. The manual trigger and API pipeline force-enable the gate for their call (mirroring `/worker/research/ingest`), so manual/restore/approval runs work even when the scheduled gate is off.
+- When the gate is off at schedule time the job is not registered; the Operations card shows the disabled hint.
+
 ## Verified employers in recruiter search (keyword bridge)
 
 Approved verdicts drive recruiter search recall, not just the card badge. When a keyword group is industry-scoped (via the skills.md domain taxonomy — `machinery` maps to cnc/automation/metrology/industrial), `/api/resumes/keyword-expansion` injects the display names and aliases of companies whose **current** verdict revision is `verified` and taxonomy-compatible. A candidate whose employer is verified (e.g. Eonmetall Group Bhd, verified/cnc) then matches a "CNC Sales" search even when the raw resume text contains no CNC term.
@@ -182,6 +222,9 @@ Restart the API, run the compute-mode reingest/targeted recompute, and verify th
 - Approval concurrency conflict: reload current revision and review again.
 - Partial recompute: retry the durable run; completed resume identities remain idempotent.
 - Unsafe URL: reject before persistence or projection.
+- Worker unreachable from the trigger pipeline: the run is marked `failed` with the connection error; schedule/restore triggers retry on the next event (no infinite retry loop).
+- Maintenance mode active: the run is recorded as `skipped` with the reason (visible in history instead of a silent skip).
+- Ledger write failure: best-effort only; the maintenance run completes normally and the missing ledger rows do not affect correctness.
 
 ## Audit evidence
 
