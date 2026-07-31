@@ -1291,6 +1291,18 @@ async function findIndustryProposal(ctx: { db: any }, proposalId: string) {
   return rows[0] ?? null;
 }
 
+function assertExpectedIndustryProposalUpdatedAt(
+  proposal: { updatedAt: number },
+  expectedUpdatedAt: number | undefined,
+) {
+  if (
+    expectedUpdatedAt !== undefined &&
+    proposal.updatedAt !== expectedUpdatedAt
+  ) {
+    throw new Error("Proposal changed during review");
+  }
+}
+
 async function findIndustryEvidenceSource(ctx: { db: any }, sourceId: string) {
   const rows = await ctx.db
     .query("company_industry_evidence_sources")
@@ -2212,12 +2224,7 @@ export const approveIndustryProposal = mutation({
     ) {
       throw new Error("Proposal current revision is stale");
     }
-    if (
-      args.expectedProposalUpdatedAt !== undefined &&
-      proposal.updatedAt !== args.expectedProposalUpdatedAt
-    ) {
-      throw new Error("Proposal changed during review");
-    }
+    assertExpectedIndustryProposalUpdatedAt(proposal, args.expectedProposalUpdatedAt);
     if (args.expectedSourceVersions !== undefined) {
       const currentSources = await ctx.db
         .query("company_industry_evidence_sources")
@@ -2389,12 +2396,7 @@ export const resolveIndustryProposal = mutation({
     if (!OPEN_INDUSTRY_PROPOSAL_STATUSES.has(proposal.status)) {
       throw new Error(`Proposal is not open: ${proposal.status}`);
     }
-    if (
-      args.expectedProposalUpdatedAt !== undefined &&
-      proposal.updatedAt !== args.expectedProposalUpdatedAt
-    ) {
-      throw new Error("Proposal changed during review");
-    }
+    assertExpectedIndustryProposalUpdatedAt(proposal, args.expectedProposalUpdatedAt);
     const now = Date.now();
     await ctx.db.patch(proposal._id, {
       status: args.resolution,

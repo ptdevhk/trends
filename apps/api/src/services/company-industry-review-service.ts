@@ -367,14 +367,19 @@ function buildRecommendation(input: {
     "low_source_diversity",
   ]);
   const hasBlockingRisk = [...riskFlags].some((flag) => blockingFlags.has(flag));
-  const recommendedAction =
-    !proposal.companyKey || targetIndustryClass === "unknown"
-      ? "inspect"
-      : proposal.suggestedVerificationLevel === "rejected" || targetIndustryClass === "non_industry"
-        ? "reject"
-        : hasBlockingRisk || recommendedSourceIds.length === 0
-          ? "needs_more_evidence"
-          : "approve";
+  let recommendedAction: IndustryReviewAction;
+  if (!proposal.companyKey || targetIndustryClass === "unknown") {
+    recommendedAction = "inspect";
+  } else if (
+    proposal.suggestedVerificationLevel === "rejected" ||
+    targetIndustryClass === "non_industry"
+  ) {
+    recommendedAction = "reject";
+  } else if (hasBlockingRisk || recommendedSourceIds.length === 0) {
+    recommendedAction = "needs_more_evidence";
+  } else {
+    recommendedAction = "approve";
+  }
 
   if (recommendedAction === "approve") {
     reasons.unshift(
@@ -512,12 +517,19 @@ export async function getIndustryReviewPacket(
 ): Promise<IndustryReviewPacket | null> {
   const proposal = await getIndustryProposal(proposalId);
   if (!proposal) return null;
-  const [sources, bundle, maintenance] = await Promise.all([
+  const [sources, bundle, maintenance, recomputeRuns] = await Promise.all([
     listIndustryEvidenceSources({ proposalId: proposal.proposalId }),
     proposal.companyKey
       ? getCompanyIndustryEvidenceBundle(proposal.companyKey)
       : Promise.resolve(null),
     loadMaintenanceContext(workspaceSlug),
+    proposal.companyKey
+      ? companyIndustryRecomputeService.list({
+          workspaceSlug: workspaceSlug ?? "dev",
+          companyKey: proposal.companyKey,
+          limit: 10,
+        })
+      : Promise.resolve([] as CompanyIndustryRecomputeRun[]),
   ]);
   const { recommendation, dataset, warnings } = await buildRecommendationForProposal({
     proposal,
@@ -525,13 +537,6 @@ export async function getIndustryReviewPacket(
     profile: bundle?.profile ?? null,
     maintenance,
   });
-  const recomputeRuns = proposal.companyKey
-    ? await companyIndustryRecomputeService.list({
-        workspaceSlug: workspaceSlug ?? "dev",
-        companyKey: proposal.companyKey,
-        limit: 10,
-      })
-    : [];
   return {
     success: true,
     ok: true,

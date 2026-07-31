@@ -173,6 +173,13 @@ type IndustryReviewOpenLink struct {
 	Action     string `json:"action"`
 }
 
+func validateIndustryReviewResponse(success bool, ok bool, resource string) error {
+	if !success || !ok {
+		return fmt.Errorf("industry review %s request was not successful", resource)
+	}
+	return nil
+}
+
 func (c *Client) ListIndustryReviewQueue(ctx context.Context, status string, limit int) (*IndustryReviewQueueResponse, error) {
 	query := url.Values{}
 	if trimmed := strings.TrimSpace(status); trimmed != "" {
@@ -189,8 +196,8 @@ func (c *Client) ListIndustryReviewQueue(ctx context.Context, status string, lim
 	if err := c.doJSON(ctx, http.MethodGet, endpoint, nil, &response); err != nil {
 		return nil, err
 	}
-	if !response.Success || !response.OK {
-		return nil, fmt.Errorf("industry review queue request was not successful")
+	if err := validateIndustryReviewResponse(response.Success, response.OK, "queue"); err != nil {
+		return nil, err
 	}
 	return &response, nil
 }
@@ -209,8 +216,8 @@ func (c *Client) GetIndustryReviewPacket(ctx context.Context, proposalID string)
 	if err := c.doJSON(ctx, http.MethodGet, endpoint, nil, &response); err != nil {
 		return nil, err
 	}
-	if !response.Success || !response.OK {
-		return nil, fmt.Errorf("industry review packet request was not successful")
+	if err := validateIndustryReviewResponse(response.Success, response.OK, "packet"); err != nil {
+		return nil, err
 	}
 	return &response, nil
 }

@@ -729,6 +729,14 @@ function isIndustryReviewConflictError(error: unknown): boolean {
   );
 }
 
+function industryReviewConflictResponse(error: unknown) {
+  return {
+    success: false as const,
+    error: error instanceof Error ? error.message : String(error),
+    code: "INDUSTRY_REVIEW_STALE" as const,
+  };
+}
+
 const listIndustryReviewQueueRoute = createRoute({
   method: "get",
   path: "/api/company-industry-proposals/review-queue",
@@ -1019,14 +1027,7 @@ app.openapi(approveIndustryProposalRoute, async (c) => {
     return c.json({ success: true as const, ...result }, 200);
   } catch (error) {
     if (isIndustryReviewConflictError(error)) {
-      return c.json(
-        {
-          success: false as const,
-          error: error instanceof Error ? error.message : String(error),
-          code: "INDUSTRY_REVIEW_STALE" as const,
-        },
-        409,
-      );
+      return c.json(industryReviewConflictResponse(error), 409);
     }
     throw error;
   }
@@ -1087,14 +1088,7 @@ app.openapi(resolveIndustryProposalRoute, async (c) => {
     return c.json({ success: true as const, ...result }, 200);
   } catch (error) {
     if (isIndustryReviewConflictError(error)) {
-      return c.json(
-        {
-          success: false as const,
-          error: error instanceof Error ? error.message : String(error),
-          code: "INDUSTRY_REVIEW_STALE" as const,
-        },
-        409,
-      );
+      return c.json(industryReviewConflictResponse(error), 409);
     }
     throw error;
   }

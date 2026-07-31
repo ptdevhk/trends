@@ -26,26 +26,10 @@ type IndustryClass = NonNullable<IndustryProposal['suggestedIndustryClass']>
 type VerificationLevel = Extract<NonNullable<IndustryProposal['suggestedVerificationLevel']>, 'verified' | 'rejected'>
 type ReviewQueueStatus = IndustryProposal['status']
 
-type ReviewQueueItem = {
-  proposal: IndustryProposal
-  recommendation: IndustryReviewRecommendation
-  sourceCount: number
-}
-
-type ReviewPacket = {
-  proposal: IndustryProposal
-  recommendation: IndustryReviewRecommendation
-  warnings: IndustryReviewWarning[]
-  dataset: {
-    revision: string
-    inputFingerprint: string
-    proposalUpdatedAt: number
-    sourceVersions: Array<{ sourceId: string; updatedAt: number }>
-  }
-  sources: EvidenceSource[]
-  bundle: IndustryBundle | null
-  recomputeRuns: IndustryRecomputeRun[]
-}
+type ReviewQueueResponse = paths['/api/company-industry-proposals/review-queue']['get']['responses'][200]['content']['application/json']
+type ReviewQueueItem = ReviewQueueResponse['items'][number]
+type ReviewPacketResponse = paths['/api/company-industry-proposals/:proposalId/review-packet']['get']['responses'][200]['content']['application/json']
+type ReviewPacket = Pick<ReviewPacketResponse, 'proposal' | 'recommendation' | 'warnings' | 'dataset' | 'sources' | 'bundle' | 'recomputeRuns'>
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -84,6 +68,7 @@ function parseReviewPacket(value: unknown): ReviewPacket | null {
     dataset: {
       revision: typeof value.dataset.revision === 'string' ? value.dataset.revision : '',
       inputFingerprint: value.dataset.inputFingerprint,
+      generatedAt: typeof value.dataset.generatedAt === 'number' ? value.dataset.generatedAt : 0,
       proposalUpdatedAt: typeof value.dataset.proposalUpdatedAt === 'number' ? value.dataset.proposalUpdatedAt : 0,
       sourceVersions: Array.isArray(value.dataset.sourceVersions)
         ? value.dataset.sourceVersions.filter((item): item is { sourceId: string; updatedAt: number } => (
@@ -1006,12 +991,15 @@ export function SystemSettingsIndustryVerificationPage() {
   )
 
   const recommendationSummary = useMemo(() => {
-    const values = Object.values(queueRecommendations)
-    return {
-      approve: values.filter((item) => item.recommendedAction === 'approve').length,
-      needsEvidence: values.filter((item) => item.recommendedAction === 'needs_more_evidence').length,
-      inspect: values.filter((item) => item.recommendedAction === 'inspect').length,
-    }
+    return Object.values(queueRecommendations).reduce(
+      (summary, item) => {
+        if (item.recommendedAction === 'approve') summary.approve += 1
+        if (item.recommendedAction === 'needs_more_evidence') summary.needsEvidence += 1
+        if (item.recommendedAction === 'inspect') summary.inspect += 1
+        return summary
+      },
+      { approve: 0, needsEvidence: 0, inspect: 0 },
+    )
   }, [queueRecommendations])
 
   const loadQueue = useCallback(async () => {
@@ -1110,15 +1098,20 @@ export function SystemSettingsIndustryVerificationPage() {
     }
   }, [requestJson, selectedProposal, t])
 
-  async function approveRevision() {
+  function validateApprovalInputs(): boolean {
     if (!selectedProposal?.companyKey) {
       toast.error(t('industryEvidence.companyRequired', { defaultValue: 'Map this proposal to a canonical company first' }))
-      return
+      return false
     }
     if (selectedSourceIds.length === 0 || !evidenceSummary.trim() || !decisionReason.trim()) {
       toast.error(t('industryEvidence.reviewFieldsRequired', { defaultValue: 'Select evidence and complete the review summary and reason' }))
-      return
+      return false
     }
+    return true
+  }
+
+  async function approveRevision() {
+    if (!validateApprovalInputs() || !selectedProposal?.companyKey) return
     setSaving(true)
     try {
       const response = await requestJson(
@@ -1200,14 +1193,7 @@ export function SystemSettingsIndustryVerificationPage() {
   }
 
   function prepareApproval() {
-    if (!selectedProposal?.companyKey) {
-      toast.error(t('industryEvidence.companyRequired', { defaultValue: 'Map this proposal to a canonical company first' }))
-      return
-    }
-    if (selectedSourceIds.length === 0 || !evidenceSummary.trim() || !decisionReason.trim()) {
-      toast.error(t('industryEvidence.reviewFieldsRequired', { defaultValue: 'Select evidence and complete the review summary and reason' }))
-      return
-    }
+    if (!validateApprovalInputs()) return
     setApprovalConfirmOpen(true)
   }
 
@@ -1518,10 +1504,6 @@ export function SystemSettingsIndustryVerificationPage() {
                     const sourceDecision = recommendation?.sourceDecisions.find((item) => item.sourceId === source.sourceId)
                     const approvable = sourceDecision?.approvalSafe === true
                     const usable = approvable
-                      && source.fetchStatus === 'fetched'
-                      && source.sourceState === 'active'
-                      && source.reviewStatus !== 'rejected'
-                      && source.reviewStatus !== 'disputed'
                     const checked = selectedSourceIds.includes(source.sourceId)
                     return (
                       <label key={source.sourceId} className={`flex gap-3 rounded-lg border p-3 ${!usable ? 'bg-muted/40' : ''}`}>
