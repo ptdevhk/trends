@@ -1494,7 +1494,6 @@
     "refreshReconciled": "重新整理完成；已核准項目現在已同步到歷史。",
     "refreshRetainedSession": "重新整理失敗；本次工作階段的操作仍然保留。",
     "historyLoading": "正在載入歷史…",
-    "historyLoadFailed": "載入審查歷史失敗",
     "historyPartialLoadFailed": "部分歷史記錄載入失敗，已載入的記錄仍會保留。",
     "historyUnavailable": "歷史記錄暫時無法使用，即時審查佇列仍可使用。",
     "historyRetry": "重試",

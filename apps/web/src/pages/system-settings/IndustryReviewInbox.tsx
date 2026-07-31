@@ -44,7 +44,6 @@ type CleanReviewPacket = {
 }
 
 type InboxErrorKind = ReviewRowError['kind']
-type HistoryErrorKind = 'partial' | 'unavailable'
 
 type InboxPolicyError = Error & { kind: 'policy' }
 
@@ -220,7 +219,7 @@ export function IndustryReviewInbox({
   const [historyLoaded, setHistoryLoaded] = useState(false)
   const [historyLoading, setHistoryLoading] = useState(false)
   const [historyError, setHistoryError] = useState<string>()
-  const [historyErrorKind, setHistoryErrorKind] = useState<HistoryErrorKind>()
+  const [historyPartial, setHistoryPartial] = useState(false)
   const [sessionApprovals, setSessionApprovals] = useState<Map<string, SessionApproval>>(new Map())
   const [pendingActions, setPendingActions] = useState<Map<string, ReviewRowAction>>(new Map())
   const [rowErrors, setRowErrors] = useState<Map<string, ReviewRowError>>(new Map())
@@ -279,44 +278,41 @@ export function IndustryReviewInbox({
   const loadHistory = useCallback(async (): Promise<IndustryHistoryItem[] | null> => {
     setHistoryLoading(true)
     setHistoryError(undefined)
-    setHistoryErrorKind(undefined)
+    setHistoryPartial(false)
     try {
-      const requests = [
-        { status: 'approved', path: '/api/company-industry-proposals?status=approved' },
-        { status: 'rejected', path: '/api/company-industry-proposals?status=rejected' },
-        { status: 'superseded', path: '/api/company-industry-proposals?status=superseded' },
+      const paths = [
+        '/api/company-industry-proposals?status=approved',
+        '/api/company-industry-proposals?status=rejected',
+        '/api/company-industry-proposals?status=superseded',
       ] as const
-      const results = await Promise.allSettled(requests.map(({ path }) => requestJson(path)))
+      const results = await Promise.allSettled(paths.map((path) => requestJson(path)))
       const fulfilledResponses = results.flatMap((result) => (
         result.status === 'fulfilled' ? [result.value] : []
       ))
-      const failedRequests = results.flatMap((result, index) => (
-        result.status === 'rejected' ? [requests[index]] : []
-      ))
-      const next = uniqueHistory(fulfilledResponses.flatMap(parseHistory))
+      const hasFailedRequests = results.some((result) => result.status === 'rejected')
+      const fetchedItems = fulfilledResponses.flatMap(parseHistory)
 
-      if (failedRequests.length === 0) {
+      if (!hasFailedRequests) {
+        const next = uniqueHistory(fetchedItems)
         setHistoryItems(next)
         setHistoryLoaded(true)
         return next
       }
 
-      setHistoryItems((current) => uniqueHistory([...next, ...current]))
+      setHistoryItems((current) => uniqueHistory([...fetchedItems, ...current]))
       if (fulfilledResponses.length > 0) {
         setHistoryLoaded(true)
-        setHistoryErrorKind('partial')
+        setHistoryPartial(true)
         setHistoryError(t('industryEvidence.historyPartialLoadFailed', {
           defaultValue: 'Some History records could not be loaded. Available records remain visible.',
         }))
       } else {
-        setHistoryErrorKind('unavailable')
         setHistoryError(t('industryEvidence.historyUnavailable', {
           defaultValue: 'History is temporarily unavailable. The live review queue is still available.',
         }))
       }
       return null
     } catch (error) {
-      setHistoryErrorKind('unavailable')
       setHistoryError(errorMessage(error, t('industryEvidence.historyUnavailable', {
         defaultValue: 'History is temporarily unavailable. The live review queue is still available.',
       })))
@@ -340,12 +336,16 @@ export function IndustryReviewInbox({
 
   const partition = useMemo(() => {
     const base = partitionReviewQueue(items, sessionApprovals)
-    const forcedIds = forcedNeedsReview
-    const moveToNeedsReview = base.approvable.filter((row) => forcedIds.has(row.item.proposal.proposalId))
+    const approvable: ReviewInboxRow[] = []
+    const forcedReviewRows: ReviewInboxRow[] = []
+    for (const row of base.approvable) {
+      if (forcedNeedsReview.has(row.item.proposal.proposalId)) forcedReviewRows.push(row)
+      else approvable.push(row)
+    }
     return {
       all: base.all,
-      approvable: base.approvable.filter((row) => !forcedIds.has(row.item.proposal.proposalId)),
-      needsReview: [...base.needsReview, ...moveToNeedsReview],
+      approvable,
+      needsReview: [...base.needsReview, ...forcedReviewRows],
     }
   }, [forcedNeedsReview, items, sessionApprovals])
 
@@ -667,7 +667,7 @@ export function IndustryReviewInbox({
             loading={historyLoading}
             loaded={historyLoaded}
             error={historyError}
-            partial={historyErrorKind === 'partial'}
+            partial={historyPartial}
             selectedProposalId={selectedProposalId}
             onRetry={() => void loadHistory()}
             onSelect={(item) => onSelectProposal(item as unknown as ReviewInboxProposal)}

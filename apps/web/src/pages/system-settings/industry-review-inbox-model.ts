@@ -8,7 +8,6 @@ export type ReviewInboxRecommendation = ReviewInboxItem['recommendation']
 
 export type ReviewInboxFilter = 'all' | 'approvable' | 'needs_review' | 'history'
 export type ReviewInboxFilterSlug = 'all' | 'approvable' | 'needs-review' | 'history'
-export type ReviewInboxTab = 'approvable' | 'needs_review' | 'history'
 
 export type SessionApproval = {
   proposalId: string

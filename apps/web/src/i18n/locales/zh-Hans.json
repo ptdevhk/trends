@@ -1059,7 +1059,6 @@
     "refreshReconciled": "刷新完成；已批准项目现在已同步到历史。",
     "refreshRetainedSession": "刷新失败；本次会话的操作仍然保留。",
     "historyLoading": "正在加载历史…",
-    "historyLoadFailed": "加载审核历史失败",
     "historyPartialLoadFailed": "部分历史记录加载失败，已加载的记录仍会保留。",
     "historyUnavailable": "历史记录暂时不可用，实时审核队列仍可使用。",
     "historyRetry": "重试",

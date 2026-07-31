@@ -428,4 +428,23 @@ describe("company industry API services", () => {
       warning.mockRestore();
     }
   });
+
+  it("keeps malformed active proposal rows strict", async () => {
+    mocks.query.mockResolvedValueOnce([
+      {
+        _id: "legacy-row",
+        proposalId: "legacy-active-proposal",
+        companyKey: "legacy-company",
+        triggerReasons: ["probe"],
+        priority: 1,
+        status: "ready_for_review",
+        createdAt: 1,
+        updatedAt: 2,
+      },
+    ]);
+
+    await expect(listIndustryProposals("ready_for_review")).rejects.toThrow(
+      "Invalid industry proposal response",
+    );
+  });
 });

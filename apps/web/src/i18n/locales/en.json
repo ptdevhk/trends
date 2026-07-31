@@ -1494,7 +1494,6 @@
     "refreshReconciled": "Refresh complete. Approved rows are now reconciled into History.",
     "refreshRetainedSession": "Refresh failed. The current session actions remain visible.",
     "historyLoading": "Loading history…",
-    "historyLoadFailed": "Failed to load review history",
     "historyPartialLoadFailed": "Some History records could not be loaded. Available records remain visible.",
     "historyUnavailable": "History is temporarily unavailable. The live review queue is still available.",
     "historyRetry": "Retry",

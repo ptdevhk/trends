@@ -23,6 +23,19 @@ import { callConvexMutation, callConvexQuery } from "./convex-utils.js";
 import { invalidateIndustryReviewIndex } from "./company-industry-review-index.js";
 import { logger } from "./logger.js";
 
+const terminalIndustryProposalStatuses = new Set<IndustryProposalStatus>([
+  "approved",
+  "rejected",
+  "superseded",
+]);
+
+function isTerminalIndustryProposalStatus(value: unknown): boolean {
+  return (
+    typeof value === "string" &&
+    terminalIndustryProposalStatuses.has(value as IndustryProposalStatus)
+  );
+}
+
 export async function listIndustryProposals(
   status?: IndustryProposalStatus,
 ): Promise<IndustryProposal[]> {
@@ -40,6 +53,13 @@ export async function listIndustryProposals(
     if (parsed) {
       parsedItems.push(parsed);
       continue;
+    }
+    const rawStatus = isRecord(item) ? item.status : undefined;
+    if (
+      !isTerminalIndustryProposalStatus(status) &&
+      !isTerminalIndustryProposalStatus(rawStatus)
+    ) {
+      throw new Error("Invalid industry proposal response");
     }
     logger.warn("Skipping invalid industry proposal record", {
       status: status ?? "all",
