@@ -316,7 +316,13 @@ const auditRoute = createRoute({
 
 app.openapi(auditRoute, async (c) => {
   const { companyKey, limit } = c.req.valid("query");
-  const items = await listTimeline({ companyKey, limit });
+  // workspaceSlug is required by companies:listIndustryMaintenanceRuns (used
+  // by the maintenance half of the unified timeline).
+  const items = await listTimeline({
+    companyKey,
+    limit,
+    workspaceSlug: c.var.workspaceSlug,
+  });
   return c.json({ success: true as const, items }, 200);
 });
 

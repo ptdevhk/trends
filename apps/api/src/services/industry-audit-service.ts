@@ -4,6 +4,10 @@ import { callConvexQuery } from "./convex-utils.js";
 /**
  * Unified audit timeline: industry_data_change_log + industry_maintenance_ledger,
  * sorted newest-first, optionally filtered by companyKey.
+ *
+ * Maintenance ledger has no by_company_key index, so the default path lists
+ * recent runs for the workspace (workspaceSlug REQUIRED by Convex) then
+ * ledger rows per run, filtered by companyKey.
  */
 
 export type AuditKind = "data_edit" | "maintenance";
@@ -43,6 +47,7 @@ export interface AuditServiceDeps {
   listLedger: (input: {
     companyKey?: string;
     limit: number;
+    workspaceSlug: string;
   }) => Promise<
     Array<{
       runId: string;
@@ -61,9 +66,15 @@ function writeSecret(): string {
   return config.auth.convexWriteSecret;
 }
 
-async function defaultListLedger(input: {
+/**
+ * Production ledger loader. `workspaceSlug` is required by
+ * `companies:listIndustryMaintenanceRuns` (v.string()) — omitting it throws
+ * ArgumentValidationError and drops the maintenance half of the timeline.
+ */
+export async function defaultListLedger(input: {
   companyKey?: string;
   limit: number;
+  workspaceSlug: string;
 }): Promise<
   Array<{
     runId: string;
@@ -75,9 +86,15 @@ async function defaultListLedger(input: {
     _creationTime?: number;
   }>
 > {
+  const workspaceSlug = input.workspaceSlug.trim();
+  if (!workspaceSlug) {
+    throw new Error("listTimeline/defaultListLedger requires workspaceSlug");
+  }
+
   // Ledger has no by_company_key index: pull recent runs, then ledger per run, filter.
   const runs = (await callConvexQuery("companies:listIndustryMaintenanceRuns", {
     writeSecret: writeSecret(),
+    workspaceSlug,
     limit: 50,
   })) as Array<{ runId: string }>;
   const rows: Array<{
@@ -89,7 +106,7 @@ async function defaultListLedger(input: {
     detail?: unknown;
     _creationTime?: number;
   }> = [];
-  for (const run of runs) {
+  for (const run of runs ?? []) {
     const ledger = (await callConvexQuery(
       "companies:listIndustryMaintenanceLedger",
       {
@@ -98,14 +115,12 @@ async function defaultListLedger(input: {
         limit: 200,
       },
     )) as typeof rows;
-    for (const row of ledger) {
+    for (const row of ledger ?? []) {
       if (input.companyKey && row.companyKey !== input.companyKey) continue;
       rows.push(row);
     }
   }
-  rows.sort(
-    (a, b) => (b._creationTime ?? 0) - (a._creationTime ?? 0),
-  );
+  rows.sort((a, b) => (b._creationTime ?? 0) - (a._creationTime ?? 0));
   return rows.slice(0, input.limit);
 }
 
@@ -122,15 +137,24 @@ function defaultDeps(): AuditServiceDeps {
 }
 
 export async function listTimeline(
-  input: { companyKey?: string; limit?: number } = {},
+  input: {
+    companyKey?: string;
+    limit?: number;
+    /** Required for the production ledger path (listIndustryMaintenanceRuns). */
+    workspaceSlug: string;
+  },
   deps: AuditServiceDeps = defaultDeps(),
 ): Promise<AuditTimelineItem[]> {
   const limit = Math.min(200, Math.max(1, Math.floor(input.limit ?? 50)));
   const companyKey = input.companyKey?.trim() || undefined;
+  const workspaceSlug = input.workspaceSlug.trim();
+  if (!workspaceSlug) {
+    throw new Error("listTimeline requires workspaceSlug");
+  }
 
   const [changes, ledger] = await Promise.all([
     deps.listChanges({ companyKey, limit }),
-    deps.listLedger({ companyKey, limit }),
+    deps.listLedger({ companyKey, limit, workspaceSlug }),
   ]);
 
   const items: AuditTimelineItem[] = [];

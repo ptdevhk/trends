@@ -7,10 +7,21 @@ vi.mock("../middleware/maintenance.js", () => ({
 }));
 
 const enqueueMock = vi.hoisted(() => vi.fn());
+const listTimelineMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../services/industry-maintenance-pipeline-service.js", () => ({
   enqueueIndustryMaintenance: enqueueMock,
 }));
+
+vi.mock("../services/industry-audit-service.js", async (importOriginal) => {
+  const actual = await importOriginal<
+    typeof import("../services/industry-audit-service.js")
+  >();
+  return {
+    ...actual,
+    listTimeline: (...args: unknown[]) => listTimelineMock(...args),
+  };
+});
 
 vi.mock("../services/industry-data-admin-service.js", async (importOriginal) => {
   const actual = await importOriginal<
@@ -43,6 +54,24 @@ describe("industry-data-admin routes", () => {
   beforeEach(() => {
     enqueueMock.mockReset();
     enqueueMock.mockResolvedValue({ runId: "run-1", coalesced: false });
+    listTimelineMock.mockReset();
+    listTimelineMock.mockResolvedValue([
+      {
+        kind: "data_edit",
+        at: 1000,
+        summary: "create brand/brand-1 by admin",
+        action: "create",
+        companyKey: "acme",
+      },
+      {
+        kind: "maintenance",
+        at: 2000,
+        summary: "ready: two sources",
+        action: "ready",
+        runId: "run-1",
+        companyKey: "acme",
+      },
+    ]);
   });
 
   afterEach(() => {
@@ -102,6 +131,30 @@ describe("industry-data-admin routes", () => {
       success: true,
       runId: "run-1",
       coalesced: false,
+    });
+  });
+
+  it("GET /audit passes workspaceSlug from request context into listTimeline", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request(
+      "/api/industry-data/audit?companyKey=acme&limit=20",
+      { headers: auth.headers },
+    );
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.success).toBe(true);
+    expect(body.items).toHaveLength(2);
+    expect(body.items.map((i: { kind: string }) => i.kind).sort()).toEqual([
+      "data_edit",
+      "maintenance",
+    ]);
+    // Regression: workspaceSlug must flow from c.var.workspaceSlug so the
+    // production defaultListLedger can call listIndustryMaintenanceRuns.
+    expect(listTimelineMock).toHaveBeenCalledWith({
+      companyKey: "acme",
+      limit: 20,
+      workspaceSlug: "hr",
     });
   });
 
