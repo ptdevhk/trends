@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { CheckCircle2, ExternalLink, RefreshCw, ShieldCheck } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, ExternalLink, RefreshCw, ShieldCheck } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import type { paths } from '@/lib/api-types'
@@ -89,6 +90,431 @@ type ReviewedProfileSummary = {
   companyName?: string
   verificationLevel?: string
   industryClass?: string
+}
+
+type CoverageMaintenanceRun = {
+  runId: string
+  status?: string
+  triggerSource?: string
+  triggerContext?: string
+  operatorSummary?: string
+  failureMessage?: string
+  startedAt?: number
+  finishedAt?: number
+  counts: {
+    proposalsResearched: number
+    readyCreated: number
+    sourcesDemoted: number
+    freshnessChecked: number
+    freshnessRefreshed: number
+    errors: number
+  }
+}
+
+type IndustryCoverageSummary = {
+  generatedAt: number
+  workspaceSlug: string
+  proposalsByStatus: Record<string, number>
+  openTotal: number
+  openWithSources: number
+  openWithoutSources: number
+  emptyEvidenceBottleneck: boolean
+  readyBacklogBottleneck: boolean
+  resumes: {
+    total: number
+    withVerifiedEvidence: number
+  }
+  profiles: {
+    total: number
+    verified: number
+    rejected: number
+  }
+  maintenance: {
+    latest: CoverageMaintenanceRun | null
+    lastUseful: CoverageMaintenanceRun | null
+    lastFailed: CoverageMaintenanceRun | null
+  }
+}
+
+const PIPELINE_STATUS_ORDER = [
+  'new',
+  'researching',
+  'ready_for_review',
+  'needs_more_evidence',
+  'approved',
+  'rejected',
+] as const
+
+const PIPELINE_STATUS_LABELS: Record<(typeof PIPELINE_STATUS_ORDER)[number], string> = {
+  new: 'new',
+  researching: 'researching',
+  ready_for_review: 'ready',
+  needs_more_evidence: 'needs evidence',
+  approved: 'approved',
+  rejected: 'rejected',
+}
+
+const PIPELINE_STATUS_TONES: Record<(typeof PIPELINE_STATUS_ORDER)[number], string> = {
+  new: 'border-slate-300 bg-slate-50 text-slate-800',
+  researching: 'border-sky-300 bg-sky-50 text-sky-900',
+  ready_for_review: 'border-green-300 bg-green-50 text-green-900',
+  needs_more_evidence: 'border-amber-300 bg-amber-50 text-amber-900',
+  approved: 'border-emerald-300 bg-emerald-50 text-emerald-900',
+  rejected: 'border-rose-300 bg-rose-50 text-rose-900',
+}
+
+function parseCoverageSummary(value: unknown): IndustryCoverageSummary | null {
+  if (!isRecord(value)) return null
+  const item = isRecord(value.item) ? value.item : value
+  if (!isRecord(item)) return null
+  if (typeof item.generatedAt !== 'number' || typeof item.openTotal !== 'number') return null
+  if (!isRecord(item.resumes) || !isRecord(item.profiles) || !isRecord(item.maintenance)) return null
+  return item as unknown as IndustryCoverageSummary
+}
+
+function formatRunLine(run: CoverageMaintenanceRun | null | undefined): string {
+  if (!run) return '—'
+  const parts = [
+    run.status ?? 'unknown',
+    run.triggerSource ? `· ${run.triggerSource}` : null,
+    run.counts
+      ? `· researched ${run.counts.proposalsResearched}, ready ${run.counts.readyCreated}`
+      : null,
+  ].filter(Boolean)
+  return parts.join(' ')
+}
+
+/**
+ * Operator health strip: proposal pipeline, empty-evidence bottleneck,
+ * resume card coverage, and maintenance signal.
+ */
+function CoverageHealthPanel({
+  requestJson,
+}: {
+  requestJson: (path: string, init?: RequestInit) => Promise<unknown>
+}) {
+  const { t } = useTranslation()
+  const [summary, setSummary] = useState<IndustryCoverageSummary | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const payload = await requestJson('/api/company-industry-coverage')
+      const next = parseCoverageSummary(payload)
+      if (!next) {
+        setSummary(null)
+        setError(
+          t('industryEvidence.coverageParseFailed', {
+            defaultValue: 'Coverage summary response was incomplete.',
+          }),
+        )
+        return
+      }
+      setSummary(next)
+    } catch (err) {
+      reportUiError('Failed to load industry coverage summary', err)
+      setSummary(null)
+      setError(
+        t('industryEvidence.coverageLoadFailed', {
+          defaultValue: 'Failed to load coverage summary.',
+        }),
+      )
+    } finally {
+      setLoading(false)
+    }
+  }, [requestJson, t])
+
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  const resumeRatio = summary
+    ? summary.resumes.total > 0
+      ? Math.round((summary.resumes.withVerifiedEvidence / summary.resumes.total) * 100)
+      : 0
+    : 0
+  const evidenceRatio = summary
+    ? summary.openTotal > 0
+      ? Math.round((summary.openWithSources / summary.openTotal) * 100)
+      : 0
+    : 0
+
+  return (
+    <Card data-testid="industry-coverage-health">
+      <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="space-y-1">
+          <CardTitle>
+            {t('industryEvidence.coverageTitle', {
+              defaultValue: 'Coverage & research health',
+            })}
+          </CardTitle>
+          <CardDescription>
+            {t('industryEvidence.coverageDescription', {
+              defaultValue:
+                'Pipeline counts, open proposals with candidate sources, resume card coverage, and last maintenance signal. Empty ready-for-review does not mean research is done.',
+            })}
+          </CardDescription>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => void load()}
+          disabled={loading}
+          data-testid="industry-coverage-refresh"
+        >
+          <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+          {t('common.refresh', { defaultValue: 'Refresh' })}
+        </Button>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {error ? (
+          <p className="text-sm text-destructive" data-testid="industry-coverage-error">
+            {error}
+          </p>
+        ) : null}
+
+        {summary?.emptyEvidenceBottleneck ? (
+          <div
+            className="flex gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950"
+            data-testid="industry-coverage-bottleneck-empty"
+            role="status"
+          >
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+            <div className="space-y-1">
+              <p className="font-medium">
+                {t('industryEvidence.coverageEmptyEvidenceTitle', {
+                  defaultValue:
+                    summary.openWithSources === 0
+                      ? 'Bottleneck: open proposals have no candidate sources'
+                      : 'Bottleneck: almost no open proposals have candidate sources',
+                })}
+              </p>
+              <p className="text-amber-900/90">
+                {t('industryEvidence.coverageEmptyEvidenceBody', {
+                  defaultValue:
+                    '{{withSources}} / {{openTotal}} open proposals have sources. Research is not filling evidence (check WEB_RESEARCH_ENABLED / WEB_RESEARCH_MARKET and Operations → Run maintenance).',
+                  withSources: summary.openWithSources,
+                  openTotal: summary.openTotal,
+                })}
+              </p>
+            </div>
+          </div>
+        ) : null}
+
+        {summary && !summary.emptyEvidenceBottleneck && summary.readyBacklogBottleneck ? (
+          <div
+            className="flex gap-3 rounded-lg border border-sky-300 bg-sky-50 p-3 text-sm text-sky-950"
+            data-testid="industry-coverage-bottleneck-ready"
+            role="status"
+          >
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+            <p>
+              {t('industryEvidence.coverageReadyBacklogBody', {
+                defaultValue:
+                  'Ready-for-review is empty while backlog exists. Steward review is blocked until research produces durable sources.',
+              })}
+            </p>
+          </div>
+        ) : null}
+
+        {summary?.maintenance.lastFailed ? (
+          <div
+            className="flex gap-3 rounded-lg border border-rose-300 bg-rose-50 p-3 text-sm text-rose-950"
+            data-testid="industry-coverage-bottleneck-failed"
+            role="status"
+          >
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+            <div className="space-y-1">
+              <p className="font-medium">
+                {t('industryEvidence.coverageFailedTitle', {
+                  defaultValue: 'Last maintenance failure',
+                })}
+              </p>
+              <p className="font-mono text-xs">
+                {formatRunLine(summary.maintenance.lastFailed)}
+                {summary.maintenance.lastFailed.failureMessage
+                  ? ` — ${summary.maintenance.lastFailed.failureMessage}`
+                  : ''}
+              </p>
+              {summary.maintenance.lastFailed.operatorSummary ? (
+                <p className="text-rose-900/90">{summary.maintenance.lastFailed.operatorSummary}</p>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+
+        {loading && !summary ? (
+          <p className="text-sm text-muted-foreground">
+            {t('common.loading', { defaultValue: 'Loading…' })}
+          </p>
+        ) : summary ? (
+          <>
+            <div>
+              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                {t('industryEvidence.coveragePipeline', { defaultValue: 'Review proposals' })}
+              </p>
+              <div
+                className="flex flex-wrap gap-2"
+                data-testid="industry-coverage-pipeline"
+              >
+                {PIPELINE_STATUS_ORDER.map((status) => {
+                  const count = summary.proposalsByStatus[status] ?? 0
+                  return (
+                    <div
+                      key={status}
+                      className={`rounded-md border px-2.5 py-1.5 ${PIPELINE_STATUS_TONES[status]}`}
+                      data-testid={`industry-coverage-status-${status}`}
+                    >
+                      <p className="text-[11px] font-medium uppercase tracking-wide opacity-80">
+                        {PIPELINE_STATUS_LABELS[status]}
+                      </p>
+                      <p className="text-lg font-semibold tabular-nums leading-tight">{count}</p>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <div
+                className="rounded-lg border p-3"
+                data-testid="industry-coverage-open-sources"
+              >
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  {t('industryEvidence.coverageOpenSources', {
+                    defaultValue: 'Open proposals with sources',
+                  })}
+                </p>
+                <p className="mt-1 text-2xl font-semibold tabular-nums">
+                  {summary.openWithSources}
+                  <span className="text-base font-normal text-muted-foreground">
+                    {' '}
+                    / {summary.openTotal}
+                  </span>
+                </p>
+                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
+                  <div
+                    className={`h-full rounded-full ${
+                      evidenceRatio === 0 && summary.openTotal > 0
+                        ? 'bg-amber-500'
+                        : 'bg-primary'
+                    }`}
+                    style={{ width: `${Math.min(100, evidenceRatio)}%` }}
+                  />
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {summary.openWithoutSources} without candidate sources ({evidenceRatio}% filled)
+                </p>
+              </div>
+
+              <div
+                className="rounded-lg border p-3"
+                data-testid="industry-coverage-resumes"
+              >
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  {t('industryEvidence.coverageResumes', {
+                    defaultValue: 'Resumes with verified evidence',
+                  })}
+                </p>
+                <p className="mt-1 text-2xl font-semibold tabular-nums">
+                  {summary.resumes.withVerifiedEvidence}
+                  <span className="text-base font-normal text-muted-foreground">
+                    {' '}
+                    / {summary.resumes.total}
+                  </span>
+                </p>
+                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full rounded-full bg-emerald-600"
+                    style={{ width: `${Math.min(100, resumeRatio)}%` }}
+                  />
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {resumeRatio}% of digest cards show approved 行业验证
+                </p>
+              </div>
+
+              <div
+                className="rounded-lg border p-3"
+                data-testid="industry-coverage-profiles"
+              >
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  {t('industryEvidence.coverageProfiles', {
+                    defaultValue: 'Approved company truth',
+                  })}
+                </p>
+                <p className="mt-1 text-2xl font-semibold tabular-nums">
+                  {summary.profiles.verified}
+                  <span className="text-base font-normal text-muted-foreground">
+                    {' '}
+                    verified
+                  </span>
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {summary.profiles.rejected} rejected · {summary.profiles.total} profiles total
+                </p>
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2" data-testid="industry-coverage-maintenance">
+              <div className="rounded-lg border p-3">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  {t('industryEvidence.coverageLastUseful', {
+                    defaultValue: 'Last useful maintenance',
+                  })}
+                </p>
+                <p className="mt-1 font-mono text-xs">
+                  {formatRunLine(summary.maintenance.lastUseful)}
+                </p>
+                {summary.maintenance.lastUseful?.operatorSummary ? (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {summary.maintenance.lastUseful.operatorSummary}
+                  </p>
+                ) : null}
+                {summary.maintenance.lastUseful?.startedAt ? (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {formatDate(summary.maintenance.lastUseful.startedAt)}
+                  </p>
+                ) : null}
+              </div>
+              <div className="rounded-lg border p-3">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  {t('industryEvidence.coverageLatestRun', {
+                    defaultValue: 'Latest run',
+                  })}
+                </p>
+                <p className="mt-1 font-mono text-xs">
+                  {formatRunLine(summary.maintenance.latest)}
+                </p>
+                {summary.maintenance.latest?.operatorSummary ? (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {summary.maintenance.latest.operatorSummary}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+
+            <p className="text-xs text-muted-foreground">
+              {t('industryEvidence.coverageOpsHint', {
+                defaultValue:
+                  'To fill empty proposals: Operations → Industry evidence maintenance → Run maintenance now. Discovery needs WEB_RESEARCH_ENABLED=1 (and WEB_RESEARCH_MARKET=my for MY).',
+              })}{' '}
+              <Link
+                to="../operations"
+                className="font-medium text-primary underline-offset-4 hover:underline"
+              >
+                {t('industryEvidence.coverageOpsLink', { defaultValue: 'Open Operations' })}
+              </Link>
+            </p>
+          </>
+        ) : null}
+      </CardContent>
+    </Card>
+  )
 }
 
 /**
@@ -684,6 +1110,8 @@ export function SystemSettingsIndustryVerificationPage() {
           {t('common.refresh', { defaultValue: 'Refresh' })}
         </Button>
       </div>
+
+      <CoverageHealthPanel requestJson={requestJson} />
 
       <ApprovedProfileLookup requestJson={requestJson} />
 

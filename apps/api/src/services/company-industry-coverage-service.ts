@@ -1,0 +1,164 @@
+/**
+ * Industry verification coverage summary (operator health snapshot).
+ * Thin wrapper over companies:getIndustryCoverageSummary.
+ */
+
+import { config } from "./config.js";
+import { callConvexQuery } from "./convex-utils.js";
+
+export interface IndustryCoverageMaintenanceRun {
+  runId: string;
+  status?: string;
+  triggerSource?: string;
+  triggerContext?: string;
+  operatorSummary?: string;
+  failureMessage?: string;
+  startedAt?: number;
+  finishedAt?: number;
+  counts: {
+    proposalsResearched: number;
+    readyCreated: number;
+    sourcesDemoted: number;
+    freshnessChecked: number;
+    freshnessRefreshed: number;
+    errors: number;
+  };
+}
+
+export interface IndustryCoverageSummary {
+  generatedAt: number;
+  workspaceSlug: string;
+  proposalsByStatus: Record<string, number>;
+  openTotal: number;
+  openWithSources: number;
+  openWithoutSources: number;
+  emptyEvidenceBottleneck: boolean;
+  readyBacklogBottleneck: boolean;
+  resumes: {
+    total: number;
+    withVerifiedEvidence: number;
+  };
+  profiles: {
+    total: number;
+    verified: number;
+    rejected: number;
+  };
+  maintenance: {
+    latest: IndustryCoverageMaintenanceRun | null;
+    lastUseful: IndustryCoverageMaintenanceRun | null;
+    lastFailed: IndustryCoverageMaintenanceRun | null;
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function finiteNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function parseRun(value: unknown): IndustryCoverageMaintenanceRun | null {
+  if (!isRecord(value) || typeof value.runId !== "string" || !value.runId.trim()) {
+    return null;
+  }
+  const counts = isRecord(value.counts) ? value.counts : {};
+  return {
+    runId: value.runId.trim(),
+    ...(typeof value.status === "string" ? { status: value.status } : {}),
+    ...(typeof value.triggerSource === "string"
+      ? { triggerSource: value.triggerSource }
+      : {}),
+    ...(typeof value.triggerContext === "string"
+      ? { triggerContext: value.triggerContext }
+      : {}),
+    ...(typeof value.operatorSummary === "string"
+      ? { operatorSummary: value.operatorSummary }
+      : {}),
+    ...(typeof value.failureMessage === "string"
+      ? { failureMessage: value.failureMessage }
+      : {}),
+    ...(finiteNumber(value.startedAt) !== undefined
+      ? { startedAt: finiteNumber(value.startedAt) }
+      : {}),
+    ...(finiteNumber(value.finishedAt) !== undefined
+      ? { finishedAt: finiteNumber(value.finishedAt) }
+      : {}),
+    counts: {
+      proposalsResearched: finiteNumber(counts.proposalsResearched) ?? 0,
+      readyCreated: finiteNumber(counts.readyCreated) ?? 0,
+      sourcesDemoted: finiteNumber(counts.sourcesDemoted) ?? 0,
+      freshnessChecked: finiteNumber(counts.freshnessChecked) ?? 0,
+      freshnessRefreshed: finiteNumber(counts.freshnessRefreshed) ?? 0,
+      errors: finiteNumber(counts.errors) ?? 0,
+    },
+  };
+}
+
+export function parseIndustryCoverageSummary(
+  value: unknown,
+): IndustryCoverageSummary | null {
+  if (!isRecord(value)) return null;
+  const proposalsByStatus = isRecord(value.proposalsByStatus)
+    ? Object.fromEntries(
+        Object.entries(value.proposalsByStatus).map(([key, count]) => [
+          key,
+          finiteNumber(count) ?? 0,
+        ]),
+      )
+    : {};
+  const resumes = isRecord(value.resumes) ? value.resumes : {};
+  const profiles = isRecord(value.profiles) ? value.profiles : {};
+  const maintenance = isRecord(value.maintenance) ? value.maintenance : {};
+  const generatedAt = finiteNumber(value.generatedAt);
+  const openTotal = finiteNumber(value.openTotal);
+  const openWithSources = finiteNumber(value.openWithSources);
+  const openWithoutSources = finiteNumber(value.openWithoutSources);
+  if (
+    generatedAt === undefined ||
+    openTotal === undefined ||
+    openWithSources === undefined ||
+    openWithoutSources === undefined ||
+    typeof value.workspaceSlug !== "string"
+  ) {
+    return null;
+  }
+  return {
+    generatedAt,
+    workspaceSlug: value.workspaceSlug,
+    proposalsByStatus,
+    openTotal,
+    openWithSources,
+    openWithoutSources,
+    emptyEvidenceBottleneck: value.emptyEvidenceBottleneck === true,
+    readyBacklogBottleneck: value.readyBacklogBottleneck === true,
+    resumes: {
+      total: finiteNumber(resumes.total) ?? 0,
+      withVerifiedEvidence: finiteNumber(resumes.withVerifiedEvidence) ?? 0,
+    },
+    profiles: {
+      total: finiteNumber(profiles.total) ?? 0,
+      verified: finiteNumber(profiles.verified) ?? 0,
+      rejected: finiteNumber(profiles.rejected) ?? 0,
+    },
+    maintenance: {
+      latest: parseRun(maintenance.latest),
+      lastUseful: parseRun(maintenance.lastUseful),
+      lastFailed: parseRun(maintenance.lastFailed),
+    },
+  };
+}
+
+export async function getIndustryCoverageSummary(
+  workspaceSlug: string,
+): Promise<IndustryCoverageSummary> {
+  const value = await callConvexQuery("companies:getIndustryCoverageSummary", {
+    workspaceSlug,
+    writeSecret: config.auth.convexWriteSecret,
+  });
+  const parsed = parseIndustryCoverageSummary(value);
+  if (!parsed) {
+    throw new Error("Invalid companies:getIndustryCoverageSummary response");
+  }
+  return parsed;
+}

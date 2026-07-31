@@ -593,6 +593,120 @@ describe("companies routes", () => {
     expect(body.items[0].runId).toBe("run-1");
   });
 
+  it("returns industry coverage summary for admin", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "dev", role: "admin" });
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      if (call.pathName === "companies:getIndustryCoverageSummary") {
+        expect(call.args.workspaceSlug).toBe("dev");
+        return convexSuccess({
+          generatedAt: 1_700_000_000_000,
+          workspaceSlug: "dev",
+          proposalsByStatus: {
+            new: 427,
+            researching: 0,
+            ready_for_review: 0,
+            needs_more_evidence: 60,
+            approved: 16,
+            rejected: 3,
+            superseded: 0,
+          },
+          openTotal: 487,
+          openWithSources: 0,
+          openWithoutSources: 487,
+          emptyEvidenceBottleneck: true,
+          readyBacklogBottleneck: true,
+          resumes: { total: 83, withVerifiedEvidence: 1 },
+          profiles: { total: 9, verified: 4, rejected: 5 },
+          maintenance: {
+            latest: {
+              runId: "run-fail",
+              status: "failed",
+              triggerSource: "restore",
+              failureMessage: "fetch failed",
+              operatorSummary: "failed; worker unreachable.",
+              startedAt: 10,
+              counts: {
+                proposalsResearched: 0,
+                readyCreated: 0,
+                sourcesDemoted: 0,
+                freshnessChecked: 0,
+                freshnessRefreshed: 0,
+                errors: 0,
+              },
+            },
+            lastUseful: {
+              runId: "run-useful",
+              status: "completed",
+              triggerSource: "manual",
+              operatorSummary: "completed; 0 ready.",
+              startedAt: 5,
+              counts: {
+                proposalsResearched: 20,
+                readyCreated: 0,
+                sourcesDemoted: 0,
+                freshnessChecked: 0,
+                freshnessRefreshed: 0,
+                errors: 0,
+              },
+            },
+            lastFailed: {
+              runId: "run-fail",
+              status: "failed",
+              triggerSource: "restore",
+              failureMessage: "fetch failed",
+              operatorSummary: "failed; worker unreachable.",
+              startedAt: 10,
+              counts: {
+                proposalsResearched: 0,
+                readyCreated: 0,
+                sourcesDemoted: 0,
+                freshnessChecked: 0,
+                freshnessRefreshed: 0,
+                errors: 0,
+              },
+            },
+          },
+        });
+      }
+      throw new Error(`Unexpected path ${call.pathName}`);
+    });
+
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request("/api/company-industry-coverage", {
+      headers: auth.headers,
+    });
+    expect(response.status).toBe(200);
+    const body = await parseJsonBody<{
+      success: boolean;
+      item: {
+        openTotal: number;
+        emptyEvidenceBottleneck: boolean;
+        resumes: { withVerifiedEvidence: number };
+      };
+    }>(response);
+    expect(body.success).toBe(true);
+    expect(body.item.openTotal).toBe(487);
+    expect(body.item.emptyEvidenceBottleneck).toBe(true);
+    expect(body.item.resumes.withVerifiedEvidence).toBe(1);
+  });
+
+  it("rejects industry coverage summary without admin", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "dev", role: "user" });
+    const calls: ConvexCall[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      calls.push(parseConvexCall(input, init));
+      return convexSuccess(null);
+    });
+
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request("/api/company-industry-coverage", {
+      headers: auth.headers,
+    });
+    expect(response.status).toBe(403);
+    expect(calls).toHaveLength(0);
+  });
+
   it("returns 404 for unknown maintenance run detail", async () => {
     const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {

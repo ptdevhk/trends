@@ -44,6 +44,7 @@ import {
   listIndustryVerdictRevisions,
 } from "../services/company-industry-revision-service.js";
 import { requestCompanyIndustryEvidenceRefresh } from "../services/company-industry-refresh-request-service.js";
+import { getIndustryCoverageSummary } from "../services/company-industry-coverage-service.js";
 import { enqueueIndustryMaintenance } from "../services/industry-maintenance-pipeline-service.js";
 import { callConvexQuery } from "../services/convex-utils.js";
 import { config } from "../services/config.js";
@@ -89,6 +90,7 @@ app.use("/api/company-industry-recompute-runs", requireAdmin);
 app.use("/api/company-industry-recompute-runs/*", requireAdmin);
 app.use("/api/company-industry-maintenance-runs", requireAdmin);
 app.use("/api/company-industry-maintenance-runs/*", requireAdmin);
+app.use("/api/company-industry-coverage", requireAdmin);
 app.use("/api/company-industry-bundles/*", requireWorkspaceUser);
 app.use("/api/company-industry-refresh-requests", requireWorkspaceUser);
 
@@ -1030,6 +1032,79 @@ const getIndustryRecomputeRunRoute = createRoute({
 app.openapi(getIndustryRecomputeRunRoute, async (c) => {
   const { runId } = c.req.valid("param");
   const item = await companyIndustryRecomputeService.get(runId);
+  return c.json({ success: true as const, item }, 200);
+});
+
+// ---------------------------------------------------------------------------
+// Industry coverage summary (operator health for Industry verification).
+// ---------------------------------------------------------------------------
+
+const IndustryCoverageMaintenanceRunSchema = z.object({
+  runId: z.string(),
+  status: z.string().optional(),
+  triggerSource: z.string().optional(),
+  triggerContext: z.string().optional(),
+  operatorSummary: z.string().optional(),
+  failureMessage: z.string().optional(),
+  startedAt: z.number().optional(),
+  finishedAt: z.number().optional(),
+  counts: z.object({
+    proposalsResearched: z.number(),
+    readyCreated: z.number(),
+    sourcesDemoted: z.number(),
+    freshnessChecked: z.number(),
+    freshnessRefreshed: z.number(),
+    errors: z.number(),
+  }),
+});
+
+const IndustryCoverageSummarySchema = z.object({
+  generatedAt: z.number(),
+  workspaceSlug: z.string(),
+  proposalsByStatus: z.record(z.string(), z.number()),
+  openTotal: z.number(),
+  openWithSources: z.number(),
+  openWithoutSources: z.number(),
+  emptyEvidenceBottleneck: z.boolean(),
+  readyBacklogBottleneck: z.boolean(),
+  resumes: z.object({
+    total: z.number(),
+    withVerifiedEvidence: z.number(),
+  }),
+  profiles: z.object({
+    total: z.number(),
+    verified: z.number(),
+    rejected: z.number(),
+  }),
+  maintenance: z.object({
+    latest: IndustryCoverageMaintenanceRunSchema.nullable(),
+    lastUseful: IndustryCoverageMaintenanceRunSchema.nullable(),
+    lastFailed: IndustryCoverageMaintenanceRunSchema.nullable(),
+  }),
+});
+
+const getIndustryCoverageSummaryRoute = createRoute({
+  method: "get",
+  path: "/api/company-industry-coverage",
+  tags: ["company-industry-evidence"],
+  summary: "Industry verification coverage and research health summary",
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.literal(true),
+            item: IndustryCoverageSummarySchema,
+          }),
+        },
+      },
+      description: "Coverage summary for resumes, proposals, and maintenance",
+    },
+  },
+});
+
+app.openapi(getIndustryCoverageSummaryRoute, async (c) => {
+  const item = await getIndustryCoverageSummary(c.var.workspaceSlug);
   return c.json({ success: true as const, item }, 200);
 });
 

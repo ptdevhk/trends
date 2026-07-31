@@ -3632,3 +3632,211 @@ export const getIndustryMaintenanceSchedulePaused = query({
     return { paused: row?.value === true };
   },
 });
+
+/**
+ * Operator coverage snapshot for Industry verification.
+ * Aggregates proposal pipeline, open-proposal evidence fill, resume card
+ * projection coverage, profile truth counts, and recent maintenance health.
+ */
+export const getIndustryCoverageSummary = query({
+  args: {
+    writeSecret: v.optional(v.string()),
+    workspaceSlug: v.string(),
+    maintenanceLimit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    requireReadSecret(args.writeSecret);
+    const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
+    const maintenanceLimit = Math.min(
+      50,
+      Math.max(1, Math.floor(args.maintenanceLimit ?? 20)),
+    );
+
+    const proposals = await ctx.db
+      .query("company_industry_review_proposals")
+      .collect();
+    const proposalsByStatus: Record<string, number> = {
+      new: 0,
+      researching: 0,
+      ready_for_review: 0,
+      needs_more_evidence: 0,
+      approved: 0,
+      rejected: 0,
+      superseded: 0,
+    };
+    const openProposals: Array<{ proposalId: string; status: string }> = [];
+    for (const proposal of proposals) {
+      const status =
+        typeof proposal.status === "string" ? proposal.status : "unknown";
+      proposalsByStatus[status] = (proposalsByStatus[status] ?? 0) + 1;
+      if (OPEN_INDUSTRY_PROPOSAL_STATUSES.has(status)) {
+        openProposals.push({
+          proposalId: proposal.proposalId,
+          status,
+        });
+      }
+    }
+
+    const sources = await ctx.db
+      .query("company_industry_evidence_sources")
+      .collect();
+    const proposalIdsWithSources = new Set<string>();
+    for (const source of sources) {
+      const proposalId =
+        typeof source.proposalId === "string" ? source.proposalId.trim() : "";
+      if (proposalId) proposalIdsWithSources.add(proposalId);
+    }
+    let openWithSources = 0;
+    for (const proposal of openProposals) {
+      if (proposalIdsWithSources.has(proposal.proposalId)) openWithSources += 1;
+    }
+    const openTotal = openProposals.length;
+    const openWithoutSources = Math.max(0, openTotal - openWithSources);
+
+    const digests = await ctx.db.query("resume_digests").collect();
+    let withVerifiedEvidence = 0;
+    for (const digest of digests) {
+      const summaries = (digest as { verifiedIndustryEvidenceSummaries?: unknown })
+        .verifiedIndustryEvidenceSummaries;
+      if (Array.isArray(summaries) && summaries.length > 0) {
+        withVerifiedEvidence += 1;
+      }
+    }
+
+    const profiles = await ctx.db
+      .query("company_industry_profiles")
+      .collect();
+    let verifiedProfiles = 0;
+    let rejectedProfiles = 0;
+    for (const profile of profiles) {
+      if (profile.verificationLevel === "verified") verifiedProfiles += 1;
+      else if (profile.verificationLevel === "rejected") rejectedProfiles += 1;
+    }
+
+    const maintenanceRows = await ctx.db
+      .query("industry_maintenance_runs")
+      .withIndex("by_workspace_time", (q: any) =>
+        q.eq("workspaceSlug", workspaceSlug),
+      )
+      .collect();
+    maintenanceRows.sort(
+      (left: any, right: any) =>
+        (right.startedAt ?? right._creationTime) -
+        (left.startedAt ?? left._creationTime),
+    );
+    const recentMaintenance = maintenanceRows.slice(0, maintenanceLimit);
+
+    const summarizeRun = (run: any) => {
+      const counts = run?.counts && typeof run.counts === "object" ? run.counts : {};
+      return {
+        runId: String(run.runId ?? ""),
+        status: typeof run.status === "string" ? run.status : undefined,
+        triggerSource:
+          typeof run.triggerSource === "string" ? run.triggerSource : undefined,
+        triggerContext:
+          typeof run.triggerContext === "string" ? run.triggerContext : undefined,
+        operatorSummary:
+          typeof run.operatorSummary === "string"
+            ? run.operatorSummary
+            : undefined,
+        failureMessage:
+          typeof run.failureMessage === "string"
+            ? run.failureMessage
+            : undefined,
+        startedAt:
+          typeof run.startedAt === "number"
+            ? run.startedAt
+            : typeof run._creationTime === "number"
+              ? run._creationTime
+              : undefined,
+        finishedAt:
+          typeof run.finishedAt === "number" ? run.finishedAt : undefined,
+        counts: {
+          proposalsResearched:
+            typeof counts.proposalsResearched === "number"
+              ? counts.proposalsResearched
+              : 0,
+          readyCreated:
+            typeof counts.readyCreated === "number" ? counts.readyCreated : 0,
+          sourcesDemoted:
+            typeof counts.sourcesDemoted === "number"
+              ? counts.sourcesDemoted
+              : 0,
+          freshnessChecked:
+            typeof counts.freshnessChecked === "number"
+              ? counts.freshnessChecked
+              : 0,
+          freshnessRefreshed:
+            typeof counts.freshnessRefreshed === "number"
+              ? counts.freshnessRefreshed
+              : 0,
+          errors: typeof counts.errors === "number" ? counts.errors : 0,
+        },
+      };
+    };
+
+    const latest = recentMaintenance[0]
+      ? summarizeRun(recentMaintenance[0])
+      : null;
+
+    let lastUseful: ReturnType<typeof summarizeRun> | null = null;
+    for (const run of recentMaintenance) {
+      if (run.status !== "completed") continue;
+      const counts = run.counts && typeof run.counts === "object" ? run.counts : {};
+      const researched =
+        typeof counts.proposalsResearched === "number"
+          ? counts.proposalsResearched
+          : 0;
+      const ready =
+        typeof counts.readyCreated === "number" ? counts.readyCreated : 0;
+      if (researched > 0 || ready > 0) {
+        lastUseful = summarizeRun(run);
+        break;
+      }
+    }
+
+    let lastFailed: ReturnType<typeof summarizeRun> | null = null;
+    for (const run of recentMaintenance) {
+      if (run.status === "failed") {
+        lastFailed = summarizeRun(run);
+        break;
+      }
+    }
+
+    // Treat "none" and "near-empty fill" as the same operator bottleneck:
+    // research is not producing steward-ready evidence for the open backlog.
+    const evidenceFillRatio =
+      openTotal > 0 ? openWithSources / openTotal : 1;
+    const emptyEvidenceBottleneck =
+      openTotal > 0 && (openWithSources === 0 || evidenceFillRatio < 0.05);
+    const readyBacklogBottleneck =
+      (proposalsByStatus.ready_for_review ?? 0) === 0 &&
+      ((proposalsByStatus.new ?? 0) > 0 ||
+        (proposalsByStatus.needs_more_evidence ?? 0) > 0);
+
+    return {
+      generatedAt: Date.now(),
+      workspaceSlug,
+      proposalsByStatus,
+      openTotal,
+      openWithSources,
+      openWithoutSources,
+      emptyEvidenceBottleneck,
+      readyBacklogBottleneck,
+      resumes: {
+        total: digests.length,
+        withVerifiedEvidence,
+      },
+      profiles: {
+        total: profiles.length,
+        verified: verifiedProfiles,
+        rejected: rejectedProfiles,
+      },
+      maintenance: {
+        latest,
+        lastUseful,
+        lastFailed,
+      },
+    };
+  },
+});
