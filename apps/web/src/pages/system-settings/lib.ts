@@ -13,6 +13,18 @@ const csrfCookieName = 'trends_csrf'
 const csrfHeaderName = 'X-CSRF-Token'
 const mutatingMethods = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 
+export class SettingsRequestError extends Error {
+  readonly status: number
+  readonly body: unknown
+
+  constructor(status: number, body: unknown) {
+    super(`HTTP ${status}`)
+    this.name = 'SettingsRequestError'
+    this.status = status
+    this.body = body
+  }
+}
+
 function readCookie(name: string): string | null {
   if (typeof document === 'undefined') {
     return null
@@ -856,7 +868,8 @@ export function useSettingsRequestJson(): {
     })
 
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`)
+      const body: unknown = await response.json().catch(() => null)
+      throw new SettingsRequestError(response.status, body)
     }
 
     return response.json() as Promise<unknown>
