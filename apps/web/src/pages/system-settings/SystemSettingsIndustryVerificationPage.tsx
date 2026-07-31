@@ -202,10 +202,18 @@ function ApprovedProfileLookup({
           className="flex flex-wrap gap-2"
           onSubmit={(event) => {
             event.preventDefault()
-            void runLookup(query)
+            // Prefer the live DOM value so browser automation / paste still works
+            // even when controlled-state onChange is skipped.
+            const form = event.currentTarget
+            const raw =
+              new FormData(form).get('companyKey')?.toString()
+              ?? query
+            setQuery(raw)
+            void runLookup(raw)
           }}
         >
           <Input
+            name="companyKey"
             data-testid="industry-lookup-company-key"
             aria-label="companyKey"
             placeholder="eonmetall-group"
@@ -287,11 +295,18 @@ function ApprovedProfileLookup({
               </div>
             </div>
 
-            {bundle.revisions[0]?.evidenceSummary && (
-              <p className="text-sm leading-6 text-muted-foreground">
-                {bundle.revisions[0].evidenceSummary}
-              </p>
-            )}
+            {(() => {
+              const profileAny = bundle.profile as { summary?: string; evidenceSummary?: string } | null
+              const summary =
+                bundle.revisions[0]?.evidenceSummary
+                ?? profileAny?.evidenceSummary
+                ?? profileAny?.summary
+              return summary ? (
+                <p className="text-sm leading-6 text-muted-foreground" data-testid="industry-lookup-summary">
+                  {summary}
+                </p>
+              ) : null
+            })()}
 
             <div>
               <p className="mb-2 text-sm font-medium">
