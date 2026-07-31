@@ -944,7 +944,10 @@ def run_industry_evidence_maintenance(
                 "triggerSource": trigger,
             }
         )
-        client.claim_maintenance_run(run_id)
+    # API-triggered runs are created as queued. Claim both entry paths before
+    # research so the operator surface reflects the actual worker state while
+    # the long-running batch is in progress.
+    client.claim_maintenance_run(run_id)
 
     discovery_job = build_discovery_job_from_env()
     return IndustryEvidenceMaintenanceJob(

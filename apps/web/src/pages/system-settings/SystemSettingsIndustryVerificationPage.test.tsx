@@ -264,6 +264,43 @@ describe('SystemSettingsIndustryVerificationPage', () => {
     )
   })
 
+  it('does not surface a historical failure after a newer run completes', async () => {
+    const defaultRequestJson = requestJsonMock.getMockImplementation()
+    requestJsonMock.mockImplementation((path: string, init?: RequestInit) => {
+      if (path === '/api/company-industry-coverage') {
+        return Promise.resolve({
+          success: true,
+          item: {
+            ...coverageSummary,
+            maintenance: {
+              ...coverageSummary.maintenance,
+              latest: {
+                ...coverageSummary.maintenance.lastUseful,
+                runId: 'run-success',
+                status: 'completed',
+                startedAt: 20,
+              },
+              lastFailed: {
+                ...coverageSummary.maintenance.lastFailed,
+                runId: 'run-old-fail',
+                startedAt: 10,
+              },
+            },
+          },
+        })
+      }
+      return defaultRequestJson?.(path, init) ?? Promise.resolve({ success: true })
+    })
+
+    renderPage()
+
+    expect(await screen.findByTestId('industry-coverage-health')).toBeInTheDocument()
+    expect(screen.queryByTestId('industry-coverage-bottleneck-failed')).not.toBeInTheDocument()
+    expect(screen.getByTestId('industry-coverage-maintenance')).toHaveTextContent(
+      'completed · manual · researched 20, ready 0',
+    )
+  })
+
   it('looks up an approved profile by companyKey and shows bundle sources', async () => {
     const user = userEvent.setup()
     renderPage()

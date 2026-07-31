@@ -184,6 +184,17 @@ function formatRunLine(run: CoverageMaintenanceRun | null | undefined): string {
   return parts.join(' ')
 }
 
+function isCurrentMaintenanceFailure(
+  latest: CoverageMaintenanceRun | null,
+  lastFailed: CoverageMaintenanceRun | null,
+): boolean {
+  if (!lastFailed) return false
+  // `lastFailed` is historical by design. Only surface the red alert when
+  // that failed run is still the latest run; a newer completed run means the
+  // failure has been superseded and remains available in run history.
+  return latest === null || latest.runId === lastFailed.runId
+}
+
 /**
  * Operator health strip: proposal pipeline, empty-evidence bottleneck,
  * resume card coverage, and maintenance signal.
@@ -321,7 +332,11 @@ function CoverageHealthPanel({
           </div>
         ) : null}
 
-        {summary?.maintenance.lastFailed ? (
+        {summary &&
+        isCurrentMaintenanceFailure(
+          summary.maintenance.latest,
+          summary.maintenance.lastFailed,
+        ) ? (
           <div
             className="flex gap-3 rounded-lg border border-rose-300 bg-rose-50 p-3 text-sm text-rose-950"
             data-testid="industry-coverage-bottleneck-failed"

@@ -151,6 +151,37 @@ def test_run_industry_evidence_maintenance_self_registers_run_when_no_run_id(mon
     assert start_payload["runId"]
 
 
+def test_run_industry_evidence_maintenance_claims_api_run_before_research(monkeypatch):
+    """API-created queued runs must become running before research starts."""
+    monkeypatch.setenv("INDUSTRY_EVIDENCE_MAINTENANCE_ENABLED", "1")
+    client = _stub_client()
+    monkeypatch.setattr(
+        "apps.worker.industry_evidence_research.ResearchConvexClient",
+        lambda *a, **k: client,
+    )
+    monkeypatch.setattr(
+        "apps.worker.industry_evidence_research.build_discovery_job_from_env",
+        lambda: None,
+    )
+
+    class _CompletedJob:
+        def __init__(self, **kwargs):
+            assert kwargs["run_id"] == "run-api"
+
+        def run(self):
+            return True
+
+    monkeypatch.setattr(
+        "apps.worker.industry_evidence_research.IndustryEvidenceMaintenanceJob",
+        _CompletedJob,
+    )
+
+    assert run_industry_evidence_maintenance(run_id="run-api", trigger="manual") is True
+    client.claim_maintenance_run.assert_called_once_with("run-api")
+    client.start_maintenance_run.assert_not_called()
+    client.finish_maintenance_run.assert_not_called()
+
+
 def test_run_industry_evidence_maintenance_skipped_records_skipped_run(monkeypatch):
     """When the env gate is off but a run_id is supplied, finish as skipped."""
     monkeypatch.delenv("INDUSTRY_EVIDENCE_MAINTENANCE_ENABLED", raising=False)
