@@ -262,6 +262,7 @@ dev-web:
 # Start Hono BFF API only (TypeScript on port 3000)
 dev-api:
 	@if [ -d "apps/api" ]; then \
+		if [ -f ".env" ]; then set -a; . ./.env; set +a; fi; \
 		cd apps/api && npm run dev; \
 	else \
 		echo "apps/api not found. Create it with Milestone 2 (Hono BFF)"; \
@@ -271,6 +272,7 @@ dev-api:
 # Start FastAPI worker REST API only (port 8000)
 dev-api-worker:
 	@if [ -d "apps/worker" ]; then \
+		if [ -f ".env" ]; then set -a; . ./.env; set +a; fi; \
 		uv run uvicorn apps.worker.api:app --reload --port $${TRENDS_WORKER_PORT:-8000}; \
 	else \
 		echo "apps/worker not found. Create it with Milestone 1 (FastAPI Wrapper)"; \
