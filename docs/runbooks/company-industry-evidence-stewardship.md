@@ -172,6 +172,74 @@ Ledger writes are best-effort: a Convex outage logs a warning and never aborts t
 - `INDUSTRY_EVIDENCE_MAINTENANCE_ENABLED=1` enables scheduled maintenance. The manual trigger and API pipeline force-enable the gate for their call (mirroring `/worker/research/ingest`), so manual/restore/approval runs work even when the scheduled gate is off.
 - When the gate is off at schedule time the job is not registered; the Operations card shows the disabled hint.
 
+## Industry data central management (2026-07-31)
+
+Phase A: Convex is the canonical store for CN industry data (`industry_data_entries` + append-only `industry_data_change_log`). Edits regenerate `config/industry-data/` files (`brands.json`, `keywords-structured.md`, `company-urls.md`) and best-effort git-commit them. Ingest and public `/api/industry/*` keep reading the files unchanged. `keywords-raw.md` is out of scope.
+
+### Where the admin UI lives
+
+- **Industry Data** page: `/system/settings/industry-data` (admin nav sibling to Industry verification / Operations).
+- Three tabs:
+  - **Manage** — list/filter by entryType, import JSON, export JSON, delete; edits go through `/api/industry-data/*`.
+  - **Control center** — Run now (`POST /api/worker/industry-maintenance`), Pause/Resume schedule (`POST /api/industry-data/schedule`), scoped “research this employer now” (`POST /api/industry-data/trigger` with `companyKey`), recent runs.
+  - **Audit** — unified timeline of data edits + maintenance ledger (`GET /api/industry-data/audit?companyKey=`).
+
+All routes under `/api/industry-data/*` require admin + CSRF.
+
+### Seed-once flow
+
+After deploy/reset of the Convex tables, import the current on-disk files once:
+
+```bash
+# authenticated admin session + CSRF
+curl -X POST "$API/api/industry-data/seed" -H "X-Workspace-Slug: dev" ...
+# → { "success": true, "imported": N }
+```
+
+Seed is idempotent (stable entryIds: `brand-<id>`, `company-<category>-<id>`, `keyword-<category>-<id>`, `url-<hash>`). It does **not** regenerate or git-commit — it only upserts Convex from files.
+
+### Edit → regenerate → commit flow
+
+1. Admin edits via Manage (PUT/POST/DELETE `/api/industry-data/entries…`) or bulk import.
+2. API validates → Convex upsert/delete + change-log row (`gitSha: null` initially).
+3. Generator rewrites the three files under `config/industry-data/`.
+4. Best-effort `git add` + `git commit` (`chore(industry-data): regenerate from admin (<actor>)`).
+5. On success, change-log row gets the new HEAD sha; response includes `gitSha`. On git failure, files are still written, `gitSha: null`, and `warning` is returned — UI shows a warning toast. Never throws into the CRUD response.
+
+### Pause / resume schedule
+
+- `POST /api/industry-data/schedule { "paused": true|false }` writes Convex system flag `industryMaintenanceSchedulePaused`.
+- Worker checks the flag only for `trigger == "schedule"`: when paused, the run finishes as `skipped` with message containing “paused”.
+- Manual / scoped triggers ignore the flag.
+
+### Scoped research
+
+`POST /api/industry-data/trigger { "companyKey": "lung-kee-metal" }` → `enqueueIndustryMaintenance({ triggerSource: "manual", triggerContext: companyKey })`. Ledger rows for that employer appear in the Audit timeline under kind `maintenance`.
+
+### Reading the unified audit timeline
+
+`GET /api/industry-data/audit?companyKey=&limit=` merges:
+
+| kind | source | fields |
+|---|---|---|
+| `data_edit` | `industry_data_change_log` | action, actor, entryId, gitSha, before/after |
+| `maintenance` | `industry_maintenance_ledger` (via recent runs) | action, reason, runId, companyKey |
+
+Newest-first. Filter by `companyKey` when debugging a single employer.
+
+### Failure modes
+
+| Symptom | Meaning | Operator action |
+|---|---|---|
+| `gitSha: null` + warning toast | Files written; git commit failed (dirty tree / no git) | Inspect working tree; commit manually if needed |
+| 400 validation reject | Bad entry payload; no Convex write | Fix JSON and retry (import is all-or-nothing) |
+| Schedule-paused skips | Flag true; scheduled job records `skipped` | Resume via Control center or leave paused |
+| 401/403 on `/api/industry-data/*` | Not signed in as admin | Use admin membership on the workspace |
+
+### Live verification (attended, deferred from automated bar)
+
+When the local stack is up (API + worker + Convex): seed → list brands → edit one alias via PUT → confirm `config/industry-data/brands.json` updated + `git log -1` shows `chore(industry-data)` → audit shows the data_edit row with gitSha → scoped trigger returns runId → pause toggles true. Unit/route tests cover the same contracts without requiring the live stack.
+
 ## Verified employers in recruiter search (keyword bridge)
 
 Approved verdicts drive recruiter search recall, not just the card badge. When a keyword group is industry-scoped (via the skills.md domain taxonomy — `machinery` maps to cnc/automation/metrology/industrial), `/api/resumes/keyword-expansion` injects the display names and aliases of companies whose **current** verdict revision is `verified` and taxonomy-compatible. A candidate whose employer is verified (e.g. Eonmetall Group Bhd, verified/cnc) then matches a "CNC Sales" search even when the raw resume text contains no CNC term.
