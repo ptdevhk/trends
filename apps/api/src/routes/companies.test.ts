@@ -221,6 +221,16 @@ describe("companies routes", () => {
           createdAt: 1,
           updatedAt: 2,
         },
+        {
+          _id: "legacy-row",
+          proposalId: "probe-nonexistent-xyz",
+          companyKey: "legacy-company",
+          triggerReasons: ["probe"],
+          priority: 1,
+          status: "superseded",
+          createdAt: 1,
+          updatedAt: 2,
+        },
       ]);
     });
 

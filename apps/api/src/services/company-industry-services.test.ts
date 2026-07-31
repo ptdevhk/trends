@@ -37,6 +37,7 @@ import {
   undoIndustryProposalApproval,
 } from "./company-industry-proposal-service.js";
 import { listIndustryVerdictRevisions } from "./company-industry-revision-service.js";
+import { logger } from "./logger.js";
 
 const reviewedSnapshot = {
   companyKey: "acme-cnc",
@@ -385,5 +386,46 @@ describe("company industry API services", () => {
     await expect(
       listIndustryVerdictRevisions("acme-cnc"),
     ).resolves.toHaveLength(1);
+  });
+
+  it("skips malformed terminal proposal rows without failing the history list", async () => {
+    const warning = vi.spyOn(logger, "warn").mockImplementation(() => {});
+    try {
+      mocks.query.mockResolvedValueOnce([
+        {
+          _id: "valid-row",
+          proposalId: "valid-superseded-proposal",
+          companyKey: "valid-company",
+          triggerReasons: ["scheduled_freshness"],
+          priority: 20,
+          status: "superseded",
+          createdAt: 1,
+          updatedAt: 2,
+        },
+        {
+          _id: "legacy-row",
+          proposalId: "probe-nonexistent-xyz",
+          companyKey: "legacy-company",
+          triggerReasons: ["probe"],
+          priority: 1,
+          status: "superseded",
+          createdAt: 1,
+          updatedAt: 2,
+        },
+      ]);
+
+      await expect(listIndustryProposals("superseded")).resolves.toEqual([
+        expect.objectContaining({ proposalId: "valid-superseded-proposal" }),
+      ]);
+      expect(warning).toHaveBeenCalledWith(
+        "Skipping invalid industry proposal record",
+        {
+          status: "superseded",
+          proposalId: "probe-nonexistent-xyz",
+        },
+      );
+    } finally {
+      warning.mockRestore();
+    }
   });
 });

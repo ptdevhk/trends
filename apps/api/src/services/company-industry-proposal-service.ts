@@ -21,6 +21,7 @@ import {
 import { config } from "./config.js";
 import { callConvexMutation, callConvexQuery } from "./convex-utils.js";
 import { invalidateIndustryReviewIndex } from "./company-industry-review-index.js";
+import { logger } from "./logger.js";
 
 export async function listIndustryProposals(
   status?: IndustryProposalStatus,
@@ -32,11 +33,22 @@ export async function listIndustryProposals(
   if (!Array.isArray(value)) {
     throw new Error("Invalid companies:listIndustryProposals response");
   }
-  return value.map((item) => {
+
+  const parsedItems: IndustryProposal[] = [];
+  for (const item of value) {
     const parsed = parseIndustryProposal(item);
-    if (!parsed) throw new Error("Invalid industry proposal response");
-    return parsed;
-  });
+    if (parsed) {
+      parsedItems.push(parsed);
+      continue;
+    }
+    logger.warn("Skipping invalid industry proposal record", {
+      status: status ?? "all",
+      proposalId: isRecord(item) && typeof item.proposalId === "string"
+        ? item.proposalId
+        : undefined,
+    });
+  }
+  return parsedItems;
 }
 
 export async function getIndustryProposal(
