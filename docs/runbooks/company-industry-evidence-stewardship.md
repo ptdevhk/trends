@@ -161,6 +161,32 @@ Ledger writes are best-effort: a Convex outage logs a warning and never aborts t
 - **Operations page** (`/system-settings/operations`): "Industry evidence maintenance" card shows the last run (status, trigger, summary) and a "Run maintenance now" button (admin-only, CSRF, busy state).
 - **Industry-verification page** (`/system-settings/industry-verification`): "Maintenance run history" section below the review queue. Expand a row to lazy-load its ledger with action-tone chips (green=ready, amber=demoted/needs_more, red=error). When the queue is empty the hint points at the history section.
 
+### Shared review recommendations (2026-07-31)
+
+The verification queue and the read-only Trends CLI consume the same deterministic
+`industry-review.v1` recommendation envelope. The API computes source eligibility,
+risk flags, confidence, source preselection, and worker-failure warnings at read time;
+it does not change an approved profile or proposal status.
+
+- **Queue:** `GET /api/company-industry-proposals/review-queue?status=ready_for_review&limit=100`
+- **Packet:** `GET /api/company-industry-proposals/:proposalId/review-packet`
+- **CLI:** `trends industry review`, `inspect`, `recommend`, `review-packet`, and `open`
+  (all read-only; set `--output json` for the shared envelope).
+- `discovery`, `search_result`, unsafe, stale, unavailable, failed, disputed, and
+  conflicting sources are never preselected as approval-safe evidence. CNC claims need
+  explicit industrial/product evidence and remain human-reviewed.
+- The approval form sends the packet fingerprint, proposal timestamp, and source
+  versions. Convex returns `409 INDUSTRY_REVIEW_STALE` when any of those inputs changed;
+  reload the packet before deciding. Resolve actions carry the proposal timestamp too.
+- `requiresHumanReview` is always `true`. The CLI intentionally has no approve/reject
+  or bulk command; use the authenticated admin UI for the final attended decision and
+  targeted recompute.
+
+When the packet contains `worker_unreachable`, start `apps.worker.api` on `:8000`,
+verify the API's worker URL, and run maintenance again. A newer successful maintenance
+run suppresses an older worker-failure warning; a failure with no newer success remains
+visible so an empty evidence queue is not mistaken for a negative industry finding.
+
 ### Reading the ledger to debug "why didn't employer X surface?"
 
 1. Find the employer's proposal on the verification page, or query `GET /api/company-industry-proposals/:proposalId/maintenance-ledger`.

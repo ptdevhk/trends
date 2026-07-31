@@ -2127,6 +2127,10 @@ export const approveIndustryProposal = mutation({
     proposalId: v.string(),
     revisionId: v.string(),
     expectedCurrentRevisionId: v.optional(v.string()),
+    expectedProposalUpdatedAt: v.optional(v.number()),
+    expectedSourceVersions: v.optional(
+      v.array(v.object({ sourceId: v.string(), updatedAt: v.number() })),
+    ),
     verificationLevel: approvedVerificationLevelValidator,
     industryClass: industryClassValidator,
     approvedSourceIds: v.array(v.string()),
@@ -2207,6 +2211,30 @@ export const approveIndustryProposal = mutation({
       currentRevisionId !== proposal.currentRevisionId
     ) {
       throw new Error("Proposal current revision is stale");
+    }
+    if (
+      args.expectedProposalUpdatedAt !== undefined &&
+      proposal.updatedAt !== args.expectedProposalUpdatedAt
+    ) {
+      throw new Error("Proposal changed during review");
+    }
+    if (args.expectedSourceVersions !== undefined) {
+      const currentSources = await ctx.db
+        .query("company_industry_evidence_sources")
+        .withIndex("by_proposal", (q) => q.eq("proposalId", proposalId))
+        .collect();
+      const expectedVersions = new Map(
+        args.expectedSourceVersions.map((item) => [item.sourceId.trim(), item.updatedAt]),
+      );
+      if (
+        expectedVersions.size !== args.expectedSourceVersions.length ||
+        expectedVersions.size !== currentSources.length ||
+        currentSources.some(
+          (source) => expectedVersions.get(source.sourceId) !== source.updatedAt,
+        )
+      ) {
+        throw new Error("Source changed during review");
+      }
     }
 
     const existingRevisions = await ctx.db
@@ -2348,6 +2376,7 @@ export const resolveIndustryProposal = mutation({
       v.literal("needs_more_evidence"),
       v.literal("superseded"),
     ),
+    expectedProposalUpdatedAt: v.optional(v.number()),
     reviewer: v.string(),
     reviewNote: v.string(),
   },
@@ -2359,6 +2388,12 @@ export const resolveIndustryProposal = mutation({
     }
     if (!OPEN_INDUSTRY_PROPOSAL_STATUSES.has(proposal.status)) {
       throw new Error(`Proposal is not open: ${proposal.status}`);
+    }
+    if (
+      args.expectedProposalUpdatedAt !== undefined &&
+      proposal.updatedAt !== args.expectedProposalUpdatedAt
+    ) {
+      throw new Error("Proposal changed during review");
     }
     const now = Date.now();
     await ctx.db.patch(proposal._id, {

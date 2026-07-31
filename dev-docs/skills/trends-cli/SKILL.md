@@ -60,6 +60,11 @@ Use this skill when the user asks to operate backend services from terminal comm
 - `./bin/trends jd create ./config/job-descriptions/lathe-sales.md --name lathe-sales-copy`
 - `./bin/trends worker status`
 - `./bin/trends worker run --once`
+- `./bin/trends industry review --status ready_for_review --limit 20`
+- `./bin/trends industry inspect <proposal-id>`
+- `./bin/trends industry recommend <proposal-id> --output json`
+- `./bin/trends industry review-packet <proposal-id> --output json`
+- `./bin/trends industry open <proposal-id>` (prints the admin URL; approval stays in the UI)
 - `./bin/trends crawl`
 - `./bin/trends migrate reindex-search`
 - `./bin/trends migrate backfill-ingest --limit 100`
@@ -74,6 +79,8 @@ Use this skill when the user asks to operate backend services from terminal comm
 - `CONVEX_MIRROR_MODE=mirror-first make install-deps` is the repo-level bootstrap path when Convex asset prefetch should try configured mirrors before GitHub, and `make prefetch-convex` is the focused prefetch-only escape hatch. Use `./scripts/install-deps.sh --help` when CI=true/1 or broader prefetch env knobs matter, and `./scripts/prefetch-convex-backend.sh --help` for the focused low-level prefetch contract.
 - Keep `dev-docs/skills/trends-cli` as the only editable source. Refresh `.agents/skills/trends-cli` and `.claude/skills/trends-cli` with `make sync-project-skills`; use `make install-skill SKILL=trends-cli [TARGET=codex|agents|all]` only for manual user-global installs.
 - Keep `--api-url` and `--worker-url` aligned with running services.
+- Keep `--web-url` (or `TRENDS_WEB_URL`) aligned with the local admin UI when using `trends industry open`.
+- `trends industry` commands are read-only review preparation. They share the API's `industry-review.v1` recommendation envelope and never approve, reject, or bulk-mutate industry truth.
 - Prefer `trends resume snapshot` over calling `scripts/resume/snapshot-source-backups.ts` directly when you want a repeatable operator/dev-cycle entrypoint.
 - Use `trends resume import-51job` when you want to validate the live `/api/resumes/manual-import` lane for local `.rar`, `.zip`, `.docx`, or `.pdf` files and inspect file-level warnings/failures before or after snapshot restore.
 - `trends resume restore` accepts either a single portable backup file or a snapshot run directory; directory restores import files in deterministic source order (`job5156`, `seek`, `51job-manual`) and only reset once in `--mode replace`.

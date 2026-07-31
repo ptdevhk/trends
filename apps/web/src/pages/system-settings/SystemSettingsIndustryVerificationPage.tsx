@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, CheckCircle2, ExternalLink, RefreshCw, ShieldCheck } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import type { IndustryReviewRecommendation, IndustryReviewWarning } from '@trends/shared'
 import type { paths } from '@/lib/api-types'
 
 import { Badge } from '@/components/ui/badge'
@@ -23,6 +24,28 @@ type IndustryRecomputeListResponse = paths['/api/company-industry-recompute-runs
 type IndustryRecomputeRun = IndustryRecomputeListResponse['items'][number]
 type IndustryClass = NonNullable<IndustryProposal['suggestedIndustryClass']>
 type VerificationLevel = Extract<NonNullable<IndustryProposal['suggestedVerificationLevel']>, 'verified' | 'rejected'>
+type ReviewQueueStatus = IndustryProposal['status']
+
+type ReviewQueueItem = {
+  proposal: IndustryProposal
+  recommendation: IndustryReviewRecommendation
+  sourceCount: number
+}
+
+type ReviewPacket = {
+  proposal: IndustryProposal
+  recommendation: IndustryReviewRecommendation
+  warnings: IndustryReviewWarning[]
+  dataset: {
+    revision: string
+    inputFingerprint: string
+    proposalUpdatedAt: number
+    sourceVersions: Array<{ sourceId: string; updatedAt: number }>
+  }
+  sources: EvidenceSource[]
+  bundle: IndustryBundle | null
+  recomputeRuns: IndustryRecomputeRun[]
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -39,6 +62,38 @@ function parseBundle(value: unknown): IndustryBundle {
     profile: isRecord(value.profile) ? value.profile as IndustryBundle['profile'] : null,
     revisions: Array.isArray(value.revisions) ? value.revisions as IndustryRevision[] : [],
     sources: Array.isArray(value.sources) ? value.sources as EvidenceSource[] : [],
+  }
+}
+
+function parseReviewQueue(value: unknown): ReviewQueueItem[] {
+  if (!isRecord(value) || !Array.isArray(value.items)) return []
+  return value.items.filter((item): item is ReviewQueueItem => {
+    if (!isRecord(item) || !isRecord(item.proposal) || !isRecord(item.recommendation)) return false
+    return typeof item.proposal.proposalId === 'string'
+      && typeof item.recommendation.proposalId === 'string'
+  }) as ReviewQueueItem[]
+}
+
+function parseReviewPacket(value: unknown): ReviewPacket | null {
+  if (!isRecord(value) || !isRecord(value.proposal) || !isRecord(value.recommendation)) return null
+  if (!isRecord(value.dataset) || typeof value.dataset.inputFingerprint !== 'string') return null
+  return {
+    proposal: value.proposal as IndustryProposal,
+    recommendation: value.recommendation as unknown as IndustryReviewRecommendation,
+    warnings: Array.isArray(value.warnings) ? value.warnings as IndustryReviewWarning[] : [],
+    dataset: {
+      revision: typeof value.dataset.revision === 'string' ? value.dataset.revision : '',
+      inputFingerprint: value.dataset.inputFingerprint,
+      proposalUpdatedAt: typeof value.dataset.proposalUpdatedAt === 'number' ? value.dataset.proposalUpdatedAt : 0,
+      sourceVersions: Array.isArray(value.dataset.sourceVersions)
+        ? value.dataset.sourceVersions.filter((item): item is { sourceId: string; updatedAt: number } => (
+          isRecord(item) && typeof item.sourceId === 'string' && typeof item.updatedAt === 'number'
+        ))
+        : [],
+    },
+    sources: parseItems<EvidenceSource>({ items: value.sources }),
+    bundle: value.bundle === null ? null : parseBundle(value.bundle),
+    recomputeRuns: parseItems<IndustryRecomputeRun>({ items: value.recomputeRuns }),
   }
 }
 
@@ -351,11 +406,11 @@ function CoverageHealthPanel({
               </p>
               <p className="font-mono text-xs">
                 {formatRunLine(summary.maintenance.lastFailed)}
-                {summary.maintenance.lastFailed.failureMessage
+                {summary.maintenance.lastFailed?.failureMessage
                   ? ` — ${summary.maintenance.lastFailed.failureMessage}`
                   : ''}
               </p>
-              {summary.maintenance.lastFailed.operatorSummary ? (
+              {summary.maintenance.lastFailed?.operatorSummary ? (
                 <p className="text-rose-900/90">{summary.maintenance.lastFailed.operatorSummary}</p>
               ) : null}
             </div>
@@ -658,6 +713,7 @@ function ApprovedProfileLookup({
             data-testid="industry-lookup-company-key"
             aria-label="companyKey"
             placeholder="eonmetall-group"
+            autoComplete="off"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             className="min-w-[16rem] flex-1 font-mono text-sm"
@@ -916,11 +972,23 @@ function IndustryMaintenanceHistory({ requestJson }: { requestJson: (path: strin
 export function SystemSettingsIndustryVerificationPage() {
   const { t } = useTranslation()
   const { requestJson } = useSettingsRequestJson()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [requestedProposalId] = useState(() => searchParams.get('proposalId')?.trim() || undefined)
+  const [queueStatus, setQueueStatus] = useState<ReviewQueueStatus>(() => {
+    const value = searchParams.get('status')
+    return value === 'new' || value === 'researching' || value === 'ready_for_review' || value === 'needs_more_evidence'
+      ? value
+      : 'ready_for_review'
+  })
   const [proposals, setProposals] = useState<IndustryProposal[]>([])
+  const [queueRecommendations, setQueueRecommendations] = useState<Record<string, IndustryReviewRecommendation>>({})
   const [selectedProposalId, setSelectedProposalId] = useState<string>()
   const [sources, setSources] = useState<EvidenceSource[]>([])
   const [bundle, setBundle] = useState<IndustryBundle>({ profile: null, revisions: [], sources: [] })
   const [recomputeRuns, setRecomputeRuns] = useState<IndustryRecomputeRun[]>([])
+  const [recommendation, setRecommendation] = useState<IndustryReviewRecommendation | null>(null)
+  const [reviewWarnings, setReviewWarnings] = useState<IndustryReviewWarning[]>([])
+  const [reviewDataset, setReviewDataset] = useState<ReviewPacket['dataset'] | null>(null)
   const [selectedSourceIds, setSelectedSourceIds] = useState<string[]>([])
   const [industryClass, setIndustryClass] = useState<IndustryClass>('unknown')
   const [verificationLevel, setVerificationLevel] = useState<VerificationLevel>('verified')
@@ -930,22 +998,40 @@ export function SystemSettingsIndustryVerificationPage() {
   const [reviewNote, setReviewNote] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [approvalConfirmOpen, setApprovalConfirmOpen] = useState(false)
 
   const selectedProposal = useMemo(
     () => proposals.find((proposal) => proposal.proposalId === selectedProposalId),
     [proposals, selectedProposalId],
   )
 
+  const recommendationSummary = useMemo(() => {
+    const values = Object.values(queueRecommendations)
+    return {
+      approve: values.filter((item) => item.recommendedAction === 'approve').length,
+      needsEvidence: values.filter((item) => item.recommendedAction === 'needs_more_evidence').length,
+      inspect: values.filter((item) => item.recommendedAction === 'inspect').length,
+    }
+  }, [queueRecommendations])
+
   const loadQueue = useCallback(async () => {
     setLoading(true)
     try {
-      const payload = await requestJson('/api/company-industry-proposals?status=ready_for_review')
-      const next = parseItems<IndustryProposal>(payload)
+      const payload = await requestJson(`/api/company-industry-proposals/review-queue?status=${encodeURIComponent(queueStatus)}&limit=100`)
+      const queue = parseReviewQueue(payload)
+      const next = queue.map((item) => item.proposal)
+      setQueueRecommendations(Object.fromEntries(
+        queue.map((item) => [item.proposal.proposalId, item.recommendation]),
+      ))
       setProposals(next)
+      const nextSelection = requestedProposalId && next.some((proposal) => proposal.proposalId === requestedProposalId)
+        ? requestedProposalId
+        : undefined
       setSelectedProposalId((current) => (
-        current && next.some((proposal) => proposal.proposalId === current)
-          ? current
-          : next[0]?.proposalId
+        nextSelection
+          ?? (current && next.some((proposal) => proposal.proposalId === current)
+            ? current
+            : next[0]?.proposalId)
       ))
     } catch (error) {
       reportUiError('Failed to load industry evidence proposal queue', error)
@@ -953,7 +1039,7 @@ export function SystemSettingsIndustryVerificationPage() {
     } finally {
       setLoading(false)
     }
-  }, [requestJson, t])
+  }, [queueStatus, requestJson, requestedProposalId, t])
 
   useEffect(() => {
     void loadQueue()
@@ -964,43 +1050,55 @@ export function SystemSettingsIndustryVerificationPage() {
       setSources([])
       setBundle({ profile: null, revisions: [], sources: [] })
       setRecomputeRuns([])
+      setRecommendation(null)
+      setReviewWarnings([])
+      setReviewDataset(null)
       setSelectedSourceIds([])
+      setApprovalConfirmOpen(false)
       return
     }
     let cancelled = false
     const loadDetail = async () => {
       try {
-        const [sourcePayload, bundlePayload, recomputePayload] = await Promise.all([
-          requestJson(`/api/company-industry-evidence-sources?proposalId=${encodeURIComponent(selectedProposal.proposalId)}`),
-          selectedProposal.companyKey
-            ? requestJson(`/api/company-industry-bundles/${encodeURIComponent(selectedProposal.companyKey)}`)
-            : Promise.resolve({ profile: null, revisions: [], sources: [] }),
-          selectedProposal.companyKey
-            ? requestJson(`/api/company-industry-recompute-runs?companyKey=${encodeURIComponent(selectedProposal.companyKey)}&limit=10`)
-            : Promise.resolve({ items: [] }),
-        ])
+        const packetPayload = await requestJson(
+          `/api/company-industry-proposals/${encodeURIComponent(selectedProposal.proposalId)}/review-packet`,
+        )
+        const packet = parseReviewPacket(packetPayload)
+        if (!packet) throw new Error('Invalid industry review packet')
         if (cancelled) return
-        const nextSources = parseItems<EvidenceSource>(sourcePayload)
-        const nextBundle = parseBundle(bundlePayload)
+        const nextSources = packet.sources
+        const nextBundle = packet.bundle ?? { profile: null, revisions: [], sources: [] }
         setSources(nextSources)
         setBundle(nextBundle)
-        setRecomputeRuns(parseItems<IndustryRecomputeRun>(recomputePayload))
-        setSelectedSourceIds(
-          nextSources
-            .filter((source) => source.sourceType !== 'search_result' && source.trustTier !== 'discovery')
-            .map((source) => source.sourceId),
+        setRecomputeRuns(packet.recomputeRuns)
+        setRecommendation(packet.recommendation)
+        setReviewWarnings(packet.warnings)
+        setReviewDataset(packet.dataset)
+        const approvalSafeSourceIds = new Set(
+          packet.recommendation.sourceDecisions
+            .filter((decision) => decision.approvalSafe)
+            .map((decision) => decision.sourceId),
         )
-        setIndustryClass(selectedProposal.suggestedIndustryClass ?? nextBundle.profile?.industryClass ?? 'unknown')
+        setSelectedSourceIds(
+          packet.recommendation.recommendedSourceIds.length > 0
+            ? packet.recommendation.recommendedSourceIds
+            : nextSources
+              .filter((source) => approvalSafeSourceIds.has(source.sourceId))
+              .map((source) => source.sourceId),
+        )
+        setIndustryClass(packet.recommendation.recommendedIndustryClass ?? selectedProposal.suggestedIndustryClass ?? nextBundle.profile?.industryClass ?? 'unknown')
         setVerificationLevel(
-          selectedProposal.suggestedVerificationLevel === 'rejected' ? 'rejected' : 'verified',
+          packet.recommendation.recommendedVerificationLevel === 'rejected' ? 'rejected' : 'verified',
         )
         setEvidenceSummary(
-          selectedProposal.materialChangeSummary
-          ?? nextBundle.revisions[0]?.evidenceSummary
-          ?? '',
+          packet.recommendation.evidenceSummaryDraft
+          || selectedProposal.materialChangeSummary
+          || nextBundle.revisions[0]?.evidenceSummary
+          || '',
         )
-        setDecisionReason('')
+        setDecisionReason(packet.recommendation.decisionReasonDraft)
         setReviewNote('')
+        setApprovalConfirmOpen(false)
       } catch (error) {
         reportUiError('Failed to load industry evidence proposal detail', error)
         toast.error(t('industryEvidence.detailLoadFailed', { defaultValue: 'Failed to load proposal evidence' }))
@@ -1030,6 +1128,9 @@ export function SystemSettingsIndustryVerificationPage() {
           body: JSON.stringify({
             revisionId: createRevisionId(selectedProposal.companyKey),
             expectedCurrentRevisionId: bundle.profile?.currentRevisionId,
+            expectedProposalUpdatedAt: reviewDataset?.proposalUpdatedAt ?? selectedProposal.updatedAt,
+            expectedInputFingerprint: reviewDataset?.inputFingerprint,
+            expectedSourceVersions: reviewDataset?.sourceVersions,
             verificationLevel,
             industryClass,
             approvedSourceIds: selectedSourceIds,
@@ -1047,10 +1148,15 @@ export function SystemSettingsIndustryVerificationPage() {
         ])
       }
       toast.success(t('industryEvidence.approved', { defaultValue: 'Industry verdict revision approved' }))
+      setApprovalConfirmOpen(false)
       await loadQueue()
     } catch (error) {
       reportUiError('Failed to approve industry verdict revision', error)
-      toast.error(t('industryEvidence.approvalFailed', { defaultValue: 'Failed to approve industry verdict revision' }))
+      toast.error(
+        error instanceof Error && error.message.includes('409')
+          ? 'Review packet is stale. Refresh before approving.'
+          : t('industryEvidence.approvalFailed', { defaultValue: 'Failed to approve industry verdict revision' }),
+      )
     } finally {
       setSaving(false)
     }
@@ -1066,6 +1172,7 @@ export function SystemSettingsIndustryVerificationPage() {
           method: 'POST',
           body: JSON.stringify({
             resolution,
+            expectedProposalUpdatedAt: reviewDataset?.proposalUpdatedAt ?? selectedProposal.updatedAt,
             reviewNote: reviewNote.trim() || (
               resolution === 'needs_more_evidence'
                 ? 'Reviewer requested additional evidence.'
@@ -1082,10 +1189,51 @@ export function SystemSettingsIndustryVerificationPage() {
       await loadQueue()
     } catch (error) {
       reportUiError('Failed to resolve industry evidence proposal', error)
-      toast.error(t('industryEvidence.resolveFailed', { defaultValue: 'Failed to update proposal' }))
+      toast.error(
+        error instanceof Error && error.message.includes('409')
+          ? 'Review packet is stale. Refresh before resolving.'
+          : t('industryEvidence.resolveFailed', { defaultValue: 'Failed to update proposal' }),
+      )
     } finally {
       setSaving(false)
     }
+  }
+
+  function prepareApproval() {
+    if (!selectedProposal?.companyKey) {
+      toast.error(t('industryEvidence.companyRequired', { defaultValue: 'Map this proposal to a canonical company first' }))
+      return
+    }
+    if (selectedSourceIds.length === 0 || !evidenceSummary.trim() || !decisionReason.trim()) {
+      toast.error(t('industryEvidence.reviewFieldsRequired', { defaultValue: 'Select evidence and complete the review summary and reason' }))
+      return
+    }
+    setApprovalConfirmOpen(true)
+  }
+
+  function selectProposal(proposalId: string | undefined) {
+    setSelectedProposalId(proposalId)
+    const nextParams = new URLSearchParams(searchParams)
+    if (proposalId) nextParams.set('proposalId', proposalId)
+    else nextParams.delete('proposalId')
+    setSearchParams(nextParams, { replace: true })
+  }
+
+  function changeQueueStatus(status: ReviewQueueStatus) {
+    setQueueStatus(status)
+    const nextParams = new URLSearchParams(searchParams)
+    nextParams.set('status', status)
+    nextParams.delete('proposalId')
+    setSearchParams(nextParams, { replace: true })
+  }
+
+  function moveSelection(direction: -1 | 1) {
+    if (proposals.length === 0) return
+    const currentIndex = proposals.findIndex((proposal) => proposal.proposalId === selectedProposalId)
+    const nextIndex = currentIndex < 0
+      ? 0
+      : (currentIndex + direction + proposals.length) % proposals.length
+    selectProposal(proposals[nextIndex]?.proposalId)
   }
 
   async function updateRecompute(run: IndustryRecomputeRun, action: 'advance' | 'retry') {
@@ -1136,9 +1284,29 @@ export function SystemSettingsIndustryVerificationPage() {
             <CardTitle>{t('industryEvidence.proposalQueue', { defaultValue: 'Proposal queue' })}</CardTitle>
             <CardDescription>
               {t('industryEvidence.proposalQueueDescription', {
-                defaultValue: 'Only attended approval can change current truth.',
+                defaultValue: 'Recommendations prepare the review; only attended approval can change current truth.',
               })}
             </CardDescription>
+            <div className="flex flex-wrap gap-2 pt-2 text-xs" data-testid="industry-review-recommendation-summary">
+              <Badge variant="outline">{recommendationSummary.approve} approve candidates</Badge>
+              <Badge variant="outline">{recommendationSummary.needsEvidence} need evidence</Badge>
+              <Badge variant="outline">{recommendationSummary.inspect} inspect</Badge>
+            </div>
+            <label className="flex items-center gap-2 pt-2 text-xs text-muted-foreground">
+              <span>Queue status</span>
+              <select
+                name="queueStatus"
+                aria-label="Queue status"
+                value={queueStatus}
+                onChange={(event) => changeQueueStatus(event.target.value as ReviewQueueStatus)}
+                className="h-8 rounded-md border bg-background px-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring"
+              >
+                <option value="ready_for_review">Ready for review</option>
+                <option value="new">New</option>
+                <option value="researching">Researching</option>
+                <option value="needs_more_evidence">Needs more evidence</option>
+              </select>
+            </label>
           </CardHeader>
           <CardContent className="space-y-2">
             {proposals.length === 0 ? (
@@ -1148,26 +1316,40 @@ export function SystemSettingsIndustryVerificationPage() {
                   : t('industryEvidence.queueEmpty', { defaultValue: 'No proposals ready for review.' })}
               </p>
             ) : proposals.map((proposal) => (
-              <button
-                key={proposal.proposalId}
-                type="button"
-                onClick={() => setSelectedProposalId(proposal.proposalId)}
-                className={`w-full rounded-lg border p-3 text-left transition-colors ${
-                  proposal.proposalId === selectedProposalId
-                    ? 'border-primary bg-primary/5'
-                    : 'border-border hover:border-primary/40'
-                }`}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="font-medium">{displayCompany(proposal.companyKey ?? proposal.normalizedEmployerSurface)}</p>
-                    <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
-                      {proposal.materialChangeSummary ?? proposal.triggerReasons.join(', ')}
-                    </p>
-                  </div>
-                  <Badge variant="secondary">P{proposal.priority}</Badge>
-                </div>
-              </button>
+              (() => {
+                const item = queueRecommendations[proposal.proposalId]
+                return (
+                  <button
+                    key={proposal.proposalId}
+                    type="button"
+                    onClick={() => selectProposal(proposal.proposalId)}
+                    className={`w-full rounded-lg border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring ${
+                      proposal.proposalId === selectedProposalId
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border hover:border-primary/40'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-medium">{displayCompany(proposal.companyKey ?? proposal.normalizedEmployerSurface)}</p>
+                        <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                          {proposal.materialChangeSummary ?? proposal.triggerReasons.join(', ')}
+                        </p>
+                        {item && (
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            <Badge variant="outline">{item.recommendedAction.replace(/_/g, ' ')}</Badge>
+                            <Badge variant="secondary">{item.confidenceBand} confidence</Badge>
+                            {item.riskFlags.length > 0 && (
+                              <Badge variant="destructive">{item.riskFlags.length} risk</Badge>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      <Badge variant="secondary">P{proposal.priority}</Badge>
+                    </div>
+                  </button>
+                )
+              })()
             ))}
           </CardContent>
         </Card>
@@ -1190,7 +1372,15 @@ export function SystemSettingsIndustryVerificationPage() {
                         {selectedProposal.triggerReasons.join(' · ')}
                       </CardDescription>
                     </div>
-                    <Badge>{selectedProposal.status}</Badge>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button size="sm" variant="outline" onClick={() => moveSelection(-1)} disabled={proposals.length < 2 || saving}>
+                        Previous
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => moveSelection(1)} disabled={proposals.length < 2 || saving}>
+                        Next
+                      </Button>
+                      <Badge>{selectedProposal.status}</Badge>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent className="grid gap-4 text-sm sm:grid-cols-3">
@@ -1208,6 +1398,59 @@ export function SystemSettingsIndustryVerificationPage() {
                   </div>
                 </CardContent>
               </Card>
+
+              {recommendation && (
+                <Card data-testid="industry-review-recommendation">
+                  <CardHeader>
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <CardTitle>Review recommendation</CardTitle>
+                        <CardDescription>
+                          Advisory only. A human must confirm the exact evidence and verdict.
+                        </CardDescription>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Badge variant="outline">{recommendation.recommendedAction.replace(/_/g, ' ')}</Badge>
+                        <Badge variant="secondary">{recommendation.confidenceBand} confidence</Badge>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-3 text-sm">
+                    <p>{recommendation.reasons[0] ?? 'Inspect the attached evidence before deciding.'}</p>
+                    {recommendation.riskFlags.length > 0 && (
+                      <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-amber-950">
+                        <p className="font-medium">Review flags</p>
+                        <ul className="mt-1 list-disc pl-5">
+                          {recommendation.riskFlags.map((flag) => <li key={flag}>{flag.replace(/_/g, ' ')}</li>)}
+                        </ul>
+                      </div>
+                    )}
+                    {reviewWarnings.map((warning) => (
+                      <div key={warning.code} className="flex gap-2 rounded-md border border-rose-300 bg-rose-50 p-3 text-rose-950">
+                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                        <div>
+                          <p className="font-medium">{warning.message}</p>
+                          {warning.action && <p className="mt-1 text-xs">{warning.action}</p>}
+                        </div>
+                      </div>
+                    ))}
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-muted-foreground">Suggested class</p>
+                        <p className="mt-1 font-medium">{recommendation.recommendedIndustryClass}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-muted-foreground">Suggested sources</p>
+                        <p className="mt-1 font-medium">{recommendation.recommendedSourceIds.length}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-muted-foreground">Packet fingerprint</p>
+                        <p className="mt-1 break-all font-mono text-xs">{reviewDataset?.inputFingerprint.slice(0, 16) ?? '—'}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
 
               <Card>
                 <CardHeader>
@@ -1272,15 +1515,21 @@ export function SystemSettingsIndustryVerificationPage() {
                   {sources.length === 0 ? (
                     <p className="text-sm text-muted-foreground">No evidence sources attached.</p>
                   ) : sources.map((source) => {
-                    const approvable = source.sourceType !== 'search_result' && source.trustTier !== 'discovery'
+                    const sourceDecision = recommendation?.sourceDecisions.find((item) => item.sourceId === source.sourceId)
+                    const approvable = sourceDecision?.approvalSafe === true
+                    const usable = approvable
+                      && source.fetchStatus === 'fetched'
+                      && source.sourceState === 'active'
+                      && source.reviewStatus !== 'rejected'
+                      && source.reviewStatus !== 'disputed'
                     const checked = selectedSourceIds.includes(source.sourceId)
                     return (
-                      <label key={source.sourceId} className="flex gap-3 rounded-lg border p-3">
+                      <label key={source.sourceId} className={`flex gap-3 rounded-lg border p-3 ${!usable ? 'bg-muted/40' : ''}`}>
                         <input
                           type="checkbox"
-                          className="mt-1"
+                          className="mt-1 h-4 w-4 accent-primary focus-visible:ring-2 focus-visible:ring-ring"
                           checked={checked}
-                          disabled={!approvable}
+                          disabled={!usable}
                           onChange={(event) => {
                             setSelectedSourceIds((current) => event.target.checked
                               ? [...new Set([...current, source.sourceId])]
@@ -1292,12 +1541,17 @@ export function SystemSettingsIndustryVerificationPage() {
                             <span className="font-medium">{source.title ?? source.sourceDomain}</span>
                             <Badge variant="outline">{source.sourceType}</Badge>
                             <Badge variant="secondary">{source.trustTier}</Badge>
+                            {sourceDecision?.recommended && <Badge>Recommended</Badge>}
+                            {!approvable && <Badge variant="destructive">Discovery only</Badge>}
                           </span>
                           {source.evidenceExcerpt && (
                             <span className="mt-1 block text-sm leading-6 text-muted-foreground">{source.evidenceExcerpt}</span>
                           )}
                           <span className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                             <span>Fetched {formatDate(source.fetchedAt)}</span>
+                            {sourceDecision && !sourceDecision.recommended && sourceDecision.reasonCodes.length > 0 && (
+                              <span>Not preselected: {sourceDecision.reasonCodes[0].replace(/_/g, ' ')}</span>
+                            )}
                             <a
                               href={source.url}
                               target="_blank"
@@ -1305,7 +1559,7 @@ export function SystemSettingsIndustryVerificationPage() {
                               className="inline-flex items-center gap-1 text-primary hover:underline"
                             >
                               {source.sourceDomain}
-                              <ExternalLink className="h-3 w-3" />
+                              <ExternalLink className="h-3 w-3" aria-hidden="true" />
                             </a>
                           </span>
                         </span>
@@ -1327,9 +1581,10 @@ export function SystemSettingsIndustryVerificationPage() {
                 <CardContent className="space-y-4">
                   <div className="grid gap-4 sm:grid-cols-2">
                     <label className="space-y-2 text-sm font-medium">
-                      Verdict
+                      Verdict {recommendation && <span className="text-xs font-normal text-muted-foreground">(Suggested)</span>}
                       <select
-                        className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                        name="verificationLevel"
+                        className="h-10 w-full rounded-md border bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring"
                         value={verificationLevel}
                         onChange={(event) => setVerificationLevel(event.target.value as VerificationLevel)}
                       >
@@ -1338,9 +1593,10 @@ export function SystemSettingsIndustryVerificationPage() {
                       </select>
                     </label>
                     <label className="space-y-2 text-sm font-medium">
-                      Industry class
+                      Industry class {recommendation && <span className="text-xs font-normal text-muted-foreground">(Suggested)</span>}
                       <select
-                        className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                        name="industryClass"
+                        className="h-10 w-full rounded-md border bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring"
                         value={industryClass}
                         onChange={(event) => setIndustryClass(event.target.value as IndustryClass)}
                       >
@@ -1351,24 +1607,55 @@ export function SystemSettingsIndustryVerificationPage() {
                     </label>
                   </div>
                   <label className="block space-y-2 text-sm font-medium">
-                    Evidence summary
+                    Evidence summary {recommendation && <span className="text-xs font-normal text-muted-foreground">(Suggested)</span>}
                     <Input
+                      name="evidenceSummary"
+                      autoComplete="off"
                       aria-label="Evidence summary"
                       value={evidenceSummary}
                       onChange={(event) => setEvidenceSummary(event.target.value)}
                     />
                   </label>
                   <label className="block space-y-2 text-sm font-medium">
-                    Decision reason
+                    Decision reason {recommendation && <span className="text-xs font-normal text-muted-foreground">(Suggested)</span>}
                     <Input
+                      name="decisionReason"
+                      autoComplete="off"
                       aria-label="Decision reason"
                       value={decisionReason}
                       onChange={(event) => setDecisionReason(event.target.value)}
                     />
                   </label>
+                  {approvalConfirmOpen && (
+                    <div className="space-y-2 rounded-md border border-primary/40 bg-primary/5 p-4 text-sm" data-testid="industry-review-approval-confirmation">
+                      <p className="font-medium">Confirm this immutable revision</p>
+                      <p>
+                        You are approving <strong>{industryClass}</strong> as <strong>{verificationLevel}</strong> for{' '}
+                        <strong>{displayCompany(selectedProposal.companyKey ?? selectedProposal.normalizedEmployerSurface)}</strong>.
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Sources: {selectedSourceIds.join(', ')} · this will create a new revision and start targeted recompute.
+                      </p>
+                      {recommendation && recommendation.riskFlags.length > 0 && (
+                        <p className="text-xs font-medium text-amber-900">
+                          Review flags remain: {recommendation.riskFlags.join(', ')}
+                        </p>
+                      )}
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        <Button onClick={() => void approveRevision()} disabled={saving}>
+                          Confirm approve revision
+                        </Button>
+                        <Button variant="outline" onClick={() => setApprovalConfirmOpen(false)} disabled={saving}>
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                   <label className="block space-y-2 text-sm font-medium">
                     Taxonomy version
                     <Input
+                      name="taxonomyVersion"
+                      autoComplete="off"
                       aria-label="Taxonomy version"
                       value={taxonomyVersion}
                       onChange={(event) => setTaxonomyVersion(event.target.value)}
@@ -1377,13 +1664,15 @@ export function SystemSettingsIndustryVerificationPage() {
                   <label className="block space-y-2 text-sm font-medium">
                     Review note (for reject / more evidence)
                     <Input
+                      name="reviewNote"
+                      autoComplete="off"
                       aria-label="Review note"
                       value={reviewNote}
                       onChange={(event) => setReviewNote(event.target.value)}
                     />
                   </label>
                   <div className="flex flex-wrap gap-2">
-                    <Button onClick={() => void approveRevision()} disabled={saving}>
+                    <Button onClick={prepareApproval} disabled={saving || approvalConfirmOpen}>
                       <ShieldCheck className="mr-2 h-4 w-4" />
                       Approve revision
                     </Button>

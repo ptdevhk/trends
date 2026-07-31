@@ -8,6 +8,7 @@ vi.mock("../middleware/maintenance.js", () => ({
 
 import { createApp } from "../app";
 import { resetResumeScreeningDb } from "../services/database";
+import * as industryReviewService from "../services/company-industry-review-service";
 import { parseJsonBody } from "../test-utils";
 import { createAuthHeaders } from "./test-auth-helpers";
 
@@ -232,6 +233,112 @@ describe("companies routes", () => {
         status: "ready_for_review",
       }),
     ]);
+  });
+
+  it("lists the shared industry review queue for an authenticated admin", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+    vi.spyOn(industryReviewService, "listIndustryReviewQueue").mockResolvedValue({
+      success: true,
+      ok: true,
+      schemaVersion: "industry-review.v1",
+      items: [
+        {
+          proposal: {
+            _id: "proposal-row",
+            proposalId: "proposal-1",
+            companyKey: "acme-cnc",
+            triggerReasons: ["scheduled_freshness"],
+            priority: 80,
+            status: "ready_for_review",
+            createdAt: 1,
+            updatedAt: 2,
+          },
+          recommendation: {
+            proposalId: "proposal-1",
+            proposalStatus: "ready_for_review",
+            recommendedAction: "approve",
+            recommendedVerificationLevel: "verified",
+            recommendedIndustryClass: "cnc",
+            recommendedSourceIds: ["source-1"],
+            sourceDecisions: [],
+            confidenceBand: "high",
+            riskFlags: [],
+            reasons: ["Durable source supports the proposed cnc classification."],
+            excludedSourceReasons: {},
+            evidenceSummaryDraft: "Official catalog confirms CNC products.",
+            decisionReasonDraft: "Reviewed primary evidence.",
+            requiresHumanReview: true,
+          },
+          sourceCount: 1,
+        },
+      ],
+      maintenance: { latest: null, lastFailed: null },
+    });
+
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request(
+      "/api/company-industry-proposals/review-queue?status=ready_for_review&limit=20",
+      { headers: auth.headers },
+    );
+
+    expect(response.status).toBe(200);
+    const body = await parseJsonBody<{
+      schemaVersion: string;
+      items: Array<{ recommendation: { recommendedAction: string } }>;
+    }>(response);
+    expect(body.schemaVersion).toBe("industry-review.v1");
+    expect(body.items[0]?.recommendation.recommendedAction).toBe("approve");
+    expect(industryReviewService.listIndustryReviewQueue).toHaveBeenCalledWith({
+      status: "ready_for_review",
+      limit: 20,
+      workspaceSlug: "hr",
+    });
+  });
+
+  it("keeps the review packet admin-only", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request(
+      "/api/company-industry-proposals/proposal-1/review-packet",
+      { headers: auth.headers },
+    );
+    expect(response.status).toBe(403);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when an approval packet fingerprint is stale", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+    vi.spyOn(industryReviewService, "getIndustryReviewPacket").mockResolvedValue({
+      dataset: { inputFingerprint: "fresh-fingerprint" },
+    } as never);
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request(
+      "/api/company-industry-proposals/proposal-1/approve",
+      {
+        method: "POST",
+        headers: {
+          ...auth.headers,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          revisionId: "revision-2",
+          expectedInputFingerprint: "stale-fingerprint",
+          verificationLevel: "verified",
+          industryClass: "cnc",
+          approvedSourceIds: ["source-1"],
+          evidenceSummary: "Reviewed official evidence.",
+          decisionReason: "Reviewed primary evidence.",
+          taxonomyVersion: "industry-v1",
+        }),
+      },
+    );
+    expect(response.status).toBe(409);
+    expect(await parseJsonBody(response)).toMatchObject({
+      code: "INDUSTRY_REVIEW_STALE",
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it("requires an admin for proposal review mutations", async () => {

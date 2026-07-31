@@ -17,6 +17,7 @@ export * from "./salary.js";
 export * from "./market.js";
 export * from "./company-policy.js";
 export * from "./industry-evidence.js";
+export * from "./industry-review.js";
 export * from "./research/persona-ranking.js";
 export * from "./research/live-signal.js";
 export * from "./research/parity.js";

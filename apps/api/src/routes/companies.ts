@@ -6,6 +6,11 @@ import {
   INDUSTRY_EVIDENCE_TRUST_TIERS,
   INDUSTRY_MAINTENANCE_TRIGGER_REASONS,
   INDUSTRY_PROPOSAL_STATUSES,
+  INDUSTRY_REVIEW_ACTIONS,
+  INDUSTRY_REVIEW_CONFIDENCE_BANDS,
+  INDUSTRY_REVIEW_RISK_FLAGS,
+  INDUSTRY_REVIEW_SCHEMA_VERSION,
+  INDUSTRY_REVIEW_SOURCE_REASON_CODES,
   INDUSTRY_VERIFICATION_LEVELS,
 } from "@trends/shared";
 
@@ -667,6 +672,177 @@ app.openapi(listIndustryProposalsRoute, async (c) => {
   return c.json({ success: true as const, items }, 200);
 });
 
+const IndustryReviewActionEnum = z.enum(INDUSTRY_REVIEW_ACTIONS);
+const IndustryReviewConfidenceEnum = z.enum(INDUSTRY_REVIEW_CONFIDENCE_BANDS);
+const IndustryReviewRiskFlagEnum = z.enum(INDUSTRY_REVIEW_RISK_FLAGS);
+const IndustryReviewSourceReasonCodeEnum = z.enum(
+  INDUSTRY_REVIEW_SOURCE_REASON_CODES,
+);
+const IndustryReviewWarningSchema = z.object({
+  code: z.string(),
+  message: z.string(),
+  action: z.string().optional(),
+});
+const IndustryReviewRecommendationSchema = z.object({
+  proposalId: z.string(),
+  proposalStatus: ProposalStatusEnum,
+  recommendedAction: IndustryReviewActionEnum,
+  recommendedVerificationLevel: z.enum(["verified", "rejected"]),
+  recommendedIndustryClass: IndustryClassEnum,
+  recommendedSourceIds: z.array(z.string()),
+  sourceDecisions: z.array(
+    z.object({
+      sourceId: z.string(),
+      approvalSafe: z.boolean(),
+      recommended: z.boolean(),
+      reasonCodes: z.array(IndustryReviewSourceReasonCodeEnum),
+    }),
+  ),
+  confidenceBand: IndustryReviewConfidenceEnum,
+  riskFlags: z.array(IndustryReviewRiskFlagEnum),
+  reasons: z.array(z.string()),
+  excludedSourceReasons: z.record(z.string(), z.string()),
+  evidenceSummaryDraft: z.string(),
+  decisionReasonDraft: z.string(),
+  requiresHumanReview: z.literal(true),
+});
+const IndustryReviewMaintenanceContextSchema = z.object({
+  latest: z.unknown().nullable(),
+  lastFailed: z.unknown().nullable(),
+});
+const IndustryReviewEnvelopeFields = {
+  success: z.literal(true),
+  ok: z.literal(true),
+  schemaVersion: z.literal(INDUSTRY_REVIEW_SCHEMA_VERSION),
+};
+
+const IndustryReviewConflictSchema = z.object({
+  success: z.literal(false),
+  error: z.string(),
+  code: z.literal("INDUSTRY_REVIEW_STALE"),
+});
+
+function isIndustryReviewConflictError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /industry revision changed|proposal current revision is stale|review packet is stale|source changed during review|proposal changed during review|input fingerprint/i.test(
+    message,
+  );
+}
+
+const listIndustryReviewQueueRoute = createRoute({
+  method: "get",
+  path: "/api/company-industry-proposals/review-queue",
+  tags: ["company-industry-evidence"],
+  summary: "List industry proposals with shared review recommendations",
+  request: {
+    query: z.object({
+      status: ProposalStatusEnum.optional(),
+      limit: z.coerce.number().int().min(1).max(100).optional(),
+    }),
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            ...IndustryReviewEnvelopeFields,
+            items: z.array(
+              z.object({
+                proposal: IndustryProposalSchema,
+                recommendation: IndustryReviewRecommendationSchema,
+                sourceCount: z.number(),
+              }),
+            ),
+            maintenance: IndustryReviewMaintenanceContextSchema,
+          }),
+        },
+      },
+      description: "Proposal queue with deterministic review recommendations",
+    },
+  },
+});
+
+app.openapi(listIndustryReviewQueueRoute, async (c) => {
+  const { status, limit } = c.req.valid("query");
+  const { listIndustryReviewQueue } = await import(
+    "../services/company-industry-review-service.js"
+  );
+  const result = await listIndustryReviewQueue({
+    status,
+    limit,
+    workspaceSlug: c.var.workspaceSlug,
+  });
+  return c.json(result, 200);
+});
+
+const getIndustryReviewPacketRoute = createRoute({
+  method: "get",
+  path: "/api/company-industry-proposals/:proposalId/review-packet",
+  tags: ["company-industry-evidence"],
+  summary: "Get a proposal, evidence, and shared review recommendation packet",
+  request: { params: z.object({ proposalId: z.string().min(1) }) },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            ...IndustryReviewEnvelopeFields,
+            operation: z.object({
+              id: z.string(),
+              kind: z.literal("recommendation"),
+              state: z.literal("computed"),
+            }),
+            dataset: z.object({
+              revision: z.string(),
+              inputFingerprint: z.string(),
+              generatedAt: z.number(),
+              proposalUpdatedAt: z.number(),
+              sourceVersions: z.array(
+                z.object({ sourceId: z.string(), updatedAt: z.number() }),
+              ),
+              gitSha: z.string().optional(),
+            }),
+            recommendation: IndustryReviewRecommendationSchema,
+            warnings: z.array(IndustryReviewWarningSchema),
+            proposal: IndustryProposalSchema,
+            sources: z.array(IndustryEvidenceSourceSchema),
+            bundle: z
+              .object({
+                profile: IndustryProfileSchema.nullable(),
+                revisions: z.array(IndustryVerdictRevisionSchema),
+                sources: z.array(IndustryEvidenceSourceSchema),
+              })
+              .nullable(),
+            recomputeRuns: z.array(IndustryRecomputeRunSchema),
+            maintenance: IndustryReviewMaintenanceContextSchema,
+          }),
+        },
+      },
+      description: "Review packet with proposal revision and input fingerprint",
+    },
+    404: {
+      content: {
+        "application/json": {
+          schema: z.object({ success: z.literal(false), error: z.string() }),
+        },
+      },
+      description: "Proposal not found",
+    },
+  },
+});
+
+app.openapi(getIndustryReviewPacketRoute, async (c) => {
+  const { proposalId } = c.req.valid("param");
+  const { getIndustryReviewPacket } = await import(
+    "../services/company-industry-review-service.js"
+  );
+  const packet = await getIndustryReviewPacket(proposalId, c.var.workspaceSlug);
+  if (!packet) {
+    return c.json({ success: false as const, error: "Industry proposal not found" }, 404);
+  }
+  return c.json(packet, 200);
+});
+
 const upsertIndustryProposalRoute = createRoute({
   method: "post",
   path: "/api/company-industry-proposals",
@@ -764,6 +940,12 @@ const approveIndustryProposalRoute = createRoute({
           schema: z.object({
             revisionId: z.string().min(1),
             expectedCurrentRevisionId: z.string().optional(),
+            expectedProposalUpdatedAt: z.number().optional(),
+            expectedInputFingerprint: z.string().optional(),
+            expectedSourceVersions: z
+              .array(z.object({ sourceId: z.string().min(1), updatedAt: z.number() }))
+              .max(200)
+              .optional(),
             verificationLevel: z.enum(["verified", "rejected"]),
             industryClass: IndustryClassEnum,
             approvedSourceIds: z.array(z.string().min(1)).min(1),
@@ -792,25 +974,62 @@ const approveIndustryProposalRoute = createRoute({
       },
       description: "Approved immutable revision",
     },
+    409: {
+      content: {
+        "application/json": { schema: IndustryReviewConflictSchema },
+      },
+      description: "Review packet or current revision is stale",
+    },
   },
 });
 
 app.openapi(approveIndustryProposalRoute, async (c) => {
   const { proposalId } = c.req.valid("param");
   const body = c.req.valid("json");
-  const result = await approveIndustryProposalAndStartRecompute(
-    { proposalId, workspaceSlug: c.var.workspaceSlug, ...body },
-    getAuthenticatedActorId(c),
-  );
-  // Approval hook: enqueue a maintenance run so recycled needs_more_evidence
-  // proposals re-chew automatically after a human approval. Fire-and-forget;
-  // coalescing prevents duplicate runs if multiple approvals land in sequence.
-  void enqueueIndustryMaintenance({
-    workspaceSlug: c.var.workspaceSlug,
-    triggerSource: "approval",
-    triggerContext: proposalId,
-  });
-  return c.json({ success: true as const, ...result }, 200);
+  try {
+    if (body.expectedInputFingerprint) {
+      const { getIndustryReviewPacket } = await import(
+        "../services/company-industry-review-service.js"
+      );
+      const packet = await getIndustryReviewPacket(proposalId, c.var.workspaceSlug);
+      if (!packet || packet.dataset.inputFingerprint !== body.expectedInputFingerprint) {
+        return c.json(
+          {
+            success: false as const,
+            error: "Review packet is stale; refresh the recommendation before approving.",
+            code: "INDUSTRY_REVIEW_STALE" as const,
+          },
+          409,
+        );
+      }
+    }
+    const { expectedInputFingerprint: _expectedInputFingerprint, ...approvalBody } = body;
+    const result = await approveIndustryProposalAndStartRecompute(
+      { proposalId, workspaceSlug: c.var.workspaceSlug, ...approvalBody },
+      getAuthenticatedActorId(c),
+    );
+    // Approval hook: enqueue a maintenance run so recycled needs_more_evidence
+    // proposals re-chew automatically after a human approval. Fire-and-forget;
+    // coalescing prevents duplicate runs if multiple approvals land in sequence.
+    void enqueueIndustryMaintenance({
+      workspaceSlug: c.var.workspaceSlug,
+      triggerSource: "approval",
+      triggerContext: proposalId,
+    });
+    return c.json({ success: true as const, ...result }, 200);
+  } catch (error) {
+    if (isIndustryReviewConflictError(error)) {
+      return c.json(
+        {
+          success: false as const,
+          error: error instanceof Error ? error.message : String(error),
+          code: "INDUSTRY_REVIEW_STALE" as const,
+        },
+        409,
+      );
+    }
+    throw error;
+  }
 });
 
 const resolveIndustryProposalRoute = createRoute({
@@ -830,6 +1049,7 @@ const resolveIndustryProposalRoute = createRoute({
               "superseded",
             ]),
             reviewNote: z.string().optional(),
+            expectedProposalUpdatedAt: z.number().optional(),
           }),
         },
       },
@@ -848,16 +1068,36 @@ const resolveIndustryProposalRoute = createRoute({
       },
       description: "Proposal resolution",
     },
+    409: {
+      content: {
+        "application/json": { schema: IndustryReviewConflictSchema },
+      },
+      description: "Proposal changed during review",
+    },
   },
 });
 
 app.openapi(resolveIndustryProposalRoute, async (c) => {
   const { proposalId } = c.req.valid("param");
-  const result = await resolveIndustryProposal(
-    { proposalId, ...c.req.valid("json") },
-    getAuthenticatedActorId(c),
-  );
-  return c.json({ success: true as const, ...result }, 200);
+  try {
+    const result = await resolveIndustryProposal(
+      { proposalId, ...c.req.valid("json") },
+      getAuthenticatedActorId(c),
+    );
+    return c.json({ success: true as const, ...result }, 200);
+  } catch (error) {
+    if (isIndustryReviewConflictError(error)) {
+      return c.json(
+        {
+          success: false as const,
+          error: error instanceof Error ? error.message : String(error),
+          code: "INDUSTRY_REVIEW_STALE" as const,
+        },
+        409,
+      );
+    }
+    throw error;
+  }
 });
 
 const listIndustryEvidenceSourcesRoute = createRoute({

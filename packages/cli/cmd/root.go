@@ -14,12 +14,14 @@ import (
 const (
 	defaultAPIURL    = "http://localhost:3000"
 	defaultWorkerURL = "http://localhost:8000"
+	defaultWebURL    = "http://localhost:5173"
 	defaultOutput    = "agent"
 )
 
 type RootOptions struct {
 	APIURL    string
 	WorkerURL string
+	WebURL    string
 	Workspace string
 	Output    string
 }
@@ -46,6 +48,7 @@ var rootCmd = &cobra.Command{
 func init() {
 	viper.SetDefault("api_url", defaultAPIURL)
 	viper.SetDefault("worker_url", defaultWorkerURL)
+	viper.SetDefault("web_url", defaultWebURL)
 	viper.SetDefault("workspace", "dev")
 	viper.SetDefault("output", defaultOutput)
 
@@ -54,11 +57,13 @@ func init() {
 
 	rootCmd.PersistentFlags().String("api-url", defaultAPIURL, "BFF API base URL")
 	rootCmd.PersistentFlags().String("worker-url", defaultWorkerURL, "Worker API base URL")
+	rootCmd.PersistentFlags().String("web-url", defaultWebURL, "Admin web URL")
 	rootCmd.PersistentFlags().String("workspace", "dev", "Workspace slug")
 	rootCmd.PersistentFlags().StringP("output", "o", defaultOutput, "Output format: agent|table|json|csv")
 
 	_ = viper.BindPFlag("api_url", rootCmd.PersistentFlags().Lookup("api-url"))
 	_ = viper.BindPFlag("worker_url", rootCmd.PersistentFlags().Lookup("worker-url"))
+	_ = viper.BindPFlag("web_url", rootCmd.PersistentFlags().Lookup("web-url"))
 	_ = viper.BindPFlag("workspace", rootCmd.PersistentFlags().Lookup("workspace"))
 	_ = viper.BindPFlag("output", rootCmd.PersistentFlags().Lookup("output"))
 
@@ -69,6 +74,7 @@ func init() {
 		newSystemCmd(),
 		newWorkerCmd(),
 		newResearchCmd(),
+		newIndustryCmd(),
 		newMigrateCmd(),
 		newMCPCmd(),
 	)
@@ -101,6 +107,7 @@ func currentOptions() RootOptions {
 	return RootOptions{
 		APIURL:    normalizeBaseURL(viper.GetString("api_url")),
 		WorkerURL: normalizeBaseURL(viper.GetString("worker_url")),
+		WebURL:    normalizeBaseURL(viper.GetString("web_url")),
 		Workspace: normalizeWorkspace(viper.GetString("workspace")),
 		Output:    strings.ToLower(strings.TrimSpace(viper.GetString("output"))),
 	}

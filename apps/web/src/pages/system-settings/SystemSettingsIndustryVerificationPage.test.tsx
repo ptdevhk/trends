@@ -138,8 +138,72 @@ const source = {
   fetchStatus: 'fetched',
   reviewStatus: 'unreviewed',
   sourceState: 'active',
+  fetchedAt: 20,
   createdAt: 1,
   updatedAt: 2,
+}
+
+const recommendation = {
+  proposalId: 'proposal-1',
+  proposalStatus: 'ready_for_review',
+  recommendedAction: 'approve',
+  recommendedVerificationLevel: 'verified',
+  recommendedIndustryClass: 'cnc',
+  recommendedSourceIds: ['source-1'],
+  sourceDecisions: [
+    {
+      sourceId: 'source-1',
+      approvalSafe: true,
+      recommended: true,
+      reasonCodes: ['approval_safe', 'recommended_primary'],
+    },
+  ],
+  confidenceBand: 'high',
+  riskFlags: [],
+  reasons: ['Durable source supports the proposed cnc classification.'],
+  excludedSourceReasons: {},
+  evidenceSummaryDraft: 'Official catalog changed.',
+  decisionReasonDraft: 'Reviewed 1 approval-safe source(s); confirm the cnc classification and evidence summary.',
+  requiresHumanReview: true,
+}
+
+const reviewPacket = {
+  success: true,
+  ok: true,
+  schemaVersion: 'industry-review.v1',
+  operation: { id: 'review-proposal-1-fingerprint', kind: 'recommendation', state: 'computed' },
+  dataset: {
+    revision: 'proposal-1:2:revision-1',
+    inputFingerprint: 'fingerprint-1',
+    proposalUpdatedAt: 2,
+    sourceVersions: [{ sourceId: 'source-1', updatedAt: 2 }],
+    generatedAt: 20,
+  },
+  recommendation,
+  warnings: [],
+  proposal,
+  sources: [source],
+  bundle: {
+    profile: {
+      companyKey: 'acme-cnc',
+      industryClass: 'cnc',
+      verificationLevel: 'verified',
+      currentRevisionId: 'revision-1',
+    },
+    revisions: [
+      {
+        revisionId: 'revision-1',
+        verificationLevel: 'verified',
+        industryClass: 'cnc',
+        evidenceSummary: 'Current approved truth.',
+        reviewedBy: 'reviewer-1',
+        reviewedAt: 100,
+      },
+    ],
+    sources: [],
+  },
+  recomputeRuns: [],
+  maintenance: { latest: null, lastFailed: null },
 }
 
 describe('SystemSettingsIndustryVerificationPage', () => {
@@ -149,8 +213,14 @@ describe('SystemSettingsIndustryVerificationPage', () => {
       if (path === '/api/company-industry-coverage') {
         return Promise.resolve({ success: true, item: coverageSummary })
       }
-      if (path.startsWith('/api/company-industry-proposals?')) {
-        return Promise.resolve({ success: true, items: [proposal] })
+      if (path.startsWith('/api/company-industry-proposals/review-queue?')) {
+        return Promise.resolve({
+          success: true,
+          ok: true,
+          schemaVersion: 'industry-review.v1',
+          items: [{ proposal, recommendation, sourceCount: 1 }],
+          maintenance: { latest: null, lastFailed: null },
+        })
       }
       if (path.startsWith('/api/company-industry-profiles')) {
         return Promise.resolve({
@@ -163,6 +233,9 @@ describe('SystemSettingsIndustryVerificationPage', () => {
             },
           ],
         })
+      }
+      if (path === '/api/company-industry-proposals/proposal-1/review-packet') {
+        return Promise.resolve(reviewPacket)
       }
       if (path === '/api/company-industry-evidence-sources?proposalId=proposal-1') {
         return Promise.resolve({ success: true, items: [source] })
@@ -239,6 +312,20 @@ describe('SystemSettingsIndustryVerificationPage', () => {
     expect(await screen.findByText('CNC products')).toBeInTheDocument()
     expect(screen.getByText('Current approved truth.')).toBeInTheDocument()
     expect(screen.getAllByText('revision-1')).toHaveLength(2)
+  })
+
+  it('lets the operator inspect new and evidence-needed queues when ready is empty', async () => {
+    const user = userEvent.setup()
+    renderPage()
+
+    await screen.findByText('CNC products')
+    await user.selectOptions(screen.getByLabelText('Queue status'), 'new')
+
+    await waitFor(() => {
+      expect(requestJsonMock).toHaveBeenCalledWith(
+        '/api/company-industry-proposals/review-queue?status=new&limit=100',
+      )
+    })
   })
 
   it('shows coverage pipeline, empty-evidence bottleneck, and maintenance health', async () => {
@@ -333,6 +420,8 @@ describe('SystemSettingsIndustryVerificationPage', () => {
     await user.type(screen.getByLabelText('Evidence summary'), 'Reviewed official evidence.')
     await user.type(screen.getByLabelText('Decision reason'), 'Primary source confirmed.')
     await user.click(screen.getByRole('button', { name: 'Approve revision' }))
+    expect(screen.getByTestId('industry-review-approval-confirmation')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Confirm approve revision' }))
 
     await waitFor(() => {
       expect(requestJsonMock).toHaveBeenCalledWith(
@@ -345,11 +434,14 @@ describe('SystemSettingsIndustryVerificationPage', () => {
     )
     expect(JSON.parse(String(call?.[1]?.body))).toMatchObject({
       expectedCurrentRevisionId: 'revision-1',
+      expectedProposalUpdatedAt: 2,
+      expectedInputFingerprint: 'fingerprint-1',
+      expectedSourceVersions: [{ sourceId: 'source-1', updatedAt: 2 }],
       verificationLevel: 'verified',
       industryClass: 'cnc',
       approvedSourceIds: ['source-1'],
       evidenceSummary: 'Reviewed official evidence.',
-      decisionReason: 'Primary source confirmed.',
+      decisionReason: expect.stringContaining('Primary source confirmed.'),
     })
     expect(toastSuccessMock).toHaveBeenCalledWith('Industry verdict revision approved')
   })
@@ -368,6 +460,7 @@ describe('SystemSettingsIndustryVerificationPage', () => {
           method: 'POST',
           body: JSON.stringify({
             resolution: 'needs_more_evidence',
+            expectedProposalUpdatedAt: 2,
             reviewNote: 'Reviewer requested additional evidence.',
           }),
         },
@@ -403,8 +496,14 @@ describe('SystemSettingsIndustryVerificationPage', () => {
 
   it('shows empty-queue hint pointing at run history when queue is empty', async () => {
     requestJsonMock.mockImplementation((path: string) => {
-      if (path.startsWith('/api/company-industry-proposals?')) {
-        return Promise.resolve({ success: true, items: [] })
+      if (path.startsWith('/api/company-industry-proposals/review-queue?')) {
+        return Promise.resolve({
+          success: true,
+          ok: true,
+          schemaVersion: 'industry-review.v1',
+          items: [],
+          maintenance: { latest: null, lastFailed: null },
+        })
       }
       if (path === '/api/company-industry-maintenance-runs?limit=20') {
         return Promise.resolve({

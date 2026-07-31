@@ -78,6 +78,8 @@ export async function approveIndustryProposal(
     proposalId: string;
     revisionId: string;
     expectedCurrentRevisionId?: string;
+    expectedProposalUpdatedAt?: number;
+    expectedSourceVersions?: Array<{ sourceId: string; updatedAt: number }>;
     verificationLevel: "verified" | "rejected";
     industryClass: IndustryClass;
     approvedSourceIds: string[];
@@ -146,6 +148,7 @@ export async function resolveIndustryProposal(
     proposalId: string;
     resolution: "rejected" | "needs_more_evidence" | "superseded";
     reviewNote?: string;
+    expectedProposalUpdatedAt?: number;
   },
   actorId: string,
 ): Promise<{ proposalId: string; status: IndustryProposalStatus }> {
