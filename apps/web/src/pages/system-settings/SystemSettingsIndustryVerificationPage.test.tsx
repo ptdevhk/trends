@@ -1,13 +1,19 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, useLocation } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { SystemSettingsIndustryVerificationPage } from './SystemSettingsIndustryVerificationPage'
 
-function renderPage() {
+function LocationProbe() {
+  const location = useLocation()
+  return <output data-testid="test-location-search">{location.search}</output>
+}
+
+function renderPage(initialEntry = '/dev/settings/industry-verification') {
   return render(
-    <MemoryRouter initialEntries={['/dev/settings/industry-verification']}>
+    <MemoryRouter initialEntries={[initialEntry]}>
+      <LocationProbe />
       <SystemSettingsIndustryVerificationPage />
     </MemoryRouter>,
   )
@@ -466,6 +472,45 @@ describe('SystemSettingsIndustryVerificationPage', () => {
     })
   })
 
+  it('renders the URL-backed All filter and updates the query when a chip is clicked', async () => {
+    const user = userEvent.setup()
+    const fallback = requestJsonMock.getMockImplementation()
+    requestJsonMock.mockImplementation((path: string, init?: RequestInit) => {
+      if (path.startsWith('/api/company-industry-proposals/review-queue?')) {
+        return Promise.resolve({
+          success: true,
+          ok: true,
+          schemaVersion: 'industry-review.v1',
+          items: [
+            { proposal: cleanInboxProposal, recommendation: cleanInboxRecommendation, sourceCount: 1 },
+            { proposal, recommendation, sourceCount: 1 },
+          ],
+          maintenance: { latest: null, lastFailed: null },
+        })
+      }
+      return fallback?.(path, init) ?? Promise.resolve({ success: true })
+    })
+
+    renderPage('/dev/settings/industry-verification?filter=all')
+
+    expect(await screen.findByTestId('industry-review-filter-all')).toHaveAttribute('aria-selected', 'true')
+    expect(await screen.findByTestId('industry-review-row-clean-proposal')).toBeInTheDocument()
+    expect(screen.getByTestId('industry-review-row-proposal-1')).toBeInTheDocument()
+    expect(screen.queryByTestId('industry-history-list')).not.toBeInTheDocument()
+
+    await user.click(screen.getByTestId('industry-review-filter-history'))
+    expect(screen.getByTestId('test-location-search')).toHaveTextContent('?filter=history')
+    expect(screen.getByTestId('industry-review-filter-history')).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('treats an unknown filter as All and keeps History separate from live rows', async () => {
+    renderPage('/dev/settings/industry-verification?filter=not-a-filter')
+
+    expect(await screen.findByTestId('industry-review-filter-all')).toHaveAttribute('aria-selected', 'true')
+    expect(await screen.findByTestId('industry-review-row-proposal-1')).toBeInTheDocument()
+    expect(screen.queryByTestId('industry-history-row-proposal-1')).not.toBeInTheDocument()
+  })
+
   it('approves a clean row with one click, keeps it visible, and supports same-row Undo', async () => {
     const user = userEvent.setup()
     installCleanInboxMock()
@@ -823,7 +868,7 @@ describe('SystemSettingsIndustryVerificationPage', () => {
       }
       return Promise.resolve({ success: true })
     })
-    renderPage()
+    renderPage('/dev/settings/industry-verification?filter=approvable')
 
     // Queue empty hint is shown.
     expect(await screen.findByText('No clean approvals are waiting.')).toBeInTheDocument()

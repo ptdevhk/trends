@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { CheckCircle2, Loader2, RefreshCw, Sparkles, TriangleAlert } from 'lucide-react'
+import { useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -8,12 +9,14 @@ import { SettingsRequestError } from '@/pages/system-settings/lib'
 import {
   filterHistoryForSession,
   getOneClickEligibility,
+  parseReviewInboxFilter,
   partitionReviewQueue,
+  reviewInboxFilterToSlug,
   type ReviewInboxItem,
+  type ReviewInboxFilter,
   type ReviewInboxProposal,
   type ReviewInboxRecommendation,
   type ReviewInboxRow,
-  type ReviewInboxTab,
   type SessionApproval,
 } from './industry-review-inbox-model'
 import {
@@ -202,7 +205,8 @@ export function IndustryReviewInbox({
   onSelectProposal,
 }: IndustryReviewInboxProps) {
   const { t } = useTranslation()
-  const [activeTab, setActiveTab] = useState<ReviewInboxTab>('approvable')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const activeFilter = parseReviewInboxFilter(searchParams.get('filter'))
   const [queueStatus, setQueueStatus] = useState<ReviewQueueStatus>(initialStatus)
   const [riskFilter, setRiskFilter] = useState('')
   const [confidenceFilter, setConfidenceFilter] = useState('')
@@ -339,6 +343,7 @@ export function IndustryReviewInbox({
     const forcedIds = forcedNeedsReview
     const moveToNeedsReview = base.approvable.filter((row) => forcedIds.has(row.item.proposal.proposalId))
     return {
+      all: base.all,
       approvable: base.approvable.filter((row) => !forcedIds.has(row.item.proposal.proposalId)),
       needsReview: [...base.needsReview, ...moveToNeedsReview],
     }
@@ -349,9 +354,11 @@ export function IndustryReviewInbox({
     [historyItems, sessionApprovals],
   )
 
-  const visibleRows = activeTab === 'approvable'
-    ? partition.approvable
-    : partition.needsReview
+  const visibleRows = activeFilter === 'all'
+    ? partition.all
+    : activeFilter === 'approvable'
+      ? partition.approvable
+      : partition.needsReview
   const sessionApprovalCount = sessionApprovals.size
 
   const changeQueueStatus = useCallback((status: ReviewQueueStatus) => {
@@ -359,12 +366,41 @@ export function IndustryReviewInbox({
     onQueueStatusChange(status)
   }, [onQueueStatusChange])
 
-  const handleTabChange = useCallback((tab: ReviewInboxTab) => {
-    setActiveTab(tab)
-    if (tab === 'history' && !historyLoaded && !historyLoading) {
+  const selectFilter = useCallback((filter: ReviewInboxFilter) => {
+    const nextParams = new URLSearchParams(searchParams)
+    nextParams.set('filter', reviewInboxFilterToSlug(filter))
+    nextParams.delete('proposalId')
+    setSearchParams(nextParams, { replace: true })
+  }, [searchParams, setSearchParams])
+
+  useEffect(() => {
+    if (activeFilter === 'history' && !historyLoaded && !historyLoading) {
       void loadHistory()
     }
-  }, [historyLoaded, historyLoading, loadHistory])
+  }, [activeFilter, historyLoaded, historyLoading, loadHistory])
+
+  const filterTabs: Array<{ filter: ReviewInboxFilter; label: string; count: number }> = [
+    {
+      filter: 'all',
+      label: t('industryEvidence.all', { defaultValue: 'All' }),
+      count: partition.all.length,
+    },
+    {
+      filter: 'approvable',
+      label: t('industryEvidence.approvable', { defaultValue: 'Approvable' }),
+      count: partition.approvable.length,
+    },
+    {
+      filter: 'needs_review',
+      label: t('industryEvidence.needsReview', { defaultValue: 'Needs review' }),
+      count: partition.needsReview.length,
+    },
+    {
+      filter: 'history',
+      label: t('industryEvidence.history', { defaultValue: 'History' }),
+      count: visibleHistory.length,
+    },
+  ]
 
   const loadPacket = useCallback(async (item: ReviewInboxItem): Promise<CleanReviewPacket> => {
     const cached = packetCache.get(item.proposal.proposalId)
@@ -574,57 +610,57 @@ export function IndustryReviewInbox({
         </Button>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3" data-testid="industry-review-summary">
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3">
-          <p className="text-xs font-medium uppercase tracking-wide text-emerald-800">
-            {t('industryEvidence.approvable', { defaultValue: 'Approvable' })}
+      <div className="rounded-2xl border bg-card px-4 py-3 shadow-sm" data-testid="industry-review-summary">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-muted-foreground">
+            {t('industryEvidence.inboxSummary', {
+              defaultValue: '{{count}} live proposals are waiting for a decision.',
+              count: partition.all.length,
+            })}
           </p>
-          <p className="mt-1 text-2xl font-semibold tabular-nums text-emerald-950" data-testid="industry-review-summary-approvable">
-            {partition.approvable.length}
-          </p>
-        </div>
-        <div className="rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-3">
-          <p className="text-xs font-medium uppercase tracking-wide text-amber-800">
-            {t('industryEvidence.needsReview', { defaultValue: 'Needs review' })}
-          </p>
-          <p className="mt-1 text-2xl font-semibold tabular-nums text-amber-950" data-testid="industry-review-summary-needs-review">
-            {partition.needsReview.length}
-          </p>
-        </div>
-        <div className="rounded-xl border border-sky-200 bg-sky-50/70 px-4 py-3">
-          <p className="text-xs font-medium uppercase tracking-wide text-sky-800">
-            {t('industryEvidence.sessionApprovedCount', { defaultValue: 'Approved this session' })}
-          </p>
-          <p className="mt-1 text-2xl font-semibold tabular-nums text-sky-950" data-testid="industry-review-summary-session-approved">
-            {sessionApprovalCount}
-          </p>
+          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            <span>
+              {t('industryEvidence.sessionApprovedCount', { defaultValue: 'Approved this session' })}
+              {' '}
+              <span className="font-semibold tabular-nums text-foreground" data-testid="industry-review-summary-session-approved">
+                {sessionApprovalCount}
+              </span>
+            </span>
+            <span className="sr-only" data-testid="industry-review-summary-approvable">
+              {partition.approvable.length}
+            </span>
+            <span className="sr-only" data-testid="industry-review-summary-needs-review">
+              {partition.needsReview.length}
+            </span>
+          </div>
         </div>
       </div>
 
-      <div className="border-b" role="tablist" aria-label={t('industryEvidence.inboxTabs', { defaultValue: 'Industry review groups' })}>
-        {([
-          ['approvable', t('industryEvidence.approvable', { defaultValue: 'Approvable' }), partition.approvable.length],
-          ['needs_review', t('industryEvidence.needsReview', { defaultValue: 'Needs review' }), partition.needsReview.length],
-          ['history', t('industryEvidence.history', { defaultValue: 'History' }), visibleHistory.length],
-        ] as const).map(([tab, label, count]) => (
+      <div className="flex flex-wrap gap-2" role="tablist" aria-label={t('industryEvidence.inboxTabs', { defaultValue: 'Industry review filters' })}>
+        {filterTabs.map(({ filter, label, count }) => (
           <button
-            key={tab}
+            key={filter}
             type="button"
             role="tab"
-            aria-selected={activeTab === tab}
-            aria-controls={`industry-review-tabpanel-${tab}`}
-            className={`mr-5 border-b-2 px-1 py-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-              activeTab === tab ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'
+            aria-selected={activeFilter === filter}
+            aria-controls={`industry-review-tabpanel-${filter}`}
+            data-testid={`industry-review-filter-${reviewInboxFilterToSlug(filter)}`}
+            className={`rounded-full border px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+              activeFilter === filter
+                ? 'border-emerald-700 bg-emerald-700 text-white shadow-sm hover:bg-emerald-800'
+                : 'border-border bg-background text-foreground hover:border-emerald-500 hover:bg-emerald-50/50'
             }`}
-            onClick={() => handleTabChange(tab)}
+            onClick={() => selectFilter(filter)}
           >
             {label}
-            <span className="ml-2 tabular-nums text-xs text-muted-foreground">{count}</span>
+            <span className={`ml-1.5 tabular-nums text-xs ${activeFilter === filter ? 'text-emerald-50' : 'text-muted-foreground'}`}>
+              {count}
+            </span>
           </button>
         ))}
       </div>
 
-      {activeTab === 'history' ? (
+      {activeFilter === 'history' ? (
         <div id="industry-review-tabpanel-history" role="tabpanel" aria-label={t('industryEvidence.history', { defaultValue: 'History' })}>
           <IndustryHistoryList
             items={visibleHistory}
@@ -638,7 +674,7 @@ export function IndustryReviewInbox({
           />
         </div>
       ) : (
-        <div id={`industry-review-tabpanel-${activeTab}`} role="tabpanel" className="space-y-3">
+        <div id={`industry-review-tabpanel-${activeFilter}`} role="tabpanel" className="space-y-3">
           <details className="rounded-lg border bg-muted/20 px-3 py-2">
             <summary className="cursor-pointer text-xs font-medium text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
               {t('industryEvidence.queueFilters', { defaultValue: 'Queue filters' })}
@@ -723,22 +759,26 @@ export function IndustryReviewInbox({
               {t('common.loading', { defaultValue: 'Loading…' })}
             </div>
           ) : visibleRows.length === 0 ? (
-            <div className="rounded-xl border border-dashed p-10 text-center" data-testid={`industry-review-empty-${activeTab}`}>
+            <div className="rounded-xl border border-dashed p-10 text-center" data-testid={`industry-review-empty-${reviewInboxFilterToSlug(activeFilter)}`}>
               <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-muted text-muted-foreground" aria-hidden="true">
-                {activeTab === 'approvable' ? <Sparkles className="h-5 w-5" /> : <CheckCircle2 className="h-5 w-5" />}
+                {activeFilter === 'approvable' ? <Sparkles className="h-5 w-5" /> : <CheckCircle2 className="h-5 w-5" />}
               </div>
               <p className="mt-3 text-sm font-medium">
-                {activeTab === 'approvable'
+                {activeFilter === 'all'
+                  ? t('industryEvidence.allEmpty', { defaultValue: 'No live review items are waiting.' })
+                  : activeFilter === 'approvable'
                   ? t('industryEvidence.approvableEmpty', { defaultValue: 'No clean approvals are waiting.' })
                   : t('industryEvidence.needsReviewEmpty', { defaultValue: 'No exception proposals are waiting.' })}
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                {activeTab === 'approvable'
+                {activeFilter === 'all'
+                  ? t('industryEvidence.allEmptyHint', { defaultValue: 'New proposals will appear here when the evidence worker finishes.' })
+                  : activeFilter === 'approvable'
                   ? t('industryEvidence.approvableEmptyHint', { defaultValue: 'Check Needs review or open Advanced tools for research health.' })
                   : t('industryEvidence.needsReviewEmptyHint', { defaultValue: 'The queue is clear for this filter.' })}
               </p>
-              {activeTab === 'approvable' && partition.needsReview.length > 0 ? (
-                <Button type="button" variant="link" className="mt-2" onClick={() => handleTabChange('needs_review')}>
+              {activeFilter === 'approvable' && partition.needsReview.length > 0 ? (
+                <Button type="button" variant="link" className="mt-2" onClick={() => selectFilter('needs_review')}>
                   {t('industryEvidence.openNeedsReview', { defaultValue: 'Open Needs review' })}
                 </Button>
               ) : null}

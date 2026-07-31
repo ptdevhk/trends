@@ -92,7 +92,7 @@ export function IndustryReviewRow({
 
   return (
     <article
-      className={`group rounded-xl border bg-card p-4 shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+      className={`group rounded-lg border bg-card px-3 py-3 shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
         selected ? 'border-primary bg-primary/[0.03]' : 'border-border hover:border-primary/40'
       }`}
       data-testid={`industry-review-row-${proposal.proposalId}`}
@@ -107,9 +107,9 @@ export function IndustryReviewRow({
         }
       }}
     >
-      <div className="flex items-start gap-3">
+      <div className="flex items-start gap-2.5">
         <div
-          className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
+          className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
             isApproved
               ? 'bg-emerald-100 text-emerald-700'
               : eligibility.eligible
@@ -118,30 +118,30 @@ export function IndustryReviewRow({
           }`}
           aria-hidden="true"
         >
-          {isApproved ? <CheckCircle2 className="h-5 w-5" /> : <TriangleAlert className="h-5 w-5" />}
+          {isApproved ? <CheckCircle2 className="h-4 w-4" /> : <TriangleAlert className="h-4 w-4" />}
         </div>
 
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex flex-wrap items-start justify-between gap-2">
             <div className="min-w-0">
-              <p className="truncate font-semibold tracking-tight">{name}</p>
-              <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
+              <p className="truncate text-sm font-semibold tracking-tight">{name}</p>
+              <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">
                 {proposal.materialChangeSummary ?? proposal.triggerReasons.join(' · ')}
               </p>
             </div>
-            <Badge variant="secondary" className="shrink-0 tabular-nums">
+            <Badge variant="secondary" className="shrink-0 px-2 py-0.5 text-[11px] tabular-nums">
               P{proposal.priority}
             </Badge>
           </div>
 
-          <div className="mt-3 flex flex-wrap items-center gap-1.5 text-xs">
-            <Badge variant={isApproved ? 'default' : 'outline'}>
+          <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px]">
+            <Badge variant={isApproved ? 'default' : 'outline'} className="px-1.5 py-0">
               {isApproved
                 ? t('industryEvidence.approved', { defaultValue: 'Approved' })
                 : proposal.status.replace(/_/g, ' ')}
             </Badge>
-            <Badge variant="outline">{recommendation.recommendedIndustryClass}</Badge>
-            <Badge variant="secondary">
+            <Badge variant="outline" className="px-1.5 py-0">{recommendation.recommendedIndustryClass}</Badge>
+            <Badge variant="secondary" className="px-1.5 py-0">
               {recommendation.recommendedVerificationLevel}
             </Badge>
             <span className="text-muted-foreground">
@@ -160,24 +160,24 @@ export function IndustryReviewRow({
           </div>
 
           {isApproved ? (
-            <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50/70 px-3 py-2 text-xs text-emerald-950">
+            <div className="mt-2 rounded-md border border-emerald-200 bg-emerald-50/70 px-2.5 py-1.5 text-xs text-emerald-950">
               <p className="font-medium">
                 {t('industryEvidence.sessionApproved', {
                   defaultValue: 'Approved in this session',
                 })}
               </p>
-              <p className="mt-1 font-mono text-[11px] text-emerald-900/80">
+              <p className="mt-0.5 truncate font-mono text-[11px] text-emerald-900/80" title={approval.approvedRevisionId}>
                 {approval.approvedRevisionId}
                 {approval.recomputeRunId ? ` · ${approval.recomputeRunId}` : ''}
               </p>
             </div>
           ) : reasonLabel(eligibility, t) ? (
-            <p className="mt-3 text-xs text-amber-800">{reasonLabel(eligibility, t)}</p>
+            <p className="mt-2 text-xs text-amber-800">{reasonLabel(eligibility, t)}</p>
           ) : null}
 
           {error ? (
             <div
-              className={`mt-3 rounded-lg border px-3 py-2 text-xs ${
+              className={`mt-2 rounded-md border px-2.5 py-1.5 text-xs ${
                 error.kind === 'policy'
                   ? 'border-amber-300 bg-amber-50 text-amber-950'
                   : 'border-rose-300 bg-rose-50 text-rose-950'
@@ -210,6 +210,7 @@ export function IndustryReviewRow({
               type="button"
               variant="outline"
               size="sm"
+              className="h-8 rounded-full px-3 text-xs"
               disabled={isActionPending || undoDisabled}
               onClick={onUndo}
               aria-label={t('industryEvidence.undoRowLabel', {
@@ -226,7 +227,7 @@ export function IndustryReviewRow({
               type="button"
               variant="ghost"
               size="icon"
-              className="text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
+              className="h-8 w-8 rounded-full text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
               disabled={isActionPending}
               onClick={onApprove}
               aria-label={t('industryEvidence.approveRowLabel', {

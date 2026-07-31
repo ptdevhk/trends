@@ -988,7 +988,7 @@ export function SystemSettingsIndustryVerificationPage() {
   const { t } = useTranslation()
   const { requestJson } = useSettingsRequestJson()
   const [searchParams, setSearchParams] = useSearchParams()
-  const [requestedProposalId] = useState(() => searchParams.get('proposalId')?.trim() || undefined)
+  const requestedProposalId = searchParams.get('proposalId')?.trim() || undefined
   const [queueStatus, setQueueStatus] = useState<ReviewQueueStatus>(() => {
     const value = searchParams.get('status')
     return value === 'new' || value === 'researching' || value === 'ready_for_review' || value === 'needs_more_evidence'
@@ -1080,6 +1080,10 @@ export function SystemSettingsIndustryVerificationPage() {
   useEffect(() => {
     void loadQueue()
   }, [loadQueue])
+
+  useEffect(() => {
+    if (!requestedProposalId) setSelectedProposalId(undefined)
+  }, [requestedProposalId])
 
   useEffect(() => {
     if (!selectedProposal) {
