@@ -4,7 +4,9 @@ import {
   filterHistoryForSession,
   getApprovalSafeSourceIds,
   getOneClickEligibility,
+  parseReviewInboxFilter,
   partitionReviewQueue,
+  reviewInboxFilterToSlug,
   type ReviewInboxItem,
   type SessionApproval,
 } from './industry-review-inbox-model'
@@ -238,6 +240,10 @@ describe('partitionReviewQueue', () => {
         eligibility: { eligible: false, reason: 'cnc' },
       },
     ])
+    expect(partition.all.map(({ item }) => item.proposal.proposalId)).toEqual([
+      'proposal-clean',
+      'proposal-cnc',
+    ])
   })
 
   it('keeps open exception states out of terminal History', () => {
@@ -259,6 +265,27 @@ describe('partitionReviewQueue', () => {
 
     expect(row).not.toHaveProperty('onClick')
     expect(row).not.toHaveProperty('action')
+  })
+})
+
+describe('review inbox filter query contract', () => {
+  it('maps public filter slugs to internal filters and defaults safely', () => {
+    expect(parseReviewInboxFilter('all')).toBe('all')
+    expect(parseReviewInboxFilter('approvable')).toBe('approvable')
+    expect(parseReviewInboxFilter('needs-review')).toBe('needs_review')
+    expect(parseReviewInboxFilter('history')).toBe('history')
+    expect(parseReviewInboxFilter('unknown')).toBe('all')
+    expect(parseReviewInboxFilter(undefined)).toBe('all')
+    expect(reviewInboxFilterToSlug('needs_review')).toBe('needs-review')
+  })
+
+  it('preserves the source order in the live all group', () => {
+    const partition = partitionReviewQueue([cncItem, cleanItem], new Map())
+
+    expect(partition.all.map(({ item }) => item.proposal.proposalId)).toEqual([
+      'proposal-cnc',
+      'proposal-clean',
+    ])
   })
 })
 

@@ -6,6 +6,8 @@ export type ReviewInboxItem = ReviewQueueResponse['items'][number]
 export type ReviewInboxProposal = ReviewInboxItem['proposal']
 export type ReviewInboxRecommendation = ReviewInboxItem['recommendation']
 
+export type ReviewInboxFilter = 'all' | 'approvable' | 'needs_review' | 'history'
+export type ReviewInboxFilterSlug = 'all' | 'approvable' | 'needs-review' | 'history'
 export type ReviewInboxTab = 'approvable' | 'needs_review' | 'history'
 
 export type SessionApproval = {
@@ -36,8 +38,26 @@ export type ReviewInboxRow = {
 }
 
 export type ReviewQueuePartition = {
+  all: ReviewInboxRow[]
   approvable: ReviewInboxRow[]
   needsReview: ReviewInboxRow[]
+}
+
+const reviewInboxFiltersBySlug: Record<ReviewInboxFilterSlug, ReviewInboxFilter> = {
+  all: 'all',
+  approvable: 'approvable',
+  'needs-review': 'needs_review',
+  history: 'history',
+}
+
+export function parseReviewInboxFilter(value: string | null | undefined): ReviewInboxFilter {
+  if (!value) return 'all'
+  return reviewInboxFiltersBySlug[value as ReviewInboxFilterSlug] ?? 'all'
+}
+
+export function reviewInboxFilterToSlug(filter: ReviewInboxFilter): ReviewInboxFilterSlug {
+  if (filter === 'needs_review') return 'needs-review'
+  return filter
 }
 
 /**
@@ -104,6 +124,7 @@ export function partitionReviewQueue(
   sessionApprovals: ReadonlyMap<string, SessionApproval>,
 ): ReviewQueuePartition {
   const partition: ReviewQueuePartition = {
+    all: [],
     approvable: [],
     needsReview: [],
   }
@@ -115,6 +136,7 @@ export function partitionReviewQueue(
       ? { item, eligibility, sessionApproval }
       : { item, eligibility }
 
+    partition.all.push(row)
     if (sessionApproval || eligibility.eligible) {
       partition.approvable.push(row)
     } else {
