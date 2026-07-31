@@ -380,6 +380,11 @@ export function IndustryReviewInbox({
         ...(recompute ? { recomputeRunId: recompute } : {}),
         approvedAt,
       }))
+      setPacketCache((current) => {
+        const next = new Map(current)
+        next.delete(proposalId)
+        return next
+      })
       setForcedNeedsReview((current) => {
         const next = new Set(current)
         next.delete(proposalId)
@@ -428,9 +433,7 @@ export function IndustryReviewInbox({
       const packet = await loadPacket(item)
       const body = {
         approvedRevisionId: approval.approvedRevisionId,
-        ...(packet.reviewContext.profile?.currentRevisionId
-          ? { expectedCurrentRevisionId: packet.reviewContext.profile.currentRevisionId }
-          : {}),
+        expectedCurrentRevisionId: approval.approvedRevisionId,
         expectedProposalUpdatedAt: packet.dataset.proposalUpdatedAt || item.proposal.updatedAt,
         ...(approval.recomputeRunId ? { recomputeRunId: approval.recomputeRunId } : {}),
       }
@@ -450,6 +453,11 @@ export function IndustryReviewInbox({
       })
       setUndoBlocked((current) => {
         const next = new Set(current)
+        next.delete(proposalId)
+        return next
+      })
+      setPacketCache((current) => {
+        const next = new Map(current)
         next.delete(proposalId)
         return next
       })
@@ -482,7 +490,7 @@ export function IndustryReviewInbox({
     } finally {
       updatePending(proposalId)
     }
-  }, [clearRowError, loadPacket, requestJson, sessionApprovals, t, undoBlocked, updatePending])
+  }, [clearRowError, loadPacket, requestJson, sessionApprovals, setRowError, t, undoBlocked, updatePending])
 
   const refreshInbox = useCallback(async () => {
     setRefreshing(true)

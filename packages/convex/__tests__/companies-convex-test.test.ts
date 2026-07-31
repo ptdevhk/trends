@@ -296,6 +296,14 @@ describe("companies (convex-test)", () => {
       reviewer: "admin@example.com",
       decisionReason: "Official first-party evidence.",
       taxonomyVersion: "industry-taxonomy-v1",
+      reviewAttestation: {
+        schemaVersion: "industry-review-attestation.v1",
+        inputFingerprint: "legacy-convex-test",
+        decisionMode: "standard",
+        acknowledgedRiskFlags: [],
+        cncEvidenceAcknowledged: true,
+        acknowledgementReason: "",
+      },
       writeSecret: WRITE_SECRET,
     });
     expect(firstApproval.revisionId).toBe("revision-acme-1");
@@ -312,6 +320,14 @@ describe("companies (convex-test)", () => {
         reviewer: "admin@example.com",
         decisionReason: "Official first-party evidence.",
         taxonomyVersion: "industry-taxonomy-v1",
+        reviewAttestation: {
+          schemaVersion: "industry-review-attestation.v1",
+          inputFingerprint: "legacy-convex-test",
+          decisionMode: "standard",
+          acknowledgedRiskFlags: [],
+          cncEvidenceAcknowledged: true,
+          acknowledgementReason: "",
+        },
         writeSecret: WRITE_SECRET,
       },
     );
@@ -520,6 +536,7 @@ describe("companies (convex-test)", () => {
       url: "https://acme.example.com/products",
       sourceType: "official_site",
       trustTier: "primary",
+      evidenceExcerpt: "CNC machining centres and industrial automation.",
       fetchStatus: "fetched",
       contentFingerprint: "sha256:stable",
       writeSecret: WRITE_SECRET,
@@ -534,6 +551,14 @@ describe("companies (convex-test)", () => {
       reviewer: "admin@example.com",
       decisionReason: "Official evidence.",
       taxonomyVersion: "industry-taxonomy-v1",
+      reviewAttestation: {
+        schemaVersion: "industry-review-attestation.v1",
+        inputFingerprint: "legacy-convex-test",
+        decisionMode: "standard",
+        acknowledgedRiskFlags: [],
+        cncEvidenceAcknowledged: true,
+        acknowledgementReason: "",
+      },
       nextReviewAt: 100,
       writeSecret: WRITE_SECRET,
     });
@@ -620,6 +645,7 @@ describe("companies (convex-test)", () => {
       url: "https://acme.example.com/products",
       sourceType: "official_site",
       trustTier: "primary",
+      evidenceExcerpt: "CNC machining centres and industrial automation.",
       fetchStatus: "fetched",
       contentFingerprint: "sha256:old",
       writeSecret: WRITE_SECRET,
@@ -634,6 +660,14 @@ describe("companies (convex-test)", () => {
       reviewer: "admin@example.com",
       decisionReason: "Official evidence.",
       taxonomyVersion: "industry-taxonomy-v1",
+      reviewAttestation: {
+        schemaVersion: "industry-review-attestation.v1",
+        inputFingerprint: "legacy-convex-test",
+        decisionMode: "standard",
+        acknowledgedRiskFlags: [],
+        cncEvidenceAcknowledged: true,
+        acknowledgementReason: "",
+      },
       nextReviewAt: 100,
       writeSecret: WRITE_SECRET,
     });

@@ -18,6 +18,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { useSettingsRequestJson } from '@/pages/system-settings/lib'
 import { reportUiError } from '@/lib/ui-error-reporting'
+import { IndustryAdvancedTools } from './IndustryAdvancedTools'
+import { IndustryReviewInbox } from './IndustryReviewInbox'
 
 type ProposalListResponse = paths['/api/company-industry-proposals']['get']['responses'][200]['content']['application/json']
 type IndustryProposal = ProposalListResponse['items'][number]
@@ -1065,7 +1067,7 @@ export function SystemSettingsIndustryVerificationPage() {
             ? current
             : current && next.some((proposal) => proposal.proposalId === current)
             ? current
-            : next[0]?.proposalId)
+            : undefined)
       ))
     } catch (error) {
       reportUiError('Failed to load industry evidence proposal queue', error)
@@ -1355,18 +1357,19 @@ export function SystemSettingsIndustryVerificationPage() {
             })}
           </p>
         </div>
-        <Button variant="outline" onClick={() => void loadQueue()} disabled={loading}>
-          <RefreshCw className="mr-2 h-4 w-4" />
-          {t('common.refresh', { defaultValue: 'Refresh' })}
-        </Button>
       </div>
 
-      <CoverageHealthPanel requestJson={requestJson} />
+      <IndustryReviewInbox
+        requestJson={requestJson}
+        initialStatus={queueStatus}
+        requestedProposalId={requestedProposalId}
+        selectedProposalId={selectedProposalId}
+        onQueueStatusChange={changeQueueStatus}
+        onSelectProposal={(proposal) => selectProposal(proposal?.proposalId)}
+      />
 
-      <ApprovedProfileLookup requestJson={requestJson} />
-
-      <div className="grid gap-6 xl:grid-cols-[minmax(260px,0.8fr)_minmax(0,2.2fr)]">
-        <Card>
+      <div className="space-y-6">
+        <Card className="hidden" aria-hidden="true">
           <CardHeader>
             <CardTitle>{t('industryEvidence.proposalQueue', { defaultValue: 'Proposal queue' })}</CardTitle>
             <CardDescription>
@@ -1380,10 +1383,10 @@ export function SystemSettingsIndustryVerificationPage() {
               <Badge variant="outline">{recommendationSummary.inspect} inspect</Badge>
             </div>
             <label className="flex items-center gap-2 pt-2 text-xs text-muted-foreground">
-              <span>Queue status</span>
+              <span>Legacy queue status</span>
               <select
                 name="queueStatus"
-                aria-label="Queue status"
+                aria-label="Legacy queue status"
                 value={queueStatus}
                 onChange={(event) => changeQueueStatus(event.target.value as ReviewQueueStatus)}
                 className="h-8 rounded-md border bg-background px-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring"
@@ -1954,7 +1957,12 @@ export function SystemSettingsIndustryVerificationPage() {
         </div>
       </div>
 
-      <IndustryMaintenanceHistory requestJson={requestJson} />
+      <IndustryAdvancedTools>
+        <CoverageHealthPanel requestJson={requestJson} />
+        <ApprovedProfileLookup requestJson={requestJson} />
+        <IndustryMaintenanceHistory requestJson={requestJson} />
+      </IndustryAdvancedTools>
+
     </div>
   )
 }

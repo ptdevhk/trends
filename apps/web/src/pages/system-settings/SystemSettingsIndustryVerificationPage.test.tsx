@@ -86,7 +86,10 @@ const coverageSummary = {
 const { requestJsonMock, toastSuccessMock, tMock } = vi.hoisted(() => ({
   requestJsonMock: vi.fn(),
   toastSuccessMock: vi.fn(),
-  tMock: vi.fn((_key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? _key),
+  tMock: vi.fn((key: string, options?: { defaultValue?: string; [name: string]: unknown }) => {
+    const template = options?.defaultValue ?? key
+    return template.replace(/\{\{(\w+)\}\}/g, (_match, name: string) => String(options?.[name] ?? `{{${name}}}`))
+  }),
 }))
 
 vi.mock('react-i18next', () => ({
@@ -211,6 +214,133 @@ const reviewPacket = {
   maintenance: { latest: null, lastFailed: null },
 }
 
+const cleanInboxProposal = {
+  ...proposal,
+  _id: 'clean-proposal-row',
+  proposalId: 'clean-proposal',
+  companyKey: 'clean-company',
+  suggestedIndustryClass: 'industrial',
+  materialChangeSummary: 'Official industrial catalog is ready for approval.',
+}
+
+const cleanInboxRecommendation = {
+  ...recommendation,
+  proposalId: 'clean-proposal',
+  recommendedIndustryClass: 'industrial',
+  recommendedSourceIds: ['clean-source'],
+  sourceDecisions: [
+    {
+      sourceId: 'clean-source',
+      approvalSafe: true,
+      recommended: true,
+      reasonCodes: ['approval_safe', 'recommended_primary'],
+    },
+  ],
+  reasons: ['An approval-safe official source supports the industrial class.'],
+  evidenceSummaryDraft: 'Official industrial catalog supports the class.',
+  decisionReasonDraft: 'Reviewed the approval-safe official source.',
+}
+
+const cleanInboxSource = {
+  ...source,
+  _id: 'clean-source-row',
+  sourceId: 'clean-source',
+  companyKey: 'clean-company',
+  proposalId: 'clean-proposal',
+  title: 'Industrial products',
+}
+
+function cleanInboxPacket(approved: boolean) {
+  return {
+    ...reviewPacket,
+    proposal: {
+      ...cleanInboxProposal,
+      status: approved ? 'approved' : 'ready_for_review',
+      updatedAt: approved ? 99 : 2,
+    },
+    recommendation: cleanInboxRecommendation,
+    dataset: {
+      ...reviewPacket.dataset,
+      proposalUpdatedAt: approved ? 99 : 2,
+      inputFingerprint: approved ? 'clean-fingerprint-approved' : 'clean-fingerprint',
+      sourceVersions: [{ sourceId: 'clean-source', updatedAt: approved ? 99 : 2 }],
+    },
+    sources: [cleanInboxSource],
+    bundle: {
+      profile: approved
+        ? { companyKey: 'clean-company', verificationLevel: 'verified', currentRevisionId: 'revision-clean' }
+        : null,
+      revisions: [],
+      sources: [],
+    },
+    reviewContext: {
+      profile: approved
+        ? { companyKey: 'clean-company', verificationLevel: 'verified', currentRevisionId: 'revision-clean' }
+        : null,
+      revisions: [],
+    },
+    recomputeRuns: [],
+  }
+}
+
+function installCleanInboxMock() {
+  let approved = false
+  let refreshRequested = false
+  const fallback = requestJsonMock.getMockImplementation()
+  const historyProposal = {
+    ...cleanInboxProposal,
+    status: 'approved',
+    reviewedAt: 100,
+    reviewNote: 'Approved during the test session.',
+  }
+  requestJsonMock.mockImplementation((path: string, init?: RequestInit) => {
+    if (path.startsWith('/api/company-industry-proposals/review-queue?')) {
+      return Promise.resolve({
+        success: true,
+        ok: true,
+        schemaVersion: 'industry-review.v1',
+        items: refreshRequested ? [] : [{ proposal: cleanInboxProposal, recommendation: cleanInboxRecommendation, sourceCount: 1 }],
+        maintenance: { latest: null, lastFailed: null },
+      })
+    }
+    if (path === '/api/company-industry-proposals/clean-proposal/review-packet') {
+      return Promise.resolve(cleanInboxPacket(approved))
+    }
+    if (path === '/api/company-industry-proposals/clean-proposal/approve' && init?.method === 'POST') {
+      approved = true
+      return Promise.resolve({
+        success: true,
+        proposalId: 'clean-proposal',
+        revisionId: 'revision-clean',
+        companyKey: 'clean-company',
+        recompute: { runId: 'run-clean', status: 'queued' },
+      })
+    }
+    if (path === '/api/company-industry-proposals/clean-proposal/undo-approval' && init?.method === 'POST') {
+      approved = false
+      return Promise.resolve({
+        success: true,
+        proposalId: 'clean-proposal',
+        reversalRevisionId: 'undo-revision-clean',
+        restoredRevisionId: undefined,
+        status: 'ready_for_review',
+      })
+    }
+    if (path.startsWith('/api/company-industry-proposals?status=')) {
+      return Promise.resolve({
+        success: true,
+        items: refreshRequested && path.includes('status=approved') ? [historyProposal] : [],
+      })
+    }
+    return fallback?.(path, init) ?? Promise.resolve({ success: true })
+  })
+  return {
+    requestRefresh: () => {
+      refreshRequested = true
+    },
+  }
+}
+
 describe('SystemSettingsIndustryVerificationPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -311,8 +441,11 @@ describe('SystemSettingsIndustryVerificationPage', () => {
   })
 
   it('loads the proposal queue, evidence, current verdict, and history', async () => {
+    const user = userEvent.setup()
     renderPage()
 
+    await user.click(await screen.findByRole('tab', { name: /Needs review/ }))
+    await user.click(await screen.findByTestId('industry-review-row-proposal-1'))
     expect((await screen.findAllByText('ACME CNC')).length).toBeGreaterThanOrEqual(2)
     expect(await screen.findByText('CNC products')).toBeInTheDocument()
     expect(screen.getByText('Current approved truth.')).toBeInTheDocument()
@@ -323,7 +456,7 @@ describe('SystemSettingsIndustryVerificationPage', () => {
     const user = userEvent.setup()
     renderPage()
 
-    await screen.findByText('CNC products')
+    await screen.findByTestId('industry-review-summary')
     await user.selectOptions(screen.getByLabelText('Queue status'), 'new')
 
     await waitFor(() => {
@@ -331,6 +464,61 @@ describe('SystemSettingsIndustryVerificationPage', () => {
         '/api/company-industry-proposals/review-queue?status=new&limit=100',
       )
     })
+  })
+
+  it('approves a clean row with one click, keeps it visible, and supports same-row Undo', async () => {
+    const user = userEvent.setup()
+    installCleanInboxMock()
+    renderPage()
+
+    const approveButton = await screen.findByRole('button', { name: 'Approve CLEAN COMPANY' })
+    await user.click(approveButton)
+
+    await waitFor(() => {
+      expect(requestJsonMock).toHaveBeenCalledWith(
+        '/api/company-industry-proposals/clean-proposal/approve',
+        expect.objectContaining({ method: 'POST' }),
+      )
+    })
+    expect(await screen.findByText('Approved in this session')).toBeInTheDocument()
+    const undoButton = screen.getByRole('button', { name: 'Undo approval for CLEAN COMPANY' })
+    expect(undoButton).toBeInTheDocument()
+
+    await user.click(undoButton)
+    await waitFor(() => {
+      expect(requestJsonMock).toHaveBeenCalledWith(
+        '/api/company-industry-proposals/clean-proposal/undo-approval',
+        expect.objectContaining({ method: 'POST' }),
+      )
+    })
+    expect(await screen.findByRole('button', { name: 'Approve CLEAN COMPANY' })).toBeInTheDocument()
+    const undoCall = requestJsonMock.mock.calls.find(
+      ([path, init]) => path.endsWith('/undo-approval') && init?.method === 'POST',
+    )
+    expect(JSON.parse(String(undoCall?.[1]?.body))).toMatchObject({
+      approvedRevisionId: 'revision-clean',
+      expectedCurrentRevisionId: 'revision-clean',
+      expectedProposalUpdatedAt: 99,
+      recomputeRunId: 'run-clean',
+    })
+  })
+
+  it('moves a session-approved row to History only after explicit refresh', async () => {
+    const user = userEvent.setup()
+    const cleanMock = installCleanInboxMock()
+    renderPage()
+
+    await user.click(await screen.findByRole('button', { name: 'Approve CLEAN COMPANY' }))
+    expect(await screen.findByRole('button', { name: 'Undo approval for CLEAN COMPANY' })).toBeInTheDocument()
+
+    cleanMock.requestRefresh()
+    await user.click(screen.getByTestId('industry-review-refresh'))
+    await waitFor(() => {
+      expect(requestJsonMock).toHaveBeenCalledWith('/api/company-industry-proposals?status=approved')
+    })
+    await user.click(screen.getByRole('tab', { name: /History/ }))
+    expect(await screen.findByTestId('industry-history-row-clean-proposal')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Undo approval for CLEAN COMPANY' })).not.toBeInTheDocument()
   })
 
   it('shows coverage pipeline, empty-evidence bottleneck, and maintenance health', async () => {
@@ -420,6 +608,8 @@ describe('SystemSettingsIndustryVerificationPage', () => {
     const user = userEvent.setup()
     renderPage()
 
+    await user.click(await screen.findByRole('tab', { name: /Needs review/ }))
+    await user.click(await screen.findByTestId('industry-review-row-proposal-1'))
     expect(await screen.findByText('CNC products')).toBeInTheDocument()
     await user.clear(screen.getByLabelText('Evidence summary'))
     await user.type(screen.getByLabelText('Evidence summary'), 'Reviewed official evidence.')
@@ -463,6 +653,8 @@ describe('SystemSettingsIndustryVerificationPage', () => {
     const user = userEvent.setup()
     renderPage()
 
+    await user.click(await screen.findByRole('tab', { name: /Needs review/ }))
+    await user.click(await screen.findByTestId('industry-review-row-proposal-1'))
     expect(await screen.findByText('CNC products')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Request more evidence' }))
 
@@ -503,6 +695,8 @@ describe('SystemSettingsIndustryVerificationPage', () => {
     })
 
     renderPage()
+    await user.click(await screen.findByRole('tab', { name: /Needs review/ }))
+    await user.click(await screen.findByTestId('industry-review-row-proposal-1'))
     expect(await screen.findByTestId('industry-review-risk-attestation')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Approve revision' }))
     expect(screen.queryByTestId('industry-review-approval-confirmation')).not.toBeInTheDocument()
@@ -567,7 +761,7 @@ describe('SystemSettingsIndustryVerificationPage', () => {
     renderPage()
 
     // Queue empty hint is shown.
-    expect(await screen.findByText('No proposals ready for review.')).toBeInTheDocument()
+    expect(await screen.findByText('No clean approvals are waiting.')).toBeInTheDocument()
     // Run history still renders.
     expect(await screen.findByText('completed; 0 ready.')).toBeInTheDocument()
   })

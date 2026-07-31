@@ -9619,6 +9619,82 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/company-industry-proposals/:proposalId/undo-approval": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Undo an approval through an immutable compensating revision */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    proposalId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        approvedRevisionId: string;
+                        expectedCurrentRevisionId?: string;
+                        expectedProposalUpdatedAt?: number;
+                        recomputeRunId?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Reopened proposal after an audit-safe approval reversal */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            proposalId: string;
+                            reversalRevisionId: string;
+                            restoredRevisionId?: string;
+                            /** @enum {string} */
+                            status: "ready_for_review";
+                            recompute?: {
+                                previousRunId?: string;
+                                previousRunStatus?: string;
+                                replacementRunId?: string;
+                                status: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Approval changed during undo */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                            /** @enum {string} */
+                            code: "INDUSTRY_REVIEW_STALE";
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/company-industry-proposals/:proposalId/resolve": {
         parameters: {
             query?: never;
