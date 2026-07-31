@@ -43,6 +43,7 @@ import {
   getIndustryProposal,
   listIndustryProposals,
   resolveIndustryProposal,
+  undoIndustryProposalApproval,
   upsertIndustryProposal,
 } from "../services/company-industry-proposal-service.js";
 import { companyIndustryRecomputeService } from "../services/company-industry-recompute-service.js";
@@ -1222,6 +1223,78 @@ app.openapi(approveIndustryProposalRoute, async (c) => {
       triggerSource: "approval",
       triggerContext: proposalId,
     });
+    return c.json({ success: true as const, ...result }, 200);
+  } catch (error) {
+    if (isIndustryReviewStaleError(error)) {
+      return c.json(industryReviewConflictResponse(error), 409);
+    }
+    throw error;
+  }
+});
+
+const undoIndustryProposalRoute = createRoute({
+  method: "post",
+  path: "/api/company-industry-proposals/:proposalId/undo-approval",
+  tags: ["company-industry-evidence"],
+  summary: "Undo an approval through an immutable compensating revision",
+  request: {
+    params: z.object({ proposalId: z.string().min(1) }),
+    body: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            approvedRevisionId: z.string().min(1),
+            expectedCurrentRevisionId: z.string().min(1).optional(),
+            expectedProposalUpdatedAt: z.number().finite().optional(),
+            recomputeRunId: z.string().min(1).optional(),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.literal(true),
+            proposalId: z.string(),
+            reversalRevisionId: z.string(),
+            restoredRevisionId: z.string().optional(),
+            status: z.literal("ready_for_review"),
+            recompute: z
+              .object({
+                previousRunId: z.string().optional(),
+                previousRunStatus: z.string().optional(),
+                replacementRunId: z.string().optional(),
+                status: z.string(),
+              })
+              .optional(),
+          }),
+        },
+      },
+      description: "Reopened proposal after an audit-safe approval reversal",
+    },
+    409: {
+      content: {
+        "application/json": { schema: IndustryReviewConflictSchema },
+      },
+      description: "Approval changed during undo",
+    },
+  },
+});
+
+app.openapi(undoIndustryProposalRoute, async (c) => {
+  const { proposalId } = c.req.valid("param");
+  try {
+    const result = await undoIndustryProposalApproval(
+      {
+        proposalId,
+        ...c.req.valid("json"),
+        workspaceSlug: c.var.workspaceSlug,
+      },
+      getAuthenticatedActorId(c),
+    );
     return c.json({ success: true as const, ...result }, 200);
   } catch (error) {
     if (isIndustryReviewStaleError(error)) {

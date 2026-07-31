@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   query: vi.fn(),
   mutation: vi.fn(),
+  recomputeList: vi.fn(),
+  recomputeStart: vi.fn(),
 }));
 
 vi.mock("./convex-utils.js", () => ({
@@ -12,6 +14,13 @@ vi.mock("./convex-utils.js", () => ({
 
 vi.mock("./config.js", () => ({
   config: { auth: { convexWriteSecret: "test-secret" } },
+}));
+
+vi.mock("./company-industry-recompute-service.js", () => ({
+  companyIndustryRecomputeService: {
+    list: mocks.recomputeList,
+    start: mocks.recomputeStart,
+  },
 }));
 
 import {
@@ -25,6 +34,7 @@ import {
 import {
   approveIndustryProposal,
   listIndustryProposals,
+  undoIndustryProposalApproval,
 } from "./company-industry-proposal-service.js";
 import { listIndustryVerdictRevisions } from "./company-industry-revision-service.js";
 
@@ -53,6 +63,162 @@ const reviewedSnapshot = {
 describe("company industry API services", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("undoes an approval and reuses an existing replacement recompute run", async () => {
+    mocks.mutation.mockResolvedValueOnce({
+      proposalId: "proposal-1",
+      companyKey: "acme-industrial",
+      reversalRevisionId: "undo-revision-2",
+      restoredRevisionId: "revision-1",
+      previousRunId: "run-approved",
+      previousRunStatus: "completed",
+      replacementRecomputeRequired: true,
+      idempotent: false,
+    });
+    mocks.recomputeList.mockResolvedValueOnce([
+      {
+        runId: "run-replacement",
+        workspaceSlug: "hr",
+        companyKey: "acme-industrial",
+        targetRevisionId: "revision-1",
+        proposalId: "proposal-1",
+        requestedBy: "reviewer-42",
+        status: "running",
+        attempt: 1,
+        sourceDone: false,
+        pageCount: 0,
+        affectedCount: 0,
+        alreadyCurrentCount: 0,
+        scheduledCount: 0,
+        readyCount: 0,
+        failureCount: 0,
+        batchCount: 0,
+        failures: [],
+        createdAt: 10,
+        updatedAt: 10,
+        operatorSummary: "running",
+      },
+    ]);
+
+    await expect(
+      undoIndustryProposalApproval(
+        {
+          proposalId: "proposal-1",
+          approvedRevisionId: "revision-2",
+          expectedCurrentRevisionId: "revision-2",
+          expectedProposalUpdatedAt: 123,
+          recomputeRunId: "run-approved",
+          workspaceSlug: "hr",
+        },
+        "reviewer-42",
+      ),
+    ).resolves.toEqual({
+      proposalId: "proposal-1",
+      reversalRevisionId: "undo-revision-2",
+      restoredRevisionId: "revision-1",
+      status: "ready_for_review",
+      recompute: {
+        previousRunId: "run-approved",
+        previousRunStatus: "completed",
+        replacementRunId: "run-replacement",
+        status: "running",
+      },
+    });
+
+    expect(mocks.mutation).toHaveBeenCalledWith(
+      "companies:undoIndustryProposalApproval",
+      {
+        proposalId: "proposal-1",
+        approvedRevisionId: "revision-2",
+        expectedCurrentRevisionId: "revision-2",
+        expectedProposalUpdatedAt: 123,
+        recomputeRunId: "run-approved",
+        reviewer: "reviewer-42",
+        writeSecret: "test-secret",
+      },
+    );
+    expect(mocks.recomputeList).toHaveBeenCalledWith({
+      workspaceSlug: "hr",
+      companyKey: "acme-industrial",
+      limit: 100,
+    });
+    expect(mocks.recomputeStart).not.toHaveBeenCalled();
+  });
+
+  it("starts a replacement recompute when no matching restored-revision run exists", async () => {
+    mocks.mutation.mockResolvedValueOnce({
+      proposalId: "proposal-1",
+      companyKey: "acme-industrial",
+      reversalRevisionId: "undo-revision-2",
+      restoredRevisionId: "revision-1",
+      previousRunId: "run-approved",
+      previousRunStatus: "completed",
+      replacementRecomputeRequired: true,
+      idempotent: false,
+    });
+    mocks.recomputeList.mockResolvedValueOnce([
+      {
+        runId: "run-other-revision",
+        workspaceSlug: "hr",
+        companyKey: "acme-industrial",
+        targetRevisionId: "revision-3",
+        status: "completed",
+      },
+    ]);
+    mocks.recomputeStart.mockResolvedValueOnce({
+      runId: "run-replacement-new",
+      status: "queued",
+    });
+
+    await expect(
+      undoIndustryProposalApproval(
+        {
+          proposalId: "proposal-1",
+          approvedRevisionId: "revision-2",
+          workspaceSlug: "hr",
+        },
+        "reviewer-42",
+      ),
+    ).resolves.toMatchObject({
+      recompute: {
+        previousRunId: "run-approved",
+        previousRunStatus: "completed",
+        replacementRunId: "run-replacement-new",
+        status: "queued",
+      },
+    });
+
+    expect(mocks.recomputeStart).toHaveBeenCalledWith({
+      workspaceSlug: "hr",
+      companyKey: "acme-industrial",
+      targetRevisionId: "revision-1",
+      proposalId: "proposal-1",
+      requestedBy: "reviewer-42",
+    });
+  });
+
+  it("translates a stale undo mutation into IndustryReviewStaleError", async () => {
+    mocks.mutation.mockRejectedValueOnce(
+      new Error("INDUSTRY_REVIEW_STALE: The approval is no longer current"),
+    );
+
+    await expect(
+      undoIndustryProposalApproval(
+        {
+          proposalId: "proposal-1",
+          approvedRevisionId: "revision-2",
+          workspaceSlug: "hr",
+        },
+        "reviewer-42",
+      ),
+    ).rejects.toMatchObject({
+      name: "IndustryReviewStaleError",
+      code: "INDUSTRY_REVIEW_STALE",
+      reason: "The approval is no longer current",
+    });
+    expect(mocks.recomputeList).not.toHaveBeenCalled();
+    expect(mocks.recomputeStart).not.toHaveBeenCalled();
   });
 
   it("batch-loads reviewed catalog entries once, preserves key order, and diagnoses missing/invalid revisions", async () => {

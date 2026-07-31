@@ -168,6 +168,144 @@ export async function approveIndustryProposalAndStartRecompute(
   return { ...approval, recompute };
 }
 
+export type UndoIndustryApprovalInput = {
+  proposalId: string;
+  approvedRevisionId: string;
+  expectedCurrentRevisionId?: string;
+  expectedProposalUpdatedAt?: number;
+  recomputeRunId?: string;
+  workspaceSlug: string;
+};
+
+export type UndoIndustryApprovalResult = {
+  proposalId: string;
+  reversalRevisionId: string;
+  restoredRevisionId?: string;
+  status: "ready_for_review";
+  recompute?: {
+    previousRunId?: string;
+    previousRunStatus?: string;
+    replacementRunId?: string;
+    status: string;
+  };
+};
+
+function optionalResponseString(
+  value: Record<string, unknown>,
+  field: string,
+): string | undefined {
+  if (!(field in value) || value[field] === undefined) return undefined;
+  if (typeof value[field] !== "string" || !value[field].trim()) {
+    throw new Error(`Invalid companies:undoIndustryProposalApproval ${field}`);
+  }
+  return value[field] as string;
+}
+
+export async function undoIndustryProposalApproval(
+  input: UndoIndustryApprovalInput,
+  actorId: string,
+): Promise<UndoIndustryApprovalResult> {
+  const reviewer = actorId.trim();
+  if (!reviewer) throw new Error("Review actor is required");
+
+  let value: unknown;
+  try {
+    value = await callConvexMutation("companies:undoIndustryProposalApproval", {
+      proposalId: input.proposalId,
+      approvedRevisionId: input.approvedRevisionId,
+      ...(input.expectedCurrentRevisionId !== undefined
+        ? { expectedCurrentRevisionId: input.expectedCurrentRevisionId }
+        : {}),
+      ...(input.expectedProposalUpdatedAt !== undefined
+        ? { expectedProposalUpdatedAt: input.expectedProposalUpdatedAt }
+        : {}),
+      ...(input.recomputeRunId !== undefined
+        ? { recomputeRunId: input.recomputeRunId }
+        : {}),
+      reviewer,
+      writeSecret: config.auth.convexWriteSecret,
+    });
+  } catch (error) {
+    if (isIndustryReviewStaleError(error)) {
+      throw new IndustryReviewStaleError(industryReviewStaleReason(error));
+    }
+    throw error;
+  }
+
+  if (!isRecord(value)) {
+    throw new Error("Invalid companies:undoIndustryProposalApproval response");
+  }
+  const proposalId = optionalResponseString(value, "proposalId");
+  const companyKey = optionalResponseString(value, "companyKey");
+  const reversalRevisionId = optionalResponseString(
+    value,
+    "reversalRevisionId",
+  );
+  const restoredRevisionId = optionalResponseString(
+    value,
+    "restoredRevisionId",
+  );
+  const previousRunId = optionalResponseString(value, "previousRunId");
+  const previousRunStatus = optionalResponseString(value, "previousRunStatus");
+  if (
+    !proposalId ||
+    !companyKey ||
+    !reversalRevisionId ||
+    typeof value.replacementRecomputeRequired !== "boolean" ||
+    typeof value.idempotent !== "boolean"
+  ) {
+    throw new Error("Invalid companies:undoIndustryProposalApproval response");
+  }
+
+  invalidateIndustryReviewIndex();
+
+  let recompute: UndoIndustryApprovalResult["recompute"] =
+    previousRunId || previousRunStatus
+      ? {
+          ...(previousRunId ? { previousRunId } : {}),
+          ...(previousRunStatus ? { previousRunStatus } : {}),
+          status: previousRunStatus ?? "unknown",
+        }
+      : undefined;
+
+  if (value.replacementRecomputeRequired) {
+    if (!restoredRevisionId) {
+      throw new Error(
+        "Invalid companies:undoIndustryProposalApproval response: restoredRevisionId is required for replacement recompute",
+      );
+    }
+
+    const existingRuns = await companyIndustryRecomputeService.list({
+      workspaceSlug: input.workspaceSlug,
+      companyKey,
+      limit: 100,
+    });
+    const replacement =
+      existingRuns.find((run) => run.targetRevisionId === restoredRevisionId) ??
+      (await companyIndustryRecomputeService.start({
+        workspaceSlug: input.workspaceSlug,
+        companyKey,
+        targetRevisionId: restoredRevisionId,
+        proposalId,
+        requestedBy: reviewer,
+      }));
+    recompute = {
+      ...(previousRunId ? { previousRunId } : {}),
+      ...(previousRunStatus ? { previousRunStatus } : {}),
+      replacementRunId: replacement.runId,
+      status: replacement.status,
+    };
+  }
+
+  return {
+    proposalId,
+    reversalRevisionId,
+    ...(restoredRevisionId ? { restoredRevisionId } : {}),
+    status: "ready_for_review",
+    ...(recompute ? { recompute } : {}),
+  };
+}
+
 export async function resolveIndustryProposal(
   input: {
     proposalId: string;

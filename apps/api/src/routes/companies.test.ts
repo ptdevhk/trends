@@ -45,6 +45,13 @@ function convexSuccess(value: unknown): Response {
   });
 }
 
+function convexFailure(errorMessage: string): Response {
+  return new Response(JSON.stringify({ status: "error", errorMessage }), {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
 describe("companies routes", () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -564,6 +571,118 @@ describe("companies routes", () => {
     }>(response);
     expect(body.revisionId).toBe("revision-2");
     expect(body.recompute).toMatchObject({ runId: "run-1", status: "running" });
+  });
+
+  it("undoes an industry approval with the authenticated admin", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      if (call.pathName === "companies:undoIndustryProposalApproval") {
+        expect(call.args).toMatchObject({
+          proposalId: "proposal-1",
+          approvedRevisionId: "revision-2",
+          expectedCurrentRevisionId: "revision-2",
+          expectedProposalUpdatedAt: 123,
+          recomputeRunId: "run-approved",
+          reviewer: auth.userId,
+          writeSecret: expect.any(String),
+        });
+        return convexSuccess({
+          proposalId: "proposal-1",
+          companyKey: "acme-industrial",
+          reversalRevisionId: "undo-revision-2",
+          restoredRevisionId: "revision-1",
+          previousRunId: "run-approved",
+          previousRunStatus: "running",
+          replacementRecomputeRequired: false,
+          idempotent: false,
+        });
+      }
+      throw new Error(`Unexpected path ${call.pathName}`);
+    });
+
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request(
+      "/api/company-industry-proposals/proposal-1/undo-approval",
+      {
+        method: "POST",
+        headers: {
+          ...auth.headers,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          approvedRevisionId: "revision-2",
+          expectedCurrentRevisionId: "revision-2",
+          expectedProposalUpdatedAt: 123,
+          recomputeRunId: "run-approved",
+        }),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(parseJsonBody(response)).resolves.toMatchObject({
+      success: true,
+      proposalId: "proposal-1",
+      reversalRevisionId: "undo-revision-2",
+      restoredRevisionId: "revision-1",
+      status: "ready_for_review",
+      recompute: {
+        previousRunId: "run-approved",
+        previousRunStatus: "running",
+      },
+    });
+  });
+
+  it("returns the existing industry review conflict for stale undo requests", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      expect(call.pathName).toBe("companies:undoIndustryProposalApproval");
+      return convexFailure(
+        "INDUSTRY_REVIEW_STALE: The approval is no longer current",
+      );
+    });
+
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request(
+      "/api/company-industry-proposals/proposal-1/undo-approval",
+      {
+        method: "POST",
+        headers: {
+          ...auth.headers,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ approvedRevisionId: "revision-2" }),
+      },
+    );
+
+    expect(response.status).toBe(409);
+    expect(await parseJsonBody(response)).toEqual({
+      success: false,
+      error: "The approval is no longer current",
+      code: "INDUSTRY_REVIEW_STALE",
+    });
+  });
+
+  it("requires an admin for industry approval undo", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const app = createApp({ authStorage: auth.storage });
+
+    const response = await app.request(
+      "/api/company-industry-proposals/proposal-1/undo-approval",
+      {
+        method: "POST",
+        headers: {
+          ...auth.headers,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ approvedRevisionId: "revision-2" }),
+      },
+    );
+
+    expect(response.status).toBe(403);
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it("returns the materialized company evidence bundle to workspace members", async () => {
