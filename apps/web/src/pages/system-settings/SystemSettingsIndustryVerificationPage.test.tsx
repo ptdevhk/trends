@@ -70,6 +70,18 @@ describe('SystemSettingsIndustryVerificationPage', () => {
       if (path.startsWith('/api/company-industry-proposals?')) {
         return Promise.resolve({ success: true, items: [proposal] })
       }
+      if (path.startsWith('/api/company-industry-profiles')) {
+        return Promise.resolve({
+          success: true,
+          items: [
+            {
+              companyKey: 'eonmetall-group',
+              industryClass: 'cnc',
+              verificationLevel: 'verified',
+            },
+          ],
+        })
+      }
       if (path === '/api/company-industry-evidence-sources?proposalId=proposal-1') {
         return Promise.resolve({ success: true, items: [source] })
       }
@@ -95,6 +107,45 @@ describe('SystemSettingsIndustryVerificationPage', () => {
           sources: [],
         })
       }
+      if (path === '/api/company-industry-bundles/eonmetall-group') {
+        return Promise.resolve({
+          success: true,
+          profile: {
+            companyKey: 'eonmetall-group',
+            industryClass: 'cnc',
+            verificationLevel: 'verified',
+            currentRevisionId: 'my-rev-eonmetall-cnc-20260730',
+          },
+          revisions: [
+            {
+              revisionId: 'my-rev-eonmetall-cnc-20260730',
+              verificationLevel: 'verified',
+              industryClass: 'cnc',
+              evidenceSummary:
+                'Bursa-listed Eonmetall Group Bhd: flat steel products and CNC machinery.',
+              reviewedBy: 'bootstrap',
+              reviewedAt: 1_753_900_000_000,
+            },
+          ],
+          sources: [
+            {
+              sourceId: 'src-star',
+              companyKey: 'eonmetall-group',
+              url: 'https://www.thestar.com.my/',
+              sourceDomain: 'thestar.com.my',
+              sourceType: 'reporting',
+              trustTier: 'corroborating',
+              title: 'The Star',
+              reviewStatus: 'approved',
+              sourceState: 'active',
+            },
+          ],
+        })
+      }
+      // Maintenance history optional
+      if (path.startsWith('/api/company-industry-maintenance-runs')) {
+        return Promise.resolve({ success: true, items: [] })
+      }
       return Promise.resolve({ success: true })
     })
   })
@@ -106,6 +157,29 @@ describe('SystemSettingsIndustryVerificationPage', () => {
     expect(await screen.findByText('CNC products')).toBeInTheDocument()
     expect(screen.getByText('Current approved truth.')).toBeInTheDocument()
     expect(screen.getAllByText('revision-1')).toHaveLength(2)
+  })
+
+  it('looks up an approved profile by companyKey and shows bundle sources', async () => {
+    const user = userEvent.setup()
+    render(<SystemSettingsIndustryVerificationPage />)
+
+    // Verified quick-pick chip from profiles list
+    expect(await screen.findByTestId('industry-lookup-chip-eonmetall-group')).toBeInTheDocument()
+
+    await user.type(screen.getByTestId('industry-lookup-company-key'), 'eonmetall-group')
+    await user.click(screen.getByTestId('industry-lookup-submit'))
+
+    await waitFor(() => {
+      expect(requestJsonMock).toHaveBeenCalledWith(
+        '/api/company-industry-bundles/eonmetall-group',
+      )
+    })
+    expect(await screen.findByTestId('industry-lookup-result')).toBeInTheDocument()
+    // Summary appears in the result body and revision history.
+    expect(screen.getAllByText(/Bursa-listed Eonmetall Group Bhd/i).length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('my-rev-eonmetall-cnc-20260730').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getByTestId('industry-lookup-source-src-star')).toBeInTheDocument()
+    expect(screen.getByText('https://www.thestar.com.my/')).toBeInTheDocument()
   })
 
   it('approves selected evidence into an immutable revision', async () => {
