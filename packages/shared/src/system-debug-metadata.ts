@@ -397,6 +397,14 @@ export const SYSTEM_SETTINGS_NAV_ITEMS: SurfaceNavDefinition[] = [
     requiresAdmin: true,
   },
   {
+    id: "industry-data",
+    titleKey: "debugConfig.settingsNavIndustryData",
+    defaultTitle: "Industry Data",
+    hrefSuffix: "/system/settings/industry-data",
+    matchesSuffixes: ["/system/settings/industry-data"],
+    requiresAdmin: true,
+  },
+  {
     id: "export-fields",
     titleKey: "debugConfig.settingsNavExportFields",
     defaultTitle: "Export Fields",

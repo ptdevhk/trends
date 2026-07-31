@@ -131,12 +131,21 @@ describe('SYSTEM_SETTINGS_NAV_ITEMS', () => {
     expect(ids).toContain('overview')
     expect(ids).toContain('runtime')
     expect(ids).toContain('industry-verification')
+    expect(ids).toContain('industry-data')
   })
 
   it('marks industry evidence stewardship as an admin system setting', () => {
     const item = SYSTEM_SETTINGS_NAV_ITEMS.find((entry) => entry.id === 'industry-verification')
     expect(item).toMatchObject({
       hrefSuffix: '/system/settings/industry-verification',
+      requiresAdmin: true,
+    })
+  })
+
+  it('marks industry data central management as an admin system setting', () => {
+    const item = SYSTEM_SETTINGS_NAV_ITEMS.find((entry) => entry.id === 'industry-data')
+    expect(item).toMatchObject({
+      hrefSuffix: '/system/settings/industry-data',
       requiresAdmin: true,
     })
   })
