@@ -16,6 +16,7 @@ import {
   resumesRoutes,
   resumeSubmitRoutes,
   industryRoutes,
+  industryDataAdminRoutes,
   jobDescriptionsRoutes,
   sessionsRoutes,
   publicSharesRoutes,
@@ -182,6 +183,7 @@ export function createApp(options: CreateAppOptions = {}) {
   app.use("/api/topics/*", rateLimit({ limit: 100, windowMs: 60_000 }));
   app.use("/api/rss/*", rateLimit({ limit: 100, windowMs: 60_000 }));
   app.use("/api/industry/*", rateLimit({ limit: 100, windowMs: 60_000 }));
+  app.use("/api/industry-data/*", rateLimit({ limit: 100, windowMs: 60_000 }));
   app.use("/api/system/*", rateLimit({ limit: 100, windowMs: 60_000 }));
 
   // General rate limit for all other API routes (100 req/min, production only)
@@ -246,6 +248,7 @@ export function createApp(options: CreateAppOptions = {}) {
   app.route("/", resumesAdminRoutes);
   app.route("/", resumeSubmitRoutes);
   app.route("/", industryRoutes);
+  app.route("/", industryDataAdminRoutes);
   app.route("/", jobDescriptionsRoutes);
   app.route("/", sessionsRoutes);
   app.route("/", publicSharesRoutes);
