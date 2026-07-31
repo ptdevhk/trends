@@ -92,9 +92,25 @@ type IndustryReviewRecommendation struct {
 	RiskFlags                    []string                       `json:"riskFlags"`
 	Reasons                      []string                       `json:"reasons"`
 	ExcludedSourceReasons        map[string]string              `json:"excludedSourceReasons"`
+	RiskDecision                 IndustryReviewRiskDecision     `json:"riskDecision"`
 	EvidenceSummaryDraft         string                         `json:"evidenceSummaryDraft"`
 	DecisionReasonDraft          string                         `json:"decisionReasonDraft"`
 	RequiresHumanReview          bool                           `json:"requiresHumanReview"`
+}
+
+type IndustryReviewRiskDecision struct {
+	RequiresAcknowledgement    bool     `json:"requiresAcknowledgement"`
+	NonOverridableRiskFlags    []string `json:"nonOverridableRiskFlags"`
+	CanApproveWithRiskOverride bool     `json:"canApproveWithRiskOverride"`
+}
+
+type IndustryReviewAttestation struct {
+	SchemaVersion           string   `json:"schemaVersion"`
+	InputFingerprint        string   `json:"inputFingerprint"`
+	DecisionMode            string   `json:"decisionMode"`
+	AcknowledgedRiskFlags   []string `json:"acknowledgedRiskFlags"`
+	CNCEvidenceAcknowledged bool     `json:"cncEvidenceAcknowledged"`
+	AcknowledgementReason   string   `json:"acknowledgementReason"`
 }
 
 type IndustryReviewWarning struct {
@@ -124,14 +140,121 @@ type IndustryReviewOperation struct {
 }
 
 type IndustryReviewMaintenanceContext struct {
-	Latest     map[string]any `json:"latest"`
-	LastFailed map[string]any `json:"lastFailed"`
+	Latest     *IndustryReviewMaintenanceRun `json:"latest"`
+	LastFailed *IndustryReviewMaintenanceRun `json:"lastFailed"`
+}
+
+type IndustryReviewMaintenanceRun struct {
+	RunID           string                          `json:"runId"`
+	Status          string                          `json:"status,omitempty"`
+	TriggerSource   string                          `json:"triggerSource,omitempty"`
+	TriggerContext  string                          `json:"triggerContext,omitempty"`
+	OperatorSummary string                          `json:"operatorSummary,omitempty"`
+	FailureMessage  string                          `json:"failureMessage,omitempty"`
+	StartedAt       int64                           `json:"startedAt,omitempty"`
+	FinishedAt      int64                           `json:"finishedAt,omitempty"`
+	Counts          IndustryReviewMaintenanceCounts `json:"counts"`
+}
+
+type IndustryReviewMaintenanceCounts struct {
+	ProposalsResearched int `json:"proposalsResearched"`
+	ReadyCreated        int `json:"readyCreated"`
+	SourcesDemoted      int `json:"sourcesDemoted"`
+	FreshnessChecked    int `json:"freshnessChecked"`
+	FreshnessRefreshed  int `json:"freshnessRefreshed"`
+	Errors              int `json:"errors"`
+}
+
+type IndustryReviewProfile struct {
+	ID                 string `json:"_id"`
+	CompanyKey         string `json:"companyKey"`
+	IndustryClass      string `json:"industryClass"`
+	VerificationLevel  string `json:"verificationLevel"`
+	OfficialDomain     string `json:"officialDomain,omitempty"`
+	EvidenceSource     string `json:"evidenceSource"`
+	Summary            string `json:"summary,omitempty"`
+	SourceURL          string `json:"sourceUrl,omitempty"`
+	SourceDomain       string `json:"sourceDomain,omitempty"`
+	SourceType         string `json:"sourceType,omitempty"`
+	MSICCode           string `json:"msicCode,omitempty"`
+	MSICDescription    string `json:"msicDescription,omitempty"`
+	FetchedAt          int64  `json:"fetchedAt,omitempty"`
+	CurrentRevisionID  string `json:"currentRevisionId,omitempty"`
+	ReviewedAt         int64  `json:"reviewedAt,omitempty"`
+	ReviewedBy         string `json:"reviewedBy,omitempty"`
+	SourceCount        int    `json:"sourceCount,omitempty"`
+	FreshnessState     string `json:"freshnessState,omitempty"`
+	NextReviewAt       int64  `json:"nextReviewAt,omitempty"`
+	CatalogVersion     int    `json:"catalogVersion,omitempty"`
+	CompatibilityState string `json:"compatibilityState,omitempty"`
+	UpdatedAt          int64  `json:"updatedAt"`
+	UpdatedBy          string `json:"updatedBy,omitempty"`
+}
+
+type IndustryReviewRevision struct {
+	ID                   string                     `json:"_id"`
+	RevisionID           string                     `json:"revisionId"`
+	CompanyKey           string                     `json:"companyKey"`
+	IndustryClass        string                     `json:"industryClass"`
+	VerificationLevel    string                     `json:"verificationLevel"`
+	ApprovedSourceIDs    []string                   `json:"approvedSourceIds"`
+	EvidenceSummary      string                     `json:"evidenceSummary"`
+	ReviewedBy           string                     `json:"reviewedBy"`
+	ReviewedAt           int64                      `json:"reviewedAt"`
+	DecisionReason       string                     `json:"decisionReason"`
+	TaxonomyVersion      string                     `json:"taxonomyVersion"`
+	RuleVersion          string                     `json:"ruleVersion,omitempty"`
+	ReviewAttestation    *IndustryReviewAttestation `json:"reviewAttestation,omitempty"`
+	SupersedesRevisionID string                     `json:"supersedesRevisionId,omitempty"`
+	ProposalID           string                     `json:"proposalId,omitempty"`
+	CreatedAt            int64                      `json:"createdAt"`
+}
+
+type IndustryReviewContext struct {
+	Profile   *IndustryReviewProfile   `json:"profile"`
+	Revisions []IndustryReviewRevision `json:"revisions"`
+}
+
+type IndustryReviewRecomputeFailure struct {
+	ResumeID   string `json:"resumeId,omitempty"`
+	Stage      string `json:"stage"`
+	Message    string `json:"message"`
+	OccurredAt int64  `json:"occurredAt"`
+}
+
+type IndustryReviewRecomputeRun struct {
+	RunID                  string                           `json:"runId"`
+	WorkspaceSlug          string                           `json:"workspaceSlug"`
+	CompanyKey             string                           `json:"companyKey"`
+	TargetRevisionID       string                           `json:"targetRevisionId"`
+	ProposalID             string                           `json:"proposalId,omitempty"`
+	RequestedBy            string                           `json:"requestedBy,omitempty"`
+	Status                 string                           `json:"status"`
+	Attempt                int                              `json:"attempt"`
+	Cursor                 string                           `json:"cursor,omitempty"`
+	SourceDone             bool                             `json:"sourceDone"`
+	PageCount              int                              `json:"pageCount"`
+	AffectedCount          int                              `json:"affectedCount"`
+	AlreadyCurrentCount    int                              `json:"alreadyCurrentCount"`
+	ScheduledCount         int                              `json:"scheduledCount"`
+	ReadyCount             int                              `json:"readyCount"`
+	FailureCount           int                              `json:"failureCount"`
+	BatchCount             int                              `json:"batchCount"`
+	Failures               []IndustryReviewRecomputeFailure `json:"failures"`
+	LastError              string                           `json:"lastError,omitempty"`
+	SupersededByRevisionID string                           `json:"supersededByRevisionId,omitempty"`
+	CreatedAt              int64                            `json:"createdAt"`
+	StartedAt              int64                            `json:"startedAt,omitempty"`
+	CompletedAt            int64                            `json:"completedAt,omitempty"`
+	UpdatedAt              int64                            `json:"updatedAt"`
+	OperatorSummary        string                           `json:"operatorSummary"`
 }
 
 type IndustryReviewQueueItem struct {
-	Proposal       IndustryReviewProposal       `json:"proposal"`
-	Recommendation IndustryReviewRecommendation `json:"recommendation"`
-	SourceCount    int                          `json:"sourceCount"`
+	Proposal         IndustryReviewProposal       `json:"proposal"`
+	Recommendation   IndustryReviewRecommendation `json:"recommendation"`
+	InputFingerprint string                       `json:"inputFingerprint"`
+	SourceCount      int                          `json:"sourceCount"`
 }
 
 type IndustryReviewQueueResponse struct {
@@ -140,6 +263,7 @@ type IndustryReviewQueueResponse struct {
 	SchemaVersion string                           `json:"schemaVersion"`
 	Items         []IndustryReviewQueueItem        `json:"items"`
 	Maintenance   IndustryReviewMaintenanceContext `json:"maintenance"`
+	NextCursor    string                           `json:"nextCursor,omitempty"`
 }
 
 type IndustryReviewPacket struct {
@@ -152,8 +276,8 @@ type IndustryReviewPacket struct {
 	Warnings       []IndustryReviewWarning          `json:"warnings"`
 	Proposal       IndustryReviewProposal           `json:"proposal"`
 	Sources        []IndustryReviewSource           `json:"sources"`
-	Bundle         any                              `json:"bundle"`
-	RecomputeRuns  []any                            `json:"recomputeRuns"`
+	ReviewContext  IndustryReviewContext            `json:"reviewContext"`
+	RecomputeRuns  []IndustryReviewRecomputeRun     `json:"recomputeRuns"`
 	Maintenance    IndustryReviewMaintenanceContext `json:"maintenance"`
 }
 
@@ -181,12 +305,36 @@ func validateIndustryReviewResponse(success bool, ok bool, resource string) erro
 }
 
 func (c *Client) ListIndustryReviewQueue(ctx context.Context, status string, limit int) (*IndustryReviewQueueResponse, error) {
+	return c.ListIndustryReviewQueuePage(ctx, status, limit, "", "", "", "")
+}
+
+func (c *Client) ListIndustryReviewQueuePage(
+	ctx context.Context,
+	status string,
+	limit int,
+	cursor string,
+	riskFlag string,
+	confidenceBand string,
+	recommendedAction string,
+) (*IndustryReviewQueueResponse, error) {
 	query := url.Values{}
 	if trimmed := strings.TrimSpace(status); trimmed != "" {
 		query.Set("status", trimmed)
 	}
 	if limit > 0 {
 		query.Set("limit", strconv.Itoa(limit))
+	}
+	if trimmed := strings.TrimSpace(cursor); trimmed != "" {
+		query.Set("cursor", trimmed)
+	}
+	if trimmed := strings.TrimSpace(riskFlag); trimmed != "" {
+		query.Set("riskFlag", trimmed)
+	}
+	if trimmed := strings.TrimSpace(confidenceBand); trimmed != "" {
+		query.Set("confidenceBand", trimmed)
+	}
+	if trimmed := strings.TrimSpace(recommendedAction); trimmed != "" {
+		query.Set("recommendedAction", trimmed)
 	}
 	endpoint := c.APIURL + "/api/company-industry-proposals/review-queue"
 	if encoded := query.Encode(); encoded != "" {
@@ -197,6 +345,26 @@ func (c *Client) ListIndustryReviewQueue(ctx context.Context, status string, lim
 		return nil, err
 	}
 	if err := validateIndustryReviewResponse(response.Success, response.OK, "queue"); err != nil {
+		return nil, err
+	}
+	return &response, nil
+}
+
+func (c *Client) GetIndustryReviewRecommendation(ctx context.Context, proposalID string) (*IndustryReviewRecommendationEnvelope, error) {
+	trimmed := strings.TrimSpace(proposalID)
+	if trimmed == "" {
+		return nil, fmt.Errorf("proposal ID is required")
+	}
+	endpoint := fmt.Sprintf(
+		"%s/api/company-industry-proposals/%s/recommendation",
+		c.APIURL,
+		url.PathEscape(trimmed),
+	)
+	var response IndustryReviewRecommendationEnvelope
+	if err := c.doJSON(ctx, http.MethodGet, endpoint, nil, &response); err != nil {
+		return nil, err
+	}
+	if err := validateIndustryReviewResponse(response.Success, response.OK, "recommendation"); err != nil {
 		return nil, err
 	}
 	return &response, nil

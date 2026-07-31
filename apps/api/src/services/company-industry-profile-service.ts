@@ -17,6 +17,7 @@ import {
 
 import { callConvexMutation, callConvexQuery } from "./convex-utils.js";
 import { config } from "./config.js";
+import { invalidateIndustryReviewIndex } from "./company-industry-review-index.js";
 import {
   parseReviewedIndustryProfileSnapshot,
 } from "./company-industry-contracts.js";
@@ -349,6 +350,7 @@ export async function upsertIndustryProfile(input: {
   if (!isRecord(value) || typeof value.companyKey !== "string") {
     throw new Error("Invalid companies:upsertIndustryProfile response");
   }
+  invalidateIndustryReviewIndex();
   return {
     companyKey: value.companyKey,
     created: value.created === true,
@@ -365,5 +367,6 @@ export async function deleteIndustryProfile(
   if (!isRecord(value) || typeof value.deleted !== "number") {
     throw new Error("Invalid companies:deleteIndustryProfile response");
   }
+  invalidateIndustryReviewIndex();
   return { deleted: value.deleted };
 }

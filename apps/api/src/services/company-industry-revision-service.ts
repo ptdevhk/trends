@@ -6,6 +6,12 @@ import { config } from "./config.js";
 import { callConvexQuery } from "./convex-utils.js";
 import { getIndustryProfile } from "./company-industry-profile-service.js";
 import { listIndustryEvidenceSources } from "./company-industry-evidence-service.js";
+import type { CompanyIndustryProfile } from "./company-industry-profile-service.js";
+
+export interface IndustryReviewContext {
+  profile: CompanyIndustryProfile | null;
+  revisions: IndustryVerdictRevision[];
+}
 
 export async function listIndustryVerdictRevisions(
   companyKey: string,
@@ -31,4 +37,19 @@ export async function getCompanyIndustryEvidenceBundle(companyKey: string) {
     listIndustryEvidenceSources({ companyKey }),
   ]);
   return { profile, revisions, sources };
+}
+
+/**
+ * The reviewer needs current truth and immutable history, but not a second
+ * copy of every source payload.  Evidence remains a separate packet field so
+ * the source-free context can be cached and invalidated independently.
+ */
+export async function getCompanyIndustryReviewContext(
+  companyKey: string,
+): Promise<IndustryReviewContext> {
+  const [profile, revisions] = await Promise.all([
+    getIndustryProfile(companyKey),
+    listIndustryVerdictRevisions(companyKey),
+  ]);
+  return { profile, revisions };
 }

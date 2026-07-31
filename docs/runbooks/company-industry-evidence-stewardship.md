@@ -187,6 +187,41 @@ verify the API's worker URL, and run maintenance again. A newer successful maint
 run suppresses an older worker-failure warning; a failure with no newer success remains
 visible so an empty evidence queue is not mistaken for a negative industry finding.
 
+### CNC reviewer cockpit and local UAT (2026-07-31)
+
+The recommendation-led cockpit keeps CNC and other elevated-risk evidence decisions
+human-only. The shared `industry-review.v1` policy classifies explicit industrial or
+product evidence separately from keyword-only claims; keyword-only CNC evidence stays
+`needs_more_evidence`, while discovery/search-result sources remain visible but cannot
+be selected for approval. An approval request must carry the current packet fingerprint,
+the selected source IDs, and a versioned `reviewAttestation`; stale input returns the
+stable `409 INDUSTRY_REVIEW_STALE` contract.
+
+The local UAT harness is intentionally split into a guarded setup write, read-only
+automated checks, an approval-intercepting browser check, and a read-only post-check:
+
+```bash
+# Read-only fixture/policy checks; accepts --base-url http://localhost:3000 for health.
+bun run verify:industry-review-uat -- --base-url http://localhost:3000
+
+# Namespaced local setup only. This refuses non-loopback Convex URLs and requires
+# CONVEX_WRITE_SECRET; it writes an ignored before-snapshot under tmp/.
+bun --env-file=.env.local run setup:industry-review-uat -- --allow-local-write
+
+# Browser path reaches confirmation but intercepts approval, so it cannot mutate truth.
+bun run verify:industry-review-browser-uat -- --storage-state tmp/industry-review/browser-state.json
+
+# After one attended approval in the authenticated local UI, verify coverage,
+# immutable revision, targeted recompute, maintenance run/ledger, and zero extra truth changes.
+bun --env-file=.env.local run verify:industry-review-post-uat
+```
+
+The final attended action is exactly one authenticated approval of the explicit-CNC
+fixture. There is no setup reset or cleanup command: preserve the namespaced evidence,
+the before-snapshot, and the post-UAT report for review. The CLI remains read-only;
+`trends industry recommend` consumes the recommendation-only endpoint and cannot
+approve, reject, or bulk-mutate industry truth.
+
 ### Reading the ledger to debug "why didn't employer X surface?"
 
 1. Find the employer's proposal on the verification page, or query `GET /api/company-industry-proposals/:proposalId/maintenance-ledger`.

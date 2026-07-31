@@ -12,6 +12,8 @@ import {
   INDUSTRY_REVIEW_SCHEMA_VERSION,
   INDUSTRY_REVIEW_SOURCE_REASON_CODES,
   INDUSTRY_VERIFICATION_LEVELS,
+  validateIndustryReviewAttestation,
+  type IndustryReviewAttestation,
 } from "@trends/shared";
 
 import {
@@ -53,6 +55,13 @@ import { getIndustryCoverageSummary } from "../services/company-industry-coverag
 import { enqueueIndustryMaintenance } from "../services/industry-maintenance-pipeline-service.js";
 import { callConvexQuery } from "../services/convex-utils.js";
 import { config } from "../services/config.js";
+import type { IndustryReviewPacket } from "../services/company-industry-review-service.js";
+import {
+  INDUSTRY_REVIEW_STALE_CODE,
+  industryReviewStaleReason,
+  isIndustryReviewStaleError,
+  IndustryReviewStaleError,
+} from "../services/company-industry-review-errors.js";
 
 const app = new OpenAPIHono();
 
@@ -388,6 +397,14 @@ const EvidenceSourceTypeEnum = z.enum(INDUSTRY_EVIDENCE_SOURCE_TYPES);
 const EvidenceTrustTierEnum = z.enum(INDUSTRY_EVIDENCE_TRUST_TIERS);
 const ProposalStatusEnum = z.enum(INDUSTRY_PROPOSAL_STATUSES);
 const MaintenanceTriggerEnum = z.enum(INDUSTRY_MAINTENANCE_TRIGGER_REASONS);
+const IndustryReviewAttestationSchema = z.object({
+  schemaVersion: z.literal("industry-review-attestation.v1"),
+  inputFingerprint: z.string().min(1),
+  decisionMode: z.enum(["standard", "risk_override"]),
+  acknowledgedRiskFlags: z.array(z.enum(INDUSTRY_REVIEW_RISK_FLAGS)),
+  cncEvidenceAcknowledged: z.boolean(),
+  acknowledgementReason: z.string(),
+});
 
 const IndustryProfileSchema = z.object({
   _id: z.string(),
@@ -595,6 +612,7 @@ const IndustryVerdictRevisionSchema = z.object({
   decisionReason: z.string(),
   taxonomyVersion: z.string(),
   ruleVersion: z.string().optional(),
+  reviewAttestation: IndustryReviewAttestationSchema.optional(),
   supersedesRevisionId: z.string().optional(),
   proposalId: z.string().optional(),
   createdAt: z.number(),
@@ -702,13 +720,36 @@ const IndustryReviewRecommendationSchema = z.object({
   riskFlags: z.array(IndustryReviewRiskFlagEnum),
   reasons: z.array(z.string()),
   excludedSourceReasons: z.record(z.string(), z.string()),
+  riskDecision: z.object({
+    requiresAcknowledgement: z.boolean(),
+    nonOverridableRiskFlags: z.array(IndustryReviewRiskFlagEnum),
+    canApproveWithRiskOverride: z.boolean(),
+  }),
   evidenceSummaryDraft: z.string(),
   decisionReasonDraft: z.string(),
   requiresHumanReview: z.literal(true),
 });
+const IndustryReviewMaintenanceRunSchema = z.object({
+  runId: z.string(),
+  status: z.string().optional(),
+  triggerSource: z.string().optional(),
+  triggerContext: z.string().optional(),
+  operatorSummary: z.string().optional(),
+  failureMessage: z.string().optional(),
+  startedAt: z.number().optional(),
+  finishedAt: z.number().optional(),
+  counts: z.object({
+    proposalsResearched: z.number(),
+    readyCreated: z.number(),
+    sourcesDemoted: z.number(),
+    freshnessChecked: z.number(),
+    freshnessRefreshed: z.number(),
+    errors: z.number(),
+  }),
+});
 const IndustryReviewMaintenanceContextSchema = z.object({
-  latest: z.unknown().nullable(),
-  lastFailed: z.unknown().nullable(),
+  latest: IndustryReviewMaintenanceRunSchema.nullable(),
+  lastFailed: IndustryReviewMaintenanceRunSchema.nullable(),
 });
 const IndustryReviewEnvelopeFields = {
   success: z.literal(true),
@@ -719,21 +760,20 @@ const IndustryReviewEnvelopeFields = {
 const IndustryReviewConflictSchema = z.object({
   success: z.literal(false),
   error: z.string(),
-  code: z.literal("INDUSTRY_REVIEW_STALE"),
+  code: z.literal(INDUSTRY_REVIEW_STALE_CODE),
 });
 
-function isIndustryReviewConflictError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
-  return /industry revision changed|proposal current revision is stale|review packet is stale|source changed during review|proposal changed during review|input fingerprint/i.test(
-    message,
-  );
-}
+const IndustryReviewCursorConflictSchema = z.object({
+  success: z.literal(false),
+  error: z.string(),
+  code: z.literal("INDUSTRY_REVIEW_CURSOR_STALE"),
+});
 
 function industryReviewConflictResponse(error: unknown) {
   return {
     success: false as const,
-    error: error instanceof Error ? error.message : String(error),
-    code: "INDUSTRY_REVIEW_STALE" as const,
+    error: industryReviewStaleReason(error),
+    code: INDUSTRY_REVIEW_STALE_CODE,
   };
 }
 
@@ -746,6 +786,10 @@ const listIndustryReviewQueueRoute = createRoute({
     query: z.object({
       status: ProposalStatusEnum.optional(),
       limit: z.coerce.number().int().min(1).max(100).optional(),
+      cursor: z.string().min(1).optional(),
+      riskFlag: IndustryReviewRiskFlagEnum.optional(),
+      confidenceBand: IndustryReviewConfidenceEnum.optional(),
+      recommendedAction: IndustryReviewActionEnum.optional(),
     }),
   },
   responses: {
@@ -758,29 +802,120 @@ const listIndustryReviewQueueRoute = createRoute({
               z.object({
                 proposal: IndustryProposalSchema,
                 recommendation: IndustryReviewRecommendationSchema,
+                inputFingerprint: z.string(),
                 sourceCount: z.number(),
               }),
             ),
             maintenance: IndustryReviewMaintenanceContextSchema,
+            nextCursor: z.string().optional(),
           }),
         },
       },
       description: "Proposal queue with deterministic review recommendations",
     },
+    409: {
+      content: {
+        "application/json": { schema: IndustryReviewCursorConflictSchema },
+      },
+      description: "Review queue cursor no longer matches the advisory index",
+    },
   },
 });
 
 app.openapi(listIndustryReviewQueueRoute, async (c) => {
-  const { status, limit } = c.req.valid("query");
+  const { status, limit, cursor, riskFlag, confidenceBand, recommendedAction } =
+    c.req.valid("query");
   const { listIndustryReviewQueue } = await import(
     "../services/company-industry-review-service.js"
   );
-  const result = await listIndustryReviewQueue({
-    status,
-    limit,
-    workspaceSlug: c.var.workspaceSlug,
-  });
-  return c.json(result, 200);
+  try {
+    const result = await listIndustryReviewQueue({
+      status,
+      limit,
+      cursor,
+      riskFlag,
+      confidenceBand,
+      recommendedAction,
+      workspaceSlug: c.var.workspaceSlug,
+    });
+    return c.json(result, 200);
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      (error.message === "INDUSTRY_REVIEW_CURSOR_STALE" ||
+        error.message.startsWith("INDUSTRY_REVIEW_CURSOR_STALE:"))
+    ) {
+      return c.json(
+        {
+          success: false as const,
+          error: error.message,
+          code: "INDUSTRY_REVIEW_CURSOR_STALE" as const,
+        },
+        409,
+      );
+    }
+    throw error;
+  }
+});
+
+const getIndustryReviewRecommendationRoute = createRoute({
+  method: "get",
+  path: "/api/company-industry-proposals/:proposalId/recommendation",
+  tags: ["company-industry-evidence"],
+  summary: "Get a recommendation-only industry review projection",
+  request: { params: z.object({ proposalId: z.string().min(1) }) },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            ...IndustryReviewEnvelopeFields,
+            operation: z.object({
+              id: z.string(),
+              kind: z.literal("recommendation"),
+              state: z.literal("computed"),
+            }),
+            dataset: z.object({
+              revision: z.string(),
+              inputFingerprint: z.string(),
+              generatedAt: z.number(),
+              proposalUpdatedAt: z.number(),
+              sourceVersions: z.array(
+                z.object({ sourceId: z.string(), updatedAt: z.number() }),
+              ),
+              gitSha: z.string().optional(),
+            }),
+            recommendation: IndustryReviewRecommendationSchema,
+            warnings: z.array(IndustryReviewWarningSchema),
+          }),
+        },
+      },
+      description: "Recommendation-only review projection",
+    },
+    404: {
+      content: {
+        "application/json": {
+          schema: z.object({ success: z.literal(false), error: z.string() }),
+        },
+      },
+      description: "Proposal not found",
+    },
+  },
+});
+
+app.openapi(getIndustryReviewRecommendationRoute, async (c) => {
+  const { proposalId } = c.req.valid("param");
+  const { getIndustryReviewRecommendation } = await import(
+    "../services/company-industry-review-service.js"
+  );
+  const recommendation = await getIndustryReviewRecommendation(
+    proposalId,
+    c.var.workspaceSlug,
+  );
+  if (!recommendation) {
+    return c.json({ success: false as const, error: "Industry proposal not found" }, 404);
+  }
+  return c.json(recommendation, 200);
 });
 
 const getIndustryReviewPacketRoute = createRoute({
@@ -814,13 +949,10 @@ const getIndustryReviewPacketRoute = createRoute({
             warnings: z.array(IndustryReviewWarningSchema),
             proposal: IndustryProposalSchema,
             sources: z.array(IndustryEvidenceSourceSchema),
-            bundle: z
-              .object({
-                profile: IndustryProfileSchema.nullable(),
-                revisions: z.array(IndustryVerdictRevisionSchema),
-                sources: z.array(IndustryEvidenceSourceSchema),
-              })
-              .nullable(),
+            reviewContext: z.object({
+              profile: IndustryProfileSchema.nullable(),
+              revisions: z.array(IndustryVerdictRevisionSchema),
+            }),
             recomputeRuns: z.array(IndustryRecomputeRunSchema),
             maintenance: IndustryReviewMaintenanceContextSchema,
           }),
@@ -962,6 +1094,7 @@ const approveIndustryProposalRoute = createRoute({
             taxonomyVersion: z.string().min(1),
             ruleVersion: z.string().optional(),
             nextReviewAt: z.number().optional(),
+            reviewAttestation: IndustryReviewAttestationSchema.optional(),
           }),
         },
       },
@@ -988,6 +1121,18 @@ const approveIndustryProposalRoute = createRoute({
       },
       description: "Review packet or current revision is stale",
     },
+    422: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.literal(false),
+            error: z.string(),
+            code: z.string(),
+          }),
+        },
+      },
+      description: "Review attestation or evidence policy rejected the decision",
+    },
   },
 });
 
@@ -995,25 +1140,78 @@ app.openapi(approveIndustryProposalRoute, async (c) => {
   const { proposalId } = c.req.valid("param");
   const body = c.req.valid("json");
   try {
-    if (body.expectedInputFingerprint) {
+    const shouldLoadPacket = Boolean(
+      body.expectedInputFingerprint ||
+        body.reviewAttestation ||
+        body.industryClass === "cnc",
+    );
+    let packet: IndustryReviewPacket | null = null;
+    if (shouldLoadPacket) {
       const { getIndustryReviewPacket } = await import(
         "../services/company-industry-review-service.js"
       );
-      const packet = await getIndustryReviewPacket(proposalId, c.var.workspaceSlug);
-      if (!packet || packet.dataset.inputFingerprint !== body.expectedInputFingerprint) {
+      packet = await getIndustryReviewPacket(proposalId, c.var.workspaceSlug);
+      if (!packet) {
+        throw new Error("Industry proposal not found");
+      }
+      if (
+        body.expectedInputFingerprint &&
+        packet.dataset.inputFingerprint !== body.expectedInputFingerprint
+      ) {
+        throw new IndustryReviewStaleError(
+          "Refresh the recommendation before approving this proposal.",
+        );
+      }
+      const visibleRiskFlags = packet.recommendation.riskFlags;
+      const requiresAttestation =
+        visibleRiskFlags.length > 0 || body.industryClass === "cnc";
+      if (requiresAttestation && !body.reviewAttestation) {
         return c.json(
           {
             success: false as const,
-            error: "Review packet is stale; refresh the recommendation before approving.",
-            code: "INDUSTRY_REVIEW_STALE" as const,
+            error: "A review attestation is required before this elevated decision.",
+            code: "INDUSTRY_REVIEW_ATTESTATION_REQUIRED",
           },
-          409,
+          422,
         );
       }
+      if (body.reviewAttestation) {
+        const validation = validateIndustryReviewAttestation({
+          attestation: body.reviewAttestation as unknown as IndustryReviewAttestation,
+          expectedInputFingerprint:
+            body.expectedInputFingerprint ?? packet.dataset.inputFingerprint,
+          visibleRiskFlags,
+          recommendedIndustryClass: body.industryClass,
+        });
+        if (!validation.ok) {
+          return c.json(
+            {
+              success: false as const,
+              error: "The review attestation does not satisfy the current evidence policy.",
+              code: validation.code,
+            },
+            422,
+          );
+        }
+      }
     }
-    const { expectedInputFingerprint: _expectedInputFingerprint, ...approvalBody } = body;
+    const approvalInput = {
+      proposalId,
+      workspaceSlug: c.var.workspaceSlug,
+      ...body,
+      ...(body.reviewAttestation
+        ? {
+            reviewAttestation: {
+              ...body.reviewAttestation,
+              acknowledgedRiskFlags:
+                body.reviewAttestation
+                  .acknowledgedRiskFlags as IndustryReviewAttestation["acknowledgedRiskFlags"],
+            } as IndustryReviewAttestation,
+          }
+        : {}),
+    } as Parameters<typeof approveIndustryProposalAndStartRecompute>[0];
     const result = await approveIndustryProposalAndStartRecompute(
-      { proposalId, workspaceSlug: c.var.workspaceSlug, ...approvalBody },
+      approvalInput,
       getAuthenticatedActorId(c),
     );
     // Approval hook: enqueue a maintenance run so recycled needs_more_evidence
@@ -1026,7 +1224,7 @@ app.openapi(approveIndustryProposalRoute, async (c) => {
     });
     return c.json({ success: true as const, ...result }, 200);
   } catch (error) {
-    if (isIndustryReviewConflictError(error)) {
+    if (isIndustryReviewStaleError(error)) {
       return c.json(industryReviewConflictResponse(error), 409);
     }
     throw error;
@@ -1087,7 +1285,7 @@ app.openapi(resolveIndustryProposalRoute, async (c) => {
     );
     return c.json({ success: true as const, ...result }, 200);
   } catch (error) {
-    if (isIndustryReviewConflictError(error)) {
+    if (isIndustryReviewStaleError(error)) {
       return c.json(industryReviewConflictResponse(error), 409);
     }
     throw error;

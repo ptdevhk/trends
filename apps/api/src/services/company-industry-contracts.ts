@@ -16,6 +16,8 @@ import {
   type IndustryEvidenceTrustTier,
   type IndustryMaintenanceTriggerReason,
   type IndustryProposalStatus,
+  type IndustryReviewAttestation,
+  type IndustryReviewRiskFlag,
 } from "@trends/shared";
 
 import type { ReviewedIndustryProfileSnapshot } from "./industry-verification-service.js";
@@ -43,6 +45,37 @@ function stringArray(value: unknown): string[] | undefined {
     return undefined;
   }
   return value.map((item) => item.trim()).filter(Boolean);
+}
+
+function parseReviewAttestation(value: unknown): IndustryReviewAttestation | undefined {
+  if (!isRecord(value)) return undefined;
+  const schemaVersion = nonEmptyString(value.schemaVersion);
+  const inputFingerprint = nonEmptyString(value.inputFingerprint);
+  const decisionMode = nonEmptyString(value.decisionMode);
+  const acknowledgedRiskFlags = stringArray(value.acknowledgedRiskFlags);
+  const acknowledgementReason =
+    typeof value.acknowledgementReason === "string"
+      ? value.acknowledgementReason.trim()
+      : undefined;
+  if (
+    schemaVersion !== "industry-review-attestation.v1" ||
+    !inputFingerprint ||
+    (decisionMode !== "standard" && decisionMode !== "risk_override") ||
+    !acknowledgedRiskFlags ||
+    typeof value.cncEvidenceAcknowledged !== "boolean" ||
+    acknowledgementReason === undefined ||
+    (decisionMode === "risk_override" && !acknowledgementReason)
+  ) {
+    return undefined;
+  }
+  return {
+    schemaVersion,
+    inputFingerprint,
+    decisionMode,
+    acknowledgedRiskFlags: acknowledgedRiskFlags as IndustryReviewRiskFlag[],
+    cncEvidenceAcknowledged: value.cncEvidenceAcknowledged,
+    acknowledgementReason,
+  };
 }
 
 export interface IndustryEvidenceSource {
@@ -122,6 +155,7 @@ export interface IndustryVerdictRevision {
   decisionReason: string;
   taxonomyVersion: string;
   ruleVersion?: string;
+  reviewAttestation?: IndustryReviewAttestation;
   supersedesRevisionId?: string;
   proposalId?: string;
   createdAt: number;
@@ -446,6 +480,9 @@ export function parseIndustryVerdictRevision(
     taxonomyVersion,
     ...(nonEmptyString(value.ruleVersion)
       ? { ruleVersion: nonEmptyString(value.ruleVersion)! }
+      : {}),
+    ...(parseReviewAttestation(value.reviewAttestation)
+      ? { reviewAttestation: parseReviewAttestation(value.reviewAttestation)! }
       : {}),
     ...(nonEmptyString(value.supersedesRevisionId)
       ? { supersedesRevisionId: nonEmptyString(value.supersedesRevisionId)! }

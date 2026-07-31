@@ -69,3 +69,33 @@ func TestGetIndustryReviewPacketRequiresProposalID(t *testing.T) {
 		t.Fatalf("expected proposal ID validation error, got %v", err)
 	}
 }
+
+func TestGetIndustryReviewRecommendationUsesRecommendationOnlyEndpoint(t *testing.T) {
+	var gotPath string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		_ = json.NewEncoder(w).Encode(IndustryReviewRecommendationEnvelope{
+			Success:       true,
+			OK:            true,
+			SchemaVersion: "industry-review.v1",
+			Recommendation: IndustryReviewRecommendation{
+				ProposalID:          "proposal-1",
+				ProposalStatus:      "ready_for_review",
+				RecommendedAction:   "needs_more_evidence",
+				RequiresHumanReview: true,
+			},
+		})
+	}))
+	defer server.Close()
+
+	response, err := New(server.URL, server.URL, "dev").GetIndustryReviewRecommendation(context.Background(), "proposal-1")
+	if err != nil {
+		t.Fatalf("GetIndustryReviewRecommendation returned error: %v", err)
+	}
+	if gotPath != "/api/company-industry-proposals/proposal-1/recommendation" {
+		t.Fatalf("unexpected recommendation path: %s", gotPath)
+	}
+	if response.Recommendation.ProposalID != "proposal-1" {
+		t.Fatalf("unexpected recommendation: %+v", response)
+	}
+}

@@ -1,0 +1,176 @@
+{
+  "schemaVersion": "industry-review-uat.v1",
+  "namespace": "cnc-cockpit-uat",
+  "description": "Namespaced local fixture cases for the CNC evidence reviewer cockpit.",
+  "localSetup": {
+    "manualApprovalCase": "cnc-cockpit-uat/explicit-cnc",
+    "companyKeyByCase": {
+      "cnc-cockpit-uat/explicit-cnc": "adastream-sdn-bhd",
+      "cnc-cockpit-uat/keyword-only": "airtac-industrial-malaysia-sdn-bhd",
+      "cnc-cockpit-uat/discovery-only": "alps-electric",
+      "cnc-cockpit-uat/stale-source": "amerix-metal-machining-technology",
+      "cnc-cockpit-uat/conflict": "anoz-aluminiumsuzhoucoltd",
+      "cnc-cockpit-uat/worker-failure": "autoveyor-malaysia-sdn-bhd"
+    }
+  },
+  "cases": [
+    {
+      "id": "cnc-cockpit-uat/explicit-cnc",
+      "kind": "explicit_cnc",
+      "companyKey": "uat-explicit-cnc",
+      "suggestedIndustryClass": "cnc",
+      "sources": [
+        {
+          "sourceId": "cnc-cockpit-uat/explicit-source",
+          "url": "https://example.com/uat-cnc-catalog",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "CNC machine tools",
+          "evidenceExcerpt": "The official catalog describes CNC machining centers and precision metalworking.",
+          "fetchStatus": "fetched",
+          "sourceState": "active"
+        }
+      ],
+      "expected": {
+        "recommendedAction": "approve",
+        "explicitCncEvidence": true,
+        "approvalSafeSourceIds": ["cnc-cockpit-uat/explicit-source"]
+      }
+    },
+    {
+      "id": "cnc-cockpit-uat/keyword-only",
+      "kind": "keyword_only_cnc",
+      "companyKey": "uat-keyword-only",
+      "suggestedIndustryClass": "cnc",
+      "sources": [
+        {
+          "sourceId": "cnc-cockpit-uat/keyword-source",
+          "url": "https://example.com/uat-directory",
+          "sourceType": "directory",
+          "trustTier": "corroborating",
+          "title": "CNC supplier listing",
+          "evidenceExcerpt": "Directory keyword match: CNC.",
+          "fetchStatus": "fetched",
+          "sourceState": "active"
+        }
+      ],
+      "expected": {
+        "recommendedAction": "needs_more_evidence",
+        "explicitCncEvidence": false,
+        "riskFlags": ["cnc_claim_inferred"]
+      }
+    },
+    {
+      "id": "cnc-cockpit-uat/discovery-only",
+      "kind": "discovery_only",
+      "companyKey": "uat-discovery-only",
+      "suggestedIndustryClass": "cnc",
+      "sources": [
+        {
+          "sourceId": "cnc-cockpit-uat/discovery-source",
+          "url": "https://example.com/search-result",
+          "sourceType": "search_result",
+          "trustTier": "discovery",
+          "title": "CNC search result",
+          "evidenceExcerpt": "Search snippet only.",
+          "fetchStatus": "fetched",
+          "sourceState": "active"
+        }
+      ],
+      "expected": {
+        "recommendedAction": "needs_more_evidence",
+        "explicitCncEvidence": false,
+        "approvalSafeSourceIds": []
+      }
+    },
+    {
+      "id": "cnc-cockpit-uat/stale-source",
+      "kind": "stale_source",
+      "companyKey": "uat-stale-source",
+      "suggestedIndustryClass": "industrial",
+      "sources": [
+        {
+          "sourceId": "cnc-cockpit-uat/stale-source",
+          "url": "https://example.com/stale-source",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "Industrial catalog",
+          "evidenceExcerpt": "Previous industrial catalog.",
+          "fetchStatus": "failed",
+          "sourceState": "unavailable"
+        }
+      ],
+      "expected": {
+        "recommendedAction": "needs_more_evidence",
+        "explicitCncEvidence": false,
+        "riskFlags": ["stale_or_failed_source"]
+      }
+    },
+    {
+      "id": "cnc-cockpit-uat/conflict",
+      "kind": "source_conflict",
+      "companyKey": "uat-conflict",
+      "suggestedIndustryClass": "cnc",
+      "sources": [
+        {
+          "sourceId": "cnc-cockpit-uat/conflict-cnc",
+          "url": "https://example.com/cnc-source",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "CNC catalog",
+          "evidenceExcerpt": "CNC machine tools.",
+          "fetchStatus": "fetched",
+          "sourceState": "active",
+          "suggestedIndustryClass": "cnc"
+        },
+        {
+          "sourceId": "cnc-cockpit-uat/conflict-automation",
+          "url": "https://example.com/automation-source",
+          "sourceType": "registry",
+          "trustTier": "authoritative",
+          "title": "Automation registry",
+          "evidenceExcerpt": "Factory automation equipment.",
+          "fetchStatus": "fetched",
+          "sourceState": "active",
+          "suggestedIndustryClass": "automation"
+        }
+      ],
+      "expected": {
+        "recommendedAction": "needs_more_evidence",
+        "explicitCncEvidence": true,
+        "riskFlags": ["source_conflict"]
+      }
+    },
+    {
+      "id": "cnc-cockpit-uat/missing-canonical",
+      "kind": "missing_canonical_mapping",
+      "companyKey": null,
+      "suggestedIndustryClass": "industrial",
+      "sources": [],
+      "expected": {
+        "recommendedAction": "inspect",
+        "explicitCncEvidence": false,
+        "riskFlags": ["canonical_mapping_missing"]
+      }
+    },
+    {
+      "id": "cnc-cockpit-uat/worker-failure",
+      "kind": "worker_failure",
+      "companyKey": "uat-worker-failure",
+      "suggestedIndustryClass": "industrial",
+      "sources": [],
+      "maintenance": {
+        "lastFailed": {
+          "runId": "cnc-cockpit-uat/worker-failure-run",
+          "status": "failed",
+          "operatorSummary": "worker unreachable"
+        }
+      },
+      "expected": {
+        "recommendedAction": "needs_more_evidence",
+        "explicitCncEvidence": false,
+        "riskFlags": ["worker_unreachable"]
+      }
+    }
+  ]
+}

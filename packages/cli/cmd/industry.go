@@ -35,6 +35,10 @@ func newIndustryCmd() *cobra.Command {
 func newIndustryReviewCmd() *cobra.Command {
 	var status string
 	var limit int
+	var cursor string
+	var riskFlag string
+	var confidenceBand string
+	var recommendedAction string
 	cmd := &cobra.Command{
 		Use:   "review",
 		Short: "List proposals with deterministic review recommendations",
@@ -46,7 +50,9 @@ func newIndustryReviewCmd() *cobra.Command {
 			if limit < 1 || limit > 100 {
 				return fmt.Errorf("invalid --limit %d (expected 1..100)", limit)
 			}
-			response, err := newAPIClient().ListIndustryReviewQueue(context.Background(), normalizedStatus, limit)
+			response, err := newAPIClient().ListIndustryReviewQueuePage(
+				context.Background(), normalizedStatus, limit, cursor, riskFlag, confidenceBand, recommendedAction,
+			)
 			if err != nil {
 				return err
 			}
@@ -69,6 +75,10 @@ func newIndustryReviewCmd() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&status, "status", "ready_for_review", "Proposal status to review")
 	cmd.Flags().IntVar(&limit, "limit", 20, "Maximum proposals to fetch (1..100)")
+	cmd.Flags().StringVar(&cursor, "cursor", "", "Continue from a previous bounded review queue page")
+	cmd.Flags().StringVar(&riskFlag, "risk-flag", "", "Filter by one visible review risk flag")
+	cmd.Flags().StringVar(&confidenceBand, "confidence", "", "Filter by recommendation confidence")
+	cmd.Flags().StringVar(&recommendedAction, "action", "", "Filter by recommended action")
 	return cmd
 }
 
@@ -90,11 +100,19 @@ func newIndustryPacketCmd(name string, short string, recommendationOnly bool) *c
 		Short: short,
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			headers := []string{"proposal_id", "employer", "status", "recommended_action", "confidence", "industry_class", "recommended_sources", "risk_flags", "warnings"}
+			if recommendationOnly {
+				recommendation, err := newAPIClient().GetIndustryReviewRecommendation(context.Background(), args[0])
+				if err != nil {
+					return err
+				}
+				row := industryRecommendationRow(recommendation.Recommendation, industryWarningsSummary(recommendation.Warnings))
+				return writeOutput(cmd, headers, [][]string{row}, recommendation)
+			}
 			packet, err := newAPIClient().GetIndustryReviewPacket(context.Background(), args[0])
 			if err != nil {
 				return err
 			}
-			headers := []string{"proposal_id", "employer", "status", "recommended_action", "confidence", "industry_class", "recommended_sources", "risk_flags", "warnings"}
 			rows := [][]string{{
 				packet.Proposal.ProposalID,
 				industryEmployerLabel(packet.Proposal),
@@ -106,16 +124,25 @@ func newIndustryPacketCmd(name string, short string, recommendationOnly bool) *c
 				strings.Join(packet.Recommendation.RiskFlags, ","),
 				industryWarningsSummary(packet.Warnings),
 			}}
-			if recommendationOnly {
-				raw := client.IndustryReviewRecommendationEnvelope{
-					Success: packet.Success, OK: packet.OK, SchemaVersion: packet.SchemaVersion,
-					Operation: packet.Operation, Dataset: packet.Dataset,
-					Recommendation: packet.Recommendation, Warnings: packet.Warnings,
-				}
-				return writeOutput(cmd, headers, rows, raw)
-			}
 			return writeOutput(cmd, headers, rows, packet)
 		},
+	}
+}
+
+func industryRecommendationRow(
+	recommendation client.IndustryReviewRecommendation,
+	warnings string,
+) []string {
+	return []string{
+		recommendation.ProposalID,
+		"recommendation-only",
+		recommendation.ProposalStatus,
+		recommendation.RecommendedAction,
+		recommendation.ConfidenceBand,
+		recommendation.RecommendedIndustryClass,
+		strings.Join(recommendation.RecommendedSourceIDs, ","),
+		strings.Join(recommendation.RiskFlags, ","),
+		warnings,
 	}
 }
 

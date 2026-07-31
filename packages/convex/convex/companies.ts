@@ -4,6 +4,7 @@ import {
   CANONICAL_SEED_COMPANIES,
   MAX_RECRUITER_INDUSTRY_EVIDENCE_SOURCES,
   compareSourcePreviews,
+  hasExplicitCncEvidence,
   normalizeIndustryEvidenceUrl,
   normalizeCompanyAlias,
   parseSourcePreview,
@@ -1181,6 +1182,29 @@ const approvedVerificationLevelValidator = v.union(
   v.literal("rejected"),
 );
 
+const industryReviewRiskFlagValidator = v.union(
+  v.literal("canonical_mapping_missing"),
+  v.literal("only_discovery_sources"),
+  v.literal("source_conflict"),
+  v.literal("weak_industry_signal"),
+  v.literal("cnc_claim_inferred"),
+  v.literal("stale_or_failed_source"),
+  v.literal("low_source_diversity"),
+  v.literal("worker_unreachable"),
+  v.literal("recompute_pending"),
+);
+
+const industryReviewAttestationValidator = v.object({
+  schemaVersion: v.literal("industry-review-attestation.v1"),
+  inputFingerprint: v.string(),
+  decisionMode: v.union(v.literal("standard"), v.literal("risk_override")),
+  acknowledgedRiskFlags: v.array(industryReviewRiskFlagValidator),
+  cncEvidenceAcknowledged: v.boolean(),
+  acknowledgementReason: v.string(),
+});
+
+const INDUSTRY_REVIEW_STALE_PREFIX = "INDUSTRY_REVIEW_STALE:";
+
 const OPEN_INDUSTRY_PROPOSAL_STATUSES = new Set([
   "new",
   "researching",
@@ -1299,7 +1323,7 @@ function assertExpectedIndustryProposalUpdatedAt(
     expectedUpdatedAt !== undefined &&
     proposal.updatedAt !== expectedUpdatedAt
   ) {
-    throw new Error("Proposal changed during review");
+    throw new Error(`${INDUSTRY_REVIEW_STALE_PREFIX} proposal changed during review`);
   }
 }
 
@@ -2140,6 +2164,7 @@ export const approveIndustryProposal = mutation({
     revisionId: v.string(),
     expectedCurrentRevisionId: v.optional(v.string()),
     expectedProposalUpdatedAt: v.optional(v.number()),
+    expectedInputFingerprint: v.optional(v.string()),
     expectedSourceVersions: v.optional(
       v.array(v.object({ sourceId: v.string(), updatedAt: v.number() })),
     ),
@@ -2152,6 +2177,7 @@ export const approveIndustryProposal = mutation({
     taxonomyVersion: v.string(),
     ruleVersion: v.optional(v.string()),
     nextReviewAt: v.optional(v.number()),
+    reviewAttestation: v.optional(industryReviewAttestationValidator),
   },
   handler: async (ctx, args) => {
     requireWriteSecret(args.writeSecret);
@@ -2213,16 +2239,44 @@ export const approveIndustryProposal = mutation({
       throw new Error(`Proposal is not open for approval: ${proposal.status}`);
     }
     if (
+      args.reviewAttestation &&
+      args.expectedInputFingerprint !== undefined &&
+      args.reviewAttestation.inputFingerprint !== args.expectedInputFingerprint
+    ) {
+      throw new Error(
+        `${INDUSTRY_REVIEW_STALE_PREFIX} recommendation fingerprint changed during review`,
+      );
+    }
+    if (
+      args.reviewAttestation &&
+      args.reviewAttestation.decisionMode === "risk_override" &&
+      !args.reviewAttestation.acknowledgementReason.trim()
+    ) {
+      throw new Error("INDUSTRY_REVIEW_ATTESTATION_INVALID: risk override reason is required");
+    }
+    if (
+      args.industryClass === "cnc" &&
+      (!args.reviewAttestation || !args.reviewAttestation.cncEvidenceAcknowledged)
+    ) {
+      throw new Error(
+        "INDUSTRY_REVIEW_CNC_ACK_REQUIRED: explicit CNC evidence acknowledgement is required",
+      );
+    }
+    if (
       args.expectedCurrentRevisionId !== undefined &&
       currentRevisionId !== args.expectedCurrentRevisionId
     ) {
-      throw new Error("Current industry revision changed during review");
+      throw new Error(
+        `${INDUSTRY_REVIEW_STALE_PREFIX} current industry revision changed during review`,
+      );
     }
     if (
       proposal.currentRevisionId !== undefined &&
       currentRevisionId !== proposal.currentRevisionId
     ) {
-      throw new Error("Proposal current revision is stale");
+      throw new Error(
+        `${INDUSTRY_REVIEW_STALE_PREFIX} proposal current revision changed during review`,
+      );
     }
     assertExpectedIndustryProposalUpdatedAt(proposal, args.expectedProposalUpdatedAt);
     if (args.expectedSourceVersions !== undefined) {
@@ -2240,7 +2294,9 @@ export const approveIndustryProposal = mutation({
           (source) => expectedVersions.get(source.sourceId) !== source.updatedAt,
         )
       ) {
-        throw new Error("Source changed during review");
+        throw new Error(
+          `${INDUSTRY_REVIEW_STALE_PREFIX} evidence source changed during review`,
+        );
       }
     }
 
@@ -2271,11 +2327,24 @@ export const approveIndustryProposal = mutation({
       if (
         source.sourceType === "search_result" ||
         source.trustTier === "discovery" ||
-        normalizeIndustryEvidenceUrl(source.url) === null
+        normalizeIndustryEvidenceUrl(source.url) === null ||
+        source.fetchStatus !== "fetched" ||
+        source.sourceState !== "active" ||
+        source.reviewStatus === "disputed" ||
+        source.reviewStatus === "rejected"
       ) {
         throw new Error(`Evidence source is not approval-safe: ${sourceId}`);
       }
       sources.push(source);
+    }
+
+    if (
+      args.industryClass === "cnc" &&
+      !hasExplicitCncEvidence(sources)
+    ) {
+      throw new Error(
+        "INDUSTRY_REVIEW_CNC_EVIDENCE_REQUIRED: selected sources do not contain explicit CNC evidence",
+      );
     }
 
     const now = Date.now();
@@ -2292,6 +2361,9 @@ export const approveIndustryProposal = mutation({
       taxonomyVersion,
       ...(args.ruleVersion?.trim()
         ? { ruleVersion: args.ruleVersion.trim() }
+        : {}),
+      ...(args.reviewAttestation
+        ? { reviewAttestation: args.reviewAttestation }
         : {}),
       ...(currentRevisionId
         ? { supersedesRevisionId: currentRevisionId }

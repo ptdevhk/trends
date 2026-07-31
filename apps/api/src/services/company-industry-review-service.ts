@@ -5,7 +5,10 @@ import {
   INDUSTRY_REVIEW_CONFIDENCE_BANDS,
   INDUSTRY_REVIEW_SCHEMA_VERSION,
   INDUSTRY_REVIEW_SOURCE_REASON_CODES,
+  hasExplicitCncEvidence,
   normalizeIndustryEvidenceUrl,
+  reviewAttestationDecision,
+  type IndustryReviewRiskDecision,
   type IndustryClass,
   type IndustryReviewAction,
   type IndustryReviewConfidenceBand,
@@ -34,7 +37,8 @@ import {
   type CompanyIndustryProfile,
 } from "./company-industry-profile-service.js";
 import {
-  getCompanyIndustryEvidenceBundle,
+  getCompanyIndustryReviewContext,
+  type IndustryReviewContext,
 } from "./company-industry-revision-service.js";
 import {
   getIndustryProposal,
@@ -44,6 +48,12 @@ import {
   companyIndustryRecomputeService,
   type CompanyIndustryRecomputeRun,
 } from "./company-industry-recompute-service.js";
+import {
+  getCachedIndustryReviewIndex,
+  paginateIndustryReviewIndex,
+  setCachedIndustryReviewIndex,
+  type IndustryReviewIndexEntry,
+} from "./company-industry-review-index.js";
 
 const REVIEW_ACTIONS = new Set<string>(INDUSTRY_REVIEW_ACTIONS);
 const CONFIDENCE_BANDS = new Set<string>(INDUSTRY_REVIEW_CONFIDENCE_BANDS);
@@ -70,18 +80,6 @@ const SOURCE_TYPE_RANK: Record<IndustryEvidenceSource["sourceType"], number> = {
   search_result: 8,
 };
 
-const CNC_SIGNAL_PATTERN =
-  /\b(cnc|machining|machine tools?|lathe|milling|metalworking|precision machining)\b|数控|机床|加工中心|金属加工|精密加工/i;
-
-const EXPLICIT_INDUSTRIAL_SOURCE_TYPES = new Set<IndustryEvidenceSource["sourceType"]>([
-  "official_site",
-  "registry",
-  "taxonomy",
-  "oem_partner",
-  "trade_body",
-  "reporting",
-]);
-
 export interface IndustryReviewMaintenanceContext {
   latest: IndustryCoverageMaintenanceRun | null;
   lastFailed: IndustryCoverageMaintenanceRun | null;
@@ -101,7 +99,7 @@ export interface IndustryReviewPacket {
   warnings: IndustryReviewWarning[];
   proposal: IndustryProposal;
   sources: IndustryEvidenceSource[];
-  bundle: Awaited<ReturnType<typeof getCompanyIndustryEvidenceBundle>> | null;
+  reviewContext: IndustryReviewContext;
   recomputeRuns: CompanyIndustryRecomputeRun[];
   maintenance: IndustryReviewMaintenanceContext;
 }
@@ -109,6 +107,7 @@ export interface IndustryReviewPacket {
 export interface IndustryReviewQueueItem {
   proposal: IndustryProposal;
   recommendation: IndustryReviewRecommendation;
+  inputFingerprint: string;
   sourceCount: number;
 }
 
@@ -118,14 +117,8 @@ export interface IndustryReviewQueueResponse {
   schemaVersion: typeof INDUSTRY_REVIEW_SCHEMA_VERSION;
   items: IndustryReviewQueueItem[];
   maintenance: IndustryReviewMaintenanceContext;
+  nextCursor?: string;
 }
-
-const REVIEW_ACTION_RANK: Record<IndustryReviewAction, number> = {
-  needs_more_evidence: 0,
-  inspect: 1,
-  approve: 2,
-  reject: 3,
-};
 
 function stableValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(stableValue);
@@ -151,12 +144,6 @@ function sourceSort(left: IndustryEvidenceSource, right: IndustryEvidenceSource)
     SOURCE_TYPE_RANK[left.sourceType] - SOURCE_TYPE_RANK[right.sourceType] ||
     (right.fetchedAt ?? right.updatedAt) - (left.fetchedAt ?? left.updatedAt) ||
     left.sourceId.localeCompare(right.sourceId)
-  );
-}
-
-function hasCncSignal(source: IndustryEvidenceSource): boolean {
-  return CNC_SIGNAL_PATTERN.test(
-    `${source.title ?? ""} ${source.evidenceExcerpt ?? ""}`,
   );
 }
 
@@ -322,11 +309,7 @@ function buildRecommendation(input: {
   }
   if (
     targetIndustryClass === "cnc" &&
-    !eligibleSources.some(
-      (source) =>
-        EXPLICIT_INDUSTRIAL_SOURCE_TYPES.has(source.sourceType) &&
-        hasCncSignal(source),
-    )
+    !hasExplicitCncEvidence(eligibleSources)
   ) {
     riskFlags.add("cnc_claim_inferred");
     reasons.push("The CNC classification lacks explicit industrial/product evidence.");
@@ -388,6 +371,10 @@ function buildRecommendation(input: {
   }
   if (reasons.length === 0) reasons.push("Open the evidence packet and inspect the proposed change.");
 
+  const riskDecision: IndustryReviewRiskDecision = reviewAttestationDecision([
+    ...riskFlags,
+  ]);
+
   let confidence: IndustryReviewConfidenceBand = "low";
   if (recommendedAction === "approve") {
     const hasPrimary = recommendedSources.some((source) => source.trustTier === "primary");
@@ -408,6 +395,7 @@ function buildRecommendation(input: {
     riskFlags: [...riskFlags].sort(),
     reasons: [...new Set(reasons)],
     excludedSourceReasons,
+    riskDecision,
     evidenceSummaryDraft:
       proposal.materialChangeSummary?.trim() ||
       recommendedSources
@@ -517,11 +505,11 @@ export async function getIndustryReviewPacket(
 ): Promise<IndustryReviewPacket | null> {
   const proposal = await getIndustryProposal(proposalId);
   if (!proposal) return null;
-  const [sources, bundle, maintenance, recomputeRuns] = await Promise.all([
+  const [sources, reviewContext, maintenance, recomputeRuns] = await Promise.all([
     listIndustryEvidenceSources({ proposalId: proposal.proposalId }),
     proposal.companyKey
-      ? getCompanyIndustryEvidenceBundle(proposal.companyKey)
-      : Promise.resolve(null),
+      ? getCompanyIndustryReviewContext(proposal.companyKey)
+      : Promise.resolve<IndustryReviewContext>({ profile: null, revisions: [] }),
     loadMaintenanceContext(workspaceSlug),
     proposal.companyKey
       ? companyIndustryRecomputeService.list({
@@ -534,7 +522,7 @@ export async function getIndustryReviewPacket(
   const { recommendation, dataset, warnings } = await buildRecommendationForProposal({
     proposal,
     sources,
-    profile: bundle?.profile ?? null,
+    profile: reviewContext.profile,
     maintenance,
   });
   return {
@@ -551,9 +539,26 @@ export async function getIndustryReviewPacket(
     warnings,
     proposal,
     sources,
-    bundle,
+    reviewContext,
     recomputeRuns,
     maintenance,
+  };
+}
+
+export async function getIndustryReviewRecommendation(
+  proposalId: string,
+  workspaceSlug?: string,
+) {
+  const packet = await getIndustryReviewPacket(proposalId, workspaceSlug);
+  if (!packet) return null;
+  return {
+    success: true as const,
+    ok: true as const,
+    schemaVersion: INDUSTRY_REVIEW_SCHEMA_VERSION,
+    operation: packet.operation,
+    dataset: packet.dataset,
+    recommendation: packet.recommendation,
+    warnings: packet.warnings,
   };
 }
 
@@ -561,60 +566,120 @@ export async function listIndustryReviewQueue(input: {
   status?: IndustryProposal["status"];
   limit?: number;
   workspaceSlug?: string;
+  cursor?: string;
+  riskFlag?: IndustryReviewRiskFlag;
+  confidenceBand?: IndustryReviewConfidenceBand;
+  recommendedAction?: IndustryReviewAction;
 }): Promise<IndustryReviewQueueResponse> {
   const limit = Math.min(100, Math.max(1, Math.floor(input.limit ?? 50)));
-  const [proposals, allSources, profiles, maintenance] = await Promise.all([
-    listIndustryProposals(input.status),
-    listIndustryEvidenceSources(),
-    listIndustryProfiles(),
-    loadMaintenanceContext(input.workspaceSlug),
-  ]);
-  const sourcesByProposal = new Map<string, IndustryEvidenceSource[]>();
-  for (const source of allSources) {
-    if (!source.proposalId) continue;
-    const proposalSources = sourcesByProposal.get(source.proposalId) ?? [];
-    proposalSources.push(source);
-    sourcesByProposal.set(source.proposalId, proposalSources);
-  }
-  const profilesByCompany = new Map(
-    profiles.map((profile) => [profile.companyKey, profile]),
+  const maintenance = await loadMaintenanceContext(input.workspaceSlug);
+  const maintenanceFingerprint = fingerprint(maintenance);
+  const cacheKey = reviewIndexCacheKey(input);
+  const cachedEntries = getCachedIndustryReviewIndex(
+    cacheKey,
+    maintenanceFingerprint,
   );
-  const items = await mapWithConcurrency(proposals, 8, async (proposal) => {
-    const sources = sourcesByProposal.get(proposal.proposalId) ?? [];
-    const profile = proposal.companyKey
-      ? profilesByCompany.get(proposal.companyKey) ?? null
-      : null;
-    const { recommendation } = await buildRecommendationForProposal({
-      proposal,
-      sources,
-      profile,
-      maintenance,
-    });
-    return {
-      proposal,
-      recommendation,
-      sourceCount: sources.length,
-    };
-  });
-  items.sort((left, right) => {
-    const actionRank =
-      REVIEW_ACTION_RANK[left.recommendation.recommendedAction] -
-      REVIEW_ACTION_RANK[right.recommendation.recommendedAction];
-    return (
-      actionRank ||
-      right.recommendation.riskFlags.length - left.recommendation.riskFlags.length ||
-      right.proposal.priority - left.proposal.priority ||
-      left.proposal.updatedAt - right.proposal.updatedAt ||
-      left.proposal.proposalId.localeCompare(right.proposal.proposalId)
+
+  let indexEntries: IndustryReviewIndexEntry[];
+  let itemsByProposalId: Map<string, IndustryReviewQueueItem> | undefined;
+  if (cachedEntries) {
+    indexEntries = [...cachedEntries];
+  } else {
+    const [proposals, allSources, profiles] = await Promise.all([
+      listIndustryProposals(input.status),
+      listIndustryEvidenceSources(),
+      listIndustryProfiles(),
+    ]);
+    const sourcesByProposal = new Map<string, IndustryEvidenceSource[]>();
+    for (const source of allSources) {
+      if (!source.proposalId) continue;
+      const proposalSources = sourcesByProposal.get(source.proposalId) ?? [];
+      proposalSources.push(source);
+      sourcesByProposal.set(source.proposalId, proposalSources);
+    }
+    const profilesByCompany = new Map(
+      profiles.map((profile) => [profile.companyKey, profile]),
     );
+    const items = await mapWithConcurrency(proposals, 8, async (proposal) => {
+      const sources = sourcesByProposal.get(proposal.proposalId) ?? [];
+      const profile = proposal.companyKey
+        ? profilesByCompany.get(proposal.companyKey) ?? null
+        : null;
+      const { recommendation, dataset } = await buildRecommendationForProposal({
+        proposal,
+        sources,
+        profile,
+        maintenance,
+      });
+      return {
+        proposal,
+        recommendation,
+        inputFingerprint: dataset.inputFingerprint,
+        sourceCount: sources.length,
+      };
+    });
+    itemsByProposalId = new Map(
+      items.map((item) => [item.proposal.proposalId, item]),
+    );
+    indexEntries = items.map((item) => ({
+      proposalId: item.proposal.proposalId,
+      inputFingerprint: item.inputFingerprint,
+      recommendedAction: item.recommendation.recommendedAction,
+      confidenceBand: item.recommendation.confidenceBand,
+      riskFlags: item.recommendation.riskFlags,
+      priority: item.proposal.priority,
+      updatedAt: item.proposal.updatedAt,
+      sourceCount: item.sourceCount,
+    }));
+    setCachedIndustryReviewIndex(cacheKey, indexEntries, maintenanceFingerprint);
+  }
+  const page = paginateIndustryReviewIndex(indexEntries, {
+    limit,
+    cursor: input.cursor,
+    riskFlag: input.riskFlag,
+    confidenceBand: input.confidenceBand,
+    recommendedAction: input.recommendedAction,
   });
+  const itemByProposalId = itemsByProposalId ?? new Map(
+    (await mapWithConcurrency(page.items, 8, async (entry) => {
+      const proposal = await getIndustryProposal(entry.proposalId);
+      if (!proposal || (input.status && proposal.status !== input.status)) return null;
+      const sources = await listIndustryEvidenceSources({ proposalId: proposal.proposalId });
+      const profile = proposal.companyKey
+        ? await getIndustryProfile(proposal.companyKey)
+        : null;
+      const { recommendation, dataset } = await buildRecommendationForProposal({
+        proposal,
+        sources,
+        profile,
+        maintenance,
+      });
+      return {
+        proposal,
+        recommendation,
+        inputFingerprint: dataset.inputFingerprint,
+        sourceCount: sources.length,
+      };
+    })).filter((item): item is IndustryReviewQueueItem => item !== null)
+      .map((item) => [item.proposal.proposalId, item]),
+  );
   return {
     success: true,
     ok: true,
     schemaVersion: INDUSTRY_REVIEW_SCHEMA_VERSION,
-    items: items.slice(0, limit),
+    items: page.items
+      .map((entry) => itemByProposalId.get(entry.proposalId))
+      .filter((item): item is IndustryReviewQueueItem => item !== undefined),
     maintenance,
+    ...(page.nextCursor ? { nextCursor: page.nextCursor } : {}),
   };
+}
+
+function reviewIndexCacheKey(input: {
+  status?: IndustryProposal["status"];
+  workspaceSlug?: string;
+}): string {
+  return `${input.workspaceSlug ?? "default"}:${input.status ?? "all"}`;
 }
 
 async function mapWithConcurrency<T, R>(

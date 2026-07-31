@@ -10,11 +10,17 @@ import {
   type IndustryProposal,
 } from "./company-industry-contracts.js";
 import {
+  IndustryReviewStaleError,
+  industryReviewStaleReason,
+  isIndustryReviewStaleError,
+} from "./company-industry-review-errors.js";
+import {
   companyIndustryRecomputeService,
   type CompanyIndustryRecomputeRun,
 } from "./company-industry-recompute-service.js";
 import { config } from "./config.js";
 import { callConvexMutation, callConvexQuery } from "./convex-utils.js";
+import { invalidateIndustryReviewIndex } from "./company-industry-review-index.js";
 
 export async function listIndustryProposals(
   status?: IndustryProposalStatus,
@@ -70,6 +76,7 @@ export async function upsertIndustryProposal(input: {
   if (!isRecord(value) || typeof value.proposalId !== "string") {
     throw new Error("Invalid companies:upsertIndustryProposal response");
   }
+  invalidateIndustryReviewIndex();
   return { proposalId: value.proposalId, created: value.created === true };
 }
 
@@ -88,16 +95,33 @@ export async function approveIndustryProposal(
     taxonomyVersion: string;
     ruleVersion?: string;
     nextReviewAt?: number;
+    expectedInputFingerprint?: string;
+    reviewAttestation?: {
+      schemaVersion: "industry-review-attestation.v1";
+      inputFingerprint: string;
+      decisionMode: "standard" | "risk_override";
+      acknowledgedRiskFlags: string[];
+      cncEvidenceAcknowledged: boolean;
+      acknowledgementReason: string;
+    };
   },
   actorId: string,
 ): Promise<{ proposalId: string; revisionId: string; companyKey: string }> {
   const reviewer = actorId.trim();
   if (!reviewer) throw new Error("Approval actor is required");
-  const value = await callConvexMutation("companies:approveIndustryProposal", {
-    ...input,
-    reviewer,
-    writeSecret: config.auth.convexWriteSecret,
-  });
+  let value: unknown;
+  try {
+    value = await callConvexMutation("companies:approveIndustryProposal", {
+      ...input,
+      reviewer,
+      writeSecret: config.auth.convexWriteSecret,
+    });
+  } catch (error) {
+    if (isIndustryReviewStaleError(error)) {
+      throw new IndustryReviewStaleError(industryReviewStaleReason(error));
+    }
+    throw error;
+  }
   if (
     !isRecord(value) ||
     typeof value.proposalId !== "string" ||
@@ -106,6 +130,7 @@ export async function approveIndustryProposal(
   ) {
     throw new Error("Invalid companies:approveIndustryProposal response");
   }
+  invalidateIndustryReviewIndex();
   return {
     proposalId: value.proposalId,
     revisionId: value.revisionId,
@@ -154,11 +179,19 @@ export async function resolveIndustryProposal(
 ): Promise<{ proposalId: string; status: IndustryProposalStatus }> {
   const reviewer = actorId.trim();
   if (!reviewer) throw new Error("Review actor is required");
-  const value = await callConvexMutation("companies:resolveIndustryProposal", {
-    ...input,
-    reviewer,
-    writeSecret: config.auth.convexWriteSecret,
-  });
+  let value: unknown;
+  try {
+    value = await callConvexMutation("companies:resolveIndustryProposal", {
+      ...input,
+      reviewer,
+      writeSecret: config.auth.convexWriteSecret,
+    });
+  } catch (error) {
+    if (isIndustryReviewStaleError(error)) {
+      throw new IndustryReviewStaleError(industryReviewStaleReason(error));
+    }
+    throw error;
+  }
   if (
     !isRecord(value) ||
     typeof value.proposalId !== "string" ||
@@ -166,6 +199,7 @@ export async function resolveIndustryProposal(
   ) {
     throw new Error("Invalid companies:resolveIndustryProposal response");
   }
+  invalidateIndustryReviewIndex();
   return {
     proposalId: value.proposalId,
     status: value.status as IndustryProposalStatus,

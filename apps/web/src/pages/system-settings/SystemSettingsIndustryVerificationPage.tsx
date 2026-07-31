@@ -3,7 +3,13 @@ import { AlertTriangle, CheckCircle2, ExternalLink, RefreshCw, ShieldCheck } fro
 import { Link, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import type { IndustryReviewRecommendation, IndustryReviewWarning } from '@trends/shared'
+import {
+  INDUSTRY_REVIEW_ATTESTATION_SCHEMA_VERSION,
+  isExplicitCncEvidenceSource,
+  type IndustryReviewAttestation,
+  type IndustryReviewRecommendation,
+  type IndustryReviewWarning,
+} from '@trends/shared'
 import type { paths } from '@/lib/api-types'
 
 import { Badge } from '@/components/ui/badge'
@@ -29,7 +35,21 @@ type ReviewQueueStatus = IndustryProposal['status']
 type ReviewQueueResponse = paths['/api/company-industry-proposals/review-queue']['get']['responses'][200]['content']['application/json']
 type ReviewQueueItem = ReviewQueueResponse['items'][number]
 type ReviewPacketResponse = paths['/api/company-industry-proposals/:proposalId/review-packet']['get']['responses'][200]['content']['application/json']
-type ReviewPacket = Pick<ReviewPacketResponse, 'proposal' | 'recommendation' | 'warnings' | 'dataset' | 'sources' | 'bundle' | 'recomputeRuns'>
+type ReviewContext = Pick<ReviewPacketResponse['reviewContext'], 'profile' | 'revisions'>
+type ReviewPacket = Pick<ReviewPacketResponse, 'proposal' | 'recommendation' | 'warnings' | 'dataset' | 'sources' | 'reviewContext' | 'recomputeRuns'>
+type DetailBundle = ReviewContext
+
+const REVIEW_RISK_FLAG_LABELS: Record<string, string> = {
+  canonical_mapping_missing: 'canonical company mapping is missing',
+  only_discovery_sources: 'only discovery sources are attached',
+  source_conflict: 'sources conflict on the industry class',
+  weak_industry_signal: 'the industry signal is weak',
+  cnc_claim_inferred: 'the CNC claim is inferred from keywords',
+  stale_or_failed_source: 'a source is stale, unavailable, or failed',
+  low_source_diversity: 'source diversity is low',
+  worker_unreachable: 'the evidence worker was unreachable',
+  recompute_pending: 'a targeted recompute is pending',
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -46,6 +66,14 @@ function parseBundle(value: unknown): IndustryBundle {
     profile: isRecord(value.profile) ? value.profile as IndustryBundle['profile'] : null,
     revisions: Array.isArray(value.revisions) ? value.revisions as IndustryRevision[] : [],
     sources: Array.isArray(value.sources) ? value.sources as EvidenceSource[] : [],
+  }
+}
+
+function parseReviewContext(value: unknown): DetailBundle {
+  if (!isRecord(value)) return { profile: null, revisions: [] }
+  return {
+    profile: isRecord(value.profile) ? value.profile as DetailBundle['profile'] : null,
+    revisions: Array.isArray(value.revisions) ? value.revisions as DetailBundle['revisions'] : [],
   }
 }
 
@@ -77,7 +105,7 @@ function parseReviewPacket(value: unknown): ReviewPacket | null {
         : [],
     },
     sources: parseItems<EvidenceSource>({ items: value.sources }),
-    bundle: value.bundle === null ? null : parseBundle(value.bundle),
+    reviewContext: parseReviewContext(value.reviewContext ?? value.bundle),
     recomputeRuns: parseItems<IndustryRecomputeRun>({ items: value.recomputeRuns }),
   }
 }
@@ -965,11 +993,15 @@ export function SystemSettingsIndustryVerificationPage() {
       ? value
       : 'ready_for_review'
   })
+  const [riskFilter, setRiskFilter] = useState<string>('')
+  const [confidenceFilter, setConfidenceFilter] = useState<string>('')
+  const [actionFilter, setActionFilter] = useState<string>('')
+  const [nextQueueCursor, setNextQueueCursor] = useState<string>()
   const [proposals, setProposals] = useState<IndustryProposal[]>([])
   const [queueRecommendations, setQueueRecommendations] = useState<Record<string, IndustryReviewRecommendation>>({})
   const [selectedProposalId, setSelectedProposalId] = useState<string>()
   const [sources, setSources] = useState<EvidenceSource[]>([])
-  const [bundle, setBundle] = useState<IndustryBundle>({ profile: null, revisions: [], sources: [] })
+  const [bundle, setBundle] = useState<DetailBundle>({ profile: null, revisions: [] })
   const [recomputeRuns, setRecomputeRuns] = useState<IndustryRecomputeRun[]>([])
   const [recommendation, setRecommendation] = useState<IndustryReviewRecommendation | null>(null)
   const [reviewWarnings, setReviewWarnings] = useState<IndustryReviewWarning[]>([])
@@ -981,6 +1013,9 @@ export function SystemSettingsIndustryVerificationPage() {
   const [decisionReason, setDecisionReason] = useState('')
   const [taxonomyVersion, setTaxonomyVersion] = useState('industry-v1')
   const [reviewNote, setReviewNote] = useState('')
+  const [acknowledgedRiskFlags, setAcknowledgedRiskFlags] = useState<string[]>([])
+  const [cncEvidenceAcknowledged, setCncEvidenceAcknowledged] = useState(false)
+  const [acknowledgementReason, setAcknowledgementReason] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [approvalConfirmOpen, setApprovalConfirmOpen] = useState(false)
@@ -1002,22 +1037,33 @@ export function SystemSettingsIndustryVerificationPage() {
     )
   }, [queueRecommendations])
 
-  const loadQueue = useCallback(async () => {
+  const loadQueue = useCallback(async (cursor?: string, append = false) => {
     setLoading(true)
     try {
-      const payload = await requestJson(`/api/company-industry-proposals/review-queue?status=${encodeURIComponent(queueStatus)}&limit=100`)
+      const query = new URLSearchParams({ status: queueStatus, limit: '100' })
+      if (cursor) query.set('cursor', cursor)
+      if (riskFilter) query.set('riskFlag', riskFilter)
+      if (confidenceFilter) query.set('confidenceBand', confidenceFilter)
+      if (actionFilter) query.set('recommendedAction', actionFilter)
+      const payload = await requestJson(`/api/company-industry-proposals/review-queue?${query.toString()}`)
       const queue = parseReviewQueue(payload)
       const next = queue.map((item) => item.proposal)
-      setQueueRecommendations(Object.fromEntries(
+      const nextRecommendations = Object.fromEntries(
         queue.map((item) => [item.proposal.proposalId, item.recommendation]),
-      ))
-      setProposals(next)
+      )
+      setQueueRecommendations((current) => append ? { ...current, ...nextRecommendations } : nextRecommendations)
+      setProposals((current) => append
+        ? [...current, ...next.filter((proposal) => !current.some((item) => item.proposalId === proposal.proposalId))]
+        : next)
+      setNextQueueCursor(isRecord(payload) && typeof payload.nextCursor === 'string' ? payload.nextCursor : undefined)
       const nextSelection = requestedProposalId && next.some((proposal) => proposal.proposalId === requestedProposalId)
         ? requestedProposalId
         : undefined
       setSelectedProposalId((current) => (
         nextSelection
-          ?? (current && next.some((proposal) => proposal.proposalId === current)
+          ?? (append && current
+            ? current
+            : current && next.some((proposal) => proposal.proposalId === current)
             ? current
             : next[0]?.proposalId)
       ))
@@ -1027,7 +1073,7 @@ export function SystemSettingsIndustryVerificationPage() {
     } finally {
       setLoading(false)
     }
-  }, [queueStatus, requestJson, requestedProposalId, t])
+  }, [actionFilter, confidenceFilter, queueStatus, requestJson, requestedProposalId, riskFilter, t])
 
   useEffect(() => {
     void loadQueue()
@@ -1036,7 +1082,7 @@ export function SystemSettingsIndustryVerificationPage() {
   useEffect(() => {
     if (!selectedProposal) {
       setSources([])
-      setBundle({ profile: null, revisions: [], sources: [] })
+      setBundle({ profile: null, revisions: [] })
       setRecomputeRuns([])
       setRecommendation(null)
       setReviewWarnings([])
@@ -1055,7 +1101,7 @@ export function SystemSettingsIndustryVerificationPage() {
         if (!packet) throw new Error('Invalid industry review packet')
         if (cancelled) return
         const nextSources = packet.sources
-        const nextBundle = packet.bundle ?? { profile: null, revisions: [], sources: [] }
+        const nextBundle = packet.reviewContext ?? { profile: null, revisions: [] }
         setSources(nextSources)
         setBundle(nextBundle)
         setRecomputeRuns(packet.recomputeRuns)
@@ -1086,6 +1132,9 @@ export function SystemSettingsIndustryVerificationPage() {
         )
         setDecisionReason(packet.recommendation.decisionReasonDraft)
         setReviewNote('')
+        setAcknowledgedRiskFlags([])
+        setCncEvidenceAcknowledged(false)
+        setAcknowledgementReason('')
         setApprovalConfirmOpen(false)
       } catch (error) {
         reportUiError('Failed to load industry evidence proposal detail', error)
@@ -1107,6 +1156,44 @@ export function SystemSettingsIndustryVerificationPage() {
       toast.error(t('industryEvidence.reviewFieldsRequired', { defaultValue: 'Select evidence and complete the review summary and reason' }))
       return false
     }
+    const visibleRiskFlags = recommendation?.riskFlags ?? []
+    const nonOverridableRiskFlags = recommendation?.riskDecision?.nonOverridableRiskFlags ?? []
+    if (nonOverridableRiskFlags.length > 0) {
+      toast.error(
+        t('industryEvidence.hardRiskBlocksApproval', {
+          defaultValue: 'This recommendation has a hard evidence block; request evidence or resolve the source issue first.',
+        }),
+      )
+      return false
+    }
+    const allRisksAcknowledged = visibleRiskFlags.every((flag) => acknowledgedRiskFlags.includes(flag))
+    if (visibleRiskFlags.length > 0 && (!allRisksAcknowledged || !acknowledgementReason.trim())) {
+      toast.error(
+        t('industryEvidence.riskAcknowledgementRequired', {
+          defaultValue: 'Acknowledge every visible risk flag and provide a detailed reason before approving.',
+        }),
+      )
+      return false
+    }
+    if (industryClass === 'cnc') {
+      const explicitCncEvidence = sources.some((source) => isExplicitCncEvidenceSource(source))
+      if (!explicitCncEvidence) {
+        toast.error(
+          t('industryEvidence.cncEvidenceRequired', {
+            defaultValue: 'CNC approval requires explicit industrial evidence; keyword or discovery matches are not enough.',
+          }),
+        )
+        return false
+      }
+      if (!cncEvidenceAcknowledged) {
+        toast.error(
+          t('industryEvidence.cncAcknowledgementRequired', {
+            defaultValue: 'Confirm that you reviewed the explicit CNC evidence before approving.',
+          }),
+        )
+        return false
+      }
+    }
     return true
   }
 
@@ -1114,6 +1201,18 @@ export function SystemSettingsIndustryVerificationPage() {
     if (!validateApprovalInputs() || !selectedProposal?.companyKey) return
     setSaving(true)
     try {
+      const visibleRiskFlags = recommendation?.riskFlags ?? []
+      const requiresAttestation = visibleRiskFlags.length > 0 || industryClass === 'cnc'
+      const reviewAttestation: IndustryReviewAttestation | undefined = requiresAttestation
+        ? {
+            schemaVersion: INDUSTRY_REVIEW_ATTESTATION_SCHEMA_VERSION,
+            inputFingerprint: reviewDataset?.inputFingerprint ?? '',
+            decisionMode: visibleRiskFlags.length > 0 ? 'risk_override' : 'standard',
+            acknowledgedRiskFlags: acknowledgedRiskFlags as IndustryReviewAttestation['acknowledgedRiskFlags'],
+            cncEvidenceAcknowledged,
+            acknowledgementReason: acknowledgementReason.trim(),
+          }
+        : undefined
       const response = await requestJson(
         `/api/company-industry-proposals/${encodeURIComponent(selectedProposal.proposalId)}/approve`,
         {
@@ -1124,6 +1223,7 @@ export function SystemSettingsIndustryVerificationPage() {
             expectedProposalUpdatedAt: reviewDataset?.proposalUpdatedAt ?? selectedProposal.updatedAt,
             expectedInputFingerprint: reviewDataset?.inputFingerprint,
             expectedSourceVersions: reviewDataset?.sourceVersions,
+            ...(reviewAttestation ? { reviewAttestation } : {}),
             verificationLevel,
             industryClass,
             approvedSourceIds: selectedSourceIds,
@@ -1207,6 +1307,7 @@ export function SystemSettingsIndustryVerificationPage() {
 
   function changeQueueStatus(status: ReviewQueueStatus) {
     setQueueStatus(status)
+    setNextQueueCursor(undefined)
     const nextParams = new URLSearchParams(searchParams)
     nextParams.set('status', status)
     nextParams.delete('proposalId')
@@ -1293,6 +1394,58 @@ export function SystemSettingsIndustryVerificationPage() {
                 <option value="needs_more_evidence">Needs more evidence</option>
               </select>
             </label>
+            <div className="grid gap-2 pt-2 sm:grid-cols-3">
+              <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span>{t('industryEvidence.riskFilter', { defaultValue: 'Risk' })}</span>
+                <select
+                  aria-label={t('industryEvidence.riskFilter', { defaultValue: 'Risk' })}
+                  value={riskFilter}
+                  onChange={(event) => {
+                    setRiskFilter(event.target.value)
+                    setNextQueueCursor(undefined)
+                  }}
+                  className="h-8 min-w-0 flex-1 rounded-md border bg-background px-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring"
+                >
+                  <option value="">{t('industryEvidence.allRisks', { defaultValue: 'All risks' })}</option>
+                  {Object.keys(REVIEW_RISK_FLAG_LABELS).map((flag) => <option key={flag} value={flag}>{REVIEW_RISK_FLAG_LABELS[flag]}</option>)}
+                </select>
+              </label>
+              <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span>{t('industryEvidence.confidenceFilter', { defaultValue: 'Confidence' })}</span>
+                <select
+                  aria-label={t('industryEvidence.confidenceFilter', { defaultValue: 'Confidence' })}
+                  value={confidenceFilter}
+                  onChange={(event) => {
+                    setConfidenceFilter(event.target.value)
+                    setNextQueueCursor(undefined)
+                  }}
+                  className="h-8 min-w-0 flex-1 rounded-md border bg-background px-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring"
+                >
+                  <option value="">{t('industryEvidence.allConfidence', { defaultValue: 'All confidence' })}</option>
+                  <option value="high">high</option>
+                  <option value="medium">medium</option>
+                  <option value="low">low</option>
+                </select>
+              </label>
+              <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span>{t('industryEvidence.actionFilter', { defaultValue: 'Action' })}</span>
+                <select
+                  aria-label={t('industryEvidence.actionFilter', { defaultValue: 'Action' })}
+                  value={actionFilter}
+                  onChange={(event) => {
+                    setActionFilter(event.target.value)
+                    setNextQueueCursor(undefined)
+                  }}
+                  className="h-8 min-w-0 flex-1 rounded-md border bg-background px-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring"
+                >
+                  <option value="">{t('industryEvidence.allActions', { defaultValue: 'All actions' })}</option>
+                  <option value="approve">approve</option>
+                  <option value="needs_more_evidence">needs evidence</option>
+                  <option value="inspect">inspect</option>
+                  <option value="reject">reject</option>
+                </select>
+              </label>
+            </div>
           </CardHeader>
           <CardContent className="space-y-2">
             {proposals.length === 0 ? (
@@ -1337,6 +1490,17 @@ export function SystemSettingsIndustryVerificationPage() {
                 )
               })()
             ))}
+            {nextQueueCursor && (
+              <Button
+                type="button"
+                variant="outline"
+                className="mt-2 w-full"
+                disabled={loading}
+                onClick={() => void loadQueue(nextQueueCursor, true)}
+              >
+                {t('industryEvidence.loadMore', { defaultValue: 'Load next review page' })}
+              </Button>
+            )}
           </CardContent>
         </Card>
 
@@ -1438,6 +1602,80 @@ export function SystemSettingsIndustryVerificationPage() {
                 </Card>
               )}
 
+              {recommendation && (recommendation.riskDecision?.requiresAcknowledgement || industryClass === 'cnc') && (
+                <Card data-testid="industry-review-risk-attestation" className="border-amber-300">
+                  <CardHeader>
+                    <CardTitle>{t('industryEvidence.riskAttestationTitle', { defaultValue: 'Evidence-risk acknowledgement' })}</CardTitle>
+                    <CardDescription>
+                      {t('industryEvidence.riskAttestationDescription', {
+                        defaultValue: 'Approval remains a human decision. Acknowledge the visible evidence risks and record why the selected revision is still justified.',
+                      })}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3 text-sm">
+                    {recommendation.riskFlags.length > 0 ? (
+                      <fieldset className="space-y-2">
+                        <legend className="font-medium">
+                          {t('industryEvidence.visibleRiskFlags', { defaultValue: 'Visible risk flags' })}
+                        </legend>
+                        {recommendation.riskFlags.map((flag) => (
+                          <label key={flag} className="flex items-start gap-2 rounded-md border p-2">
+                            <input
+                              type="checkbox"
+                              className="mt-0.5 h-4 w-4 accent-primary focus-visible:ring-2 focus-visible:ring-ring"
+                              checked={acknowledgedRiskFlags.includes(flag)}
+                              onChange={(event) => setAcknowledgedRiskFlags((current) => event.target.checked
+                                ? [...new Set([...current, flag])]
+                                : current.filter((item) => item !== flag))}
+                              aria-label={`Acknowledge ${flag}`}
+                            />
+                            <span>
+                              <span className="font-medium">{REVIEW_RISK_FLAG_LABELS[flag] ?? flag.replace(/_/g, ' ')}</span>
+                              {recommendation.riskDecision?.nonOverridableRiskFlags.includes(flag) && (
+                                <span className="ml-2 text-xs font-semibold text-destructive">
+                                  {t('industryEvidence.hardBlock', { defaultValue: 'hard block' })}
+                                </span>
+                              )}
+                            </span>
+                          </label>
+                        ))}
+                      </fieldset>
+                    ) : null}
+                    {industryClass === 'cnc' && (
+                      <label className="flex items-start gap-2 rounded-md border border-primary/30 bg-primary/5 p-3">
+                        <input
+                          type="checkbox"
+                          className="mt-0.5 h-4 w-4 accent-primary focus-visible:ring-2 focus-visible:ring-ring"
+                          checked={cncEvidenceAcknowledged}
+                          onChange={(event) => setCncEvidenceAcknowledged(event.target.checked)}
+                          aria-label={t('industryEvidence.cncEvidenceCheckbox', { defaultValue: 'I reviewed the explicit CNC evidence' })}
+                          disabled={!sources.some((source) => isExplicitCncEvidenceSource(source))}
+                        />
+                        <span>
+                          <span className="font-medium">{t('industryEvidence.cncEvidenceCheckbox', { defaultValue: 'I reviewed the explicit CNC evidence' })}</span>
+                          <span className="mt-1 block text-xs text-muted-foreground">
+                            {sources.filter((source) => isExplicitCncEvidenceSource(source)).length > 0
+                              ? t('industryEvidence.cncEvidenceAvailable', { defaultValue: 'At least one fetched, active industrial source contains a CNC signal.' })
+                              : t('industryEvidence.cncEvidenceUnavailable', { defaultValue: 'No fetched, active industrial source contains explicit CNC evidence.' })}
+                          </span>
+                        </span>
+                      </label>
+                    )}
+                    {recommendation.riskFlags.length > 0 && (
+                      <label className="block space-y-2 font-medium">
+                        {t('industryEvidence.riskAcknowledgementReason', { defaultValue: 'Detailed acknowledgement reason' })}
+                        <Input
+                          aria-label={t('industryEvidence.riskAcknowledgementReason', { defaultValue: 'Detailed acknowledgement reason' })}
+                          value={acknowledgementReason}
+                          onChange={(event) => setAcknowledgementReason(event.target.value)}
+                          placeholder={t('industryEvidence.riskAcknowledgementPlaceholder', { defaultValue: 'Explain why the selected evidence is sufficient for this attended decision.' })}
+                        />
+                      </label>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
               <Card>
                 <CardHeader>
                   <CardTitle>{t('industryEvidence.recomputeStatus', { defaultValue: 'Targeted recompute' })}</CardTitle>
@@ -1504,6 +1742,11 @@ export function SystemSettingsIndustryVerificationPage() {
                     const sourceDecision = recommendation?.sourceDecisions.find((item) => item.sourceId === source.sourceId)
                     const approvable = sourceDecision?.approvalSafe === true
                     const usable = approvable
+                    const disabledReason = !approvable
+                      ? recommendation?.excludedSourceReasons?.[source.sourceId]
+                        ?? sourceDecision?.reasonCodes.map((code) => code.replace(/_/g, ' ')).join(', ')
+                        ?? t('industryEvidence.sourceNotApprovalSafe', { defaultValue: 'not approval-safe' })
+                      : undefined
                     const checked = selectedSourceIds.includes(source.sourceId)
                     return (
                       <label key={source.sourceId} className={`flex gap-3 rounded-lg border p-3 ${!usable ? 'bg-muted/40' : ''}`}>
@@ -1512,6 +1755,7 @@ export function SystemSettingsIndustryVerificationPage() {
                           className="mt-1 h-4 w-4 accent-primary focus-visible:ring-2 focus-visible:ring-ring"
                           checked={checked}
                           disabled={!usable}
+                          aria-label={`Select evidence source ${source.title ?? source.sourceDomain}`}
                           onChange={(event) => {
                             setSelectedSourceIds((current) => event.target.checked
                               ? [...new Set([...current, source.sourceId])]
@@ -1524,16 +1768,14 @@ export function SystemSettingsIndustryVerificationPage() {
                             <Badge variant="outline">{source.sourceType}</Badge>
                             <Badge variant="secondary">{source.trustTier}</Badge>
                             {sourceDecision?.recommended && <Badge>Recommended</Badge>}
-                            {!approvable && <Badge variant="destructive">Discovery only</Badge>}
+                            {!approvable && <Badge variant="destructive">{t('industryEvidence.sourceDisabled', { defaultValue: 'Not approval-safe' })}</Badge>}
                           </span>
                           {source.evidenceExcerpt && (
                             <span className="mt-1 block text-sm leading-6 text-muted-foreground">{source.evidenceExcerpt}</span>
                           )}
                           <span className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                             <span>Fetched {formatDate(source.fetchedAt)}</span>
-                            {sourceDecision && !sourceDecision.recommended && sourceDecision.reasonCodes.length > 0 && (
-                              <span>Not preselected: {sourceDecision.reasonCodes[0].replace(/_/g, ' ')}</span>
-                            )}
+                            {disabledReason && <span>{t('industryEvidence.sourceDisabledReason', { defaultValue: 'Reason: ' })}{disabledReason}</span>}
                             <a
                               href={source.url}
                               target="_blank"
@@ -1654,7 +1896,10 @@ export function SystemSettingsIndustryVerificationPage() {
                     />
                   </label>
                   <div className="flex flex-wrap gap-2">
-                    <Button onClick={prepareApproval} disabled={saving || approvalConfirmOpen}>
+                    <Button
+                      onClick={prepareApproval}
+                      disabled={saving || approvalConfirmOpen || (recommendation?.riskDecision?.nonOverridableRiskFlags.length ?? 0) > 0}
+                    >
                       <ShieldCheck className="mr-2 h-4 w-4" />
                       Approve revision
                     </Button>

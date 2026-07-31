@@ -162,6 +162,11 @@ const recommendation = {
   riskFlags: [],
   reasons: ['Durable source supports the proposed cnc classification.'],
   excludedSourceReasons: {},
+  riskDecision: {
+    requiresAcknowledgement: false,
+    nonOverridableRiskFlags: [],
+    canApproveWithRiskOverride: true,
+  },
   evidenceSummaryDraft: 'Official catalog changed.',
   decisionReasonDraft: 'Reviewed 1 approval-safe source(s); confirm the cnc classification and evidence summary.',
   requiresHumanReview: true,
@@ -419,6 +424,7 @@ describe('SystemSettingsIndustryVerificationPage', () => {
     await user.clear(screen.getByLabelText('Evidence summary'))
     await user.type(screen.getByLabelText('Evidence summary'), 'Reviewed official evidence.')
     await user.type(screen.getByLabelText('Decision reason'), 'Primary source confirmed.')
+    await user.click(screen.getByLabelText('I reviewed the explicit CNC evidence'))
     await user.click(screen.getByRole('button', { name: 'Approve revision' }))
     expect(screen.getByTestId('industry-review-approval-confirmation')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Confirm approve revision' }))
@@ -442,6 +448,13 @@ describe('SystemSettingsIndustryVerificationPage', () => {
       approvedSourceIds: ['source-1'],
       evidenceSummary: 'Reviewed official evidence.',
       decisionReason: expect.stringContaining('Primary source confirmed.'),
+      reviewAttestation: expect.objectContaining({
+        schemaVersion: 'industry-review-attestation.v1',
+        inputFingerprint: 'fingerprint-1',
+        decisionMode: 'standard',
+        acknowledgedRiskFlags: [],
+        cncEvidenceAcknowledged: true,
+      }),
     })
     expect(toastSuccessMock).toHaveBeenCalledWith('Industry verdict revision approved')
   })
@@ -466,6 +479,42 @@ describe('SystemSettingsIndustryVerificationPage', () => {
         },
       )
     })
+  })
+
+  it('requires visible risk acknowledgement and a CNC evidence acknowledgement before approval', async () => {
+    const user = userEvent.setup()
+    const defaultRequestJson = requestJsonMock.getMockImplementation()
+    requestJsonMock.mockImplementation((path: string, init?: RequestInit) => {
+      if (path === '/api/company-industry-proposals/proposal-1/review-packet') {
+        return Promise.resolve({
+          ...reviewPacket,
+          recommendation: {
+            ...recommendation,
+            riskFlags: ['low_source_diversity'],
+            riskDecision: {
+              requiresAcknowledgement: true,
+              nonOverridableRiskFlags: [],
+              canApproveWithRiskOverride: true,
+            },
+          },
+        })
+      }
+      return defaultRequestJson?.(path, init) ?? Promise.resolve({ success: true })
+    })
+
+    renderPage()
+    expect(await screen.findByTestId('industry-review-risk-attestation')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Approve revision' }))
+    expect(screen.queryByTestId('industry-review-approval-confirmation')).not.toBeInTheDocument()
+
+    await user.click(screen.getByLabelText('Acknowledge low_source_diversity'))
+    await user.type(
+      screen.getByLabelText('Detailed acknowledgement reason'),
+      'The primary source is sufficient for this attended review.',
+    )
+    await user.click(screen.getByLabelText('I reviewed the explicit CNC evidence'))
+    await user.click(screen.getByRole('button', { name: 'Approve revision' }))
+    expect(screen.getByTestId('industry-review-approval-confirmation')).toBeInTheDocument()
   })
 
   it('renders run history section with recent maintenance runs', async () => {

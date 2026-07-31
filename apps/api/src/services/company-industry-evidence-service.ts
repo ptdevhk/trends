@@ -11,6 +11,7 @@ import {
 } from "./company-industry-contracts.js";
 import { config } from "./config.js";
 import { callConvexMutation, callConvexQuery } from "./convex-utils.js";
+import { invalidateIndustryReviewIndex } from "./company-industry-review-index.js";
 
 export async function listIndustryEvidenceSources(filter: {
   companyKey?: string;
@@ -67,6 +68,7 @@ export async function upsertIndustryEvidenceSource(input: {
   ) {
     throw new Error("Invalid companies:upsertIndustryEvidenceSource response");
   }
+  invalidateIndustryReviewIndex();
   return {
     sourceId: (value as { sourceId: string }).sourceId,
     created: (value as { created?: unknown }).created === true,

@@ -8732,7 +8732,7 @@ export interface paths {
                                 proposalId: string;
                                 companyKey?: string;
                                 normalizedEmployerSurface?: string;
-                                triggerReasons: ("unknown_employer" | "weak_employer_evidence" | "high_value_candidate" | "frequent_employer" | "missing_approved_profile" | "evidence_conflict" | "scheduled_freshness" | "material_source_change" | "source_unavailable" | "recruiter_refresh_request")[];
+                                triggerReasons: ("unknown_employer" | "weak_employer_evidence" | "high_value_candidate" | "frequent_employer" | "missing_approved_profile" | "evidence_conflict" | "scheduled_freshness" | "material_source_change" | "source_unavailable" | "recruiter_refresh_request" | "manual")[];
                                 priority: number;
                                 sampleReferences?: {
                                     workspaceSlug: string;
@@ -8776,7 +8776,7 @@ export interface paths {
                         proposalId: string;
                         companyKey?: string;
                         normalizedEmployerSurface?: string;
-                        triggerReasons: ("unknown_employer" | "weak_employer_evidence" | "high_value_candidate" | "frequent_employer" | "missing_approved_profile" | "evidence_conflict" | "scheduled_freshness" | "material_source_change" | "source_unavailable" | "recruiter_refresh_request")[];
+                        triggerReasons: ("unknown_employer" | "weak_employer_evidence" | "high_value_candidate" | "frequent_employer" | "missing_approved_profile" | "evidence_conflict" | "scheduled_freshness" | "material_source_change" | "source_unavailable" | "recruiter_refresh_request" | "manual")[];
                         priority: number;
                         sampleReferences?: {
                             workspaceSlug: string;
@@ -8828,6 +8828,10 @@ export interface paths {
                 query?: {
                     status?: "new" | "researching" | "ready_for_review" | "needs_more_evidence" | "approved" | "rejected" | "superseded";
                     limit?: number;
+                    cursor?: string;
+                    riskFlag?: "canonical_mapping_missing" | "only_discovery_sources" | "source_conflict" | "weak_industry_signal" | "cnc_claim_inferred" | "stale_or_failed_source" | "low_source_diversity" | "worker_unreachable" | "recompute_pending";
+                    confidenceBand?: "high" | "medium" | "low";
+                    recommendedAction?: "approve" | "needs_more_evidence" | "reject" | "inspect";
                 };
                 header?: never;
                 path?: never;
@@ -8854,7 +8858,7 @@ export interface paths {
                                     proposalId: string;
                                     companyKey?: string;
                                     normalizedEmployerSurface?: string;
-                                    triggerReasons: ("unknown_employer" | "weak_employer_evidence" | "high_value_candidate" | "frequent_employer" | "missing_approved_profile" | "evidence_conflict" | "scheduled_freshness" | "material_source_change" | "source_unavailable" | "recruiter_refresh_request")[];
+                                    triggerReasons: ("unknown_employer" | "weak_employer_evidence" | "high_value_candidate" | "frequent_employer" | "missing_approved_profile" | "evidence_conflict" | "scheduled_freshness" | "material_source_change" | "source_unavailable" | "recruiter_refresh_request" | "manual")[];
                                     priority: number;
                                     sampleReferences?: {
                                         workspaceSlug: string;
@@ -8902,17 +8906,188 @@ export interface paths {
                                     excludedSourceReasons: {
                                         [key: string]: string;
                                     };
+                                    riskDecision: {
+                                        requiresAcknowledgement: boolean;
+                                        nonOverridableRiskFlags: ("canonical_mapping_missing" | "only_discovery_sources" | "source_conflict" | "weak_industry_signal" | "cnc_claim_inferred" | "stale_or_failed_source" | "low_source_diversity" | "worker_unreachable" | "recompute_pending")[];
+                                        canApproveWithRiskOverride: boolean;
+                                    };
                                     evidenceSummaryDraft: string;
                                     decisionReasonDraft: string;
                                     /** @enum {boolean} */
                                     requiresHumanReview: true;
                                 };
+                                inputFingerprint: string;
                                 sourceCount: number;
                             }[];
                             maintenance: {
-                                latest?: unknown;
-                                lastFailed?: unknown;
+                                latest: {
+                                    runId: string;
+                                    status?: string;
+                                    triggerSource?: string;
+                                    triggerContext?: string;
+                                    operatorSummary?: string;
+                                    failureMessage?: string;
+                                    startedAt?: number;
+                                    finishedAt?: number;
+                                    counts: {
+                                        proposalsResearched: number;
+                                        readyCreated: number;
+                                        sourcesDemoted: number;
+                                        freshnessChecked: number;
+                                        freshnessRefreshed: number;
+                                        errors: number;
+                                    };
+                                } | null;
+                                lastFailed: {
+                                    runId: string;
+                                    status?: string;
+                                    triggerSource?: string;
+                                    triggerContext?: string;
+                                    operatorSummary?: string;
+                                    failureMessage?: string;
+                                    startedAt?: number;
+                                    finishedAt?: number;
+                                    counts: {
+                                        proposalsResearched: number;
+                                        readyCreated: number;
+                                        sourcesDemoted: number;
+                                        freshnessChecked: number;
+                                        freshnessRefreshed: number;
+                                        errors: number;
+                                    };
+                                } | null;
                             };
+                            nextCursor?: string;
+                        };
+                    };
+                };
+                /** @description Review queue cursor no longer matches the advisory index */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                            /** @enum {string} */
+                            code: "INDUSTRY_REVIEW_CURSOR_STALE";
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/company-industry-proposals/:proposalId/recommendation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a recommendation-only industry review projection */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    proposalId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Recommendation-only review projection */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            /** @enum {boolean} */
+                            ok: true;
+                            /** @enum {string} */
+                            schemaVersion: "industry-review.v1";
+                            operation: {
+                                id: string;
+                                /** @enum {string} */
+                                kind: "recommendation";
+                                /** @enum {string} */
+                                state: "computed";
+                            };
+                            dataset: {
+                                revision: string;
+                                inputFingerprint: string;
+                                generatedAt: number;
+                                proposalUpdatedAt: number;
+                                sourceVersions: {
+                                    sourceId: string;
+                                    updatedAt: number;
+                                }[];
+                                gitSha?: string;
+                            };
+                            recommendation: {
+                                proposalId: string;
+                                /** @enum {string} */
+                                proposalStatus: "new" | "researching" | "ready_for_review" | "needs_more_evidence" | "approved" | "rejected" | "superseded";
+                                /** @enum {string} */
+                                recommendedAction: "approve" | "needs_more_evidence" | "reject" | "inspect";
+                                /** @enum {string} */
+                                recommendedVerificationLevel: "verified" | "rejected";
+                                /** @enum {string} */
+                                recommendedIndustryClass: "cnc" | "automation" | "metrology" | "industrial" | "non_industry" | "unknown";
+                                recommendedSourceIds: string[];
+                                sourceDecisions: {
+                                    sourceId: string;
+                                    approvalSafe: boolean;
+                                    recommended: boolean;
+                                    reasonCodes: ("approval_safe" | "search_result_not_approval_safe" | "discovery_not_approval_safe" | "unsafe_url" | "not_fetched" | "fetch_failed" | "source_unavailable" | "source_not_active" | "source_disputed" | "source_rejected" | "recommended_primary" | "recommended_corroborating" | "class_conflict")[];
+                                }[];
+                                /** @enum {string} */
+                                confidenceBand: "high" | "medium" | "low";
+                                riskFlags: ("canonical_mapping_missing" | "only_discovery_sources" | "source_conflict" | "weak_industry_signal" | "cnc_claim_inferred" | "stale_or_failed_source" | "low_source_diversity" | "worker_unreachable" | "recompute_pending")[];
+                                reasons: string[];
+                                excludedSourceReasons: {
+                                    [key: string]: string;
+                                };
+                                riskDecision: {
+                                    requiresAcknowledgement: boolean;
+                                    nonOverridableRiskFlags: ("canonical_mapping_missing" | "only_discovery_sources" | "source_conflict" | "weak_industry_signal" | "cnc_claim_inferred" | "stale_or_failed_source" | "low_source_diversity" | "worker_unreachable" | "recompute_pending")[];
+                                    canApproveWithRiskOverride: boolean;
+                                };
+                                evidenceSummaryDraft: string;
+                                decisionReasonDraft: string;
+                                /** @enum {boolean} */
+                                requiresHumanReview: true;
+                            };
+                            warnings: {
+                                code: string;
+                                message: string;
+                                action?: string;
+                            }[];
+                        };
+                    };
+                };
+                /** @description Proposal not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
                         };
                     };
                 };
@@ -9000,6 +9175,11 @@ export interface paths {
                                 excludedSourceReasons: {
                                     [key: string]: string;
                                 };
+                                riskDecision: {
+                                    requiresAcknowledgement: boolean;
+                                    nonOverridableRiskFlags: ("canonical_mapping_missing" | "only_discovery_sources" | "source_conflict" | "weak_industry_signal" | "cnc_claim_inferred" | "stale_or_failed_source" | "low_source_diversity" | "worker_unreachable" | "recompute_pending")[];
+                                    canApproveWithRiskOverride: boolean;
+                                };
                                 evidenceSummaryDraft: string;
                                 decisionReasonDraft: string;
                                 /** @enum {boolean} */
@@ -9015,7 +9195,7 @@ export interface paths {
                                 proposalId: string;
                                 companyKey?: string;
                                 normalizedEmployerSurface?: string;
-                                triggerReasons: ("unknown_employer" | "weak_employer_evidence" | "high_value_candidate" | "frequent_employer" | "missing_approved_profile" | "evidence_conflict" | "scheduled_freshness" | "material_source_change" | "source_unavailable" | "recruiter_refresh_request")[];
+                                triggerReasons: ("unknown_employer" | "weak_employer_evidence" | "high_value_candidate" | "frequent_employer" | "missing_approved_profile" | "evidence_conflict" | "scheduled_freshness" | "material_source_change" | "source_unavailable" | "recruiter_refresh_request" | "manual")[];
                                 priority: number;
                                 sampleReferences?: {
                                     workspaceSlug: string;
@@ -9072,7 +9252,7 @@ export interface paths {
                                 createdAt: number;
                                 updatedAt: number;
                             }[];
-                            bundle: {
+                            reviewContext: {
                                 profile: {
                                     _id: string;
                                     companyKey: string;
@@ -9118,44 +9298,21 @@ export interface paths {
                                     decisionReason: string;
                                     taxonomyVersion: string;
                                     ruleVersion?: string;
+                                    reviewAttestation?: {
+                                        /** @enum {string} */
+                                        schemaVersion: "industry-review-attestation.v1";
+                                        inputFingerprint: string;
+                                        /** @enum {string} */
+                                        decisionMode: "standard" | "risk_override";
+                                        acknowledgedRiskFlags: ("canonical_mapping_missing" | "only_discovery_sources" | "source_conflict" | "weak_industry_signal" | "cnc_claim_inferred" | "stale_or_failed_source" | "low_source_diversity" | "worker_unreachable" | "recompute_pending")[];
+                                        cncEvidenceAcknowledged: boolean;
+                                        acknowledgementReason: string;
+                                    };
                                     supersedesRevisionId?: string;
                                     proposalId?: string;
                                     createdAt: number;
                                 }[];
-                                sources: {
-                                    _id: string;
-                                    sourceId: string;
-                                    companyKey?: string;
-                                    proposalId?: string;
-                                    /** Format: uri */
-                                    url: string;
-                                    sourceDomain: string;
-                                    /** @enum {string} */
-                                    sourceType: "official_site" | "registry" | "taxonomy" | "oem_partner" | "trade_body" | "directory" | "reporting" | "other" | "search_result";
-                                    /** @enum {string} */
-                                    trustTier: "primary" | "authoritative" | "corroborating" | "discovery";
-                                    title?: string;
-                                    evidenceExcerpt?: string;
-                                    fetchedAt?: number;
-                                    lastSuccessfulFetchAt?: number;
-                                    contentFingerprint?: string;
-                                    /** @enum {string} */
-                                    fetchStatus: "pending" | "fetched" | "failed" | "unavailable";
-                                    /** @enum {string} */
-                                    suggestedIndustryClass?: "cnc" | "automation" | "metrology" | "industrial" | "non_industry" | "unknown";
-                                    workerConfidence?: number;
-                                    /** @enum {string} */
-                                    reviewStatus: "unreviewed" | "approved" | "rejected" | "disputed";
-                                    reviewedAt?: number;
-                                    reviewedBy?: string;
-                                    reviewerNote?: string;
-                                    /** @enum {string} */
-                                    sourceState: "active" | "superseded" | "unavailable" | "disputed";
-                                    supersededBySourceId?: string;
-                                    createdAt: number;
-                                    updatedAt: number;
-                                }[];
-                            } | null;
+                            };
                             recomputeRuns: {
                                 runId: string;
                                 workspaceSlug: string;
@@ -9190,8 +9347,42 @@ export interface paths {
                                 operatorSummary: string;
                             }[];
                             maintenance: {
-                                latest?: unknown;
-                                lastFailed?: unknown;
+                                latest: {
+                                    runId: string;
+                                    status?: string;
+                                    triggerSource?: string;
+                                    triggerContext?: string;
+                                    operatorSummary?: string;
+                                    failureMessage?: string;
+                                    startedAt?: number;
+                                    finishedAt?: number;
+                                    counts: {
+                                        proposalsResearched: number;
+                                        readyCreated: number;
+                                        sourcesDemoted: number;
+                                        freshnessChecked: number;
+                                        freshnessRefreshed: number;
+                                        errors: number;
+                                    };
+                                } | null;
+                                lastFailed: {
+                                    runId: string;
+                                    status?: string;
+                                    triggerSource?: string;
+                                    triggerContext?: string;
+                                    operatorSummary?: string;
+                                    failureMessage?: string;
+                                    startedAt?: number;
+                                    finishedAt?: number;
+                                    counts: {
+                                        proposalsResearched: number;
+                                        readyCreated: number;
+                                        sourcesDemoted: number;
+                                        freshnessChecked: number;
+                                        freshnessRefreshed: number;
+                                        errors: number;
+                                    };
+                                } | null;
                             };
                         };
                     };
@@ -9252,7 +9443,7 @@ export interface paths {
                                 proposalId: string;
                                 companyKey?: string;
                                 normalizedEmployerSurface?: string;
-                                triggerReasons: ("unknown_employer" | "weak_employer_evidence" | "high_value_candidate" | "frequent_employer" | "missing_approved_profile" | "evidence_conflict" | "scheduled_freshness" | "material_source_change" | "source_unavailable" | "recruiter_refresh_request")[];
+                                triggerReasons: ("unknown_employer" | "weak_employer_evidence" | "high_value_candidate" | "frequent_employer" | "missing_approved_profile" | "evidence_conflict" | "scheduled_freshness" | "material_source_change" | "source_unavailable" | "recruiter_refresh_request" | "manual")[];
                                 priority: number;
                                 sampleReferences?: {
                                     workspaceSlug: string;
@@ -9329,6 +9520,16 @@ export interface paths {
                         taxonomyVersion: string;
                         ruleVersion?: string;
                         nextReviewAt?: number;
+                        reviewAttestation?: {
+                            /** @enum {string} */
+                            schemaVersion: "industry-review-attestation.v1";
+                            inputFingerprint: string;
+                            /** @enum {string} */
+                            decisionMode: "standard" | "risk_override";
+                            acknowledgedRiskFlags: ("canonical_mapping_missing" | "only_discovery_sources" | "source_conflict" | "weak_industry_signal" | "cnc_claim_inferred" | "stale_or_failed_source" | "low_source_diversity" | "worker_unreachable" | "recompute_pending")[];
+                            cncEvidenceAcknowledged: boolean;
+                            acknowledgementReason: string;
+                        };
                     };
                 };
             };
@@ -9393,6 +9594,20 @@ export interface paths {
                             error: string;
                             /** @enum {string} */
                             code: "INDUSTRY_REVIEW_STALE";
+                        };
+                    };
+                };
+                /** @description Review attestation or evidence policy rejected the decision */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                            code: string;
                         };
                     };
                 };
@@ -9638,6 +9853,16 @@ export interface paths {
                                 decisionReason: string;
                                 taxonomyVersion: string;
                                 ruleVersion?: string;
+                                reviewAttestation?: {
+                                    /** @enum {string} */
+                                    schemaVersion: "industry-review-attestation.v1";
+                                    inputFingerprint: string;
+                                    /** @enum {string} */
+                                    decisionMode: "standard" | "risk_override";
+                                    acknowledgedRiskFlags: ("canonical_mapping_missing" | "only_discovery_sources" | "source_conflict" | "weak_industry_signal" | "cnc_claim_inferred" | "stale_or_failed_source" | "low_source_diversity" | "worker_unreachable" | "recompute_pending")[];
+                                    cncEvidenceAcknowledged: boolean;
+                                    acknowledgementReason: string;
+                                };
                                 supersedesRevisionId?: string;
                                 proposalId?: string;
                                 createdAt: number;
@@ -10310,6 +10535,16 @@ export interface paths {
                                 decisionReason: string;
                                 taxonomyVersion: string;
                                 ruleVersion?: string;
+                                reviewAttestation?: {
+                                    /** @enum {string} */
+                                    schemaVersion: "industry-review-attestation.v1";
+                                    inputFingerprint: string;
+                                    /** @enum {string} */
+                                    decisionMode: "standard" | "risk_override";
+                                    acknowledgedRiskFlags: ("canonical_mapping_missing" | "only_discovery_sources" | "source_conflict" | "weak_industry_signal" | "cnc_claim_inferred" | "stale_or_failed_source" | "low_source_diversity" | "worker_unreachable" | "recompute_pending")[];
+                                    cncEvidenceAcknowledged: boolean;
+                                    acknowledgementReason: string;
+                                };
                                 supersedesRevisionId?: string;
                                 proposalId?: string;
                                 createdAt: number;

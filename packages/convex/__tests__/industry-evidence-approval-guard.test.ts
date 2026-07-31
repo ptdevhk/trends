@@ -48,6 +48,14 @@ function approvalArgs(overrides: Record<string, unknown> = {}) {
     reviewer: "reviewer@example.com",
     decisionReason: "Reviewed against industry evidence policy.",
     taxonomyVersion: "industry-taxonomy-v1",
+    reviewAttestation: {
+      schemaVersion: "industry-review-attestation.v1" as const,
+      inputFingerprint: "convex-test-fingerprint",
+      decisionMode: "standard" as const,
+      acknowledgedRiskFlags: [],
+      cncEvidenceAcknowledged: true,
+      acknowledgementReason: "",
+    },
     writeSecret: WRITE_SECRET,
     ...overrides,
   };
@@ -101,6 +109,8 @@ describe("approveIndustryProposal evidence-source guard", () => {
       url: "https://acme.example.com/products",
       sourceType: "official_site",
       trustTier: "primary",
+      title: "CNC machine tools",
+      evidenceExcerpt: "Official CNC machining product catalog.",
       fetchStatus: "fetched",
       writeSecret: WRITE_SECRET,
     });
@@ -137,6 +147,8 @@ describe("listVerifiedIndustryEmployerAliases", () => {
       url: "https://acme.example.com/products",
       sourceType: "official_site",
       trustTier: "primary",
+      title: "CNC machine tools",
+      evidenceExcerpt: "Official CNC machining product catalog.",
       fetchStatus: "fetched",
       writeSecret: WRITE_SECRET,
     });
@@ -183,6 +195,8 @@ describe("listVerifiedIndustryEmployerAliases", () => {
       url: "https://acme.example.com/products",
       sourceType: "official_site",
       trustTier: "primary",
+      title: "CNC machine tools",
+      evidenceExcerpt: "Official CNC machining product catalog.",
       fetchStatus: "fetched",
       writeSecret: WRITE_SECRET,
     });
@@ -205,6 +219,8 @@ describe("listVerifiedIndustryEmployerAliases", () => {
       url: "https://acme.example.com/notice",
       sourceType: "official_site",
       trustTier: "primary",
+      title: "Industrial notice",
+      evidenceExcerpt: "Official industrial company notice.",
       fetchStatus: "fetched",
       writeSecret: WRITE_SECRET,
     });

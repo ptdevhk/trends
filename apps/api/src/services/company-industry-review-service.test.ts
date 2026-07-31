@@ -94,6 +94,28 @@ describe("industry review recommendation rules", () => {
     });
   });
 
+  it("does not treat a keyword-only CNC directory hit as explicit CNC evidence", () => {
+    const result = industryReviewInternals.buildRecommendation({
+      proposal: proposal(),
+      sources: [
+        source({
+          sourceType: "directory",
+          trustTier: "corroborating",
+          title: "ACME CNC directory listing",
+          evidenceExcerpt: "CNC supplier directory keyword match.",
+        }),
+      ],
+      profile: null,
+      maintenance: noMaintenance,
+    });
+
+    expect(result.recommendation.recommendedAction).toBe("needs_more_evidence");
+    expect(result.recommendation.riskFlags).toContain("cnc_claim_inferred");
+    expect(result.recommendation.riskDecision.nonOverridableRiskFlags).toContain(
+      "cnc_claim_inferred",
+    );
+  });
+
   it("does not label stale or failed sources approval-safe", () => {
     const result = industryReviewInternals.buildRecommendation({
       proposal: proposal(),

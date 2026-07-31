@@ -307,6 +307,84 @@ describe("companies routes", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it("serves a recommendation-only projection without source payloads", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+    vi.spyOn(industryReviewService, "getIndustryReviewRecommendation").mockResolvedValue({
+      success: true,
+      ok: true,
+      schemaVersion: "industry-review.v1",
+      operation: { id: "review-1", kind: "recommendation", state: "computed" },
+      dataset: {
+        revision: "proposal-1:2:none",
+        inputFingerprint: "fingerprint-1",
+        generatedAt: 2,
+        proposalUpdatedAt: 2,
+        sourceVersions: [],
+      },
+      recommendation: {
+        proposalId: "proposal-1",
+        proposalStatus: "ready_for_review",
+        recommendedAction: "needs_more_evidence",
+        recommendedVerificationLevel: "verified",
+        recommendedIndustryClass: "industrial",
+        recommendedSourceIds: [],
+        sourceDecisions: [],
+        confidenceBand: "low",
+        riskFlags: ["low_source_diversity"],
+        reasons: ["Need more evidence"],
+        excludedSourceReasons: {},
+        riskDecision: {
+          requiresAcknowledgement: true,
+          nonOverridableRiskFlags: [],
+          canApproveWithRiskOverride: true,
+        },
+        evidenceSummaryDraft: "Need more evidence",
+        decisionReasonDraft: "Need more evidence",
+        requiresHumanReview: true,
+      },
+      warnings: [],
+    });
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request(
+      "/api/company-industry-proposals/proposal-1/recommendation",
+      { headers: auth.headers },
+    );
+    expect(response.status).toBe(200);
+    const body = await parseJsonBody<{ recommendation: { proposalId: string }; sources?: unknown }>(response);
+    expect(body.recommendation.proposalId).toBe("proposal-1");
+    expect(body.sources).toBeUndefined();
+  });
+
+  it("rejects an elevated approval without a complete attestation", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+    vi.spyOn(industryReviewService, "getIndustryReviewPacket").mockResolvedValue({
+      dataset: { inputFingerprint: "fingerprint-1" },
+      recommendation: { riskFlags: ["low_source_diversity"] },
+    } as never);
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request(
+      "/api/company-industry-proposals/proposal-1/approve",
+      {
+        method: "POST",
+        headers: { ...auth.headers, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          revisionId: "revision-2",
+          expectedInputFingerprint: "fingerprint-1",
+          verificationLevel: "verified",
+          industryClass: "industrial",
+          approvedSourceIds: ["source-1"],
+          evidenceSummary: "Reviewed evidence.",
+          decisionReason: "Attestation is intentionally missing.",
+          taxonomyVersion: "industry-v1",
+        }),
+      },
+    );
+    expect(response.status).toBe(422);
+    expect(await parseJsonBody(response)).toMatchObject({
+      code: "INDUSTRY_REVIEW_ATTESTATION_REQUIRED",
+    });
+  });
+
   it("fails closed when an approval packet fingerprint is stale", async () => {
     const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
     vi.spyOn(industryReviewService, "getIndustryReviewPacket").mockResolvedValue({
@@ -394,6 +472,10 @@ describe("companies routes", () => {
       startedAt: 10,
       updatedAt: 11,
     };
+    vi.spyOn(industryReviewService, "getIndustryReviewPacket").mockResolvedValue({
+      dataset: { inputFingerprint: "fingerprint-1" },
+      recommendation: { riskFlags: [] },
+    } as never);
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const call = parseConvexCall(input, init);
       if (call.pathName === "companies:approveIndustryProposal") {
@@ -456,12 +538,21 @@ describe("companies routes", () => {
         },
         body: JSON.stringify({
           revisionId: "revision-2",
+          expectedInputFingerprint: "fingerprint-1",
           verificationLevel: "verified",
           industryClass: "cnc",
           approvedSourceIds: ["source-1"],
           evidenceSummary: "Official catalog confirms CNC products.",
           decisionReason: "Reviewed primary evidence",
           taxonomyVersion: "industry-v1",
+          reviewAttestation: {
+            schemaVersion: "industry-review-attestation.v1",
+            inputFingerprint: "fingerprint-1",
+            decisionMode: "standard",
+            acknowledgedRiskFlags: [],
+            cncEvidenceAcknowledged: true,
+            acknowledgementReason: "",
+          },
         }),
       },
     );
