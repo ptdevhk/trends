@@ -175,9 +175,73 @@ if [ -z "${CONVEX_AGENT_MODE:-}" ] && [ -f "$SCRIPT_DIR/local-convex-write-secre
     fi
 fi
 
+# Detect local backend readiness. `npx convex env set` against a local deployment
+# that is not listening will try to spawn the backend and wait ~30s per call,
+# making `make dev` appear hung and failing early keys before the real stack starts.
+is_local_convex_url() {
+    case "$1" in
+        http://127.0.0.1:*|http://localhost:*|https://127.0.0.1:*|https://localhost:*)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+extract_url_port() {
+    local url="$1"
+    local port
+    port="$(printf '%s' "$url" | sed -E 's#^[a-zA-Z]+://[^/:]+:([0-9]+).*#\1#')"
+    if [ "$port" = "$url" ]; then
+        case "$url" in
+            https://*) printf '443' ;;
+            *) printf '80' ;;
+        esac
+        return 0
+    fi
+    printf '%s' "$port"
+}
+
+local_backend_ready() {
+    local port="$1"
+    if command -v curl >/dev/null 2>&1; then
+        curl -fsS --max-time 2 "http://127.0.0.1:${port}/version" >/dev/null 2>&1 && return 0
+    fi
+    if command -v lsof >/dev/null 2>&1; then
+        lsof -tiTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1 && return 0
+    fi
+    return 1
+}
+
+RUNTIME_WAIT_SECS="${CONVEX_RUNTIME_SYNC_WAIT_SECS:-0}"
+if is_local_convex_url "$CONVEX_URL"; then
+    LOCAL_CONVEX_PORT="$(extract_url_port "$CONVEX_URL")"
+    if ! local_backend_ready "$LOCAL_CONVEX_PORT"; then
+        if [ "${RUNTIME_WAIT_SECS}" -gt 0 ] 2>/dev/null; then
+            echo "Waiting up to ${RUNTIME_WAIT_SECS}s for local Convex on port ${LOCAL_CONVEX_PORT} before runtime env sync..."
+            waited=0
+            while [ "$waited" -lt "$RUNTIME_WAIT_SECS" ]; do
+                if local_backend_ready "$LOCAL_CONVEX_PORT"; then
+                    break
+                fi
+                sleep 1
+                waited=$((waited + 1))
+            done
+        fi
+    fi
+    if ! local_backend_ready "$LOCAL_CONVEX_PORT"; then
+        echo "Skipping Convex runtime env sync: local backend not listening on port ${LOCAL_CONVEX_PORT}."
+        echo "  (VITE_CONVEX_URL was still written. Runtime keys sync after Convex starts via scripts/dev.sh.)"
+        exit 0
+    fi
+fi
+
 synced=0
 failed=0
 skipped_empty=0
+declare -a PENDING_KEYS=()
+declare -a PENDING_VALUES=()
 
 for key in "${CONVEX_RUNTIME_ENV_KEYS[@]}"; do
     value="$(resolve_runtime_env_value "$key")"
@@ -185,36 +249,102 @@ for key in "${CONVEX_RUNTIME_ENV_KEYS[@]}"; do
         skipped_empty=$((skipped_empty + 1))
         continue
     fi
-
-    # Pass value as a separate argv — do not shell-quote into a single string
-    # (previous escaping could corrupt keys or leave placeholders).
-    if [ -f "$CONVEX_ENV_FILE" ]; then
-        if (cd "$CONVEX_DIR" && npx convex env set --env-file "$CONVEX_ENV_FILE" "$key" "$value" >/dev/null 2>&1); then
-            synced=$((synced + 1))
-            echo "  Synced $key to Convex"
-        else
-            echo "  WARNING: Failed to sync $key to Convex"
-            failed=$((failed + 1))
-        fi
-    else
-        if (cd "$CONVEX_DIR" && npx convex env set "$key" "$value" >/dev/null 2>&1); then
-            synced=$((synced + 1))
-            echo "  Synced $key to Convex"
-        else
-            echo "  WARNING: Failed to sync $key to Convex"
-            failed=$((failed + 1))
-        fi
-    fi
+    PENDING_KEYS+=("$key")
+    PENDING_VALUES+=("$value")
 done
 
-if [ "$synced" -gt 0 ]; then
-    echo "Synced $synced runtime env var(s) to Convex deployment."
-elif [ "$failed" -eq 0 ]; then
+if [ "${#PENDING_KEYS[@]}" -eq 0 ]; then
     echo "No managed runtime env vars found in environment (checked process env, packages/convex/.env.local, .env.local, .env)."
-fi
+else
+    # Prefer one batched `env set --from-file` (much faster than N CLI startups).
+    batch_tmp="$(mktemp "${TMPDIR:-/tmp}/trends-convex-env.XXXXXX")"
+    # shellcheck disable=SC2064
+    trap 'rm -f "$batch_tmp"' EXIT
+    batch_idx=0
+    while [ "$batch_idx" -lt "${#PENDING_KEYS[@]}" ]; do
+        # Escape values for dotenv: quote if they contain spaces or special chars.
+        _bk="${PENDING_KEYS[$batch_idx]}"
+        _bv="${PENDING_VALUES[$batch_idx]}"
+        case "$_bv" in
+            *[$' \t\n"\'\\']*|*[=#]*)
+                _bv_escaped="$(printf '%s' "$_bv" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+                printf '%s="%s"\n' "$_bk" "$_bv_escaped" >>"$batch_tmp"
+                ;;
+            *)
+                printf '%s=%s\n' "$_bk" "$_bv" >>"$batch_tmp"
+                ;;
+        esac
+        batch_idx=$((batch_idx + 1))
+    done
 
-if [ "$failed" -gt 0 ]; then
-    echo "WARNING: $failed Convex env var(s) failed to sync."
+    batch_err="$(mktemp "${TMPDIR:-/tmp}/trends-convex-env-err.XXXXXX")"
+    batch_ok=0
+    if [ -f "$CONVEX_ENV_FILE" ]; then
+        if (cd "$CONVEX_DIR" && npx convex env set --env-file "$CONVEX_ENV_FILE" --from-file "$batch_tmp" --force >"$batch_err" 2>&1); then
+            batch_ok=1
+        fi
+    else
+        if (cd "$CONVEX_DIR" && npx convex env set --from-file "$batch_tmp" --force >"$batch_err" 2>&1); then
+            batch_ok=1
+        fi
+    fi
+
+    if [ "$batch_ok" -eq 1 ]; then
+        synced="${#PENDING_KEYS[@]}"
+        for key in "${PENDING_KEYS[@]}"; do
+            echo "  Synced $key to Convex"
+        done
+        echo "Synced $synced runtime env var(s) to Convex deployment (batched)."
+    else
+        echo "  Batch env set failed; falling back to per-key sync..."
+        if [ -s "$batch_err" ]; then
+            # Show a short non-secret hint (first line only).
+            head -n 1 "$batch_err" | sed 's/^/  /'
+        fi
+        rm -f "$batch_err"
+
+        key_idx=0
+        while [ "$key_idx" -lt "${#PENDING_KEYS[@]}" ]; do
+            key="${PENDING_KEYS[$key_idx]}"
+            value="${PENDING_VALUES[$key_idx]}"
+            key_err="$(mktemp "${TMPDIR:-/tmp}/trends-convex-env-key-err.XXXXXX")"
+            # Pass value as a separate argv — do not shell-quote into a single string
+            # (previous escaping could corrupt keys or leave placeholders).
+            if [ -f "$CONVEX_ENV_FILE" ]; then
+                if (cd "$CONVEX_DIR" && npx convex env set --env-file "$CONVEX_ENV_FILE" "$key" "$value" >"$key_err" 2>&1); then
+                    synced=$((synced + 1))
+                    echo "  Synced $key to Convex"
+                else
+                    echo "  WARNING: Failed to sync $key to Convex"
+                    if [ -s "$key_err" ]; then
+                        head -n 1 "$key_err" | sed 's/^/    /'
+                    fi
+                    failed=$((failed + 1))
+                fi
+            else
+                if (cd "$CONVEX_DIR" && npx convex env set "$key" "$value" >"$key_err" 2>&1); then
+                    synced=$((synced + 1))
+                    echo "  Synced $key to Convex"
+                else
+                    echo "  WARNING: Failed to sync $key to Convex"
+                    if [ -s "$key_err" ]; then
+                        head -n 1 "$key_err" | sed 's/^/    /'
+                    fi
+                    failed=$((failed + 1))
+                fi
+            fi
+            rm -f "$key_err"
+            key_idx=$((key_idx + 1))
+        done
+
+        if [ "$synced" -gt 0 ]; then
+            echo "Synced $synced runtime env var(s) to Convex deployment."
+        fi
+        if [ "$failed" -gt 0 ]; then
+            echo "WARNING: $failed Convex env var(s) failed to sync."
+        fi
+    fi
+    rm -f "$batch_err" 2>/dev/null || true
 fi
 
 # Lightweight integrity check: AI_API_KEY must not be a short redacted placeholder.

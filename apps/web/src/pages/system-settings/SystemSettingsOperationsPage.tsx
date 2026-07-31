@@ -73,7 +73,7 @@ function IndustryMaintenanceCard({ requestJson }: { requestJson: (path: string, 
         body: JSON.stringify({}),
       }) as { runId?: string | null; coalesced?: boolean }
       const runId = result?.runId ?? 'unknown'
-      toast.success(t('operations.industryMaintenanceTriggered', { defaultValue: `Maintenance run ${runId} enqueued` }))
+      toast.success(t('operations.industryMaintenanceTriggered', { defaultValue: `Maintenance run ${runId} enqueued`, runId }))
       // Refresh last run after a short delay so the new run appears.
       setTimeout(() => { void loadLastRun() }, 2000)
     } catch (error) {
