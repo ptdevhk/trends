@@ -3576,8 +3576,13 @@ export const listIndustryDataChanges = query({
     if (companyKey) {
       rows = rows.filter((r: any) => r.companyKey === companyKey);
     }
-    // Newest-first by creation time.
-    rows.sort((left: any, right: any) => right.createdAt - left.createdAt);
+    // Newest-first by createdAt; break ties with Convex _creationTime so
+    // same-ms appends (common in fast tests) stay deterministic.
+    rows.sort((left: any, right: any) => {
+      const byCreated = right.createdAt - left.createdAt;
+      if (byCreated !== 0) return byCreated;
+      return (right._creationTime ?? 0) - (left._creationTime ?? 0);
+    });
     return rows.slice(0, limit);
   },
 });
