@@ -2,7 +2,10 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, List, Optional
 
-from apps.worker.industry_evidence_research import IndustryEvidenceResearcher
+from apps.worker.industry_evidence_research import (
+    IndustryEvidenceResearcher,
+    employer_surface_for_search,
+)
 from apps.worker.web_research.classify import (
     classify_source,
     excerpt_proves_employer,
@@ -59,6 +62,10 @@ class DiscoveryJob:
         self.fetcher = fetcher
         self.client = client
         self.config = config
+        # A bot-walled provider can spend its full HTTP timeout on every
+        # query. Disable it for the rest of this maintenance run after the
+        # first failure so the next provider can carry the batch forward.
+        self._failed_providers: set[str] = set()
         self.researcher = researcher or IndustryEvidenceResearcher(
             fetcher=fetcher)
 
@@ -77,6 +84,8 @@ class DiscoveryJob:
                     tokens: Optional[set] = None) -> List[Any]:
         for provider in self.search_chain:
             name = type(provider).__name__
+            if name in self._failed_providers:
+                continue
             if not self._quota_ok(name):
                 continue
             if tokens is not None and hasattr(provider, "tokens"):
@@ -89,6 +98,7 @@ class DiscoveryJob:
             except Exception as error:  # soft-fail onward to next provider
                 logger.warning(
                     "[WebResearch] provider %s failed: %s", name, error)
+                self._failed_providers.add(name)
                 continue
             self.client.record_web_research_quota_use(name, 1)
             if results:
@@ -96,10 +106,7 @@ class DiscoveryJob:
         return []
 
     def discover_for_proposal(self, proposal: Dict[str, Any]) -> Dict[str, Any]:
-        employer = str(
-            proposal.get("normalizedEmployerSurface")
-            or proposal.get("companyKey") or ""
-        ).strip()
+        employer = employer_surface_for_search(proposal)
         if not employer or not self.config.enabled:
             return {"status": "needs_more_evidence", "sources": []}
 

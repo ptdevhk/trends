@@ -4,6 +4,8 @@
  * Environment variables:
  * - PORT: HTTP server port (default: 3000)
  * - WORKER_URL: FastAPI worker URL (default: http://localhost:8000)
+ * - INDUSTRY_MAINTENANCE_WORKER_TIMEOUT_MS: bounded API wait for one
+ *   industry-maintenance worker batch (default: 300000)
  * - PROJECT_ROOT: TrendRadar project root (auto-detected if unset)
  * - TIMEZONE: Global timezone override (default from config/config.yaml or Asia/Hong_Kong)
  */
@@ -28,6 +30,16 @@ const isProduction = process.env.NODE_ENV === "production";
 export const config = {
   port: parseInt(process.env.PORT || "3000", 10),
   workerUrl: process.env.WORKER_URL || "http://localhost:8000",
+  industryMaintenanceWorkerTimeoutMs: Math.min(
+    300_000,
+    Math.max(
+      30_000,
+      Number.parseInt(
+        process.env.INDUSTRY_MAINTENANCE_WORKER_TIMEOUT_MS || "300000",
+        10,
+      ) || 300_000,
+    ),
+  ),
   projectRoot,
   timezone,
   version: "0.4.22",

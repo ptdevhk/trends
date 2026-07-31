@@ -103,7 +103,7 @@ function defaultDeps(): MaintenancePipelineDeps {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
-        signal: AbortSignal.timeout(30_000),
+        signal: AbortSignal.timeout(config.industryMaintenanceWorkerTimeoutMs),
       });
       return { ok: response.ok, status: response.status };
     },

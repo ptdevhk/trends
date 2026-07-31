@@ -51,6 +51,32 @@ TRUST_ORDER = {
 }
 
 
+def employer_surface_for_search(proposal: Dict[str, Any]) -> str:
+    """Return the best human-readable employer surface for discovery.
+
+    Resolved proposals normally carry ``normalizedEmployerSurface``. Some
+    company-linked proposals only carry a canonical slug in ``companyKey``;
+    using that slug verbatim makes public search providers look for a literal
+    hyphenated token (for example ``robert-bosch-sdn-bhd``). Humanize that
+    fallback for search and relevance checks while leaving the canonical key
+    unchanged everywhere it is persisted.
+    """
+    normalized_surface = str(
+        proposal.get("normalizedEmployerSurface") or ""
+    ).strip()
+    source_surface = normalized_surface or str(
+        proposal.get("companyKey") or ""
+    ).strip()
+    if not source_surface:
+        return ""
+
+    # Apply the same display-safe separator handling to a normalized surface
+    # that was persisted from a slugged company alias as to a companyKey
+    # fallback. Ordinary spaced employer names pass through unchanged.
+    humanized = re.sub(r"[^\w]+", " ", source_surface, flags=re.UNICODE)
+    return re.sub(r"\s+", " ", humanized).strip()
+
+
 def industry_evidence_maintenance_enabled(
     env: Optional[Dict[str, str]] = None,
 ) -> bool:
@@ -403,10 +429,7 @@ class IndustryEvidenceResearcher:
                     }
                 )
 
-        employer_surface = str(
-            proposal.get("normalizedEmployerSurface")
-            or proposal.get("companyKey") or ""
-        ).strip()
+        employer_surface = employer_surface_for_search(proposal)
         strong_classes = {
             industry_class
             for industry_class, confidence in classifications
@@ -575,10 +598,7 @@ class IndustryEvidenceMaintenanceJob:
             # content are demoted to discovery tier before fetch/classify,
             # so homepage rows from earlier noisy runs cannot re-flip a
             # proposal to ready_for_review.
-            employer_surface = str(
-                proposal.get("normalizedEmployerSurface")
-                or proposal.get("companyKey") or ""
-            ).strip()
+            employer_surface = employer_surface_for_search(proposal)
             demoted_count = 0
             for candidate in candidates:
                 if candidate.get("trustTier") == "discovery":

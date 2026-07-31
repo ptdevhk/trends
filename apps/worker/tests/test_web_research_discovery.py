@@ -110,6 +110,7 @@ def test_provider_exception_soft_fails_to_next_provider_in_chain():
     out = job.discover_for_proposal(_proposal())
     # first provider's RuntimeError must not abort the proposal
     assert failing.calls, "first provider was attempted"
+    assert len(failing.calls) == 1, "failed provider is circuit-broken for the run"
     assert working.calls, "chain fell through to the next provider"
     assert out["status"] == "ready_for_review"
     assert out["sources"][0]["url"] == "https://www.newlinemachine.com/"
@@ -145,6 +146,43 @@ def test_discovery_queries_are_term_based():
     for q in queries:
         assert '"' not in q  # no exact-phrase quoting: Google News ANDs phrases
     assert "Malaysia" in queries[0]
+
+
+def test_company_key_slug_is_humanized_for_discovery_and_relevance():
+    search = StaticSearch([
+        SearchResult(
+            url="https://robertbosch.example/products",
+            title="Robert Bosch Sdn Bhd CNC machine tools",
+        ),
+    ])
+    fetcher = StaticFetcher({
+        "https://robertbosch.example/products": {
+            "finalUrl": "https://robertbosch.example/products",
+            "title": "Robert Bosch Sdn Bhd CNC machine tools",
+            "excerpt": "Robert Bosch manufactures CNC machine tools in Malaysia.",
+            "contentFingerprint": "sha256:bosch",
+            "domainGuardPassed": True,
+        },
+    })
+    job = DiscoveryJob(
+        search_chain=[search],
+        fetcher=fetcher,
+        client=FakeClient(),
+        config=load_web_research_config({
+            "WEB_RESEARCH_ENABLED": "1",
+            "WEB_RESEARCH_MARKET": "my",
+        }),
+    )
+
+    out = job.discover_for_proposal({
+        "proposalId": "proposal-bosch",
+        "companyKey": "robert-bosch-sdn-bhd",
+        "normalizedEmployerSurface": "robert-bosch-sdn-bhd",
+    })
+
+    assert search.calls[0] == "robert bosch sdn bhd Malaysia"
+    assert out["status"] == "ready_for_review"
+    assert out["sources"][0]["trustTier"] == "primary"
 
 
 def test_discovery_queries_default_market_is_cn():
