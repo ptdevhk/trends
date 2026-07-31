@@ -1,6 +1,7 @@
 import { formatKeywordQuery, parseKeywordQuery } from '@trends/shared'
 import { RefreshCw } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { AnalysisTaskMonitor } from '@/components/AnalysisTaskMonitor'
 import { BulkActionBar } from '@/components/BulkActionBar'
@@ -26,8 +27,10 @@ import { useIndustryKeywords } from '@/hooks/useIndustryKeywords'
 import { useResumeSearchState } from '@/hooks/useResumeSearchState'
 import { useCompanyPolicyListFilter } from '@/hooks/useCompanyPolicyListFilter'
 import { useAuth } from '@/contexts/AuthContext'
+import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { rawApiClient } from '@/lib/api-helpers'
 import { isResumeAiSummaryEnabled } from '@/lib/feature-flags'
+import type { ResumeSearchResultItem } from '@/components/search/search-types'
 
 type PublicShareCreateResponse = {
   success: boolean
@@ -39,6 +42,11 @@ type PublicShareCreateResponse = {
 export function ResumeSearchPage() {
   const { t } = useTranslation()
   const { isAuthenticated, isLoading: authLoading } = useAuth()
+  const { resumeId: detailResumeId } = useParams<{ resumeId?: string }>()
+  const { search } = useLocation()
+  const navigate = useNavigate()
+  const { slug: workspaceSlug, isPublicSurface } = useWorkspace()
+  const workspaceResumePath = `/${workspaceSlug}/resumes`
   const resumeAiSummaryEnabled = isResumeAiSummaryEnabled()
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
   const [filtersOpen, setFiltersOpen] = useState(false)
@@ -320,6 +328,24 @@ export function ResumeSearchPage() {
     clearSearch()
   }, [clearSearch, collapseExpandedCards])
 
+  const handleOpenDetail = useCallback((item: ResumeSearchResultItem) => {
+    const resumeId = String(item.resume.resumeId).trim()
+    if (!resumeId) {
+      return
+    }
+
+    navigate({
+      pathname: `${workspaceResumePath}/${encodeURIComponent(resumeId)}`,
+      search,
+    })
+  }, [navigate, search, workspaceResumePath])
+
+  const handleCloseDetail = useCallback(() => {
+    navigate({ pathname: workspaceResumePath, search }, { replace: true })
+  }, [navigate, search, workspaceResumePath])
+
+  const supportsRoutedDetail = !isPublicSurface
+
   const handleToggleExpanded = useCallback((key: string) => {
     setExpandedIds((current) => {
       if (current.has(key)) {
@@ -464,7 +490,7 @@ export function ResumeSearchPage() {
 
   return (
     <div className="space-y-6">
-      {isLanding ? (
+      {isLanding && !detailResumeId ? (
         <SearchHero
           aiModeEnabled={aiModeEnabled}
           aiModeStats={aiModeStats}
@@ -624,6 +650,7 @@ export function ResumeSearchPage() {
 
               <ErrorBoundary fallback={<InlineErrorFallback message={errorResultsLabel} retryLabel={reloadPageLabel} onRetry={() => window.location.reload()} />}>
                 <SearchResultsList
+                  detailResumeId={supportsRoutedDetail ? detailResumeId : undefined}
                   expandedIds={expandedIds}
                   hasMore={hasMore}
                   items={policyVisibleResults}
@@ -631,6 +658,8 @@ export function ResumeSearchPage() {
                   loadingMore={loadingMore}
                   showAiScore={aiModeEnabled}
                   onLoadMore={loadMore}
+                  onOpenDetail={supportsRoutedDetail ? handleOpenDetail : undefined}
+                  onCloseDetail={supportsRoutedDetail ? handleCloseDetail : undefined}
                   onToggleExpanded={handleToggleExpanded}
                   selectedIds={selectedIds}
                   actionsByResume={actionsByResume}

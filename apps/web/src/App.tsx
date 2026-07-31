@@ -573,6 +573,7 @@ function App() {
 
             <Route element={<MainShell />}>
               <Route path="login" element={<LoginPage />} />
+              <Route path="resumes/:resumeId" element={<WorkspaceResumeRoute />} />
               <Route path="resumes" element={<WorkspaceResumeRoute />} />
               {isReviewPacketsEnabled() ? (
                 <Route path="review-packets" element={<ReviewPacketsPage />} />

@@ -252,6 +252,20 @@ describe('App routes', () => {
     })
   })
 
+  it('renders the workspace resume detail route with its dynamic resume id', async () => {
+    authState.user = { id: 'dev-user', status: 'active', displayName: 'Dev User' }
+    authState.memberships = [{ userId: 'dev-user', workspaceSlug: 'dev', role: 'user' }]
+    authState.workspaceRole = 'user'
+    authState.isAuthenticated = true
+    window.history.pushState({}, '', '/dev/resumes/resume-123?location=Malaysia&q=CNC')
+
+    render(<App />)
+
+    expect(await screen.findByText('Resume route rendered')).toBeInTheDocument()
+    expect(window.location.pathname).toBe('/dev/resumes/resume-123')
+    expect(window.location.search).toBe('?location=Malaysia&q=CNC')
+  })
+
   it('renders the login form at /login without bouncing to /dev/login', async () => {
     window.history.pushState({}, '', '/login')
 

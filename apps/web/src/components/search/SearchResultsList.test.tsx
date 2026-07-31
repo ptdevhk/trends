@@ -362,4 +362,54 @@ describe('SearchResultsList', () => {
       expect(screen.queryByText('resume-detail:Candidate 0')).not.toBeInTheDocument()
     })
   })
+
+  it('opens a URL-selected result and delegates close back to the parent route', async () => {
+    const item = createItem(0)
+    const onCloseDetail = vi.fn()
+    vi.mocked(useConvexResumeDetail).mockReturnValue({
+      resume: item.resume as unknown as ReturnType<typeof useConvexResumeDetail>['resume'],
+      loading: false,
+    })
+
+    render(
+      <SearchResultsList
+        detailResumeId="resume-0"
+        expandedIds={new Set()}
+        hasMore={false}
+        items={[item]}
+        onCloseDetail={onCloseDetail}
+        onLoadMore={vi.fn()}
+        onToggleExpanded={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('resume-detail:Candidate 0')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'close-detail' }))
+    expect(onCloseDetail).toHaveBeenCalledTimes(1)
+  })
+
+  it('loads a directly routed resume when it is not in the current result list', async () => {
+    const resume = createItem(0).resume
+    vi.mocked(useConvexResumeDetail).mockReturnValue({
+      resume: resume as unknown as ReturnType<typeof useConvexResumeDetail>['resume'],
+      loading: false,
+    })
+
+    render(
+      <SearchResultsList
+        detailResumeId="resume-0"
+        expandedIds={new Set()}
+        hasMore={false}
+        items={[]}
+        onCloseDetail={vi.fn()}
+        onLoadMore={vi.fn()}
+        onToggleExpanded={vi.fn()}
+      />,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('resume-detail:Candidate 0')).toBeInTheDocument()
+    })
+    expect(screen.getByText('没有符合该搜索条件的简历')).toBeInTheDocument()
+  })
 })

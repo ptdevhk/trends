@@ -1,9 +1,10 @@
 import { useWindowVirtualizer } from '@tanstack/react-virtual'
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { EmptyState } from '@/components/EmptyState'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
-import { useConvexResumeDetail } from '@/hooks/useConvexResumes'
+import { useConvexResumeDetail, type ConvexResumeItem } from '@/hooks/useConvexResumes'
+import { getResumeIdentityKey } from '@/hooks/resume-filter-helpers'
 import { SnippetCard } from '@/components/search/SnippetCard'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { ResumeSearchResultItem } from '@/components/search/search-types'
@@ -25,6 +26,7 @@ function CardErrorFallback() {
 }
 
 type SearchResultsListProps = {
+  detailResumeId?: string
   expandedIds: Set<string>
   hasMore: boolean
   items: ResumeSearchResultItem[]
@@ -32,6 +34,8 @@ type SearchResultsListProps = {
   loadingMore?: boolean
   showAiScore?: boolean
   onLoadMore: () => void
+  onOpenDetail?: (item: ResumeSearchResultItem) => void
+  onCloseDetail?: () => void
   onToggleExpanded: (key: string) => void
   // Candidate management props
   selectedIds?: Set<string>
@@ -68,6 +72,7 @@ function SearchResultsSkeleton() {
 }
 
 export function SearchResultsList({
+  detailResumeId,
   expandedIds,
   hasMore,
   items,
@@ -75,6 +80,8 @@ export function SearchResultsList({
   loadingMore = false,
   showAiScore = false,
   onLoadMore,
+  onOpenDetail,
+  onCloseDetail,
   onToggleExpanded,
   selectedIds,
   actionsByResume,
@@ -92,7 +99,7 @@ export function SearchResultsList({
   const listRef = useRef<HTMLDivElement | null>(null)
   const loadMoreRef = useRef<HTMLDivElement | null>(null)
   const [scrollMargin, setScrollMargin] = useState(0)
-  const [detailItem, setDetailItem] = useState<ResumeSearchResultItem | null>(null)
+  const [localDetailItem, setLocalDetailItem] = useState<ResumeSearchResultItem | null>(null)
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null)
   const hasAiSummaries = items.some((item) => Boolean((item.analysis ?? item.resume.analysis)?.summary))
   const shouldVirtualize = items.length > 40 && expandedIds.size === 0 && !hasAiSummaries
@@ -100,8 +107,29 @@ export function SearchResultsList({
   const expandedSourceItem = items.find((item) => item.key === expandedKey) ?? null
   const expandedResumeId = expandedSourceItem?.resume?.resumeId ?? null
   const { resume: expandedResumeFromConvex } = useConvexResumeDetail(expandedResumeId)
-  const detailResumeId = detailItem?.resume?.resumeId ?? null
-  const { resume: detailResumeFromConvex, loading: detailResumeLoading } = useConvexResumeDetail(detailResumeId)
+  const routeDetailItem = useMemo(() => {
+    if (!detailResumeId) {
+      return null
+    }
+    return items.find((item) => String(item.resume.resumeId) === detailResumeId) ?? null
+  }, [detailResumeId, items])
+  const detailQueryId = detailResumeId
+    ? detailResumeId as ConvexResumeItem['resumeId']
+    : localDetailItem?.resume?.resumeId ?? null
+  const { resume: detailResumeFromConvex, loading: detailResumeLoading } = useConvexResumeDetail(detailQueryId)
+  const directDetailItem = useMemo<ResumeSearchResultItem | null>(() => {
+    if (!detailResumeId || routeDetailItem || !detailResumeFromConvex) {
+      return null
+    }
+    return {
+      key: String(detailResumeFromConvex.resumeId),
+      identityKey: getResumeIdentityKey(detailResumeFromConvex, String(detailResumeFromConvex.resumeId)),
+      resume: detailResumeFromConvex,
+      blocked: false,
+      status: 'new' as const,
+    }
+  }, [detailResumeFromConvex, detailResumeId, routeDetailItem])
+  const detailItem = routeDetailItem ?? localDetailItem ?? directDetailItem
   const resolvedDetailResume = detailResumeFromConvex ?? detailItem?.resume ?? null
 
   const rowVirtualizer = useWindowVirtualizer({
@@ -113,8 +141,42 @@ export function SearchResultsList({
   })
 
   const handleViewDetails = useCallback((item: ResumeSearchResultItem) => {
-    setDetailItem(item)
-  }, [])
+    if (onOpenDetail) {
+      onOpenDetail(item)
+      return
+    }
+
+    setLocalDetailItem(item)
+  }, [onOpenDetail])
+
+  const handleCloseDetails = useCallback(() => {
+    if (onCloseDetail) {
+      onCloseDetail()
+      return
+    }
+
+    setLocalDetailItem(null)
+  }, [onCloseDetail])
+
+  const detailDialog = detailItem ? (
+    <Suspense fallback={null}>
+      <ResumeDetail
+        resume={resolvedDetailResume}
+        refreshState={detailItem.refreshState}
+        open
+        onOpenChange={(open) => {
+          if (!open) {
+            handleCloseDetails()
+          }
+        }}
+        loading={detailResumeLoading}
+        userRating={ratingsByResume?.[detailItem.resume.resumeId]}
+        initialComment={detailItem.statusMeta?.notes ?? commentsByResume?.[detailItem.resume.resumeId]}
+        onRating={onRating ? (rating) => onRating(detailItem.resume.resumeId, rating) : undefined}
+        onRatingComment={onRatingComment ? (comment) => onRatingComment(detailItem.resume.resumeId, comment) : undefined}
+      />
+    </Suspense>
+  ) : null
 
   useEffect(() => {
     const updateScrollMargin = () => {
@@ -231,19 +293,27 @@ export function SearchResultsList({
   const virtualItems = rowVirtualizer.getVirtualItems()
 
   if (loading) {
-    return <SearchResultsSkeleton />
+    return (
+      <>
+        <SearchResultsSkeleton />
+        {detailDialog}
+      </>
+    )
   }
 
   if (items.length === 0) {
     return (
-      <EmptyState
-        title={t('resumes.searchPage.results.emptyTitle', {
-          defaultValue: '没有符合该搜索条件的简历',
-        })}
-        description={t('resumes.searchPage.results.emptyDescription', {
-          defaultValue: '请尝试放宽搜索词或移除一些筛选项以扩大结果范围。',
-        })}
-      />
+      <>
+        <EmptyState
+          title={t('resumes.searchPage.results.emptyTitle', {
+            defaultValue: '没有符合该搜索条件的简历',
+          })}
+          description={t('resumes.searchPage.results.emptyDescription', {
+            defaultValue: '请尝试放宽搜索词或移除一些筛选项以扩大结果范围。',
+          })}
+        />
+        {detailDialog}
+      </>
     )
   }
 
@@ -342,25 +412,7 @@ export function SearchResultsList({
             })}
       </div>
 
-      {detailItem ? (
-        <Suspense fallback={null}>
-          <ResumeDetail
-            resume={resolvedDetailResume}
-            refreshState={detailItem.refreshState}
-            open={Boolean(detailItem)}
-            onOpenChange={(open) => {
-              if (!open) {
-                setDetailItem(null)
-              }
-            }}
-            loading={detailResumeLoading}
-            userRating={ratingsByResume?.[detailItem.resume.resumeId]}
-            initialComment={detailItem.statusMeta?.notes ?? commentsByResume?.[detailItem.resume.resumeId]}
-            onRating={onRating ? (rating) => onRating(detailItem.resume.resumeId, rating) : undefined}
-            onRatingComment={onRatingComment ? (comment) => onRatingComment(detailItem.resume.resumeId, comment) : undefined}
-          />
-        </Suspense>
-      ) : null}
+      {detailDialog}
     </div>
   )
 }

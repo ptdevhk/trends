@@ -71,6 +71,14 @@ const featureFlagsMock = vi.hoisted(() => ({
   resumeAiSummaryEnabled: false,
 }))
 
+const routeMock = vi.hoisted(() => ({
+  search: '',
+  params: {} as { resumeId?: string },
+  navigate: vi.fn(),
+  workspaceSlug: 'dev',
+  isPublicSurface: false,
+}))
+
 const authMock = vi.hoisted((): { value: AuthMockValue } => ({
   value: {
     user: { id: 'user-1', displayName: 'Tester', status: 'active' },
@@ -89,6 +97,13 @@ vi.mock('@/lib/feature-flags', () => ({
 
 vi.mock('@/contexts/AuthContext', () => ({
   useAuth: () => authMock.value,
+}))
+
+vi.mock('@/contexts/WorkspaceContext', () => ({
+  useWorkspace: () => ({
+    slug: routeMock.workspaceSlug,
+    isPublicSurface: routeMock.isPublicSurface,
+  }),
 }))
 
 vi.mock('@/lib/api-helpers', () => ({
@@ -139,6 +154,9 @@ vi.mock('react-router-dom', () => ({
   Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
     <a href={to}>{children}</a>
   ),
+  useLocation: () => ({ search: routeMock.search }),
+  useNavigate: () => routeMock.navigate,
+  useParams: () => routeMock.params,
 }))
 
 vi.mock('@/components/search/SearchHero', () => ({
@@ -342,6 +360,7 @@ vi.mock('@/components/search/AiSummaryPanel', () => ({
 
 vi.mock('@/components/search/SearchResultsList', () => ({
   SearchResultsList: ({
+    detailResumeId,
     expandedIds,
     hasMore,
     items,
@@ -350,7 +369,9 @@ vi.mock('@/components/search/SearchResultsList', () => ({
     showAiScore,
     onAction,
     onCandidateStatusChange,
+    onCloseDetail,
     onLoadMore,
+    onOpenDetail,
     onRating,
     onToggleExpanded,
     onToggleSelect,
@@ -362,9 +383,12 @@ vi.mock('@/components/search/SearchResultsList', () => ({
     loading?: boolean
     loadingMore?: boolean
     showAiScore?: boolean
+    detailResumeId?: string
     onAction?: () => void
     onCandidateStatusChange?: () => void
+    onCloseDetail?: () => void
     onLoadMore: () => void
+    onOpenDetail?: (item: ResumeSearchResultItem) => void
     onRating?: () => void
     onToggleExpanded: (key: string) => void
     onToggleSelect?: () => void
@@ -376,6 +400,8 @@ vi.mock('@/components/search/SearchResultsList', () => ({
         {String(loading)} loadingMore:{String(loadingMore)} showAiScore:
         {String(showAiScore)} expanded:{Array.from(expandedIds).join('|') || 'none'}
       </div>
+      <div>Detail route: {detailResumeId ?? 'none'}</div>
+      <div>Detail routing: {String(Boolean(onOpenDetail && onCloseDetail))}</div>
       <div>
         Result controls action:{String(Boolean(onAction))} rating:
         {String(Boolean(onRating))} status:
@@ -391,6 +417,16 @@ vi.mock('@/components/search/SearchResultsList', () => ({
       {items[1] ? (
         <button type="button" onClick={() => onToggleExpanded(items[1].key)}>
           Toggle second result
+        </button>
+      ) : null}
+      {items[0] && onOpenDetail ? (
+        <button type="button" onClick={() => onOpenDetail(items[0])}>
+          Open first detail
+        </button>
+      ) : null}
+      {detailResumeId && onCloseDetail ? (
+        <button type="button" onClick={onCloseDetail}>
+          Close routed detail
         </button>
       ) : null}
       <button type="button" onClick={onLoadMore}>
@@ -626,6 +662,11 @@ describe('ResumeSearchPage', () => {
       },
     })
     featureFlagsMock.resumeAiSummaryEnabled = false
+    routeMock.search = ''
+    routeMock.params = {}
+    routeMock.navigate.mockReset()
+    routeMock.workspaceSlug = 'dev'
+    routeMock.isPublicSurface = false
     authMock.value = {
       user: { id: 'user-1', displayName: 'Tester', status: 'active' },
       workspaceRole: 'user',
@@ -861,6 +902,70 @@ describe('ResumeSearchPage', () => {
         'Mobile Filter Sheet open clusters:manufacturing-systems tags:Machine Tools',
       ),
     ).toBeInTheDocument()
+  })
+
+  it('navigates from a search result to a routed resume detail while preserving the search query', async () => {
+    const user = userEvent.setup()
+    routeMock.search = '?location=Malaysia&q=CNC'
+    routeMock.workspaceSlug = 'hr'
+    const state = createResumeSearchState({
+      activeQuery: 'CNC',
+      filteredResults: [createResult(1)],
+      isLanding: false,
+      parsedState: createParsedState({ location: 'Malaysia', query: 'CNC' }),
+      queryInput: 'CNC',
+    })
+    useResumeSearchStateMock.mockReturnValue(state)
+
+    render(<ResumeSearchPage />)
+
+    await user.click(screen.getByRole('button', { name: 'Open first detail' }))
+
+    expect(routeMock.navigate).toHaveBeenCalledWith({
+      pathname: '/hr/resumes/resume-1',
+      search: '?location=Malaysia&q=CNC',
+    })
+  })
+
+  it('closes a routed resume detail back to the parent search URL', async () => {
+    const user = userEvent.setup()
+    routeMock.search = '?location=Malaysia&q=CNC'
+    routeMock.params = { resumeId: 'resume-1' }
+    useResumeSearchStateMock.mockReturnValue(createResumeSearchState({
+      activeQuery: 'CNC',
+      filteredResults: [createResult(1)],
+      isLanding: false,
+      parsedState: createParsedState({ location: 'Malaysia', query: 'CNC' }),
+      queryInput: 'CNC',
+    }))
+
+    render(<ResumeSearchPage />)
+
+    expect(screen.getByText('Detail route: resume-1')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Close routed detail' }))
+
+    expect(routeMock.navigate).toHaveBeenCalledWith(
+      { pathname: '/dev/resumes', search: '?location=Malaysia&q=CNC' },
+      { replace: true },
+    )
+  })
+
+  it('keeps the public resumes surface on local detail behavior', () => {
+    routeMock.search = '?location=Malaysia&q=CNC'
+    routeMock.params = {}
+    routeMock.isPublicSurface = true
+    useResumeSearchStateMock.mockReturnValue(createResumeSearchState({
+      activeQuery: 'CNC',
+      filteredResults: [createResult(1)],
+      isLanding: false,
+      parsedState: createParsedState({ location: 'Malaysia', query: 'CNC' }),
+      queryInput: 'CNC',
+    }))
+
+    render(<ResumeSearchPage />)
+
+    expect(screen.getByText('Detail routing: false')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Open first detail' })).not.toBeInTheDocument()
   })
 
   it('falls back to cluster slugs for AI summary tags and preserves local result-shell state interactions', async () => {
