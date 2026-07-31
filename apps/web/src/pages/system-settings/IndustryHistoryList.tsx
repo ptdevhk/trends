@@ -13,6 +13,7 @@ type IndustryHistoryListProps = {
   loading: boolean
   loaded: boolean
   error?: string
+  partial?: boolean
   selectedProposalId?: string
   onRetry: () => void
   onSelect: (item: IndustryHistoryItem) => void
@@ -32,6 +33,7 @@ export function IndustryHistoryList({
   loading,
   loaded,
   error,
+  partial = false,
   selectedProposalId,
   onRetry,
   onSelect,
@@ -65,6 +67,22 @@ export function IndustryHistoryList({
   }
 
   if (items.length === 0) {
+    if (error) {
+      return (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-950" role="status" data-testid="industry-history-partial-error">
+          <div className="flex items-start gap-3">
+            <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+            <div className="space-y-2">
+              <p>{error}</p>
+              <Button type="button" variant="outline" size="sm" onClick={onRetry}>
+                <RefreshCw className="mr-2 h-4 w-4" aria-hidden="true" />
+                {t('industryEvidence.historyRetry', { defaultValue: 'Retry history' })}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )
+    }
     return (
       <div className="rounded-xl border border-dashed p-10 text-center text-sm text-muted-foreground" data-testid="industry-history-empty">
         <History className="mx-auto mb-3 h-5 w-5" aria-hidden="true" />
@@ -76,7 +94,15 @@ export function IndustryHistoryList({
   return (
     <div className="space-y-3" data-testid="industry-history-list">
       {error ? (
-        <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-950" role="status">
+        <div
+          className={`flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-xs ${
+            partial
+              ? 'border border-amber-300 bg-amber-50 text-amber-950'
+              : 'border border-rose-300 bg-rose-50 text-rose-950'
+          }`}
+          role="status"
+          data-testid={partial ? 'industry-history-partial-error' : 'industry-history-retained-error'}
+        >
           <span>{error}</span>
           <Button type="button" variant="link" size="sm" className="h-auto p-0 text-current" onClick={onRetry}>
             {t('industryEvidence.historyRetry', { defaultValue: 'Retry history' })}

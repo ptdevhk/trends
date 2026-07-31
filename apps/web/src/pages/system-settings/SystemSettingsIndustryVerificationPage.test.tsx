@@ -521,6 +521,71 @@ describe('SystemSettingsIndustryVerificationPage', () => {
     expect(screen.queryByRole('button', { name: 'Undo approval for CLEAN COMPANY' })).not.toBeInTheDocument()
   })
 
+  it('keeps available History rows visible when one terminal status request fails', async () => {
+    const user = userEvent.setup()
+    const historyProposal = {
+      ...proposal,
+      proposalId: 'history-approved',
+      status: 'approved',
+      reviewedAt: 100,
+      reviewNote: 'Approved history row.',
+    }
+    requestJsonMock.mockImplementation((path: string) => {
+      if (path.startsWith('/api/company-industry-proposals/review-queue?')) {
+        return Promise.resolve({
+          success: true,
+          ok: true,
+          schemaVersion: 'industry-review.v1',
+          items: [{ proposal, recommendation, sourceCount: 1 }],
+          maintenance: { latest: null, lastFailed: null },
+        })
+      }
+      if (path === '/api/company-industry-proposals?status=approved') {
+        return Promise.resolve({ success: true, items: [historyProposal] })
+      }
+      if (path === '/api/company-industry-proposals?status=rejected') {
+        return Promise.reject(new Error('HTTP 500'))
+      }
+      if (path === '/api/company-industry-proposals?status=superseded') {
+        return Promise.resolve({ success: true, items: [] })
+      }
+      return Promise.resolve({ success: true })
+    })
+
+    renderPage()
+    await user.click(await screen.findByRole('tab', { name: /History/ }))
+
+    expect(await screen.findByTestId('industry-history-row-history-approved')).toBeInTheDocument()
+    expect(await screen.findByTestId('industry-history-partial-error')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Retry/ })).toBeInTheDocument()
+  })
+
+  it('shows a History outage without taking the live queue down', async () => {
+    const user = userEvent.setup()
+    requestJsonMock.mockImplementation((path: string) => {
+      if (path.startsWith('/api/company-industry-proposals/review-queue?')) {
+        return Promise.resolve({
+          success: true,
+          ok: true,
+          schemaVersion: 'industry-review.v1',
+          items: [{ proposal, recommendation, sourceCount: 1 }],
+          maintenance: { latest: null, lastFailed: null },
+        })
+      }
+      if (path.startsWith('/api/company-industry-proposals?status=')) {
+        return Promise.reject(new Error('History service unavailable'))
+      }
+      return Promise.resolve({ success: true })
+    })
+
+    renderPage()
+    await user.click(await screen.findByRole('tab', { name: /History/ }))
+
+    expect(await screen.findByTestId('industry-history-error')).toBeInTheDocument()
+    await user.click(screen.getByRole('tab', { name: /Needs review/ }))
+    expect(await screen.findByTestId('industry-review-row-proposal-1')).toBeInTheDocument()
+  })
+
   it('shows coverage pipeline, empty-evidence bottleneck, and maintenance health', async () => {
     renderPage()
 
