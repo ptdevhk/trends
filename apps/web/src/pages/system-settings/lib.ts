@@ -153,7 +153,18 @@ export interface BrandKeywordItem {
 }
 
 export type AgentNumericField = 'batchSize' | 'parallelism' | 'timeout' | 'temperature'
-export type SystemSettingsSubpageId = 'overview' | 'operations' | 'runtime' | 'auth' | 'config-sources' | 'keywords' | 'taxonomy' | 'industry-verification' | 'locations' | 'export-fields'
+export type SystemSettingsSubpageId =
+  | 'overview'
+  | 'operations'
+  | 'runtime'
+  | 'auth'
+  | 'config-sources'
+  | 'keywords'
+  | 'taxonomy'
+  | 'industry-verification'
+  | 'industry-data'
+  | 'locations'
+  | 'export-fields'
 
 export interface SystemSettingsSubpageDefinition {
   id: SystemSettingsSubpageId
@@ -196,6 +207,10 @@ const SYSTEM_SETTINGS_SUBPAGE_COPY: Record<SystemSettingsSubpageId, Pick<SystemS
   'industry-verification': {
     descriptionKey: 'debugConfig.industryVerificationPageDescription',
     defaultDescription: 'Review external company evidence, immutable verdict revisions, freshness, and targeted recomputation.',
+  },
+  'industry-data': {
+    descriptionKey: 'debugConfig.industryDataPageDescription',
+    defaultDescription: 'Central management of CN industry data, maintenance controls, and evidence audit.',
   },
   locations: {
     descriptionKey: 'debugConfig.locationsPageDescription',

@@ -245,6 +245,28 @@ export function SystemSettingsIndustryDataPage() {
     }
   }
 
+  const handleSeed = async () => {
+    try {
+      const result = (await requestJson('/api/industry-data/seed', {
+        method: 'POST',
+      })) as { imported?: number }
+      toast.success(
+        t('debugConfig.industryDataSeeded', {
+          defaultValue: `Seeded ${result.imported ?? 0} entries from config/industry-data files`,
+          count: result.imported ?? 0,
+        }),
+      )
+      await loadEntries()
+    } catch (error) {
+      reportUiError('Failed to seed industry data from files', error)
+      toast.error(
+        t('debugConfig.industryDataSeedFailed', {
+          defaultValue: 'Seed from files failed',
+        }),
+      )
+    }
+  }
+
   const handleTrigger = async () => {
     const key = companyKey.trim()
     if (!key) {
@@ -420,6 +442,15 @@ export function SystemSettingsIndustryDataPage() {
               ))}
               <Button type="button" size="sm" variant="secondary" onClick={() => void loadEntries()}>
                 {t('debugConfig.industryDataRefresh', { defaultValue: 'Refresh' })}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                data-testid="industry-data-seed"
+                onClick={() => void handleSeed()}
+              >
+                {t('debugConfig.industryDataSeed', { defaultValue: 'Seed from files' })}
               </Button>
               <Button type="button" size="sm" variant="secondary" onClick={() => void handleExport()}>
                 {t('debugConfig.industryDataExport', { defaultValue: 'Export' })}
