@@ -1335,6 +1335,17 @@ async function findIndustryEvidenceSource(ctx: { db: any }, sourceId: string) {
   return rows[0] ?? null;
 }
 
+async function findIndustryVerdictRevision(
+  ctx: { db: any },
+  revisionId: string,
+) {
+  const rows = await ctx.db
+    .query("company_industry_verdict_revisions")
+    .withIndex("by_revision_id", (q: any) => q.eq("revisionId", revisionId))
+    .collect();
+  return rows[0] ?? null;
+}
+
 export const upsertIndustryProposal = mutation({
   args: {
     writeSecret: v.optional(v.string()),
@@ -2442,6 +2453,277 @@ export const approveIndustryProposal = mutation({
         ? { supersedesRevisionId: currentRevisionId }
         : {}),
       sourceCount: approvedSourceIds.length,
+    };
+  },
+});
+
+export const undoIndustryProposalApproval = mutation({
+  args: {
+    writeSecret: v.optional(v.string()),
+    proposalId: v.string(),
+    approvedRevisionId: v.string(),
+    expectedCurrentRevisionId: v.optional(v.string()),
+    expectedProposalUpdatedAt: v.optional(v.number()),
+    recomputeRunId: v.optional(v.string()),
+    reviewer: v.string(),
+  },
+  handler: async (ctx, args) => {
+    requireWriteSecret(args.writeSecret);
+    const proposalId = args.proposalId.trim();
+    const approvedRevisionId = args.approvedRevisionId.trim();
+    const reviewer = args.reviewer.trim();
+    if (!proposalId || !approvedRevisionId || !reviewer) {
+      throw new Error("Undo requires proposal, approved revision, and reviewer");
+    }
+
+    const proposal = await findIndustryProposal(ctx, proposalId);
+    if (!proposal || !proposal.companyKey) {
+      throw new Error(`Unknown industry proposal: ${proposalId}`);
+    }
+    const companyKey = proposal.companyKey;
+    const profiles = await ctx.db
+      .query("company_industry_profiles")
+      .withIndex("by_company_key", (q: any) => q.eq("companyKey", companyKey))
+      .collect();
+    const profile = profiles[0] ?? null;
+    const currentRevisionId = profile?.currentRevisionId;
+    const reversalRevisionId = `undo-${approvedRevisionId}`;
+    const existingReversal = await findIndustryVerdictRevision(
+      ctx,
+      reversalRevisionId,
+    );
+
+    if (
+      existingReversal &&
+      existingReversal.supersedesRevisionId === approvedRevisionId &&
+      existingReversal.proposalId === proposalId &&
+      proposal.status === "ready_for_review" &&
+      currentRevisionId === reversalRevisionId
+    ) {
+      const existingApprovedRevision = await findIndustryVerdictRevision(
+        ctx,
+        approvedRevisionId,
+      );
+      const previousRunId =
+        args.recomputeRunId?.trim() || proposal.recomputeRunId;
+      const previousRun = previousRunId
+        ? await findIndustryRecomputeRun(ctx, previousRunId)
+        : null;
+      if (previousRun && previousRun.targetRevisionId !== approvedRevisionId) {
+        throw new Error(
+          `${INDUSTRY_REVIEW_STALE_PREFIX} recompute run no longer targets the approved revision`,
+        );
+      }
+      return {
+        proposalId,
+        companyKey,
+        reversalRevisionId,
+        ...(existingApprovedRevision?.supersedesRevisionId
+          ? { restoredRevisionId: existingApprovedRevision.supersedesRevisionId }
+          : {}),
+        ...(previousRun
+          ? {
+              previousRunId: previousRun.runId,
+              previousRunStatus: previousRun.status,
+            }
+          : {}),
+        replacementRecomputeRequired: previousRun?.status === "completed",
+        idempotent: true,
+      };
+    }
+
+    if (
+      !profile ||
+      currentRevisionId !== approvedRevisionId ||
+      proposal.status !== "approved" ||
+      proposal.approvedRevisionId !== approvedRevisionId
+    ) {
+      throw new Error(
+        `${INDUSTRY_REVIEW_STALE_PREFIX} approved industry revision is no longer current`,
+      );
+    }
+    if (
+      args.expectedCurrentRevisionId !== undefined &&
+      currentRevisionId !== args.expectedCurrentRevisionId
+    ) {
+      throw new Error(
+        `${INDUSTRY_REVIEW_STALE_PREFIX} current industry revision changed during Undo`,
+      );
+    }
+    assertExpectedIndustryProposalUpdatedAt(
+      proposal,
+      args.expectedProposalUpdatedAt,
+    );
+
+    const approvedRevision = await findIndustryVerdictRevision(
+      ctx,
+      approvedRevisionId,
+    );
+    if (
+      !approvedRevision ||
+      approvedRevision.companyKey !== companyKey ||
+      approvedRevision.proposalId !== proposalId
+    ) {
+      throw new Error(
+        `${INDUSTRY_REVIEW_STALE_PREFIX} approved revision does not belong to this proposal`,
+      );
+    }
+    const previousRevisionId = approvedRevision.supersedesRevisionId;
+    const previousRevision = previousRevisionId
+      ? await findIndustryVerdictRevision(ctx, previousRevisionId)
+      : null;
+    if (previousRevisionId && !previousRevision) {
+      throw new Error(
+        `${INDUSTRY_REVIEW_STALE_PREFIX} previous industry revision is unavailable`,
+      );
+    }
+
+    const previousRunId =
+      args.recomputeRunId?.trim() || proposal.recomputeRunId;
+    const previousRun = previousRunId
+      ? await findIndustryRecomputeRun(ctx, previousRunId)
+      : null;
+    if (previousRunId && !previousRun) {
+      throw new Error(
+        `${INDUSTRY_REVIEW_STALE_PREFIX} recompute run is unavailable`,
+      );
+    }
+    if (
+      previousRun &&
+      (previousRun.targetRevisionId !== approvedRevisionId ||
+        (previousRun.proposalId && previousRun.proposalId !== proposalId) ||
+        previousRun.companyKey !== companyKey)
+    ) {
+      throw new Error(
+        `${INDUSTRY_REVIEW_STALE_PREFIX} recompute run no longer targets the approved revision`,
+      );
+    }
+
+    const restoredSourceIds = previousRevision?.approvedSourceIds ?? [];
+    const restoredSources = [];
+    for (const sourceId of restoredSourceIds) {
+      const source = await findIndustryEvidenceSource(ctx, sourceId);
+      if (source && source.companyKey === companyKey) {
+        restoredSources.push(source);
+      }
+    }
+    const primarySource = restoredSources[0];
+    const now = Date.now();
+    const restoredIndustryClass = previousRevision?.industryClass ?? "unknown";
+    const restoredVerificationLevel =
+      previousRevision?.verificationLevel ?? "rejected";
+    const restoredEvidenceSummary =
+      previousRevision?.evidenceSummary ??
+      `Undo restored no verified industry truth after ${approvedRevisionId}.`;
+    const restoredDecisionReason = previousRevision
+      ? `Undo approval ${approvedRevisionId}; restored revision ${previousRevision.revisionId}.`
+      : `Undo approval ${approvedRevisionId}; no prior verified industry truth existed.`;
+    const restoredNextReviewAt =
+      restoredSources.length > 0
+        ? Math.min(
+            ...restoredSources.map((source) =>
+              nextIndustryEvidenceReviewAt(
+                source.sourceType,
+                source.trustTier,
+                now,
+              ),
+            ),
+          )
+        : undefined;
+
+    await ctx.db.insert("company_industry_verdict_revisions", {
+      revisionId: reversalRevisionId,
+      companyKey,
+      industryClass: restoredIndustryClass,
+      verificationLevel: restoredVerificationLevel,
+      approvedSourceIds: restoredSourceIds,
+      evidenceSummary: restoredEvidenceSummary,
+      reviewedBy: reviewer,
+      reviewedAt: now,
+      decisionReason: restoredDecisionReason,
+      taxonomyVersion: previousRevision?.taxonomyVersion ?? approvedRevision.taxonomyVersion,
+      ...(previousRevision?.ruleVersion
+        ? { ruleVersion: previousRevision.ruleVersion }
+        : approvedRevision.ruleVersion
+          ? { ruleVersion: approvedRevision.ruleVersion }
+          : {}),
+      supersedesRevisionId: approvedRevisionId,
+      proposalId,
+      createdAt: now,
+    });
+
+    const restoredProfile = {
+      companyKey,
+      industryClass: restoredIndustryClass,
+      verificationLevel: restoredVerificationLevel,
+      evidenceSource: "manual" as const,
+      ...(profile.officialDomain
+        ? { officialDomain: profile.officialDomain }
+        : {}),
+      summary: restoredEvidenceSummary,
+      ...(primarySource
+        ? {
+            sourceUrl: primarySource.url,
+            sourceDomain: primarySource.sourceDomain,
+            sourceType: primarySource.sourceType,
+          }
+        : {}),
+      ...(profile.msicCode ? { msicCode: profile.msicCode } : {}),
+      ...(profile.msicDescription
+        ? { msicDescription: profile.msicDescription }
+        : {}),
+      ...(profile.fetchedAt ? { fetchedAt: profile.fetchedAt } : {}),
+      currentRevisionId: reversalRevisionId,
+      reviewedAt: now,
+      reviewedBy: reviewer,
+      sourceCount: restoredSourceIds.length,
+      freshnessState: restoredSourceIds.length > 0 ? ("fresh" as const) : ("changed" as const),
+      ...(restoredNextReviewAt !== undefined
+        ? { nextReviewAt: restoredNextReviewAt }
+        : {}),
+      catalogVersion: (profile.catalogVersion ?? 0) + 1,
+      compatibilityState: "reviewed" as const,
+      updatedAt: now,
+      updatedBy: reviewer,
+    };
+    await ctx.db.replace(profile._id, restoredProfile);
+
+    if (previousRun) {
+      if (!TERMINAL_INDUSTRY_RECOMPUTE_STATUSES.has(previousRun.status)) {
+        await ctx.db.patch(previousRun._id, {
+          status: "superseded",
+          supersededByRevisionId: reversalRevisionId,
+          completedAt: now,
+          updatedAt: now,
+        });
+      }
+    }
+
+    await ctx.db.patch(proposal._id, {
+      status: "ready_for_review",
+      reviewedAt: now,
+      reviewedBy: reviewer,
+      reviewNote: restoredDecisionReason,
+      approvedRevisionId: undefined,
+      applicationState: undefined,
+      appliedRevisionId: undefined,
+      appliedAt: undefined,
+      updatedAt: now,
+    });
+
+    return {
+      proposalId,
+      companyKey,
+      reversalRevisionId,
+      ...(previousRevisionId ? { restoredRevisionId: previousRevisionId } : {}),
+      ...(previousRun
+        ? {
+            previousRunId: previousRun.runId,
+            previousRunStatus: previousRun.status,
+          }
+        : {}),
+      replacementRecomputeRequired: previousRun?.status === "completed",
+      idempotent: false,
     };
   },
 });
