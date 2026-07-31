@@ -879,6 +879,42 @@ def run_industry_evidence_maintenance(
             )
         return True
 
+    # Schedule-only pause flag (manual/scoped triggers ignore it).
+    if trigger == "schedule":
+        paused = False
+        try:
+            paused = bool(client.get_schedule_paused().get("paused"))
+        except Exception as error:  # noqa: BLE001 - best-effort flag
+            logger.warning(
+                "[IndustryEvidenceMaintenance] get_schedule_paused failed: %s",
+                error,
+            )
+        if paused:
+            logger.info(
+                "[IndustryEvidenceMaintenance] skipped — schedule paused"
+            )
+            if not run_id:
+                run_id = str(uuid.uuid4())
+                client.start_maintenance_run(
+                    {
+                        "runId": run_id,
+                        "workspaceSlug": (
+                            os.environ.get("WORKSPACE_SLUG", "dev").strip() or "dev"
+                        ),
+                        "triggerSource": trigger,
+                    }
+                )
+            client.claim_maintenance_run(run_id)
+            client.finish_maintenance_run(
+                {
+                    "runId": run_id,
+                    "status": "skipped",
+                    "operatorSummary": "skipped; schedule paused",
+                    "failureMessage": "schedule paused",
+                }
+            )
+            return True
+
     if not run_id:
         run_id = str(uuid.uuid4())
         client.start_maintenance_run(

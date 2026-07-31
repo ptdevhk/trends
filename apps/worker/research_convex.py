@@ -423,3 +423,17 @@ class ResearchConvexClient:
             "companies:findActiveIndustryMaintenanceRun",
             {"workspaceSlug": workspace_slug},
         )
+
+    def get_schedule_paused(self) -> Dict[str, Any]:
+        """Best-effort read of industryMaintenanceSchedulePaused flag.
+
+        Returns ``{"paused": False}`` on any error or when Convex is not ready
+        so a schedule-pause check never aborts maintenance.
+        """
+        result = self._safe_query(
+            "companies:getIndustryMaintenanceSchedulePaused",
+            {},
+        )
+        if isinstance(result, dict) and result.get("paused") is True:
+            return {"paused": True}
+        return {"paused": False}
