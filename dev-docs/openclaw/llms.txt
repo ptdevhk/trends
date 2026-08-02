@@ -14,31 +14,11 @@ peekaboo type "Hello" --return
 
 --------------------------------
 
-### Install Gateway with a Custom Wrapper Script
-
-Source: https://github.com/openclaw/openclaw/blob/main/docs/cli/gateway.md
-
-This example demonstrates installing the Gateway service using a custom wrapper script, which allows the service to start through another executable like a secrets manager shim.
-
-```bash
-cat > ~/.local/bin/openclaw-doppler <<'EOF'
-#!/usr/bin/env bash
-set -euo pipefail
-exec doppler run --project my-project --config production -- openclaw "$@"
-EOF
-chmod +x ~/.local/bin/openclaw-doppler
-
-openclaw gateway install --wrapper ~/.local/bin/openclaw-doppler --force
-openclaw gateway restart
-```
-
---------------------------------
-
-### Set up and run OpenClaw in development mode
+### Initialize and Run Development Environment
 
 Source: https://github.com/openclaw/openclaw/blob/main/README.md
 
-Clone the repository, install dependencies, run the initial setup, and start the development loop with auto-reload.
+Commands to clone the repository, install dependencies, perform initial setup, and start the development watch loop.
 
 ```bash
 git clone https://github.com/openclaw/openclaw.git
@@ -58,15 +38,104 @@ pnpm gateway:watch
 
 --------------------------------
 
-### Install and Start Tailscale on VPS
+### Standard and Source Installation
+
+Source: https://github.com/openclaw/openclaw/blob/main/docs/help/faq-first-run.md
+
+Commands for standard installation and manual setup from the source repository.
+
+```bash
+curl -fsSL --proto '=https' --tlsv1.2 https://openclaw.ai/install.sh | bash
+openclaw onboard --install-daemon
+```
+
+```bash
+git clone https://github.com/openclaw/openclaw.git
+cd openclaw
+pnpm install
+pnpm build
+pnpm ui:build
+openclaw onboard
+```
+
+--------------------------------
+
+### Install and start Tailscale on VPS
 
 Source: https://github.com/openclaw/openclaw/blob/main/docs/help/faq.md
 
-Downloads, installs, and starts Tailscale on a Linux VPS to connect it to your tailnet.
+Commands to install the Tailscale service and initiate the connection on a Linux VPS.
 
 ```bash
 curl -fsSL https://tailscale.com/install.sh | sh
 sudo tailscale up
+```
+
+--------------------------------
+
+### Force Installation Method
+
+Source: https://github.com/openclaw/openclaw/blob/main/docs/help/faq-first-run.md
+
+Specify the installation method during the initial setup script execution.
+
+```bash
+curl -fsSL --proto '=https' --tlsv1.2 https://openclaw.ai/install.sh | bash -s -- --install-method git
+```
+
+```bash
+curl -fsSL --proto '=https' --tlsv1.2 https://openclaw.ai/install.sh | bash -s -- --install-method npm
+```
+
+--------------------------------
+
+### Run guided setup
+
+Source: https://github.com/openclaw/openclaw/blob/main/docs/channels/clickclack.md
+
+Launch the interactive onboarding wizard to configure the ClickClack channel.
+
+```bash
+openclaw onboard
+```
+
+--------------------------------
+
+### Install and Run Node Host
+
+Source: https://github.com/openclaw/openclaw/blob/main/docs/plugins/google-meet.md
+
+Install the Google Meet plugin and start the node host within the VM environment.
+
+```bash
+openclaw plugins install npm:@openclaw/google-meet
+openclaw node run --host <gateway-host> --port 18789 --display-name parallels-macos
+```
+
+--------------------------------
+
+### Launch interactive channel setup
+
+Source: https://github.com/openclaw/openclaw/blob/main/docs/cli/channels.md
+
+Open the guided interactive setup wizard for a specific channel using positional arguments or the --channel flag.
+
+```bash
+openclaw channels add telegram
+openclaw channels add --channel telegram
+```
+
+--------------------------------
+
+### Install OpenClaw and run onboarding
+
+Source: https://github.com/openclaw/openclaw/blob/main/docs/install/macos-vm.md
+
+Installs the latest version of OpenClaw globally and initiates the daemon installation and provider setup.
+
+```bash
+npm install -g openclaw@latest
+openclaw onboard --install-daemon
 ```
 
 --------------------------------
@@ -85,18 +154,26 @@ clawdock-dashboard
 
 --------------------------------
 
-### Run classic onboarding wizard
+### Run the Feishu channel setup wizard
+
+Source: https://github.com/openclaw/openclaw/blob/main/docs/channels/feishu.md
+
+Initiates the interactive setup process for the Feishu channel, including plugin installation and credential configuration.
+
+```bash
+openclaw channels login --channel feishu
+```
+
+--------------------------------
+
+### Run conversational setup and repair
 
 Source: https://github.com/openclaw/openclaw/blob/main/docs/start/onboarding-overview.md
 
-Provides detailed setup for models, authentication, channels, and remote Gateways. Use --install-daemon to install the background service in the same step.
+Starts the conversational interface for non-inference setup and system repair.
 
 ```bash
-openclaw onboard --classic
-```
-
-```bash
-openclaw onboard --install-daemon
+openclaw openclaw
 ```
 
 --------------------------------
@@ -111,18 +188,6 @@ Run these commands to install the package and perform initial setup. The setup p
 openclaw plugins install @honcho-ai/openclaw-honcho
 openclaw honcho setup
 openclaw gateway --force
-```
-
---------------------------------
-
-### Run the Feishu channel setup wizard
-
-Source: https://github.com/openclaw/openclaw/blob/main/docs/channels/feishu.md
-
-Launches the interactive CLI wizard to install the @openclaw/feishu plugin and configure credentials.
-
-```bash
-openclaw channels login --channel feishu
 ```
 
 --------------------------------
@@ -145,180 +210,27 @@ openclaw
 
 --------------------------------
 
-### Install OpenClaw with Specific Method
+### Pairing the Chrome extension with a remote Gateway
 
-Source: https://github.com/openclaw/openclaw/blob/main/docs/help/faq-first-run.md
+Source: https://github.com/openclaw/openclaw/blob/main/docs/releases/2026.7.1.md
 
-Use the installation script with the --install-method flag to force a git or npm setup. This is useful for initial provisioning on a new machine.
-
-```bash
-curl -fsSL --proto '=https' --tlsv1.2 https://openclaw.ai/install.sh | bash -s -- --install-method git
-```
+Use this command to pair the OpenClaw browser extension with a remote Gateway without requiring a full installation or inbound port configuration.
 
 ```bash
-curl -fsSL --proto '=https' --tlsv1.2 https://openclaw.ai/install.sh | bash -s -- --install-method npm
+openclaw browser extension pair --gateway-url wss://...
 ```
 
 --------------------------------
 
-### Guided Channel Setup
+### Configure workspace with setup
 
-Source: https://github.com/openclaw/openclaw/blob/main/docs/channels/synology-chat.md
+Source: https://github.com/openclaw/openclaw/blob/main/docs/cli/openclaw.md
 
-Interactive CLI commands for adding the Synology Chat channel.
+Use the setup command to initialize the workspace and Gateway state after onboarding.
 
-```bash
-openclaw onboard
-```
-
-```bash
-openclaw channels add
-```
-
---------------------------------
-
-### Standard installation and onboarding
-
-Source: https://github.com/openclaw/openclaw/blob/main/docs/help/faq-first-run.md
-
-The recommended sequence for installing OpenClaw and initiating the onboarding process with a daemon installation.
-
-```bash
-curl -fsSL --proto '=https' --tlsv1.2 https://openclaw.ai/install.sh | bash
-openclaw onboard --install-daemon
-```
-
---------------------------------
-
-### Run OpenClaw setup and repair assistant
-
-Source: https://github.com/openclaw/openclaw/blob/main/docs/web/tui.md
-
-Use these commands to start the interactive setup assistant or run specific configuration requests. Persistent writes require interactive approval or the --yes flag.
-
-```bash
-openclaw setup                       # start interactively
-openclaw setup -m "status"           # run one request and exit
-openclaw setup -m "set default model openai/gpt-5.2" --yes   # apply a config write
-```
-
---------------------------------
-
-### Initialize and Run Convex Development Server
-
-Source: https://github.com/openclaw/openclaw/blob/main/qa/convex-credential-broker/README.md
-
-Use these commands to navigate to the project directory, install dependencies, and start the Convex development server locally.
-
-```bash
-cd qa/convex-credential-broker
-npm install
-npx convex dev
-```
-
---------------------------------
-
-### Run the Control UI Development Server
-
-Source: https://github.com/openclaw/openclaw/blob/main/docs/web/control-ui.md
-
-Starts the local development server for the Control UI. Point the UI at your Gateway WebSocket URL after starting.
-
-```bash
-pnpm ui:dev
-```
-
---------------------------------
-
-### GET /__openclaw__/assistant-media
-
-Source: https://github.com/openclaw/openclaw/blob/main/docs/web/control-ui.md
-
-Retrieves metadata and a short-lived media ticket for assistant local-media previews.
-
-```APIDOC
-## GET /__openclaw__/assistant-media
-
-### Description
-Retrieves metadata and a short-lived media ticket for assistant local-media previews. The returned ticket is used to authorize subsequent media rendering.
-
-### Method
-GET
-
-### Endpoint
-/__openclaw__/assistant-media
-
-### Parameters
-#### Query Parameters
-- **meta** (string) - Required - Must be set to `1` to check availability.
-- **source** (string) - Required - The path to the media source.
-
-### Headers
-- **Authorization** (string) - Required (when gateway auth is configured) - Bearer token.
-
-### Response
-#### Success Response (200)
-- **mediaTicket** (string) - A short-lived ticket scoped to the exact source path.
-```
-
---------------------------------
-
-### GET /avatar/<agentId>
-
-Source: https://github.com/openclaw/openclaw/blob/main/docs/web/control-ui.md
-
-Retrieves the avatar image or metadata for a specific agent. Requires gateway token authentication when configured.
-
-```APIDOC
-## GET /avatar/<agentId>
-
-### Description
-Retrieves the avatar image or metadata for a specific agent. Requires gateway token authentication when configured.
-
-### Method
-GET
-
-### Endpoint
-/avatar/<agentId>
-
-### Parameters
-#### Path Parameters
-- **agentId** (string) - Required - The ID of the agent.
-
-#### Query Parameters
-- **meta** (string) - Optional - Set to `1` to return avatar metadata instead of the image.
-
-### Headers
-- **Authorization** (string) - Required (when gateway auth is configured) - Bearer token.
-```
-
---------------------------------
-
-### Run the interactive onboarding and configuration wizards
-
-Source: https://github.com/openclaw/openclaw/blob/main/docs/gateway/configuration.md
-
-Use these commands to start the interactive onboarding flow or open the configuration wizard.
-
-```bash
-openclaw onboard       # full onboarding flow
-openclaw configure     # config wizard
-```
-
---------------------------------
-
-### Quick Path VM Setup
-
-Source: https://github.com/openclaw/openclaw/blob/main/docs/install/macos-vm.md
-
-Use these commands for a fast-track setup if you are already familiar with Lume. It handles VM creation and headless execution in two steps.
-
-```bash
-lume create openclaw --os macos --ipsw latest
-```
-
-```bash
-lume run openclaw --no-display
+```text
+setup
+setup workspace ~/Projects/work
 ```
 
 --------------------------------
@@ -340,6 +252,22 @@ openclaw config set plugins.entries.openclaw-weixin.enabled true
 
 ```bash
 openclaw plugins install @tencent-weixin/openclaw-weixin@legacy
+```
+
+--------------------------------
+
+### Quick Path VM Setup
+
+Source: https://github.com/openclaw/openclaw/blob/main/docs/install/macos-vm.md
+
+Use these commands for a fast-track setup if you are already familiar with Lume. It handles VM creation and headless execution in two steps.
+
+```bash
+lume create openclaw --os macos --ipsw latest
+```
+
+```bash
+lume run openclaw --no-display
 ```
 
 --------------------------------
@@ -368,6 +296,31 @@ sag prompting
 
 --------------------------------
 
+### Stop and start Gateway service
+
+Source: https://github.com/openclaw/openclaw/blob/main/docs/help/faq.md
+
+Commands to explicitly stop and start the installed gateway service.
+
+```bash
+openclaw gateway stop
+openclaw gateway start
+```
+
+--------------------------------
+
+### Run the classic onboarding wizard
+
+Source: https://github.com/openclaw/openclaw/blob/main/docs/start/onboarding-overview.md
+
+Launches the classic configuration wizard for advanced settings like channels, remote gateways, and daemon installation.
+
+```bash
+openclaw onboard --classic
+```
+
+--------------------------------
+
 ### Run onboarding inside the container
 
 Source: https://github.com/openclaw/openclaw/blob/main/docs/install/podman.md
@@ -380,46 +333,27 @@ Launches the container and initiates the setup process for initial configuration
 
 --------------------------------
 
-### Install OpenClaw without onboarding
+### Run configuration wizards
 
-Source: https://github.com/openclaw/openclaw/blob/main/docs/install/index.md
+Source: https://github.com/openclaw/openclaw/blob/main/docs/gateway/configuration.md
 
-Installs the software while bypassing the interactive onboarding setup.
+Use the onboard or configure commands to launch interactive setup flows.
 
 ```bash
-curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-onboard
-```
-
-```powershell
-& ([scriptblock]::Create((iwr -useb https://openclaw.ai/install.ps1))) -NoOnboard
+openclaw onboard       # full onboarding flow
+openclaw configure     # config wizard
 ```
 
 --------------------------------
 
-### Onboard Qwen Standard Plan via CLI
+### Install OpenClaw CLI manually
 
-Source: https://github.com/openclaw/openclaw/blob/main/docs/providers/qwen.md
+Source: https://github.com/openclaw/openclaw/blob/main/docs/platforms/mac/bundled-gateway.md
 
-Use these commands for pay-as-you-go access through the Standard Model Studio endpoint.
-
-```bash
-openclaw onboard --auth-choice qwen-standard-api-key
-```
+Use this command to install the OpenClaw CLI globally if the automatic setup fails.
 
 ```bash
-openclaw onboard --auth-choice qwen-standard-api-key-cn
-```
-
---------------------------------
-
-### Get Teams app installation link
-
-Source: https://github.com/openclaw/openclaw/blob/main/docs/channels/msteams.md
-
-Retrieves the installation link for a specific Teams app ID.
-
-```bash
-teams app get <id> --install-link
+npm install -g openclaw@<version>
 ```
 
 --------------------------------
@@ -439,6 +373,74 @@ pnpm gateway:watch
 
 --------------------------------
 
+### Initialize OpenClaw Docker Setup
+
+Source: https://github.com/openclaw/openclaw/blob/main/docs/install/docker.md
+
+Environment variable setup for new or existing OpenClaw installations using persistent volumes.
+
+```bash
+export OPENCLAW_IMAGE="ghcr.io/openclaw/openclaw:latest"
+export OPENCLAW_HOME_VOLUME="openclaw_home"
+./scripts/docker/setup.sh
+```
+
+```bash
+set -a
+. ./.env
+set +a
+export OPENCLAW_HOME_VOLUME="${OPENCLAW_HOME_VOLUME:-openclaw_home}"
+./scripts/docker/setup.sh
+```
+
+--------------------------------
+
+### Configure plugin setup metadata
+
+Source: https://github.com/openclaw/openclaw/blob/main/docs/plugins/manifest.md
+
+Use the setup object to define providers, CLI backends, and migration paths for onboarding without requiring runtime execution.
+
+```json
+{
+  "setup": {
+    "providers": [
+      {
+        "id": "openai",
+        "authMethods": ["api-key"],
+        "envVars": ["OPENAI_API_KEY"],
+        "authEvidence": [
+          {
+            "type": "local-file-with-env",
+            "fileEnvVar": "OPENAI_CREDENTIALS_FILE",
+            "requiresAllEnv": ["OPENAI_PROJECT"],
+            "credentialMarker": "openai-local-credentials",
+            "source": "openai local credentials"
+          }
+        ]
+      }
+    ],
+    "cliBackends": ["openai-cli"],
+    "configMigrations": ["legacy-openai-auth"],
+    "requiresRuntime": false
+  }
+}
+```
+
+--------------------------------
+
+### Run OpenClaw onboarding
+
+Source: https://github.com/openclaw/openclaw/blob/main/README.md
+
+Initialize the gateway and daemon configuration.
+
+```bash
+openclaw onboard --install-daemon
+```
+
+--------------------------------
+
 ### Start LM Studio Server
 
 Source: https://github.com/openclaw/openclaw/blob/main/docs/providers/lmstudio.md
@@ -451,92 +453,15 @@ lms server start --port 1234
 
 --------------------------------
 
-### Running setup and join commands via CLI
+### Setup and join meeting
 
 Source: https://github.com/openclaw/openclaw/blob/main/docs/plugins/google-meet.md
 
-Verify the environment setup and join a Google Meet call using the CLI.
+Run the setup command and join a specific Google Meet URL.
 
 ```bash
 openclaw googlemeet setup
 openclaw googlemeet join https://meet.google.com/abc-defg-hij
-```
-
-```bash
-openclaw googlemeet setup --transport chrome-node --mode transcribe
-```
-
-```bash
-openclaw googlemeet setup --transport twilio
-```
-
---------------------------------
-
-### Configure Installer Specs for Skill Dependencies
-
-Source: https://github.com/openclaw/openclaw/blob/main/docs/tools/skills.md
-
-Specify installer details (such as Homebrew formulas) within the metadata block to guide the macOS Skills UI on how to install missing dependencies.
-
-```markdown
----
-name: gemini
-description: Use Gemini CLI for coding assistance and Google search lookups.
-metadata:
-  {
-    "openclaw":
-      {
-        "emoji": "♊️",
-        "requires": { "bins": ["gemini"] },
-        "install":
-          [
-            {
-              "id": "brew",
-              "kind": "brew",
-              "formula": "gemini-cli",
-              "bins": ["gemini"],
-              "label": "Install Gemini CLI (brew)",
-            },
-          ],
-      },
-  }
----
-```
-
---------------------------------
-
-### Onboard OpenCode Go Interactively
-
-Source: https://github.com/openclaw/openclaw/blob/main/docs/providers/opencode-go.md
-
-Start the interactive onboarding process to configure the OpenCode Go provider.
-
-```bash
-openclaw onboard --auth-choice opencode-go
-```
-
---------------------------------
-
-### Gateway Startup Log Example
-
-Source: https://github.com/openclaw/openclaw/blob/main/docs/gateway/logging.md
-
-Shows the resolved default agent model and mode defaults logged by the Gateway at startup.
-
-```text
-agent model: openai/gpt-5.6-sol (thinking=medium, fast=on)
-```
-
---------------------------------
-
-### Install Chromium during Docker setup
-
-Source: https://github.com/openclaw/openclaw/blob/main/docs/tools/browser-control.md
-
-Use this environment variable to bake Chromium into a custom Docker image during the initial setup script.
-
-```bash
-OPENCLAW_INSTALL_BROWSER=1 ./scripts/docker/setup.sh
 ```
 
 --------------------------------
@@ -549,19 +474,6 @@ Opens the OpenClaw Companion setup log file in Notepad to diagnose installation 
 
 ```powershell
 notepad "$env:LOCALAPPDATA\OpenClawTray\Logs\Setup\easy-setup-latest.txt"
-```
-
---------------------------------
-
-### Configure Matrix interactively
-
-Source: https://github.com/openclaw/openclaw/blob/main/docs/channels/matrix.md
-
-Run the interactive setup wizard to configure homeserver, authentication, and room access.
-
-```bash
-openclaw channels add
-openclaw configure --section channels
 ```
 
 --------------------------------
@@ -580,30 +492,45 @@ rm -f /tmp/install.sh
 
 --------------------------------
 
-### Example Project Environment File
+### Binding Format Examples
 
-Source: https://github.com/openclaw/openclaw/blob/main/scripts/clawdock/README.md
+Source: https://github.com/openclaw/openclaw/blob/main/docs/cli/agents.md
 
-Shows a typical `<project>/.env` file, configuring Docker infrastructure settings like image name, ports, and gateway token.
+Examples demonstrating channel-wide, account-specific, and channel-only bindings, including upgrading an existing binding.
 
 ```bash
-OPENCLAW_CONFIG_DIR=/Users/you/.openclaw
-OPENCLAW_WORKSPACE_DIR=/Users/you/.openclaw/workspace
-OPENCLAW_GATEWAY_PORT=18789
-OPENCLAW_BRIDGE_PORT=18790
-OPENCLAW_GATEWAY_BIND=lan
-OPENCLAW_GATEWAY_TOKEN=<generated-by-docker-setup>
-OPENCLAW_AUTH_PROFILE_SECRET_DIR=/Users/you/.openclaw-auth-profile-secrets
-OPENCLAW_IMAGE=openclaw:local
+# match all accounts on the channel
+openclaw agents bind --agent work --bind telegram:*
+
+# match a specific account
+openclaw agents bind --agent work --bind telegram:ops
+
+# initial channel-only binding
+openclaw agents bind --agent work --bind telegram
+
+# later upgrade to account-scoped binding
+openclaw agents bind --agent work --bind telegram:alerts
 ```
 
 --------------------------------
 
-### Example Stdin Payload for Install Policy
+### Onboard OpenCode Go Interactively
+
+Source: https://github.com/openclaw/openclaw/blob/main/docs/providers/opencode-go.md
+
+Start the interactive onboarding process to configure the OpenCode Go provider.
+
+```bash
+openclaw onboard --auth-choice opencode-go
+```
+
+--------------------------------
+
+### Example stdin for install policy
 
 Source: https://github.com/openclaw/openclaw/blob/main/docs/tools/skills-config.md
 
-The JSON payload structure sent to the stdin of the configured policy command during an installation request.
+The JSON object provided to the policy command via stdin containing metadata about the installation request.
 
 ```json
 {
@@ -638,25 +565,83 @@ The JSON payload structure sent to the stdin of the configured policy command du
 
 --------------------------------
 
-### Configure Wizard Setup Flow in JSON5
+### Non-interactive setup
 
-Source: https://github.com/openclaw/openclaw/blob/main/docs/gateway/configuration-reference.md
+Source: https://github.com/openclaw/openclaw/blob/main/docs/providers/deepseek.md
 
-Defines behavior and metadata for CLI guided setup flows such as onboard, configure, and doctor.
+Perform a headless or scripted onboarding setup by passing all configuration flags directly.
 
-```json5
-{
-  wizard: {
-    accessMode: "full",
-    appRecommendations: true,
-    lastRunAt: "2026-01-01T00:00:00.000Z",
-    lastRunVersion: "2026.1.4",
-    lastRunCommit: "abc1234",
-    lastRunCommand: "configure",
-    lastRunMode: "local",
-    securityAcknowledgedAt: "2026-01-01T00:00:00.000Z",
-  },
-}
+```bash
+openclaw onboard --non-interactive \
+  --mode local \
+  --auth-choice deepseek-api-key \
+  --deepseek-api-key "$DEEPSEEK_API_KEY" \
+  --skip-health \
+  --accept-risk
+```
+
+--------------------------------
+
+### Configure Matrix interactively
+
+Source: https://github.com/openclaw/openclaw/blob/main/docs/channels/matrix.md
+
+Run the interactive setup wizard to configure homeserver, authentication, and room access.
+
+```bash
+openclaw channels add
+openclaw configure --section channels
+```
+
+--------------------------------
+
+### mcporter Quick Start Commands
+
+Source: https://github.com/openclaw/openclaw/blob/main/skills/mcporter/SKILL.md
+
+Basic commands to quickly get started with `mcporter` for listing servers and making simple tool calls.
+
+```bash
+mcporter list
+```
+
+```bash
+mcporter list <server> --schema
+```
+
+```bash
+mcporter call <server.tool> key=value
+```
+
+--------------------------------
+
+### Automated OpenClaw Installation via Shelley
+
+Source: https://github.com/openclaw/openclaw/blob/main/docs/install/exe-dev.md
+
+Use this prompt with the Shelley agent to automate the installation, Nginx configuration, and setup of OpenClaw on an exe.dev VM.
+
+```text
+Set up OpenClaw (https://docs.openclaw.ai/install) on this VM. Use the non-interactive and accept-risk flags for openclaw onboarding. Add the supplied auth or token as needed. Configure nginx to forward from the default port 18789 to the root location on the default enabled site config, making sure to enable Websocket support. Pairing is done by "openclaw devices list" and "openclaw devices approve <request id>". Make sure the dashboard shows that OpenClaw's health is OK. exe.dev handles forwarding from port 8000 to port 80/443 and HTTPS for us, so the final "reachable" should be <vm-name>.exe.xyz, without port specification.
+```
+
+--------------------------------
+
+### Example Project Environment File
+
+Source: https://github.com/openclaw/openclaw/blob/main/scripts/clawdock/README.md
+
+Shows a typical `<project>/.env` file, configuring Docker infrastructure settings like image name, ports, and gateway token.
+
+```bash
+OPENCLAW_CONFIG_DIR=/Users/you/.openclaw
+OPENCLAW_WORKSPACE_DIR=/Users/you/.openclaw/workspace
+OPENCLAW_GATEWAY_PORT=18789
+OPENCLAW_BRIDGE_PORT=18790
+OPENCLAW_GATEWAY_BIND=lan
+OPENCLAW_GATEWAY_TOKEN=<generated-by-docker-setup>
+OPENCLAW_AUTH_PROFILE_SECRET_DIR=/Users/you/.openclaw-auth-profile-secrets
+OPENCLAW_IMAGE=openclaw:local
 ```
 
 --------------------------------
@@ -700,6 +685,29 @@ const setupSurface = createOptionalChannelSetupSurface({
 
 --------------------------------
 
+### Install Persistent Gateway Wrapper Workaround
+
+Source: https://github.com/openclaw/openclaw/blob/main/docs/gateway/troubleshooting.md
+
+Creates a wrapper script to clear inherited launchd environment variables before starting OpenClaw, then installs the gateway with this wrapper.
+
+```bash
+mkdir -p ~/.local/bin
+cat >~/.local/bin/openclaw-launchd-workaround <<'EOF'
+#!/bin/sh
+set -eu
+unset OPENCLAW_LAUNCHD_LABEL LAUNCH_JOB_LABEL LAUNCH_JOB_NAME XPC_SERVICE_NAME || true
+exec openclaw "$@"
+EOF
+chmod 700 ~/.local/bin/openclaw-launchd-workaround
+
+openclaw gateway install \
+  --wrapper ~/.local/bin/openclaw-launchd-workaround \
+  --force
+```
+
+--------------------------------
+
 ### Run interactive onboarding
 
 Source: https://github.com/openclaw/openclaw/blob/main/docs/providers/longcat.md
@@ -708,120 +716,6 @@ Start the interactive onboarding process to configure the LongCat API key.
 
 ```bash
 openclaw onboard --auth-choice longcat-api-key
-```
-
---------------------------------
-
-### Run OpenClaw installer with verbose logging
-
-Source: https://github.com/openclaw/openclaw/blob/main/docs/help/faq-first-run.md
-
-Add the --verbose flag to the installation script to troubleshoot issues or get more feedback. These variants cover standard, beta, and git-based installation methods.
-
-```bash
-curl -fsSL --proto '=https' --tlsv1.2 https://openclaw.ai/install.sh | bash -s -- --verbose
-```
-
-```bash
-curl -fsSL --proto '=https' --tlsv1.2 https://openclaw.ai/install.sh | bash -s -- --beta --verbose
-```
-
-```bash
-curl -fsSL --proto '=https' --tlsv1.2 https://openclaw.ai/install.sh | bash -s -- --install-method git --verbose
-```
-
---------------------------------
-
-### Interactive Onboarding
-
-Source: https://github.com/openclaw/openclaw/blob/main/docs/providers/deepseek.md
-
-Run the onboarding process to configure the DeepSeek API key and set the default model.
-
-```bash
-openclaw onboard --auth-choice deepseek-api-key
-```
-
---------------------------------
-
-### mcporter Quick Start Commands
-
-Source: https://github.com/openclaw/openclaw/blob/main/skills/mcporter/SKILL.md
-
-Basic commands to quickly get started with `mcporter` for listing servers and making simple tool calls.
-
-```bash
-mcporter list
-```
-
-```bash
-mcporter list <server> --schema
-```
-
-```bash
-mcporter call <server.tool> key=value
-```
-
---------------------------------
-
-### Install Exa plugin
-
-Source: https://github.com/openclaw/openclaw/blob/main/docs/tools/exa-search.md
-
-Install the Exa plugin and restart the gateway to apply changes.
-
-```bash
-openclaw plugins install @openclaw/exa-plugin
-openclaw gateway restart
-```
-
---------------------------------
-
-### Automated OpenClaw Installation via Shelley
-
-Source: https://github.com/openclaw/openclaw/blob/main/docs/install/exe-dev.md
-
-Use this prompt with the Shelley agent to automate the installation, Nginx configuration, and setup of OpenClaw on an exe.dev VM.
-
-```text
-Set up OpenClaw (https://docs.openclaw.ai/install) on this VM. Use the non-interactive and accept-risk flags for openclaw onboarding. Add the supplied auth or token as needed. Configure nginx to forward from the default port 18789 to the root location on the default enabled site config, making sure to enable Websocket support. Pairing is done by "openclaw devices list" and "openclaw devices approve <request id>". Make sure the dashboard shows that OpenClaw's health is OK. exe.dev handles forwarding from port 8000 to port 80/443 and HTTPS for us, so the final "reachable" should be <vm-name>.exe.xyz, without port specification.
-```
-
---------------------------------
-
-### Install dependencies and open project in Xcode
-
-Source: https://github.com/openclaw/openclaw/blob/main/apps/ios/README.md
-
-Run these commands from the repository root to prepare the environment and launch the iOS project.
-
-```bash
-pnpm install
-pnpm ios:open
-```
-
---------------------------------
-
-### Run Synthetic onboarding
-
-Source: https://github.com/openclaw/openclaw/blob/main/docs/providers/synthetic.md
-
-Use the CLI to configure the Synthetic API key during initial setup.
-
-```bash
-openclaw onboard --auth-choice synthetic-api-key
-```
-
---------------------------------
-
-### Quick Start Installation Script
-
-Source: https://github.com/openclaw/openclaw/blob/main/docs/install/ansible.md
-
-Executes the automated installation script from the openclaw-ansible repository. Requires root or sudo privileges on Debian 11+ or Ubuntu 20.04+.
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/openclaw/openclaw-ansible/main/install.sh | bash
 ```
 
 --------------------------------
@@ -848,30 +742,89 @@ else:
 
 --------------------------------
 
-### Onboard Mistral API Key via CLI
+### Initialize Teams CLI
 
-Source: https://github.com/openclaw/openclaw/blob/main/docs/providers/mistral.md
+Source: https://github.com/openclaw/openclaw/blob/main/docs/channels/msteams.md
 
-Run onboarding to configure the Mistral API key, either interactively or by passing the key directly.
-
-```bash
-openclaw onboard --auth-choice mistral-api-key
-```
+Install the preview Teams CLI and authenticate to manage bot registration.
 
 ```bash
-openclaw onboard --mistral-api-key "$MISTRAL_API_KEY"
+npm install -g @microsoft/teams.cli@preview
+teams login
+teams status   # verify you're logged in and see your tenant info
 ```
 
 --------------------------------
 
-### Onboard Fal Provider via CLI
+### Configure Skill Installer Specifications
 
-Source: https://github.com/openclaw/openclaw/blob/main/docs/providers/fal.md
+Source: https://github.com/openclaw/openclaw/blob/main/docs/tools/skills.md
 
-Run this command to interactively set up the Fal API key and default model.
+Define installation methods like Homebrew within the metadata block to enable automated dependency setup in the macOS Skills UI.
+
+```markdown
+---
+name: gemini
+description: Use Gemini CLI for coding assistance and Google search lookups.
+metadata:
+  {
+    "openclaw":
+      {
+        "emoji": "♊️",
+        "requires": { "bins": ["gemini"] },
+        "install":
+          [
+            {
+              "id": "brew",
+              "kind": "brew",
+              "formula": "gemini-cli",
+              "bins": ["gemini"],
+              "label": "Install Gemini CLI (brew)",
+            },
+          ],
+      },
+  }
+---
+```
+
+--------------------------------
+
+### Detailed examples for adding todos
+
+Source: https://github.com/openclaw/openclaw/blob/main/skills/things-mac/SKILL.md
+
+Examples demonstrating how to add todos with specific details like notes, project/area, heading, tags, checklist items, and multi-line input from STDIN.
 
 ```bash
-openclaw onboard --auth-choice fal-api-key
+things add "Buy milk"
+```
+
+```bash
+things add "Buy milk" --notes "2% + bananas"
+```
+
+```bash
+things add "Book flights" --list "Travel"
+```
+
+```bash
+things add "Pack charger" --list "Travel" --heading "Before"
+```
+
+```bash
+things add "Call dentist" --tags "health,phone"
+```
+
+```bash
+things add "Trip prep" --checklist-item "Passport" --checklist-item "Tickets"
+```
+
+```bash
+cat <<'EOF' | things add -
+Title line
+Notes line 1
+Notes line 2
+EOF
 ```
 
 --------------------------------
@@ -891,121 +844,180 @@ sudo usermod -aG docker $USER
 
 --------------------------------
 
-### Install OpenProse from Local Source
+### OpenCode-Go Configuration Example
 
-Source: https://github.com/openclaw/openclaw/blob/main/docs/prose.md
+Source: https://github.com/openclaw/openclaw/blob/main/docs/providers/opencode-go.md
 
-Install the plugin directly from a local repository checkout path.
+Configure the provider by setting the API key in the environment and specifying a default model.
 
-```bash
-openclaw plugins install ./extensions/open-prose
-```
-
---------------------------------
-
-### Start guided onboarding with openclaw onboard
-
-Source: https://github.com/openclaw/openclaw/blob/main/docs/start/onboarding-overview.md
-
-Initiates the guided flow to detect AI access and configure the workspace. The --modern flag is a compatibility alias for the same live-inference gate.
-
-```bash
-openclaw onboard
-```
-
-```bash
-openclaw onboard --modern
-```
-
---------------------------------
-
-### Non-interactive vLLM Onboarding
-
-Source: https://github.com/openclaw/openclaw/blob/main/docs/providers/vllm.md
-
-Perform a scripted setup by providing the base URL, API key, and model ID directly to the onboard command.
-
-```bash
-openclaw onboard --non-interactive \
-  --mode local \
-  --auth-choice vllm \
-  --custom-base-url "http://127.0.0.1:8000/v1" \
-  --custom-api-key "vllm-local" \
-  --custom-model-id "your-model-id"
-```
-
---------------------------------
-
-### PostgreSQL Setup and Docker Configuration
-
-Source: https://github.com/openclaw/openclaw/blob/main/extensions/open-prose/skills/prose/SKILL.md
-
-Instructions and commands for configuring the PostgreSQL connection string or launching a local instance via Docker.
-
-```text
-⚠️  PostgreSQL state requires a connection URL.
-
-To configure:
-1. Set up a PostgreSQL database (Docker, local, or cloud)
-2. Add connection string to .prose/.env:
-
-   echo "OPENPROSE_POSTGRES_URL=postgresql://user:pass@localhost:5432/prose" >> .prose/.env
-
-Quick Docker setup:
-   docker run -d --name prose-pg -e POSTGRES_DB=prose -e POSTGRES_HOST_AUTH_METHOD=trust -p 5432:5432 postgres:16
-   echo "OPENPROSE_POSTGRES_URL=postgresql://postgres@localhost:5432/prose" >> .prose/.env
-
-See state/postgres.md for detailed setup options.
-```
-
---------------------------------
-
-### Set up gog CLI Authentication
-
-Source: https://github.com/openclaw/openclaw/blob/main/skills/gog/SKILL.md
-
-Perform initial OAuth setup by providing client secrets and adding services for a specific Google account. This is a one-time setup.
-
-```bash
-gog auth credentials /path/to/client_secret.json
-```
-
-```bash
-gog auth add you@gmail.com --services gmail,calendar,drive,contacts,docs,sheets
-```
-
-```bash
-gog auth list
-```
-
---------------------------------
-
-### Configure Channel Catalog Metadata in package.json
-
-Source: https://github.com/openclaw/openclaw/blob/main/docs/plugins/architecture-internals.md
-
-Define setup, discovery, and installation metadata for OpenClaw channel plugins. This configuration keeps the core catalog data-free and supports both npm and local path installations.
-
-```json
+```json5
 {
-  "name": "@openclaw/nextcloud-talk",
-  "openclaw": {
-    "extensions": ["./index.ts"],
-    "channel": {
-      "id": "nextcloud-talk",
-      "label": "Nextcloud Talk",
-      "selectionLabel": "Nextcloud Talk (self-hosted)",
-      "docsPath": "/channels/nextcloud-talk",
-      "docsLabel": "nextcloud-talk",
-      "blurb": "Self-hosted chat via Nextcloud Talk webhook bots.",
-      "order": 65,
-      "aliases": ["nc-talk", "nc"]
-    },
-    "install": {
-      "npmSpec": "@openclaw/nextcloud-talk",
-      "localPath": "<bundled-plugin-local-path>",
-      "defaultChoice": "npm"
-    }
-  }
+  env: { OPENCODE_API_KEY: "YOUR_API_KEY_HERE" }, // pragma: allowlist secret
+  agents: { defaults: { model: { primary: "opencode-go/kimi-k2.6" } } },
 }
+```
+
+--------------------------------
+
+### Manual GCP Project Setup
+
+Source: https://github.com/openclaw/openclaw/blob/main/docs/automation/cron-jobs.md
+
+Authenticates with GCP and enables required APIs for Gmail and Pub/Sub integration.
+
+```bash
+gcloud auth login
+gcloud config set project <project-id>
+gcloud services enable gmail.googleapis.com pubsub.googleapis.com
+```
+
+--------------------------------
+
+### Install Exa plugin
+
+Source: https://github.com/openclaw/openclaw/blob/main/docs/tools/exa-search.md
+
+Install the Exa plugin and restart the gateway to apply changes.
+
+```bash
+openclaw plugins install @openclaw/exa-plugin
+openclaw gateway restart
+```
+
+--------------------------------
+
+### Add Buzz channel
+
+Source: https://github.com/openclaw/openclaw/blob/main/docs/channels/buzz.md
+
+Initiate the guided setup flow for a new Buzz channel.
+
+```bash
+openclaw channels add --channel buzz
+```
+
+--------------------------------
+
+### Gateway discovery with options
+
+Source: https://github.com/openclaw/openclaw/blob/main/docs/cli/gateway.md
+
+Examples demonstrating custom timeouts and JSON output parsing.
+
+```bash
+openclaw gateway discover --timeout 4000
+openclaw gateway discover --json | jq '.beacons[].wsUrl'
+```
+
+--------------------------------
+
+### Run Synthetic onboarding
+
+Source: https://github.com/openclaw/openclaw/blob/main/docs/providers/synthetic.md
+
+Use the CLI to configure the Synthetic API key during initial setup.
+
+```bash
+openclaw onboard --auth-choice synthetic-api-key
+```
+
+--------------------------------
+
+### Manually Configure ClickClack Channel
+
+Source: https://github.com/openclaw/openclaw/blob/main/extensions/clickclack/README.md
+
+Use this command for manual token-based setup, followed by starting the gateway.
+
+```sh
+openclaw channels add clickclack \
+  --base-url https://clickclack.example.com \
+  --token ccb_... \
+  --workspace default
+openclaw gateway
+```
+
+--------------------------------
+
+### Run onboarding for Xiaomi
+
+Source: https://github.com/openclaw/openclaw/blob/main/docs/providers/xiaomi.md
+
+Initialize OpenClaw onboarding for Xiaomi using interactive prompts or by passing API keys directly.
+
+```bash
+openclaw onboard --auth-choice xiaomi-api-key
+```
+
+```bash
+openclaw onboard --auth-choice xiaomi-token-plan-sgp
+```
+
+```bash
+openclaw onboard --auth-choice xiaomi-api-key --xiaomi-api-key "$XIAOMI_API_KEY"
+openclaw onboard --auth-choice xiaomi-token-plan-sgp --xiaomi-token-plan-api-key "$XIAOMI_TOKEN_PLAN_API_KEY"
+```
+
+--------------------------------
+
+### Verify Google Meet Plugin Status
+
+Source: https://github.com/openclaw/openclaw/blob/main/docs/plugins/google-meet.md
+
+Use these commands to confirm the plugin is installed and perform initial setup.
+
+```bash
+openclaw plugins list | grep google-meet
+openclaw googlemeet setup
+```
+
+--------------------------------
+
+### Start Local Development Server
+
+Source: https://github.com/openclaw/openclaw/blob/main/docs/web/control-ui.md
+
+Launches the development server for the Control UI.
+
+```bash
+pnpm ui:dev
+```
+
+--------------------------------
+
+### Configure Wizard Metadata
+
+Source: https://github.com/openclaw/openclaw/blob/main/docs/gateway/configuration-reference.md
+
+Defines the state and preferences for CLI guided setup flows like onboarding and configuration.
+
+```json5
+{
+  wizard: {
+    accessMode: "full",
+    appRecommendations: true,
+    lastRunAt: "2026-01-01T00:00:00.000Z",
+    lastRunVersion: "2026.1.4",
+    lastRunCommit: "abc1234",
+    lastRunCommand: "configure",
+    lastRunMode: "local",
+    securityAcknowledgedAt: "2026-01-01T00:00:00.000Z",
+  },
+}
+```
+
+--------------------------------
+
+### Run onboarding with Mistral
+
+Source: https://github.com/openclaw/openclaw/blob/main/docs/providers/mistral.md
+
+Commands to initialize authentication using the Mistral API key.
+
+```bash
+openclaw onboard --auth-choice mistral-api-key
+```
+
+```bash
+openclaw onboard --mistral-api-key "$MISTRAL_API_KEY"
 ```

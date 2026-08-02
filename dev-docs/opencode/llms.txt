@@ -1,3 +1,69 @@
+### Custom Installation Directory Examples
+
+Source: https://github.com/anomalyco/opencode/blob/dev/README.md
+
+Examples of setting custom installation directories for OpenCode.
+
+```bash
+OPENCODE_INSTALL_DIR=/usr/local/bin curl -fsSL https://opencode.ai/install | bash
+```
+
+```bash
+XDG_BIN_DIR=$HOME/.local/bin curl -fsSL https://opencode.ai/install | bash
+```
+
+--------------------------------
+
+### Request example
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/ai-tools/cursor.mdx
+
+Example of an API request using cURL.
+
+```bash
+curl -X POST 'https://api.example.com/users' \
+  -H 'Content-Type: application/json' \
+  -d '{"name": "John Doe", "email": "john@example.com"}'
+```
+
+--------------------------------
+
+### Response example
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/ai-tools/cursor.mdx
+
+Example of a JSON API response.
+
+```json
+{
+  "id": "user_123",
+  "name": "John Doe", 
+  "email": "john@example.com",
+  "created_at": "2024-01-15T10:30:00Z"
+}
+```
+
+--------------------------------
+
+### tmpdir with custom initialization
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/opencode/test/AGENTS.md
+
+Example demonstrating how to use a custom `init` function to perform setup and return extra data accessible via `tmp.extra`.
+
+```typescript
+await using tmp = await tmpdir<string>({
+  init: async (dir) => {
+    await Bun.write(path.join(dir, "file.txt"), "content")
+    return "extra data"
+  },
+})
+// Access extra data via tmp.extra
+console.log(tmp.extra) // "extra data"
+```
+
+--------------------------------
+
 ### Initialize AGENTS.md in TUI (Bash)
 
 Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/tui.mdx
@@ -6,6 +72,421 @@ Starts a guided setup process for creating or updating the 'AGENTS.md' file, def
 
 ```bash
 /init
+```
+
+--------------------------------
+
+### Install dependencies (Linux)
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/ai-tools/cursor.mdx
+
+Commands to install Node.js and a package on Linux using apt.
+
+```bash
+sudo apt install nodejs npm
+npm install -g package-name
+```
+
+--------------------------------
+
+### Install dependencies
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/opencode/README.md
+
+Command to install project dependencies using Bun.
+
+```bash
+bun install
+```
+
+--------------------------------
+
+### Install OpenCode on Windows using Mise
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
+
+Install OpenCode on Windows using Mise.
+
+```bash
+mise use -g github:anomalyco/opencode
+```
+
+--------------------------------
+
+### Install OpenCode using Homebrew
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
+
+Install OpenCode on macOS and Linux using Homebrew.
+
+```bash
+brew install anomalyco/tap/opencode
+```
+
+--------------------------------
+
+### Install OpenCode on Windows using Scoop
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
+
+Install OpenCode on Windows using Scoop.
+
+```bash
+scoop install opencode
+```
+
+--------------------------------
+
+### Install dependencies (Windows)
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/ai-tools/cursor.mdx
+
+Commands to install Node.js and a package on Windows using Chocolatey.
+
+```powershell
+choco install nodejs
+npm install -g package-name
+```
+
+--------------------------------
+
+### Advanced configuration example
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/ai-tools/cursor.mdx
+
+An example of a JavaScript configuration object within an accordion.
+
+```javascript
+const config = {
+  performance: { cache: true, timeout: 30000 },
+  security: { encryption: 'AES-256' }
+};
+```
+
+--------------------------------
+
+### Install OpenCode on Windows using NPM
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
+
+Install OpenCode on Windows using NPM.
+
+```bash
+npm install -g opencode-ai
+```
+
+--------------------------------
+
+### Install OpenCode on Arch Linux
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
+
+Install OpenCode on Arch Linux using pacman or paru.
+
+```bash
+sudo pacman -S opencode
+```
+
+```bash
+paru -S opencode-bin
+```
+
+--------------------------------
+
+### Configure environment step
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/ai-tools/cursor.mdx
+
+Example of configuring environment variables within a step.
+
+```bash
+API_KEY=your_api_key_here
+```
+
+--------------------------------
+
+### Install dependencies (macOS)
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/ai-tools/cursor.mdx
+
+Commands to install Node.js and a package on macOS using Homebrew.
+
+```bash
+brew install node
+npm install -g package-name
+```
+
+--------------------------------
+
+### Install OpenCode on Windows using Chocolatey
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
+
+Install OpenCode on Windows using Chocolatey.
+
+```bash
+choco install opencode
+```
+
+--------------------------------
+
+### Install SDK
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/sdk.mdx
+
+Install the opencode SDK from npm.
+
+```bash
+npm install @opencode-ai/sdk
+```
+
+--------------------------------
+
+### Install Mintlify CLI
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/README.md
+
+Command to install the Mintlify CLI globally using npm.
+
+```bash
+npm i -g mint
+```
+
+--------------------------------
+
+### OpenAPI Configuration Examples
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/essentials/settings.mdx
+
+Examples demonstrating different ways to configure the 'openapi' property.
+
+```json
+"openapi": "https://example.com/openapi.json"
+```
+
+```json
+"openapi": "/openapi.json"
+```
+
+```json
+"openapi": ["https://example.com/openapi1.json", "/openapi2.json", "/openapi3.json"]
+```
+
+--------------------------------
+
+### Required YAML frontmatter
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/ai-tools/cursor.mdx
+
+Example of the YAML frontmatter required at the beginning of every documentation page.
+
+```yaml
+---
+title: "Clear, specific, keyword-rich title"
+description: "Concise description explaining page purpose and value"
+---
+```
+
+--------------------------------
+
+### Example .windsurf/rules.md file
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/ai-tools/windsurf.mdx
+
+A markdown file defining workspace rules for Windsurf's AI assistant, providing context about the Mintlify documentation project and writing standards. This file should be created in your project root.
+
+```markdown
+# Mintlify technical writing rule
+
+## Project context
+
+- This is a documentation project on the Mintlify platform
+- We use MDX files with YAML frontmatter
+- Navigation is configured in `docs.json`
+- We follow technical writing best practices
+
+## Writing standards
+
+- Use second person ("you") for instructions
+- Write in active voice and present tense
+- Start procedures with prerequisites
+- Include expected outcomes for major steps
+- Use descriptive, keyword-rich headings
+- Keep sentences concise but informative
+
+## Required page structure
+
+Every page must start with frontmatter:
+
+```yaml
+---
+title: "Clear, specific title"
+description: "Concise description for SEO and navigation"
+---
+```
+
+## Mintlify components
+
+### Callouts
+
+- `<Note>` for helpful supplementary information
+- `<Warning>` for important cautions and breaking changes
+- `<Tip>` for best practices and expert advice
+- `<Info>` for neutral contextual information
+- `<Check>` for success confirmations
+
+### Code examples
+
+- When appropriate, include complete, runnable examples
+- Use `<CodeGroup>` for multiple language examples
+- Specify language tags on all code blocks
+- Include realistic data, not placeholders
+- Use `<RequestExample>` and `<ResponseExample>` for API docs
+
+### Procedures
+
+- Use `<Steps>` component for sequential instructions
+- Include verification steps with `<Check>` components when relevant
+- Break complex procedures into smaller steps
+
+### Content organization
+
+- Use `<Tabs>` for platform-specific content
+- Use `<Accordion>` for progressive disclosure
+- Use `<Card>` and `<CardGroup>` for highlighting content
+- Wrap images in `<Frame>` components with descriptive alt text
+
+## API documentation requirements
+
+- Document all parameters with `<ParamField>`
+- Show response structure with `<ResponseField>`
+- Include both success and error examples
+- Use `<Expandable>` for nested object properties
+- Always include authentication examples
+
+## Quality standards
+
+- Test all code examples before publishing
+- Use relative paths for internal links
+- Include alt text for all images
+- Ensure proper heading hierarchy (start with h2)
+- Check existing patterns for consistency
+
+```
+
+--------------------------------
+
+### Navigate to project directory
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
+
+Change directory to your project.
+
+```bash
+cd /path/to/project
+```
+
+--------------------------------
+
+### Install OpenCode using Docker
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
+
+Run OpenCode using Docker.
+
+```bash
+docker run -it --rm ghcr.io/anomalyco/opencode
+```
+
+--------------------------------
+
+### Initialize OpenCode for project
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
+
+Run the /init command to analyze your project and create AGENTS.md.
+
+```bash
+/init
+```
+
+--------------------------------
+
+### Install OpenCode using Node.js package managers
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
+
+Install OpenCode using npm, Bun, pnpm, or Yarn.
+
+```bash
+npm install -g opencode-ai
+```
+
+```bash
+bun install -g opencode-ai
+```
+
+```bash
+pnpm install -g opencode-ai
+```
+
+```bash
+yarn global add opencode-ai
+```
+
+--------------------------------
+
+### Single code block example
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/ai-tools/cursor.mdx
+
+Example of a single code block in JavaScript.
+
+```javascript
+const apiConfig = {
+  baseURL: "https://api.example.com",
+  timeout: 5000,
+  headers: {
+    Authorization: `Bearer ${process.env.API_TOKEN}`,
+  },
+}
+```
+
+--------------------------------
+
+### Run Development Server
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/README.md
+
+Command to start the local development server for Mintlify documentation.
+
+```bash
+mint dev
+```
+
+--------------------------------
+
+### Ask OpenCode a question
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
+
+Example of asking OpenCode to explain a part of the codebase.
+
+```txt
+@packages/functions/src/api/index.ts
+How is authentication handled in @packages/functions/src/api/index.ts
+```
+
+--------------------------------
+
+### Install Claude Code globally
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/ai-tools/claude-code.mdx
+
+Command to install the Claude Code CLI tool using npm.
+
+```bash
+npm install -g @anthropic-ai/claude-code
 ```
 
 --------------------------------
@@ -22,667 +503,74 @@ GET /api/fs/tree?path=.&directory=/repo/app&workspace=ws_123
 
 --------------------------------
 
-### opencode.json
+### Config API Get and Providers
 
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/tools.mdx
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/sdk.mdx
 
-Example configuration to allow the 'lsp' tool.
+Examples of getting configuration information using `config.get()` and listing providers and default models using `config.providers()`.
 
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "permission": {
-    "lsp": "allow"
-  }
-}
+```javascript
+const config = await client.config.get()
+
+const { providers, default: defaults } = await client.config.providers()
 ```
 
 --------------------------------
 
-### Install Wayland Clipboard Utility for Linux
+### Required page frontmatter example
 
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/troubleshooting.mdx
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/ai-tools/windsurf.mdx
 
-Install `wl-clipboard` on Wayland-based Linux systems to enable copy/paste functionality in OpenCode.
+Example of the YAML frontmatter required at the beginning of every documentation page, as specified in the workspace rules.
 
-```bash
-apt install -y wl-clipboard
+```yaml
+---
+title: "Clear, specific title"
+description: "Concise description for SEO and navigation"
+---
 ```
 
 --------------------------------
 
-### opencode.json
+### Describe the feature in Plan mode
 
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/tools.mdx
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
 
-Example configuration to allow the 'skill' tool.
-
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "permission": {
-    "skill": "allow"
-  }
-}
-```
-
---------------------------------
-
-### Start OpenCode server in WSL
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/windows-wsl.mdx
-
-Command to start the OpenCode server in WSL, allowing external connections.
-
-```bash
-opencode serve --hostname 0.0.0.0 --port 4096
-```
-
---------------------------------
-
-### Install X11 Clipboard Utilities for Linux
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/troubleshooting.mdx
-
-Install `xclip` or `xsel` on X11-based Linux systems to enable copy/paste functionality in OpenCode.
-
-```bash
-apt install -y xclip
-```
-
-```bash
-apt install -y xsel
-```
-
---------------------------------
-
-### Initiate Custom Provider Connection in OpenCode
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/providers.mdx
-
-Starts the `/connect` command flow, allowing selection of 'Other' to begin configuring a custom OpenAI-compatible provider.
-
-```bash
-$ /connect
-
-┌  Add credential
-│
-◆  Select provider
-│  ...
-│  ● Other
-└
-```
-
---------------------------------
-
-### Configure server settings in opencode.json
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/web.mdx
-
-Example JSON configuration for server settings within the `opencode.json` config file.
-
-```json
-{
-  "server": {
-    "port": 4096,
-    "hostname": "0.0.0.0",
-    "mdns": true,
-    "cors": ["https://example.com"]
-  }
-}
-```
-
---------------------------------
-
-### Example tui.json Configuration File
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/tui.mdx
-
-Illustrates a comprehensive `tui.json` configuration file for customizing TUI behavior, including theme, keybinds, scrolling, mouse settings, and attention notifications.
-
-```json
-{
-  "$schema": "https://opencode.ai/tui.json",
-  "theme": "opencode",
-  "leader_timeout": 2000,
-  "keybinds": {
-    "leader": "ctrl+x",
-    "command_list": "ctrl+p"
-  },
-  "scroll_speed": 3,
-  "scroll_acceleration": {
-    "enabled": false
-  },
-  "diff_style": "auto",
-  "mouse": true,
-  "attention": {
-    "enabled": true,
-    "notifications": true,
-    "sound": true,
-    "volume": 0.4,
-    "sound_pack": "opencode.default",
-    "sounds": {
-      "error": "./sounds/error.mp3"
-    }
-  }
-}
-```
-
---------------------------------
-
-### Configure Clipboard for Headless Linux Environments
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/troubleshooting.mdx
-
-Install `xvfb` and set up a virtual display to enable copy/paste functionality in OpenCode when running in a headless Linux environment.
-
-```bash
-apt install -y xvfb
-```
-
-```bash
-Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
-export DISPLAY=:99.0
-```
-
---------------------------------
-
-### Register a Built-In Grep Tool with Permissions
-
-Source: https://github.com/anomalyco/opencode/blob/dev/specs/v2/tools.md
-
-This example shows how a built-in tool, like `grep`, is constructed using `Tool.make`, capturing trusted services like `FileSystem` and `PermissionV2`, and asserting permissions during execution.
-
-```ts
-const filesystem = yield * FileSystem.Service
-const permission = yield * PermissionV2.Service
-const tools = yield * Tools.Service
-
-yield *
-  tools.register({
-    grep: Tool.make({
-      description: "Search file contents",
-      input: Input,
-      output: Output,
-      execute: (input, context) =>
-        Effect.gen(function* () {
-          const root = yield* filesystem.resolveRoot(input)
-
-          yield* permission.assert({
-            sessionID: context.sessionID,
-            agent: context.agent,
-            source: {
-              type: "tool",
-              messageID: context.assistantMessageID,
-              callID: context.toolCallID,
-            },
-            action: "grep",
-            resources: [input.pattern],
-            save: ["*"],
-            metadata: { root: root.resource },
-          })
-
-          return yield* filesystem.grep(input, root)
-        }).pipe(/* translate expected typed errors to ToolFailure */),
-    }),
-  })
-```
-
---------------------------------
-
-### Set a server password
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/web.mdx
-
-Command to start the web server with a password set via an environment variable for authentication.
-
-```bash
-OPENCODE_SERVER_PASSWORD=secret opencode web
-```
-
---------------------------------
-
-### Start OpenCode TUI for Specific Directory (Bash)
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/tui.mdx
-
-Launches the OpenCode TUI for a project located at the specified file path.
-
-```bash
-opencode /path/to/project
-```
-
---------------------------------
-
-### Access Windows files from WSL
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/windows-wsl.mdx
-
-Example of navigating to a Windows project directory from WSL and running OpenCode.
-
-```bash
-cd /mnt/c/Users/YourName/Documents/project
-opencode
-```
-
---------------------------------
-
-### Secure OpenCode server with password
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/windows-wsl.mdx
-
-Command to start the OpenCode server in WSL with a password for security.
-
-```bash
-OPENCODE_SERVER_PASSWORD=your-password opencode serve --hostname 0.0.0.0
-```
-
---------------------------------
-
-### Initial Location Load and Background Plugin Activation Flow
-
-Source: https://github.com/anomalyco/opencode/blob/dev/specs/v2/catalog-config-plugin-lifecycle.md
-
-This flow describes the initial setup of a location, including building layers from authored config and activating plugins in the background, which then trigger a debounced full service reload.
-
-```ts
-LocationServiceMap.get(ref)
-  → build location layer
-    → Config.layer reads authored documents
-      → merge authored documents
-      → run currently active Config transforms
-    → Policy.layer reads transformed Config
-    → Catalog.layer reads transformed Config
-      → materialize baseline provider/model catalog
-  → PluginBoot baseline ready
-    → Frontend.fetchCatalog()
-
-PluginBoot background fiber
-  → install/update plugin packages concurrently
-  → activate completed plugins
-    → Config.transform()
-      → transform(updateConfig)
-    → ReloadScheduler.request()
-      → debounce short burst of completed activations
-      → Reload.all()
-        → Config.get()
-          → run newly active Config transforms
-        → Catalog.reload()
-          → Catalog.Event.Updated
-            → Frontend.refetchCatalog()
-```
-
---------------------------------
-
-### Specify a custom port
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/web.mdx
-
-Command to start the web server on a specific port instead of a random available one.
-
-```bash
-opencode web --port 4096
-```
-
---------------------------------
-
-### Session-pinned prompt call example
-
-Source: https://github.com/anomalyco/opencode/blob/dev/specs/v2/api.html
-
-An example of a session-pinned API call, showing the HTTP method, path, and how the server resolves the session context.
-
-```HTTP
-POST /api/session/ses_123/prompt
-
-// server resolves
-sessionID -> { directory, workspaceID? }
-```
-
---------------------------------
-
-### Provider Use Action and Resource Example
-
-Source: https://github.com/anomalyco/opencode/blob/dev/specs/v2/provider-policy.md
-
-This text snippet illustrates the basic action and resource format for controlling provider usage within the policy system.
-
-```text
-action:   provider.use
-resource: provider ID, such as openai or company-ai
-```
-
---------------------------------
-
-### Start OpenCode TUI in Current Directory (Bash)
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/tui.mdx
-
-Initiates the OpenCode terminal user interface for the project located in the current working directory.
-
-```bash
-opencode
-```
-
---------------------------------
-
-### Enter SAP AI Core Service Key Interactively
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/providers.mdx
-
-Provide your SAP AI Core service key JSON when prompted by the Opencode CLI during the connection setup.
+Example of describing a new feature to OpenCode in Plan mode.
 
 ```txt
-┌ Service key
-│
-│
-└ enter
+When a user deletes a note, we'd like to flag it as deleted in the database.
+Then create a screen that shows all the recently deleted notes.
+From this screen, the user can undelete a note or permanently delete it.
 ```
 
 --------------------------------
 
-### Attach a terminal TUI to a running web server
+### Partial Service Stub Example
 
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/web.mdx
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/opencode/test/AGENTS.md
 
-Commands to start the web server and then attach a terminal user interface (TUI) to it, allowing simultaneous use of both interfaces.
-
-```bash
-# Start the web server
-opencode web --port 4096
-
-# In another terminal, attach the TUI
-opencode attach http://localhost:4096
-```
-
---------------------------------
-
-### Calculate Model Availability Based on Provider and Model Status
-
-Source: https://github.com/anomalyco/opencode/blob/dev/specs/v2/provider-model.md
-
-This example demonstrates the logic for determining if a model is available, which requires both the provider and the model itself to be enabled.
-
-```ts
-const available = provider.enabled !== false && model.enabled
-```
-
---------------------------------
-
-### ApiEvent Example
-
-Source: https://github.com/anomalyco/opencode/blob/dev/specs/v2/api.html
-
-An example of a 'message.part.delta' event using the ApiEvent envelope structure.
-
-```json
-{
-  "id": "evt_01",
-  "type": "message.part.delta",
-  "time": 1760000000000,
-  "context": {
-    "directory": "/repo/app",
-    "workspaceID": "ws_123"
-  },
-  "payload": {
-    "sessionID": "ses_123",
-    "messageID": "msg_456",
-    "partID": "part_789",
-    "field": "text",
-    "delta": "hello"
-  }
-}
-```
-
---------------------------------
-
-### Start New Session in TUI (Bash)
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/tui.mdx
-
-Clears the current conversation and starts a new OpenCode session.
-
-```bash
-/new
-```
-
---------------------------------
-
-### Public Surface Example
-
-Source: https://github.com/anomalyco/opencode/blob/dev/specs/storage/effect-sqlite-package.md
-
-Example usage of the Drizzle Effect SQLite adapter, mirroring Drizzle's API patterns.
+Example of using Layer.mock to create a partial service stub, overriding only necessary methods.
 
 ```typescript
-const db = yield * EffectDrizzleSqlite.make({ relations }).pipe(Effect.provide(EffectDrizzleSqlite.DefaultServices))
+import { Effect, Layer } from "effect"
+import { Account } from "@/account/account"
 
-yield * db.select().from(users)
-yield *
-  db.transaction(
-    (tx) =>
-      Effect.gen(function* () {
-        yield* tx.insert(users).values({ name: "Ada" })
-      }),
-    { behavior: "immediate" }
-  )
+const failingAccountLayer = Layer.mock(Account.Service, {
+  orgsByAccount: () => Effect.fail(new Account.AccountServiceError({ message: "simulated upstream failure" })),
+})
 ```
 
 --------------------------------
 
-### Use OpenCode from WSL
+### Paste API key
 
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/windows-wsl.mdx
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
 
-Navigate to a project directory on Windows from WSL and run OpenCode.
-
-```bash
-cd /mnt/c/Users/YourName/project
-opencode
-```
-
---------------------------------
-
-### .ignore
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/tools.mdx
-
-Example content for a .ignore file to include specific directories in ripgrep searches.
-
-```text
-!node_modules/
-!dist/
-!build/
-```
-
---------------------------------
-
-### Select OpenAI Authentication Method
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/providers.mdx
-
-Choose between ChatGPT Plus/Pro authentication or manually entering an API key for OpenAI.
+Example of the prompt to paste your API key.
 
 ```txt
-┌ Select auth method
-│
-│ ChatGPT Plus/Pro
-│ Manually enter API Key
-└
-```
-
---------------------------------
-
-### Configure Filesystem and Tool Runtime Settings
-
-Source: https://github.com/anomalyco/opencode/blob/dev/specs/v2/config.md
-
-This snippet shows how to configure formatters, language servers, attachment processing, and tool output limits in the v2 schema, including disabling built-ins and defining custom commands.
-
-```jsonc
-{
-  "formatter": {
-    "prettier": { "disabled": true },
-    "project": { "command": ["./scripts/format", "$FILE"], "extensions": [".foo"] }
-  },
-  "lsp": {
-    "typescript": { "disabled": true },
-    "project": { "command": ["project-language-server", "--stdio"], "extensions": [".foo"] }
-  },
-  "attachments": {
-    "image": { "auto_resize": true, "max_width": 2000, "max_height": 2000 }
-  },
-  "tool_output": { "max_lines": 2000, "max_bytes": 51200 }
-}
-```
-
---------------------------------
-
-### Launch OpenCode Desktop with Wayland Support
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/troubleshooting.mdx
-
-Use this environment variable prefix when launching OpenCode Desktop on Linux to enable Wayland support, which may resolve blank window or compositor errors.
-
-```bash
-OC_ALLOW_WAYLAND=1
-```
-
---------------------------------
-
-### Initial Catalog Load and Plugin Activation Flow
-
-Source: https://github.com/anomalyco/opencode/blob/dev/specs/v2/catalog-config-plugin-lifecycle.md
-
-Details the sequence for building the initial catalog layer, activating immediately available plugins, and background activation of slow plugins, leading to catalog rebuilds.
-
-```ts
-LocationServiceMap.get(ref)
-  → build location layer
-    → Catalog.layer creates empty catalog state
-    → PluginBoot.layer activates immediately available plugins
-      → ConfigProviderPlugin installs Catalog.transform()
-      → ModelsDevPlugin installs Catalog.transform()
-      → AuthPlugin installs Catalog.transform()
-    → Catalog.layer applies active transforms during boot
-    → apply policy
-    → materialize baseline provider/model catalog
-  → PluginBoot baseline ready
-    → Frontend.fetchCatalog()
-
-PluginBoot background fiber
-  → install/update plugin packages concurrently
-  → activate completed plugins
-    → Catalog.transform()
-      → transform(updateCatalog)
-        → Catalog internally rebuilds
-          → Catalog.Event.Updated
-            → Frontend.refetchCatalog()
-```
-
---------------------------------
-
-### Session Context Epoch Initialization and Update Flow
-
-Source: https://github.com/anomalyco/opencode/blob/dev/specs/v2/session.md
-
-This diagram illustrates the sequence of interactions between the client, runner, system context registry, epoch store, session history, and LLM during context epoch management.
-
-```text
-Client            Runner                         System Context Registry       Context Epoch Store       Session History         LLM
-   │                 │                                      │                           │                       │                 │
-   ├─ Admit prompt ─────────────────────────────────────────────────────────────────────────────────────────────▶                 │
-   │                 │                                      │                           │                       │                 │
-   │                 ├─ Observe initial context ────────────▶                           │                       │                 │
-   │                 │                                      │                           │                       │                 │
-   │                 ◀─ Complete baseline or unavailable ───┤                           │                       │                 │
-   │                 │                                      │                           │                       │                 │
-   │                 ├─ Initialize missing epoch ───────────────────────────────────────▶                       │                 │
-   │                 │                                      │                           │                       │                 │
-   │                 ├─ Promote eligible input ─────────────────────────────────────────────────────────────────▶                 │
-   │                 │                                      │                           │                       │                 │
-   │                 ├─ Reconcile at safe boundary ─────────▶                           │                       │                 │
-   │                 │                                      │                           │                       │                 │
-   │                 ◀─ Unchanged or chronological update ──┤                           │                       │                 │
-   │                 │                                      │                           │                       │                 │
-   │                 ├─ Advance snapshot atomically with update ────────────────────────▶                       │                 │
-   │                 │                                      │                           │                       │                 │
-   │                 ├─ Baseline + chronological history ─────────────────────────────────────────────────────────────────────────▶
-```
-
---------------------------------
-
-### Configure Ambient Instruction Sources (JSON)
-
-Source: https://github.com/anomalyco/opencode/blob/dev/specs/v2/config.md
-
-This snippet defines an array of local paths, glob patterns, or remote URLs for ambient instructions. Instructions are automatically included as model context.
-
-```jsonc
-{
-  "instructions": [
-    "CONTRIBUTING.md",
-    "docs/guidelines.md",
-    ".cursor/rules/*.md",
-    "https://example.com/shared-rules.md"
-  ]
-}
-```
-
---------------------------------
-
-### Advanced Custom Provider Configuration with API Key, Headers, and Limits
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/providers.mdx
-
-Demonstrates advanced `opencode.json` settings for a custom provider, including `apiKey` via environment variable, custom `headers`, and model `limit` options for context and output tokens.
-
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "provider": {
-    "myprovider": {
-      "npm": "@ai-sdk/openai-compatible",
-      "name": "My AI ProviderDisplay Name",
-      "options": {
-        "baseURL": "https://api.myprovider.com/v1",
-        "apiKey": "{env:ANTHROPIC_API_KEY}",
-        "headers": {
-          "Authorization": "Bearer custom-token"
-        }
-      },
-      "models": {
-        "my-model-name": {
-          "name": "My Model Display Name",
-          "limit": {
-            "context": 200000,
-            "output": 65536
-          }
-        }
-      }
-    }
-  }
-}
-```
-
---------------------------------
-
-### Snowflake Cortex Browser OAuth Interactive Prompts
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/providers.mdx
-
-These prompts guide you through selecting the authentication method and entering your Snowflake account identifier during the browser OAuth flow.
-
-```txt
-┌ Select auth method
-│
-│ Login with Snowflake (External Browser)
-│ Paste PAT or bearer token manually
-└
-```
-
-```txt
-┌ Snowflake Account Identifier
+┌ API key
 │
 │
 └ enter
@@ -690,306 +578,409 @@ These prompts guide you through selecting the authentication method and entering
 
 --------------------------------
 
-### Git Commit Message for TUI Package Skeleton
+### tmpdir with Git repository
 
-Source: https://github.com/anomalyco/opencode/blob/dev/specs/tui-package.md
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/opencode/test/AGENTS.md
 
-This commit message indicates the addition of the standalone package skeleton for the TUI, marking the initial setup phase.
+Example of initializing a temporary directory as a Git repository.
 
-```text
-feat(tui): add standalone package skeleton
+```typescript
+await using tmp = await tmpdir({ git: true })
 ```
 
 --------------------------------
 
-### Configure Plugins in v2
+### Reviewing a Pull Request
 
-Source: https://github.com/anomalyco/opencode/blob/dev/specs/v2/config.md
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/opencode/src/command/template/review.txt
 
-This snippet demonstrates how to configure plugins in the v2 schema, including specifying package strings and objects with options for ordered loading.
+Commands to get context and diff for a pull request.
 
-```jsonc
-{
-  "plugins": [
-    "opencode-helicone-session",
+```bash
+gh pr view $ARGUMENTS
+```
+
+```bash
+gh pr diff $ARGUMENTS
+```
+
+--------------------------------
+
+### Instalando o aplicativo desktop OpenCode (BETA)
+
+Source: https://github.com/anomalyco/opencode/blob/dev/README.br.md
+
+Instale a versão desktop do OpenCode usando gerenciadores de pacotes específicos para macOS e Windows.
+
+```bash
+# macOS (Homebrew)
+brew install --cask opencode-desktop
+```
+
+```bash
+# Windows (Scoop)
+scoop bucket add extras; scoop install extras/opencode-desktop
+```
+
+--------------------------------
+
+### Path API Get Current Path
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/sdk.mdx
+
+Example of using `path.get()` to retrieve current path information.
+
+```javascript
+// Get current path information
+const pathInfo = await client.path.get()
+```
+
+--------------------------------
+
+### Example: Run OpenCode with a Specific Prompt
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/cli.mdx
+
+This example demonstrates how to pass a specific question directly to the `opencode run` command.
+
+```bash
+opencode run Explain the use of context in Go
+```
+
+--------------------------------
+
+### tmpdir with config file
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/opencode/test/AGENTS.md
+
+Example of creating a temporary directory with a pre-configured `opencode.json` file.
+
+```typescript
+await using tmp = await tmpdir({
+  config: { model: "test/model", username: "testuser" },
+})
+```
+
+--------------------------------
+
+### Project API List and Current
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/sdk.mdx
+
+Examples of listing all projects using `project.list()` and getting the current project using `project.current()`.
+
+```javascript
+// List all projects
+const projects = await client.project.list()
+
+// Get current project
+const currentProject = await client.project.current()
+```
+
+--------------------------------
+
+### Create and manage sessions
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/sdk.mdx
+
+Examples demonstrating how to create, list, prompt, and inject context into sessions using the SDK.
+
+```javascript
+// Create and manage sessions
+const session = await client.session.create({
+  body: { title: "My session" },
+})
+
+const sessions = await client.session.list()
+
+// Send a prompt message
+const result = await client.session.prompt({
+  path: { id: session.id },
+  body: {
+    model: { providerID: "anthropic", modelID: "claude-3-5-sonnet-20241022" },
+    parts: [{ type: "text", text: "Hello!" }],
+  },
+})
+
+// Inject context without triggering AI response (useful for plugins)
+await client.session.prompt({
+  path: { id: session.id },
+  body: {
+    noReply: true,
+    parts: [{ type: "text", text: "You are a helpful assistant." }],
+  },
+})
+```
+
+--------------------------------
+
+### Code group with multiple languages
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/ai-tools/cursor.mdx
+
+Example of a code group demonstrating API calls in Node.js, Python, and cURL.
+
+```javascript
+const response = await fetch('/api/endpoint', {
+  headers: { Authorization: `Bearer ${apiKey}` }
+});
+```
+
+```python
+import requests
+response = requests.get('/api/endpoint',
+  headers={'Authorization': f'Bearer {api_key}'})
+```
+
+```curl
+curl -X GET '/api/endpoint' \
+  -H 'Authorization: Bearer YOUR_API_KEY'
+```
+
+--------------------------------
+
+### tmpdir with custom cleanup
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/opencode/test/AGENTS.md
+
+Example showing how to use a custom `dispose` function for specific cleanup logic.
+
+```typescript
+await using tmp = await tmpdir({
+  init: async (dir) => {
+    const specialDir = path.join(dir, "special")
+    await fs.mkdir(specialDir)
+    return specialDir
+  },
+  dispose: async (dir) => {
+    // Custom cleanup logic
+    await fs.rm(path.join(dir, "special"), { recursive: true })
+  },
+})
+```
+
+--------------------------------
+
+### Prompting with a Local MCP Tool (TXT)
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/mcp-servers.mdx
+
+Example of how to use a locally configured MCP tool, `mcp_everything`, within a prompt to leverage its functionality.
+
+```txt
+use the mcp_everything tool to add the number 3 and 4
+```
+
+--------------------------------
+
+### CLAUDE.md file content
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/ai-tools/claude-code.mdx
+
+Example content for the CLAUDE.md file, used to train Claude Code on documentation standards.
+
+```markdown
+# Mintlify documentation
+
+## Working relationship
+
+- You can push back on ideas-this can lead to better documentation. Cite sources and explain your reasoning when you do so
+- ALWAYS ask for clarification rather than making assumptions
+- NEVER lie, guess, or make up information
+
+## Project context
+
+- Format: MDX files with YAML frontmatter
+- Config: docs.json for navigation, theme, settings
+- Components: Mintlify components
+
+## Content strategy
+
+- Document just enough for user success - not too much, not too little
+- Prioritize accuracy and usability of information
+- Make content evergreen when possible
+- Search for existing information before adding new content. Avoid duplication unless it is done for a strategic reason
+- Check existing patterns for consistency
+- Start by making the smallest reasonable changes
+
+## Frontmatter requirements for pages
+
+- title: Clear, descriptive page title
+- description: Concise summary for SEO/navigation
+
+## Writing standards
+
+- Second-person voice ("you")
+- Prerequisites at start of procedural content
+- Test all code examples before publishing
+- Match style and formatting of existing pages
+- Include both basic and advanced use cases
+- Language tags on all code blocks
+- Alt text on all images
+- Relative paths for internal links
+
+## Git workflow
+
+- NEVER use --no-verify when committing
+- Ask how to handle uncommitted changes before starting
+- Create a new branch when no clear branch exists for changes
+- Commit frequently throughout development
+- NEVER skip or disable pre-commit hooks
+
+## Do not
+
+- Skip frontmatter on any MDX file
+- Use absolute URLs for internal links
+- Include untested code examples
+- Make assumptions - always ask for clarification
+```
+
+--------------------------------
+
+### Run the project
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/opencode/README.md
+
+Command to run the project's main script using Bun.
+
+```bash
+bun run index.ts
+```
+
+--------------------------------
+
+### Using TestInstance with it.instance
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/opencode/test/AGENTS.md
+
+Example of yielding `TestInstance` to access the temporary directory path within an `it.instance` test.
+
+```typescript
+import { TestInstance } from "../fixture/fixture"
+
+it.instance("uses the temp directory", () =>
+  Effect.gen(function* () {
+    const test = yield* TestInstance
+    expect(test.directory).toContain("opencode-test-")
+  }),
+)
+```
+
+--------------------------------
+
+### Connect to LLM provider
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
+
+Run the /connect command in the TUI to configure an LLM provider.
+
+```txt
+/connect
+```
+
+--------------------------------
+
+### Flow configuration
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/gitlab.mdx
+
+Example of a flow configuration file for OpenCode in GitLab CI/CD, including installation, authentication, Git configuration, and OpenCode execution logic.
+
+```yaml
+image: node:22-slim
+commands:
+  - echo "Installing opencode"
+  - npm install --global opencode-ai
+  - echo "Installing glab"
+  - export GITLAB_TOKEN=$GITLAB_TOKEN_OPENCODE
+  - apt-get update --quiet && apt-get install --yes curl wget gpg git && rm --recursive --force /var/lib/apt/lists/*
+  - curl --silent --show-error --location "https://raw.githubusercontent.com/upciti/wakemeops/main/assets/install_repository" | bash
+  - apt-get install --yes glab
+  - echo "Configuring glab"
+  - echo $GITLAB_HOST
+  - echo "Creating OpenCode auth configuration"
+  - mkdir --parents ~/.local/share/opencode
+  - |
+    cat > ~/.local/share/opencode/auth.json << EOF
     {
-      "package": "@my-org/audit-plugin",
-      "options": {
-        "endpoint": "https://audit.example.com"
+      "anthropic": {
+        "type": "api",
+        "key": "$ANTHROPIC_API_KEY"
       }
     }
-  ]
-}
+    EOF
+  - echo "Configuring git"
+  - git config --global user.email "opencode@gitlab.com"
+  - git config --global user.name "OpenCode"
+  - echo "Testing glab"
+  - glab issue list
+  - echo "Running OpenCode"
+  - |
+    opencode run "
+    You are an AI assistant helping with GitLab operations.
+
+    Context: $AI_FLOW_CONTEXT
+    Task: $AI_FLOW_INPUT
+    Event: $AI_FLOW_EVENT
+
+    Please execute the requested task using the available GitLab tools.
+    Be thorough in your analysis and provide clear explanations.
+
+    <important>
+    Please use the glab CLI to access data from GitLab. The glab CLI has already been authenticated. You can run the corresponding commands.
+
+    If you are asked to summarize an MR or issue or asked to provide more information then please post back a note to the MR/Issue so that the user can see it.
+    You don't need to commit or push up changes, those will be done automatically based on the file changes you make.
+    </important>
+    "
+  - git checkout --branch $CI_WORKLOAD_REF origin/$CI_WORKLOAD_REF
+  - echo "Checking for git changes and pushing if any exist"
+  - |
+    if ! git diff --quiet || ! git diff --cached --quiet || [ --not --zero "$(git ls-files --others --exclude-standard)" ]; then
+      echo "Git changes detected, adding and pushing..."
+      git add .
+      if git diff --cached --quiet; then
+        echo "No staged changes to commit"
+      else
+        echo "Committing changes to branch: $CI_WORKLOAD_REF"
+        git commit --message "Codex changes"
+        echo "Pushing changes up to https://gitlab-ci-token:$GITLAB_TOKEN@$GITLAB_HOST/gl-demo-ultimate-dev-ai-epic-17570/test-java-project.git $CI_WORKLOAD_REF"
+        git push https://gitlab-ci-token:$GITLAB_TOKEN@$GITLAB_HOST/gl-demo-ultimate-dev-ai-epic-17570/test-java-project.git $CI_WORKLOAD_REF
+        echo "Changes successfully pushed"
+      fi
+    else
+      echo "No git changes detected, skipping push"
+    fi
+variables:
+  - ANTHROPIC_API_KEY
+  - GITLAB_TOKEN_OPENCODE
+  - GITLAB_HOST
 ```
 
 --------------------------------
 
-### Reference Configured File Alias in TUI Message (Text)
+### Switch to Plan mode
 
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/tui.mdx
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
 
-Compares the current setup with content from a file referenced via a configured alias, adding its content to the conversation.
-
-```text
-Compare our setup with @docs/README.md
-```
-
---------------------------------
-
-### Configure Skill Discovery Sources (JSON)
-
-Source: https://github.com/anomalyco/opencode/blob/dev/specs/v2/config.md
-
-Use this snippet to define an array of local paths or remote URLs where skills can be discovered. Skills are loaded or invoked intentionally, providing reusable prompt workflows.
-
-```jsonc
-{
-  "skills": ["./team-skills", "~/shared-skills", "https://example.com/.well-known/skills/"]
-}
-```
-
---------------------------------
-
-### Configure MCP Servers with Local and Remote Definitions
-
-Source: https://github.com/anomalyco/opencode/blob/dev/specs/v2/config.md
-
-This snippet illustrates configuring MCP servers, including global timeout defaults and specific local and remote server definitions with commands, environment variables, URLs, headers, and OAuth settings.
-
-```jsonc
-{
-  "mcp": {
-    "timeout": { "startup": 30000, "request": 300000 },
-    "servers": {
-      "github": {
-        "type": "local",
-        "command": ["npx", "-y", "@github/github-mcp-server"],
-        "environment": { "GITHUB_TOKEN": "{env:GITHUB_TOKEN}" },
-        "disabled": false,
-        "timeout": { "startup": 60000 },
-      },
-      "docs": {
-        "type": "remote",
-        "url": "https://docs.example.com/mcp",
-        "headers": { "Authorization": "Bearer {env:DOCS_TOKEN}" },
-        "oauth": {
-          "client_id": "{env:MCP_CLIENT_ID}",
-          "client_secret": "{env:MCP_CLIENT_SECRET}",
-          "scope": "read write",
-          "callback_port": 19876,
-          "redirect_uri": "http://127.0.0.1:19876/mcp/oauth/callback",
-        },
-        "disabled": false,
-        "timeout": { "request": 600000 },
-      },
-    },
-  },
-}
-```
-
---------------------------------
-
-### GET /api/session/:sessionID/history
-
-Source: https://github.com/anomalyco/opencode/blob/dev/specs/v2/session.md
-
-Retrieves a paginated list of historical durable session events for a given session ID. This endpoint provides a finite view of events, suitable for request/response consumers.
-
-```APIDOC
-## GET /api/session/:sessionID/history
-
-### Description
-Retrieves a paginated list of historical durable session events for a given session ID. This endpoint provides a finite view of events, suitable for request/response consumers. It returns only events in the public durable Session schema.
-
-### Method
-GET
-
-### Endpoint
-/api/session/:sessionID/history
-
-### Parameters
-#### Path Parameters
-- **sessionID** (string) - Required - The unique identifier for the session.
-
-#### Query Parameters
-- **after** (integer) - Optional - An exclusive aggregate sequence cursor. Omission starts before sequence zero.
-- **limit** (integer) - Optional - The maximum number of events to return. Defaults to 50, accepts at most 100.
-
-### Response
-#### Success Response (200)
-- **data** (array) - An array of public durable Session events. Callers derive the next 'after' from the final event's durable sequence when 'hasMore' is true.
-- **hasMore** (boolean) - Indicates if there are more events available to fetch.
-```
-
---------------------------------
-
-### opencode.json
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/tools.mdx
-
-Configuration to allow the 'webfetch' tool.
-
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "permission": {
-    "webfetch": "allow"
-  }
-}
-```
-
---------------------------------
-
-### List Available Themes in TUI (Bash)
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/tui.mdx
-
-Displays a list of available themes for customizing the OpenCode TUI appearance.
+Command to switch OpenCode to Plan mode using the Tab key.
 
 ```bash
-/themes
+<TAB>
 ```
 
 --------------------------------
 
-### Display Help Dialog in TUI (Bash)
+### OpenCode CLI: Attach TUI to Remote Backend Example
 
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/tui.mdx
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/cli.mdx
 
-Shows the help dialog within the OpenCode TUI, listing available commands and shortcuts.
+Demonstrates how to start an OpenCode backend server and then attach a TUI from another terminal to that running server using its URL.
 
 ```bash
-/help
+opencode web --port 4096 --hostname 0.0.0.0
 ```
-
---------------------------------
-
-### List Available Models in TUI (Bash)
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/tui.mdx
-
-Displays a list of all available language models that can be used with OpenCode.
 
 ```bash
-/models
-```
-
---------------------------------
-
-### opencode.json
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/tools.mdx
-
-Configuration to allow the 'question' tool.
-
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "permission": {
-    "question": "allow"
-  }
-}
-```
-
---------------------------------
-
-### Input API Key for Custom Provider in OpenCode
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/providers.mdx
-
-Captures the API key for the custom provider. This step stores the credential, but further `opencode.json` configuration is required.
-
-```bash
-$ /connect
-
-┌  Add credential
-│
-▲  This only stores a credential for myprovider - you will need to configure it in opencode.json, check the docs for examples.
-│
-◇  Enter your API key
-│  sk-...
-└
-```
-
---------------------------------
-
-### Enable websearch when launching OpenCode
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/tools.mdx
-
-Command to enable the 'websearch' tool by setting the OPENCODE_ENABLE_EXA environment variable.
-
-```bash
-OPENCODE_ENABLE_EXA=1 opencode
-```
-
---------------------------------
-
-### Execute SDK Build and Git Diff Checks
-
-Source: https://github.com/anomalyco/opencode/blob/dev/specs/tui-package.md
-
-These commands build the SDK and then perform a 'git diff --check' to verify no unintended changes or conflicts after SDK API modifications, ensuring stability.
-
-```shell
-./packages/sdk/js/script/build.ts
-git diff --check
-```
-
---------------------------------
-
-### Define an Agent with Permissions in JSON Configuration
-
-Source: https://github.com/anomalyco/opencode/blob/dev/specs/v2/config.md
-
-This snippet shows how to define an agent, including its model, options, description, system prompt, mode, and specific permissions within the 'agents' configuration block.
-
-```jsonc
-{
-  "agents": {
-    "reviewer": {
-      "model": "openrouter/openai/gpt-5",
-      "variant": "high",
-      "options": {
-        "headers": { "x-agent": "reviewer" },
-        "body": {},
-        "aisdk": { "provider": {}, "request": { "reasoningEffort": "high" } },
-      },
-      "description": "Review changes for correctness",
-      "system": "Find regressions and missing tests.",
-      "mode": "subagent",
-      "color": "warning",
-      "steps": 12,
-      "disabled": false,
-      "permissions": [{ "action": "edit", "resource": "*", "effect": "deny" }],
-    },
-  },
-}
-```
-
---------------------------------
-
-### Configure Provider Selection Policies with JSONC
-
-Source: https://github.com/anomalyco/opencode/blob/dev/specs/v2/config.md
-
-This snippet demonstrates how to use `experimental.policies` to define provider selection rules, denying all providers by default and then explicitly allowing 'anthropic'.
-
-```jsonc
-{
-  "experimental": {
-    "policies": [
-      {
-        "effect": "deny",
-        "action": "provider.use",
-        "resource": "*"
-      },
-      {
-        "effect": "allow",
-        "action": "provider.use",
-        "resource": "anthropic"
-      }
-    ]
-  }
-}
+opencode attach http://10.20.30.40:4096
 ```
