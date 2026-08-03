@@ -39,6 +39,10 @@
     "class": "public",
     "reason": "Industry taxonomy lookup data is public product metadata."
   },
+  "industry-data-admin.ts": {
+    "class": "admin",
+    "reason": "Industry data administration and maintenance triggers use route-level requireAdmin middleware."
+  },
   "job-descriptions.ts": {
     "class": "workspace-write",
     "reason": "Job description reads and member-managed writes require authenticated workspace membership through getWorkspaceUserAccessError."

@@ -49,6 +49,7 @@ vi.mock("../services/industry-data-admin-service.js", async (importOriginal) => 
 
 import { createApp } from "../app";
 import { createAuthHeaders } from "./test-auth-helpers";
+import { parseJsonBody } from "../test-utils";
 
 describe("industry-data-admin routes", () => {
   beforeEach(() => {
@@ -102,7 +103,10 @@ describe("industry-data-admin routes", () => {
       headers: auth.headers,
     });
     expect(response.status).toBe(200);
-    const body = await response.json();
+    const body = await parseJsonBody<{
+      success: boolean;
+      entries: Array<{ entryId: string }>;
+    }>(response);
     expect(body.success).toBe(true);
     expect(body.entries).toHaveLength(1);
     expect(body.entries[0].entryId).toBe("brand-1");
@@ -126,7 +130,11 @@ describe("industry-data-admin routes", () => {
       triggerSource: "manual",
       triggerContext: "lung-kee-metal",
     });
-    const body = await response.json();
+    const body = await parseJsonBody<{
+      success: boolean;
+      runId: string;
+      coalesced: boolean;
+    }>(response);
     expect(body).toMatchObject({
       success: true,
       runId: "run-1",
@@ -142,7 +150,10 @@ describe("industry-data-admin routes", () => {
       { headers: auth.headers },
     );
     expect(response.status).toBe(200);
-    const body = await response.json();
+    const body = await parseJsonBody<{
+      success: boolean;
+      items: Array<{ kind: string }>;
+    }>(response);
     expect(body.success).toBe(true);
     expect(body.items).toHaveLength(2);
     expect(body.items.map((i: { kind: string }) => i.kind).sort()).toEqual([
@@ -182,7 +193,10 @@ describe("industry-data-admin routes", () => {
       headers: auth.headers,
     });
     expect(response.status).toBe(200);
-    const body = await response.json();
+    const body = await parseJsonBody<{
+      success: boolean;
+      imported: number;
+    }>(response);
     expect(body.success).toBe(true);
     expect(typeof body.imported).toBe("number");
     expect(body.imported).toBeGreaterThan(0);

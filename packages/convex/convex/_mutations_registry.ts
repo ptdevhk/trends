@@ -113,6 +113,34 @@ export const MUTATIONS_REGISTRY: MutationRegistryEntry[] = [
     { file: "companies.ts", name: "markIndustryRecomputeRunSuperseded", quiesceAware: true, reason: "Targeted exact reingest orchestration via write-secret and BFF middleware" },
     { file: "companies.ts", name: "retryIndustryRecomputeRun", quiesceAware: true, reason: "Attended targeted recompute retry via write-secret and BFF middleware" },
 
+    // Industry evidence research, identity review, and maintenance ledger —
+    // all are write-secret gated and enter through the BFF or worker
+    // maintenance path, so maintenance quiesce applies.
+    { file: "companies.ts", name: "undoIndustryProposalApproval", quiesceAware: true, reason: "Attended admin undo via write-secret and BFF middleware" },
+    { file: "companies.ts", name: "enqueueIndustryEvidenceResearchRequest", quiesceAware: true, reason: "Industry research queue write via write-secret and maintenance middleware" },
+    { file: "companies.ts", name: "enqueueScheduledIndustryEvidenceResearchSweep", quiesceAware: true, reason: "Scheduled research queue write via write-secret and worker maintenance guard" },
+    { file: "companies.ts", name: "claimIndustryEvidenceResearchRequests", quiesceAware: true, reason: "Worker research lease claim via write-secret and maintenance guard" },
+    { file: "companies.ts", name: "startAndClaimIndustryEvidenceMaintenanceRun", quiesceAware: true, reason: "Industry maintenance orchestration via write-secret and worker maintenance guard" },
+    { file: "companies.ts", name: "renewIndustryEvidenceResearchRequestLease", quiesceAware: true, reason: "Worker research lease renewal via write-secret and maintenance guard" },
+    { file: "companies.ts", name: "completeIndustryEvidenceResearchRequest", quiesceAware: true, reason: "Worker research completion via write-secret and maintenance guard" },
+    { file: "companies.ts", name: "releaseIndustryEvidenceResearchRequests", quiesceAware: true, reason: "Worker research lease release via write-secret and maintenance guard" },
+    { file: "companies.ts", name: "recoverExpiredIndustryEvidenceResearchLeases", quiesceAware: true, reason: "Worker research lease recovery via write-secret and maintenance guard" },
+    { file: "companies.ts", name: "retryIndustryEvidenceResearchRequest", quiesceAware: true, reason: "Attended research retry via write-secret and maintenance middleware" },
+    { file: "companies.ts", name: "cancelIndustryEvidenceResearchRequest", quiesceAware: true, reason: "Attended research cancellation via write-secret and maintenance middleware" },
+    { file: "companies.ts", name: "upsertIndustryIdentityCandidate", quiesceAware: true, reason: "Identity candidate write via write-secret and maintenance middleware" },
+    { file: "companies.ts", name: "resolveIndustryProposalIdentity", quiesceAware: true, reason: "Attended identity resolution via write-secret and maintenance middleware" },
+    { file: "companies.ts", name: "attachProposalToCompany", quiesceAware: true, reason: "Attended proposal attachment via write-secret and maintenance middleware" },
+    { file: "companies.ts", name: "startIndustryMaintenanceRun", quiesceAware: true, reason: "Industry maintenance orchestration via write-secret and maintenance middleware" },
+    { file: "companies.ts", name: "claimNextIndustryMaintenanceRun", quiesceAware: true, reason: "Worker maintenance claim via write-secret and maintenance guard" },
+    { file: "companies.ts", name: "patchIndustryMaintenanceRunContext", quiesceAware: true, reason: "Industry maintenance ledger context via write-secret and maintenance guard" },
+    { file: "companies.ts", name: "appendIndustryMaintenanceLedger", quiesceAware: true, reason: "Industry maintenance ledger write via write-secret and maintenance guard" },
+    { file: "companies.ts", name: "finishIndustryMaintenanceRun", quiesceAware: true, reason: "Worker maintenance completion via write-secret and maintenance guard" },
+    { file: "companies.ts", name: "upsertIndustryDataEntry", quiesceAware: true, reason: "Admin industry data write via write-secret and BFF middleware" },
+    { file: "companies.ts", name: "deleteIndustryDataEntry", quiesceAware: true, reason: "Admin industry data delete via write-secret and BFF middleware" },
+    { file: "companies.ts", name: "appendIndustryDataChange", quiesceAware: true, reason: "Admin industry data audit write via write-secret and BFF middleware" },
+    { file: "companies.ts", name: "setIndustryDataChangeGitSha", quiesceAware: true, reason: "Admin industry data audit annotation via write-secret and BFF middleware" },
+    { file: "companies.ts", name: "setIndustryMaintenanceSchedulePaused", quiesceAware: true, reason: "Admin maintenance schedule control via write-secret and BFF middleware" },
+
     { file: "candidate_status.ts", name: "upsert", quiesceAware: true, reason: "Blocked by BFF middleware" },
     { file: "candidate_status.ts", name: "importNotesBatch", quiesceAware: true, reason: "Blocked by BFF middleware" },
     { file: "candidate_status.ts", name: "restoreBatch", quiesceAware: true, reason: "Blocked by BFF middleware" },
@@ -132,6 +160,8 @@ export const MUTATIONS_REGISTRY: MutationRegistryEntry[] = [
     { file: "research_signals.ts", name: "upsert", quiesceAware: true, reason: "Showcase seed is blocked by BFF middleware; scheduled research ingest skips during maintenance via apps/worker/tasks.py" },
     { file: "research_signals.ts", name: "deleteByCompanyIngestRunPrefix", quiesceAware: true, reason: "Showcase cleanup is only reachable through BFF-maintained research seed flows" },
     { file: "research_signals.ts", name: "deleteByIngestRunPrefix", quiesceAware: true, reason: "Demo purge is only reachable through BFF-maintained research ops routes" },
+
+    { file: "web_research.ts", name: "recordUse", quiesceAware: true, reason: "Web-research quota write is write-secret gated and worker-maintenance controlled" },
 
     { file: "resume_tasks.ts", name: "claim", quiesceAware: true, reason: "Blocked by BFF middleware" },
     { file: "resume_tasks.ts", name: "heartbeat", quiesceAware: true, reason: "Blocked by BFF middleware" },

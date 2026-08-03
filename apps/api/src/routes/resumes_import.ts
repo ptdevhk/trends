@@ -299,9 +299,9 @@ app.openapi(importResumesRoute, async (c) => {
     const updated = typeof result.updated === "number" ? result.updated : 0;
     if (inserted + updated >= 1) {
       const sourceLabel =
-        typeof payload?.source === "string" && payload.source
-          ? payload.source
-          : "api-import";
+        payload.metadata.sourceKey?.trim() ||
+        payload.metadata.sourceHost?.trim() ||
+        "api-import";
       void enqueueIndustryMaintenance({
         workspaceSlug: c.var.workspaceSlug,
         triggerSource: "restore",
