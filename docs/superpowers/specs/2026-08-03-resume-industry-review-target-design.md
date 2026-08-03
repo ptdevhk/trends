@@ -32,7 +32,7 @@ The product goal is a direct, intelligible path from a specific resume employer 
 | Existing query URL | Preserve `/admin/system/settings/industry-verification?status=<open-status>&filter=all&proposalId=<proposalId>` for open targets, and `?filter=history&proposalId=<proposalId>` for terminal targets, as normalized internal Inbox URLs and for backward compatibility. |
 | Target precedence | When `proposalId` is present, resolve the proposal directly and treat its current server status as authoritative. URL `status` is a display hint only. |
 | Initial filter for a target | Normalize an open targeted link to `filter=all`, so a target with an `inspect` or `needs_more_evidence` **recommendation** cannot be hidden by the `approvable` tab. Normalize a terminal target to `filter=history`. |
-| Target positioning | Once the selected target row is rendered, scroll the Inbox list so that row is the first unobscured review row in its viewport. Do not reorder the queue. |
+| Target positioning | Once the selected target row is rendered, scroll it into the page viewport just below the existing sticky header so it is the first unobscured review row. Do not reorder the queue. |
 | Resume CTA | Render a specific action per legacy employer/work-history target only when the backend resolves an authoritative proposal relationship. Otherwise retain a generic Inbox fallback. |
 | Matching policy | Never resolve a proposal from a display name, title, location, Google result, or client-supplied company key. Resolve server-side from stored resume/proposal linkage only. |
 | Approval | Remains attended and manual. A deep link performs no mutation and never selects a verdict or evidence source. |
@@ -149,8 +149,8 @@ When no `proposalId` is supplied, the existing queue behavior remains unchanged.
 Opening a canonical target link must not leave the selected employer halfway down the review list or only visible in the detail panel. After the target row is rendered:
 
 1. Keep the queue's normal relevance/order; do not sort or permanently move the row to the beginning of the queue.
-2. Scroll the **review-list container**, not merely the browser window, so the selected row begins at the top of the visible list area below any sticky page heading or queue controls.
-3. Apply an explicit sticky-header offset (`scroll-margin-top` or a measured container offset) so the row is not obscured by navigation or filters.
+2. The current Inbox is page-scrolled, so scroll the selected article into the document viewport with `block: 'start'`; if a dedicated scrolling ancestor is introduced later, use that ancestor instead.
+3. Apply the target-only `scroll-mt-16` offset so the row begins below the existing sticky header and is not obscured by navigation.
 4. Give the row programmatic focus after positioning, using `focus({ preventScroll: true })` when available so focus does not undo the measured scroll position. Preserve the existing selected/`aria-current` semantics.
 5. Use immediate scrolling for direct navigation. If motion is introduced later, respect `prefers-reduced-motion`.
 
@@ -221,7 +221,7 @@ Required result:
 - One direct-target resolution path shared by the canonical route and query URL.
 - `IndustryReviewInbox` owns normal queue fetching, filtering, pagination, and transient-row presentation, but does not fetch review packets or independently set/clear target selection from URL state.
 - The visible Inbox row, detail panel, URL, and queue status always refer to the controller's selected proposal snapshot.
-- `IndustryReviewInbox` reports the rendered selected-row element through an `onTargetRowReady(proposalId, element)` callback. One controller-driven post-render positioning effect uses that element to position it at the top of the review-list viewport, then applies focus without another implicit scroll.
+- `IndustryReviewInbox` reports the rendered selected-row element through an `onTargetRowReady(proposalId, element)` callback. One controller-driven post-render positioning effect calls `element.scrollIntoView({ block: 'start', inline: 'nearest', behavior: 'auto' })`, relying on the target-only `scroll-mt-16` offset, then applies focus without another implicit scroll.
 - The hidden legacy queue subtree is removed or made fully passive; it must not independently clear a selected target or issue a conflicting queue request.
 - With no direct target, the Inbox's DOM order, tab behavior, keyboard order, and scroll behavior stay unchanged from today.
 
