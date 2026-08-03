@@ -2,6 +2,14 @@ import {
   parseVerifiedIndustryEvidenceSummary,
   type VerifiedIndustryEvidenceSummary,
 } from '@trends/shared'
+import type { ResumeMatchedWorkEntry, ResumeRoleSignalLike } from '@/lib/resume-scoring'
+
+export type IndustryEvidenceProvenance = 'none' | 'legacy' | 'stale' | 'approved'
+
+type ApprovedEvidenceRevision = Pick<
+  VerifiedIndustryEvidenceSummary,
+  'companyKey' | 'verdictRevisionId'
+>
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -14,6 +22,138 @@ export type PrimaryIndustryEvidenceSelection = {
 
 function normalizeRoleType(value: string): string {
   return value.trim().toLowerCase()
+}
+
+const approvedEvidenceKeyCache = new WeakMap<object, ReadonlySet<string>>()
+
+const INDUSTRY_EVIDENCE_PROVENANCE_PRIORITY: Record<IndustryEvidenceProvenance, number> = {
+  none: 0,
+  stale: 1,
+  legacy: 2,
+  approved: 3,
+}
+
+function getApprovedEvidenceKey(companyKey: string, verdictRevisionId: string): string {
+  return `${companyKey.trim().toLowerCase()}\u0000${verdictRevisionId.trim()}`
+}
+
+function getApprovedEvidenceKeys(
+  summaries: readonly ApprovedEvidenceRevision[],
+): ReadonlySet<string> {
+  const cached = approvedEvidenceKeyCache.get(summaries)
+  if (cached) {
+    return cached
+  }
+
+  const keys = new Set<string>()
+  for (const summary of summaries) {
+    keys.add(getApprovedEvidenceKey(summary.companyKey, summary.verdictRevisionId))
+  }
+  approvedEvidenceKeyCache.set(summaries, keys)
+  return keys
+}
+
+export function mergeIndustryEvidenceProvenance(
+  current: IndustryEvidenceProvenance,
+  next: IndustryEvidenceProvenance,
+): IndustryEvidenceProvenance {
+  return INDUSTRY_EVIDENCE_PROVENANCE_PRIORITY[next] > INDUSTRY_EVIDENCE_PROVENANCE_PRIORITY[current]
+    ? next
+    : current
+}
+
+export function getIndustryEvidenceWorkEntryFingerprint(
+  workEntry: Pick<
+    ResumeMatchedWorkEntry,
+    'companyKey' | 'verdictRevisionId' | 'workEntryFingerprint' | 'years'
+  >,
+): string {
+  const fingerprint = workEntry.workEntryFingerprint?.trim()
+  if (fingerprint) {
+    return fingerprint
+  }
+  return `${workEntry.companyKey?.trim().toLowerCase() ?? ''}\u0000${workEntry.verdictRevisionId?.trim() ?? ''}\u0000${workEntry.years}`
+}
+
+/**
+ * The historical `industryVerified` boolean is only a rules signal. A green
+ * evidence state requires the entry's company/revision pair to be present in
+ * the current materialized human-approved summaries.
+ */
+export function getMatchedWorkEntryIndustryEvidenceProvenance(
+  workEntry: Pick<
+    ResumeMatchedWorkEntry,
+    'companyKey' | 'directRoleMatch' | 'industryVerified' | 'verdictRevisionId'
+  >,
+  summaries: readonly ApprovedEvidenceRevision[],
+): IndustryEvidenceProvenance {
+  if (!workEntry.industryVerified) {
+    return 'none'
+  }
+
+  const verdictRevisionId = workEntry.verdictRevisionId?.trim()
+  if (!verdictRevisionId) {
+    return 'legacy'
+  }
+
+  const companyKey = workEntry.companyKey?.trim()
+  if (!companyKey) {
+    return 'stale'
+  }
+
+  if (!getApprovedEvidenceKeys(summaries).has(
+    getApprovedEvidenceKey(companyKey, verdictRevisionId),
+  )) {
+    return 'stale'
+  }
+
+  return workEntry.directRoleMatch === true ? 'approved' : 'none'
+}
+
+export function getRoleSignalIndustryEvidenceProvenance(
+  signal: Pick<ResumeRoleSignalLike, 'matchedWorkEntries'>,
+  summaries: readonly ApprovedEvidenceRevision[],
+): IndustryEvidenceProvenance {
+  let provenance: IndustryEvidenceProvenance = 'none'
+
+  for (const workEntry of signal.matchedWorkEntries ?? []) {
+    provenance = mergeIndustryEvidenceProvenance(
+      provenance,
+      getMatchedWorkEntryIndustryEvidenceProvenance(workEntry, summaries),
+    )
+    if (provenance === 'approved') {
+      return 'approved'
+    }
+  }
+
+  return provenance
+}
+
+export function getRoleSignalApprovedIndustryYears(
+  signal: Pick<ResumeRoleSignalLike, 'matchedWorkEntries'>,
+  summaries: readonly ApprovedEvidenceRevision[],
+): number {
+  const seenFingerprints = new Set<string>()
+  return (signal.matchedWorkEntries ?? []).reduce((total, workEntry) => {
+    if (getMatchedWorkEntryIndustryEvidenceProvenance(workEntry, summaries) !== 'approved') {
+      return total
+    }
+    const fingerprint = getIndustryEvidenceWorkEntryFingerprint(workEntry)
+    if (seenFingerprints.has(fingerprint)) {
+      return total
+    }
+    seenFingerprints.add(fingerprint)
+    return total + (Number.isFinite(workEntry.years) ? Math.max(workEntry.years, 0) : 0)
+  }, 0)
+}
+
+export function hasLegacyIndustryEvidenceInSignals(
+  roleSignals: readonly Pick<ResumeRoleSignalLike, 'matchedWorkEntries'>[] | undefined,
+  summaries: readonly ApprovedEvidenceRevision[],
+): boolean {
+  return (roleSignals ?? []).some((roleSignal) =>
+    getRoleSignalIndustryEvidenceProvenance(roleSignal, summaries) === 'legacy',
+  )
 }
 
 function roleRelevance(

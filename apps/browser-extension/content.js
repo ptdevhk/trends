@@ -7205,6 +7205,7 @@
   __name(createSyncStatusWidget, "createSyncStatusWidget");
 
   // src/lib/auto-sync-runner.ts
+  var SEEK_MAX_CONSECUTIVE_PAGES_WITHOUT_USABLE_RESUMES = 3;
   function createAutoSyncRunner(deps) {
     const {
       // Auto-actions helpers
@@ -7351,6 +7352,7 @@
         let lastSelectedCount = null;
         let stopReason = "completed";
         let seekStartPage = null;
+        let consecutiveSeekPagesWithoutUsableResumes = 0;
         while (true) {
           if (deps.state._autoSyncCancelled) {
             stopReason = "cancelled";
@@ -7411,7 +7413,11 @@
             resumes = await enrichSeekResumesWithDetail2(resumes);
             resumes = filterSparseSeekTalentSearchResumes(resumes);
           }
+          if (isSeekListPage) {
+            consecutiveSeekPagesWithoutUsableResumes = resumes.length > 0 ? 0 : consecutiveSeekPagesWithoutUsableResumes + 1;
+          }
           if (resumes.length <= 0) {
+            const seekNoUsableResultsLimitReached = isSeekListPage && consecutiveSeekPagesWithoutUsableResumes >= SEEK_MAX_CONSECUTIVE_PAGES_WITHOUT_USABLE_RESUMES;
             const ageRange = getCurrentAgeRange2();
             const ageHint = ageRange.enabled ? ` \xB7 \u5E74\u9F84: ${typeof ageRange.minAge === "number" ? ageRange.minAge : "\u2014"}-${typeof ageRange.maxAge === "number" ? ageRange.maxAge : "\u2014"}` : "";
             const progressHint2 = buildAutoSyncProgressHint2({
@@ -7422,12 +7428,16 @@
             });
             SyncStatusWidget2.show({
               state: "progress",
-              message: `\u7B2C ${currentPage}/${Math.max(totalPages, currentPage)} \u9875\u65E0\u7B26\u5408\u6761\u4EF6\u7684\u7B80\u5386\uFF0C\u7EE7\u7EED...`,
+              message: seekNoUsableResultsLimitReached ? `\u8FDE\u7EED ${SEEK_MAX_CONSECUTIVE_PAGES_WITHOUT_USABLE_RESUMES} \u9875\u65E0\u53EF\u7528\u5DE5\u4F5C\u7ECF\u5386\uFF0C\u505C\u6B62\u7EE7\u7EED\u5206\u9875\u3002` : `\u7B2C ${currentPage}/${Math.max(totalPages, currentPage)} \u9875\u65E0\u7B26\u5408\u6761\u4EF6\u7684\u7B80\u5386\uFF0C\u7EE7\u7EED...`,
               hint: progressHint2
             });
             setAutoSyncAttributes2("running", totalSubmitted, pagesVisited);
             if (deps.state._autoSyncCancelled) {
               stopReason = "cancelled";
+              break;
+            }
+            if (seekNoUsableResultsLimitReached) {
+              stopReason = "seek-no-usable-results";
               break;
             }
             if (isSeekListPage && shouldStopSeekAutoSyncForPageWindow2({
@@ -7597,6 +7607,7 @@
               selectedCount: lastSelectedCount,
               prefix: ""
             }),
+            stopReason === "seek-no-usable-results" ? `\u8FDE\u7EED ${SEEK_MAX_CONSECUTIVE_PAGES_WITHOUT_USABLE_RESUMES} \u9875\u6CA1\u6709\u53EF\u7528\u5DE5\u4F5C\u7ECF\u5386\uFF0C\u5DF2\u5B89\u5168\u505C\u6B62\u7EE7\u7EED\u5206\u9875` : "",
             isJob51Source ? "51job \u8BE6\u60C5\u8865\u5145\u6B63\u5728\u540E\u53F0\u7EE7\u7EED" : ""
           ].filter(Boolean).join(" \xB7 "),
           autoDismiss: true

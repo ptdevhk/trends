@@ -6,6 +6,16 @@ export type ReviewInboxItem = ReviewQueueResponse['items'][number]
 export type ReviewInboxProposal = ReviewInboxItem['proposal']
 export type ReviewInboxRecommendation = ReviewInboxItem['recommendation']
 
+export const TERMINAL_INDUSTRY_PROPOSAL_STATUSES = [
+  'approved',
+  'rejected',
+  'superseded',
+] as const satisfies readonly ReviewInboxProposal['status'][]
+
+export function isTerminalIndustryProposalStatus(status: ReviewInboxProposal['status']): boolean {
+  return (TERMINAL_INDUSTRY_PROPOSAL_STATUSES as readonly string[]).includes(status)
+}
+
 export type ReviewInboxFilter = 'all' | 'approvable' | 'needs_review' | 'history'
 export type ReviewInboxFilterSlug = 'all' | 'approvable' | 'needs-review' | 'history'
 

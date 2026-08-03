@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, CheckCircle2, ExternalLink, RefreshCw, ShieldCheck } from 'lucide-react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
@@ -18,8 +18,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { useSettingsRequestJson } from '@/pages/system-settings/lib'
 import { reportUiError } from '@/lib/ui-error-reporting'
+import { SYSTEM_ROUTE_PREFIX } from '@/lib/workspace-access'
 import { IndustryAdvancedTools } from './IndustryAdvancedTools'
 import { IndustryReviewInbox } from './IndustryReviewInbox'
+import {
+  isTerminalIndustryProposalStatus,
+  type ReviewInboxItem,
+} from './industry-review-inbox-model'
 
 type ProposalListResponse = paths['/api/company-industry-proposals']['get']['responses'][200]['content']['application/json']
 type IndustryProposal = ProposalListResponse['items'][number]
@@ -34,8 +39,6 @@ type IndustryClass = NonNullable<IndustryProposal['suggestedIndustryClass']>
 type VerificationLevel = Extract<NonNullable<IndustryProposal['suggestedVerificationLevel']>, 'verified' | 'rejected'>
 type ReviewQueueStatus = IndustryProposal['status']
 
-type ReviewQueueResponse = paths['/api/company-industry-proposals/review-queue']['get']['responses'][200]['content']['application/json']
-type ReviewQueueItem = ReviewQueueResponse['items'][number]
 type ReviewPacketResponse = paths['/api/company-industry-proposals/:proposalId/review-packet']['get']['responses'][200]['content']['application/json']
 type ReviewContext = Pick<ReviewPacketResponse['reviewContext'], 'profile' | 'revisions'>
 type ReviewPacket = Pick<ReviewPacketResponse, 'proposal' | 'recommendation' | 'warnings' | 'dataset' | 'sources' | 'reviewContext' | 'recomputeRuns'>
@@ -77,15 +80,6 @@ function parseReviewContext(value: unknown): DetailBundle {
     profile: isRecord(value.profile) ? value.profile as DetailBundle['profile'] : null,
     revisions: Array.isArray(value.revisions) ? value.revisions as DetailBundle['revisions'] : [],
   }
-}
-
-function parseReviewQueue(value: unknown): ReviewQueueItem[] {
-  if (!isRecord(value) || !Array.isArray(value.items)) return []
-  return value.items.filter((item): item is ReviewQueueItem => {
-    if (!isRecord(item) || !isRecord(item.proposal) || !isRecord(item.recommendation)) return false
-    return typeof item.proposal.proposalId === 'string'
-      && typeof item.recommendation.proposalId === 'string'
-  }) as ReviewQueueItem[]
 }
 
 function parseReviewPacket(value: unknown): ReviewPacket | null {
@@ -987,27 +981,30 @@ function IndustryMaintenanceHistory({ requestJson }: { requestJson: (path: strin
 export function SystemSettingsIndustryVerificationPage() {
   const { t } = useTranslation()
   const { requestJson } = useSettingsRequestJson()
+  const location = useLocation()
+  const navigate = useNavigate()
+  const { proposalId: proposalIdFromRoute } = useParams()
   const [searchParams, setSearchParams] = useSearchParams()
-  const requestedProposalId = searchParams.get('proposalId')?.trim() || undefined
+  const proposalIdFromPath = useMemo(() => {
+    if (proposalIdFromRoute?.trim()) return proposalIdFromRoute.trim()
+    const match = location.pathname.match(/\/industry-verification\/proposals\/([^/]+)/)
+    if (!match?.[1]) return undefined
+    try {
+      return decodeURIComponent(match[1]).trim() || undefined
+    } catch {
+      return undefined
+    }
+  }, [location.pathname, proposalIdFromRoute])
+  const requestedProposalId = proposalIdFromPath ?? (searchParams.get('proposalId')?.trim() || undefined)
   const [queueStatus, setQueueStatus] = useState<ReviewQueueStatus>(() => {
     const value = searchParams.get('status')
     return value === 'new' || value === 'researching' || value === 'ready_for_review' || value === 'needs_more_evidence'
       ? value
       : 'ready_for_review'
   })
-  const [riskFilter, setRiskFilter] = useState<string>('')
-  const [confidenceFilter, setConfidenceFilter] = useState<string>('')
-  const [actionFilter, setActionFilter] = useState<string>('')
-  const [nextQueueCursor, setNextQueueCursor] = useState<string>()
   const [proposals, setProposals] = useState<IndustryProposal[]>([])
-  const [queueRecommendations, setQueueRecommendations] = useState<Record<string, IndustryReviewRecommendation>>({})
-  const [selectedProposalId, setSelectedProposalId] = useState<string>()
-  const [sources, setSources] = useState<EvidenceSource[]>([])
-  const [bundle, setBundle] = useState<DetailBundle>({ profile: null, revisions: [] })
-  const [recomputeRuns, setRecomputeRuns] = useState<IndustryRecomputeRun[]>([])
-  const [recommendation, setRecommendation] = useState<IndustryReviewRecommendation | null>(null)
-  const [reviewWarnings, setReviewWarnings] = useState<IndustryReviewWarning[]>([])
-  const [reviewDataset, setReviewDataset] = useState<ReviewPacket['dataset'] | null>(null)
+  const [directReviewPacket, setDirectReviewPacket] = useState<ReviewPacket | null>(null)
+  const [directReviewError, setDirectReviewError] = useState<string>()
   const [selectedSourceIds, setSelectedSourceIds] = useState<string[]>([])
   const [industryClass, setIndustryClass] = useState<IndustryClass>('unknown')
   const [verificationLevel, setVerificationLevel] = useState<VerificationLevel>('verified')
@@ -1018,142 +1015,126 @@ export function SystemSettingsIndustryVerificationPage() {
   const [acknowledgedRiskFlags, setAcknowledgedRiskFlags] = useState<string[]>([])
   const [cncEvidenceAcknowledged, setCncEvidenceAcknowledged] = useState(false)
   const [acknowledgementReason, setAcknowledgementReason] = useState('')
-  const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [approvalConfirmOpen, setApprovalConfirmOpen] = useState(false)
 
-  const selectedProposal = useMemo(
-    () => proposals.find((proposal) => proposal.proposalId === selectedProposalId),
-    [proposals, selectedProposalId],
-  )
+  const selectedProposal = useMemo(() => {
+    const packet = directReviewPacket
+    return packet && packet.proposal.proposalId === requestedProposalId
+      ? packet.proposal
+      : undefined
+  }, [directReviewPacket, requestedProposalId])
+  const selectedProposalId = requestedProposalId
+  const sources = directReviewPacket?.sources ?? []
+  const bundle = directReviewPacket?.reviewContext ?? { profile: null, revisions: [] }
+  const recomputeRuns = directReviewPacket?.recomputeRuns ?? []
+  const recommendation = directReviewPacket?.recommendation ?? null
+  const reviewWarnings = directReviewPacket?.warnings ?? []
+  const reviewDataset = directReviewPacket?.dataset ?? null
+  const selectedProposalIsTerminal = selectedProposal
+    ? isTerminalIndustryProposalStatus(selectedProposal.status)
+    : false
 
-  const recommendationSummary = useMemo(() => {
-    return Object.values(queueRecommendations).reduce(
-      (summary, item) => {
-        if (item.recommendedAction === 'approve') summary.approve += 1
-        if (item.recommendedAction === 'needs_more_evidence') summary.needsEvidence += 1
-        if (item.recommendedAction === 'inspect') summary.inspect += 1
-        return summary
-      },
-      { approve: 0, needsEvidence: 0, inspect: 0 },
-    )
-  }, [queueRecommendations])
-
-  const loadQueue = useCallback(async (cursor?: string, append = false) => {
-    setLoading(true)
-    try {
-      const query = new URLSearchParams({ status: queueStatus, limit: '100' })
-      if (cursor) query.set('cursor', cursor)
-      if (riskFilter) query.set('riskFlag', riskFilter)
-      if (confidenceFilter) query.set('confidenceBand', confidenceFilter)
-      if (actionFilter) query.set('recommendedAction', actionFilter)
-      const payload = await requestJson(`/api/company-industry-proposals/review-queue?${query.toString()}`)
-      const queue = parseReviewQueue(payload)
-      const next = queue.map((item) => item.proposal)
-      const nextRecommendations = Object.fromEntries(
-        queue.map((item) => [item.proposal.proposalId, item.recommendation]),
-      )
-      setQueueRecommendations((current) => append ? { ...current, ...nextRecommendations } : nextRecommendations)
-      setProposals((current) => append
-        ? [...current, ...next.filter((proposal) => !current.some((item) => item.proposalId === proposal.proposalId))]
-        : next)
-      setNextQueueCursor(isRecord(payload) && typeof payload.nextCursor === 'string' ? payload.nextCursor : undefined)
-      const nextSelection = requestedProposalId && next.some((proposal) => proposal.proposalId === requestedProposalId)
-        ? requestedProposalId
-        : undefined
-      setSelectedProposalId((current) => (
-        nextSelection
-          ?? (append && current
-            ? current
-            : current && next.some((proposal) => proposal.proposalId === current)
-            ? current
-            : undefined)
-      ))
-    } catch (error) {
-      reportUiError('Failed to load industry evidence proposal queue', error)
-      toast.error(t('industryEvidence.queueLoadFailed', { defaultValue: 'Failed to load industry evidence queue' }))
-    } finally {
-      setLoading(false)
+  const directTargetItem = useMemo<ReviewInboxItem | undefined>(() => {
+    if (!directReviewPacket || directReviewPacket.proposal.proposalId !== requestedProposalId) return undefined
+    return {
+      proposal: directReviewPacket.proposal,
+      recommendation: directReviewPacket.recommendation,
+      inputFingerprint: directReviewPacket.dataset.inputFingerprint,
+      sourceCount: directReviewPacket.sources.length,
     }
-  }, [actionFilter, confidenceFilter, queueStatus, requestJson, requestedProposalId, riskFilter, t])
+  }, [directReviewPacket, requestedProposalId])
+
+  const fetchDirectReviewPacket = useCallback(async (): Promise<ReviewPacket | null> => {
+    if (!requestedProposalId) {
+      return null
+    }
+    const packetPayload = await requestJson(
+      `/api/company-industry-proposals/${encodeURIComponent(requestedProposalId)}/review-packet`,
+    )
+    const packet = parseReviewPacket(packetPayload)
+    if (!packet) throw new Error('Invalid industry review packet')
+    return packet
+  }, [requestJson, requestedProposalId])
+
+  const reloadDirectReviewPacket = useCallback(async (): Promise<ReviewPacket | null> => {
+    const packet = await fetchDirectReviewPacket()
+    setDirectReviewPacket(packet)
+    setDirectReviewError(undefined)
+    return packet
+  }, [fetchDirectReviewPacket])
 
   useEffect(() => {
-    void loadQueue()
-  }, [loadQueue])
+    if (!requestedProposalId) {
+      setDirectReviewPacket(null)
+      setDirectReviewError(undefined)
+      return
+    }
+    setDirectReviewPacket(null)
+    setDirectReviewError(undefined)
+    let cancelled = false
+    void fetchDirectReviewPacket()
+      .then((packet) => {
+        if (cancelled) return
+        setDirectReviewPacket(packet)
+        setDirectReviewError(undefined)
+      })
+      .catch((error) => {
+        if (cancelled) return
+        reportUiError('Failed to load requested industry evidence proposal', error)
+        setDirectReviewError(t('industryEvidence.targetLoadFailed', {
+          defaultValue: 'The requested review target is unavailable. You can still browse the industry review inbox.',
+        }))
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [fetchDirectReviewPacket, requestedProposalId, t])
 
   useEffect(() => {
-    if (!requestedProposalId) setSelectedProposalId(undefined)
-  }, [requestedProposalId])
-
-  useEffect(() => {
-    if (!selectedProposal) {
-      setSources([])
-      setBundle({ profile: null, revisions: [] })
-      setRecomputeRuns([])
-      setRecommendation(null)
-      setReviewWarnings([])
-      setReviewDataset(null)
+    if (!selectedProposal || !directReviewPacket) {
       setSelectedSourceIds([])
       setApprovalConfirmOpen(false)
       return
     }
-    let cancelled = false
-    const loadDetail = async () => {
-      try {
-        const packetPayload = await requestJson(
-          `/api/company-industry-proposals/${encodeURIComponent(selectedProposal.proposalId)}/review-packet`,
-        )
-        const packet = parseReviewPacket(packetPayload)
-        if (!packet) throw new Error('Invalid industry review packet')
-        if (cancelled) return
-        const nextSources = packet.sources
-        const nextBundle = packet.reviewContext ?? { profile: null, revisions: [] }
-        setSources(nextSources)
-        setBundle(nextBundle)
-        setRecomputeRuns(packet.recomputeRuns)
-        setRecommendation(packet.recommendation)
-        setReviewWarnings(packet.warnings)
-        setReviewDataset(packet.dataset)
-        const approvalSafeSourceIds = new Set(
-          packet.recommendation.sourceDecisions
-            .filter((decision) => decision.approvalSafe)
-            .map((decision) => decision.sourceId),
-        )
-        setSelectedSourceIds(
-          packet.recommendation.recommendedSourceIds.length > 0
-            ? packet.recommendation.recommendedSourceIds
-            : nextSources
-              .filter((source) => approvalSafeSourceIds.has(source.sourceId))
-              .map((source) => source.sourceId),
-        )
-        setIndustryClass(packet.recommendation.recommendedIndustryClass ?? selectedProposal.suggestedIndustryClass ?? nextBundle.profile?.industryClass ?? 'unknown')
-        setVerificationLevel(
-          packet.recommendation.recommendedVerificationLevel === 'rejected' ? 'rejected' : 'verified',
-        )
-        setEvidenceSummary(
-          packet.recommendation.evidenceSummaryDraft
-          || selectedProposal.materialChangeSummary
-          || nextBundle.revisions[0]?.evidenceSummary
-          || '',
-        )
-        setDecisionReason(packet.recommendation.decisionReasonDraft)
-        setReviewNote('')
-        setAcknowledgedRiskFlags([])
-        setCncEvidenceAcknowledged(false)
-        setAcknowledgementReason('')
-        setApprovalConfirmOpen(false)
-      } catch (error) {
-        reportUiError('Failed to load industry evidence proposal detail', error)
-        toast.error(t('industryEvidence.detailLoadFailed', { defaultValue: 'Failed to load proposal evidence' }))
-      }
-    }
-    void loadDetail()
-    return () => {
-      cancelled = true
-    }
-  }, [requestJson, selectedProposal, t])
+    const packet = directReviewPacket
+    const nextSources = packet.sources
+    const nextBundle = packet.reviewContext
+    const approvalSafeSourceIds = new Set(
+      packet.recommendation.sourceDecisions
+        .filter((decision) => decision.approvalSafe)
+        .map((decision) => decision.sourceId),
+    )
+    setSelectedSourceIds(
+      packet.recommendation.recommendedSourceIds.length > 0
+        ? packet.recommendation.recommendedSourceIds
+        : nextSources
+          .filter((source) => approvalSafeSourceIds.has(source.sourceId))
+          .map((source) => source.sourceId),
+    )
+    setIndustryClass(packet.recommendation.recommendedIndustryClass ?? selectedProposal.suggestedIndustryClass ?? nextBundle.profile?.industryClass ?? 'unknown')
+    setVerificationLevel(
+      packet.recommendation.recommendedVerificationLevel === 'rejected' ? 'rejected' : 'verified',
+    )
+    setEvidenceSummary(
+      packet.recommendation.evidenceSummaryDraft
+      || selectedProposal.materialChangeSummary
+      || nextBundle.revisions[0]?.evidenceSummary
+      || '',
+    )
+    setDecisionReason(packet.recommendation.decisionReasonDraft)
+    setReviewNote('')
+    setAcknowledgedRiskFlags([])
+    setCncEvidenceAcknowledged(false)
+    setAcknowledgementReason('')
+    setApprovalConfirmOpen(false)
+  }, [directReviewPacket, selectedProposal])
 
   function validateApprovalInputs(): boolean {
+    if (selectedProposalIsTerminal) {
+      toast.error(t('industryEvidence.terminalReadOnly', { defaultValue: 'This terminal review record is read-only.' }))
+      return false
+    }
     if (!selectedProposal?.companyKey) {
       toast.error(t('industryEvidence.companyRequired', { defaultValue: 'Map this proposal to a canonical company first' }))
       return false
@@ -1204,7 +1185,7 @@ export function SystemSettingsIndustryVerificationPage() {
   }
 
   async function approveRevision() {
-    if (!validateApprovalInputs() || !selectedProposal?.companyKey) return
+    if (selectedProposalIsTerminal || !validateApprovalInputs() || !selectedProposal?.companyKey) return
     setSaving(true)
     try {
       const visibleRiskFlags = recommendation?.riskFlags ?? []
@@ -1219,7 +1200,7 @@ export function SystemSettingsIndustryVerificationPage() {
             acknowledgementReason: acknowledgementReason.trim(),
           }
         : undefined
-      const response = await requestJson(
+      await requestJson(
         `/api/company-industry-proposals/${encodeURIComponent(selectedProposal.proposalId)}/approve`,
         {
           method: 'POST',
@@ -1239,16 +1220,9 @@ export function SystemSettingsIndustryVerificationPage() {
           }),
         },
       )
-      if (isRecord(response) && isRecord(response.recompute)) {
-        const recompute = response.recompute as unknown as IndustryRecomputeRun
-        setRecomputeRuns((current) => [
-          recompute,
-          ...current.filter((run) => run.runId !== recompute.runId),
-        ])
-      }
       toast.success(t('industryEvidence.approved', { defaultValue: 'Industry verdict revision approved' }))
       setApprovalConfirmOpen(false)
-      await loadQueue()
+      await reloadDirectReviewPacket()
     } catch (error) {
       reportUiError('Failed to approve industry verdict revision', error)
       toast.error(
@@ -1262,7 +1236,7 @@ export function SystemSettingsIndustryVerificationPage() {
   }
 
   async function resolveProposal(resolution: 'rejected' | 'needs_more_evidence') {
-    if (!selectedProposal) return
+    if (!selectedProposal || selectedProposalIsTerminal) return
     setSaving(true)
     try {
       await requestJson(
@@ -1285,7 +1259,7 @@ export function SystemSettingsIndustryVerificationPage() {
           ? t('industryEvidence.moreEvidenceRequested', { defaultValue: 'Additional evidence requested; current truth is unchanged' })
           : t('industryEvidence.proposalRejected', { defaultValue: 'Proposal rejected; current truth is unchanged' }),
       )
-      await loadQueue()
+      await reloadDirectReviewPacket()
     } catch (error) {
       reportUiError('Failed to resolve industry evidence proposal', error)
       toast.error(
@@ -1299,24 +1273,27 @@ export function SystemSettingsIndustryVerificationPage() {
   }
 
   function prepareApproval() {
-    if (!validateApprovalInputs()) return
+    if (selectedProposalIsTerminal || !validateApprovalInputs()) return
     setApprovalConfirmOpen(true)
   }
 
   function selectProposal(proposalId: string | undefined) {
-    setSelectedProposalId(proposalId)
     const nextParams = new URLSearchParams(searchParams)
-    if (proposalId) nextParams.set('proposalId', proposalId)
-    else nextParams.delete('proposalId')
-    setSearchParams(nextParams, { replace: true })
+    nextParams.delete('proposalId')
+    nextParams.delete('status')
+    navigate({
+      pathname: proposalId
+        ? `${SYSTEM_ROUTE_PREFIX}/settings/industry-verification/proposals/${encodeURIComponent(proposalId)}`
+        : `${SYSTEM_ROUTE_PREFIX}/settings/industry-verification`,
+      search: nextParams.toString() ? `?${nextParams.toString()}` : '',
+    }, { replace: true })
   }
 
   function changeQueueStatus(status: ReviewQueueStatus) {
     setQueueStatus(status)
-    setNextQueueCursor(undefined)
     const nextParams = new URLSearchParams(searchParams)
-    nextParams.set('status', status)
-    nextParams.delete('proposalId')
+    if (requestedProposalId) nextParams.delete('status')
+    else nextParams.set('status', status)
     setSearchParams(nextParams, { replace: true })
   }
 
@@ -1332,14 +1309,11 @@ export function SystemSettingsIndustryVerificationPage() {
   async function updateRecompute(run: IndustryRecomputeRun, action: 'advance' | 'retry') {
     setSaving(true)
     try {
-      const response = await requestJson(
+      await requestJson(
         `/api/company-industry-recompute-runs/${encodeURIComponent(run.runId)}/${action}`,
         { method: 'POST' },
       )
-      if (isRecord(response) && isRecord(response.item)) {
-        const updated = response.item as unknown as IndustryRecomputeRun
-        setRecomputeRuns((current) => current.map((item) => item.runId === updated.runId ? updated : item))
-      }
+      await reloadDirectReviewPacket()
     } catch (error) {
       reportUiError(`Failed to ${action} industry recompute`, error)
       toast.error(t('industryEvidence.recomputeFailed', { defaultValue: 'Failed to update targeted recompute' }))
@@ -1368,149 +1342,15 @@ export function SystemSettingsIndustryVerificationPage() {
         initialStatus={queueStatus}
         requestedProposalId={requestedProposalId}
         selectedProposalId={selectedProposalId}
+        targetItem={directTargetItem}
+        targetError={directReviewError}
+        targetPending={Boolean(requestedProposalId && !directReviewPacket && !directReviewError)}
         onQueueStatusChange={changeQueueStatus}
         onSelectProposal={(proposal) => selectProposal(proposal?.proposalId)}
+        onLoadedProposalsChange={setProposals}
       />
 
       <div className="space-y-6">
-        <Card className="hidden" aria-hidden="true">
-          <CardHeader>
-            <CardTitle>{t('industryEvidence.proposalQueue', { defaultValue: 'Proposal queue' })}</CardTitle>
-            <CardDescription>
-              {t('industryEvidence.proposalQueueDescription', {
-                defaultValue: 'Recommendations prepare the review; only attended approval can change current truth.',
-              })}
-            </CardDescription>
-            <div className="flex flex-wrap gap-2 pt-2 text-xs" data-testid="industry-review-recommendation-summary">
-              <Badge variant="outline">{recommendationSummary.approve} approve candidates</Badge>
-              <Badge variant="outline">{recommendationSummary.needsEvidence} need evidence</Badge>
-              <Badge variant="outline">{recommendationSummary.inspect} inspect</Badge>
-            </div>
-            <label className="flex items-center gap-2 pt-2 text-xs text-muted-foreground">
-              <span>Legacy queue status</span>
-              <select
-                name="queueStatus"
-                aria-label="Legacy queue status"
-                value={queueStatus}
-                onChange={(event) => changeQueueStatus(event.target.value as ReviewQueueStatus)}
-                className="h-8 rounded-md border bg-background px-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring"
-              >
-                <option value="ready_for_review">Ready for review</option>
-                <option value="new">New</option>
-                <option value="researching">Researching</option>
-                <option value="needs_more_evidence">Needs more evidence</option>
-              </select>
-            </label>
-            <div className="grid gap-2 pt-2 sm:grid-cols-3">
-              <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span>{t('industryEvidence.riskFilter', { defaultValue: 'Risk' })}</span>
-                <select
-                  aria-label={t('industryEvidence.riskFilter', { defaultValue: 'Risk' })}
-                  value={riskFilter}
-                  onChange={(event) => {
-                    setRiskFilter(event.target.value)
-                    setNextQueueCursor(undefined)
-                  }}
-                  className="h-8 min-w-0 flex-1 rounded-md border bg-background px-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring"
-                >
-                  <option value="">{t('industryEvidence.allRisks', { defaultValue: 'All risks' })}</option>
-                  {Object.keys(REVIEW_RISK_FLAG_LABELS).map((flag) => <option key={flag} value={flag}>{REVIEW_RISK_FLAG_LABELS[flag]}</option>)}
-                </select>
-              </label>
-              <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span>{t('industryEvidence.confidenceFilter', { defaultValue: 'Confidence' })}</span>
-                <select
-                  aria-label={t('industryEvidence.confidenceFilter', { defaultValue: 'Confidence' })}
-                  value={confidenceFilter}
-                  onChange={(event) => {
-                    setConfidenceFilter(event.target.value)
-                    setNextQueueCursor(undefined)
-                  }}
-                  className="h-8 min-w-0 flex-1 rounded-md border bg-background px-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring"
-                >
-                  <option value="">{t('industryEvidence.allConfidence', { defaultValue: 'All confidence' })}</option>
-                  <option value="high">high</option>
-                  <option value="medium">medium</option>
-                  <option value="low">low</option>
-                </select>
-              </label>
-              <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span>{t('industryEvidence.actionFilter', { defaultValue: 'Action' })}</span>
-                <select
-                  aria-label={t('industryEvidence.actionFilter', { defaultValue: 'Action' })}
-                  value={actionFilter}
-                  onChange={(event) => {
-                    setActionFilter(event.target.value)
-                    setNextQueueCursor(undefined)
-                  }}
-                  className="h-8 min-w-0 flex-1 rounded-md border bg-background px-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring"
-                >
-                  <option value="">{t('industryEvidence.allActions', { defaultValue: 'All actions' })}</option>
-                  <option value="approve">approve</option>
-                  <option value="needs_more_evidence">needs evidence</option>
-                  <option value="inspect">inspect</option>
-                  <option value="reject">reject</option>
-                </select>
-              </label>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {proposals.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                {loading
-                  ? t('common.loading', { defaultValue: 'Loading…' })
-                  : t('industryEvidence.queueEmpty', { defaultValue: 'No proposals ready for review.' })}
-              </p>
-            ) : proposals.map((proposal) => (
-              (() => {
-                const item = queueRecommendations[proposal.proposalId]
-                return (
-                  <button
-                    key={proposal.proposalId}
-                    type="button"
-                    onClick={() => selectProposal(proposal.proposalId)}
-                    className={`w-full rounded-lg border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring ${
-                      proposal.proposalId === selectedProposalId
-                        ? 'border-primary bg-primary/5'
-                        : 'border-border hover:border-primary/40'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="font-medium">{displayCompany(proposal.companyKey ?? proposal.normalizedEmployerSurface)}</p>
-                        <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
-                          {proposal.materialChangeSummary ?? proposal.triggerReasons.join(', ')}
-                        </p>
-                        {item && (
-                          <div className="mt-2 flex flex-wrap gap-1.5">
-                            <Badge variant="outline">{item.recommendedAction.replace(/_/g, ' ')}</Badge>
-                            <Badge variant="secondary">{item.confidenceBand} confidence</Badge>
-                            {item.riskFlags.length > 0 && (
-                              <Badge variant="destructive">{item.riskFlags.length} risk</Badge>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                      <Badge variant="secondary">P{proposal.priority}</Badge>
-                    </div>
-                  </button>
-                )
-              })()
-            ))}
-            {nextQueueCursor && (
-              <Button
-                type="button"
-                variant="outline"
-                className="mt-2 w-full"
-                disabled={loading}
-                onClick={() => void loadQueue(nextQueueCursor, true)}
-              >
-                {t('industryEvidence.loadMore', { defaultValue: 'Load next review page' })}
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-
         <div className="space-y-6">
           {!selectedProposal ? (
             <Card>
@@ -1609,7 +1449,7 @@ export function SystemSettingsIndustryVerificationPage() {
                 </Card>
               )}
 
-              {recommendation && (recommendation.riskDecision?.requiresAcknowledgement || industryClass === 'cnc') && (
+              {!selectedProposalIsTerminal && recommendation && (recommendation.riskDecision?.requiresAcknowledgement || industryClass === 'cnc') && (
                 <Card data-testid="industry-review-risk-attestation" className="border-amber-300">
                   <CardHeader>
                     <CardTitle>{t('industryEvidence.riskAttestationTitle', { defaultValue: 'Evidence-risk acknowledgement' })}</CardTitle>
@@ -1761,7 +1601,7 @@ export function SystemSettingsIndustryVerificationPage() {
                           type="checkbox"
                           className="mt-1 h-4 w-4 accent-primary focus-visible:ring-2 focus-visible:ring-ring"
                           checked={checked}
-                          disabled={!usable}
+                          disabled={selectedProposalIsTerminal || !usable}
                           aria-label={`Select evidence source ${source.title ?? source.sourceDomain}`}
                           onChange={(event) => {
                             setSelectedSourceIds((current) => event.target.checked
@@ -1810,6 +1650,11 @@ export function SystemSettingsIndustryVerificationPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  {selectedProposalIsTerminal ? (
+                    <p className="rounded-md border border-muted bg-muted/30 p-3 text-sm text-muted-foreground" data-testid="industry-review-terminal-read-only">
+                      This proposal is in terminal history. Its evidence and immutable revision history are read-only.
+                    </p>
+                  ) : null}
                   <div className="grid gap-4 sm:grid-cols-2">
                     <label className="space-y-2 text-sm font-medium">
                       Verdict {recommendation && <span className="text-xs font-normal text-muted-foreground">(Suggested)</span>}
@@ -1818,6 +1663,7 @@ export function SystemSettingsIndustryVerificationPage() {
                         className="h-10 w-full rounded-md border bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring"
                         value={verificationLevel}
                         onChange={(event) => setVerificationLevel(event.target.value as VerificationLevel)}
+                        disabled={selectedProposalIsTerminal}
                       >
                         <option value="verified">verified</option>
                         <option value="rejected">rejected</option>
@@ -1830,6 +1676,7 @@ export function SystemSettingsIndustryVerificationPage() {
                         className="h-10 w-full rounded-md border bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring"
                         value={industryClass}
                         onChange={(event) => setIndustryClass(event.target.value as IndustryClass)}
+                        disabled={selectedProposalIsTerminal}
                       >
                         {['cnc', 'automation', 'metrology', 'industrial', 'non_industry', 'unknown'].map((value) => (
                           <option key={value} value={value}>{value}</option>
@@ -1845,6 +1692,7 @@ export function SystemSettingsIndustryVerificationPage() {
                       aria-label="Evidence summary"
                       value={evidenceSummary}
                       onChange={(event) => setEvidenceSummary(event.target.value)}
+                      disabled={selectedProposalIsTerminal}
                     />
                   </label>
                   <label className="block space-y-2 text-sm font-medium">
@@ -1855,6 +1703,7 @@ export function SystemSettingsIndustryVerificationPage() {
                       aria-label="Decision reason"
                       value={decisionReason}
                       onChange={(event) => setDecisionReason(event.target.value)}
+                      disabled={selectedProposalIsTerminal}
                     />
                   </label>
                   {approvalConfirmOpen && (
@@ -1873,7 +1722,7 @@ export function SystemSettingsIndustryVerificationPage() {
                         </p>
                       )}
                       <div className="flex flex-wrap gap-2 pt-1">
-                        <Button onClick={() => void approveRevision()} disabled={saving}>
+                        <Button onClick={() => void approveRevision()} disabled={saving || selectedProposalIsTerminal}>
                           Confirm approve revision
                         </Button>
                         <Button variant="outline" onClick={() => setApprovalConfirmOpen(false)} disabled={saving}>
@@ -1890,6 +1739,7 @@ export function SystemSettingsIndustryVerificationPage() {
                       aria-label="Taxonomy version"
                       value={taxonomyVersion}
                       onChange={(event) => setTaxonomyVersion(event.target.value)}
+                      disabled={selectedProposalIsTerminal}
                     />
                   </label>
                   <label className="block space-y-2 text-sm font-medium">
@@ -1900,12 +1750,13 @@ export function SystemSettingsIndustryVerificationPage() {
                       aria-label="Review note"
                       value={reviewNote}
                       onChange={(event) => setReviewNote(event.target.value)}
+                      disabled={selectedProposalIsTerminal}
                     />
                   </label>
                   <div className="flex flex-wrap gap-2">
                     <Button
                       onClick={prepareApproval}
-                      disabled={saving || approvalConfirmOpen || (recommendation?.riskDecision?.nonOverridableRiskFlags.length ?? 0) > 0}
+                      disabled={selectedProposalIsTerminal || saving || approvalConfirmOpen || (recommendation?.riskDecision?.nonOverridableRiskFlags.length ?? 0) > 0}
                     >
                       <ShieldCheck className="mr-2 h-4 w-4" />
                       Approve revision
@@ -1913,14 +1764,14 @@ export function SystemSettingsIndustryVerificationPage() {
                     <Button
                       variant="outline"
                       onClick={() => void resolveProposal('needs_more_evidence')}
-                      disabled={saving}
+                      disabled={selectedProposalIsTerminal || saving}
                     >
                       Request more evidence
                     </Button>
                     <Button
                       variant="destructive"
                       onClick={() => void resolveProposal('rejected')}
-                      disabled={saving}
+                      disabled={selectedProposalIsTerminal || saving}
                     >
                       Reject proposal
                     </Button>

@@ -483,6 +483,14 @@ function App() {
                   )}
                 />
                 <Route
+                  path="industry-verification/proposals/:proposalId"
+                  element={(
+                    <RouteSuspense>
+                      <LazySystemSettingsIndustryVerificationPage />
+                    </RouteSuspense>
+                  )}
+                />
+                <Route
                   path="industry-data"
                   element={(
                     <RouteSuspense>

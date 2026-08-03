@@ -10,6 +10,7 @@ export type IndustryHistoryItem = ProposalListResponse['items'][number]
 
 type IndustryHistoryListProps = {
   items: IndustryHistoryItem[]
+  targetItem?: IndustryHistoryItem
   loading: boolean
   loaded: boolean
   error?: string
@@ -30,6 +31,7 @@ function companyLabel(value: string | undefined): string {
 
 export function IndustryHistoryList({
   items,
+  targetItem,
   loading,
   loaded,
   error,
@@ -39,6 +41,9 @@ export function IndustryHistoryList({
   onSelect,
 }: IndustryHistoryListProps) {
   const { t } = useTranslation()
+  const visibleItems = targetItem
+    ? [targetItem, ...items.filter((item) => item.proposalId !== targetItem.proposalId)]
+    : items
 
   if (loading && !loaded) {
     return (
@@ -66,7 +71,7 @@ export function IndustryHistoryList({
     )
   }
 
-  if (items.length === 0) {
+  if (visibleItems.length === 0) {
     if (error) {
       return (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-950" role="status" data-testid="industry-history-partial-error">
@@ -109,16 +114,18 @@ export function IndustryHistoryList({
           </Button>
         </div>
       ) : null}
-      {items.map((item) => {
+      {visibleItems.map((item) => {
         const company = companyLabel(item.companyKey ?? item.normalizedEmployerSurface)
         const selected = item.proposalId === selectedProposalId
+        const targeted = targetItem?.proposalId === item.proposalId
         return (
           <article
             key={item.proposalId}
-            className={`rounded-xl border bg-card p-4 shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+            className={`${targeted ? 'scroll-mt-px' : 'scroll-mt-16'} rounded-xl border bg-card p-4 shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
               selected ? 'border-primary bg-primary/[0.03]' : 'border-border hover:border-primary/40'
             }`}
             data-testid={`industry-history-row-${item.proposalId}`}
+            data-industry-review-target={targeted ? 'true' : undefined}
             tabIndex={0}
             role="button"
             aria-current={selected ? 'true' : undefined}

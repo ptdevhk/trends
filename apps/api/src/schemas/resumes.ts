@@ -4,6 +4,7 @@ import {
   INDUSTRY_EVIDENCE_FRESHNESS_STATES,
   INDUSTRY_EVIDENCE_SOURCE_TYPES,
   INDUSTRY_EVIDENCE_TRUST_TIERS,
+  INDUSTRY_PROPOSAL_STATUSES,
   MAX_RECRUITER_INDUSTRY_EVIDENCE_SOURCES,
   normalizeIndustryEvidenceUrl,
 } from "@trends/shared";
@@ -844,6 +845,36 @@ export const ResumeDetailResponseSchema = z
     data: ResumeItemSchema,
   })
   .openapi("ResumeDetailResponse");
+
+const ResumeIndustryReviewTargetBaseSchema = z.object({
+  /** Opaque deterministic legacy work-entry fingerprint; never a display-name lookup key. */
+  workEntryKey: z.string().min(1),
+  employerLabel: z.string().min(1),
+});
+
+export const ResumeIndustryReviewTargetSchema = z.discriminatedUnion("availability", [
+  ResumeIndustryReviewTargetBaseSchema.extend({
+    availability: z.literal("target_available"),
+    proposalId: z.string().min(1),
+    status: z.enum(INDUSTRY_PROPOSAL_STATUSES),
+  }),
+  ResumeIndustryReviewTargetBaseSchema.extend({
+    availability: z.literal("not_linked"),
+  }),
+]).openapi("ResumeIndustryReviewTarget");
+
+export const ResumeIndustryReviewTargetsDataSchema = z
+  .object({
+    targets: z.array(ResumeIndustryReviewTargetSchema),
+  })
+  .openapi("ResumeIndustryReviewTargetsData");
+
+export const ResumeIndustryReviewTargetsResponseSchema = z
+  .object({
+    success: z.literal(true),
+    data: ResumeIndustryReviewTargetsDataSchema,
+  })
+  .openapi("ResumeIndustryReviewTargetsResponse");
 
 export const ResumeDiagnosticsQuerySchema = z.object({
   archived: z

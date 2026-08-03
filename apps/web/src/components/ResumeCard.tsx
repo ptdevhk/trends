@@ -27,7 +27,6 @@ import {
   getResumeSourceLabel,
   getRoleLabel,
   getRoleRelevantYears,
-  getRoleVerifiedYears,
   isSafeProfileUrl,
   type ResumeRoleSignalLike,
   type BrandHitLike,
@@ -43,10 +42,18 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { Suspense, lazy, memo, useMemo, useState } from 'react'
+import { useAuth } from '@/contexts/AuthContext'
 import { useResumeFieldUsagePolicy } from '@/contexts/ResumeFieldUsagePolicyContext'
 import { useResumeWorkHistoryLimit } from '@/contexts/ResumeWorkHistoryLimitContext'
 import { IndustryEvidenceSummary } from '@/components/industry-evidence/IndustryEvidenceSummary'
-import { getVerifiedIndustryEvidenceSummaries } from '@/components/industry-evidence/industry-evidence'
+import { LegacyIndustryEvidenceNotice } from '@/components/industry-evidence/LegacyIndustryEvidenceNotice'
+import {
+  getRoleSignalApprovedIndustryYears,
+  getRoleSignalIndustryEvidenceProvenance,
+  getVerifiedIndustryEvidenceSummaries,
+  type IndustryEvidenceProvenance,
+} from '@/components/industry-evidence/industry-evidence'
+import { hasSystemAdminAccess } from '@/lib/workspace-access'
 
 const OutreachModal = lazy(() => import('./OutreachModal').then((m) => ({ default: m.OutreachModal })))
 import { Select } from '@/components/ui/select'
@@ -136,37 +143,70 @@ const STATUS_BADGE_CLASS: Record<CandidateStatus, string> = {
   withdrawn: 'border-amber-200 bg-amber-50 text-amber-700',
 }
 
-function selectPrimaryRoleSignal(roleSignals: ResumeRoleSignalLike[] | undefined): ResumeRoleSignalLike | undefined {
-  if (!Array.isArray(roleSignals) || roleSignals.length === 0) {
+type RoleSignalDisplayMetrics = {
+  signal: ResumeRoleSignalLike
+  evidenceProvenance: IndustryEvidenceProvenance
+  approvedYears: number
+  relevantYears: number
+}
+
+function buildRoleSignalDisplayMetrics(
+  roleSignals: ResumeRoleSignalLike[] | undefined,
+  verifiedIndustryEvidenceSummaries: ReturnType<typeof getVerifiedIndustryEvidenceSummaries>,
+): RoleSignalDisplayMetrics[] {
+  return (roleSignals ?? []).map((signal) => {
+    const evidenceProvenance = getRoleSignalIndustryEvidenceProvenance(
+      signal,
+      verifiedIndustryEvidenceSummaries,
+    )
+    return {
+      signal,
+      evidenceProvenance,
+      approvedYears: evidenceProvenance === 'approved'
+        ? getRoleSignalApprovedIndustryYears(signal, verifiedIndustryEvidenceSummaries)
+        : 0,
+      relevantYears: getRoleRelevantYears(signal),
+    }
+  })
+}
+
+function selectPrimaryRoleSignal(
+  metrics: readonly RoleSignalDisplayMetrics[],
+): RoleSignalDisplayMetrics | undefined {
+  if (metrics.length === 0) {
     return undefined
   }
 
-  return [...roleSignals].sort((left, right) => {
-    const leftVerified = getRoleVerifiedYears(left)
-    const rightVerified = getRoleVerifiedYears(right)
-    if (leftVerified !== rightVerified) {
-      return rightVerified - leftVerified
+  return [...metrics].sort((left, right) => {
+    const leftApproved = left.evidenceProvenance === 'approved'
+    const rightApproved = right.evidenceProvenance === 'approved'
+    if (leftApproved !== rightApproved) {
+      return rightApproved ? 1 : -1
     }
 
-    const leftRelevant = getRoleRelevantYears(left)
-    const rightRelevant = getRoleRelevantYears(right)
-    return rightRelevant - leftRelevant
+    if (leftApproved && rightApproved) {
+      if (left.approvedYears !== right.approvedYears) {
+        return right.approvedYears - left.approvedYears
+      }
+    }
+
+    return right.relevantYears - left.relevantYears
   })[0]
 }
 
 function selectDisplayRoleSignal(
-  roleSignals: ResumeRoleSignalLike[] | undefined,
+  metrics: readonly RoleSignalDisplayMetrics[],
   activeRoleFilterType: string | undefined,
-): ResumeRoleSignalLike | undefined {
+): RoleSignalDisplayMetrics | undefined {
   const normalizedRoleFilterType = activeRoleFilterType?.trim().toLowerCase()
-  if (normalizedRoleFilterType && Array.isArray(roleSignals)) {
-    const filteredSignals = roleSignals.filter((signal) => signal.type.trim().toLowerCase() === normalizedRoleFilterType)
+  if (normalizedRoleFilterType) {
+    const filteredSignals = metrics.filter(({ signal }) => signal.type.trim().toLowerCase() === normalizedRoleFilterType)
     if (filteredSignals.length > 0) {
       return selectPrimaryRoleSignal(filteredSignals)
     }
   }
 
-  return selectPrimaryRoleSignal(roleSignals)
+  return selectPrimaryRoleSignal(metrics)
 }
 
 export function ResumeCardSkeleton() {
@@ -232,6 +272,7 @@ export const ResumeCard = memo(function ResumeCard({
 }: ResumeCardProps) {
   const { limit: workHistoryLimit } = useResumeWorkHistoryLimit()
   const { t } = useTranslation()
+  const { memberships } = useAuth()
   const fieldUsagePolicy = useResumeFieldUsagePolicy()
   const [showOutreach, setShowOutreach] = useState(false)
   const [promptDialogOpen, setPromptDialogOpen] = useState(false)
@@ -399,18 +440,28 @@ export const ResumeCard = memo(function ResumeCard({
     () => getVerifiedIndustryEvidenceSummaries(resume),
     [resume],
   )
-  const primaryRoleSignal = selectDisplayRoleSignal(roleSignals, activeRoleFilterType)
-  const verifiedRoleYears = primaryRoleSignal ? getRoleVerifiedYears(primaryRoleSignal) : 0
-  const roleRelevantYears = primaryRoleSignal ? getRoleRelevantYears(primaryRoleSignal) : 0
-  const displayRoleYears = verifiedRoleYears > 0 ? verifiedRoleYears : roleRelevantYears
+  const roleSignalMetrics = useMemo(() => buildRoleSignalDisplayMetrics(
+    roleSignals,
+    verifiedIndustryEvidenceSummaries,
+  ), [roleSignals, verifiedIndustryEvidenceSummaries])
+  const primaryRoleMetric = selectDisplayRoleSignal(roleSignalMetrics, activeRoleFilterType)
+  const primaryRoleSignal = primaryRoleMetric?.signal
+  const primaryRoleEvidenceProvenance = primaryRoleMetric?.evidenceProvenance ?? 'none'
+  const hasCurrentApprovedRoleEvidence = primaryRoleEvidenceProvenance === 'approved'
+  const verifiedRoleYears = primaryRoleMetric?.approvedYears ?? 0
+  const roleRelevantYears = primaryRoleMetric?.relevantYears ?? 0
+  const displayRoleYears = hasCurrentApprovedRoleEvidence && verifiedRoleYears > 0
+    ? verifiedRoleYears
+    : roleRelevantYears
   const roleTypeLabel = primaryRoleSignal
     ? t(`resumes.roleLabels.${primaryRoleSignal.type}`, {
         defaultValue: getRoleLabel(primaryRoleSignal.type),
       })
     : ''
   const roleEvidenceLabel = primaryRoleSignal
-    ? `${roleTypeLabel}${formatRoleYears(displayRoleYears, contentLocale)}${verifiedRoleYears > 0 ? industryVerifiedSuffix : ''}`
+    ? `${roleTypeLabel}${formatRoleYears(displayRoleYears, contentLocale)}${hasCurrentApprovedRoleEvidence ? industryVerifiedSuffix : ''}`
     : null
+  const showLegacyRoleSignal = primaryRoleEvidenceProvenance === 'legacy' && hasSystemAdminAccess(memberships)
   const normalizedExperienceLevel = normalizeExperienceLevel(experienceLevel)
   const experienceLevelForClick: ExperienceLevelFilter | undefined =
     normalizedExperienceLevel ?? undefined
@@ -491,7 +542,7 @@ export const ResumeCard = memo(function ResumeCard({
                   variant="outline"
                   className={cn(
                     'cursor-help text-[10px]',
-                    verifiedRoleYears > 0
+                    hasCurrentApprovedRoleEvidence
                       ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
                       : 'border-slate-200 bg-slate-50 text-slate-700'
                   )}
@@ -503,7 +554,7 @@ export const ResumeCard = memo(function ResumeCard({
                 <div className="space-y-1">
                   <p className="font-semibold">{roleTypeLabel}</p>
                   <p>{t('resumes.card.relatedYears', { years: formatRoleYears(roleRelevantYears, contentLocale), defaultValue: 'Related years: {{years}}' })}</p>
-                  {verifiedRoleYears > 0 ? (
+                  {hasCurrentApprovedRoleEvidence ? (
                     <p>{t('resumes.card.industryVerified', { years: formatRoleYears(verifiedRoleYears, contentLocale), defaultValue: 'Industry verified: {{years}}' })}</p>
                   ) : null}
                   <p>{t('resumes.card.matchedSignals', { signals: primaryRoleSignal.matchedSignals.slice(0, 6).join(' / ') || '--', defaultValue: 'Matched signals: {{signals}}' })}</p>
@@ -523,6 +574,7 @@ export const ResumeCard = memo(function ResumeCard({
             </Tooltip>
           </TooltipProvider>
         ) : null}
+        {showLegacyRoleSignal ? <LegacyIndustryEvidenceNotice compact /> : null}
         {visibleIndustryTags.map((tag, index) => {
           const isActive = activeTagFilters?.has(tag.trim().toLowerCase()) ?? false
           return (

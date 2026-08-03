@@ -503,6 +503,155 @@ describe('SystemSettingsIndustryVerificationPage', () => {
     expect(screen.getByTestId('industry-review-filter-history')).toHaveAttribute('aria-selected', 'true')
   })
 
+  it('opens an off-page canonical target as the first Inbox row and scrolls it below the sticky header', async () => {
+    const defaultRequestJson = requestJsonMock.getMockImplementation()
+    const queueRequests: string[] = []
+    const scrollIntoView = vi.fn()
+    const nativeFocus = HTMLElement.prototype.focus
+    const focus = vi.fn(function (this: HTMLElement) {
+      nativeFocus.call(this)
+    })
+    const originalScrollIntoView = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollIntoView')
+    const originalFocus = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'focus')
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: scrollIntoView,
+    })
+    Object.defineProperty(HTMLElement.prototype, 'focus', {
+      configurable: true,
+      value: focus,
+    })
+
+    const visionProposal = {
+      ...proposal,
+      _id: 'vision-proposal-row',
+      proposalId: 'industry-maintenance-vision',
+      companyKey: undefined,
+      normalizedEmployerSurface: 'vision machine tools',
+      materialChangeSummary: 'Legacy role evidence needs a canonical employer mapping.',
+      status: 'new',
+    }
+    const visionRecommendation = {
+      ...recommendation,
+      proposalId: visionProposal.proposalId,
+      proposalStatus: 'new',
+      recommendedAction: 'inspect',
+      recommendedSourceIds: [],
+      sourceDecisions: [],
+      confidenceBand: 'low',
+      riskFlags: ['canonical_mapping_missing'],
+      reasons: ['No canonical employer mapping or approval-safe source is attached.'],
+      excludedSourceReasons: {},
+      riskDecision: {
+        requiresAcknowledgement: false,
+        nonOverridableRiskFlags: [],
+        canApproveWithRiskOverride: false,
+      },
+    }
+
+    requestJsonMock.mockImplementation((path: string, init?: RequestInit) => {
+      if (path.startsWith('/api/company-industry-proposals/review-queue?')) {
+        queueRequests.push(path)
+        return Promise.resolve({
+          success: true,
+          ok: true,
+          schemaVersion: 'industry-review.v1',
+          items: [
+            { proposal: cleanInboxProposal, recommendation: cleanInboxRecommendation, sourceCount: 1 },
+            { proposal: visionProposal, recommendation: visionRecommendation, sourceCount: 0 },
+          ],
+          maintenance: { latest: null, lastFailed: null },
+        })
+      }
+      if (path === '/api/company-industry-proposals/industry-maintenance-vision/review-packet') {
+        return Promise.resolve({
+          ...reviewPacket,
+          proposal: visionProposal,
+          recommendation: visionRecommendation,
+          sources: [],
+          reviewContext: { profile: null, revisions: [] },
+          recomputeRuns: [],
+        })
+      }
+      return defaultRequestJson?.(path, init) ?? Promise.resolve({ success: true })
+    })
+
+    try {
+      renderPage('/admin/system/settings/industry-verification/proposals/industry-maintenance-vision')
+
+      const row = await screen.findByTestId('industry-review-row-industry-maintenance-vision')
+      expect(row).toHaveAttribute('aria-current', 'true')
+      expect(row).toHaveAttribute('data-industry-review-target', 'true')
+      expect(row).toHaveClass('scroll-mt-px')
+      expect(row).toHaveTextContent('VISION MACHINE TOOLS')
+      expect(row).toHaveTextContent('Canonical company mapping is missing')
+      const followingQueueRow = await screen.findByTestId('industry-review-row-clean-proposal')
+      expect(row.compareDocumentPosition(followingQueueRow)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+
+      await waitFor(() => {
+        expect(scrollIntoView).toHaveBeenCalledWith({
+          block: 'start',
+          inline: 'nearest',
+          behavior: 'auto',
+        })
+      })
+      expect(focus).toHaveBeenCalledWith({ preventScroll: true })
+      expect(screen.getByTestId('test-location-search')).toHaveTextContent('')
+      expect(queueRequests).toEqual([
+        '/api/company-industry-proposals/review-queue?status=new&limit=100',
+      ])
+    } finally {
+      if (originalScrollIntoView) {
+        Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', originalScrollIntoView)
+      } else {
+        delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView
+      }
+      if (originalFocus) {
+        Object.defineProperty(HTMLElement.prototype, 'focus', originalFocus)
+      }
+    }
+  })
+
+  it('keeps a terminal canonical target read-only without loading the live queue', async () => {
+    const defaultRequestJson = requestJsonMock.getMockImplementation()
+    const queueRequests: string[] = []
+    const terminalProposal = {
+      ...proposal,
+      _id: 'terminal-proposal-row',
+      proposalId: 'industry-maintenance-terminal',
+      status: 'approved',
+    }
+    const terminalRecommendation = {
+      ...recommendation,
+      proposalId: terminalProposal.proposalId,
+      proposalStatus: 'approved',
+    }
+
+    requestJsonMock.mockImplementation((path: string, init?: RequestInit) => {
+      if (path.startsWith('/api/company-industry-proposals/review-queue?')) {
+        queueRequests.push(path)
+        return Promise.resolve({ success: true, items: [] })
+      }
+      if (path === '/api/company-industry-proposals/industry-maintenance-terminal/review-packet') {
+        return Promise.resolve({
+          ...reviewPacket,
+          proposal: terminalProposal,
+          recommendation: terminalRecommendation,
+        })
+      }
+      return defaultRequestJson?.(path, init) ?? Promise.resolve({ success: true })
+    })
+
+    renderPage('/admin/system/settings/industry-verification/proposals/industry-maintenance-terminal')
+
+    expect(await screen.findByTestId('industry-history-row-industry-maintenance-terminal')).toBeInTheDocument()
+    expect(await screen.findByTestId('industry-review-terminal-read-only')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Approve revision' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Request more evidence' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Reject proposal' })).toBeDisabled()
+    expect(queueRequests).toEqual([])
+  })
+
   it('treats an unknown filter as All and keeps History separate from live rows', async () => {
     renderPage('/dev/settings/industry-verification?filter=not-a-filter')
 

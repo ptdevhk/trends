@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import {
@@ -22,15 +22,31 @@ import { formatRoleYears, getExperienceBadge, getResumeContentLocale, getResumeS
 import { getScoreClassName } from '@/lib/score-classes'
 import { cn } from '@/lib/utils'
 import { useBrandDisplayMap } from '@/hooks/useBrandDisplayMap'
+import { useAuth } from '@/contexts/AuthContext'
 import { useResumeFieldUsagePolicy } from '@/contexts/ResumeFieldUsagePolicyContext'
 import { useResumeWorkHistoryLimit } from '@/contexts/ResumeWorkHistoryLimitContext'
 import { CompanyPolicyBadges } from '@/components/CompanyPolicyBadges'
 import { CompanyResearchStrip } from '@/components/research/CompanyResearchStrip'
 import { useCompanyPolicyIndex } from '@/hooks/useCompanyPolicyIndex'
 import { IndustryEvidenceDetail } from '@/components/industry-evidence/IndustryEvidenceSummary'
-import { getVerifiedIndustryEvidenceSummaries } from '@/components/industry-evidence/industry-evidence'
+import { LegacyIndustryEvidenceNotice } from '@/components/industry-evidence/LegacyIndustryEvidenceNotice'
+import {
+  getIndustryEvidenceWorkEntryFingerprint,
+  getMatchedWorkEntryIndustryEvidenceProvenance,
+  getVerifiedIndustryEvidenceSummaries,
+  hasLegacyIndustryEvidenceInSignals,
+  mergeIndustryEvidenceProvenance,
+  type IndustryEvidenceProvenance,
+} from '@/components/industry-evidence/industry-evidence'
+import { hasSystemAdminAccess } from '@/lib/workspace-access'
+import { rawApiClient } from '@/lib/api-helpers'
+import type { paths } from '@/lib/api-types'
 
 import type { AiFeedbackSentiment, AiFeedbackTarget, MatchingResult } from '@/types/resume'
+
+type ResumeIndustryReviewTargetsResponse = paths['/api/resumes/{resumeId}/industry-review-targets']['get']['responses'][200]['content']['application/json']
+type ResumeIndustryReviewTarget = ResumeIndustryReviewTargetsResponse['data']['targets'][number]
+type AvailableIndustryReviewTarget = Extract<ResumeIndustryReviewTarget, { availability: 'target_available' }>
 
 interface ResumeDetailProps {
   resume: ResumeItem | ConvexResumeItem | null
@@ -118,6 +134,16 @@ function shouldRenderResumeDetailWorkHistoryEntry(
   return true
 }
 
+function getConvexResumeIdForIndustryReview(
+  resume: ResumeItem | ConvexResumeItem | null,
+): string | undefined {
+  if (!resume || typeof resume.resumeId !== 'string' || typeof (resume as ConvexResumeItem).crawledAt !== 'number') {
+    return undefined
+  }
+  const resumeId = resume.resumeId.trim()
+  return resumeId || undefined
+}
+
 export function ResumeDetail({
   resume,
   matchResult,
@@ -134,6 +160,8 @@ export function ResumeDetail({
   refreshState,
 }: ResumeDetailProps) {
   const { t } = useTranslation()
+  const { memberships } = useAuth()
+  const showIndustryEvidenceReviewGuidance = hasSystemAdminAccess(memberships)
   const fieldUsagePolicy = useResumeFieldUsagePolicy()
   const { limit: workHistoryLimit } = useResumeWorkHistoryLimit()
   const [isInfoExpanded, setIsInfoExpanded] = useState(false)
@@ -149,6 +177,10 @@ export function ResumeDetail({
       .map((entry) => normalizeWorkHistoryEntry(entry))
       .filter((entry): entry is NonNullable<typeof entry> => shouldRenderResumeDetailWorkHistoryEntry(entry))
   }, [presentationResume, workHistoryLimit])
+  const verifiedIndustryEvidenceSummaries = useMemo(
+    () => getVerifiedIndustryEvidenceSummaries(resume),
+    [resume],
+  )
   const workHistoryAnnotations = useMemo(() => {
     if (!resume || !hasIngestData(resume)) {
       return workHistory.map(() => [])
@@ -160,7 +192,9 @@ export function ResumeDetail({
       const annotations = new Map<string, {
         type: string
         years: number
-        industryVerified: boolean
+        approvedYears: number
+        industryEvidenceProvenance: IndustryEvidenceProvenance
+        approvedEntryFingerprints: Set<string>
         matchedSignals: Set<string>
       }>()
 
@@ -170,26 +204,95 @@ export function ResumeDetail({
             continue
           }
 
+          const entryProvenance = getMatchedWorkEntryIndustryEvidenceProvenance(
+            matchedEntry,
+            verifiedIndustryEvidenceSummaries,
+          )
           const existing = annotations.get(roleSignal.type) ?? {
             type: roleSignal.type,
             years: matchedEntry.years,
-            industryVerified: matchedEntry.industryVerified,
+            approvedYears: 0,
+            industryEvidenceProvenance: entryProvenance,
+            approvedEntryFingerprints: new Set<string>(),
             matchedSignals: new Set<string>(),
           }
 
           existing.years = Math.max(existing.years, matchedEntry.years)
-          existing.industryVerified = existing.industryVerified || matchedEntry.industryVerified
+          existing.industryEvidenceProvenance = mergeIndustryEvidenceProvenance(
+            existing.industryEvidenceProvenance,
+            entryProvenance,
+          )
+          if (entryProvenance === 'approved') {
+            const fingerprint = getIndustryEvidenceWorkEntryFingerprint(matchedEntry)
+            if (!existing.approvedEntryFingerprints.has(fingerprint)) {
+              existing.approvedEntryFingerprints.add(fingerprint)
+              existing.approvedYears += matchedEntry.years
+            }
+          }
           matchedEntry.matchedSignals.forEach((signal) => existing.matchedSignals.add(signal))
           annotations.set(roleSignal.type, existing)
         }
       }
 
       return Array.from(annotations.values()).map((annotation) => ({
-        ...annotation,
+        type: annotation.type,
+        years: annotation.industryEvidenceProvenance === 'approved' && annotation.approvedYears > 0
+          ? annotation.approvedYears
+          : annotation.years,
+        industryEvidenceProvenance: annotation.industryEvidenceProvenance,
         matchedSignals: Array.from(annotation.matchedSignals),
       }))
     })
-  }, [resume, workHistory])
+  }, [resume, verifiedIndustryEvidenceSummaries, workHistory])
+  const hasLegacyIndustryEvidence = useMemo(() => {
+    if (!showIndustryEvidenceReviewGuidance || !resume || !hasIngestData(resume)) {
+      return false
+    }
+    return hasLegacyIndustryEvidenceInSignals(
+      resume.ingestData.roleSignals,
+      verifiedIndustryEvidenceSummaries,
+    )
+  }, [resume, showIndustryEvidenceReviewGuidance, verifiedIndustryEvidenceSummaries])
+  const convexResumeIdForIndustryReview = getConvexResumeIdForIndustryReview(resume)
+  const [industryReviewTarget, setIndustryReviewTarget] = useState<AvailableIndustryReviewTarget>()
+
+  useEffect(() => {
+    if (!open || !showIndustryEvidenceReviewGuidance || !hasLegacyIndustryEvidence || !convexResumeIdForIndustryReview) {
+      setIndustryReviewTarget(undefined)
+      return
+    }
+
+    // A previous dialog target must never be reused while a different resume
+    // resolves. The generic Inbox route is safe until this exact resolver
+    // returns a new authoritative proposal ID.
+    setIndustryReviewTarget(undefined)
+    let cancelled = false
+    void rawApiClient
+      .GET<ResumeIndustryReviewTargetsResponse>(
+        `/api/resumes/${encodeURIComponent(convexResumeIdForIndustryReview)}/industry-review-targets`,
+      )
+      .then(({ data, error }) => {
+        if (cancelled || error || !data?.success) return
+        const directTargets = data.data.targets.filter(
+          (target): target is AvailableIndustryReviewTarget => target.availability === 'target_available',
+        )
+        const targetsByProposalId = new Map(
+          directTargets.map((target) => [target.proposalId, target] as const),
+        )
+        // Several legacy work entries can point to one authoritative proposal
+        // (for example, a promotion at the same employer). Collapse only by
+        // server-provided proposal ID; multiple distinct proposals stay generic.
+        const uniqueTargets = [...targetsByProposalId.values()]
+        setIndustryReviewTarget(uniqueTargets.length === 1 ? uniqueTargets[0] : undefined)
+      })
+      .catch(() => {
+        if (!cancelled) setIndustryReviewTarget(undefined)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [convexResumeIdForIndustryReview, hasLegacyIndustryEvidence, open, showIndustryEvidenceReviewGuidance])
   const { resolve: resolveBrand } = useBrandDisplayMap()
   const ingestData = resume && hasIngestData(resume) ? resume.ingestData : undefined
   const visibleIndustryTags = (ingestData?.industryTags ?? [])
@@ -201,10 +304,6 @@ export function ResumeDetail({
   const brandSummary = useMemo(
     () => summarizeBrandHits(ingestData?.brandHits),
     [ingestData?.brandHits],
-  )
-  const verifiedIndustryEvidenceSummaries = useMemo(
-    () => getVerifiedIndustryEvidenceSummaries(resume),
-    [resume],
   )
   const experienceBadge = getExperienceBadge(ingestData?.experienceLevel, t)
   const { matchResume } = useCompanyPolicyIndex(Boolean(resume))
@@ -390,16 +489,19 @@ export function ResumeDetail({
                             <div key={`${annotation.type}-${annotation.matchedSignals.join('|')}`} className="flex flex-wrap gap-1">
                               <Badge
                                 variant="outline"
-                                className={annotation.industryVerified ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : ''}
+                                className={annotation.industryEvidenceProvenance === 'approved' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : ''}
                               >
                                 {t(`resumes.roleLabels.${annotation.type}`, { defaultValue: getRoleLabel(annotation.type) })}
                                 {' '}
                                 {formatRoleYears(annotation.years, contentLocale)}
                               </Badge>
-                              {annotation.industryVerified ? (
+                              {annotation.industryEvidenceProvenance === 'approved' ? (
                                 <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
                                   {t('resumes.detail.industryVerified', { defaultValue: 'Industry verified' })}
                                 </Badge>
+                              ) : null}
+                              {annotation.industryEvidenceProvenance === 'legacy' && showIndustryEvidenceReviewGuidance ? (
+                                <LegacyIndustryEvidenceNotice compact />
                               ) : null}
                               {annotation.matchedSignals.map((signal) => (
                                 <Badge key={`${annotation.type}-${signal}`} variant="outline" className="text-[10px]">
@@ -418,6 +520,13 @@ export function ResumeDetail({
               </ul>
             )}
           </div>
+
+          {hasLegacyIndustryEvidence && showIndustryEvidenceReviewGuidance ? (
+            <LegacyIndustryEvidenceNotice
+              showReviewAction
+              reviewTarget={industryReviewTarget}
+            />
+          ) : null}
 
           {verifiedIndustryEvidenceSummaries.length > 0 ? (
             <IndustryEvidenceDetail

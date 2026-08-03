@@ -336,6 +336,75 @@ describe("resume routes", () => {
     );
   });
 
+  it("resolves exact industry-review targets for a dev system admin", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      expect(call.pathName).toBe("companies:resolveIndustryReviewTargetsForResume");
+      expect(call.args).toEqual(expect.objectContaining({
+        resumeId: "resume-live-1",
+        workspaceSlug: "dev",
+      }));
+      return convexSuccess({
+        targets: [
+          {
+            workEntryKey: "work-entry-vision",
+            employerLabel: "Vision Machine Tools",
+            availability: "target_available",
+            proposalId: "industry-maintenance-vision",
+            status: "new",
+          },
+          {
+            workEntryKey: "work-entry-unlinked",
+            employerLabel: "Unlinked CNC Employer",
+            availability: "not_linked",
+          },
+        ],
+      });
+    });
+
+    const response = await createTestApp().request(
+      "/api/resumes/resume-live-1/industry-review-targets",
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      success: true,
+      data: {
+        targets: [
+          {
+            workEntryKey: "work-entry-vision",
+            employerLabel: "Vision Machine Tools",
+            availability: "target_available",
+            proposalId: "industry-maintenance-vision",
+            status: "new",
+          },
+          {
+            workEntryKey: "work-entry-unlinked",
+            employerLabel: "Unlinked CNC Employer",
+            availability: "not_linked",
+          },
+        ],
+      },
+    });
+  });
+
+  it("does not expose industry-review targets outside the dev system workspace", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const app = createTestApp(createAuthContext({ workspaceSlug: "hr", role: "admin" }));
+
+    const response = await app.request(
+      "/api/resumes/resume-live-1/industry-review-targets",
+      { headers: { "X-Workspace-Slug": "hr" } },
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({
+      success: false,
+      error: "Admin access required",
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it("returns convex-backed live query results and expansion metadata", async () => {
     const calls: ConvexCall[] = [];
 

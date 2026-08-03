@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CheckCircle2, Loader2, RefreshCw, Sparkles, TriangleAlert } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
@@ -9,9 +9,11 @@ import { SettingsRequestError } from '@/pages/system-settings/lib'
 import {
   filterHistoryForSession,
   getOneClickEligibility,
+  isTerminalIndustryProposalStatus,
   parseReviewInboxFilter,
   partitionReviewQueue,
   reviewInboxFilterToSlug,
+  TERMINAL_INDUSTRY_PROPOSAL_STATUSES,
   type ReviewInboxItem,
   type ReviewInboxFilter,
   type ReviewInboxProposal,
@@ -52,8 +54,12 @@ type IndustryReviewInboxProps = {
   initialStatus: ReviewQueueStatus
   requestedProposalId?: string
   selectedProposalId?: string
+  targetItem?: ReviewInboxItem
+  targetError?: string
+  targetPending?: boolean
   onQueueStatusChange: (status: ReviewQueueStatus) => void
   onSelectProposal: (proposal: ReviewInboxProposal | undefined) => void
+  onLoadedProposalsChange?: (proposals: ReviewInboxProposal[]) => void
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -200,8 +206,12 @@ export function IndustryReviewInbox({
   initialStatus,
   requestedProposalId,
   selectedProposalId,
+  targetItem,
+  targetError,
+  targetPending = false,
   onQueueStatusChange,
   onSelectProposal,
+  onLoadedProposalsChange,
 }: IndustryReviewInboxProps) {
   const { t } = useTranslation()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -227,6 +237,20 @@ export function IndustryReviewInbox({
   const [undoBlocked, setUndoBlocked] = useState<Set<string>>(new Set())
   const [packetCache, setPacketCache] = useState<Map<string, CleanReviewPacket>>(new Map())
   const [announcement, setAnnouncement] = useState('')
+  const syncedTargetStatusRef = useRef<string | undefined>(undefined)
+  const focusedTargetRef = useRef<string | undefined>(undefined)
+  const targetIsTerminal = targetItem
+    ? isTerminalIndustryProposalStatus(targetItem.proposal.status)
+    : false
+  const targetStatusNeedsInitialSync = Boolean(
+    targetItem
+    && !targetIsTerminal
+    && syncedTargetStatusRef.current !== targetItem.proposal.proposalId,
+  )
+  const effectiveQueueStatus = targetStatusNeedsInitialSync
+    ? targetItem!.proposal.status
+    : queueStatus
+  const hasExplicitFilter = searchParams.has('filter')
 
   const updatePending = useCallback((proposalId: string, action?: ReviewRowAction) => {
     setPendingActions((current) => {
@@ -253,7 +277,7 @@ export function IndustryReviewInbox({
     setLoading(true)
     if (!append) setQueueError(undefined)
     try {
-      const query = new URLSearchParams({ status: queueStatus, limit: '100' })
+      const query = new URLSearchParams({ status: effectiveQueueStatus, limit: '100' })
       if (cursor) query.set('cursor', cursor)
       if (riskFilter) query.set('riskFlag', riskFilter)
       if (confidenceFilter) query.set('confidenceBand', confidenceFilter)
@@ -273,18 +297,16 @@ export function IndustryReviewInbox({
     } finally {
       setLoading(false)
     }
-  }, [actionFilter, confidenceFilter, queueStatus, requestJson, riskFilter, t])
+  }, [actionFilter, confidenceFilter, effectiveQueueStatus, requestJson, riskFilter, t])
 
   const loadHistory = useCallback(async (): Promise<IndustryHistoryItem[] | null> => {
     setHistoryLoading(true)
     setHistoryError(undefined)
     setHistoryPartial(false)
     try {
-      const paths = [
-        '/api/company-industry-proposals?status=approved',
-        '/api/company-industry-proposals?status=rejected',
-        '/api/company-industry-proposals?status=superseded',
-      ] as const
+      const paths = TERMINAL_INDUSTRY_PROPOSAL_STATUSES.map(
+        (status) => `/api/company-industry-proposals?status=${status}`,
+      )
       const results = await Promise.allSettled(paths.map((path) => requestJson(path)))
       const fulfilledResponses = results.flatMap((result) => (
         result.status === 'fulfilled' ? [result.value] : []
@@ -323,8 +345,28 @@ export function IndustryReviewInbox({
   }, [requestJson, t])
 
   useEffect(() => {
+    if (targetPending || (targetIsTerminal && (activeFilter === 'history' || !hasExplicitFilter))) return
     void loadActiveQueue()
-  }, [loadActiveQueue])
+  }, [activeFilter, hasExplicitFilter, loadActiveQueue, targetIsTerminal, targetPending])
+
+  useEffect(() => {
+    if (!targetItem || targetIsTerminal) {
+      syncedTargetStatusRef.current = undefined
+      return
+    }
+    const targetKey = targetItem.proposal.proposalId
+    if (syncedTargetStatusRef.current === targetKey) return
+    syncedTargetStatusRef.current = targetKey
+    setQueueStatus(targetItem.proposal.status)
+    onQueueStatusChange(targetItem.proposal.status)
+  }, [onQueueStatusChange, targetIsTerminal, targetItem])
+
+  useEffect(() => {
+    if (!targetItem || !targetIsTerminal || searchParams.has('filter')) return
+    const nextParams = new URLSearchParams(searchParams)
+    nextParams.set('filter', 'history')
+    setSearchParams(nextParams, { replace: true })
+  }, [searchParams, setSearchParams, targetIsTerminal, targetItem])
 
   useEffect(() => {
     if (!requestedProposalId) return
@@ -334,8 +376,21 @@ export function IndustryReviewInbox({
     }
   }, [items, onSelectProposal, requestedProposalId, selectedProposalId])
 
+  const itemsWithTarget = useMemo(() => {
+    if (!targetItem || targetIsTerminal) return items
+    const targetProposalId = targetItem.proposal.proposalId
+    return [
+      targetItem,
+      ...items.filter((item) => item.proposal.proposalId !== targetProposalId),
+    ]
+  }, [items, targetIsTerminal, targetItem])
+
+  useEffect(() => {
+    onLoadedProposalsChange?.(itemsWithTarget.map((item) => item.proposal))
+  }, [itemsWithTarget, onLoadedProposalsChange])
+
   const partition = useMemo(() => {
-    const base = partitionReviewQueue(items, sessionApprovals)
+    const base = partitionReviewQueue(itemsWithTarget, sessionApprovals)
     const approvable: ReviewInboxRow[] = []
     const forcedReviewRows: ReviewInboxRow[] = []
     for (const row of base.approvable) {
@@ -347,7 +402,7 @@ export function IndustryReviewInbox({
       approvable,
       needsReview: [...base.needsReview, ...forcedReviewRows],
     }
-  }, [forcedNeedsReview, items, sessionApprovals])
+  }, [forcedNeedsReview, itemsWithTarget, sessionApprovals])
 
   const visibleHistory = useMemo(
     () => filterHistoryForSession(historyItems, new Set(sessionApprovals.keys())),
@@ -369,7 +424,6 @@ export function IndustryReviewInbox({
   const selectFilter = useCallback((filter: ReviewInboxFilter) => {
     const nextParams = new URLSearchParams(searchParams)
     nextParams.set('filter', reviewInboxFilterToSlug(filter))
-    nextParams.delete('proposalId')
     setSearchParams(nextParams, { replace: true })
   }, [searchParams, setSearchParams])
 
@@ -589,6 +643,23 @@ export function IndustryReviewInbox({
     else void handleApprove(row.item)
   }, [handleApprove, handleUndo])
 
+  useEffect(() => {
+    const proposalId = targetItem?.proposal.proposalId
+    const targetListLoading = targetIsTerminal ? historyLoading : loading
+    if (!proposalId || targetListLoading || focusedTargetRef.current === proposalId) return
+    const rowTestId = targetIsTerminal
+      ? `industry-history-row-${proposalId}`
+      : `industry-review-row-${proposalId}`
+    const timer = window.setTimeout(() => {
+      const row = document.querySelector<HTMLElement>(`[data-testid="${rowTestId}"]`)
+      if (!row) return
+      row.scrollIntoView?.({ block: 'start', inline: 'nearest', behavior: 'auto' })
+      row.focus({ preventScroll: true })
+      focusedTargetRef.current = proposalId
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [activeFilter, historyLoading, loading, targetIsTerminal, targetItem, visibleRows.length])
+
   return (
     <section className="space-y-4" aria-labelledby="industry-review-inbox-title">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -636,6 +707,17 @@ export function IndustryReviewInbox({
         </div>
       </div>
 
+      {targetError ? (
+        <div
+          className="flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950"
+          role="status"
+          data-testid="industry-review-target-error"
+        >
+          <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+          <p>{targetError}</p>
+        </div>
+      ) : null}
+
       <div className="flex flex-wrap gap-2" role="tablist" aria-label={t('industryEvidence.inboxTabs', { defaultValue: 'Industry review filters' })}>
         {filterTabs.map(({ filter, label, count }) => (
           <button
@@ -664,6 +746,7 @@ export function IndustryReviewInbox({
         <div id="industry-review-tabpanel-history" role="tabpanel" aria-label={t('industryEvidence.history', { defaultValue: 'History' })}>
           <IndustryHistoryList
             items={visibleHistory}
+            targetItem={targetIsTerminal ? targetItem?.proposal as IndustryHistoryItem | undefined : undefined}
             loading={historyLoading}
             loaded={historyLoaded}
             error={historyError}
@@ -684,7 +767,7 @@ export function IndustryReviewInbox({
                 <span>{t('industryEvidence.queueStatus', { defaultValue: 'Queue status' })}</span>
                 <select
                   aria-label={t('industryEvidence.queueStatus', { defaultValue: 'Queue status' })}
-                  value={queueStatus}
+                  value={effectiveQueueStatus}
                   onChange={(event) => changeQueueStatus(event.target.value as ReviewQueueStatus)}
                   className="h-9 w-full rounded-md border bg-background px-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring"
                 >
@@ -791,6 +874,7 @@ export function IndustryReviewInbox({
                   key={proposalId}
                   row={row}
                   selected={selectedProposalId === proposalId}
+                  targeted={targetItem?.proposal.proposalId === proposalId}
                   pendingAction={pendingActions.get(proposalId)}
                   error={rowErrors.get(proposalId)}
                   undoDisabled={undoBlocked.has(proposalId)}

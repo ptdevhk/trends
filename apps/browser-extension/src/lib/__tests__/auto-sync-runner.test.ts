@@ -272,5 +272,39 @@ describe("auto-sync-runner", () => {
       ]);
       expect(deps.setAutoSyncAttributes).toHaveBeenCalledWith("done", 1, 1);
     });
+
+    it("stops seek after consecutive pages without usable work history", async () => {
+      let currentPage = 1;
+      const deps = createMockDeps({
+        getCurrentSourceKey: vi.fn(() => "seek"),
+        window: { location: { pathname: "/talentsearch" } },
+        getCollectionLimits: vi.fn(() => Promise.resolve({ limit: 100, maxPages: 25 })),
+        extractResumes: vi.fn(() => [
+          { workHistory: [{ description: "" }] },
+        ]),
+        enrichSeekResumesWithDetail: vi.fn(async (resumes: unknown[]) => resumes),
+        getPaginationInfo: vi.fn(() => ({
+          currentPage,
+          totalPages: currentPage + 3,
+          totalItems: 0,
+          hasNextPage: true,
+        })),
+        goToNextPageInternal: vi.fn(() => {
+          currentPage += 1;
+          return true;
+        }),
+      });
+      const runner = createAutoSyncRunner(deps);
+
+      await runner.runAutoSyncIfEnabled();
+
+      expect(deps.syncCurrentPageToServer).not.toHaveBeenCalled();
+      expect(deps.goToNextPageInternal).toHaveBeenCalledTimes(2);
+      expect(deps.setAutoSyncAttributes).toHaveBeenCalledWith("done", 0, 3);
+      expect(deps.document.documentElement.setAttribute).toHaveBeenCalledWith(
+        "data-tr-auto-sync-stop-reason",
+        "seek-no-usable-results",
+      );
+    });
   });
 });

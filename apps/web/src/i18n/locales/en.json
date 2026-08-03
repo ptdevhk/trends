@@ -1396,6 +1396,10 @@
   "industryEvidence": {
     "approvalFailed": "Failed to approve industry verdict revision",
     "approved": "Industry verdict revision approved",
+    "legacySignalBadge": "Legacy rules signal",
+    "legacySignalDescription": "This is a legacy rules signal, not human-reviewed industry evidence. Approving evidence for an employer updates every linked resume with trusted evidence.",
+    "legacySignalReviewAction": "Review industry evidence",
+    "legacySignalTitle": "Industry evidence needs human review",
     "approvedLookupDescription": "Inspect current truth for an employer that is not in the ready-for-review queue (e.g. MY bootstrap). Same bundle API as proposal detail — read-only.",
     "approvedLookupTitle": "Approved profiles / companyKey lookup",
     "companyRequired": "Map this proposal to a canonical company first",

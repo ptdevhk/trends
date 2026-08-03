@@ -961,6 +961,10 @@
   "industryEvidence": {
     "approvalFailed": "批准行业判定版本失败",
     "approved": "已批准行业判定版本",
+    "legacySignalBadge": "旧规则信号",
+    "legacySignalDescription": "这是旧规则推断，不是人工审核过的行业证据。批准某个雇主的证据后，所有关联简历都会更新为可信证据。",
+    "legacySignalReviewAction": "审核行业证据",
+    "legacySignalTitle": "行业证据需要人工审核",
     "approvedLookupDescription": "查看不在待审核队列中的雇主当前真实信息（例如 MY bootstrap）。使用同一 bundle API，仅供读取。",
     "approvedLookupTitle": "已批准的公司资料／companyKey 查询",
     "companyRequired": "请先将此提案映射到规范公司",

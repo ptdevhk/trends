@@ -6,18 +6,31 @@ import { ResumeDetail } from './ResumeDetail'
 import type { ResumeItem } from '@/hooks/useResumes'
 
 const useResumeWorkHistoryLimitMock = vi.hoisted(() => vi.fn())
+const useAuthMock = vi.hoisted(() => vi.fn())
+const apiGetMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@/contexts/ResumeWorkHistoryLimitContext', () => ({
   useResumeWorkHistoryLimit: () => useResumeWorkHistoryLimitMock(),
 }))
 
+vi.mock('@/contexts/AuthContext', () => ({
+  useAuth: () => useAuthMock(),
+}))
+
+vi.mock('@/lib/api-helpers', () => ({
+  rawApiClient: {
+    GET: (...args: unknown[]) => apiGetMock(...args),
+  },
+}))
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, fallback?: string | { defaultValue?: string }) => {
+    t: (key: string, fallback?: string | { defaultValue?: string; [name: string]: unknown }) => {
       if (typeof fallback === 'string') {
         return fallback
       }
-      return fallback?.defaultValue ?? key
+      const template = fallback?.defaultValue ?? key
+      return template.replace(/\{\{(\w+)\}\}/g, (_match, name: string) => String(fallback?.[name] ?? `{{${name}}}`))
     },
   }),
 }))
@@ -58,6 +71,8 @@ vi.mock('@/hooks/useCompanyPolicyIndex', () => ({
 describe('ResumeDetail work history', () => {
   beforeEach(() => {
     useResumeWorkHistoryLimitMock.mockReturnValue({ limit: 3, setLimit: vi.fn() })
+    useAuthMock.mockReturnValue({ memberships: [] })
+    apiGetMock.mockResolvedValue({ data: { success: true, data: { targets: [] } } })
   })
 
   it('renders the full materialized approved evidence revision surface', () => {
@@ -397,15 +412,29 @@ describe('ResumeDetail work history', () => {
                   },
                   {
                     companyName: 'CNC Mechatronics Sdn. Bhd.',
+                    companyKey: 'cnc-mechatronics',
                     jobTitle: 'Sales Manager',
                     years: 5.4,
                     industryVerified: true,
+                    verdictRevisionId: 'revision-cnc-mechatronics',
                     directRoleMatch: true,
                     matchedSignals: ['CNC-SALES'],
                   },
                 ],
               },
             ],
+            verifiedIndustryEvidenceSummaries: [{
+              companyKey: 'cnc-mechatronics',
+              companyName: 'CNC Mechatronics Sdn. Bhd.',
+              industryClass: 'cnc',
+              verificationLevel: 'verified',
+              verdictRevisionId: 'revision-cnc-mechatronics',
+              evidenceSummary: 'Human-approved CNC machinery evidence.',
+              reviewedAt: Date.UTC(2026, 6, 20),
+              sourceCount: 0,
+              additionalSourceCount: 0,
+              sourcePreviews: [],
+            }],
           },
           extractedAt: '2026-03-13T00:00:00.000Z',
         }}
@@ -443,5 +472,160 @@ describe('ResumeDetail work history', () => {
     expect(cnc.queryByText('SYMMETRY-SALES')).not.toBeInTheDocument()
     expect(cnc.getByText('Industry verified')).toBeInTheDocument()
     expect(cnc.getByText(/5\.4/)).toBeInTheDocument()
+  })
+
+  it('shows a revisionless rules signal neutrally and gives only a system admin the attended review path', () => {
+    useAuthMock.mockReturnValue({
+      memberships: [{ workspaceSlug: 'dev', role: 'admin' }],
+    })
+
+    render(
+      <ResumeDetail
+        open
+        onOpenChange={vi.fn()}
+        resume={{
+          name: 'Vision Candidate',
+          profileUrl: 'https://example.com/vision-candidate',
+          activityStatus: 'Active',
+          age: '31',
+          experience: '4 years',
+          education: 'Bachelor',
+          location: 'Malaysia',
+          selfIntro: '',
+          jobIntention: 'CNC Sales',
+          expectedSalary: '8k-12k',
+          workHistory: [{
+            companyName: 'Vision Machine Tools',
+            jobTitle: 'Sales Engineer',
+            startDate: '2022-01',
+            endDate: '至今',
+            raw: 'Vision Machine Tools Sales Engineer',
+          }],
+          ingestData: {
+            computedAt: 1,
+            evidenceText: '',
+            industryTags: ['cnc'],
+            companyHits: [],
+            experienceLevel: 'mid',
+            skillsVersion: 1,
+            ruleScores: {},
+            roleSignals: [{
+              type: 'sales',
+              matchedSignals: ['CNC-SALES'],
+              signalCount: 1,
+              occurrences: 1,
+              years: 3.5,
+              industryVerifiedYears: 3.5,
+              verifyIn: 'workHistory',
+              matchedWorkEntries: [{
+                companyName: 'Vision Machine Tools',
+                jobTitle: 'Sales Engineer',
+                years: 3.5,
+                industryVerified: true,
+                matchedSignals: ['CNC-SALES'],
+              }],
+            }],
+          },
+          extractedAt: '2026-03-13T00:00:00.000Z',
+        } as unknown as ResumeItem}
+      />,
+    )
+
+    expect(screen.queryByText('Industry verified')).not.toBeInTheDocument()
+    expect(screen.getByText('Legacy rules signal')).toBeInTheDocument()
+    expect(screen.getByText('Industry evidence needs human review')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Review industry evidence' }))
+      .toHaveAttribute('href', '/admin/system/settings/industry-verification?status=ready_for_review')
+  })
+
+  it('links a Convex resume to its exact industry-review target without employer-name matching', async () => {
+    useAuthMock.mockReturnValue({
+      memberships: [{ workspaceSlug: 'dev', role: 'admin' }],
+    })
+    apiGetMock.mockResolvedValue({
+      data: {
+        success: true,
+        data: {
+          targets: [{
+            workEntryKey: 'vision-work-entry',
+            employerLabel: 'Vision Machine Tools',
+            availability: 'target_available',
+            proposalId: 'industry-maintenance-vision',
+            status: 'new',
+          }, {
+            workEntryKey: 'vision-work-entry-promotion',
+            employerLabel: 'Vision Machine Tools',
+            availability: 'target_available',
+            proposalId: 'industry-maintenance-vision',
+            status: 'new',
+          }],
+        },
+      },
+    })
+
+    render(
+      <ResumeDetail
+        open
+        onOpenChange={vi.fn()}
+        resume={{
+          name: 'Vision Candidate',
+          profileUrl: 'https://example.com/vision-candidate',
+          activityStatus: 'Active',
+          age: '31',
+          experience: '4 years',
+          education: 'Bachelor',
+          location: 'Malaysia',
+          selfIntro: '',
+          jobIntention: 'CNC Sales',
+          expectedSalary: '8k-12k',
+          workHistory: [{
+            companyName: 'Vision Machine Tools',
+            jobTitle: 'Sales Engineer',
+            startDate: '2022-01',
+            endDate: '至今',
+            raw: 'Vision Machine Tools Sales Engineer',
+          }],
+          resumeId: 'resume-convex-1',
+          externalId: 'seek:vision-1',
+          crawledAt: 1,
+          source: 'seek',
+          tags: [],
+          ingestData: {
+            computedAt: 1,
+            evidenceText: '',
+            industryTags: ['cnc'],
+            companyHits: [],
+            experienceLevel: 'mid',
+            skillsVersion: 1,
+            ruleScores: {},
+            roleSignals: [{
+              type: 'sales',
+              matchedSignals: ['CNC-SALES'],
+              signalCount: 1,
+              occurrences: 1,
+              years: 3.5,
+              industryVerifiedYears: 3.5,
+              verifyIn: 'workHistory',
+              matchedWorkEntries: [{
+                companyName: 'Vision Machine Tools',
+                jobTitle: 'Sales Engineer',
+                workEntryFingerprint: 'vision-work-entry',
+                years: 3.5,
+                industryVerified: true,
+                matchedSignals: ['CNC-SALES'],
+              }],
+            }],
+          },
+          extractedAt: '2026-03-13T00:00:00.000Z',
+        } as unknown as ResumeItem}
+      />,
+    )
+
+    const reviewLink = await screen.findByRole('link', { name: /Review Vision Machine Tools/i })
+    expect(apiGetMock).toHaveBeenCalledWith('/api/resumes/resume-convex-1/industry-review-targets')
+    expect(reviewLink).toHaveAttribute(
+      'href',
+      '/admin/system/settings/industry-verification/proposals/industry-maintenance-vision',
+    )
   })
 })

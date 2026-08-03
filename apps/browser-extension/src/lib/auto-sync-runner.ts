@@ -6,6 +6,11 @@
 
 import { isMeaningfulSeekWorkHistoryDescription } from "./seek-work-history-quality";
 
+// SEEK's pager can expose a moving window of numbered links after the useful
+// results have ended. Stop after a short run of post-enrichment empty pages so
+// an auto-sync does not spend its entire maxPages budget on sparse profiles.
+const SEEK_MAX_CONSECUTIVE_PAGES_WITHOUT_USABLE_RESUMES = 3;
+
 export interface AutoSyncRunnerDeps extends Record<string, unknown> {
   getAutoSyncEnabled: () => boolean;
   setAutoSyncAttributes: (status: string, count?: number, pages?: number) => void;
@@ -244,6 +249,7 @@ export function createAutoSyncRunner(deps: AutoSyncRunnerDeps) {
       let lastSelectedCount = null;
       let stopReason = "completed";
       let seekStartPage = null;
+      let consecutiveSeekPagesWithoutUsableResumes = 0;
 
       while (true) {
         if (deps.state._autoSyncCancelled) {
@@ -342,7 +348,17 @@ export function createAutoSyncRunner(deps: AutoSyncRunnerDeps) {
           resumes = await enrichSeekResumesWithDetail(resumes);
           resumes = filterSparseSeekTalentSearchResumes(resumes);
         }
+        if (isSeekListPage) {
+          consecutiveSeekPagesWithoutUsableResumes =
+            resumes.length > 0
+              ? 0
+              : consecutiveSeekPagesWithoutUsableResumes + 1;
+        }
         if (resumes.length <= 0) {
+          const seekNoUsableResultsLimitReached =
+            isSeekListPage &&
+            consecutiveSeekPagesWithoutUsableResumes >=
+              SEEK_MAX_CONSECUTIVE_PAGES_WITHOUT_USABLE_RESUMES;
           const ageRange = getCurrentAgeRange();
           const ageHint = ageRange.enabled
             ? ` · 年龄: ${typeof ageRange.minAge === "number" ? ageRange.minAge : "—"}-${typeof ageRange.maxAge === "number" ? ageRange.maxAge : "—"}`
@@ -356,13 +372,19 @@ export function createAutoSyncRunner(deps: AutoSyncRunnerDeps) {
 
           SyncStatusWidget.show({
             state: "progress",
-            message: `第 ${currentPage}/${Math.max(totalPages, currentPage)} 页无符合条件的简历，继续...`,
+            message: seekNoUsableResultsLimitReached
+              ? `连续 ${SEEK_MAX_CONSECUTIVE_PAGES_WITHOUT_USABLE_RESUMES} 页无可用工作经历，停止继续分页。`
+              : `第 ${currentPage}/${Math.max(totalPages, currentPage)} 页无符合条件的简历，继续...`,
             hint: progressHint,
           });
           setAutoSyncAttributes("running", totalSubmitted, pagesVisited);
 
           if (deps.state._autoSyncCancelled) {
             stopReason = "cancelled";
+            break;
+          }
+          if (seekNoUsableResultsLimitReached) {
+            stopReason = "seek-no-usable-results";
             break;
           }
           if (
@@ -564,6 +586,9 @@ export function createAutoSyncRunner(deps: AutoSyncRunnerDeps) {
             selectedCount: lastSelectedCount,
             prefix: "",
           }),
+          stopReason === "seek-no-usable-results"
+            ? `连续 ${SEEK_MAX_CONSECUTIVE_PAGES_WITHOUT_USABLE_RESUMES} 页没有可用工作经历，已安全停止继续分页`
+            : "",
           isJob51Source ? "51job 详情补充正在后台继续" : "",
         ]
           .filter(Boolean)

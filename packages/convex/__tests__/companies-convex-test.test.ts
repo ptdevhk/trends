@@ -257,6 +257,203 @@ describe("companies (convex-test)", () => {
     expect(proposals[0]?.sampleReferences).toHaveLength(2);
   });
 
+  it("resolves review targets only from exact workspace, resume identity, and work-entry fingerprint links", async () => {
+    const t = createTest();
+    const resumeId = await t.run(async (ctx) =>
+      ctx.db.insert("resumes", {
+        externalId: "external-vision-resume",
+        identityKey: "identity-vision-resume",
+        content: {},
+        hash: "hash-vision-resume",
+        tags: [],
+        crawledAt: 1,
+        source: "test",
+        workspaceSlug: "dev",
+        ingestData: {
+          industryTags: [],
+          synonymHits: [],
+          roleSignals: [
+            {
+              type: "sales",
+              matchedSignals: [],
+              signalCount: 0,
+              occurrences: 3,
+              years: 6,
+              industryVerifiedYears: 6,
+              matchedWorkEntries: [
+                {
+                  companyName: "Vision Machine Tools",
+                  jobTitle: "Sales Engineer",
+                  years: 3,
+                  industryVerified: true,
+                  workEntryFingerprint: "fingerprint-vision",
+                  matchedSignals: [],
+                  directRoleMatch: true,
+                },
+                {
+                  companyName: "Ambiguous CNC",
+                  jobTitle: "Sales Engineer",
+                  years: 2,
+                  industryVerified: true,
+                  workEntryFingerprint: "fingerprint-ambiguous",
+                  matchedSignals: [],
+                  directRoleMatch: true,
+                },
+                {
+                  companyName: "Unlinked Employer",
+                  jobTitle: "Sales Engineer",
+                  years: 1,
+                  industryVerified: true,
+                  workEntryFingerprint: "fingerprint-unlinked",
+                  matchedSignals: [],
+                  directRoleMatch: true,
+                },
+              ],
+              verifyIn: "workHistory",
+            },
+          ],
+          ruleScores: {},
+          experienceLevel: "senior",
+          computedAt: 1,
+          skillsVersion: 1,
+        },
+      }),
+    );
+
+    await t.run(async (ctx) => {
+      const proposalRows = [
+        {
+          proposalId: "proposal-vision-open",
+          normalizedEmployerSurface: "vision machine tools",
+          status: "new" as const,
+          priority: 90,
+          sampleReferences: [
+            {
+              workspaceSlug: "dev",
+              resumeIdentity: "identity-vision-resume",
+              workEntryFingerprint: "fingerprint-vision",
+            },
+            {
+              workspaceSlug: "dev",
+              resumeIdentity: "external-vision-resume",
+              workEntryFingerprint: "fingerprint-vision",
+            },
+          ],
+        },
+        {
+          proposalId: "proposal-vision-terminal",
+          normalizedEmployerSurface: "vision machine tools",
+          status: "approved" as const,
+          priority: 80,
+          sampleReferences: [
+            {
+              workspaceSlug: "dev",
+              resumeIdentity: "identity-vision-resume",
+              workEntryFingerprint: "fingerprint-vision",
+            },
+          ],
+        },
+        {
+          proposalId: "proposal-wrong-workspace",
+          normalizedEmployerSurface: "vision machine tools",
+          status: "new" as const,
+          priority: 100,
+          sampleReferences: [
+            {
+              workspaceSlug: "hr",
+              resumeIdentity: "identity-vision-resume",
+              workEntryFingerprint: "fingerprint-vision",
+            },
+          ],
+        },
+        {
+          proposalId: "proposal-wrong-fingerprint",
+          normalizedEmployerSurface: "vision machine tools",
+          status: "new" as const,
+          priority: 100,
+          sampleReferences: [
+            {
+              workspaceSlug: "dev",
+              resumeIdentity: "identity-vision-resume",
+              workEntryFingerprint: "fingerprint-not-vision",
+            },
+          ],
+        },
+        {
+          proposalId: "proposal-ambiguous-one",
+          normalizedEmployerSurface: "ambiguous cnc one",
+          status: "new" as const,
+          priority: 80,
+          sampleReferences: [
+            {
+              workspaceSlug: "dev",
+              resumeIdentity: "identity-vision-resume",
+              workEntryFingerprint: "fingerprint-ambiguous",
+            },
+          ],
+        },
+        {
+          proposalId: "proposal-ambiguous-two",
+          normalizedEmployerSurface: "ambiguous cnc two",
+          status: "researching" as const,
+          priority: 80,
+          sampleReferences: [
+            {
+              workspaceSlug: "dev",
+              resumeIdentity: "identity-vision-resume",
+              workEntryFingerprint: "fingerprint-ambiguous",
+            },
+          ],
+        },
+      ];
+
+      for (const row of proposalRows) {
+        await ctx.db.insert("company_industry_review_proposals", {
+          ...row,
+          triggerReasons: ["unknown_employer"],
+          createdAt: 1,
+          updatedAt: 1,
+        });
+      }
+    });
+
+    const result = await t.query(
+      api.companies.resolveIndustryReviewTargetsForResume,
+      {
+        writeSecret: WRITE_SECRET,
+        workspaceSlug: "dev",
+        resumeId,
+      },
+    );
+
+    expect(result.targets).toEqual([
+      {
+        workEntryKey: "fingerprint-ambiguous",
+        employerLabel: "Ambiguous CNC",
+        availability: "not_linked",
+      },
+      {
+        workEntryKey: "fingerprint-unlinked",
+        employerLabel: "Unlinked Employer",
+        availability: "not_linked",
+      },
+      {
+        workEntryKey: "fingerprint-vision",
+        employerLabel: "Vision Machine Tools",
+        proposalId: "proposal-vision-open",
+        status: "new",
+        availability: "target_available",
+      },
+    ]);
+
+    await expect(
+      t.query(api.companies.resolveIndustryReviewTargetsForResume, {
+        workspaceSlug: "dev",
+        resumeId,
+      }),
+    ).rejects.toThrow("Unauthorized Convex read");
+  });
+
   it("creates immutable verdict revisions and advances only the current profile projection", async () => {
     const t = createTest();
     await t.mutation(api.companies.upsert, {

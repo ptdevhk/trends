@@ -101,10 +101,14 @@ export type IndustryDbV2Stats = {
 
 export type ResumeMatchedWorkEntry = {
   companyName?: string
+  companyKey?: string
   jobTitle?: string
   years: number
   industryVerified: boolean
+  verdictRevisionId?: string
+  workEntryFingerprint?: string
   matchedSignals: string[]
+  directRoleMatch?: boolean
 }
 
 export type ResumeRoleSignalLike = {

@@ -4,6 +4,8 @@ import {
   ResumesResponseSchema,
   ResumeDetailPathParamSchema,
   ResumeDetailResponseSchema,
+  ResumeIndustryReviewTargetsDataSchema,
+  ResumeIndustryReviewTargetsResponseSchema,
   ResumeKeywordExpansionQuerySchema,
   ResumeKeywordExpansionResponseSchema,
   ResumeSamplesResponseSchema,
@@ -115,6 +117,10 @@ app.use("/api/resumes/matches/rescore", requireAdmin);
 app.use("/api/resumes/explanation", requireAdmin);
 app.use("/api/resumes/audit-logs", requireAdmin);
 app.use("/api/resumes/audit-outcome", requireAdmin);
+// This target resolver exposes proposal relationships, so it is intentionally
+// narrower than the ordinary resume-detail route: admin only, then pinned to
+// the dev system workspace in the handler below.
+app.use("/api/resumes/:resumeId/industry-review-targets", requireAdmin);
 const resumeService = new ResumeService(config.projectRoot);
 const aiService = new AIMatchingService();
 const matchStorage = new MatchStorage(config.projectRoot);
@@ -1208,6 +1214,85 @@ app.openapi(getResumeDetailRoute, async (c) => {
     }
     throw error;
   }
+});
+
+const getResumeIndustryReviewTargetsRoute = createRoute({
+  method: "get",
+  path: "/api/resumes/{resumeId}/industry-review-targets",
+  tags: ["resumes"],
+  summary: "Resolve exact industry-evidence review targets for one resume",
+  description:
+    "System-admin-only resolver for opaque legacy work-entry fingerprints. It never matches employer display names.",
+  request: {
+    params: ResumeDetailPathParamSchema,
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: ResumeIndustryReviewTargetsResponseSchema,
+        },
+      },
+      description: "Exact review targets, if any",
+    },
+    403: {
+      content: {
+        "application/json": {
+          schema: SimpleErrorSchema,
+        },
+      },
+      description: "Dev system admin access required",
+    },
+    404: {
+      content: {
+        "application/json": {
+          schema: SimpleErrorSchema,
+        },
+      },
+      description: "Resume not found",
+    },
+  },
+});
+
+app.openapi(getResumeIndustryReviewTargetsRoute, async (c) => {
+  // `requireAdmin` above checks authentication and the active workspace role.
+  // Industry review itself is a dev-system operation, not a general admin
+  // surface in every tenant/workspace.
+  if (c.var.workspaceSlug !== "dev") {
+    return c.json({ success: false as const, error: "Admin access required" }, 403);
+  }
+
+  const resumeId = c.req.valid("param").resumeId.trim();
+  let value: unknown;
+  try {
+    value = await callConvexQuery("companies:resolveIndustryReviewTargetsForResume", {
+      resumeId,
+      workspaceSlug: c.var.workspaceSlug,
+      writeSecret: config.auth.convexWriteSecret,
+    });
+  } catch (error) {
+    if (isConvexResumeIdValidationError(error)) {
+      return c.json({
+        success: false as const,
+        error: `Resume not found: ${resumeId}`,
+      }, 404);
+    }
+    throw error;
+  }
+
+  if (value === null) {
+    return c.json({
+      success: false as const,
+      error: `Resume not found: ${resumeId}`,
+    }, 404);
+  }
+
+  const parsed = ResumeIndustryReviewTargetsDataSchema.safeParse(value);
+  if (!parsed.success) {
+    throw new Error("Invalid companies:resolveIndustryReviewTargetsForResume response");
+  }
+
+  return c.json({ success: true as const, data: parsed.data }, 200);
 });
 
 const triggerReingestRoute = createRoute({

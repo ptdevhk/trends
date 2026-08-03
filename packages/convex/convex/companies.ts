@@ -1496,6 +1496,123 @@ export const listIndustryProposals = query({
   },
 });
 
+/**
+ * Resolve only exact legacy work-entry → industry-proposal relationships for
+ * the current resume. This is intentionally secret-gated because proposal
+ * sample references can otherwise reveal cross-workspace resume identities.
+ */
+export const resolveIndustryReviewTargetsForResume = query({
+  args: {
+    writeSecret: v.optional(v.string()),
+    workspaceSlug: v.string(),
+    resumeId: v.id("resumes"),
+  },
+  handler: async (ctx, args) => {
+    requireReadSecret(args.writeSecret);
+    const resume = await ctx.db.get(args.resumeId);
+    if (!resume) {
+      return null;
+    }
+
+    const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
+    if (normalizeWorkspaceSlug(resume.workspaceSlug) !== workspaceSlug) {
+      return { targets: [] };
+    }
+
+    const resumeIdentities = new Set(
+      [String(resume._id), resume.identityKey, resume.externalId]
+        .map((value) => value?.trim())
+        .filter((value): value is string => Boolean(value)),
+    );
+    const legacyEntries = new Map<string, { workEntryKey: string; employerLabel: string }>();
+    for (const roleSignal of resume.ingestData?.roleSignals ?? []) {
+      for (const workEntry of roleSignal.matchedWorkEntries ?? []) {
+        const workEntryKey = workEntry.workEntryFingerprint?.trim();
+        const employerLabel = workEntry.companyName?.trim();
+        if (
+          !workEntry.industryVerified ||
+          workEntry.verdictRevisionId?.trim() ||
+          !workEntryKey ||
+          !employerLabel ||
+          legacyEntries.has(workEntryKey)
+        ) {
+          continue;
+        }
+        legacyEntries.set(workEntryKey, { workEntryKey, employerLabel });
+      }
+    }
+
+    if (legacyEntries.size === 0) {
+      return { targets: [] };
+    }
+
+    const proposals = await ctx.db.query("company_industry_review_proposals").collect();
+    const candidatesByWorkEntryKey = new Map<
+      string,
+      Map<string, (typeof proposals)[number]>
+    >();
+    for (const proposal of proposals) {
+      for (const reference of proposal.sampleReferences ?? []) {
+        const workEntryKey = reference.workEntryFingerprint;
+        if (
+          reference.workspaceSlug !== workspaceSlug ||
+          !resumeIdentities.has(reference.resumeIdentity) ||
+          !workEntryKey ||
+          !legacyEntries.has(workEntryKey)
+        ) {
+          continue;
+        }
+        const candidates = candidatesByWorkEntryKey.get(workEntryKey)
+          ?? new Map<string, (typeof proposals)[number]>();
+        candidates.set(proposal.proposalId, proposal);
+        candidatesByWorkEntryKey.set(workEntryKey, candidates);
+      }
+    }
+    const targets = Array.from(legacyEntries.values()).map((entry) => {
+      let openCandidate: (typeof proposals)[number] | undefined;
+      let terminalCandidate: (typeof proposals)[number] | undefined;
+      let openCandidateCount = 0;
+      let terminalCandidateCount = 0;
+      for (const proposal of candidatesByWorkEntryKey.get(entry.workEntryKey)?.values() ?? []) {
+        if (OPEN_INDUSTRY_PROPOSAL_STATUSES.has(proposal.status)) {
+          openCandidate = proposal;
+          openCandidateCount += 1;
+        } else {
+          terminalCandidate = proposal;
+          terminalCandidateCount += 1;
+        }
+      }
+      const selected = openCandidateCount === 1
+        ? openCandidate
+        : openCandidateCount === 0 && terminalCandidateCount === 1
+          ? terminalCandidate
+          : undefined;
+
+      if (!selected) {
+        return {
+          ...entry,
+          availability: "not_linked" as const,
+        };
+      }
+
+      return {
+        ...entry,
+        proposalId: selected.proposalId,
+        status: selected.status,
+        availability: "target_available" as const,
+      };
+    });
+
+    return {
+      targets: targets.sort(
+        (left, right) =>
+          left.employerLabel.localeCompare(right.employerLabel) ||
+          left.workEntryKey.localeCompare(right.workEntryKey),
+      ),
+    };
+  },
+});
+
 export const recordIndustryRefreshRequest = mutation({
   args: {
     writeSecret: v.optional(v.string()),

@@ -5,6 +5,8 @@ import type { ResumeSearchResultItem } from '@/components/search/search-types'
 import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
 import { useConvexResumeDetail } from '@/hooks/useConvexResumes'
 
+const useAuthMock = vi.hoisted(() => vi.fn())
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, options?: string | Record<string, unknown>) => {
@@ -66,6 +68,10 @@ vi.mock('@/hooks/useConvexResumes', () => ({
   })),
 }))
 
+vi.mock('@/contexts/AuthContext', () => ({
+  useAuth: () => useAuthMock(),
+}))
+
 vi.mock('@/components/ResumeDetail', () => ({
   ResumeDetail: ({
     open,
@@ -89,6 +95,7 @@ describe('SearchResultsList', () => {
   beforeEach(() => {
     virtualRows = [{ index: 0, start: 0 }]
     vi.clearAllMocks()
+    useAuthMock.mockReturnValue({ memberships: [] })
 
     observeMock.mockImplementation(() => { })
     disconnectMock.mockImplementation(() => { })
@@ -154,6 +161,55 @@ describe('SearchResultsList', () => {
     )
 
     expect(screen.getByText('没有符合该搜索条件的简历')).toBeInTheDocument()
+  })
+
+  it('guides a system admin to attended evidence review when results contain legacy rules signals', () => {
+    useAuthMock.mockReturnValue({
+      memberships: [{ workspaceSlug: 'dev', role: 'admin' }],
+    })
+    const item = createItem(0)
+    item.resume.ingestData = {
+      evidenceText: '',
+      industryTags: ['cnc'],
+      synonymHits: [],
+      brandHits: [],
+      companyHits: [],
+      industryDbV2Raw: 0,
+      experienceLevel: 'mid',
+      computedAt: 1,
+      skillsVersion: 1,
+      ruleScores: {},
+      roleSignals: [{
+        type: 'sales',
+        matchedSignals: ['CNC Sales'],
+        signalCount: 1,
+        occurrences: 1,
+        years: 3,
+        industryVerifiedYears: 3,
+        verifyIn: 'workHistory',
+        matchedWorkEntries: [{
+          companyName: 'Vision Machine Tools',
+          jobTitle: 'Sales Engineer',
+          years: 3,
+          industryVerified: true,
+          matchedSignals: ['CNC Sales'],
+        }],
+      }],
+    }
+
+    render(
+      <SearchResultsList
+        expandedIds={new Set()}
+        hasMore={false}
+        items={[item]}
+        onLoadMore={vi.fn()}
+        onToggleExpanded={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('Industry evidence needs human review')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Review industry evidence' }))
+      .toHaveAttribute('href', '/admin/system/settings/industry-verification?status=ready_for_review')
   })
 
   it('recomputes virtual rows on rerender instead of keeping stale memoized rows', () => {

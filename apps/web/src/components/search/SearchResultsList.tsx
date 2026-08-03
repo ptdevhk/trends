@@ -3,8 +3,15 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import { useTranslation } from 'react-i18next'
 import { EmptyState } from '@/components/EmptyState'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
+import { LegacyIndustryEvidenceNotice } from '@/components/industry-evidence/LegacyIndustryEvidenceNotice'
+import {
+  getVerifiedIndustryEvidenceSummaries,
+  hasLegacyIndustryEvidenceInSignals,
+} from '@/components/industry-evidence/industry-evidence'
+import { useAuth } from '@/contexts/AuthContext'
 import { useConvexResumeDetail, type ConvexResumeItem } from '@/hooks/useConvexResumes'
 import { getResumeIdentityKey } from '@/hooks/resume-filter-helpers'
+import { hasSystemAdminAccess } from '@/lib/workspace-access'
 import { SnippetCard } from '@/components/search/SnippetCard'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { ResumeSearchResultItem } from '@/components/search/search-types'
@@ -96,12 +103,23 @@ export function SearchResultsList({
   searchQuery,
 }: SearchResultsListProps) {
   const { t } = useTranslation()
+  const { memberships } = useAuth()
   const listRef = useRef<HTMLDivElement | null>(null)
   const loadMoreRef = useRef<HTMLDivElement | null>(null)
   const [scrollMargin, setScrollMargin] = useState(0)
   const [localDetailItem, setLocalDetailItem] = useState<ResumeSearchResultItem | null>(null)
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null)
   const hasAiSummaries = items.some((item) => Boolean((item.analysis ?? item.resume.analysis)?.summary))
+  const showIndustryEvidenceReviewGuidance = hasSystemAdminAccess(memberships)
+  const hasLegacyIndustryEvidence = useMemo(() =>
+    showIndustryEvidenceReviewGuidance && items.some((item) => {
+      const summaries = getVerifiedIndustryEvidenceSummaries(item.resume)
+      return hasLegacyIndustryEvidenceInSignals(
+        item.resume.ingestData?.roleSignals,
+        summaries,
+      )
+    }),
+  [items, showIndustryEvidenceReviewGuidance])
   const shouldVirtualize = items.length > 40 && expandedIds.size === 0 && !hasAiSummaries
   const expandedKey = expandedIds.values().next().value
   const expandedSourceItem = items.find((item) => item.key === expandedKey) ?? null
@@ -333,6 +351,9 @@ export function SearchResultsList({
 
   return (
     <div ref={listRef} className="space-y-4">
+      {hasLegacyIndustryEvidence && showIndustryEvidenceReviewGuidance ? (
+        <LegacyIndustryEvidenceNotice showReviewAction />
+      ) : null}
       {shouldVirtualize ? (
         <div
           className="relative"

@@ -1,8 +1,10 @@
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ResumeCard } from './ResumeCard'
 import type { ResumeItem } from '@/hooks/useResumes'
+
+const useAuthMock = vi.hoisted(() => vi.fn())
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -38,6 +40,10 @@ vi.mock('@/contexts/WorkspaceContext', () => ({
   useWorkspace: () => ({ slug: 'hr' }),
 }))
 
+vi.mock('@/contexts/AuthContext', () => ({
+  useAuth: () => useAuthMock(),
+}))
+
 const baseResume = {
   name: 'Alice',
   profileUrl: 'https://example.com/resume-1',
@@ -54,6 +60,10 @@ const baseResume = {
 }
 
 describe('ResumeCard brand-hit badges', () => {
+  beforeEach(() => {
+    useAuthMock.mockReturnValue({ memberships: [] })
+  })
+
   it('renders only approved verified industry evidence from the materialized projection', () => {
     render(
       <ResumeCard
@@ -372,10 +382,25 @@ describe('ResumeCard brand-hit badges', () => {
     expect(screen.queryByText('工程7年 (Industry verified)')).not.toBeInTheDocument()
   })
 
-  it('keeps the strongest verified role badge when no active role filter is provided', () => {
+  it('keeps the strongest current approved role badge when no active role filter is provided', () => {
     render(
       <ResumeCard
-        resume={baseResume}
+        resume={{
+          ...baseResume,
+          ingestData: {
+            verifiedIndustryEvidenceSummaries: [{
+              companyKey: 'acme-my',
+              companyName: 'Acme MY',
+              industryClass: 'cnc',
+              verificationLevel: 'verified',
+              verdictRevisionId: 'revision-acme-engineer',
+              evidenceSummary: 'Human-approved CNC machinery evidence.',
+              reviewedAt: Date.UTC(2026, 6, 20),
+              sourceCount: 0,
+              sourcePreviews: [],
+            }],
+          },
+        } as unknown as ResumeItem}
         onViewDetails={vi.fn()}
         roleSignals={[
           {
@@ -407,9 +432,12 @@ describe('ResumeCard brand-hit badges', () => {
             industryVerifiedYears: 7,
             matchedWorkEntries: [{
               companyName: 'Acme MY',
+              companyKey: 'acme-my',
               jobTitle: 'Application Engineer',
               years: 7,
               industryVerified: true,
+              verdictRevisionId: 'revision-acme-engineer',
+              directRoleMatch: true,
               matchedSignals: ['Application Engineer'],
             }],
             verifyIn: 'workHistory',
@@ -420,5 +448,39 @@ describe('ResumeCard brand-hit badges', () => {
 
     expect(screen.getByText('工程7年 (Industry verified)')).toBeInTheDocument()
     expect(screen.queryByText('销售5.4年')).not.toBeInTheDocument()
+  })
+
+  it('does not present a revisionless industry rules signal as verified', () => {
+    useAuthMock.mockReturnValue({
+      memberships: [{ workspaceSlug: 'dev', role: 'admin' }],
+    })
+
+    render(
+      <ResumeCard
+        resume={baseResume}
+        onViewDetails={vi.fn()}
+        roleSignals={[{
+          type: 'sales',
+          matchedSignals: ['CNC Sales'],
+          signalCount: 1,
+          occurrences: 1,
+          years: 4,
+          roleRelevantYears: 4,
+          industryVerifiedRelevantYears: 4,
+          industryVerifiedYears: 4,
+          matchedWorkEntries: [{
+            companyName: 'Vision Machine Tools',
+            jobTitle: 'Sales Engineer',
+            years: 4,
+            industryVerified: true,
+            matchedSignals: ['CNC Sales'],
+          }],
+          verifyIn: 'workHistory',
+        }]}
+      />,
+    )
+
+    expect(screen.queryByText('销售4年 (Industry verified)')).not.toBeInTheDocument()
+    expect(screen.getByText('Legacy rules signal')).toBeInTheDocument()
   })
 })

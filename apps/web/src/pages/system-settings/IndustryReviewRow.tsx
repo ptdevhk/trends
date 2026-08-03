@@ -18,6 +18,7 @@ export type ReviewRowError = {
 type IndustryReviewRowProps = {
   row: ReviewRow
   selected: boolean
+  targeted?: boolean
   pendingAction?: ReviewRowAction
   error?: ReviewRowError
   undoDisabled?: boolean
@@ -70,6 +71,7 @@ function reasonLabel(
 export function IndustryReviewRow({
   row,
   selected,
+  targeted = false,
   pendingAction,
   error,
   undoDisabled = false,
@@ -92,10 +94,11 @@ export function IndustryReviewRow({
 
   return (
     <article
-      className={`group rounded-lg border bg-card px-3 py-3 shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+      className={`${targeted ? 'scroll-mt-px' : 'scroll-mt-16'} group rounded-lg border bg-card px-3 py-3 shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
         selected ? 'border-primary bg-primary/[0.03]' : 'border-border hover:border-primary/40'
       }`}
       data-testid={`industry-review-row-${proposal.proposalId}`}
+      data-industry-review-target={targeted ? 'true' : undefined}
       aria-current={selected ? 'true' : undefined}
       tabIndex={0}
       onClick={onSelect}

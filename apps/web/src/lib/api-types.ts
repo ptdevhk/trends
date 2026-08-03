@@ -4598,6 +4598,65 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/resumes/{resumeId}/industry-review-targets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Resolve exact industry-evidence review targets for one resume
+         * @description System-admin-only resolver for opaque legacy work-entry fingerprints. It never matches employer display names.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    resumeId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Exact review targets, if any */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ResumeIndustryReviewTargetsResponse"];
+                    };
+                };
+                /** @description Dev system admin access required */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SimpleError"];
+                    };
+                };
+                /** @description Resume not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SimpleError"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/resumes/trigger-reingest": {
         parameters: {
             query?: never;
@@ -20369,6 +20428,28 @@ export interface components {
             source: "sample" | "convex";
             sample?: components["schemas"]["ResumeSample"];
             data: components["schemas"]["ResumeItem"];
+        };
+        ResumeIndustryReviewTargetsResponse: {
+            /** @enum {boolean} */
+            success: true;
+            data: components["schemas"]["ResumeIndustryReviewTargetsData"];
+        };
+        ResumeIndustryReviewTargetsData: {
+            targets: components["schemas"]["ResumeIndustryReviewTarget"][];
+        };
+        ResumeIndustryReviewTarget: {
+            workEntryKey: string;
+            employerLabel: string;
+            /** @enum {string} */
+            availability: "target_available";
+            proposalId: string;
+            /** @enum {string} */
+            status: "new" | "researching" | "ready_for_review" | "needs_more_evidence" | "approved" | "rejected" | "superseded";
+        } | {
+            workEntryKey: string;
+            employerLabel: string;
+            /** @enum {string} */
+            availability: "not_linked";
         };
         AnalyzeResponse: {
             /** @enum {boolean} */
